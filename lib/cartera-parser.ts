@@ -10,7 +10,7 @@ export interface VendedorCartera {
 export interface ClienteCartera {
   ruc: string;
   razon_social: string;
-  codigo_original: string | null;  // null si no cambio o no habia codigo previo
+  codigo_original: string | null;
   nuevo_codigo: string;
 }
 
@@ -46,27 +46,49 @@ function findCol(headers: string[], ...candidates: string[]): number {
   return -1;
 }
 
+// xlsx omite filas completamente vacias al usar { header: 1 }.
+// Por eso rawRows[0] = primera fila NO vacia = fila 2 del Excel (los encabezados).
+// rawRows[1+] = datos.
+function parseSheet(
+  wb: XLSX.WorkBook,
+  sheetName: string
+): { headers: string[]; rows: unknown[][] } {
+  const ws = wb.Sheets[sheetName];
+  if (!ws) throw new Error(`No se encontro la hoja "${sheetName}" (verifica el nombre exacto en el Excel)`);
+
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null });
+
+  // Buscar la primera fila que contenga al menos 2 celdas no vacias -> esa es la de encabezados
+  let headerIdx = -1;
+  for (let i = 0; i < raw.length; i++) {
+    const filled = (raw[i] as unknown[]).filter(c => c !== null && String(c).trim() !== '').length;
+    if (filled >= 2) { headerIdx = i; break; }
+  }
+  if (headerIdx < 0) throw new Error(`Hoja "${sheetName}": no se encontro fila de encabezados`);
+
+  const headers = (raw[headerIdx] as unknown[]).map(h => String(h ?? '').trim().toUpperCase());
+  const rows    = raw.slice(headerIdx + 1) as unknown[][];
+  return { headers, rows };
+}
+
 export function parsearCartera(buffer: ArrayBuffer): CarteraData {
   const wb = XLSX.read(buffer, { type: 'array' });
 
-  // ── Hoja BD VENDEDORES ──────────────────────────────────────────────────────
-  const wsV = wb.Sheets['BD VENDEDORES'];
-  if (!wsV) throw new Error('No se encontró la hoja "BD VENDEDORES" (verifica el nombre exacto)');
+  // -- Hoja BD VENDEDORES --------------------------------------------------
+  const { headers: hV, rows: rowsV } = parseSheet(wb, 'BD VENDEDORES');
 
-  const rawV = XLSX.utils.sheet_to_json<unknown[]>(wsV, { header: 1, defval: null });
-  if (rawV.length < 3) throw new Error('Hoja "BD VENDEDORES": menos de 3 filas, revisa el archivo');
-
-  const hV = (rawV[1] as unknown[]).map(h => String(h ?? '').trim().toUpperCase());
   const vZona = findCol(hV, 'ZONA');
   const vRep  = findCol(hV, 'REPRESENTANTE');
   const vCod  = findCol(hV, 'CODIGO');
   if (vZona < 0 || vRep < 0 || vCod < 0) {
-    throw new Error(`Hoja "BD VENDEDORES": columnas no encontradas. Encabezados detectados: ${hV.join(' | ')}`);
+    throw new Error(
+      `Hoja "BD VENDEDORES": columnas no encontradas. ` +
+      `Encabezados detectados: ${hV.filter(Boolean).join(' | ')}`
+    );
   }
 
   const vendedores: VendedorCartera[] = [];
-  for (let i = 2; i < rawV.length; i++) {
-    const row = rawV[i] as unknown[];
+  for (const row of rowsV) {
     const zona   = String(row[vZona] ?? '').trim();
     const rep    = String(row[vRep]  ?? '').trim();
     const codigo = normalCodigo(row[vCod]);
@@ -74,36 +96,33 @@ export function parsearCartera(buffer: ArrayBuffer): CarteraData {
     const { nombres, apellidos } = splitNombre(rep);
     vendedores.push({ zona, nombres, apellidos, codigo });
   }
+  if (vendedores.length === 0) {
+    throw new Error('Hoja "BD VENDEDORES": no se encontraron filas con ZONA + REPRESENTANTE + CODIGO completos');
+  }
 
-  if (vendedores.length === 0) throw new Error('Hoja "BD VENDEDORES": no se encontraron vendedores con datos completos');
+  // -- Hoja TABLA DE VENTA -------------------------------------------------
+  const { headers: hT, rows: rowsT } = parseSheet(wb, 'TABLA DE VENTA');
 
-  // ── Hoja TABLA DE VENTA ─────────────────────────────────────────────────────
-  const wsT = wb.Sheets['TABLA DE VENTA'];
-  if (!wsT) throw new Error('No se encontró la hoja "TABLA DE VENTA" (verifica el nombre exacto)');
-
-  const rawT = XLSX.utils.sheet_to_json<unknown[]>(wsT, { header: 1, defval: null });
-  if (rawT.length < 3) throw new Error('Hoja "TABLA DE VENTA": menos de 3 filas');
-
-  const hT = (rawT[1] as unknown[]).map(h => String(h ?? '').trim().toUpperCase());
   const tRuc      = findCol(hT, 'RUC');
   const tCliente  = findCol(hT, 'CLIENTE');
   const tCodOrig  = findCol(hT, 'CODIGO ORIGINAL');
   const tNuevoCod = findCol(hT, 'NUEVO CODIGO');
 
   if (tRuc < 0 || tCliente < 0 || tNuevoCod < 0) {
-    throw new Error(`Hoja "TABLA DE VENTA": faltan columnas RUC/CLIENTE/NUEVO CODIGO. Encabezados: ${hT.join(' | ')}`);
+    throw new Error(
+      `Hoja "TABLA DE VENTA": faltan columnas RUC / CLIENTE / NUEVO CODIGO. ` +
+      `Encabezados detectados: ${hT.filter(Boolean).join(' | ')}`
+    );
   }
 
   // Agrupar por RUC para detectar conflictos de NUEVO CODIGO
   const porRuc = new Map<string, { razon_social: string; orig: Set<string>; nuevo: Set<string> }>();
 
-  for (let i = 2; i < rawT.length; i++) {
-    const row      = rawT[i] as unknown[];
+  for (const row of rowsT) {
     const ruc      = String(row[tRuc]     ?? '').trim().replace(/\D/g, '');
     const cliente  = String(row[tCliente] ?? '').trim();
     const codOrig  = tCodOrig >= 0 ? normalCodigo(row[tCodOrig]) : '';
     const codNuevo = normalCodigo(row[tNuevoCod]);
-
     if (!ruc || ruc.length < 8 || !codNuevo) continue;
 
     if (!porRuc.has(ruc)) {
@@ -114,7 +133,7 @@ export function parsearCartera(buffer: ArrayBuffer): CarteraData {
     entry.nuevo.add(codNuevo);
   }
 
-  const clientes: ClienteCartera[] = [];
+  const clientes: ClienteCartera[]     = [];
   const conflictos: ConflictoCartera[] = [];
 
   Array.from(porRuc.entries()).forEach(([ruc, entry]) => {
@@ -122,8 +141,8 @@ export function parsearCartera(buffer: ArrayBuffer): CarteraData {
       conflictos.push({ ruc, razon_social: entry.razon_social, codigos: Array.from(entry.nuevo) });
       return;
     }
-    const nuevo_codigo   = Array.from(entry.nuevo)[0];
-    const origArr        = Array.from(entry.orig);
+    const nuevo_codigo    = Array.from(entry.nuevo)[0];
+    const origArr         = Array.from(entry.orig);
     const codigo_original = origArr.length === 1 && origArr[0] !== nuevo_codigo ? origArr[0] : null;
     clientes.push({ ruc, razon_social: entry.razon_social, codigo_original, nuevo_codigo });
   });
