@@ -14,7 +14,8 @@ export async function POST(req: NextRequest) {
     const clientesMap = new Map<string, string>(); // ruc → razon_social
     for (const f of filas) clientesMap.set(f.cliente_ruc, f.razon_social);
 
-    const clientesUpsert = [...clientesMap.entries()].map(([ruc, razon_social]) => ({
+    // Array.from evita el error de downlevelIteration con Map.entries()
+    const clientesUpsert = Array.from(clientesMap.entries()).map(([ruc, razon_social]) => ({
       ruc,
       razon_social,
     }));
@@ -58,17 +59,15 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Upsert facturas
-    // Construir mapa tipo+serie+numero → id para linkear NCs después
     const docKey = (tipo: string, serie: string, numero: number) => `${tipo}|${serie}|${numero}`;
     const idsPorClave = new Map<string, string>();
 
-    // Primero fetch de documentos ya existentes que sean referenciados por NCs
+    // Fetch de documentos referenciados por NCs que ya existen en BD
     const clavesRef = ncs
       .filter(n => n.doc_mod_tipo && n.doc_mod_serie && n.doc_mod_numero)
       .map(n => ({ tipo: n.doc_mod_tipo!, serie: n.doc_mod_serie!, numero: n.doc_mod_numero! }));
 
     if (clavesRef.length) {
-      // Buscamos las facturas referenciadas que ya existen en BD
       for (const ref of clavesRef) {
         const { data } = await db
           .from('documentos')
