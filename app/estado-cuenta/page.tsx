@@ -45,6 +45,15 @@ const fmtFecha = (s: string | null) => {
   return `${d}/${m}/${y}`;
 };
 
+// % de saldo ya vencido respecto al total
+const calcMorosidad = (row: HasAging): number | null => {
+  if (row.saldo_total <= 0) return null;
+  return ((row.d1_30 + row.d31_60 + row.d61_90 + row.mas90) / row.saldo_total) * 100;
+};
+
+const fmtPct = (pct: number | null): string =>
+  pct === null ? '—' : pct.toFixed(1) + '%';
+
 const sumarAging = (rows: HasAging[]) => ({
   vigente: rows.reduce((a, r) => a + r.vigente, 0),
   d1_30:   rows.reduce((a, r) => a + r.d1_30,   0),
@@ -227,7 +236,7 @@ export default function EstadoCuentaPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {facturas.map(f => {
-                    const es90 = f.rango_vencimiento === '+90';
+                    const es90 = f.rango_vencimiento === '+'+'90';
                     return (
                       <tr key={f.id} className={`hover:bg-gray-50 ${es90 ? 'bg-red-50/30' : ''}`}>
                         <td className="px-3 py-2 font-mono text-xs">{f.comprobante}</td>
@@ -282,10 +291,24 @@ interface AgingTotales {
   saldo_total: number; cant_facturas: number;
 }
 
+function MorosidadCell({ pct }: { pct: number | null }) {
+  if (pct === null) return <span className="text-gray-300">—</span>;
+  const alerta = pct > 50;
+  return (
+    <span className={`font-semibold ${
+      alerta ? 'text-red-600' : 'text-amber-600'
+    }`}>
+      {pct.toFixed(1)}%
+    </span>
+  );
+}
+
 function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
   titulo: string; col1Header: string; col2Header: string;
   filas: AgingFila[]; totales: AgingTotales;
 }) {
+  const totMorosidad = calcMorosidad(totales);
+
   return (
     <div>
       <h2 className="font-oswald text-lg text-gray-700 mb-4">{titulo}</h2>
@@ -302,6 +325,7 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
               <th className="px-4 py-3 text-right bg-red-50 text-red-500">+90 d</th>
               <th className="px-4 py-3 text-right">Total</th>
               <th className="px-4 py-3 text-right"># Fact.</th>
+              <th className="px-4 py-3 text-right">% Morosidad</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -319,6 +343,9 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
                 </td>
                 <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmt(f.saldo_total)}</td>
                 <td className="px-4 py-3 text-right text-xs text-gray-400">{f.cant_facturas}</td>
+                <td className="px-4 py-3 text-right text-xs">
+                  <MorosidadCell pct={calcMorosidad(f)} />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -332,6 +359,9 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
               <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.mas90)}</td>
               <td className="px-4 py-3 text-right text-gray-900">{fmt(totales.saldo_total)}</td>
               <td className="px-4 py-3 text-right text-gray-500">{totales.cant_facturas}</td>
+              <td className="px-4 py-3 text-right">
+                <MorosidadCell pct={totMorosidad} />
+              </td>
             </tr>
           </tfoot>
         </table>
