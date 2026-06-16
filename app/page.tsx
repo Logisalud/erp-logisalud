@@ -13,6 +13,13 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1">📥 Importar Nubefact</h2>
           <p className="text-gray-500 text-sm">Sube tu reporte Excel y carga los documentos.</p>
         </Link>
+        <Link
+          href="/importar-cartera"
+          className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-blue-400 hover:shadow-sm transition"
+        >
+          <h2 className="text-lg font-semibold mb-1">👥 Importar Cartera 2026</h2>
+          <p className="text-gray-500 text-sm">Carga vendedores, zonas y asigna clientes desde el Excel de cartera.</p>
+        </Link>
       </div>
     </main>
   );
