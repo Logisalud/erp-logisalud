@@ -146,7 +146,7 @@ export default function EstadoCuentaPage() {
             <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
             <p className="text-white/70 text-sm">Estado de cuenta &mdash; Cartera de cobranza</p>
           </div>
-          <a href="/" className="text-white/80 hover:text-white text-sm">← Menú</a>
+          <a href="/" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
         </div>
       </header>
 
@@ -161,7 +161,7 @@ export default function EstadoCuentaPage() {
             </button>
             {vendedorSel && (
               <>
-                <span className="text-gray-300">›</span>
+                <span className="text-gray-300">&rsaquo;</span>
                 <button onClick={goClientes}
                   className={vista === 'clientes' ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
                   {vendedorSel.vendedor_nombre ?? 'Sin asignar'}
@@ -170,7 +170,7 @@ export default function EstadoCuentaPage() {
             )}
             {clienteSel && (
               <>
-                <span className="text-gray-300">›</span>
+                <span className="text-gray-300">&rsaquo;</span>
                 <span className="text-gray-500 truncate max-w-xs">{clienteSel.razon_social}</span>
               </>
             )}
@@ -327,7 +327,7 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
             <tr className="text-xs uppercase tracking-wide text-gray-500 bg-gray-50">
               <th className="px-4 py-3 text-left">{col1Header}</th>
               <th className="px-4 py-3 text-left">{col2Header}</th>
-              <th className="px-4 py-3 text-right">Vigente</th>
+              <th className="px-4 py-3 text-right">Por vencer</th>
               <th className="px-4 py-3 text-right">1–30 d</th>
               <th className="px-4 py-3 text-right">31–60 d</th>
               <th className="px-4 py-3 text-right">61–90 d</th>
