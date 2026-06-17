@@ -3,7 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 interface SaldoRow {
   cliente_ruc: string; razon_social: string;
-  saldo_pendiente: number; rango_vencimiento: string;
+  saldo_pendiente: number;
+  vigente: number; d1_30: number; d31_60: number; d61_90: number; mas90: number;
 }
 
 interface GrupoCliente {
@@ -23,7 +24,7 @@ export async function GET(
 
     let query = db
       .from('v_saldos')
-      .select('cliente_ruc, razon_social, saldo_pendiente, rango_vencimiento')
+      .select('cliente_ruc, razon_social, saldo_pendiente, vigente, d1_30, d31_60, d61_90, mas90')
       .limit(10000);
 
     query = vendedorId === 'sin-asignar'
@@ -45,15 +46,13 @@ export async function GET(
         });
       }
       const g = grupos.get(row.cliente_ruc)!;
-      const s = Number(row.saldo_pendiente) || 0;
-      g.saldo_total += s; g.cant_facturas++;
-      switch (row.rango_vencimiento) {
-        case 'vigente': case 'sin_vencimiento': g.vigente += s; break;
-        case '1-30':  g.d1_30  += s; break;
-        case '31-60': g.d31_60 += s; break;
-        case '61-90': g.d61_90 += s; break;
-        case '+90':   g.mas90  += s; break;
-      }
+      g.saldo_total   += Number(row.saldo_pendiente) || 0;
+      g.vigente       += Number(row.vigente)         || 0;
+      g.d1_30         += Number(row.d1_30)           || 0;
+      g.d31_60        += Number(row.d31_60)          || 0;
+      g.d61_90        += Number(row.d61_90)          || 0;
+      g.mas90         += Number(row.mas90)           || 0;
+      g.cant_facturas += 1;
     }
 
     const clientes = Array.from(grupos.values()).sort((a, b) => b.saldo_total - a.saldo_total);
