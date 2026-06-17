@@ -22,7 +22,7 @@ interface ClienteResumen {
 interface FacturaRow {
   id: string; comprobante: string;
   fecha_emision: string; fecha_vencimiento: string | null;
-  moneda: string; importe_total: number;
+  moneda: string; importe_total: number; forma_pago: string | null;
   total_nc: number; total_nd: number; total_pagado: number; saldo_pendiente: number;
   dias_retraso: number; rango_vencimiento: string;
 }
@@ -45,14 +45,10 @@ const fmtFecha = (s: string | null) => {
   return `${d}/${m}/${y}`;
 };
 
-// % de saldo ya vencido respecto al total
 const calcMorosidad = (row: HasAging): number | null => {
   if (row.saldo_total <= 0) return null;
   return ((row.d1_30 + row.d31_60 + row.d61_90 + row.mas90) / row.saldo_total) * 100;
 };
-
-const fmtPct = (pct: number | null): string =>
-  pct === null ? '—' : pct.toFixed(1) + '%';
 
 const sumarAging = (rows: HasAging[]) => ({
   vigente: rows.reduce((a, r) => a + r.vigente, 0),
@@ -74,22 +70,31 @@ export default function EstadoCuentaPage() {
   const [vendedorSel, setVendedorSel] = useState<VendedorResumen | null>(null);
   const [clienteSel, setClienteSel]   = useState<ClienteResumen | null>(null);
   const [busqueda, setBusqueda]       = useState('');
+  const [soloDeuda, setSoloDeuda]     = useState(true);  // default: solo con saldo > 0
   const [cargando, setCargando]       = useState(true);
   const [errorMsg, setErrorMsg]       = useState('');
 
-  useEffect(() => {
-    fetch('/api/estado-cuenta/resumen')
-      .then(r => r.json())
-      .then(d => { if (d.error) throw new Error(d.error); setResumen(d.resumen); })
-      .catch(e => setErrorMsg(String(e)))
-      .finally(() => setCargando(false));
+  const qs = (extra?: Record<string,string>) =>
+    new URLSearchParams({ solo_deuda: String(soloDeuda), ...extra }).toString();
+
+  const cargarResumen = useCallback(async (sd: boolean) => {
+    setCargando(true); setErrorMsg('');
+    try {
+      const res = await fetch(`/api/estado-cuenta/resumen?solo_deuda=${sd}`);
+      const d   = await res.json();
+      if (d.error) throw new Error(d.error);
+      setResumen(d.resumen);
+    } catch (e) { setErrorMsg(String(e)); }
+    finally     { setCargando(false); }
   }, []);
 
-  const drillVendedor = useCallback(async (v: VendedorResumen) => {
+  useEffect(() => { cargarResumen(soloDeuda); }, [soloDeuda, cargarResumen]);
+
+  const drillVendedor = useCallback(async (v: VendedorResumen, sd: boolean) => {
     setVendedorSel(v); setBusqueda(''); setCargando(true); setErrorMsg('');
     try {
       const id  = v.vendedor_id ?? 'sin-asignar';
-      const res = await fetch(`/api/estado-cuenta/vendedor/${id}`);
+      const res = await fetch(`/api/estado-cuenta/vendedor/${id}?solo_deuda=${sd}`);
       const d   = await res.json();
       if (d.error) throw new Error(d.error);
       setClientes(d.clientes); setVista('clientes');
@@ -97,10 +102,10 @@ export default function EstadoCuentaPage() {
     finally     { setCargando(false); }
   }, []);
 
-  const drillCliente = useCallback(async (c: ClienteResumen) => {
+  const drillCliente = useCallback(async (c: ClienteResumen, sd: boolean) => {
     setClienteSel(c); setBusqueda(''); setCargando(true); setErrorMsg('');
     try {
-      const res = await fetch(`/api/estado-cuenta/cliente/${c.cliente_ruc}`);
+      const res = await fetch(`/api/estado-cuenta/cliente/${c.cliente_ruc}?solo_deuda=${sd}`);
       const d   = await res.json();
       if (d.error) throw new Error(d.error);
       setFacturas(d.facturas); setVista('facturas');
@@ -111,8 +116,21 @@ export default function EstadoCuentaPage() {
   const goVendedores = () => { setVista('vendedores'); setVendedorSel(null); setClienteSel(null); setBusqueda(''); };
   const goClientes   = () => { setVista('clientes');   setClienteSel(null);  setBusqueda(''); };
 
+  // Toggle: recarga el nivel actual con el nuevo filtro
+  const toggleSoloDeuda = async () => {
+    const nuevo = !soloDeuda;
+    setSoloDeuda(nuevo);
+    if (vista === 'vendedores') {
+      // cargarResumen se dispara por el useEffect
+    } else if (vista === 'clientes' && vendedorSel) {
+      await drillVendedor(vendedorSel, nuevo);
+    } else if (vista === 'facturas' && clienteSel) {
+      await drillCliente(clienteSel, nuevo);
+    }
+  };
+
   const q = busqueda.toLowerCase();
-  const resumenFiltrado  = resumen.filter(v =>
+  const resumenFiltrado   = resumen.filter(v =>
     !q || (v.vendedor_nombre ?? '').toLowerCase().includes(q) ||
            (v.vendedor_codigo ?? '').toLowerCase().includes(q) ||
            (v.zona_nombre ?? '').toLowerCase().includes(q));
@@ -122,12 +140,14 @@ export default function EstadoCuentaPage() {
   const totV = sumarAging(resumenFiltrado);
   const totC = sumarAging(clientesFiltrados);
   const totF = {
-    importe:  facturas.reduce((a, f) => a + Number(f.importe_total),  0),
-    nc:       facturas.reduce((a, f) => a + Number(f.total_nc),       0),
-    nd:       facturas.reduce((a, f) => a + Number(f.total_nd),       0),
-    pagado:   facturas.reduce((a, f) => a + Number(f.total_pagado),   0),
-    saldo:    facturas.reduce((a, f) => a + Number(f.saldo_pendiente),0),
+    importe: facturas.reduce((a, f) => a + Number(f.importe_total),  0),
+    nc:      facturas.reduce((a, f) => a + Number(f.total_nc),       0),
+    nd:      facturas.reduce((a, f) => a + Number(f.total_nd),       0),
+    pagado:  facturas.reduce((a, f) => a + Number(f.total_pagado),   0),
+    saldo:   facturas.reduce((a, f) => a + Number(f.saldo_pendiente),0),
   };
+
+  void qs; // suppress unused warning
 
   return (
     <div className="min-h-screen bg-gray-50 font-poppins">
@@ -145,28 +165,47 @@ export default function EstadoCuentaPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
 
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm mb-5">
-          <button onClick={goVendedores}
-            className={vista === 'vendedores' ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
-            Por vendedor
-          </button>
-          {vendedorSel && (
-            <>
-              <span className="text-gray-300">›</span>
-              <button onClick={goClientes}
-                className={vista === 'clientes' ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
-                {vendedorSel.vendedor_nombre ?? 'Sin asignar'}
-              </button>
-            </>
-          )}
-          {clienteSel && (
-            <>
-              <span className="text-gray-300">›</span>
-              <span className="text-gray-500 truncate max-w-xs">{clienteSel.razon_social}</span>
-            </>
-          )}
-        </nav>
+        {/* Breadcrumb + toggle */}
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <nav className="flex items-center gap-2 text-sm">
+            <button onClick={goVendedores}
+              className={vista === 'vendedores' ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
+              Por vendedor
+            </button>
+            {vendedorSel && (
+              <>
+                <span className="text-gray-300">›</span>
+                <button onClick={goClientes}
+                  className={vista === 'clientes' ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
+                  {vendedorSel.vendedor_nombre ?? 'Sin asignar'}
+                </button>
+              </>
+            )}
+            {clienteSel && (
+              <>
+                <span className="text-gray-300">›</span>
+                <span className="text-gray-500 truncate max-w-xs">{clienteSel.razon_social}</span>
+              </>
+            )}
+          </nav>
+
+          {/* Interruptor solo-deuda */}
+          <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+            <div
+              onClick={toggleSoloDeuda}
+              className={`relative w-10 h-5 rounded-full transition-colors ${
+                soloDeuda ? 'bg-logisalud-green' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                soloDeuda ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </div>
+            <span className="text-gray-600">
+              {soloDeuda ? 'Solo cartera pendiente' : 'Incluyendo pagados / contado'}
+            </span>
+          </label>
+        </div>
 
         {/* Buscador */}
         {vista !== 'facturas' && (
@@ -180,39 +219,39 @@ export default function EstadoCuentaPage() {
         {errorMsg && <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4 text-sm">{errorMsg}</div>}
         {cargando  && <div className="text-center py-24 text-gray-400">Cargando…</div>}
 
-        {/* NIVEL 1 — Vendedores */}
+        {/* NIVEL 1 */}
         {!cargando && vista === 'vendedores' && (
           <AgingTable
             titulo={`${resumenFiltrado.length} vendedores`}
             col1Header="Vendedor" col2Header="Zona"
             filas={resumenFiltrado.map(v => ({
-              key:   v.vendedor_id ?? '__sin__',
-              col1:  v.vendedor_codigo ? `${v.vendedor_codigo} — ${v.vendedor_nombre}` : 'Sin asignar',
-              col2:  v.zona_nombre ?? '—',
+              key:  v.vendedor_id ?? '__sin__',
+              col1: v.vendedor_codigo ? `${v.vendedor_codigo} — ${v.vendedor_nombre}` : 'Sin asignar',
+              col2: v.zona_nombre ?? '—',
               ...v,
-              onClick: () => drillVendedor(v),
+              onClick: () => drillVendedor(v, soloDeuda),
             }))}
             totales={totV}
           />
         )}
 
-        {/* NIVEL 2 — Clientes */}
+        {/* NIVEL 2 */}
         {!cargando && vista === 'clientes' && (
           <AgingTable
             titulo={`${clientesFiltrados.length} clientes — ${vendedorSel?.vendedor_nombre ?? 'Sin asignar'}`}
             col1Header="Cliente" col2Header="RUC"
             filas={clientesFiltrados.map(c => ({
-              key:   c.cliente_ruc,
-              col1:  c.razon_social,
-              col2:  c.cliente_ruc,
+              key:  c.cliente_ruc,
+              col1: c.razon_social,
+              col2: c.cliente_ruc,
               ...c,
-              onClick: () => drillCliente(c),
+              onClick: () => drillCliente(c, soloDeuda),
             }))}
             totales={totC}
           />
         )}
 
-        {/* NIVEL 3 — Facturas */}
+        {/* NIVEL 3 */}
         {!cargando && vista === 'facturas' && (
           <div>
             <h2 className="font-oswald text-lg text-gray-700 mb-4">
@@ -225,6 +264,7 @@ export default function EstadoCuentaPage() {
                     <th className="px-3 py-3 text-left">Comprobante</th>
                     <th className="px-3 py-3 text-left">Emisión</th>
                     <th className="px-3 py-3 text-left">Vencimiento</th>
+                    <th className="px-3 py-3 text-left">Pago</th>
                     <th className="px-3 py-3 text-right">Importe</th>
                     <th className="px-3 py-3 text-right text-green-600">NC</th>
                     <th className="px-3 py-3 text-right text-orange-500">ND</th>
@@ -236,17 +276,29 @@ export default function EstadoCuentaPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {facturas.map(f => {
-                    const es90 = f.rango_vencimiento === '+'+'90';
+                    const es90   = f.rango_vencimiento === '+90';
+                    const pagado = f.rango_vencimiento === 'pagado';
                     return (
-                      <tr key={f.id} className={`hover:bg-gray-50 ${es90 ? 'bg-red-50/30' : ''}`}>
+                      <tr key={f.id} className={`hover:bg-gray-50 ${
+                        es90 ? 'bg-red-50/30' : pagado ? 'bg-gray-50/60' : ''
+                      }`}>
                         <td className="px-3 py-2 font-mono text-xs">{f.comprobante}</td>
                         <td className="px-3 py-2 text-xs">{fmtFecha(f.fecha_emision)}</td>
                         <td className="px-3 py-2 text-xs">{fmtFecha(f.fecha_vencimiento)}</td>
+                        <td className="px-3 py-2 text-xs">
+                          <span className={`px-1.5 py-0.5 rounded text-xs ${
+                            f.forma_pago === 'CONTADO'
+                              ? 'bg-gray-100 text-gray-500'
+                              : 'bg-blue-50 text-blue-600'
+                          }`}>{f.forma_pago ?? '—'}</span>
+                        </td>
                         <td className="px-3 py-2 text-right text-xs">{fmt(Number(f.importe_total))}</td>
                         <td className="px-3 py-2 text-right text-xs text-green-600">{Number(f.total_nc) > 0 ? fmt(Number(f.total_nc)) : '—'}</td>
                         <td className="px-3 py-2 text-right text-xs text-orange-500">{Number(f.total_nd) > 0 ? fmt(Number(f.total_nd)) : '—'}</td>
                         <td className="px-3 py-2 text-right text-xs text-blue-500">{Number(f.total_pagado) > 0 ? fmt(Number(f.total_pagado)) : '—'}</td>
-                        <td className={`px-3 py-2 text-right text-xs font-semibold ${es90 ? 'text-red-600' : 'text-gray-800'}`}>
+                        <td className={`px-3 py-2 text-right text-xs font-semibold ${
+                          es90 ? 'text-red-600' : pagado ? 'text-gray-400' : 'text-gray-800'
+                        }`}>
                           {fmt(Number(f.saldo_pendiente))}
                         </td>
                         <td className={`px-3 py-2 text-right text-xs ${es90 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
@@ -259,7 +311,7 @@ export default function EstadoCuentaPage() {
                 </tbody>
                 <tfoot className="bg-gray-50 border-t-2 border-gray-200 text-xs font-semibold">
                   <tr>
-                    <td colSpan={3} className="px-3 py-3 text-gray-700">TOTAL</td>
+                    <td colSpan={4} className="px-3 py-3 text-gray-700">TOTAL</td>
                     <td className="px-3 py-3 text-right">{fmt(totF.importe)}</td>
                     <td className="px-3 py-3 text-right text-green-600">{fmt(totF.nc)}</td>
                     <td className="px-3 py-3 text-right text-orange-500">{fmt(totF.nd)}</td>
@@ -293,11 +345,8 @@ interface AgingTotales {
 
 function MorosidadCell({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-gray-300">—</span>;
-  const alerta = pct > 50;
   return (
-    <span className={`font-semibold ${
-      alerta ? 'text-red-600' : 'text-amber-600'
-    }`}>
+    <span className={`font-semibold ${pct > 50 ? 'text-red-600' : 'text-amber-600'}`}>
       {pct.toFixed(1)}%
     </span>
   );
@@ -307,8 +356,6 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
   titulo: string; col1Header: string; col2Header: string;
   filas: AgingFila[]; totales: AgingTotales;
 }) {
-  const totMorosidad = calcMorosidad(totales);
-
   return (
     <div>
       <h2 className="font-oswald text-lg text-gray-700 mb-4">{titulo}</h2>
@@ -343,9 +390,7 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
                 </td>
                 <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmt(f.saldo_total)}</td>
                 <td className="px-4 py-3 text-right text-xs text-gray-400">{f.cant_facturas}</td>
-                <td className="px-4 py-3 text-right text-xs">
-                  <MorosidadCell pct={calcMorosidad(f)} />
-                </td>
+                <td className="px-4 py-3 text-right text-xs"><MorosidadCell pct={calcMorosidad(f)} /></td>
               </tr>
             ))}
           </tbody>
@@ -359,9 +404,7 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
               <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.mas90)}</td>
               <td className="px-4 py-3 text-right text-gray-900">{fmt(totales.saldo_total)}</td>
               <td className="px-4 py-3 text-right text-gray-500">{totales.cant_facturas}</td>
-              <td className="px-4 py-3 text-right">
-                <MorosidadCell pct={totMorosidad} />
-              </td>
+              <td className="px-4 py-3 text-right"><MorosidadCell pct={calcMorosidad(totales)} /></td>
             </tr>
           </tfoot>
         </table>
@@ -374,6 +417,7 @@ function RangoBadge({ rango }: { rango: string }) {
   const estilos: Record<string, string> = {
     'vigente':         'bg-green-100 text-green-700',
     'sin_vencimiento': 'bg-gray-100 text-gray-500',
+    'pagado':          'bg-gray-100 text-gray-400',
     '1-30':            'bg-yellow-100 text-yellow-700',
     '31-60':           'bg-orange-100 text-orange-600',
     '61-90':           'bg-red-100 text-red-600',

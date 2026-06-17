@@ -10,30 +10,22 @@ export async function POST(req: NextRequest) {
     const db = supabaseAdmin();
     const resultados = { insertados: 0, actualizados: 0, errores: [] as string[] };
 
-    // 1. Upsert de clientes (solo crea si no existe; no sobreescribe ubigeo/dirección)
-    const clientesMap = new Map<string, string>(); // ruc → razon_social
+    // 1. Upsert de clientes
+    const clientesMap = new Map<string, string>();
     for (const f of filas) clientesMap.set(f.cliente_ruc, f.razon_social);
-
-    // Array.from evita el error de downlevelIteration con Map.entries()
-    const clientesUpsert = Array.from(clientesMap.entries()).map(([ruc, razon_social]) => ({
-      ruc,
-      razon_social,
-    }));
-
+    const clientesUpsert = Array.from(clientesMap.entries()).map(([ruc, razon_social]) => ({ ruc, razon_social }));
     const { error: errClientes } = await db
       .from('clientes')
       .upsert(clientesUpsert, { onConflict: 'ruc', ignoreDuplicates: true });
-
     if (errClientes) {
       return NextResponse.json({ error: `Error al insertar clientes: ${errClientes.message}` }, { status: 500 });
     }
 
-    // 2. Separar facturas y NCs; las facturas primero para que las NCs puedan referenciarlas
+    // 2. Separar facturas y NCs
     const facturas = filas.filter(f => f.tipo === '01');
     const ncs      = filas.filter(f => f.tipo === '07');
 
-    // Función auxiliar: upsert de un documento y retorna su id
-    async function upsertDocumento(f: FilaNubefact, doc_relacionado_id?: string | null) {
+    const upsertDocumento = async (f: FilaNubefact, doc_relacionado_id?: string | null) => {
       const payload: Record<string, unknown> = {
         tipo:              f.tipo,
         serie:             f.serie,
@@ -44,40 +36,34 @@ export async function POST(req: NextRequest) {
         moneda:            f.moneda,
         tipo_cambio:       f.tipo_cambio ?? null,
         importe_total:     f.importe_total,
+        forma_pago:        f.forma_pago,
         anulado:           f.anulado,
         ...(doc_relacionado_id !== undefined && { documento_relacionado_id: doc_relacionado_id }),
       };
-
       const { data, error } = await db
         .from('documentos')
         .upsert(payload, { onConflict: 'tipo,serie,numero' })
         .select('id')
         .single();
-
       if (error) throw new Error(`Fila ${f.fila_excel} (${f.serie}-${f.numero}): ${error.message}`);
       return data.id as string;
-    }
+    };
 
     // 3. Upsert facturas
     const docKey = (tipo: string, serie: string, numero: number) => `${tipo}|${serie}|${numero}`;
     const idsPorClave = new Map<string, string>();
 
-    // Fetch de documentos referenciados por NCs que ya existen en BD
     const clavesRef = ncs
       .filter(n => n.doc_mod_tipo && n.doc_mod_serie && n.doc_mod_numero)
       .map(n => ({ tipo: n.doc_mod_tipo!, serie: n.doc_mod_serie!, numero: n.doc_mod_numero! }));
 
-    if (clavesRef.length) {
-      for (const ref of clavesRef) {
-        const { data } = await db
-          .from('documentos')
-          .select('id, tipo, serie, numero')
-          .eq('tipo',   ref.tipo)
-          .eq('serie',  ref.serie)
-          .eq('numero', ref.numero)
-          .maybeSingle();
-        if (data) idsPorClave.set(docKey(data.tipo, data.serie, data.numero), data.id);
-      }
+    for (const ref of clavesRef) {
+      const { data } = await db
+        .from('documentos')
+        .select('id, tipo, serie, numero')
+        .eq('tipo', ref.tipo).eq('serie', ref.serie).eq('numero', ref.numero)
+        .maybeSingle();
+      if (data) idsPorClave.set(docKey(data.tipo, data.serie, data.numero), data.id);
     }
 
     for (const f of facturas) {
@@ -85,21 +71,16 @@ export async function POST(req: NextRequest) {
         const id = await upsertDocumento(f);
         idsPorClave.set(docKey(f.tipo, f.serie, f.numero), id);
         resultados.insertados++;
-      } catch (e) {
-        resultados.errores.push(String(e));
-      }
+      } catch (e) { resultados.errores.push(String(e)); }
     }
 
-    // 4. Upsert notas de crédito con referencia
+    // 4. Upsert NCs
     for (const f of ncs) {
       try {
-        const claveRef = docKey(f.doc_mod_tipo!, f.doc_mod_serie!, f.doc_mod_numero!);
-        const relId = idsPorClave.get(claveRef) ?? null;
+        const relId = idsPorClave.get(docKey(f.doc_mod_tipo!, f.doc_mod_serie!, f.doc_mod_numero!)) ?? null;
         await upsertDocumento(f, relId);
         resultados.insertados++;
-      } catch (e) {
-        resultados.errores.push(String(e));
-      }
+      } catch (e) { resultados.errores.push(String(e)); }
     }
 
     return NextResponse.json(resultados);
