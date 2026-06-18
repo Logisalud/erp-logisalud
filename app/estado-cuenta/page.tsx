@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // ---- Tipos ----------------------------------------------------------------
 
@@ -17,6 +17,12 @@ interface ClienteResumen {
   cliente_ruc: string; razon_social: string;
   vigente: number; d1_30: number; d31_60: number; d61_90: number; mas90: number;
   saldo_total: number; cant_facturas: number;
+}
+
+interface ClienteBuscado extends ClienteResumen {
+  vendedor_nombre: string | null;
+  vendedor_codigo: string | null;
+  zona_nombre: string | null;
 }
 
 interface FacturaRow {
@@ -68,10 +74,45 @@ export default function EstadoCuentaPage() {
   const [facturas, setFacturas]       = useState<FacturaRow[]>([]);
   const [vendedorSel, setVendedorSel] = useState<VendedorResumen | null>(null);
   const [clienteSel, setClienteSel]   = useState<ClienteResumen | null>(null);
+  const [clienteInfo, setClienteInfo] = useState<{ vendedor_nombre: string | null; vendedor_codigo: string | null; zona_nombre: string | null } | null>(null);
   const [busqueda, setBusqueda]       = useState('');
   const [soloDeuda, setSoloDeuda]     = useState(true);
   const [cargando, setCargando]       = useState(true);
   const [errorMsg, setErrorMsg]       = useState('');
+
+  // Búsqueda directa de cliente
+  const [busqDirecta, setBusqDirecta]         = useState('');
+  const [sugerencias, setSugerencias]         = useState<ClienteBuscado[]>([]);
+  const [buscandoSug, setBuscandoSug]         = useState(false);
+  const [mostrarDropdown, setMostrarDropdown] = useState(false);
+  const busqRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (busqRef.current && !busqRef.current.contains(e.target as Node)) {
+        setMostrarDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Debounce búsqueda directa
+  useEffect(() => {
+    if (busqDirecta.length < 2) { setSugerencias([]); setMostrarDropdown(false); return; }
+    const timer = setTimeout(async () => {
+      setBuscandoSug(true);
+      try {
+        const res = await fetch(`/api/clientes/buscar?q=${encodeURIComponent(busqDirecta)}`);
+        const d = await res.json();
+        setSugerencias(d.clientes ?? []);
+        setMostrarDropdown(true);
+      } catch { setSugerencias([]); }
+      finally { setBuscandoSug(false); }
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [busqDirecta]);
 
   const cargarResumen = useCallback(async (sd: boolean) => {
     setCargando(true); setErrorMsg('');
@@ -88,6 +129,7 @@ export default function EstadoCuentaPage() {
 
   const drillVendedor = useCallback(async (v: VendedorResumen, sd: boolean) => {
     setVendedorSel(v); setBusqueda(''); setCargando(true); setErrorMsg('');
+    setClienteInfo(null);
     try {
       const id  = v.vendedor_id ?? 'sin-asignar';
       const res = await fetch(`/api/estado-cuenta/vendedor/${id}?solo_deuda=${sd}`);
@@ -109,8 +151,23 @@ export default function EstadoCuentaPage() {
     finally     { setCargando(false); }
   }, []);
 
-  const goVendedores = () => { setVista('vendedores'); setVendedorSel(null); setClienteSel(null); setBusqueda(''); };
-  const goClientes   = () => { setVista('clientes');   setClienteSel(null);  setBusqueda(''); };
+  const seleccionarClienteDirecto = useCallback(async (c: ClienteBuscado) => {
+    setMostrarDropdown(false);
+    setBusqDirecta(c.razon_social);
+    setVendedorSel(null);
+    setClienteInfo({
+      vendedor_nombre: c.vendedor_nombre,
+      vendedor_codigo: c.vendedor_codigo,
+      zona_nombre: c.zona_nombre,
+    });
+    await drillCliente(c, soloDeuda);
+  }, [drillCliente, soloDeuda]);
+
+  const goVendedores = () => {
+    setVista('vendedores'); setVendedorSel(null); setClienteSel(null);
+    setBusqueda(''); setBusqDirecta(''); setSugerencias([]); setClienteInfo(null);
+  };
+  const goClientes   = () => { setVista('clientes'); setClienteSel(null); setBusqueda(''); setClienteInfo(null); };
 
   const toggleSoloDeuda = async () => {
     const nuevo = !soloDeuda;
@@ -152,11 +209,80 @@ export default function EstadoCuentaPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
 
+        {/* Búsqueda directa de cliente */}
+        <div ref={busqRef} className="relative mb-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Búsqueda directa por cliente</p>
+          <div className="relative max-w-lg">
+            <input
+              type="text"
+              value={busqDirecta}
+              onChange={e => { setBusqDirecta(e.target.value); }}
+              onFocus={() => sugerencias.length > 0 && setMostrarDropdown(true)}
+              placeholder="Buscar por RUC o razón social…"
+              className="w-full px-4 py-2.5 pr-10 border-2 border-logisalud-teal rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal/40 bg-white"
+            />
+            {buscandoSug && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">⏳</span>
+            )}
+            {busqDirecta && !buscandoSug && (
+              <button
+                onClick={() => { setBusqDirecta(''); setSugerencias([]); setMostrarDropdown(false); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+              >×</button>
+            )}
+          </div>
+
+          {mostrarDropdown && sugerencias.length > 0 && (
+            <div className="absolute z-50 mt-1 w-full max-w-lg bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+              {sugerencias.map(c => {
+                const vencido = c.d1_30 + c.d31_60 + c.d61_90 + c.mas90;
+                return (
+                  <button
+                    key={c.cliente_ruc}
+                    onMouseDown={e => { e.preventDefault(); seleccionarClienteDirecto(c); }}
+                    className="w-full text-left px-4 py-3 hover:bg-logisalud-green/5 border-b border-gray-100 last:border-0 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-sm text-gray-900">{c.razon_social}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {c.cliente_ruc}
+                          {c.vendedor_nombre && (
+                            <span className="ml-2 text-gray-300">· {c.vendedor_nombre}{c.zona_nombre ? ` · ${c.zona_nombre}` : ''}</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs font-semibold text-gray-800">{fmt(c.saldo_total)}</p>
+                        {vencido > 0 && (
+                          <p className="text-xs text-orange-600">{fmt(vencido)} vencido</p>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {mostrarDropdown && sugerencias.length === 0 && !buscandoSug && busqDirecta.length >= 2 && (
+            <div className="absolute z-50 mt-1 w-full max-w-lg bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm text-gray-400">
+              No se encontraron clientes
+            </div>
+          )}
+        </div>
+
+        {/* Separador */}
+        <div className="flex items-center gap-3 mb-5">
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">O navega por vendedor</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
         {/* Breadcrumb + toggle */}
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <nav className="flex items-center gap-2 text-sm">
             <button onClick={goVendedores}
-              className={vista === 'vendedores' ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
+              className={vista === 'vendedores' && !clienteSel ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
               Por vendedor
             </button>
             {vendedorSel && (
@@ -220,9 +346,21 @@ export default function EstadoCuentaPage() {
 
         {!cargando && vista === 'facturas' && (
           <div>
-            <h2 className="font-oswald text-lg text-gray-700 mb-4">
-              {clienteSel?.razon_social} &mdash; {facturas.length} factura{facturas.length !== 1 ? 's' : ''}
-            </h2>
+            <div className="mb-4">
+              <h2 className="font-oswald text-lg text-gray-700">
+                {clienteSel?.razon_social} &mdash; {facturas.length} factura{facturas.length !== 1 ? 's' : ''}
+              </h2>
+              {clienteInfo && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Vendedor: <span className="text-gray-600 font-medium">
+                    {clienteInfo.vendedor_codigo ? `${clienteInfo.vendedor_codigo} — ` : ''}{clienteInfo.vendedor_nombre ?? 'Sin asignar'}
+                  </span>
+                  {clienteInfo.zona_nombre && (
+                    <> &nbsp;·&nbsp; Zona: <span className="text-gray-600 font-medium">{clienteInfo.zona_nombre}</span></>
+                  )}
+                </p>
+              )}
+            </div>
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
               <table className="w-full text-sm">
                 <thead>
