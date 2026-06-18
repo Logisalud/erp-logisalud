@@ -31,6 +31,20 @@ interface FacturaRow {
   moneda: string; importe_total: number; forma_pago: string | null;
   total_nc: number; total_nd: number; total_pagado: number; saldo_pendiente: number;
   dias_retraso: number; rango_vencimiento: string;
+  tiene_letras: boolean;
+}
+
+interface LetraRow {
+  id: string;
+  documento_id: string;
+  numero_letra: string;
+  importe: number;
+  fecha_giro: string | null;
+  fecha_vencimiento: string;
+  estado: 'en_cartera' | 'en_banco' | 'pagada' | 'protestada';
+  banco: string | null;
+  observaciones: string | null;
+  fecha_pago: string | null;
 }
 
 interface HasAging {
@@ -51,8 +65,8 @@ const fmtFecha = (s: string | null) => {
   return `${d}/${m}/${y}`;
 };
 
-const calcVencido    = (r: HasAging) => r.d1_30 + r.d31_60 + r.d61_90 + r.mas90;
-const calcMorosidad  = (r: HasAging): number | null =>
+const calcVencido   = (r: HasAging) => r.d1_30 + r.d31_60 + r.d61_90 + r.mas90;
+const calcMorosidad = (r: HasAging): number | null =>
   r.saldo_total <= 0 ? null : (calcVencido(r) / r.saldo_total) * 100;
 
 const sumarAging = (rows: HasAging[]) => ({
@@ -65,6 +79,15 @@ const sumarAging = (rows: HasAging[]) => ({
   cant_facturas: rows.reduce((a, r) => a + r.cant_facturas, 0),
 });
 
+const proximaLetraPendiente = (letras: LetraRow[]): LetraRow | null => {
+  const pendientes = letras
+    .filter(l => l.estado !== 'pagada')
+    .sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento));
+  return pendientes[0] ?? null;
+};
+
+const hoy = new Date().toISOString().slice(0, 10);
+
 // ---- Componente principal -------------------------------------------------
 
 export default function EstadoCuentaPage() {
@@ -72,6 +95,8 @@ export default function EstadoCuentaPage() {
   const [resumen, setResumen]         = useState<VendedorResumen[]>([]);
   const [clientes, setClientes]       = useState<ClienteResumen[]>([]);
   const [facturas, setFacturas]       = useState<FacturaRow[]>([]);
+  const [letrasMap, setLetrasMap]     = useState<Record<string, LetraRow[]>>({});
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [vendedorSel, setVendedorSel] = useState<VendedorResumen | null>(null);
   const [clienteSel, setClienteSel]   = useState<ClienteResumen | null>(null);
   const [clienteInfo, setClienteInfo] = useState<{ vendedor_nombre: string | null; vendedor_codigo: string | null; zona_nombre: string | null } | null>(null);
@@ -87,18 +112,15 @@ export default function EstadoCuentaPage() {
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
   const busqRef = useRef<HTMLDivElement>(null);
 
-  // Cerrar dropdown al hacer click fuera
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (busqRef.current && !busqRef.current.contains(e.target as Node)) {
+      if (busqRef.current && !busqRef.current.contains(e.target as Node))
         setMostrarDropdown(false);
-      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Debounce búsqueda directa
   useEffect(() => {
     if (busqDirecta.length < 2) { setSugerencias([]); setMostrarDropdown(false); return; }
     const timer = setTimeout(async () => {
@@ -142,11 +164,22 @@ export default function EstadoCuentaPage() {
 
   const drillCliente = useCallback(async (c: ClienteResumen, sd: boolean) => {
     setClienteSel(c); setBusqueda(''); setCargando(true); setErrorMsg('');
+    setLetrasMap({}); setExpandedIds(new Set());
     try {
-      const res = await fetch(`/api/estado-cuenta/cliente/${c.cliente_ruc}?solo_deuda=${sd}`);
-      const d   = await res.json();
-      if (d.error) throw new Error(d.error);
-      setFacturas(d.facturas); setVista('facturas');
+      const [resF, resL] = await Promise.all([
+        fetch(`/api/estado-cuenta/cliente/${c.cliente_ruc}?solo_deuda=${sd}`),
+        fetch(`/api/letras/por-cliente/${c.cliente_ruc}`),
+      ]);
+      const [dF, dL] = await Promise.all([resF.json(), resL.json()]);
+      if (dF.error) throw new Error(dF.error);
+      setFacturas(dF.facturas);
+      const map: Record<string, LetraRow[]> = {};
+      for (const l of dL.letras ?? []) {
+        if (!map[l.documento_id]) map[l.documento_id] = [];
+        map[l.documento_id].push(l);
+      }
+      setLetrasMap(map);
+      setVista('facturas');
     } catch (e) { setErrorMsg(String(e)); }
     finally     { setCargando(false); }
   }, []);
@@ -163,17 +196,29 @@ export default function EstadoCuentaPage() {
     await drillCliente(c, soloDeuda);
   }, [drillCliente, soloDeuda]);
 
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const goVendedores = () => {
     setVista('vendedores'); setVendedorSel(null); setClienteSel(null);
     setBusqueda(''); setBusqDirecta(''); setSugerencias([]); setClienteInfo(null);
+    setLetrasMap({}); setExpandedIds(new Set());
   };
-  const goClientes   = () => { setVista('clientes'); setClienteSel(null); setBusqueda(''); setClienteInfo(null); };
+  const goClientes = () => {
+    setVista('clientes'); setClienteSel(null); setBusqueda('');
+    setClienteInfo(null); setLetrasMap({}); setExpandedIds(new Set());
+  };
 
   const toggleSoloDeuda = async () => {
     const nuevo = !soloDeuda;
     setSoloDeuda(nuevo);
-    if (vista === 'clientes' && vendedorSel)       await drillVendedor(vendedorSel, nuevo);
-    else if (vista === 'facturas' && clienteSel)   await drillCliente(clienteSel, nuevo);
+    if (vista === 'clientes' && vendedorSel)     await drillVendedor(vendedorSel, nuevo);
+    else if (vista === 'facturas' && clienteSel) await drillCliente(clienteSel, nuevo);
   };
 
   const q = busqueda.toLowerCase();
@@ -193,6 +238,9 @@ export default function EstadoCuentaPage() {
     pagado:  facturas.reduce((a, f) => a + Number(f.total_pagado),   0),
     saldo:   facturas.reduce((a, f) => a + Number(f.saldo_pendiente),0),
   };
+
+  // 13 columns: toggle + comprobante + emision + vencimiento + pago + importe + nc + nd + pagado + saldo + dias + rango + prox.letra
+  const COLS = 13;
 
   return (
     <div className="min-h-screen bg-gray-50 font-poppins">
@@ -216,14 +264,12 @@ export default function EstadoCuentaPage() {
             <input
               type="text"
               value={busqDirecta}
-              onChange={e => { setBusqDirecta(e.target.value); }}
+              onChange={e => setBusqDirecta(e.target.value)}
               onFocus={() => sugerencias.length > 0 && setMostrarDropdown(true)}
               placeholder="Buscar por RUC o razón social…"
               className="w-full px-4 py-2.5 pr-10 border-2 border-logisalud-teal rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal/40 bg-white"
             />
-            {buscandoSug && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">⏳</span>
-            )}
+            {buscandoSug && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">⏳</span>}
             {busqDirecta && !buscandoSug && (
               <button
                 onClick={() => { setBusqDirecta(''); setSugerencias([]); setMostrarDropdown(false); }}
@@ -254,9 +300,7 @@ export default function EstadoCuentaPage() {
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-xs font-semibold text-gray-800">{fmt(c.saldo_total)}</p>
-                        {vencido > 0 && (
-                          <p className="text-xs text-orange-600">{fmt(vencido)} vencido</p>
-                        )}
+                        {vencido > 0 && <p className="text-xs text-orange-600">{fmt(vencido)} vencido</p>}
                       </div>
                     </div>
                   </button>
@@ -264,7 +308,6 @@ export default function EstadoCuentaPage() {
               })}
             </div>
           )}
-
           {mostrarDropdown && sugerencias.length === 0 && !buscandoSug && busqDirecta.length >= 2 && (
             <div className="absolute z-50 mt-1 w-full max-w-lg bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm text-gray-400">
               No se encontraron clientes
@@ -304,16 +347,10 @@ export default function EstadoCuentaPage() {
 
           <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
             <div onClick={toggleSoloDeuda}
-              className={`relative w-10 h-5 rounded-full transition-colors ${
-                soloDeuda ? 'bg-logisalud-green' : 'bg-gray-300'
-              }`}>
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                soloDeuda ? 'translate-x-5' : 'translate-x-0'
-              }`} />
+              className={`relative w-10 h-5 rounded-full transition-colors ${soloDeuda ? 'bg-logisalud-green' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${soloDeuda ? 'translate-x-5' : 'translate-x-0'}`} />
             </div>
-            <span className="text-gray-600">
-              {soloDeuda ? 'Solo cartera pendiente' : 'Incluyendo pagados / contado'}
-            </span>
+            <span className="text-gray-600">{soloDeuda ? 'Solo cartera pendiente' : 'Incluyendo pagados / contado'}</span>
           </label>
         </div>
 
@@ -361,10 +398,12 @@ export default function EstadoCuentaPage() {
                 </p>
               )}
             </div>
+
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-xs uppercase tracking-wide text-gray-500 bg-gray-50">
+                    <th className="w-6 px-2 py-3" />
                     <th className="px-3 py-3 text-left">Comprobante</th>
                     <th className="px-3 py-3 text-left">Emisión</th>
                     <th className="px-3 py-3 text-left">Vencimiento</th>
@@ -376,46 +415,121 @@ export default function EstadoCuentaPage() {
                     <th className="px-3 py-3 text-right font-bold">Saldo</th>
                     <th className="px-3 py-3 text-right">Días</th>
                     <th className="px-3 py-3 text-center">Rango</th>
+                    <th className="px-3 py-3 text-center" style={{ color: '#4ABCC2' }}>Próx. Letra</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {facturas.map(f => {
-                    const es90   = f.rango_vencimiento === '+90';
-                    const pagado = f.rango_vencimiento === 'pagado';
+                    const es90     = f.rango_vencimiento === '+90';
+                    const pagado   = f.rango_vencimiento === 'pagado';
+                    const expanded = expandedIds.has(f.id);
+                    const letras   = letrasMap[f.id] ?? [];
+                    const proxima  = f.tiene_letras ? proximaLetraPendiente(letras) : null;
+                    const proxVencida = proxima && proxima.fecha_vencimiento < hoy;
+
                     return (
-                      <tr key={f.id} className={`hover:bg-gray-50 ${es90 ? 'bg-red-50/30' : pagado ? 'bg-gray-50/60' : ''}`}>
-                        <td className="px-3 py-2 font-mono text-xs">{f.comprobante}</td>
-                        <td className="px-3 py-2 text-xs">{fmtFecha(f.fecha_emision)}</td>
-                        <td className="px-3 py-2 text-xs">{fmtFecha(f.fecha_vencimiento)}</td>
-                        <td className="px-3 py-2 text-xs">
-                          <span className={`px-1.5 py-0.5 rounded text-xs ${
-                            f.forma_pago === 'CONTADO' ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-blue-600'
-                          }`}>{f.forma_pago ?? '—'}</span>
-                        </td>
-                        <td className="px-3 py-2 text-right text-xs">{fmt(Number(f.importe_total))}</td>
-                        <td className="px-3 py-2 text-right text-xs text-green-600">{Number(f.total_nc) > 0 ? fmt(Number(f.total_nc)) : '—'}</td>
-                        <td className="px-3 py-2 text-right text-xs text-orange-500">{Number(f.total_nd) > 0 ? fmt(Number(f.total_nd)) : '—'}</td>
-                        <td className="px-3 py-2 text-right text-xs text-blue-500">{Number(f.total_pagado) > 0 ? fmt(Number(f.total_pagado)) : '—'}</td>
-                        <td className={`px-3 py-2 text-right text-xs font-semibold ${
-                          es90 ? 'text-red-600' : pagado ? 'text-gray-400' : 'text-gray-800'
-                        }`}>{fmt(Number(f.saldo_pendiente))}</td>
-                        <td className={`px-3 py-2 text-right text-xs ${es90 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
-                          {Number(f.dias_retraso) > 0 ? `${f.dias_retraso}d` : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-center"><RangoBadge rango={f.rango_vencimiento} /></td>
-                      </tr>
+                      <>
+                        <tr key={f.id} className={`${es90 ? 'bg-red-50/30' : pagado ? 'bg-gray-50/60' : 'hover:bg-gray-50'}`}>
+                          <td className="px-2 py-2 text-center">
+                            {f.tiene_letras && (
+                              <button
+                                onClick={() => toggleExpand(f.id)}
+                                className="text-logisalud-teal hover:text-logisalud-green transition-colors text-xs font-bold w-5 h-5 flex items-center justify-center rounded"
+                                title={expanded ? 'Ocultar letras' : 'Ver letras'}
+                              >
+                                {expanded ? '▼' : '▶'}
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs">{f.comprobante}</td>
+                          <td className="px-3 py-2 text-xs">{fmtFecha(f.fecha_emision)}</td>
+                          <td className="px-3 py-2 text-xs">{fmtFecha(f.fecha_vencimiento)}</td>
+                          <td className="px-3 py-2 text-xs">
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${
+                              f.forma_pago === 'CONTADO' ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-blue-600'
+                            }`}>{f.forma_pago ?? '—'}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right text-xs">{fmt(Number(f.importe_total))}</td>
+                          <td className="px-3 py-2 text-right text-xs text-green-600">{Number(f.total_nc) > 0 ? fmt(Number(f.total_nc)) : '—'}</td>
+                          <td className="px-3 py-2 text-right text-xs text-orange-500">{Number(f.total_nd) > 0 ? fmt(Number(f.total_nd)) : '—'}</td>
+                          <td className="px-3 py-2 text-right text-xs text-blue-500">{Number(f.total_pagado) > 0 ? fmt(Number(f.total_pagado)) : '—'}</td>
+                          <td className={`px-3 py-2 text-right text-xs font-semibold ${
+                            es90 ? 'text-red-600' : pagado ? 'text-gray-400' : 'text-gray-800'
+                          }`}>{fmt(Number(f.saldo_pendiente))}</td>
+                          <td className={`px-3 py-2 text-right text-xs ${es90 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                            {Number(f.dias_retraso) > 0 ? `${f.dias_retraso}d` : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center"><RangoBadge rango={f.rango_vencimiento} /></td>
+                          <td className="px-3 py-2 text-center">
+                            {proxima ? (
+                              <span className={`text-xs font-medium ${
+                                proxVencida ? 'text-red-600' : 'text-teal-600'
+                              }`}>
+                                {fmtFecha(proxima.fecha_vencimiento)}
+                              </span>
+                            ) : f.tiene_letras ? (
+                              <span className="text-xs text-gray-300">todas pagadas</span>
+                            ) : null}
+                          </td>
+                        </tr>
+
+                        {expanded && (
+                          <tr key={`${f.id}-letras`}>
+                            <td colSpan={COLS} className="px-0 py-0 bg-teal-50/30 border-t border-teal-100">
+                              <div className="px-8 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#4ABCC2' }}>
+                                  Letras de cambio — {f.comprobante}
+                                </p>
+                                {letras.length === 0 ? (
+                                  <p className="text-xs text-gray-400">Sin letras registradas</p>
+                                ) : (
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="text-gray-400 uppercase tracking-wide">
+                                        <th className="py-1 pr-4 text-left font-semibold">Nº Letra</th>
+                                        <th className="py-1 pr-4 text-right font-semibold">Importe</th>
+                                        <th className="py-1 pr-4 text-left font-semibold">F. Giro</th>
+                                        <th className="py-1 pr-4 text-left font-semibold">F. Vencimiento</th>
+                                        <th className="py-1 pr-4 text-left font-semibold">Banco</th>
+                                        <th className="py-1 text-left font-semibold">Estado</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-teal-100">
+                                      {letras.map(l => (
+                                        <tr key={l.id} className="hover:bg-white/60">
+                                          <td className="py-1.5 pr-4 font-mono">{l.numero_letra}</td>
+                                          <td className="py-1.5 pr-4 text-right font-medium">{fmt(Number(l.importe))}</td>
+                                          <td className="py-1.5 pr-4 text-gray-500">{fmtFecha(l.fecha_giro)}</td>
+                                          <td className={`py-1.5 pr-4 font-medium ${
+                                            l.estado !== 'pagada' && l.fecha_vencimiento < hoy
+                                              ? 'text-red-600' : 'text-gray-700'
+                                          }`}>{fmtFecha(l.fecha_vencimiento)}</td>
+                                          <td className="py-1.5 pr-4 text-gray-400">{l.banco ?? '—'}</td>
+                                          <td className="py-1.5"><EstadoBadge estado={l.estado} /></td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>
                 <tfoot className="bg-gray-50 border-t-2 border-gray-200 text-xs font-semibold">
                   <tr>
-                    <td colSpan={4} className="px-3 py-3 text-gray-700">TOTAL</td>
+                    <td />
+                    <td colSpan={3} className="px-3 py-3 text-gray-700">TOTAL</td>
+                    <td />
                     <td className="px-3 py-3 text-right">{fmt(totF.importe)}</td>
                     <td className="px-3 py-3 text-right text-green-600">{fmt(totF.nc)}</td>
                     <td className="px-3 py-3 text-right text-orange-500">{fmt(totF.nd)}</td>
                     <td className="px-3 py-3 text-right text-blue-500">{fmt(totF.pagado)}</td>
                     <td className="px-3 py-3 text-right text-gray-900">{fmt(totF.saldo)}</td>
-                    <td colSpan={2} />
+                    <td colSpan={3} />
                   </tr>
                 </tfoot>
               </table>
@@ -455,7 +569,6 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
   filas: AgingFila[]; totales: AgingTotales;
 }) {
   const totVencido = calcVencido(totales);
-
   return (
     <div>
       <h2 className="font-oswald text-lg text-gray-700 mb-4">{titulo}</h2>
@@ -532,10 +645,31 @@ function RangoBadge({ rango }: { rango: string }) {
     '31-60':           'bg-orange-100 text-orange-600',
     '61-90':           'bg-red-100 text-red-600',
     '+90':             'bg-red-600 text-white font-semibold',
+    'con_letras':      'bg-teal-100 text-teal-700',
   };
   return (
     <span className={`inline-block px-2 py-0.5 rounded text-xs ${estilos[rango] ?? 'bg-gray-100 text-gray-500'}`}>
-      {rango}
+      {rango === 'con_letras' ? 'letras' : rango}
+    </span>
+  );
+}
+
+function EstadoBadge({ estado }: { estado: string }) {
+  const estilos: Record<string, string> = {
+    'en_cartera':  'bg-gray-100 text-gray-600',
+    'en_banco':    'bg-teal-100 text-teal-700',
+    'pagada':      'bg-green-100 text-green-700',
+    'protestada':  'bg-red-100 text-red-700',
+  };
+  const labels: Record<string, string> = {
+    'en_cartera': 'En cartera',
+    'en_banco':   'En banco',
+    'pagada':     'Pagada',
+    'protestada': 'Protestada',
+  };
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${estilos[estado] ?? 'bg-gray-100 text-gray-500'}`}>
+      {labels[estado] ?? estado}
     </span>
   );
 }
