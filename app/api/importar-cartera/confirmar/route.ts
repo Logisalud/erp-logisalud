@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { VendedorCartera, ClienteCartera } from '@/lib/cartera-parser';
 import { supabaseAdmin } from '@/lib/supabase';

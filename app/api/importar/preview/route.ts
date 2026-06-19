@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { parsearExcelNubefact, FilaNubefact } from '@/lib/nubefact-parser';
 import { supabaseAdmin } from '@/lib/supabase';
