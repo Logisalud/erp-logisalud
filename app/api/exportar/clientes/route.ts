@@ -9,7 +9,7 @@ export async function GET(_req: NextRequest) {
     const db = supabaseAdmin();
 
     const [
-      { data: clientes,  error: e1 },
+      { data: clientes,   error: e1 },
       { data: vendedores, error: e2 },
       { data: saldoRows,  error: e3 },
     ] = await Promise.all([
@@ -59,7 +59,7 @@ export async function GET(_req: NextRequest) {
     XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
 
     const fecha = new Date().toISOString().slice(0, 10);
-    const buf   = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    const buf   = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Uint8Array;
 
     return new Response(buf, {
       headers: {
