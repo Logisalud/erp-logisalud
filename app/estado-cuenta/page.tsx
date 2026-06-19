@@ -105,7 +105,6 @@ export default function EstadoCuentaPage() {
   const [cargando, setCargando]       = useState(true);
   const [errorMsg, setErrorMsg]       = useState('');
 
-  // Búsqueda directa de cliente
   const [busqDirecta, setBusqDirecta]         = useState('');
   const [sugerencias, setSugerencias]         = useState<ClienteBuscado[]>([]);
   const [buscandoSug, setBuscandoSug]         = useState(false);
@@ -239,7 +238,6 @@ export default function EstadoCuentaPage() {
     saldo:   facturas.reduce((a, f) => a + Number(f.saldo_pendiente),0),
   };
 
-  // 13 columns: toggle + comprobante + emision + vencimiento + pago + importe + nc + nd + pagado + saldo + dias + rango + prox.letra
   const COLS = 13;
 
   return (
@@ -249,15 +247,15 @@ export default function EstadoCuentaPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
-            <p className="text-white/70 text-sm">Estado de cuenta &mdash; Cartera de cobranza</p>
+            <p className="text-white/70 text-sm">Estado de cuenta — Cartera de cobranza</p>
           </div>
-          <a href="/" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+          <a href="/" className="text-white/80 hover:text-white text-sm">← Menú</a>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
 
-        {/* Búsqueda directa de cliente */}
+        {/* Búsqueda directa */}
         <div ref={busqRef} className="relative mb-6">
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Búsqueda directa por cliente</p>
           <div className="relative max-w-lg">
@@ -271,31 +269,23 @@ export default function EstadoCuentaPage() {
             />
             {buscandoSug && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">⏳</span>}
             {busqDirecta && !buscandoSug && (
-              <button
-                onClick={() => { setBusqDirecta(''); setSugerencias([]); setMostrarDropdown(false); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
-              >×</button>
+              <button onClick={() => { setBusqDirecta(''); setSugerencias([]); setMostrarDropdown(false); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
             )}
           </div>
-
           {mostrarDropdown && sugerencias.length > 0 && (
             <div className="absolute z-50 mt-1 w-full max-w-lg bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
               {sugerencias.map(c => {
                 const vencido = c.d1_30 + c.d31_60 + c.d61_90 + c.mas90;
                 return (
-                  <button
-                    key={c.cliente_ruc}
+                  <button key={c.cliente_ruc}
                     onMouseDown={e => { e.preventDefault(); seleccionarClienteDirecto(c); }}
-                    className="w-full text-left px-4 py-3 hover:bg-logisalud-green/5 border-b border-gray-100 last:border-0 transition-colors"
-                  >
+                    className="w-full text-left px-4 py-3 hover:bg-logisalud-green/5 border-b border-gray-100 last:border-0 transition-colors">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="font-medium text-sm text-gray-900">{c.razon_social}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {c.cliente_ruc}
-                          {c.vendedor_nombre && (
-                            <span className="ml-2 text-gray-300">· {c.vendedor_nombre}{c.zona_nombre ? ` · ${c.zona_nombre}` : ''}</span>
-                          )}
+                        <p className="text-xs text-gray-400 mt-0.5">{c.cliente_ruc}
+                          {c.vendedor_nombre && <span className="ml-2 text-gray-300">· {c.vendedor_nombre}{c.zona_nombre ? ` · ${c.zona_nombre}` : ''}</span>}
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0">
@@ -321,37 +311,40 @@ export default function EstadoCuentaPage() {
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        {/* Breadcrumb + toggle */}
+        {/* Breadcrumb + controles */}
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <nav className="flex items-center gap-2 text-sm">
             <button onClick={goVendedores}
               className={vista === 'vendedores' && !clienteSel ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
               Por vendedor
             </button>
-            {vendedorSel && (
-              <>
-                <span className="text-gray-300">&rsaquo;</span>
-                <button onClick={goClientes}
-                  className={vista === 'clientes' ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
-                  {vendedorSel.vendedor_nombre ?? 'Sin asignar'}
-                </button>
-              </>
-            )}
-            {clienteSel && (
-              <>
-                <span className="text-gray-300">&rsaquo;</span>
-                <span className="text-gray-500 truncate max-w-xs">{clienteSel.razon_social}</span>
-              </>
-            )}
+            {vendedorSel && (<>
+              <span className="text-gray-300">›</span>
+              <button onClick={goClientes}
+                className={vista === 'clientes' ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
+                {vendedorSel.vendedor_nombre ?? 'Sin asignar'}
+              </button>
+            </>)}
+            {clienteSel && (<>
+              <span className="text-gray-300">›</span>
+              <span className="text-gray-500 truncate max-w-xs">{clienteSel.razon_social}</span>
+            </>)}
           </nav>
 
-          <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
-            <div onClick={toggleSoloDeuda}
-              className={`relative w-10 h-5 rounded-full transition-colors ${soloDeuda ? 'bg-logisalud-green' : 'bg-gray-300'}`}>
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${soloDeuda ? 'translate-x-5' : 'translate-x-0'}`} />
-            </div>
-            <span className="text-gray-600">{soloDeuda ? 'Solo cartera pendiente' : 'Incluyendo pagados / contado'}</span>
-          </label>
+          <div className="flex items-center gap-3">
+            <ExportMenu
+              vendedorId={vendedorSel?.vendedor_id ?? null}
+              clienteRuc={clienteSel?.cliente_ruc ?? null}
+              vista={vista}
+            />
+            <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+              <div onClick={toggleSoloDeuda}
+                className={`relative w-10 h-5 rounded-full transition-colors ${soloDeuda ? 'bg-logisalud-green' : 'bg-gray-300'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${soloDeuda ? 'translate-x-5' : 'translate-x-0'}`} />
+              </div>
+              <span className="text-gray-600">{soloDeuda ? 'Solo cartera pendiente' : 'Incluyendo pagados / contado'}</span>
+            </label>
+          </div>
         </div>
 
         {vista !== 'facturas' && (
@@ -385,16 +378,14 @@ export default function EstadoCuentaPage() {
           <div>
             <div className="mb-4">
               <h2 className="font-oswald text-lg text-gray-700">
-                {clienteSel?.razon_social} &mdash; {facturas.length} factura{facturas.length !== 1 ? 's' : ''}
+                {clienteSel?.razon_social} — {facturas.length} factura{facturas.length !== 1 ? 's' : ''}
               </h2>
               {clienteInfo && (
                 <p className="text-xs text-gray-400 mt-0.5">
                   Vendedor: <span className="text-gray-600 font-medium">
                     {clienteInfo.vendedor_codigo ? `${clienteInfo.vendedor_codigo} — ` : ''}{clienteInfo.vendedor_nombre ?? 'Sin asignar'}
                   </span>
-                  {clienteInfo.zona_nombre && (
-                    <> &nbsp;·&nbsp; Zona: <span className="text-gray-600 font-medium">{clienteInfo.zona_nombre}</span></>
-                  )}
+                  {clienteInfo.zona_nombre && (<> &nbsp;·&nbsp; Zona: <span className="text-gray-600 font-medium">{clienteInfo.zona_nombre}</span></>)}
                 </p>
               )}
             </div>
@@ -432,11 +423,9 @@ export default function EstadoCuentaPage() {
                         <tr key={f.id} className={`${es90 ? 'bg-red-50/30' : pagado ? 'bg-gray-50/60' : 'hover:bg-gray-50'}`}>
                           <td className="px-2 py-2 text-center">
                             {f.tiene_letras && (
-                              <button
-                                onClick={() => toggleExpand(f.id)}
+                              <button onClick={() => toggleExpand(f.id)}
                                 className="text-logisalud-teal hover:text-logisalud-green transition-colors text-xs font-bold w-5 h-5 flex items-center justify-center rounded"
-                                title={expanded ? 'Ocultar letras' : 'Ver letras'}
-                              >
+                                title={expanded ? 'Ocultar letras' : 'Ver letras'}>
                                 {expanded ? '▼' : '▶'}
                               </button>
                             )}
@@ -462,9 +451,7 @@ export default function EstadoCuentaPage() {
                           <td className="px-3 py-2 text-center"><RangoBadge rango={f.rango_vencimiento} /></td>
                           <td className="px-3 py-2 text-center">
                             {proxima ? (
-                              <span className={`text-xs font-medium ${
-                                proxVencida ? 'text-red-600' : 'text-teal-600'
-                              }`}>
+                              <span className={`text-xs font-medium ${proxVencida ? 'text-red-600' : 'text-teal-600'}`}>
                                 {fmtFecha(proxima.fecha_vencimiento)}
                               </span>
                             ) : f.tiene_letras ? (
@@ -501,8 +488,7 @@ export default function EstadoCuentaPage() {
                                           <td className="py-1.5 pr-4 text-right font-medium">{fmt(Number(l.importe))}</td>
                                           <td className="py-1.5 pr-4 text-gray-500">{fmtFecha(l.fecha_giro)}</td>
                                           <td className={`py-1.5 pr-4 font-medium ${
-                                            l.estado !== 'pagada' && l.fecha_vencimiento < hoy
-                                              ? 'text-red-600' : 'text-gray-700'
+                                            l.estado !== 'pagada' && l.fecha_vencimiento < hoy ? 'text-red-600' : 'text-gray-700'
                                           }`}>{fmtFecha(l.fecha_vencimiento)}</td>
                                           <td className="py-1.5 pr-4 text-gray-400">{l.banco ?? '—'}</td>
                                           <td className="py-1.5"><EstadoBadge estado={l.estado} /></td>
@@ -607,9 +593,7 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
                   <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmt(f.saldo_total)}</td>
                   <td className={`px-4 py-3 text-right text-xs font-semibold bg-orange-50/30 ${
                     vencido > 0 ? 'text-orange-700' : 'text-gray-300'
-                  }`}>
-                    {vencido > 0 ? fmt(vencido) : '—'}
-                  </td>
+                  }`}>{vencido > 0 ? fmt(vencido) : '—'}</td>
                   <td className="px-4 py-3 text-right text-xs text-gray-400">{f.cant_facturas}</td>
                   <td className="px-4 py-3 text-right text-xs"><MorosidadCell pct={calcMorosidad(f)} /></td>
                 </tr>
@@ -656,10 +640,10 @@ function RangoBadge({ rango }: { rango: string }) {
 
 function EstadoBadge({ estado }: { estado: string }) {
   const estilos: Record<string, string> = {
-    'en_cartera':  'bg-gray-100 text-gray-600',
-    'en_banco':    'bg-teal-100 text-teal-700',
-    'pagada':      'bg-green-100 text-green-700',
-    'protestada':  'bg-red-100 text-red-700',
+    'en_cartera': 'bg-gray-100 text-gray-600',
+    'en_banco':   'bg-teal-100 text-teal-700',
+    'pagada':     'bg-green-100 text-green-700',
+    'protestada': 'bg-red-100 text-red-700',
   };
   const labels: Record<string, string> = {
     'en_cartera': 'En cartera',
@@ -671,5 +655,134 @@ function EstadoBadge({ estado }: { estado: string }) {
     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${estilos[estado] ?? 'bg-gray-100 text-gray-500'}`}>
       {labels[estado] ?? estado}
     </span>
+  );
+}
+
+function ExportMenu({
+  vendedorId, clienteRuc, vista,
+}: {
+  vendedorId: string | null;
+  clienteRuc: string | null;
+  vista: Vista;
+}) {
+  const [open, setOpen]       = useState(false);
+  const [activo, setActivo]   = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const fecha = new Date().toISOString().slice(0, 10);
+
+  const descargar = async (url: string, nombre: string) => {
+    setActivo(nombre); setOpen(false);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Error'); }
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href; a.download = nombre; a.click();
+      URL.revokeObjectURL(href);
+    } catch (e) { alert(String(e)); }
+    finally { setActivo(null); }
+  };
+
+  const urlFiltrado = () => {
+    const p = new URLSearchParams();
+    if (clienteRuc) p.set('cliente_ruc', clienteRuc);
+    else if (vendedorId) p.set('vendedor_id', vendedorId);
+    return `/api/exportar/estado-cuenta?${p.toString()}`;
+  };
+
+  const tieneFiltreo = vista === 'clientes' || vista === 'facturas';
+  const labelFiltro = clienteRuc
+    ? `Cliente: ${clienteRuc}`
+    : vendedorId
+    ? `Vendedor seleccionado`
+    : 'Filtro actual';
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        disabled={!!activo}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-colors hover:bg-green-50 disabled:opacity-60"
+        style={{ borderColor: '#4BB168', color: '#4BB168' }}
+      >
+        {activo ? '⏳' : '↓'} Exportar
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-72 overflow-hidden">
+
+          <div className="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-400">Estado de cuenta</div>
+
+          {tieneFiltreo && (
+            <button
+              onMouseDown={e => { e.preventDefault(); descargar(urlFiltrado(), `estado-cuenta-filtrado-${fecha}.xlsx`); }}
+              className="w-full text-left px-4 py-2.5 text-sm hover:bg-green-50 flex items-center gap-2 border-b border-gray-100"
+            >
+              <span className="text-lg" style={{ color: '#4BB168' }}>↓</span>
+              <span>
+                <span className="font-medium">{labelFiltro}</span>
+                <span className="block text-xs text-gray-400">Solo lo visible en pantalla</span>
+              </span>
+            </button>
+          )}
+
+          <button
+            onMouseDown={e => { e.preventDefault(); descargar('/api/exportar/estado-cuenta', `estado-cuenta-completo-${fecha}.xlsx`); }}
+            className="w-full text-left px-4 py-2.5 text-sm hover:bg-green-50 flex items-center gap-2 border-b border-gray-100"
+          >
+            <span className="text-lg" style={{ color: '#4BB168' }}>↓</span>
+            <span>
+              <span className="font-medium">Estado de cuenta — todo</span>
+              <span className="block text-xs text-gray-400">Todas las facturas sin filtro</span>
+            </span>
+          </button>
+
+          <div className="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-400">Otros reportes</div>
+
+          <button
+            onMouseDown={e => { e.preventDefault(); descargar('/api/exportar/documentos', `documentos-${fecha}.xlsx`); }}
+            className="w-full text-left px-4 py-2.5 text-sm hover:bg-teal-50 flex items-center gap-2 border-b border-gray-100"
+          >
+            <span className="text-lg" style={{ color: '#4ABCC2' }}>↓</span>
+            <span>
+              <span className="font-medium">Detalle de documentos</span>
+              <span className="block text-xs text-gray-400">Facturas, NC, ND y pagos</span>
+            </span>
+          </button>
+
+          <button
+            onMouseDown={e => { e.preventDefault(); descargar('/api/exportar/resumen-vendedor', `resumen-vendedor-${fecha}.xlsx`); }}
+            className="w-full text-left px-4 py-2.5 text-sm hover:bg-teal-50 flex items-center gap-2 border-b border-gray-100"
+          >
+            <span className="text-lg" style={{ color: '#4ABCC2' }}>↓</span>
+            <span>
+              <span className="font-medium">Resumen por vendedor</span>
+              <span className="block text-xs text-gray-400">Aging y morosidad por vendedor</span>
+            </span>
+          </button>
+
+          <button
+            onMouseDown={e => { e.preventDefault(); descargar('/api/exportar/clientes', `clientes-${fecha}.xlsx`); }}
+            className="w-full text-left px-4 py-2.5 text-sm hover:bg-teal-50 flex items-center gap-2"
+          >
+            <span className="text-lg" style={{ color: '#4ABCC2' }}>↓</span>
+            <span>
+              <span className="font-medium">Lista de clientes</span>
+              <span className="block text-xs text-gray-400">RUC, razón social, vendedor, saldo</span>
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
