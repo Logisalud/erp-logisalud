@@ -31,7 +31,7 @@ interface FacturaRow {
   moneda: string; importe_total: number; forma_pago: string | null;
   total_nc: number; total_nd: number; total_pagado: number; saldo_pendiente: number;
   dias_retraso: number; rango_vencimiento: string;
-  tiene_letras: boolean;
+  tiene_letras: boolean; contado_pendiente: boolean;
 }
 
 interface LetraRow {
@@ -201,6 +201,22 @@ export default function EstadoCuentaPage() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const [toggling, setToggling] = useState<string | null>(null);
+  const toggleContadoPendiente = async (f: FacturaRow) => {
+    setToggling(f.id);
+    try {
+      const nuevo = !f.contado_pendiente;
+      const res = await fetch(`/api/documentos/${f.id}/contado-pendiente`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contado_pendiente: nuevo }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      setFacturas(prev => prev.map(x => x.id === f.id ? { ...x, contado_pendiente: nuevo } : x));
+    } catch (e) { alert(String(e)); }
+    finally { setToggling(null); }
   };
 
   const goVendedores = () => {
@@ -434,9 +450,32 @@ export default function EstadoCuentaPage() {
                           <td className="px-3 py-2 text-xs">{fmtFecha(f.fecha_emision)}</td>
                           <td className="px-3 py-2 text-xs">{fmtFecha(f.fecha_vencimiento)}</td>
                           <td className="px-3 py-2 text-xs">
-                            <span className={`px-1.5 py-0.5 rounded text-xs ${
-                              f.forma_pago === 'CONTADO' ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-blue-600'
-                            }`}>{f.forma_pago ?? '—'}</span>
+                            {f.forma_pago === 'CONTADO' ? (
+                              <div className="flex flex-col items-start gap-1">
+                                {f.contado_pendiente ? (
+                                  <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
+                                    Cdo. pendiente
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-500">CONTADO</span>
+                                )}
+                                <button
+                                  disabled={toggling === f.id}
+                                  onClick={() => toggleContadoPendiente(f)}
+                                  className={`text-xs underline transition-colors disabled:opacity-50 ${
+                                    f.contado_pendiente
+                                      ? 'text-gray-400 hover:text-gray-600'
+                                      : 'text-orange-500 hover:text-orange-700'
+                                  }`}
+                                >
+                                  {toggling === f.id ? '...' : f.contado_pendiente ? 'Marcar pagado' : 'Marcar pendiente'}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-xs bg-blue-50 text-blue-600">
+                                {f.forma_pago ?? '—'}
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-right text-xs">{fmt(Number(f.importe_total))}</td>
                           <td className="px-3 py-2 text-right text-xs text-green-600">{Number(f.total_nc) > 0 ? fmt(Number(f.total_nc)) : '—'}</td>
