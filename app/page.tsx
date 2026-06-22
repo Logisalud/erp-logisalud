@@ -14,6 +14,10 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1" style={{ color: '#4BB168' }}>💳 Registrar Pago</h2>
           <p className="text-gray-500 text-sm">Registra pagos de facturas o letras adjuntando el voucher del cliente.</p>
         </Link>
+        <Link href="/contados-pendientes" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#4ABCC2' }}>
+          <h2 className="text-lg font-semibold mb-1" style={{ color: '#4ABCC2' }}>⏳ Contados Pendientes</h2>
+          <p className="text-gray-500 text-sm">Facturas CONTADO aún no cobradas. Márcalas como pendientes para incluirlas en la cartera.</p>
+        </Link>
         <Link href="/letras" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
           <h2 className="text-lg font-semibold mb-1">🏷️ Letras de Cambio</h2>
           <p className="text-gray-500 text-sm">Gira, gestiona y cambia el estado de letras vinculadas a facturas a crédito.</p>
