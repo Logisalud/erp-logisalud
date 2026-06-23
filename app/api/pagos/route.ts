@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   const { data: saldoRow } = await db
     .from('v_saldos')
-    .select('saldo_pendiente, tiene_letras')
+    .select('saldo_pendiente, tiene_letras, forma_pago')
     .eq('id', documento_id)
     .single();
 
@@ -50,7 +50,9 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
 
-  if (saldoRow && Number(monto) > Number(saldoRow.saldo_pendiente) + 0.01)
+  // Para CONTADO el monto no está limitado al saldo (puede ser 0 y se adjunta el voucher)
+  const esContado = saldoRow?.forma_pago === 'CONTADO';
+  if (!esContado && saldoRow && Number(monto) > Number(saldoRow.saldo_pendiente) + 0.01)
     return NextResponse.json(
       { error: `El monto (S/ ${Number(monto).toFixed(2)}) supera el saldo pendiente (S/ ${Number(saldoRow.saldo_pendiente).toFixed(2)}).` },
       { status: 400 }
