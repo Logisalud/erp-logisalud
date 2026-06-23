@@ -64,7 +64,7 @@ function FileUpload({
 }) {
   return (
     <div>
-      <label className="block text-xs text-gray-500 mb-1">Voucher (foto o PDF) *</label>
+      <label className="block text-xs text-gray-500 mb-1">Voucher (foto o PDF) — opcional</label>
       <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-logisalud-teal transition">
         <span className="text-2xl">📎</span>
         <div className="flex-1 min-w-0">
@@ -117,6 +117,7 @@ export default function RegistrarPagoPage() {
   const [editSubiendo, setEditSubiendo] = useState(false);
   const [editGuardando, setEditGuardando] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const [togContado, setTogContado]     = useState(false);
 
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevUrlRef = useRef<string | null>(null);
@@ -168,8 +169,23 @@ export default function RegistrarPagoPage() {
     setErrMsg(''); setExitoMsg('');
     setLetraSelId(null); setMonto(''); setFechaPago(hoy()); setReferencia('');
     setArchivo(null); setVoucherPath(null); setPreviewUrl(null);
-    setEditandoId(null);
+    setEditandoId(null); setTogContado(false);
     await cargarDetalle(f);
+  };
+
+  const toggleContadoPendiente = async (fActual: FacturaBuscar) => {
+    setTogContado(true);
+    try {
+      const nuevo = !fActual.contado_pendiente;
+      const res = await fetch(`/api/documentos/${fActual.id}/contado-pendiente`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contado_pendiente: nuevo }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      await recargar(fActual);
+    } catch (e) { alert(String(e)); }
+    finally { setTogContado(false); }
   };
 
   const recargar = useCallback(async (fActual: FacturaBuscar) => {
@@ -224,7 +240,6 @@ export default function RegistrarPagoPage() {
 
   const registrarPagoFactura = async () => {
     if (!factura) return;
-    if (!voucherPath)                  { setErrMsg('El voucher es obligatorio.');           return; }
     if (!monto || Number(monto) <= 0)  { setErrMsg('El monto debe ser mayor a 0.');        return; }
     setGuardando(true); setErrMsg(''); setExitoMsg('');
     const res = await fetch('/api/pagos', {
@@ -235,7 +250,7 @@ export default function RegistrarPagoPage() {
         monto: Number(monto),
         fecha_pago: fechaPago,
         referencia: referencia.trim() || undefined,
-        voucher_path: voucherPath,
+        ...(voucherPath ? { voucher_path: voucherPath } : {}),
       }),
     });
     const d = await res.json();
@@ -247,8 +262,7 @@ export default function RegistrarPagoPage() {
   };
 
   const registrarPagoLetra = async () => {
-    if (!factura || !letraSelId) { setErrMsg('Selecciona una letra.');        return; }
-    if (!voucherPath)             { setErrMsg('El voucher es obligatorio.');  return; }
+    if (!factura || !letraSelId) { setErrMsg('Selecciona una letra.'); return; }
     setGuardando(true); setErrMsg(''); setExitoMsg('');
     const res = await fetch(`/api/letras/${letraSelId}`, {
       method: 'PATCH',
@@ -400,7 +414,7 @@ export default function RegistrarPagoPage() {
                     )}
                   </div>
                   {/* Estado forma de pago */}
-                  <div className="flex items-center gap-2 mt-3">
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
                     {esContado ? (
                       factura.contado_pendiente ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
@@ -422,6 +436,27 @@ export default function RegistrarPagoPage() {
                       </span>
                     )}
                   </div>
+                  {/* Toggle contado_pendiente */}
+                  {esContado && (
+                    <div className="flex items-center gap-3 mt-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                      <button
+                        disabled={togContado}
+                        onClick={() => toggleContadoPendiente(factura)}
+                        className={`relative w-10 h-5 rounded-full transition-colors disabled:opacity-50 focus:outline-none ${
+                          factura.contado_pendiente ? 'bg-orange-400' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                          factura.contado_pendiente ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                      </button>
+                      <span className="text-xs text-gray-600">
+                        {togContado ? 'Actualizando…' : factura.contado_pendiente
+                          ? 'Pendiente de cobro — activo en cartera'
+                          : 'Marcar como pendiente de cobro'}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400 mb-0.5">Saldo pendiente</p>
@@ -508,7 +543,7 @@ export default function RegistrarPagoPage() {
                     />
                     <button
                       onClick={registrarPagoLetra}
-                      disabled={guardando || subiendo || !voucherPath}
+                      disabled={guardando || subiendo}
                       className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition"
                       style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
                     >
@@ -531,12 +566,7 @@ export default function RegistrarPagoPage() {
                 <div className="p-5 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">
-                        Monto *
-                        {!esContado && Number(factura.saldo_pendiente) > 0 && (
-                          <span className="text-gray-400"> (máx {fmt(Number(factura.saldo_pendiente))})</span>
-                        )}
-                      </label>
+                      <label className="block text-xs text-gray-500 mb-1">Monto *</label>
                       <input
                         type="number" min="0.01" step="0.01"
                         value={monto}
@@ -570,7 +600,7 @@ export default function RegistrarPagoPage() {
                   />
                   <button
                     onClick={registrarPagoFactura}
-                    disabled={guardando || subiendo || !voucherPath || !monto}
+                    disabled={guardando || subiendo || !monto}
                     className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition"
                     style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
                   >

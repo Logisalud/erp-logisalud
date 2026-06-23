@@ -25,12 +25,12 @@ export async function POST(req: NextRequest) {
     monto: number;
     fecha_pago: string;
     referencia?: string;
-    voucher_path: string;
+    voucher_path?: string;
   };
 
-  if (!documento_id || !monto || !fecha_pago || !voucher_path)
+  if (!documento_id || !monto || !fecha_pago)
     return NextResponse.json(
-      { error: 'documento_id, monto, fecha_pago y voucher son requeridos' },
+      { error: 'documento_id, monto y fecha_pago son requeridos' },
       { status: 400 }
     );
   if (Number(monto) <= 0)
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   const { data: saldoRow } = await db
     .from('v_saldos')
-    .select('saldo_pendiente, tiene_letras, forma_pago')
+    .select('tiene_letras')
     .eq('id', documento_id)
     .single();
 
@@ -50,13 +50,7 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
 
-  // Para CONTADO el monto no está limitado al saldo (puede ser 0 y se adjunta el voucher)
-  const esContado = saldoRow?.forma_pago === 'CONTADO';
-  if (!esContado && saldoRow && Number(monto) > Number(saldoRow.saldo_pendiente) + 0.01)
-    return NextResponse.json(
-      { error: `El monto (S/ ${Number(monto).toFixed(2)}) supera el saldo pendiente (S/ ${Number(saldoRow.saldo_pendiente).toFixed(2)}).` },
-      { status: 400 }
-    );
+  // Sin límite de monto: v_cobros ya usa GREATEST(0,...) para que el saldo no baje de cero
 
   const { data, error } = await db
     .from('pagos')
@@ -65,7 +59,7 @@ export async function POST(req: NextRequest) {
       monto: Number(monto),
       fecha_pago,
       referencia: referencia ?? null,
-      voucher_path,
+      voucher_path: voucher_path ?? null,
     })
     .select()
     .single();
