@@ -27,7 +27,9 @@ export async function GET(
       .order('fecha_vencimiento', { ascending: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ letras: data ?? [] });
+    return NextResponse.json({ letras: data ?? [] }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

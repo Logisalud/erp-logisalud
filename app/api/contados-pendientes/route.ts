@@ -13,5 +13,7 @@ export async function GET() {
     .order('fecha_emision', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ documentos: data ?? [] });
+  return NextResponse.json({ documentos: data ?? [] }, {
+    headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+  });
 }

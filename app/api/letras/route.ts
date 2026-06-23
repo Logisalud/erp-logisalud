@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
     .order('fecha_vencimiento', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ letras: data ?? [] });
+  return NextResponse.json({ letras: data ?? [] }, {
+    headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+  });
 }
 
 export async function POST(req: NextRequest) {

@@ -138,7 +138,7 @@ export default function RegistrarPagoPage() {
     timerRef.current = setTimeout(async () => {
       if (q.length < 2) { setSugerencias([]); return; }
       setBuscando(true);
-      const res = await fetch(`/api/facturas/buscar?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/facturas/buscar?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
       const d   = await res.json();
       setSugerencias(d.facturas ?? []);
       setBuscando(false);
@@ -164,14 +164,18 @@ export default function RegistrarPagoPage() {
   }, []);
 
   const seleccionarFactura = async (f: FacturaBuscar) => {
-    setFactura(f);
     setSugerencias([]);
     setBusqueda(`${f.comprobante} — ${f.razon_social}`);
     setErrMsg(''); setExitoMsg('');
     setLetraSelId(null); setMonto(''); setFechaPago(hoy()); setReferencia('');
     setArchivo(null); setVoucherPath(null); setPreviewUrl(null);
     setEditandoId(null); setTogContado(false);
-    await cargarDetalle(f);
+    // Fetch fresco para no mostrar el saldo cacheado del buscador
+    const res = await fetch(`/api/facturas/${f.id}`, { cache: 'no-store' });
+    const d   = await res.json();
+    const fresca = d.factura ?? f;
+    setFactura(fresca);
+    await cargarDetalle(fresca);
   };
 
   const toggleContadoPendiente = async (fActual: FacturaBuscar) => {
