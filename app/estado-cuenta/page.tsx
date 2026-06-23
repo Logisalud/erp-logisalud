@@ -238,7 +238,7 @@ export default function EstadoCuentaPage() {
 
   const q = busqueda.toLowerCase();
   const resumenFiltrado   = resumen.filter(v =>
-    !q || (v.vendedor_nombre ?? '').toLowerCase().includes(q) ||
+    !q || (v.vendedor_nombre ?? 'sin asignar').toLowerCase().includes(q) ||
            (v.vendedor_codigo ?? '').toLowerCase().includes(q) ||
            (v.zona_nombre ?? '').toLowerCase().includes(q));
   const clientesFiltrados = clientes.filter(c =>
@@ -349,7 +349,7 @@ export default function EstadoCuentaPage() {
 
           <div className="flex items-center gap-3">
             <ExportMenu
-              vendedorId={vendedorSel?.vendedor_id ?? null}
+              vendedorId={vendedorSel ? (vendedorSel.vendedor_id ?? 'sin-asignar') : null}
               clienteRuc={clienteSel?.cliente_ruc ?? null}
               vista={vista}
             />

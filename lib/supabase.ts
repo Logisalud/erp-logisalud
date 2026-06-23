@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+export function supabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+}
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// Cliente con service role para operaciones server-side (upserts de importación)
 export function supabaseAdmin() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY no configurada');
-  return createClient(supabaseUrl, serviceKey);
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
 }
