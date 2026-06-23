@@ -21,7 +21,9 @@ export async function GET(
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ facturas: data ?? [] });
+    return NextResponse.json({ facturas: data ?? [] }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

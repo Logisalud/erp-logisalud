@@ -57,7 +57,9 @@ export async function GET(
     }
 
     const clientes = Array.from(grupos.values()).sort((a, b) => b.saldo_total - a.saldo_total);
-    return NextResponse.json({ clientes });
+    return NextResponse.json({ clientes }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

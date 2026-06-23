@@ -61,7 +61,9 @@ export async function GET(req: NextRequest) {
     }
 
     const resumen = Array.from(grupos.values()).sort((a, b) => b.saldo_total - a.saldo_total);
-    return NextResponse.json({ resumen });
+    return NextResponse.json({ resumen }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

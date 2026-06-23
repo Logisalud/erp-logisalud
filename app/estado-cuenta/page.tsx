@@ -110,6 +110,8 @@ export default function EstadoCuentaPage() {
   const [buscandoSug, setBuscandoSug]         = useState(false);
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
   const busqRef = useRef<HTMLDivElement>(null);
+  // Ref to hold latest actualizarVista so visibilitychange handler is never stale
+  const actualizarRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -221,10 +223,20 @@ export default function EstadoCuentaPage() {
   };
 
   const actualizarVista = useCallback(async () => {
-    if (vista === 'facturas' && clienteSel)      await drillCliente(clienteSel, soloDeuda);
+    if (vista === 'facturas' && clienteSel)       await drillCliente(clienteSel, soloDeuda);
     else if (vista === 'clientes' && vendedorSel) await drillVendedor(vendedorSel, soloDeuda);
-    else                                          await cargarResumen(soloDeuda);
+    else                                           await cargarResumen(soloDeuda);
   }, [vista, clienteSel, vendedorSel, soloDeuda, drillCliente, drillVendedor, cargarResumen]);
+
+  // Keep ref in sync so the visibilitychange handler always calls the latest version
+  useEffect(() => { actualizarRef.current = actualizarVista; }, [actualizarVista]);
+
+  // Re-fetch when the browser tab regains visibility (covers tab-switch + SPA back-navigation)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') actualizarRef.current(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   const goVendedores = () => {
     setVista('vendedores'); setVendedorSel(null); setClienteSel(null);

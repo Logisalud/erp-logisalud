@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
     .order('fecha_pago', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ pagos: data ?? [] });
+  return NextResponse.json({ pagos: data ?? [] }, {
+    headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+  });
 }
 
 export async function POST(req: NextRequest) {
