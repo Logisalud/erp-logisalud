@@ -125,7 +125,7 @@ export default function EstadoCuentaPage() {
     const timer = setTimeout(async () => {
       setBuscandoSug(true);
       try {
-        const res = await fetch(`/api/clientes/buscar?q=${encodeURIComponent(busqDirecta)}`);
+        const res = await fetch(`/api/clientes/buscar?q=${encodeURIComponent(busqDirecta)}`, { cache: 'no-store' });
         const d = await res.json();
         setSugerencias(d.clientes ?? []);
         setMostrarDropdown(true);
@@ -138,7 +138,7 @@ export default function EstadoCuentaPage() {
   const cargarResumen = useCallback(async (sd: boolean) => {
     setCargando(true); setErrorMsg('');
     try {
-      const res = await fetch(`/api/estado-cuenta/resumen?solo_deuda=${sd}`);
+      const res = await fetch(`/api/estado-cuenta/resumen?solo_deuda=${sd}`, { cache: 'no-store' });
       const d   = await res.json();
       if (d.error) throw new Error(d.error);
       setResumen(d.resumen);
@@ -153,7 +153,7 @@ export default function EstadoCuentaPage() {
     setClienteInfo(null);
     try {
       const id  = v.vendedor_id ?? 'sin-asignar';
-      const res = await fetch(`/api/estado-cuenta/vendedor/${id}?solo_deuda=${sd}`);
+      const res = await fetch(`/api/estado-cuenta/vendedor/${id}?solo_deuda=${sd}`, { cache: 'no-store' });
       const d   = await res.json();
       if (d.error) throw new Error(d.error);
       setClientes(d.clientes); setVista('clientes');
@@ -165,9 +165,10 @@ export default function EstadoCuentaPage() {
     setClienteSel(c); setBusqueda(''); setCargando(true); setErrorMsg('');
     setLetrasMap({}); setExpandedIds(new Set());
     try {
+      const opts = { cache: 'no-store' } as RequestInit;
       const [resF, resL] = await Promise.all([
-        fetch(`/api/estado-cuenta/cliente/${c.cliente_ruc}?solo_deuda=${sd}`),
-        fetch(`/api/letras/por-cliente/${c.cliente_ruc}`),
+        fetch(`/api/estado-cuenta/cliente/${c.cliente_ruc}?solo_deuda=${sd}`, opts),
+        fetch(`/api/letras/por-cliente/${c.cliente_ruc}`, opts),
       ]);
       const [dF, dL] = await Promise.all([resF.json(), resL.json()]);
       if (dF.error) throw new Error(dF.error);
@@ -214,10 +215,16 @@ export default function EstadoCuentaPage() {
         body: JSON.stringify({ contado_pendiente: nuevo }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-      setFacturas(prev => prev.map(x => x.id === f.id ? { ...x, contado_pendiente: nuevo } : x));
+      if (clienteSel) await drillCliente(clienteSel, soloDeuda);
     } catch (e) { alert(String(e)); }
     finally { setToggling(null); }
   };
+
+  const actualizarVista = useCallback(async () => {
+    if (vista === 'facturas' && clienteSel)      await drillCliente(clienteSel, soloDeuda);
+    else if (vista === 'clientes' && vendedorSel) await drillVendedor(vendedorSel, soloDeuda);
+    else                                          await cargarResumen(soloDeuda);
+  }, [vista, clienteSel, vendedorSel, soloDeuda, drillCliente, drillVendedor, cargarResumen]);
 
   const goVendedores = () => {
     setVista('vendedores'); setVendedorSel(null); setClienteSel(null);
@@ -348,6 +355,15 @@ export default function EstadoCuentaPage() {
           </nav>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={actualizarVista}
+              disabled={cargando}
+              className="px-3 py-1.5 text-sm rounded-lg border-2 font-medium transition-colors hover:bg-green-50 disabled:opacity-50"
+              style={{ borderColor: '#4BB168', color: '#4BB168' }}
+              title="Recargar datos desde el servidor"
+            >
+              ↻ Actualizar
+            </button>
             <ExportMenu
               vendedorId={vendedorSel ? (vendedorSel.vendedor_id ?? 'sin-asignar') : null}
               clienteRuc={clienteSel?.cliente_ruc ?? null}

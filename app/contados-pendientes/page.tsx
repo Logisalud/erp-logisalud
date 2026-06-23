@@ -38,7 +38,7 @@ export default function ContadosPendientesPage() {
   const cargar = useCallback(async () => {
     setCargando(true); setError('');
     try {
-      const res = await fetch('/api/contados-pendientes');
+      const res = await fetch('/api/contados-pendientes', { cache: 'no-store' });
       const d   = await res.json();
       if (d.error) throw new Error(d.error);
       setRows(d.documentos ?? []);
@@ -57,7 +57,7 @@ export default function ContadosPendientesPage() {
         body: JSON.stringify({ contado_pendiente: false }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-      setRows(prev => prev.filter(r => r.id !== row.id));
+      await cargar();
     } catch (e) { alert(String(e)); }
     finally { setToggling(null); }
   };

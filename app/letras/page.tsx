@@ -106,7 +106,7 @@ export default function LetrasPage() {
     setErrMsg('');
     setFilas([filaVacia()]);
     setCargandoLetras(true);
-    const res = await fetch(`/api/letras?documento_id=${f.id}`);
+    const res = await fetch(`/api/letras?documento_id=${f.id}`, { cache: 'no-store' });
     const d   = await res.json();
     setLetras(d.letras ?? []);
     setCargandoLetras(false);
@@ -114,9 +114,13 @@ export default function LetrasPage() {
 
   const recargarLetras = useCallback(async () => {
     if (!factura) return;
-    const res = await fetch(`/api/letras?documento_id=${factura.id}`);
-    const d   = await res.json();
-    setLetras(d.letras ?? []);
+    const [resL, resF] = await Promise.all([
+      fetch(`/api/letras?documento_id=${factura.id}`, { cache: 'no-store' }),
+      fetch(`/api/facturas/${factura.id}`, { cache: 'no-store' }),
+    ]);
+    const [dL, dF] = await Promise.all([resL.json(), resF.json()]);
+    setLetras(dL.letras ?? []);
+    if (dF.factura) setFactura(dF.factura);
   }, [factura]);
 
   const guardarLetras = async () => {
