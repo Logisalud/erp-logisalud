@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import * as XLSX from 'xlsx';
 import { supabaseAdmin } from '@/lib/supabase';
+import { fetchAll } from '@/lib/fetchAll';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,25 +18,26 @@ export async function GET(req: NextRequest) {
     const clienteRuc = url.searchParams.get('cliente_ruc');
 
     const db = supabaseAdmin();
-    let q = db
-      .from('v_saldos')
-      .select('*')
-      .order('cliente_ruc')
-      .order('fecha_emision', { ascending: false })
-      .limit(100000);
 
-    if (clienteRuc) {
-      q = q.eq('cliente_ruc', clienteRuc);
-    } else if (vendedorId === 'sin-asignar') {
-      q = q.is('vendedor_id', null);
-    } else if (vendedorId) {
-      q = q.eq('vendedor_id', vendedorId);
-    }
+    const data = await fetchAll((from, to) => {
+      let q = db
+        .from('v_saldos')
+        .select('*')
+        .order('cliente_ruc')
+        .order('fecha_emision', { ascending: false });
 
-    const { data, error } = await q;
-    if (error) return Response.json({ error: error.message }, { status: 500 });
+      if (clienteRuc) {
+        q = q.eq('cliente_ruc', clienteRuc);
+      } else if (vendedorId === 'sin-asignar') {
+        q = q.is('vendedor_id', null);
+      } else if (vendedorId) {
+        q = q.eq('vendedor_id', vendedorId);
+      }
 
-    const rows = (data ?? []).map(r => {
+      return q.range(from, to);
+    });
+
+    const rows = data.map(r => {
       const saldo   = Number(r.saldo_pendiente) || 0;
       const vencido = (Number(r.d1_30) || 0) + (Number(r.d31_60) || 0)
                     + (Number(r.d61_90) || 0) + (Number(r.mas90) || 0);

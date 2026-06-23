@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import * as XLSX from 'xlsx';
 import { supabaseAdmin } from '@/lib/supabase';
+import { fetchAll } from '@/lib/fetchAll';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,35 +9,33 @@ export async function GET(_req: NextRequest) {
   try {
     const db = supabaseAdmin();
 
-    const [
-      { data: clientes,   error: e1 },
-      { data: vendedores, error: e2 },
-      { data: saldoRows,  error: e3 },
-    ] = await Promise.all([
-      db.from('clientes').select('ruc, razon_social, vendedor_actual_id').order('razon_social').limit(50000),
-      db.from('vendedores').select('id, codigo, nombres, apellidos').limit(1000),
-      db.from('v_saldos').select('cliente_ruc, saldo_pendiente, zona_nombre').limit(100000),
+    const [clientes, vendedores, saldoRows] = await Promise.all([
+      fetchAll((from, to) =>
+        db.from('clientes').select('ruc, razon_social, vendedor_actual_id').order('razon_social').range(from, to)
+      ),
+      fetchAll((from, to) =>
+        db.from('vendedores').select('id, codigo, nombres, apellidos').range(from, to)
+      ),
+      fetchAll((from, to) =>
+        db.from('v_saldos').select('cliente_ruc, saldo_pendiente, zona_nombre').range(from, to)
+      ),
     ]);
 
-    if (e1) return Response.json({ error: e1.message }, { status: 500 });
-    if (e2) return Response.json({ error: e2.message }, { status: 500 });
-    if (e3) return Response.json({ error: e3.message }, { status: 500 });
-
     const vendMap = new Map(
-      (vendedores ?? []).map(v => [
+      vendedores.map(v => [
         v.id,
         { codigo: v.codigo, nombre: `${v.nombres} ${v.apellidos}`.trim() },
       ])
     );
 
     const saldoMap = new Map<string, { saldo: number; zona: string }>();
-    for (const row of saldoRows ?? []) {
+    for (const row of saldoRows) {
       const ruc = row.cliente_ruc;
       if (!saldoMap.has(ruc)) saldoMap.set(ruc, { saldo: 0, zona: row.zona_nombre ?? '' });
       saldoMap.get(ruc)!.saldo += Number(row.saldo_pendiente) || 0;
     }
 
-    const rows = (clientes ?? []).map(c => {
+    const rows = clientes.map(c => {
       const v = c.vendedor_actual_id ? vendMap.get(c.vendedor_actual_id) : null;
       const s = saldoMap.get(c.ruc);
       return {

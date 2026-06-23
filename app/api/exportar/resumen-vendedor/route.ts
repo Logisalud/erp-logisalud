@@ -1,18 +1,19 @@
 import { NextRequest } from 'next/server';
 import * as XLSX from 'xlsx';
 import { supabaseAdmin } from '@/lib/supabase';
+import { fetchAll } from '@/lib/fetchAll';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest) {
   try {
     const db = supabaseAdmin();
-    const { data, error } = await db
-      .from('v_saldos')
-      .select('vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, cliente_ruc, saldo_pendiente, vigente, d1_30, d31_60, d61_90, mas90')
-      .limit(100000);
 
-    if (error) return Response.json({ error: error.message }, { status: 500 });
+    const data = await fetchAll((from, to) =>
+      db.from('v_saldos')
+        .select('vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, cliente_ruc, saldo_pendiente, vigente, d1_30, d31_60, d61_90, mas90')
+        .range(from, to)
+    );
 
     type Grupo = {
       vendedor_id: string | null; vendedor_codigo: string | null;
@@ -23,7 +24,7 @@ export async function GET(_req: NextRequest) {
     };
 
     const map = new Map<string, Grupo>();
-    for (const row of data ?? []) {
+    for (const row of data) {
       const key = row.vendedor_id ?? '__sin__';
       if (!map.has(key)) {
         map.set(key, {

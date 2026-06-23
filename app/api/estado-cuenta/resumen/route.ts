@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { fetchAll } from '@/lib/fetchAll';
 
 interface SaldoRow {
   vendedor_id: string | null;
@@ -29,18 +30,16 @@ export async function GET(req: NextRequest) {
     const soloDeuda = new URL(req.url).searchParams.get('solo_deuda') !== 'false';
     const db = supabaseAdmin();
 
-    let query = db
-      .from('v_saldos')
-      .select('vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, saldo_pendiente, vigente, d1_30, d31_60, d61_90, mas90')
-      .limit(10000);
-
-    if (soloDeuda) query = query.gt('saldo_pendiente', 0);
-
-    const { data, error } = await query;
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const data = await fetchAll<SaldoRow>((from, to) => {
+      let q = db
+        .from('v_saldos')
+        .select('vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, saldo_pendiente, vigente, d1_30, d31_60, d61_90, mas90');
+      if (soloDeuda) q = q.gt('saldo_pendiente', 0);
+      return q.range(from, to);
+    });
 
     const grupos = new Map<string, GrupoVendedor>();
-    for (const row of (data as SaldoRow[])) {
+    for (const row of data) {
       const key = row.vendedor_id ?? '__sin_asignar__';
       if (!grupos.has(key)) {
         grupos.set(key, {
