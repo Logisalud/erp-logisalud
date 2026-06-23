@@ -17,7 +17,7 @@ export async function PATCH(
     .from('documentos')
     .update({ contado_pendiente })
     .eq('id', params.id)
-    .select('id, comprobante, contado_pendiente')
+    .select('id, contado_pendiente')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
