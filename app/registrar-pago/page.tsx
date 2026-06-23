@@ -153,9 +153,10 @@ export default function RegistrarPagoPage() {
 
   const cargarDetalle = useCallback(async (f: FacturaBuscar) => {
     setCargando(true);
+    const opts = { cache: 'no-store' } as RequestInit;
     const [resL, resP] = await Promise.all([
-      fetch(`/api/letras?documento_id=${f.id}`).then(r => r.json()),
-      fetch(`/api/pagos?documento_id=${f.id}`).then(r => r.json()),
+      fetch(`/api/letras?documento_id=${f.id}`, opts).then(r => r.json()),
+      fetch(`/api/pagos?documento_id=${f.id}`, opts).then(r => r.json()),
     ]);
     setLetras(resL.letras ?? []);
     setPagos(resP.pagos ?? []);
@@ -189,11 +190,10 @@ export default function RegistrarPagoPage() {
   };
 
   const recargar = useCallback(async (fActual: FacturaBuscar) => {
-    const res = await fetch(`/api/facturas/buscar?q=${encodeURIComponent(fActual.comprobante)}`);
+    const res = await fetch(`/api/facturas/${fActual.id}`, { cache: 'no-store' });
     const d   = await res.json();
-    const actualizada = (d.facturas as FacturaBuscar[] ?? []).find(f => f.id === fActual.id);
-    if (actualizada) setFactura(actualizada);
-    await cargarDetalle(actualizada ?? fActual);
+    if (d.factura) setFactura(d.factura);
+    await cargarDetalle(d.factura ?? fActual);
   }, [cargarDetalle]);
 
   const onArchivoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
