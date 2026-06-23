@@ -13,6 +13,8 @@ interface FacturaBuscar {
   saldo_pendiente: number;
   rango_vencimiento: string;
   tiene_letras: boolean;
+  forma_pago: string | null;
+  contado_pendiente: boolean;
 }
 
 interface Letra {
@@ -104,6 +106,18 @@ export default function RegistrarPagoPage() {
   const [errMsg, setErrMsg]             = useState('');
   const [exitoMsg, setExitoMsg]         = useState('');
 
+  // Estado para edición inline de pagos
+  const [editandoId, setEditandoId]     = useState<string | null>(null);
+  const [editMonto, setEditMonto]       = useState('');
+  const [editFecha, setEditFecha]       = useState('');
+  const [editRef, setEditRef]           = useState('');
+  const [editArchivo, setEditArchivo]   = useState<File | null>(null);
+  const [editVoucher, setEditVoucher]   = useState<string | null>(null);
+  const [editPreview, setEditPreview]   = useState<string | null>(null);
+  const [editSubiendo, setEditSubiendo] = useState(false);
+  const [editGuardando, setEditGuardando] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevUrlRef = useRef<string | null>(null);
 
@@ -154,6 +168,7 @@ export default function RegistrarPagoPage() {
     setErrMsg(''); setExitoMsg('');
     setLetraSelId(null); setMonto(''); setFechaPago(hoy()); setReferencia('');
     setArchivo(null); setVoucherPath(null); setPreviewUrl(null);
+    setEditandoId(null);
     await cargarDetalle(f);
   };
 
@@ -184,6 +199,23 @@ export default function RegistrarPagoPage() {
     setSubiendo(false);
   };
 
+  const onEditArchivoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditArchivo(file);
+    setEditVoucher(null);
+    const url = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+    setEditPreview(url);
+    setEditSubiendo(true);
+    const fd = new FormData();
+    fd.append('file', file);
+    const res  = await fetch('/api/pagos/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { alert(`Error al subir: ${data.error}`); setEditSubiendo(false); return; }
+    setEditVoucher(data.path);
+    setEditSubiendo(false);
+  };
+
   const limpiarForm = () => {
     setMonto(''); setReferencia(''); setFechaPago(hoy());
     setArchivo(null); setVoucherPath(null); setPreviewUrl(null);
@@ -192,8 +224,8 @@ export default function RegistrarPagoPage() {
 
   const registrarPagoFactura = async () => {
     if (!factura) return;
-    if (!voucherPath)           { setErrMsg('El voucher es obligatorio.');            return; }
-    if (!monto || Number(monto) <= 0) { setErrMsg('El monto debe ser mayor a 0.');  return; }
+    if (!voucherPath)                  { setErrMsg('El voucher es obligatorio.');           return; }
+    if (!monto || Number(monto) <= 0)  { setErrMsg('El monto debe ser mayor a 0.');        return; }
     setGuardando(true); setErrMsg(''); setExitoMsg('');
     const res = await fetch('/api/pagos', {
       method: 'POST',
@@ -239,8 +271,50 @@ export default function RegistrarPagoPage() {
     else alert('No se pudo obtener el voucher.');
   };
 
+  const abrirEdicion = (p: Pago) => {
+    setEditandoId(p.id);
+    setEditMonto(String(p.monto));
+    setEditFecha(p.fecha_pago);
+    setEditRef(p.referencia ?? '');
+    setEditArchivo(null); setEditVoucher(null); setEditPreview(null);
+  };
+
+  const guardarEdicion = async (p: Pago) => {
+    if (!editMonto || Number(editMonto) <= 0) { alert('El monto debe ser mayor a 0.'); return; }
+    setEditGuardando(true);
+    const body: Record<string, unknown> = {
+      monto: Number(editMonto),
+      fecha_pago: editFecha,
+      referencia: editRef.trim() || null,
+    };
+    if (editVoucher) body.voucher_path = editVoucher;
+    const res = await fetch(`/api/pagos/${p.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await res.json();
+    if (d.error) { alert(d.error); setEditGuardando(false); return; }
+    setPagos(prev => prev.map(x => x.id === p.id ? d.pago : x));
+    setEditandoId(null);
+    setEditGuardando(false);
+    if (factura) await recargar(factura);
+  };
+
+  const eliminarPago = async (p: Pago) => {
+    if (!confirm(`¿Eliminar el pago de ${fmt(Number(p.monto))} del ${fmtFecha(p.fecha_pago)}?`)) return;
+    setEliminandoId(p.id);
+    const res = await fetch(`/api/pagos/${p.id}`, { method: 'DELETE' });
+    const d   = await res.json();
+    if (d.error) { alert(d.error); setEliminandoId(null); return; }
+    setPagos(prev => prev.filter(x => x.id !== p.id));
+    setEliminandoId(null);
+    if (factura) await recargar(factura);
+  };
+
   const letrasPendientes = letras.filter(l => l.estado !== 'pagada');
   const letraSel         = letras.find(l => l.id === letraSelId);
+  const esContado        = factura?.forma_pago === 'CONTADO';
 
   return (
     <div className="min-h-screen bg-gray-50 font-poppins">
@@ -260,7 +334,7 @@ export default function RegistrarPagoPage() {
         {/* Buscador */}
         <div className="relative">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Buscar factura a crédito por comprobante, RUC o razón social
+            Buscar factura por comprobante, RUC o razón social
           </label>
           <input
             type="text"
@@ -279,14 +353,24 @@ export default function RegistrarPagoPage() {
                     className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 text-left"
                   >
                     <div className="min-w-0">
-                      <span className="font-mono font-semibold text-logisalud-green text-sm">{f.comprobante}</span>
-                      {f.tiene_letras && (
-                        <span className="ml-2 text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full">Con letras</span>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-semibold text-logisalud-green text-sm">{f.comprobante}</span>
+                        {f.tiene_letras && (
+                          <span className="text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full">Con letras</span>
+                        )}
+                        {f.forma_pago === 'CONTADO' && f.contado_pendiente && (
+                          <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">Cdo. pendiente</span>
+                        )}
+                        {f.forma_pago === 'CONTADO' && !f.contado_pendiente && (
+                          <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">CONTADO</span>
+                        )}
+                      </div>
                       <p className="text-gray-600 text-xs truncate mt-0.5">{f.razon_social}</p>
                     </div>
                     <div className="text-right shrink-0 ml-4">
-                      <p className="text-sm font-bold text-orange-600">{fmt(Number(f.saldo_pendiente))}</p>
+                      <p className={`text-sm font-bold ${Number(f.saldo_pendiente) > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+                        {fmt(Number(f.saldo_pendiente))}
+                      </p>
                       <p className="text-xs text-gray-400">saldo</p>
                     </div>
                   </button>
@@ -296,7 +380,7 @@ export default function RegistrarPagoPage() {
           )}
         </div>
 
-        {errMsg  && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{errMsg}</div>}
+        {errMsg   && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{errMsg}</div>}
         {exitoMsg && <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm font-medium">{exitoMsg}</div>}
 
         {factura && (
@@ -311,7 +395,32 @@ export default function RegistrarPagoPage() {
                   <p className="text-gray-400 text-xs">RUC {factura.cliente_ruc}</p>
                   <div className="flex gap-4 mt-2 text-xs text-gray-400">
                     <span>Emisión: <span className="text-gray-600">{fmtFecha(factura.fecha_emision)}</span></span>
-                    <span>Vencimiento: <span className="text-gray-600">{fmtFecha(factura.fecha_vencimiento)}</span></span>
+                    {factura.fecha_vencimiento && (
+                      <span>Vencimiento: <span className="text-gray-600">{fmtFecha(factura.fecha_vencimiento)}</span></span>
+                    )}
+                  </div>
+                  {/* Estado forma de pago */}
+                  <div className="flex items-center gap-2 mt-3">
+                    {esContado ? (
+                      factura.contado_pendiente ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
+                          ⏳ CONTADO · Pendiente de cobro
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-500">
+                          CONTADO
+                        </span>
+                      )
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-600">
+                        CRÉDITO
+                      </span>
+                    )}
+                    {factura.tiene_letras && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-teal-50 text-teal-700">
+                        Con letras
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="text-right">
@@ -322,6 +431,9 @@ export default function RegistrarPagoPage() {
                     {fmt(Number(factura.saldo_pendiente))}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">de {fmt(Number(factura.importe_total))} total</p>
+                  {esContado && Number(factura.saldo_pendiente) === 0 && (
+                    <p className="text-xs text-green-600 mt-1 font-medium">Saldo liquidado por v_saldos</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -412,13 +524,18 @@ export default function RegistrarPagoPage() {
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
                 <div className="px-5 py-4 border-b border-gray-100">
                   <h3 className="font-oswald text-base text-gray-700 tracking-wide">Registrar pago</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Factura sin letras — pago directo</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {esContado ? 'Factura CONTADO — adjunta el voucher de pago' : 'Factura sin letras — pago directo'}
+                  </p>
                 </div>
                 <div className="p-5 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">
-                        Monto * <span className="text-gray-400">(máx {fmt(Number(factura.saldo_pendiente))})</span>
+                        Monto *
+                        {!esContado && Number(factura.saldo_pendiente) > 0 && (
+                          <span className="text-gray-400"> (máx {fmt(Number(factura.saldo_pendiente))})</span>
+                        )}
                       </label>
                       <input
                         type="number" min="0.01" step="0.01"
@@ -474,21 +591,105 @@ export default function RegistrarPagoPage() {
                 </div>
                 <div className="divide-y divide-gray-100">
                   {pagos.map(p => (
-                    <div key={p.id} className="px-5 py-3 flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{fmt(Number(p.monto))}</p>
-                        <p className="text-xs text-gray-400">
-                          {fmtFecha(p.fecha_pago)}
-                          {p.referencia && <> · <span className="text-gray-500">{p.referencia}</span></>}
-                        </p>
-                      </div>
-                      {p.voucher_path && (
-                        <button
-                          onClick={() => verVoucher(p.voucher_path as string)}
-                          className="text-xs text-logisalud-teal hover:underline font-medium shrink-0"
-                        >
-                          Ver voucher ↗
-                        </button>
+                    <div key={p.id}>
+                      {editandoId === p.id ? (
+                        /* Formulario de edición inline */
+                        <div className="px-5 py-4 bg-blue-50/40 space-y-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Editar pago</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Monto *</label>
+                              <input
+                                type="number" min="0.01" step="0.01"
+                                value={editMonto}
+                                onChange={e => setEditMonto(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Fecha de pago *</label>
+                              <input
+                                type="date" value={editFecha}
+                                onChange={e => setEditFecha(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs text-gray-500 mb-1">Referencia</label>
+                              <input
+                                type="text" value={editRef}
+                                onChange={e => setEditRef(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                              />
+                            </div>
+                          </div>
+                          {/* Reemplazar voucher opcional */}
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Reemplazar voucher (opcional)</label>
+                            <label className="flex items-center gap-3 px-3 py-2 border border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-logisalud-teal transition text-xs">
+                              <span>📎</span>
+                              <span className="text-gray-400">
+                                {editArchivo ? editArchivo.name : 'Selecciona nuevo archivo'}
+                              </span>
+                              {editSubiendo && <span className="text-gray-400">Subiendo…</span>}
+                              {editVoucher  && <span className="text-green-600">✓ Listo</span>}
+                              {editPreview  && <img src={editPreview} alt="preview" className="h-10 w-10 object-cover rounded border ml-auto" />}
+                              <input type="file" accept="image/*,.pdf" onChange={onEditArchivoChange} className="hidden" />
+                            </label>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => guardarEdicion(p)}
+                              disabled={editGuardando || editSubiendo}
+                              className="flex-1 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition"
+                              style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
+                            >
+                              {editGuardando ? 'Guardando…' : '✓ Guardar cambios'}
+                            </button>
+                            <button
+                              onClick={() => setEditandoId(null)}
+                              className="px-4 py-2 rounded-lg text-sm text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Fila normal */
+                        <div className="px-5 py-3 flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{fmt(Number(p.monto))}</p>
+                            <p className="text-xs text-gray-400">
+                              {fmtFecha(p.fecha_pago)}
+                              {p.referencia && <> · <span className="text-gray-500">{p.referencia}</span></>}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {p.voucher_path && (
+                              <button
+                                onClick={() => verVoucher(p.voucher_path as string)}
+                                className="text-xs text-logisalud-teal hover:underline font-medium"
+                              >
+                                Ver voucher ↗
+                              </button>
+                            )}
+                            <button
+                              onClick={() => abrirEdicion(p)}
+                              className="text-xs text-gray-400 hover:text-blue-600 transition font-medium px-2 py-1 rounded hover:bg-blue-50"
+                              title="Editar pago"
+                            >
+                              ✏️ Editar
+                            </button>
+                            <button
+                              onClick={() => eliminarPago(p)}
+                              disabled={eliminandoId === p.id}
+                              className="text-xs text-gray-400 hover:text-red-600 transition font-medium px-2 py-1 rounded hover:bg-red-50 disabled:opacity-50"
+                              title="Eliminar pago"
+                            >
+                              {eliminandoId === p.id ? '…' : '🗑️ Eliminar'}
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}

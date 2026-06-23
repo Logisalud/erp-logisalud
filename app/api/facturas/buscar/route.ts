@@ -11,9 +11,8 @@ export async function GET(req: NextRequest) {
     .from('v_saldos')
     .select(
       'id, comprobante, cliente_ruc, razon_social, fecha_emision, fecha_vencimiento, ' +
-      'importe_total, saldo_pendiente, rango_vencimiento, tiene_letras, forma_pago'
+      'importe_total, saldo_pendiente, rango_vencimiento, tiene_letras, forma_pago, contado_pendiente'
     )
-    .eq('forma_pago', 'CREDITO')
     .or(`comprobante.ilike.%${q}%,cliente_ruc.ilike.%${q}%,razon_social.ilike.%${q}%`)
     .order('fecha_emision', { ascending: false })
     .limit(20);
