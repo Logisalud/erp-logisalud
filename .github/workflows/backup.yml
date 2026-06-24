@@ -24,19 +24,44 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client
 
-      - name: Obtener región del proyecto desde API de Supabase
+      - name: Obtener configuración de conexión desde API de Supabase
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          REGION=$(curl -sf \
+          # /v1/projects/{ref}/config/database devuelve el host del pooler exacto del proyecto
+          CONFIG=$(curl -sf \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            "https://api.supabase.com/v1/projects/qpkigzniatidsvnxikox" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['region'])")
+            "https://api.supabase.com/v1/projects/qpkigzniatidsvnxikox/config/database")
 
-          echo "Región detectada: $REGION"
-          echo "SUPABASE_REGION=$REGION" >> "$GITHUB_ENV"
+          echo "Config recibida:"
+          echo "$CONFIG" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d, indent=2))" 2>/dev/null || echo "$CONFIG"
 
-      - name: Generar dump (session pooler con SSL)
+          # Extraer el host del pooler (campo pool_host o similar)
+          POOL_HOST=$(echo "$CONFIG" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          # Intentar varios campos conocidos de la API
+          for key in ('pool_host', 'pooler_host', 'host'):
+              if key in d and d[key]:
+                  print(d[key])
+                  break
+          " 2>/dev/null || true)
+
+          # Fallback: construir desde región si no vino en el config
+          if [ -z "$POOL_HOST" ]; then
+            REGION=$(curl -sf \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              "https://api.supabase.com/v1/projects/qpkigzniatidsvnxikox" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['region'])")
+            POOL_HOST="aws-0-${REGION}.pooler.supabase.com"
+            echo "Pool host construido desde región: $POOL_HOST"
+          else
+            echo "Pool host desde API: $POOL_HOST"
+          fi
+
+          echo "POOL_HOST=$POOL_HOST" >> "$GITHUB_ENV"
+
+      - name: Generar dump
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
@@ -44,43 +69,31 @@ jobs:
           REASON="${{ github.event.inputs.reason || 'automatico-diario' }}"
           FILENAME="logisalud_${TIMESTAMP}.sql"
 
-          POOLER_HOST="aws-0-${SUPABASE_REGION}.pooler.supabase.com"
-
-          # Intentar con session pooler (puerto 5432, sslmode=require)
-          # Si falla "tenant not found", el proyecto podría no tener session pooler habilitado;
-          # en ese caso se intenta con el transaction pooler (puerto 6543).
-          DB_SESSION="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?sslmode=require"
-          DB_TRANSACTION="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=require"
+          # Usuario del pooler: postgres.PROJECT_REF (incluye el ref en el nombre de usuario)
+          DB_SESSION="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@${{ env.POOL_HOST }}:5432/postgres?sslmode=require"
+          DB_TRANSACTION="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@${{ env.POOL_HOST }}:6543/postgres?sslmode=require"
 
           echo "Iniciando pg_dump — $REASON"
-          echo "Host pooler: $POOLER_HOST"
+          echo "Pool host: ${{ env.POOL_HOST }}"
 
-          run_dump() {
-            local URL="$1"
-            pg_dump "$URL" \
+          # Intento 1: session pooler (puerto 5432)
+          echo "--- Intento 1: session pooler (5432) ---"
+          if pg_dump "$DB_SESSION" \
               --no-owner \
               --no-acl \
               --schema=public \
               --format=plain \
-              --lock-wait-timeout=0 \
-              --file="$FILENAME"
-          }
-
-          # Intento 1: session pooler (puerto 5432)
-          echo "--- Intento 1: session pooler (5432) ---"
-          if run_dump "$DB_SESSION"; then
+              --file="$FILENAME"; then
             echo "POOL_MODE=session:5432" >> "$GITHUB_ENV"
           else
-            echo "Session pooler falló. Intentando transaction pooler (6543)..."
             # Intento 2: transaction pooler (puerto 6543)
-            # pg_dump con transaction pooler requiere --no-synchronized-snapshots
+            echo "Session pooler falló. Intentando transaction pooler (6543)..."
             echo "--- Intento 2: transaction pooler (6543) ---"
             pg_dump "$DB_TRANSACTION" \
               --no-owner \
               --no-acl \
               --schema=public \
               --format=plain \
-              --no-synchronized-snapshots \
               --file="$FILENAME"
             echo "POOL_MODE=transaction:6543" >> "$GITHUB_ENV"
           fi
@@ -119,7 +132,7 @@ jobs:
             echo "|-------------|-------|"
             echo "| Archivo     | \`${{ env.BACKUP_FILE }}\` |"
             echo "| Tamaño      | ${{ env.BACKUP_SIZE }} |"
-            echo "| Región      | ${{ env.SUPABASE_REGION }} |"
+            echo "| Pool host   | ${{ env.POOL_HOST }} |"
             echo "| Modo        | ${{ env.POOL_MODE }} |"
             echo "| Motivo      | ${{ env.REASON }} |"
             echo "| Retención   | 90 días |"
