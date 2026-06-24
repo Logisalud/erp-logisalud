@@ -5,7 +5,7 @@ on:
   schedule:
     - cron: '0 5 * * *'
 
-  # Snapshot manual bajo demanda — botón "Run workflow" en GitHub Actions
+  # Snapshot manual bajo demanda
   workflow_dispatch:
     inputs:
       reason:
@@ -15,29 +15,49 @@ on:
 
 jobs:
   backup:
-    name: supabase db dump → Artifact
+    name: pg_dump (session pooler) → Artifact
     runs-on: ubuntu-latest
 
     steps:
-      - name: Instalar Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
+      - name: Instalar cliente PostgreSQL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
 
-      - name: Generar dump
+      - name: Obtener región del proyecto desde API de Supabase
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          # Usamos el access token (ya configurado) para obtener la región
+          REGION=$(curl -sf \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/qpkigzniatidsvnxikox" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['region'])")
+
+          echo "Región detectada: $REGION"
+          echo "SUPABASE_REGION=$REGION" >> "$GITHUB_ENV"
+
+      - name: Generar dump via session pooler (IPv4)
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           TIMESTAMP=$(date -u +%Y%m%d_%H%M%S)
           REASON="${{ github.event.inputs.reason || 'automatico-diario' }}"
           FILENAME="logisalud_${TIMESTAMP}.sql"
 
-          echo "Iniciando dump — $REASON"
+          # El session pooler es IPv4 y compatible con pg_dump (a diferencia del transaction pooler).
+          # Host: aws-0-REGION.pooler.supabase.com  puerto: 5432
+          # Usuario: postgres.PROJECT_REF  (el project ref va en el usuario, no en el host)
+          DB_URL="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@aws-0-${SUPABASE_REGION}.pooler.supabase.com:5432/postgres"
 
-          # supabase db dump usa HTTPS (no el puerto 5432), funciona con plan gratuito
-          supabase db dump \
-            --project-ref qpkigzniatidsvnxikox \
-            --file "$FILENAME"
+          echo "Iniciando pg_dump — $REASON"
+
+          pg_dump "$DB_URL" \
+            --no-owner \
+            --no-acl \
+            --schema=public \
+            --format=plain \
+            --file="$FILENAME"
 
           # Verificar que el dump no está vacío
           LINES=$(wc -l < "$FILENAME")
@@ -73,6 +93,7 @@ jobs:
             echo "|-------------|-------|"
             echo "| Archivo     | \`${{ env.BACKUP_FILE }}\` |"
             echo "| Tamaño      | ${{ env.BACKUP_SIZE }} |"
+            echo "| Región      | ${{ env.SUPABASE_REGION }} |"
             echo "| Motivo      | ${{ env.REASON }} |"
             echo "| Retención   | 90 días |"
             echo ""
