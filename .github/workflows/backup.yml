@@ -15,7 +15,7 @@ on:
 
 jobs:
   backup:
-    name: pg_dump (session pooler) → Artifact
+    name: pg_dump → Artifact
     runs-on: ubuntu-latest
 
     steps:
@@ -28,7 +28,6 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          # Usamos el access token (ya configurado) para obtener la región
           REGION=$(curl -sf \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             "https://api.supabase.com/v1/projects/qpkigzniatidsvnxikox" \
@@ -37,7 +36,7 @@ jobs:
           echo "Región detectada: $REGION"
           echo "SUPABASE_REGION=$REGION" >> "$GITHUB_ENV"
 
-      - name: Generar dump via session pooler (IPv4)
+      - name: Generar dump (session pooler con SSL)
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
@@ -45,19 +44,46 @@ jobs:
           REASON="${{ github.event.inputs.reason || 'automatico-diario' }}"
           FILENAME="logisalud_${TIMESTAMP}.sql"
 
-          # El session pooler es IPv4 y compatible con pg_dump (a diferencia del transaction pooler).
-          # Host: aws-0-REGION.pooler.supabase.com  puerto: 5432
-          # Usuario: postgres.PROJECT_REF  (el project ref va en el usuario, no en el host)
-          DB_URL="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@aws-0-${SUPABASE_REGION}.pooler.supabase.com:5432/postgres"
+          POOLER_HOST="aws-0-${SUPABASE_REGION}.pooler.supabase.com"
+
+          # Intentar con session pooler (puerto 5432, sslmode=require)
+          # Si falla "tenant not found", el proyecto podría no tener session pooler habilitado;
+          # en ese caso se intenta con el transaction pooler (puerto 6543).
+          DB_SESSION="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?sslmode=require"
+          DB_TRANSACTION="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=require"
 
           echo "Iniciando pg_dump — $REASON"
+          echo "Host pooler: $POOLER_HOST"
 
-          pg_dump "$DB_URL" \
-            --no-owner \
-            --no-acl \
-            --schema=public \
-            --format=plain \
-            --file="$FILENAME"
+          run_dump() {
+            local URL="$1"
+            pg_dump "$URL" \
+              --no-owner \
+              --no-acl \
+              --schema=public \
+              --format=plain \
+              --lock-wait-timeout=0 \
+              --file="$FILENAME"
+          }
+
+          # Intento 1: session pooler (puerto 5432)
+          echo "--- Intento 1: session pooler (5432) ---"
+          if run_dump "$DB_SESSION"; then
+            echo "POOL_MODE=session:5432" >> "$GITHUB_ENV"
+          else
+            echo "Session pooler falló. Intentando transaction pooler (6543)..."
+            # Intento 2: transaction pooler (puerto 6543)
+            # pg_dump con transaction pooler requiere --no-synchronized-snapshots
+            echo "--- Intento 2: transaction pooler (6543) ---"
+            pg_dump "$DB_TRANSACTION" \
+              --no-owner \
+              --no-acl \
+              --schema=public \
+              --format=plain \
+              --no-synchronized-snapshots \
+              --file="$FILENAME"
+            echo "POOL_MODE=transaction:6543" >> "$GITHUB_ENV"
+          fi
 
           # Verificar que el dump no está vacío
           LINES=$(wc -l < "$FILENAME")
@@ -94,6 +120,7 @@ jobs:
             echo "| Archivo     | \`${{ env.BACKUP_FILE }}\` |"
             echo "| Tamaño      | ${{ env.BACKUP_SIZE }} |"
             echo "| Región      | ${{ env.SUPABASE_REGION }} |"
+            echo "| Modo        | ${{ env.POOL_MODE }} |"
             echo "| Motivo      | ${{ env.REASON }} |"
             echo "| Retención   | 90 días |"
             echo ""
