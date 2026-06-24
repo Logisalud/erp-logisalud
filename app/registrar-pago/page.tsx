@@ -10,11 +10,23 @@ interface FacturaBuscar {
   fecha_emision: string;
   fecha_vencimiento: string | null;
   importe_total: number;
+  total_nc: number;
+  total_nd: number;
+  total_pagado: number;
   saldo_pendiente: number;
   rango_vencimiento: string;
   tiene_letras: boolean;
   forma_pago: string | null;
   contado_pendiente: boolean;
+}
+
+interface NcNd {
+  id: string;
+  tipo: string;
+  serie: string;
+  numero: number;
+  fecha_emision: string;
+  importe_total: number;
 }
 
 interface Letra {
@@ -92,6 +104,7 @@ export default function RegistrarPagoPage() {
   const [factura, setFactura]           = useState<FacturaBuscar | null>(null);
   const [letras, setLetras]             = useState<Letra[]>([]);
   const [pagos, setPagos]               = useState<Pago[]>([]);
+  const [ncnds, setNcnds]               = useState<NcNd[]>([]);
   const [cargando, setCargando]         = useState(false);
 
   const [letraSelId, setLetraSelId]     = useState<string | null>(null);
@@ -147,19 +160,21 @@ export default function RegistrarPagoPage() {
 
   const onBusquedaChange = (v: string) => {
     setBusqueda(v);
-    if (factura) { setFactura(null); setLetras([]); setPagos([]); }
+    if (factura) { setFactura(null); setLetras([]); setPagos([]); setNcnds([]); }
     buscarDebounced(v);
   };
 
   const cargarDetalle = useCallback(async (f: FacturaBuscar) => {
     setCargando(true);
     const opts = { cache: 'no-store' } as RequestInit;
-    const [resL, resP] = await Promise.all([
+    const [resL, resP, resNC] = await Promise.all([
       fetch(`/api/letras?documento_id=${f.id}`, opts).then(r => r.json()),
       fetch(`/api/pagos?documento_id=${f.id}`, opts).then(r => r.json()),
+      fetch(`/api/facturas/${f.id}/nc-nd`, opts).then(r => r.json()),
     ]);
     setLetras(resL.letras ?? []);
     setPagos(resP.pagos ?? []);
+    setNcnds(resNC.documentos ?? []);
     setCargando(false);
   }, []);
 
@@ -476,6 +491,84 @@ export default function RegistrarPagoPage() {
                 </div>
               </div>
             </div>
+
+            {/* ── Desglose del saldo ──────────────────────────────────────── */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+                <h3 className="font-oswald text-sm text-gray-600 tracking-wide uppercase">Desglose del saldo</h3>
+              </div>
+              <div className="px-5 py-4 space-y-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Importe de la factura</span>
+                  <span className="font-medium text-gray-800 tabular-nums">{fmt(Number(factura.importe_total))}</span>
+                </div>
+                {Number(factura.total_nc) > 0 && (
+                  <div className="flex justify-between items-center text-purple-700">
+                    <span>(−) Notas de crédito aplicadas</span>
+                    <span className="font-medium tabular-nums">− {fmt(Number(factura.total_nc))}</span>
+                  </div>
+                )}
+                {Number(factura.total_nd) > 0 && (
+                  <div className="flex justify-between items-center text-blue-700">
+                    <span>(+) Notas de débito aplicadas</span>
+                    <span className="font-medium tabular-nums">+ {fmt(Number(factura.total_nd))}</span>
+                  </div>
+                )}
+                {Number(factura.total_pagado) > 0 && (
+                  <div className="flex justify-between items-center text-green-700">
+                    <span>(−) Pagos registrados</span>
+                    <span className="font-medium tabular-nums">− {fmt(Number(factura.total_pagado))}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                  <span className="font-semibold text-gray-700">(=) Saldo pendiente</span>
+                  <span className={`font-bold tabular-nums text-base ${
+                    Number(factura.saldo_pendiente) > 0 ? 'text-orange-600' : 'text-green-600'
+                  }`}>
+                    {fmt(Number(factura.saldo_pendiente))}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Lista de NC / ND ────────────────────────────────────────── */}
+            {!cargando && ncnds.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <h3 className="font-oswald text-base text-gray-700 tracking-wide">
+                    Notas de crédito / débito aplicadas
+                    <span className="ml-2 font-normal text-sm text-gray-400">({ncnds.length})</span>
+                  </h3>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {ncnds.map(doc => {
+                    const esNC = doc.tipo === '07';
+                    return (
+                      <div key={doc.id} className="px-5 py-3 flex items-center justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              esNC ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {esNC ? 'NC' : 'ND'}
+                            </span>
+                            <span className="font-mono text-sm font-semibold text-gray-800">
+                              {doc.serie}-{doc.numero}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-0.5">{fmtFecha(doc.fecha_emision)}</p>
+                        </div>
+                        <p className={`text-sm font-semibold tabular-nums shrink-0 ${
+                          esNC ? 'text-purple-700' : 'text-blue-700'
+                        }`}>
+                          {esNC ? '− ' : '+ '}{fmt(Number(doc.importe_total))}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {cargando ? (
               <div className="text-center py-10 text-gray-400 text-sm">Cargando…</div>

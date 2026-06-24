@@ -8,17 +8,15 @@ export async function GET(
 ) {
   const db = supabaseAdmin();
   const { data, error } = await db
-    .from('v_saldos')
-    .select(
-      'id, comprobante, cliente_ruc, razon_social, fecha_emision, fecha_vencimiento, ' +
-      'importe_total, total_nc, total_nd, total_pagado, saldo_pendiente, ' +
-      'rango_vencimiento, tiene_letras, forma_pago, contado_pendiente'
-    )
-    .eq('id', params.id)
-    .single();
+    .from('documentos')
+    .select('id, tipo, serie, numero, fecha_emision, importe_total, anulado')
+    .eq('documento_relacionado_id', params.id)
+    .in('tipo', ['07', '08'])
+    .eq('anulado', false)
+    .order('fecha_emision', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ factura: data }, {
+  return NextResponse.json({ documentos: data ?? [] }, {
     headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
   });
 }
