@@ -1,0 +1,87 @@
+name: Database Backup
+
+on:
+  # Backup automático diario a las 5:00 AM UTC (medianoche Perú, UTC-5)
+  schedule:
+    - cron: '0 5 * * *'
+
+  # Snapshot manual bajo demanda — botón "Run workflow" en GitHub Actions
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Motivo del snapshot (opcional)'
+        required: false
+        default: 'Snapshot manual'
+
+jobs:
+  backup:
+    name: pg_dump → Artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Instalar cliente PostgreSQL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Generar dump
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          TIMESTAMP=$(date -u +%Y%m%d_%H%M%S)
+          REASON="${{ github.event.inputs.reason || 'automatico-diario' }}"
+          FILENAME="logisalud_${TIMESTAMP}.sql"
+
+          echo "Iniciando pg_dump — $REASON"
+
+          pg_dump "$DATABASE_URL" \
+            --no-owner \
+            --no-acl \
+            --schema=public \
+            --format=plain \
+            --file="$FILENAME"
+
+          # Verificar que el dump no está vacío
+          LINES=$(wc -l < "$FILENAME")
+          echo "Líneas en el dump: $LINES"
+          if [ "$LINES" -lt 50 ]; then
+            echo "ERROR: El dump parece estar vacío o incompleto ($LINES líneas). Revisar la conexión."
+            exit 1
+          fi
+
+          # Comprimir
+          gzip "$FILENAME"
+
+          SIZE=$(du -sh "${FILENAME}.gz" | cut -f1)
+          echo "BACKUP_FILE=${FILENAME}.gz" >> "$GITHUB_ENV"
+          echo "BACKUP_SIZE=$SIZE"          >> "$GITHUB_ENV"
+          echo "TIMESTAMP=$TIMESTAMP"       >> "$GITHUB_ENV"
+          echo "REASON=$REASON"             >> "$GITHUB_ENV"
+          echo "Dump completado: ${FILENAME}.gz ($SIZE)"
+
+      - name: Subir artifact (retención 90 días)
+        uses: actions/upload-artifact@v4
+        with:
+          name: logisalud-backup-${{ env.TIMESTAMP }}
+          path: "*.sql.gz"
+          retention-days: 90
+
+      - name: Resumen
+        run: |
+          {
+            echo "## Backup completado"
+            echo "| Campo       | Valor |"
+            echo "|-------------|-------|"
+            echo "| Archivo     | \`${{ env.BACKUP_FILE }}\` |"
+            echo "| Tamaño      | ${{ env.BACKUP_SIZE }} |"
+            echo "| Motivo      | ${{ env.REASON }} |"
+            echo "| Retención   | 90 días |"
+            echo ""
+            echo "Descarga el archivo desde la pestaña **Summary → Artifacts** de este run."
+            echo ""
+            echo "### Cómo restaurar"
+            echo "\`\`\`"
+            echo "gunzip logisalud_TIMESTAMP.sql.gz"
+            echo "psql \"\$DATABASE_URL\" < logisalud_TIMESTAMP.sql"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
