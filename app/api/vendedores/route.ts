@@ -32,7 +32,9 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ vendedores });
+    return NextResponse.json({ vendedores }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

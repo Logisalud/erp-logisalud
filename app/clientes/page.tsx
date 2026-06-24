@@ -42,7 +42,7 @@ export default function ClientesPage() {
 
   // Cargar lista de vendedores una sola vez
   useEffect(() => {
-    fetch('/api/vendedores')
+    fetch('/api/vendedores', { cache: 'no-store' })
       .then(r => r.json())
       .then(d => setVendedores(d.vendedores ?? []))
       .catch(console.error);
@@ -56,7 +56,7 @@ export default function ClientesPage() {
         ...(q && { search: q }),
         ...(sa && { sin_asignar: 'true' }),
       });
-      const res  = await fetch(`/api/clientes?${params}`);
+      const res  = await fetch(`/api/clientes?${params}`, { cache: 'no-store' });
       const data: ApiClientes = await res.json();
       setClientes(data.clientes ?? []);
       setTotal(data.total ?? 0);
