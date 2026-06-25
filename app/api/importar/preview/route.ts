@@ -23,9 +23,9 @@ export async function POST(req: NextRequest) {
       if (!f.numero || isNaN(f.numero) || f.numero <= 0) msgs.push('NÚMERO inválido');
       if (!f.cliente_ruc || f.cliente_ruc.length !== 11) msgs.push(`RUC inválido: "${f.cliente_ruc}"`);
       if (isNaN(f.importe_total) || f.importe_total < 0) msgs.push('TOTAL inválido');
-      if (!['01','07'].includes(f.tipo)) msgs.push(`TIPO desconocido: "${f.tipo}"`);
-      if (f.tipo === '07' && (!f.doc_mod_tipo || !f.doc_mod_serie || !f.doc_mod_numero)) {
-        msgs.push('Nota de crédito sin DOC MODIFICADO completo');
+      if (!['01','07','08'].includes(f.tipo)) msgs.push(`TIPO desconocido: "${f.tipo}"`);
+      if (['07','08'].includes(f.tipo) && (!f.doc_mod_tipo || !f.doc_mod_serie || !f.doc_mod_numero)) {
+        msgs.push('Nota de crédito/débito sin DOC MODIFICADO completo');
       }
       if (msgs.length > 0) {
         errores.push({ fila: f.fila_excel, mensaje: msgs.join(' | ') });
@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       validas: filasValidas.length,
       facturas: filasValidas.filter(f => f.tipo === '01').length,
       notas_credito: filasValidas.filter(f => f.tipo === '07').length,
+      notas_debito: filasValidas.filter(f => f.tipo === '08').length,
       anuladas: filasValidas.filter(f => f.anulado).length,
       clientes_nuevos: clientesNuevosDetalle,
       errores,
