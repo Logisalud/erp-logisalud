@@ -13,6 +13,7 @@ interface FacturaBuscar {
   saldo_pendiente: number;
   rango_vencimiento: string;
   tiene_letras: boolean;
+  forma_pago?: string;
 }
 
 interface Letra {
@@ -20,12 +21,19 @@ interface Letra {
   documento_id: string;
   numero_letra: string;
   importe: number;
+  monto_aplicado: number;
+  n_facturas: number;
   fecha_giro: string | null;
   fecha_vencimiento: string;
   estado: 'en_cartera' | 'en_banco' | 'pagada' | 'protestada';
   banco: string | null;
   fecha_pago: string | null;
   observaciones: string | null;
+}
+
+interface FacturaCubierta {
+  factura: FacturaBuscar;
+  monto_aplicado: string;
 }
 
 interface FilaNueva {
@@ -66,17 +74,25 @@ const filaVacia = (): FilaNueva => ({
 });
 
 export default function LetrasPage() {
-  const [busqueda, setBusqueda]         = useState('');
-  const [sugerencias, setSugerencias]   = useState<FacturaBuscar[]>([]);
-  const [buscando, setBuscando]         = useState(false);
-  const [factura, setFactura]           = useState<FacturaBuscar | null>(null);
-  const [letras, setLetras]             = useState<Letra[]>([]);
+  const [busqueda, setBusqueda]             = useState('');
+  const [sugerencias, setSugerencias]       = useState<FacturaBuscar[]>([]);
+  const [buscando, setBuscando]             = useState(false);
+  const [factura, setFactura]               = useState<FacturaBuscar | null>(null);
+  const [letras, setLetras]                 = useState<Letra[]>([]);
   const [cargandoLetras, setCargandoLetras] = useState(false);
-  const [filas, setFilas]               = useState<FilaNueva[]>([filaVacia()]);
-  const [guardando, setGuardando]       = useState(false);
-  const [errMsg, setErrMsg]             = useState('');
-  const [cambioEstado, setCambioEstado] = useState<Record<string, boolean>>({});
-  const [pagoModal, setPagoModal]       = useState<{ letraId: string; fecha: string } | null>(null);
+  const [filas, setFilas]                   = useState<FilaNueva[]>([filaVacia()]);
+  const [guardando, setGuardando]           = useState(false);
+  const [errMsg, setErrMsg]                 = useState('');
+  const [cambioEstado, setCambioEstado]     = useState<Record<string, boolean>>({});
+  const [pagoModal, setPagoModal]           = useState<{ letraId: string; fecha: string } | null>(null);
+
+  // Multi-factura
+  const [modoMulti, setModoMulti]               = useState(false);
+  const [facturasCubiertas, setFacturasCubiertas] = useState<FacturaCubierta[]>([]);
+  const [facturasCliente, setFacturasCliente]   = useState<FacturaBuscar[]>([]);
+  const [cargandoFC, setCargandoFC]             = useState(false);
+  const [letraMulti, setLetraMulti]             = useState<FilaNueva>(filaVacia());
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
@@ -86,7 +102,7 @@ export default function LetrasPage() {
     timerRef.current = setTimeout(async () => {
       if (q.length < 2) { setSugerencias([]); return; }
       setBuscando(true);
-      const res = await fetch(`/api/facturas/buscar?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/facturas/buscar?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
       const d   = await res.json();
       setSugerencias(d.facturas ?? []);
       setBuscando(false);
@@ -95,7 +111,12 @@ export default function LetrasPage() {
 
   const onBusquedaChange = (v: string) => {
     setBusqueda(v);
-    if (factura) { setFactura(null); setLetras([]); }
+    if (factura) {
+      setFactura(null);
+      setLetras([]);
+      setModoMulti(false);
+      setFacturasCubiertas([]);
+    }
     buscarDebounced(v);
   };
 
@@ -105,6 +126,9 @@ export default function LetrasPage() {
     setBusqueda(`${f.comprobante} — ${f.razon_social}`);
     setErrMsg('');
     setFilas([filaVacia()]);
+    setModoMulti(false);
+    setFacturasCubiertas([]);
+    setLetraMulti(filaVacia());
     setCargandoLetras(true);
     const res = await fetch(`/api/letras?documento_id=${f.id}`, { cache: 'no-store' });
     const d   = await res.json();
@@ -123,13 +147,101 @@ export default function LetrasPage() {
     if (dF.factura) setFactura(dF.factura);
   }, [factura]);
 
+  // ── Modo multi-factura ──────────────────────────────────────────────────
+
+  const toggleModoMulti = useCallback(async () => {
+    if (!factura) return;
+    if (modoMulti) {
+      setModoMulti(false);
+      setFacturasCubiertas([]);
+      setLetraMulti(filaVacia());
+      return;
+    }
+    setModoMulti(true);
+    setFacturasCubiertas([{
+      factura,
+      monto_aplicado: String(factura.saldo_pendiente > 0 ? factura.saldo_pendiente : factura.importe_total),
+    }]);
+    setLetraMulti(filaVacia());
+    setCargandoFC(true);
+    try {
+      const res = await fetch(`/api/estado-cuenta/cliente/${factura.cliente_ruc}`, { cache: 'no-store' });
+      const d   = await res.json();
+      const todas = (d.facturas ?? []) as FacturaBuscar[];
+      setFacturasCliente(todas.filter(f =>
+        f.saldo_pendiente > 0 && (!f.forma_pago || f.forma_pago === 'CREDITO')
+      ));
+    } finally {
+      setCargandoFC(false);
+    }
+  }, [factura, modoMulti]);
+
+  const actualizarMontoAplicado = (idx: number, valor: string) => {
+    setFacturasCubiertas(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], monto_aplicado: valor };
+      return next;
+    });
+  };
+
+  const agregarFacturaCubierta = (facturaId: string) => {
+    const f = facturasCliente.find(fc => fc.id === facturaId);
+    if (!f) return;
+    setFacturasCubiertas(prev => [
+      ...prev,
+      { factura: f, monto_aplicado: String(f.saldo_pendiente) },
+    ]);
+  };
+
+  const sumaMulti = facturasCubiertas.reduce((a, fc) => a + (Number(fc.monto_aplicado) || 0), 0);
+
+  const guardarLetraMulti = async () => {
+    if (!factura) return;
+    setErrMsg('');
+    if (!letraMulti.numero_letra.trim())  { setErrMsg('Número de letra es obligatorio');        return; }
+    if (!letraMulti.fecha_vencimiento)    { setErrMsg('Fecha de vencimiento es obligatoria');   return; }
+    if (facturasCubiertas.length === 0)   { setErrMsg('Selecciona al menos una factura');        return; }
+    if (sumaMulti <= 0)                   { setErrMsg('El importe total debe ser mayor a 0');    return; }
+
+    const documentos = facturasCubiertas.map(fc => ({
+      documento_id:   fc.factura.id,
+      monto_aplicado: Number(fc.monto_aplicado),
+    }));
+
+    setGuardando(true);
+    const res = await fetch('/api/letras', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        documento_id: factura.id,
+        letras: [{
+          numero_letra:      letraMulti.numero_letra.trim(),
+          importe:           sumaMulti,
+          fecha_giro:        letraMulti.fecha_giro        || undefined,
+          fecha_vencimiento: letraMulti.fecha_vencimiento,
+          banco:             letraMulti.banco.trim()      || undefined,
+          documentos,
+        }],
+      }),
+    });
+    const d = await res.json();
+    if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
+    setModoMulti(false);
+    setFacturasCubiertas([]);
+    setLetraMulti(filaVacia());
+    await recargarLetras();
+    setGuardando(false);
+  };
+
+  // ── Modo simple (una factura) ────────────────────────────────────────────
+
   const guardarLetras = async () => {
     if (!factura) return;
     setErrMsg('');
     for (const f of filas) {
-      if (!f.numero_letra.trim())    { setErrMsg('Número de letra es obligatorio en todas las filas');  return; }
-      if (!f.importe || Number(f.importe) <= 0) { setErrMsg('Importe debe ser mayor a 0 en todas las filas'); return; }
-      if (!f.fecha_vencimiento)      { setErrMsg('Fecha de vencimiento es obligatoria en todas las filas'); return; }
+      if (!f.numero_letra.trim())               { setErrMsg('Número de letra es obligatorio en todas las filas');  return; }
+      if (!f.importe || Number(f.importe) <= 0) { setErrMsg('Importe debe ser mayor a 0 en todas las filas');     return; }
+      if (!f.fecha_vencimiento)                 { setErrMsg('Fecha de vencimiento es obligatoria en todas las filas'); return; }
     }
     setGuardando(true);
     const res = await fetch('/api/letras', {
@@ -138,11 +250,11 @@ export default function LetrasPage() {
       body: JSON.stringify({
         documento_id: factura.id,
         letras: filas.map(f => ({
-          numero_letra:     f.numero_letra.trim(),
-          importe:          Number(f.importe),
-          fecha_giro:       f.fecha_giro       || undefined,
+          numero_letra:      f.numero_letra.trim(),
+          importe:           Number(f.importe),
+          fecha_giro:        f.fecha_giro        || undefined,
           fecha_vencimiento: f.fecha_vencimiento,
-          banco:            f.banco.trim()     || undefined,
+          banco:             f.banco.trim()      || undefined,
         })),
       }),
     });
@@ -194,9 +306,15 @@ export default function LetrasPage() {
     setFilas(nuevas);
   };
 
-  const sumaLetras  = letras.reduce((a, l) => a + Number(l.importe), 0);
-  const diferencia  = factura ? sumaLetras - Number(factura.importe_total) : 0;
-  const cuadraOk    = Math.abs(diferencia) < 0.01;
+  // monto_aplicado es lo que aplica a ESTA factura (en letras multi = porción; simple = importe)
+  const sumaLetras = letras.reduce((a, l) => a + Number(l.monto_aplicado), 0);
+  const diferencia = factura ? sumaLetras - Number(factura.importe_total) : 0;
+  const cuadraOk   = Math.abs(diferencia) < 0.01;
+
+  // Facturas disponibles para agregar en modo multi (excluye las ya seleccionadas)
+  const facturasDisponibles = facturasCliente.filter(
+    f => !facturasCubiertas.some(fc => fc.factura.id === f.id)
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 font-poppins">
@@ -222,7 +340,7 @@ export default function LetrasPage() {
             type="text"
             value={busqueda}
             onChange={e => onBusquedaChange(e.target.value)}
-            placeholder="Ej : FFF1-1211 · 20601234567 · FARMACIA"
+            placeholder="Ej : FFF1-1211 · 20601234567 · FARMACIA"
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal bg-white"
           />
           {buscando && (
@@ -325,7 +443,7 @@ export default function LetrasPage() {
                       <thead>
                         <tr className="text-xs uppercase tracking-wide text-gray-400 bg-gray-50">
                           <th className="px-4 py-3 text-left">N° Letra</th>
-                          <th className="px-4 py-3 text-right">Importe</th>
+                          <th className="px-4 py-3 text-right">Importe aplicado</th>
                           <th className="px-4 py-3 text-center">F. Giro</th>
                           <th className="px-4 py-3 text-center">F. Vencimiento</th>
                           <th className="px-4 py-3 text-left">Banco</th>
@@ -340,8 +458,20 @@ export default function LetrasPage() {
                             l.estado === 'protestada' ? 'bg-red-50/30' :
                             l.estado === 'pagada'     ? 'bg-green-50/20' : ''
                           }`}>
-                            <td className="px-4 py-3 font-mono text-xs font-medium text-gray-700">{l.numero_letra}</td>
-                            <td className="px-4 py-3 text-right font-semibold">{fmt(Number(l.importe))}</td>
+                            <td className="px-4 py-3 font-mono text-xs font-medium text-gray-700">
+                              {l.numero_letra}
+                              {l.n_facturas > 1 && (
+                                <span className="ml-1.5 inline-block text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                                  {l.n_facturas} fact.
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className="font-semibold">{fmt(Number(l.monto_aplicado))}</span>
+                              {l.n_facturas > 1 && (
+                                <p className="text-xs text-gray-400 mt-0.5">total: {fmt(Number(l.importe))}</p>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-center text-xs text-gray-400">{fmtFecha(l.fecha_giro)}</td>
                             <td className="px-4 py-3 text-center text-xs text-gray-700 font-medium">{fmtFecha(l.fecha_vencimiento)}</td>
                             <td className="px-4 py-3 text-xs text-gray-400">{l.banco ?? '—'}</td>
@@ -385,7 +515,7 @@ export default function LetrasPage() {
                       </div>
                       <div className="text-gray-300 text-xl self-end pb-0.5">=</div>
                       <div>
-                        <p className="text-xs text-gray-400 mb-0.5">Suma de letras ({letras.length})</p>
+                        <p className="text-xs text-gray-400 mb-0.5">Suma aplicada ({letras.length})</p>
                         <p className="font-semibold text-gray-800">{fmt(sumaLetras)}</p>
                       </div>
                       <div className="text-gray-300 text-xl self-end pb-0.5">→</div>
@@ -410,101 +540,250 @@ export default function LetrasPage() {
 
             {/* Formulario para girar letras */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-              <div className="px-5 py-4 border-b border-gray-100">
-                <h3 className="font-oswald text-base text-gray-700 tracking-wide">Girar letras</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Agrega una o varias letras a la vez. Los campos con * son obligatorios.</p>
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-oswald text-base text-gray-700 tracking-wide">Girar letras</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {modoMulti
+                      ? 'Selecciona las facturas que cubre esta letra. El importe = suma de montos aplicados.'
+                      : 'Agrega una o varias letras a la vez. Los campos con * son obligatorios.'}
+                  </p>
+                </div>
+                <button
+                  onClick={toggleModoMulti}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    modoMulti
+                      ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  }`}
+                >
+                  {modoMulti ? '● Multi-factura activo' : 'Girar para varias facturas →'}
+                </button>
               </div>
-              <div className="p-5">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
-                        <th className="pb-2 text-left pr-3 font-medium">N° Letra *</th>
-                        <th className="pb-2 text-right pr-3 font-medium">Importe *</th>
-                        <th className="pb-2 text-center pr-3 font-medium">F. Giro</th>
-                        <th className="pb-2 text-center pr-3 font-medium">F. Vencimiento *</th>
-                        <th className="pb-2 text-left pr-3 font-medium">Banco</th>
-                        <th className="pb-2 w-6" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {filas.map((fila, idx) => (
-                        <tr key={idx}>
-                          <td className="py-2 pr-3">
-                            <input
-                              value={fila.numero_letra}
-                              onChange={e => actualizarFila(idx, 'numero_letra', e.target.value)}
-                              placeholder="LET-001"
-                              className="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
-                            />
-                          </td>
-                          <td className="py-2 pr-3">
-                            <input
-                              type="number" min="0.01" step="0.01"
-                              value={fila.importe}
-                              onChange={e => actualizarFila(idx, 'importe', e.target.value)}
-                              placeholder="0.00"
-                              className="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
-                            />
-                          </td>
-                          <td className="py-2 pr-3">
-                            <input
-                              type="date"
-                              value={fila.fecha_giro}
-                              onChange={e => actualizarFila(idx, 'fecha_giro', e.target.value)}
-                              className="px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
-                            />
-                          </td>
-                          <td className="py-2 pr-3">
-                            <input
-                              type="date"
-                              value={fila.fecha_vencimiento}
-                              onChange={e => actualizarFila(idx, 'fecha_vencimiento', e.target.value)}
-                              className="px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
-                            />
-                          </td>
-                          <td className="py-2 pr-3">
-                            <input
-                              value={fila.banco}
-                              onChange={e => actualizarFila(idx, 'banco', e.target.value)}
-                              placeholder="Opcional"
-                              className="w-32 px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
-                            />
-                          </td>
-                          <td className="py-2">
-                            {filas.length > 1 && (
-                              <button
-                                onClick={() => setFilas(filas.filter((_, i) => i !== idx))}
-                                className="text-gray-300 hover:text-red-400 text-base leading-none"
-                              >
-                                ✕
-                              </button>
-                            )}
-                          </td>
+
+              {!modoMulti ? (
+                /* ── Modo simple: filas de letras (comportamiento original) ── */
+                <div className="p-5">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                          <th className="pb-2 text-left pr-3 font-medium">N° Letra *</th>
+                          <th className="pb-2 text-right pr-3 font-medium">Importe *</th>
+                          <th className="pb-2 text-center pr-3 font-medium">F. Giro</th>
+                          <th className="pb-2 text-center pr-3 font-medium">F. Vencimiento *</th>
+                          <th className="pb-2 text-left pr-3 font-medium">Banco</th>
+                          <th className="pb-2 w-6" />
                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {filas.map((fila, idx) => (
+                          <tr key={idx}>
+                            <td className="py-2 pr-3">
+                              <input
+                                value={fila.numero_letra}
+                                onChange={e => actualizarFila(idx, 'numero_letra', e.target.value)}
+                                placeholder="LET-001"
+                                className="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                              />
+                            </td>
+                            <td className="py-2 pr-3">
+                              <input
+                                type="number" min="0.01" step="0.01"
+                                value={fila.importe}
+                                onChange={e => actualizarFila(idx, 'importe', e.target.value)}
+                                placeholder="0.00"
+                                className="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                              />
+                            </td>
+                            <td className="py-2 pr-3">
+                              <input
+                                type="date"
+                                value={fila.fecha_giro}
+                                onChange={e => actualizarFila(idx, 'fecha_giro', e.target.value)}
+                                className="px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                              />
+                            </td>
+                            <td className="py-2 pr-3">
+                              <input
+                                type="date"
+                                value={fila.fecha_vencimiento}
+                                onChange={e => actualizarFila(idx, 'fecha_vencimiento', e.target.value)}
+                                className="px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                              />
+                            </td>
+                            <td className="py-2 pr-3">
+                              <input
+                                value={fila.banco}
+                                onChange={e => actualizarFila(idx, 'banco', e.target.value)}
+                                placeholder="Opcional"
+                                className="w-32 px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                              />
+                            </td>
+                            <td className="py-2">
+                              {filas.length > 1 && (
+                                <button
+                                  onClick={() => setFilas(filas.filter((_, i) => i !== idx))}
+                                  className="text-gray-300 hover:text-red-400 text-base leading-none"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100">
+                    <button
+                      onClick={() => setFilas([...filas, filaVacia()])}
+                      className="text-sm text-logisalud-teal hover:underline font-medium"
+                    >
+                      + Agregar fila
+                    </button>
+                    <button
+                      onClick={guardarLetras}
+                      disabled={guardando}
+                      className="ml-auto px-6 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition"
+                      style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
+                    >
+                      {guardando
+                        ? 'Guardando…'
+                        : `Guardar ${filas.length} letra${filas.length !== 1 ? 's' : ''}`}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* ── Modo multi-factura: una letra → varias facturas ── */
+                <div className="p-5 space-y-4">
+
+                  {/* Lista de facturas cubiertas */}
+                  <div className="space-y-2">
+                    {facturasCubiertas.map((fc, idx) => (
+                      <div key={fc.factura.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-semibold text-logisalud-green">
+                              {fc.factura.comprobante}
+                            </span>
+                            {idx === 0 && (
+                              <span className="text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">principal</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400 truncate mt-0.5">{fc.factura.razon_social}</p>
+                          <p className="text-xs text-gray-400">
+                            Saldo: <span className="text-orange-600 font-medium">{fmt(Number(fc.factura.saldo_pendiente))}</span>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs text-gray-400">S/</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={fc.monto_aplicado}
+                            onChange={e => actualizarMontoAplicado(idx, e.target.value)}
+                            className="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                          />
+                        </div>
+                        {idx > 0 && (
+                          <button
+                            onClick={() => setFacturasCubiertas(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-gray-300 hover:text-red-400 text-base leading-none shrink-0"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Agregar factura */}
+                  {cargandoFC ? (
+                    <p className="text-xs text-gray-400">Cargando facturas del cliente…</p>
+                  ) : facturasDisponibles.length > 0 ? (
+                    <select
+                      value=""
+                      onChange={e => { if (e.target.value) agregarFacturaCubierta(e.target.value); }}
+                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                    >
+                      <option value="">+ Agregar otra factura del mismo cliente…</option>
+                      {facturasDisponibles.map(f => (
+                        <option key={f.id} value={f.id}>
+                          {f.comprobante} — {fmt(Number(f.saldo_pendiente))}
+                        </option>
                       ))}
-                    </tbody>
-                  </table>
+                    </select>
+                  ) : (
+                    facturasCliente.length > 0 && (
+                      <p className="text-xs text-gray-400">No hay más facturas pendientes de este cliente.</p>
+                    )
+                  )}
+
+                  {/* Total de la letra */}
+                  <div className="flex items-center justify-between p-3 bg-teal-50 border border-teal-100 rounded-lg">
+                    <span className="text-sm font-medium text-teal-800">
+                      Importe de la letra
+                      <span className="text-xs text-teal-600 ml-1">
+                        ({facturasCubiertas.length} factura{facturasCubiertas.length !== 1 ? 's' : ''})
+                      </span>
+                    </span>
+                    <span className="text-lg font-semibold text-teal-900">{fmt(sumaMulti)}</span>
+                  </div>
+
+                  {/* Campos de la letra */}
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">N° Letra *</label>
+                      <input
+                        value={letraMulti.numero_letra}
+                        onChange={e => setLetraMulti(p => ({ ...p, numero_letra: e.target.value }))}
+                        placeholder="LET-001"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">F. Giro</label>
+                      <input
+                        type="date"
+                        value={letraMulti.fecha_giro}
+                        onChange={e => setLetraMulti(p => ({ ...p, fecha_giro: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">F. Vencimiento *</label>
+                      <input
+                        type="date"
+                        value={letraMulti.fecha_vencimiento}
+                        onChange={e => setLetraMulti(p => ({ ...p, fecha_vencimiento: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Banco</label>
+                      <input
+                        value={letraMulti.banco}
+                        onChange={e => setLetraMulti(p => ({ ...p, banco: e.target.value }))}
+                        placeholder="Opcional"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-100 flex justify-end">
+                    <button
+                      onClick={guardarLetraMulti}
+                      disabled={guardando || sumaMulti <= 0}
+                      className="px-6 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition"
+                      style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
+                    >
+                      {guardando ? 'Guardando…' : `Guardar letra — ${fmt(sumaMulti)}`}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={() => setFilas([...filas, filaVacia()])}
-                    className="text-sm text-logisalud-teal hover:underline font-medium"
-                  >
-                    + Agregar fila
-                  </button>
-                  <button
-                    onClick={guardarLetras}
-                    disabled={guardando}
-                    className="ml-auto px-6 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition"
-                    style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
-                  >
-                    {guardando
-                      ? 'Guardando…'
-                      : `Guardar ${filas.length} letra${filas.length !== 1 ? 's' : ''}`}
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
 
           </div>

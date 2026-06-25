@@ -16,14 +16,28 @@ export async function GET(
 
     if (docsErr) return NextResponse.json({ error: docsErr.message }, { status: 500 });
 
-    const ids = (docs ?? []).map(d => d.id);
-    if (ids.length === 0) return NextResponse.json({ letras: [] });
+    const docIds = (docs ?? []).map(d => d.id as string);
+    if (docIds.length === 0) return NextResponse.json({ letras: [] }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+    });
+
+    // Buscar a través de letra_documento
+    const { data: ldData, error: ldErr } = await db
+      .from('letra_documento')
+      .select('letra_id')
+      .in('documento_id', docIds);
+
+    if (ldErr) return NextResponse.json({ error: ldErr.message }, { status: 500 });
+
+    const letraIds = [...new Set((ldData ?? []).map(r => r.letra_id as string))];
+    if (letraIds.length === 0) return NextResponse.json({ letras: [] }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+    });
 
     const { data, error } = await db
       .from('letras')
       .select('id, documento_id, numero_letra, importe, fecha_giro, fecha_vencimiento, estado, banco, observaciones, fecha_pago')
-      .in('documento_id', ids)
-      .order('documento_id')
+      .in('id', letraIds)
       .order('fecha_vencimiento', { ascending: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
