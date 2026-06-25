@@ -10,6 +10,7 @@ interface Preview {
   validas: number;
   facturas: number;
   notas_credito: number;
+  notas_debito: number;
   anuladas: number;
   clientes_nuevos: ClienteNuevo[];
   errores: ErrorFila[];
@@ -116,10 +117,11 @@ export default function ImportarPage() {
       {/* Preview */}
       {estado === 'preview' && preview && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             <Stat label="Filas válidas" value={preview.validas} of={preview.total_filas} color="blue" />
             <Stat label="Facturas" value={preview.facturas} color="green" />
             <Stat label="Notas de crédito" value={preview.notas_credito} color="yellow" />
+            <Stat label="Notas de débito" value={preview.notas_debito} color="orange" />
             <Stat label="Anuladas" value={preview.anuladas} color="gray" />
           </div>
 
@@ -209,6 +211,7 @@ function Stat({ label, value, of: total, color }: { label: string; value: number
     blue:   'bg-blue-50 text-blue-700',
     green:  'bg-green-50 text-green-700',
     yellow: 'bg-yellow-50 text-yellow-700',
+    orange: 'bg-orange-50 text-orange-700',
     gray:   'bg-gray-100 text-gray-600',
     red:    'bg-red-50 text-red-700',
   };

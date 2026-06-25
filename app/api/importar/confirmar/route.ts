@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Error al insertar clientes: ${errClientes.message}` }, { status: 500 });
     }
 
-    // 2. Separar facturas y NCs
+    // 2. Separar facturas, NCs y NDs
     const facturas = filas.filter(f => f.tipo === '01');
-    const ncs      = filas.filter(f => f.tipo === '07');
+    const ajustes  = filas.filter(f => f.tipo === '07' || f.tipo === '08'); // NC + ND
 
     const upsertDocumento = async (f: FilaNubefact, doc_relacionado_id?: string | null) => {
       const payload: Record<string, unknown> = {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     const docKey = (tipo: string, serie: string, numero: number) => `${tipo}|${serie}|${numero}`;
     const idsPorClave = new Map<string, string>();
 
-    const clavesRef = ncs
+    const clavesRef = ajustes
       .filter(n => n.doc_mod_tipo && n.doc_mod_serie && n.doc_mod_numero)
       .map(n => ({ tipo: n.doc_mod_tipo!, serie: n.doc_mod_serie!, numero: n.doc_mod_numero! }));
 
@@ -75,8 +75,8 @@ export async function POST(req: NextRequest) {
       } catch (e) { resultados.errores.push(String(e)); }
     }
 
-    // 4. Upsert NCs
-    for (const f of ncs) {
+    // 4. Upsert NCs y NDs
+    for (const f of ajustes) {
       try {
         const relId = idsPorClave.get(docKey(f.doc_mod_tipo!, f.doc_mod_serie!, f.doc_mod_numero!)) ?? null;
         await upsertDocumento(f, relId);
