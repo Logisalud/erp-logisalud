@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
         vendedor_anterior_id,
         fecha_reasignacion,
         codigo_zona,
+        zona_manual,
         vendedor_manual_id,
         vendedor_actual:vendedor_actual_id ( id, nombres, apellidos, codigo ),
         vendedor_manual:vendedor_manual_id ( id, nombres, apellidos, codigo )
