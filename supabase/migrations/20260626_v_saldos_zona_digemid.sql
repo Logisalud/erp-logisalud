@@ -1,0 +1,5 @@
+-- Migración aplicada 2026-06-26
+-- v_saldos: zona_nombre ahora viene de clientes.codigo_zona (código DIGEMID)
+-- en lugar del camino viejo: vendedor → zona_vendedor → zonas.nombre
+-- Se elimina CTE zona_vigente y su JOIN correspondiente.
+-- No afecta ningún cálculo de saldo ni buckets.
