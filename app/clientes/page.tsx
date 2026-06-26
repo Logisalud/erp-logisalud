@@ -22,6 +22,7 @@ interface ClienteRow {
   vendedor_manual_id: string | null;
   fecha_reasignacion: string | null;
   codigo_zona: string | null;
+  zona_manual: boolean;
   vendedor_actual: VendedorInfo | null;
   vendedor_manual: VendedorInfo | null;
 }
@@ -169,10 +170,11 @@ export default function ClientesPage() {
       </div>
 
       {/* Leyenda */}
-      <div className="flex gap-4 mb-4 text-xs text-gray-500">
+      <div className="flex flex-wrap gap-4 mb-4 text-xs text-gray-500">
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-amber-400"></span> Vendedor con override manual</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span> Vendedor derivado de zona</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-gray-300"></span> Sin zona asignada</span>
+        <span className="flex items-center gap-1 text-violet-600">✏️ Zona corregida manualmente</span>
       </div>
 
       {cargando ? (
@@ -211,27 +213,37 @@ export default function ClientesPage() {
 
                     {/* Zona DIGEMID — editable */}
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-1">
-                        <select
-                          value={zonaEditVal}
-                          onChange={e => setEditZona(prev => ({ ...prev, [c.ruc]: e.target.value }))}
-                          className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-28"
-                        >
-                          <option value="">-- Sin zona --</option>
-                          {zonas.map(z => (
-                            <option key={z.codigo_zona} value={z.codigo_zona}>
-                              {z.codigo_zona}
-                            </option>
-                          ))}
-                        </select>
-                        {zonaEditVal !== (c.codigo_zona ?? '') && (
-                          <button
-                            onClick={() => guardarZona(c)}
-                            disabled={guardandoEsta}
-                            className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-40 transition whitespace-nowrap"
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={zonaEditVal}
+                            onChange={e => setEditZona(prev => ({ ...prev, [c.ruc]: e.target.value }))}
+                            className={`px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 w-28
+                              ${c.zona_manual
+                                ? 'border-violet-400 focus:ring-violet-400 bg-violet-50'
+                                : 'border-gray-300 focus:ring-blue-400'}`}
                           >
-                            {guardando === c.ruc ? '…' : 'Guardar'}
-                          </button>
+                            <option value="">-- Sin zona --</option>
+                            {zonas.map(z => (
+                              <option key={z.codigo_zona} value={z.codigo_zona}>
+                                {z.codigo_zona}
+                              </option>
+                            ))}
+                          </select>
+                          {zonaEditVal !== (c.codigo_zona ?? '') && (
+                            <button
+                              onClick={() => guardarZona(c)}
+                              disabled={guardandoEsta}
+                              className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-40 transition whitespace-nowrap"
+                            >
+                              {guardando === c.ruc ? '…' : 'Guardar'}
+                            </button>
+                          )}
+                        </div>
+                        {c.zona_manual && (
+                          <span className="text-[10px] text-violet-600 font-medium flex items-center gap-0.5">
+                            ✏️ Corregida
+                          </span>
                         )}
                       </div>
                     </td>

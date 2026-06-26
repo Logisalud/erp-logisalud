@@ -15,7 +15,10 @@ export async function PATCH(
     }
 
     const payload: Record<string, unknown> = {};
-    if ('codigo_zona' in body)        payload.codigo_zona        = body.codigo_zona ?? null;
+    if ('codigo_zona' in body) {
+      payload.codigo_zona  = body.codigo_zona ?? null;
+      payload.zona_manual  = body.codigo_zona != null; // true al fijar, false al quitar zona
+    }
     if ('vendedor_manual_id' in body) payload.vendedor_manual_id = body.vendedor_manual_id ?? null;
 
     const db = supabaseAdmin();
