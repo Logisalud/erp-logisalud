@@ -81,7 +81,17 @@ export default function ImportarCarteraPage() {
   };
 
   return (
-    <main className="max-w-3xl mx-auto mt-12 px-4 pb-16">
+    <div>
+      <header className="px-6 py-4" style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}>
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
+            <p className="text-white/70 text-sm">Importar Cartera 2026</p>
+          </div>
+          <a href="/" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+        </div>
+      </header>
+    <main className="max-w-3xl mx-auto mt-8 px-4 pb-16">
       <h1 className="text-2xl font-bold mb-1">Importar Cartera 2026</h1>
       <p className="text-gray-500 text-sm mb-8">
         Sube el Excel con las hojas <strong>BD VENDEDORES</strong> y <strong>TABLA DE VENTA</strong>.
@@ -184,6 +194,7 @@ export default function ImportarCarteraPage() {
         </div>
       )}
     </main>
+    </div>
   );
 }
 
