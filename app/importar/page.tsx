@@ -76,7 +76,17 @@ export default function ImportarPage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto mt-12 px-4 pb-16">
+    <div>
+      <header className="px-6 py-4" style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}>
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
+            <p className="text-white/70 text-sm">Importar reporte Nubefact</p>
+          </div>
+          <a href="/" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+        </div>
+      </header>
+    <main className="max-w-3xl mx-auto mt-8 px-4 pb-16">
       <h1 className="text-2xl font-bold mb-1">Importar reporte Nubefact</h1>
       <p className="text-gray-500 text-sm mb-8">Sube el Excel exportado desde Nubefact. El sistema mostrará un resumen antes de guardar.</p>
 
@@ -203,6 +213,7 @@ export default function ImportarPage() {
         </div>
       )}
     </main>
+    </div>
   );
 }
 

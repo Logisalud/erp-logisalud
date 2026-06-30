@@ -143,11 +143,17 @@ export default function ClientesPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <main className="max-w-7xl mx-auto mt-10 px-4 pb-16">
-      <h1 className="text-2xl font-bold mb-1">Clientes</h1>
-      <p className="text-gray-500 text-sm mb-6">
-        Zona DIGEMID y asignación de vendedor. El vendedor efectivo se deriva automáticamente de la zona; el override manual sobreescribe la zona.
-      </p>
+    <div>
+      <header className="px-6 py-4" style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}>
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
+            <p className="text-white/70 text-sm">Gestión de clientes</p>
+          </div>
+          <a href="/" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+        </div>
+      </header>
+    <main className="max-w-7xl mx-auto mt-6 px-4 pb-16">
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-3 mb-6">
@@ -346,5 +352,6 @@ export default function ClientesPage() {
         </div>
       )}
     </main>
+    </div>
   );
 }
