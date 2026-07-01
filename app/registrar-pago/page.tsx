@@ -47,6 +47,15 @@ interface Pago {
   voucher_path: string | null;
 }
 
+interface PagoBuscar {
+  id: string;
+  monto: number;
+  fecha_pago: string;
+  referencia: string | null;
+  documento_id: string;
+  documentos: { comprobante: string; cliente_ruc: string; razon_social: string } | null;
+}
+
 const fmt = (n: number) =>
   'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
@@ -100,6 +109,8 @@ function FileUpload({
 export default function RegistrarPagoPage() {
   const [busqueda, setBusqueda]         = useState('');
   const [sugerencias, setSugerencias]   = useState<FacturaBuscar[]>([]);
+  const [sugerenciasPagos, setSugerenciasPagos] = useState<PagoBuscar[]>([]);
+  const [tipoBusqueda, setTipoBusqueda] = useState<'texto' | 'monto'>('texto');
   const [buscando, setBuscando]         = useState(false);
   const [factura, setFactura]           = useState<FacturaBuscar | null>(null);
   const [letras, setLetras]             = useState<Letra[]>([]);
@@ -149,11 +160,13 @@ export default function RegistrarPagoPage() {
   const buscarDebounced = useCallback((q: string) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
-      if (q.length < 2) { setSugerencias([]); return; }
+      if (q.length < 2) { setSugerencias([]); setSugerenciasPagos([]); return; }
       setBuscando(true);
       const res = await fetch(`/api/facturas/buscar?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
       const d   = await res.json();
       setSugerencias(d.facturas ?? []);
+      setSugerenciasPagos(d.pagos ?? []);
+      setTipoBusqueda(d.tipoBusqueda ?? 'texto');
       setBuscando(false);
     }, 280);
   }, []);
@@ -161,6 +174,7 @@ export default function RegistrarPagoPage() {
   const onBusquedaChange = (v: string) => {
     setBusqueda(v);
     if (factura) { setFactura(null); setLetras([]); setPagos([]); setNcnds([]); }
+    if (!v.trim()) { setSugerencias([]); setSugerenciasPagos([]); }
     buscarDebounced(v);
   };
 
@@ -180,6 +194,7 @@ export default function RegistrarPagoPage() {
 
   const seleccionarFactura = async (f: FacturaBuscar) => {
     setSugerencias([]);
+    setSugerenciasPagos([]);
     setBusqueda(`${f.comprobante} — ${f.razon_social}`);
     setErrMsg(''); setExitoMsg('');
     setLetraSelId(null); setMonto(''); setFechaPago(hoy()); setReferencia('');
@@ -367,18 +382,23 @@ export default function RegistrarPagoPage() {
         {/* Buscador */}
         <div className="relative">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Buscar factura por comprobante, RUC o razón social
+            Buscar por comprobante, RUC, razón social o monto
           </label>
           <input
             type="text"
             value={busqueda}
             onChange={e => onBusquedaChange(e.target.value)}
-            placeholder="Ej: FFF1-1211 · 20601234567 · FARMACIA"
+            placeholder="Ej: FFF1-1211 · 20601234567 · FARMACIA · 257.79"
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal bg-white"
           />
           {buscando && <span className="absolute right-3 top-9 text-xs text-gray-400">Buscando…</span>}
-          {sugerencias.length > 0 && (
+          {(sugerencias.length > 0 || sugerenciasPagos.length > 0) && (
             <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden divide-y divide-gray-100">
+              {tipoBusqueda === 'monto' && sugerencias.length > 0 && (
+                <li className="px-4 py-1.5 bg-gray-50">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Facturas con ese importe o saldo</span>
+                </li>
+              )}
               {sugerencias.map(f => (
                 <li key={f.id}>
                   <button
@@ -401,6 +421,9 @@ export default function RegistrarPagoPage() {
                       <p className="text-gray-600 text-xs truncate mt-0.5">{f.razon_social}</p>
                     </div>
                     <div className="text-right shrink-0 ml-4">
+                      {tipoBusqueda === 'monto' && (
+                        <p className="text-xs text-gray-500">importe: <span className="font-semibold">{fmt(Number(f.importe_total))}</span></p>
+                      )}
                       <p className={`text-sm font-bold ${Number(f.saldo_pendiente) > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
                         {fmt(Number(f.saldo_pendiente))}
                       </p>
@@ -409,6 +432,40 @@ export default function RegistrarPagoPage() {
                   </button>
                 </li>
               ))}
+              {sugerenciasPagos.length > 0 && (
+                <>
+                  <li className="px-4 py-1.5 bg-gray-50 border-t border-gray-100">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Pagos ya registrados con ese monto</span>
+                  </li>
+                  {sugerenciasPagos.map(p => (
+                    <li key={p.id} className="px-4 py-3 flex items-center justify-between gap-4 bg-blue-50/30">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-semibold text-blue-700 text-sm">{fmt(p.monto)}</span>
+                          <span className="text-xs text-gray-400">{fmtFecha(p.fecha_pago)}</span>
+                          {p.referencia && <span className="text-xs text-gray-500">Ref: {p.referencia}</span>}
+                        </div>
+                        {p.documentos && (
+                          <p className="text-xs text-gray-600 truncate mt-0.5">
+                            {p.documentos.comprobante} — {p.documentos.razon_social}
+                          </p>
+                        )}
+                      </div>
+                      {p.documentos && (
+                        <button
+                          onClick={() => {
+                            const fake = sugerencias.find(f => f.id === p.documento_id);
+                            if (fake) seleccionarFactura(fake);
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-800 underline shrink-0"
+                        >
+                          Ver factura
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </>
+              )}
             </ul>
           )}
         </div>

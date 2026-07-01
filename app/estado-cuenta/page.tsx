@@ -273,7 +273,7 @@ export default function EstadoCuentaPage() {
     saldo:   facturas.reduce((a, f) => a + Number(f.saldo_pendiente),0),
   };
 
-  const COLS = 13;
+  const COLS = 14;
 
   return (
     <div className="min-h-screen bg-gray-50 font-poppins">
@@ -448,6 +448,7 @@ export default function EstadoCuentaPage() {
                     <th className="px-3 py-3 text-right text-orange-500">ND</th>
                     <th className="px-3 py-3 text-right text-blue-500">Pagado</th>
                     <th className="px-3 py-3 text-right font-bold">Saldo</th>
+                    <th className="px-3 py-3 text-center">Estado</th>
                     <th className="px-3 py-3 text-right">Días</th>
                     <th className="px-3 py-3 text-center">Rango</th>
                     <th className="px-3 py-3 text-center" style={{ color: '#4ABCC2' }}>Próx. Letra</th>
@@ -512,6 +513,7 @@ export default function EstadoCuentaPage() {
                           <td className={`px-3 py-2 text-right text-xs font-semibold ${
                             es90 ? 'text-red-600' : pagado ? 'text-gray-400' : 'text-gray-800'
                           }`}>{fmt(Number(f.saldo_pendiente))}</td>
+                          <td className="px-3 py-2 text-center"><EstadoPagoBadge f={f} /></td>
                           <td className={`px-3 py-2 text-right text-xs ${es90 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
                             {Number(f.dias_retraso) > 0 ? `${f.dias_retraso}d` : '—'}
                           </td>
@@ -703,6 +705,17 @@ function RangoBadge({ rango }: { rango: string }) {
       {rango === 'con_letras' ? 'letras' : rango}
     </span>
   );
+}
+
+function EstadoPagoBadge({ f }: { f: FacturaRow }) {
+  const saldo   = Number(f.saldo_pendiente);
+  const pagado  = Number(f.total_pagado);
+  const importe = Number(f.importe_total);
+  if (saldo === 0 && importe > 0)
+    return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Pagado</span>;
+  if (pagado > 0 && saldo > 0)
+    return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Parcial</span>;
+  return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">Pendiente</span>;
 }
 
 function EstadoBadge({ estado }: { estado: string }) {

@@ -38,9 +38,14 @@ export async function GET(req: NextRequest) {
     });
 
     const rows = data.map(r => {
-      const saldo   = Number(r.saldo_pendiente) || 0;
-      const vencido = (Number(r.d1_30) || 0) + (Number(r.d31_60) || 0)
-                    + (Number(r.d61_90) || 0) + (Number(r.mas90) || 0);
+      const saldo    = Number(r.saldo_pendiente) || 0;
+      const pagado   = Number(r.total_pagado)    || 0;
+      const importe  = Number(r.importe_total)   || 0;
+      const vencido  = (Number(r.d1_30) || 0) + (Number(r.d31_60) || 0)
+                     + (Number(r.d61_90) || 0) + (Number(r.mas90) || 0);
+      const estadoPago = saldo === 0 && importe > 0 ? 'Pagado'
+                       : pagado > 0 && saldo > 0    ? 'Parcial'
+                       :                              'Pendiente';
       return {
         'Comprobante':       r.comprobante,
         'RUC':               r.cliente_ruc,
@@ -55,8 +60,9 @@ export async function GET(req: NextRequest) {
         'Importe Total':     Number(r.importe_total) || 0,
         'Total NC':          Number(r.total_nc)      || 0,
         'Total ND':          Number(r.total_nd)      || 0,
-        'Total Pagado':      Number(r.total_pagado)  || 0,
+        'Total Pagado':      pagado,
         'Saldo Pendiente':   saldo,
+        'Estado Pago':       estadoPago,
         'Por Vencer':        Number(r.vigente)  || 0,
         '1-30 días':         Number(r.d1_30)    || 0,
         '31-60 días':        Number(r.d31_60)   || 0,
@@ -75,7 +81,7 @@ export async function GET(req: NextRequest) {
     ws['!cols'] = [
       { wch: 14 }, { wch: 13 }, { wch: 35 }, { wch: 10 }, { wch: 22 }, { wch: 18 },
       { wch: 13 }, { wch: 16 }, { wch: 10 }, { wch: 7  },
-      { wch: 13 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 },
+      { wch: 13 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 13 }, { wch: 11 }, { wch: 12 }, { wch: 15 }, { wch: 11 },
     ];
