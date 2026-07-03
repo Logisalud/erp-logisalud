@@ -34,6 +34,10 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1">👥 Importar Cartera</h2>
           <p className="text-gray-500 text-sm">Carga vendedores, zonas y asigna clientes desde el Excel de cartera.</p>
         </Link>
+        <Link href="/vendedores-links" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">🔗 Links de vendedores</h2>
+          <p className="text-gray-500 text-sm">Links privados de cobranza para que cada vendedor vea su cartera pendiente.</p>
+        </Link>
       </div>
     </main>
   );
