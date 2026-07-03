@@ -101,6 +101,7 @@ export default function VistaVendedorClient({
   }
 
   const grupos = agrupar(facturas);
+  const totalVencido = facturas.reduce((s, f) => s + f.vencido, 0);
 
   return (
     <>
@@ -155,7 +156,7 @@ export default function VistaVendedorClient({
         <div className="mt-3">
           <style>{'@media print{@page{size:landscape;margin:8mm}}'}</style>
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white print:border-gray-300 print:overflow-visible">
-            <table className="w-full min-w-[840px] print:min-w-0 text-xs">
+            <table className="w-full min-w-[920px] print:min-w-0 text-xs">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wide text-gray-500 bg-gray-50 print:bg-gray-100">
                   <th className="px-3 py-2.5 text-left font-semibold">Comprobante</th>
@@ -166,13 +167,14 @@ export default function VistaVendedorClient({
                   <th className="px-3 py-2.5 text-right font-semibold text-green-600">N. Crédito</th>
                   <th className="px-3 py-2.5 text-right font-semibold text-blue-500">Pagado</th>
                   <th className="px-3 py-2.5 text-right font-semibold">Saldo</th>
+                  <th className="px-3 py-2.5 text-right font-semibold text-red-600">Vencido</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {grupos.map(g => (
                   <Fragment key={g.ruc}>
                     <tr className="bg-teal-50/40 print:bg-gray-50 print:break-inside-avoid">
-                      <td colSpan={8} className="px-3 py-2">
+                      <td colSpan={9} className="px-3 py-2">
                         <div className="flex items-baseline justify-between gap-3 flex-wrap">
                           <div className="min-w-0">
                             <span className="font-semibold text-gray-800">{g.razon_social}</span>
@@ -202,6 +204,7 @@ export default function VistaVendedorClient({
                           <td className="px-3 py-2 text-right tabular-nums text-green-600 whitespace-nowrap">{f.total_nc > 0 ? fmt(f.total_nc) : '—'}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-blue-500 whitespace-nowrap">{f.total_pagado > 0 ? fmt(f.total_pagado) : '—'}</td>
                           <td className="px-3 py-2 text-right tabular-nums font-semibold text-gray-800 whitespace-nowrap">{fmt(f.saldo_pendiente)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-semibold text-red-600 whitespace-nowrap">{f.vencido > 0.005 ? fmt(f.vencido) : '—'}</td>
                         </tr>
                       );
                     })}
@@ -215,6 +218,7 @@ export default function VistaVendedorClient({
                   <td className="px-3 py-2.5 text-right tabular-nums text-green-600">{fmt(totalNc)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-blue-500">{fmt(totalPagado)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: '#4BB168' }}>{fmt(total)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-red-600">{fmt(totalVencido)}</td>
                 </tr>
               </tfoot>
             </table>
