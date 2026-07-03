@@ -38,14 +38,14 @@ function diasParaVencer(fechaVenc: string | null): number | null {
 
 function Plazo({ fecha }: { fecha: string | null }) {
   const dias = diasParaVencer(fecha);
-  if (dias === null) return <span className="text-xs text-gray-400">sin vencimiento</span>;
+  if (dias === null) return <span className="text-xs text-gray-400">sin fecha</span>;
   if (dias < 0) {
     const v = Math.abs(dias);
-    return <span className="text-xs font-semibold text-red-600">Vencido {v} {v === 1 ? 'día' : 'días'}</span>;
+    return <span className="text-xs font-semibold text-red-600">vencido {v} {v === 1 ? 'día' : 'días'}</span>;
   }
-  if (dias === 0) return <span className="text-xs font-semibold text-amber-600">Vence hoy</span>;
-  if (dias <= 7)  return <span className="text-xs font-semibold text-amber-600">Vence en {dias} {dias === 1 ? 'día' : 'días'}</span>;
-  return <span className="text-xs font-medium" style={{ color: '#4BB168' }}>Vence en {dias} días</span>;
+  if (dias === 0) return <span className="text-xs font-semibold text-amber-600">hoy</span>;
+  if (dias <= 7)  return <span className="text-xs font-semibold text-amber-600">en {dias} {dias === 1 ? 'día' : 'días'}</span>;
+  return <span className="text-xs font-medium" style={{ color: '#4BB168' }}>en {dias} días</span>;
 }
 
 export default async function VistaVendedorPage({ params }: { params: { token: string } }) {
@@ -85,6 +85,19 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
     ),
     db.from('digemid_zona_vendedor').select('codigo_zona').eq('vendedor_id', vendedor.id),
   ]);
+
+  // Distrito por cliente (puede estar vacío si aún no se carga desde DIGEMID)
+  const rucs = Array.from(new Set(facturas.map(f => f.cliente_ruc)));
+  const distritoPorRuc = new Map<string, string>();
+  for (let i = 0; i < rucs.length; i += 500) {
+    const { data: cls } = await db
+      .from('clientes')
+      .select('ruc, distrito')
+      .in('ruc', rucs.slice(i, i + 500));
+    for (const c of cls ?? []) {
+      if (c.distrito) distritoPorRuc.set(c.ruc, c.distrito);
+    }
+  }
 
   // Próxima letra pendiente por documento (solo facturas con letras)
   const idsConLetras = facturas.filter(f => f.tiene_letras).map(f => f.id);
@@ -169,12 +182,20 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
                     <p className="text-gray-800 text-sm font-semibold truncate">{f.razon_social}</p>
                     <p className="font-oswald text-base text-gray-800 shrink-0">{fmt(Number(f.saldo_pendiente))}</p>
                   </div>
+                  <p className="text-gray-400 text-[11px] mt-0.5">
+                    RUC {f.cliente_ruc}
+                    {distritoPorRuc.has(f.cliente_ruc) && <span className="text-gray-500"> · {distritoPorRuc.get(f.cliente_ruc)}</span>}
+                  </p>
                   <div className="flex items-baseline justify-between gap-3 mt-0.5">
                     <p className="text-gray-400 text-xs font-mono shrink-0">
                       {f.comprobante}
                       {letraFecha && <span className="ml-1.5 font-sans" style={{ color: '#4ABCC2' }}>letra {fmtFecha(letraFecha)}</span>}
                     </p>
-                    <Plazo fecha={fechaEfectiva(f)} />
+                    <p className="text-xs text-right">
+                      <span className="text-gray-400">Vence {fmtFecha(fechaEfectiva(f))}</span>
+                      <span className="mx-1 text-gray-300">·</span>
+                      <Plazo fecha={fechaEfectiva(f)} />
+                    </p>
                   </div>
                 </div>
               );
