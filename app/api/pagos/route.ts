@@ -22,12 +22,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { documento_id, monto, fecha_pago, referencia, voucher_path } = body as {
+  const { documento_id, monto, fecha_pago, referencia, voucher_path, retencion } = body as {
     documento_id: string;
     monto: number;
     fecha_pago: string;
     referencia?: string;
     voucher_path?: string;
+    retencion?: number;   // monto de retención de IGV (3%), opcional
   };
 
   if (!documento_id || !monto || !fecha_pago)
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
     );
   if (Number(monto) <= 0)
     return NextResponse.json({ error: 'El monto debe ser mayor a 0' }, { status: 400 });
+  if (retencion !== undefined && Number(retencion) < 0)
+    return NextResponse.json({ error: 'La retención no puede ser negativa' }, { status: 400 });
 
   const db = supabaseAdmin();
 
@@ -54,18 +57,30 @@ export async function POST(req: NextRequest) {
 
   // Sin límite de monto: v_cobros ya usa GREATEST(0,...) para que el saldo no baje de cero
 
-  const { data, error } = await db
-    .from('pagos')
-    .insert({
+  // El pago real + (opcional) la retención de IGV se insertan juntos: ambos
+  // suman en pagos y llevan la factura a saldo 0. La retención se distingue
+  // por tipo='retencion' para el desglose y la trazabilidad.
+  const rows: Record<string, unknown>[] = [{
+    documento_id,
+    monto: Number(monto),
+    fecha_pago,
+    referencia: referencia ?? null,
+    voucher_path: voucher_path ?? null,
+    tipo: 'pago',
+  }];
+  if (retencion !== undefined && Number(retencion) > 0) {
+    rows.push({
       documento_id,
-      monto: Number(monto),
+      monto: Number(retencion),
       fecha_pago,
-      referencia: referencia ?? null,
-      voucher_path: voucher_path ?? null,
-    })
-    .select()
-    .single();
+      referencia: 'Retención IGV 3%',
+      voucher_path: null,
+      tipo: 'retencion',
+    });
+  }
+
+  const { data, error } = await db.from('pagos').insert(rows).select();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ pago: data });
+  return NextResponse.json({ pagos: data, pago: data?.[0] });
 }

@@ -45,6 +45,7 @@ interface Pago {
   fecha_pago: string;
   referencia: string | null;
   voucher_path: string | null;
+  tipo?: 'pago' | 'retencion';
 }
 
 interface PagoBuscar {
@@ -120,6 +121,8 @@ export default function RegistrarPagoPage() {
 
   const [letraSelId, setLetraSelId]     = useState<string | null>(null);
   const [monto, setMonto]               = useState('');
+  const [conRetencion, setConRetencion] = useState(false);
+  const [retencion, setRetencion]       = useState('');
   const [fechaPago, setFechaPago]       = useState(hoy());
   const [referencia, setReferencia]     = useState('');
   const [archivo, setArchivo]           = useState<File | null>(null);
@@ -270,11 +273,40 @@ export default function RegistrarPagoPage() {
     setMonto(''); setReferencia(''); setFechaPago(hoy());
     setArchivo(null); setVoucherPath(null); setPreviewUrl(null);
     setLetraSelId(null);
+    setConRetencion(false); setRetencion('');
+  };
+
+  // Al activar la retención: precarga el 3% del importe total y sugiere el
+  // depósito (97%). Al desactivarla, limpia la retención.
+  const toggleRetencion = () => {
+    if (!factura) return;
+    if (!conRetencion) {
+      const imp = Number(factura.importe_total);
+      const ret = Math.round(imp * 0.03 * 100) / 100;
+      setRetencion(ret.toFixed(2));
+      setMonto((imp - ret).toFixed(2));
+      setConRetencion(true);
+    } else {
+      setConRetencion(false);
+      setRetencion('');
+    }
+  };
+
+  // Al editar el monto de retención, recalcula el depósito sugerido (97%)
+  // para que pago + retención sigan cubriendo el importe total.
+  const onRetencionChange = (v: string) => {
+    setRetencion(v);
+    if (factura) {
+      const imp = Number(factura.importe_total);
+      const ret = Number(v) || 0;
+      setMonto((imp - ret).toFixed(2));
+    }
   };
 
   const registrarPagoFactura = async () => {
     if (!factura) return;
     if (!monto || Number(monto) <= 0)  { setErrMsg('El monto debe ser mayor a 0.');        return; }
+    if (conRetencion && Number(retencion) <= 0) { setErrMsg('La retención debe ser mayor a 0.'); return; }
     setGuardando(true); setErrMsg(''); setExitoMsg('');
     const res = await fetch('/api/pagos', {
       method: 'POST',
@@ -285,11 +317,14 @@ export default function RegistrarPagoPage() {
         fecha_pago: fechaPago,
         referencia: referencia.trim() || undefined,
         ...(voucherPath ? { voucher_path: voucherPath } : {}),
+        ...(conRetencion && Number(retencion) > 0 ? { retencion: Number(retencion) } : {}),
       }),
     });
     const d = await res.json();
     if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
-    setExitoMsg(`✓ Pago de ${fmt(Number(monto))} registrado correctamente.`);
+    setExitoMsg(conRetencion
+      ? `✓ Pago de ${fmt(Number(monto))} + retención IGV de ${fmt(Number(retencion))} registrados.`
+      : `✓ Pago de ${fmt(Number(monto))} registrado correctamente.`);
     limpiarForm();
     await recargar(factura);
     setGuardando(false);
@@ -363,6 +398,10 @@ export default function RegistrarPagoPage() {
   const letrasPendientes = letras.filter(l => l.estado !== 'pagada');
   const letraSel         = letras.find(l => l.id === letraSelId);
   const esContado        = factura?.forma_pago === 'CONTADO';
+
+  // Desglose: separa pagos reales de la retención de IGV (ambos viven en pagos)
+  const totalRetencion   = pagos.filter(p => p.tipo === 'retencion').reduce((s, p) => s + Number(p.monto), 0);
+  const totalPagoReal    = pagos.filter(p => p.tipo !== 'retencion').reduce((s, p) => s + Number(p.monto), 0);
 
   return (
     <div className="min-h-screen bg-gray-50 font-poppins">
@@ -571,10 +610,16 @@ export default function RegistrarPagoPage() {
                     <span className="font-medium tabular-nums">+ {fmt(Number(factura.total_nd))}</span>
                   </div>
                 )}
-                {Number(factura.total_pagado) > 0 && (
+                {totalPagoReal > 0 && (
                   <div className="flex justify-between items-center text-green-700">
                     <span>(−) Pagos registrados</span>
-                    <span className="font-medium tabular-nums">− {fmt(Number(factura.total_pagado))}</span>
+                    <span className="font-medium tabular-nums">− {fmt(totalPagoReal)}</span>
+                  </div>
+                )}
+                {totalRetencion > 0 && (
+                  <div className="flex justify-between items-center" style={{ color: '#4ABCC2' }}>
+                    <span>(−) Retención IGV</span>
+                    <span className="font-medium tabular-nums">− {fmt(totalRetencion)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center pt-2 border-t border-gray-100">
@@ -747,6 +792,50 @@ export default function RegistrarPagoPage() {
                       />
                     </div>
                   </div>
+                  {/* Retención de IGV (3%) */}
+                  <div className="rounded-lg border border-gray-100 bg-gray-50/60 p-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={toggleRetencion}
+                        className={`relative w-10 h-5 rounded-full transition-colors focus:outline-none ${
+                          conRetencion ? '' : 'bg-gray-300'
+                        }`}
+                        style={conRetencion ? { background: '#4ABCC2' } : undefined}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                          conRetencion ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                      </button>
+                      <span className="text-sm text-gray-700">Aplica retención de IGV (3%)</span>
+                    </div>
+
+                    {conRetencion && (
+                      <div className="mt-3 space-y-2">
+                        <div className="flex justify-between items-center text-xs text-gray-500">
+                          <span>Importe total de la factura</span>
+                          <span className="tabular-nums text-gray-700">{fmt(Number(factura.importe_total))}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-xs text-gray-500">Retención 3% (editable)</label>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={retencion}
+                            onChange={e => onRetencionChange(e.target.value)}
+                            className="w-32 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                          />
+                        </div>
+                        <div className="flex justify-between items-center text-xs pt-1 border-t border-gray-200">
+                          <span className="text-gray-500">Depósito sugerido (97%)</span>
+                          <span className="tabular-nums font-semibold" style={{ color: '#4BB168' }}>{fmt(Number(monto) || 0)}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          Se registran dos movimientos: el depósito y la retención IGV. Juntos saldan la factura.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                   <FileUpload
                     archivo={archivo} previewUrl={previewUrl}
                     subiendo={subiendo} voucherPath={voucherPath}
@@ -758,7 +847,7 @@ export default function RegistrarPagoPage() {
                     className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition"
                     style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
                   >
-                    {guardando ? 'Registrando…' : 'Registrar pago'}
+                    {guardando ? 'Registrando…' : conRetencion ? 'Registrar pago + retención' : 'Registrar pago'}
                   </button>
                 </div>
               </div>
@@ -842,7 +931,14 @@ export default function RegistrarPagoPage() {
                         /* Fila normal */
                         <div className="px-5 py-3 flex items-center justify-between gap-4">
                           <div>
-                            <p className="text-sm font-semibold text-gray-800">{fmt(Number(p.monto))}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-gray-800">{fmt(Number(p.monto))}</p>
+                              {p.tipo === 'retencion' && (
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#E0F5F6', color: '#2A8A90' }}>
+                                  Retención IGV
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-gray-400">
                               {fmtFecha(p.fecha_pago)}
                               {p.referencia && <> · <span className="text-gray-500">{p.referencia}</span></>}
