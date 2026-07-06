@@ -123,6 +123,8 @@ export default function RegistrarPagoPage() {
   const [monto, setMonto]               = useState('');
   const [conRetencion, setConRetencion] = useState(false);
   const [retencion, setRetencion]       = useState('');
+  const [modoSoloRet, setModoSoloRet]   = useState(false);
+  const [soloRetMonto, setSoloRetMonto] = useState('');
   const [fechaPago, setFechaPago]       = useState(hoy());
   const [referencia, setReferencia]     = useState('');
   const [archivo, setArchivo]           = useState<File | null>(null);
@@ -274,6 +276,7 @@ export default function RegistrarPagoPage() {
     setArchivo(null); setVoucherPath(null); setPreviewUrl(null);
     setLetraSelId(null);
     setConRetencion(false); setRetencion('');
+    setModoSoloRet(false); setSoloRetMonto('');
   };
 
   // Al activar la retención: precarga el 3% del importe total y sugiere el
@@ -325,6 +328,37 @@ export default function RegistrarPagoPage() {
     setExitoMsg(conRetencion
       ? `✓ Pago de ${fmt(Number(monto))} + retención IGV de ${fmt(Number(retencion))} registrados.`
       : `✓ Pago de ${fmt(Number(monto))} registrado correctamente.`);
+    limpiarForm();
+    await recargar(factura);
+    setGuardando(false);
+  };
+
+  // Abre el modo "solo retención": precarga el monto con el saldo pendiente
+  // actual (que en estos casos es justo el 3% que falta), editable.
+  const abrirSoloRetencion = () => {
+    if (!factura) return;
+    setSoloRetMonto(Number(factura.saldo_pendiente).toFixed(2));
+    setModoSoloRet(true);
+    setErrMsg(''); setExitoMsg('');
+  };
+
+  const registrarSoloRetencion = async () => {
+    if (!factura) return;
+    if (!soloRetMonto || Number(soloRetMonto) <= 0) { setErrMsg('La retención debe ser mayor a 0.'); return; }
+    setGuardando(true); setErrMsg(''); setExitoMsg('');
+    const res = await fetch('/api/pagos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        documento_id: factura.id,
+        monto: Number(soloRetMonto),
+        fecha_pago: fechaPago,
+        solo_retencion: true,
+      }),
+    });
+    const d = await res.json();
+    if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
+    setExitoMsg(`✓ Retención IGV de ${fmt(Number(soloRetMonto))} registrada.`);
     limpiarForm();
     await recargar(factura);
     setGuardando(false);
@@ -850,6 +884,69 @@ export default function RegistrarPagoPage() {
                     {guardando ? 'Registrando…' : conRetencion ? 'Registrar pago + retención' : 'Registrar pago'}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Solo retención — cuando el depósito ya se registró y solo falta el 3% */}
+            {!cargando && !factura.tiene_letras && pagos.length > 0 && Number(factura.saldo_pendiente) > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                {!modoSoloRet ? (
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">¿El depósito ya se registró y solo falta la retención?</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Registra solo el 3% de retención de IGV para saldar la factura, sin duplicar el pago.</p>
+                    </div>
+                    <button
+                      onClick={abrirSoloRetencion}
+                      className="px-4 py-2 rounded-lg text-sm font-medium text-white transition shrink-0"
+                      style={{ background: '#4ABCC2' }}
+                    >
+                      Registrar solo retención de IGV
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="font-oswald text-base text-gray-700 tracking-wide">Registrar solo retención de IGV</p>
+                    <div className="flex justify-between items-center text-xs text-gray-500">
+                      <span>Saldo pendiente actual</span>
+                      <span className="tabular-nums text-gray-700">{fmt(Number(factura.saldo_pendiente))}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-xs text-gray-500">Monto de retención (editable)</label>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={soloRetMonto}
+                        onChange={e => setSoloRetMonto(e.target.value)}
+                        className="w-32 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs text-gray-500 shrink-0">Fecha</label>
+                      <input
+                        type="date" value={fechaPago}
+                        onChange={e => setFechaPago(e.target.value)}
+                        className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400">No registra ningún depósito nuevo: solo la retención de IGV.</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={registrarSoloRetencion}
+                        disabled={guardando || !soloRetMonto}
+                        className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition"
+                        style={{ background: '#4ABCC2' }}
+                      >
+                        {guardando ? 'Registrando…' : 'Registrar retención'}
+                      </button>
+                      <button
+                        onClick={() => { setModoSoloRet(false); setSoloRetMonto(''); }}
+                        className="px-4 py-2.5 rounded-lg text-sm text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
