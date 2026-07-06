@@ -22,13 +22,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { documento_id, monto, fecha_pago, referencia, voucher_path, retencion } = body as {
+  const { documento_id, monto, fecha_pago, referencia, voucher_path, retencion, solo_retencion } = body as {
     documento_id: string;
     monto: number;
     fecha_pago: string;
     referencia?: string;
     voucher_path?: string;
-    retencion?: number;   // monto de retención de IGV (3%), opcional
+    retencion?: number;      // monto de retención de IGV (3%), opcional
+    solo_retencion?: boolean; // si true, inserta SOLO la retención (el pago ya existe)
   };
 
   if (!documento_id || !monto || !fecha_pago)
@@ -56,6 +57,25 @@ export async function POST(req: NextRequest) {
     );
 
   // Sin límite de monto: v_cobros ya usa GREATEST(0,...) para que el saldo no baje de cero
+
+  // Caso "solo retención": el depósito ya se registró antes y solo falta el 3%.
+  // Inserta UNA fila tipo='retencion' por 'monto', sin registrar ningún pago.
+  if (solo_retencion) {
+    const { data, error } = await db
+      .from('pagos')
+      .insert({
+        documento_id,
+        monto: Number(monto),
+        fecha_pago,
+        referencia: 'Retención IGV 3%',
+        voucher_path: null,
+        tipo: 'retencion',
+      })
+      .select()
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ pagos: [data], pago: data });
+  }
 
   // El pago real + (opcional) la retención de IGV se insertan juntos: ambos
   // suman en pagos y llevan la factura a saldo 0. La retención se distingue
