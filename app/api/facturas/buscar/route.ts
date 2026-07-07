@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
   const db  = supabaseAdmin();
   const noCacheHeaders = { 'Cache-Control': 'no-store, no-cache, must-revalidate' };
 
-  const monto = parseMonto(q);
+  // ── Prioridad de detección: comprobante → RUC (11 dígitos) → monto → texto ──
+  // El RUC (11 dígitos exactos) se decide ANTES que el monto: un monto no tiene
+  // 11 dígitos enteros, así que los 11 dígitos siempre son RUC, no importe.
+  const monto = (esComprobante(q) || esRuc(q)) ? null : parseMonto(q);
 
   // ── Búsqueda por monto ──────────────────────────────────────────────────────
   if (monto !== null) {
@@ -54,10 +57,10 @@ export async function GET(req: NextRequest) {
 
   // ── Búsqueda textual (comprobante / RUC / razón social) ────────────────────
   let orClause: string;
-  if (esRuc(q)) {
-    orClause = `cliente_ruc.eq.${q}`;
-  } else if (esComprobante(q)) {
+  if (esComprobante(q)) {
     orClause = `comprobante.ilike.${q}%`;
+  } else if (esRuc(q)) {
+    orClause = `cliente_ruc.eq.${q}`;
   } else {
     orClause = `comprobante.ilike.%${q}%,cliente_ruc.ilike.%${q}%,razon_social.ilike.%${q}%`;
   }
