@@ -4,6 +4,11 @@ import { fetchAll } from '@/lib/fetchAll';
 import BotonImprimir from './BotonImprimir';
 import VistaVendedorClient, { FacturaVista } from './VistaVendedorClient';
 
+// Filtro SOLO de presentación en la vista del vendedor: se ocultan facturas
+// con saldo pendiente insignificante (céntimos por redondeo). No toca datos ni
+// v_saldos — contablemente esos saldos siguen existiendo en el resto del sistema.
+const UMBRAL_SALDO_MINIMO = 0.10;
+
 interface FacturaPendiente {
   id: string;
   comprobante: string;
@@ -71,8 +76,13 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
     db.from('digemid_zona_vendedor').select('codigo_zona').eq('vendedor_id', vendedor.id),
   ]);
 
+  // Oculta saldos insignificantes solo para el vendedor: filtra ANTES de todos
+  // los cálculos, así el listado, los totales, el % morosidad y el conteo tratan
+  // esas facturas como saldadas.
+  const facturasVisibles = facturas.filter(f => Number(f.saldo_pendiente) >= UMBRAL_SALDO_MINIMO);
+
   // Distrito por cliente (puede estar vacío si aún no se carga desde DIGEMID)
-  const rucs = Array.from(new Set(facturas.map(f => f.cliente_ruc)));
+  const rucs = Array.from(new Set(facturasVisibles.map(f => f.cliente_ruc)));
   const distritoPorRuc = new Map<string, string>();
   for (let i = 0; i < rucs.length; i += 500) {
     const { data: cls } = await db
@@ -85,7 +95,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   }
 
   // Próxima letra pendiente por documento (solo facturas con letras)
-  const idsConLetras = facturas.filter(f => f.tiene_letras).map(f => f.id);
+  const idsConLetras = facturasVisibles.filter(f => f.tiene_letras).map(f => f.id);
   const proximaLetra = new Map<string, string>();
   if (idsConLetras.length > 0) {
     const { data: letras } = await db
@@ -105,10 +115,10 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   const fechaEfectiva = (f: FacturaPendiente) => proximaLetra.get(f.id) ?? f.fecha_vencimiento;
 
   // Orden principal: por fecha de vencimiento, de la más próxima a la menos próxima
-  facturas.sort((a, b) =>
+  facturasVisibles.sort((a, b) =>
     (diasParaVencer(fechaEfectiva(a), hoyISO) ?? 99999) - (diasParaVencer(fechaEfectiva(b), hoyISO) ?? 99999));
 
-  const facturasVista: FacturaVista[] = facturas.map(f => ({
+  const facturasVista: FacturaVista[] = facturasVisibles.map(f => ({
     id: f.id,
     comprobante: f.comprobante,
     cliente_ruc: f.cliente_ruc,
