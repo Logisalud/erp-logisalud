@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
         importe_total:     f.importe_total,
         forma_pago:        f.forma_pago,
         anulado:           f.anulado,
+        aceptado_sunat:    f.aceptado_sunat,
         ...(doc_relacionado_id !== undefined && { documento_relacionado_id: doc_relacionado_id }),
       };
       const { data, error } = await db
