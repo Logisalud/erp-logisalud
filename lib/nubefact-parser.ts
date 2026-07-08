@@ -13,6 +13,7 @@ export interface FilaNubefact {
   importe_total: number;
   forma_pago: 'CONTADO' | 'CREDITO';
   anulado: boolean;
+  aceptado_sunat: boolean;
   doc_mod_tipo: string | null;
   doc_mod_serie: string | null;
   doc_mod_numero: number | null;
@@ -105,6 +106,8 @@ export function parsearExcelNubefact(buffer: ArrayBuffer): FilaNubefact[] {
 
     const forma_pago = parseFormaPago(row['FORMA DE PAGO']);
     const anulado    = String(row['¿ANULADO?'] ?? '').trim().toUpperCase() === 'SI';
+    // Rechazada por SUNAT solo si dice 'NO' explícito; en blanco → aceptada (no descartar por defecto)
+    const aceptado_sunat = String(row['ACEPTADO POR LA SUNAT'] ?? '').trim().toUpperCase() !== 'NO';
 
     const docModTipo   = row['DOC MODIFICADO - TIPO']   ? parseTipo(row['DOC MODIFICADO - TIPO'])   : null;
     const docModSerie  = row['DOC MODIFICADO - SERIE']  ? String(row['DOC MODIFICADO - SERIE']).trim().toUpperCase() : null;
@@ -124,6 +127,7 @@ export function parsearExcelNubefact(buffer: ArrayBuffer): FilaNubefact[] {
       importe_total:     Math.abs(Number(row['TOTAL'] ?? 0)),
       forma_pago,
       anulado,
+      aceptado_sunat,
       doc_mod_tipo:   docModTipo,
       doc_mod_serie:  docModSerie,
       doc_mod_numero: docModNumero && !isNaN(docModNumero) ? docModNumero : null,
