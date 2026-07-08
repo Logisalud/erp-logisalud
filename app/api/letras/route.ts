@@ -89,10 +89,10 @@ export async function POST(req: NextRequest) {
 
   if (docErr || !doc)
     return NextResponse.json({ error: 'Factura no encontrada' }, { status: 404 });
-  if (doc.tipo !== '01')
-    return NextResponse.json({ error: 'Solo facturas (tipo 01) pueden tener letras' }, { status: 400 });
+  if (doc.tipo !== '01' && doc.tipo !== '03')
+    return NextResponse.json({ error: 'Solo facturas (01) o boletas (03) pueden tener letras' }, { status: 400 });
   if (doc.forma_pago !== 'CREDITO')
-    return NextResponse.json({ error: 'Solo se pueden girar letras sobre facturas CREDITO' }, { status: 400 });
+    return NextResponse.json({ error: 'Solo se pueden girar letras sobre comprobantes CREDITO' }, { status: 400 });
 
   // Validar cuadre cuando hay multi-factura
   for (const l of letras) {

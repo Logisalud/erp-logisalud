@@ -9,6 +9,7 @@ interface Preview {
   total_filas: number;
   validas: number;
   facturas: number;
+  boletas: number;
   notas_credito: number;
   notas_debito: number;
   anuladas: number;
@@ -130,6 +131,7 @@ export default function ImportarPage() {
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             <Stat label="Filas válidas" value={preview.validas} of={preview.total_filas} color="blue" />
             <Stat label="Facturas" value={preview.facturas} color="green" />
+            <Stat label="Boletas" value={preview.boletas} color="green" />
             <Stat label="Notas de crédito" value={preview.notas_credito} color="yellow" />
             <Stat label="Notas de débito" value={preview.notas_debito} color="orange" />
             <Stat label="Anuladas" value={preview.anuladas} color="gray" />

@@ -13,6 +13,7 @@ const toDate = (s: string | null | undefined): Date | string => {
 
 const TIPOS: Record<string, string> = {
   '01': 'Factura',
+  '03': 'Boleta',
   '07': 'Nota Crédito',
   '08': 'Nota Débito',
 };

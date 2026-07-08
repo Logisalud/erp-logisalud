@@ -23,6 +23,7 @@ export interface ResumenPreview {
   total_filas: number;
   validas: number;
   facturas: number;
+  boletas: number;
   notas_credito: number;
   notas_debito: number;
   anuladas: number;
@@ -59,6 +60,7 @@ function parseRuc(raw: unknown): string {
 function parseTipo(raw: unknown): string {
   const s = String(raw ?? '').trim();
   if (s === '01' || /factura/i.test(s)) return '01';
+  if (s === '03' || /boleta/i.test(s)) return '03';
   if (s === '07' || /nota.*cr/i.test(s)) return '07';
   if (s === '08' || /nota.*d[eé]b/i.test(s)) return '08';
   return s.slice(0, 2).padStart(2, '0');

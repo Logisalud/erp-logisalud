@@ -22,8 +22,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Error al insertar clientes: ${errClientes.message}` }, { status: 500 });
     }
 
-    // 2. Separar facturas, NCs y NDs
-    const facturas = filas.filter(f => f.tipo === '01');
+    // 2. Separar comprobantes primarios (facturas 01 + boletas 03) de los ajustes (NC/ND).
+    //    Las boletas se comportan igual que las facturas y se insertan primero,
+    //    para que una NC/ND pueda referenciarlas por (tipo, serie, número).
+    const facturas = filas.filter(f => f.tipo === '01' || f.tipo === '03');
     const ajustes  = filas.filter(f => f.tipo === '07' || f.tipo === '08'); // NC + ND
 
     const upsertDocumento = async (f: FilaNubefact, doc_relacionado_id?: string | null) => {
