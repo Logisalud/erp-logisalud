@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
 import BotonImprimir from './BotonImprimir';
+import RegistrarAcceso from './RegistrarAcceso';
 import VistaVendedorClient, { FacturaVista } from './VistaVendedorClient';
 
 // Filtro SOLO de presentación en la vista del vendedor: se ocultan facturas
@@ -147,6 +148,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
 
   return (
     <main className="min-h-screen bg-gray-50 pb-8 print:bg-white">
+      <RegistrarAcceso token={token} />
       {/* Encabezado */}
       <header className="px-4 py-4 print:bg-white print:border-b print:border-gray-300" style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}>
         <div className="max-w-4xl mx-auto flex items-start justify-between gap-3">
