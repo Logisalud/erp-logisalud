@@ -38,6 +38,10 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1">🔗 Links de vendedores</h2>
           <p className="text-gray-500 text-sm">Links privados de cobranza para que cada vendedor vea su cartera pendiente.</p>
         </Link>
+        <Link href="/accesos" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">📊 Accesos de vendedores</h2>
+          <p className="text-gray-500 text-sm">Quién entra a ver su cobranza y quién no — para detectar a los que no lo usan.</p>
+        </Link>
       </div>
     </main>
   );
