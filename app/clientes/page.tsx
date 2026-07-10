@@ -22,6 +22,7 @@ interface ClienteRow {
   vendedor_manual_id: string | null;
   fecha_reasignacion: string | null;
   codigo_zona: string | null;
+  distrito: string | null;
   zona_manual: boolean;
   vendedor_actual: VendedorInfo | null;
   vendedor_manual: VendedorInfo | null;
@@ -41,6 +42,10 @@ export default function ClientesPage() {
   const [search, setSearch]           = useState('');
   const [sinAsignar, setSinAsignar]   = useState(false);
   const [soloOverride, setSoloOverride] = useState(false);
+  const [zonaFiltro, setZonaFiltro]   = useState('');
+  const [vendedorFiltro, setVendedorFiltro] = useState('');
+  const [resumen, setResumen]         = useState<{ total: number; sinZona: number; porZona: Record<string, number>; porVendedor: Record<string, number> } | null>(null);
+  const [verDistribucion, setVerDistribucion] = useState(false);
   const [cargando, setCargando]       = useState(false);
   const [guardando, setGuardando]     = useState<string | null>(null);
   const [msg, setMsg]                 = useState<{ ruc: string; texto: string; ok: boolean } | null>(null);
@@ -61,9 +66,13 @@ export default function ClientesPage() {
       .then(r => r.json())
       .then(d => setZonas(d.zonas ?? []))
       .catch(console.error);
+    fetch('/api/clientes/resumen', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setResumen(d))
+      .catch(console.error);
   }, []);
 
-  const cargarClientes = useCallback(async (p: number, q: string, sa: boolean, ov: boolean) => {
+  const cargarClientes = useCallback(async (p: number, q: string, sa: boolean, ov: boolean, zn: string, vd: string) => {
     setCargando(true);
     try {
       const params = new URLSearchParams({
@@ -71,6 +80,8 @@ export default function ClientesPage() {
         ...(q && { search: q }),
         ...(sa && { sin_asignar: 'true' }),
         ...(ov && { solo_override: 'true' }),
+        ...(zn && { zona: zn }),
+        ...(vd && { vendedor_id: vd }),
       });
       const res  = await fetch(`/api/clientes?${params}`, { cache: 'no-store' });
       const data = await res.json();
@@ -82,14 +93,34 @@ export default function ClientesPage() {
   }, []);
 
   useEffect(() => {
-    cargarClientes(page, search, sinAsignar, soloOverride);
-  }, [page, sinAsignar, soloOverride, cargarClientes]); // eslint-disable-line
+    cargarClientes(page, search, sinAsignar, soloOverride, zonaFiltro, vendedorFiltro);
+  }, [page, sinAsignar, soloOverride, zonaFiltro, vendedorFiltro, cargarClientes]); // eslint-disable-line
 
   const handleSearch = (val: string) => {
     setSearch(val);
     setPage(0);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => cargarClientes(0, val, sinAsignar, soloOverride), 350);
+    searchTimer.current = setTimeout(() => cargarClientes(0, val, sinAsignar, soloOverride, zonaFiltro, vendedorFiltro), 350);
+  };
+
+  const hayFiltros = !!(search || sinAsignar || soloOverride || zonaFiltro || vendedorFiltro);
+
+  const limpiarFiltros = () => {
+    setSearch(''); setSinAsignar(false); setSoloOverride(false);
+    setZonaFiltro(''); setVendedorFiltro(''); setPage(0);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    cargarClientes(0, '', false, false, '', '');
+  };
+
+  const exportarUrl = () => {
+    const p = new URLSearchParams({
+      ...(search && { search }),
+      ...(sinAsignar && { sin_asignar: 'true' }),
+      ...(soloOverride && { solo_override: 'true' }),
+      ...(zonaFiltro && { zona: zonaFiltro }),
+      ...(vendedorFiltro && { vendedor_id: vendedorFiltro }),
+    });
+    return `/api/clientes/exportar?${p.toString()}`;
   };
 
   // Zona del mapeo DIGEMID para un codigo_zona dado
@@ -111,7 +142,7 @@ export default function ClientesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setMsg({ ruc: c.ruc, texto: 'Zona actualizada', ok: true });
-      cargarClientes(page, search, sinAsignar, soloOverride);
+      cargarClientes(page, search, sinAsignar, soloOverride, zonaFiltro, vendedorFiltro);
     } catch (err) {
       setMsg({ ruc: c.ruc, texto: String(err), ok: false });
     } finally {
@@ -132,7 +163,7 @@ export default function ClientesPage() {
       if (!res.ok) throw new Error(data.error);
       setMsg({ ruc: c.ruc, texto: nuevoVendedorId ? 'Override aplicado' : 'Override eliminado', ok: true });
       setEditManual(prev => { const n = { ...prev }; delete n[c.ruc]; return n; });
-      cargarClientes(page, search, sinAsignar, soloOverride);
+      cargarClientes(page, search, sinAsignar, soloOverride, zonaFiltro, vendedorFiltro);
     } catch (err) {
       setMsg({ ruc: c.ruc, texto: String(err), ok: false });
     } finally {
@@ -156,23 +187,95 @@ export default function ClientesPage() {
     <main className="max-w-7xl mx-auto mt-6 px-4 pb-16">
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <input
-          type="text"
-          placeholder="Buscar por RUC o razón social…"
-          value={search}
-          onChange={e => handleSearch(e.target.value)}
-          className="flex-1 min-w-[240px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
-        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-          <input type="checkbox" checked={sinAsignar} onChange={e => { setSinAsignar(e.target.checked); setPage(0); }} className="accent-blue-600" />
-          Sin zona
-        </label>
-        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-          <input type="checkbox" checked={soloOverride} onChange={e => { setSoloOverride(e.target.checked); setPage(0); }} className="accent-amber-500" />
-          Solo con override manual
-        </label>
-        <span className="text-sm text-gray-400 self-center">{total} cliente{total !== 1 ? 's' : ''}</span>
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            type="text"
+            placeholder="Buscar por RUC o razón social…"
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            className="flex-1 min-w-[220px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+          />
+          <select
+            value={zonaFiltro}
+            onChange={e => { setZonaFiltro(e.target.value); setPage(0); }}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal min-w-[150px]"
+          >
+            <option value="">Todas las zonas</option>
+            {zonas.map(z => (
+              <option key={z.codigo_zona} value={z.codigo_zona}>
+                {z.codigo_zona}{resumen?.porZona[z.codigo_zona] ? ` (${resumen.porZona[z.codigo_zona]})` : ''}
+              </option>
+            ))}
+          </select>
+          <select
+            value={vendedorFiltro}
+            onChange={e => { setVendedorFiltro(e.target.value); setPage(0); }}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal min-w-[200px]"
+          >
+            <option value="">Todos los vendedores</option>
+            {vendedores.map(v => (
+              <option key={v.id} value={v.id}>
+                {v.nombres} {v.apellidos} ({v.codigo}){resumen?.porVendedor[v.id] ? ` · ${resumen.porVendedor[v.id]}` : ''}
+              </option>
+            ))}
+          </select>
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={sinAsignar} onChange={e => { setSinAsignar(e.target.checked); setPage(0); }} className="accent-blue-600" />
+            Sin zona
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={soloOverride} onChange={e => { setSoloOverride(e.target.checked); setPage(0); }} className="accent-amber-500" />
+            Override manual
+          </label>
+          {hayFiltros && (
+            <button onClick={limpiarFiltros} className="px-3 py-2 text-sm text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+          <span className="text-sm font-semibold text-gray-700">
+            {total} cliente{total !== 1 ? 's' : ''}
+            {hayFiltros && resumen && <span className="font-normal text-gray-400"> de {resumen.total}</span>}
+          </span>
+          <a
+            href={exportarUrl()}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg text-white transition"
+            style={{ background: '#4BB168' }}
+          >
+            ⬇ Exportar a Excel
+          </a>
+          {resumen && (
+            <button onClick={() => setVerDistribucion(v => !v)} className="text-xs text-logisalud-teal hover:underline">
+              {verDistribucion ? 'Ocultar distribución' : 'Ver distribución por zona'}
+            </button>
+          )}
+        </div>
+
+        {verDistribucion && resumen && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Distribución por zona (clic para filtrar)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(resumen.porZona).sort((a, b) => a[0].localeCompare(b[0])).map(([z, n]) => (
+                <button
+                  key={z}
+                  onClick={() => { setZonaFiltro(z); setPage(0); setVerDistribucion(false); }}
+                  className={`px-2 py-1 rounded-md text-xs border transition ${zonaFiltro === z ? 'text-white border-transparent' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                  style={zonaFiltro === z ? { background: '#4ABCC2' } : undefined}
+                >
+                  {z} <span className="font-semibold">{n}</span>
+                </button>
+              ))}
+              {resumen.sinZona > 0 && (
+                <span className="px-2 py-1 rounded-md text-xs bg-gray-50 border border-gray-200 text-gray-400">
+                  Sin zona <span className="font-semibold">{resumen.sinZona}</span>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Leyenda */}
@@ -194,6 +297,7 @@ export default function ClientesPage() {
               <tr>
                 <th className="px-3 py-3 text-left">RUC</th>
                 <th className="px-3 py-3 text-left">Razón social</th>
+                <th className="px-3 py-3 text-left">Distrito</th>
                 <th className="px-3 py-3 text-left">Zona DIGEMID</th>
                 <th className="px-3 py-3 text-left">Vendedor por zona</th>
                 <th className="px-3 py-3 text-left">Vendedor efectivo</th>
@@ -215,6 +319,10 @@ export default function ClientesPage() {
 
                     <td className="px-3 py-3 font-medium max-w-[220px]">
                       <span title={c.razon_social} className="line-clamp-2">{c.razon_social}</span>
+                    </td>
+
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      {c.distrito ?? <span className="text-gray-300">—</span>}
                     </td>
 
                     {/* Zona DIGEMID — editable */}
