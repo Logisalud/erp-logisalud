@@ -42,6 +42,10 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1">📊 Accesos de vendedores</h2>
           <p className="text-gray-500 text-sm">Quién entra a ver su cobranza y quién no — para detectar a los que no lo usan.</p>
         </Link>
+        <Link href="/cobranza" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#4ABCC2' }}>
+          <h2 className="text-lg font-semibold mb-1">💰 Cobranza del período</h2>
+          <p className="text-gray-500 text-sm">Cuánto se cobró (total y de lo vencido) por vendedor, en el rango que elijas.</p>
+        </Link>
       </div>
     </main>
   );

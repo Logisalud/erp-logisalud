@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/morosidad-diaria",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}
