@@ -150,6 +150,7 @@ export default function RegistrarPagoPage() {
 
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevUrlRef = useRef<string | null>(null);
+  const enviandoRef = useRef(false); // guarda anti doble-envío (antes del re-render)
 
   useEffect(() => {
     prevUrlRef.current = previewUrl;
@@ -307,30 +308,35 @@ export default function RegistrarPagoPage() {
   };
 
   const registrarPagoFactura = async () => {
-    if (!factura) return;
+    if (!factura || enviandoRef.current) return;
     if (!monto || Number(monto) <= 0)  { setErrMsg('El monto debe ser mayor a 0.');        return; }
     if (conRetencion && Number(retencion) <= 0) { setErrMsg('La retención debe ser mayor a 0.'); return; }
+    enviandoRef.current = true;
     setGuardando(true); setErrMsg(''); setExitoMsg('');
-    const res = await fetch('/api/pagos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        documento_id: factura.id,
-        monto: Number(monto),
-        fecha_pago: fechaPago,
-        referencia: referencia.trim() || undefined,
-        ...(voucherPath ? { voucher_path: voucherPath } : {}),
-        ...(conRetencion && Number(retencion) > 0 ? { retencion: Number(retencion) } : {}),
-      }),
-    });
-    const d = await res.json();
-    if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
-    setExitoMsg(conRetencion
-      ? `✓ Pago de ${fmt(Number(monto))} + retención IGV de ${fmt(Number(retencion))} registrados.`
-      : `✓ Pago de ${fmt(Number(monto))} registrado correctamente.`);
-    limpiarForm();
-    await recargar(factura);
-    setGuardando(false);
+    try {
+      const res = await fetch('/api/pagos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documento_id: factura.id,
+          monto: Number(monto),
+          fecha_pago: fechaPago,
+          referencia: referencia.trim() || undefined,
+          ...(voucherPath ? { voucher_path: voucherPath } : {}),
+          ...(conRetencion && Number(retencion) > 0 ? { retencion: Number(retencion) } : {}),
+        }),
+      });
+      const d = await res.json();
+      if (d.error) { setErrMsg(d.error); return; }
+      setExitoMsg(conRetencion
+        ? `✓ Pago de ${fmt(Number(monto))} + retención IGV de ${fmt(Number(retencion))} registrados.`
+        : `✓ Pago de ${fmt(Number(monto))} registrado correctamente.`);
+      limpiarForm();
+      await recargar(factura);
+    } finally {
+      enviandoRef.current = false;
+      setGuardando(false);
+    }
   };
 
   // Abre el modo "solo retención": precarga el monto con el saldo pendiente
@@ -343,42 +349,53 @@ export default function RegistrarPagoPage() {
   };
 
   const registrarSoloRetencion = async () => {
-    if (!factura) return;
+    if (!factura || enviandoRef.current) return;
     if (!soloRetMonto || Number(soloRetMonto) <= 0) { setErrMsg('La retención debe ser mayor a 0.'); return; }
+    enviandoRef.current = true;
     setGuardando(true); setErrMsg(''); setExitoMsg('');
-    const res = await fetch('/api/pagos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        documento_id: factura.id,
-        monto: Number(soloRetMonto),
-        fecha_pago: fechaPago,
-        solo_retencion: true,
-      }),
-    });
-    const d = await res.json();
-    if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
-    setExitoMsg(`✓ Retención IGV de ${fmt(Number(soloRetMonto))} registrada.`);
-    limpiarForm();
-    await recargar(factura);
-    setGuardando(false);
+    try {
+      const res = await fetch('/api/pagos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documento_id: factura.id,
+          monto: Number(soloRetMonto),
+          fecha_pago: fechaPago,
+          solo_retencion: true,
+        }),
+      });
+      const d = await res.json();
+      if (d.error) { setErrMsg(d.error); return; }
+      setExitoMsg(`✓ Retención IGV de ${fmt(Number(soloRetMonto))} registrada.`);
+      limpiarForm();
+      await recargar(factura);
+    } finally {
+      enviandoRef.current = false;
+      setGuardando(false);
+    }
   };
 
   const registrarPagoLetra = async () => {
-    if (!factura || !letraSelId) { setErrMsg('Selecciona una letra.'); return; }
+    if (!factura || enviandoRef.current) return;
+    if (!letraSelId) { setErrMsg('Selecciona una letra.'); return; }
+    enviandoRef.current = true;
     setGuardando(true); setErrMsg(''); setExitoMsg('');
-    const res = await fetch(`/api/letras/${letraSelId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: 'pagada', fecha_pago: fechaPago, voucher_path: voucherPath }),
-    });
-    const d = await res.json();
-    if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
-    const num = letras.find(l => l.id === letraSelId)?.numero_letra ?? '';
-    setExitoMsg(`✓ Letra ${num} marcada como pagada.`);
-    limpiarForm();
-    await recargar(factura);
-    setGuardando(false);
+    try {
+      const res = await fetch(`/api/letras/${letraSelId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'pagada', fecha_pago: fechaPago, voucher_path: voucherPath }),
+      });
+      const d = await res.json();
+      if (d.error) { setErrMsg(d.error); return; }
+      const num = letras.find(l => l.id === letraSelId)?.numero_letra ?? '';
+      setExitoMsg(`✓ Letra ${num} marcada como pagada.`);
+      limpiarForm();
+      await recargar(factura);
+    } finally {
+      enviandoRef.current = false;
+      setGuardando(false);
+    }
   };
 
   const verVoucher = async (path: string) => {
