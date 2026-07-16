@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/morosidad-diaria",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/reporte-cobranza",
+      "schedule": "0 12 * * *"
     }
   ]
 }
