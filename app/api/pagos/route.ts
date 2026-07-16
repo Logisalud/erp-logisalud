@@ -58,9 +58,26 @@ export async function POST(req: NextRequest) {
 
   // Sin límite de monto: v_cobros ya usa GREATEST(0,...) para que el saldo no baje de cero
 
+  // Guarda anti-duplicado: rechaza una fila idéntica (mismo documento, mismo
+  // monto, mismo tipo) creada en los últimos 30 s (protege contra doble envío).
+  const hace30s = new Date(Date.now() - 30_000).toISOString();
+  const esDuplicadoReciente = async (montoRow: number, tipoRow: 'pago' | 'retencion') => {
+    const { data } = await db
+      .from('pagos')
+      .select('id')
+      .eq('documento_id', documento_id)
+      .eq('tipo', tipoRow)
+      .eq('monto', montoRow)
+      .gte('created_at', hace30s)
+      .limit(1);
+    return !!(data && data.length);
+  };
+
   // Caso "solo retención": el depósito ya se registró antes y solo falta el 3%.
   // Inserta UNA fila tipo='retencion' por 'monto', sin registrar ningún pago.
   if (solo_retencion) {
+    if (await esDuplicadoReciente(Number(monto), 'retencion'))
+      return NextResponse.json({ error: 'Retención duplicada detectada (mismo monto en los últimos segundos). No se registró de nuevo.' }, { status: 409 });
     const { data, error } = await db
       .from('pagos')
       .insert({
@@ -76,6 +93,9 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ pagos: [data], pago: data });
   }
+
+  if (await esDuplicadoReciente(Number(monto), 'pago'))
+    return NextResponse.json({ error: 'Pago duplicado detectado (mismo monto en los últimos segundos). No se registró de nuevo.' }, { status: 409 });
 
   // El pago real + (opcional) la retención de IGV se insertan juntos: ambos
   // suman en pagos y llevan la factura a saldo 0. La retención se distingue
