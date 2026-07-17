@@ -19,7 +19,12 @@ export default function VendedoresLinksPage() {
   const [origin, setOrigin]         = useState('');
 
   useEffect(() => {
-    setOrigin(window.location.origin);
+    // Usa el dominio de PRODUCCIÓN (público) para los links, no la URL de
+    // deployment (que Vercel protege con login). Fallback al origin actual.
+    fetch('/api/base-url', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setOrigin(d.baseUrl || window.location.origin))
+      .catch(() => setOrigin(window.location.origin));
     cargar();
   }, []);
 
