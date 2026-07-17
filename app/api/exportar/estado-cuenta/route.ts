@@ -37,7 +37,30 @@ export async function GET(req: NextRequest) {
       return q.range(from, to);
     });
 
-    const rows = data.map(r => {
+    // Pagos de las facturas del resultado (para una fila por pago).
+    interface PagoRow { documento_id: string; monto: number; fecha_pago: string; referencia: string | null; tipo: string; created_at: string; }
+    const ids = data.map(r => r.id as string);
+    const pagosPorDoc = new Map<string, PagoRow[]>();
+    for (let i = 0; i < ids.length; i += 500) {
+      const { data: ps } = await db
+        .from('pagos')
+        .select('documento_id, monto, fecha_pago, referencia, tipo, created_at')
+        .in('documento_id', ids.slice(i, i + 500));
+      for (const p of (ps ?? []) as PagoRow[]) {
+        const arr = pagosPorDoc.get(p.documento_id) ?? [];
+        arr.push(p);
+        pagosPorDoc.set(p.documento_id, arr);
+      }
+    }
+    // Dentro de cada factura, ordenar los pagos por fecha (y created_at para estabilidad).
+    for (const arr of pagosPorDoc.values()) {
+      arr.sort((a, b) => (a.fecha_pago ?? '').localeCompare(b.fecha_pago ?? '') || a.created_at.localeCompare(b.created_at));
+    }
+
+    const tipoLabel = (t: string) => t === 'retencion' ? 'Retención IGV' : 'Pago';
+
+    // Columnas de factura (se repiten en cada fila de pago de esa factura).
+    const colsFactura = (r: Record<string, unknown>) => {
       const saldo    = Number(r.saldo_pendiente) || 0;
       const pagado   = Number(r.total_pagado)    || 0;
       const importe  = Number(r.importe_total)   || 0;
@@ -53,8 +76,8 @@ export async function GET(req: NextRequest) {
         'Cód. Vendedor':     r.vendedor_codigo ?? '',
         'Vendedor':          r.vendedor_nombre ?? '',
         'Zona':              r.zona_nombre ?? '',
-        'Fecha Emisión':     toDate(r.fecha_emision),
-        'Fecha Vencimiento': toDate(r.fecha_vencimiento),
+        'Fecha Emisión':     toDate(r.fecha_emision as string),
+        'Fecha Vencimiento': toDate(r.fecha_vencimiento as string),
         'Forma Pago':        r.forma_pago ?? '',
         'Moneda':            r.moneda ?? '',
         'Importe Total':     Number(r.importe_total) || 0,
@@ -74,7 +97,29 @@ export async function GET(req: NextRequest) {
         'Rango':             r.rango_vencimiento ?? '',
         'Tiene Letras':      r.tiene_letras ? 'Sí' : 'No',
       };
-    });
+    };
+
+    const vacio = { 'Tipo Movimiento': '', 'Fecha de Pago': '' as string | Date, 'N° Operación': '', 'Monto Pago': '' as string | number };
+
+    // Una fila por pago; las facturas sin pagos aparecen con las columnas de pago vacías.
+    const rows: Record<string, unknown>[] = [];
+    for (const r of data) {
+      const base = colsFactura(r as Record<string, unknown>);
+      const ps = pagosPorDoc.get(r.id as string) ?? [];
+      if (ps.length === 0) {
+        rows.push({ ...base, ...vacio });
+      } else {
+        for (const p of ps) {
+          rows.push({
+            ...base,
+            'Tipo Movimiento': tipoLabel(p.tipo),
+            'Fecha de Pago':   toDate(p.fecha_pago),
+            'N° Operación':    p.referencia ?? '',
+            'Monto Pago':      Number(p.monto) || 0,
+          });
+        }
+      }
+    }
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows, { cellDates: true });
@@ -84,6 +129,7 @@ export async function GET(req: NextRequest) {
       { wch: 13 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 13 }, { wch: 11 }, { wch: 12 }, { wch: 15 }, { wch: 11 },
+      { wch: 14 }, { wch: 13 }, { wch: 16 }, { wch: 13 },  // Tipo Movimiento, Fecha de Pago, N° Operación, Monto Pago
     ];
     const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
     ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
