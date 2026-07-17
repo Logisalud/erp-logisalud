@@ -66,7 +66,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
 
   const db = supabaseAdmin();
 
-  const [facturas, resZonas] = await Promise.all([
+  const [facturas, resZonas, contadoRaw] = await Promise.all([
     fetchAll<FacturaPendiente>((from, to) =>
       db.from('v_saldos')
         .select('id, comprobante, cliente_ruc, razon_social, fecha_emision, fecha_vencimiento, importe_total, total_nc, total_pagado, saldo_pendiente, d1_30, d31_60, d61_90, mas90, tiene_letras')
@@ -75,7 +75,22 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
         .range(from, to)
     ),
     db.from('digemid_zona_vendedor').select('codigo_zona').eq('vendedor_id', vendedor.id),
+    // Ventas al contado ya saldadas (informativo): forma_pago CONTADO y no pendiente.
+    fetchAll<{ id: string; comprobante: string; cliente_ruc: string; razon_social: string; fecha_emision: string; importe_total: number }>((from, to) =>
+      db.from('v_saldos')
+        .select('id, comprobante, cliente_ruc, razon_social, fecha_emision, importe_total')
+        .eq('vendedor_id', vendedor!.id)
+        .eq('forma_pago', 'CONTADO')
+        .eq('contado_pendiente', false)
+        .range(from, to)
+    ),
   ]);
+
+  // Ordenadas por fecha (más reciente primero).
+  const contado = contadoRaw
+    .map(c => ({ id: c.id, comprobante: c.comprobante, cliente_ruc: c.cliente_ruc, razon_social: c.razon_social, fecha_emision: c.fecha_emision, importe: Number(c.importe_total) || 0 }))
+    .sort((a, b) => (b.fecha_emision ?? '').localeCompare(a.fecha_emision ?? ''));
+  const contadoTotal = contado.reduce((s, c) => s + c.importe, 0);
 
   // Oculta saldos insignificantes solo para el vendedor: filtra ANTES de todos
   // los cálculos, así el listado, los totales, el % morosidad y el conteo tratan
@@ -187,6 +202,8 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
           totalNc={totalNc}
           totalPagado={totalPagado}
           totalImporte={totalImporte}
+          contado={contado}
+          contadoTotal={contadoTotal}
         />
 
         <p className="text-center text-[11px] text-gray-300 mt-6 print:text-gray-400">LOGISALUD · Vista de consulta — solo lectura</p>

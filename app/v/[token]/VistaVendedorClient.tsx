@@ -18,6 +18,15 @@ export interface FacturaVista {
   vencido: number;             // suma de buckets 1-30..+90 de esta factura
 }
 
+export interface ContadoVista {
+  id: string;
+  comprobante: string;
+  cliente_ruc: string;
+  razon_social: string;
+  fecha_emision: string;
+  importe: number;
+}
+
 const fmt = (n: number) =>
   'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
@@ -79,7 +88,7 @@ function agrupar(facturas: FacturaVista[]): GrupoCliente[] {
 }
 
 export default function VistaVendedorClient({
-  facturas, hoyISO, total, totalNc, totalPagado, totalImporte,
+  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal,
 }: {
   facturas: FacturaVista[];
   hoyISO: string;
@@ -87,43 +96,49 @@ export default function VistaVendedorClient({
   totalNc: number;
   totalPagado: number;
   totalImporte: number;
+  contado: ContadoVista[];
+  contadoTotal: number;
 }) {
-  const [vista, setVista] = useState<'tarjetas' | 'tabla'>('tarjetas');
+  const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado'>('tarjetas');
 
-  if (facturas.length === 0) {
-    return (
-      <div className="max-w-2xl mx-auto bg-white rounded-xl border border-gray-200 p-8 mt-3 text-center">
-        <p className="text-3xl mb-2">🎉</p>
-        <p className="font-oswald text-lg text-gray-700">¡Cartera al día!</p>
-        <p className="text-gray-500 text-sm mt-1">No tienes clientes con deuda pendiente.</p>
-      </div>
-    );
-  }
-
-  const grupos = agrupar(facturas);
+  const grupos = facturas.length ? agrupar(facturas) : [];
   const totalVencido = facturas.reduce((s, f) => s + f.vencido, 0);
+
+  const carteraAlDia = (
+    <div className="max-w-2xl mx-auto bg-white rounded-xl border border-gray-200 p-8 mt-3 text-center">
+      <p className="text-3xl mb-2">🎉</p>
+      <p className="font-oswald text-lg text-gray-700">¡Cartera al día!</p>
+      <p className="text-gray-500 text-sm mt-1">No tienes clientes con deuda pendiente.</p>
+    </div>
+  );
+
+  const opciones: { key: 'tarjetas' | 'tabla' | 'contado'; label: string }[] = [
+    { key: 'tarjetas', label: 'Tarjetas' },
+    { key: 'tabla', label: 'Tabla' },
+    { key: 'contado', label: `Contado${contado.length ? ` (${contado.length})` : ''}` },
+  ];
 
   return (
     <>
-      {/* Toggle Tarjetas / Tabla */}
+      {/* Toggle: cobranza (Tarjetas/Tabla) + Contado (informativo) */}
       <div className="max-w-2xl mx-auto mt-4 print:hidden">
         <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-sm">
-          {(['tarjetas', 'tabla'] as const).map(v => (
+          {opciones.map(o => (
             <button
-              key={v}
-              onClick={() => setVista(v)}
+              key={o.key}
+              onClick={() => setVista(o.key)}
               className={`px-4 py-1.5 rounded-md font-medium transition ${
-                vista === v ? 'text-white' : 'text-gray-500 hover:text-gray-700'
+                vista === o.key ? 'text-white' : 'text-gray-500 hover:text-gray-700'
               }`}
-              style={vista === v ? { background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' } : undefined}
+              style={vista === o.key ? { background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' } : undefined}
             >
-              {v === 'tarjetas' ? 'Tarjetas' : 'Tabla'}
+              {o.label}
             </button>
           ))}
         </div>
       </div>
 
-      {vista === 'tarjetas' ? (
+      {vista === 'tarjetas' && (facturas.length === 0 ? carteraAlDia : (
         <div className="max-w-2xl mx-auto mt-3 space-y-2">
           {facturas.map(f => {
             const dias = diasParaVencer(f.fecha_venc, hoyISO);
@@ -152,7 +167,9 @@ export default function VistaVendedorClient({
             );
           })}
         </div>
-      ) : (
+      ))}
+
+      {vista === 'tabla' && (facturas.length === 0 ? carteraAlDia : (
         <div className="mt-3">
           <style>{'@media print{@page{size:landscape;margin:8mm}}'}</style>
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white print:border-gray-300 print:overflow-visible">
@@ -223,6 +240,43 @@ export default function VistaVendedorClient({
               </tfoot>
             </table>
           </div>
+        </div>
+      ))}
+
+      {vista === 'contado' && (
+        <div className="max-w-2xl mx-auto mt-3">
+          {/* Encabezado informativo: total de ventas al contado saldadas */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wider" style={{ color: '#4ABCC2' }}>Ventas al contado · informativo</p>
+              <p className="text-gray-500 text-xs mt-0.5">Facturas CONTADO ya saldadas — no es deuda por cobrar.</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="font-oswald text-xl" style={{ color: '#4BB168' }}>{fmt(contadoTotal)}</p>
+              <p className="text-[11px] text-gray-400">{contado.length} {contado.length === 1 ? 'factura' : 'facturas'}</p>
+            </div>
+          </div>
+
+          {contado.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 mt-2 text-center">
+              <p className="text-gray-500 text-sm">Sin ventas al contado registradas.</p>
+            </div>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {contado.map(c => (
+                <div key={c.id} className="bg-white rounded-xl border border-gray-200 px-3.5 py-2.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-gray-800 text-sm font-semibold truncate">{c.razon_social}</p>
+                    <p className="font-oswald text-base text-gray-800 shrink-0">{fmt(c.importe)}</p>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3 mt-0.5">
+                    <p className="text-gray-400 text-xs font-mono">{c.comprobante} · RUC {c.cliente_ruc}</p>
+                    <p className="text-xs text-gray-400">{fmtFecha(c.fecha_emision)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </>
