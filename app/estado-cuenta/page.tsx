@@ -456,8 +456,9 @@ export default function EstadoCuentaPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {facturas.map(f => {
-                    const es90     = f.rango_vencimiento === '+90';
                     const pagado   = f.rango_vencimiento === 'pagado';
+                    // Rojo desde 30 días de vencimiento en adelante (antes: solo +90).
+                    const esRojo   = !pagado && Number(f.dias_retraso) >= 30;
                     const expanded = expandedIds.has(f.id);
                     const letras   = letrasMap[f.id] ?? [];
                     const proxima  = f.tiene_letras ? proximaLetraPendiente(letras) : null;
@@ -465,7 +466,7 @@ export default function EstadoCuentaPage() {
 
                     return (
                       <>
-                        <tr key={f.id} className={`${es90 ? 'bg-red-50/30' : pagado ? 'bg-gray-50/60' : 'hover:bg-gray-50'}`}>
+                        <tr key={f.id} className={`${esRojo ? 'bg-red-50/30' : pagado ? 'bg-gray-50/60' : 'hover:bg-gray-50'}`}>
                           <td className="px-2 py-2 text-center">
                             {f.tiene_letras && (
                               <button onClick={() => toggleExpand(f.id)}
@@ -511,10 +512,10 @@ export default function EstadoCuentaPage() {
                           <td className="px-3 py-2 text-right text-xs text-orange-500">{Number(f.total_nd) > 0 ? fmt(Number(f.total_nd)) : '—'}</td>
                           <td className="px-3 py-2 text-right text-xs text-blue-500">{Number(f.total_pagado) > 0 ? fmt(Number(f.total_pagado)) : '—'}</td>
                           <td className={`px-3 py-2 text-right text-xs font-semibold ${
-                            es90 ? 'text-red-600' : pagado ? 'text-gray-400' : 'text-gray-800'
+                            esRojo ? 'text-red-600' : pagado ? 'text-gray-400' : 'text-gray-800'
                           }`}>{fmt(Number(f.saldo_pendiente))}</td>
                           <td className="px-3 py-2 text-center"><EstadoPagoBadge f={f} /></td>
-                          <td className={`px-3 py-2 text-right text-xs ${es90 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                          <td className={`px-3 py-2 text-right text-xs ${esRojo ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
                             {Number(f.dias_retraso) > 0 ? `${f.dias_retraso}d` : '—'}
                           </td>
                           <td className="px-3 py-2 text-center"><RangoBadge rango={f.rango_vencimiento} /></td>
