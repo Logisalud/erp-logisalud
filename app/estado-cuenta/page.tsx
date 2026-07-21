@@ -636,8 +636,8 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
               <th className="px-4 py-3 text-left">{col2Header}</th>
               <th className="px-4 py-3 text-right">Por vencer</th>
               <th className="px-4 py-3 text-right">1–30 d</th>
-              <th className="px-4 py-3 text-right">31–60 d</th>
-              <th className="px-4 py-3 text-right">61–90 d</th>
+              <th className="px-4 py-3 text-right bg-red-50 text-red-500">31–60 d</th>
+              <th className="px-4 py-3 text-right bg-red-50 text-red-500">61–90 d</th>
               <th className="px-4 py-3 text-right bg-red-50 text-red-500">+90 d</th>
               <th className="px-4 py-3 text-right">Saldo Total</th>
               <th className="px-4 py-3 text-right text-orange-700 bg-orange-50">Total Vencido</th>
@@ -655,8 +655,8 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
                   <td className="px-4 py-3 text-gray-400 text-xs">{f.col2}</td>
                   <td className="px-4 py-3 text-right text-xs">{f.vigente > 0 ? fmt(f.vigente) : '—'}</td>
                   <td className="px-4 py-3 text-right text-xs">{f.d1_30  > 0 ? fmt(f.d1_30)  : '—'}</td>
-                  <td className="px-4 py-3 text-right text-xs">{f.d31_60 > 0 ? fmt(f.d31_60) : '—'}</td>
-                  <td className="px-4 py-3 text-right text-xs">{f.d61_90 > 0 ? fmt(f.d61_90) : '—'}</td>
+                  <td className={`px-4 py-3 text-right text-xs bg-red-50/40 ${f.d31_60 > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}`}>{f.d31_60 > 0 ? fmt(f.d31_60) : '—'}</td>
+                  <td className={`px-4 py-3 text-right text-xs bg-red-50/40 ${f.d61_90 > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}`}>{f.d61_90 > 0 ? fmt(f.d61_90) : '—'}</td>
                   <td className={`px-4 py-3 text-right text-xs bg-red-50/40 ${f.mas90 > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}`}>
                     {f.mas90 > 0 ? fmt(f.mas90) : '—'}
                   </td>
@@ -675,8 +675,8 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
               <td colSpan={2} className="px-4 py-3 font-oswald text-sm text-gray-700 tracking-wide">TOTAL GENERAL</td>
               <td className="px-4 py-3 text-right">{fmt(totales.vigente)}</td>
               <td className="px-4 py-3 text-right">{fmt(totales.d1_30)}</td>
-              <td className="px-4 py-3 text-right">{fmt(totales.d31_60)}</td>
-              <td className="px-4 py-3 text-right">{fmt(totales.d61_90)}</td>
+              <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.d31_60)}</td>
+              <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.d61_90)}</td>
               <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.mas90)}</td>
               <td className="px-4 py-3 text-right text-gray-900">{fmt(totales.saldo_total)}</td>
               <td className="px-4 py-3 text-right text-orange-700 bg-orange-50">{fmt(totVencido)}</td>
