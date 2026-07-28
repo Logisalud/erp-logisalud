@@ -46,6 +46,10 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1">💰 Cobranza del período</h2>
           <p className="text-gray-500 text-sm">Cuánto se cobró (total y de lo vencido) por vendedor, en el rango que elijas.</p>
         </Link>
+        <Link href="/conciliacion" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">🏦 Conciliación bancaria</h2>
+          <p className="text-gray-500 text-sm">Importa el extracto del banco y clasifica los movimientos (cobros vs. internos).</p>
+        </Link>
       </div>
     </main>
   );
