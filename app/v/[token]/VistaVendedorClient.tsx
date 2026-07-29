@@ -1,6 +1,8 @@
 'use client';
 
 import { Fragment, useState } from 'react';
+import { diasEntre } from '@/lib/fechas';
+import { mensajeDescuento, mensajeVencimiento, linkWhatsApp } from '@/lib/whatsapp';
 
 export interface FacturaVista {
   id: string;
@@ -8,14 +10,20 @@ export interface FacturaVista {
   cliente_ruc: string;
   razon_social: string;
   distrito: string | null;
+  celular: string | null;
   fecha_emision: string;
   fecha_venc: string | null;   // vencimiento efectivo (próxima letra si tiene)
+  fecha_vencimiento_real: string | null; // vencimiento del documento (Nubefact), usado para el motor de descuento
   letra_fecha: string | null;  // fecha de la próxima letra pendiente, si aplica
+  tiene_letras: boolean;
   importe_total: number;
   total_nc: number;
   total_pagado: number;
   saldo_pendiente: number;
   vencido: number;             // suma de buckets 1-30..+90 de esta factura
+  pct_descuento: number;       // 0, 0.015 o 0.03
+  monto_descuento: number;
+  monto_a_pagar_con_descuento: number;
 }
 
 export interface ContadoVista {
@@ -57,6 +65,69 @@ function textoPlazo(dias: number | null): { txt: string; cls: string; color?: st
 function Plazo({ dias }: { dias: number | null }) {
   const p = textoPlazo(dias);
   return <span className={`text-xs ${p.cls}`} style={p.color ? { color: p.color } : undefined}>{p.txt}</span>;
+}
+
+// Primer nombre/razón corta para el saludo del mensaje: evita saludos con la
+// razón social completa de empresas ("Hola CORPORACION FARMACEUTICA...").
+function nombreSaludo(razonSocial: string): string {
+  return razonSocial.split(/\s+/).slice(0, 2).join(' ');
+}
+
+// Botones de WhatsApp: solo se muestran si hay celular cargado y la factura no
+// tiene letras (esas se cobran marcando la letra, por otro canal). El vendedor
+// solo ve el botón y decide si lo presiona — no hay envío automático.
+function BotonesWhatsApp({ f, hoyISO }: { f: FacturaVista; hoyISO: string }) {
+  if (!f.celular || f.tiene_letras || !f.fecha_vencimiento_real) return null;
+
+  const diasReal = diasEntre(f.fecha_vencimiento_real, hoyISO);
+  if (diasReal === null || diasReal < 0) return null; // vencida: ningún recordatorio de este tipo
+
+  const mostrarDescuento = f.pct_descuento > 0;
+  // "Próxima a vencer" = mismo umbral que el motor de descuento usa para dejar
+  // de ofrecer descuento (< 7 días): ahí el recordatorio pasa a ser de vencimiento.
+  const mostrarVencimiento = !mostrarDescuento && diasReal < 7;
+  if (!mostrarDescuento && !mostrarVencimiento) return null;
+
+  const nombre = nombreSaludo(f.razon_social);
+
+  return (
+    <div className="flex gap-2 mt-2">
+      {mostrarDescuento && (
+        <a
+          href={linkWhatsApp(f.celular, mensajeDescuento({
+            nombreCliente: nombre,
+            comprobante: f.comprobante,
+            saldoPendiente: f.saldo_pendiente,
+            fechaVencimiento: f.fecha_vencimiento_real,
+            montoDescuento: f.monto_descuento,
+            montoAPagarConDescuento: f.monto_a_pagar_con_descuento,
+          }))}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 text-center text-xs font-semibold text-white rounded-lg py-2 px-2.5"
+          style={{ background: '#4BB168' }}
+        >
+          📱 Recordatorio de descuento
+        </a>
+      )}
+      {mostrarVencimiento && (
+        <a
+          href={linkWhatsApp(f.celular, mensajeVencimiento({
+            nombreCliente: nombre,
+            comprobante: f.comprobante,
+            saldoPendiente: f.saldo_pendiente,
+            fechaVencimiento: f.fecha_vencimiento_real,
+          }))}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 text-center text-xs font-semibold text-white rounded-lg py-2 px-2.5"
+          style={{ background: '#6B7280' }}
+        >
+          📱 Recordatorio de vencimiento
+        </a>
+      )}
+    </div>
+  );
 }
 
 interface GrupoCliente {
@@ -163,6 +234,7 @@ export default function VistaVendedorClient({
                     <Plazo dias={dias} />
                   </p>
                 </div>
+                <BotonesWhatsApp f={f} hoyISO={hoyISO} />
               </div>
             );
           })}
