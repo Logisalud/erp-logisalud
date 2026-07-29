@@ -24,6 +24,7 @@ interface FacturaSug {
   importe_total: number; saldo_pendiente: number; fecha_emision: string; tiene_letras: boolean;
   match: 'cliente_y_monto' | 'monto_exacto';
 }
+type Categoria = 'nombre_y_monto' | 'nombre_sin_monto' | 'solo_monto_unica' | 'ambiguo' | 'sin_candidata';
 
 const fmt = (n: number) => 'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const fmtFecha = (s: string | null) => { if (!s) return '—'; const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
@@ -37,9 +38,10 @@ export default function ConciliacionPage() {
   const [msg, setMsg]           = useState<{ texto: string; ok: boolean } | null>(null);
   const [filtro, setFiltro]     = useState<'cobros' | 'pendientes' | 'conciliados' | 'no_cobranza' | 'todos'>('cobros');
   const [abierto, setAbierto]   = useState<string | null>(null);
-  const [sug, setSug]           = useState<{ facturas: FacturaSug[]; clientes: { ruc: string; razon_social: string }[] } | null>(null);
+  const [sug, setSug]           = useState<{ facturas: FacturaSug[]; clientes: { ruc: string; razon_social: string }[]; categoria: Categoria } | null>(null);
   const [cargandoSug, setCargandoSug] = useState(false);
   const [accion, setAccion]     = useState<string | null>(null);
+  const [verificoAmbiguo, setVerificoAmbiguo] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const cargar = useCallback(async () => {
@@ -81,11 +83,11 @@ export default function ConciliacionPage() {
 
   async function verSugerencias(id: string) {
     if (abierto === id) { setAbierto(null); setSug(null); return; }
-    setAbierto(id); setSug(null); setCargandoSug(true);
+    setAbierto(id); setSug(null); setVerificoAmbiguo(false); setCargandoSug(true);
     try {
       const res = await fetch(`/api/conciliacion/sugerencias?id=${id}`, { cache: 'no-store' });
       const d = await res.json();
-      setSug({ facturas: d.facturas ?? [], clientes: d.clientes ?? [] });
+      setSug({ facturas: d.facturas ?? [], clientes: d.clientes ?? [], categoria: d.categoria ?? 'sin_candidata' });
     } finally { setCargandoSug(false); }
   }
 
@@ -131,6 +133,18 @@ export default function ConciliacionPage() {
     if (filtro === 'conciliados') return f.clasificacion === 'cobro' && f.estado_conciliacion === 'conciliado';
     return true;
   });
+
+  // Categorías honestas sobre qué señal hay detrás de cada sugerencia — nunca
+  // un score numérico. Ninguna categoría de esta pantalla se auto-confirma:
+  // el único mecanismo automático es /api/conciliacion/auto (N° de operación
+  // exacto), que no se toca acá.
+  const CATEGORIA_INFO: Record<Categoria, { label: string; bg: string; fg: string; border: string }> = {
+    nombre_y_monto:    { label: '🟡 Nombre y monto coinciden',        bg: '#FEF6E0', fg: '#8A6A00', border: '#F5E1A0' },
+    solo_monto_unica:  { label: '🟠 Solo el monto coincide',          bg: '#FDEEE3', fg: '#9A4E12', border: '#F3CFA9' },
+    ambiguo:           { label: '🔴 Ambiguo — requiere investigación', bg: '#FCE7E7', fg: '#A11F1F', border: '#F3B8B8' },
+    nombre_sin_monto:  { label: '⚫ Nombre coincide, monto no cuadra',  bg: '#EDEDED', fg: '#3A3A3A', border: '#D4D4D4' },
+    sin_candidata:     { label: '⚪ Sin candidata',                    bg: '#F7F7F7', fg: '#8A8A8A', border: '#E4E4E4' },
+  };
 
   const Badge = ({ e }: { e: Fila['estado_conciliacion'] }) => {
     if (e === 'conciliado') return <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: '#e9f7ee', color: '#166534' }}>Conciliado</span>;
@@ -256,39 +270,83 @@ export default function ConciliacionPage() {
                   {/* Panel de sugerencias */}
                   {abierto === f.id && (
                     <div className="px-4 py-3 bg-gray-50/60 border-t border-gray-100">
-                      {cargandoSug ? (
+                      {cargandoSug || !sug ? (
                         <p className="text-xs text-gray-400">Buscando coincidencias…</p>
-                      ) : !sug || sug.facturas.length === 0 ? (
-                        <p className="text-xs text-gray-500">
-                          Sin facturas candidatas por nombre/monto. {sug && sug.clientes.length > 0 && `Cliente(s) por nombre: ${sug.clientes.map(c => c.razon_social).join(', ')}. `}
-                          Puedes registrar el pago manualmente en Registrar Pago o descartar el movimiento.
-                        </p>
-                      ) : (
-                        <div>
-                          <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">Facturas candidatas (saldo ≈ monto)</p>
-                          <div className="space-y-1.5">
-                            {sug.facturas.map(fa => (
-                              <div key={fa.id} className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-3 py-2">
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm text-gray-800 truncate">
-                                    <span className="font-mono font-semibold">{fa.comprobante}</span> · {fa.razon_social}
-                                  </p>
-                                  <p className="text-xs text-gray-400">
-                                    saldo {fmt(fa.saldo_pendiente)} · emitida {fmtFecha(fa.fecha_emision)}
-                                    {fa.match === 'cliente_y_monto' && <span className="ml-1 text-green-700">· coincide cliente y monto</span>}
-                                    {fa.tiene_letras && <span className="ml-1 text-red-500">· tiene letras</span>}
-                                  </p>
-                                </div>
-                                <button onClick={() => confirmar(f.id, fa.id)} disabled={accion === f.id || fa.tiene_letras}
-                                  className="px-3 py-1.5 text-xs font-medium rounded-lg text-white disabled:opacity-40 transition shrink-0"
-                                  style={{ background: '#4BB168' }}>
-                                  {accion === f.id ? '…' : 'Registrar y conciliar'}
-                                </button>
+                      ) : (() => {
+                        const cat = sug.categoria;
+                        const info = CATEGORIA_INFO[cat];
+                        const puedeConfirmar = cat === 'nombre_y_monto' || cat === 'solo_monto_unica' || cat === 'ambiguo';
+                        const botonesHabilitados = cat !== 'ambiguo' || verificoAmbiguo;
+
+                        return (
+                          <div>
+                            <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-lg mb-2.5"
+                              style={{ background: info.bg, color: info.fg, border: `1px solid ${info.border}` }}>
+                              {info.label}
+                            </span>
+
+                            {/* Advertencias por categoría — la de "ambiguo" es deliberadamente
+                                la más contundente: exige un paso explícito antes de habilitar
+                                los botones, no solo un texto informativo de pasada. */}
+                            {cat === 'solo_monto_unica' && (
+                              <p className="text-xs text-orange-700 mb-2">⚠️ Sin nombre de respaldo — verifica antes de confirmar.</p>
+                            )}
+                            {cat === 'ambiguo' && (
+                              <div className="rounded-lg border-2 border-red-300 bg-red-50 px-3 py-2.5 mb-3">
+                                <p className="text-sm font-bold text-red-800">
+                                  🚫 Hay {sug.facturas.length} facturas con montos similares de distintos clientes.
+                                </p>
+                                <p className="text-xs text-red-700 mt-1">
+                                  Confirmar aquí sin verificar podría aplicar el pago al cliente equivocado. Revisa el nombre del pagador contra el extracto antes de continuar.
+                                </p>
+                                <label className="flex items-center gap-2 mt-2.5 text-xs font-medium text-red-800 cursor-pointer select-none">
+                                  <input type="checkbox" checked={verificoAmbiguo} onChange={e => setVerificoAmbiguo(e.target.checked)} />
+                                  Confirmo que verifiqué manualmente cuál es el cliente correcto
+                                </label>
                               </div>
-                            ))}
+                            )}
+                            {cat === 'nombre_sin_monto' && (
+                              <p className="text-xs text-gray-600 mb-2">
+                                Cliente identificado: <span className="font-medium">{sug.clientes.map(c => c.razon_social).join(', ')}</span>.
+                                Ninguna de sus facturas tiene un saldo cercano a {fmt(f.monto)} — podría ser pago parcial, adelanto, o requerir revisión.
+                              </p>
+                            )}
+                            {cat === 'sin_candidata' && (
+                              <p className="text-xs text-gray-500 mb-2">Sin sugerencia — búsqueda 100% manual.</p>
+                            )}
+
+                            {/* ⚫ nunca ofrece factura para confirmar directamente: solo enlace a búsqueda manual. */}
+                            {!puedeConfirmar ? (
+                              <a href="/registrar-pago" className="inline-block text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-white transition">
+                                Buscar manualmente →
+                              </a>
+                            ) : (
+                              <div className="space-y-1.5">
+                                {sug.facturas.map(fa => (
+                                  <div key={fa.id} className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-3 py-2">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm text-gray-800 truncate">
+                                        <span className="font-mono font-semibold">{fa.comprobante}</span> · {fa.razon_social}
+                                      </p>
+                                      <p className="text-xs text-gray-400">
+                                        saldo {fmt(fa.saldo_pendiente)} · emitida {fmtFecha(fa.fecha_emision)}
+                                        {fa.match === 'cliente_y_monto' && <span className="ml-1 text-green-700">· coincide cliente y monto</span>}
+                                        {fa.tiene_letras && <span className="ml-1 text-red-500">· tiene letras</span>}
+                                      </p>
+                                    </div>
+                                    <button onClick={() => confirmar(f.id, fa.id)} disabled={accion === f.id || fa.tiene_letras || !botonesHabilitados}
+                                      title={!botonesHabilitados ? 'Marca la casilla de verificación primero' : undefined}
+                                      className="px-3 py-1.5 text-xs font-medium rounded-lg text-white disabled:opacity-40 transition shrink-0"
+                                      style={{ background: '#4BB168' }}>
+                                      {accion === f.id ? '…' : 'Registrar y conciliar'}
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
