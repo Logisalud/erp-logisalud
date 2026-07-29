@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
+import { hoyISOLima, diasEntre } from '@/lib/fechas';
+import { calcularDescuento } from '@/lib/descuento';
 import BotonImprimir from './BotonImprimir';
 import RegistrarAcceso from './RegistrarAcceso';
 import VistaVendedorClient, { FacturaVista } from './VistaVendedorClient';
@@ -28,16 +30,7 @@ interface FacturaPendiente {
 const fmt = (n: number) =>
   'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-function hoyISOLima(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }); // YYYY-MM-DD
-}
-
-function diasParaVencer(fecha: string | null, hoyISO: string): number | null {
-  if (!fecha) return null;
-  const [y, m, d] = fecha.split('-').map(Number);
-  const [hy, hm, hd] = hoyISO.split('-').map(Number);
-  return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(hy, hm - 1, hd)) / 86400000);
-}
+const diasParaVencer = diasEntre;
 
 export default async function VistaVendedorPage({ params }: { params: { token: string } }) {
   const token = params.token?.trim() ?? '';
@@ -97,17 +90,33 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   // esas facturas como saldadas.
   const facturasVisibles = facturas.filter(f => Number(f.saldo_pendiente) >= UMBRAL_SALDO_MINIMO);
 
-  // Distrito por cliente (puede estar vacío si aún no se carga desde DIGEMID)
+  // Distrito y celular por cliente (celular puede estar vacío si aún no se cargó)
   const rucs = Array.from(new Set(facturasVisibles.map(f => f.cliente_ruc)));
   const distritoPorRuc = new Map<string, string>();
+  const celularPorRuc = new Map<string, string>();
   for (let i = 0; i < rucs.length; i += 500) {
     const { data: cls } = await db
       .from('clientes')
-      .select('ruc, distrito')
+      .select('ruc, distrito, celular')
       .in('ruc', rucs.slice(i, i + 500));
     for (const c of cls ?? []) {
       if (c.distrito) distritoPorRuc.set(c.ruc, c.distrito);
+      if (c.celular) celularPorRuc.set(c.ruc, c.celular);
     }
+  }
+
+  // Documentos con retención de IGV pendiente: se detectan por tener un pago
+  // tipo 'retencion' registrado (ver lib/descuento.ts). Nunca reciben descuento
+  // por pronto pago.
+  const idsVisibles = facturasVisibles.map(f => f.id);
+  const idsConRetencion = new Set<string>();
+  for (let i = 0; i < idsVisibles.length; i += 500) {
+    const { data: rets } = await db
+      .from('pagos')
+      .select('documento_id')
+      .eq('tipo', 'retencion')
+      .in('documento_id', idsVisibles.slice(i, i + 500));
+    for (const r of rets ?? []) idsConRetencion.add(r.documento_id);
   }
 
   // Próxima letra pendiente por documento (solo facturas con letras)
@@ -134,21 +143,39 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   facturasVisibles.sort((a, b) =>
     (diasParaVencer(fechaEfectiva(a), hoyISO) ?? 99999) - (diasParaVencer(fechaEfectiva(b), hoyISO) ?? 99999));
 
-  const facturasVista: FacturaVista[] = facturasVisibles.map(f => ({
-    id: f.id,
-    comprobante: f.comprobante,
-    cliente_ruc: f.cliente_ruc,
-    razon_social: f.razon_social,
-    distrito: distritoPorRuc.get(f.cliente_ruc) ?? null,
-    fecha_emision: f.fecha_emision,
-    fecha_venc: fechaEfectiva(f),
-    letra_fecha: proximaLetra.get(f.id) ?? null,
-    importe_total: Number(f.importe_total) || 0,
-    total_nc: Number(f.total_nc) || 0,
-    total_pagado: Number(f.total_pagado) || 0,
-    saldo_pendiente: Number(f.saldo_pendiente) || 0,
-    vencido: (Number(f.d1_30) || 0) + (Number(f.d31_60) || 0) + (Number(f.d61_90) || 0) + (Number(f.mas90) || 0),
-  }));
+  const facturasVista: FacturaVista[] = facturasVisibles.map(f => {
+    const saldoPendiente = Number(f.saldo_pendiente) || 0;
+    // El descuento por pronto pago se calcula sobre el vencimiento real del
+    // documento (Nubefact), no sobre la próxima letra: las facturas con
+    // letras se cobran marcando la letra, no por este canal, así que no
+    // ofrecemos descuento ni recordatorio de WhatsApp para ellas.
+    const tieneRetencion = idsConRetencion.has(f.id);
+    const descuento = f.tiene_letras
+      ? { diasAnticipacion: diasParaVencer(f.fecha_vencimiento, hoyISO), pctDescuento: 0, montoDescuento: 0, montoAPagarConDescuento: saldoPendiente }
+      : calcularDescuento(f.fecha_vencimiento, saldoPendiente, hoyISO, tieneRetencion);
+
+    return {
+      id: f.id,
+      comprobante: f.comprobante,
+      cliente_ruc: f.cliente_ruc,
+      razon_social: f.razon_social,
+      distrito: distritoPorRuc.get(f.cliente_ruc) ?? null,
+      celular: celularPorRuc.get(f.cliente_ruc) ?? null,
+      fecha_emision: f.fecha_emision,
+      fecha_venc: fechaEfectiva(f),
+      fecha_vencimiento_real: f.fecha_vencimiento,
+      letra_fecha: proximaLetra.get(f.id) ?? null,
+      tiene_letras: f.tiene_letras,
+      importe_total: Number(f.importe_total) || 0,
+      total_nc: Number(f.total_nc) || 0,
+      total_pagado: Number(f.total_pagado) || 0,
+      saldo_pendiente: saldoPendiente,
+      vencido: (Number(f.d1_30) || 0) + (Number(f.d31_60) || 0) + (Number(f.d61_90) || 0) + (Number(f.mas90) || 0),
+      pct_descuento: descuento.pctDescuento,
+      monto_descuento: descuento.montoDescuento,
+      monto_a_pagar_con_descuento: descuento.montoAPagarConDescuento,
+    };
+  });
 
   const total = facturasVista.reduce((s, f) => s + f.saldo_pendiente, 0);
   const vencido = facturasVista.reduce((s, f) => s + f.vencido, 0);
