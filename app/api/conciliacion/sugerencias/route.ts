@@ -78,9 +78,41 @@ export async function GET(req: NextRequest) {
     .limit(20);
   push(exactas ?? [], 'monto_exacto');
 
+  // Categoría de confianza: honesta sobre qué señales hay, nunca un score
+  // numérico. El único mecanismo que puede resolver un movimiento SIN
+  // intervención humana es el auto-conciliar por N° de operación exacto
+  // (/api/conciliacion/auto) — esto de aquí (nombre/monto) SIEMPRE requiere
+  // que una persona confirme, sin importar la categoría.
+  //
+  //   nombre_y_monto     el nombre coincide con un cliente Y ese cliente
+  //                      tiene una factura con saldo cercano al monto.
+  //   nombre_sin_monto   el nombre coincide con un cliente, pero ninguna de
+  //                      sus facturas tiene saldo cercano — nunca se muestra
+  //                      un botón de confirmar aquí, solo "buscar manualmente".
+  //   solo_monto_unica   sin nombre de respaldo, pero una única factura en
+  //                      todo el sistema tiene ese saldo.
+  //   ambiguo            el monto coincide con 2+ facturas de clientes
+  //                      distintos — máximo riesgo de aplicar el pago al
+  //                      cliente equivocado.
+  //   sin_candidata      ninguna señal disponible.
+  const facturasConNombre = facturas.filter(f => f.match === 'cliente_y_monto');
+  let categoria: 'nombre_y_monto' | 'nombre_sin_monto' | 'solo_monto_unica' | 'ambiguo' | 'sin_candidata';
+  if (facturasConNombre.length > 0) categoria = 'nombre_y_monto';
+  else if (clientes.length > 0) categoria = 'nombre_sin_monto';
+  else if (facturas.length === 1) categoria = 'solo_monto_unica';
+  else if (facturas.length >= 2) categoria = 'ambiguo';
+  else categoria = 'sin_candidata';
+
+  // En "nombre_sin_monto" no se ofrece ninguna factura para confirmar: las
+  // que hubiera en `facturas` (monto_exacto) pertenecen a OTROS clientes, no
+  // al identificado por nombre, y mostrarlas con un botón de confirmar
+  // induciría a aplicar el pago al cliente equivocado.
+  const facturasParaMostrar = categoria === 'nombre_sin_monto' ? [] : facturas;
+
   return NextResponse.json({
     movimiento: { id: mov.id, fecha: mov.fecha, monto, nombre_banco_detectado: mov.nombre_banco_detectado },
+    categoria,
     clientes,
-    facturas,
+    facturas: facturasParaMostrar,
   }, { headers: { 'Cache-Control': 'no-store' } });
 }
