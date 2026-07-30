@@ -73,11 +73,23 @@ function nombreSaludo(razonSocial: string): string {
   return razonSocial.split(/\s+/).slice(0, 2).join(' ');
 }
 
-// Botones de WhatsApp: solo se muestran si hay celular cargado y la factura no
-// tiene letras (esas se cobran marcando la letra, por otro canal). El vendedor
-// solo ve el botón y decide si lo presiona — no hay envío automático.
-function BotonesWhatsApp({ f, hoyISO }: { f: FacturaVista; hoyISO: string }) {
-  if (!f.celular || f.tiene_letras || !f.fecha_vencimiento_real) return null;
+// Registro ligero, fire-and-forget (igual que RegistrarAcceso): mide qué tanto
+// se usan los botones durante el piloto, sin frenar el clic del vendedor.
+function registrarEnvioWhatsapp(token: string, documento_id: string, tipo_mensaje: 'descuento' | 'vencimiento') {
+  fetch('/api/whatsapp-enviado', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, documento_id, tipo_mensaje }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+// Botones de WhatsApp: solo se muestran si el vendedor está en el piloto
+// (mostrarWhatsapp), hay celular cargado y la factura no tiene letras (esas
+// se cobran marcando la letra, por otro canal). El vendedor solo ve el botón
+// y decide si lo presiona — no hay envío automático.
+function BotonesWhatsApp({ f, hoyISO, token, mostrarWhatsapp }: { f: FacturaVista; hoyISO: string; token: string; mostrarWhatsapp: boolean }) {
+  if (!mostrarWhatsapp || !f.celular || f.tiene_letras || !f.fecha_vencimiento_real) return null;
 
   const diasReal = diasEntre(f.fecha_vencimiento_real, hoyISO);
   if (diasReal === null || diasReal < 0) return null; // vencida: ningún recordatorio de este tipo
@@ -104,6 +116,7 @@ function BotonesWhatsApp({ f, hoyISO }: { f: FacturaVista; hoyISO: string }) {
           }))}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => registrarEnvioWhatsapp(token, f.id, 'descuento')}
           className="flex-1 text-center text-xs font-semibold text-white rounded-lg py-2 px-2.5"
           style={{ background: '#4BB168' }}
         >
@@ -120,6 +133,7 @@ function BotonesWhatsApp({ f, hoyISO }: { f: FacturaVista; hoyISO: string }) {
           }))}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => registrarEnvioWhatsapp(token, f.id, 'vencimiento')}
           className="flex-1 text-center text-xs font-semibold text-white rounded-lg py-2 px-2.5"
           style={{ background: '#6B7280' }}
         >
@@ -159,7 +173,7 @@ function agrupar(facturas: FacturaVista[]): GrupoCliente[] {
 }
 
 export default function VistaVendedorClient({
-  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal,
+  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, token, mostrarWhatsapp,
 }: {
   facturas: FacturaVista[];
   hoyISO: string;
@@ -169,6 +183,8 @@ export default function VistaVendedorClient({
   totalImporte: number;
   contado: ContadoVista[];
   contadoTotal: number;
+  token: string;
+  mostrarWhatsapp: boolean;
 }) {
   const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado'>('tarjetas');
 
@@ -234,7 +250,7 @@ export default function VistaVendedorClient({
                     <Plazo dias={dias} />
                   </p>
                 </div>
-                <BotonesWhatsApp f={f} hoyISO={hoyISO} />
+                <BotonesWhatsApp f={f} hoyISO={hoyISO} token={token} mostrarWhatsapp={mostrarWhatsapp} />
               </div>
             );
           })}
