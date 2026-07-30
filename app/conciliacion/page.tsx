@@ -42,6 +42,8 @@ export default function ConciliacionPage() {
   const [cargandoSug, setCargandoSug] = useState(false);
   const [accion, setAccion]     = useState<string | null>(null);
   const [verificoAmbiguo, setVerificoAmbiguo] = useState(false);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [desconciliandoLote, setDesconciliandoLote] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const cargar = useCallback(async () => {
@@ -120,6 +122,46 @@ export default function ConciliacionPage() {
       await cargar();
     } catch (e) { setMsg({ texto: String(e), ok: false }); }
     finally { setAccion(null); }
+  }
+
+  function toggleSeleccion(id: string) {
+    setSeleccionados(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  // Desconciliar en lote: misma lógica que un solo movimiento (desenlaza del
+  // pago, vuelve a "pendiente"), aplicada a cada seleccionado. NUNCA borra
+  // los pagos — eso sigue siendo una acción aparte y explícita (Registrar Pago).
+  async function desconciliarSeleccionados() {
+    const ids = Array.from(seleccionados);
+    if (ids.length === 0) return;
+    const total = ids.reduce((s, id) => s + (filas.find(f => f.id === id)?.monto ?? 0), 0);
+    if (!confirm(
+      `Vas a desconciliar ${ids.length} movimiento${ids.length === 1 ? '' : 's'} (${fmt(total)} en total).\n\n` +
+      'Cada uno se desenlaza de su pago y vuelve a "pendiente". Los pagos NO se borran — si hay que anular alguno, hazlo aparte en Registrar Pago.\n\n¿Continuar?'
+    )) return;
+
+    setDesconciliandoLote(true); setMsg(null);
+    let ok = 0, fallidos = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch('/api/conciliacion/estado', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ movimiento_id: id, accion: 'desconciliar' }),
+        });
+        if (res.ok) ok++; else fallidos++;
+      } catch { fallidos++; }
+    }
+    setMsg({
+      texto: fallidos === 0 ? `✓ ${ok} movimientos desconciliados.` : `✓ ${ok} desconciliados · ✗ ${fallidos} fallaron.`,
+      ok: fallidos === 0,
+    });
+    setSeleccionados(new Set());
+    setDesconciliandoLote(false);
+    await cargar();
   }
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) subir(f); };
@@ -221,6 +263,20 @@ export default function ConciliacionPage() {
           ))}
         </div>
 
+        {/* Barra de acción en lote: aparece solo si hay algo seleccionado */}
+        {seleccionados.size > 0 && (
+          <div className="flex items-center justify-between gap-3 bg-gray-800 text-white rounded-xl px-4 py-2.5 mb-3">
+            <span className="text-sm">{seleccionados.size} movimiento{seleccionados.size === 1 ? '' : 's'} seleccionado{seleccionados.size === 1 ? '' : 's'}</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setSeleccionados(new Set())} className="text-xs text-white/70 hover:text-white px-2">Cancelar</button>
+              <button onClick={desconciliarSeleccionados} disabled={desconciliandoLote}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 transition">
+                {desconciliandoLote ? 'Desconciliando…' : 'Desconciliar seleccionados'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {cargando ? (
           <div className="text-center py-16 text-gray-400 text-sm">Cargando…</div>
         ) : visibles.length === 0 ? (
@@ -232,6 +288,10 @@ export default function ConciliacionPage() {
               return (
                 <div key={f.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
+                    {f.clasificacion === 'cobro' && f.estado_conciliacion === 'conciliado' && (
+                      <input type="checkbox" checked={seleccionados.has(f.id)} onChange={() => toggleSeleccion(f.id)}
+                        className="w-4 h-4 rounded border-gray-300 shrink-0" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-gray-500 text-xs whitespace-nowrap">{fmtFecha(f.fecha)}</span>
