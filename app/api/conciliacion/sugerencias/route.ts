@@ -26,6 +26,10 @@ export async function GET(req: NextRequest) {
 
   const monto = Number(mov.monto);
   const tol = 0.5; // tolerancia de monto ±S/0.50
+  // Coherencia temporal: el pago siempre llega el mismo día o después de emitida
+  // la factura (nunca antes) — nunca sugerir una factura emitida después del
+  // depósito bancario.
+  const fechaMovimiento = mov.fecha as string;
 
   // 1) Clientes candidatos por nombre (solo si el nombre es suficientemente distintivo).
   let clientes: { ruc: string; razon_social: string }[] = [];
@@ -68,6 +72,7 @@ export async function GET(req: NextRequest) {
     const { data } = await db.from('v_saldos').select(cols)
       .in('cliente_ruc', rucs)
       .gte('saldo_pendiente', monto - tol).lte('saldo_pendiente', monto + tol)
+      .lte('fecha_emision', fechaMovimiento)
       .limit(20);
     push(data ?? [], 'cliente_y_monto');
   }
@@ -75,6 +80,7 @@ export async function GET(req: NextRequest) {
   // Facturas de cualquier cliente cuyo saldo coincide con el monto exacto (±tol).
   const { data: exactas } = await db.from('v_saldos').select(cols)
     .gte('saldo_pendiente', monto - tol).lte('saldo_pendiente', monto + tol)
+    .lte('fecha_emision', fechaMovimiento)
     .limit(20);
   push(exactas ?? [], 'monto_exacto');
 
