@@ -25,6 +25,14 @@ interface FacturaSug {
   match: 'cliente_y_monto' | 'monto_exacto';
 }
 type Categoria = 'nombre_y_monto' | 'nombre_sin_monto' | 'solo_monto_unica' | 'ambiguo' | 'sin_candidata';
+interface LoteResumen {
+  nuevos_cobros: number;
+  auto_conciliables: number;
+  categorias: Record<Categoria, number>;
+  saldo_total_antes: number;
+  saldo_total_despues: number;
+  saldo_cambio: number;
+}
 
 const fmt = (n: number) => 'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const fmtFecha = (s: string | null) => { if (!s) return '—'; const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
@@ -44,6 +52,7 @@ export default function ConciliacionPage() {
   const [verificoAmbiguo, setVerificoAmbiguo] = useState(false);
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   const [desconciliandoLote, setDesconciliandoLote] = useState(false);
+  const [loteResumen, setLoteResumen] = useState<LoteResumen | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const cargar = useCallback(async () => {
@@ -59,13 +68,14 @@ export default function ConciliacionPage() {
   useEffect(() => { cargar(); }, [cargar]);
 
   async function subir(file: File) {
-    setSubiendo(true); setMsg(null);
+    setSubiendo(true); setMsg(null); setLoteResumen(null);
     const form = new FormData(); form.append('archivo', file);
     try {
       const res = await fetch('/api/conciliacion/importar', { method: 'POST', body: form });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? 'Error');
       setMsg({ texto: `✓ ${d.insertados} importados · ${d.omitidos_duplicados} duplicados omitidos (de ${d.total_archivo}).`, ok: true });
+      setLoteResumen(d.lote ?? null);
       await cargar();
     } catch (e) { setMsg({ texto: String(e), ok: false }); }
     finally { setSubiendo(false); if (inputRef.current) inputRef.current.value = ''; }
@@ -78,6 +88,7 @@ export default function ConciliacionPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? 'Error');
       setMsg({ texto: `✓ ${d.conciliados} movimientos conciliados automáticamente por N° de operación.`, ok: true });
+      setLoteResumen(prev => prev ? { ...prev, auto_conciliables: 0 } : prev);
       await cargar();
     } catch (e) { setMsg({ texto: String(e), ok: false }); }
     finally { setAutoRun(false); }
@@ -226,6 +237,61 @@ export default function ConciliacionPage() {
         </div>
 
         {msg && <div className={`p-3 rounded-lg text-sm mb-4 ${msg.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg.texto}</div>}
+
+        {/* Resumen del lote recién importado: qué falta hacer con esta subida */}
+        {loteResumen && (
+          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-700">📋 Qué falta hacer con este lote</p>
+              <button onClick={() => setLoteResumen(null)} className="text-xs text-gray-400 hover:text-gray-600">Ocultar</button>
+            </div>
+
+            {loteResumen.saldo_cambio !== 0 && (
+              <div className="mb-3 p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                ⚠️ El saldo total de cartera cambió al importar ({fmt(loteResumen.saldo_total_antes)} → {fmt(loteResumen.saldo_total_despues)}).
+                Importar el extracto NO debería alterar saldos — revisa antes de continuar.
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-3">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider">Nuevos cobros</p>
+                <p className="font-oswald text-lg mt-0.5 text-gray-800">{loteResumen.nuevos_cobros}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider">Auto-conciliables</p>
+                <p className="font-oswald text-lg mt-0.5" style={{ color: loteResumen.auto_conciliables > 0 ? '#4BB168' : '#9CA3AF' }}>
+                  {loteResumen.auto_conciliables}
+                </p>
+                {loteResumen.auto_conciliables > 0 && (
+                  <button onClick={autoConciliar} disabled={autoRun} className="text-[11px] font-medium underline mt-0.5" style={{ color: '#4BB168' }}>
+                    {autoRun ? 'Corriendo…' : 'Correr ahora →'}
+                  </button>
+                )}
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider">Saldo de cartera</p>
+                <p className="text-xs mt-1.5 text-gray-500">{loteResumen.saldo_cambio === 0 ? '✓ sin cambios' : '⚠️ cambió'}</p>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1.5">Pendientes de revisión, por categoría</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {([
+                ['solo_monto_unica', 'requiere verificar'],
+                ['ambiguo', 'requiere revisión cuidadosa'],
+                ['nombre_sin_monto', 'requiere búsqueda manual'],
+                ['sin_candidata', 'sin ninguna señal'],
+              ] as const).map(([k, nota]) => (
+                <div key={k} className="rounded-lg p-2.5" style={{ background: CATEGORIA_INFO[k].bg, border: `1px solid ${CATEGORIA_INFO[k].border}` }}>
+                  <p className="text-xs font-semibold" style={{ color: CATEGORIA_INFO[k].fg }}>{CATEGORIA_INFO[k].label}</p>
+                  <p className="font-oswald text-lg mt-0.5" style={{ color: CATEGORIA_INFO[k].fg }}>{loteResumen.categorias[k]}</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: CATEGORIA_INFO[k].fg }}>{nota}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Resumen */}
         {resumen && (
