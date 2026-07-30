@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parsearExtractoBanco } from '@/lib/banco-parser';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
+import { sugerirParaMovimiento, type Categoria } from '@/lib/conciliacion';
 
 // Fase 1: importa y clasifica el extracto bancario en movimientos_banco_import.
 // NO toca facturas ni pagos. Anti-duplicado por (operacion_numero, fecha, monto)
@@ -18,6 +19,17 @@ export async function POST(req: NextRequest) {
     if (movimientos.length === 0) return NextResponse.json({ error: 'El archivo no tiene movimientos legibles' }, { status: 400 });
 
     const db = supabaseAdmin();
+
+    // Chequeo de sanidad: importar el extracto NO debe cambiar ni un centavo
+    // de la cartera (solo escribe en movimientos_banco_import, no en
+    // documentos/pagos). Se compara antes/después del insert.
+    const sumaSaldos = async () => {
+      const filas = await fetchAll<{ saldo_pendiente: number }>((from, to) =>
+        db.from('v_saldos').select('saldo_pendiente').range(from, to)
+      );
+      return Math.round(filas.reduce((s, f) => s + (Number(f.saldo_pendiente) || 0), 0) * 100) / 100;
+    };
+    const saldoTotalAntes = await sumaSaldos();
 
     // Claves ya existentes en la tabla (para no duplicar en re-subidas).
     const existentes = await fetchAll<{ operacion_numero: string | null; fecha: string; monto: number; descripcion: string }>((from, to) =>
@@ -50,15 +62,48 @@ export async function POST(req: NextRequest) {
       filasSalida.push({ ...m, estado: 'nuevo' });
     }
 
+    const insertadosCobro: { id: string; fecha: string; monto: number; operacion_numero: string | null; nombre_banco_detectado: string | null }[] = [];
     if (aInsertar.length > 0) {
       for (let i = 0; i < aInsertar.length; i += 500) {
-        const { error } = await db.from('movimientos_banco_import').insert(aInsertar.slice(i, i + 500));
+        const { data, error } = await db.from('movimientos_banco_import')
+          .insert(aInsertar.slice(i, i + 500))
+          .select('id, fecha, monto, operacion_numero, nombre_banco_detectado, clasificacion');
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        for (const r of data ?? []) {
+          if (r.clasificacion === 'cobro') {
+            insertadosCobro.push({
+              id: r.id, fecha: r.fecha, monto: Number(r.monto),
+              operacion_numero: r.operacion_numero, nombre_banco_detectado: r.nombre_banco_detectado,
+            });
+          }
+        }
       }
     }
 
     const cobros = filasSalida.filter(f => f.clasificacion === 'cobro');
     const noCobranza = filasSalida.filter(f => f.clasificacion === 'no_cobranza');
+
+    // Resumen del lote: qué falta hacer con lo recién importado. Solo
+    // lectura — no ejecuta el auto-conciliar ni crea sugerencias, solo las
+    // detecta para mostrarlas. Los auto-conciliables (N° operación con pago
+    // exacto ya existente) se excluyen de la categorización manual.
+    const opsConPago = new Set<string>();
+    {
+      const ops = Array.from(new Set(insertadosCobro.map(m => m.operacion_numero).filter(Boolean))) as string[];
+      for (let i = 0; i < ops.length; i += 300) {
+        const { data } = await db.from('pagos').select('referencia').in('referencia', ops.slice(i, i + 300));
+        for (const p of data ?? []) if (p.referencia) opsConPago.add(p.referencia);
+      }
+    }
+    const pendientesDeCategorizar = insertadosCobro.filter(m => !(m.operacion_numero && opsConPago.has(m.operacion_numero)));
+
+    const categorias: Record<Categoria, number> = {
+      nombre_y_monto: 0, nombre_sin_monto: 0, solo_monto_unica: 0, ambiguo: 0, sin_candidata: 0,
+    };
+    const resultados = await Promise.all(pendientesDeCategorizar.map(m => sugerirParaMovimiento(db, m)));
+    for (const r of resultados) categorias[r.categoria]++;
+
+    const saldoTotalDespues = await sumaSaldos();
 
     return NextResponse.json({
       total_archivo: movimientos.length,
@@ -69,6 +114,14 @@ export async function POST(req: NextRequest) {
         cobros_suma: Math.round(cobros.reduce((s, f) => s + f.monto, 0) * 100) / 100,
         no_cobranza_n: noCobranza.length,
         no_cobranza_suma: Math.round(noCobranza.reduce((s, f) => s + f.monto, 0) * 100) / 100,
+      },
+      lote: {
+        nuevos_cobros: insertadosCobro.length,
+        auto_conciliables: insertadosCobro.length - pendientesDeCategorizar.length,
+        categorias,
+        saldo_total_antes: saldoTotalAntes,
+        saldo_total_despues: saldoTotalDespues,
+        saldo_cambio: Math.round((saldoTotalDespues - saldoTotalAntes) * 100) / 100,
       },
       filas: filasSalida,
     }, { headers: { 'Cache-Control': 'no-store' } });
