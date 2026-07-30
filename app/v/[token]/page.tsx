@@ -35,12 +35,12 @@ const diasParaVencer = diasEntre;
 export default async function VistaVendedorPage({ params }: { params: { token: string } }) {
   const token = params.token?.trim() ?? '';
 
-  let vendedor: { id: string; nombres: string; apellidos: string | null; codigo: string | null } | null = null;
+  let vendedor: { id: string; nombres: string; apellidos: string | null; codigo: string | null; piloto_whatsapp: boolean } | null = null;
   if (token.length >= 16) {
     const db = supabaseAdmin();
     const { data } = await db
       .from('vendedores')
-      .select('id, nombres, apellidos, codigo, activo')
+      .select('id, nombres, apellidos, codigo, activo, piloto_whatsapp')
       .eq('token_acceso', token)
       .single();
     if (data && data.activo) vendedor = data;
@@ -231,6 +231,8 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
           totalImporte={totalImporte}
           contado={contado}
           contadoTotal={contadoTotal}
+          token={token}
+          mostrarWhatsapp={vendedor.piloto_whatsapp}
         />
 
         <p className="text-center text-[11px] text-gray-300 mt-6 print:text-gray-400">LOGISALUD · Vista de consulta — solo lectura</p>
