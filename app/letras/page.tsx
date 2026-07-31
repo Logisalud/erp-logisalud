@@ -25,6 +25,8 @@ interface Letra {
   n_facturas: number;
   fecha_giro: string | null;
   fecha_vencimiento: string;
+  fecha_vencimiento_original: string | null;
+  fecha_vencimiento_editada_en: string | null;
   estado: 'en_cartera' | 'en_banco' | 'pagada' | 'protestada';
   banco: string | null;
   fecha_pago: string | null;
@@ -51,6 +53,12 @@ const fmtFecha = (s: string | null) => {
   if (!s) return '—';
   const [y, m, d] = s.split('-');
   return `${d}/${m}/${y}`;
+};
+
+const fmtFechaHora = (s: string | null) => {
+  if (!s) return '—';
+  const d = new Date(s);
+  return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -85,6 +93,8 @@ export default function LetrasPage() {
   const [errMsg, setErrMsg]                 = useState('');
   const [cambioEstado, setCambioEstado]     = useState<Record<string, boolean>>({});
   const [pagoModal, setPagoModal]           = useState<{ letraId: string; fecha: string } | null>(null);
+  const [editandoVenc, setEditandoVenc]     = useState<string | null>(null);
+  const [guardandoVenc, setGuardandoVenc]   = useState<string | null>(null);
 
   // Multi-factura
   const [modoMulti, setModoMulti]               = useState(false);
@@ -294,6 +304,24 @@ export default function LetrasPage() {
     setCambioEstado(p => ({ ...p, [letraId]: false }));
   };
 
+  const editarVencimiento = async (letraId: string, nuevaFecha: string) => {
+    if (!nuevaFecha) { setEditandoVenc(null); return; }
+    setGuardandoVenc(letraId);
+    try {
+      const res = await fetch(`/api/letras/${letraId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nueva_fecha_vencimiento: nuevaFecha }),
+      });
+      const d = await res.json();
+      if (d.error) { setErrMsg(d.error); return; }
+      setEditandoVenc(null);
+      await recargarLetras();
+    } finally {
+      setGuardandoVenc(null);
+    }
+  };
+
   const eliminarLetra = async (letraId: string) => {
     if (!confirm('¿Eliminar esta letra? Esta acción no se puede deshacer.')) return;
     await fetch(`/api/letras/${letraId}`, { method: 'DELETE' });
@@ -473,7 +501,39 @@ export default function LetrasPage() {
                               )}
                             </td>
                             <td className="px-4 py-3 text-center text-xs text-gray-400">{fmtFecha(l.fecha_giro)}</td>
-                            <td className="px-4 py-3 text-center text-xs text-gray-700 font-medium">{fmtFecha(l.fecha_vencimiento)}</td>
+                            <td className="px-4 py-3 text-center text-xs">
+                              {editandoVenc === l.id ? (
+                                <input
+                                  type="date"
+                                  autoFocus
+                                  defaultValue={l.fecha_vencimiento}
+                                  disabled={guardandoVenc === l.id}
+                                  onBlur={e => editarVencimiento(l.id, e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                    if (e.key === 'Escape') setEditandoVenc(null);
+                                  }}
+                                  className="px-1.5 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => setEditandoVenc(l.id)}
+                                  disabled={guardandoVenc === l.id}
+                                  title="Editar fecha de vencimiento"
+                                  className="inline-flex items-center gap-1 text-gray-700 font-medium hover:text-logisalud-teal hover:underline decoration-dotted underline-offset-2 disabled:opacity-50"
+                                >
+                                  {guardandoVenc === l.id ? '…' : fmtFecha(l.fecha_vencimiento)}
+                                  {l.fecha_vencimiento_original && l.fecha_vencimiento_original !== l.fecha_vencimiento && (
+                                    <span
+                                      className="text-[10px] text-gray-400"
+                                      title={`Editada el ${fmtFechaHora(l.fecha_vencimiento_editada_en)} · original: ${fmtFecha(l.fecha_vencimiento_original)}`}
+                                    >
+                                      ✎
+                                    </span>
+                                  )}
+                                </button>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-xs text-gray-400">{l.banco ?? '—'}</td>
                             <td className="px-4 py-3 text-center">
                               <select
