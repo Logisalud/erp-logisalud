@@ -24,6 +24,12 @@ export async function POST(req: NextRequest) {
   } else if (accion === 'desconciliar') {
     if (mov.estado_conciliacion !== 'conciliado') return NextResponse.json({ error: 'Solo se desconcilian movimientos conciliados' }, { status: 400 });
     // Solo desenlaza; el pago permanece (si hay que anularlo, se elimina en Registrar pago).
+    // Ya no está confirmado contra el banco: vuelve a pendiente_confirmar.
+    if (mov.pago_id) {
+      await db.from('pagos')
+        .update({ estado_verificacion: 'pendiente_confirmar', confirmado_en: null })
+        .eq('id', mov.pago_id);
+    }
     update = { estado_conciliacion: 'pendiente', pago_id: null, conciliado_en: null };
   } else {
     return NextResponse.json({ error: 'Acción inválida' }, { status: 400 });
