@@ -46,6 +46,7 @@ interface Pago {
   referencia: string | null;
   voucher_path: string | null;
   tipo?: 'pago' | 'retencion';
+  registrado_por?: string | null;
 }
 
 interface PagoBuscar {
@@ -141,6 +142,7 @@ export default function RegistrarPagoPage() {
   const [editMonto, setEditMonto]       = useState('');
   const [editFecha, setEditFecha]       = useState('');
   const [editRef, setEditRef]           = useState('');
+  const [editRegistradoPor, setEditRegistradoPor] = useState('');
   const [editArchivo, setEditArchivo]   = useState<File | null>(null);
   const [editVoucher, setEditVoucher]   = useState<string | null>(null);
   const [editPreview, setEditPreview]   = useState<string | null>(null);
@@ -422,6 +424,7 @@ export default function RegistrarPagoPage() {
     setEditMonto(String(p.monto));
     setEditFecha(p.fecha_pago);
     setEditRef(p.referencia ?? '');
+    setEditRegistradoPor(p.registrado_por ?? '');
     setEditArchivo(null); setEditVoucher(null); setEditPreview(null);
   };
 
@@ -432,6 +435,7 @@ export default function RegistrarPagoPage() {
       monto: Number(editMonto),
       fecha_pago: editFecha,
       referencia: editRef.trim() || null,
+      registrado_por: editRegistradoPor.trim() || null,
     };
     if (editVoucher) body.voucher_path = editVoucher;
     const res = await fetch(`/api/pagos/${p.id}`, {
@@ -1039,6 +1043,15 @@ export default function RegistrarPagoPage() {
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
                               />
                             </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs text-gray-500 mb-1">¿Quién registró este pago?</label>
+                              <input
+                                type="text" value={editRegistradoPor}
+                                onChange={e => setEditRegistradoPor(e.target.value)}
+                                placeholder="Corrige si quedó atribuido a la persona equivocada"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                              />
+                            </div>
                           </div>
                           {/* Reemplazar voucher opcional */}
                           <div>
@@ -1086,6 +1099,7 @@ export default function RegistrarPagoPage() {
                             <p className="text-xs text-gray-400">
                               {fmtFecha(p.fecha_pago)}
                               {p.referencia && <> · <span className="text-gray-500">{p.referencia}</span></>}
+                              {p.registrado_por && <> · registrado por <span className="text-gray-500">{p.registrado_por}</span></>}
                             </p>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
