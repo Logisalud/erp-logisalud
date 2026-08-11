@@ -46,6 +46,7 @@ interface Pago {
   referencia: string | null;
   voucher_path: string | null;
   tipo?: 'pago' | 'retencion';
+  registrado_por?: string | null;
 }
 
 interface PagoBuscar {
@@ -127,6 +128,7 @@ export default function RegistrarPagoPage() {
   const [soloRetMonto, setSoloRetMonto] = useState('');
   const [fechaPago, setFechaPago]       = useState(hoy());
   const [referencia, setReferencia]     = useState('');
+  const [registradoPor, setRegistradoPor] = useState('');
   const [archivo, setArchivo]           = useState<File | null>(null);
   const [voucherPath, setVoucherPath]   = useState<string | null>(null);
   const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
@@ -140,6 +142,7 @@ export default function RegistrarPagoPage() {
   const [editMonto, setEditMonto]       = useState('');
   const [editFecha, setEditFecha]       = useState('');
   const [editRef, setEditRef]           = useState('');
+  const [editRegistradoPor, setEditRegistradoPor] = useState('');
   const [editArchivo, setEditArchivo]   = useState<File | null>(null);
   const [editVoucher, setEditVoucher]   = useState<string | null>(null);
   const [editPreview, setEditPreview]   = useState<string | null>(null);
@@ -151,6 +154,11 @@ export default function RegistrarPagoPage() {
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevUrlRef = useRef<string | null>(null);
   const enviandoRef = useRef(false); // guarda anti doble-envío (antes del re-render)
+
+  useEffect(() => {
+    const guardado = localStorage.getItem('registrado_por');
+    if (guardado) setRegistradoPor(guardado);
+  }, []);
 
   useEffect(() => {
     prevUrlRef.current = previewUrl;
@@ -311,6 +319,8 @@ export default function RegistrarPagoPage() {
     if (!factura || enviandoRef.current) return;
     if (!monto || Number(monto) <= 0)  { setErrMsg('El monto debe ser mayor a 0.');        return; }
     if (conRetencion && Number(retencion) <= 0) { setErrMsg('La retención debe ser mayor a 0.'); return; }
+    if (!registradoPor.trim()) { setErrMsg('Indica quién registra este pago.'); return; }
+    localStorage.setItem('registrado_por', registradoPor.trim());
     enviandoRef.current = true;
     setGuardando(true); setErrMsg(''); setExitoMsg('');
     try {
@@ -322,6 +332,7 @@ export default function RegistrarPagoPage() {
           monto: Number(monto),
           fecha_pago: fechaPago,
           referencia: referencia.trim() || undefined,
+          registrado_por: registradoPor.trim(),
           ...(voucherPath ? { voucher_path: voucherPath } : {}),
           ...(conRetencion && Number(retencion) > 0 ? { retencion: Number(retencion) } : {}),
         }),
@@ -351,6 +362,8 @@ export default function RegistrarPagoPage() {
   const registrarSoloRetencion = async () => {
     if (!factura || enviandoRef.current) return;
     if (!soloRetMonto || Number(soloRetMonto) <= 0) { setErrMsg('La retención debe ser mayor a 0.'); return; }
+    if (!registradoPor.trim()) { setErrMsg('Indica quién registra este pago.'); return; }
+    localStorage.setItem('registrado_por', registradoPor.trim());
     enviandoRef.current = true;
     setGuardando(true); setErrMsg(''); setExitoMsg('');
     try {
@@ -362,6 +375,7 @@ export default function RegistrarPagoPage() {
           monto: Number(soloRetMonto),
           fecha_pago: fechaPago,
           solo_retencion: true,
+          registrado_por: registradoPor.trim(),
         }),
       });
       const d = await res.json();
@@ -410,6 +424,7 @@ export default function RegistrarPagoPage() {
     setEditMonto(String(p.monto));
     setEditFecha(p.fecha_pago);
     setEditRef(p.referencia ?? '');
+    setEditRegistradoPor(p.registrado_por ?? '');
     setEditArchivo(null); setEditVoucher(null); setEditPreview(null);
   };
 
@@ -420,6 +435,7 @@ export default function RegistrarPagoPage() {
       monto: Number(editMonto),
       fecha_pago: editFecha,
       referencia: editRef.trim() || null,
+      registrado_por: editRegistradoPor.trim() || null,
     };
     if (editVoucher) body.voucher_path = editVoucher;
     const res = await fetch(`/api/pagos/${p.id}`, {
@@ -842,6 +858,15 @@ export default function RegistrarPagoPage() {
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
                       />
                     </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">¿Quién registra este pago? *</label>
+                      <input
+                        type="text" value={registradoPor}
+                        onChange={e => setRegistradoPor(e.target.value)}
+                        placeholder="Tu nombre"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                      />
+                    </div>
                   </div>
                   {/* Retención de IGV (3%) */}
                   <div className="rounded-lg border border-gray-100 bg-gray-50/60 p-3">
@@ -945,6 +970,15 @@ export default function RegistrarPagoPage() {
                         className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
                       />
                     </div>
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs text-gray-500 shrink-0">¿Quién registra? *</label>
+                      <input
+                        type="text" value={registradoPor}
+                        onChange={e => setRegistradoPor(e.target.value)}
+                        placeholder="Tu nombre"
+                        className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                      />
+                    </div>
                     <p className="text-[11px] text-gray-400">No registra ningún depósito nuevo: solo la retención de IGV.</p>
                     <div className="flex gap-2">
                       <button
@@ -1009,6 +1043,15 @@ export default function RegistrarPagoPage() {
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
                               />
                             </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs text-gray-500 mb-1">¿Quién registró este pago?</label>
+                              <input
+                                type="text" value={editRegistradoPor}
+                                onChange={e => setEditRegistradoPor(e.target.value)}
+                                placeholder="Corrige si quedó atribuido a la persona equivocada"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                              />
+                            </div>
                           </div>
                           {/* Reemplazar voucher opcional */}
                           <div>
@@ -1056,6 +1099,7 @@ export default function RegistrarPagoPage() {
                             <p className="text-xs text-gray-400">
                               {fmtFecha(p.fecha_pago)}
                               {p.referencia && <> · <span className="text-gray-500">{p.referencia}</span></>}
+                              {p.registrado_por && <> · registrado por <span className="text-gray-500">{p.registrado_por}</span></>}
                             </p>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">

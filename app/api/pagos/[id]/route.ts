@@ -11,6 +11,7 @@ export async function PATCH(
     fecha_pago?: string;
     referencia?: string | null;
     voucher_path?: string;
+    registrado_por?: string | null;
   };
 
   if (body.monto !== undefined && Number(body.monto) <= 0)
@@ -22,6 +23,10 @@ export async function PATCH(
   if (body.fecha_pago !== undefined) update.fecha_pago  = body.fecha_pago;
   if ('referencia'     in body)      update.referencia  = body.referencia ?? null;
   if (body.voucher_path !== undefined) update.voucher_path = body.voucher_path;
+  // Corrige la atribución si quedó mal (p. ej. dos personas comparten
+  // computadora y el campo autocompletado por localStorage quedó con el
+  // nombre de la persona anterior).
+  if ('registrado_por' in body) update.registrado_por = body.registrado_por?.trim() || null;
 
   const { data, error } = await db
     .from('pagos')

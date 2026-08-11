@@ -50,6 +50,10 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1">🏦 Conciliación bancaria</h2>
           <p className="text-gray-500 text-sm">Importa el extracto del banco y clasifica los movimientos (cobros vs. internos).</p>
         </Link>
+        <Link href="/pagos-sin-confirmar" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#e5a83c' }}>
+          <h2 className="text-lg font-semibold mb-1" style={{ color: '#c07d1e' }}>⚠️ Pagos sin confirmar</h2>
+          <p className="text-gray-500 text-sm">Pagos registrados por voucher que aún no se confirmaron contra el extracto bancario.</p>
+        </Link>
       </div>
     </main>
   );

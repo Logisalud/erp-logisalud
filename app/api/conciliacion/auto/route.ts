@@ -34,6 +34,7 @@ export async function POST() {
   }
 
   let conciliados = 0;
+  const pagosConfirmados: string[] = [];
   const ahora = new Date().toISOString();
   for (const m of pendientes) {
     const pagoId = m.operacion_numero ? pagoPorRef.get(m.operacion_numero) : undefined;
@@ -42,7 +43,16 @@ export async function POST() {
       .from('movimientos_banco_import')
       .update({ estado_conciliacion: 'conciliado', pago_id: pagoId, conciliado_en: ahora })
       .eq('id', m.id);
-    if (!error) conciliados++;
+    if (!error) { conciliados++; pagosConfirmados.push(pagoId); }
+  }
+
+  // El match exacto por N° de operación contra el extracto es la confirmación
+  // bancaria: el pago pasa de pendiente_confirmar a confirmado.
+  if (pagosConfirmados.length > 0) {
+    await db
+      .from('pagos')
+      .update({ estado_verificacion: 'confirmado', confirmado_en: ahora })
+      .in('id', pagosConfirmados);
   }
 
   return NextResponse.json({ conciliados }, { headers: { 'Cache-Control': 'no-store' } });

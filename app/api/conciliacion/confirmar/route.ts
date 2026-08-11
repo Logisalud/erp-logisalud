@@ -37,22 +37,45 @@ export async function POST(req: NextRequest) {
   if (dup && dup.length)
     return NextResponse.json({ error: 'Pago duplicado detectado (mismo monto en los últimos segundos).' }, { status: 409 });
 
-  // Registrar el pago
-  const { data: pago, error: errPago } = await db.from('pagos').insert({
-    documento_id,
-    monto,
-    fecha_pago: mov.fecha,
-    referencia: mov.operacion_numero ?? null,
-    voucher_path: null,
-    tipo: 'pago',
-  }).select('id').single();
-  if (errPago) return NextResponse.json({ error: errPago.message }, { status: 500 });
+  const ahora = new Date().toISOString();
+
+  // Si ya existe un pago pendiente_confirmar para esta misma factura y monto
+  // (registrado antes por voucher), es el mismo pago real: lo marcamos
+  // confirmado en vez de crear uno nuevo (evita contarlo dos veces).
+  const { data: pagoExistente } = await db.from('pagos').select('id')
+    .eq('documento_id', documento_id).eq('tipo', 'pago').eq('monto', monto)
+    .eq('estado_verificacion', 'pendiente_confirmar')
+    .order('created_at', { ascending: true }).limit(1).maybeSingle();
+
+  let pagoId: string;
+  if (pagoExistente) {
+    const { error: errConfirmar } = await db.from('pagos')
+      .update({ estado_verificacion: 'confirmado', confirmado_en: ahora })
+      .eq('id', pagoExistente.id);
+    if (errConfirmar) return NextResponse.json({ error: errConfirmar.message }, { status: 500 });
+    pagoId = pagoExistente.id;
+  } else {
+    // No había pago previo (el depósito llegó al banco antes de registrarse el
+    // voucher): se crea directamente ya confirmado, porque nace del extracto.
+    const { data: pago, error: errPago } = await db.from('pagos').insert({
+      documento_id,
+      monto,
+      fecha_pago: mov.fecha,
+      referencia: mov.operacion_numero ?? null,
+      voucher_path: null,
+      tipo: 'pago',
+      estado_verificacion: 'confirmado',
+      confirmado_en: ahora,
+    }).select('id').single();
+    if (errPago) return NextResponse.json({ error: errPago.message }, { status: 500 });
+    pagoId = pago.id;
+  }
 
   // Enlazar el movimiento
   const { error: errMov } = await db.from('movimientos_banco_import')
-    .update({ estado_conciliacion: 'conciliado', pago_id: pago.id, conciliado_en: new Date().toISOString() })
+    .update({ estado_conciliacion: 'conciliado', pago_id: pagoId, conciliado_en: ahora })
     .eq('id', movimiento_id);
   if (errMov) return NextResponse.json({ error: errMov.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, pago_id: pago.id }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ ok: true, pago_id: pagoId }, { headers: { 'Cache-Control': 'no-store' } });
 }
