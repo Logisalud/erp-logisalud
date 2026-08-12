@@ -64,8 +64,8 @@ export async function GET(req: NextRequest) {
       const saldo    = Number(r.saldo_pendiente) || 0;
       const pagado   = Number(r.total_pagado)    || 0;
       const importe  = Number(r.importe_total)   || 0;
-      const vencido  = (Number(r.d1_30) || 0) + (Number(r.d31_60) || 0)
-                     + (Number(r.d61_90) || 0) + (Number(r.mas90) || 0);
+      const vencido  = (Number(r.d0_7) || 0) + (Number(r.d8_15) || 0) + (Number(r.d16_30) || 0)
+                     + (Number(r.d31_60) || 0) + (Number(r.d61_mas) || 0);
       const estadoPago = saldo === 0 && importe > 0 ? 'Pagado'
                        : pagado > 0 && saldo > 0    ? 'Parcial'
                        :                              'Pendiente';
@@ -87,10 +87,11 @@ export async function GET(req: NextRequest) {
         'Saldo Pendiente':   saldo,
         'Estado Pago':       estadoPago,
         'Por Vencer':        Number(r.vigente)  || 0,
-        '1-30 días':         Number(r.d1_30)    || 0,
+        '0-7 días':          Number(r.d0_7)     || 0,
+        '8-15 días':         Number(r.d8_15)    || 0,
+        '16-30 días':        Number(r.d16_30)   || 0,
         '31-60 días':        Number(r.d31_60)   || 0,
-        '61-90 días':        Number(r.d61_90)   || 0,
-        '+90 días':          Number(r.mas90)    || 0,
+        '60+ días':          Number(r.d61_mas)  || 0,
         'Total Vencido':     vencido,
         'Días Retraso':      Number(r.dias_retraso) || 0,
         '% Morosidad':       saldo > 0 ? Math.round(vencido / saldo * 10000) / 100 : 0,
@@ -99,25 +100,34 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    const vacio = { 'Tipo Movimiento': '', 'Fecha de Pago': '' as string | Date, 'N° Operación': '', 'Monto Pago': '' as string | number };
+    // Columnas de pago, vacías en la fila del documento.
+    const pagoVacio = { 'Tipo Movimiento': '', 'Fecha de Pago': '' as string | Date, 'N° Operación': '', 'Monto Pago': '' as string | number };
+    // Columnas de factura/saldo/aging, vacías en las filas de detalle de pago —
+    // así, sin importar qué filas estén expandidas o colapsadas, sumar cualquier
+    // columna de saldo/aging en el Excel da el total correcto (cada valor
+    // aparece una sola vez, en la fila del documento).
+    const facturaVacia = Object.fromEntries(Object.keys(colsFactura({})).map(k => [k, '']));
 
-    // Una fila por pago; las facturas sin pagos aparecen con las columnas de pago vacías.
+    // Una fila por documento (nivel 0) + filas de detalle de pago debajo
+    // (nivel 1, colapsadas por defecto vía outline de Excel — "expandible").
     const rows: Record<string, unknown>[] = [];
+    const levels: number[] = [];
     for (const r of data) {
       const base = colsFactura(r as Record<string, unknown>);
+      rows.push({ ...base, ...pagoVacio });
+      levels.push(0);
+
       const ps = pagosPorDoc.get(r.id as string) ?? [];
-      if (ps.length === 0) {
-        rows.push({ ...base, ...vacio });
-      } else {
-        for (const p of ps) {
-          rows.push({
-            ...base,
-            'Tipo Movimiento': tipoLabel(p.tipo),
-            'Fecha de Pago':   toDate(p.fecha_pago),
-            'N° Operación':    p.referencia ?? '',
-            'Monto Pago':      Number(p.monto) || 0,
-          });
-        }
+      for (const p of ps) {
+        rows.push({
+          ...facturaVacia,
+          'Comprobante':     r.comprobante,
+          'Tipo Movimiento': tipoLabel(p.tipo),
+          'Fecha de Pago':   toDate(p.fecha_pago),
+          'N° Operación':    p.referencia ?? '',
+          'Monto Pago':      Number(p.monto) || 0,
+        });
+        levels.push(1);
       }
     }
 
@@ -127,10 +137,14 @@ export async function GET(req: NextRequest) {
       { wch: 14 }, { wch: 13 }, { wch: 35 }, { wch: 10 }, { wch: 22 }, { wch: 18 },
       { wch: 13 }, { wch: 16 }, { wch: 10 }, { wch: 7  },
       { wch: 13 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
-      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 13 }, { wch: 11 }, { wch: 12 }, { wch: 15 }, { wch: 11 },
       { wch: 14 }, { wch: 13 }, { wch: 16 }, { wch: 13 },  // Tipo Movimiento, Fecha de Pago, N° Operación, Monto Pago
     ];
+    // Agrupa las filas de detalle de pago (nivel 1) bajo su documento, y las
+    // colapsa por defecto — en Excel aparecen como un "+" expandible.
+    // Fila 0 es el encabezado (json_to_sheet la agrega antes que los datos).
+    ws['!rows'] = [{}, ...levels.map(level => ({ level, hidden: level > 0 }))];
     const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
     ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
     XLSX.utils.book_append_sheet(wb, ws, 'Estado de Cuenta');

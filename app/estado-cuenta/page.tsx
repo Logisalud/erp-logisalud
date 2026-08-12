@@ -9,13 +9,13 @@ interface VendedorResumen {
   vendedor_codigo: string | null;
   vendedor_nombre: string | null;
   zona_nombre: string | null;
-  vigente: number; d1_30: number; d31_60: number; d61_90: number; mas90: number;
+  vigente: number; d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
   saldo_total: number; cant_facturas: number;
 }
 
 interface ClienteResumen {
   cliente_ruc: string; razon_social: string;
-  vigente: number; d1_30: number; d31_60: number; d61_90: number; mas90: number;
+  vigente: number; d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
   saldo_total: number; cant_facturas: number;
 }
 
@@ -48,7 +48,7 @@ interface LetraRow {
 }
 
 interface HasAging {
-  vigente: number; d1_30: number; d31_60: number; d61_90: number; mas90: number;
+  vigente: number; d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
   saldo_total: number; cant_facturas: number;
 }
 
@@ -65,16 +65,17 @@ const fmtFecha = (s: string | null) => {
   return `${d}/${m}/${y}`;
 };
 
-const calcVencido   = (r: HasAging) => r.d1_30 + r.d31_60 + r.d61_90 + r.mas90;
+const calcVencido   = (r: HasAging) => r.d0_7 + r.d8_15 + r.d16_30 + r.d31_60 + r.d61_mas;
 const calcMorosidad = (r: HasAging): number | null =>
   r.saldo_total <= 0 ? null : (calcVencido(r) / r.saldo_total) * 100;
 
 const sumarAging = (rows: HasAging[]) => ({
   vigente: rows.reduce((a, r) => a + r.vigente, 0),
-  d1_30:   rows.reduce((a, r) => a + r.d1_30,   0),
+  d0_7:    rows.reduce((a, r) => a + r.d0_7,    0),
+  d8_15:   rows.reduce((a, r) => a + r.d8_15,   0),
+  d16_30:  rows.reduce((a, r) => a + r.d16_30,  0),
   d31_60:  rows.reduce((a, r) => a + r.d31_60,  0),
-  d61_90:  rows.reduce((a, r) => a + r.d61_90,  0),
-  mas90:   rows.reduce((a, r) => a + r.mas90,   0),
+  d61_mas: rows.reduce((a, r) => a + r.d61_mas, 0),
   saldo_total:   rows.reduce((a, r) => a + r.saldo_total,   0),
   cant_facturas: rows.reduce((a, r) => a + r.cant_facturas, 0),
 });
@@ -311,7 +312,7 @@ export default function EstadoCuentaPage() {
           {mostrarDropdown && sugerencias.length > 0 && (
             <div className="absolute z-50 mt-1 w-full max-w-lg bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
               {sugerencias.map(c => {
-                const vencido = c.d1_30 + c.d31_60 + c.d61_90 + c.mas90;
+                const vencido = c.d0_7 + c.d8_15 + c.d16_30 + c.d31_60 + c.d61_mas;
                 return (
                   <button key={c.cliente_ruc}
                     onMouseDown={e => { e.preventDefault(); seleccionarClienteDirecto(c); }}
@@ -601,13 +602,13 @@ export default function EstadoCuentaPage() {
 
 interface AgingFila {
   key: string; col1: string; col2: string;
-  vigente: number; d1_30: number; d31_60: number; d61_90: number; mas90: number;
+  vigente: number; d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
   saldo_total: number; cant_facturas: number;
   onClick: () => void;
 }
 
 interface AgingTotales {
-  vigente: number; d1_30: number; d31_60: number; d61_90: number; mas90: number;
+  vigente: number; d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
   saldo_total: number; cant_facturas: number;
 }
 
@@ -635,10 +636,11 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
               <th className="px-4 py-3 text-left">{col1Header}</th>
               <th className="px-4 py-3 text-left">{col2Header}</th>
               <th className="px-4 py-3 text-right">Por vencer</th>
-              <th className="px-4 py-3 text-right">1–30 d</th>
+              <th className="px-4 py-3 text-right">0–7 d</th>
+              <th className="px-4 py-3 text-right bg-red-50 text-red-500">8–15 d</th>
+              <th className="px-4 py-3 text-right bg-red-50 text-red-500">16–30 d</th>
               <th className="px-4 py-3 text-right bg-red-50 text-red-500">31–60 d</th>
-              <th className="px-4 py-3 text-right bg-red-50 text-red-500">61–90 d</th>
-              <th className="px-4 py-3 text-right bg-red-50 text-red-500">+90 d</th>
+              <th className="px-4 py-3 text-right bg-red-50 text-red-500">60+ d</th>
               <th className="px-4 py-3 text-right">Saldo Total</th>
               <th className="px-4 py-3 text-right text-orange-700 bg-orange-50">Total Vencido</th>
               <th className="px-4 py-3 text-right"># Fact.</th>
@@ -654,11 +656,12 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
                   <td className="px-4 py-3 font-medium text-logisalud-green">{f.col1}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{f.col2}</td>
                   <td className="px-4 py-3 text-right text-xs">{f.vigente > 0 ? fmt(f.vigente) : '—'}</td>
-                  <td className="px-4 py-3 text-right text-xs">{f.d1_30  > 0 ? fmt(f.d1_30)  : '—'}</td>
+                  <td className="px-4 py-3 text-right text-xs">{f.d0_7  > 0 ? fmt(f.d0_7)  : '—'}</td>
+                  <td className={`px-4 py-3 text-right text-xs bg-red-50/40 ${f.d8_15 > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}`}>{f.d8_15 > 0 ? fmt(f.d8_15) : '—'}</td>
+                  <td className={`px-4 py-3 text-right text-xs bg-red-50/40 ${f.d16_30 > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}`}>{f.d16_30 > 0 ? fmt(f.d16_30) : '—'}</td>
                   <td className={`px-4 py-3 text-right text-xs bg-red-50/40 ${f.d31_60 > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}`}>{f.d31_60 > 0 ? fmt(f.d31_60) : '—'}</td>
-                  <td className={`px-4 py-3 text-right text-xs bg-red-50/40 ${f.d61_90 > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}`}>{f.d61_90 > 0 ? fmt(f.d61_90) : '—'}</td>
-                  <td className={`px-4 py-3 text-right text-xs bg-red-50/40 ${f.mas90 > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}`}>
-                    {f.mas90 > 0 ? fmt(f.mas90) : '—'}
+                  <td className={`px-4 py-3 text-right text-xs bg-red-50/40 ${f.d61_mas > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}`}>
+                    {f.d61_mas > 0 ? fmt(f.d61_mas) : '—'}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmt(f.saldo_total)}</td>
                   <td className={`px-4 py-3 text-right text-xs font-semibold bg-orange-50/30 ${
@@ -674,10 +677,11 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
             <tr>
               <td colSpan={2} className="px-4 py-3 font-oswald text-sm text-gray-700 tracking-wide">TOTAL GENERAL</td>
               <td className="px-4 py-3 text-right">{fmt(totales.vigente)}</td>
-              <td className="px-4 py-3 text-right">{fmt(totales.d1_30)}</td>
+              <td className="px-4 py-3 text-right">{fmt(totales.d0_7)}</td>
+              <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.d8_15)}</td>
+              <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.d16_30)}</td>
               <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.d31_60)}</td>
-              <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.d61_90)}</td>
-              <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.mas90)}</td>
+              <td className="px-4 py-3 text-right text-red-600 bg-red-50">{fmt(totales.d61_mas)}</td>
               <td className="px-4 py-3 text-right text-gray-900">{fmt(totales.saldo_total)}</td>
               <td className="px-4 py-3 text-right text-orange-700 bg-orange-50">{fmt(totVencido)}</td>
               <td className="px-4 py-3 text-right text-gray-500">{totales.cant_facturas}</td>
@@ -695,10 +699,11 @@ function RangoBadge({ rango }: { rango: string }) {
     'vigente':         'bg-green-100 text-green-700',
     'sin_vencimiento': 'bg-gray-100 text-gray-500',
     'pagado':          'bg-gray-100 text-gray-400',
-    '1-30':            'bg-yellow-100 text-yellow-700',
-    '31-60':           'bg-orange-100 text-orange-600',
-    '61-90':           'bg-red-100 text-red-600',
-    '+90':             'bg-red-600 text-white font-semibold',
+    '0-7':             'bg-yellow-100 text-yellow-700',
+    '8-15':            'bg-orange-100 text-orange-600',
+    '16-30':           'bg-orange-200 text-orange-700',
+    '31-60':           'bg-red-100 text-red-600',
+    '+60':             'bg-red-600 text-white font-semibold',
     'con_letras':      'bg-teal-100 text-teal-700',
   };
   return (

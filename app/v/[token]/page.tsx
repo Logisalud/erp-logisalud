@@ -23,7 +23,7 @@ interface FacturaPendiente {
   total_nc: number;
   total_pagado: number;
   saldo_pendiente: number;
-  d1_30: number; d31_60: number; d61_90: number; mas90: number;
+  d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
   tiene_letras: boolean;
 }
 
@@ -62,7 +62,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   const [facturas, resZonas, contadoRaw] = await Promise.all([
     fetchAll<FacturaPendiente>((from, to) =>
       db.from('v_saldos')
-        .select('id, comprobante, cliente_ruc, razon_social, fecha_emision, fecha_vencimiento, importe_total, total_nc, total_pagado, saldo_pendiente, d1_30, d31_60, d61_90, mas90, tiene_letras')
+        .select('id, comprobante, cliente_ruc, razon_social, fecha_emision, fecha_vencimiento, importe_total, total_nc, total_pagado, saldo_pendiente, d0_7, d8_15, d16_30, d31_60, d61_mas, tiene_letras')
         .eq('vendedor_id', vendedor!.id)
         .gt('saldo_pendiente', 0.005)
         .range(from, to)
@@ -170,7 +170,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
       total_nc: Number(f.total_nc) || 0,
       total_pagado: Number(f.total_pagado) || 0,
       saldo_pendiente: saldoPendiente,
-      vencido: (Number(f.d1_30) || 0) + (Number(f.d31_60) || 0) + (Number(f.d61_90) || 0) + (Number(f.mas90) || 0),
+      vencido: (Number(f.d0_7) || 0) + (Number(f.d8_15) || 0) + (Number(f.d16_30) || 0) + (Number(f.d31_60) || 0) + (Number(f.d61_mas) || 0),
       pct_descuento: descuento.pctDescuento,
       monto_descuento: descuento.montoDescuento,
       monto_a_pagar_con_descuento: descuento.montoAPagarConDescuento,

@@ -10,10 +10,11 @@ interface SaldoRow {
   zona_nombre: string | null;
   saldo_pendiente: number;
   vigente: number;
-  d1_30: number;
+  d0_7: number;
+  d8_15: number;
+  d16_30: number;
   d31_60: number;
-  d61_90: number;
-  mas90: number;
+  d61_mas: number;
 }
 
 interface GrupoVendedor {
@@ -21,7 +22,7 @@ interface GrupoVendedor {
   vendedor_codigo: string | null;
   vendedor_nombre: string | null;
   zona_nombre: string | null;
-  vigente: number; d1_30: number; d31_60: number; d61_90: number; mas90: number;
+  vigente: number; d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
   saldo_total: number; cant_facturas: number;
 }
 
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
     const data = await fetchAll<SaldoRow>((from, to) => {
       let q = db
         .from('v_saldos')
-        .select('vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, saldo_pendiente, vigente, d1_30, d31_60, d61_90, mas90');
+        .select('vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, saldo_pendiente, vigente, d0_7, d8_15, d16_30, d31_60, d61_mas');
       if (soloDeuda) q = q.gt('saldo_pendiente', 0);
       return q.range(from, to);
     });
@@ -45,17 +46,18 @@ export async function GET(req: NextRequest) {
         grupos.set(key, {
           vendedor_id: row.vendedor_id, vendedor_codigo: row.vendedor_codigo,
           vendedor_nombre: row.vendedor_nombre, zona_nombre: row.zona_nombre,
-          vigente: 0, d1_30: 0, d31_60: 0, d61_90: 0, mas90: 0,
+          vigente: 0, d0_7: 0, d8_15: 0, d16_30: 0, d31_60: 0, d61_mas: 0,
           saldo_total: 0, cant_facturas: 0,
         });
       }
       const g = grupos.get(key)!;
       g.saldo_total   += Number(row.saldo_pendiente) || 0;
       g.vigente       += Number(row.vigente)         || 0;
-      g.d1_30         += Number(row.d1_30)           || 0;
+      g.d0_7          += Number(row.d0_7)            || 0;
+      g.d8_15         += Number(row.d8_15)           || 0;
+      g.d16_30        += Number(row.d16_30)          || 0;
       g.d31_60        += Number(row.d31_60)          || 0;
-      g.d61_90        += Number(row.d61_90)          || 0;
-      g.mas90         += Number(row.mas90)           || 0;
+      g.d61_mas       += Number(row.d61_mas)         || 0;
       g.cant_facturas += 1;
     }
 

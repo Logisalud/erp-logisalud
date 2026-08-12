@@ -8,17 +8,17 @@ export async function capturarMorosidad(fecha: string): Promise<{ fecha: string;
 
   const filas = await fetchAll<{
     vendedor_id: string | null; saldo_pendiente: number;
-    d1_30: number; d31_60: number; d61_90: number; mas90: number;
+    d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
   }>((from, to) =>
     db.from('v_saldos')
-      .select('vendedor_id, saldo_pendiente, d1_30, d31_60, d61_90, mas90')
+      .select('vendedor_id, saldo_pendiente, d0_7, d8_15, d16_30, d31_60, d61_mas')
       .range(from, to)
   );
 
   const agg = new Map<string, { total: number; vencido: number; nVencidas: number }>();
   for (const f of filas) {
     if (!f.vendedor_id) continue;
-    const vencido = (Number(f.d1_30) || 0) + (Number(f.d31_60) || 0) + (Number(f.d61_90) || 0) + (Number(f.mas90) || 0);
+    const vencido = (Number(f.d0_7) || 0) + (Number(f.d8_15) || 0) + (Number(f.d16_30) || 0) + (Number(f.d31_60) || 0) + (Number(f.d61_mas) || 0);
     let a = agg.get(f.vendedor_id);
     if (!a) { a = { total: 0, vencido: 0, nVencidas: 0 }; agg.set(f.vendedor_id, a); }
     a.total += Number(f.saldo_pendiente) || 0;
