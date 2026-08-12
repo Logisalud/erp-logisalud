@@ -54,6 +54,10 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1" style={{ color: '#c07d1e' }}>⚠️ Pagos sin confirmar</h2>
           <p className="text-gray-500 text-sm">Pagos registrados por voucher que aún no se confirmaron contra el extracto bancario.</p>
         </Link>
+        <Link href="/concentracion-cartera" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">🎯 Concentración de cartera vencida</h2>
+          <p className="text-gray-500 text-sm">Qué clientes concentran la deuda vencida — por vendedor, con reincidentes.</p>
+        </Link>
       </div>
     </main>
   );
