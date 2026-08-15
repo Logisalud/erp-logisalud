@@ -91,12 +91,12 @@ export async function GET(req: NextRequest) {
     // resta en "Total NC" (columna existente, sin cambios); esto es solo el
     // detalle de qué NC exactamente componen ese total. La fecha va en su
     // propia columna "Fecha NC" (una por cada NC, mismo orden que "NC Aplicadas").
-    interface NcRow { serie: string; numero: number; fecha_emision: string; documento_relacionado_id: string }
+    interface NcRow { serie: string; numero: number; fecha_emision: string; documento_relacionado_id: string; importe_total: number }
     const ncsPorDoc = new Map<string, NcRow[]>();
     for (let i = 0; i < ids.length; i += 500) {
       const { data: ncs } = await db
         .from('documentos')
-        .select('serie, numero, fecha_emision, documento_relacionado_id')
+        .select('serie, numero, fecha_emision, documento_relacionado_id, importe_total')
         .eq('tipo', '07')
         .eq('anulado', false)
         .in('documento_relacionado_id', ids.slice(i, i + 500));
@@ -183,6 +183,52 @@ export async function GET(req: NextRequest) {
     const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
     ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
     XLSX.utils.book_append_sheet(wb, ws, 'Estado de Cuenta');
+
+    // Segunda hoja: detalle de todas las NC aplicadas a las facturas del
+    // período/filtro exportado (mismo alcance que la hoja principal — no es
+    // una pantalla nueva del ERP, es solo una pestaña adicional del mismo
+    // archivo). Reutiliza el join factura→cliente ya calculado arriba.
+    const facturaInfoPorId = new Map(
+      data.map(r => {
+        const row = r as Record<string, unknown>;
+        return [row.id as string, {
+          comprobante:  row.comprobante as string,
+          cliente_ruc:  row.cliente_ruc as string,
+          razon_social: row.razon_social as string,
+        }];
+      })
+    );
+    const ncRows: Record<string, unknown>[] = [];
+    for (const [facturaId, ncs] of ncsPorDoc.entries()) {
+      const info = facturaInfoPorId.get(facturaId);
+      for (const n of ncs) {
+        ncRows.push({
+          'N° NC':                 `${n.serie}-${n.numero}`,
+          'Fecha Emisión':         toDate(n.fecha_emision),
+          'RUC Cliente':           info?.cliente_ruc ?? '',
+          'Razón Social':          info?.razon_social ?? '',
+          'Factura/Boleta':        info?.comprobante ?? '',
+          'Monto NC':              Number(n.importe_total) || 0,
+        });
+      }
+    }
+    ncRows.sort((a, b) => (a['Fecha Emisión'] as Date).getTime() - (b['Fecha Emisión'] as Date).getTime());
+
+    const wsNc = XLSX.utils.json_to_sheet(ncRows, { cellDates: true });
+    wsNc['!cols'] = [
+      { wch: 14 }, { wch: 13 }, { wch: 13 }, { wch: 35 }, { wch: 14 }, { wch: 13 },
+    ];
+    if (ncRows.length > 0) {
+      const rangeNc = XLSX.utils.decode_range(wsNc['!ref'] ?? 'A1');
+      wsNc['!autofilter'] = { ref: XLSX.utils.encode_range(rangeNc) };
+      const totalNc = ncRows.reduce((s, r) => s + (r['Monto NC'] as number), 0);
+      XLSX.utils.sheet_add_json(wsNc, [{ 'N° NC': 'TOTAL', 'Monto NC': totalNc }], {
+        header: Object.keys(ncRows[0]),
+        skipHeader: true,
+        origin: -1,
+      });
+    }
+    XLSX.utils.book_append_sheet(wb, wsNc, 'Notas de Crédito');
 
     const fecha = new Date().toISOString().slice(0, 10);
     const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });

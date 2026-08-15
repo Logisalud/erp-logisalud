@@ -62,10 +62,6 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1" style={{ color: '#c07d1e' }}>💵 Efectivo por depositar</h2>
           <p className="text-gray-500 text-sm">Pagos en efectivo cobrados y aún no llevados al banco.</p>
         </Link>
-        <Link href="/notas-credito" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">🧾 Notas de Crédito emitidas</h2>
-          <p className="text-gray-500 text-sm">Todas las NC del sistema, filtrables por fecha y cliente, exportable.</p>
-        </Link>
       </div>
     </main>
   );
