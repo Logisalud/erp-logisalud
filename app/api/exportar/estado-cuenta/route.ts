@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
         'Forma Pago':         row.forma_pago ?? '',
         'Moneda':             row.moneda ?? '',
         'Importe Total':      importe,
-        'Total NC':           Number(row.total_nc) || 0,
+        'Total NC':           -(Number(row.total_nc) || 0),
         'NC Aplicadas':       ncAplicadasLabel(id),
         'Fecha NC':           fechaNcLabel(id),
         'Total ND':           Number(row.total_nd) || 0,
@@ -208,7 +208,7 @@ export async function GET(req: NextRequest) {
           'RUC Cliente':           info?.cliente_ruc ?? '',
           'Razón Social':          info?.razon_social ?? '',
           'Factura/Boleta':        info?.comprobante ?? '',
-          'Monto NC':              Number(n.importe_total) || 0,
+          'Monto NC':              -(Number(n.importe_total) || 0),
         });
       }
     }
