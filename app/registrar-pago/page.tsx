@@ -129,6 +129,7 @@ export default function RegistrarPagoPage() {
   const [fechaPago, setFechaPago]       = useState(hoy());
   const [referencia, setReferencia]     = useState('');
   const [registradoPor, setRegistradoPor] = useState('');
+  const [medioCobro, setMedioCobro]     = useState<'transferencia' | 'efectivo'>('transferencia');
   const [archivo, setArchivo]           = useState<File | null>(null);
   const [voucherPath, setVoucherPath]   = useState<string | null>(null);
   const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
@@ -213,7 +214,7 @@ export default function RegistrarPagoPage() {
     setErrMsg(''); setExitoMsg('');
     setLetraSelId(null); setMonto(''); setFechaPago(hoy()); setReferencia('');
     setArchivo(null); setVoucherPath(null); setPreviewUrl(null);
-    setEditandoId(null); setTogContado(false);
+    setEditandoId(null); setTogContado(false); setMedioCobro('transferencia');
     // Fetch fresco para no mostrar el saldo cacheado del buscador
     const res = await fetch(`/api/facturas/${f.id}`, { cache: 'no-store' });
     const d   = await res.json();
@@ -286,6 +287,7 @@ export default function RegistrarPagoPage() {
     setLetraSelId(null);
     setConRetencion(false); setRetencion('');
     setModoSoloRet(false); setSoloRetMonto('');
+    setMedioCobro('transferencia');
   };
 
   // Al activar la retención: precarga el 3% del importe total y sugiere el
@@ -333,6 +335,7 @@ export default function RegistrarPagoPage() {
           fecha_pago: fechaPago,
           referencia: referencia.trim() || undefined,
           registrado_por: registradoPor.trim(),
+          medio_cobro: medioCobro,
           ...(voucherPath ? { voucher_path: voucherPath } : {}),
           ...(conRetencion && Number(retencion) > 0 ? { retencion: Number(retencion) } : {}),
         }),
@@ -830,6 +833,38 @@ export default function RegistrarPagoPage() {
                   </p>
                 </div>
                 <div className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Medio de cobro</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMedioCobro('transferencia')}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition ${
+                          medioCobro === 'transferencia'
+                            ? 'bg-logisalud-teal/10 border-logisalud-teal text-logisalud-teal'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        🏦 Transferencia
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMedioCobro('efectivo')}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition ${
+                          medioCobro === 'efectivo'
+                            ? 'bg-amber-50 border-amber-400 text-amber-700'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        💵 Efectivo
+                      </button>
+                    </div>
+                    {medioCobro === 'efectivo' && (
+                      <p className="text-[11px] text-amber-600 mt-1">
+                        Queda como &quot;cobrado, por depositar&quot; hasta que alguien lo marque como depositado.
+                      </p>
+                    )}
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Monto *</label>

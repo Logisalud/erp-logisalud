@@ -38,13 +38,16 @@ export async function GET(req: NextRequest) {
     });
 
     // Pagos de las facturas del resultado (para una fila por pago).
-    interface PagoRow { documento_id: string; monto: number; fecha_pago: string; referencia: string | null; tipo: string; created_at: string; }
+    interface PagoRow {
+      documento_id: string; monto: number; fecha_pago: string; referencia: string | null; tipo: string; created_at: string;
+      medio_cobro: string; estado_efectivo: string | null; fecha_deposito: string | null;
+    }
     const ids = data.map(r => r.id as string);
     const pagosPorDoc = new Map<string, PagoRow[]>();
     for (let i = 0; i < ids.length; i += 500) {
       const { data: ps } = await db
         .from('pagos')
-        .select('documento_id, monto, fecha_pago, referencia, tipo, created_at')
+        .select('documento_id, monto, fecha_pago, referencia, tipo, created_at, medio_cobro, estado_efectivo, fecha_deposito')
         .in('documento_id', ids.slice(i, i + 500));
       for (const p of (ps ?? []) as PagoRow[]) {
         const arr = pagosPorDoc.get(p.documento_id) ?? [];
@@ -58,6 +61,13 @@ export async function GET(req: NextRequest) {
     }
 
     const tipoLabel = (t: string) => t === 'retencion' ? 'Retención IGV' : 'Pago';
+    const medioCobroLabel = (m: string) => m === 'efectivo' ? 'Efectivo' : 'Transferencia';
+    // Solo aplica a pagos en efectivo; para transferencia (u otros) va vacío.
+    const estadoEfectivoLabel = (p: PagoRow) => {
+      if (p.medio_cobro !== 'efectivo') return '';
+      if (p.estado_efectivo === 'depositado') return `Depositado${p.fecha_deposito ? ` (${p.fecha_deposito.split('-').reverse().join('/')})` : ''}`;
+      return 'Cobrado - por depositar';
+    };
 
     // Columnas de factura (se repiten en cada fila de pago de esa factura).
     const colsFactura = (r: Record<string, unknown>) => {
@@ -101,7 +111,10 @@ export async function GET(req: NextRequest) {
     };
 
     // Columnas de pago, vacías en la fila del documento.
-    const pagoVacio = { 'Tipo Movimiento': '', 'Fecha de Pago': '' as string | Date, 'N° Operación': '', 'Monto Pago': '' as string | number };
+    const pagoVacio = {
+      'Tipo Movimiento': '', 'Fecha de Pago': '' as string | Date, 'N° Operación': '', 'Monto Pago': '' as string | number,
+      'Medio de Cobro': '', 'Estado Efectivo': '',
+    };
     // Columnas de factura/saldo/aging, vacías en las filas de detalle de pago —
     // así, sin importar qué filas estén expandidas o colapsadas, sumar cualquier
     // columna de saldo/aging en el Excel da el total correcto (cada valor
@@ -126,6 +139,8 @@ export async function GET(req: NextRequest) {
           'Fecha de Pago':   toDate(p.fecha_pago),
           'N° Operación':    p.referencia ?? '',
           'Monto Pago':      Number(p.monto) || 0,
+          'Medio de Cobro':  p.tipo === 'retencion' ? '' : medioCobroLabel(p.medio_cobro),
+          'Estado Efectivo': p.tipo === 'retencion' ? '' : estadoEfectivoLabel(p),
         });
         levels.push(1);
       }
@@ -140,6 +155,7 @@ export async function GET(req: NextRequest) {
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 13 }, { wch: 11 }, { wch: 12 }, { wch: 15 }, { wch: 11 },
       { wch: 14 }, { wch: 13 }, { wch: 16 }, { wch: 13 },  // Tipo Movimiento, Fecha de Pago, N° Operación, Monto Pago
+      { wch: 14 }, { wch: 20 },  // Medio de Cobro, Estado Efectivo
     ];
     // Agrupa las filas de detalle de pago (nivel 1) bajo su documento, y las
     // colapsa por defecto — en Excel aparecen como un "+" expandible.
