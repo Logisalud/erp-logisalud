@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 interface PagoRow {
@@ -9,6 +9,10 @@ interface PagoRow {
   fecha_pago: string;
   created_at: string;
   registrado_por: string | null;
+  voucher_path: string | null;
+  voucher_deposito_path: string | null;
+  estado_efectivo: 'cobrado_por_depositar' | 'depositado';
+  fecha_deposito: string | null;
   documentos: {
     serie: string;
     numero: number;
@@ -17,21 +21,30 @@ interface PagoRow {
   } | null;
 }
 
-// Pagos en efectivo aún no llevados al banco. No toca conciliación ni saldos:
-// el pago ya está registrado y la factura ya bajó de saldo — esto es solo
-// trazabilidad de dónde está físicamente esa plata.
-export async function GET() {
+// Pagos en efectivo. Por defecto solo los que faltan llevar al banco; con
+// ?depositados=1 también incluye los ya depositados (para ver su historial
+// y voucher de depósito, no solo mientras están pendientes). No toca
+// conciliación ni saldos: el pago ya está registrado y la factura ya bajó
+// de saldo — esto es solo trazabilidad de dónde está físicamente esa plata.
+export async function GET(req: NextRequest) {
+  const incluirDepositados = new URL(req.url).searchParams.get('depositados') === '1';
   const db = supabaseAdmin();
-  const { data, error } = await db
+
+  let query = db
     .from('pagos')
     .select(`
       id, documento_id, monto, fecha_pago, created_at, registrado_por,
+      voucher_path, voucher_deposito_path, estado_efectivo, fecha_deposito,
       documentos:documento_id ( serie, numero, cliente_ruc, clientes:cliente_ruc ( razon_social ) )
     `)
     .eq('medio_cobro', 'efectivo')
-    .eq('estado_efectivo', 'cobrado_por_depositar')
     .order('fecha_pago', { ascending: true });
 
+  query = incluirDepositados
+    ? query.in('estado_efectivo', ['cobrado_por_depositar', 'depositado'])
+    : query.eq('estado_efectivo', 'cobrado_por_depositar');
+
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const hoy = Date.now();
@@ -44,11 +57,19 @@ export async function GET() {
     monto: p.monto,
     fecha_pago: p.fecha_pago,
     registrado_por: p.registrado_por,
-    dias_sin_depositar: Math.floor((hoy - new Date(p.fecha_pago).getTime()) / 86_400_000),
+    voucher_path: p.voucher_path,
+    voucher_deposito_path: p.voucher_deposito_path,
+    estado_efectivo: p.estado_efectivo,
+    fecha_deposito: p.fecha_deposito,
+    dias_sin_depositar: p.estado_efectivo === 'cobrado_por_depositar'
+      ? Math.floor((hoy - new Date(p.fecha_pago).getTime()) / 86_400_000)
+      : null,
   }));
 
+  const pendientes = filas.filter(f => f.estado_efectivo === 'cobrado_por_depositar');
+
   return NextResponse.json(
-    { filas, total: filas.reduce((s, f) => s + Number(f.monto), 0) },
+    { filas, total: pendientes.reduce((s, f) => s + Number(f.monto), 0) },
     { headers: { 'Cache-Control': 'no-store' } }
   );
 }

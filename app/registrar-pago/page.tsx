@@ -47,6 +47,10 @@ interface Pago {
   voucher_path: string | null;
   tipo?: 'pago' | 'retencion';
   registrado_por?: string | null;
+  medio_cobro?: 'transferencia' | 'efectivo';
+  estado_efectivo?: 'cobrado_por_depositar' | 'depositado' | null;
+  fecha_deposito?: string | null;
+  voucher_deposito_path?: string | null;
 }
 
 interface PagoBuscar {
@@ -1136,9 +1140,51 @@ export default function RegistrarPagoPage() {
                               {p.referencia && <> · <span className="text-gray-500">{p.referencia}</span></>}
                               {p.registrado_por && <> · registrado por <span className="text-gray-500">{p.registrado_por}</span></>}
                             </p>
+                            {p.medio_cobro === 'efectivo' && (
+                              <div className="mt-1.5">
+                                {p.estado_efectivo === 'depositado' ? (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                      💵 Efectivo · Depositado{p.fecha_deposito ? ` (${fmtFecha(p.fecha_deposito)})` : ''}
+                                    </span>
+                                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                      {p.voucher_deposito_path && (
+                                        <button onClick={() => verVoucher(p.voucher_deposito_path as string)} className="text-xs text-green-700 hover:underline font-medium">
+                                          Ver voucher de depósito ↗
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 mt-1">
+                                      Cobrado originalmente: {fmtFecha(p.fecha_pago)}
+                                      {p.voucher_path && (
+                                        <>
+                                          {' · '}
+                                          <button onClick={() => verVoucher(p.voucher_path as string)} className="text-logisalud-teal hover:underline font-medium">
+                                            Ver voucher de cobro ↗
+                                          </button>
+                                        </>
+                                      )}
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                      💵 Efectivo · Cobrado - por depositar ({fmtFecha(p.fecha_pago)})
+                                    </span>
+                                    {p.voucher_path && (
+                                      <div className="mt-1">
+                                        <button onClick={() => verVoucher(p.voucher_path as string)} className="text-xs text-logisalud-teal hover:underline font-medium">
+                                          Ver voucher de cobro ↗
+                                        </button>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
-                            {p.voucher_path && (
+                            {p.voucher_path && p.medio_cobro !== 'efectivo' && (
                               <button
                                 onClick={() => verVoucher(p.voucher_path as string)}
                                 className="text-xs text-logisalud-teal hover:underline font-medium"
