@@ -58,6 +58,10 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-1">🎯 Concentración de cartera vencida</h2>
           <p className="text-gray-500 text-sm">Qué clientes concentran la deuda vencida — por vendedor, con reincidentes.</p>
         </Link>
+        <Link href="/efectivo-por-depositar" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#e5a83c' }}>
+          <h2 className="text-lg font-semibold mb-1" style={{ color: '#c07d1e' }}>💵 Efectivo por depositar</h2>
+          <p className="text-gray-500 text-sm">Pagos en efectivo cobrados y aún no llevados al banco.</p>
+        </Link>
       </div>
     </main>
   );

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { documento_id, monto, fecha_pago, referencia, voucher_path, retencion, solo_retencion, registrado_por } = body as {
+  const { documento_id, monto, fecha_pago, referencia, voucher_path, retencion, solo_retencion, registrado_por, medio_cobro } = body as {
     documento_id: string;
     monto: number;
     fecha_pago: string;
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
     retencion?: number;      // monto de retención de IGV (3%), opcional
     solo_retencion?: boolean; // si true, inserta SOLO la retención (el pago ya existe)
     registrado_por?: string; // quién registra el pago (sin sistema de login, es texto libre)
+    medio_cobro?: 'transferencia' | 'efectivo';
   };
 
   if (!documento_id || !monto || !fecha_pago)
@@ -42,6 +43,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El monto debe ser mayor a 0' }, { status: 400 });
   if (retencion !== undefined && Number(retencion) < 0)
     return NextResponse.json({ error: 'La retención no puede ser negativa' }, { status: 400 });
+  if (medio_cobro !== undefined && medio_cobro !== 'transferencia' && medio_cobro !== 'efectivo')
+    return NextResponse.json({ error: 'medio_cobro inválido' }, { status: 400 });
+
+  // Un pago en efectivo entra siempre como "cobrado, por depositar" — sin que
+  // nadie tenga que marcarlo manualmente en el momento del registro.
+  const esEfectivo = medio_cobro === 'efectivo';
 
   const db = supabaseAdmin();
 
@@ -110,6 +117,7 @@ export async function POST(req: NextRequest) {
     voucher_path: voucher_path ?? null,
     tipo: 'pago',
     registrado_por: registrado_por?.trim() || null,
+    ...(esEfectivo ? { medio_cobro: 'efectivo', estado_efectivo: 'cobrado_por_depositar' } : {}),
   }];
   if (retencion !== undefined && Number(retencion) > 0) {
     rows.push({
