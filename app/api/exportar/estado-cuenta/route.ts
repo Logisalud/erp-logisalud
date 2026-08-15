@@ -60,6 +60,35 @@ export async function GET(req: NextRequest) {
       arr.sort((a, b) => (a.fecha_pago ?? '').localeCompare(b.fecha_pago ?? '') || a.created_at.localeCompare(b.created_at));
     }
 
+    // NC (tipo '07') aplicadas a cada factura del resultado — para la columna
+    // "NC Aplicadas" (detalle en texto, sin agregar filas nuevas). El monto ya
+    // se resta en "Total NC" (columna existente, sin cambios); esto es solo
+    // el detalle de qué NC exactamente componen ese total.
+    interface NcRow { serie: string; numero: number; fecha_emision: string; documento_relacionado_id: string }
+    const ncsPorDoc = new Map<string, NcRow[]>();
+    for (let i = 0; i < ids.length; i += 500) {
+      const { data: ncs } = await db
+        .from('documentos')
+        .select('serie, numero, fecha_emision, documento_relacionado_id')
+        .eq('tipo', '07')
+        .eq('anulado', false)
+        .in('documento_relacionado_id', ids.slice(i, i + 500));
+      for (const n of (ncs ?? []) as NcRow[]) {
+        const arr = ncsPorDoc.get(n.documento_relacionado_id) ?? [];
+        arr.push(n);
+        ncsPorDoc.set(n.documento_relacionado_id, arr);
+      }
+    }
+    for (const arr of ncsPorDoc.values()) {
+      arr.sort((a, b) => a.fecha_emision.localeCompare(b.fecha_emision));
+    }
+    const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+    const ncAplicadasLabel = (documentoId: string) => {
+      const ncs = ncsPorDoc.get(documentoId);
+      if (!ncs || ncs.length === 0) return '';
+      return ncs.map(n => `${n.serie}-${n.numero} (${fmtFechaCorta(n.fecha_emision)})`).join(', ');
+    };
+
     const tipoLabel = (t: string) => t === 'retencion' ? 'Retención IGV' : 'Pago';
     const medioCobroLabel = (m: string) => m === 'efectivo' ? 'Efectivo' : 'Transferencia';
     // Solo aplica a pagos en efectivo; para transferencia (u otros) va vacío.
@@ -92,6 +121,7 @@ export async function GET(req: NextRequest) {
         'Moneda':            r.moneda ?? '',
         'Importe Total':     Number(r.importe_total) || 0,
         'Total NC':          Number(r.total_nc)      || 0,
+        'NC Aplicadas':      ncAplicadasLabel(r.id as string),
         'Total ND':          Number(r.total_nd)      || 0,
         'Total Pagado':      pagado,
         'Saldo Pendiente':   saldo,
@@ -151,7 +181,7 @@ export async function GET(req: NextRequest) {
     ws['!cols'] = [
       { wch: 14 }, { wch: 13 }, { wch: 35 }, { wch: 10 }, { wch: 22 }, { wch: 18 },
       { wch: 13 }, { wch: 16 }, { wch: 10 }, { wch: 7  },
-      { wch: 13 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
+      { wch: 13 }, { wch: 10 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 13 }, { wch: 11 }, { wch: 12 }, { wch: 15 }, { wch: 11 },
       { wch: 14 }, { wch: 13 }, { wch: 16 }, { wch: 13 },  // Tipo Movimiento, Fecha de Pago, N° Operación, Monto Pago
