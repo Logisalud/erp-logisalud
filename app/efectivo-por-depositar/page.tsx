@@ -15,6 +15,7 @@ interface Fila {
   voucher_deposito_path: string | null;
   estado_efectivo: 'cobrado_por_depositar' | 'depositado';
   fecha_deposito: string | null;
+  referencia: string | null;
   dias_sin_depositar: number | null;
 }
 
@@ -31,6 +32,7 @@ export default function EfectivoPorDepositarPage() {
   const [fechaDeposito, setFechaDeposito] = useState(hoy());
   const [archivoDep, setArchivoDep] = useState<File | null>(null);
   const [voucherDepPath, setVoucherDepPath] = useState<string | null>(null);
+  const [referenciaDep, setReferenciaDep] = useState('');
   const [subiendo, setSubiendo]     = useState(false);
   const [guardando, setGuardando]   = useState(false);
   const [msg, setMsg]               = useState<{ texto: string; ok: boolean } | null>(null);
@@ -61,6 +63,7 @@ export default function EfectivoPorDepositarPage() {
     setFechaDeposito(hoy());
     setArchivoDep(null);
     setVoucherDepPath(null);
+    setReferenciaDep('');
     setMsg(null);
   };
 
@@ -90,6 +93,7 @@ export default function EfectivoPorDepositarPage() {
           pago_id: depositandoId,
           fecha_deposito: fechaDeposito,
           ...(voucherDepPath ? { voucher_deposito_path: voucherDepPath } : {}),
+          ...(referenciaDep.trim() ? { referencia: referenciaDep.trim() } : {}),
         }),
       });
       const d = await res.json();
@@ -157,9 +161,12 @@ export default function EfectivoPorDepositarPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono font-semibold text-logisalud-green text-sm">{f.comprobante}</span>
                           {depositado ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
-                              💵 Depositado {f.fecha_deposito ? `(${fmtFecha(f.fecha_deposito)})` : ''}
-                            </span>
+                            <>
+                              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                                💵 Depositado {f.fecha_deposito ? `(${fmtFecha(f.fecha_deposito)})` : ''}
+                              </span>
+                              {f.referencia && <span className="text-xs text-gray-500">Ref: {f.referencia}</span>}
+                            </>
                           ) : (
                             <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
                               💵 {f.dias_sin_depositar} {f.dias_sin_depositar === 1 ? 'día' : 'días'} sin depositar
@@ -207,6 +214,15 @@ export default function EfectivoPorDepositarPage() {
                             <input
                               type="date" value={fechaDeposito}
                               onChange={e => setFechaDeposito(e.target.value)}
+                              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Referencia / N° operación (opcional)</label>
+                            <input
+                              type="text" value={referenciaDep}
+                              onChange={e => setReferenciaDep(e.target.value)}
+                              placeholder="OP-123456"
                               className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
                             />
                           </div>

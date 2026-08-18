@@ -13,6 +13,7 @@ interface PagoRow {
   voucher_deposito_path: string | null;
   estado_efectivo: 'cobrado_por_depositar' | 'depositado';
   fecha_deposito: string | null;
+  referencia: string | null;
   documentos: {
     serie: string;
     numero: number;
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
     .from('pagos')
     .select(`
       id, documento_id, monto, fecha_pago, created_at, registrado_por,
-      voucher_path, voucher_deposito_path, estado_efectivo, fecha_deposito,
+      voucher_path, voucher_deposito_path, estado_efectivo, fecha_deposito, referencia,
       documentos:documento_id ( serie, numero, cliente_ruc, clientes:cliente_ruc ( razon_social ) )
     `)
     .eq('medio_cobro', 'efectivo')
@@ -61,6 +62,7 @@ export async function GET(req: NextRequest) {
     voucher_deposito_path: p.voucher_deposito_path,
     estado_efectivo: p.estado_efectivo,
     fecha_deposito: p.fecha_deposito,
+    referencia: p.referencia,
     dias_sin_depositar: p.estado_efectivo === 'cobrado_por_depositar'
       ? Math.floor((hoy - new Date(p.fecha_pago).getTime()) / 86_400_000)
       : null,

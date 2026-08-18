@@ -5,8 +5,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 // Marca un pago en efectivo como depositado. Cualquiera con acceso al ERP
 // puede hacer este cambio — no hay restricción de rol (no existe login).
 export async function POST(req: NextRequest) {
-  const { pago_id, fecha_deposito, voucher_deposito_path } = await req.json() as {
-    pago_id: string; fecha_deposito: string; voucher_deposito_path?: string;
+  const { pago_id, fecha_deposito, voucher_deposito_path, referencia } = await req.json() as {
+    pago_id: string; fecha_deposito: string; voucher_deposito_path?: string; referencia?: string;
   };
   if (!pago_id || !fecha_deposito)
     return NextResponse.json({ error: 'pago_id y fecha_deposito son requeridos' }, { status: 400 });
@@ -28,6 +28,11 @@ export async function POST(req: NextRequest) {
       estado_efectivo: 'depositado',
       fecha_deposito,
       ...(voucher_deposito_path ? { voucher_deposito_path } : {}),
+      // Mismo campo `referencia` que usa cualquier pago por transferencia —
+      // acá guarda el N° de operación del depósito bancario del efectivo,
+      // para que la conciliación bancaria lo pueda cruzar exacto igual que
+      // a cualquier otro pago (ver app/api/conciliacion/auto/route.ts).
+      ...(referencia?.trim() ? { referencia: referencia.trim() } : {}),
     })
     .eq('id', pago_id);
 
