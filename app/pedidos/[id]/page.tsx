@@ -11,6 +11,7 @@ import { OrderItemComposer } from "./order-item-composer";
 import { OrderHeader } from "./order-header";
 import { ObservationForm } from "./observation-form";
 import { displayNombreProducto, esOfrecibleEnPedido } from "@/domain/products";
+import { IconDownload } from "@/components/icons";
 
 const ESTADO_LABELS: Record<string, string> = {
   DRAFT: "Borrador",
@@ -46,6 +47,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   const fulfillment = order.estado === "DISPATCHED" ? await getFulfillmentForOrder(order.id) : null;
 
   const currentUser = await getCurrentUser();
+  // Los borradores se generan al despachar, así que antes de DISPATCHED no
+  // hay nada que enlazar. Los leen administrador y control_pedidos.
   const puedeVerBorradores =
     order.estado === "DISPATCHED" &&
     (currentUser?.roles.includes("administrador") ||
@@ -126,6 +129,20 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                 <dd className="text-slate-900">{order.seller?.nombre_completo ?? "—"}</dd>
               </div>
             </dl>
+
+            {/*
+              Ancla simple, no un botón con JS: el navegador maneja la descarga
+              por el Content-Disposition y funciona igual sin JavaScript.
+              La descarga NO depende de que el correo se haya enviado.
+            */}
+            <a
+              href={`/pedidos/${order.id}/excel`}
+              className="btn-secondary mt-4 inline-flex text-sm"
+              download
+            >
+              <IconDownload className="h-4 w-4" />
+              Descargar Excel
+            </a>
           </section>
 
           <section className="panel" aria-labelledby="productos-titulo">
@@ -202,13 +219,19 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           <h3 className="text-lg text-slate-900">Documentación electrónica</h3>
           <p className="mt-1 text-sm text-slate-600">
             Borradores generados al despachar, para revisar contra el manual de la facturadora. No se
-            han enviado a ningún servicio.
+            han enviado a ningún servicio. Ahí se pueden ver, copiar y descargar como .json.
           </p>
+          {/*
+            Link a la sección de documentos, no una copia de la generación:
+            los borradores se arman una sola vez al despachar y viven en
+            electronic_document_drafts. Duplicar la lógica acá sería tener dos
+            fuentes del mismo JSON.
+          */}
           <Link
             href={`/control-pedidos/documentos/${order.id}`}
             className="btn-secondary mt-3 inline-flex text-sm"
           >
-            Ver JSON de comprobante y guía
+            Ver y descargar comprobante y guía
           </Link>
         </section>
       )}

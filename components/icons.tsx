@@ -133,3 +133,14 @@ export function IconSpinner({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/** Descarga: flecha hacia una bandeja. */
+export function IconDownload(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 4v10" />
+      <path d="m8 11 4 4 4-4" />
+      <path d="M5 18h14" />
+    </Svg>
+  );
+}

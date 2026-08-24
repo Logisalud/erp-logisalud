@@ -800,6 +800,33 @@ Recordatorio que sigue aplicando: los clientes sin RUC de contribuyente
 válido están restringidos a `BOLETA` por constraint. Si el borrador
 resuelve factura para uno de ellos, lo advierte.
 
+### Descarga directa desde la app, sin depender del correo
+
+El correo puede fallar sin bloquear el pedido, así que **ninguna descarga
+depende de que se haya enviado**. Los tres archivos se pueden bajar desde la
+app en cualquier momento:
+
+| Archivo | Dónde | Quién |
+|---|---|---|
+| Excel del pedido | Botón "Descargar Excel" en `/pedidos/[id]` | Quien pueda ver el pedido |
+| JSON de comprobante | "Descargar .json" en `/control-pedidos/documentos/[orderId]` | `administrador`, `control_pedidos` |
+| JSON de guía | Ídem | Ídem |
+
+**El Excel es el mismo archivo que va adjunto al correo**, no una segunda
+versión: la ruta `/pedidos/[id]/excel` usa `loadOrderEmailData` +
+`buildOrderExcel`, las mismas funciones. Si el Excel cambia, cambia en los dos
+lados a la vez. Se rearma en cada descarga desde el pedido, así que refleja el
+IGV corregido de `0051` aunque el correo se haya mandado antes.
+
+**Los permisos los decide la RLS, no una segunda lista.** La ruta primero lee
+el pedido con el cliente del usuario; si `orders_select` no se lo muestra,
+devuelve 404. Así no hay dos reglas de permisos que se puedan desincronizar.
+
+Los JSON **no se regeneran** al descargarlos: se sirven los borradores que
+`confirm_dispatch` grabó en `electronic_document_drafts`. Por eso el detalle
+del pedido **enlaza** a la sección de documentos en vez de duplicar la
+generación — un solo lugar arma esos JSON, y es el despacho.
+
 ### Excel adjunto en el correo del pedido
 
 El correo que sale al pasar a `SUBMITTED` lleva adjunto

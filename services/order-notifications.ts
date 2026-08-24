@@ -163,8 +163,14 @@ function num(value: number | string | null | undefined): number {
  * corre después de que el pedido ya quedó SUBMITTED: los datos son los
  * snapshots que grabó pedidos.submit_order, y el notificar no debería
  * depender de qué puede leer el vendedor que envió.
+ *
+ * También la usa la descarga directa del Excel desde la pantalla del pedido,
+ * para que el archivo sea EXACTAMENTE el mismo que va adjunto al correo. Ojo:
+ * como lee con service role, quien la llame tiene que haber verificado antes
+ * que el usuario puede ver ese pedido — la descarga lo hace consultando el
+ * pedido con el cliente del usuario, donde la RLS decide.
  */
-async function loadOrderEmailData(
+export async function loadOrderEmailData(
   orderId: string,
   estadoResultado: string,
 ): Promise<OrderEmailData | null> {

@@ -45,8 +45,14 @@ export function DraftViewer({
     const a = document.createElement("a");
     a.href = url;
     a.download = nombreArchivo;
+    // Firefox ignora el click de un ancla que no está en el documento, y
+    // revocar la URL en la misma vuelta del event loop cancela la descarga
+    // en varios navegadores. Por eso se agrega al DOM y se revoca después.
+    a.style.display = "none";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   return (
