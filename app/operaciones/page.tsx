@@ -70,6 +70,18 @@ export default async function OperacionesPage() {
                   </p>
                 </div>
                 <p className="mt-1 text-sm text-gray-600">{o.razon_social_snapshot ?? "—"}</p>
+                {/*
+                  Segundo link, al pedido en sí: esta pantalla muestra el
+                  despacho, pero el Excel y los borradores de comprobante y
+                  guía viven en /pedidos/[id]. Sin este enlace había que
+                  escribir la URL a mano.
+                */}
+                <Link
+                  href={`/pedidos/${o.id}`}
+                  className="mt-2 inline-block text-sm font-medium text-logisalud-green hover:underline"
+                >
+                  Ver pedido y descargar Excel →
+                </Link>
               </li>
             ))}
           </ul>

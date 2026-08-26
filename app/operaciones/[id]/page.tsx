@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Breadcrumb } from "@/components/breadcrumb";
 import {
   getFulfillmentForOrder,
@@ -8,6 +9,7 @@ import {
 import { puedePrepararDespacho, type OrderEstadoParaDespacho } from "@/domain/fulfillment";
 import { FulfillmentForm } from "./fulfillment-form";
 import { displayNombreProducto } from "@/domain/products";
+import { estadoLabel } from "@/domain/order-status";
 
 function fechaHora(iso: string | null): string {
   if (!iso) return "—";
@@ -45,8 +47,20 @@ export default async function DespachoPage({ params }: { params: { id: string } 
         />
         <h2 className="text-xl font-semibold">Pedido #{order.numero}</h2>
         <p className="mt-1 text-sm text-gray-600">
-          Estado: {order.estado} · Enviado {fechaHora(order.fecha_envio)}
+          Estado: {estadoLabel(order.estado)} · Enviado {fechaHora(order.fecha_envio)}
         </p>
+        {/*
+          Esta pantalla es la del despacho. El pedido completo —con el Excel
+          y, una vez despachado, los borradores de comprobante y guía— está
+          en /pedidos/[id], que hasta ahora no se enlazaba desde ningún lado
+          después de que el pedido dejaba de ser borrador.
+        */}
+        <Link
+          href={`/pedidos/${order.id}`}
+          className="mt-2 inline-block text-sm font-medium text-logisalud-green hover:underline"
+        >
+          Ver pedido y descargar Excel →
+        </Link>
       </div>
 
       <section className="card p-5">

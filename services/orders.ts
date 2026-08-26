@@ -8,6 +8,7 @@ import { evaluarCambioDeCliente, type ConflictoDePrecio } from "@/domain/order-h
 
 export type OrderSummary = {
   id: string;
+  numero: number;
   estado: string;
   fecha_creacion: string;
   fecha_envio: string | null;
@@ -63,31 +64,79 @@ export type OrderDetail = OrderSummary & {
 };
 
 const ORDER_SUMMARY_SELECT =
-  "id, estado, fecha_creacion, fecha_envio, customer:customers(razon_social), seller:sellers(nombre_completo)";
+  "id, numero, estado, fecha_creacion, fecha_envio, customer:customers(razon_social), seller:sellers(nombre_completo)";
 
-export async function listMyDraftOrders(sellerId: string): Promise<OrderSummary[]> {
+/** Cuántos pedidos entran en una página de la lista. */
+export const PAGE_SIZE = 20;
+
+export type OrdersPage = {
+  orders: OrderSummary[];
+  /** Si hay al menos una fila más después de esta página. */
+  hayMas: boolean;
+};
+
+/**
+ * Los pedidos de un vendedor, paginados y filtrables por estado.
+ *
+ * **Paginado desde el día uno, aunque hoy sean cuatro pedidos.** Este listado
+ * crece para siempre —un vendedor activo suma pedidos todas las semanas y
+ * ninguno se borra— y PostgREST corta la respuesta en 1.000 filas sin decir
+ * nada: la lista simplemente dejaría de mostrar lo viejo, sin error y sin
+ * señal. Ya nos pasó con la cartera de clientes (ver el combobox en
+ * CLAUDE.md); no lo repetimos.
+ *
+ * Para saber si hay página siguiente se pide una fila de más en vez de un
+ * `count` exacto: son dos consultas menos y el número total no se muestra
+ * en ningún lado.
+ */
+export async function listOrdersForSeller(
+  sellerId: string,
+  opciones: { estados?: string[] | null; page?: number } = {},
+): Promise<OrdersPage> {
+  const page = Math.max(1, Math.trunc(opciones.page ?? 1));
+  const desde = (page - 1) * PAGE_SIZE;
+
   const supabase = createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("orders")
     .select(ORDER_SUMMARY_SELECT)
     .eq("seller_id", sellerId)
-    .eq("estado", "DRAFT")
-    .order("fecha_creacion", { ascending: false });
+    // Más reciente primero. `numero` desempata: dos pedidos creados en el
+    // mismo instante tendrían orden arbitrario, y una fila que baila entre
+    // páginas se ve dos veces o ninguna.
+    .order("fecha_creacion", { ascending: false })
+    .order("numero", { ascending: false })
+    .range(desde, desde + PAGE_SIZE);
 
+  if (opciones.estados && opciones.estados.length > 0) {
+    query = query.in("estado", opciones.estados);
+  }
+
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return data as unknown as OrderSummary[];
+
+  const filas = (data ?? []) as unknown as OrderSummary[];
+  return { orders: filas.slice(0, PAGE_SIZE), hayMas: filas.length > PAGE_SIZE };
 }
 
-export async function listOrdersForSeller(sellerId: string): Promise<OrderSummary[]> {
+/**
+ * ¿El vendedor tiene al menos un pedido? Sirve para decidir si mostrar
+ * "Repetir último pedido", que necesita uno anterior de cualquier estado —no
+ * solo un borrador— porque `repeatLastOrder` copia el último pedido a secas.
+ *
+ * Se pide una sola fila en vez de un `count`: la respuesta es un booleano y
+ * contar toda la tabla para saber si hay algo es trabajo de más.
+ */
+export async function sellerTienePedidos(sellerId: string): Promise<boolean> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("orders")
-    .select(ORDER_SUMMARY_SELECT)
+    .select("id")
     .eq("seller_id", sellerId)
-    .order("fecha_creacion", { ascending: false });
+    .limit(1);
 
   if (error) throw new Error(error.message);
-  return data as unknown as OrderSummary[];
+  return (data ?? []).length > 0;
 }
 
 export async function createDraftOrder(input: {
@@ -120,7 +169,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail | nul
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .select(
-      `id, estado, fecha_creacion, fecha_envio, seller_id, customer_id, customer_address_id, payment_terms_id,
+      `id, numero, estado, fecha_creacion, fecha_envio, seller_id, customer_id, customer_address_id, payment_terms_id,
       seller:sellers(nombre_completo),
       customer:customers(razon_social, ruc_o_documento, canal_id, condicion_pago_habitual_id),
       address:customer_addresses(direccion),

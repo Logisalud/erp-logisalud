@@ -12,31 +12,7 @@ import { OrderHeader } from "./order-header";
 import { ObservationForm } from "./observation-form";
 import { displayNombreProducto, esOfrecibleEnPedido } from "@/domain/products";
 import { IconDownload } from "@/components/icons";
-
-const ESTADO_LABELS: Record<string, string> = {
-  DRAFT: "Borrador",
-  SUBMITTED: "Enviado",
-  NEW_CUSTOMER_VALIDATION: "Esperando validación de cliente nuevo",
-  ADMINISTRATIVE_EXCEPTION: "Excepción administrativa",
-  COMMERCIAL_EXCEPTION: "Excepción comercial",
-  READY_FOR_OPERATIONS: "Listo para operaciones",
-  DISPATCHED: "Despachado",
-};
-
-/**
- * El estado nunca se comunica solo por color: cada uno lleva su etiqueta en
- * palabras. Un vendedor con daltonismo, o mirando la pantalla al sol, tiene
- * que poder leerlo igual.
- */
-const ESTADO_ESTILOS: Record<string, string> = {
-  DRAFT: "border-slate-300 bg-slate-100 text-slate-700",
-  SUBMITTED: "border-logisalud-teal/40 bg-logisalud-teal/10 text-[#1c6d71]",
-  NEW_CUSTOMER_VALIDATION: "border-amber-300 bg-amber-50 text-amber-900",
-  ADMINISTRATIVE_EXCEPTION: "border-amber-300 bg-amber-50 text-amber-900",
-  COMMERCIAL_EXCEPTION: "border-amber-300 bg-amber-50 text-amber-900",
-  READY_FOR_OPERATIONS: "border-logisalud-green/40 bg-logisalud-green/10 text-[#276b3b]",
-  DISPATCHED: "border-logisalud-green/40 bg-logisalud-green/10 text-[#276b3b]",
-};
+import { estadoEstilo, estadoLabel } from "@/domain/order-status";
 
 export default async function OrderDetailPage({ params }: { params: { id: string } }) {
   const order = await getOrderDetail(params.id);
@@ -107,11 +83,11 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                 </p>
               </div>
               <span
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${
-                  ESTADO_ESTILOS[order.estado] ?? "border-slate-300 bg-slate-100 text-slate-700"
-                }`}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${estadoEstilo(
+                  order.estado,
+                )}`}
               >
-                {ESTADO_LABELS[order.estado] ?? order.estado}
+                {estadoLabel(order.estado)}
               </span>
             </div>
 
@@ -249,7 +225,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                   className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-slate-100 pb-2 last:border-0"
                 >
                   <span className="text-slate-900">
-                    {ESTADO_LABELS[h.estado_nuevo] ?? h.estado_nuevo}
+                    {estadoLabel(h.estado_nuevo)}
                     {h.motivo ? ` — ${h.motivo}` : ""}
                   </span>
                   <span className="cifra text-slate-600">
