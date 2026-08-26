@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  pedidos:
+    name: apps/pedidos — lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22, no 20. Dos razones: la 20 ya está fuera de soporte y los
+      # runners avisan que la deprecan, y jsdom (tests de componentes)
+      # arrastra undici 8, que usa `worker_threads.markAsUncloneable` —
+      # ausente en la 20.x del runner, así que el test ni arrancaba.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm workspaces: el install es siempre desde la raíz del monorepo,
+      # contra el único package-lock.json. Los scripts se invocan por
+      # workspace.
+      - run: npm ci
+
+      - run: npm run lint --workspace erp-logisalud-pedidos
+
+      - run: npm run test --workspace erp-logisalud-pedidos
+
+      - run: npm run build --workspace erp-logisalud-pedidos
+
+  cobranzas:
+    name: apps/cobranzas — build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Sin lint ni test: apps/cobranzas no tiene configuración de ESLint
+      # (`next lint` arrancaría el asistente interactivo) ni suite de tests.
+      # El build corre type-check completo de TypeScript, que es la
+      # verificación que ese proyecto usa hoy.
+      - run: npm run build --workspace erp-logisalud-cobranzas

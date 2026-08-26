@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Escena de uso: el vendedor de pie en el mostrador de una botica, de día,
+ * con luz entrando de frente. Por eso el tema es claro y de alto contraste
+ * —un tema oscuro se lava bajo esa luz— y por eso el texto secundario no
+ * baja de gray-600: gray-400 sobre blanco no se lee al sol.
+ */
+@layer base {
+  :root {
+    /* Superficies */
+    --superficie-fondo: 248 250 252; /* slate-50: el papel de la app */
+    --superficie-panel: 255 255 255;
+    --borde-sutil: 226 232 240; /* slate-200 */
+    --borde-fuerte: 203 213 225; /* slate-300: campos, donde el borde es la afordancia */
+  }
+
+  body {
+    @apply bg-[rgb(var(--superficie-fondo))] font-body text-slate-900 antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading tracking-tight;
+  }
+
+  /*
+   * Foco visible y consistente en todo control interactivo. Es requisito de
+   * accesibilidad, y en móvil además ayuda con teclados externos y lectores.
+   */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    @apply outline-none ring-2 ring-logisalud-green ring-offset-2 ring-offset-white;
+  }
+
+  /*
+   * Las cifras de dinero y cantidad se alinean en columna. Sin esto los
+   * totales bailan al cambiar de dígito, que es exactamente lo que hace
+   * dudar al vendedor cuando le canta el total al cliente.
+   */
+  .cifra {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@layer components {
+  /*
+   * Panel: la superficie base. Sombra con desplazamiento y desenfoque
+   * reales, no un halo de color.
+   */
+  .panel {
+    @apply rounded-xl border border-[rgb(var(--borde-sutil))] bg-white shadow-[0_1px_2px_0_rgb(15_23_42_/_0.04),0_1px_3px_0_rgb(15_23_42_/_0.06)];
+  }
+
+  /* Compatibilidad con las pantallas que todavía no se rediseñaron. */
+  .card {
+    @apply panel;
+  }
+
+  .card-highlight {
+    @apply rounded-xl border-2 border-logisalud-green bg-white;
+  }
+
+  /* Campos: el borde es la afordancia, así que no se diluye. */
+  .campo {
+    @apply min-h-12 w-full rounded-lg border border-[rgb(var(--borde-fuerte))] bg-white px-3 py-2.5 text-base text-slate-900 placeholder:text-slate-500;
+    @apply focus:border-logisalud-green;
+  }
+
+  .campo:disabled {
+    @apply cursor-not-allowed bg-slate-100 text-slate-500;
+  }
+
+  .etiqueta {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
+  }
+
+  /* Botones: 48px de alto mínimo por la escena de uso, de pie y con pulgar. */
+  .btn-primary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-logisalud-green px-5 py-3 text-base font-semibold text-white;
+    @apply transition-colors hover:bg-[#3f9a59] active:bg-[#358a4d];
+    @apply disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600;
+  }
+
+  .btn-secondary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[rgb(var(--borde-fuerte))] bg-white px-5 py-3 text-base font-semibold text-slate-800;
+    @apply transition-colors hover:bg-slate-50 active:bg-slate-100;
+    @apply disabled:cursor-not-allowed disabled:text-slate-400;
+  }
+
+  /* Acción terciaria: dentro de una fila, sin peso de botón. */
+  .btn-ghost {
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-500;
+    @apply transition-colors hover:bg-slate-100 hover:text-slate-800 active:bg-slate-200;
+  }
+
+  /*
+   * Avisos. El color nunca es la única señal: cada uno lleva su ícono, y el
+   * texto dice el problema y la salida.
+   */
+  .aviso {
+    @apply flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm;
+  }
+
+  .aviso-bloqueo {
+    @apply aviso border-amber-300 bg-amber-50 text-amber-900;
+  }
+
+  .aviso-error {
+    @apply aviso border-red-300 bg-red-50 text-red-900;
+  }
+
+  .aviso-ok {
+    @apply aviso border-logisalud-green/40 bg-logisalud-green/10 text-[#276b3b];
+  }
+
+  .aviso-info {
+    @apply aviso border-logisalud-teal/40 bg-logisalud-teal/10 text-[#1c6d71];
+  }
+
+  /*
+   * Barra de total pegada al pie. `env(safe-area-inset-bottom)` evita que
+   * el botón quede debajo de la barra de gestos en los iPhone.
+   */
+  .barra-pie {
+    @apply fixed inset-x-0 bottom-0 z-30 border-t border-[rgb(var(--borde-sutil))] bg-white/95 backdrop-blur;
+    box-shadow: 0 -1px 3px 0 rgb(15 23 42 / 0.06);
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+}
+
+/*
+ * Una sola pieza de motion en toda la pantalla: la línea recién agregada
+ * entra desde su estado final, de forma que sin JS o con "reduce motion"
+ * el contenido igual está visible.
+ */
+@keyframes linea-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.linea-nueva {
+  animation: linea-entra 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linea-nueva {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
