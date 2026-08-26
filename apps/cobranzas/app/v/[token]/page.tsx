@@ -3,9 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
 import { hoyISOLima, diasEntre } from '@/lib/fechas';
 import { calcularDescuento } from '@/lib/descuento';
+import { cobranzaDelMes } from '@/lib/cobranzaDelMes';
 import BotonImprimir from './BotonImprimir';
 import RegistrarAcceso from './RegistrarAcceso';
-import VistaVendedorClient, { FacturaVista } from './VistaVendedorClient';
+import VistaVendedorClient, { FacturaVista, LetraVista } from './VistaVendedorClient';
 
 // Filtro SOLO de presentación en la vista del vendedor: se ocultan facturas
 // con saldo pendiente insignificante (céntimos por redondeo). No toca datos ni
@@ -119,22 +120,52 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
     for (const r of rets ?? []) idsConRetencion.add(r.documento_id);
   }
 
-  // Próxima letra pendiente por documento (solo facturas con letras)
+  // Letras pendientes (no pagadas) de las facturas con letras. Se usan para
+  // (a) el vencimiento efectivo de la factura en Tarjetas/Tabla (la más
+  // próxima) y (b) el desglose completo en la pestaña "Letras": una factura
+  // canjeada por letras puede tener varias cuotas con fechas muy distintas
+  // al vencimiento original, y eso no se veía en ningún lado antes.
   const idsConLetras = facturasVisibles.filter(f => f.tiene_letras).map(f => f.id);
   const proximaLetra = new Map<string, string>();
+  const letrasPorDoc = new Map<string, { numero_letra: string; importe: number; fecha_vencimiento: string; estado: string }[]>();
   if (idsConLetras.length > 0) {
     const { data: letras } = await db
       .from('letras')
-      .select('documento_id, fecha_vencimiento, estado')
+      .select('documento_id, numero_letra, importe, fecha_vencimiento, estado')
       .in('documento_id', idsConLetras)
       .neq('estado', 'pagada')
       .order('fecha_vencimiento');
     for (const l of letras ?? []) {
       if (!proximaLetra.has(l.documento_id)) proximaLetra.set(l.documento_id, l.fecha_vencimiento);
+      const arr = letrasPorDoc.get(l.documento_id) ?? [];
+      arr.push({ numero_letra: l.numero_letra, importe: Number(l.importe) || 0, fecha_vencimiento: l.fecha_vencimiento, estado: l.estado });
+      letrasPorDoc.set(l.documento_id, arr);
     }
   }
 
   const hoyISO = hoyISOLima();
+  const cobranzaMes = await cobranzaDelMes(vendedor.id, hoyISO);
+
+  const facturaPorId = new Map(facturasVisibles.map(f => [f.id, f]));
+  const letrasVista: LetraVista[] = [];
+  for (const [documentoId, letrasDoc] of letrasPorDoc.entries()) {
+    const f = facturaPorId.get(documentoId);
+    if (!f) continue;
+    for (const l of letrasDoc) {
+      letrasVista.push({
+        documento_id: documentoId,
+        comprobante: f.comprobante,
+        cliente_ruc: f.cliente_ruc,
+        razon_social: f.razon_social,
+        distrito: distritoPorRuc.get(f.cliente_ruc) ?? null,
+        numero_letra: l.numero_letra,
+        importe: l.importe,
+        fecha_vencimiento: l.fecha_vencimiento,
+        estado: l.estado as LetraVista['estado'],
+      });
+    }
+  }
+  letrasVista.sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento));
 
   // Vencimiento efectivo: próxima letra si existe, si no el vencimiento de la factura
   const fechaEfectiva = (f: FacturaPendiente) => proximaLetra.get(f.id) ?? f.fecha_vencimiento;
@@ -231,6 +262,8 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
           totalImporte={totalImporte}
           contado={contado}
           contadoTotal={contadoTotal}
+          letras={letrasVista}
+          cobranzaMes={cobranzaMes}
           token={token}
           mostrarWhatsapp={vendedor.piloto_whatsapp}
         />

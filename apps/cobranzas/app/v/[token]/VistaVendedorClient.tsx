@@ -35,6 +35,30 @@ export interface ContadoVista {
   importe: number;
 }
 
+export interface LetraVista {
+  documento_id: string;
+  comprobante: string;
+  cliente_ruc: string;
+  razon_social: string;
+  distrito: string | null;
+  numero_letra: string;
+  importe: number;
+  fecha_vencimiento: string;
+  estado: 'en_cartera' | 'en_banco' | 'protestada';
+}
+
+export interface ItemMesVista {
+  id: string;
+  comprobante: string;
+  cliente_ruc: string;
+  razon_social: string;
+  distrito: string | null;
+  celular: string | null;
+  fecha_venc: string;
+  saldo_pendiente: number;
+  tiene_letras: boolean;
+}
+
 const fmt = (n: number) =>
   'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
@@ -173,7 +197,7 @@ function agrupar(facturas: FacturaVista[]): GrupoCliente[] {
 }
 
 export default function VistaVendedorClient({
-  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, token, mostrarWhatsapp,
+  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, letras, cobranzaMes, token, mostrarWhatsapp,
 }: {
   facturas: FacturaVista[];
   hoyISO: string;
@@ -183,10 +207,12 @@ export default function VistaVendedorClient({
   totalImporte: number;
   contado: ContadoVista[];
   contadoTotal: number;
+  letras: LetraVista[];
+  cobranzaMes: ItemMesVista[];
   token: string;
   mostrarWhatsapp: boolean;
 }) {
-  const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado'>('tarjetas');
+  const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes'>('tarjetas');
 
   const grupos = facturas.length ? agrupar(facturas) : [];
   const totalVencido = facturas.reduce((s, f) => s + f.vencido, 0);
@@ -199,10 +225,12 @@ export default function VistaVendedorClient({
     </div>
   );
 
-  const opciones: { key: 'tarjetas' | 'tabla' | 'contado'; label: string }[] = [
+  const opciones: { key: 'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes'; label: string }[] = [
     { key: 'tarjetas', label: 'Tarjetas' },
     { key: 'tabla', label: 'Tabla' },
     { key: 'contado', label: `Contado${contado.length ? ` (${contado.length})` : ''}` },
+    { key: 'letras', label: `Letras${letras.length ? ` (${letras.length})` : ''}` },
+    { key: 'mes', label: `Este mes${cobranzaMes.length ? ` (${cobranzaMes.length})` : ''}` },
   ];
 
   return (
@@ -363,6 +391,103 @@ export default function VistaVendedorClient({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {vista === 'letras' && (
+        <div className="max-w-2xl mx-auto mt-3">
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-[11px] uppercase tracking-wider" style={{ color: '#4ABCC2' }}>Letras por cobrar</p>
+            <p className="text-gray-500 text-xs mt-0.5">
+              Facturas canjeadas por letra(s) — el cobro sigue estas fechas, no el vencimiento original de la factura.
+            </p>
+          </div>
+
+          {letras.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 mt-2 text-center">
+              <p className="text-gray-500 text-sm">No tienes letras pendientes.</p>
+            </div>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {letras.map(l => {
+                const dias = diasParaVencer(l.fecha_vencimiento, hoyISO);
+                const p = textoPlazo(dias);
+                return (
+                  <div key={`${l.documento_id}-${l.numero_letra}`} className="bg-white rounded-xl border border-gray-200 px-3.5 py-2.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="text-gray-800 text-sm font-semibold truncate">{l.razon_social}</p>
+                      <p className="font-oswald text-base text-gray-800 shrink-0">{fmt(l.importe)}</p>
+                    </div>
+                    <p className="text-gray-400 text-[11px] mt-0.5">
+                      RUC {l.cliente_ruc}{l.distrito && <span className="text-gray-500"> · {l.distrito}</span>}
+                    </p>
+                    <div className="flex items-baseline justify-between gap-3 mt-0.5">
+                      <p className="text-gray-400 text-xs font-mono">
+                        {l.comprobante} · letra {l.numero_letra}
+                        {l.estado === 'en_banco'    && <span className="ml-1.5 font-sans" style={{ color: '#4ABCC2' }}>en banco</span>}
+                        {l.estado === 'protestada'  && <span className="ml-1.5 font-sans text-red-600 font-semibold">protestada</span>}
+                      </p>
+                      <p className="text-xs text-right">
+                        <span className="text-gray-400">Vence {fmtFecha(l.fecha_vencimiento)}</span>
+                        <span className="mx-1 text-gray-300">·</span>
+                        <Plazo dias={dias} />
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {vista === 'mes' && (
+        <div className="max-w-2xl mx-auto mt-3">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wider" style={{ color: '#4ABCC2' }}>Cobranza del mes</p>
+              <p className="text-gray-500 text-xs mt-0.5">A quién ir a cobrar este mes — vencen (o su próxima letra vence) dentro del mes actual.</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="font-oswald text-xl" style={{ color: '#4BB168' }}>{fmt(cobranzaMes.reduce((s, i) => s + i.saldo_pendiente, 0))}</p>
+              <p className="text-[11px] text-gray-400">{cobranzaMes.length} {cobranzaMes.length === 1 ? 'documento' : 'documentos'}</p>
+            </div>
+          </div>
+
+          {cobranzaMes.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 mt-2 text-center">
+              <p className="text-gray-500 text-sm">No tienes cobranza pendiente que venza este mes.</p>
+            </div>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {cobranzaMes.map(i => {
+                const dias = diasParaVencer(i.fecha_venc, hoyISO);
+                const p = textoPlazo(dias);
+                return (
+                  <div key={i.id} className="bg-white rounded-xl border border-gray-200 px-3.5 py-2.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="text-gray-800 text-sm font-semibold truncate">{i.razon_social}</p>
+                      <p className="font-oswald text-base text-gray-800 shrink-0">{fmt(i.saldo_pendiente)}</p>
+                    </div>
+                    <p className="text-gray-400 text-[11px] mt-0.5">
+                      RUC {i.cliente_ruc}{i.distrito && <span className="text-gray-500"> · {i.distrito}</span>}
+                    </p>
+                    <div className="flex items-baseline justify-between gap-3 mt-0.5">
+                      <p className="text-gray-400 text-xs font-mono">
+                        {i.comprobante}
+                        {i.tiene_letras && <span className="ml-1.5 font-sans" style={{ color: '#4ABCC2' }}>letra</span>}
+                      </p>
+                      <p className="text-xs text-right">
+                        <span className="text-gray-400">Vence {fmtFecha(i.fecha_venc)}</span>
+                        <span className="mx-1 text-gray-300">·</span>
+                        <Plazo dias={dias} />
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

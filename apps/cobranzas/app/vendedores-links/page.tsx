@@ -71,6 +71,7 @@ export default function VendedoresLinksPage() {
         <p className="text-gray-500 text-sm mb-6">
           Cada vendedor tiene un link privado de solo consulta con su cobranza pendiente.
           Copia el link y envíaselo. Si un vendedor se va o el link se filtra, regenera el token — el anterior queda revocado al instante.
+          Los botones "Cartera de clientes" y "Cobranza del mes" descargan un Excel para adjuntar manualmente por WhatsApp o correo — un link no puede adjuntar archivos.
         </p>
 
         {cargando ? (
@@ -91,7 +92,19 @@ export default function VendedoresLinksPage() {
                     <p className="text-xs text-gray-300 mt-0.5">sin token</p>
                   )}
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+                  <a
+                    href={`/api/vendedores-links/exportar-clientes?vendedor_id=${v.id}`}
+                    className="px-3 py-1.5 text-xs border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    📋 Cartera de clientes
+                  </a>
+                  <a
+                    href={`/api/vendedores-links/exportar-cobranza-mes?vendedor_id=${v.id}`}
+                    className="px-3 py-1.5 text-xs border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    📅 Cobranza del mes
+                  </a>
                   <button
                     onClick={() => copiar(v)}
                     disabled={!v.token_acceso}
