@@ -5,12 +5,14 @@
  * con la service role key, que nunca se expone al cliente.
  *
  * QUÉ HACE
- *   1. Lee scripts/usuarios-erp.csv (nombre, correo, telefono, area, rol).
- *   2. Crea cada usuario en auth.users: por correo vía invitación (le llega
- *      un mail para que ponga su propia contraseña), o por teléfono si la
- *      fila trae telefono en vez de correo.
+ *   1. Lee scripts/usuarios-erp.csv (nombre, correo, telefono, area, rol) y
+ *      descarta las áreas de AREAS_EXCLUIDAS — el login es solo para el
+ *      personal administrativo, los vendedores tienen su propio acceso.
+ *   2. Crea cada usuario restante en auth.users: por correo vía invitación
+ *      (le llega un mail para que ponga su propia contraseña), o por
+ *      teléfono si la fila trae telefono en vez de correo.
  *   3. Inserta/actualiza su fila en public.perfiles.
- *   4. Inserta/actualiza las 3 filas fijas de public.area_responsables.
+ *   4. Inserta/actualiza las filas fijas de public.area_responsables.
  *
  * CÓMO VOLVER A CORRERLO CUANDO ENTRA GENTE NUEVA
  *   - Agregá la fila al final de scripts/usuarios-erp.csv (con correo, o con
@@ -43,6 +45,20 @@ if (!URL_BASE || !SERVICE_KEY) {
   )
   process.exit(1)
 }
+
+/**
+ * Áreas que NO se provisionan.
+ *
+ * El login del ERP es solo para el personal administrativo. Los vendedores
+ * (área `ventas`) entran por su link con token rotativo a `/v/[token]` en
+ * apps/cobranzas — no tienen cuenta ni sesión, así que crearles una sería
+ * mandarles una invitación que no van a usar.
+ *
+ * Se mantienen en el CSV igual, como registro del organigrama completo: si
+ * algún día los vendedores migran al login, se saca 'ventas' de esta lista y
+ * se vuelve a correr el script.
+ */
+const AREAS_EXCLUIDAS = ['ventas']
 
 /**
  * Responsables de área. NO se derivan del CSV de personas: el responsable de
@@ -150,6 +166,15 @@ async function main() {
   const filas = leerCsv(join(import.meta.dirname, 'usuarios-erp.csv'))
   console.log(`CSV: ${filas.length} usuarios${DRY_RUN ? '  (DRY RUN — no escribe nada)' : ''}\n`)
 
+  const aProvisionar = filas.filter((f) => !AREAS_EXCLUIDAS.includes(f.area))
+  const excluidas = filas.length - aProvisionar.length
+  if (excluidas) {
+    console.log(
+      `Excluidos por área (${AREAS_EXCLUIDAS.join(', ')}): ${excluidas}. ` +
+        `Se provisionan ${aProvisionar.length}.\n`
+    )
+  }
+
   const existentes = await usuariosExistentes()
   const perfiles: { id: string; nombre: string; area: string; rol: string }[] = []
   const idPorCorreo = new Map<string, string>()
@@ -157,7 +182,7 @@ async function main() {
   const yaExistian: string[] = []
   const fallidos: { quien: string; motivo: string }[] = []
 
-  for (const fila of filas) {
+  for (const fila of aProvisionar) {
     const clave = fila.correo ? fila.correo.toLowerCase() : fila.telefono
     if (!clave) {
       fallidos.push({ quien: fila.nombre, motivo: 'la fila no tiene ni correo ni telefono' })
