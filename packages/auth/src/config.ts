@@ -1,30 +1,51 @@
 /**
  * Configuración compartida de autenticación del ERP.
  *
- * El interruptor central es NEXT_PUBLIC_REQUIRE_LOGIN. Ver la sección
- * "Autenticación" del README de la raíz antes de cambiarlo.
+ * El login es real desde el día uno y aplica **solo al personal
+ * administrativo**. No hay modo de prueba ni variable de bypass: si una
+ * pantalla no muestra datos, se revisa el perfil de la sesión, no se
+ * desactiva nada.
+ *
+ * Los vendedores NO usan este login. Entran por su link con token rotativo
+ * (`/v/[token]`), que es un mecanismo aparte y anterior a esto. Ver
+ * RUTAS_VENDEDOR abajo.
  */
 
-/** Rutas que nunca exigen sesión, incluso con el login activado. */
-export const RUTAS_PUBLICAS = ['/login', '/aceptar-invitacion', '/auth/callback'] as const
+/** Rutas del propio flujo de autenticación. Nunca exigen sesión. */
+export const RUTAS_AUTH = ['/login', '/aceptar-invitacion', '/auth/callback'] as const
 
 /**
- * ¿La app exige que cada persona inicie sesión con su propia cuenta?
+ * Acceso de vendedores en apps/cobranzas — **no tocar sin leer esto**.
  *
- * 'false' (el valor por defecto y el estado actual del proyecto) = modo de
- * prueba: la app se abre sin pedir nada y el servidor usa la cuenta
- * designada en TEST_MODE_USER_EMAIL para satisfacer las políticas RLS.
+ * Los vendedores no tienen cuenta ni sesión: entran por un link con token
+ * que rota (`vendedores.token_acceso`). Cada una de estas rutas resuelve el
+ * vendedor por ese token y verifica `activo`, por su cuenta, sin depender de
+ * Supabase Auth:
  *
- * Las políticas RLS están activas en los dos modos, siempre. Lo único que
- * cambia es de quién es la sesión que las satisface.
+ *   /v/[token]                 la vista de cobranzas (SSR, token en la ruta)
+ *   /api/acceso                registra el acceso        (token en el body)
+ *   /api/whatsapp-enviado      registra un envío         (token en el body)
+ *   /api/v/exportar-clientes   exporta su cartera        (token en el query)
+ *   /api/base-url              da la URL de producción con la que se arman
+ *                              los links de vendedor
+ *
+ * Si el middleware las protegiera, los vendedores caerían en /login y el
+ * link dejaría de servir. Quedan explícitamente fuera.
  */
-export function requiereLogin(): boolean {
-  return process.env.NEXT_PUBLIC_REQUIRE_LOGIN === 'true'
-}
+export const RUTAS_VENDEDOR = [
+  '/v',
+  '/api/acceso',
+  '/api/whatsapp-enviado',
+  '/api/v',
+  '/api/base-url',
+] as const
 
-export function esRutaPublica(pathname: string): boolean {
-  return RUTAS_PUBLICAS.some((r) => pathname === r || pathname.startsWith(`${r}/`))
-}
+/**
+ * Crons de Vercel. Se autentican con CRON_SECRET en el header Authorization,
+ * no con una sesión — si el middleware los redirigiera a /login, los jobs
+ * diarios se romperían en silencio.
+ */
+export const RUTAS_CRON = ['/api/cron'] as const
 
 export function urlSupabase(): string {
   const v = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -46,11 +67,17 @@ export function anonKeySupabase(): string {
  * hosts distintos y `.vercel.app` está en la Public Suffix List, así que el
  * navegador no permite una cookie de dominio padre.
  *
- * Para que el login sea uno solo en todo el ERP hace falta que las apps
- * vivan bajo un dominio propio compartido (ej. cobranzas.logisalud.com y
- * compras.logisalud.com) y setear NEXT_PUBLIC_AUTH_COOKIE_DOMAIN=.logisalud.com
+ * Para que el login sea uno solo en todo el ERP, las apps tienen que vivir
+ * bajo un dominio propio compartido (ej. cobranzas.logisalud.com y
+ * compras.logisalud.com) con NEXT_PUBLIC_AUTH_COOKIE_DOMAIN=.logisalud.com
  * en las dos.
  */
 export function dominioCookie(): string | undefined {
   return process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN || undefined
+}
+
+/** ¿Esta ruta se sirve sin sesión iniciada? */
+export function esRutaPublica(pathname: string, extras: readonly string[] = []): boolean {
+  const publicas = [...RUTAS_AUTH, ...RUTAS_CRON, ...extras]
+  return publicas.some((r) => pathname === r || pathname.startsWith(`${r}/`))
 }

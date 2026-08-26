@@ -2,7 +2,7 @@ import 'server-only'
 
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { anonKeySupabase, dominioCookie, requiereLogin, urlSupabase } from './config'
+import { anonKeySupabase, dominioCookie, urlSupabase } from './config'
 
 /**
  * Cliente de Supabase para Server Components y Server Actions.
@@ -31,12 +31,7 @@ export function crearClienteServidor() {
 }
 
 /**
- * La persona detrás de la request actual.
- *
- * Con NEXT_PUBLIC_REQUIRE_LOGIN='false' devuelve la cuenta de prueba que el
- * middleware ya dejó logueada — o sea, un usuario real de auth.users, no uno
- * ficticio. Todo lo que se cree queda atribuido a ese user_id de verdad, sin
- * datos huérfanos que limpiar cuando se active el login.
+ * La persona detrás de la request actual, o null si no hay sesión.
  *
  * Usar SIEMPRE esto para llenar created_by, conformidad_por, decidido_por,
  * etc. Nunca hardcodear un uuid.
@@ -56,13 +51,7 @@ export async function usuarioActual() {
  */
 export async function exigirUsuario() {
   const user = await usuarioActual()
-  if (!user) {
-    throw new Error(
-      requiereLogin()
-        ? 'No hay sesión activa. Iniciá sesión de nuevo.'
-        : 'Modo de prueba sin sesión: revisá TEST_MODE_USER_EMAIL y TEST_MODE_USER_PASSWORD en el entorno.'
-    )
-  }
+  if (!user) throw new Error('No hay sesión activa. Iniciá sesión de nuevo.')
   return user
 }
 

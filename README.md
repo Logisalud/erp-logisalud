@@ -80,74 +80,72 @@ El login del ERP es **uno solo para todas las apps**, vive en
 tablas de perfiles y permisos son `public.perfiles` y
 `public.area_responsables`.
 
-### `NEXT_PUBLIC_REQUIRE_LOGIN` — el interruptor del login
+**Login real desde el día uno.** No hay modo de prueba ni variable de
+bypass: si una pantalla no muestra datos, se revisa el área del perfil de
+esa sesión — nunca se desactiva RLS ni se saltea el login.
 
-Esta variable **empieza y se mantiene en `'false'`**.
+### A quién aplica
 
-Con `'false'` (el estado actual del proyecto):
+Solo al **personal administrativo** (16 personas). Los **vendedores no
+tienen cuenta ni sesión**: siguen entrando por su link con token rotativo,
+que es un mecanismo aparte y anterior a esto.
 
-- La app se abre directo. El middleware **no** redirige a nadie a
-  `/login`.
-- En el servidor, la app inicia sesión automáticamente con la cuenta
-  designada en `TEST_MODE_USER_EMAIL` / `TEST_MODE_USER_PASSWORD`. Esa
-  sesión es la que satisface las políticas RLS.
-- Todo lo que se cree queda atribuido al `user_id` real de esa cuenta
-  (`created_by`, `conformidad_por`, `decidido_por`, …). No hay datos
-  huérfanos ni un usuario ficticio que haya que limpiar después.
+### Acceso de vendedores — no romperlo
 
-Con `'true'`:
+Los vendedores entran a `/v/[token]`, donde el token es
+`vendedores.token_acceso` y rota. La página y sus endpoints resuelven el
+vendedor por ese token y verifican `activo`, cada uno por su cuenta, sin
+pasar por Supabase Auth.
 
-- El middleware exige sesión: cada persona entra con su propia cuenta.
-- Se deja de usar la cuenta de prueba, y cada acción queda asociada a
-  quien realmente la hizo.
+Estas rutas están **explícitamente excluidas** del middleware de login, en
+`RUTAS_VENDEDOR` (`packages/auth/src/config.ts`):
 
-**Activarlo es decisión exclusiva de Sebas o Andrés**, el día que
-decidan lanzar el sistema a todo el equipo. No se activa "de paso" en
-otro cambio, ni porque una tarea parezca necesitarlo: el modo existe
-para que Sebas pueda seguir probando funcionalidad libremente sin
-loguearse, y apagarlo cambia la experiencia de todo el equipo de golpe.
+| Ruta | Qué hace | Dónde viaja el token |
+|---|---|---|
+| `/v/[token]` | la vista de cobranzas del vendedor | en la ruta |
+| `/api/acceso` | registra que entró | en el body |
+| `/api/whatsapp-enviado` | registra un envío (piloto) | en el body |
+| `/api/v/exportar-clientes` | exporta su cartera | en el query |
+| `/api/base-url` | da la URL de producción con la que se arman los links | — |
 
-Cambiarlo es un solo cambio de variable de entorno en Vercel más un
-redeploy. No hay que reprogramar nada ese día.
+Si se agrega una ruta nueva que sirva al vendedor, hay que sumarla a esa
+lista. Si no, el vendedor cae en `/login` y el link deja de servir.
 
-### Las políticas RLS no se desactivan nunca
+Por la misma razón, **no activar Vercel Deployment Protection** en el
+proyecto de cobranzas: los vendedores no tienen cuenta de Vercel y la
+protección les cerraría el link. `app/api/base-url/route.ts` existe
+justamente para que los links se generen contra la URL de producción y no
+contra una URL de deployment protegida.
 
-En los dos modos, **RLS está activo en todas las tablas de todos los
-schemas**. Lo único que cambia es de quién es la sesión que satisface
-las políticas: la cuenta de prueba, o la persona real. Si alguna
-pantalla no muestra datos, la respuesta nunca es desactivar RLS — es
-revisar qué área tiene el perfil de esa sesión.
+Los **crons de Vercel** también quedan fuera del middleware
+(`RUTAS_CRON`): se autentican con `CRON_SECRET` en el header, no con una
+sesión, y si los redirigiera a `/login` los jobs diarios se romperían en
+silencio.
 
 ### Variables de entorno
 
-Estas van en Vercel (Settings → Environment Variables), nunca
-hardcodeadas ni commiteadas:
+Van en Vercel (Settings → Environment Variables), nunca hardcodeadas ni
+commiteadas:
 
 | Variable | Ámbito | Para qué |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | navegador + servidor | proyecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | navegador + servidor | key sujeta a RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | **solo servidor** | tareas administrativas; bypassa RLS |
-| `NEXT_PUBLIC_REQUIRE_LOGIN` | navegador + servidor | `'false'` por ahora — ver arriba |
-| `TEST_MODE_USER_EMAIL` | **solo servidor** | cuenta de la sesión de prueba |
-| `TEST_MODE_USER_PASSWORD` | **solo servidor** | contraseña de esa cuenta |
 | `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` | navegador + servidor | opcional; ver "sesión compartida" |
-
-Las dos `TEST_MODE_*` **no llevan** el prefijo `NEXT_PUBLIC_` a
-propósito: así Next nunca las manda al navegador.
 
 ### Sesión compartida entre apps
 
-Que alguien logueado en Cobranzas entre a Compras sin volver a
-loguearse requiere que las dos apps compartan el dominio de la cookie
-de sesión. Con los dominios `*.vercel.app` **no se puede**: son hosts
-distintos y `.vercel.app` está en la Public Suffix List, así que el
-navegador rechaza una cookie de dominio padre.
+Que alguien logueado en Cobranzas entre a Compras sin volver a loguearse
+requiere que las dos apps compartan el dominio de la cookie de sesión. Con
+los dominios `*.vercel.app` **no se puede**: son hosts distintos y
+`.vercel.app` está en la Public Suffix List, así que el navegador rechaza
+una cookie de dominio padre.
 
 Para tener sesión única hay que poner las apps bajo un dominio propio
-(ej. `cobranzas.logisalud.com` y `compras.logisalud.com`) y setear en
-las dos `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN=.logisalud.com`. Hasta
-entonces, cada app pide su propio login.
+(ej. `cobranzas.logisalud.com` y `compras.logisalud.com`) y setear en las
+dos `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN=.logisalud.com`. Hasta entonces, cada
+app pide su propio login.
 
 ### Configuración en Supabase Authentication
 
@@ -158,6 +156,6 @@ Configuration:
 - **Redirect URLs**: agregar `/aceptar-invitacion` de cada app, más los
   dominios de preview de Vercel si se quiere probar invitaciones ahí.
 
-El link de invitación que manda Supabase trae el token en el fragmento
-de la URL (`#access_token=...&type=invite`), y la pantalla
+El link de invitación que manda Supabase trae el token en el fragmento de
+la URL (`#access_token=...&type=invite`), y la pantalla
 `/aceptar-invitacion` es la que lo lee para dejar crear la contraseña.

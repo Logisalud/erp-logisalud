@@ -1,27 +1,39 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { anonKeySupabase, dominioCookie, esRutaPublica, urlSupabase } from './config'
 
 type CookieNueva = { name: string; value: string; options?: CookieOptions }
-import { anonKeySupabase, dominioCookie, esRutaPublica, requiereLogin, urlSupabase } from './config'
+
+export type OpcionesSesion = {
+  /**
+   * Rutas de esta app que se sirven sin sesión, además de las del flujo de
+   * auth y los crons.
+   *
+   * En apps/cobranzas hay que pasar RUTAS_VENDEDOR: los vendedores entran por
+   * un link con token, no tienen cuenta, y sin esta exclusión caerían en
+   * /login y el link dejaría de funcionar.
+   */
+  rutasPublicas?: readonly string[]
+}
 
 /**
- * Middleware de sesión compartido por todas las apps del ERP.
+ * Middleware de sesión compartido por las apps del ERP.
  *
- * Hace dos cosas según NEXT_PUBLIC_REQUIRE_LOGIN:
+ * Login real: sin sesión, a /login. No hay modo de prueba ni bypass.
  *
- *   'true'  -> exige sesión real. Sin sesión, redirige a /login.
- *   'false' -> no redirige a nadie. Si no hay sesión, inicia una en el
- *              servidor con la cuenta designada en TEST_MODE_USER_EMAIL,
- *              para que las políticas RLS se cumplan igual que si esa
- *              persona hubiera entrado a mano.
- *
- * Las políticas RLS están activas en los dos modos. Lo único que cambia es
- * de quién es la sesión que las satisface.
- *
- * Las credenciales de prueba se leen sin el prefijo NEXT_PUBLIC_, así que
- * viven solo en el servidor y nunca llegan al navegador.
+ * Aplica al personal administrativo. Los vendedores no pasan por acá — sus
+ * rutas se excluyen vía `rutasPublicas`.
  */
-export async function middlewareSesion(request: NextRequest) {
+export async function middlewareSesion(request: NextRequest, opciones: OpcionesSesion = {}) {
+  const { pathname } = request.nextUrl
+
+  // Se resuelve antes de hablar con Supabase: una ruta de vendedor no debe
+  // pagar la latencia de validar una sesión que no existe, y así no hay forma
+  // de que un error de red la termine redirigiendo a /login.
+  if (esRutaPublica(pathname, opciones.rutasPublicas)) {
+    return NextResponse.next({ request })
+  }
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(urlSupabase(), anonKeySupabase(), {
@@ -36,43 +48,19 @@ export async function middlewareSesion(request: NextRequest) {
     },
   })
 
-  // getUser() valida el token contra Supabase, no confía en la cookie.
+  // getUser() valida el token contra Supabase; no confía en la cookie sola.
+  // Como efecto lateral renueva la sesión y escribe las cookies nuevas.
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (user) return response
 
-  if (!requiereLogin()) {
-    // Modo de prueba: nadie inicia sesión a mano, el servidor lo hace.
-    const email = process.env.TEST_MODE_USER_EMAIL
-    const password = process.env.TEST_MODE_USER_PASSWORD
-
-    if (!email || !password) {
-      // Sin credenciales no hay sesión, así que RLS va a negar todo. Se deja
-      // pasar igual: la app carga y muestra vacío en vez de romperse, y el
-      // aviso queda en los logs del servidor.
-      console.warn(
-        '[auth] NEXT_PUBLIC_REQUIRE_LOGIN=false pero faltan TEST_MODE_USER_EMAIL / ' +
-          'TEST_MODE_USER_PASSWORD. Sin sesión, las políticas RLS van a negar todo acceso.'
-      )
-      return response
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      console.warn(`[auth] No se pudo iniciar la sesión de prueba: ${error.message}`)
-    }
-    return response
-  }
-
-  // Login exigido y no hay sesión.
-  if (esRutaPublica(request.nextUrl.pathname)) return response
-
   const destino = request.nextUrl.clone()
   destino.pathname = '/login'
-  // Para volver a donde quería entrar después de loguearse.
-  destino.searchParams.set('volver_a', request.nextUrl.pathname + request.nextUrl.search)
+  destino.search = ''
+  // Para volver a donde quería entrar, una vez que inicie sesión.
+  destino.searchParams.set('volver_a', pathname + request.nextUrl.search)
   return NextResponse.redirect(destino)
 }
 
@@ -88,5 +76,6 @@ export async function middlewareSesion(request: NextRequest) {
  * (falla con "Unknown identifier" y se cae al matcher por defecto, que corre
  * el middleware también en los assets estáticos).
  *
- * Excluye assets e imágenes para no pagar la validación de sesión por archivo.
+ * Las rutas públicas NO se excluyen acá sino en `rutasPublicas`: es una lista
+ * legible y con comentarios, en vez de un lookahead cada vez más largo.
  */
