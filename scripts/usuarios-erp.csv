@@ -1,0 +1,12 @@
+nombre,correo,telefono,area,rol
+Sebastian Gonzales,sgonzales@logisalud.com,,admin,admin
+Andres Romero,aromero@logisalud.com,,admin,admin
+Charlie Chancco,cchancco@logisalud.com,,almacen,operativo
+Sandra Chau,schau@logisalud.com,,almacen,operativo
+Roberto Munoz,rmunoz@logisalud.com,,almacen,operativo
+Renato Cruz,rcruz@logisalud.com,,otro,operativo
+Juan Gonzales,jgonzales@logisalud.com,,gerencia,operativo
+Arlette Aguilar,a.aguilar@logisalud.com,,gestion_humana,operativo
+Beatriz Zavala,bzavala@logisalud.com,,contabilidad,operativo
+Mariela Casiano,mcasiano@logisalud.com,,contabilidad,admin
+Milagritos Minaya,mminaya@logisalud.com,,contabilidad,operativo
