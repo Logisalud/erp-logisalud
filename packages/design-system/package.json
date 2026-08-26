@@ -1,0 +1,8 @@
+{
+  "name": "@logisalud/design-system",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Placeholder — componentes y tokens compartidos entre apps/cobranzas y apps/pedidos.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}

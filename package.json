@@ -1,27 +1,21 @@
 {
-  "name": "erp-logisalud",
+  "name": "erp-logisalud-monorepo",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev:cobranzas": "npm run dev --workspace erp-logisalud-cobranzas",
+    "build:cobranzas": "npm run build --workspace erp-logisalud-cobranzas",
+    "lint:cobranzas": "npm run lint --workspace erp-logisalud-cobranzas",
+    "dev:pedidos": "npm run dev --workspace erp-logisalud-pedidos",
+    "build:pedidos": "npm run build --workspace erp-logisalud-pedidos",
+    "lint:pedidos": "npm run lint --workspace erp-logisalud-pedidos",
+    "test:pedidos": "npm run test --workspace erp-logisalud-pedidos"
   },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.43.4",
-    "next": "14.2.29",
-    "react": "^18",
-    "react-dom": "^18",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "autoprefixer": "^10.0.1",
-    "postcss": "^8",
-    "tailwindcss": "^3.3.0",
-    "typescript": "^5"
+  "engines": {
+    "node": ">=22"
   }
 }
