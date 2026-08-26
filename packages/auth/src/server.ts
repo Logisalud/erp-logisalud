@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { anonKeySupabase, dominioCookie, urlSupabase } from './config'
 
@@ -18,7 +18,7 @@ export function crearClienteServidor() {
     cookieOptions: { domain: dominioCookie() },
     cookies: {
       getAll: () => store.getAll(),
-      setAll: (nuevas) => {
+      setAll: (nuevas: { name: string; value: string; options?: CookieOptions }[]) => {
         try {
           nuevas.forEach(({ name, value, options }) => store.set(name, value, options))
         } catch {

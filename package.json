@@ -13,7 +13,10 @@
     "dev:pedidos": "npm run dev --workspace erp-logisalud-pedidos",
     "build:pedidos": "npm run build --workspace erp-logisalud-pedidos",
     "lint:pedidos": "npm run lint --workspace erp-logisalud-pedidos",
-    "test:pedidos": "npm run test --workspace erp-logisalud-pedidos"
+    "test:pedidos": "npm run test --workspace erp-logisalud-pedidos",
+    "dev:compras": "npm run dev --workspace erp-logisalud-compras",
+    "build:compras": "npm run build --workspace erp-logisalud-compras",
+    "lint:compras": "npm run lint --workspace erp-logisalud-compras"
   },
   "engines": {
     "node": ">=22"
