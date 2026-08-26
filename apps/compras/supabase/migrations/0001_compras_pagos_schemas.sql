@@ -24,9 +24,9 @@ create schema if not exists impuestos;
 create table if not exists public.perfiles (
   id uuid primary key references auth.users(id) on delete cascade,
   nombre text not null,
-  area text not null check (area in (
+  area text not null constraint perfiles_area_check check (area in (
     'compras','almacen','contabilidad','tesoreria','gerencia',
-    'gestion_humana','admin','otro'
+    'gestion_humana','legal','direccion_tecnica','ventas','admin','otro'
   )),
   rol text not null default 'operativo',
   created_at timestamptz not null default now()

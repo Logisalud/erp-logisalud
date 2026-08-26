@@ -48,11 +48,18 @@ if (!URL_BASE || !SERVICE_KEY) {
  * Responsables de área. NO se derivan del CSV de personas: el responsable de
  * un área no siempre trabaja en esa área (Juan es de gerencia y aprueba los
  * gastos de Marketing, que caen en el área "otro").
+ *
+ * 'compras' no tiene responsable a propósito: Sebas la cubre directo como
+ * admin y las órdenes de compra se emiten sin aprobación previa.
  */
 const AREA_RESPONSABLES: { area: string; correo: string; nota: string }[] = [
   { area: 'almacen', correo: 'sgonzales@logisalud.com', nota: 'Sebastian Gonzales — temporal' },
   { area: 'contabilidad', correo: 'mcasiano@logisalud.com', nota: 'Mariela Casiano' },
+  { area: 'tesoreria', correo: 'mminaya@logisalud.com', nota: 'Milagritos Minaya' },
   { area: 'otro', correo: 'jgonzales@logisalud.com', nota: 'Juan Gonzales — Gerente Comercial, aprueba gastos de Marketing' },
+  { area: 'ventas', correo: 'jgonzales@logisalud.com', nota: 'Juan Gonzales — Gerente Comercial' },
+  { area: 'legal', correo: 'ataboada@logisalud.com', nota: 'Ana Lucia Taboada' },
+  { area: 'direccion_tecnica', correo: 'kzapata@logisalud.com', nota: 'Katia Zapata' },
 ]
 
 type Fila = { nombre: string; correo: string; telefono: string; area: string; rol: string }
