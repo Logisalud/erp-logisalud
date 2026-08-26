@@ -234,7 +234,16 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
               {zonas && <>{zonas} · </>}{hoyStr}
             </p>
           </div>
-          <BotonImprimir />
+          <div className="flex items-center gap-2 print:hidden shrink-0">
+            <a
+              href={`/api/v/exportar-clientes?token=${token}`}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white/20 text-white hover:bg-white/30 transition"
+              title="Descargar Excel con todos tus clientes asignados"
+            >
+              📋 Mi cartera de clientes
+            </a>
+            <BotonImprimir />
+          </div>
         </div>
       </header>
 
