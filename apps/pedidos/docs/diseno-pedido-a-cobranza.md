@@ -129,3 +129,36 @@ Tres reglas:
 - **El PDF no se borra.** Es la evidencia de qué se cargó y por qué se anuló.
 
 Pueden anular `admin` y `control_pedidos`. Un vendedor no.
+
+## Serie dedicada para las facturas de Pedidos
+
+**Sujeto a confirmación final antes de la primera factura real.**
+
+Series ya usadas en las 2.405 filas de `public.documentos`:
+
+| Serie | Tipo | Docs | Rango de números |
+|---|---|---|---|
+| `FFF1` | 01 factura | 2.247 | 3 – 2.249 |
+| `E001` | 01 factura | 5 | 406 – 410 |
+| `BBB1` | 03 boleta | 18 | 1 – 18 |
+| `FC01` | 07 nota de crédito | 125 | 1 – 125 |
+| `BC01` | 07 nota de crédito | 4 | 1 – 4 |
+| `FD01` | 08 nota de débito | 4 | 1 – 4 |
+| `FFF1` | 07 | 1 | 1 |
+| `BBB1` | 07 | 1 | 1 |
+
+Propuesta:
+
+| Tipo | Serie propuesta | Por qué |
+|---|---|---|
+| `01` factura | **`FP01`** | libre; sigue la convención SUNAT de serie electrónica que arranca con `F` para factura |
+| `03` boleta | **`BP01`** | libre; arranca con `B` para boleta |
+
+Las dos pasan el check `^[A-Z0-9]{4}$` y **no colisionan** con ninguna serie en
+uso. Como `documentos` tiene `UNIQUE (tipo, serie, numero)`, una serie dedicada
+elimina de raíz el riesgo de choque con los números que carga Cobranzas por su
+importador: cada serie lleva su propio corrido.
+
+Se aplican como default en `pedidos.facturas_emitidas`. Si Contabilidad ya
+tiene otra serie asignada ante SUNAT para este canal, se cambia el default y
+nada más — no hay lógica que dependa del valor.
