@@ -22,3 +22,13 @@ instrucciones específicas de ese proyecto — leelo antes de tocar nada ahí:**
   `npm run test:pedidos`, …) o con `--workspace <nombre>`.
 - Cada app se buildea y deploya sola. Un cambio en una no debería requerir
   tocar la otra.
+
+## Pendientes conocidos de la migración a monorepo
+
+- `apps/pedidos/.github/` (skills/agents/hooks de la herramienta
+  "impeccable") quedó dentro de la app. GitHub solo lee `.github/` de la
+  raíz, así que esa tooling ya no la levanta GitHub — se movió a la raíz
+  únicamente el workflow de CI. Si hace falta reactivarla, mover
+  `agents/`, `hooks/` y `skills/` a la `.github/` raíz en un cambio aparte.
+- `apps/cobranzas` no tiene ESLint configurado ni tests; su CI corre solo
+  `build` (que sí hace type-check completo).
