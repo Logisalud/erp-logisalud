@@ -59,6 +59,16 @@ las respuestas en 1.000 filas). El combobox recibe una función `onSearch`
 que consulta al servidor, y ya trae debounce, teclado y descarte de
 respuestas viejas.
 
+Fechas que vienen de importaciones de Excel: mostrarlas siempre con
+`formatearFechaProveedor()` de `domain/fechas.ts`, nunca crudas. Excel cuenta
+los días desde el 30/12/1899, así que una celda vacía leída como fecha llega
+convertida en ese día — un vacío disfrazado de fecha. El dato crudo se
+conserva tal cual en la base (corregirlo sería inventar información), pero en
+pantalla se muestra "No informado". Hay un caso real: el producto `DHP216`
+tiene `fecha_vigencia_proveedor = 1899-12-30`. El helper además formatea a
+partir del texto y no vía `new Date`, porque un ISO de solo fecha se
+interpreta en UTC y al mostrarlo en hora de Perú retrocede un día.
+
 Los tests de componentes van en `tests/components/`, con
 `// @vitest-environment jsdom` en la primera línea — el resto de la suite
 corre en Node.

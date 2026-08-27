@@ -7,6 +7,7 @@ import { PriceCorrectionForm } from "./price-correction-form";
 import { editProduct, submitPriceCorrection } from "./actions";
 import { displayNombreProducto } from "@/domain/products";
 import { IconAlert } from "@/components/icons";
+import { formatearFechaProveedor } from "@/domain/fechas";
 
 function formatMoney(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
@@ -89,7 +90,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               <dt className="text-gray-500">Costo ref. distribuidora</dt>
               <dd>{formatMoney(perfilVigente.costo_referencial_distribuidora)}</dd>
               <dt className="text-gray-500">Fecha vigencia (proveedor)</dt>
-              <dd>{perfilVigente.fecha_vigencia_proveedor ?? "—"}</dd>
+              <dd>{formatearFechaProveedor(perfilVigente.fecha_vigencia_proveedor)}</dd>
             </dl>
           ) : (
             <p className="mt-2 text-sm text-gray-500">Sin perfil tributario.</p>
