@@ -132,11 +132,21 @@ function construirHtml(ayerISO: string, ayer: CobranzaData, semana: CobranzaData
 }
 
 export async function GET(req: NextRequest) {
+  // Falla CERRADO, igual que morosidad-diaria. Sin la variable definida, esta
+  // ruta quedaba abierta — y esta manda un correo por Resend, así que un
+  // disparo ajeno no solo lee: envía el reporte de cobranza a la lista de
+  // destinatarios.
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    if (req.headers.get('authorization') !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+  if (!secret) {
+    console.error('[cron] CRON_SECRET no está definida: se rechaza el disparo.');
+    return NextResponse.json(
+      { error: 'CRON_SECRET no configurada en el servidor' },
+      { status: 503 }
+    );
+  }
+
+  if (req.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
   const apiKey     = process.env.RESEND_API_KEY;
