@@ -55,9 +55,32 @@ export async function exigirUsuario() {
   return user
 }
 
-/** El perfil (nombre, área, rol) de la persona actual, o null si no tiene. */
+/**
+ * El perfil (nombre, área, rol) de la persona actual, o null si no tiene.
+ *
+ * El `.eq('id', ...)` NO es redundante con RLS. La policy de perfiles es
+ * `id = auth.uid() OR es_admin()`, así que a un admin le devuelve TODAS las
+ * filas — y `maybeSingle()` falla si llega más de una. Sin el filtro, la
+ * función andaba para cualquier operativo y se rompía justo para los admins,
+ * que quedaban sin área y por lo tanto sin ningún módulo a la vista.
+ */
 export async function perfilActual() {
+  const user = await usuarioActual()
+  if (!user) return null
+
   const supabase = crearClienteServidor()
-  const { data } = await supabase.from('perfiles').select('id, nombre, area, rol').maybeSingle()
+  const { data, error } = await supabase
+    .from('perfiles')
+    .select('id, nombre, area, rol')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  // Un fallo acá deja a la persona sin área y sin módulos, que es
+  // indistinguible de "no tiene permisos". Que quede en los logs.
+  if (error) {
+    console.error('[auth] no se pudo leer el perfil:', error.message)
+    return null
+  }
+
   return data
 }

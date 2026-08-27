@@ -32,12 +32,21 @@ export default async function PantallaModulos() {
   // crea perfil y RLS le niega todo. Se le dice, no se le muestra un
   // blanco.
   let modulos: Modulo[] = []
+  let fallo = false
+
   if (perfil?.area) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('modulos')
       .select('id, nombre, descripcion, ruta, disponible, modulo_areas_permitidas!inner(area)')
       .eq('modulo_areas_permitidas.area', perfil.area)
       .order('orden')
+
+    if (error) {
+      // Sin esto, un error de consulta se vería igual que "no tenés
+      // permisos" — que es exactamente el bug que tuvimos con los admins.
+      console.error('[modulos] falló la consulta:', error.message)
+      fallo = true
+    }
     modulos = (data ?? []) as unknown as Modulo[]
   }
 
@@ -54,10 +63,31 @@ export default async function PantallaModulos() {
 
       {modulos.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-6">
-          <p className="text-gray-900">Todavía no tenés acceso a ningún módulo.</p>
-          <p className="mt-2 text-sm text-gray-600">
-            Escribile a tu administrador para que te lo habilite.
-          </p>
+          {fallo ? (
+            <>
+              <p className="text-gray-900">No pudimos cargar tus módulos.</p>
+              <p className="mt-2 text-sm text-gray-600">
+                Es un problema nuestro, no de tus permisos. Recargá la página; si
+                sigue igual, avisale a soporte.
+              </p>
+            </>
+          ) : !perfil ? (
+            <>
+              <p className="text-gray-900">Tu cuenta todavía no tiene perfil.</p>
+              <p className="mt-2 text-sm text-gray-600">
+                Entraste bien, pero nadie te asignó un área. Escribile a tu
+                administrador para que te la cargue.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-900">Todavía no tenés acceso a ningún módulo.</p>
+              <p className="mt-2 text-sm text-gray-600">
+                Tu área es <strong>{perfil.area}</strong>. Escribile a tu
+                administrador para que te habilite lo que necesites.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2">
