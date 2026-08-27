@@ -445,8 +445,13 @@ end $$;
 -- ===================================================================
 -- SEEDS
 -- ===================================================================
+-- Los seis canales comerciales reales, tal como vienen de las listas de
+-- precios de proveedor: cada canal tiene su propio precio por producto.
+-- (Una versión anterior de esta migración sembró FARMACIA / DISTRIBUIDORA /
+-- INSTITUCIONAL, que no existen en el negocio. Ver 1004.)
 insert into pedidos.sales_channels (nombre) values
-  ('FARMACIA'), ('DISTRIBUIDORA'), ('INSTITUCIONAL')
+  ('Mayorista'), ('Horizontal'), ('Minicadenas'),
+  ('Tops'), ('Clínicas'), ('Subdistribuidores')
 on conflict (nombre) do nothing;
 
 insert into pedidos.payment_terms (nombre, descripcion) values
