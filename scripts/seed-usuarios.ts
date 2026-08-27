@@ -6,8 +6,8 @@
  *
  * QUÉ HACE
  *   1. Lee scripts/usuarios-erp.csv (nombre, correo, telefono, area, rol) y
- *      descarta las áreas de AREAS_EXCLUIDAS — el login es solo para el
- *      personal administrativo, los vendedores tienen su propio acceso.
+ *      descarta las áreas de AREAS_EXCLUIDAS (hoy vacía: se provisiona el
+ *      organigrama completo, vendedores incluidos).
  *   2. Crea cada usuario restante en auth.users: por correo vía invitación
  *      (le llega un mail para que ponga su propia contraseña), o por
  *      teléfono si la fila trae telefono en vez de correo.
@@ -47,18 +47,19 @@ if (!URL_BASE || !SERVICE_KEY) {
 }
 
 /**
- * Áreas que NO se provisionan.
+ * Áreas que NO se provisionan. Hoy: ninguna — se provisiona el organigrama
+ * completo, los 31.
  *
- * El login del ERP es solo para el personal administrativo. Los vendedores
- * (área `ventas`) entran por su link con token rotativo a `/v/[token]` en
- * apps/cobranzas — no tienen cuenta ni sesión, así que crearles una sería
- * mandarles una invitación que no van a usar.
+ * Los vendedores de campo (área `ventas`) SÍ necesitan cuenta: piden y
+ * rinden viáticos en Compras y Gastos, y registran sus propios pedidos.
  *
- * Se mantienen en el CSV igual, como registro del organigrama completo: si
- * algún día los vendedores migran al login, se saca 'ventas' de esta lista y
- * se vuelve a correr el script.
+ * Ojo con la confusión que ya nos costó una vuelta: el link con token de
+ * `/v/[token]` en apps/cobranzas **no se reemplaza** por esto. Son dos cosas
+ * distintas que comparten a las mismas personas — el link sigue siendo la
+ * vista de cobranzas sin login, igual que siempre, y la cuenta es para
+ * pedidos y viáticos. Tener cuenta no le quita el link a nadie.
  */
-const AREAS_EXCLUIDAS = ['ventas']
+const AREAS_EXCLUIDAS: string[] = []
 
 /**
  * Responsables de área. NO se derivan del CSV de personas: el responsable de
