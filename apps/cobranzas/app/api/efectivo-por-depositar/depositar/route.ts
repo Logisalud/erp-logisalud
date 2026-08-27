@@ -1,10 +1,15 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_ESCRITURA } from '@/lib/autorizacion';
 
 // Marca un pago en efectivo como depositado. Cualquiera con acceso al ERP
 // puede hacer este cambio — no hay restricción de rol (no existe login).
 export async function POST(req: NextRequest) {
+  const auth = await exigirArea(AREAS_ESCRITURA);
+  if (!auth.ok) return auth.respuesta;
+
   const { pago_id, fecha_deposito, voucher_deposito_path, referencia } = await req.json() as {
     pago_id: string; fecha_deposito: string; voucher_deposito_path?: string; referencia?: string;
   };

@@ -2,8 +2,13 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { parsearCartera } from '@/lib/cartera-parser';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_IMPORTACION } from '@/lib/autorizacion';
 
 export async function POST(req: NextRequest) {
+  const auth = await exigirArea(AREAS_IMPORTACION);
+  if (!auth.ok) return auth.respuesta;
+
   try {
     const form = await req.formData();
     const file = form.get('archivo') as File | null;

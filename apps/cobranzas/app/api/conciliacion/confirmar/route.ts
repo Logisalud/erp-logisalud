@@ -1,10 +1,15 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_ESCRITURA } from '@/lib/autorizacion';
 
 // Confirma la conciliación de un movimiento con una factura: registra el pago
 // (monto y fecha del banco, referencia = N° de operación) y enlaza el movimiento.
 export async function POST(req: NextRequest) {
+  const auth = await exigirArea(AREAS_ESCRITURA);
+  if (!auth.ok) return auth.respuesta;
+
   const { movimiento_id, documento_id } = await req.json();
   if (!movimiento_id || !documento_id)
     return NextResponse.json({ error: 'movimiento_id y documento_id son requeridos' }, { status: 400 });

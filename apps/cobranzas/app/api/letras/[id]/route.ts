@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_BORRADO, AREAS_ESCRITURA } from '@/lib/autorizacion';
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -8,6 +10,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await exigirArea(AREAS_ESCRITURA);
+  if (!auth.ok) return auth.respuesta;
+
   const body = await req.json();
   const db   = supabaseAdmin();
 
@@ -70,6 +75,9 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await exigirArea(AREAS_BORRADO);
+  if (!auth.ok) return auth.respuesta;
+
   const db = supabaseAdmin();
   const { error } = await db.from('letras').delete().eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -2,10 +2,15 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_ESCRITURA } from '@/lib/autorizacion';
 
 // Auto-concilia los cobros cuyo N° de operación bancaria coincide con la
 // referencia de un pago ya registrado. Solo detecta y enlaza; no crea pagos.
 export async function POST() {
+  const auth = await exigirArea(AREAS_ESCRITURA);
+  if (!auth.ok) return auth.respuesta;
+
   const db = supabaseAdmin();
 
   const pendientes = await fetchAll<{ id: string; operacion_numero: string | null }>((from, to) =>
