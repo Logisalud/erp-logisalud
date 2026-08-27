@@ -53,7 +53,7 @@ jobs:
       - run: npm run build --workspace erp-logisalud-cobranzas
 
   compras:
-    name: apps/compras — build
+    name: apps/compras — test, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +65,8 @@ jobs:
 
       - run: npm ci
 
-      # Sin lint ni test, por lo mismo que cobranzas: apps/compras no tiene
-      # configuración de ESLint ni suite. El build corre el type-check
-      # completo de TypeScript, y eso es lo que hoy protege al proyecto.
+      # Sin lint: apps/compras no tiene configuración de ESLint (`next lint`
+      # arrancaría el asistente interactivo). Sí tiene suite de dominio.
+      - run: npm run test --workspace erp-logisalud-compras
+
       - run: npm run build --workspace erp-logisalud-compras
