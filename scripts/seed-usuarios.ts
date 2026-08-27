@@ -36,7 +36,39 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const URL_BASE = process.env.SUPABASE_URL
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+/**
+ * Normaliza la service role key.
+ *
+ * Supabase tiene dos formatos y se confunden fácil al copiarlos:
+ *   - Legacy: un JWT (`eyJ...` con tres partes separadas por punto).
+ *   - Nuevo:  una cadena opaca que EMPIEZA con `sb_secret_` y NO es un JWT.
+ *
+ * El error que ya nos pasó: pegar `sb_secret_` + el JWT legacy, o sea el
+ * prefijo del formato nuevo pegado al valor del viejo. Eso no autentica: la
+ * API recibe un JWT inválido y responde 401. Acá se detecta y se corrige,
+ * avisando, en vez de fallar con un 401 que no explica nada.
+ */
+function normalizarKey(raw: string | undefined): string | undefined {
+  if (!raw) return raw
+  const k = raw.trim()
+  const esJwt = (v: string) => v.split('.').length === 3 && v.startsWith('ey')
+
+  if (k.startsWith('sb_secret_')) {
+    const resto = k.slice('sb_secret_'.length)
+    if (esJwt(resto)) {
+      console.warn(
+        'AVISO: la key vino como "sb_secret_" + un JWT legacy. Son dos formatos\n' +
+          '       distintos y ese pegado no autentica. Se usa solo el JWT.\n'
+      )
+      return resto
+    }
+    return k // formato nuevo legítimo
+  }
+  return k
+}
+
+const SERVICE_KEY = normalizarKey(process.env.SUPABASE_SERVICE_ROLE_KEY)
 const DRY_RUN = process.argv.includes('--dry-run')
 /**
  * Crea cada cuenta con contraseña generada en vez de mandar invitación por
@@ -229,7 +261,25 @@ async function upsert(tabla: string, filas: unknown[]) {
   })
 }
 
+/**
+ * Verifica que la key autentique ANTES de tocar nada. Sin esto, un formato
+ * mal pegado se descubre recién a mitad del lote, con parte de la gente ya
+ * creada y parte no.
+ */
+async function verificarKey() {
+  try {
+    await api('/auth/v1/admin/users?page=1&per_page=1')
+  } catch (e) {
+    throw new Error(
+      `La service role key no autentica: ${(e as Error).message}\n` +
+        'Sacala de Supabase → Project Settings → API → service_role. Es la key\n' +
+        'secreta, no la anon/publishable.'
+    )
+  }
+}
+
 async function main() {
+  await verificarKey()
   const filas = leerCsv(join(import.meta.dirname, 'usuarios-erp.csv'))
   console.log(`CSV: ${filas.length} usuarios${DRY_RUN ? '  (DRY RUN — no escribe nada)' : ''}\n`)
 
