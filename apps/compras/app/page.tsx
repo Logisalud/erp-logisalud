@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { BotonCerrarSesion } from '@logisalud/auth/componentes'
 import { perfilActual, usuarioActual } from '@logisalud/auth/server'
 
@@ -47,10 +48,24 @@ export default async function Inicio() {
       </section>
 
       <section className="card mt-4">
-        <h2 className="font-heading text-lg">Pantallas</h2>
-        <p className="mt-2 text-sm text-gray-600">
-          Ninguna construida todavía. El modelo de datos y las políticas RLS de los 8 contextos
-          ya están aplicados; falta la interfaz.
+        <h2 className="font-heading text-lg">Compras</h2>
+        <ul className="mt-3 space-y-2">
+          <li>
+            <Link href="/ordenes-compra" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
+              <span className="font-medium">Órdenes de compra</span>
+              <p className="text-sm text-gray-600">Crear, ver y mandarle la OC al proveedor.</p>
+            </Link>
+          </li>
+          <li>
+            <Link href="/proveedores" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
+              <span className="font-medium">Proveedores</span>
+              <p className="text-sm text-gray-600">Datos de contacto y cuentas bancarias.</p>
+            </Link>
+          </li>
+        </ul>
+        <p className="mt-3 text-sm text-gray-500">
+          Almacén, Cuentas por Pagar, Gastos, Caja Chica, Financiamiento e Impuestos tienen su
+          modelo de datos y sus políticas aplicadas; las pantallas vienen después.
         </p>
       </section>
     </main>
