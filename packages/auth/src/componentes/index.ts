@@ -1,5 +1,3 @@
 export { FormularioLogin } from './formulario-login'
-export { AceptarInvitacion } from './aceptar-invitacion'
 export { BotonCerrarSesion } from './boton-cerrar-sesion'
-export { CambiarPassword } from './cambiar-password'
 export { MarcoAuth } from './marco-auth'

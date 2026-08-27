@@ -137,6 +137,37 @@ tablas de perfiles y permisos son `public.perfiles` y
 bypass: si una pantalla no muestra datos, se revisa el área del perfil de
 esa sesión — nunca se desactiva RLS ni se saltea el login.
 
+**Sin contraseñas.** No hay contraseña que crear, recordar ni cambiar, así
+que tampoco existen pantallas de invitación o de cambio de clave. Se entra
+poniendo el correo en `/login`; Supabase manda un mensaje y hay dos formas
+de entrar con él:
+
+1. **El link del correo** → cae en `/auth/callback?code=...`, que canjea el
+   código por sesión en el servidor y recién ahí redirige. Tiene que ser en
+   el servidor: si el canje lo hiciera el navegador, la primera request ya
+   habría pasado por el middleware sin sesión y habría rebotado a `/login`.
+2. **El código de 6 dígitos** del mismo correo, escrito en la pantalla.
+
+Las dos, no una. El flujo es PKCE, y PKCE guarda el verificador en el
+navegador que pidió el link — pedirlo en la computadora y abrir el correo en
+el celular hace fallar el canje. El código de 6 dígitos es la salida de ese
+caso, y el mensaje de error lo dice explícitamente.
+
+Por eso `crearClienteNavegador()` fija `detectSessionInUrl: false`: el
+código es de un solo uso, y si el cliente y `/auth/callback` lo canjean los
+dos, el segundo falla.
+
+### Alta de personas
+
+No se invita a nadie a mano. `public.usuarios_esperados` lista quién puede
+tener cuenta (nombre, área, rol, de qué áreas es responsable). En el primer
+ingreso, un trigger sobre `auth.users` lee esa fila y crea el
+`public.perfiles` correspondiente, más las filas de
+`public.area_responsables`. Quien no esté en esa tabla igual puede crear
+cuenta, pero queda **sin perfil**, y sin perfil las políticas RLS le niegan
+todo. Dar de baja a alguien es poner `activo = false` en esa fila; para
+cortarle el acceso ya existente, borrar su usuario de `auth.users`.
+
 ### A quién aplica
 
 Solo al **personal administrativo** (16 personas). Los **vendedores no
@@ -206,10 +237,15 @@ de dominio padre.
 En el dashboard del proyecto consolidado → Authentication → URL
 Configuration:
 
-- **Site URL**: la URL de producción de la app principal.
-- **Redirect URLs**: agregar `/aceptar-invitacion` de cada app, más los
-  dominios de preview de Vercel si se quiere probar invitaciones ahí.
+- **Site URL**: `https://erp.logisalud.com`.
+- **Redirect URLs**: `https://erp.logisalud.com/**` (cubre el
+  `/auth/callback` de las dos apps), más los dominios de preview de Vercel
+  si se quiere probar ahí.
+- **Email provider** habilitado, con el SMTP propio configurado — si no, los
+  correos salen por el servidor compartido de Supabase, que tiene un tope
+  muy bajo de envíos por hora.
 
-El link de invitación que manda Supabase trae el token en el fragmento de
-la URL (`#access_token=...&type=invite`), y la pantalla
-`/aceptar-invitacion` es la que lo lee para dejar crear la contraseña.
+En Authentication → Emails, la plantilla **Magic Link** tiene que incluir
+`{{ .Token }}` además de `{{ .ConfirmationURL }}`. Sin eso el correo trae
+solo el link, y quien lo abra en otro dispositivo queda trabado: el canje
+del link falla por PKCE y no tiene código que escribir.
