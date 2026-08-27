@@ -12,7 +12,7 @@
  */
 
 /** Rutas del propio flujo de autenticación. Nunca exigen sesión. */
-export const RUTAS_AUTH = ['/login', '/aceptar-invitacion', '/auth/callback'] as const
+export const RUTAS_AUTH = ['/login', '/auth/callback'] as const
 
 /**
  * Acceso de vendedores en apps/cobranzas — **no tocar sin leer esto**.
