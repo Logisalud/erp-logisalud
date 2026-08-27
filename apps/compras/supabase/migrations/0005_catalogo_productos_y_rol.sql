@@ -23,6 +23,11 @@
 -- Pedidos: son conceptos distintos y viven en el contexto de cada uno.
 create schema if not exists catalogo;
 
+-- El índice de búsqueda de más abajo usa gin_trgm_ops, que no existe sin esta
+-- extensión. No venía instalada en el proyecto consolidado, así que sin esto
+-- la migración falla al crear el índice.
+create extension if not exists pg_trgm;
+
 create table if not exists catalogo.productos (
   id uuid primary key default gen_random_uuid(),
 
