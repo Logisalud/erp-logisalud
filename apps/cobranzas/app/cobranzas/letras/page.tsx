@@ -353,7 +353,7 @@ export default function LetrasPage() {
             <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
             <p className="text-white/70 text-sm">Letras de cambio</p>
           </div>
-          <a href="/" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+          <a href="/cobranzas" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
         </div>
       </header>
 

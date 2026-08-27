@@ -1,68 +1,127 @@
-import Link from 'next/link';
+import Link from 'next/link'
+import { crearClienteServidor, perfilActual, usuarioActual } from '@logisalud/auth/server'
+import { redirect } from 'next/navigation'
 
-export default function Home() {
+export const dynamic = 'force-dynamic'
+
+type Modulo = {
+  id: string
+  nombre: string
+  descripcion: string
+  ruta: string
+  disponible: boolean
+}
+
+/**
+ * Pantalla de módulos: lo primero que ve una persona después de entrar.
+ *
+ * Qué tarjetas aparecen sale de `public.modulo_areas_permitidas`, no del
+ * código. Cambiar quién ve Cobranzas es un insert o un delete, no un deploy
+ * — que es justo lo que hace falta mientras siga pendiente la autorización
+ * de las rutas de Cobranzas.
+ */
+export default async function PantallaModulos() {
+  const usuario = await usuarioActual()
+  if (!usuario) redirect('/login')
+
+  const perfil = await perfilActual()
+  const supabase = crearClienteServidor()
+
+  // Sin perfil no hay área, y sin área no hay módulo que mostrar. Pasa con
+  // quien entra sin estar en public.usuarios_esperados: el trigger no le
+  // crea perfil y RLS le niega todo. Se le dice, no se le muestra un
+  // blanco.
+  let modulos: Modulo[] = []
+  let fallo = false
+
+  if (perfil?.area) {
+    const { data, error } = await supabase
+      .from('modulos')
+      .select('id, nombre, descripcion, ruta, disponible, modulo_areas_permitidas!inner(area)')
+      .eq('modulo_areas_permitidas.area', perfil.area)
+      .order('orden')
+
+    if (error) {
+      // Sin esto, un error de consulta se vería igual que "no tenés
+      // permisos" — que es exactamente el bug que tuvimos con los admins.
+      console.error('[modulos] falló la consulta:', error.message)
+      fallo = true
+    }
+    modulos = (data ?? []) as unknown as Modulo[]
+  }
+
   return (
-    <main className="max-w-2xl mx-auto mt-20 px-4">
-      <h1 className="text-3xl font-oswald tracking-wide mb-1" style={{ color: '#4BB168' }}>LOGISALUD</h1>
-      <p className="text-gray-500 mb-8 font-poppins">Cuentas por Cobrar</p>
-      <div className="grid gap-4">
-        <Link href="/estado-cuenta" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#4BB168' }}>
-          <h2 className="text-lg font-semibold mb-1" style={{ color: '#4BB168' }}>📊 Estado de Cuenta</h2>
-          <p className="text-gray-500 text-sm">Cartera por vendedor, cliente y factura con aging de vencimientos.</p>
-        </Link>
-        <Link href="/registrar-pago" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#4BB168' }}>
-          <h2 className="text-lg font-semibold mb-1" style={{ color: '#4BB168' }}>💳 Registrar Pago</h2>
-          <p className="text-gray-500 text-sm">Registra pagos de facturas o letras adjuntando el voucher del cliente.</p>
-        </Link>
-        <Link href="/contados-pendientes" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#4ABCC2' }}>
-          <h2 className="text-lg font-semibold mb-1" style={{ color: '#4ABCC2' }}>⏳ Contados Pendientes</h2>
-          <p className="text-gray-500 text-sm">Facturas CONTADO aún no cobradas. Márcalas como pendientes para incluirlas en la cartera.</p>
-        </Link>
-        <Link href="/letras" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">🏷️ Letras de Cambio</h2>
-          <p className="text-gray-500 text-sm">Gira, gestiona y cambia el estado de letras vinculadas a facturas a crédito.</p>
-        </Link>
-        <Link href="/clientes" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">🔍 Clientes</h2>
-          <p className="text-gray-500 text-sm">Busca clientes, asigna o reasigna vendedores manualmente.</p>
-        </Link>
-        <Link href="/importar" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">📥 Importar Nubefact</h2>
-          <p className="text-gray-500 text-sm">Sube tu reporte Excel y carga los documentos.</p>
-        </Link>
-        <Link href="/importar-cartera" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">👥 Importar Cartera</h2>
-          <p className="text-gray-500 text-sm">Carga vendedores, zonas y asigna clientes desde el Excel de cartera.</p>
-        </Link>
-        <Link href="/vendedores-links" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">🔗 Links de vendedores</h2>
-          <p className="text-gray-500 text-sm">Links privados de cobranza para que cada vendedor vea su cartera pendiente.</p>
-        </Link>
-        <Link href="/accesos" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">📊 Accesos de vendedores</h2>
-          <p className="text-gray-500 text-sm">Quién entra a ver su cobranza y quién no — para detectar a los que no lo usan.</p>
-        </Link>
-        <Link href="/cobranza" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#4ABCC2' }}>
-          <h2 className="text-lg font-semibold mb-1">💰 Cobranza del período</h2>
-          <p className="text-gray-500 text-sm">Cuánto se cobró (total y de lo vencido) por vendedor, en el rango que elijas.</p>
-        </Link>
-        <Link href="/conciliacion" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">🏦 Conciliación bancaria</h2>
-          <p className="text-gray-500 text-sm">Importa el extracto del banco y clasifica los movimientos (cobros vs. internos).</p>
-        </Link>
-        <Link href="/pagos-sin-confirmar" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#e5a83c' }}>
-          <h2 className="text-lg font-semibold mb-1" style={{ color: '#c07d1e' }}>⚠️ Pagos sin confirmar</h2>
-          <p className="text-gray-500 text-sm">Pagos registrados por voucher que aún no se confirmaron contra el extracto bancario.</p>
-        </Link>
-        <Link href="/concentracion-cartera" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">🎯 Concentración de cartera vencida</h2>
-          <p className="text-gray-500 text-sm">Qué clientes concentran la deuda vencida — por vendedor, con reincidentes.</p>
-        </Link>
-        <Link href="/efectivo-por-depositar" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#e5a83c' }}>
-          <h2 className="text-lg font-semibold mb-1" style={{ color: '#c07d1e' }}>💵 Efectivo por depositar</h2>
-          <p className="text-gray-500 text-sm">Pagos en efectivo cobrados y aún no llevados al banco.</p>
-        </Link>
-      </div>
+    <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
+      <header className="mb-8">
+        <h1 className="font-oswald text-3xl uppercase tracking-wide text-gray-900">
+          ERP Logisalud
+        </h1>
+        <p className="mt-1 text-sm text-gray-600">
+          {perfil?.nombre ? `Hola, ${perfil.nombre}.` : 'Hola.'} Elegí a dónde entrar.
+        </p>
+      </header>
+
+      {modulos.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          {fallo ? (
+            <>
+              <p className="text-gray-900">No pudimos cargar tus módulos.</p>
+              <p className="mt-2 text-sm text-gray-600">
+                Es un problema nuestro, no de tus permisos. Recargá la página; si
+                sigue igual, avisale a soporte.
+              </p>
+            </>
+          ) : !perfil ? (
+            <>
+              <p className="text-gray-900">Tu cuenta todavía no tiene perfil.</p>
+              <p className="mt-2 text-sm text-gray-600">
+                Entraste bien, pero nadie te asignó un área. Escribile a tu
+                administrador para que te la cargue.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-900">Todavía no tenés acceso a ningún módulo.</p>
+              <p className="mt-2 text-sm text-gray-600">
+                Tu área es <strong>{perfil.area}</strong>. Escribile a tu
+                administrador para que te habilite lo que necesites.
+              </p>
+            </>
+          )}
+        </div>
+      ) : (
+        <ul className="grid gap-4 sm:grid-cols-2">
+          {modulos.map((m) => (
+            <li
+              key={m.id}
+              className={`flex flex-col rounded-xl border bg-white p-5 ${
+                m.disponible
+                  ? 'border-gray-200 hover:border-gray-300 hover:shadow-sm transition'
+                  : 'border-gray-200 opacity-60'
+              }`}
+            >
+              <h2 className="font-oswald text-xl uppercase tracking-wide text-gray-900">
+                {m.nombre}
+              </h2>
+              <p className="mt-1 grow text-sm text-gray-600">{m.descripcion}</p>
+
+              {m.disponible ? (
+                <Link
+                  href={m.ruta}
+                  className="mt-4 inline-flex min-h-12 items-center justify-center rounded-lg px-4 font-medium text-white"
+                  style={{ backgroundColor: '#4BB168' }}
+                >
+                  Entrar
+                </Link>
+              ) : (
+                <span className="mt-4 inline-flex min-h-12 items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500">
+                  Próximamente
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
-  );
+  )
 }

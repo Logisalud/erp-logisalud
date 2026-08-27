@@ -213,7 +213,7 @@ export default function ConciliacionPage() {
             <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
             <p className="text-white/70 text-sm">Conciliación bancaria</p>
           </div>
-          <a href="/" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+          <a href="/cobranzas" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
         </div>
       </header>
 
@@ -443,7 +443,7 @@ export default function ConciliacionPage() {
 
                             {/* ⚫ nunca ofrece factura para confirmar directamente: solo enlace a búsqueda manual. */}
                             {!puedeConfirmar ? (
-                              <a href="/registrar-pago" className="inline-block text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-white transition">
+                              <a href="/cobranzas/registrar-pago" className="inline-block text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-white transition">
                                 Buscar manualmente →
                               </a>
                             ) : (
