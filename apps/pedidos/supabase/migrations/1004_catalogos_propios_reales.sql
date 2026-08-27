@@ -27,3 +27,24 @@ insert into pedidos.sales_channels (nombre) values
   ('Mayorista'), ('Horizontal'), ('Minicadenas'),
   ('Tops'), ('Clínicas'), ('Subdistribuidores')
 on conflict (nombre) do nothing;
+
+-- ===================================================================
+-- Condiciones de pago: mismo problema, mismo origen
+-- ===================================================================
+-- 1000 sembró CONTADO / CREDITO 15 / 30 / 45 / 60. Las reales son otras seis:
+-- no existe un "15 días", y faltaban 90 y 120, que sí se usan.
+--
+-- Igual que con los canales, cliente_config estaba en cero al aplicar esto,
+-- así que el delete no arrastró ninguna clasificación de cliente.
+
+delete from pedidos.payment_terms
+ where nombre in ('CONTADO', 'CREDITO 15', 'CREDITO 30', 'CREDITO 45', 'CREDITO 60');
+
+insert into pedidos.payment_terms (nombre) values
+  ('Contado'),
+  ('Crédito 30 días'),
+  ('Crédito 45 días'),
+  ('Crédito 60 días'),
+  ('Crédito 90 días'),
+  ('Crédito 120 días')
+on conflict (nombre) do nothing;
