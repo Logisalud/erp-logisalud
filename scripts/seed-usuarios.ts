@@ -31,12 +31,19 @@
  *     se agregan al CSV y se vuelve a correr esto — no hay que tocar código.
  */
 
+import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const URL_BASE = process.env.SUPABASE_URL
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const DRY_RUN = process.argv.includes('--dry-run')
+/**
+ * Crea cada cuenta con contraseña generada en vez de mandar invitación por
+ * correo. Las contraseñas se imprimen SOLO en la terminal — nunca se
+ * escriben a un archivo ni se commitean.
+ */
+const SET_PASSWORD = process.argv.includes('--set-password')
 
 if (!URL_BASE || !SERVICE_KEY) {
   console.error(
@@ -132,26 +139,85 @@ async function usuariosExistentes(): Promise<Map<string, string>> {
   return indice
 }
 
-/** Crea el usuario y devuelve su id. Por correo invita; por teléfono crea directo. */
-async function crearUsuario(fila: Fila): Promise<string> {
+/**
+ * Contraseña temporal: 16 caracteres con al menos una minúscula, una
+ * mayúscula, un dígito y un símbolo. Se arma desde randomBytes (CSPRNG), no
+ * desde Math.random.
+ *
+ * Se excluyeron los caracteres que se confunden al dictarlos por teléfono o
+ * WhatsApp: O/0, l/I/1. Estas contraseñas se transcriben a mano.
+ */
+function generarPassword(): string {
+  const minus = 'abcdefghijkmnopqrstuvwxyz'
+  const mayus = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const nums = '23456789'
+  const simbolos = '!@#$%&*+-?'
+  const todos = minus + mayus + nums + simbolos
+
+  const elegir = (alfabeto: string, n = 1) =>
+    Array.from(randomBytes(n)).map((b) => alfabeto[b % alfabeto.length])
+
+  // Uno de cada clase, garantizado; el resto libre.
+  const chars = [
+    ...elegir(minus),
+    ...elegir(mayus),
+    ...elegir(nums),
+    ...elegir(simbolos),
+    ...elegir(todos, 12),
+  ]
+
+  // Fisher-Yates con bytes aleatorios, para que las 4 clases garantizadas no
+  // queden siempre en las primeras posiciones.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomBytes(1)[0] % (i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
+}
+
+/**
+ * Crea el usuario y devuelve su id, más la contraseña si se generó una.
+ *
+ * Con --set-password la cuenta queda lista para entrar: correo confirmado y
+ * contraseña asignada, sin depender de que llegue el mail de invitación.
+ * Sin el flag, se manda la invitación como antes.
+ */
+async function crearUsuario(fila: Fila): Promise<{ id: string; password?: string }> {
   if (fila.correo) {
+    if (SET_PASSWORD) {
+      const password = generarPassword()
+      const u = await api('/auth/v1/admin/users', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: fila.correo,
+          password,
+          email_confirm: true,
+          user_metadata: { nombre: fila.nombre },
+        }),
+      })
+      return { id: u.id, password }
+    }
     const u = await api('/auth/v1/invite', {
       method: 'POST',
       body: JSON.stringify({ email: fila.correo, data: { nombre: fila.nombre } }),
     })
-    return u.id
+    return { id: u.id }
   }
+
   // Camino teléfono: para quien no tiene mail corporativo (Jose Carlos,
-  // Christian). Entra confirmado y se autentica por SMS/OTP.
+  // Christian). Entra confirmado; con --set-password también con contraseña,
+  // así puede entrar sin depender del SMS.
+  const password = SET_PASSWORD ? generarPassword() : undefined
   const u = await api('/auth/v1/admin/users', {
     method: 'POST',
     body: JSON.stringify({
       phone: fila.telefono,
       phone_confirm: true,
+      ...(password ? { password } : {}),
       user_metadata: { nombre: fila.nombre },
     }),
   })
-  return u.id
+  return { id: u.id, password }
 }
 
 async function upsert(tabla: string, filas: unknown[]) {
@@ -182,6 +248,7 @@ async function main() {
   const creados: string[] = []
   const yaExistian: string[] = []
   const fallidos: { quien: string; motivo: string }[] = []
+  const credenciales: { nombre: string; acceso: string; password: string }[] = []
 
   for (const fila of aProvisionar) {
     const clave = fila.correo ? fila.correo.toLowerCase() : fila.telefono
@@ -198,8 +265,16 @@ async function main() {
         console.log(`  [dry-run] crearía ${fila.nombre} <${clave}>`)
         continue
       } else {
-        id = await crearUsuario(fila)
+        const creado = await crearUsuario(fila)
+        id = creado.id
         creados.push(fila.nombre)
+        if (creado.password) {
+          credenciales.push({
+            nombre: fila.nombre,
+            acceso: fila.correo || fila.telefono,
+            password: creado.password,
+          })
+        }
       }
       if (fila.correo) idPorCorreo.set(fila.correo.toLowerCase(), id)
       perfiles.push({ id, nombre: fila.nombre, area: fila.area, rol: fila.rol })
@@ -240,6 +315,20 @@ async function main() {
     const nota = AREA_RESPONSABLES.find((a) => a.area === r.area)!.nota
     console.log(`  = ${r.area} -> ${nota}`)
   })
+
+  if (credenciales.length) {
+    console.log('\n=========== CONTRASEÑAS TEMPORALES ===========')
+    console.log('Solo se muestran acá. No se guardan en ningún archivo.')
+    console.log('Copialas AHORA: si cerrás la terminal, no hay forma de recuperarlas')
+    console.log('(quedan hasheadas en Supabase). Si se pierden, se resetean desde')
+    console.log('el dashboard de Supabase Auth.\n')
+    console.log('| Nombre | Correo | Contraseña temporal |')
+    console.log('|---|---|---|')
+    for (const c of credenciales) {
+      console.log(`| ${c.nombre} | ${c.acceso} | ${c.password} |`)
+    }
+    console.log('\nCada persona la cambia desde /cambiar-password apenas entre.')
+  }
 
   if (fallidos.length) {
     console.log(`\nFallidos: ${fallidos.length}`)
