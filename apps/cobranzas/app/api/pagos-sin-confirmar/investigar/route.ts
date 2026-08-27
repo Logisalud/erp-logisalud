@@ -1,12 +1,17 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_ESCRITURA } from '@/lib/autorizacion';
 
 // Marca un pago pendiente_confirmar como "investigado" con un comentario.
 // No cambia estado_verificacion: el pago sigue pendiente_confirmar hasta que
 // llegue la confirmación real contra el banco; "investigado" solo silencia
 // la alerta y deja constancia de que alguien ya lo revisó.
 export async function POST(req: NextRequest) {
+  const auth = await exigirArea(AREAS_ESCRITURA);
+  if (!auth.ok) return auth.respuesta;
+
   const { pago_id, comentario } = await req.json() as { pago_id: string; comentario: string };
   if (!pago_id || !comentario?.trim())
     return NextResponse.json({ error: 'pago_id y comentario son requeridos' }, { status: 400 });

@@ -1,11 +1,16 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_BORRADO, AREAS_ESCRITURA } from '@/lib/autorizacion';
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await exigirArea(AREAS_ESCRITURA);
+  if (!auth.ok) return auth.respuesta;
+
   const body = await req.json() as {
     monto?: number;
     fecha_pago?: string;
@@ -43,6 +48,9 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await exigirArea(AREAS_BORRADO);
+  if (!auth.ok) return auth.respuesta;
+
   const db = supabaseAdmin();
   const { error } = await db.from('pagos').delete().eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

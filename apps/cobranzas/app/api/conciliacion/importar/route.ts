@@ -4,11 +4,16 @@ import { parsearExtractoBanco } from '@/lib/banco-parser';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
 import { sugerirParaMovimiento, type Categoria } from '@/lib/conciliacion';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_IMPORTACION } from '@/lib/autorizacion';
 
 // Fase 1: importa y clasifica el extracto bancario en movimientos_banco_import.
 // NO toca facturas ni pagos. Anti-duplicado por (operacion_numero, fecha, monto)
 // y, para filas sin nº de operación, por (fecha, monto, descripcion).
 export async function POST(req: NextRequest) {
+  const auth = await exigirArea(AREAS_IMPORTACION);
+  if (!auth.ok) return auth.respuesta;
+
   try {
     const form = await req.formData();
     const file = form.get('archivo') as File | null;

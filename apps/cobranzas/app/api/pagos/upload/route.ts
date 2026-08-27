@@ -2,8 +2,13 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { randomUUID } from 'crypto';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_ESCRITURA } from '@/lib/autorizacion';
 
 export async function POST(req: NextRequest) {
+  const auth = await exigirArea(AREAS_ESCRITURA);
+  if (!auth.ok) return auth.respuesta;
+
   const formData = await req.formData();
   const file = formData.get('file') as File | null;
   if (!file) return NextResponse.json({ error: 'Archivo requerido' }, { status: 400 });

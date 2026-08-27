@@ -1,8 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_ESCRITURA, AREAS_LECTURA } from '@/lib/autorizacion';
 
 export async function GET(req: NextRequest) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   const documento_id = new URL(req.url).searchParams.get('documento_id');
   if (!documento_id)
     return NextResponse.json({ error: 'documento_id requerido' }, { status: 400 });
@@ -21,6 +26,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await exigirArea(AREAS_ESCRITURA);
+  if (!auth.ok) return auth.respuesta;
+
   const body = await req.json();
   const { documento_id, monto, fecha_pago, referencia, voucher_path, retencion, solo_retencion, registrado_por, medio_cobro } = body as {
     documento_id: string;
