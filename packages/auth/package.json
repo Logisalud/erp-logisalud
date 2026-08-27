@@ -1,0 +1,21 @@
+{
+  "name": "@logisalud/auth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Login, aceptación de invitaciones y manejo de sesión compartido entre las apps del ERP.",
+  "exports": {
+    "./config": "./src/config.ts",
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts",
+    "./middleware": "./src/middleware.ts",
+    "./componentes": "./src/componentes/index.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.43.4"
+  },
+  "peerDependencies": {
+    "next": ">=14",
+    "react": ">=18"
+  }
+}

@@ -34,16 +34,17 @@ Se usan **npm workspaces**: hay un único `package-lock.json` en la raíz y un
 Desde la raíz:
 
 ```bash
-npm run dev:cobranzas     npm run dev:pedidos
-npm run build:cobranzas   npm run build:pedidos
-npm run lint:cobranzas    npm run lint:pedidos
-                          npm run test:pedidos
+npm run dev:cobranzas     npm run dev:compras     npm run dev:pedidos
+npm run build:cobranzas   npm run build:compras   npm run build:pedidos
+npm run lint:cobranzas    npm run lint:compras    npm run lint:pedidos
+                                                  npm run test:pedidos
 ```
 
 O directamente por workspace:
 
 ```bash
 npm run <script> --workspace erp-logisalud-cobranzas
+npm run <script> --workspace erp-logisalud-compras
 npm run <script> --workspace erp-logisalud-pedidos
 ```
 
@@ -53,10 +54,14 @@ Cada app carga su propio `.env.local`, **dentro de su carpeta** (Next lee el
 `.env.local` del directorio desde el que se ejecuta, no el de la raíz):
 
 - `apps/cobranzas/.env.local` — ver `apps/cobranzas/.env.local.example`
+- `apps/compras/.env.local` — ver `apps/compras/.env.example`
 - `apps/pedidos/.env.local` — ver `apps/pedidos/.env.example`
 
-Apuntan a **proyectos Supabase distintos**. Unificarlos es una fase
-posterior y separada; no mezclar.
+`cobranzas` y `compras` apuntan al **mismo** proyecto Supabase (el
+consolidado): cobranzas usa el schema `public`, compras usa sus 8 schemas
+(`compras`, `servicios`, `almacen`, `cuentas_x_pagar`, `gastos`,
+`caja_chica`, `financiamiento`, `impuestos`). `pedidos` todavía apunta a un
+proyecto aparte; consolidarlo es una fase separada.
 
 ## Deploy (Vercel)
 
@@ -64,7 +69,8 @@ Un proyecto de Vercel por app, cada uno con su **Root Directory**:
 
 | App       | Root Directory    | Notas                                        |
 |-----------|-------------------|----------------------------------------------|
-| Cobranzas | `apps/cobranzas`  | Los crons viven en `apps/cobranzas/vercel.json` |
+| Cobranzas | `apps/cobranzas`  | Tiene el dominio `erp.logisalud.com`. Los crons viven en `apps/cobranzas/vercel.json` |
+| Compras   | `apps/compras`    | `basePath: '/compras'`; se sirve por rewrite desde cobranzas |
 | Pedidos   | `apps/pedidos`    | —                                            |
 
 Vercel detecta npm workspaces solo: instala desde la raíz del repo y
@@ -72,3 +78,138 @@ buildea el Root Directory indicado. Conviene activar en cada proyecto
 "Include files outside the Root Directory" (viene activo por defecto en
 monorepos) y, opcionalmente, *Ignored Build Step* para no redeployar una app
 cuando el cambio fue en la otra.
+
+## Dominio y ruteo entre apps
+
+El ERP se sirve todo bajo **`https://erp.logisalud.com`**, que apunta al
+proyecto de Vercel de **cobranzas**. Las demás apps entran por path:
+
+| URL | Qué responde |
+|---|---|
+| `erp.logisalud.com/` | `apps/cobranzas` (Cuentas por Cobrar) |
+| `erp.logisalud.com/v/[token]` | vista del vendedor, sin login |
+| `erp.logisalud.com/compras` | `apps/compras`, vía rewrite |
+
+`apps/compras` tiene `basePath: '/compras'`, así que sus rutas y sus assets
+de `_next/` ya salen prefijados y el rewrite de cobranzas es un pasamanos
+directo, sin reescrituras extra.
+
+**Esto es lo que hace que la sesión se comparta entre apps**: el navegador
+solo habla con `erp.logisalud.com`, así que la cookie de Supabase queda
+scopeada a ese host y vale para las dos. No hace falta
+`NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` mientras las apps se sirvan por path desde
+el mismo dominio.
+
+Dos cuidados con este armado:
+
+- El middleware de Next corre **antes** de los rewrites de `next.config`, así
+  que cobranzas tiene que excluir `/compras` de su middleware — si no, el
+  `/compras/login` de la otra app cae en el `/login` de cobranzas y queda
+  inalcanzable. Cada app autentica lo suyo.
+- `COMPRAS_APP_URL` tiene que apuntar a la URL de producción del proyecto de
+  compras. Si falta, el rewrite no se registra y `/compras` devuelve 404 — a
+  propósito, para que un deploy de cobranzas nunca quede proxeando a un
+  destino inexistente.
+
+### Protección de deployments y links de vendedor
+
+En el proyecto de cobranzas la protección de deployments está en **"all
+except custom domains"**: `erp.logisalud.com` queda accesible, y los dominios
+`*.vercel.app` quedan protegidos.
+
+Por eso los links de vendedor **tienen que armarse contra el dominio propio**.
+`app/api/base-url/route.ts` devuelve `NEXT_PUBLIC_APP_URL` si está definida, y
+solo cae a `VERCEL_PROJECT_PRODUCTION_URL` si no — porque esa variable de
+Vercel devuelve el `*.vercel.app`, que está protegido, y un link armado contra
+él le pide login de Vercel a un vendedor que no tiene cuenta.
+
+**`NEXT_PUBLIC_APP_URL=https://erp.logisalud.com` es obligatoria** en el
+proyecto de cobranzas.
+
+## Autenticación
+
+El login del ERP es **uno solo para todas las apps**, vive en
+`packages/auth` y se apoya en Supabase Auth del proyecto consolidado. Las
+tablas de perfiles y permisos son `public.perfiles` y
+`public.area_responsables`.
+
+**Login real desde el día uno.** No hay modo de prueba ni variable de
+bypass: si una pantalla no muestra datos, se revisa el área del perfil de
+esa sesión — nunca se desactiva RLS ni se saltea el login.
+
+### A quién aplica
+
+Solo al **personal administrativo** (16 personas). Los **vendedores no
+tienen cuenta ni sesión**: siguen entrando por su link con token rotativo,
+que es un mecanismo aparte y anterior a esto.
+
+### Acceso de vendedores — no romperlo
+
+Los vendedores entran a `/v/[token]`, donde el token es
+`vendedores.token_acceso` y rota. La página y sus endpoints resuelven el
+vendedor por ese token y verifican `activo`, cada uno por su cuenta, sin
+pasar por Supabase Auth.
+
+Estas rutas están **explícitamente excluidas** del middleware de login, en
+`RUTAS_VENDEDOR` (`packages/auth/src/config.ts`):
+
+| Ruta | Qué hace | Dónde viaja el token |
+|---|---|---|
+| `/v/[token]` | la vista de cobranzas del vendedor | en la ruta |
+| `/api/acceso` | registra que entró | en el body |
+| `/api/whatsapp-enviado` | registra un envío (piloto) | en el body |
+| `/api/v/exportar-clientes` | exporta su cartera | en el query |
+| `/api/base-url` | da la URL de producción con la que se arman los links | — |
+
+Si se agrega una ruta nueva que sirva al vendedor, hay que sumarla a esa
+lista. Si no, el vendedor cae en `/login` y el link deja de servir.
+
+Por la misma razón, **no activar Vercel Deployment Protection** en el
+proyecto de cobranzas: los vendedores no tienen cuenta de Vercel y la
+protección les cerraría el link. `app/api/base-url/route.ts` existe
+justamente para que los links se generen contra la URL de producción y no
+contra una URL de deployment protegida.
+
+Los **crons de Vercel** también quedan fuera del middleware
+(`RUTAS_CRON`): se autentican con `CRON_SECRET` en el header, no con una
+sesión, y si los redirigiera a `/login` los jobs diarios se romperían en
+silencio.
+
+### Variables de entorno
+
+Van en Vercel (Settings → Environment Variables), nunca hardcodeadas ni
+commiteadas:
+
+| Variable | Ámbito | Para qué |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | navegador + servidor | proyecto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | navegador + servidor | key sujeta a RLS |
+| `SUPABASE_SERVICE_ROLE_KEY` | **solo servidor** | tareas administrativas; bypassa RLS |
+| `NEXT_PUBLIC_APP_URL` | navegador + servidor | **obligatoria en cobranzas**: dominio propio con el que se arman los links de vendedor |
+| `COMPRAS_APP_URL` | solo servidor | en cobranzas: destino del rewrite `/compras` |
+| `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` | navegador + servidor | opcional, y **no hace falta** con el ruteo por path; ver "sesión compartida" |
+
+### Sesión compartida entre apps
+
+Ya resuelta por el ruteo por path: cobranzas y compras se sirven las dos
+desde `erp.logisalud.com`, así que la cookie de sesión es la misma y quien
+inicia sesión en una entra a la otra sin volver a loguearse.
+
+`NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` existe para el caso en que alguna app pase a
+vivir en un subdominio propio (ej. `compras.logisalud.com`): ahí las dos
+tienen que setearla en `.logisalud.com`. Con dominios `*.vercel.app` no
+funciona — están en la Public Suffix List y el navegador rechaza una cookie
+de dominio padre.
+
+### Configuración en Supabase Authentication
+
+En el dashboard del proyecto consolidado → Authentication → URL
+Configuration:
+
+- **Site URL**: la URL de producción de la app principal.
+- **Redirect URLs**: agregar `/aceptar-invitacion` de cada app, más los
+  dominios de preview de Vercel si se quiere probar invitaciones ahí.
+
+El link de invitación que manda Supabase trae el token en el fragmento de
+la URL (`#access_token=...&type=invite`), y la pantalla
+`/aceptar-invitacion` es la que lo lee para dejar crear la contraseña.
