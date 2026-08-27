@@ -130,9 +130,14 @@ role key, bypassa RLS).
    confirmación explícita.
 2. Snapshot (`create table X_backup_YYYYMMDD as select * from X`) antes de
    cualquier UPDATE/ALTER masivo.
-3. Cambios de código: rama nueva desde `main`, commit, push, `npm run
-   build` en verde antes de pushear — el usuario mergea (o pide
-   explícitamente que Claude mergee) solo tras su OK explícito, nunca antes.
+3. Cambios de código: **una rama y un PR por cambio**, siempre desde
+   `main` actualizado, con `npm run build` en verde antes de pushear.
+   Rama nueva después de cada merge: nunca seguir pusheando a una rama
+   cuyo PR ya se mergeó — el commit queda huérfano, sin PR que lo lleve a
+   `main`, y la app sigue mostrando lo viejo (pasó con #18/#20).
+   El merge lo hace **auto-merge**: entra solo cuando el CI queda en
+   verde. Excepción: los PRs que tocan `supabase/migrations/` los mergea
+   una persona a mano — ver el README de la raíz.
 4. Verificación de "no rompiste nada": para cualquier cambio que toque
    saldos/cartera, `SUM(saldo_pendiente)` de `v_saldos` debe ser idéntico
    antes y después salvo que el cambio esté explícitamente diseñado para

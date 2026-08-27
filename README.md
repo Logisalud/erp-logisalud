@@ -63,6 +63,44 @@ consolidado): cobranzas usa el schema `public`, compras usa sus 8 schemas
 `caja_chica`, `financiamiento`, `impuestos`). `pedidos` todavía apunta a un
 proyecto aparte; consolidarlo es una fase separada.
 
+## Cómo entra un cambio a producción
+
+Una rama y un PR por cambio, siempre desde `main` actualizado. **Rama nueva
+después de cada merge**: si se sigue pusheando a una rama cuyo PR ya se
+mergeó, el commit queda huérfano — no hay PR que lo lleve a `main`, el CI
+no lo mira, y la app en producción sigue mostrando lo viejo sin que nada
+falle. Pasó con el #18/#20.
+
+El merge lo hace **auto-merge**: se activa al abrir el PR y GitHub lo
+mergea solo cuando el CI queda en verde. Si el CI falla, el PR se queda
+esperando; no entra nada roto.
+
+El CI (`.github/workflows/ci.yml`) corre en cada PR contra `main`:
+
+| Job | Qué corre |
+|---|---|
+| `apps/pedidos` | lint, test, build |
+| `apps/cobranzas` | build (type-check completo; no tiene ESLint ni tests) |
+| `apps/compras` | build (ídem) |
+
+### Las migraciones se mergean a mano
+
+Los PRs que tocan `supabase/migrations/` **quedan fuera del auto-merge**.
+Mergear a `main` deploya a producción y, con la integración de Supabase con
+GitHub, aplica las migraciones contra la base real — y eso no se deshace
+con un revert del código: la base ya cambió. Un `CHECK` nuevo se valida
+contra la tabla entera al crearse, y una migración que no sea
+re-ejecutable deja el esquema a medias si hay que reintentar.
+
+`.github/workflows/marcar-migraciones.yml` le pone la etiqueta `migracion`
+al PR y deja un comentario. Marca y avisa, no bloquea: un check requerido
+que bloqueara también impediría el merge manual, que es justamente lo que
+hay que poder hacer ahí.
+
+La red de seguridad es el backup diario (`.github/workflows/backup.yml`,
+5:00 UTC, retención 90 días), más un snapshot manual por
+`workflow_dispatch` antes de cualquier migración grande.
+
 ## Deploy (Vercel)
 
 Un proyecto de Vercel por app, cada uno con su **Root Directory**:
