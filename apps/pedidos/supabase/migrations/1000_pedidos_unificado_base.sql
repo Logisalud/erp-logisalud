@@ -445,16 +445,24 @@ end $$;
 -- ===================================================================
 -- SEEDS
 -- ===================================================================
+-- Los seis canales comerciales reales, tal como vienen de las listas de
+-- precios de proveedor: cada canal tiene su propio precio por producto.
+-- (Una versión anterior de esta migración sembró FARMACIA / DISTRIBUIDORA /
+-- INSTITUCIONAL, que no existen en el negocio. Ver 1004.)
 insert into pedidos.sales_channels (nombre) values
-  ('FARMACIA'), ('DISTRIBUIDORA'), ('INSTITUCIONAL')
+  ('Mayorista'), ('Horizontal'), ('Minicadenas'),
+  ('Tops'), ('Clínicas'), ('Subdistribuidores')
 on conflict (nombre) do nothing;
 
-insert into pedidos.payment_terms (nombre, descripcion) values
-  ('CONTADO', 'Pago al momento de la entrega'),
-  ('CREDITO 15', 'Crédito a 15 días'),
-  ('CREDITO 30', 'Crédito a 30 días'),
-  ('CREDITO 45', 'Crédito a 45 días'),
-  ('CREDITO 60', 'Crédito a 60 días')
+-- Las condiciones reales que usa la cartera. No hay "15 días", y sí hay 90 y
+-- 120. (Una versión anterior de esta migración inventó otras cinco. Ver 1004.)
+insert into pedidos.payment_terms (nombre) values
+  ('Contado'),
+  ('Crédito 30 días'),
+  ('Crédito 45 días'),
+  ('Crédito 60 días'),
+  ('Crédito 90 días'),
+  ('Crédito 120 días')
 on conflict (nombre) do nothing;
 
 insert into pedidos.tax_configurations (nombre, valor)
