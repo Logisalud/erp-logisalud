@@ -9,9 +9,15 @@ type CategoriaGasto = { id: string; nombre: string }
 
 const SUGERENCIA_IGV = 0.18
 
-export function FormularioSolicitud({ categorias }: { categorias: CategoriaGasto[] }) {
+export function FormularioSolicitud({
+  categorias,
+  tipoPreseleccionado,
+}: {
+  categorias: CategoriaGasto[]
+  tipoPreseleccionado?: TipoSolicitud
+}) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearSolicitudAction, null)
-  const [tipo, setTipo] = useState<TipoSolicitud>('gasto_directo')
+  const [tipo, setTipo] = useState<TipoSolicitud>(tipoPreseleccionado ?? 'gasto_directo')
   const [base, setBase] = useState('')
   const [igv, setIgv] = useState('')
   const [igvEditadoAMano, setIgvEditadoAMano] = useState(false)
@@ -37,16 +43,23 @@ export function FormularioSolicitud({ categorias }: { categorias: CategoriaGasto
       ) : null}
 
       <section className="card space-y-3">
-        <Campo etiqueta="Tipo" error={errorDe('tipo')}>
-          <select
-            name="tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoSolicitud)}
-            className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
-          >
-            {TIPOS_SOLICITUD.map((t) => (
-              <option key={t} value={t}>{ETIQUETA_TIPO[t]}</option>
-            ))}
-          </select>
-        </Campo>
+        {tipoPreseleccionado ? (
+          <>
+            <input type="hidden" name="tipo" value={tipo} />
+            <p className="text-sm text-gray-600">{ETIQUETA_TIPO[tipoPreseleccionado]}</p>
+          </>
+        ) : (
+          <Campo etiqueta="Tipo" error={errorDe('tipo')}>
+            <select
+              name="tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoSolicitud)}
+              className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
+            >
+              {TIPOS_SOLICITUD.map((t) => (
+                <option key={t} value={t}>{ETIQUETA_TIPO[t]}</option>
+              ))}
+            </select>
+          </Campo>
+        )}
 
         <Campo etiqueta="Categoría" error={errorDe('categoriaId')}>
           <select name="categoriaId" required className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">

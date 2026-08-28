@@ -1,13 +1,21 @@
 import Link from 'next/link'
 import { BotonCerrarSesion } from '@logisalud/auth/componentes'
 import { perfilActual, usuarioActual } from '@logisalud/auth/server'
+import { determinarVistaEntrada } from '@/domain/inicio'
+import {
+  obtenerResumenAlmacen,
+  obtenerResumenContabilidad,
+  obtenerResumenGerencia,
+  obtenerResumenTesoreria,
+} from '@/services/inicio'
 
 export const dynamic = 'force-dynamic'
 
-/** Portada del módulo: sesión, Dashboard y el resto de las pantallas por Bounded Context. */
+/** Portada del módulo: hero por rol, "Pedir un pago", Dashboard y el resto por Bounded Context. */
 export default async function Inicio() {
   const usuario = await usuarioActual()
   const perfil = await perfilActual()
+  const vista = determinarVistaEntrada(perfil?.area)
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -19,7 +27,32 @@ export default async function Inicio() {
         <BotonCerrarSesion />
       </header>
 
-      <section className="card mt-6">
+      {vista === 'tesoreria' ? <HeroTesoreria /> : null}
+      {vista === 'almacen' ? <HeroAlmacen /> : null}
+      {vista === 'contabilidad' ? <HeroContabilidad /> : null}
+      {vista === 'gerencia' ? <HeroGerencia /> : null}
+
+      <Link href="/pedir-pago" className="btn-primary mt-4 w-full sm:w-auto">
+        Pedir un pago
+      </Link>
+
+      <Link href="/dashboard" className="btn-secondary mt-3 w-full sm:w-auto">
+        Dashboard — qué necesita atención
+      </Link>
+
+      {usuario && !perfil ? (
+        <p className="card mt-4 border-amber-200 bg-amber-50 text-sm text-amber-900">
+          Tu cuenta existe pero no tiene fila en <code>public.perfiles</code>, así que las
+          políticas RLS te van a negar todo. Corré <code>scripts/seed-usuarios.ts</code>.
+        </p>
+      ) : null}
+
+      <details className="mt-6">
+        <summary className="cursor-pointer text-sm font-medium text-gray-600">
+          Ver todas las secciones
+        </summary>
+
+      <section className="card mt-4">
         <h2 className="font-heading text-lg">Sesión</h2>
         <dl className="mt-3 space-y-1.5 text-sm">
           <div className="flex gap-2">
@@ -35,17 +68,7 @@ export default async function Inicio() {
             <dd>{perfil?.area ?? '—'}</dd>
           </div>
         </dl>
-        {usuario && !perfil ? (
-          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
-            Tu cuenta existe pero no tiene fila en <code>public.perfiles</code>, así que las
-            políticas RLS te van a negar todo. Corré <code>scripts/seed-usuarios.ts</code>.
-          </p>
-        ) : null}
       </section>
-
-      <Link href="/dashboard" className="btn-primary mt-4 w-full sm:w-auto">
-        Dashboard — qué necesita atención
-      </Link>
 
       <section className="card mt-4">
         <h2 className="font-heading text-lg">Compras</h2>
@@ -148,6 +171,59 @@ export default async function Inicio() {
           </li>
         </ul>
       </section>
+      </details>
     </main>
+  )
+}
+
+async function HeroTesoreria() {
+  const { propuestasListasParaPagar } = await obtenerResumenTesoreria()
+  return (
+    <Link href="/cuentas-por-pagar/propuestas" className="card-highlight mt-6 block">
+      <p className="text-sm text-gray-600">Qué tengo que pagar hoy</p>
+      <p className="font-heading mt-1 text-3xl">{propuestasListasParaPagar}</p>
+      <p className="mt-1 text-sm text-gray-600">
+        {propuestasListasParaPagar === 1 ? 'propuesta lista para ejecutar' : 'propuestas listas para ejecutar'}
+      </p>
+    </Link>
+  )
+}
+
+async function HeroAlmacen() {
+  const { recepcionesPendientes } = await obtenerResumenAlmacen()
+  return (
+    <Link href="/almacen" className="card-highlight mt-6 block">
+      <p className="text-sm text-gray-600">Tus recepciones pendientes</p>
+      <p className="font-heading mt-1 text-3xl">{recepcionesPendientes}</p>
+      <p className="mt-1 text-sm text-gray-600">
+        {recepcionesPendientes === 1 ? 'recepción por resolver' : 'recepciones por resolver'}
+      </p>
+    </Link>
+  )
+}
+
+async function HeroContabilidad() {
+  const { totalPendientes } = await obtenerResumenContabilidad()
+  return (
+    <Link href="/dashboard" className="card-highlight mt-6 block">
+      <p className="text-sm text-gray-600">Pendientes de tu cola</p>
+      <p className="font-heading mt-1 text-3xl">{totalPendientes}</p>
+      <p className="mt-1 text-sm text-gray-600">
+        {totalPendientes === 1 ? 'caso que necesita atención' : 'casos que necesitan atención'}
+      </p>
+    </Link>
+  )
+}
+
+async function HeroGerencia() {
+  const { propuestasPorAprobar } = await obtenerResumenGerencia()
+  return (
+    <Link href="/cuentas-por-pagar/propuestas" className="card-highlight mt-6 block">
+      <p className="text-sm text-gray-600">Propuestas por aprobar</p>
+      <p className="font-heading mt-1 text-3xl">{propuestasPorAprobar}</p>
+      <p className="mt-1 text-sm text-gray-600">
+        {propuestasPorAprobar === 1 ? 'propuesta esperando tu aprobación' : 'propuestas esperando tu aprobación'}
+      </p>
+    </Link>
   )
 }
