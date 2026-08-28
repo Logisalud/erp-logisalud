@@ -28,3 +28,17 @@ export const AREAS_IMPORTACION = ['contabilidad'] as const
 
 /** Solo admin. La lista vacía + el pase de admin en exigirArea() lo logran. */
 export const AREAS_BORRADO = [] as const
+
+/**
+ * Asignación de cartera y links de vendedor (grupo F).
+ *
+ * La propuesta original (docs/autorizacion-cobranzas.md) dejaba esto en
+ * `gerencia` solamente: es una decisión comercial, no contable. Se amplió a
+ * tesorería acá porque hoy no hay ningún registro de quién usa estas dos
+ * pantallas (no hay login desde antes de este cambio, y nadie audita
+ * accesos), así que no hay forma de confirmar si Milagritos las usa antes de
+ * aplicar el guard. Incluirla es el lado seguro: nadie de los 4 perfiles
+ * reales pierde nada hoy. Si más adelante se confirma que tesorería no lo
+ * necesita, sacarla es un cambio de una línea acá, no un guard nuevo.
+ */
+export const AREAS_ASIGNACION = ['gerencia', 'tesoreria'] as const

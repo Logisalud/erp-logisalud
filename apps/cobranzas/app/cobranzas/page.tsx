@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { perfilActual } from '@logisalud/auth/server';
-import { AREAS_ESCRITURA } from '@/lib/autorizacion';
+import { AREAS_ESCRITURA, AREAS_ASIGNACION } from '@/lib/autorizacion';
 
 export default async function Home() {
   const perfil = await perfilActual();
   const area = perfil?.area ?? '';
   const puedeEditarContado = area === 'admin' || (AREAS_ESCRITURA as readonly string[]).includes(area);
+  const puedeAsignar = area === 'admin' || (AREAS_ASIGNACION as readonly string[]).includes(area);
 
   return (
     <main className="max-w-2xl mx-auto mt-20 px-4">
@@ -42,10 +43,12 @@ export default async function Home() {
           <h2 className="text-lg font-semibold mb-1">👥 Importar Cartera</h2>
           <p className="text-gray-500 text-sm">Carga vendedores, zonas y asigna clientes desde el Excel de cartera.</p>
         </Link>
-        <Link href="/cobranzas/vendedores-links" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
-          <h2 className="text-lg font-semibold mb-1">🔗 Links de vendedores</h2>
-          <p className="text-gray-500 text-sm">Links privados de cobranza para que cada vendedor vea su cartera pendiente.</p>
-        </Link>
+        {puedeAsignar && (
+          <Link href="/cobranzas/vendedores-links" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+            <h2 className="text-lg font-semibold mb-1">🔗 Links de vendedores</h2>
+            <p className="text-gray-500 text-sm">Links privados de cobranza para que cada vendedor vea su cartera pendiente.</p>
+          </Link>
+        )}
         <Link href="/cobranzas/accesos" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
           <h2 className="text-lg font-semibold mb-1">📊 Accesos de vendedores</h2>
           <p className="text-gray-500 text-sm">Quién entra a ver su cobranza y quién no — para detectar a los que no lo usan.</p>
