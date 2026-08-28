@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { carteraClientesXlsx } from '@/lib/exportCarteraClientes';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +9,9 @@ export const dynamic = 'force-dynamic';
 // Se descarga y se envía manualmente (WhatsApp/correo): un link wa.me no
 // puede adjuntar archivos, así que este paso siempre es manual.
 export async function GET(req: NextRequest) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   try {
     const vendedorId = new URL(req.url).searchParams.get('vendedor_id')?.trim() ?? '';
     if (!vendedorId) return Response.json({ error: 'vendedor_id requerido' }, { status: 400 });
