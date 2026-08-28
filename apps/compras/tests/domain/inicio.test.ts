@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { determinarVistaEntrada } from '@/domain/inicio'
 
 describe('determinarVistaEntrada', () => {
-  it('tesoreria, almacen, contabilidad y gerencia tienen vista propia', () => {
+  it('compras, tesoreria, almacen, contabilidad y gerencia tienen vista propia', () => {
+    expect(determinarVistaEntrada('compras')).toBe('compras')
     expect(determinarVistaEntrada('tesoreria')).toBe('tesoreria')
     expect(determinarVistaEntrada('almacen')).toBe('almacen')
     expect(determinarVistaEntrada('contabilidad')).toBe('contabilidad')

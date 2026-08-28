@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
+import { perfilActual } from '@logisalud/auth/server'
 import { listarProveedores } from '@/services/proveedores'
 
 export const dynamic = 'force-dynamic'
@@ -9,11 +10,18 @@ export default async function Proveedores({
 }: {
   searchParams: { q?: string }
 }) {
-  const proveedores = await listarProveedores(searchParams.q)
+  const [proveedores, perfil] = await Promise.all([listarProveedores(searchParams.q), perfilActual()])
+  const puedeRegistrar = perfil?.area === 'compras' || perfil?.area === 'admin'
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <Encabezado titulo="Proveedores" atras={{ href: '/', texto: 'Módulos' }} />
+
+      {puedeRegistrar ? (
+        <Link href="/proveedores/nuevo" className="btn-primary mb-4 w-full sm:w-auto">
+          Registrar proveedor
+        </Link>
+      ) : null}
 
       <form className="mb-4 flex gap-2">
         <input
