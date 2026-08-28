@@ -1,5 +1,5 @@
 import 'server-only'
-import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
+import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import {
   calcularFechaVencimientoReal,
   conciliarLineas,
@@ -451,6 +451,12 @@ async function listarNotasCredito(obligacionId: string) {
  * subieron la factura y la conformidad (ver domain/servicio.ts).
  */
 export async function darConformidad(obligacionId: string): Promise<void> {
+  const perfil = await perfilActual()
+  const puedeDarConformidad = perfil?.area === 'admin' || (perfil?.area === 'contabilidad' && perfil?.rol === 'admin')
+  if (!puedeDarConformidad) {
+    throw new Error('Solo Contabilidad (rol admin) puede dar conformidad a una obligación.')
+  }
+
   const supabase = crearClienteServidor()
   const { data: obligacion, error } = await supabase
     .schema('cuentas_x_pagar')

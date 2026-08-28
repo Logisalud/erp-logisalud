@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import Link from 'next/link'
+import { perfilActual } from '@logisalud/auth/server'
 import { obtenerObligacion } from '@/services/obligaciones'
 import { listarLetrasDeObligacion } from '@/services/financiamiento'
 import { ETIQUETA_ESTADO } from '@/domain/obligacion'
@@ -15,7 +16,13 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   const obligacion = await obtenerObligacion(params.id)
   if (!obligacion) notFound()
 
-  const puedeDarConformidad = obligacion.estado === 'registrada' || obligacion.estado === 'observada'
+  const perfil = await perfilActual()
+  // "Dar conformidad" es de Contabilidad rol admin, no de cualquiera en el
+  // área (Fase 1.7) — Beatriz (contabilidad, operativo) sigue viendo y
+  // registrando obligaciones, pero este botón específico no le aparece.
+  const califica = perfil?.area === 'admin' || (perfil?.area === 'contabilidad' && perfil?.rol === 'admin')
+  const puedeDarConformidad =
+    califica && (obligacion.estado === 'registrada' || obligacion.estado === 'observada')
   const puedeCanjearPorLetras =
     obligacion.origen === 'compra' &&
     !!obligacion.proveedor &&
