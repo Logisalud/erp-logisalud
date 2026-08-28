@@ -6,6 +6,7 @@ import { perfilActual } from '@logisalud/auth/server'
 import { obtenerObligacion } from '@/services/obligaciones'
 import { listarLetrasDeObligacion } from '@/services/financiamiento'
 import { ETIQUETA_ESTADO } from '@/domain/obligacion'
+import { superaUmbralDetraccion, UMBRAL_DETRACCION_SERVICIOS_PEN, type Moneda } from '@/domain/servicio'
 import { ETIQUETA_ESTADO_VENCIMIENTO } from '@/domain/financiamiento'
 import { BotonConformidad } from './conformidad'
 import { NotasCredito } from './notas-credito'
@@ -48,6 +49,14 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
         {obligacion.observaciones ? (
           <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
             {obligacion.observaciones}
+          </p>
+        ) : null}
+        {obligacion.origen === 'servicio' &&
+        !obligacion.monto_detraccion &&
+        superaUmbralDetraccion(obligacion.total, obligacion.moneda as Moneda) ? (
+          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+            El total supera S/ {UMBRAL_DETRACCION_SERVICIOS_PEN} y no tiene detracción cargada —
+            revisa si corresponde (Anexo 3 SUNAT) antes de dar conformidad.
           </p>
         ) : null}
         {obligacion.oc ? (

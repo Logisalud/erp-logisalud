@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { registrarObligacionServicioAction, type EstadoFormulario } from './actions'
+import { superaUmbralDetraccion, UMBRAL_DETRACCION_SERVICIOS_PEN, type Moneda } from '@/domain/servicio'
 
 const SUGERENCIA_IGV = 0.18
 
@@ -69,6 +70,14 @@ export function FormularioObligacionServicio({ osId, moneda }: { osId: string; m
         </div>
 
         <p className="text-sm text-gray-700">Total: {total.toFixed(2)}</p>
+
+        {superaUmbralDetraccion(total, moneda as Moneda) ? (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+            El total supera S/ {UMBRAL_DETRACCION_SERVICIOS_PEN} — revisa si este servicio está
+            sujeto a detracción (Anexo 3 SUNAT) antes de que Tesorería pague. Esto no bloquea el
+            registro.
+          </p>
+        ) : null}
       </section>
 
       <BotonGuardar />

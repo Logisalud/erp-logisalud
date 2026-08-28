@@ -115,3 +115,18 @@ export function validarObligacionServicio(b: BorradorObligacionServicio): ErrorV
   }
   return errores
 }
+
+/**
+ * Regla 1.8: una factura de servicio en soles que supera S/700 suele caer
+ * en detracción (Anexo 3 SUNAT) — pero la tasa exacta depende de la
+ * categoría de servicio, que todavía no está modelada acá (ver "Pendiente
+ * de confirmar" del documento maestro, sección 10: "tasas de detracción
+ * reales del anexo SUNAT"). Por eso esto es una ALERTA, no un cálculo ni un
+ * bloqueo — Contabilidad decide si aplica y por cuánto, igual que la
+ * alerta de comprobante no sustentable (regla 12).
+ */
+export const UMBRAL_DETRACCION_SERVICIOS_PEN = 700
+
+export function superaUmbralDetraccion(totalFactura: number, moneda: Moneda): boolean {
+  return moneda === 'PEN' && totalFactura > UMBRAL_DETRACCION_SERVICIOS_PEN
+}

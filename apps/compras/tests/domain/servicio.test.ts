@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import {
   estadoTrasConformidad, estadoTrasSubirFactura, transicionPermitida,
-  validarObligacionServicio, validarOS,
+  validarObligacionServicio, validarOS, superaUmbralDetraccion,
 } from '@/domain/servicio'
+
+describe('superaUmbralDetraccion', () => {
+  it('alerta cuando el total en soles supera S/700', () => {
+    expect(superaUmbralDetraccion(700.01, 'PEN')).toBe(true)
+    expect(superaUmbralDetraccion(701, 'PEN')).toBe(true)
+  })
+
+  it('no alerta con exactamente 700 o menos', () => {
+    expect(superaUmbralDetraccion(700, 'PEN')).toBe(false)
+    expect(superaUmbralDetraccion(500, 'PEN')).toBe(false)
+  })
+
+  it('no alerta en USD — la detracción se calcula sobre soles', () => {
+    expect(superaUmbralDetraccion(1000, 'USD')).toBe(false)
+  })
+})
 
 describe('transicionPermitida', () => {
   it('pendiente_jefe puede aprobarse o rechazarse', () => {
