@@ -27,6 +27,33 @@ export async function listarMisFondos(): Promise<Fondo[]> {
   return data ?? []
 }
 
+export type BorradorFondo = {
+  custodioId: string
+  area: string
+  montoFijo: number
+  moneda: string
+  descripcion?: string
+}
+
+/** RLS (`fondos_escritura`) ya restringe esto a contabilidad/admin. */
+export async function crearFondo(borrador: BorradorFondo): Promise<{ id: string }> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .schema('caja_chica')
+    .from('fondos')
+    .insert({
+      custodio_id: borrador.custodioId,
+      area: borrador.area,
+      monto_fijo: borrador.montoFijo,
+      moneda: borrador.moneda,
+      descripcion: borrador.descripcion ?? null,
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(`No se pudo abrir el fondo: ${error.message}`)
+  return data
+}
+
 export async function obtenerFondo(id: string): Promise<Fondo | null> {
   const supabase = crearClienteServidor()
   const { data, error } = await supabase
