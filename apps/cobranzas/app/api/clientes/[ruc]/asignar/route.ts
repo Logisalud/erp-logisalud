@@ -1,11 +1,16 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_ASIGNACION } from '@/lib/autorizacion';
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { ruc: string } }
 ) {
+  const auth = await exigirArea(AREAS_ASIGNACION);
+  if (!auth.ok) return auth.respuesta;
+
   try {
     const { ruc } = params;
     const { vendedor_id }: { vendedor_id: string | null } = await req.json();
