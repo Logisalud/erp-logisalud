@@ -1,20 +1,30 @@
 # erp-logisalud (monorepo)
 
-Este repo contiene dos aplicaciones Next.js independientes más un paquete
-compartido todavía vacío. **Cada app tiene su propio CLAUDE.md con las
-instrucciones específicas de ese proyecto — leelo antes de tocar nada ahí:**
+Este repo contiene tres aplicaciones Next.js más `packages/auth` (login y
+sesión, compartido de verdad — no es un placeholder). **Cada app tiene su
+propio CLAUDE.md con las instrucciones específicas de ese proyecto — leelo
+antes de tocar nada ahí:**
 
 - `apps/cobranzas/CLAUDE.md` — ERP de Cuentas por Cobrar.
 - `apps/pedidos/CLAUDE.md` — ERP de Pedidos / Operaciones.
+- `apps/compras/CLAUDE.md` — Compras y Pagos. **Antes de construir
+  cualquier pantalla nueva ahí, leé también
+  `apps/compras/docs/modulo-compras-pagos.md`** — el documento único y
+  obligatorio del módulo: modelo de datos completo de los 8 Bounded
+  Contexts, Lenguaje Ubicuo y la Carta de Simplicidad UX. No son reglas
+  opcionales ni un estilo sugerido: toda pantalla nueva de ese módulo tiene
+  que respetarlas.
 
 ## Reglas que aplican a todo el monorepo
 
-- Las dos apps usan **proyectos Supabase distintos** y no comparten esquema.
-  Unificar las bases es una fase futura y separada: no cruces conexiones,
-  env vars ni migraciones entre `apps/cobranzas` y `apps/pedidos`.
-- Nada de código compartido entre apps por ahora. Lo que se comparta va a
-  `packages/design-system` cuando esa etapa arranque; hasta entonces es un
-  placeholder y ninguna app depende de él.
+- **`apps/cobranzas` y `apps/compras` comparten un mismo proyecto Supabase
+  consolidado** (`public.perfiles`/`public.area_responsables` son la base
+  de auth de las dos). `apps/pedidos` todavía tiene su **proyecto Supabase
+  aparte** — consolidarlo es una fase futura y separada. No cruces env vars
+  ni migraciones entre `apps/pedidos` y las otras dos mientras siga así.
+- Nada de código compartido entre apps más allá de `packages/auth`. Lo que
+  se comparta a nivel visual va a `packages/design-system` cuando esa etapa
+  arranque; hasta entonces es un placeholder y ninguna app depende de él.
 - Gestor de paquetes: **npm workspaces**. Un solo `package-lock.json`, en la
   raíz. No agregues lockfiles dentro de `apps/*` ni corras `npm install`
   ahí adentro.
