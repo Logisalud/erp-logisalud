@@ -97,12 +97,12 @@ export default async function Dashboard() {
           {loops.serviciosSinConformidad.length > 0 ? (
             <Seccion titulo="Facturas de servicio sin conformidad">
               {loops.serviciosSinConformidad.map((s) => (
-                <li key={s.id} className="card">
+                <Item key={s.id} href={`/servicios/${s.id}`}>
                   <Fila titulo={s.codigo} monto={<Money valor={s.monto} moneda={s.moneda} />} />
                   <p className="mt-0.5 text-sm text-gray-600">
                     El área usuaria todavía no dio conformidad — Contabilidad no puede avanzar sin eso.
                   </p>
-                </li>
+                </Item>
               ))}
             </Seccion>
           ) : null}
