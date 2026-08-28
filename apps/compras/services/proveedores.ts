@@ -86,3 +86,39 @@ export async function obtenerProveedor(
   if (errorCuentas) throw new Error(`No se pudieron leer las cuentas: ${errorCuentas.message}`)
   return { proveedor, cuentas: cuentas ?? [] }
 }
+
+export type BorradorProveedor = {
+  ruc: string
+  razonSocial: string
+  nombreComercial?: string
+  contactoNombre?: string
+  contactoEmail?: string
+  contactoTelefono?: string
+  condicionPagoDias: number
+  monedaPrincipal: string
+}
+
+/** RLS (`proveedores_escritura`) ya restringe esto a compras/admin. */
+export async function crearProveedor(borrador: BorradorProveedor): Promise<{ id: string }> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .schema('compras')
+    .from('proveedores')
+    .insert({
+      ruc: borrador.ruc,
+      razon_social: borrador.razonSocial,
+      nombre_comercial: borrador.nombreComercial || null,
+      contacto_nombre: borrador.contactoNombre || null,
+      contacto_email: borrador.contactoEmail || null,
+      contacto_telefono: borrador.contactoTelefono || null,
+      condicion_pago_dias: borrador.condicionPagoDias,
+      moneda_principal: borrador.monedaPrincipal,
+    })
+    .select('id')
+    .single()
+  if (error) {
+    if (error.code === '23505') throw new Error('Ya existe un proveedor con ese RUC.')
+    throw new Error(`No se pudo registrar el proveedor: ${error.message}`)
+  }
+  return data
+}

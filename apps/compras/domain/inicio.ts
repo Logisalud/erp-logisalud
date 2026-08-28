@@ -4,15 +4,16 @@
  *
  * "No me hagas pensar" (Krug) aplicado a la home: en vez de un menú de 8
  * secciones igual para todos, cada área ve primero su propia cola —
- * Tesorería lo que tiene que pagar hoy, Almacén sus recepciones
- * pendientes, Contabilidad su cola de conformidades, Gerencia sus
- * propuestas por aprobar. El resto de las secciones sigue existiendo,
- * pero deja de ser lo primero que se ve.
+ * Compras sus dos acciones más frecuentes, Tesorería lo que tiene que
+ * pagar hoy, Almacén sus recepciones pendientes, Contabilidad su cola de
+ * conformidades, Gerencia sus propuestas por aprobar. El resto de las
+ * secciones sigue existiendo, pero deja de ser lo primero que se ve.
  */
-export const VISTAS_ENTRADA = ['tesoreria', 'almacen', 'contabilidad', 'gerencia', 'generica'] as const
+export const VISTAS_ENTRADA = ['compras', 'tesoreria', 'almacen', 'contabilidad', 'gerencia', 'generica'] as const
 export type VistaEntrada = (typeof VISTAS_ENTRADA)[number]
 
 const MAPA_AREA_VISTA: Record<string, VistaEntrada> = {
+  compras: 'compras',
   tesoreria: 'tesoreria',
   almacen: 'almacen',
   contabilidad: 'contabilidad',

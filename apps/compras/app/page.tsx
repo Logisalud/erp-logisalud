@@ -31,6 +31,7 @@ export default async function Inicio() {
         <BotonCerrarSesion />
       </header>
 
+      {vista === 'compras' ? <HeroCompras /> : null}
       {vista === 'tesoreria' ? <HeroTesoreria /> : null}
       {vista === 'almacen' ? <HeroAlmacen /> : null}
       {vista === 'contabilidad' ? <HeroContabilidad /> : null}
@@ -74,58 +75,34 @@ export default async function Inicio() {
         </dl>
       </section>
 
-      <section className="card mt-4">
-        <h2 className="font-heading text-lg">Compras</h2>
-        <ul className="mt-3 space-y-2">
-          <li>
-            <Link href="/ordenes-compra" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
-              <span className="font-medium">Órdenes de compra</span>
-              <p className="text-sm text-gray-600">Crear, ver y mandarle la OC al proveedor.</p>
-            </Link>
-          </li>
-          <li>
-            <Link href="/proveedores" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
-              <span className="font-medium">Proveedores</span>
-              <p className="text-sm text-gray-600">Datos de contacto y cuentas bancarias.</p>
-            </Link>
-          </li>
-        </ul>
+      <section className="mt-4">
+        <h2 className="font-heading mb-2 text-lg">Compras</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <AccionVerbo href="/ordenes-compra/nueva" emoji="🧾" color="green" titulo="Crear Orden de Compra" descripcion="Elegí proveedor, productos y mandale la OC." />
+          <AccionVerbo href="/proveedores/nuevo" emoji="🏢" color="teal" titulo="Registrar Proveedor" descripcion="RUC, contacto y condición de pago." />
+        </div>
+        <Link href="/ordenes-compra" className="mt-2 inline-block text-sm text-logisalud-teal underline">
+          Ver órdenes de compra
+        </Link>
       </section>
 
-      <section className="card mt-4">
-        <h2 className="font-heading text-lg">Almacén</h2>
-        <ul className="mt-3 space-y-2">
-          <li>
-            <Link href="/almacen" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
-              <span className="font-medium">Recepciones</span>
-              <p className="text-sm text-gray-600">
-                Recibir contra una OC y resolver discrepancias (faltantes, dañados, vencidos…).
-              </p>
-            </Link>
-          </li>
-        </ul>
+      <section className="mt-4">
+        <h2 className="font-heading mb-2 text-lg">Almacén</h2>
+        <AccionVerbo href="/almacen/recepciones/nueva" emoji="📦" color="green" titulo="Recibir mercadería" descripcion="Recibir contra una OC y resolver discrepancias (faltantes, dañados, vencidos…)." />
+        <Link href="/almacen" className="mt-2 inline-block text-sm text-logisalud-teal underline">
+          Ver recepciones
+        </Link>
       </section>
 
-      <section className="card mt-4">
-        <h2 className="font-heading text-lg">Cuentas por Pagar</h2>
-        <ul className="mt-3 space-y-2">
-          <li>
-            <Link href="/cuentas-por-pagar" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
-              <span className="font-medium">Obligaciones</span>
-              <p className="text-sm text-gray-600">
-                Registrar la factura desde una recepción conforme, dar conformidad, notas de crédito.
-              </p>
-            </Link>
-          </li>
-          <li>
-            <Link href="/cuentas-por-pagar/propuestas" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
-              <span className="font-medium">Propuestas de pago</span>
-              <p className="text-sm text-gray-600">
-                Armar el lote semanal, aprobación de Gerencia, ejecutar el pago.
-              </p>
-            </Link>
-          </li>
-        </ul>
+      <section className="mt-4">
+        <h2 className="font-heading mb-2 text-lg">Cuentas por Pagar</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <AccionVerbo href="/almacen" emoji="🧾" color="green" titulo="Registrar factura" descripcion="Desde una recepción conforme de Almacén." />
+          <AccionVerbo href="/cuentas-por-pagar" emoji="✅" color="teal" titulo="Dar conformidad" descripcion="Revisá las obligaciones pendientes y confirmá cada una." />
+        </div>
+        <Link href="/cuentas-por-pagar/propuestas" className="btn-secondary mt-3 w-full sm:w-auto">
+          Propuestas de pago
+        </Link>
         <p className="mt-3 text-sm text-gray-500">
           Obligaciones de origen "compra", "gasto_directo", "reembolso" y "anticipo" — Servicios,
           Caja Chica, Financiamiento e Impuestos tienen su modelo de datos y sus políticas
@@ -147,19 +124,15 @@ export default async function Inicio() {
         </ul>
       </section>
 
-      <section className="card mt-4">
-        <h2 className="font-heading text-lg">Financiamiento e Impuestos</h2>
-        <ul className="mt-3 space-y-2">
-          <li>
-            <Link href="/financiamiento" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
-              <span className="font-medium">Préstamos, fraccionamiento SUNAT, impuestos</span>
-              <p className="text-sm text-gray-600">
-                Cronograma de cuotas, vencimientos próximos, planilla vía BUK. Las letras por pagar
-                se generan desde una obligación de compra en Cuentas por Pagar.
-              </p>
-            </Link>
-          </li>
-        </ul>
+      <section className="mt-4">
+        <h2 className="font-heading mb-2 text-lg">Financiamiento e Impuestos</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <AccionVerbo href="/financiamiento/prestamos/nueva" emoji="🏦" color="green" titulo="Registrar financiamiento" descripcion="Préstamo o fraccionamiento SUNAT, con su cronograma de cuotas." />
+          <AccionVerbo href="/impuestos/nueva" emoji="🧮" color="teal" titulo="Cargar impuesto" descripcion="Essalud, ONP, AFP, Renta, Seguro Vida Ley — por periodo." />
+        </div>
+        <Link href="/financiamiento" className="mt-2 inline-block text-sm text-logisalud-teal underline">
+          Ver préstamos, fraccionamientos y vencimientos
+        </Link>
       </section>
 
       <section className="card mt-4">
@@ -196,26 +169,46 @@ async function HeroTesoreria() {
 async function HeroAlmacen() {
   const { recepcionesPendientes } = await obtenerResumenAlmacen()
   return (
-    <Link href="/almacen" className="card-highlight mt-6 block">
-      <p className="text-sm text-gray-600">Tus recepciones pendientes</p>
-      <p className="font-heading mt-1 text-3xl">{recepcionesPendientes}</p>
-      <p className="mt-1 text-sm text-gray-600">
-        {recepcionesPendientes === 1 ? 'recepción por resolver' : 'recepciones por resolver'}
-      </p>
-    </Link>
+    <div className="mt-6 space-y-3">
+      <AccionVerbo href="/almacen/recepciones/nueva" emoji="📦" color="green" titulo="Recibir mercadería" descripcion="Recibir contra una OC y resolver discrepancias." />
+      <Link href="/almacen" className="card-highlight block">
+        <p className="text-sm text-gray-600">Tus recepciones pendientes</p>
+        <p className="font-heading mt-1 text-3xl">{recepcionesPendientes}</p>
+        <p className="mt-1 text-sm text-gray-600">
+          {recepcionesPendientes === 1 ? 'recepción por resolver' : 'recepciones por resolver'}
+        </p>
+      </Link>
+    </div>
   )
 }
 
 async function HeroContabilidad() {
   const { totalPendientes } = await obtenerResumenContabilidad()
   return (
-    <Link href="/dashboard" className="card-highlight mt-6 block">
-      <p className="text-sm text-gray-600">Pendientes de tu cola</p>
-      <p className="font-heading mt-1 text-3xl">{totalPendientes}</p>
-      <p className="mt-1 text-sm text-gray-600">
-        {totalPendientes === 1 ? 'caso que necesita atención' : 'casos que necesitan atención'}
-      </p>
-    </Link>
+    <div className="mt-6 space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <AccionVerbo href="/almacen" emoji="🧾" color="green" titulo="Registrar factura" descripcion="Desde una recepción conforme de Almacén." />
+        <AccionVerbo href="/cuentas-por-pagar" emoji="✅" color="teal" titulo="Dar conformidad" descripcion="Revisá las obligaciones pendientes." />
+        <AccionVerbo href="/financiamiento/prestamos/nueva" emoji="🏦" color="green" titulo="Registrar financiamiento" descripcion="Préstamo o fraccionamiento SUNAT." />
+        <AccionVerbo href="/impuestos/nueva" emoji="🧮" color="teal" titulo="Cargar impuesto" descripcion="Essalud, ONP, AFP, Renta, Seguro Vida Ley." />
+      </div>
+      <Link href="/dashboard" className="card-highlight block">
+        <p className="text-sm text-gray-600">Pendientes de tu cola</p>
+        <p className="font-heading mt-1 text-3xl">{totalPendientes}</p>
+        <p className="mt-1 text-sm text-gray-600">
+          {totalPendientes === 1 ? 'caso que necesita atención' : 'casos que necesitan atención'}
+        </p>
+      </Link>
+    </div>
+  )
+}
+
+async function HeroCompras() {
+  return (
+    <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <AccionVerbo href="/ordenes-compra/nueva" emoji="🧾" color="green" titulo="Crear Orden de Compra" descripcion="Elegí proveedor, productos y mandale la OC." />
+      <AccionVerbo href="/proveedores/nuevo" emoji="🏢" color="teal" titulo="Registrar Proveedor" descripcion="RUC, contacto y condición de pago." />
+    </div>
   )
 }
 
@@ -228,6 +221,36 @@ async function HeroGerencia() {
       <p className="mt-1 text-sm text-gray-600">
         {propuestasPorAprobar === 1 ? 'propuesta esperando tu aprobación' : 'propuestas esperando tu aprobación'}
       </p>
+    </Link>
+  )
+}
+
+const COLOR_BORDE = {
+  green: 'border-logisalud-green',
+  teal: 'border-logisalud-teal',
+} as const
+const COLOR_TEXTO = {
+  green: 'text-logisalud-green',
+  teal: 'text-logisalud-teal',
+} as const
+
+/**
+ * Botón de acción principal por verbo — mismo patrón que ya usa Cobranzas en
+ * su propia home (emoji + título en color + descripción de una línea, borde
+ * de color) para que las tres apps del ERP se sientan un mismo sistema.
+ */
+function AccionVerbo({
+  href, emoji, color, titulo, descripcion,
+}: { href: string; emoji: string; color: 'green' | 'teal'; titulo: string; descripcion: string }) {
+  return (
+    <Link
+      href={href}
+      className={`block rounded-lg border-2 bg-white p-5 shadow-sm transition hover:shadow-md ${COLOR_BORDE[color]}`}
+    >
+      <h3 className={`font-heading text-base ${COLOR_TEXTO[color]}`}>
+        <span aria-hidden>{emoji}</span> {titulo}
+      </h3>
+      <p className="mt-1 text-sm text-gray-600">{descripcion}</p>
     </Link>
   )
 }
