@@ -2,11 +2,16 @@ import { NextRequest } from 'next/server';
 import * as XLSX from 'xlsx';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 export const dynamic = 'force-dynamic';
 
 // Exporta el desglose de cobranza (por vendedor y por día) del rango.
 export async function GET(req: NextRequest) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   try {
     const { searchParams } = new URL(req.url);
     const desde = searchParams.get('desde')?.trim() ?? '';

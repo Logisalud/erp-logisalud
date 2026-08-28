@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sugerirParaMovimiento } from '@/lib/conciliacion';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 // Para un movimiento (cobro), sugiere cliente(s) por nombre y factura(s) por
 // monto + coherencia temporal, y clasifica el resultado en una categoría
@@ -10,6 +12,9 @@ import { sugerirParaMovimiento } from '@/lib/conciliacion';
 // operación exacto (/api/conciliacion/auto) — esto de aquí SIEMPRE requiere
 // que una persona confirme, sin importar la categoría.
 export async function GET(req: NextRequest) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 });
 

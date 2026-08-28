@@ -2,10 +2,15 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 // Resumen de uso de la vista del vendedor: una fila por vendedor con su último
 // acceso, total y accesos en los últimos 7 días. Los que nunca entraron primero.
 export async function GET() {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   const db = supabaseAdmin();
 
   const [vendedores, accesos] = await Promise.all([

@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 interface PagoRow {
   id: string;
@@ -28,6 +30,9 @@ interface PagoRow {
 // conciliación ni saldos: el pago ya está registrado y la factura ya bajó
 // de saldo — esto es solo trazabilidad de dónde está físicamente esa plata.
 export async function GET(req: NextRequest) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   const incluirDepositados = new URL(req.url).searchParams.get('depositados') === '1';
   const db = supabaseAdmin();
 

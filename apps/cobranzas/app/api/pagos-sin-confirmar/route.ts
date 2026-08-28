@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { UMBRAL_DIAS_CONTADO, UMBRAL_DIAS_CREDITO, ALERTAS_DESDE } from '@/lib/config-pagos';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 interface PagoRow {
   id: string;
@@ -30,6 +32,9 @@ interface PagoRow {
 // esta pantalla (?historico=1 para ver todo) y oculta los ya investigados
 // (?investigados=1 para incluirlos).
 export async function GET(req: NextRequest) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   const url = new URL(req.url);
   const historico = url.searchParams.get('historico') === '1';
   const incluirInvestigados = url.searchParams.get('investigados') === '1';

@@ -1,9 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { computeCobranza } from '@/lib/cobranza';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 // Panel de cobranza (doble lectura). Ver lib/cobranza.ts para la lógica.
 export async function GET(req: NextRequest) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   const { searchParams } = new URL(req.url);
   const desde = searchParams.get('desde')?.trim() ?? '';
   const hasta = searchParams.get('hasta')?.trim() ?? '';

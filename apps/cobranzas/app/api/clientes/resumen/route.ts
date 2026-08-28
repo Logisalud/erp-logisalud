@@ -2,10 +2,15 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 // Resumen de distribución de la cartera de clientes: cuántos por zona y por
 // vendedor efectivo. Solo lectura, para el panorama cuando no hay filtro.
 export async function GET() {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   const db = supabaseAdmin();
 
   const clientes = await fetchAll<{ codigo_zona: string | null; vendedor_actual_id: string | null }>((from, to) =>

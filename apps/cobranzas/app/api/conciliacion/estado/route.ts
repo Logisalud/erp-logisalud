@@ -1,12 +1,17 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 // Cambia el estado de conciliación de un movimiento (sin tocar pagos):
 //  - descartar:    pendiente -> descartado
 //  - reactivar:    descartado -> pendiente
 //  - desconciliar: conciliado -> pendiente (solo desenlaza; el pago NO se borra)
 export async function POST(req: NextRequest) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   const { movimiento_id, accion } = await req.json() as { movimiento_id: string; accion: 'descartar' | 'reactivar' | 'desconciliar' };
   if (!movimiento_id || !accion) return NextResponse.json({ error: 'movimiento_id y accion requeridos' }, { status: 400 });
 

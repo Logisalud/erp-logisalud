@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 interface SaldoRow {
   cliente_ruc: string;
@@ -31,6 +33,9 @@ export interface ClienteConcentracion {
 // por cliente_ruc (una fila por documento ya viene agregada por la vista) —
 // no usa el export plano de Estado de Cuenta, que hace fan-out por pago.
 export async function GET() {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   try {
     const db = supabaseAdmin();
 

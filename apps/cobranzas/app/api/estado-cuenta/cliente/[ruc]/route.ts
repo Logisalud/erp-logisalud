@@ -2,11 +2,16 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { ruc: string } }
 ) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   try {
     const soloDeuda = new URL(req.url).searchParams.get('solo_deuda') !== 'false';
     const db = supabaseAdmin();

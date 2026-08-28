@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import * as XLSX from 'xlsx';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
+import { exigirArea } from '@logisalud/auth/api';
+import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +21,9 @@ const TIPOS: Record<string, string> = {
 };
 
 export async function GET(_req: NextRequest) {
+  const auth = await exigirArea(AREAS_LECTURA);
+  if (!auth.ok) return auth.respuesta;
+
   try {
     const db = supabaseAdmin();
 
