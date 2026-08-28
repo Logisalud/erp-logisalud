@@ -19,6 +19,7 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
     destino: textoONull(form.get('destino')),
     fechaInicio: textoONull(form.get('fechaInicio')),
     fechaFin: textoONull(form.get('fechaFin')),
+    asignadoA: tipo === 'anticipo' ? textoONull(form.get('asignadoA')) : null,
   }
 
   const errores = validarSolicitud(borrador)

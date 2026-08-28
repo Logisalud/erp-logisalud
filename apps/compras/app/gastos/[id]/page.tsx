@@ -41,6 +41,9 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
             {solicitud.fecha_inicio ? `${solicitud.fecha_inicio} al ${solicitud.fecha_fin ?? '—'}` : ''}
           </p>
         ) : null}
+        {solicitud.asignadoA ? (
+          <p className="mt-1 text-sm text-gray-600">Para: {solicitud.asignadoA}</p>
+        ) : null}
 
         <AccionesSolicitud solicitudId={solicitud.id} estado={solicitud.estado} />
       </section>

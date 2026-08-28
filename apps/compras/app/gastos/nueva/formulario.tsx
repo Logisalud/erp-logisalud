@@ -6,14 +6,17 @@ import { crearSolicitudAction, type EstadoFormulario } from './actions'
 import { TIPOS_SOLICITUD, ETIQUETA_TIPO, type TipoSolicitud } from '@/domain/gasto'
 
 type CategoriaGasto = { id: string; nombre: string }
+type Usuario = { id: string; nombre: string; area: string }
 
 const SUGERENCIA_IGV = 0.18
 
 export function FormularioSolicitud({
   categorias,
+  usuarios,
   tipoPreseleccionado,
 }: {
   categorias: CategoriaGasto[]
+  usuarios: Usuario[]
   tipoPreseleccionado?: TipoSolicitud
 }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearSolicitudAction, null)
@@ -95,6 +98,20 @@ export function FormularioSolicitud({
             <Campo etiqueta="Fecha de fin" error={errorDe('fechaFin')}>
               <input type="date" name="fechaFin" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
             </Campo>
+            {usuarios.length > 1 ? (
+              <Campo etiqueta="Vendedor o persona asignada (opcional)">
+                <select name="asignadoA" defaultValue="" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+                  <option value="">Para mí</option>
+                  {usuarios.map((u) => (
+                    <option key={u.id} value={u.id}>{u.nombre}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Si estás armando el anticipo para otra persona (ej. viáticos de un vendedor),
+                  elígela acá — el pago le va a llegar a su cuenta, no a la tuya.
+                </p>
+              </Campo>
+            ) : null}
           </div>
         ) : (
           <div className="space-y-3 rounded-md border border-gray-200 p-3">
