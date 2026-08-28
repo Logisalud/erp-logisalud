@@ -144,7 +144,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     .from('solicitudes_gasto')
     .select(`id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, area, created_at,
              destino, fecha_inicio, fecha_fin, categoria_id,
-             solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
+             comprobantes:solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
     .eq('id', id)
     .maybeSingle()
 

@@ -42,7 +42,7 @@ export function BuscadorProducto({
     setBuscando(true)
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/productos?q=${encodeURIComponent(termino)}`)
+        const r = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/api/productos?q=${encodeURIComponent(termino)}`)
         const json = await r.json()
         // Solo la respuesta del último tecleo puede pintar la lista.
         if (miPedido === pedidoActual.current) setOpciones(json.productos ?? [])
