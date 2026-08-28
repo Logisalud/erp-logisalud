@@ -137,6 +137,36 @@ describe('validarOC', () => {
     expect(errores[0].campo).toBe('lineas.1.productoId')
   })
 
+  it('acepta una OC de "bien" con descripción libre en vez de productoId', () => {
+    const errores = validarOC({
+      ...base,
+      tipo: 'bien',
+      lineas: [{ descripcionLibre: 'Impresora láser', cantidadPedida: 1, precioUnitario: 1500 }],
+    })
+    expect(errores).toEqual([])
+  })
+
+  it('exige descripción en una línea de "bien" sin producto', () => {
+    const errores = validarOC({
+      ...base,
+      tipo: 'bien',
+      lineas: [{ descripcionLibre: '  ', cantidadPedida: 1, precioUnitario: 1500 }],
+    })
+    expect(errores).toEqual([{ campo: 'lineas.0.descripcionLibre', mensaje: 'Describe el bien.' }])
+  })
+
+  it('no aplica la regla de producto repetido a líneas de "bien"', () => {
+    const errores = validarOC({
+      ...base,
+      tipo: 'bien',
+      lineas: [
+        { descripcionLibre: 'Silla de oficina', cantidadPedida: 2, precioUnitario: 300 },
+        { descripcionLibre: 'Silla de oficina', cantidadPedida: 1, precioUnitario: 300 },
+      ],
+    })
+    expect(errores).toEqual([])
+  })
+
   it('rechaza entrega anterior a la emisión', () => {
     const errores = validarOC({ ...base, fechaEntregaEstimada: '2026-08-01' })
     expect(errores).toHaveLength(1)

@@ -47,6 +47,7 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
 
       <section className="card">
         <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
+          <Dato termino="Tipo" valor={oc.tipo === 'bien' ? 'Bien (no revendible)' : 'Mercadería'} />
           <Dato termino="Estado" valor={ETIQUETA_ESTADO[oc.estado]} />
           <Dato termino="Emisión" valor={oc.fecha_emision} />
           <Dato termino="Entrega estimada" valor={oc.fecha_entrega_estimada} />
@@ -76,11 +77,15 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
               {oc.items.map((i) => (
                 <tr key={i.id} className="border-b border-gray-100 last:border-0">
                   <td className="py-2 pr-3">
-                    <span className="font-mono text-xs text-gray-500">
-                      {i.producto?.codigo ?? '—'}
-                    </span>
-                    <br />
-                    {i.producto?.descripcion ?? 'producto no legible'}
+                    {i.producto ? (
+                      <>
+                        <span className="font-mono text-xs text-gray-500">{i.producto.codigo}</span>
+                        <br />
+                        {i.producto.descripcion}
+                      </>
+                    ) : (
+                      i.descripcion_libre ?? 'sin descripción'
+                    )}
                   </td>
                   <td className="py-2 pr-3 text-right tabular-nums">
                     {Number(i.cantidad_pedida)} {i.producto?.unidad_medida ?? ''}

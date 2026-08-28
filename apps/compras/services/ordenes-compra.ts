@@ -16,6 +16,7 @@ export type OCListada = {
 export type OCDetalle = {
   id: string
   codigo: string
+  tipo: 'mercaderia' | 'bien'
   estado: EstadoOC
   fecha_emision: string
   fecha_entrega_estimada: string | null
@@ -26,7 +27,8 @@ export type OCDetalle = {
   cuenta_bancaria_id: string | null
   items: {
     id: string
-    producto_id: string
+    producto_id: string | null
+    descripcion_libre: string | null
     cantidad_pedida: number
     precio_unitario: number
     cantidad_recibida: number
@@ -73,10 +75,10 @@ export async function obtenerOC(id: string): Promise<OCDetalle | null> {
   const { data, error } = await supabase
     .schema('compras')
     .from('ordenes_compra')
-    .select(`id, codigo, estado, fecha_emision, fecha_entrega_estimada, moneda,
+    .select(`id, codigo, tipo, estado, fecha_emision, fecha_entrega_estimada, moneda,
              condiciones_pago_dias, notas, proveedor_id, cuenta_bancaria_id,
-             ordenes_compra_items(id, producto_id, cantidad_pedida, precio_unitario,
-                                  cantidad_recibida, cantidad_facturada)`)
+             ordenes_compra_items(id, producto_id, descripcion_libre, cantidad_pedida,
+                                  precio_unitario, cantidad_recibida, cantidad_facturada)`)
     .eq('id', id)
     .maybeSingle()
 
@@ -84,8 +86,12 @@ export async function obtenerOC(id: string): Promise<OCDetalle | null> {
   if (!data) return null
 
   // El producto vive en catalogo.productos, otro schema: PostgREST no lo
-  // embebe desde compras, así que se resuelve en una segunda consulta.
-  const ids = (data as any).ordenes_compra_items?.map((i: any) => i.producto_id) ?? []
+  // embebe desde compras, así que se resuelve en una segunda consulta. Una OC
+  // de "bien" no tiene producto_id en ninguna línea — el Map queda vacío y
+  // cada línea muestra su descripcion_libre en vez de un producto de catálogo.
+  const ids = ((data as any).ordenes_compra_items ?? [])
+    .map((i: any) => i.producto_id)
+    .filter((id: string | null): id is string => id != null)
   const productos = ids.length ? await mapaProductos(ids) : new Map()
 
   return {
@@ -134,7 +140,9 @@ export async function buscarProductos(termino: string) {
  * unique. Si dos personas crean una OC en el mismo instante, la segunda choca
  * con el unique y se reintenta — mejor que un correlativo con huecos.
  */
-export async function crearOC(borrador: BorradorOC & { notas?: string | null; cuentaBancariaId?: string | null }) {
+export async function crearOC(
+  borrador: BorradorOC & { notas?: string | null; cuentaBancariaId?: string | null }
+) {
   const usuario = await exigirUsuario()
   const supabase = crearClienteServidor()
   const anio = Number(borrador.fechaEmision.slice(0, 4))
@@ -155,6 +163,7 @@ export async function crearOC(borrador: BorradorOC & { notas?: string | null; cu
     .from('ordenes_compra')
     .insert({
       codigo,
+      tipo: borrador.tipo ?? 'mercaderia',
       proveedor_id: borrador.proveedorId,
       cuenta_bancaria_id: borrador.cuentaBancariaId ?? null,
       fecha_emision: borrador.fechaEmision,
@@ -180,7 +189,8 @@ export async function crearOC(borrador: BorradorOC & { notas?: string | null; cu
   const { error: errorItems } = await supabase.schema('compras').from('ordenes_compra_items').insert(
     borrador.lineas.map((l) => ({
       oc_id: oc.id,
-      producto_id: l.productoId,
+      producto_id: 'productoId' in l ? l.productoId : null,
+      descripcion_libre: 'descripcionLibre' in l ? l.descripcionLibre : null,
       cantidad_pedida: l.cantidadPedida,
       precio_unitario: l.precioUnitario,
     }))
