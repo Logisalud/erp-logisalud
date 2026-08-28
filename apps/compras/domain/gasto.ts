@@ -76,15 +76,35 @@ export function estadoTrasPago(tipo: TipoSolicitud): EstadoSolicitud {
 
 export type ErrorValidacion = { campo: string; mensaje: string }
 
+/**
+ * `montoAnticipo` solo aplica a tipo `anticipo`: es plata que sale ANTES del
+ * gasto real, así que no hay ningún comprobante que mirar todavía — se pide
+ * el monto tal cual y se rinde después con comprobantes reales (regla 7).
+ *
+ * `baseImponible`/`igv` solo aplican a `gasto_directo`/`reembolso`: ya existe
+ * un comprobante real (factura o boleta) para leer. El sistema NUNCA inventa
+ * este desglose — quien registra la solicitud lo transcribe tal como
+ * figura en su comprobante. `igv` no se calcula solo: la pantalla puede
+ * *sugerir* 18% de la base como punto de partida editable, pero el valor
+ * real puede ser 0 (boletas de un régimen que no discrimina IGV, como RUS).
+ */
 export type BorradorSolicitud = {
   tipo: TipoSolicitud
   categoriaId: string
   moneda: string
-  montoSolicitado: number
+  montoAnticipo?: number | null
+  baseImponible?: number | null
+  igv?: number | null
   descripcion: string
   destino?: string | null
   fechaInicio?: string | null
   fechaFin?: string | null
+}
+
+/** El monto total que queda en `solicitudes_gasto.monto_solicitado`. */
+export function montoTotalSolicitud(b: Pick<BorradorSolicitud, 'tipo' | 'montoAnticipo' | 'baseImponible' | 'igv'>): number {
+  if (b.tipo === 'anticipo') return Number(b.montoAnticipo) || 0
+  return redondear((Number(b.baseImponible) || 0) + (Number(b.igv) || 0))
 }
 
 export function validarSolicitud(b: BorradorSolicitud): ErrorValidacion[] {
@@ -92,13 +112,20 @@ export function validarSolicitud(b: BorradorSolicitud): ErrorValidacion[] {
 
   if (!TIPOS_SOLICITUD.includes(b.tipo)) errores.push({ campo: 'tipo', mensaje: 'Elegí un tipo de solicitud.' })
   if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elegí una categoría de gasto.' })
-  if (!(b.montoSolicitado > 0)) errores.push({ campo: 'montoSolicitado', mensaje: 'El monto tiene que ser mayor a 0.' })
   if (!b.descripcion.trim()) errores.push({ campo: 'descripcion', mensaje: 'Contá para qué es este gasto.' })
   if (b.moneda !== 'PEN' && b.moneda !== 'USD') errores.push({ campo: 'moneda', mensaje: 'La moneda tiene que ser PEN o USD.' })
 
   if (b.tipo === 'anticipo') {
+    if (!(Number(b.montoAnticipo) > 0)) errores.push({ campo: 'montoAnticipo', mensaje: 'El monto tiene que ser mayor a 0.' })
     if (b.fechaInicio && b.fechaFin && b.fechaFin < b.fechaInicio) {
       errores.push({ campo: 'fechaFin', mensaje: 'La fecha de fin no puede ser antes que la de inicio.' })
+    }
+  } else {
+    if (!(Number(b.baseImponible) > 0)) {
+      errores.push({ campo: 'baseImponible', mensaje: 'La base imponible tiene que ser mayor a 0 — mirá tu comprobante.' })
+    }
+    if (b.igv == null || Number(b.igv) < 0) {
+      errores.push({ campo: 'igv', mensaje: 'Poné el IGV tal como figura en tu comprobante (puede ser 0).' })
     }
   }
 

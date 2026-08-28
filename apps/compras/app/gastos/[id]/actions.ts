@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import {
   aprobarPorJefe, rechazarPorJefe, aprobarPorContabilidad, rechazarPorContabilidad,
-  subirComprobante, liquidarAnticipo,
+  subirComprobante, liquidarAnticipo, obtenerUrlComprobante,
 } from '@/services/solicitudes-gasto'
 
 export type EstadoAccion = { error: string } | null
@@ -45,12 +45,25 @@ export async function subirComprobanteAction(
   const numero = textoONull(form.get('numero'))
   const rucEmisor = textoONull(form.get('rucEmisor'))
   const sustentable = form.get('sustentable') === 'true'
+  const archivo = form.get('archivo')
 
   if (!monto || monto <= 0) return { error: 'El monto del comprobante tiene que ser mayor a 0.' }
 
   return ejecutar(solicitudId, () =>
-    subirComprobante({ solicitudId, fase, tipoComprobante, numero, rucEmisor, monto, sustentable })
+    subirComprobante({
+      solicitudId, fase, tipoComprobante, numero, rucEmisor, monto, sustentable,
+      archivo: archivo instanceof File ? archivo : null,
+    })
   )
+}
+
+export async function verComprobanteAction(storagePath: string): Promise<{ url: string } | { error: string }> {
+  try {
+    const url = await obtenerUrlComprobante(storagePath)
+    return { url }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
 }
 
 export async function liquidarAnticipoAction(id: string): Promise<EstadoAccion> {

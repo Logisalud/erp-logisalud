@@ -7,11 +7,26 @@ import { TIPOS_SOLICITUD, ETIQUETA_TIPO, type TipoSolicitud } from '@/domain/gas
 
 type CategoriaGasto = { id: string; nombre: string }
 
+const SUGERENCIA_IGV = 0.18
+
 export function FormularioSolicitud({ categorias }: { categorias: CategoriaGasto[] }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearSolicitudAction, null)
   const [tipo, setTipo] = useState<TipoSolicitud>('gasto_directo')
+  const [base, setBase] = useState('')
+  const [igv, setIgv] = useState('')
+  const [igvEditadoAMano, setIgvEditadoAMano] = useState(false)
 
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
+
+  const cambiarBase = (valor: string) => {
+    setBase(valor)
+    if (!igvEditadoAMano) {
+      const n = Number(valor)
+      setIgv(n > 0 ? (Math.round(n * SUGERENCIA_IGV * 100) / 100).toString() : '')
+    }
+  }
+
+  const total = (Number(base) || 0) + (Number(igv) || 0)
 
   return (
     <form action={accion} className="space-y-4">
@@ -42,17 +57,12 @@ export function FormularioSolicitud({ categorias }: { categorias: CategoriaGasto
           </select>
         </Campo>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Campo etiqueta="Moneda" error={errorDe('moneda')}>
-            <select name="moneda" defaultValue="PEN" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
-              <option value="PEN">PEN — Soles</option>
-              <option value="USD">USD — Dólares</option>
-            </select>
-          </Campo>
-          <Campo etiqueta="Monto" error={errorDe('montoSolicitado')}>
-            <input type="number" name="montoSolicitado" min="0" step="0.01" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
-          </Campo>
-        </div>
+        <Campo etiqueta="Moneda" error={errorDe('moneda')}>
+          <select name="moneda" defaultValue="PEN" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+            <option value="PEN">PEN — Soles</option>
+            <option value="USD">USD — Dólares</option>
+          </select>
+        </Campo>
 
         <Campo etiqueta="Descripción" error={errorDe('descripcion')}>
           <textarea name="descripcion" rows={3} className="w-full rounded-md border border-gray-300 px-3 py-2" />
@@ -60,6 +70,9 @@ export function FormularioSolicitud({ categorias }: { categorias: CategoriaGasto
 
         {tipo === 'anticipo' ? (
           <div className="grid gap-3 sm:grid-cols-3">
+            <Campo etiqueta="Monto del anticipo" error={errorDe('montoAnticipo')}>
+              <input type="number" name="montoAnticipo" min="0" step="0.01" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+            </Campo>
             <Campo etiqueta="Destino (opcional)">
               <input type="text" name="destino" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
             </Campo>
@@ -70,7 +83,60 @@ export function FormularioSolicitud({ categorias }: { categorias: CategoriaGasto
               <input type="date" name="fechaFin" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
             </Campo>
           </div>
-        ) : null}
+        ) : (
+          <div className="space-y-3 rounded-md border border-gray-200 p-3">
+            <p className="text-sm text-gray-600">
+              Subí primero la foto o PDF de tu factura/boleta y después completá la base y el IGV
+              tal como figuran ahí — mirando el comprobante al lado.
+            </p>
+
+            <Campo etiqueta="Foto o PDF del comprobante (opcional por ahora)">
+              <input
+                type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+              />
+            </Campo>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Campo etiqueta="Tipo de comprobante">
+                <select name="tipoComprobante" defaultValue="boleta" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+                  <option value="factura">Factura</option>
+                  <option value="boleta">Boleta</option>
+                  <option value="sin_comprobante">Sin comprobante</option>
+                </select>
+              </Campo>
+              <Campo etiqueta="N° (opcional)">
+                <input type="text" name="numero" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+              </Campo>
+              <Campo etiqueta="RUC emisor (opcional)">
+                <input type="text" name="rucEmisor" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+              </Campo>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Campo etiqueta="Base imponible" error={errorDe('baseImponible')}>
+                <input
+                  type="number" name="baseImponible" min="0" step="0.01" value={base}
+                  onChange={(e) => cambiarBase(e.target.value)}
+                  className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+                />
+              </Campo>
+              <Campo etiqueta="IGV" error={errorDe('igv')}>
+                <input
+                  type="number" name="igv" min="0" step="0.01" value={igv}
+                  onChange={(e) => { setIgv(e.target.value); setIgvEditadoAMano(true) }}
+                  className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Sugerido en 18% de la base — cambialo si tu comprobante trae otro valor (por
+                  ejemplo, 0 en boletas de un régimen que no discrimina IGV).
+                </p>
+              </Campo>
+            </div>
+
+            <p className="text-sm text-gray-700">Total: {total.toFixed(2)}</p>
+          </div>
+        )}
       </section>
 
       <BotonGuardar />

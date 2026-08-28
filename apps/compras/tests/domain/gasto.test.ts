@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   calcularLiquidacion,
   estadoTrasPago,
+  montoTotalSolicitud,
   transicionPermitida,
   validarSolicitud,
 } from '@/domain/gasto'
@@ -68,10 +69,10 @@ describe('calcularLiquidacion', () => {
 describe('validarSolicitud', () => {
   const base = {
     tipo: 'gasto_directo' as const, categoriaId: 'cat-1', moneda: 'PEN',
-    montoSolicitado: 100, descripcion: 'Útiles de oficina',
+    baseImponible: 100, igv: 18, descripcion: 'Útiles de oficina',
   }
 
-  it('sin errores con un borrador completo', () => {
+  it('sin errores con un borrador completo (gasto_directo con base/igv)', () => {
     expect(validarSolicitud(base)).toEqual([])
   })
 
@@ -80,15 +81,54 @@ describe('validarSolicitud', () => {
     expect(errores.some((e) => e.campo === 'categoriaId')).toBe(true)
   })
 
-  it('exige monto positivo', () => {
-    const errores = validarSolicitud({ ...base, montoSolicitado: 0 })
-    expect(errores.some((e) => e.campo === 'montoSolicitado')).toBe(true)
+  it('exige base imponible positiva', () => {
+    const errores = validarSolicitud({ ...base, baseImponible: 0 })
+    expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
+  })
+
+  it('acepta IGV en 0 — boleta de un régimen que no lo discrimina (RUS)', () => {
+    const errores = validarSolicitud({ ...base, igv: 0 })
+    expect(errores.some((e) => e.campo === 'igv')).toBe(false)
+  })
+
+  it('exige que el IGV venga informado (aunque sea 0), nunca se inventa solo', () => {
+    const errores = validarSolicitud({ ...base, igv: null })
+    expect(errores.some((e) => e.campo === 'igv')).toBe(true)
+  })
+
+  it('anticipo: exige montoAnticipo en vez de base/igv', () => {
+    const errores = validarSolicitud({
+      tipo: 'anticipo', categoriaId: 'cat-1', moneda: 'PEN', descripcion: 'Viaje a Lurín', montoAnticipo: 500,
+    })
+    expect(errores).toEqual([])
+  })
+
+  it('anticipo sin monto: error', () => {
+    const errores = validarSolicitud({
+      tipo: 'anticipo', categoriaId: 'cat-1', moneda: 'PEN', descripcion: 'Viaje a Lurín', montoAnticipo: 0,
+    })
+    expect(errores.some((e) => e.campo === 'montoAnticipo')).toBe(true)
   })
 
   it('anticipo: la fecha de fin no puede ser antes que la de inicio', () => {
     const errores = validarSolicitud({
-      ...base, tipo: 'anticipo', fechaInicio: '2026-09-10', fechaFin: '2026-09-05',
+      tipo: 'anticipo', categoriaId: 'cat-1', moneda: 'PEN', descripcion: 'Viaje', montoAnticipo: 500,
+      fechaInicio: '2026-09-10', fechaFin: '2026-09-05',
     })
     expect(errores.some((e) => e.campo === 'fechaFin')).toBe(true)
+  })
+})
+
+describe('montoTotalSolicitud', () => {
+  it('anticipo: es el monto pedido directo', () => {
+    expect(montoTotalSolicitud({ tipo: 'anticipo', montoAnticipo: 500 })).toBe(500)
+  })
+
+  it('gasto_directo/reembolso: suma base + IGV', () => {
+    expect(montoTotalSolicitud({ tipo: 'gasto_directo', baseImponible: 100, igv: 18 })).toBe(118)
+  })
+
+  it('gasto_directo con IGV en 0 (RUS): el total es solo la base', () => {
+    expect(montoTotalSolicitud({ tipo: 'reembolso', baseImponible: 100, igv: 0 })).toBe(100)
   })
 })

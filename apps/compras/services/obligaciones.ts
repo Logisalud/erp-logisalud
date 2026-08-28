@@ -4,6 +4,7 @@ import {
   calcularFechaVencimientoReal,
   conciliarLineas,
   redondear,
+  TASA_IGV,
   type EstadoObligacion,
   type LineaConciliacion,
 } from '@/domain/obligacion'
@@ -200,6 +201,14 @@ export async function registrarObligacionDesdeRecepcion(
       moneda: oc.moneda,
       tipo_cambio: borrador.tipoCambio,
       base_imponible: baseImponible,
+      // Las compras de mercadería sí llevan IGV real de un comprobante
+      // formal — a diferencia de gasto_directo/reembolso (ver
+      // services/solicitudes-gasto.ts), acá se sigue asumiendo 18% en vez
+      // de pedírselo a Contabilidad campo por campo. Si en el futuro
+      // aparece un proveedor de compras con boleta sin discriminar IGV,
+      // este es el lugar para pedirlo explícito igual que se hizo con
+      // gastos.
+      igv: redondear(baseImponible * TASA_IGV),
       tasa_detraccion_id: borrador.tasaDetraccionId,
       monto_detraccion: borrador.montoDetraccion ?? 0,
       estado: estadoInicial,

@@ -5,6 +5,7 @@ import { obtenerSolicitud } from '@/services/solicitudes-gasto'
 import { ETIQUETA_ESTADO, ETIQUETA_TIPO } from '@/domain/gasto'
 import { AccionesSolicitud } from './acciones'
 import { FormularioComprobante } from './comprobante-form'
+import { VerComprobante } from './ver-comprobante'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,7 +93,10 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
 
 function ListaComprobantes({
   comprobantes, moneda,
-}: { comprobantes: { id: string; tipo_comprobante: string; numero: string | null; monto: number; sustentable: boolean }[]; moneda: string }) {
+}: {
+  comprobantes: { id: string; tipo_comprobante: string; numero: string | null; monto: number; sustentable: boolean; storage_path: string | null }[]
+  moneda: string
+}) {
   return (
     <ul className="mt-2 space-y-1 text-sm">
       {comprobantes.map((c) => (
@@ -100,6 +104,7 @@ function ListaComprobantes({
           <span>
             {c.tipo_comprobante}{c.numero ? ` ${c.numero}` : ''}
             {!c.sustentable ? <span className="ml-2 text-xs text-amber-700">no sustentable</span> : null}
+            {c.storage_path ? <VerComprobante storagePath={c.storage_path} /> : null}
           </span>
           <Money valor={c.monto} moneda={moneda} />
         </li>

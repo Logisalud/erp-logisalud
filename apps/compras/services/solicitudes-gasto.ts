@@ -4,6 +4,7 @@ import { TASA_IGV } from '@/domain/obligacion'
 import {
   calcularLiquidacion,
   estadoTrasPago,
+  montoTotalSolicitud,
   type BorradorSolicitud,
   type EstadoSolicitud,
   type TipoSolicitud,
@@ -29,7 +30,7 @@ export async function listarCategoriasGasto(): Promise<CategoriaGasto[]> {
  * así que mandar cualquier otra cosa la rechazaría igual, pero es más claro
  * resolverla acá que dejar que RLS sea la única explicación del error.
  */
-export async function crearSolicitud(borrador: BorradorSolicitud): Promise<{ id: string }> {
+export async function crearSolicitud(borrador: BorradorSolicitud): Promise<{ id: string; codigo: string }> {
   const usuario = await exigirUsuario()
   const perfil = await perfilActual()
   if (!perfil?.area) throw new Error('Tu cuenta no tiene un área asignada — no se puede crear la solicitud.')
@@ -44,13 +45,15 @@ export async function crearSolicitud(borrador: BorradorSolicitud): Promise<{ id:
       area: perfil.area,
       categoria_id: borrador.categoriaId,
       moneda: borrador.moneda,
-      monto_solicitado: borrador.montoSolicitado,
+      monto_solicitado: montoTotalSolicitud(borrador),
+      base_imponible: borrador.tipo === 'anticipo' ? null : borrador.baseImponible,
+      igv: borrador.tipo === 'anticipo' ? null : borrador.igv,
       descripcion: borrador.descripcion,
       destino: borrador.destino ?? null,
       fecha_inicio: borrador.fechaInicio ?? null,
       fecha_fin: borrador.fechaFin ?? null,
     })
-    .select('id')
+    .select('id, codigo')
     .single()
 
   if (error) throw new Error(`No se pudo crear la solicitud: ${error.message}`)
@@ -189,18 +192,20 @@ export async function rechazarPorContabilidad(id: string): Promise<void> {
  * de Cuentas por Pagar (conformidad, propuesta, aprobación de Gerencia,
  * pago) exactamente igual que una obligación de compra.
  *
- * PENDIENTE DE CONFIRMAR CON CONTABILIDAD (no está en el documento
- * maestro): `cuentas_x_pagar.obligaciones.igv`/`total` son columnas
- * generadas como `base_imponible * 18%` — siempre, sin excepción, porque
- * así está definida la tabla. Un reembolso o anticipo a un empleado no es
- * necesariamente una operación gravada con IGV. Para que el monto que
- * Tesorería termina pagando (`neto_a_pagar`) coincida con
- * `monto_solicitado` (lo que de verdad importa operativamente), acá se
- * calcula `base_imponible` hacia atrás desde el monto solicitado — el
- * desglose base/IGV que muestra la obligación es un artefacto aritmético
- * de esta fórmula, no una detracción o cálculo tributario real para este
- * origen. Si Contabilidad necesita que el desglose sea distinto, este es
- * el lugar para ajustarlo.
+ * El sistema NUNCA inventa el desglose base/IGV: para gasto_directo y
+ * reembolso ya existe un comprobante real, y quien creó la solicitud lo
+ * transcribió a mano en `crearSolicitud()` — acá simplemente se usa tal
+ * cual (confirmado con Sebas después de la primera versión de este PR, que
+ * SÍ lo inventaba hacia atrás desde el monto total).
+ *
+ * PENDIENTE DE CONFIRMAR CON CONTABILIDAD: un `anticipo` es plata que sale
+ * ANTES del gasto real, así que todavía no hay ningún comprobante que
+ * transcribir — para ese caso se sigue calculando la base hacia atrás
+ * asumiendo 18% de IGV, que es un artefacto aritmético para que
+ * `neto_a_pagar` coincida con `monto_solicitado`, no una detracción o
+ * cálculo tributario real. Cuando se rinde el anticipo (ver
+ * liquidarAnticipo) tampoco hay desglose por comprobante todavía — es la
+ * siguiente pieza a mejorar si Contabilidad lo necesita.
  */
 export async function aprobarPorContabilidad(id: string): Promise<void> {
   const usuario = await exigirUsuario()
@@ -209,7 +214,7 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
   const { data: solicitud, error } = await supabase
     .schema('gastos')
     .from('solicitudes_gasto')
-    .select('id, tipo, solicitante_id, moneda, monto_solicitado, estado')
+    .select('id, tipo, solicitante_id, moneda, monto_solicitado, base_imponible, igv, estado')
     .eq('id', id)
     .maybeSingle()
   if (error || !solicitud) throw new Error('No se encontró la solicitud.')
@@ -217,7 +222,10 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
     throw new Error(`La solicitud está en "${solicitud.estado}", no en espera de Contabilidad.`)
   }
 
-  const baseImponible = Math.round((Number(solicitud.monto_solicitado) / (1 + TASA_IGV)) * 100) / 100
+  const { baseImponible, igv } =
+    solicitud.tipo === 'anticipo'
+      ? reversarBaseEIgv(Number(solicitud.monto_solicitado))
+      : { baseImponible: Number(solicitud.base_imponible), igv: Number(solicitud.igv) }
 
   const { data: obligacion, error: errOb } = await supabase
     .schema('cuentas_x_pagar')
@@ -228,6 +236,7 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
       solicitud_gasto_id: solicitud.id,
       moneda: solicitud.moneda,
       base_imponible: baseImponible,
+      igv,
       estado: 'registrada',
       created_by: usuario.id,
     })
@@ -273,6 +282,14 @@ export async function marcarSolicitudPagada(obligacionId: string): Promise<void>
     .eq('id', solicitud.id)
 }
 
+/**
+ * Sube la foto/PDF real de la factura o boleta al bucket `legajos-gastos`,
+ * con el path `<YYYY>/<MM>/<codigo-de-la-solicitud>/<archivo>` que exige
+ * `path_legajo_valido()` (migración 0004). Subir el archivo es best-effort:
+ * si falla (red, tamaño, tipo no permitido) el comprobante igual se guarda
+ * con sus datos — la persona puede reintentar la foto después desde este
+ * mismo formulario en el detalle de la solicitud, no se pierde el registro.
+ */
 export async function subirComprobante(input: {
   solicitudId: string
   fase: 'inicial' | 'rendicion'
@@ -281,9 +298,32 @@ export async function subirComprobante(input: {
   rucEmisor?: string | null
   monto: number
   sustentable: boolean
+  archivo?: File | null
 }): Promise<void> {
   if (input.monto <= 0) throw new Error('El monto del comprobante tiene que ser mayor a 0.')
   const supabase = crearClienteServidor()
+
+  let storagePath: string | null = null
+  if (input.archivo && input.archivo.size > 0) {
+    const { data: solicitud } = await supabase
+      .schema('gastos')
+      .from('solicitudes_gasto')
+      .select('codigo')
+      .eq('id', input.solicitudId)
+      .maybeSingle()
+    if (solicitud?.codigo) {
+      const ahora = new Date()
+      const yyyy = String(ahora.getFullYear())
+      const mm = String(ahora.getMonth() + 1).padStart(2, '0')
+      const nombreLimpio = input.archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `${yyyy}/${mm}/${solicitud.codigo}/${Date.now()}-${nombreLimpio}`
+      const { error: errUpload } = await supabase.storage
+        .from('legajos-gastos')
+        .upload(path, input.archivo, { contentType: input.archivo.type || undefined })
+      if (!errUpload) storagePath = path
+    }
+  }
+
   const { error } = await supabase.schema('gastos').from('solicitud_comprobantes').insert({
     solicitud_id: input.solicitudId,
     fase: input.fase,
@@ -292,8 +332,17 @@ export async function subirComprobante(input: {
     ruc_emisor: input.rucEmisor ?? null,
     monto: input.monto,
     sustentable: input.sustentable,
+    storage_path: storagePath,
   })
   if (error) throw new Error(`No se pudo guardar el comprobante: ${error.message}`)
+}
+
+/** URL firmada (60s) para ver la foto/PDF de un comprobante ya subido. */
+export async function obtenerUrlComprobante(storagePath: string): Promise<string> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase.storage.from('legajos-gastos').createSignedUrl(storagePath, 60)
+  if (error || !data) throw new Error(`No se pudo generar el enlace del comprobante: ${error?.message ?? ''}`)
+  return data.signedUrl
 }
 
 /**
@@ -333,8 +382,11 @@ export async function liquidarAnticipo(solicitudId: string): Promise<void> {
   if (errLiq) throw new Error(`No se pudo registrar la liquidación: ${errLiq.message}`)
 
   if (liquidacion.resultado === 'reembolso_adicional') {
+    // Mismo artefacto que en aprobarPorContabilidad para un anticipo: los
+    // comprobantes de rendición no capturan un desglose base/IGV por línea
+    // (solo `monto`), así que no hay nada real que transcribir todavía.
     const montoAdicional = Math.abs(liquidacion.diferencia)
-    const baseImponible = Math.round((montoAdicional / (1 + TASA_IGV)) * 100) / 100
+    const { baseImponible, igv } = reversarBaseEIgv(montoAdicional)
     const { data: obligacion, error: errOb } = await supabase
       .schema('cuentas_x_pagar')
       .from('obligaciones')
@@ -344,6 +396,7 @@ export async function liquidarAnticipo(solicitudId: string): Promise<void> {
         solicitud_gasto_id: solicitudId,
         moneda: solicitud.moneda,
         base_imponible: baseImponible,
+        igv,
         estado: 'registrada',
         created_by: usuario.id,
       })
@@ -359,4 +412,18 @@ export async function liquidarAnticipo(solicitudId: string): Promise<void> {
   }
 
   await cambiarEstado(solicitudId, ['pendiente_rendicion'], 'rendida')
+}
+
+/**
+ * Desglosa un monto total en base + IGV asumiendo 18% — SOLO para los dos
+ * casos donde no existe ningún comprobante real que transcribir (un
+ * anticipo antes de rendirse, y el reembolso adicional que sale de rendir
+ * comprobantes que no capturan su propio desglose). Para gasto_directo y
+ * reembolso normales, `aprobarPorContabilidad()` usa el valor que la
+ * persona transcribió de su comprobante — esto NO se usa ahí.
+ */
+function reversarBaseEIgv(montoTotal: number): { baseImponible: number; igv: number } {
+  const baseImponible = Math.round((montoTotal / (1 + TASA_IGV)) * 100) / 100
+  const igv = Math.round((montoTotal - baseImponible) * 100) / 100
+  return { baseImponible, igv }
 }
