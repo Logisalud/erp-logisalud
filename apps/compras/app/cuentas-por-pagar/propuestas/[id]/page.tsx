@@ -40,7 +40,7 @@ export default async function DetallePropuesta({ params }: { params: { id: strin
                   <span className="font-medium">{d.codigo}{d.numeroFactura ? ` · ${d.numeroFactura}` : ''}</span>
                   <Money valor={d.montoAPagar} moneda={d.moneda} />
                 </div>
-                <p className="mt-0.5 text-sm text-gray-600">{d.proveedor?.razon_social ?? d.beneficiario?.nombre ?? 'sin proveedor ni beneficiario'}</p>
+                <p className="mt-0.5 text-sm text-gray-600">{d.proveedor?.razon_social ?? d.beneficiario?.nombre ?? d.observaciones ?? 'sin proveedor ni beneficiario'}</p>
                 {d.yaPagada ? (
                   <span className="mt-2 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Pagada</span>
                 ) : puedePagar ? (

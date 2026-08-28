@@ -121,6 +121,21 @@ export default async function Inicio() {
       </section>
 
       <section className="card mt-4">
+        <h2 className="font-heading text-lg">Financiamiento e Impuestos</h2>
+        <ul className="mt-3 space-y-2">
+          <li>
+            <Link href="/financiamiento" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
+              <span className="font-medium">Préstamos, fraccionamiento SUNAT, impuestos</span>
+              <p className="text-sm text-gray-600">
+                Cronograma de cuotas, vencimientos próximos, planilla vía BUK. Las letras por pagar
+                se generan desde una obligación de compra en Cuentas por Pagar.
+              </p>
+            </Link>
+          </li>
+        </ul>
+      </section>
+
+      <section className="card mt-4">
         <h2 className="font-heading text-lg">Caja Chica</h2>
         <ul className="mt-3 space-y-2">
           <li>

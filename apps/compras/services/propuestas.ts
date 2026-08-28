@@ -20,6 +20,8 @@ export type ObligacionConforme = {
   fecha_vencimiento_real: string | null
   proveedor: { razon_social: string } | null
   beneficiario: { nombre: string | null } | null
+  /** Fallback de display para prestamo/fraccionamiento_sunat/impuesto — ver ObligacionListada en services/obligaciones.ts. */
+  observaciones: string | null
   notasCreditoSinAplicar: number
 }
 
@@ -29,7 +31,7 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
   const { data, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, numero_factura, moneda, neto_a_pagar, fecha_vencimiento_real, proveedor_id, beneficiario_persona')
+    .select('id, codigo, numero_factura, moneda, neto_a_pagar, fecha_vencimiento_real, proveedor_id, beneficiario_persona, observaciones')
     .eq('estado', 'conforme')
     .order('fecha_vencimiento_real')
 
@@ -51,6 +53,7 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
     fecha_vencimiento_real: o.fecha_vencimiento_real,
     proveedor: o.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null,
     beneficiario: o.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
+    observaciones: o.observaciones,
     notasCreditoSinAplicar: notasCredito.get(o.id) ?? 0,
   }))
 }
@@ -250,6 +253,7 @@ export type PropuestaDetalle = {
     proveedorId: string | null
     proveedor: { razon_social: string } | null
     beneficiario: { nombre: string | null } | null
+    observaciones: string | null
     estadoObligacion: string
     yaPagada: boolean
   }[]
@@ -273,7 +277,7 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
   const { data: obligaciones } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, numero_factura, moneda, estado, proveedor_id, beneficiario_persona')
+    .select('id, codigo, numero_factura, moneda, estado, proveedor_id, beneficiario_persona, observaciones')
     .in('id', obligacionIds)
   const [proveedores, beneficiarios] = await Promise.all([
     mapaProveedores([...new Set((obligaciones ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[]),
@@ -300,6 +304,7 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
         proveedorId: o?.proveedor_id ?? null,
         proveedor: o?.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null,
         beneficiario: o?.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
+        observaciones: o?.observaciones ?? null,
         estadoObligacion: o?.estado ?? 'desconocido',
         yaPagada: pagadas.has(d.obligacion_id),
       }

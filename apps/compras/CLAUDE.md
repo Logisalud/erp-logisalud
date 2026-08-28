@@ -58,7 +58,16 @@ Estado (ver sección 9 del documento, "Alcance por Pull Request"):
    ciclo se cierra directo — sin rendición posterior, a diferencia de un
    anticipo de Gastos, porque los comprobantes ya existían antes de pedir
    la reposición).
-8. ⏳ Financiamiento + Impuestos.
+8. ✅ Financiamiento + Impuestos (préstamos y fraccionamiento SUNAT con
+   cronograma de cuotas transcrito a mano — el sistema nunca calcula una
+   amortización —, alerta de cuota vencida en riesgo de perder el
+   beneficio, canje de una obligación de compra por letras desde su
+   propia pantalla en Cuentas por Pagar, bandeja de vencimientos próximos
+   donde Contabilidad genera en lote la obligación de cada cuota/letra por
+   vencer — sustituye el "proceso programado" de la regla 6 porque esta
+   app todavía no tiene infraestructura de cron —, e Impuestos: Gestión
+   Humana carga la planilla desde BUK, Contabilidad confirma y genera la
+   obligación).
 9. ⏳ Dashboard general.
 
 ## Entorno
