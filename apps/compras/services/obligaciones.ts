@@ -267,6 +267,8 @@ export type ObligacionListada = {
   estado: EstadoObligacion
   fecha_vencimiento_real: string | null
   proveedor: { id: string; razon_social: string } | null
+  /** Para origen distinto de 'compra'/'servicio': a quién se le paga (empleado, ver public.perfiles). */
+  beneficiario: { nombre: string | null } | null
 }
 
 export async function listarObligaciones(estado?: EstadoObligacion): Promise<ObligacionListada[]> {
@@ -274,7 +276,7 @@ export async function listarObligaciones(estado?: EstadoObligacion): Promise<Obl
   let q = supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id')
+    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, beneficiario_persona')
     .order('created_at', { ascending: false })
     .limit(200)
 
@@ -283,8 +285,23 @@ export async function listarObligaciones(estado?: EstadoObligacion): Promise<Obl
   const { data, error } = await q
   if (error) throw new Error(`No se pudieron listar las obligaciones: ${error.message}`)
 
-  const proveedores = await mapaProveedoresBasico([...new Set((data ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[])
-  return (data ?? []).map((o) => ({ ...o, proveedor: o.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null }))
+  const [proveedores, beneficiarios] = await Promise.all([
+    mapaProveedoresBasico([...new Set((data ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[]),
+    mapaBeneficiarios([...new Set((data ?? []).map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
+  ])
+  return (data ?? []).map((o) => ({
+    ...o,
+    proveedor: o.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null,
+    beneficiario: o.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
+  }))
+}
+
+/** Origen gasto_directo/reembolso/anticipo: el beneficiario es un empleado, no un proveedor. */
+async function mapaBeneficiarios(ids: string[]) {
+  const supabase = crearClienteServidor()
+  if (ids.length === 0) return new Map()
+  const { data } = await supabase.from('perfiles').select('id, nombre').in('id', ids)
+  return new Map((data ?? []).map((p: any) => [p.id, { nombre: p.nombre }]))
 }
 
 async function mapaProveedoresBasico(ids: string[]) {
@@ -321,7 +338,8 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .schema('cuentas_x_pagar')
     .from('obligaciones')
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, igv,
-             monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, oc_id, recepcion_id,
+             monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, beneficiario_persona,
+             oc_id, recepcion_id,
              obligaciones_items(id, oc_item_id, cantidad_facturada, precio_facturado)`)
     .eq('id', id)
     .maybeSingle()
@@ -329,8 +347,9 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
   if (error) throw new Error(`No se pudo leer la obligación: ${error.message}`)
   if (!data) return null
 
-  const [proveedores, oc, recepcion, notasCredito] = await Promise.all([
+  const [proveedores, beneficiarios, oc, recepcion, notasCredito] = await Promise.all([
     mapaProveedoresBasico(data.proveedor_id ? [data.proveedor_id] : []),
+    mapaBeneficiarios(data.beneficiario_persona ? [data.beneficiario_persona] : []),
     data.oc_id ? obtenerOCBasica(data.oc_id) : Promise.resolve(null),
     data.recepcion_id ? obtenerRecepcionBasica(data.recepcion_id) : Promise.resolve(null),
     listarNotasCredito(id),
@@ -355,6 +374,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     fecha_vencimiento_real: data.fecha_vencimiento_real,
     observaciones: data.observaciones,
     proveedor: data.proveedor_id ? proveedores.get(data.proveedor_id) ?? null : null,
+    beneficiario: data.beneficiario_persona ? beneficiarios.get(data.beneficiario_persona) ?? null : null,
     oc,
     recepcion,
     items: items.map((i) => ({

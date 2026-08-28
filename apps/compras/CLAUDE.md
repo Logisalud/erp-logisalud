@@ -41,11 +41,15 @@ Estado (ver sección 9 del documento, "Alcance por Pull Request"):
    automática, resolución del responsable de Almacén).
 4. ✅ Cuentas por Pagar core (obligaciones desde una recepción conforme,
    conciliación de 3 vías, conformidad, propuestas de pago, aprobación de
-   Gerencia, pago). Solo origen `compra` por ahora — los otros nueve
-   orígenes existen en el modelo de datos pero dependen de módulos que
+   Gerencia, pago). Soporta origen `compra`, `gasto_directo`, `reembolso`
+   y `anticipo` — los seis restantes (servicio, reposicion_caja_chica,
+   préstamo, fraccionamiento, letra, impuesto) dependen de módulos que
    todavía no son pantalla.
 5. ⏳ Servicios.
-6. ⏳ Gastos / Anticipos.
+6. ✅ Gastos / Anticipos (solicitud → jefe de área → Contabilidad genera
+   la obligación sola → sigue el embudo normal de Cuentas por Pagar → al
+   pagarse, un anticipo queda pendiente de rendir; rendición con
+   comprobantes, liquidación, reembolso adicional si gastó de más).
 7. ⏳ Caja Chica.
 8. ⏳ Financiamiento + Impuestos.
 9. ⏳ Dashboard general.

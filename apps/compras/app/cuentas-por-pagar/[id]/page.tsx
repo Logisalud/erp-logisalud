@@ -20,7 +20,10 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
 
       <section className="card">
         <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
-          <Dato termino="Proveedor" valor={obligacion.proveedor?.razon_social ?? null} />
+          <Dato
+            termino={obligacion.proveedor ? 'Proveedor' : 'Beneficiario'}
+            valor={obligacion.proveedor?.razon_social ?? obligacion.beneficiario?.nombre ?? null}
+          />
           <Dato termino="Estado" valor={ETIQUETA_ESTADO[obligacion.estado]} />
           <Dato termino="N° factura" valor={obligacion.numero_factura} />
           <Dato termino="Fecha de factura" valor={obligacion.fecha_factura} />

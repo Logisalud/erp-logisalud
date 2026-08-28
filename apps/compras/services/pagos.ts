@@ -1,5 +1,6 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
+import { marcarSolicitudPagada } from '@/services/solicitudes-gasto'
 
 export type BorradorPago = {
   obligacionId: string
@@ -77,6 +78,11 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
 
   const { error: errUpd } = await supabase.schema('cuentas_x_pagar').from('obligaciones').update({ estado: 'pagada' }).eq('id', borrador.obligacionId)
   if (errUpd) throw new Error(`El pago se registró pero no se pudo marcar la obligación como pagada: ${errUpd.message}`)
+
+  // Si esta obligación nació de una solicitud de gasto (regla 6), propaga el
+  // pago a su estado: un anticipo queda pendiente de rendir, gasto_directo y
+  // reembolso se cierran solos. No hace nada si la obligación es de compra.
+  await marcarSolicitudPagada(borrador.obligacionId)
 
   return { id: pago.id }
 }

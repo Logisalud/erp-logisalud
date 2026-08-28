@@ -100,10 +100,24 @@ export default async function Inicio() {
           </li>
         </ul>
         <p className="mt-3 text-sm text-gray-500">
-          Solo obligaciones de origen "compra" por ahora — Servicios, Gastos, Caja Chica,
-          Financiamiento e Impuestos tienen su modelo de datos y sus políticas aplicadas; las
-          pantallas vienen después.
+          Obligaciones de origen "compra", "gasto_directo", "reembolso" y "anticipo" — Servicios,
+          Caja Chica, Financiamiento e Impuestos tienen su modelo de datos y sus políticas
+          aplicadas; las pantallas vienen después.
         </p>
+      </section>
+
+      <section className="card mt-4">
+        <h2 className="font-heading text-lg">Gastos y Anticipos</h2>
+        <ul className="mt-3 space-y-2">
+          <li>
+            <Link href="/gastos" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
+              <span className="font-medium">Mis solicitudes</span>
+              <p className="text-sm text-gray-600">
+                Pedir un gasto directo, reembolso o anticipo, y rendir los anticipos ya pagados.
+              </p>
+            </Link>
+          </li>
+        </ul>
       </section>
     </main>
   )
