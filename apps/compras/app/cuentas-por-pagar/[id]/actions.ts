@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { darConformidad, obtenerObligacion } from '@/services/obligaciones'
 import { registrarNotaCredito, aplicarNotaCredito } from '@/services/notas-credito'
+import { obtenerUrlLegajoPago } from '@/services/pagos'
 
 export type EstadoAccion = { error: string } | null
 
@@ -52,4 +53,13 @@ export async function aplicarNotaCreditoAction(obligacionId: string, notaCredito
   }
   revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
   return null
+}
+
+export async function verVoucherAction(storagePath: string): Promise<{ url: string } | { error: string }> {
+  try {
+    const url = await obtenerUrlLegajoPago(storagePath)
+    return { url }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
 }

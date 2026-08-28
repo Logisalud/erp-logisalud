@@ -12,8 +12,8 @@ export type BorradorPago = {
   cuentaBancariaProveedorId: string | null
   cuentaBancariaEmpleadoId: string | null
   numeroVoucher: string | null
-  storagePathVoucher: string | null
-  storagePathDetraccion: string | null
+  archivoVoucher: File | null
+  archivoDetraccion: File | null
 }
 
 /**
@@ -32,7 +32,7 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
   const { data: obligacion, error: errOb } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, estado, moneda, neto_a_pagar')
+    .select('id, codigo, estado, moneda, neto_a_pagar')
     .eq('id', borrador.obligacionId)
     .maybeSingle()
   if (errOb || !obligacion) throw new Error('No se encontró la obligación.')
@@ -55,6 +55,13 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
     throw new Error('La propuesta de esta obligación todavía no está aprobada por Gerencia.')
   }
 
+  // "El voucher cierra el ciclo" (Fase 1.9): el comprobante real del banco,
+  // no solo el número a mano — sube best-effort, igual que
+  // solicitudes-gasto.subirComprobante: si el upload falla (red, tamaño), el
+  // pago igual se registra, Tesorería puede reintentar el archivo después.
+  const storagePathVoucher = await subirLegajoPago(obligacion.codigo, borrador.archivoVoucher)
+  const storagePathDetraccion = await subirLegajoPago(obligacion.codigo, borrador.archivoDetraccion)
+
   const { data: pago, error: errPago } = await supabase
     .schema('cuentas_x_pagar')
     .from('pagos')
@@ -65,8 +72,8 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
       cuenta_bancaria_proveedor_id: borrador.cuentaBancariaProveedorId,
       cuenta_bancaria_empleado_id: borrador.cuentaBancariaEmpleadoId,
       numero_voucher: borrador.numeroVoucher,
-      storage_path_voucher: borrador.storagePathVoucher,
-      storage_path_detraccion: borrador.storagePathDetraccion,
+      storage_path_voucher: storagePathVoucher,
+      storage_path_detraccion: storagePathDetraccion,
       ejecutado_por: usuario.id,
     })
     .select('id')
@@ -107,4 +114,26 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
   await marcarServicioPagado(borrador.obligacionId)
 
   return { id: pago.id }
+}
+
+async function subirLegajoPago(codigoObligacion: string, archivo: File | null): Promise<string | null> {
+  if (!archivo || archivo.size === 0) return null
+  const supabase = crearClienteServidor()
+  const ahora = new Date()
+  const yyyy = String(ahora.getFullYear())
+  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
+  const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const path = `${yyyy}/${mm}/${codigoObligacion}/${Date.now()}-${nombreLimpio}`
+  const { error } = await supabase.storage
+    .from('legajos-pagos')
+    .upload(path, archivo, { contentType: archivo.type || undefined })
+  return error ? null : path
+}
+
+/** URL firmada para ver el voucher o el comprobante de detracción de un pago. */
+export async function obtenerUrlLegajoPago(storagePath: string): Promise<string> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase.storage.from('legajos-pagos').createSignedUrl(storagePath, 60)
+  if (error || !data) throw new Error('No se pudo generar el link del archivo.')
+  return data.signedUrl
 }

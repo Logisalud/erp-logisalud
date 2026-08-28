@@ -44,6 +44,13 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
         {solicitud.asignadoA ? (
           <p className="mt-1 text-sm text-gray-600">Para: {solicitud.asignadoA}</p>
         ) : null}
+        {solicitud.obligacion_id ? (
+          <p className="mt-1 text-sm">
+            <a href={`/cuentas-por-pagar/${solicitud.obligacion_id}`} className="text-logisalud-teal underline">
+              Ver el pago y el voucher
+            </a>
+          </p>
+        ) : null}
 
         <AccionesSolicitud solicitudId={solicitud.id} estado={solicitud.estado} />
       </section>
