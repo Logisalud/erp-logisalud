@@ -19,6 +19,47 @@ export async function listarProveedoresServicio(): Promise<ProveedorServicio[]> 
   return data ?? []
 }
 
+export type BorradorProveedorServicio = {
+  ruc: string
+  razonSocial: string
+  nombreComercial?: string
+  contactoNombre?: string
+  contactoEmail?: string
+  contactoTelefono?: string
+  condicionPagoDias: number
+  monedaPrincipal: string
+}
+
+/**
+ * Catálogo aparte del de mercadería (compras.proveedores) — no había
+ * ninguna pantalla para cargarlo, así que /servicios/nueva se quedaba sin
+ * opciones para siempre si nadie insertaba filas a mano en Supabase.
+ * Mismo patrón que services/proveedores.ts::crearProveedor.
+ */
+export async function crearProveedorServicio(borrador: BorradorProveedorServicio): Promise<{ id: string }> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .schema('servicios')
+    .from('proveedores_servicio')
+    .insert({
+      ruc: borrador.ruc,
+      razon_social: borrador.razonSocial,
+      nombre_comercial: borrador.nombreComercial || null,
+      contacto_nombre: borrador.contactoNombre || null,
+      contacto_email: borrador.contactoEmail || null,
+      contacto_telefono: borrador.contactoTelefono || null,
+      condicion_pago_dias: borrador.condicionPagoDias,
+      moneda_principal: borrador.monedaPrincipal,
+    })
+    .select('id')
+    .single()
+  if (error) {
+    if (error.code === '23505') throw new Error('Ya existe un proveedor de servicio con ese RUC.')
+    throw new Error(`No se pudo registrar el proveedor de servicio: ${error.message}`)
+  }
+  return data
+}
+
 /** Área usuaria: cualquiera puede crear una OS — `area_solicitante` sale del perfil, nunca del formulario. */
 export async function crearOS(borrador: BorradorOS): Promise<{ id: string }> {
   const usuario = await exigirUsuario()
