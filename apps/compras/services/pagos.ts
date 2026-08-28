@@ -1,6 +1,7 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
 import { marcarSolicitudPagada } from '@/services/solicitudes-gasto'
+import { marcarReposicionPagada } from '@/services/caja-chica'
 
 export type BorradorPago = {
   obligacionId: string
@@ -83,6 +84,11 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
   // pago a su estado: un anticipo queda pendiente de rendir, gasto_directo y
   // reembolso se cierran solos. No hace nada si la obligación es de compra.
   await marcarSolicitudPagada(borrador.obligacionId)
+
+  // Igual que arriba, pero para una reposición de caja chica: al pagarse,
+  // el fondo queda repuesto y el ciclo se cierra directo (no hace nada si
+  // la obligación no nació de una reposición).
+  await marcarReposicionPagada(borrador.obligacionId)
 
   return { id: pago.id }
 }
