@@ -130,6 +130,10 @@ export type SolicitudDetalle = SolicitudListada & {
   categoria: { nombre: string } | null
   /** Nombre de a quién van los viáticos, si no es quien creó la solicitud. */
   asignadoA: string | null
+  /** Fase 1.9 ("el voucher cierra el ciclo"): cuando ya se pagó, el voucher
+   * real vive en cuentas_x_pagar.pagos — se enlaza a esa pantalla en vez de
+   * duplicar el visor de archivos acá. */
+  obligacion_id: string | null
   comprobantes: ComprobanteGasto[]
   liquidacion: {
     monto_anticipo: number
@@ -146,7 +150,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     .schema('gastos')
     .from('solicitudes_gasto')
     .select(`id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, area, created_at,
-             destino, fecha_inicio, fecha_fin, categoria_id, asignado_a,
+             destino, fecha_inicio, fecha_fin, categoria_id, asignado_a, obligacion_id,
              comprobantes:solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
     .eq('id', id)
     .maybeSingle()

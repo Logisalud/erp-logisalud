@@ -348,6 +348,11 @@ export type ObligacionDetalle = ObligacionListada & {
     producto: { codigo: string; descripcion: string; unidad_medida: string } | null
   }[]
   notasCredito: { id: string; numero_nc: string | null; monto: number; motivo: string; aplicada: boolean }[]
+  pago: {
+    numero_voucher: string | null
+    storage_path_voucher: string | null
+    storage_path_detraccion: string | null
+  } | null
 }
 
 export async function obtenerObligacion(id: string): Promise<ObligacionDetalle | null> {
@@ -365,12 +370,13 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
   if (error) throw new Error(`No se pudo leer la obligación: ${error.message}`)
   if (!data) return null
 
-  const [proveedores, beneficiarios, oc, recepcion, notasCredito] = await Promise.all([
+  const [proveedores, beneficiarios, oc, recepcion, notasCredito, pago] = await Promise.all([
     mapaProveedoresBasico(data.proveedor_id ? [data.proveedor_id] : []),
     mapaBeneficiarios(data.beneficiario_persona ? [data.beneficiario_persona] : []),
     data.oc_id ? obtenerOCBasica(data.oc_id) : Promise.resolve(null),
     data.recepcion_id ? obtenerRecepcionBasica(data.recepcion_id) : Promise.resolve(null),
     listarNotasCredito(id),
+    obtenerPagoDeObligacion(id),
   ])
 
   const items: any[] = (data as any).obligaciones_items ?? []
@@ -402,7 +408,29 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
       producto: productos.get(i.oc_item_id) ?? null,
     })),
     notasCredito,
+    pago,
   }
+}
+
+/** El voucher que "cierra el ciclo" (Fase 1.9) — vive en cuentas_x_pagar.pagos,
+ * enlazado por pago_aplicacion, así que hay que resolverlo con una segunda
+ * consulta en vez de embeberlo directo desde obligaciones. */
+async function obtenerPagoDeObligacion(obligacionId: string) {
+  const supabase = crearClienteServidor()
+  const { data: aplicacion } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pago_aplicacion')
+    .select('pago_id')
+    .eq('obligacion_id', obligacionId)
+    .maybeSingle()
+  if (!aplicacion) return null
+  const { data: pago } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pagos')
+    .select('numero_voucher, storage_path_voucher, storage_path_detraccion')
+    .eq('id', aplicacion.pago_id)
+    .maybeSingle()
+  return pago ?? null
 }
 
 async function obtenerOCBasica(ocId: string) {

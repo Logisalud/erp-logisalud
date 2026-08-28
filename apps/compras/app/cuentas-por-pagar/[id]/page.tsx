@@ -10,6 +10,7 @@ import { superaUmbralDetraccion, UMBRAL_DETRACCION_SERVICIOS_PEN, type Moneda } 
 import { ETIQUETA_ESTADO_VENCIMIENTO } from '@/domain/financiamiento'
 import { BotonConformidad } from './conformidad'
 import { NotasCredito } from './notas-credito'
+import { VerVoucher } from './ver-voucher'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,6 +72,21 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
             {' · '}
             {obligacion.recepcion.storage_path_factura_proveedor ? 'factura ✓' : 'factura —'}
           </p>
+        ) : null}
+        {obligacion.pago ? (
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-gray-600">
+              {obligacion.pago.numero_voucher ? `Voucher N° ${obligacion.pago.numero_voucher}` : 'Pagada'}
+            </span>
+            {obligacion.pago.storage_path_voucher ? (
+              <VerVoucher storagePath={obligacion.pago.storage_path_voucher} etiqueta="Ver voucher" />
+            ) : (
+              <span className="text-xs text-amber-700">sin voucher adjunto</span>
+            )}
+            {obligacion.pago.storage_path_detraccion ? (
+              <VerVoucher storagePath={obligacion.pago.storage_path_detraccion} etiqueta="Ver detracción" />
+            ) : null}
+          </div>
         ) : null}
 
         {puedeDarConformidad ? <BotonConformidad obligacionId={obligacion.id} /> : null}

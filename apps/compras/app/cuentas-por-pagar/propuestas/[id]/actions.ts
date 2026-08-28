@@ -33,14 +33,17 @@ export async function ejecutarPagoAction(
   _previo: EstadoAccion,
   form: FormData
 ): Promise<EstadoAccion> {
+  const archivoVoucher = form.get('archivoVoucher')
+  const archivoDetraccion = form.get('archivoDetraccion')
+
   const borrador: BorradorPago = {
     obligacionId: String(form.get('obligacionId') ?? ''),
     fechaPago: String(form.get('fechaPago') ?? ''),
     cuentaBancariaProveedorId: textoONull(form.get('cuentaBancariaProveedorId')),
     cuentaBancariaEmpleadoId: textoONull(form.get('cuentaBancariaEmpleadoId')),
     numeroVoucher: textoONull(form.get('numeroVoucher')),
-    storagePathVoucher: null,
-    storagePathDetraccion: null,
+    archivoVoucher: archivoVoucher instanceof File ? archivoVoucher : null,
+    archivoDetraccion: archivoDetraccion instanceof File ? archivoDetraccion : null,
   }
   if (!borrador.fechaPago) return { error: 'Falta la fecha de pago.' }
 

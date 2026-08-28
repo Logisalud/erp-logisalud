@@ -57,6 +57,27 @@ export function FormularioPago({
         </label>
       </div>
 
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className="text-gray-600">Voucher (foto o PDF)</span>
+          <input
+            type="file" name="archivoVoucher" accept="application/pdf,image/jpeg,image/png,image/webp"
+            className="mt-1 block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="text-gray-600">Comprobante de detracción (opcional)</span>
+          <input
+            type="file" name="archivoDetraccion" accept="application/pdf,image/jpeg,image/png,image/webp"
+            className="mt-1 block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-teal file:px-3 file:text-white"
+          />
+        </label>
+      </div>
+      <p className="text-xs text-gray-500">
+        Subir el voucher es lo que cierra el ciclo de esta obligación — sin él, el pago queda
+        registrado pero sin sustento adjunto.
+      </p>
+
       <BotonPagar />
     </form>
   )
