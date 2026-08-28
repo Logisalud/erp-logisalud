@@ -119,6 +119,20 @@ export default async function Inicio() {
           </li>
         </ul>
       </section>
+
+      <section className="card mt-4">
+        <h2 className="font-heading text-lg">Caja Chica</h2>
+        <ul className="mt-3 space-y-2">
+          <li>
+            <Link href="/caja-chica" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
+              <span className="font-medium">Mis fondos</span>
+              <p className="text-sm text-gray-600">
+                Registrar un gasto del fondo fijo y pedir reposición cuando se agota.
+              </p>
+            </Link>
+          </li>
+        </ul>
+      </section>
     </main>
   )
 }
