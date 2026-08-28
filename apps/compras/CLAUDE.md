@@ -39,7 +39,11 @@ Estado (ver sección 9 del documento, "Alcance por Pull Request"):
 2. ✅ Compras + Órdenes de Compra (proveedores, productos, OC con líneas).
 3. ✅ Almacén + Discrepancias (recepción contra OC, clasificación
    automática, resolución del responsable de Almacén).
-4. ⏳ Cuentas por Pagar core (obligaciones, propuestas, pagos) — en curso.
+4. ✅ Cuentas por Pagar core (obligaciones desde una recepción conforme,
+   conciliación de 3 vías, conformidad, propuestas de pago, aprobación de
+   Gerencia, pago). Solo origen `compra` por ahora — los otros nueve
+   orígenes existen en el modelo de datos pero dependen de módulos que
+   todavía no son pantalla.
 5. ⏳ Servicios.
 6. ⏳ Gastos / Anticipos.
 7. ⏳ Caja Chica.

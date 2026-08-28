@@ -71,6 +71,17 @@ export function estadoTrasRecepcion(todosLosItemsCompletos: boolean): EstadoOC {
 }
 
 /**
+ * Cuando Cuentas por Pagar registra una obligación con líneas de esta OC:
+ * si con eso ya se facturó todo lo pedido, la OC pasa a 'facturada' sola —
+ * nadie la marca a mano. Si no, el estado no se toca acá (lo sigue
+ * gobernando la recepción, ver estadoTrasRecepcion): facturar una línea no
+ * debería adelantar el estado de recepción de las demás.
+ */
+export function puedeMarcarseFacturada(todosLosItemsFacturados: boolean): boolean {
+  return todosLosItemsFacturados
+}
+
+/**
  * Una OC solo se puede editar mientras el proveedor no la haya confirmado.
  * Después, cambiarle las líneas dejaría a Almacén recibiendo contra una
  * cantidad distinta de la que se pidió.

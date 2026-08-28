@@ -77,9 +77,32 @@ export default async function Inicio() {
             </Link>
           </li>
         </ul>
+      </section>
+
+      <section className="card mt-4">
+        <h2 className="font-heading text-lg">Cuentas por Pagar</h2>
+        <ul className="mt-3 space-y-2">
+          <li>
+            <Link href="/cuentas-por-pagar" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
+              <span className="font-medium">Obligaciones</span>
+              <p className="text-sm text-gray-600">
+                Registrar la factura desde una recepción conforme, dar conformidad, notas de crédito.
+              </p>
+            </Link>
+          </li>
+          <li>
+            <Link href="/cuentas-por-pagar/propuestas" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
+              <span className="font-medium">Propuestas de pago</span>
+              <p className="text-sm text-gray-600">
+                Armar el lote semanal, aprobación de Gerencia, ejecutar el pago.
+              </p>
+            </Link>
+          </li>
+        </ul>
         <p className="mt-3 text-sm text-gray-500">
-          Cuentas por Pagar, Servicios, Gastos, Caja Chica, Financiamiento e Impuestos tienen su
-          modelo de datos y sus políticas aplicadas; las pantallas vienen después.
+          Solo obligaciones de origen "compra" por ahora — Servicios, Gastos, Caja Chica,
+          Financiamiento e Impuestos tienen su modelo de datos y sus políticas aplicadas; las
+          pantallas vienen después.
         </p>
       </section>
     </main>
