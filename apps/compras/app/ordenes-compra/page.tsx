@@ -11,7 +11,7 @@ export default async function OrdenesCompra() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <Encabezado titulo="Órdenes de compra" />
+      <Encabezado titulo="Órdenes de compra" atras={{ href: '/', texto: 'Módulos' }} />
 
       <Link href="/ordenes-compra/nueva" className="btn-primary mb-5 w-full sm:w-auto">
         Nueva orden
