@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { obtenerRecepcion } from '@/services/recepciones'
@@ -27,6 +28,11 @@ export default async function DetalleRecepcion({ params }: { params: { id: strin
           <Dato termino="Guía de remisión" valor={recepcion.guia_remision} />
           <Dato termino="Estado" valor={ETIQUETA_ESTADO_RECEPCION[recepcion.estado]} />
         </dl>
+        {recepcion.estado === 'conforme' ? (
+          <Link href={`/cuentas-por-pagar/nueva/${recepcion.id}`} className="btn-primary mt-4 inline-block">
+            Registrar obligación
+          </Link>
+        ) : null}
       </section>
 
       <section className="card mt-4">
