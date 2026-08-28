@@ -13,7 +13,7 @@ export default async function Proveedores({
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <Encabezado titulo="Proveedores" />
+      <Encabezado titulo="Proveedores" atras={{ href: '/', texto: 'Módulos' }} />
 
       <form className="mb-4 flex gap-2">
         <input

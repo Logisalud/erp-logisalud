@@ -1,0 +1,10 @@
+:root{
+/* The mark is built from circles and rounded strokes — radii are generous,
+   never sharp. Pills for actions and chips, soft rectangles for surfaces. */
+--radius-xs:4px;--radius-sm:8px;--radius-md:12px;--radius-lg:16px;
+--radius-xl:24px;--radius-2xl:32px;--radius-pill:999px;--radius-circle:50%;
+--radius-card:var(--radius-lg);
+--radius-control:var(--radius-pill);
+--radius-input:var(--radius-sm);
+--radius-image:var(--radius-md);
+}

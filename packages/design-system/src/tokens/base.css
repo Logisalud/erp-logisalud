@@ -1,0 +1,11 @@
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-relaxed);color:var(--text-body);background:var(--surface-page);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,h5{font-family:var(--font-display);font-weight:var(--fw-semibold);line-height:var(--lh-snug);letter-spacing:var(--ls-display);color:var(--text-strong);margin:0}
+p{margin:0}
+a{color:var(--text-link);text-decoration:none;transition:color var(--dur-fast) var(--ease-standard)}
+a:hover{color:var(--text-link-hover);text-decoration:underline;text-underline-offset:3px}
+button,input,select,textarea{font:inherit;color:inherit}
+img{max-width:100%;display:block}
+:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.ls-eyebrow{font-family:var(--font-display);font-size:var(--fs-2xs);font-weight:var(--fw-medium);letter-spacing:var(--ls-eyebrow);text-transform:uppercase;color:var(--brand-secondary-hover)}
