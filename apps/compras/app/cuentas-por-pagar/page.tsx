@@ -41,7 +41,7 @@ export default async function CuentasPorPagar({
                   <Money valor={o.neto_a_pagar} moneda={o.moneda} />
                 </div>
                 <p className="mt-0.5 text-sm text-gray-600">
-                  {o.proveedor?.razon_social ?? 'proveedor no legible'} · {ETIQUETA_ESTADO[o.estado]}
+                  {o.proveedor?.razon_social ?? o.beneficiario?.nombre ?? 'sin proveedor ni beneficiario'} · {ETIQUETA_ESTADO[o.estado]}
                   {o.fecha_vencimiento_real ? ` · vence ${o.fecha_vencimiento_real}` : ''}
                 </p>
               </Link>

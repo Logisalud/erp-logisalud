@@ -19,6 +19,7 @@ export type ObligacionConforme = {
   neto_a_pagar: number
   fecha_vencimiento_real: string | null
   proveedor: { razon_social: string } | null
+  beneficiario: { nombre: string | null } | null
   notasCreditoSinAplicar: number
 }
 
@@ -28,15 +29,16 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
   const { data, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, numero_factura, moneda, neto_a_pagar, fecha_vencimiento_real, proveedor_id')
+    .select('id, codigo, numero_factura, moneda, neto_a_pagar, fecha_vencimiento_real, proveedor_id, beneficiario_persona')
     .eq('estado', 'conforme')
     .order('fecha_vencimiento_real')
 
   if (error) throw new Error(`No se pudieron listar las obligaciones conformes: ${error.message}`)
   if ((data ?? []).length === 0) return []
 
-  const [proveedores, notasCredito] = await Promise.all([
+  const [proveedores, beneficiarios, notasCredito] = await Promise.all([
     mapaProveedores([...new Set(data!.map((o) => o.proveedor_id).filter(Boolean))] as string[]),
+    mapaBeneficiarios([...new Set(data!.map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
     mapaNotasCreditoSinAplicar(data!.map((o) => o.id)),
   ])
 
@@ -48,6 +50,7 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
     neto_a_pagar: Number(o.neto_a_pagar),
     fecha_vencimiento_real: o.fecha_vencimiento_real,
     proveedor: o.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null,
+    beneficiario: o.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
     notasCreditoSinAplicar: notasCredito.get(o.id) ?? 0,
   }))
 }
@@ -57,6 +60,14 @@ async function mapaProveedores(ids: string[]) {
   if (ids.length === 0) return new Map()
   const { data } = await supabase.schema('compras').from('proveedores').select('id, razon_social').in('id', ids)
   return new Map((data ?? []).map((p: any) => [p.id, { razon_social: p.razon_social }]))
+}
+
+/** Origen gasto_directo/reembolso/anticipo: el beneficiario es un empleado, no un proveedor. */
+async function mapaBeneficiarios(ids: string[]) {
+  const supabase = crearClienteServidor()
+  if (ids.length === 0) return new Map()
+  const { data } = await supabase.from('perfiles').select('id, nombre').in('id', ids)
+  return new Map((data ?? []).map((p: any) => [p.id, { nombre: p.nombre }]))
 }
 
 /** Notas de crédito aplicadas por obligación — las que se restan al armar la propuesta. */
@@ -238,6 +249,7 @@ export type PropuestaDetalle = {
     moneda: string
     proveedorId: string | null
     proveedor: { razon_social: string } | null
+    beneficiario: { nombre: string | null } | null
     estadoObligacion: string
     yaPagada: boolean
   }[]
@@ -261,9 +273,12 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
   const { data: obligaciones } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, numero_factura, moneda, estado, proveedor_id')
+    .select('id, codigo, numero_factura, moneda, estado, proveedor_id, beneficiario_persona')
     .in('id', obligacionIds)
-  const proveedores = await mapaProveedores([...new Set((obligaciones ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[])
+  const [proveedores, beneficiarios] = await Promise.all([
+    mapaProveedores([...new Set((obligaciones ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[]),
+    mapaBeneficiarios([...new Set((obligaciones ?? []).map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
+  ])
   const obligacionesMap = new Map((obligaciones ?? []).map((o) => [o.id, o]))
 
   const { data: pagosAplicados } = await supabase.schema('cuentas_x_pagar').from('pago_aplicacion').select('obligacion_id').in('obligacion_id', obligacionIds)
@@ -284,6 +299,7 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
         moneda: o?.moneda ?? 'PEN',
         proveedorId: o?.proveedor_id ?? null,
         proveedor: o?.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null,
+        beneficiario: o?.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
         estadoObligacion: o?.estado ?? 'desconocido',
         yaPagada: pagadas.has(d.obligacion_id),
       }
