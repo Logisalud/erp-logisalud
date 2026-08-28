@@ -13,7 +13,7 @@ export default async function ElegirOCParaRecibir() {
       <Encabezado titulo="Registrar recepción" atras={{ href: '/almacen', texto: 'Almacén' }} />
 
       <p className="mb-4 text-sm text-gray-600">
-        Elegí la orden de compra de la que llegó la mercadería.
+        Elige la orden de compra de la que llegó la mercadería.
       </p>
 
       {ordenes.length === 0 ? (

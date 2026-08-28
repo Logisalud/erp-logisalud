@@ -167,7 +167,7 @@ export async function registrarObligacionDesdeRecepcion(
   const fechaVencimientoReal = calcularFechaVencimientoReal(recepcion.fecha_conformidad, condicionPagoDias)
 
   const itemsMap = new Map((oc.ordenes_compra_items as any[]).map((i) => [i.id, i]))
-  if (borrador.lineas.length === 0) throw new Error('Agregá al menos una línea facturada.')
+  if (borrador.lineas.length === 0) throw new Error('Agrega al menos una línea facturada.')
 
   const lineasConciliacion: LineaConciliacion[] = borrador.lineas.map((l) => {
     const item = itemsMap.get(l.ocItemId)

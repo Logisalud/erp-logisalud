@@ -42,7 +42,7 @@ export function FormularioMovimiento({ fondoId, categorias }: { fondoId: string;
       <section className="card space-y-3">
         <Campo etiqueta="Categoría" error={errorDe('categoriaId')}>
           <select name="categoriaId" required className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
-            <option value="">Elegí una…</option>
+            <option value="">Elige una…</option>
             {categorias.map((c) => (
               <option key={c.id} value={c.id}>{c.nombre}</option>
             ))}
@@ -65,7 +65,7 @@ export function FormularioMovimiento({ fondoId, categorias }: { fondoId: string;
 
       <section className="card space-y-3">
         <p className="text-sm text-gray-600">
-          Subí primero la foto o PDF de tu boleta/factura y después completá la base y el IGV tal
+          Sube primero la foto o PDF de tu boleta/factura y después completa la base y el IGV tal
           como figuran ahí — mirando el comprobante al lado.
         </p>
 

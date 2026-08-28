@@ -20,7 +20,7 @@ export function FormularioImpuesto({ tipos }: { tipos: TipoImpuesto[] }) {
       <section className="card space-y-3">
         <Campo etiqueta="Tipo de impuesto" error={errorDe('tipoImpuestoId')}>
           <select name="tipoImpuestoId" required className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
-            <option value="">Elegí uno…</option>
+            <option value="">Elige uno…</option>
             {tipos.map((t) => (
               <option key={t.id} value={t.id}>{t.nombre}</option>
             ))}

@@ -12,7 +12,7 @@ export async function crearProveedorAction(_previo: EstadoFormulario, form: Form
 
   const errores: { campo: string; mensaje: string }[] = []
   if (!/^\d{11}$/.test(ruc)) errores.push({ campo: 'ruc', mensaje: 'El RUC tiene que tener 11 dígitos.' })
-  if (!razonSocial) errores.push({ campo: 'razonSocial', mensaje: 'Escribí la razón social.' })
+  if (!razonSocial) errores.push({ campo: 'razonSocial', mensaje: 'Escribe la razón social.' })
   if (!condicionPagoDias || condicionPagoDias < 0) errores.push({ campo: 'condicionPagoDias', mensaje: 'Los días de condición de pago tienen que ser 0 o más.' })
   if (errores.length > 0) return { errores }
 

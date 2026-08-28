@@ -44,7 +44,7 @@ The original brief also mentioned Boticuy / Cuidafarma as consumer-pharmacy refe
 
 ## CONTENT FUNDAMENTALS
 
-**Language.** Spanish (Perú) is the product language. Neutral Latin-American Spanish, no Peninsular forms (*envío*, not *envío gratuito peninsular*; *carrito*, not *cesta*).
+**Language.** Spanish (Perú) is the product language. Neutral Latin-American Spanish, no Peninsular forms (*envío*, not *envío gratuito peninsular*; *carrito*, not *cesta*). Tuteo (tú), nunca voseo (vos) — Perú usa tuteo estándar, no rioplatense: "tienes", "puedes", "avísame", never "tenés", "podés", "avisame".
 
 **Person.** The live site addresses the business client as **tú** — cercano, not formal-*usted* — and speaks as **nosotros** far more than a consumer store would, because the credential *is* the message: "Conectamos puntos en el espacio para acercar salud y confianza", "Nos adaptamos sin perder confiabilidad". Frame value as the client's objective, in their words: **"Quiero almacenar", "Quiero transportar", "Quiero distribuir", "Quiero asesoría"** — that first-person-client framing is the site's signature device and should be reused.
 

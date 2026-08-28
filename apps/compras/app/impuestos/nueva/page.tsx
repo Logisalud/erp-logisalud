@@ -13,7 +13,7 @@ export default async function NuevaObligacionTributaria() {
 
       {tipos.length === 0 ? (
         <p className="card text-sm text-gray-600">
-          Todavía no hay ningún tipo de impuesto cargado. Pedile a Contabilidad que cargue al menos
+          Todavía no hay ningún tipo de impuesto cargado. Pídele a Contabilidad que cargue al menos
           uno antes de poder registrar una obligación tributaria.
         </p>
       ) : (

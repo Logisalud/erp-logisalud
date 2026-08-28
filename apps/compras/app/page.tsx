@@ -26,7 +26,7 @@ export default async function Inicio() {
             &larr; Módulos
           </a>
           <BrandMark layout="horizontal" colorway="color" height={28} className="mt-2" />
-          <h1 className="font-heading mt-2 text-2xl">Compras y Pagos</h1>
+          <h1 className="font-heading mt-2 text-2xl">🛒 Compras y Pagos</h1>
         </div>
         <BotonCerrarSesion />
       </header>
@@ -78,7 +78,7 @@ export default async function Inicio() {
       <section className="mt-4">
         <h2 className="font-heading mb-2 text-lg">Compras</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <AccionVerbo href="/ordenes-compra/nueva" emoji="🧾" color="green" titulo="Crear Orden de Compra" descripcion="Elegí proveedor, productos y mandale la OC." />
+          <AccionVerbo href="/ordenes-compra/nueva" emoji="🧾" color="green" titulo="Crear Orden de Compra" descripcion="Elige proveedor, productos y mándale la OC." />
           <AccionVerbo href="/proveedores/nuevo" emoji="🏢" color="teal" titulo="Registrar Proveedor" descripcion="RUC, contacto y condición de pago." />
         </div>
         <Link href="/ordenes-compra" className="mt-2 inline-block text-sm text-logisalud-teal underline">
@@ -98,7 +98,7 @@ export default async function Inicio() {
         <h2 className="font-heading mb-2 text-lg">Cuentas por Pagar</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <AccionVerbo href="/almacen" emoji="🧾" color="green" titulo="Registrar factura" descripcion="Desde una recepción conforme de Almacén." />
-          <AccionVerbo href="/cuentas-por-pagar" emoji="✅" color="teal" titulo="Dar conformidad" descripcion="Revisá las obligaciones pendientes y confirmá cada una." />
+          <AccionVerbo href="/cuentas-por-pagar" emoji="✅" color="teal" titulo="Dar conformidad" descripcion="Revisa las obligaciones pendientes y confirma cada una." />
         </div>
         <Link href="/cuentas-por-pagar/propuestas" className="btn-secondary mt-3 w-full sm:w-auto">
           Propuestas de pago
@@ -188,7 +188,7 @@ async function HeroContabilidad() {
     <div className="mt-6 space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <AccionVerbo href="/almacen" emoji="🧾" color="green" titulo="Registrar factura" descripcion="Desde una recepción conforme de Almacén." />
-        <AccionVerbo href="/cuentas-por-pagar" emoji="✅" color="teal" titulo="Dar conformidad" descripcion="Revisá las obligaciones pendientes." />
+        <AccionVerbo href="/cuentas-por-pagar" emoji="✅" color="teal" titulo="Dar conformidad" descripcion="Revisa las obligaciones pendientes." />
         <AccionVerbo href="/financiamiento/prestamos/nueva" emoji="🏦" color="green" titulo="Registrar financiamiento" descripcion="Préstamo o fraccionamiento SUNAT." />
         <AccionVerbo href="/impuestos/nueva" emoji="🧮" color="teal" titulo="Cargar impuesto" descripcion="Essalud, ONP, AFP, Renta, Seguro Vida Ley." />
       </div>
@@ -206,7 +206,7 @@ async function HeroContabilidad() {
 async function HeroCompras() {
   return (
     <div className="mt-6 grid gap-3 sm:grid-cols-2">
-      <AccionVerbo href="/ordenes-compra/nueva" emoji="🧾" color="green" titulo="Crear Orden de Compra" descripcion="Elegí proveedor, productos y mandale la OC." />
+      <AccionVerbo href="/ordenes-compra/nueva" emoji="🧾" color="green" titulo="Crear Orden de Compra" descripcion="Elige proveedor, productos y mándale la OC." />
       <AccionVerbo href="/proveedores/nuevo" emoji="🏢" color="teal" titulo="Registrar Proveedor" descripcion="RUC, contacto y condición de pago." />
     </div>
   )

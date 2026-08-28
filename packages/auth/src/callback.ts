@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     // canje falla. La salida es el código de 6 dígitos, y el mensaje lo dice.
     return NextResponse.redirect(
       `${origin}/login?error=${encodeURIComponent(
-        'No se pudo validar el link. Si lo abriste en otro dispositivo, volvé a pedirlo y usá el código de 6 dígitos del correo.'
+        'No se pudo validar el link. Si lo abriste en otro dispositivo, vuelve a pedirlo y usa el código de 6 dígitos del correo.'
       )}`
     )
   }

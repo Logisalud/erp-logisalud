@@ -109,7 +109,7 @@ export function mensajeCambioBloqueado(conflictos: ConflictoDePrecio[]): string 
   return (
     `No se puede cambiar de cliente: ${cuantas} ${detalle}. ` +
     "Cambiarlo dejaría el pedido con precios que no corresponden. " +
-    "Quitá esos productos y volvé a agregarlos, o empezá un pedido nuevo para el otro cliente."
+    "Quita esos productos y vuelve a agregarlos, o empieza un pedido nuevo para el otro cliente."
   );
 }
 

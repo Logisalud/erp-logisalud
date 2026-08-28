@@ -13,7 +13,7 @@ export default async function NuevaOS() {
 
       {proveedores.length === 0 ? (
         <p className="card text-sm text-gray-600">
-          Todavía no hay ningún proveedor de servicio cargado. Pedile a Compras o Contabilidad que
+          Todavía no hay ningún proveedor de servicio cargado. Pídele a Compras o Contabilidad que
           cargue al menos uno antes de poder crear una orden.
         </p>
       ) : (

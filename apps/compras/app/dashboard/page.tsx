@@ -6,6 +6,34 @@ import { obtenerLoopsAbiertos } from '@/services/dashboard'
 export const dynamic = 'force-dynamic'
 
 /**
+ * Frases de marca que rotan al azar en cada entrada — cercanas, en tuteo
+ * peruano, nunca solemnes ni de cartel de oficina. Mismo array que
+ * apps/cobranzas/app/page.tsx (duplicado a propósito: nada de código
+ * compartido entre apps más allá de packages/auth).
+ */
+const FRASES_MARCA = [
+  '¡Buen día! Aquí seguimos, conectando todo con confianza.',
+  'Gracias por hacer que esto funcione tan bien.',
+  'Todo fluye mejor cuando tú estás al mando.',
+  'Un buen equipo se nota en los detalles — como este.',
+  'Salud, confianza y buena logística: así se ve un buen día de trabajo.',
+  'Esto funciona porque tú lo haces funcionar.',
+  'Cada pedido bien hecho es un punto más de confianza.',
+  'Hoy conectas salud con quien la necesita.',
+  'Gracias por sostener todo esto, aunque no siempre se note.',
+  'Un dato bien cargado hoy es una entrega tranquila mañana.',
+  'Conectando puntos, como siempre.',
+  'Qué bueno tenerte aquí — vamos con todo.',
+  'Cada detalle que cuidas hoy, alguien lo agradece después.',
+  'Tú haces que la cadena no se rompa.',
+  'Otro día para que todo llegue bien — gracias por eso.',
+]
+
+function fraseDelDia() {
+  return FRASES_MARCA[Math.floor(Math.random() * FRASES_MARCA.length)]
+}
+
+/**
  * Carta de Simplicidad UX, regla 5: este es el único lugar del sistema
  * pensado para ver de un vistazo qué necesita atención — prioriza
  * visualmente los "loops abiertos" por encima de cualquier métrica. No
@@ -27,6 +55,7 @@ export default async function Dashboard() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <Encabezado titulo="Dashboard" atras={{ href: '/', texto: 'Módulos' }} />
+      <p className="-mt-4 mb-4 text-xs italic text-gray-400">{fraseDelDia()}</p>
 
       {totalAbiertos === 0 ? (
         <p className="card border-logisalud-green text-sm text-gray-700">

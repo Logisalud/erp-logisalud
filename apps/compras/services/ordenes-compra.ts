@@ -171,7 +171,7 @@ export async function crearOC(borrador: BorradorOC & { notas?: string | null; cu
   if (error) {
     if (error.code === '23505' || /duplicate key/i.test(error.message)) {
       throw new Error(
-        `El código ${codigo} se acaba de usar en otra orden. Volvé a guardar y se toma el siguiente.`
+        `El código ${codigo} se acaba de usar en otra orden. Vuelve a guardar y se toma el siguiente.`
       )
     }
     throw new Error(`No se pudo crear la orden: ${error.message}`)

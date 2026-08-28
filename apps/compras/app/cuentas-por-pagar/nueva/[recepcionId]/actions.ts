@@ -32,7 +32,7 @@ export async function registrarObligacionAction(
   }
 
   const errores = validarObligacion(borrador).filter((e) => e.campo !== 'proveedorId')
-  if (lineas.length === 0) errores.push({ campo: 'lineas', mensaje: 'Cargá al menos una línea facturada.' })
+  if (lineas.length === 0) errores.push({ campo: 'lineas', mensaje: 'Carga al menos una línea facturada.' })
   if (errores.length > 0) return { errores }
 
   let obligacion: { id: string; conforme: boolean }

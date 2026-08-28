@@ -83,7 +83,7 @@ describe("mensajeCambioBloqueado", () => {
     expect(msg).toContain("1 producto");
     expect(msg).toContain("otro precio");
     // La salida importa tanto como el diagnóstico.
-    expect(msg).toMatch(/empezá un pedido nuevo|Quitá esos productos/);
+    expect(msg).toMatch(/empieza un pedido nuevo|Quita esos productos/);
   });
 
   it("distingue el caso de que directamente no haya precio", () => {

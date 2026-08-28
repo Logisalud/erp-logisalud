@@ -18,7 +18,7 @@ export default async function NuevoMovimiento({ params }: { params: { id: string
 
       {categorias.length === 0 ? (
         <p className="card text-sm text-gray-600">
-          Todavía no hay ninguna categoría de gasto cargada. Pedile a Contabilidad que cargue al
+          Todavía no hay ninguna categoría de gasto cargada. Pídele a Contabilidad que cargue al
           menos una antes de poder registrar un gasto.
         </p>
       ) : (

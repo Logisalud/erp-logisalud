@@ -14,8 +14,8 @@ export async function crearFondoAction(_previo: EstadoFormulario, form: FormData
   const descripcion = String(form.get('descripcion') ?? '').trim()
 
   const errores: { campo: string; mensaje: string }[] = []
-  if (!custodioId) errores.push({ campo: 'custodioId', mensaje: 'Elegí quién va a administrar el fondo.' })
-  if (!area) errores.push({ campo: 'area', mensaje: 'Escribí el área del fondo.' })
+  if (!custodioId) errores.push({ campo: 'custodioId', mensaje: 'Elige quién va a administrar el fondo.' })
+  if (!area) errores.push({ campo: 'area', mensaje: 'Escribe el área del fondo.' })
   if (!montoFijo || montoFijo <= 0) errores.push({ campo: 'montoFijo', mensaje: 'El monto fijo tiene que ser mayor a 0.' })
   if (errores.length > 0) return { errores }
 

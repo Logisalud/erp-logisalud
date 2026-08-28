@@ -12,6 +12,40 @@ type Modulo = {
   disponible: boolean
 }
 
+const EMOJI_MODULO: Record<string, string> = {
+  cobranzas: '💰',
+  pedidos: '📦',
+  compras: '🛒',
+}
+
+/**
+ * Frases de marca que rotan al azar en cada entrada — cercanas, en tuteo
+ * peruano, nunca solemnes ni de cartel de oficina. Array simple a propósito
+ * (sin tabla) para que agregar una nueva sea editar una línea, no una
+ * migración.
+ */
+const FRASES_MARCA = [
+  '¡Buen día! Aquí seguimos, conectando todo con confianza.',
+  'Gracias por hacer que esto funcione tan bien.',
+  'Todo fluye mejor cuando tú estás al mando.',
+  'Un buen equipo se nota en los detalles — como este.',
+  'Salud, confianza y buena logística: así se ve un buen día de trabajo.',
+  'Esto funciona porque tú lo haces funcionar.',
+  'Cada pedido bien hecho es un punto más de confianza.',
+  'Hoy conectas salud con quien la necesita.',
+  'Gracias por sostener todo esto, aunque no siempre se note.',
+  'Un dato bien cargado hoy es una entrega tranquila mañana.',
+  'Conectando puntos, como siempre.',
+  'Qué bueno tenerte aquí — vamos con todo.',
+  'Cada detalle que cuidas hoy, alguien lo agradece después.',
+  'Tú haces que la cadena no se rompa.',
+  'Otro día para que todo llegue bien — gracias por eso.',
+]
+
+function fraseDelDia() {
+  return FRASES_MARCA[Math.floor(Math.random() * FRASES_MARCA.length)]
+}
+
 /**
  * Pantalla de módulos: lo primero que ve una persona después de entrar.
  *
@@ -57,8 +91,9 @@ export default async function PantallaModulos() {
           ERP Logisalud
         </h1>
         <p className="mt-1 text-sm text-gray-600">
-          {perfil?.nombre ? `Hola, ${perfil.nombre}.` : 'Hola.'} Elegí a dónde entrar.
+          {perfil?.nombre ? `Hola, ${perfil.nombre}.` : 'Hola.'} Elige a dónde entrar.
         </p>
+        <p className="mt-1 text-xs italic text-gray-400">{fraseDelDia()}</p>
       </header>
 
       {modulos.length === 0 ? (
@@ -67,23 +102,23 @@ export default async function PantallaModulos() {
             <>
               <p className="text-gray-900">No pudimos cargar tus módulos.</p>
               <p className="mt-2 text-sm text-gray-600">
-                Es un problema nuestro, no de tus permisos. Recargá la página; si
-                sigue igual, avisale a soporte.
+                Es un problema nuestro, no de tus permisos. Recarga la página; si
+                sigue igual, avísale a soporte.
               </p>
             </>
           ) : !perfil ? (
             <>
               <p className="text-gray-900">Tu cuenta todavía no tiene perfil.</p>
               <p className="mt-2 text-sm text-gray-600">
-                Entraste bien, pero nadie te asignó un área. Escribile a tu
+                Entraste bien, pero nadie te asignó un área. Escríbele a tu
                 administrador para que te la cargue.
               </p>
             </>
           ) : (
             <>
-              <p className="text-gray-900">Todavía no tenés acceso a ningún módulo.</p>
+              <p className="text-gray-900">Todavía no tienes acceso a ningún módulo.</p>
               <p className="mt-2 text-sm text-gray-600">
-                Tu área es <strong>{perfil.area}</strong>. Escribile a tu
+                Tu área es <strong>{perfil.area}</strong>. Escríbele a tu
                 administrador para que te habilite lo que necesites.
               </p>
             </>
@@ -101,7 +136,7 @@ export default async function PantallaModulos() {
               }`}
             >
               <h2 className="font-oswald text-xl uppercase tracking-wide text-gray-900">
-                {m.nombre}
+                <span aria-hidden>{EMOJI_MODULO[m.id] ?? ''}</span> {m.nombre}
               </h2>
               <p className="mt-1 grow text-sm text-gray-600">{m.descripcion}</p>
 
