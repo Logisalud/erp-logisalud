@@ -68,7 +68,12 @@ Estado (ver sección 9 del documento, "Alcance por Pull Request"):
    app todavía no tiene infraestructura de cron —, e Impuestos: Gestión
    Humana carga la planilla desde BUK, Contabilidad confirma y genera la
    obligación).
-9. ⏳ Dashboard general.
+9. ✅ Dashboard general (Carta de Simplicidad UX, regla 5: prioriza
+   visualmente los "loops abiertos" — cuotas de fraccionamiento SUNAT
+   vencidas, obligaciones observadas, discrepancias de Almacén sin
+   resolver, anticipos sin rendir, facturas de servicio sin conformidad —
+   nunca métricas totales; cada loop lleva directo a la pantalla donde se
+   resuelve).
 
 ## Entorno
 
