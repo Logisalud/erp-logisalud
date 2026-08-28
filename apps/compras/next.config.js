@@ -14,5 +14,15 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_BASE_PATH: '/compras',
   },
+  // El proxy /_next/image (optimizador de Vercel) devuelve 404 para el logo
+  // aunque el path y el basePath están bien — confirmado con fetch directo a
+  // producción: la URL exacta que genera next/image 404, pero el archivo
+  // crudo equivalente (/compras/brand/...png) responde 200. Todo indica que
+  // el optimizador no funciona a través del rewrite entre proyectos Vercel
+  // (cobranzas → compras). unoptimized hace que next/image pida el archivo
+  // crudo directo, sin pasar por ese proxy.
+  images: {
+    unoptimized: true,
+  },
 };
 module.exports = nextConfig;
