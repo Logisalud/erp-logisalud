@@ -4,11 +4,7 @@ import { perfilActual, usuarioActual } from '@logisalud/auth/server'
 
 export const dynamic = 'force-dynamic'
 
-/**
- * Portada del módulo. Todavía no hay pantallas: esto confirma que el shell
- * responde, que el login funciona y que la sesión llega al servidor con un
- * perfil que RLS puede evaluar.
- */
+/** Portada del módulo: sesión, Dashboard y el resto de las pantallas por Bounded Context. */
 export default async function Inicio() {
   const usuario = await usuarioActual()
   const perfil = await perfilActual()
@@ -46,6 +42,10 @@ export default async function Inicio() {
           </p>
         ) : null}
       </section>
+
+      <Link href="/dashboard" className="btn-primary mt-4 w-full sm:w-auto">
+        Dashboard — qué necesita atención
+      </Link>
 
       <section className="card mt-4">
         <h2 className="font-heading text-lg">Compras</h2>
