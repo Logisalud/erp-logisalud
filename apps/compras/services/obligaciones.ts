@@ -445,22 +445,35 @@ async function listarNotasCredito(obligacionId: string) {
 }
 
 /**
- * Contabilidad da conformidad — regla 5: si el origen es 'servicio', esto
- * bloquearía sin una fila en servicios.conformidad_servicio, pero ese módulo
- * todavía no existe como pantalla, así que hoy esta función solo se llama
- * con obligaciones de origen 'compra'.
+ * Contabilidad da conformidad — regla 5: una obligación `origen = 'servicio'`
+ * no puede pasar a 'conforme' sin una fila en `servicios.conformidad_servicio`
+ * con `conforme = true` para su `os_id`, sin importar en qué orden se
+ * subieron la factura y la conformidad (ver domain/servicio.ts).
  */
 export async function darConformidad(obligacionId: string): Promise<void> {
   const supabase = crearClienteServidor()
   const { data: obligacion, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, estado')
+    .select('id, estado, origen, os_id')
     .eq('id', obligacionId)
     .maybeSingle()
   if (error || !obligacion) throw new Error('No se encontró la obligación.')
   if (obligacion.estado !== 'registrada' && obligacion.estado !== 'observada') {
     throw new Error('Solo una obligación registrada u observada puede pasar a conforme.')
+  }
+
+  if (obligacion.origen === 'servicio') {
+    const { data: conformidad } = await supabase
+      .schema('servicios')
+      .from('conformidad_servicio')
+      .select('id')
+      .eq('os_id', obligacion.os_id)
+      .eq('conforme', true)
+      .maybeSingle()
+    if (!conformidad) {
+      throw new Error('El área usuaria todavía no dio conformidad de que el servicio se cumplió — no se puede dar conformidad sin eso.')
+    }
   }
 
   const usuario = await exigirUsuario()

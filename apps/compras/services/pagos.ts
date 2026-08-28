@@ -4,6 +4,7 @@ import { marcarSolicitudPagada } from '@/services/solicitudes-gasto'
 import { marcarReposicionPagada } from '@/services/caja-chica'
 import { marcarVencimientoPagado } from '@/services/financiamiento'
 import { marcarImpuestoPagado } from '@/services/impuestos'
+import { marcarServicioPagado } from '@/services/servicios'
 
 export type BorradorPago = {
   obligacionId: string
@@ -97,6 +98,11 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
   // nada si la obligación no nació de ese origen.
   await marcarVencimientoPagado(borrador.obligacionId)
   await marcarImpuestoPagado(borrador.obligacionId)
+
+  // Igual que arriba, para una orden de servicio: al pagarse su obligación,
+  // la orden queda cerrada (no hace nada si la obligación no es de origen
+  // 'servicio').
+  await marcarServicioPagado(borrador.obligacionId)
 
   return { id: pago.id }
 }
