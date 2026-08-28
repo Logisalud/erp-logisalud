@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { BotonCerrarSesion } from '@logisalud/auth/componentes'
 import { perfilActual, usuarioActual } from '@logisalud/auth/server'
+import { BrandMark } from '@logisalud/design-system/componentes'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,8 +17,8 @@ export default async function Inicio() {
           <a href="/" className="text-sm text-logisalud-teal underline">
             &larr; Módulos
           </a>
-          <h1 className="font-heading mt-1 text-2xl">Compras y Pagos</h1>
-          <p className="mt-1 text-sm text-gray-600">ERP LOGISALUD</p>
+          <BrandMark layout="horizontal" colorway="color" height={28} className="mt-2" />
+          <h1 className="font-heading mt-2 text-2xl">Compras y Pagos</h1>
         </div>
         <BotonCerrarSesion />
       </header>
