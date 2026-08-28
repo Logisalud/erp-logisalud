@@ -63,8 +63,22 @@ export default async function Inicio() {
             </Link>
           </li>
         </ul>
+      </section>
+
+      <section className="card mt-4">
+        <h2 className="font-heading text-lg">Almacén</h2>
+        <ul className="mt-3 space-y-2">
+          <li>
+            <Link href="/almacen" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
+              <span className="font-medium">Recepciones</span>
+              <p className="text-sm text-gray-600">
+                Recibir contra una OC y resolver discrepancias (faltantes, dañados, vencidos…).
+              </p>
+            </Link>
+          </li>
+        </ul>
         <p className="mt-3 text-sm text-gray-500">
-          Almacén, Cuentas por Pagar, Gastos, Caja Chica, Financiamiento e Impuestos tienen su
+          Cuentas por Pagar, Servicios, Gastos, Caja Chica, Financiamiento e Impuestos tienen su
           modelo de datos y sus políticas aplicadas; las pantallas vienen después.
         </p>
       </section>
