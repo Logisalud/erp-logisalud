@@ -24,7 +24,7 @@ export type BorradorImpuesto = {
 
 export function validarImpuesto(b: BorradorImpuesto): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
-  if (!b.tipoImpuestoId) errores.push({ campo: 'tipoImpuestoId', mensaje: 'Elegí un tipo de impuesto.' })
+  if (!b.tipoImpuestoId) errores.push({ campo: 'tipoImpuestoId', mensaje: 'Elige un tipo de impuesto.' })
   if (!REGEX_PERIODO.test(b.periodo)) errores.push({ campo: 'periodo', mensaje: 'El periodo tiene que tener el formato AAAA-MM.' })
   if (!(Number(b.monto) > 0)) errores.push({ campo: 'monto', mensaje: 'El monto tiene que ser mayor a 0.' })
   if (!b.fechaVencimiento) errores.push({ campo: 'fechaVencimiento', mensaje: 'Falta la fecha de vencimiento.' })

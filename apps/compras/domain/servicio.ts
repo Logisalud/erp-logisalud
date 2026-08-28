@@ -81,8 +81,8 @@ export type BorradorOS = {
 
 export function validarOS(b: BorradorOS): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
-  if (!b.proveedorServicioId) errores.push({ campo: 'proveedorServicioId', mensaje: 'Elegí un proveedor de servicio.' })
-  if (!b.descripcionServicio.trim()) errores.push({ campo: 'descripcionServicio', mensaje: 'Contá qué servicio es.' })
+  if (!b.proveedorServicioId) errores.push({ campo: 'proveedorServicioId', mensaje: 'Elige un proveedor de servicio.' })
+  if (!b.descripcionServicio.trim()) errores.push({ campo: 'descripcionServicio', mensaje: 'Cuenta qué servicio es.' })
   if (!(Number(b.montoEstimado) > 0)) errores.push({ campo: 'montoEstimado', mensaje: 'El monto estimado tiene que ser mayor a 0.' })
   if (b.moneda !== 'PEN' && b.moneda !== 'USD') errores.push({ campo: 'moneda', mensaje: 'La moneda tiene que ser PEN o USD.' })
   return errores
@@ -108,10 +108,10 @@ export function validarObligacionServicio(b: BorradorObligacionServicio): ErrorV
   if (!b.numeroFactura.trim()) errores.push({ campo: 'numeroFactura', mensaje: 'Falta el número de factura.' })
   if (!b.fechaFactura) errores.push({ campo: 'fechaFactura', mensaje: 'Falta la fecha de factura.' })
   if (!(Number(b.baseImponible) > 0)) {
-    errores.push({ campo: 'baseImponible', mensaje: 'La base imponible tiene que ser mayor a 0 — mirá la factura.' })
+    errores.push({ campo: 'baseImponible', mensaje: 'La base imponible tiene que ser mayor a 0 — mira la factura.' })
   }
   if (b.igv == null || Number(b.igv) < 0) {
-    errores.push({ campo: 'igv', mensaje: 'Poné el IGV tal como figura en la factura (puede ser 0).' })
+    errores.push({ campo: 'igv', mensaje: 'Pon el IGV tal como figura en la factura (puede ser 0).' })
   }
   return errores
 }

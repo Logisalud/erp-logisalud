@@ -61,7 +61,7 @@ export function FormularioLogin({
     if (error) {
       setError(
         /rate limit|too many/i.test(error.message)
-          ? 'Se pidieron demasiados correos seguidos. Esperá un minuto y probá de nuevo.'
+          ? 'Se pidieron demasiados correos seguidos. Espera un minuto y prueba de nuevo.'
           : error.message
       )
       setEnviando(false)
@@ -101,12 +101,12 @@ export function FormularioLogin({
   if (enviado) {
     return (
       <MarcoAuth
-        titulo="Revisá tu correo"
+        titulo="Revisa tu correo"
         descripcion={`Mandamos un mensaje a ${correo.trim().toLowerCase()}.`}
       >
         <p className="text-sm text-gray-600">
-          Hacé clic en el link del correo para entrar. Si abriste el correo en otro
-          dispositivo, escribí acá el código de 6 dígitos que viene en el mismo mensaje.
+          Haz clic en el link del correo para entrar. Si abriste el correo en otro
+          dispositivo, escribe aquí el código de 6 dígitos que viene en el mismo mensaje.
         </p>
 
         <form onSubmit={verificarCodigo} className="mt-5" noValidate>
@@ -153,7 +153,7 @@ export function FormularioLogin({
   return (
     <MarcoAuth
       titulo="Iniciar sesión"
-      descripcion="Poné tu correo de Logisalud y te mandamos un link para entrar. No hace falta contraseña."
+      descripcion="Pon tu correo de Logisalud y te mandamos un link para entrar. No hace falta contraseña."
     >
       <form onSubmit={pedirEnlace} noValidate>
         <Etiqueta htmlFor="correo">Correo</Etiqueta>

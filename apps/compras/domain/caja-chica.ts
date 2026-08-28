@@ -41,16 +41,16 @@ export type ErrorValidacion = { campo: string; mensaje: string }
 export function validarMovimiento(b: BorradorMovimiento): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
   if (!b.fondoId) errores.push({ campo: 'fondoId', mensaje: 'Falta el fondo.' })
-  if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elegí una categoría de gasto.' })
+  if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elige una categoría de gasto.' })
   if (!b.fecha) errores.push({ campo: 'fecha', mensaje: 'Falta la fecha.' })
   if (!(Number(b.monto) > 0)) errores.push({ campo: 'monto', mensaje: 'El monto tiene que ser mayor a 0.' })
 
   if (b.tipoComprobante !== 'sin_comprobante') {
     if (!(Number(b.baseImponible) > 0)) {
-      errores.push({ campo: 'baseImponible', mensaje: 'La base imponible tiene que ser mayor a 0 — mirá tu comprobante.' })
+      errores.push({ campo: 'baseImponible', mensaje: 'La base imponible tiene que ser mayor a 0 — mira tu comprobante.' })
     }
     if (b.igv == null || Number(b.igv) < 0) {
-      errores.push({ campo: 'igv', mensaje: 'Poné el IGV tal como figura en tu comprobante (puede ser 0).' })
+      errores.push({ campo: 'igv', mensaje: 'Pon el IGV tal como figura en tu comprobante (puede ser 0).' })
     }
   }
 

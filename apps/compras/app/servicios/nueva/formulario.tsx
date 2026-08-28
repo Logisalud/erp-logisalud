@@ -18,7 +18,7 @@ export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[]
       <section className="card space-y-3">
         <Campo etiqueta="Proveedor de servicio" error={errorDe('proveedorServicioId')}>
           <select name="proveedorServicioId" required className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
-            <option value="">Elegí uno…</option>
+            <option value="">Elige uno…</option>
             {proveedores.map((p) => (
               <option key={p.id} value={p.id}>{p.razon_social}</option>
             ))}

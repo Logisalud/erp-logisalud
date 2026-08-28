@@ -29,7 +29,7 @@ export type BorradorCuota = {
 export function validarCuotas(cuotas: readonly BorradorCuota[]): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
   if (cuotas.length === 0) {
-    errores.push({ campo: 'cuotas', mensaje: 'Agregá al menos una cuota del cronograma.' })
+    errores.push({ campo: 'cuotas', mensaje: 'Agrega al menos una cuota del cronograma.' })
     return errores
   }
   const numeros = new Set<number>()
@@ -94,7 +94,7 @@ export type BorradorLetra = {
 export function validarLetras(letras: readonly BorradorLetra[], montoObligacion: number): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
   if (letras.length === 0) {
-    errores.push({ campo: 'letras', mensaje: 'Agregá al menos una letra.' })
+    errores.push({ campo: 'letras', mensaje: 'Agrega al menos una letra.' })
     return errores
   }
   letras.forEach((l, i) => {

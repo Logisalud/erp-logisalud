@@ -49,7 +49,7 @@ export type ErrorValidacionPropuesta = { campo: string; mensaje: string }
 /** Una propuesta vacía no tiene sentido: Gerencia aprobaría un lote sin nada adentro. */
 export function validarPropuesta(obligacionIds: readonly string[]): ErrorValidacionPropuesta[] {
   if (obligacionIds.length === 0) {
-    return [{ campo: 'obligaciones', mensaje: 'Elegí al menos una obligación conforme.' }]
+    return [{ campo: 'obligaciones', mensaje: 'Elige al menos una obligación conforme.' }]
   }
   return []
 }

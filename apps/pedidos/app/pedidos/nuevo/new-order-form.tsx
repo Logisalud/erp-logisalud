@@ -182,7 +182,7 @@ export function NewOrderForm({
     // El combobox no usa `required` nativo (ver components/combobox.tsx),
     // así que el cliente se valida acá. La Server Action lo revalida.
     if (!selectedCustomerId) {
-      setError("Elegí un cliente.");
+      setError("Elige un cliente.");
       return;
     }
     startTransition(async () => {
@@ -210,7 +210,7 @@ export function NewOrderForm({
             A nombre de qué vendedor
           </label>
           <select id="sellerId" name="sellerId" required className="campo">
-            <option value="">Elegí un vendedor</option>
+            <option value="">Elige un vendedor</option>
             {sellers.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nombre_completo} {s.zone ? `— ${s.zone.nombre}` : ""} ({s.codigo_representante})
@@ -323,10 +323,10 @@ export function NewOrderForm({
             onSelect={handleSelectCustomer}
             onSearch={searchOptions}
             initialOptions={initialOptions}
-            placeholder="Buscá por RUC, razón social o nombre comercial..."
+            placeholder="Busca por RUC, razón social o nombre comercial..."
             minSearchLength={MIN_SEARCH_LENGTH}
             emptyMessage="Ningún cliente activo de tu cartera coincide"
-            hint={`Escribí ${MIN_SEARCH_LENGTH} caracteres o más para buscar en toda tu cartera.`}
+            hint={`Escribe ${MIN_SEARCH_LENGTH} caracteres o más para buscar en toda tu cartera.`}
           />
         )}
       </div>
@@ -389,7 +389,7 @@ export function NewOrderForm({
               value={selectedAddressId}
               onChange={(e) => setSelectedAddressId(e.target.value)}
             >
-              <option value="">Elegí una dirección</option>
+              <option value="">Elige una dirección</option>
               {addresses.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.direccion}
@@ -406,7 +406,7 @@ export function NewOrderForm({
           Condición de pago
         </label>
         <select id="paymentTermsId" name="paymentTermsId" required className="campo">
-          <option value="">Elegí una condición</option>
+          <option value="">Elige una condición</option>
           {paymentTerms.map((p) => (
             <option key={p.id} value={p.id}>
               {p.nombre}

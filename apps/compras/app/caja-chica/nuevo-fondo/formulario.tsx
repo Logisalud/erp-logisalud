@@ -20,7 +20,7 @@ export function FormularioFondo({ usuarios }: { usuarios: Usuario[] }) {
       <label className="block text-sm">
         <span className="font-medium text-gray-800">Custodio</span>
         <select name="custodioId" required defaultValue="" className="mt-1 min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
-          <option value="" disabled>Elegí quién lo va a administrar…</option>
+          <option value="" disabled>Elige quién lo va a administrar…</option>
           {usuarios.map((u) => (
             <option key={u.id} value={u.id}>{u.nombre} — {u.area}</option>
           ))}

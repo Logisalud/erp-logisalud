@@ -146,10 +146,10 @@ export function validarOC(oc: BorradorOC): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
 
   if (!oc.proveedorId) {
-    errores.push({ campo: 'proveedorId', mensaje: 'Elegí un proveedor.' })
+    errores.push({ campo: 'proveedorId', mensaje: 'Elige un proveedor.' })
   }
   if (!oc.fechaEmision) {
-    errores.push({ campo: 'fechaEmision', mensaje: 'Poné la fecha de emisión.' })
+    errores.push({ campo: 'fechaEmision', mensaje: 'Pon la fecha de emisión.' })
   }
   if (!MONEDAS.includes(oc.moneda as Moneda)) {
     errores.push({ campo: 'moneda', mensaje: 'La moneda tiene que ser PEN o USD.' })
@@ -169,7 +169,7 @@ export function validarOC(oc: BorradorOC): ErrorValidacion[] {
   }
 
   if (oc.lineas.length === 0) {
-    errores.push({ campo: 'lineas', mensaje: 'Agregá al menos un producto.' })
+    errores.push({ campo: 'lineas', mensaje: 'Agrega al menos un producto.' })
   }
 
   oc.lineas.forEach((l, i) => {
@@ -191,7 +191,7 @@ export function validarOC(oc: BorradorOC): ErrorValidacion[] {
     if (l.productoId && vistos.has(l.productoId)) {
       errores.push({
         campo: `lineas.${i}.productoId`,
-        mensaje: 'Este producto ya está en otra línea. Sumá las cantidades en una sola.',
+        mensaje: 'Este producto ya está en otra línea. Suma las cantidades en una sola.',
       })
     }
     vistos.add(l.productoId)

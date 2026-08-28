@@ -92,7 +92,7 @@ export function OrderItemComposer({
   function agregar() {
     setError(null);
     if (!productoElegido) {
-      setError("Elegí un producto.");
+      setError("Elige un producto.");
       return;
     }
     const n = Number(cantidad);
@@ -207,7 +207,7 @@ export function OrderItemComposer({
 
           {products.length === 0 ? (
             <p className="mt-2 text-sm text-slate-600">
-              No hay productos activos con precio vigente para agregar. Revisá las listas de precios
+              No hay productos activos con precio vigente para agregar. Revisa las listas de precios
               en Maestros.
             </p>
           ) : (
@@ -219,7 +219,7 @@ export function OrderItemComposer({
                 onSelect={setProductoElegido}
                 onSearch={buscarProducto}
                 initialOptions={opciones.slice(0, 30)}
-                placeholder="Buscá por nombre o código..."
+                placeholder="Busca por nombre o código..."
                 minSearchLength={1}
                 debounceMs={120}
                 emptyMessage="Ningún producto coincide"
@@ -276,7 +276,7 @@ export function OrderItemComposer({
 
           {items.length === 0 ? (
             <p className="px-4 pb-4 pt-2 text-sm text-slate-600">
-              Todavía no agregaste productos. Buscá el primero arriba.
+              Todavía no agregaste productos. Busca el primero arriba.
             </p>
           ) : (
             <ul className="mt-3 divide-y divide-slate-200 border-t border-slate-200">
@@ -437,7 +437,7 @@ export function OrderItemComposer({
         </div>
         {items.length === 0 && (
           <p className="mx-auto max-w-4xl px-4 pt-1.5 text-sm text-slate-600 sm:px-6">
-            Agregá al menos un producto para poder enviarlo.
+            Agrega al menos un producto para poder enviarlo.
           </p>
         )}
       </div>

@@ -28,7 +28,7 @@ export async function rechazarOSAction(id: string): Promise<EstadoAccion> {
 
 export async function subirFacturaAction(osId: string, _previo: EstadoAccion, form: FormData): Promise<EstadoAccion> {
   const archivo = form.get('archivo')
-  if (!(archivo instanceof File) || archivo.size === 0) return { error: 'Elegí un archivo primero.' }
+  if (!(archivo instanceof File) || archivo.size === 0) return { error: 'Elige un archivo primero.' }
   return ejecutar(osId, () => subirFacturaOS(osId, archivo))
 }
 

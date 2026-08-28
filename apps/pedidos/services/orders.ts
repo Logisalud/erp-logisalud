@@ -470,7 +470,7 @@ async function resolvePreciosParaCliente(
     .eq("id", customerId)
     .maybeSingle();
   if (customerError) throw new Error(customerError.message);
-  if (!customer) throw new Error("El cliente no existe o no es visible para vos.");
+  if (!customer) throw new Error("El cliente no existe o no es visible para ti.");
 
   // Sin canal no hay lista de precios posible: todo queda sin precio, que
   // es justamente lo que el bloqueo tiene que reportar.

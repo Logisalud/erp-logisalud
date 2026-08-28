@@ -109,7 +109,7 @@ export async function getDireccionesDeCliente(customerId: string) {
 /** Cambiar la dirección no mueve precios: es libre. */
 export async function cambiarDireccion(orderId: string, customerAddressId: string) {
   const userId = await requireUserId();
-  if (!customerAddressId) throw new Error("Elegí una dirección de entrega.");
+  if (!customerAddressId) throw new Error("Elige una dirección de entrega.");
   await updateOrderAddress({ orderId, customerAddressId, actor: userId });
   revalidatePath(`/pedidos/${orderId}`);
 }
@@ -126,8 +126,8 @@ export async function cambiarCliente(
   customerAddressId: string,
 ) {
   const userId = await requireUserId();
-  if (!customerId) throw new Error("Elegí un cliente.");
-  if (!customerAddressId) throw new Error("Elegí una dirección de entrega.");
+  if (!customerId) throw new Error("Elige un cliente.");
+  if (!customerAddressId) throw new Error("Elige una dirección de entrega.");
 
   const result = await changeOrderCustomer({
     orderId,

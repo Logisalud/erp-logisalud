@@ -29,8 +29,8 @@ export default async function NuevaSolicitud({
         <div className="card space-y-3 text-sm text-gray-600">
           <p>
             Todavía no hay ninguna categoría de gasto cargada. {puedeCargarCategoria
-              ? 'Cargá al menos una para poder crear una solicitud.'
-              : 'Pedile a Contabilidad que cargue al menos una antes de poder crear una solicitud.'}
+              ? 'Carga al menos una para poder crear una solicitud.'
+              : 'Pídele a Contabilidad que cargue al menos una antes de poder crear una solicitud.'}
           </p>
           {puedeCargarCategoria ? (
             <Link href="/gastos/categorias" className="btn-primary w-full sm:w-auto">

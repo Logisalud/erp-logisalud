@@ -110,9 +110,9 @@ export function montoTotalSolicitud(b: Pick<BorradorSolicitud, 'tipo' | 'montoAn
 export function validarSolicitud(b: BorradorSolicitud): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
 
-  if (!TIPOS_SOLICITUD.includes(b.tipo)) errores.push({ campo: 'tipo', mensaje: 'Elegí un tipo de solicitud.' })
-  if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elegí una categoría de gasto.' })
-  if (!b.descripcion.trim()) errores.push({ campo: 'descripcion', mensaje: 'Contá para qué es este gasto.' })
+  if (!TIPOS_SOLICITUD.includes(b.tipo)) errores.push({ campo: 'tipo', mensaje: 'Elige un tipo de solicitud.' })
+  if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elige una categoría de gasto.' })
+  if (!b.descripcion.trim()) errores.push({ campo: 'descripcion', mensaje: 'Cuenta para qué es este gasto.' })
   if (b.moneda !== 'PEN' && b.moneda !== 'USD') errores.push({ campo: 'moneda', mensaje: 'La moneda tiene que ser PEN o USD.' })
 
   if (b.tipo === 'anticipo') {
@@ -122,10 +122,10 @@ export function validarSolicitud(b: BorradorSolicitud): ErrorValidacion[] {
     }
   } else {
     if (!(Number(b.baseImponible) > 0)) {
-      errores.push({ campo: 'baseImponible', mensaje: 'La base imponible tiene que ser mayor a 0 — mirá tu comprobante.' })
+      errores.push({ campo: 'baseImponible', mensaje: 'La base imponible tiene que ser mayor a 0 — mira tu comprobante.' })
     }
     if (b.igv == null || Number(b.igv) < 0) {
-      errores.push({ campo: 'igv', mensaje: 'Poné el IGV tal como figura en tu comprobante (puede ser 0).' })
+      errores.push({ campo: 'igv', mensaje: 'Pon el IGV tal como figura en tu comprobante (puede ser 0).' })
     }
   }
 

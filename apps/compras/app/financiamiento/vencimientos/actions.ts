@@ -7,7 +7,7 @@ import type { TipoVencimiento } from '@/domain/financiamiento'
 export type EstadoAccion = { error: string } | null
 
 export async function generarObligacionesAction(seleccion: { tipo: TipoVencimiento; id: string }[]): Promise<EstadoAccion> {
-  if (seleccion.length === 0) return { error: 'Elegí al menos un vencimiento.' }
+  if (seleccion.length === 0) return { error: 'Elige al menos un vencimiento.' }
   try {
     await generarObligacionesVencimientos(seleccion)
   } catch (e) {

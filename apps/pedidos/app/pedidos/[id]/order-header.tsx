@@ -123,11 +123,11 @@ export function OrderHeader({
     setGuardado(false);
 
     if (!clienteElegido) {
-      setError("Elegí un cliente.");
+      setError("Elige un cliente.");
       return;
     }
     if (!direccionId) {
-      setError("Elegí una dirección de entrega.");
+      setError("Elige una dirección de entrega.");
       return;
     }
 
@@ -238,7 +238,7 @@ export function OrderHeader({
                 description: c.ruc_o_documento,
               }));
             }}
-            placeholder="Buscá por RUC o razón social..."
+            placeholder="Busca por RUC o razón social..."
             minSearchLength={MIN_SEARCH_LENGTH}
             emptyMessage="Ningún cliente activo de tu cartera coincide"
           />
@@ -264,7 +264,7 @@ export function OrderHeader({
               <IconAlert className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 Este cliente no tiene una dirección de entrega activa, así que no se le puede
-                facturar el pedido. Registrala desde la ficha del cliente y volvé.
+                facturar el pedido. Regístrala desde la ficha del cliente y vuelve.
               </span>
             </p>
           ) : (
@@ -274,7 +274,7 @@ export function OrderHeader({
               value={direccionId}
               onChange={(e) => setDireccionId(e.target.value)}
             >
-              <option value="">Elegí una dirección</option>
+              <option value="">Elige una dirección</option>
               {direcciones.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.direccion}
