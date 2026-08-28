@@ -51,7 +51,7 @@ export default async function Inicio() {
           descripcion="Reembolso, anticipo, o pago directo a un proveedor."
         />
         <MenuItem
-          href="/dashboard" emoji="📊"
+          href="/cuentas-por-pagar/reportes" emoji="📊"
           titulo="Ver reportes"
           descripcion="Cuentas por pagar, pendientes, facturas, detracciones."
         />

@@ -16,11 +16,16 @@ export default async function CuentasPorPagar({
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <Encabezado titulo="Cuentas por Pagar" atras={{ href: '/', texto: 'Módulos' }} />
+      <Encabezado titulo="Registros — Cuentas por Pagar" atras={{ href: '/', texto: 'Módulos' }} />
 
-      <Link href="/cuentas-por-pagar/propuestas" className="btn-primary mb-5 w-full sm:w-auto">
-        Propuestas de pago
-      </Link>
+      <div className="mb-5 flex flex-wrap gap-2">
+        <Link href="/cuentas-por-pagar/propuestas" className="btn-primary w-full sm:w-auto">
+          Propuestas de pago
+        </Link>
+        <Link href="/cuentas-por-pagar/reportes" className="btn-secondary w-full sm:w-auto">
+          Ver reportes
+        </Link>
+      </div>
 
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <FiltroEstado etiqueta="Todas" activo={!estado} href="/cuentas-por-pagar" />
