@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { sugerirParaMovimiento } from '@/lib/conciliacion';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 });
 
-  const db = supabaseAdmin();
+  const db = crearClienteServidor();
   const { data: mov } = await db
     .from('movimientos_banco_import')
     .select('id, fecha, monto, nombre_banco_detectado')

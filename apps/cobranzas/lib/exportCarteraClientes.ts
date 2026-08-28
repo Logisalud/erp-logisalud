@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { supabaseAdmin } from './supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAll } from './fetchAll';
 
 // Genera el Excel de cartera de clientes COMPLETA de un vendedor (no solo
@@ -7,9 +7,11 @@ import { fetchAll } from './fetchAll';
 // nuevos. Compartido entre el export de admin (/api/vendedores-links/...,
 // por vendedor_id) y el export público del propio vendedor
 // (/api/v/exportar-clientes, por token) para no duplicar la lógica.
-export async function carteraClientesXlsx(vendedorId: string): Promise<{ buf: ArrayBuffer; filename: string } | null> {
-  const db = supabaseAdmin();
-
+//
+// Recibe el cliente: el export de admin pasa la sesión del usuario (sujeta
+// a RLS, exige AREAS_LECTURA), el del vendedor pasa service role porque un
+// vendedor no tiene sesión — entra por token, no por login.
+export async function carteraClientesXlsx(db: SupabaseClient, vendedorId: string): Promise<{ buf: ArrayBuffer; filename: string } | null> {
   const [vendedor, clientes] = await Promise.all([
     db.from('vendedores').select('nombres, apellidos, codigo').eq('id', vendedorId).single(),
     fetchAll<{ ruc: string; razon_social: string; distrito: string | null; codigo_zona: string | null; celular: string | null }>(

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   const q = new URL(req.url).searchParams.get('q')?.trim() ?? '';
   if (q.length < 2) return NextResponse.json({ facturas: [], pagos: [] });
 
-  const db  = supabaseAdmin();
+  const db  = crearClienteServidor();
   const noCacheHeaders = { 'Cache-Control': 'no-store, no-cache, must-revalidate' };
 
   // ── Prioridad de detección: comprobante → RUC (11 dígitos) → monto → texto ──

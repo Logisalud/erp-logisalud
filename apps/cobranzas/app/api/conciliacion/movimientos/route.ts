@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { fetchAll } from '@/lib/fetchAll';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
@@ -10,7 +10,7 @@ export async function GET() {
   const auth = await exigirArea(AREAS_LECTURA);
   if (!auth.ok) return auth.respuesta;
 
-  const db = supabaseAdmin();
+  const db = crearClienteServidor();
   const filas = await fetchAll<Record<string, unknown>>((from, to) =>
     db.from('movimientos_banco_import')
       .select('id, fecha, descripcion, monto, operacion_numero, clasificacion, nombre_banco_detectado, estado_conciliacion, pago_id, importado_en')

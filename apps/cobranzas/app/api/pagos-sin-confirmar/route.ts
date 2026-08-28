@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { UMBRAL_DIAS_CONTADO, UMBRAL_DIAS_CREDITO, ALERTAS_DESDE } from '@/lib/config-pagos';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   const historico = url.searchParams.get('historico') === '1';
   const incluirInvestigados = url.searchParams.get('investigados') === '1';
 
-  const db = supabaseAdmin();
+  const db = crearClienteServidor();
   let query = db
     .from('pagos')
     .select(`

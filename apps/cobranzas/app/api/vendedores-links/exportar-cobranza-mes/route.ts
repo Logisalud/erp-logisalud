@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import * as XLSX from 'xlsx';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { hoyISOLima } from '@/lib/fechas';
 import { cobranzaDelMes } from '@/lib/cobranzaDelMes';
 import { exigirArea } from '@logisalud/auth/api';
@@ -21,11 +21,11 @@ export async function GET(req: NextRequest) {
     const vendedorId = new URL(req.url).searchParams.get('vendedor_id')?.trim() ?? '';
     if (!vendedorId) return Response.json({ error: 'vendedor_id requerido' }, { status: 400 });
 
-    const db = supabaseAdmin();
+    const db = crearClienteServidor();
     const { data: vendedor, error } = await db.from('vendedores').select('nombres, apellidos, codigo').eq('id', vendedorId).single();
     if (error || !vendedor) return Response.json({ error: 'Vendedor no encontrado' }, { status: 404 });
 
-    const items = await cobranzaDelMes(vendedorId, hoyISOLima());
+    const items = await cobranzaDelMes(db, vendedorId, hoyISOLima());
 
     const rows = items.map(i => ({
       'RUC':               i.cliente_ruc,

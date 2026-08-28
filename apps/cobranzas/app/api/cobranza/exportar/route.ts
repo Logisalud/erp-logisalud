@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import * as XLSX from 'xlsx';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { fetchAll } from '@/lib/fetchAll';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const hasta = searchParams.get('hasta')?.trim() ?? '';
     if (!desde || !hasta) return Response.json({ error: 'desde y hasta requeridos' }, { status: 400 });
 
-    const db = supabaseAdmin();
+    const db = crearClienteServidor();
 
     const pagos = await fetchAll<{ documento_id: string; monto: number; fecha_pago: string }>((from, to) =>
       db.from('pagos').select('documento_id, monto, fecha_pago').eq('tipo', 'pago')

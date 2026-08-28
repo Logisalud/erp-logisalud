@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAll } from './fetchAll';
 
 export interface ItemCobranzaMes {
@@ -19,8 +19,11 @@ export interface ItemCobranzaMes {
 // (próxima letra pendiente si el documento fue canjeado por letra(s), si no
 // el vencimiento del documento). Usado tanto por el export Excel como por la
 // sección "Cobranza del mes" dentro de la vista del propio vendedor.
-export async function cobranzaDelMes(vendedorId: string, hoyISO: string): Promise<ItemCobranzaMes[]> {
-  const db = supabaseAdmin();
+//
+// Recibe el cliente: la vista del vendedor (sin sesión, entra por token)
+// pasa service role; el export de admin pasa la sesión del usuario, sujeta
+// a RLS.
+export async function cobranzaDelMes(db: SupabaseClient, vendedorId: string, hoyISO: string): Promise<ItemCobranzaMes[]> {
   const [y, m] = hoyISO.split('-');
   const primerDia = `${y}-${m}-01`;
   const ultimoDiaNum = new Date(Number(y), Number(m), 0).getDate();

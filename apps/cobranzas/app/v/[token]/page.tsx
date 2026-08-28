@@ -144,7 +144,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   }
 
   const hoyISO = hoyISOLima();
-  const cobranzaMes = await cobranzaDelMes(vendedor.id, hoyISO);
+  const cobranzaMes = await cobranzaDelMes(db, vendedor.id, hoyISO);
 
   const facturaPorId = new Map(facturasVisibles.map(f => [f.id, f]));
   const letrasVista: LetraVista[] = [];

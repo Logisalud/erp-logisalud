@@ -164,9 +164,10 @@ export async function GET(req: NextRequest) {
     const ayerISO = addDays(hoy, -1);
     const lunes = lunesDe(hoy);
 
+    const db = supabaseAdmin();
     const [ayer, semana] = await Promise.all([
-      computeCobranza(ayerISO, ayerISO),
-      computeCobranza(lunes, hoy),
+      computeCobranza(db, ayerISO, ayerISO),
+      computeCobranza(db, lunes, hoy),
     ]);
 
     const roster = (await fetchAll<{ id: string; nombres: string; apellidos: string | null; codigo: string | null; activo: boolean }>((from, to) =>

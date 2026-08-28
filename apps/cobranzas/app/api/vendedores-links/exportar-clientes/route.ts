@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { carteraClientesXlsx } from '@/lib/exportCarteraClientes';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     const vendedorId = new URL(req.url).searchParams.get('vendedor_id')?.trim() ?? '';
     if (!vendedorId) return Response.json({ error: 'vendedor_id requerido' }, { status: 400 });
 
-    const result = await carteraClientesXlsx(vendedorId);
+    const result = await carteraClientesXlsx(crearClienteServidor(), vendedorId);
     if (!result) return Response.json({ error: 'Vendedor no encontrado' }, { status: 404 });
 
     return new Response(result.buf, {
