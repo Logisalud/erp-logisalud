@@ -10,6 +10,7 @@ export type BorradorPago = {
   obligacionId: string
   fechaPago: string
   cuentaBancariaProveedorId: string | null
+  cuentaBancariaEmpleadoId: string | null
   numeroVoucher: string | null
   storagePathVoucher: string | null
   storagePathDetraccion: string | null
@@ -62,6 +63,7 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
       moneda: obligacion.moneda,
       monto_total: detalle.monto_a_pagar,
       cuenta_bancaria_proveedor_id: borrador.cuentaBancariaProveedorId,
+      cuenta_bancaria_empleado_id: borrador.cuentaBancariaEmpleadoId,
       numero_voucher: borrador.numeroVoucher,
       storage_path_voucher: borrador.storagePathVoucher,
       storage_path_detraccion: borrador.storagePathDetraccion,
