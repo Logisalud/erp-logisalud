@@ -14,6 +14,7 @@ type ObligacionConforme = {
   fecha_vencimiento_real: string | null
   proveedor: { razon_social: string } | null
   beneficiario: { nombre: string | null } | null
+  observaciones: string | null
   notasCreditoSinAplicar: number
 }
 
@@ -52,7 +53,7 @@ export function FormularioPropuesta({ obligaciones }: { obligaciones: Obligacion
                   <Money valor={o.neto_a_pagar} moneda={o.moneda} />
                 </div>
                 <p className="mt-0.5 text-sm text-gray-600">
-                  {o.proveedor?.razon_social ?? o.beneficiario?.nombre ?? 'sin proveedor ni beneficiario'}
+                  {o.proveedor?.razon_social ?? o.beneficiario?.nombre ?? o.observaciones ?? 'sin proveedor ni beneficiario'}
                   {o.fecha_vencimiento_real ? ` · vence ${o.fecha_vencimiento_real}` : ''}
                 </p>
                 {o.notasCreditoSinAplicar > 0 ? (

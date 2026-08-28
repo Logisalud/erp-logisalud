@@ -1,8 +1,11 @@
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
+import Link from 'next/link'
 import { obtenerObligacion } from '@/services/obligaciones'
+import { listarLetrasDeObligacion } from '@/services/financiamiento'
 import { ETIQUETA_ESTADO } from '@/domain/obligacion'
+import { ETIQUETA_ESTADO_VENCIMIENTO } from '@/domain/financiamiento'
 import { BotonConformidad } from './conformidad'
 import { NotasCredito } from './notas-credito'
 
@@ -13,6 +16,11 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   if (!obligacion) notFound()
 
   const puedeDarConformidad = obligacion.estado === 'registrada' || obligacion.estado === 'observada'
+  const puedeCanjearPorLetras =
+    obligacion.origen === 'compra' &&
+    !!obligacion.proveedor &&
+    !['pagada', 'canjeada_por_letra', 'en_propuesta'].includes(obligacion.estado)
+  const letras = obligacion.estado === 'canjeada_por_letra' ? await listarLetrasDeObligacion(obligacion.id) : []
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -50,7 +58,26 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
         ) : null}
 
         {puedeDarConformidad ? <BotonConformidad obligacionId={obligacion.id} /> : null}
+        {puedeCanjearPorLetras ? (
+          <Link href={`/financiamiento/letras/canjear/${obligacion.id}`} className="btn-secondary mt-4 inline-block">
+            Canjear por letras
+          </Link>
+        ) : null}
       </section>
+
+      {letras.length > 0 ? (
+        <section className="card mt-4">
+          <h2 className="font-heading text-lg">Letras por pagar</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {letras.map((l) => (
+              <li key={l.id} className="flex items-center justify-between border-b border-gray-100 py-1.5 last:border-0">
+                <span>{l.numero_letra ?? 'sin número'} · vence {l.fecha_vencimiento} · {ETIQUETA_ESTADO_VENCIMIENTO[l.estado] ?? l.estado}</span>
+                <Money valor={l.monto} moneda={l.moneda} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="card mt-4">
         <h2 className="font-heading text-lg">Líneas facturadas</h2>

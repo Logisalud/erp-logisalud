@@ -278,6 +278,15 @@ export type ObligacionListada = {
   proveedor: { id: string; razon_social: string } | null
   /** Para origen distinto de 'compra'/'servicio': a quién se le paga (empleado, ver public.perfiles). */
   beneficiario: { nombre: string | null } | null
+  /**
+   * Fallback de display para origen prestamo/fraccionamiento_sunat/impuesto:
+   * ninguno de esos tiene proveedor ni beneficiario_persona (no le pagan a
+   * un proveedor del catálogo ni a un empleado), así que
+   * services/financiamiento.ts y services/impuestos.ts dejan acá una
+   * etiqueta legible (entidad financiera, expediente SUNAT, tipo+periodo)
+   * al generar la obligación.
+   */
+  observaciones: string | null
 }
 
 export async function listarObligaciones(estado?: EstadoObligacion): Promise<ObligacionListada[]> {
@@ -285,7 +294,7 @@ export async function listarObligaciones(estado?: EstadoObligacion): Promise<Obl
   let q = supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, beneficiario_persona')
+    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, beneficiario_persona, observaciones')
     .order('created_at', { ascending: false })
     .limit(200)
 
