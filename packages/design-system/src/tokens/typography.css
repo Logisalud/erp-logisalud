@@ -1,0 +1,45 @@
+:root{
+/* Families */
+--font-display:"Oswald","Oswald Fallback",Impact,sans-serif; /* titles, section heads, prices, buttons in caps */
+--font-body:"Poppins","Poppins Fallback",system-ui,sans-serif; /* everything else */
+--font-mono:ui-monospace,SFMono-Regular,Menlo,monospace; /* SKUs, lot numbers, tracking codes */
+
+/* Weights */
+--fw-light:300;/* @kind font */--fw-regular:400;/* @kind font */--fw-medium:500;/* @kind font */--fw-semibold:600;/* @kind font */--fw-bold:700;/* @kind font */
+
+/* Size scale (1.200 major-third-ish, rem-based, 16px root) */
+--fs-3xs:0.6875rem;--fs-2xs:0.75rem;--fs-xs:0.8125rem;--fs-sm:0.875rem;
+--fs-md:1rem;--fs-lg:1.125rem;--fs-xl:1.375rem;--fs-2xl:1.75rem;
+--fs-3xl:2.25rem;--fs-4xl:3rem;--fs-5xl:3.75rem;
+
+/* Line heights */
+--lh-tight:1.05;/* @kind font */--lh-snug:1.2;/* @kind font */--lh-normal:1.5;/* @kind font */--lh-relaxed:1.65;/* @kind font */
+
+/* Tracking — Oswald is condensed, so display text gets positive tracking */
+--ls-display:0.01em;/* @kind font */--ls-display-caps:0.045em;/* @kind font */--ls-eyebrow:0.14em;/* @kind font */--ls-body:0;/* @kind font */
+
+/* Semantic roles */
+--type-hero-family:var(--font-display);
+--type-hero-size:var(--fs-5xl);
+--type-hero-weight:var(--fw-bold);/* @kind font */
+--type-hero-lh:var(--lh-tight);/* @kind font */
+
+--type-h1-size:var(--fs-4xl);
+--type-h2-size:var(--fs-3xl);
+--type-h3-size:var(--fs-2xl);
+--type-h4-size:var(--fs-xl);
+
+--type-eyebrow-family:var(--font-display);
+--type-eyebrow-size:var(--fs-2xs);
+--type-eyebrow-weight:var(--fw-medium);/* @kind font */
+
+--type-body-family:var(--font-body);
+--type-body-size:var(--fs-md);
+--type-body-lh:var(--lh-relaxed);/* @kind font */
+
+--type-ui-family:var(--font-body);
+--type-ui-size:var(--fs-sm);
+--type-ui-weight:var(--fw-medium);/* @kind font */
+
+--type-caption-size:var(--fs-2xs);
+}

@@ -1,6 +1,6 @@
-// Placeholder. Todavía no exporta nada: ninguna app lo consume aún.
-//
-// Cuando se llene, la idea es centralizar acá lo que hoy está duplicado
-// entre las dos apps (paleta LOGISALUD #4BB168 / #4ABCC2, el header con
-// gradiente, tiles de resumen, tipografías Poppins/Oswald).
-export {};
+// Ya no es un placeholder — ver README.md.
+// El preset de Tailwind se consume por su propio subpath
+// (`@logisalud/design-system/tailwind-preset`, un module.exports plano de
+// CommonJS que lee tailwind.config.js), no desde acá.
+export { BrandMark } from './componentes'
+export type { BrandMarkLayout, BrandMarkColorway } from './componentes'

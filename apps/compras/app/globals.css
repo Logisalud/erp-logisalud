@@ -2,19 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* Foco siempre visible, siempre teal — nunca se confunde con un hover
+     (que usa el verde). Regla de marca explícita. */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(74 188 194 / 0.4);
+  }
+}
+
 @layer components {
-  /* Tarjetas: borde gris sutil, sin gradientes ni sombras agresivas. */
+  /* Tarjetas: borde sutil, sombra suave siempre presente (no solo al hacer
+     hover), 20px de padding — igual que el resto del kit de marca. */
   .card {
-    @apply rounded-lg border border-gray-200 bg-white p-4;
+    @apply rounded-lg border border-gray-200 bg-white p-5 shadow-sm;
   }
   .card-highlight {
-    @apply rounded-lg border-2 border-logisalud-green bg-white p-4;
+    @apply rounded-lg border-2 border-logisalud-green bg-white p-5 shadow-sm;
   }
-  /* Touch targets grandes: el usuario operativo entra desde el celular. */
+  /* Botones: píldora, con el verde institucional y sus estados oscureciendo
+     un paso por vez (hover → 600, press → 700 + un achique de 2%) — nunca
+     opacidad sola. Touch targets grandes: el usuario operativo entra desde
+     el celular. */
   .btn-primary {
-    @apply inline-flex min-h-12 items-center justify-center rounded-md bg-logisalud-green px-4 font-medium text-white transition hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex min-h-12 items-center justify-center rounded-full bg-logisalud-green px-5 font-medium text-white transition duration-fast ease-standard hover:bg-green-600 hover:shadow-md active:scale-[0.98] active:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-logisalud-green disabled:hover:shadow-none;
   }
   .btn-secondary {
-    @apply inline-flex min-h-12 items-center justify-center rounded-md border border-gray-300 bg-white px-4 font-medium text-gray-800 transition hover:shadow-sm;
+    @apply inline-flex min-h-12 items-center justify-center rounded-full border border-gray-300 bg-white px-5 font-medium text-gray-800 transition duration-fast ease-standard hover:border-gray-400 hover:shadow-sm active:scale-[0.98];
   }
 }

@@ -1,0 +1,15 @@
+:root{
+/* Shadows are soft, low-contrast and green-neutral tinted — never black,
+   never on the logo. Depth comes mostly from borders + surface change. */
+--shadow-none:none;
+--shadow-xs:0 1px 2px rgb(26 32 29 / .05);
+--shadow-sm:0 1px 3px rgb(26 32 29 / .06),0 1px 2px rgb(26 32 29 / .04);
+--shadow-md:0 4px 12px rgb(26 32 29 / .07);
+--shadow-lg:0 10px 28px rgb(26 32 29 / .09);
+--shadow-xl:0 20px 48px rgb(26 32 29 / .12);
+--shadow-brand:0 8px 24px rgb(75 177 104 / .22);
+--shadow-inset-line:inset 0 -1px 0 var(--border-subtle);
+--card-shadow:var(--shadow-sm);
+--card-shadow-hover:var(--shadow-md);
+--overlay-blur:blur(10px);/* @kind other */
+}
