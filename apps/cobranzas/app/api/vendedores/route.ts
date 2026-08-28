@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 
@@ -9,7 +9,7 @@ export async function GET() {
   if (!auth.ok) return auth.respuesta;
 
   try {
-    const db = supabaseAdmin();
+    const db = crearClienteServidor();
     const { data, error } = await db
       .from('vendedores')
       .select(`

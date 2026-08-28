@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { supabaseAdmin } from '@/lib/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAll } from '@/lib/fetchAll';
 
 export interface RankItem {
@@ -18,9 +18,12 @@ const SIN_VEND = '__sin__';
 
 // Cobranza del rango: por cada pago real (tipo='pago'), enlaza a su factura y
 // vendedor y marca si al pagar la factura ya estaba vencida. Solo lectura.
-export async function computeCobranza(desde: string, hasta: string): Promise<CobranzaData> {
-  const db = supabaseAdmin();
-
+//
+// Recibe el cliente de Supabase en vez de crear el suyo: lo llaman tanto
+// /api/cobranza (sesión del usuario, sujeta a RLS) como el cron de reporte
+// diario (sin sesión, tiene que ser service role) — cada caller decide cuál
+// le corresponde, esta función no asume ninguno de los dos.
+export async function computeCobranza(db: SupabaseClient, desde: string, hasta: string): Promise<CobranzaData> {
   const pagos = await fetchAll<{ documento_id: string; monto: number; fecha_pago: string }>((from, to) =>
     db.from('pagos').select('documento_id, monto, fecha_pago').eq('tipo', 'pago')
       .gte('fecha_pago', desde).lte('fecha_pago', hasta).range(from, to)

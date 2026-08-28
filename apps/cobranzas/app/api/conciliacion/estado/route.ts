@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const { movimiento_id, accion } = await req.json() as { movimiento_id: string; accion: 'descartar' | 'reactivar' | 'desconciliar' };
   if (!movimiento_id || !accion) return NextResponse.json({ error: 'movimiento_id y accion requeridos' }, { status: 400 });
 
-  const db = supabaseAdmin();
+  const db = crearClienteServidor();
   const { data: mov } = await db.from('movimientos_banco_import').select('id, estado_conciliacion, pago_id').eq('id', movimiento_id).single();
   if (!mov) return NextResponse.json({ error: 'Movimiento no encontrado' }, { status: 404 });
 

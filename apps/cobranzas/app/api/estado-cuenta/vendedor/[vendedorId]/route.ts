@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { fetchAll } from '@/lib/fetchAll';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
@@ -27,7 +27,7 @@ export async function GET(
   try {
     const soloDeuda = new URL(req.url).searchParams.get('solo_deuda') !== 'false';
     const { vendedorId } = params;
-    const db = supabaseAdmin();
+    const db = crearClienteServidor();
 
     const data = await fetchAll<SaldoRow>((from, to) => {
       let q = db

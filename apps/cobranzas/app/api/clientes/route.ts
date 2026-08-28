@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const page         = Math.max(0, parseInt(searchParams.get('page') ?? '0'));
     const pageSize    = 50;
 
-    const db = supabaseAdmin();
+    const db = crearClienteServidor();
 
     let query = db
       .from('clientes')

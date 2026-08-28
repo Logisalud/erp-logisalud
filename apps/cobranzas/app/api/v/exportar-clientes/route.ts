@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       .single();
     if (!vendedor || !vendedor.activo) return Response.json({ error: 'Enlace no válido' }, { status: 404 });
 
-    const result = await carteraClientesXlsx(vendedor.id);
+    const result = await carteraClientesXlsx(db, vendedor.id);
     if (!result) return Response.json({ error: 'Vendedor no encontrado' }, { status: 404 });
 
     return new Response(result.buf, {

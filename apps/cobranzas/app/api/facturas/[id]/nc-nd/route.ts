@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 
@@ -11,7 +11,7 @@ export async function GET(
   const auth = await exigirArea(AREAS_LECTURA);
   if (!auth.ok) return auth.respuesta;
 
-  const db = supabaseAdmin();
+  const db = crearClienteServidor();
   const { data, error } = await db
     .from('documentos')
     .select('id, tipo, serie, numero, fecha_emision, importe_total, anulado')

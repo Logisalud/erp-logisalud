@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import * as XLSX from 'xlsx';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { fetchAll } from '@/lib/fetchAll';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const vendedorId = url.searchParams.get('vendedor_id');
     const clienteRuc = url.searchParams.get('cliente_ruc');
 
-    const db = supabaseAdmin();
+    const db = crearClienteServidor();
 
     const data = await fetchAll((from, to) => {
       let q = db

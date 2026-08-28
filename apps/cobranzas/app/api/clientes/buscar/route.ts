@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { crearClienteServidor } from '@logisalud/auth/server';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const q = new URL(req.url).searchParams.get('q')?.trim() ?? '';
   if (q.length < 2) return NextResponse.json({ clientes: [] });
 
-  const db = supabaseAdmin();
+  const db = crearClienteServidor();
   const { data, error } = await db
     .from('v_saldos')
     .select('cliente_ruc, razon_social, vendedor_nombre, vendedor_codigo, zona_nombre, saldo_pendiente, vigente, d0_7, d8_15, d16_30, d31_60, d61_mas')
