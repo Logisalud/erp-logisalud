@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { perfilActual } from '@logisalud/auth/server'
 import { Encabezado } from '@/components/nav'
 import { listarCategoriasGasto } from '@/services/solicitudes-gasto'
+import { listarUsuarios } from '@/services/usuarios'
 import { TIPOS_SOLICITUD, type TipoSolicitud } from '@/domain/gasto'
 import { FormularioSolicitud } from './formulario'
 
@@ -17,6 +18,11 @@ export default async function NuevaSolicitud({
   searchParams: { tipo?: string }
 }) {
   const categorias = await listarCategoriasGasto()
+  // RLS de public.perfiles restringe listarUsuarios() a admin/contabilidad —
+  // para cualquier otra persona vuelve solo su propia fila. El selector de
+  // "persona asignada" del anticipo (formulario.tsx) simplemente no
+  // muestra opciones útiles para nadie más, y no hace falta.
+  const usuarios = await listarUsuarios()
   const tipoPreseleccionado = tipoValido(searchParams.tipo)
   const perfil = await perfilActual()
   const puedeCargarCategoria = perfil?.area === 'contabilidad' || perfil?.area === 'admin'
@@ -39,7 +45,7 @@ export default async function NuevaSolicitud({
           ) : null}
         </div>
       ) : (
-        <FormularioSolicitud categorias={categorias} tipoPreseleccionado={tipoPreseleccionado} />
+        <FormularioSolicitud categorias={categorias} usuarios={usuarios} tipoPreseleccionado={tipoPreseleccionado} />
       )}
     </main>
   )

@@ -99,6 +99,11 @@ export type BorradorSolicitud = {
   destino?: string | null
   fechaInicio?: string | null
   fechaFin?: string | null
+  /** Solo aplica a `anticipo`: quien recibe los viáticos, cuando no es la
+   * misma persona que arma la solicitud (ej. Contabilidad la crea para un
+   * vendedor). Si queda null, el beneficiario es quien la crea — ver
+   * services/solicitudes-gasto.ts. */
+  asignadoA?: string | null
 }
 
 /** El monto total que queda en `solicitudes_gasto.monto_solicitado`. */
