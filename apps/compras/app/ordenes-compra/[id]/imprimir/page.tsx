@@ -106,7 +106,7 @@ export default async function ImprimirOC({ params }: { params: { id: string } })
             <tr key={i.id} className="border-b border-gray-200">
               <td className="py-1.5 pr-2 font-mono text-xs">{i.producto?.codigo ?? '—'}</td>
               <td className="py-1.5 pr-2">
-                {i.producto?.descripcion ?? '—'}
+                {i.producto?.descripcion ?? i.descripcion_libre ?? '—'}
                 {i.producto?.unidad_medida ? (
                   <span className="text-gray-500"> ({i.producto.unidad_medida})</span>
                 ) : null}

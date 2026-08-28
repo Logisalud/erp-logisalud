@@ -128,13 +128,27 @@ export function redondear(n: number): number {
 
 export type ErrorValidacion = { campo: string; mensaje: string }
 
+/** 'mercaderia' = catálogo para revender (producto_id). 'bien' = no es para
+ * revender (equipos, muebles) — no vive en catalogo.productos, va con texto
+ * libre por línea. */
+export const TIPOS_OC = ['mercaderia', 'bien'] as const
+export type TipoOC = (typeof TIPOS_OC)[number]
+
+export type LineaOCMercaderia = LineaOC & { productoId: string }
+export type LineaOCBien = LineaOC & { descripcionLibre: string }
+
 export type BorradorOC = {
   proveedorId: string
   fechaEmision: string
   fechaEntregaEstimada?: string | null
   moneda: string
   condicionesPagoDias?: number | null
-  lineas: readonly (LineaOC & { productoId: string })[]
+  tipo?: TipoOC
+  lineas: readonly (LineaOCMercaderia | LineaOCBien)[]
+}
+
+function esLineaBien(l: LineaOCMercaderia | LineaOCBien): l is LineaOCBien {
+  return 'descripcionLibre' in l
 }
 
 /**
@@ -169,11 +183,18 @@ export function validarOC(oc: BorradorOC): ErrorValidacion[] {
   }
 
   if (oc.lineas.length === 0) {
-    errores.push({ campo: 'lineas', mensaje: 'Agrega al menos un producto.' })
+    errores.push({
+      campo: 'lineas',
+      mensaje: oc.tipo === 'bien' ? 'Agrega al menos un bien.' : 'Agrega al menos un producto.',
+    })
   }
 
   oc.lineas.forEach((l, i) => {
-    if (!l.productoId) {
+    if (esLineaBien(l)) {
+      if (!l.descripcionLibre.trim()) {
+        errores.push({ campo: `lineas.${i}.descripcionLibre`, mensaje: 'Describe el bien.' })
+      }
+    } else if (!l.productoId) {
       errores.push({ campo: `lineas.${i}.productoId`, mensaje: 'Falta el producto.' })
     }
     if (!(l.cantidadPedida > 0)) {
@@ -185,16 +206,19 @@ export function validarOC(oc: BorradorOC): ErrorValidacion[] {
   })
 
   // Un producto repetido en dos líneas rompe la recepción: Almacén no sabría
-  // contra cuál de las dos descargar lo que llegó.
+  // contra cuál de las dos descargar lo que llegó. Solo aplica a mercadería —
+  // un bien no tiene identidad de catálogo contra la cual chocar.
   const vistos = new Set<string>()
   oc.lineas.forEach((l, i) => {
-    if (l.productoId && vistos.has(l.productoId)) {
-      errores.push({
-        campo: `lineas.${i}.productoId`,
-        mensaje: 'Este producto ya está en otra línea. Suma las cantidades en una sola.',
-      })
+    if (!esLineaBien(l) && l.productoId) {
+      if (vistos.has(l.productoId)) {
+        errores.push({
+          campo: `lineas.${i}.productoId`,
+          mensaje: 'Este producto ya está en otra línea. Suma las cantidades en una sola.',
+        })
+      }
+      vistos.add(l.productoId)
     }
-    vistos.add(l.productoId)
   })
 
   return errores

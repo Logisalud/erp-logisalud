@@ -3,12 +3,7 @@ import { BotonCerrarSesion } from '@logisalud/auth/componentes'
 import { perfilActual, usuarioActual } from '@logisalud/auth/server'
 import { BrandMark } from '@logisalud/design-system/componentes'
 import { determinarVistaEntrada } from '@/domain/inicio'
-import {
-  obtenerResumenAlmacen,
-  obtenerResumenContabilidad,
-  obtenerResumenGerencia,
-  obtenerResumenTesoreria,
-} from '@/services/inicio'
+import { obtenerResumenGerencia, obtenerResumenTesoreria } from '@/services/inicio'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,19 +26,54 @@ export default async function Inicio() {
         <BotonCerrarSesion />
       </header>
 
-      {vista === 'compras' ? <HeroCompras /> : null}
       {vista === 'tesoreria' ? <HeroTesoreria /> : null}
-      {vista === 'almacen' ? <HeroAlmacen /> : null}
-      {vista === 'contabilidad' ? <HeroContabilidad /> : null}
       {vista === 'gerencia' ? <HeroGerencia /> : null}
 
-      <Link href="/pedir-pago" className="btn-primary mt-4 w-full sm:w-auto">
-        Pedir un pago
-      </Link>
+      <section className="mt-4 space-y-3">
+        <MenuItem
+          href="/ordenes-compra/nueva" emoji="🛒"
+          titulo="Crear orden de compra de mercadería"
+          descripcion="Productos que compramos para revender (catálogo)."
+        />
+        <MenuItem
+          href="/ordenes-compra/nueva-bien" emoji="💼"
+          titulo="Crear orden de compra de un bien"
+          descripcion="Bienes que NO son para revender (equipos, muebles, etc.)."
+        />
+        <MenuItem
+          href="/servicios/nueva" emoji="🤝"
+          titulo="Contratar un servicio"
+          descripcion="Orden de Servicio a un proveedor de servicios."
+        />
+        <MenuItem
+          href="/pedir-pago" emoji="💵"
+          titulo="Pedir un pago"
+          descripcion="Reembolso, anticipo, o pago directo a un proveedor."
+        />
+        <MenuItem
+          href="/dashboard" emoji="📊"
+          titulo="Ver reportes"
+          descripcion="Cuentas por pagar, pendientes, facturas, detracciones."
+        />
+      </section>
 
-      <Link href="/dashboard" className="btn-secondary mt-3 w-full sm:w-auto">
-        Dashboard — qué necesita atención
-      </Link>
+      <section className="mt-5">
+        <h2 className="text-xs font-medium text-gray-500">Otras gestiones</h2>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            href="/impuestos/nueva"
+            className="flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            <span aria-hidden>🧮</span> Registrar impuesto
+          </Link>
+          <Link
+            href="/caja-chica"
+            className="flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            <span aria-hidden>💳</span> Caja chica
+          </Link>
+        </div>
+      </section>
 
       {usuario && !perfil ? (
         <p className="card mt-4 border-amber-200 bg-amber-50 text-sm text-amber-900">
@@ -166,52 +196,6 @@ async function HeroTesoreria() {
   )
 }
 
-async function HeroAlmacen() {
-  const { recepcionesPendientes } = await obtenerResumenAlmacen()
-  return (
-    <div className="mt-6 space-y-3">
-      <AccionVerbo href="/almacen/recepciones/nueva" emoji="📦" color="green" titulo="Recibir mercadería" descripcion="Recibir contra una OC y resolver discrepancias." />
-      <Link href="/almacen" className="card-highlight block">
-        <p className="text-sm text-gray-600">Tus recepciones pendientes</p>
-        <p className="font-heading mt-1 text-3xl">{recepcionesPendientes}</p>
-        <p className="mt-1 text-sm text-gray-600">
-          {recepcionesPendientes === 1 ? 'recepción por resolver' : 'recepciones por resolver'}
-        </p>
-      </Link>
-    </div>
-  )
-}
-
-async function HeroContabilidad() {
-  const { totalPendientes } = await obtenerResumenContabilidad()
-  return (
-    <div className="mt-6 space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <AccionVerbo href="/almacen" emoji="🧾" color="green" titulo="Registrar factura" descripcion="Desde una recepción conforme de Almacén." />
-        <AccionVerbo href="/cuentas-por-pagar" emoji="✅" color="teal" titulo="Dar conformidad" descripcion="Revisa las obligaciones pendientes." />
-        <AccionVerbo href="/financiamiento/prestamos/nueva" emoji="🏦" color="green" titulo="Registrar financiamiento" descripcion="Préstamo o fraccionamiento SUNAT." />
-        <AccionVerbo href="/impuestos/nueva" emoji="🧮" color="teal" titulo="Cargar impuesto" descripcion="Essalud, ONP, AFP, Renta, Seguro Vida Ley." />
-      </div>
-      <Link href="/dashboard" className="card-highlight block">
-        <p className="text-sm text-gray-600">Pendientes de tu cola</p>
-        <p className="font-heading mt-1 text-3xl">{totalPendientes}</p>
-        <p className="mt-1 text-sm text-gray-600">
-          {totalPendientes === 1 ? 'caso que necesita atención' : 'casos que necesitan atención'}
-        </p>
-      </Link>
-    </div>
-  )
-}
-
-async function HeroCompras() {
-  return (
-    <div className="mt-6 grid gap-3 sm:grid-cols-2">
-      <AccionVerbo href="/ordenes-compra/nueva" emoji="🧾" color="green" titulo="Crear Orden de Compra" descripcion="Elige proveedor, productos y mándale la OC." />
-      <AccionVerbo href="/proveedores/nuevo" emoji="🏢" color="teal" titulo="Registrar Proveedor" descripcion="RUC, contacto y condición de pago." />
-    </div>
-  )
-}
-
 async function HeroGerencia() {
   const { propuestasPorAprobar } = await obtenerResumenGerencia()
   return (
@@ -233,6 +217,26 @@ const COLOR_TEXTO = {
   green: 'text-logisalud-green',
   teal: 'text-logisalud-teal',
 } as const
+
+/** Ítem del menú principal — lista plana de acciones, una por fila, sin
+ * agrupar por Bounded Context: la persona no tiene que saber qué contexto
+ * gobierna cada cosa, solo qué quiere hacer. */
+function MenuItem({
+  href, emoji, titulo, descripcion,
+}: { href: string; emoji: string; titulo: string; descripcion: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-start gap-4 rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+    >
+      <span aria-hidden className="mt-0.5 text-2xl">{emoji}</span>
+      <span>
+        <span className="font-heading block text-base">{titulo}</span>
+        <span className="mt-1 block text-sm text-gray-600">{descripcion}</span>
+      </span>
+    </Link>
+  )
+}
 
 /**
  * Botón de acción principal por verbo — mismo patrón que ya usa Cobranzas en
