@@ -33,7 +33,7 @@ export default async function DetallePrestamo({ params }: { params: { id: string
                 <p className="mt-0.5 text-sm text-gray-600">
                   vence {c.fecha_vencimiento} · {ETIQUETA_ESTADO_VENCIMIENTO[c.estado] ?? c.estado}
                   {c.estado === 'pendiente' && estaVencida(c.fecha_vencimiento, hoy) ? (
-                    <span className="ml-2 text-xs font-medium text-red-700">¡vencida!</span>
+                    <span className="ml-2 text-xs font-medium text-red-700">vencida</span>
                   ) : null}
                 </p>
               </div>

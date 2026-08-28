@@ -1,0 +1,60 @@
+:root{
+/* ---- Brand primitives (from the official brand sheet) ---- */
+--logi-green:#4BB168; /* RGB 75,177,104 · CMYK 70,0,74,0 */
+--logi-teal:#4ABCC2;  /* RGB 74,188,194 · CMYK 66,0,27,0 */
+
+/* Green ramp — derived from --logi-green, hue-locked */
+--green-50:#EEF9F1;--green-100:#D8F1DF;--green-200:#B2E4C2;--green-300:#87D3A0;
+--green-400:#63C282;--green-500:#4BB168;--green-600:#3B9455;--green-700:#2F7644;
+--green-800:#255C36;--green-900:#1B4127;
+
+/* Teal ramp — derived from --logi-teal */
+--teal-50:#EDF9FA;--teal-100:#D5F1F2;--teal-200:#ABE3E6;--teal-300:#7FD2D7;
+--teal-400:#5FC6CB;--teal-500:#4ABCC2;--teal-600:#3A9BA1;--teal-700:#2E7C80;
+--teal-800:#256266;--teal-900:#1B4649;
+
+/* Neutrals — very slightly green-cooled greys so they sit with the brand */
+--neutral-0:#FFFFFF;--neutral-25:#FBFCFB;--neutral-50:#F6F8F7;--neutral-100:#EDF1EF;
+--neutral-200:#DFE5E2;--neutral-300:#C5CFCA;--neutral-400:#9AA6A0;--neutral-500:#728079;
+--neutral-600:#55625B;--neutral-700:#3D4842;--neutral-800:#2A332E;--neutral-900:#1A201D;
+
+/* Semantic status — kept clearly distinct from the two brand colours */
+--success-500:#3B9455;--success-50:#EEF9F1;
+--warning-500:#E4A03A;--warning-50:#FDF5E8;
+--danger-500:#D64B4B;--danger-50:#FCEEEE;
+--info-500:#4ABCC2;--info-50:#EDF9FA;
+
+/* ---- Semantic aliases: use THESE in product code ---- */
+--brand-primary:var(--green-500);
+--brand-primary-hover:var(--green-600);
+--brand-primary-press:var(--green-700);
+--brand-secondary:var(--teal-500);
+--brand-secondary-hover:var(--teal-600);
+
+--text-strong:var(--neutral-900);
+--text-body:var(--neutral-700);
+--text-muted:var(--neutral-500);
+--text-subtle:var(--neutral-400);
+--text-on-brand:var(--neutral-0);
+--text-link:var(--green-600);
+--text-link-hover:var(--green-700);
+--text-price:var(--neutral-900);
+
+--surface-page:var(--neutral-25);
+--surface-card:var(--neutral-0);
+--surface-sunken:var(--neutral-50);
+--surface-raised:var(--neutral-0);
+--surface-brand:var(--green-500);
+--surface-brand-soft:var(--green-50);
+--surface-secondary-soft:var(--teal-50);
+--surface-inverse:var(--neutral-900);
+--surface-overlay:rgb(26 32 29 / .55);
+
+--border-subtle:var(--neutral-200);
+--border-default:var(--neutral-300);
+--border-strong:var(--neutral-400);
+--border-brand:var(--green-500);
+--border-focus:var(--teal-500);
+
+--focus-ring:0 0 0 3px rgb(74 188 194 / .40);
+}

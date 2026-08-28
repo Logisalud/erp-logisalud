@@ -50,7 +50,7 @@ export function SelectorVencimientos({ vencimientos }: { vencimientos: Vencimien
                 </div>
                 <p className="mt-0.5 text-sm text-gray-600">
                   {ETIQUETA_TIPO_VENCIMIENTO[v.tipo]} · vence {v.fechaVencimiento}
-                  {vencida ? <span className="ml-2 text-xs font-medium text-red-700">¡vencida!</span> : null}
+                  {vencida ? <span className="ml-2 text-xs font-medium text-red-700">vencida</span> : null}
                 </p>
               </div>
             </li>
