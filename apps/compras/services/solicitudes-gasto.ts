@@ -24,6 +24,16 @@ export async function listarCategoriasGasto(): Promise<CategoriaGasto[]> {
   return data ?? []
 }
 
+/** RLS (`categorias_gasto_escritura`) ya restringe esto a contabilidad/admin. */
+export async function crearCategoriaGasto(nombre: string, cuentaContable?: string): Promise<void> {
+  const supabase = crearClienteServidor()
+  const { error } = await supabase
+    .schema('gastos')
+    .from('categorias_gasto')
+    .insert({ nombre, cuenta_contable: cuentaContable || null })
+  if (error) throw new Error(`No se pudo crear la categoría: ${error.message}`)
+}
+
 /**
  * Crea la solicitud. `area` sale del perfil de quien la crea, nunca del
  * formulario — la policy `solicitudes_gasto_crea` exige `area = mi_area()`,

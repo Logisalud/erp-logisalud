@@ -16,9 +16,14 @@ export default async function Impuestos() {
     <main className="mx-auto max-w-2xl px-4 py-8">
       <Encabezado titulo="Impuestos" atras={{ href: '/financiamiento', texto: 'Financiamiento' }} />
 
-      <Link href="/impuestos/nueva" className="btn-primary mb-5 w-full sm:w-auto">
-        Cargar obligación tributaria
-      </Link>
+      <div className="mb-5 flex flex-wrap gap-3">
+        <Link href="/impuestos/nueva" className="btn-primary w-full sm:w-auto">
+          Cargar obligación tributaria
+        </Link>
+        <Link href="/impuestos/tipos" className="btn-secondary w-full sm:w-auto">
+          Tipos de impuesto
+        </Link>
+      </div>
 
       {pendientes.length > 0 ? (
         <section className="mb-6">

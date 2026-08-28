@@ -16,6 +16,13 @@ export async function listarTiposImpuesto(): Promise<TipoImpuesto[]> {
   return data ?? []
 }
 
+/** RLS (`tipos_impuesto_escritura`) ya restringe esto a contabilidad/admin. */
+export async function crearTipoImpuesto(nombre: string): Promise<void> {
+  const supabase = crearClienteServidor()
+  const { error } = await supabase.schema('impuestos').from('tipos_impuesto').insert({ nombre })
+  if (error) throw new Error(`No se pudo crear el tipo de impuesto: ${error.message}`)
+}
+
 export type ObligacionTributariaListada = {
   id: string
   periodo: string
