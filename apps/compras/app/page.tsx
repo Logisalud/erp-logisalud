@@ -72,6 +72,12 @@ export default async function Inicio() {
           >
             <span aria-hidden>💳</span> Caja chica
           </Link>
+          <Link
+            href="/mi-cuenta-bancaria"
+            className="flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            <span aria-hidden>🏦</span> Mi cuenta bancaria
+          </Link>
         </div>
       </section>
 

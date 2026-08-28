@@ -3,6 +3,7 @@ import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { obtenerPropuesta } from '@/services/propuestas'
 import { obtenerProveedor } from '@/services/proveedores'
+import { listarCuentasBancariasDe } from '@/services/empleado-cuentas-bancarias'
 import { ETIQUETA_ESTADO_PROPUESTA } from '@/domain/propuesta'
 import { AccionesPropuesta } from './acciones'
 import { FormularioPago } from './pago'
@@ -29,11 +30,16 @@ export default async function DetallePropuesta({ params }: { params: { id: strin
       <ul className="mt-4 space-y-2">
         {await Promise.all(
           propuesta.detalle.map(async (d) => {
-            // Un reembolso/anticipo a un empleado no tiene proveedor ni cuenta
-            // bancaria modelada acá — igual se puede pagar, el formulario
-            // simplemente no ofrece "cuenta destino" en ese caso.
+            // Un reembolso/anticipo/reposición se paga a la cuenta bancaria
+            // que el empleado cargó en "Mi cuenta bancaria" (Fase 1.3) — antes
+            // esta pantalla no ofrecía "cuenta destino" para ese caso.
             const puedePagar = aprobada && !d.yaPagada
-            const cuentas = d.proveedorId ? (await obtenerProveedor(d.proveedorId))?.cuentas ?? [] : []
+            const tipoCuentas: 'proveedor' | 'empleado' = d.proveedorId ? 'proveedor' : 'empleado'
+            const cuentas = d.proveedorId
+              ? (await obtenerProveedor(d.proveedorId))?.cuentas ?? []
+              : d.beneficiarioPersonaId
+                ? await listarCuentasBancariasDe(d.beneficiarioPersonaId)
+                : []
             return (
               <li key={d.obligacionId} className="card">
                 <div className="flex items-baseline justify-between gap-3">
@@ -44,7 +50,12 @@ export default async function DetallePropuesta({ params }: { params: { id: strin
                 {d.yaPagada ? (
                   <span className="mt-2 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Pagada</span>
                 ) : puedePagar ? (
-                  <FormularioPago propuestaId={propuesta.id} obligacionId={d.obligacionId} cuentas={cuentas} />
+                  <FormularioPago
+                    propuestaId={propuesta.id}
+                    obligacionId={d.obligacionId}
+                    cuentas={cuentas}
+                    tipoCuentas={tipoCuentas}
+                  />
                 ) : null}
               </li>
             )

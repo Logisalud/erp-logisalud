@@ -37,6 +37,7 @@ export async function ejecutarPagoAction(
     obligacionId: String(form.get('obligacionId') ?? ''),
     fechaPago: String(form.get('fechaPago') ?? ''),
     cuentaBancariaProveedorId: textoONull(form.get('cuentaBancariaProveedorId')),
+    cuentaBancariaEmpleadoId: textoONull(form.get('cuentaBancariaEmpleadoId')),
     numeroVoucher: textoONull(form.get('numeroVoucher')),
     storagePathVoucher: null,
     storagePathDetraccion: null,

@@ -252,6 +252,7 @@ export type PropuestaDetalle = {
     moneda: string
     proveedorId: string | null
     proveedor: { razon_social: string } | null
+    beneficiarioPersonaId: string | null
     beneficiario: { nombre: string | null } | null
     observaciones: string | null
     estadoObligacion: string
@@ -303,6 +304,7 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
         moneda: o?.moneda ?? 'PEN',
         proveedorId: o?.proveedor_id ?? null,
         proveedor: o?.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null,
+        beneficiarioPersonaId: o?.beneficiario_persona ?? null,
         beneficiario: o?.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
         observaciones: o?.observaciones ?? null,
         estadoObligacion: o?.estado ?? 'desconocido',
