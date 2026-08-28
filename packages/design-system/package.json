@@ -10,6 +10,7 @@
     "./componentes": "./src/componentes/index.ts"
   },
   "peerDependencies": {
+    "next": ">=14",
     "react": ">=18"
   }
 }
