@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { obtenerOC } from '@/services/ordenes-compra'
-import { calcularTotales, ETIQUETA_ESTADO, puedeEditarse } from '@/domain/orden-compra'
+import { calcularTotales, ETIQUETA_ESTADO, puedeEditarse, puedeRecibirse } from '@/domain/orden-compra'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +29,11 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
         <Link href={`/ordenes-compra/${oc.id}/imprimir`} className="btn-secondary">
           Imprimir / PDF
         </Link>
+        {puedeRecibirse(oc.estado) ? (
+          <Link href={`/almacen/recepciones/nueva/${oc.id}`} className="btn-primary">
+            Registrar recepción
+          </Link>
+        ) : null}
         {puedeEditarse(oc.estado) ? (
           <span className="self-center text-sm text-gray-500">
             En {ETIQUETA_ESTADO[oc.estado].toLowerCase()}: todavía se puede editar.

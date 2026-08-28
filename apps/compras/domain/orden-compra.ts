@@ -57,6 +57,19 @@ export function transicionPermitida(desde: EstadoOC, hacia: EstadoOC): boolean {
   return TRANSICIONES[desde].includes(hacia)
 }
 
+/** Solo una OC que el proveedor ya confirmó puede empezar a recibirse. */
+export function puedeRecibirse(estado: EstadoOC): boolean {
+  return estado === 'confirmada' || estado === 'parcialmente_recibida'
+}
+
+/**
+ * Estado de la OC después de registrar una recepción — lo decide Almacén al
+ * recibir, nunca una persona a mano (ver comentario de TRANSICIONES).
+ */
+export function estadoTrasRecepcion(todosLosItemsCompletos: boolean): EstadoOC {
+  return todosLosItemsCompletos ? 'recibida_completa' : 'parcialmente_recibida'
+}
+
 /**
  * Una OC solo se puede editar mientras el proveedor no la haya confirmado.
  * Después, cambiarle las líneas dejaría a Almacén recibiendo contra una
