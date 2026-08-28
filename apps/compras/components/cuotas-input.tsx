@@ -9,9 +9,35 @@ export type FilaCuota = { numeroCuota: number; fechaVencimiento: string; montoCa
  * resolución de SUNAT (ver domain/financiamiento.ts) — el sistema no
  * calcula ninguna amortización. Serializa a un input oculto `cuotasJson`
  * que la Server Action parsea con JSON.parse.
+ *
+ * `permitirExcel` agrega, además de la tabla manual, un input de archivo
+ * `archivoCuotas` y un generador de N cuotas iguales — la Server Action
+ * (ver app/financiamiento/fraccionamientos/nueva/actions.ts) prioriza el
+ * Excel sobre `cuotasJson` si se subió un archivo.
  */
-export function CuotasInput({ error }: { error?: string }) {
+export function CuotasInput({ error, permitirExcel, plantillaHref }: { error?: string; permitirExcel?: boolean; plantillaHref?: string }) {
   const [filas, setFilas] = useState<FilaCuota[]>([{ numeroCuota: 1, fechaVencimiento: '', montoCapital: '', montoInteres: '' }])
+  const [numeroCuotasGen, setNumeroCuotasGen] = useState('')
+  const [valorCuotaGen, setValorCuotaGen] = useState('')
+  const [primerVencimientoGen, setPrimerVencimientoGen] = useState('')
+
+  const generarIguales = () => {
+    const n = Number(numeroCuotasGen)
+    const valor = Number(valorCuotaGen)
+    if (!(n > 0) || !(valor > 0)) return
+    const nuevas: FilaCuota[] = []
+    const base = primerVencimientoGen ? new Date(`${primerVencimientoGen}T00:00:00`) : null
+    for (let i = 0; i < n; i++) {
+      let fechaVencimiento = ''
+      if (base) {
+        const f = new Date(base)
+        f.setMonth(f.getMonth() + i)
+        fechaVencimiento = f.toISOString().slice(0, 10)
+      }
+      nuevas.push({ numeroCuota: i + 1, fechaVencimiento, montoCapital: String(valor), montoInteres: '0' })
+    }
+    setFilas(nuevas)
+  }
 
   const actualizar = (i: number, campo: keyof FilaCuota, valor: string) => {
     setFilas((prev) => prev.map((f, idx) => (idx === i ? { ...f, [campo]: campo === 'numeroCuota' ? Number(valor) : valor } : f)))
@@ -22,6 +48,57 @@ export function CuotasInput({ error }: { error?: string }) {
 
   return (
     <div>
+      {permitirExcel ? (
+        <div className="mb-3 space-y-3 rounded-md border border-gray-200 p-3">
+          <div>
+            <p className="text-sm font-medium text-gray-800">Subir el cronograma en Excel</p>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <input
+                type="file" name="archivoCuotas" accept=".xlsx,.xls"
+                className="block text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+              />
+              {plantillaHref ? (
+                <a href={plantillaHref} className="text-sm text-logisalud-teal underline">
+                  Descargar plantilla
+                </a>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Si subís un archivo, reemplaza lo que hayas escrito abajo — no hace falta llenar la
+              tabla manual.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-gray-800">O generar N cuotas iguales</p>
+            <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <input
+                type="number" min="1" placeholder="N° cuotas" value={numeroCuotasGen}
+                onChange={(e) => setNumeroCuotasGen(e.target.value)}
+                className="min-h-12 w-full rounded-md border border-gray-300 px-2 text-sm"
+              />
+              <input
+                type="number" min="0" step="0.01" placeholder="Valor de cada cuota" value={valorCuotaGen}
+                onChange={(e) => setValorCuotaGen(e.target.value)}
+                className="min-h-12 w-full rounded-md border border-gray-300 px-2 text-sm"
+              />
+              <input
+                type="date" value={primerVencimientoGen}
+                onChange={(e) => setPrimerVencimientoGen(e.target.value)}
+                className="min-h-12 w-full rounded-md border border-gray-300 px-2 text-sm"
+              />
+              <button type="button" onClick={generarIguales} className="btn-secondary">
+                Generar
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Rellena la tabla de abajo con N filas del mismo valor (todo en "Capital", interés en
+              0) — cada fila queda editable después, no es un cálculo de amortización.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <input type="hidden" name="cuotasJson" value={JSON.stringify(filas)} />
       <div className="space-y-2">
         {filas.map((f, i) => (

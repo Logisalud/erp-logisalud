@@ -3,18 +3,31 @@
 import { redirect } from 'next/navigation'
 import { crearFraccionamiento } from '@/services/financiamiento'
 import { validarFraccionamiento, type BorradorCuota, type BorradorFraccionamiento } from '@/domain/financiamiento'
+import { parsearCuotasExcel } from '@/lib/excel-cuotas'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 
 export async function crearFraccionamientoAction(_previo: EstadoFormulario, form: FormData): Promise<EstadoFormulario> {
-  const cuotas = parsearCuotas(form.get('cuotasJson'))
+  // Si se subió un Excel, gana sobre lo que haya en la tabla manual (ver
+  // el aviso del propio formulario) — components/cuotas-input.tsx.
+  const archivoCuotas = form.get('archivoCuotas')
+  let cuotas: BorradorCuota[]
+  if (archivoCuotas instanceof File && archivoCuotas.size > 0) {
+    const resultado = parsearCuotasExcel(await archivoCuotas.arrayBuffer())
+    if (!resultado.ok) return { errores: resultado.errores }
+    cuotas = resultado.cuotas
+  } else {
+    cuotas = parsearCuotas(form.get('cuotasJson'))
+  }
 
   const borrador: BorradorFraccionamiento = {
     numeroExpediente: String(form.get('numeroExpediente') ?? ''),
     tipo: textoONull(form.get('tipo')),
+    tipoImpuestoId: textoONull(form.get('tipoImpuestoId')),
     deudaOriginal: Number(form.get('deudaOriginal') ?? 0),
     tasaInteresMoratorio: form.get('tasaInteresMoratorio') ? Number(form.get('tasaInteresMoratorio')) : null,
     fechaResolucion: textoONull(form.get('fechaResolucion')),
+    fechaResolucionObligatoria: textoONull(form.get('fechaResolucionObligatoria')),
     cuotas,
   }
 

@@ -65,9 +65,14 @@ export function validarPrestamo(b: BorradorPrestamo): ErrorValidacion[] {
 export type BorradorFraccionamiento = {
   numeroExpediente: string
   tipo?: string | null
+  /** Qué impuesto se está fraccionando (IGV, Renta, ITAN…) — catálogo de
+   * impuestos.tipos_impuesto. Distinto de `tipo`, que es la MODALIDAD del
+   * fraccionamiento (IGV Justo, REFT), texto libre. */
+  tipoImpuestoId?: string | null
   deudaOriginal: number
   tasaInteresMoratorio?: number | null
   fechaResolucion?: string | null
+  fechaResolucionObligatoria?: string | null
   cuotas: BorradorCuota[]
 }
 
@@ -76,6 +81,30 @@ export function validarFraccionamiento(b: BorradorFraccionamiento): ErrorValidac
   if (!b.numeroExpediente.trim()) errores.push({ campo: 'numeroExpediente', mensaje: 'Falta el número de expediente.' })
   if (!(Number(b.deudaOriginal) > 0)) errores.push({ campo: 'deudaOriginal', mensaje: 'La deuda original tiene que ser mayor a 0.' })
   return [...errores, ...validarCuotas(b.cuotas)]
+}
+
+/**
+ * Genera N cuotas de igual valor — una comodidad para arrancar el
+ * cronograma manual rápido, NO un cálculo de amortización (eso sigue
+ * prohibido, ver comentario del encabezado): el valor de cada cuota lo da
+ * la persona, tal como figura en la resolución, y cada fila queda
+ * editable después. `montoCapital` recibe el valor completo y
+ * `montoInteres` queda en 0 — quien transcribe ajusta el desglose real si
+ * la resolución lo separa.
+ */
+export function generarCuotasIguales(numeroCuotas: number, valorCuota: number, primerVencimiento?: string): BorradorCuota[] {
+  const cuotas: BorradorCuota[] = []
+  const base = primerVencimiento ? new Date(`${primerVencimiento}T00:00:00`) : null
+  for (let i = 0; i < numeroCuotas; i++) {
+    let fechaVencimiento = ''
+    if (base) {
+      const f = new Date(base)
+      f.setMonth(f.getMonth() + i)
+      fechaVencimiento = f.toISOString().slice(0, 10)
+    }
+    cuotas.push({ numeroCuota: i + 1, fechaVencimiento, montoCapital: valorCuota, montoInteres: 0 })
+  }
+  return cuotas
 }
 
 export type BorradorLetra = {
