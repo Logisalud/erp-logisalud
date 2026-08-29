@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
-import { obtenerRecepcionParaObligar, listarTasasDetraccion } from '@/services/obligaciones'
+import { obtenerRecepcionParaObligar } from '@/services/obligaciones'
 import { FormularioObligacion } from './formulario'
 
 export const dynamic = 'force-dynamic'
@@ -42,8 +42,6 @@ export default async function NuevaObligacion({ params }: { params: { recepcionI
     )
   }
 
-  const tasasDetraccion = await listarTasasDetraccion()
-
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <Encabezado titulo={recepcion.oc?.codigo ?? 'Recepción'} atras={{ href: '/almacen', texto: 'Almacén' }} />
@@ -57,7 +55,6 @@ export default async function NuevaObligacion({ params }: { params: { recepcionI
         recepcionId={recepcion.id}
         moneda={recepcion.oc?.moneda ?? 'PEN'}
         items={recepcion.items}
-        tasasDetraccion={tasasDetraccion}
         storagePathGuia={recepcion.storagePathGuia}
         storagePathFactura={recepcion.storagePathFactura}
       />

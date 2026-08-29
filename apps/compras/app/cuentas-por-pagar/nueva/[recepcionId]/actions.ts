@@ -15,8 +15,6 @@ export async function registrarObligacionAction(
   const fechaFactura = String(form.get('fechaFactura') ?? '')
   const moneda = String(form.get('moneda') ?? 'PEN')
   const tipoCambio = numeroONull(form.get('tipoCambio'))
-  const tasaDetraccionId = textoONull(form.get('tasaDetraccionId'))
-  const montoDetraccion = numeroONull(form.get('montoDetraccion'))
   const lineas = leerLineas(form)
 
   const baseImponible = lineas.reduce((acc, l) => acc + l.cantidadFacturada * l.precioFacturado, 0)
@@ -24,11 +22,12 @@ export async function registrarObligacionAction(
   // proveedorId no es un campo de este formulario: lo resuelve el servidor
   // desde la recepción → OC. Se pasa un valor fijo no vacío solo para que
   // validarObligacion() no lo marque como faltante — esa validación no
-  // aplica acá.
+  // aplica acá. Sin detracción acá tampoco: por decisión de negocio solo
+  // aplica a Servicios (ver app/servicios/[id]/registrar-obligacion).
   const borrador: BorradorObligacion = {
     proveedorId: 'resuelto-por-el-servidor',
     numeroFactura, fechaFactura, moneda, tipoCambio, baseImponible,
-    tasaDetraccionId, montoDetraccion,
+    tasaDetraccionId: null, montoDetraccion: null,
   }
 
   const errores = validarObligacion(borrador).filter((e) => e.campo !== 'proveedorId')
@@ -38,7 +37,7 @@ export async function registrarObligacionAction(
   let obligacion: { id: string; conforme: boolean }
   try {
     obligacion = await registrarObligacionDesdeRecepcion({
-      recepcionId, numeroFactura, fechaFactura, tipoCambio, tasaDetraccionId, montoDetraccion, lineas,
+      recepcionId, numeroFactura, fechaFactura, tipoCambio, tasaDetraccionId: null, montoDetraccion: null, lineas,
     })
   } catch (e) {
     return { errores: [{ campo: 'general', mensaje: (e as Error).message }] }
