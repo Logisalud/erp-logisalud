@@ -1,7 +1,9 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { crearProveedor } from '@/services/proveedores'
+import { crearProveedor, type TipoProveedor } from '@/services/proveedores'
+
+const TIPOS_VALIDOS: TipoProveedor[] = ['mercaderia', 'bien', 'ambos']
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 
@@ -9,6 +11,12 @@ export async function crearProveedorAction(_previo: EstadoFormulario, form: Form
   const ruc = String(form.get('ruc') ?? '').trim()
   const razonSocial = String(form.get('razonSocial') ?? '').trim()
   const condicionPagoDias = Number(form.get('condicionPagoDias') ?? 30)
+  const tipoRaw = String(form.get('tipo') ?? 'mercaderia')
+  const tipo: TipoProveedor = TIPOS_VALIDOS.includes(tipoRaw as TipoProveedor) ? (tipoRaw as TipoProveedor) : 'mercaderia'
+  // Ruta interna a la que volver tras registrar — nunca se confía en un
+  // query param para redirigir fuera del propio módulo.
+  const volverRaw = String(form.get('volver') ?? '')
+  const volver = volverRaw.startsWith('/') ? volverRaw : undefined
 
   const errores: { campo: string; mensaje: string }[] = []
   if (!/^\d{11}$/.test(ruc)) errores.push({ campo: 'ruc', mensaje: 'El RUC tiene que tener 11 dígitos.' })
@@ -27,11 +35,12 @@ export async function crearProveedorAction(_previo: EstadoFormulario, form: Form
       contactoTelefono: String(form.get('contactoTelefono') ?? '').trim() || undefined,
       condicionPagoDias,
       monedaPrincipal: String(form.get('monedaPrincipal') ?? 'PEN'),
+      tipo,
     })
     id = proveedor.id
   } catch (e) {
     return { errores: [{ campo: 'general', mensaje: e instanceof Error ? e.message : 'No se pudo registrar el proveedor.' }] }
   }
 
-  redirect(`/proveedores/${id}`)
+  redirect(volver ?? `/proveedores/${id}`)
 }

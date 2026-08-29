@@ -14,6 +14,8 @@ import { crearClienteServidor } from '@logisalud/auth/server'
  * responde 404 aunque las policies estén bien.
  */
 
+export type TipoProveedor = 'mercaderia' | 'bien' | 'ambos'
+
 export type Proveedor = {
   id: string
   ruc: string
@@ -25,6 +27,7 @@ export type Proveedor = {
   condicion_pago_dias: number
   moneda_principal: string
   activo: boolean
+  tipo: TipoProveedor
 }
 
 export type CuentaBancaria = {
@@ -39,15 +42,28 @@ export type CuentaBancaria = {
   es_principal: boolean
 }
 
-export async function listarProveedores(busqueda?: string): Promise<Proveedor[]> {
+/**
+ * `tipo` filtra por lo que la orden de compra necesita: 'mercaderia' trae
+ * proveedores de mercadería + 'ambos', 'bien' trae proveedores de bienes que
+ * NO se revenden + 'ambos'. Sin `tipo`, trae todos (usado por /proveedores).
+ * Bug real en producción: "OC de un bien" mostraba los mismos proveedores
+ * que "OC de mercadería" (Biosana, Prades, Diphasac, Dare Nutrition) porque
+ * esta función no distinguía — ver migración 0023_proveedores_tipo.sql.
+ */
+export async function listarProveedores(opciones?: { busqueda?: string; tipo?: TipoProveedor }): Promise<Proveedor[]> {
   const supabase = crearClienteServidor()
   let q = supabase
     .schema('compras')
     .from('proveedores')
-    .select('id, ruc, razon_social, nombre_comercial, contacto_nombre, contacto_email, contacto_telefono, condicion_pago_dias, moneda_principal, activo')
+    .select('id, ruc, razon_social, nombre_comercial, contacto_nombre, contacto_email, contacto_telefono, condicion_pago_dias, moneda_principal, activo, tipo')
     .order('razon_social')
     .limit(100)
 
+  if (opciones?.tipo) {
+    q = q.in('tipo', [opciones.tipo, 'ambos'])
+  }
+
+  const busqueda = opciones?.busqueda
   if (busqueda?.trim()) {
     const t = busqueda.trim()
     // El RUC es la clave de matching en todo el ERP, así que se busca por RUC
@@ -68,7 +84,7 @@ export async function obtenerProveedor(
   const { data: proveedor, error } = await supabase
     .schema('compras')
     .from('proveedores')
-    .select('id, ruc, razon_social, nombre_comercial, contacto_nombre, contacto_email, contacto_telefono, condicion_pago_dias, moneda_principal, activo')
+    .select('id, ruc, razon_social, nombre_comercial, contacto_nombre, contacto_email, contacto_telefono, condicion_pago_dias, moneda_principal, activo, tipo')
     .eq('id', id)
     .maybeSingle()
 
@@ -96,6 +112,7 @@ export type BorradorProveedor = {
   contactoTelefono?: string
   condicionPagoDias: number
   monedaPrincipal: string
+  tipo: TipoProveedor
 }
 
 /** RLS (`proveedores_escritura`) ya restringe esto a compras/admin. */
@@ -113,6 +130,7 @@ export async function crearProveedor(borrador: BorradorProveedor): Promise<{ id:
       contacto_telefono: borrador.contactoTelefono || null,
       condicion_pago_dias: borrador.condicionPagoDias,
       moneda_principal: borrador.monedaPrincipal,
+      tipo: borrador.tipo,
     })
     .select('id')
     .single()
