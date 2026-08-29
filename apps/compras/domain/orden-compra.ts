@@ -178,7 +178,9 @@ export function validarOC(oc: BorradorOC): ErrorValidacion[] {
       mensaje: 'La entrega no puede ser antes de la emisión.',
     })
   }
-  if (oc.condicionesPagoDias != null && oc.condicionesPagoDias < 0) {
+  if (oc.condicionesPagoDias == null) {
+    errores.push({ campo: 'condicionesPagoDias', mensaje: 'Pon la condición de pago (0 = contado).' })
+  } else if (oc.condicionesPagoDias < 0) {
     errores.push({ campo: 'condicionesPagoDias', mensaje: 'Los días no pueden ser negativos.' })
   }
 

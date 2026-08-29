@@ -72,7 +72,7 @@ export function FormularioOC() {
           </Campo>
           <Campo etiqueta="Días de pago" error={errorDe('condicionesPagoDias')}>
             <input
-              type="number" name="condicionesPagoDias" min={0}
+              type="number" name="condicionesPagoDias" min={0} required
               key={proveedor?.condicionPagoDias ?? 'x'}
               defaultValue={proveedor?.condicionPagoDias ?? ''}
               placeholder="0 = contado"

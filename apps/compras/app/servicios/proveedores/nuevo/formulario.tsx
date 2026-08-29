@@ -71,7 +71,7 @@ export function FormularioProveedorServicio() {
         <label className="block text-sm">
           <span className="font-medium text-gray-800">Condición de pago (días)</span>
           <input
-            type="number" name="condicionPagoDias" min="0" defaultValue={30}
+            type="number" name="condicionPagoDias" min="0" defaultValue={30} required
             className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
           {errorDe('condicionPagoDias') ? <p className="mt-1 text-red-700">{errorDe('condicionPagoDias')}</p> : null}
