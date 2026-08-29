@@ -11,11 +11,17 @@ import Image from 'next/image'
  * sirve estáticos desde el `public/` de cada app, no desde node_modules) —
  * este componente asume esa ruta.
  *
- * Usa `next/image` (no un `<img>` plano) a propósito: las tres apps sirven
- * bajo un `basePath` distinto (`/compras`, futuro `/pedidos`, ninguno en
- * cobranzas) y `next/image` es quien antepone ese basePath solo a un `src`
- * que arranca con `/` — un `<img src="/brand/...">` plano pide siempre la
- * raíz del host y rompe en cualquier app con basePath (ícono roto).
+ * Las tres apps sirven bajo un `basePath` distinto (`/compras`, futuro
+ * `/pedidos`, ninguno en cobranzas). La teoría era que `next/image`
+ * antepone ese basePath solo a cualquier `src` que arranque con `/` — pero
+ * confirmado en producción (fetch directo a erp.logisalud.com/compras) que
+ * con `images.unoptimized: true` (necesario en compras, ver next.config.js)
+ * next/image NO hace ese prefijo: el `<img>` final queda con
+ * `src="/brand/...png"` a secas, que pide la raíz del host (cobranzas) y
+ * rompe (ícono de imagen rota). Por eso acá se arma el path a mano con
+ * `NEXT_PUBLIC_BASE_PATH` — mismo mecanismo que ya usa
+ * `components/buscador-producto.tsx` para sus fetches de cliente, por la
+ * misma razón: lo automático no se puede dar por hecho en esta app.
  */
 export type BrandMarkLayout = 'horizontal' | 'stacked' | 'icon'
 export type BrandMarkColorway = 'color' | 'black' | 'white'
@@ -51,9 +57,10 @@ export function BrandMark({
   className?: string
 }) {
   const { archivo, ancho, alto } = ARCHIVO[layout][colorway]
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
   return (
     <Image
-      src={`/brand/${archivo}`}
+      src={`${basePath}/brand/${archivo}`}
       alt="Logisalud"
       width={ancho}
       height={alto}

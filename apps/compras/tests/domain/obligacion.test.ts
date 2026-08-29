@@ -7,6 +7,8 @@ import {
   redondear,
   transicionPermitida,
   validarObligacion,
+  validarPagoDirecto,
+  type BorradorPagoDirecto,
 } from '@/domain/obligacion'
 
 describe('calcularFechaVencimientoReal', () => {
@@ -122,6 +124,38 @@ describe('validarObligacion', () => {
 
   it('exige base imponible positiva', () => {
     const errores = validarObligacion({ ...base, baseImponible: 0 })
+    expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
+  })
+})
+
+describe('validarPagoDirecto', () => {
+  const base: BorradorPagoDirecto = {
+    proveedorId: 'prov-1',
+    categoriaId: 'cat-1',
+    descripcion: 'Recibo de luz de agosto',
+    numeroFactura: 'F001-123',
+    fechaFactura: '2026-08-15',
+    moneda: 'PEN',
+    baseImponible: 100,
+  }
+
+  it('sin errores con un borrador completo', () => {
+    expect(validarPagoDirecto(base)).toEqual([])
+  })
+
+  it('exige categoría', () => {
+    const errores = validarPagoDirecto({ ...base, categoriaId: '' })
+    expect(errores.some((e) => e.campo === 'categoriaId')).toBe(true)
+  })
+
+  it('exige descripción', () => {
+    const errores = validarPagoDirecto({ ...base, descripcion: '  ' })
+    expect(errores.some((e) => e.campo === 'descripcion')).toBe(true)
+  })
+
+  it('también corre las validaciones genéricas de obligación (proveedor, factura, base)', () => {
+    const errores = validarPagoDirecto({ ...base, proveedorId: '', baseImponible: 0 })
+    expect(errores.some((e) => e.campo === 'proveedorId')).toBe(true)
     expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
   })
 })

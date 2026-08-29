@@ -15,14 +15,9 @@ const OPCIONES = [
     href: '/gastos/nueva?tipo=anticipo',
   },
   {
-    emoji: '📄',
-    texto: 'Contraté un servicio y ya tengo la factura',
-    href: '/servicios/nueva',
-  },
-  {
-    emoji: '📦',
-    texto: 'Es una compra de mercadería para almacén',
-    href: '/ordenes-compra/nueva',
+    emoji: '🧾',
+    texto: 'Tengo la factura de un proveedor para pagar directo (luz, agua, notaría, peajes… sin orden de compra)',
+    href: '/pago-directo/nueva',
   },
 ] as const
 
