@@ -38,9 +38,14 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
           </Link>
         ) : null}
         {puedeEditarse(oc.estado) ? (
-          <span className="self-center text-sm text-gray-500">
-            En {ETIQUETA_ESTADO[oc.estado].toLowerCase()}: todavía se puede editar.
-          </span>
+          <>
+            <Link href={`/ordenes-compra/${oc.id}/editar`} className="btn-secondary">
+              Editar
+            </Link>
+            <span className="self-center text-sm text-gray-500">
+              En {ETIQUETA_ESTADO[oc.estado].toLowerCase()}: todavía se puede editar.
+            </span>
+          </>
         ) : (
           <span className="self-center text-sm text-gray-500">
             {ETIQUETA_ESTADO[oc.estado]}: ya no se editan las líneas.
