@@ -53,6 +53,11 @@ export default async function Inicio() {
           descripcion="Reembolso, anticipo, o pago directo a un proveedor."
         />
         <MenuItem
+          href="/cuentas-por-pagar?estado=registrada" emoji="✅"
+          titulo="Dar conformidad a una factura"
+          descripcion="Revisa las facturas registradas y confirma que están correctas antes de pagarlas."
+        />
+        <MenuItem
           href="/cuentas-por-pagar/reportes" emoji="📊"
           titulo="Ver reportes"
           descripcion="Cuentas por pagar, pendientes, facturas, detracciones."
@@ -136,18 +141,12 @@ export default async function Inicio() {
 
       <section className="mt-4">
         <h2 className="font-heading mb-2 text-lg">Cuentas por Pagar</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <AccionVerbo href="/almacen" emoji="🧾" color="green" titulo="Registrar factura" descripcion="Desde una recepción conforme de Almacén." />
-          <AccionVerbo href="/cuentas-por-pagar" emoji="✅" color="teal" titulo="Dar conformidad" descripcion="Revisa las obligaciones pendientes y confirma cada una." />
-        </div>
-        <Link href="/cuentas-por-pagar/propuestas" className="btn-secondary mt-3 w-full sm:w-auto">
+        <Link href="/cuentas-por-pagar" className="mt-2 inline-block text-sm text-logisalud-teal underline">
+          Ver todas las obligaciones
+        </Link>
+        <Link href="/cuentas-por-pagar/propuestas" className="mt-2 ml-4 inline-block text-sm text-logisalud-teal underline">
           Propuestas de pago
         </Link>
-        <p className="mt-3 text-sm text-gray-500">
-          Obligaciones de origen "compra", "gasto_directo", "reembolso" y "anticipo" — Servicios,
-          Caja Chica, Financiamiento e Impuestos tienen su modelo de datos y sus políticas
-          aplicadas; las pantallas vienen después.
-        </p>
       </section>
 
       <section className="mt-4">

@@ -37,14 +37,7 @@ export default async function NuevaOCBien() {
         </div>
       ) : (
         <>
-          <FormularioOCBien
-            proveedores={proveedores.map((p) => ({
-              id: p.id,
-              nombre: `${p.razon_social} — RUC ${p.ruc}`,
-              condicionPagoDias: p.condicion_pago_dias,
-              moneda: p.moneda_principal,
-            }))}
-          />
+          <FormularioOCBien />
           {puedeRegistrarProveedor ? (
             <Link
               href="/proveedores/nuevo?tipo=bien&volver=/ordenes-compra/nueva-bien"

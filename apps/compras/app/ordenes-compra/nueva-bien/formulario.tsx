@@ -4,24 +4,16 @@ import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { crearOrdenCompraBien, type EstadoFormulario } from './actions'
 import { calcularTotales } from '@/domain/orden-compra'
-
-type ProveedorOpcion = {
-  id: string
-  nombre: string
-  condicionPagoDias: number
-  moneda: string
-}
+import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
 
 type Linea = { descripcion: string; cantidad: string; precio: string }
 
 const LINEA_VACIA: Linea = { descripcion: '', cantidad: '', precio: '' }
 
-export function FormularioOCBien({ proveedores }: { proveedores: ProveedorOpcion[] }) {
+export function FormularioOCBien() {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearOrdenCompraBien, null)
   const [lineas, setLineas] = useState<Linea[]>([{ ...LINEA_VACIA }])
-  const [proveedorId, setProveedorId] = useState('')
-
-  const proveedor = proveedores.find((p) => p.id === proveedorId)
+  const [proveedor, setProveedor] = useState<ProveedorElegido | null>(null)
 
   const totales = calcularTotales(
     lineas.map((l) => ({
@@ -42,18 +34,8 @@ export function FormularioOCBien({ proveedores }: { proveedores: ProveedorOpcion
 
       <section className="card space-y-3">
         <Campo etiqueta="Proveedor" error={errorDe('proveedorId')}>
-          <select
-            name="proveedorId"
-            required
-            value={proveedorId}
-            onChange={(e) => setProveedorId(e.target.value)}
-            className="min-h-12 w-full rounded-md border border-gray-300 px-3"
-          >
-            <option value="">Elige uno…</option>
-            {proveedores.map((p) => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
-            ))}
-          </select>
+          <BuscadorProveedor valor={proveedor} onElegir={setProveedor} tipo="bien" />
+          <input type="hidden" name="proveedorId" value={proveedor?.id ?? ''} />
         </Campo>
 
         <div className="grid gap-3 sm:grid-cols-2">

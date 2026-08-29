@@ -1,7 +1,14 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { exigirUsuario } from '@logisalud/auth/server'
-import { siguienteCodigoOC, transicionPermitida, type BorradorOC, type EstadoOC } from '@/domain/orden-compra'
+import {
+  siguienteCodigoOC,
+  transicionPermitida,
+  puedeEditarse,
+  ETIQUETA_ESTADO,
+  type BorradorOC,
+  type EstadoOC,
+} from '@/domain/orden-compra'
 
 export type OCListada = {
   id: string
@@ -204,6 +211,68 @@ export async function crearOC(
   }
 
   return oc
+}
+
+/**
+ * Edita cabecera y líneas de una OC en 'borrador' o 'enviada' (ver
+ * domain/orden-compra.ts::puedeEditarse) — Sebas encontró que el texto "En
+ * borrador: todavía se puede editar" no tenía ningún botón atrás.
+ *
+ * Las líneas se reemplazan enteras (borrar + insertar) en vez de hacer un
+ * diff línea por línea: mientras se puede editar todavía no hay recepción
+ * contra esta OC (Almacén solo recibe desde 'confirmada' — ver
+ * puedeRecibirse), así que no hay `cantidad_recibida`/`cantidad_facturada`
+ * que se pueda perder al reinsertar.
+ */
+export async function actualizarOC(
+  id: string,
+  borrador: BorradorOC & { notas?: string | null }
+): Promise<void> {
+  const supabase = crearClienteServidor()
+
+  const { data: oc, error: errorLectura } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .select('estado')
+    .eq('id', id)
+    .maybeSingle()
+  if (errorLectura || !oc) throw new Error('No se encontró la orden de compra.')
+  if (!puedeEditarse(oc.estado as EstadoOC)) {
+    throw new Error(`Ya no se puede editar: está "${ETIQUETA_ESTADO[oc.estado as EstadoOC]}".`)
+  }
+
+  const { error } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .update({
+      proveedor_id: borrador.proveedorId,
+      fecha_emision: borrador.fechaEmision,
+      fecha_entrega_estimada: borrador.fechaEntregaEstimada ?? null,
+      moneda: borrador.moneda,
+      condiciones_pago_dias: borrador.condicionesPagoDias ?? null,
+      notas: borrador.notas ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (error) throw new Error(`No se pudo actualizar la orden: ${error.message}`)
+
+  const { error: errorBorrado } = await supabase
+    .schema('compras')
+    .from('ordenes_compra_items')
+    .delete()
+    .eq('oc_id', id)
+  if (errorBorrado) throw new Error(`No se pudieron actualizar las líneas: ${errorBorrado.message}`)
+
+  const { error: errorItems } = await supabase.schema('compras').from('ordenes_compra_items').insert(
+    borrador.lineas.map((l) => ({
+      oc_id: id,
+      producto_id: 'productoId' in l ? l.productoId : null,
+      descripcion_libre: 'descripcionLibre' in l ? l.descripcionLibre : null,
+      cantidad_pedida: l.cantidadPedida,
+      precio_unitario: l.precioUnitario,
+    }))
+  )
+  if (errorItems) throw new Error(`No se pudieron guardar las líneas: ${errorItems.message}`)
 }
 
 /**
