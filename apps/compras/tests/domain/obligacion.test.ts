@@ -158,4 +158,20 @@ describe('validarPagoDirecto', () => {
     expect(errores.some((e) => e.campo === 'proveedorId')).toBe(true)
     expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
   })
+
+  it('rechaza un total (base + IGV) de S/5,000 o más en soles', () => {
+    // 4237.29 + 18% IGV = 5000.00 exacto — el tope es "menos de", así que rechaza.
+    const errores = validarPagoDirecto({ ...base, baseImponible: 4237.29 })
+    expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
+  })
+
+  it('acepta un total apenas debajo del tope', () => {
+    const errores = validarPagoDirecto({ ...base, baseImponible: 4000 })
+    expect(errores).toEqual([])
+  })
+
+  it('no aplica el tope en USD — no hay tipo de cambio de referencia', () => {
+    const errores = validarPagoDirecto({ ...base, moneda: 'USD', tipoCambio: 3.8, baseImponible: 10000 })
+    expect(errores.some((e) => e.campo === 'baseImponible')).toBe(false)
+  })
 })
