@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { BotonCerrarSesion } from '@logisalud/auth/componentes'
 import { usePilaNavegacion } from './pila-navegacion-provider'
@@ -44,19 +45,28 @@ export function Encabezado({ titulo, atras }: { titulo: string; atras?: { href: 
   return (
     <header className="mb-6 flex items-start justify-between gap-4">
       <div>
-        {destino ? (
-          <button
-            type="button"
-            onClick={irAtras}
-            className="border-0 bg-transparent p-0 text-sm text-logisalud-teal underline"
-          >
-            &larr; {destino.texto}
-          </button>
-        ) : (
-          <a href="/" className="text-sm text-logisalud-teal underline">
-            &larr; Módulos
-          </a>
-        )}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {destino ? (
+            <button
+              type="button"
+              onClick={irAtras}
+              className="border-0 bg-transparent p-0 text-sm text-logisalud-teal underline"
+            >
+              &larr; {destino.texto}
+            </button>
+          ) : (
+            <a href="/" className="text-sm text-logisalud-teal underline">
+              &larr; Módulos
+            </a>
+          )}
+          {/* Siempre visible, además de "Atrás" — pantallas de varios pasos
+           * (crear una OC, registrar una obligación) pueden dejar a alguien
+           * varios niveles adentro; esta es la salida directa al menú de
+           * Compras y Pagos sin tener que retroceder paso a paso. */}
+          <Link href="/" className="text-sm text-logisalud-teal underline">
+            🏠 Menú principal
+          </Link>
+        </div>
         <h1 className="font-heading mt-1 text-2xl">{titulo}</h1>
       </div>
       <BotonCerrarSesion />
