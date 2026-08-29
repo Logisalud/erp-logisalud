@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { registrarObligacionAction, type EstadoFormulario } from './actions'
-import { calcularDetraccionSugerida, redondear } from '@/domain/obligacion'
+import { redondear } from '@/domain/obligacion'
 
 type ItemParaObligar = {
   ocItemId: string
@@ -14,15 +14,16 @@ type ItemParaObligar = {
   producto: { codigo: string; descripcion: string; unidad_medida: string } | null
 }
 
-type TasaDetraccion = { id: string; categoria: string; porcentaje: number; anexo_sunat: string | null }
-
+// Sin sección de Detracción acá: por decisión de negocio (Sebas), la
+// detracción solo aplica a Servicios (ver
+// app/servicios/[id]/registrar-obligacion/formulario.tsx) — una compra de
+// mercadería o de un bien nunca la lleva.
 export function FormularioObligacion({
-  recepcionId, moneda, items, tasasDetraccion, storagePathGuia, storagePathFactura,
+  recepcionId, moneda, items, storagePathGuia, storagePathFactura,
 }: {
   recepcionId: string
   moneda: string
   items: ItemParaObligar[]
-  tasasDetraccion: TasaDetraccion[]
   storagePathGuia: string | null
   storagePathFactura: string | null
 }) {
@@ -40,15 +41,10 @@ export function FormularioObligacion({
       ])
     )
   )
-  const [tasaDetraccionId, setTasaDetraccionId] = useState('')
-  const [montoDetraccion, setMontoDetraccion] = useState('')
 
   const baseImponible = redondear(
     Object.values(lineas).reduce((acc, l) => acc + redondear((Number(l.cantidad) || 0) * (Number(l.precio) || 0)), 0)
   )
-
-  const tasaElegida = tasasDetraccion.find((t) => t.id === tasaDetraccionId)
-  const detraccionSugerida = tasaElegida ? calcularDetraccionSugerida(baseImponible, tasaElegida.porcentaje) : null
 
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
@@ -136,36 +132,6 @@ export function FormularioObligacion({
             </div>
           )
         })}
-      </section>
-
-      <section className="card space-y-3">
-        <h2 className="font-heading text-lg">Detracción</h2>
-        <Campo etiqueta="Categoría (opcional)">
-          <select
-            name="tasaDetraccionId"
-            value={tasaDetraccionId}
-            onChange={(e) => { setTasaDetraccionId(e.target.value); setMontoDetraccion('') }}
-            className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
-          >
-            <option value="">Sin detracción</option>
-            {tasasDetraccion.map((t) => (
-              <option key={t.id} value={t.id}>{t.categoria} — {t.porcentaje}%</option>
-            ))}
-          </select>
-        </Campo>
-        {tasaElegida ? (
-          <Campo etiqueta="Monto de detracción" error={errorDe('montoDetraccion')}>
-            <input
-              type="number" name="montoDetraccion" min="0" step="0.01"
-              value={montoDetraccion || (detraccionSugerida != null ? String(detraccionSugerida) : '')}
-              onChange={(e) => setMontoDetraccion(e.target.value)}
-              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Sugerido: {detraccionSugerida} (base + IGV × {tasaElegida.porcentaje}%) — se puede ajustar.
-            </p>
-          </Campo>
-        ) : null}
       </section>
 
       <p className="text-sm text-gray-600">
