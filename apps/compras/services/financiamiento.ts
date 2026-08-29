@@ -146,9 +146,11 @@ export async function crearFraccionamiento(borrador: BorradorFraccionamiento): P
     .insert({
       numero_expediente: borrador.numeroExpediente,
       tipo: borrador.tipo ?? null,
+      tipo_impuesto_id: borrador.tipoImpuestoId ?? null,
       deuda_original: borrador.deudaOriginal,
       tasa_interes_moratorio: borrador.tasaInteresMoratorio ?? 0,
       fecha_resolucion: borrador.fechaResolucion ?? null,
+      fecha_resolucion_obligatoria: borrador.fechaResolucionObligatoria ?? null,
     })
     .select('id')
     .single()

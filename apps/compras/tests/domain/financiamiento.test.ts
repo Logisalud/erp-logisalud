@@ -1,9 +1,28 @@
 import { describe, expect, it } from 'vitest'
 import {
-  estaVencida, validarCuotas, validarFraccionamiento, validarLetras, validarPrestamo,
+  estaVencida, generarCuotasIguales, validarCuotas, validarFraccionamiento, validarLetras, validarPrestamo,
 } from '@/domain/financiamiento'
 
 const cuotaOk = { numeroCuota: 1, fechaVencimiento: '2026-09-30', montoCapital: 1000, montoInteres: 50 }
+
+describe('generarCuotasIguales', () => {
+  it('genera N cuotas del mismo valor, sin interés', () => {
+    const cuotas = generarCuotasIguales(3, 500)
+    expect(cuotas).toHaveLength(3)
+    expect(cuotas.every((c) => c.montoCapital === 500 && c.montoInteres === 0)).toBe(true)
+    expect(cuotas.map((c) => c.numeroCuota)).toEqual([1, 2, 3])
+  })
+
+  it('espacía las fechas un mes por cuota desde el primer vencimiento', () => {
+    const cuotas = generarCuotasIguales(3, 100, '2026-01-15')
+    expect(cuotas.map((c) => c.fechaVencimiento)).toEqual(['2026-01-15', '2026-02-15', '2026-03-15'])
+  })
+
+  it('deja la fecha vacía si no se pasa un primer vencimiento', () => {
+    const cuotas = generarCuotasIguales(2, 100)
+    expect(cuotas.every((c) => c.fechaVencimiento === '')).toBe(true)
+  })
+})
 
 describe('validarCuotas', () => {
   it('exige al menos una cuota', () => {
