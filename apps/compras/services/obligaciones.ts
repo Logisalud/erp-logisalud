@@ -7,6 +7,7 @@ import {
   TASA_IGV,
   type EstadoObligacion,
   type LineaConciliacion,
+  type BorradorPagoDirecto,
 } from '@/domain/obligacion'
 import { puedeMarcarseFacturada } from '@/domain/orden-compra'
 
@@ -348,6 +349,7 @@ export type ObligacionDetalle = ObligacionListada & {
     producto: { codigo: string; descripcion: string; unidad_medida: string } | null
   }[]
   notasCredito: { id: string; numero_nc: string | null; monto: number; motivo: string; aplicada: boolean }[]
+  categoriaPagoDirecto: { nombre: string } | null
   pago: {
     numero_voucher: string | null
     storage_path_voucher: string | null
@@ -362,7 +364,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .from('obligaciones')
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, igv,
              monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, beneficiario_persona,
-             oc_id, recepcion_id,
+             oc_id, recepcion_id, categoria_pago_directo_id,
              obligaciones_items(id, oc_item_id, cantidad_facturada, precio_facturado)`)
     .eq('id', id)
     .maybeSingle()
@@ -370,13 +372,14 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
   if (error) throw new Error(`No se pudo leer la obligación: ${error.message}`)
   if (!data) return null
 
-  const [proveedores, beneficiarios, oc, recepcion, notasCredito, pago] = await Promise.all([
+  const [proveedores, beneficiarios, oc, recepcion, notasCredito, pago, categoriaPagoDirecto] = await Promise.all([
     mapaProveedoresBasico(data.proveedor_id ? [data.proveedor_id] : []),
     mapaBeneficiarios(data.beneficiario_persona ? [data.beneficiario_persona] : []),
     data.oc_id ? obtenerOCBasica(data.oc_id) : Promise.resolve(null),
     data.recepcion_id ? obtenerRecepcionBasica(data.recepcion_id) : Promise.resolve(null),
     listarNotasCredito(id),
     obtenerPagoDeObligacion(id),
+    data.categoria_pago_directo_id ? obtenerCategoriaPagoDirectoBasica(data.categoria_pago_directo_id) : Promise.resolve(null),
   ])
 
   const items: any[] = (data as any).obligaciones_items ?? []
@@ -408,8 +411,20 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
       producto: productos.get(i.oc_item_id) ?? null,
     })),
     notasCredito,
+    categoriaPagoDirecto,
     pago,
   }
+}
+
+async function obtenerCategoriaPagoDirectoBasica(id: string) {
+  const supabase = crearClienteServidor()
+  const { data } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('categorias_pago_directo')
+    .select('nombre')
+    .eq('id', id)
+    .maybeSingle()
+  return data ?? null
 }
 
 /** El voucher que "cierra el ciclo" (Fase 1.9) — vive en cuentas_x_pagar.pagos,
@@ -517,6 +532,78 @@ export async function darConformidad(obligacionId: string): Promise<void> {
     .update({ estado: 'conforme', conformidad_por: usuario.id, conformidad_fecha: new Date().toISOString() })
     .eq('id', obligacionId)
   if (errUpd) throw new Error(`No se pudo dar conformidad: ${errUpd.message}`)
+}
+
+export type CategoriaPagoDirecto = { id: string; nombre: string }
+
+export async function listarCategoriasPagoDirecto(): Promise<CategoriaPagoDirecto[]> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('categorias_pago_directo')
+    .select('id, nombre')
+    .eq('activo', true)
+    .order('nombre')
+  if (error) throw new Error(`No se pudieron listar las categorías de pago directo: ${error.message}`)
+  return data ?? []
+}
+
+/**
+ * "Pago directo" — origen `gasto_directo`: registra una obligación con
+ * factura de proveedor sin pasar por Orden de Compra ni Orden de Servicio.
+ * A diferencia de registrarObligacionDesdeRecepcion no hay conciliación de
+ * 3 vías posible (no hay OC ni recepción contra qué comparar), así que
+ * arranca siempre en 'registrada' — Contabilidad revisa y da conformidad a
+ * mano, igual que con cualquier otra obligación.
+ *
+ * `fecha_vencimiento_real` se calcula desde la fecha de FACTURA (no hay
+ * fecha de conformidad de recepción acá — la factura es el único hito real)
+ * más la condición de pago del proveedor.
+ */
+export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promise<{ id: string }> {
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  const { data: proveedor, error: errProv } = await supabase
+    .schema('compras')
+    .from('proveedores')
+    .select('id, condicion_pago_dias')
+    .eq('id', borrador.proveedorId)
+    .maybeSingle()
+  if (errProv || !proveedor) throw new Error('No se encontró el proveedor.')
+
+  const fechaVencimientoReal = calcularFechaVencimientoReal(borrador.fechaFactura, proveedor.condicion_pago_dias)
+
+  const { data: obligacion, error: errIns } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .insert({
+      origen: 'gasto_directo',
+      proveedor_id: borrador.proveedorId,
+      categoria_pago_directo_id: borrador.categoriaId,
+      numero_factura: borrador.numeroFactura,
+      fecha_factura: borrador.fechaFactura,
+      moneda: borrador.moneda,
+      tipo_cambio: borrador.tipoCambio,
+      base_imponible: borrador.baseImponible,
+      tasa_detraccion_id: borrador.tasaDetraccionId,
+      monto_detraccion: borrador.montoDetraccion ?? 0,
+      estado: 'registrada',
+      fecha_vencimiento_real: fechaVencimientoReal,
+      observaciones: borrador.descripcion,
+      created_by: usuario.id,
+    })
+    .select('id')
+    .single()
+
+  if (errIns) {
+    if (errIns.code === '23505') {
+      throw new Error('Ya existe una obligación con ese número de factura para este proveedor.')
+    }
+    throw new Error(`No se pudo registrar el pago directo: ${errIns.message}`)
+  }
+
+  return { id: obligacion.id }
 }
 
 export async function listarTasasDetraccion() {

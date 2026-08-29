@@ -4,6 +4,7 @@ import { perfilActual, usuarioActual } from '@logisalud/auth/server'
 import { BrandMark } from '@logisalud/design-system/componentes'
 import { determinarVistaEntrada } from '@/domain/inicio'
 import { obtenerResumenGerencia, obtenerResumenTesoreria } from '@/services/inicio'
+import { RegistrarPaso } from '@/components/registrar-paso'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,7 @@ export default async function Inicio() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
+      <RegistrarPaso href="/" texto="Compras y Pagos" />
       <header className="flex items-start justify-between gap-4">
         <div>
           <a href="/" className="text-sm text-logisalud-teal underline">
@@ -54,6 +56,11 @@ export default async function Inicio() {
           href="/cuentas-por-pagar/reportes" emoji="📊"
           titulo="Ver reportes"
           descripcion="Cuentas por pagar, pendientes, facturas, detracciones."
+        />
+        <MenuItem
+          href="/financiamiento/prestamos/nueva" emoji="🏦"
+          titulo="Registrar financiamiento"
+          descripcion="Préstamo o fraccionamiento SUNAT, con su cronograma de cuotas."
         />
       </section>
 
@@ -143,24 +150,9 @@ export default async function Inicio() {
         </p>
       </section>
 
-      <section className="card mt-4">
-        <h2 className="font-heading text-lg">Gastos y Anticipos</h2>
-        <ul className="mt-3 space-y-2">
-          <li>
-            <Link href="/gastos" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
-              <span className="font-medium">Mis solicitudes</span>
-              <p className="text-sm text-gray-600">
-                Pedir un gasto directo, reembolso o anticipo, y rendir los anticipos ya pagados.
-              </p>
-            </Link>
-          </li>
-        </ul>
-      </section>
-
       <section className="mt-4">
         <h2 className="font-heading mb-2 text-lg">Financiamiento e Impuestos</h2>
-        <AccionVerbo href="/financiamiento/prestamos/nueva" emoji="🏦" color="green" titulo="Registrar financiamiento" descripcion="Préstamo o fraccionamiento SUNAT, con su cronograma de cuotas." />
-        <Link href="/financiamiento" className="mt-2 inline-block text-sm text-logisalud-teal underline">
+        <Link href="/financiamiento" className="text-sm text-logisalud-teal underline">
           Ver préstamos, fraccionamientos y vencimientos
         </Link>
       </section>

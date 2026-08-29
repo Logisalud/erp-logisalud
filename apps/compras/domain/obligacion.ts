@@ -181,3 +181,22 @@ export function validarObligacion(b: BorradorObligacion): ErrorValidacion[] {
 
   return errores
 }
+
+/**
+ * "Pago directo" — origen `gasto_directo`: factura de un proveedor SIN
+ * Orden de Compra ni Orden de Servicio (luz, agua, peajes, notaría,
+ * seguros, courier…). El beneficiario es el proveedor, no un empleado —
+ * distinto de gastos.solicitudes_gasto, que sí paga/reembolsa a un
+ * empleado con su propia cadena de aprobación.
+ */
+export type BorradorPagoDirecto = BorradorObligacion & {
+  categoriaId: string
+  descripcion: string
+}
+
+export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
+  const errores = validarObligacion(b)
+  if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elige una categoría.' })
+  if (!b.descripcion.trim()) errores.push({ campo: 'descripcion', mensaje: 'Cuenta para qué es este gasto.' })
+  return errores
+}
