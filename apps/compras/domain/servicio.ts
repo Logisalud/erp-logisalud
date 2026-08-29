@@ -85,6 +85,11 @@ export function validarOS(b: BorradorOS): ErrorValidacion[] {
   if (!b.descripcionServicio.trim()) errores.push({ campo: 'descripcionServicio', mensaje: 'Cuenta qué servicio es.' })
   if (!(Number(b.montoEstimado) > 0)) errores.push({ campo: 'montoEstimado', mensaje: 'El monto estimado tiene que ser mayor a 0.' })
   if (b.moneda !== 'PEN' && b.moneda !== 'USD') errores.push({ campo: 'moneda', mensaje: 'La moneda tiene que ser PEN o USD.' })
+  if (b.condicionesPagoDias == null) {
+    errores.push({ campo: 'condicionesPagoDias', mensaje: 'Pon la condición de pago (0 = contado).' })
+  } else if (b.condicionesPagoDias < 0) {
+    errores.push({ campo: 'condicionesPagoDias', mensaje: 'Los días no pueden ser negativos.' })
+  }
   return errores
 }
 

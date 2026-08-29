@@ -106,7 +106,7 @@ export function FormularioEditarOC({
           </Campo>
           <Campo etiqueta="Días de pago" error={errorDe('condicionesPagoDias')}>
             <input
-              type="number" name="condicionesPagoDias" min={0}
+              type="number" name="condicionesPagoDias" min={0} required
               defaultValue={oc.condiciones_pago_dias ?? ''}
               placeholder="0 = contado"
               className="min-h-12 w-full rounded-md border border-gray-300 px-3"

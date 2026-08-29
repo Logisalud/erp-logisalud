@@ -43,7 +43,7 @@ export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[]
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo etiqueta="Condición de pago en días (opcional)">
-            <input type="number" name="condicionesPagoDias" min="0" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+            <input type="number" name="condicionesPagoDias" min="0" required className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
           </Campo>
           <Campo etiqueta="Fecha de entrega estimada (opcional)">
             <input type="date" name="fechaEntregaEstimada" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />

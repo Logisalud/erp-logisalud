@@ -62,7 +62,10 @@ describe('estadoTrasConformidad', () => {
 })
 
 describe('validarOS', () => {
-  const base = { proveedorServicioId: 'p-1', descripcionServicio: 'Mantenimiento', montoEstimado: 800, moneda: 'PEN' as const }
+  const base = {
+    proveedorServicioId: 'p-1', descripcionServicio: 'Mantenimiento', montoEstimado: 800,
+    moneda: 'PEN' as const, condicionesPagoDias: 30,
+  }
 
   it('sin errores con un borrador completo', () => {
     expect(validarOS(base)).toEqual([])
@@ -70,6 +73,14 @@ describe('validarOS', () => {
 
   it('exige proveedor de servicio', () => {
     expect(validarOS({ ...base, proveedorServicioId: '' }).some((e) => e.campo === 'proveedorServicioId')).toBe(true)
+  })
+
+  it('exige condición de pago — no se puede dejar en blanco', () => {
+    expect(validarOS({ ...base, condicionesPagoDias: null }).some((e) => e.campo === 'condicionesPagoDias')).toBe(true)
+  })
+
+  it('acepta 0 días (contado) como condición de pago válida', () => {
+    expect(validarOS({ ...base, condicionesPagoDias: 0 })).toEqual([])
   })
 
   it('exige monto estimado positivo', () => {
