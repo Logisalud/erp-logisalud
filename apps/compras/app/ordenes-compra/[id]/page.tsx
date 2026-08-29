@@ -4,6 +4,7 @@ import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { obtenerOC } from '@/services/ordenes-compra'
 import { calcularTotales, ETIQUETA_ESTADO, puedeEditarse, puedeRecibirse } from '@/domain/orden-compra'
+import { BotonMarcarEnviada, BotonMarcarConfirmada } from './acciones-estado'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,10 +26,12 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
         atras={{ href: '/ordenes-compra', texto: 'Órdenes de compra' }}
       />
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-5 flex flex-wrap items-start gap-2">
         <Link href={`/ordenes-compra/${oc.id}/imprimir`} className="btn-secondary">
-          Imprimir / PDF
+          Descargar PDF
         </Link>
+        {oc.estado === 'borrador' ? <BotonMarcarEnviada ocId={oc.id} /> : null}
+        {oc.estado === 'enviada' ? <BotonMarcarConfirmada ocId={oc.id} /> : null}
         {puedeRecibirse(oc.estado) ? (
           <Link href={`/almacen/recepciones/nueva/${oc.id}`} className="btn-primary">
             Registrar recepción

@@ -1,7 +1,7 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { exigirUsuario } from '@logisalud/auth/server'
-import { siguienteCodigoOC, type BorradorOC, type EstadoOC } from '@/domain/orden-compra'
+import { siguienteCodigoOC, transicionPermitida, type BorradorOC, type EstadoOC } from '@/domain/orden-compra'
 
 export type OCListada = {
   id: string
@@ -204,4 +204,38 @@ export async function crearOC(
   }
 
   return oc
+}
+
+/**
+ * Los dos pasos manuales del ciclo antes de poder recibir mercadería —
+ * "Enviar al proveedor" (borrador → enviada) y "Confirmar" (enviada →
+ * confirmada, el proveedor aceptó el pedido). Ninguno manda correo ni nada
+ * automático: decisión explícita, es Compras quien avisa al proveedor por
+ * su cuenta (correo, WhatsApp) y confirma acá cuando ya lo hizo — separado
+ * de solo descargar el PDF, para no asumir que descargar es lo mismo que
+ * mandarlo. Sin este paso ninguna OC llega nunca a 'confirmada', y sin eso
+ * Almacén no puede recibir nada contra ella (ver domain/orden-compra.ts::
+ * puedeRecibirse) — bug real encontrado auditando el ciclo completo.
+ */
+export async function cambiarEstadoOC(id: string, nuevoEstado: EstadoOC): Promise<void> {
+  const supabase = crearClienteServidor()
+
+  const { data: oc, error: errorLectura } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .select('estado')
+    .eq('id', id)
+    .maybeSingle()
+  if (errorLectura || !oc) throw new Error('No se encontró la orden de compra.')
+
+  if (!transicionPermitida(oc.estado as EstadoOC, nuevoEstado)) {
+    throw new Error(`No se puede pasar de "${oc.estado}" a "${nuevoEstado}".`)
+  }
+
+  const { error } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .update({ estado: nuevoEstado, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw new Error(`No se pudo actualizar el estado: ${error.message}`)
 }
