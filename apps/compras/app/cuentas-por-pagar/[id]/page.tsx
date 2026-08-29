@@ -62,7 +62,7 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
         ) : null}
         {obligacion.oc ? (
           <p className="mt-2 text-sm text-gray-600">
-            Orden de compra: <a href={`/ordenes-compra/${obligacion.oc.id}`} className="text-logisalud-teal underline">{obligacion.oc.codigo}</a>
+            Orden de compra: <Link href={`/ordenes-compra/${obligacion.oc.id}`} className="text-logisalud-teal underline">{obligacion.oc.codigo}</Link>
           </p>
         ) : null}
         {obligacion.recepcion ? (

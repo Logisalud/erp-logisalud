@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 export type FilaCuota = { numeroCuota: number; fechaVencimiento: string; montoCapital: string; montoInteres: string }
 
@@ -58,9 +59,9 @@ export function CuotasInput({ error, permitirExcel, plantillaHref }: { error?: s
                 className="block text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
               />
               {plantillaHref ? (
-                <a href={plantillaHref} className="text-sm text-logisalud-teal underline">
+                <Link href={plantillaHref} className="text-sm text-logisalud-teal underline">
                   Descargar plantilla
-                </a>
+                </Link>
               ) : null}
             </div>
             <p className="mt-1 text-xs text-gray-500">
