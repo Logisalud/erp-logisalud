@@ -113,10 +113,7 @@ export default async function Inicio() {
 
       <section className="mt-4">
         <h2 className="font-heading mb-2 text-lg">Compras</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <AccionVerbo href="/ordenes-compra/nueva" emoji="🧾" color="green" titulo="Crear Orden de Compra" descripcion="Elige proveedor, productos y mándale la OC." />
-          <AccionVerbo href="/proveedores/nuevo" emoji="🏢" color="teal" titulo="Registrar Proveedor" descripcion="RUC, contacto y condición de pago." />
-        </div>
+        <AccionVerbo href="/proveedores/nuevo" emoji="🏢" color="teal" titulo="Registrar Proveedor" descripcion="RUC, contacto, condición de pago y para qué le compramos (mercadería o bienes)." />
         <Link href="/ordenes-compra" className="mt-2 inline-block text-sm text-logisalud-teal underline">
           Ver órdenes de compra
         </Link>
@@ -162,27 +159,10 @@ export default async function Inicio() {
 
       <section className="mt-4">
         <h2 className="font-heading mb-2 text-lg">Financiamiento e Impuestos</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <AccionVerbo href="/financiamiento/prestamos/nueva" emoji="🏦" color="green" titulo="Registrar financiamiento" descripcion="Préstamo o fraccionamiento SUNAT, con su cronograma de cuotas." />
-          <AccionVerbo href="/impuestos/nueva" emoji="🧮" color="teal" titulo="Cargar impuesto" descripcion="Essalud, ONP, AFP, Renta, Seguro Vida Ley — por periodo." />
-        </div>
+        <AccionVerbo href="/financiamiento/prestamos/nueva" emoji="🏦" color="green" titulo="Registrar financiamiento" descripcion="Préstamo o fraccionamiento SUNAT, con su cronograma de cuotas." />
         <Link href="/financiamiento" className="mt-2 inline-block text-sm text-logisalud-teal underline">
           Ver préstamos, fraccionamientos y vencimientos
         </Link>
-      </section>
-
-      <section className="card mt-4">
-        <h2 className="font-heading text-lg">Caja Chica</h2>
-        <ul className="mt-3 space-y-2">
-          <li>
-            <Link href="/caja-chica" className="block rounded-md border border-gray-200 p-3 transition hover:shadow-sm">
-              <span className="font-medium">Mis fondos</span>
-              <p className="text-sm text-gray-600">
-                Registrar un gasto del fondo fijo y pedir reposición cuando se agota.
-              </p>
-            </Link>
-          </li>
-        </ul>
       </section>
       </details>
     </main>

@@ -5,12 +5,14 @@ import { listarProveedores } from '@/services/proveedores'
 
 export const dynamic = 'force-dynamic'
 
+const ETIQUETA_TIPO = { mercaderia: 'mercadería', bien: 'bienes', ambos: 'mercadería y bienes' } as const
+
 export default async function Proveedores({
   searchParams,
 }: {
   searchParams: { q?: string }
 }) {
-  const [proveedores, perfil] = await Promise.all([listarProveedores(searchParams.q), perfilActual()])
+  const [proveedores, perfil] = await Promise.all([listarProveedores({ busqueda: searchParams.q }), perfilActual()])
   const puedeRegistrar = perfil?.area === 'compras' || perfil?.area === 'admin'
 
   return (
@@ -55,7 +57,7 @@ export default async function Proveedores({
                   ) : null}
                 </div>
                 <p className="mt-0.5 text-sm text-gray-600">
-                  RUC {p.ruc} · {p.condicion_pago_dias} días · {p.moneda_principal}
+                  RUC {p.ruc} · {p.condicion_pago_dias} días · {p.moneda_principal} · {ETIQUETA_TIPO[p.tipo]}
                 </p>
               </Link>
             </li>

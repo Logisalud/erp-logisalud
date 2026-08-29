@@ -4,6 +4,8 @@ import { obtenerProveedor } from '@/services/proveedores'
 
 export const dynamic = 'force-dynamic'
 
+const ETIQUETA_TIPO = { mercaderia: 'Mercadería', bien: 'Bienes (no revendemos)', ambos: 'Mercadería y bienes' } as const
+
 export default async function DetalleProveedor({ params }: { params: { id: string } }) {
   const datos = await obtenerProveedor(params.id)
   if (!datos) notFound()
@@ -24,6 +26,7 @@ export default async function DetalleProveedor({ params }: { params: { id: strin
           <Dato termino="Contacto" valor={proveedor.contacto_nombre} />
           <Dato termino="Correo" valor={proveedor.contacto_email} />
           <Dato termino="Teléfono" valor={proveedor.contacto_telefono} />
+          <Dato termino="Le compramos" valor={ETIQUETA_TIPO[proveedor.tipo]} />
           <Dato termino="Condición de pago" valor={`${proveedor.condicion_pago_dias} días`} />
           <Dato termino="Moneda" valor={proveedor.moneda_principal} />
           <Dato termino="Estado" valor={proveedor.activo ? 'Activo' : 'Inactivo'} />
