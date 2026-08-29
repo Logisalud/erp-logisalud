@@ -58,9 +58,9 @@ export default async function Inicio() {
           descripcion="Revisa las facturas registradas y confirma que están correctas antes de pagarlas."
         />
         <MenuItem
-          href="/cuentas-por-pagar/reportes" emoji="📊"
+          href="/reportes" emoji="📊"
           titulo="Ver reportes"
-          descripcion="Cuentas por pagar, pendientes, facturas, detracciones."
+          descripcion="Órdenes de compra, cuentas por pagar, detracciones, sábana maestra."
         />
         <MenuItem
           href="/financiamiento/prestamos/nueva" emoji="🏦"
