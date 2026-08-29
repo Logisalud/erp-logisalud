@@ -103,6 +103,63 @@ export async function obtenerProveedor(
   return { proveedor, cuentas: cuentas ?? [] }
 }
 
+export type BorradorCuentaBancariaProveedor = {
+  banco: string
+  tipoCuenta: 'ahorros' | 'corriente' | null
+  numeroCuenta: string
+  cci: string
+  moneda: string
+  titular: string
+  esPrincipal: boolean
+}
+
+/** RLS (`proveedor_cuentas_bancarias_escritura`) restringe esto a compras/admin. */
+export async function crearCuentaBancariaProveedor(
+  proveedorId: string,
+  borrador: BorradorCuentaBancariaProveedor
+): Promise<{ id: string }> {
+  const supabase = crearClienteServidor()
+
+  if (!borrador.banco.trim()) throw new Error('Falta el banco.')
+  if (!borrador.numeroCuenta.trim()) throw new Error('Falta el número de cuenta.')
+  if (borrador.cci.trim().length !== 20) throw new Error('El CCI tiene que tener 20 dígitos.')
+  if (!borrador.titular.trim()) throw new Error('Falta el titular de la cuenta.')
+
+  const { data, error } = await supabase
+    .schema('compras')
+    .from('proveedor_cuentas_bancarias')
+    .insert({
+      proveedor_id: proveedorId,
+      banco: borrador.banco.trim(),
+      tipo_cuenta: borrador.tipoCuenta,
+      numero_cuenta: borrador.numeroCuenta.trim(),
+      cci: borrador.cci.trim(),
+      moneda: borrador.moneda,
+      titular: borrador.titular.trim(),
+      es_principal: borrador.esPrincipal,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error(`Ya existe una cuenta principal en ${borrador.moneda} para este proveedor — desmárcala antes de agregar otra.`)
+    }
+    throw new Error(`No se pudo guardar la cuenta bancaria: ${error.message}`)
+  }
+  return data
+}
+
+export async function eliminarCuentaBancariaProveedor(id: string): Promise<void> {
+  const supabase = crearClienteServidor()
+  const { error } = await supabase
+    .schema('compras')
+    .from('proveedor_cuentas_bancarias')
+    .delete()
+    .eq('id', id)
+  if (error) throw new Error(`No se pudo eliminar la cuenta: ${error.message}`)
+}
+
 export type BorradorProveedor = {
   ruc: string
   razonSocial: string

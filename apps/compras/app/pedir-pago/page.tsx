@@ -16,7 +16,7 @@ const OPCIONES = [
   },
   {
     emoji: '🧾',
-    texto: 'Tengo la factura de un proveedor para pagar directo (luz, agua, notaría, peajes… sin orden de compra)',
+    texto: 'Que la empresa pague directo (menos de S/5,000) — boletos, útiles, peajes, movilidad, marketing menor',
     href: '/pago-directo/nueva',
   },
 ] as const

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { obtenerProveedor } from '@/services/proveedores'
+import { FormularioCuentaBancariaProveedor } from './formulario-cuenta-bancaria'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,35 +34,11 @@ export default async function DetalleProveedor({ params }: { params: { id: strin
         </dl>
       </section>
 
-      <section className="card mt-4">
-        <h2 className="font-heading text-lg">Cuentas bancarias</h2>
-        {cuentas.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-600">
-            Sin cuentas registradas. Sin una cuenta no se le puede programar un pago.
-          </p>
-        ) : (
-          <ul className="mt-3 space-y-3">
-            {cuentas.map((c) => (
-              <li key={c.id} className="rounded-md border border-gray-200 p-3 text-sm">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-medium">
-                    {c.banco} · {c.moneda}
-                  </span>
-                  {c.es_principal ? (
-                    <span className="text-xs font-medium text-logisalud-green">principal</span>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-gray-600">
-                  {c.tipo_cuenta ? `${c.tipo_cuenta} · ` : ''}
-                  {c.numero_cuenta}
-                </p>
-                <p className="mt-0.5 font-mono text-xs text-gray-500">CCI {c.cci}</p>
-                <p className="mt-0.5 text-gray-600">Titular: {c.titular}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <FormularioCuentaBancariaProveedor
+        proveedorId={proveedor.id}
+        cuentas={cuentas}
+        nombreProveedor={proveedor.razon_social}
+      />
     </main>
   )
 }

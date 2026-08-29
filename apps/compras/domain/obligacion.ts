@@ -188,7 +188,15 @@ export function validarObligacion(b: BorradorObligacion): ErrorValidacion[] {
  * seguros, courier…). El beneficiario es el proveedor, no un empleado —
  * distinto de gastos.solicitudes_gasto, que sí paga/reembolsa a un
  * empleado con su propia cadena de aprobación.
+ *
+ * Tope de S/5,000 (wording aprobado con Sebas 2026-08-28, "que la empresa
+ * pague directo (menos de S/5,000)"): es lo que separa "pago directo" de
+ * tener que pasar por una Orden de Compra o de Servicio formal. Solo se
+ * exige en soles — no hay un tipo de cambio de referencia definido todavía
+ * para convertir un monto en USD contra ese tope.
  */
+export const TOPE_PAGO_DIRECTO_PEN = 5000
+
 export type BorradorPagoDirecto = BorradorObligacion & {
   categoriaId: string
   descripcion: string
@@ -198,5 +206,11 @@ export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
   const errores = validarObligacion(b)
   if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elige una categoría.' })
   if (!b.descripcion.trim()) errores.push({ campo: 'descripcion', mensaje: 'Cuenta para qué es este gasto.' })
+  if (b.moneda === 'PEN' && b.baseImponible * (1 + TASA_IGV) >= TOPE_PAGO_DIRECTO_PEN) {
+    errores.push({
+      campo: 'baseImponible',
+      mensaje: `Pago directo es para montos menores a S/${TOPE_PAGO_DIRECTO_PEN.toLocaleString('es-PE')} — con esto, la compra tiene que pasar por una Orden de Compra o de Servicio.`,
+    })
+  }
   return errores
 }

@@ -36,9 +36,16 @@ export function FormularioLogin({
   const [error, setError] = useState<string | null>(errorInicial ?? null)
   const [enviando, setEnviando] = useState(false)
 
+  // window.location.origin nunca trae basePath (es puro protocolo+host) y
+  // NEXT_PUBLIC_BASE_PATH es '' en las apps que no lo definen (cobranzas, que
+  // logra su prefijo /cobranzas con carpetas reales, no con basePath de
+  // Next) — así el link del correo cae en /auth/callback de la app correcta
+  // en las dos. Sin esto, en compras el link del correo mandaba siempre al
+  // callback de Cobranzas (la raíz del dominio), no al de compras.
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
   const destino =
     typeof window !== 'undefined'
-      ? `${window.location.origin}/auth/callback?volver_a=${encodeURIComponent(volverA)}`
+      ? `${window.location.origin}${basePath}/auth/callback?volver_a=${encodeURIComponent(volverA)}`
       : undefined
 
   async function pedirEnlace(e: React.FormEvent) {
@@ -95,7 +102,9 @@ export function FormularioLogin({
     }
 
     // Recarga completa para que el middleware vea la cookie recién puesta.
-    window.location.assign(volverA)
+    // volverA viene del middleware sin basePath (ver callback.ts) — hay que
+    // anteponerlo a mano, mismo motivo que en `destino` más arriba.
+    window.location.assign(`${basePath}${volverA}`)
   }
 
   if (enviado) {
