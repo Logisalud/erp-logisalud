@@ -92,10 +92,10 @@ export function FormularioSolicitud({
             <Campo etiqueta="Destino (opcional)">
               <input type="text" name="destino" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
             </Campo>
-            <Campo etiqueta="Fecha de inicio">
+            <Campo etiqueta="Fecha de inicio del viaje">
               <input type="date" name="fechaInicio" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
             </Campo>
-            <Campo etiqueta="Fecha de fin" error={errorDe('fechaFin')}>
+            <Campo etiqueta="Fecha de fin del viaje" error={errorDe('fechaFin')}>
               <input type="date" name="fechaFin" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
             </Campo>
             {usuarios.length > 1 ? (
