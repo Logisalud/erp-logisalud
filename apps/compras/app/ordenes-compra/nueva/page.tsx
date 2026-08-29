@@ -34,14 +34,7 @@ export default async function NuevaOC() {
         </div>
       ) : (
         <>
-          <FormularioOC
-            proveedores={proveedores.map((p) => ({
-              id: p.id,
-              nombre: `${p.razon_social} — RUC ${p.ruc}`,
-              condicionPagoDias: p.condicion_pago_dias,
-              moneda: p.moneda_principal,
-            }))}
-          />
+          <FormularioOC />
           {puedeRegistrarProveedor ? (
             <Link
               href="/proveedores/nuevo?tipo=mercaderia&volver=/ordenes-compra/nueva"

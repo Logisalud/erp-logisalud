@@ -4,19 +4,19 @@ import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { registrarPagoDirectoAction, type EstadoFormulario } from './actions'
 import { calcularDetraccionSugerida } from '@/domain/obligacion'
+import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
 
-type ProveedorOpcion = { id: string; nombre: string }
 type CategoriaOpcion = { id: string; nombre: string }
 type TasaDetraccion = { id: string; categoria: string; porcentaje: number; anexo_sunat: string | null }
 
 export function FormularioPagoDirecto({
-  proveedores, categorias, tasasDetraccion,
+  categorias, tasasDetraccion,
 }: {
-  proveedores: ProveedorOpcion[]
   categorias: CategoriaOpcion[]
   tasasDetraccion: TasaDetraccion[]
 }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(registrarPagoDirectoAction, null)
+  const [proveedor, setProveedor] = useState<ProveedorElegido | null>(null)
   const [moneda, setMoneda] = useState('PEN')
   const [baseImponible, setBaseImponible] = useState('')
   const [tasaDetraccionId, setTasaDetraccionId] = useState('')
@@ -37,12 +37,8 @@ export function FormularioPagoDirecto({
 
       <section className="card space-y-3">
         <Campo etiqueta="Proveedor" error={errorDe('proveedorId')}>
-          <select name="proveedorId" required defaultValue="" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
-            <option value="" disabled>Elige uno…</option>
-            {proveedores.map((p) => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
-            ))}
-          </select>
+          <BuscadorProveedor valor={proveedor} onElegir={setProveedor} />
+          <input type="hidden" name="proveedorId" value={proveedor?.id ?? ''} />
         </Campo>
 
         <Campo etiqueta="Categoría" error={errorDe('categoriaId')}>
