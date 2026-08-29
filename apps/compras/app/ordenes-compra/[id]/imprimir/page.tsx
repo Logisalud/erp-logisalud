@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { obtenerOC } from '@/services/ordenes-compra'
 import { obtenerProveedor } from '@/services/proveedores'
 import { calcularTotales } from '@/domain/orden-compra'
@@ -39,7 +40,7 @@ export default async function ImprimirOC({ params }: { params: { id: string } })
     <main className="mx-auto max-w-[820px] bg-white p-8 print:p-0">
       <div className="mb-6 flex gap-2 print:hidden">
         <BotonImprimir />
-        <a href={`/ordenes-compra/${oc.id}`} className="btn-secondary">Volver</a>
+        <Link href={`/ordenes-compra/${oc.id}`} className="btn-secondary">Volver</Link>
       </div>
 
       <header className="flex items-start justify-between border-b-2 border-logisalud-green pb-4">

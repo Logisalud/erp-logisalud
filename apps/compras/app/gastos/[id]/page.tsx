@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { obtenerSolicitud } from '@/services/solicitudes-gasto'
@@ -46,9 +47,9 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
         ) : null}
         {solicitud.obligacion_id ? (
           <p className="mt-1 text-sm">
-            <a href={`/cuentas-por-pagar/${solicitud.obligacion_id}`} className="text-logisalud-teal underline">
+            <Link href={`/cuentas-por-pagar/${solicitud.obligacion_id}`} className="text-logisalud-teal underline">
               Ver el pago y el voucher
-            </a>
+            </Link>
           </p>
         ) : null}
 
