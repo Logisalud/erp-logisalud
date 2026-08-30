@@ -1,14 +1,16 @@
 'use client'
 
 import { useFormState, useFormStatus } from 'react-dom'
+import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearProveedorAction, type EstadoFormulario } from './actions'
 
 export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: 'mercaderia' | 'bien' | 'ambos'; volver?: string }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearProveedorAction, null)
+  const sucio = useMarcarSucioAlEditar()
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
   return (
-    <form action={accion} className="card space-y-3">
+    <form action={accion} onChange={sucio.onChange} className="card space-y-3">
       {volver ? <input type="hidden" name="volver" value={volver} /> : null}
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">

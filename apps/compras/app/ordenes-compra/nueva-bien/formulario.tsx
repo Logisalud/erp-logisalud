@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
+import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearOrdenCompraBien, type EstadoFormulario } from './actions'
 import { calcularTotales } from '@/domain/orden-compra'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
@@ -12,6 +13,7 @@ const LINEA_VACIA: Linea = { descripcion: '', cantidad: '', precio: '' }
 
 export function FormularioOCBien() {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearOrdenCompraBien, null)
+  const sucio = useMarcarSucioAlEditar()
   const [lineas, setLineas] = useState<Linea[]>([{ ...LINEA_VACIA }])
   const [proveedor, setProveedor] = useState<ProveedorElegido | null>(null)
 
@@ -25,7 +27,7 @@ export function FormularioOCBien() {
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
   return (
-    <form action={accion} className="space-y-4">
+    <form action={accion} onChange={sucio.onChange} className="space-y-4">
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
           {errorDe('general')}

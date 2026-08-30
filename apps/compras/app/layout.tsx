@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Oswald, Poppins } from 'next/font/google'
 import { PilaNavegacionProvider } from '@/components/pila-navegacion-provider'
+import { FormularioSucioProvider } from '@/components/formulario-sucio-provider'
 import './globals.css'
 
 const oswald = Oswald({ subsets: ['latin'], variable: '--font-oswald', display: 'swap' })
@@ -20,7 +21,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className={`${oswald.variable} ${poppins.variable}`}>
       <body className="min-h-screen bg-gray-50 font-body text-gray-900">
-        <PilaNavegacionProvider>{children}</PilaNavegacionProvider>
+        <PilaNavegacionProvider>
+          <FormularioSucioProvider>{children}</FormularioSucioProvider>
+        </PilaNavegacionProvider>
       </body>
     </html>
   )
