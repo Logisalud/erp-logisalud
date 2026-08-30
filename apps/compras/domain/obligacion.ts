@@ -180,6 +180,16 @@ export function validarNoSobrefacturar(lineas: readonly LineaFacturacion[]): Err
   return errores
 }
 
+/**
+ * Normaliza un número de factura/comprobante para comparar identidad:
+ * mayúsculas + sin espacios al borde. "F001-123" y "f001-123 " son el mismo
+ * comprobante — ver 0027_uniqueness_factura_normalizada.sql, que aplica el
+ * mismo criterio en el índice único de la base.
+ */
+export function normalizarNumeroFactura(numeroFactura: string): string {
+  return numeroFactura.trim().toUpperCase()
+}
+
 export type ErrorValidacion = { campo: string; mensaje: string }
 
 export type BorradorObligacion = {

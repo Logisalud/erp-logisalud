@@ -3,6 +3,7 @@ import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/au
 import {
   calcularFechaVencimientoReal,
   conciliarLineas,
+  normalizarNumeroFactura,
   redondear,
   TASA_IGV,
   validarNoSobrefacturar,
@@ -208,6 +209,23 @@ export async function registrarObligacionDesdeRecepcion(
 
   const estadoInicial: EstadoObligacion = conciliacion.conforme ? 'registrada' : 'observada'
 
+  // Identidad del comprobante: proveedor + número normalizado (mayúsculas,
+  // sin espacios al borde) — mismo criterio que el índice único de
+  // 0027_uniqueness_factura_normalizada.sql. Se pre-chequea acá para dar un
+  // error en lenguaje de negocio; el índice de la base es el resguardo
+  // final contra una carrera entre dos registros simultáneos.
+  const numeroFacturaNormalizado = normalizarNumeroFactura(borrador.numeroFactura)
+  const { data: facturaExistente } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id')
+    .eq('proveedor_id', oc.proveedor_id)
+    .eq('numero_factura', numeroFacturaNormalizado)
+    .maybeSingle()
+  if (facturaExistente) {
+    throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
+  }
+
   const { data: obligacion, error: errIns } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -216,7 +234,7 @@ export async function registrarObligacionDesdeRecepcion(
       proveedor_id: oc.proveedor_id,
       oc_id: oc.id,
       recepcion_id: borrador.recepcionId,
-      numero_factura: borrador.numeroFactura,
+      numero_factura: numeroFacturaNormalizado,
       fecha_factura: borrador.fechaFactura,
       moneda: oc.moneda,
       tipo_cambio: borrador.tipoCambio,
@@ -593,6 +611,18 @@ export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promi
 
   const fechaVencimientoReal = calcularFechaVencimientoReal(borrador.fechaFactura, proveedor.condicion_pago_dias)
 
+  const numeroFacturaNormalizado = normalizarNumeroFactura(borrador.numeroFactura)
+  const { data: facturaExistente } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id')
+    .eq('proveedor_id', borrador.proveedorId)
+    .eq('numero_factura', numeroFacturaNormalizado)
+    .maybeSingle()
+  if (facturaExistente) {
+    throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
+  }
+
   const { data: obligacion, error: errIns } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -600,7 +630,7 @@ export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promi
       origen: 'gasto_directo',
       proveedor_id: borrador.proveedorId,
       categoria_pago_directo_id: borrador.categoriaId,
-      numero_factura: borrador.numeroFactura,
+      numero_factura: numeroFacturaNormalizado,
       fecha_factura: borrador.fechaFactura,
       moneda: borrador.moneda,
       tipo_cambio: borrador.tipoCambio,

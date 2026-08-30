@@ -4,12 +4,28 @@ import {
   calcularFechaVencimientoReal,
   conciliarLineas,
   montoAPagarConNotasCredito,
+  normalizarNumeroFactura,
   redondear,
   transicionPermitida,
   validarObligacion,
   validarPagoDirecto,
   type BorradorPagoDirecto,
 } from '@/domain/obligacion'
+
+describe('normalizarNumeroFactura', () => {
+  it('mayúsculas y sin espacios al borde', () => {
+    expect(normalizarNumeroFactura('f001-00000123')).toBe('F001-00000123')
+    expect(normalizarNumeroFactura('  F001-123  ')).toBe('F001-123')
+  })
+
+  it('F001-123 y F002-123 son comprobantes distintos — la serie es parte de la identidad', () => {
+    expect(normalizarNumeroFactura('F001-123')).not.toBe(normalizarNumeroFactura('F002-123'))
+  })
+
+  it('mismo comprobante escrito distinto normaliza igual', () => {
+    expect(normalizarNumeroFactura('f001-123')).toBe(normalizarNumeroFactura(' F001-123 '))
+  })
+})
 
 describe('calcularFechaVencimientoReal', () => {
   it('cuenta desde la conformidad de la recepción, no desde otra fecha', () => {
