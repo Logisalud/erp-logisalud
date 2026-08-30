@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
-import { obtenerLoopsAbiertos } from '@/services/dashboard'
+import { obtenerLoopsAbiertos, obtenerKPIsDashboard } from '@/services/dashboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +42,7 @@ function fraseDelDia() {
  */
 export default async function Dashboard() {
   const loops = await obtenerLoopsAbiertos()
+  const kpis = await obtenerKPIsDashboard(loops.obligacionesObservadas)
   const totalAbiertos =
     loops.fraccionamientosVencidos.length +
     loops.obligacionesObservadas.length +
@@ -56,6 +57,21 @@ export default async function Dashboard() {
     <main className="mx-auto max-w-2xl px-4 py-8">
       <Encabezado titulo="Dashboard" atras={{ href: '/', texto: 'Módulos' }} />
       <p className="-mt-4 mb-4 text-xs italic text-gray-400">{fraseDelDia()}</p>
+
+      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <TileKPI titulo="Pendiente de pago" filas={kpis.totalPendiente} href="/cuentas-por-pagar" />
+        <TileKPI titulo="Vencido" filas={kpis.totalVencido} href="/reportes/cuentas-por-pagar/antiguedad" urgente />
+        <TileKPI titulo="Vence en 7 días" filas={kpis.venceProximos7Dias} href="/reportes/cuentas-por-pagar/antiguedad" />
+        <TileKPI titulo="Pendientes de revisión" filas={kpis.facturasPendientesRevision} href="/cuentas-por-pagar?estado=registrada" />
+        <TileKPI
+          titulo="Aprobadas sin factura"
+          filas={[{ moneda: '', monto: 0, cantidad: kpis.ordenesAprobadasSinFactura.cantidad }]}
+          href="/facturas/nueva"
+          soloCantidad
+        />
+        <TileKPI titulo="Pagado este mes" filas={kpis.pagadoEsteMes} href="/reportes/cuentas-por-pagar/historial-pagos" />
+        <TileKPI titulo="Observadas" filas={kpis.obligacionesObservadas} href="/cuentas-por-pagar?estado=observada" urgente />
+      </div>
 
       {totalAbiertos === 0 ? (
         <p className="card border-logisalud-green text-sm text-gray-700">
@@ -138,6 +154,52 @@ export default async function Dashboard() {
         </div>
       )}
     </main>
+  )
+}
+
+/**
+ * Un KPI de arriba del dashboard — siempre clickeable hacia la pantalla
+ * real donde ese número se resuelve (Carta de Simplicidad regla 5: nunca
+ * una métrica muerta). Separa por moneda (nunca mezcla PEN con USD); si no
+ * hay filas, muestra "S/ 0.00" en vez de esconder el tile — que el usuario
+ * vea "está en cero" es información, no ruido.
+ */
+function TileKPI({
+  titulo,
+  filas,
+  href,
+  urgente,
+  soloCantidad,
+}: {
+  titulo: string
+  filas: { moneda: string; monto: number; cantidad: number }[]
+  href: string
+  urgente?: boolean
+  soloCantidad?: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className={`card block transition hover:shadow-sm ${urgente && filas.some((f) => f.monto > 0) ? 'border-amber-300' : ''}`}
+    >
+      <p className="text-xs text-gray-500">{titulo}</p>
+      {soloCantidad ? (
+        <p className="font-heading text-xl">{filas[0]?.cantidad ?? 0}</p>
+      ) : filas.length === 0 ? (
+        <p className="font-heading text-xl text-gray-400">
+          <Money valor={0} />
+        </p>
+      ) : (
+        <div className="space-y-0.5">
+          {filas.map((f) => (
+            <p key={f.moneda} className="font-heading text-xl">
+              <Money valor={f.monto} moneda={f.moneda} />{' '}
+              <span className="text-xs font-normal text-gray-400">({f.cantidad})</span>
+            </p>
+          ))}
+        </div>
+      )}
+    </Link>
   )
 }
 

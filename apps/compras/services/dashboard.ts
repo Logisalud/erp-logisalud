@@ -1,8 +1,18 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
-import { discrepanciaAbierta, servicioSinConformidad } from '@/domain/dashboard'
+import {
+  discrepanciaAbierta,
+  servicioSinConformidad,
+  agruparPorMoneda,
+  venceEnProximosDias,
+  estaVencidaObligacion,
+  type MontoPorMoneda,
+} from '@/domain/dashboard'
 import { estaVencida } from '@/domain/financiamiento'
 import { listarObligaciones, type ObligacionListada } from '@/services/obligaciones'
+import { obtenerObligacionesAbiertas } from '@/services/reportes-cuentas-por-pagar-detalle'
+import { buscarOrdenesFacturables } from '@/services/facturas-elegibles'
+import { diasVencido } from '@/domain/reportes'
 
 export type LoopDiscrepancia = { recepcionId: string; ocCodigo: string; cantidadLineas: number }
 
@@ -166,4 +176,97 @@ export async function obtenerLoopsAbiertos(): Promise<LoopsAbiertos> {
     ])
 
   return { fraccionamientosVencidos, obligacionesObservadas, discrepancias, anticiposSinRendir, serviciosSinConformidad }
+}
+
+// ---------------------------------------------------------------------------
+// KPIs del dashboard
+// ---------------------------------------------------------------------------
+
+export type KPIsDashboard = {
+  totalPendiente: MontoPorMoneda[]
+  totalVencido: MontoPorMoneda[]
+  venceProximos7Dias: MontoPorMoneda[]
+  facturasPendientesRevision: MontoPorMoneda[]
+  ordenesAprobadasSinFactura: { cantidad: number }
+  pagadoEsteMes: MontoPorMoneda[]
+  obligacionesObservadas: MontoPorMoneda[]
+}
+
+/**
+ * Los 7 KPIs de arriba del dashboard — cada uno linkea a la pantalla real
+ * donde ese número se resuelve (Carta de Simplicidad regla 5). Todo sale de
+ * `cuentas_x_pagar.obligaciones` vía obtenerObligacionesAbiertas (mismo
+ * origen que el reporte de antigüedad, para no duplicar el criterio de qué
+ * es "abierta") + buscarOrdenesFacturables (mismo query que /facturas/nueva)
+ * + el historial de pagos ya existente. Nunca se mezcla PEN con USD.
+ */
+export async function obtenerKPIsDashboard(obligacionesObservadasYaCargadas?: ObligacionListada[]): Promise<KPIsDashboard> {
+  const hoy = new Date().toISOString().slice(0, 10)
+
+  const [abiertas, facturables, obligacionesObservadas, pagadoEsteMes] = await Promise.all([
+    obtenerObligacionesAbiertas({}),
+    buscarOrdenesFacturables({}),
+    obligacionesObservadasYaCargadas ? Promise.resolve(obligacionesObservadasYaCargadas) : listarObligaciones('observada'),
+    obtenerPagadoDelMesActual(),
+  ])
+
+  const totalPendiente = agruparPorMoneda(abiertas.map((o) => ({ moneda: o.moneda, monto: o.netoAPagar })))
+
+  const vencidas = abiertas.filter((o) => estaVencidaObligacion(o.diasVencido))
+  const totalVencido = agruparPorMoneda(vencidas.map((o) => ({ moneda: o.moneda, monto: o.netoAPagar })))
+
+  const porVencerPronto = abiertas.filter((o) => venceEnProximosDias(o.diasVencido, 7))
+  const venceProximos7Dias = agruparPorMoneda(porVencerPronto.map((o) => ({ moneda: o.moneda, monto: o.netoAPagar })))
+
+  const enRevision = abiertas.filter((o) => o.estado === 'registrada')
+  const facturasPendientesRevision = agruparPorMoneda(enRevision.map((o) => ({ moneda: o.moneda, monto: o.netoAPagar })))
+
+  const observadasComoFilas = obligacionesObservadas.map((o) => ({ moneda: o.moneda, monto: Number(o.neto_a_pagar) }))
+  const observadasAgrupadas = agruparPorMoneda(observadasComoFilas)
+
+  return {
+    totalPendiente,
+    totalVencido,
+    venceProximos7Dias,
+    facturasPendientesRevision,
+    ordenesAprobadasSinFactura: { cantidad: facturables.length },
+    pagadoEsteMes,
+    obligacionesObservadas: observadasAgrupadas,
+  }
+}
+
+/**
+ * Suma de `pago_aplicacion.monto_aplicado` de pagos con fecha_pago dentro
+ * del mes calendario actual — mismo patrón de consulta que
+ * obtenerHistorialPagos en services/reportes-cuentas-por-pagar-detalle.ts.
+ */
+async function obtenerPagadoDelMesActual(): Promise<MontoPorMoneda[]> {
+  const supabase = crearClienteServidor()
+  const ahora = new Date()
+  const inicioMes = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1)).toISOString().slice(0, 10)
+  const finMes = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() + 1, 0)).toISOString().slice(0, 10)
+
+  const { data: pagos, error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pagos')
+    .select('id, moneda, fecha_pago')
+    .gte('fecha_pago', inicioMes)
+    .lte('fecha_pago', finMes)
+  if (error) throw new Error(`No se pudo calcular lo pagado este mes: ${error.message}`)
+  const pagosDelMes = pagos ?? []
+  if (pagosDelMes.length === 0) return []
+
+  const { data: aplicaciones, error: errApl } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pago_aplicacion')
+    .select('pago_id, monto_aplicado')
+    .in('pago_id', pagosDelMes.map((p: any) => p.id))
+  if (errApl) throw new Error(`No se pudo calcular lo pagado este mes: ${errApl.message}`)
+
+  const monedaPorPagoId = new Map(pagosDelMes.map((p: any) => [p.id, p.moneda as string]))
+  const filas = (aplicaciones ?? []).map((a: any) => ({
+    moneda: monedaPorPagoId.get(a.pago_id) ?? 'PEN',
+    monto: Number(a.monto_aplicado),
+  }))
+  return agruparPorMoneda(filas)
 }
