@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { StepperOrden, TarjetaSiguientePaso } from '@/components/stepper-orden'
+import { Historial } from '@/components/historial'
 import { obtenerOS } from '@/services/servicios'
+import { obtenerHistorialOS } from '@/services/historial-orden'
 import { ETIQUETA_ESTADO_OS } from '@/domain/servicio'
 import { PASOS_OS, pasoAlcanzadoOS, siguientePasoOS } from '@/domain/ordenes-unificadas'
 import { AccionesOS } from './acciones'
@@ -19,6 +21,7 @@ export default async function DetalleOS({ params }: { params: { id: string } }) 
 
   const puedeSubirFacturaODarConformidad = ['aprobada', 'en_ejecucion', 'facturada'].includes(os.estado)
   const yaDioConformidadPositiva = os.conformidad?.conforme === true
+  const historial = await obtenerHistorialOS(os.id)
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -96,6 +99,13 @@ export default async function DetalleOS({ params }: { params: { id: string } }) 
           </Link>
         </section>
       ) : null}
+
+      <section className="card mt-4">
+        <h2 className="font-heading text-lg">Historial</h2>
+        <div className="mt-2">
+          <Historial eventos={historial} />
+        </div>
+      </section>
     </main>
   )
 }

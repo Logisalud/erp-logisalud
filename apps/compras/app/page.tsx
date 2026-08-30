@@ -43,9 +43,9 @@ export default async function Inicio() {
           descripcion="Crea una orden o revisa en qué etapa se encuentra."
         />
         <MenuItem
-          href="/ordenes?pendientes=1" emoji="🧾"
+          href="/facturas/nueva" emoji="🧾"
           titulo="Registrar una factura"
-          descripcion="Búscala en el listado y vincúlala con la orden aprobada para continuar hacia el pago."
+          descripcion="Vincúlala con una orden aprobada para continuar hacia el pago."
         />
         <MenuItem
           href="/cuentas-por-pagar?estado=registrada" emoji="✅"

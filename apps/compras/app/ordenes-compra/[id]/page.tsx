@@ -3,8 +3,11 @@ import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { StepperOrden, TarjetaSiguientePaso } from '@/components/stepper-orden'
+import { Historial } from '@/components/historial'
 import { obtenerOC } from '@/services/ordenes-compra'
 import { obtenerObligacionPorOC } from '@/services/obligaciones'
+import { listarRecepcionesPorOC } from '@/services/recepciones'
+import { obtenerHistorialOC } from '@/services/historial-orden'
 import { calcularTotales, ETIQUETA_ESTADO, puedeEditarse, puedeRecibirse } from '@/domain/orden-compra'
 import { ETIQUETA_ESTADO as ETIQUETA_ESTADO_OBLIGACION } from '@/domain/obligacion'
 import { PASOS_OC, pasoAlcanzadoOC, siguientePasoOC } from '@/domain/ordenes-unificadas'
@@ -12,11 +15,17 @@ import { BotonMarcarEnviada, BotonMarcarConfirmada } from './acciones-estado'
 
 export const dynamic = 'force-dynamic'
 
+const ETIQUETA_ESTADO_RECEPCION: Record<string, string> = {
+  pendiente: 'Pendiente',
+  conforme: 'Conforme',
+  con_discrepancia: 'Con discrepancia',
+}
+
 export default async function DetalleOC({ params }: { params: { id: string } }) {
   const oc = await obtenerOC(params.id)
   if (!oc) notFound()
 
-  const [totales, obligacion] = [
+  const [totales, obligacion, recepciones, historial] = [
     calcularTotales(
       oc.items.map((i) => ({
         cantidadPedida: Number(i.cantidad_pedida),
@@ -24,6 +33,8 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
       }))
     ),
     await obtenerObligacionPorOC(oc.id),
+    await listarRecepcionesPorOC(oc.id),
+    await obtenerHistorialOC(oc.id),
   ]
 
   return (
@@ -136,16 +147,38 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
         </dl>
       </section>
 
-      {obligacion ? (
-        <section className="card mt-4">
-          <h2 className="font-heading text-lg">Documentos relacionados</h2>
-          <p className="mt-2 text-sm">
-            Obligación: <Link href={`/cuentas-por-pagar/${obligacion.id}`} className="text-logisalud-teal underline">
-              {obligacion.codigo}
-            </Link> — {ETIQUETA_ESTADO_OBLIGACION[obligacion.estado]}
-          </p>
-        </section>
-      ) : null}
+      <section className="card mt-4">
+        <h2 className="font-heading text-lg">Documentos relacionados</h2>
+        <ul className="mt-2 space-y-1.5 text-sm">
+          <li>
+            Orden: <Link href={`/ordenes-compra/${oc.id}/imprimir`} className="text-logisalud-teal underline">Ver / descargar PDF</Link>
+          </li>
+          {recepciones.map((r) => (
+            <li key={r.id}>
+              Recepción {r.fecha_recepcion}: <Link href={`/almacen/recepciones/${r.id}`} className="text-logisalud-teal underline">
+                Ver recepción
+              </Link> — {ETIQUETA_ESTADO_RECEPCION[r.estado] ?? r.estado}
+            </li>
+          ))}
+          {obligacion ? (
+            <li>
+              Factura / obligación: <Link href={`/cuentas-por-pagar/${obligacion.id}`} className="text-logisalud-teal underline">
+                {obligacion.codigo}
+              </Link> — {ETIQUETA_ESTADO_OBLIGACION[obligacion.estado]}
+              {obligacion.estado === 'pagada' || obligacion.estado === 'cerrada' ? ' (abrí la obligación para ver el voucher)' : ''}
+            </li>
+          ) : (
+            <li className="text-gray-500">Factura / obligación: todavía no se registró.</li>
+          )}
+        </ul>
+      </section>
+
+      <section className="card mt-4">
+        <h2 className="font-heading text-lg">Historial</h2>
+        <div className="mt-2">
+          <Historial eventos={historial} />
+        </div>
+      </section>
     </main>
   )
 }
