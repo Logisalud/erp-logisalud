@@ -1,5 +1,6 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
+import { recepcionEsFacturable, osEsFacturable, saldoDisponibleLinea } from '@/domain/facturas-elegibles'
 
 /**
  * Búsqueda de "¿qué orden puedo facturar ahora?" — el paso 1 real de
@@ -59,7 +60,7 @@ async function buscarRecepcionesFacturables(): Promise<FilaFacturable[]> {
   const { data: recepciones, error } = await supabase
     .schema('almacen')
     .from('recepciones')
-    .select('id, oc_id, fecha_conformidad')
+    .select('id, oc_id, fecha_conformidad, estado')
     .eq('estado', 'conforme')
     .order('fecha_conformidad', { ascending: false })
     .limit(200)
@@ -74,7 +75,7 @@ async function buscarRecepcionesFacturables(): Promise<FilaFacturable[]> {
     .in('recepcion_id', recepcionesConforme.map((r) => r.id))
   const recepcionesConObligacion = new Set((obligacionesExistentes ?? []).map((o: any) => o.recepcion_id))
 
-  const elegibles = recepcionesConforme.filter((r) => !recepcionesConObligacion.has(r.id))
+  const elegibles = recepcionesConforme.filter((r) => recepcionEsFacturable(r.estado, recepcionesConObligacion.has(r.id)))
   if (elegibles.length === 0) return []
 
   const ocIds = [...new Set(elegibles.map((r) => r.oc_id))]
@@ -105,7 +106,7 @@ async function buscarRecepcionesFacturables(): Promise<FilaFacturable[]> {
         moneda: oc.moneda,
         totalOrden,
         montoFacturado,
-        saldoDisponible: redondear(totalOrden - montoFacturado),
+        saldoDisponible: saldoDisponibleLinea(totalOrden, montoFacturado),
         estado: 'Recepción conforme — sin facturar',
         hrefRegistro: `/cuentas-por-pagar/nueva/${r.id}`,
       }
@@ -118,13 +119,12 @@ async function buscarOSFacturables(): Promise<FilaFacturable[]> {
   const { data: oss, error } = await supabase
     .schema('servicios')
     .from('ordenes_servicio')
-    .select('id, codigo, descripcion_servicio, monto_estimado, moneda, proveedor_servicio_id, fecha_solicitud, storage_path_factura_proveedor')
+    .select('id, codigo, descripcion_servicio, monto_estimado, moneda, proveedor_servicio_id, fecha_solicitud, estado, storage_path_factura_proveedor')
     .in('estado', ['aprobada', 'en_ejecucion'])
-    .is('storage_path_factura_proveedor', null)
     .order('fecha_solicitud', { ascending: false })
     .limit(200)
   if (error) throw new Error(`No se pudieron buscar órdenes de servicio: ${error.message}`)
-  const elegibles = oss ?? []
+  const elegibles = (oss ?? []).filter((o) => osEsFacturable(o.estado, !!o.storage_path_factura_proveedor))
   if (elegibles.length === 0) return []
 
   const proveedores = await mapaProveedoresServicio([...new Set(elegibles.map((o: any) => o.proveedor_servicio_id))])
