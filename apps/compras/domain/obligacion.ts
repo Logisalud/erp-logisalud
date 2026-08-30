@@ -147,6 +147,39 @@ export function conciliarLineas(lineas: readonly LineaConciliacion[]): Resultado
   return { conforme: discrepancias.length === 0, discrepancias }
 }
 
+/**
+ * Sobrefacturación: nunca se puede facturar más de lo pedido en una línea
+ * de OC, sumando todas las facturas ya registradas contra esa línea más la
+ * que se está por registrar. A diferencia de conciliarLineas (que compara
+ * contra lo RECIBIDO y solo observa la obligación para que Contabilidad la
+ * revise), esto es un tope duro contra lo PEDIDO — Carta de Simplicidad:
+ * no se autocorrige, se rechaza con un error explícito antes de guardar
+ * nada.
+ */
+export type LineaFacturacion = {
+  ocItemId: string
+  cantidadPedida: number
+  cantidadYaFacturada: number
+  cantidadNuevaFactura: number
+}
+
+export type ErrorSobrefacturacion = { ocItemId: string; mensaje: string }
+
+export function validarNoSobrefacturar(lineas: readonly LineaFacturacion[]): ErrorSobrefacturacion[] {
+  const errores: ErrorSobrefacturacion[] = []
+  for (const l of lineas) {
+    const totalFacturado = redondear(l.cantidadYaFacturada + l.cantidadNuevaFactura)
+    if (totalFacturado > l.cantidadPedida) {
+      const disponible = Math.max(0, redondear(l.cantidadPedida - l.cantidadYaFacturada))
+      errores.push({
+        ocItemId: l.ocItemId,
+        mensaje: `Esta línea solo tiene ${disponible} unidad(es) disponible(s) para facturar (pedido ${l.cantidadPedida}, ya facturado ${l.cantidadYaFacturada}) — no se puede facturar ${l.cantidadNuevaFactura}.`,
+      })
+    }
+  }
+  return errores
+}
+
 export type ErrorValidacion = { campo: string; mensaje: string }
 
 export type BorradorObligacion = {

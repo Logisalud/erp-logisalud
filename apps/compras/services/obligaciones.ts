@@ -5,9 +5,11 @@ import {
   conciliarLineas,
   redondear,
   TASA_IGV,
+  validarNoSobrefacturar,
   type EstadoObligacion,
   type LineaConciliacion,
   type BorradorPagoDirecto,
+  type LineaFacturacion,
 } from '@/domain/obligacion'
 import { puedeMarcarseFacturada } from '@/domain/orden-compra'
 
@@ -182,6 +184,23 @@ export async function registrarObligacionDesdeRecepcion(
       precioFacturado: l.precioFacturado,
     }
   })
+  // Sobrefacturación: tope duro contra lo pedido, sumando lo ya facturado
+  // en registros anteriores de esta misma OC — se rechaza antes de tocar
+  // la base de datos, nunca se autocorrige (Carta de Simplicidad).
+  const lineasFacturacion: LineaFacturacion[] = borrador.lineas.map((l) => {
+    const item = itemsMap.get(l.ocItemId)
+    return {
+      ocItemId: l.ocItemId,
+      cantidadPedida: Number(item.cantidad_pedida),
+      cantidadYaFacturada: Number(item.cantidad_facturada),
+      cantidadNuevaFactura: l.cantidadFacturada,
+    }
+  })
+  const erroresSobrefacturacion = validarNoSobrefacturar(lineasFacturacion)
+  if (erroresSobrefacturacion.length > 0) {
+    throw new Error(erroresSobrefacturacion.map((e) => e.mensaje).join(' | '))
+  }
+
   const conciliacion = conciliarLineas(lineasConciliacion)
   const baseImponible = redondear(
     borrador.lineas.reduce((acc, l) => acc + redondear(l.cantidadFacturada * l.precioFacturado), 0)
