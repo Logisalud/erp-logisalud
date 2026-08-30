@@ -2,8 +2,12 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
+import { StepperOrden, TarjetaSiguientePaso } from '@/components/stepper-orden'
 import { obtenerOC } from '@/services/ordenes-compra'
+import { obtenerObligacionPorOC } from '@/services/obligaciones'
 import { calcularTotales, ETIQUETA_ESTADO, puedeEditarse, puedeRecibirse } from '@/domain/orden-compra'
+import { ETIQUETA_ESTADO as ETIQUETA_ESTADO_OBLIGACION } from '@/domain/obligacion'
+import { PASOS_OC, pasoAlcanzadoOC, siguientePasoOC } from '@/domain/ordenes-unificadas'
 import { BotonMarcarEnviada, BotonMarcarConfirmada } from './acciones-estado'
 
 export const dynamic = 'force-dynamic'
@@ -12,12 +16,15 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
   const oc = await obtenerOC(params.id)
   if (!oc) notFound()
 
-  const totales = calcularTotales(
-    oc.items.map((i) => ({
-      cantidadPedida: Number(i.cantidad_pedida),
-      precioUnitario: Number(i.precio_unitario),
-    }))
-  )
+  const [totales, obligacion] = [
+    calcularTotales(
+      oc.items.map((i) => ({
+        cantidadPedida: Number(i.cantidad_pedida),
+        precioUnitario: Number(i.precio_unitario),
+      }))
+    ),
+    await obtenerObligacionPorOC(oc.id),
+  ]
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -25,6 +32,10 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
         titulo={oc.codigo}
         atras={{ href: '/ordenes-compra', texto: 'Órdenes de compra' }}
       />
+
+      <div className="mb-4 overflow-x-auto">
+        <StepperOrden pasos={PASOS_OC} pasoAlcanzado={pasoAlcanzadoOC(oc.estado)} />
+      </div>
 
       <div className="mb-5 flex flex-wrap items-start gap-2">
         <Link href={`/ordenes-compra/${oc.id}/imprimir`} className="btn-secondary">
@@ -53,7 +64,9 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
         )}
       </div>
 
-      <section className="card">
+      <TarjetaSiguientePaso texto={siguientePasoOC(oc.estado)} />
+
+      <section className="card mt-4">
         <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
           <Dato termino="Tipo" valor={oc.tipo === 'bien' ? 'Bien (no revendible)' : 'Mercadería'} />
           <Dato termino="Estado" valor={ETIQUETA_ESTADO[oc.estado]} />
@@ -122,6 +135,17 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
           <Total termino="Total" valor={totales.total} moneda={oc.moneda} destacado />
         </dl>
       </section>
+
+      {obligacion ? (
+        <section className="card mt-4">
+          <h2 className="font-heading text-lg">Documentos relacionados</h2>
+          <p className="mt-2 text-sm">
+            Obligación: <Link href={`/cuentas-por-pagar/${obligacion.id}`} className="text-logisalud-teal underline">
+              {obligacion.codigo}
+            </Link> — {ETIQUETA_ESTADO_OBLIGACION[obligacion.estado]}
+          </p>
+        </section>
+      ) : null}
     </main>
   )
 }

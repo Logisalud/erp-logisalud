@@ -1,29 +1,31 @@
 import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
-import { perfilActual } from '@logisalud/auth/server'
 import { listarProveedores } from '@/services/proveedores'
 
 export const dynamic = 'force-dynamic'
 
 const ETIQUETA_TIPO = { mercaderia: 'mercadería', bien: 'bienes', ambos: 'mercadería y bienes' } as const
 
+/**
+ * Sin gate por perfil a propósito (decisión explícita de este PR): todo
+ * usuario autenticado ve el botón "Registrar proveedor" — la policy RLS
+ * `proveedores_escritura` (solo compras/admin) sigue siendo la única
+ * autorización real; ocultar el botón nunca fue eso.
+ */
 export default async function Proveedores({
   searchParams,
 }: {
   searchParams: { q?: string }
 }) {
-  const [proveedores, perfil] = await Promise.all([listarProveedores({ busqueda: searchParams.q }), perfilActual()])
-  const puedeRegistrar = perfil?.area === 'compras' || perfil?.area === 'admin'
+  const proveedores = await listarProveedores({ busqueda: searchParams.q })
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <Encabezado titulo="Proveedores" atras={{ href: '/', texto: 'Módulos' }} />
 
-      {puedeRegistrar ? (
-        <Link href="/proveedores/nuevo" className="btn-primary mb-4 w-full sm:w-auto">
-          Registrar proveedor
-        </Link>
-      ) : null}
+      <Link href="/proveedores/nuevo" className="btn-primary mb-4 w-full sm:w-auto">
+        + Nuevo proveedor
+      </Link>
 
       <form className="mb-4 flex gap-2">
         <input

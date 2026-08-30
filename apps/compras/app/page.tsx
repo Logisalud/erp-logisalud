@@ -8,7 +8,12 @@ import { RegistrarPaso } from '@/components/registrar-paso'
 
 export const dynamic = 'force-dynamic'
 
-/** Portada del módulo: hero por rol, "Pedir un pago", Dashboard y el resto por Bounded Context. */
+/**
+ * Portada del módulo — tres secciones por tarea (Para hacer / Para
+ * consultar / Otras gestiones), no por Bounded Context: la persona no tiene
+ * que saber qué schema gobierna cada cosa, solo qué quiere hacer. Todo card
+ * reutiliza una ruta que ya funciona — nada de rutas simuladas.
+ */
 export default async function Inicio() {
   const usuario = await usuarioActual()
   const perfil = await perfilActual()
@@ -31,58 +36,78 @@ export default async function Inicio() {
       {vista === 'tesoreria' ? <HeroTesoreria /> : null}
       {vista === 'gerencia' ? <HeroGerencia /> : null}
 
-      <section className="mt-4 space-y-3">
+      <Grupo titulo="Para hacer">
         <MenuItem
-          href="/ordenes-compra/nueva" emoji="🛒"
-          titulo="Crear orden de compra de mercadería"
-          descripcion="Productos que compramos para revender (catálogo)."
+          href="/ordenes" emoji="🛒"
+          titulo="Órdenes de compra y servicio"
+          descripcion="Crea una orden o revisa en qué etapa se encuentra."
         />
         <MenuItem
-          href="/ordenes-compra/nueva-bien" emoji="💼"
-          titulo="Crear orden de compra de un bien"
-          descripcion="Bienes que NO son para revender (equipos, muebles, etc.)."
-        />
-        <MenuItem
-          href="/servicios/nueva" emoji="🤝"
-          titulo="Contratar un servicio"
-          descripcion="Orden de Servicio a un proveedor de servicios."
-        />
-        <MenuItem
-          href="/pedir-pago" emoji="💵"
-          titulo="Pedir un pago"
-          descripcion="Reembolso, anticipo, o pago directo a un proveedor."
+          href="/ordenes?pendientes=1" emoji="🧾"
+          titulo="Registrar una factura"
+          descripcion="Búscala en el listado y vincúlala con la orden aprobada para continuar hacia el pago."
         />
         <MenuItem
           href="/cuentas-por-pagar?estado=registrada" emoji="✅"
-          titulo="Dar conformidad a una factura"
-          descripcion="Revisa las facturas registradas y confirma que están correctas antes de pagarlas."
+          titulo="Revisar facturas"
+          descripcion="Revisa los documentos registrados y confirma que estén correctos."
         />
         <MenuItem
-          href="/reportes" emoji="📊"
-          titulo="Ver reportes"
-          descripcion="Órdenes de compra, cuentas por pagar, detracciones, sábana maestra."
+          href="/pedir-pago" emoji="💸"
+          titulo="Pedir un pago"
+          descripcion="Solicita un reembolso, anticipo o pago directo a un proveedor."
         />
-        <MenuItem
-          href="/financiamiento/prestamos/nueva" emoji="🏦"
-          titulo="Registrar financiamiento"
-          descripcion="Préstamo o fraccionamiento SUNAT, con su cronograma de cuotas."
-        />
-      </section>
+      </Grupo>
 
-      <section className="mt-5">
-        <h2 className="text-xs font-medium text-gray-500">Otras gestiones</h2>
-        <div className="mt-2 flex flex-wrap gap-2">
+      <Grupo titulo="Para consultar">
+        <MenuItem
+          href="/dashboard" emoji="📊"
+          titulo="Dashboard"
+          descripcion="Revisa pendientes, alertas y próximos vencimientos."
+        />
+        <MenuItem
+          href="/cuentas-por-pagar" emoji="💳"
+          titulo="Cuentas por pagar"
+          descripcion="Consulta obligaciones, vencimientos y pagos realizados."
+        />
+        <MenuItem
+          href="/reportes" emoji="📈"
+          titulo="Reportes"
+          descripcion="Consulta y descarga la información de compras y pagos."
+        />
+      </Grupo>
+
+      <Grupo titulo="Otras gestiones">
+        <MenuItem
+          href="/proveedores" emoji="🏢"
+          titulo="Proveedores"
+          descripcion="Registra y actualiza proveedores y sus datos bancarios."
+        />
+        <MenuItem
+          href="/impuestos/nueva" emoji="🧮"
+          titulo="Registrar un impuesto"
+          descripcion="Registra obligaciones tributarias para su programación y pago."
+        />
+        <MenuItem
+          href="/caja-chica" emoji="💰"
+          titulo="Caja chica"
+          descripcion="Administra fondos, gastos y reposiciones de caja chica."
+        />
+      </Grupo>
+
+      <section className="mt-4">
+        <div className="flex flex-wrap gap-2">
           <Link
-            href="/impuestos/nueva"
+            href="/financiamiento"
             className="flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
           >
-            <span aria-hidden>🧮</span> Registrar impuesto
+            <span aria-hidden>🏦</span> Financiamiento
           </Link>
           <Link
-            href="/caja-chica"
+            href="/almacen"
             className="flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
           >
-            <span aria-hidden>💳</span> Caja chica
+            <span aria-hidden>📦</span> Almacén
           </Link>
           <Link
             href="/mi-cuenta-bancaria"
@@ -102,59 +127,24 @@ export default async function Inicio() {
 
       <details className="mt-6">
         <summary className="cursor-pointer text-sm font-medium text-gray-600">
-          Ver todas las secciones
+          Sesión
         </summary>
-
-      <section className="card mt-4">
-        <h2 className="font-heading text-lg">Sesión</h2>
-        <dl className="mt-3 space-y-1.5 text-sm">
-          <div className="flex gap-2">
-            <dt className="text-gray-500">Correo:</dt>
-            <dd>{usuario?.email ?? '— sin sesión —'}</dd>
-          </div>
-          <div className="flex gap-2">
-            <dt className="text-gray-500">Nombre:</dt>
-            <dd>{perfil?.nombre ?? '— sin perfil en public.perfiles —'}</dd>
-          </div>
-          <div className="flex gap-2">
-            <dt className="text-gray-500">Área:</dt>
-            <dd>{perfil?.area ?? '—'}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="mt-4">
-        <h2 className="font-heading mb-2 text-lg">Compras</h2>
-        <AccionVerbo href="/proveedores/nuevo" emoji="🏢" color="teal" titulo="Registrar Proveedor" descripcion="RUC, contacto, condición de pago y para qué le compramos (mercadería o bienes)." />
-        <Link href="/ordenes-compra" className="mt-2 inline-block text-sm text-logisalud-teal underline">
-          Ver órdenes de compra
-        </Link>
-      </section>
-
-      <section className="mt-4">
-        <h2 className="font-heading mb-2 text-lg">Almacén</h2>
-        <AccionVerbo href="/almacen/recepciones/nueva" emoji="📦" color="green" titulo="Recibir mercadería" descripcion="Recibir contra una OC y resolver discrepancias (faltantes, dañados, vencidos…)." />
-        <Link href="/almacen" className="mt-2 inline-block text-sm text-logisalud-teal underline">
-          Ver recepciones
-        </Link>
-      </section>
-
-      <section className="mt-4">
-        <h2 className="font-heading mb-2 text-lg">Cuentas por Pagar</h2>
-        <Link href="/cuentas-por-pagar" className="mt-2 inline-block text-sm text-logisalud-teal underline">
-          Ver todas las obligaciones
-        </Link>
-        <Link href="/cuentas-por-pagar/propuestas" className="mt-2 ml-4 inline-block text-sm text-logisalud-teal underline">
-          Propuestas de pago
-        </Link>
-      </section>
-
-      <section className="mt-4">
-        <h2 className="font-heading mb-2 text-lg">Financiamiento e Impuestos</h2>
-        <Link href="/financiamiento" className="text-sm text-logisalud-teal underline">
-          Ver préstamos, fraccionamientos y vencimientos
-        </Link>
-      </section>
+        <section className="card mt-4">
+          <dl className="mt-1 space-y-1.5 text-sm">
+            <div className="flex gap-2">
+              <dt className="text-gray-500">Correo:</dt>
+              <dd>{usuario?.email ?? '— sin sesión —'}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-gray-500">Nombre:</dt>
+              <dd>{perfil?.nombre ?? '— sin perfil en public.perfiles —'}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-gray-500">Área:</dt>
+              <dd>{perfil?.area ?? '—'}</dd>
+            </div>
+          </dl>
+        </section>
       </details>
     </main>
   )
@@ -186,18 +176,15 @@ async function HeroGerencia() {
   )
 }
 
-const COLOR_BORDE = {
-  green: 'border-logisalud-green',
-  teal: 'border-logisalud-teal',
-} as const
-const COLOR_TEXTO = {
-  green: 'text-logisalud-green',
-  teal: 'text-logisalud-teal',
-} as const
+function Grupo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-6">
+      <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">{titulo}</h2>
+      <div className="space-y-3">{children}</div>
+    </section>
+  )
+}
 
-/** Ítem del menú principal — lista plana de acciones, una por fila, sin
- * agrupar por Bounded Context: la persona no tiene que saber qué contexto
- * gobierna cada cosa, solo qué quiere hacer. */
 function MenuItem({
   href, emoji, titulo, descripcion,
 }: { href: string; emoji: string; titulo: string; descripcion: string }) {
@@ -211,27 +198,6 @@ function MenuItem({
         <span className="font-heading block text-base">{titulo}</span>
         <span className="mt-1 block text-sm text-gray-600">{descripcion}</span>
       </span>
-    </Link>
-  )
-}
-
-/**
- * Botón de acción principal por verbo — mismo patrón que ya usa Cobranzas en
- * su propia home (emoji + título en color + descripción de una línea, borde
- * de color) para que las tres apps del ERP se sientan un mismo sistema.
- */
-function AccionVerbo({
-  href, emoji, color, titulo, descripcion,
-}: { href: string; emoji: string; color: 'green' | 'teal'; titulo: string; descripcion: string }) {
-  return (
-    <Link
-      href={href}
-      className={`block rounded-lg border-2 bg-white p-5 shadow-sm transition hover:shadow-md ${COLOR_BORDE[color]}`}
-    >
-      <h3 className={`font-heading text-base ${COLOR_TEXTO[color]}`}>
-        <span aria-hidden>{emoji}</span> {titulo}
-      </h3>
-      <p className="mt-1 text-sm text-gray-600">{descripcion}</p>
     </Link>
   )
 }

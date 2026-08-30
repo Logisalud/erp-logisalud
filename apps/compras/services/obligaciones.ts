@@ -606,6 +606,18 @@ export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promi
   return { id: obligacion.id }
 }
 
+/** Para la ficha de la OC: si ya se registró una factura, de acá sale el link a la obligación. */
+export async function obtenerObligacionPorOC(ocId: string): Promise<{ id: string; codigo: string; estado: EstadoObligacion } | null> {
+  const supabase = crearClienteServidor()
+  const { data } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id, codigo, estado')
+    .eq('oc_id', ocId)
+    .maybeSingle()
+  return data ?? null
+}
+
 export async function listarTasasDetraccion() {
   const supabase = crearClienteServidor()
   const { data, error } = await supabase
