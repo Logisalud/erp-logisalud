@@ -91,12 +91,23 @@ export function PriceListImporter({
       )}
 
       {publishResult && (
-        <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
-          Publicado: {publishResult.productCount} productos, {publishResult.itemCount} precios
-          por canal.
-          {publishResult.skippedErrorCount > 0 &&
-            ` ${publishResult.skippedErrorCount} fila(s) con error se omitieron.`}
-        </p>
+        <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
+          <p>
+            Publicado: {publishResult.productCount} productos, {publishResult.itemCount} precios
+            por canal, en {publishResult.priceLists.length} lista(s).
+            {publishResult.skippedErrorCount > 0 &&
+              ` ${publishResult.skippedErrorCount} fila(s) con error se omitieron.`}
+          </p>
+          {publishResult.priceLists.length > 1 && (
+            <ul className="mt-1 list-disc pl-5">
+              {publishResult.priceLists.map((l) => (
+                <li key={l.priceListId}>
+                  {l.supplierNombre}: {l.productCount} productos, {l.itemCount} precios
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {preview && (
@@ -108,6 +119,12 @@ export function PriceListImporter({
                 {preview.products.length} productos válidos · {preview.errors.length} errores ·{" "}
                 {preview.warnings.length} advertencias
               </p>
+              {preview.porProveedor.length > 1 && (
+                <p className="text-sm text-gray-600">
+                  Se publicará una lista por proveedor:{" "}
+                  {preview.porProveedor.map((s) => `${s.nombre} (${s.productos})`).join(" · ")}
+                </p>
+              )}
             </div>
             <button
               className="btn-primary"
