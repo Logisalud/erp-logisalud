@@ -7,6 +7,7 @@ import { useState } from 'react'
 // hasta que el formulario revienta en el navegador.
 import { useFormState, useFormStatus } from 'react-dom'
 import { crearOrdenCompra, type EstadoFormulario } from './actions'
+import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { calcularTotales } from '@/domain/orden-compra'
 import { BuscadorProducto, type ProductoElegido } from '@/components/buscador-producto'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
@@ -17,6 +18,7 @@ const LINEA_VACIA: Linea = { producto: null, cantidad: '', precio: '' }
 
 export function FormularioOC() {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearOrdenCompra, null)
+  const sucio = useMarcarSucioAlEditar()
   const [lineas, setLineas] = useState<Linea[]>([{ ...LINEA_VACIA }])
   const [proveedor, setProveedor] = useState<ProveedorElegido | null>(null)
 
@@ -33,7 +35,7 @@ export function FormularioOC() {
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
   return (
-    <form action={accion} className="space-y-4">
+    <form action={accion} onChange={sucio.onChange} className="space-y-4">
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
           {errorDe('general')}
@@ -72,7 +74,7 @@ export function FormularioOC() {
           </Campo>
           <Campo etiqueta="Días de pago" error={errorDe('condicionesPagoDias')}>
             <input
-              type="number" name="condicionesPagoDias" min={0}
+              type="number" name="condicionesPagoDias" min={0} required
               key={proveedor?.condicionPagoDias ?? 'x'}
               defaultValue={proveedor?.condicionPagoDias ?? ''}
               placeholder="0 = contado"

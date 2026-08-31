@@ -3,11 +3,14 @@ import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/au
 import {
   calcularFechaVencimientoReal,
   conciliarLineas,
+  normalizarNumeroFactura,
   redondear,
   TASA_IGV,
+  validarNoSobrefacturar,
   type EstadoObligacion,
   type LineaConciliacion,
   type BorradorPagoDirecto,
+  type LineaFacturacion,
 } from '@/domain/obligacion'
 import { puedeMarcarseFacturada } from '@/domain/orden-compra'
 
@@ -182,12 +185,46 @@ export async function registrarObligacionDesdeRecepcion(
       precioFacturado: l.precioFacturado,
     }
   })
+  // Sobrefacturación: tope duro contra lo pedido, sumando lo ya facturado
+  // en registros anteriores de esta misma OC — se rechaza antes de tocar
+  // la base de datos, nunca se autocorrige (Carta de Simplicidad).
+  const lineasFacturacion: LineaFacturacion[] = borrador.lineas.map((l) => {
+    const item = itemsMap.get(l.ocItemId)
+    return {
+      ocItemId: l.ocItemId,
+      cantidadPedida: Number(item.cantidad_pedida),
+      cantidadYaFacturada: Number(item.cantidad_facturada),
+      cantidadNuevaFactura: l.cantidadFacturada,
+    }
+  })
+  const erroresSobrefacturacion = validarNoSobrefacturar(lineasFacturacion)
+  if (erroresSobrefacturacion.length > 0) {
+    throw new Error(erroresSobrefacturacion.map((e) => e.mensaje).join(' | '))
+  }
+
   const conciliacion = conciliarLineas(lineasConciliacion)
   const baseImponible = redondear(
     borrador.lineas.reduce((acc, l) => acc + redondear(l.cantidadFacturada * l.precioFacturado), 0)
   )
 
   const estadoInicial: EstadoObligacion = conciliacion.conforme ? 'registrada' : 'observada'
+
+  // Identidad del comprobante: proveedor + número normalizado (mayúsculas,
+  // sin espacios al borde) — mismo criterio que el índice único de
+  // 0027_uniqueness_factura_normalizada.sql. Se pre-chequea acá para dar un
+  // error en lenguaje de negocio; el índice de la base es el resguardo
+  // final contra una carrera entre dos registros simultáneos.
+  const numeroFacturaNormalizado = normalizarNumeroFactura(borrador.numeroFactura)
+  const { data: facturaExistente } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id')
+    .eq('proveedor_id', oc.proveedor_id)
+    .eq('numero_factura', numeroFacturaNormalizado)
+    .maybeSingle()
+  if (facturaExistente) {
+    throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
+  }
 
   const { data: obligacion, error: errIns } = await supabase
     .schema('cuentas_x_pagar')
@@ -197,7 +234,7 @@ export async function registrarObligacionDesdeRecepcion(
       proveedor_id: oc.proveedor_id,
       oc_id: oc.id,
       recepcion_id: borrador.recepcionId,
-      numero_factura: borrador.numeroFactura,
+      numero_factura: numeroFacturaNormalizado,
       fecha_factura: borrador.fechaFactura,
       moneda: oc.moneda,
       tipo_cambio: borrador.tipoCambio,
@@ -574,6 +611,18 @@ export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promi
 
   const fechaVencimientoReal = calcularFechaVencimientoReal(borrador.fechaFactura, proveedor.condicion_pago_dias)
 
+  const numeroFacturaNormalizado = normalizarNumeroFactura(borrador.numeroFactura)
+  const { data: facturaExistente } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id')
+    .eq('proveedor_id', borrador.proveedorId)
+    .eq('numero_factura', numeroFacturaNormalizado)
+    .maybeSingle()
+  if (facturaExistente) {
+    throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
+  }
+
   const { data: obligacion, error: errIns } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -581,7 +630,7 @@ export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promi
       origen: 'gasto_directo',
       proveedor_id: borrador.proveedorId,
       categoria_pago_directo_id: borrador.categoriaId,
-      numero_factura: borrador.numeroFactura,
+      numero_factura: numeroFacturaNormalizado,
       fecha_factura: borrador.fechaFactura,
       moneda: borrador.moneda,
       tipo_cambio: borrador.tipoCambio,
@@ -604,6 +653,18 @@ export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promi
   }
 
   return { id: obligacion.id }
+}
+
+/** Para la ficha de la OC: si ya se registró una factura, de acá sale el link a la obligación. */
+export async function obtenerObligacionPorOC(ocId: string): Promise<{ id: string; codigo: string; estado: EstadoObligacion } | null> {
+  const supabase = crearClienteServidor()
+  const { data } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id, codigo, estado')
+    .eq('oc_id', ocId)
+    .maybeSingle()
+  return data ?? null
 }
 
 export async function listarTasasDetraccion() {

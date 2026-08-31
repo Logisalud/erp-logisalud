@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { BotonCerrarSesion } from '@logisalud/auth/componentes'
 import { usePilaNavegacion } from './pila-navegacion-provider'
 import { pasoAnterior } from '@/lib/pila-navegacion'
+import { useFormularioSucio } from './formulario-sucio-provider'
 
 /**
  * Cabecera común. "Atrás" nunca depende del historial del navegador ni de
@@ -23,6 +24,7 @@ export function Encabezado({ titulo, atras }: { titulo: string; atras?: { href: 
   const router = useRouter()
   const pathname = usePathname()
   const { pila, registrarPaso, retroceder } = usePilaNavegacion()
+  const { solicitarNavegacion } = useFormularioSucio()
 
   useEffect(() => {
     registrarPaso({ href: pathname, texto: titulo })
@@ -33,30 +35,53 @@ export function Encabezado({ titulo, atras }: { titulo: string; atras?: { href: 
   const destino = anterior ?? atras
 
   function irAtras() {
-    if (anterior) {
-      retroceder()
-      router.push(anterior.href)
-    } else if (atras) {
-      router.push(atras.href)
-    }
+    solicitarNavegacion(() => {
+      if (anterior) {
+        retroceder()
+        router.push(anterior.href)
+      } else if (atras) {
+        router.push(atras.href)
+      }
+    })
+  }
+
+  function irAMenuPrincipal() {
+    solicitarNavegacion(() => router.push('/'))
   }
 
   return (
     <header className="mb-6 flex items-start justify-between gap-4">
       <div>
-        {destino ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {destino ? (
+            <button
+              type="button"
+              onClick={irAtras}
+              className="border-0 bg-transparent p-0 text-sm text-logisalud-teal underline"
+            >
+              &larr; {destino.texto}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={irAMenuPrincipal}
+              className="border-0 bg-transparent p-0 text-sm text-logisalud-teal underline"
+            >
+              &larr; Módulos
+            </button>
+          )}
+          {/* Siempre visible, además de "Atrás" — pantallas de varios pasos
+           * (crear una OC, registrar una obligación) pueden dejar a alguien
+           * varios niveles adentro; esta es la salida directa al menú de
+           * Compras y Pagos sin tener que retroceder paso a paso. */}
           <button
             type="button"
-            onClick={irAtras}
+            onClick={irAMenuPrincipal}
             className="border-0 bg-transparent p-0 text-sm text-logisalud-teal underline"
           >
-            &larr; {destino.texto}
+            🏠 Menú principal
           </button>
-        ) : (
-          <a href="/" className="text-sm text-logisalud-teal underline">
-            &larr; Módulos
-          </a>
-        )}
+        </div>
         <h1 className="font-heading mt-1 text-2xl">{titulo}</h1>
       </div>
       <BotonCerrarSesion />

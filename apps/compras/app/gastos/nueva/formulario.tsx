@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
+import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearSolicitudAction, type EstadoFormulario } from './actions'
 import { TIPOS_SOLICITUD, ETIQUETA_TIPO, type TipoSolicitud } from '@/domain/gasto'
 
@@ -20,6 +21,7 @@ export function FormularioSolicitud({
   tipoPreseleccionado?: TipoSolicitud
 }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearSolicitudAction, null)
+  const sucio = useMarcarSucioAlEditar()
   const [tipo, setTipo] = useState<TipoSolicitud>(tipoPreseleccionado ?? 'gasto_directo')
   const [base, setBase] = useState('')
   const [igv, setIgv] = useState('')
@@ -38,7 +40,7 @@ export function FormularioSolicitud({
   const total = (Number(base) || 0) + (Number(igv) || 0)
 
   return (
-    <form action={accion} className="space-y-4">
+    <form action={accion} onChange={sucio.onChange} className="space-y-4">
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
           {errorDe('general')}

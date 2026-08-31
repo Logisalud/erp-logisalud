@@ -1,16 +1,18 @@
 'use client'
 
 import { useFormState, useFormStatus } from 'react-dom'
+import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearOSAction, type EstadoFormulario } from './actions'
 
 type ProveedorServicio = { id: string; razon_social: string }
 
 export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[] }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearOSAction, null)
+  const sucio = useMarcarSucioAlEditar()
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
   return (
-    <form action={accion} className="space-y-4">
+    <form action={accion} onChange={sucio.onChange} className="space-y-4">
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">{errorDe('general')}</p>
       ) : null}
@@ -43,7 +45,7 @@ export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[]
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo etiqueta="Condición de pago en días (opcional)">
-            <input type="number" name="condicionesPagoDias" min="0" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+            <input type="number" name="condicionesPagoDias" min="0" required className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
           </Campo>
           <Campo etiqueta="Fecha de entrega estimada (opcional)">
             <input type="date" name="fechaEntregaEstimada" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />

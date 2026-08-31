@@ -4,6 +4,7 @@ import {
   estadoTrasConformidad, estadoTrasSubirFactura,
   type BorradorObligacionServicio, type BorradorOS, type EstadoOS,
 } from '@/domain/servicio'
+import { normalizarNumeroFactura } from '@/domain/obligacion'
 
 export type ProveedorServicio = { id: string; razon_social: string }
 
@@ -296,6 +297,23 @@ export async function registrarObligacionDesdeOS(borrador: BorradorObligacionSer
   const { data: existente } = await supabase.schema('cuentas_x_pagar').from('obligaciones').select('id').eq('os_id', borrador.osId).maybeSingle()
   if (existente) throw new Error('Esta orden de servicio ya tiene una obligación registrada.')
 
+  // Identidad del comprobante: proveedor de servicio + número normalizado —
+  // mismo criterio que el índice único de
+  // 0027_uniqueness_factura_normalizada.sql (que es el que de verdad
+  // protege esto: antes de esa migración, proveedor_servicio_id no estaba
+  // cubierto por ningún constraint de unicidad).
+  const numeroFacturaNormalizado = normalizarNumeroFactura(borrador.numeroFactura)
+  const { data: facturaExistente } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id')
+    .eq('proveedor_servicio_id', os.proveedor_servicio_id)
+    .eq('numero_factura', numeroFacturaNormalizado)
+    .maybeSingle()
+  if (facturaExistente) {
+    throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
+  }
+
   const { data: obligacion, error: errOb } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -303,7 +321,7 @@ export async function registrarObligacionDesdeOS(borrador: BorradorObligacionSer
       origen: 'servicio',
       proveedor_servicio_id: os.proveedor_servicio_id,
       os_id: os.id,
-      numero_factura: borrador.numeroFactura,
+      numero_factura: numeroFacturaNormalizado,
       fecha_factura: borrador.fechaFactura,
       moneda: os.moneda,
       tipo_cambio: borrador.tipoCambio ?? null,

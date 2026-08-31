@@ -95,6 +95,7 @@ const base = {
   proveedorId: 'p1',
   fechaEmision: '2026-08-27',
   moneda: 'PEN',
+  condicionesPagoDias: 30,
   lineas: [{ productoId: 'a', cantidadPedida: 1, precioUnitario: 10 }],
 }
 
@@ -109,6 +110,17 @@ describe('validarOC', () => {
     expect(errores.map((e) => e.campo).sort()).toEqual(
       ['fechaEmision', 'lineas', 'moneda', 'proveedorId']
     )
+  })
+
+  it('exige condición de pago — no se puede dejar en blanco', () => {
+    const errores = validarOC({ ...base, condicionesPagoDias: null })
+    expect(errores).toEqual([
+      { campo: 'condicionesPagoDias', mensaje: 'Pon la condición de pago (0 = contado).' },
+    ])
+  })
+
+  it('acepta 0 días (contado) como condición de pago válida', () => {
+    expect(validarOC({ ...base, condicionesPagoDias: 0 })).toEqual([])
   })
 
   it('rechaza cantidad cero o negativa', () => {

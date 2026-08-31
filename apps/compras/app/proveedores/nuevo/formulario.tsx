@@ -1,14 +1,16 @@
 'use client'
 
 import { useFormState, useFormStatus } from 'react-dom'
+import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearProveedorAction, type EstadoFormulario } from './actions'
 
 export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: 'mercaderia' | 'bien' | 'ambos'; volver?: string }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearProveedorAction, null)
+  const sucio = useMarcarSucioAlEditar()
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
   return (
-    <form action={accion} className="card space-y-3">
+    <form action={accion} onChange={sucio.onChange} className="card space-y-3">
       {volver ? <input type="hidden" name="volver" value={volver} /> : null}
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
@@ -84,7 +86,7 @@ export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: 'mer
         <label className="block text-sm">
           <span className="font-medium text-gray-800">Condición de pago (días)</span>
           <input
-            type="number" name="condicionPagoDias" min="0" defaultValue={30}
+            type="number" name="condicionPagoDias" min="0" defaultValue={30} required
             className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
           {errorDe('condicionPagoDias') ? <p className="mt-1 text-red-700">{errorDe('condicionPagoDias')}</p> : null}

@@ -2,8 +2,12 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
+import { StepperOrden, TarjetaSiguientePaso } from '@/components/stepper-orden'
+import { Historial } from '@/components/historial'
 import { obtenerOS } from '@/services/servicios'
+import { obtenerHistorialOS } from '@/services/historial-orden'
 import { ETIQUETA_ESTADO_OS } from '@/domain/servicio'
+import { PASOS_OS, pasoAlcanzadoOS, siguientePasoOS } from '@/domain/ordenes-unificadas'
 import { AccionesOS } from './acciones'
 import { FormularioFactura } from './factura-form'
 import { FormularioConformidad } from './conformidad-form'
@@ -17,12 +21,19 @@ export default async function DetalleOS({ params }: { params: { id: string } }) 
 
   const puedeSubirFacturaODarConformidad = ['aprobada', 'en_ejecucion', 'facturada'].includes(os.estado)
   const yaDioConformidadPositiva = os.conformidad?.conforme === true
+  const historial = await obtenerHistorialOS(os.id)
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <Encabezado titulo={os.codigo} atras={{ href: '/servicios', texto: 'Servicios' }} />
 
-      <section className="card">
+      <div className="mb-4 overflow-x-auto">
+        <StepperOrden pasos={PASOS_OS} pasoAlcanzado={pasoAlcanzadoOS(os.estado)} />
+      </div>
+
+      <TarjetaSiguientePaso texto={siguientePasoOS(os.estado)} />
+
+      <section className="card mt-4">
         <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
           <div className="flex gap-2"><dt className="text-gray-500">Proveedor:</dt><dd>{os.proveedor?.razon_social ?? '—'}</dd></div>
           <div className="flex gap-2"><dt className="text-gray-500">Estado:</dt><dd>{ETIQUETA_ESTADO_OS[os.estado]}</dd></div>
@@ -88,6 +99,13 @@ export default async function DetalleOS({ params }: { params: { id: string } }) 
           </Link>
         </section>
       ) : null}
+
+      <section className="card mt-4">
+        <h2 className="font-heading text-lg">Historial</h2>
+        <div className="mt-2">
+          <Historial eventos={historial} />
+        </div>
+      </section>
     </main>
   )
 }

@@ -261,6 +261,19 @@ export type RecepcionListada = {
   oc: { codigo: string; proveedor: { razon_social: string } | null } | null
 }
 
+/** Para "Documentos relacionados" en la ficha de la OC. */
+export async function listarRecepcionesPorOC(ocId: string): Promise<{ id: string; estado: string; fecha_recepcion: string }[]> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .schema('almacen')
+    .from('recepciones')
+    .select('id, estado, fecha_recepcion')
+    .eq('oc_id', ocId)
+    .order('fecha_recepcion', { ascending: false })
+  if (error) throw new Error(`No se pudieron listar las recepciones de la orden: ${error.message}`)
+  return data ?? []
+}
+
 export async function listarRecepciones(): Promise<RecepcionListada[]> {
   const supabase = crearClienteServidor()
   const { data, error } = await supabase

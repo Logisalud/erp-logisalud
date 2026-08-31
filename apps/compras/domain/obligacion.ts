@@ -147,6 +147,49 @@ export function conciliarLineas(lineas: readonly LineaConciliacion[]): Resultado
   return { conforme: discrepancias.length === 0, discrepancias }
 }
 
+/**
+ * Sobrefacturación: nunca se puede facturar más de lo pedido en una línea
+ * de OC, sumando todas las facturas ya registradas contra esa línea más la
+ * que se está por registrar. A diferencia de conciliarLineas (que compara
+ * contra lo RECIBIDO y solo observa la obligación para que Contabilidad la
+ * revise), esto es un tope duro contra lo PEDIDO — Carta de Simplicidad:
+ * no se autocorrige, se rechaza con un error explícito antes de guardar
+ * nada.
+ */
+export type LineaFacturacion = {
+  ocItemId: string
+  cantidadPedida: number
+  cantidadYaFacturada: number
+  cantidadNuevaFactura: number
+}
+
+export type ErrorSobrefacturacion = { ocItemId: string; mensaje: string }
+
+export function validarNoSobrefacturar(lineas: readonly LineaFacturacion[]): ErrorSobrefacturacion[] {
+  const errores: ErrorSobrefacturacion[] = []
+  for (const l of lineas) {
+    const totalFacturado = redondear(l.cantidadYaFacturada + l.cantidadNuevaFactura)
+    if (totalFacturado > l.cantidadPedida) {
+      const disponible = Math.max(0, redondear(l.cantidadPedida - l.cantidadYaFacturada))
+      errores.push({
+        ocItemId: l.ocItemId,
+        mensaje: `Esta línea solo tiene ${disponible} unidad(es) disponible(s) para facturar (pedido ${l.cantidadPedida}, ya facturado ${l.cantidadYaFacturada}) — no se puede facturar ${l.cantidadNuevaFactura}.`,
+      })
+    }
+  }
+  return errores
+}
+
+/**
+ * Normaliza un número de factura/comprobante para comparar identidad:
+ * mayúsculas + sin espacios al borde. "F001-123" y "f001-123 " son el mismo
+ * comprobante — ver 0027_uniqueness_factura_normalizada.sql, que aplica el
+ * mismo criterio en el índice único de la base.
+ */
+export function normalizarNumeroFactura(numeroFactura: string): string {
+  return numeroFactura.trim().toUpperCase()
+}
+
 export type ErrorValidacion = { campo: string; mensaje: string }
 
 export type BorradorObligacion = {

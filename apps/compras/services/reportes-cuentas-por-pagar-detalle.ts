@@ -28,6 +28,17 @@ async function mapaProveedores(ids: string[]) {
   return new Map((data ?? []).map((p: any) => [p.id, p.razon_social as string]))
 }
 
+async function mapaProveedoresConRuc(ids: string[]) {
+  const supabase = crearClienteServidor()
+  if (ids.length === 0) return new Map<string, { razon_social: string; ruc: string | null }>()
+  const { data } = await supabase.schema('compras').from('proveedores').select('id, razon_social, ruc').in('id', ids)
+  return new Map((data ?? []).map((p: any) => [p.id, { razon_social: p.razon_social as string, ruc: (p.ruc as string) ?? null }]))
+}
+
+function normalizarBusqueda(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
+
 async function mapaBeneficiarios(ids: string[]) {
   const supabase = crearClienteServidor()
   if (ids.length === 0) return new Map<string, string>()
@@ -79,6 +90,8 @@ const COLUMNAS_BASE =
 export type FilaAntiguedadProveedor = {
   clave: string
   nombre: string
+  /** Solo cuando el grupo es un proveedor real (compras.proveedores) — permite linkear al detalle filtrado por proveedorId. */
+  proveedorId: string | null
   porBucket: Record<BucketAntiguedad, number>
   total: number
   moneda: string
@@ -88,9 +101,13 @@ export type ReporteAntiguedad = {
   filas: FilaAntiguedadProveedor[]
   /** Totales separados por moneda — nunca se mezcla PEN con USD en una suma. */
   totalesPorMoneda: { moneda: string; porBucket: Record<BucketAntiguedad, number>; total: number }[]
+  /** Monedas presentes en los datos (antes de filtrar) — para decidir si mostrar el selector de moneda. */
+  monedasDisponibles: string[]
 }
 
-export async function obtenerAntiguedadSaldos(): Promise<ReporteAntiguedad> {
+export type FiltrosAntiguedad = { busqueda?: string; moneda?: string }
+
+export async function obtenerAntiguedadSaldos(filtros: FiltrosAntiguedad = {}): Promise<ReporteAntiguedad> {
   const supabase = crearClienteServidor()
   const hoy = new Date().toISOString().slice(0, 10)
 
@@ -100,9 +117,22 @@ export async function obtenerAntiguedadSaldos(): Promise<ReporteAntiguedad> {
     .select(COLUMNAS_BASE)
     .in('estado', ESTADOS_OBLIGACION_ABIERTA)
   if (error) throw new Error(`No se pudo armar la antigüedad de saldos: ${error.message}`)
-  const filas = (data ?? []) as ObligacionBase[]
+  const todasLasFilas = (data ?? []) as ObligacionBase[]
+  const monedasDisponibles = [...new Set(todasLasFilas.map((f) => f.moneda))].sort()
 
-  const quienDebe = await resolverQuienDebe(filas)
+  const proveedorIds = [...new Set(todasLasFilas.map((f) => f.proveedor_id).filter((x): x is string => !!x))]
+  const [quienDebe, proveedoresConRuc] = await Promise.all([resolverQuienDebe(todasLasFilas), mapaProveedoresConRuc(proveedorIds)])
+
+  let filas = todasLasFilas
+  if (filtros.moneda) filas = filas.filter((f) => f.moneda === filtros.moneda)
+  if (filtros.busqueda?.trim()) {
+    const q = normalizarBusqueda(filtros.busqueda)
+    filas = filas.filter((f) => {
+      const prov = f.proveedor_id ? proveedoresConRuc.get(f.proveedor_id) : null
+      const nombre = quienDebe.get(f.id)?.proveedor ?? quienDebe.get(f.id)?.beneficiario ?? ''
+      return normalizarBusqueda(nombre).includes(q) || (prov?.ruc ? normalizarBusqueda(prov.ruc).includes(q) : false)
+    })
+  }
 
   // Agrupa por moneda + "a quién se le debe" — mezclar PEN y USD en una fila
   // sumaría montos que no son comparables.
@@ -120,6 +150,7 @@ export async function obtenerAntiguedadSaldos(): Promise<ReporteAntiguedad> {
       grupos.set(clave, {
         clave,
         nombre,
+        proveedorId: f.proveedor_id,
         moneda: f.moneda,
         total: 0,
         porBucket: { por_vencer: 0, dias_1_30: 0, dias_31_60: 0, dias_61_90: 0, mas_90: 0 },
@@ -142,6 +173,7 @@ export async function obtenerAntiguedadSaldos(): Promise<ReporteAntiguedad> {
       porBucket,
       total: Object.values(porBucket).reduce((a, b) => a + b, 0),
     })),
+    monedasDisponibles,
   }
 }
 

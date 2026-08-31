@@ -1,18 +1,20 @@
 'use client'
 
 import { useFormState, useFormStatus } from 'react-dom'
+import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { cargarObligacionTributariaAction, type EstadoFormulario } from './actions'
 
 type TipoImpuesto = { id: string; nombre: string }
 
 export function FormularioImpuesto({ tipos }: { tipos: TipoImpuesto[] }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(cargarObligacionTributariaAction, null)
+  const sucio = useMarcarSucioAlEditar()
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
   const hoy = new Date()
   const periodoActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
 
   return (
-    <form action={accion} className="space-y-4">
+    <form action={accion} onChange={sucio.onChange} className="space-y-4">
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">{errorDe('general')}</p>
       ) : null}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
+import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarPagoDirectoAction, type EstadoFormulario } from './actions'
 import { calcularDetraccionSugerida } from '@/domain/obligacion'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
@@ -16,6 +17,7 @@ export function FormularioPagoDirecto({
   tasasDetraccion: TasaDetraccion[]
 }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(registrarPagoDirectoAction, null)
+  const sucio = useMarcarSucioAlEditar()
   const [proveedor, setProveedor] = useState<ProveedorElegido | null>(null)
   const [moneda, setMoneda] = useState('PEN')
   const [baseImponible, setBaseImponible] = useState('')
@@ -28,7 +30,7 @@ export function FormularioPagoDirecto({
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
   return (
-    <form action={accion} className="space-y-4">
+    <form action={accion} onChange={sucio.onChange} className="space-y-4">
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
           {errorDe('general')}

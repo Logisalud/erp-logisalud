@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
+import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarMovimientoAction, type EstadoFormulario } from './actions'
 import type { TipoComprobanteMovimiento } from '@/domain/caja-chica'
 
@@ -13,6 +14,7 @@ const HOY = new Date().toISOString().slice(0, 10)
 export function FormularioMovimiento({ fondoId, categorias }: { fondoId: string; categorias: CategoriaGasto[] }) {
   const accionConFondo = registrarMovimientoAction.bind(null, fondoId)
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(accionConFondo, null)
+  const sucio = useMarcarSucioAlEditar()
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobanteMovimiento>('boleta')
   const [base, setBase] = useState('')
   const [igv, setIgv] = useState('')
@@ -32,7 +34,7 @@ export function FormularioMovimiento({ fondoId, categorias }: { fondoId: string;
   const total = hayComprobante ? (Number(base) || 0) + (Number(igv) || 0) : null
 
   return (
-    <form action={accion} className="space-y-4">
+    <form action={accion} onChange={sucio.onChange} className="space-y-4">
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
           {errorDe('general')}
