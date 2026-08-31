@@ -42,6 +42,12 @@ const HOME_SECTIONS: HomeSection[] = [
     roles: ["administrador", "operaciones"],
   },
   {
+    href: "/aprobador-comercial",
+    title: "Aprobaciones comerciales",
+    description: "Solicitudes de descuento que frenan el pedido hasta resolverse.",
+    roles: ["administrador", "aprobador_comercial"],
+  },
+  {
     href: "/control-pedidos/documentos",
     title: "Documentación electrónica",
     description: "Borradores de factura/boleta y guía de remisión para revisar.",
