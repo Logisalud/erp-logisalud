@@ -17,6 +17,13 @@ export type ParsedProductRow = {
   principioActivo: string | null;
   presentacion: string | null;
   unidadMedida: string | null;
+  /**
+   * Nombre del proveedor tal como viene en la columna PROVEEDOR del
+   * archivo consolidado (2026-08). Es null en los archivos viejos, uno
+   * por proveedor, donde el proveedor lo elige el admin en la UI.
+   */
+  proveedorNombre: string | null;
+  linea: string | null;
   vvfSinIgv: number | null;
   vvdSinIgv: number | null;
   igv: number | null;
@@ -43,6 +50,8 @@ export type ColumnMap = {
   principioActivo: number;
   presentacion: number;
   unidadMedida: number;
+  proveedor: number;
+  linea: number;
   vvf: number;
   vvd: number;
   igv: number;
@@ -53,6 +62,13 @@ export type ColumnMap = {
   pvfMinicadenas: number;
   pvfMayoristaTop: number;
   pvfFarma: number;
+  /**
+   * true cuando Subdistribuidoras y Minicadenas comparten UNA sola
+   * columna en el archivo (pvfSubdistrib === pvfMinicadenas), como en
+   * el consolidado 2026-08. Mismo patrón que MAYORISTA/TOP, que ya
+   * venía compartido desde la carga original.
+   */
+  subdistribMinicadenasCompartidas: boolean;
 };
 
 export type ParseResult = {
@@ -89,51 +105,105 @@ function findColumnByText(headerRow: RawRow, matcher: (normalized: string) => bo
 }
 
 /**
+ * Una columna "MARGEN - PVF ..." no es un precio: es el margen
+ * calculado sobre ese precio. El consolidado 2026-08 trae una por
+ * canal, justo después de los PVF, y todas contienen el mismo texto
+ * que la columna de precio que las origina — así que cualquier
+ * matcher de PVF tiene que excluirlas explícitamente o se queda con
+ * el margen en lugar del precio.
+ */
+function isMarginHeader(normalized: string): boolean {
+  return normalized.startsWith("MARGEN");
+}
+
+function findPriceColumn(headerRow: RawRow, matcher: (normalized: string) => boolean): number {
+  return findColumnByText(headerRow, (h) => !isMarginHeader(h) && matcher(h));
+}
+
+/**
  * Busca la fila de encabezado real (varía de fila por archivo) por la
- * celda "CÓDIGO LOGISALUD", y arma el mapeo de columnas. Varias
- * columnas se detectan por texto (flexible a variaciones de wording
- * entre proveedores) y dos por posición relativa, tal como se
- * confirmó que hace falta:
- *  - codigoProveedor: la columna inmediatamente a la izquierda de
- *    "CÓDIGO LOGISALUD" (su encabezado exacto varía: CÓDIGO DIPHASAC /
- *    BIOSANA / PRADES).
- *  - unidadMedida: la columna inmediatamente a la derecha de
- *    presentación, sin encabezado visible.
+ * celda de código LOGISALUD, y arma el mapeo de columnas.
+ *
+ * Los encabezados cambian entre archivos, así que todo se detecta por
+ * texto salvo unidadMedida. Detalles que importan:
+ *
+ *  - El código propio se llamó "CÓDIGO LOGISALUD" en los archivos por
+ *    proveedor y "CODIGO LOGISA" en el consolidado 2026-08.
+ *  - codigoProveedor: en los archivos viejos su encabezado variaba
+ *    (CÓDIGO DIPHASAC / BIOSANA / PRADES) y solo se lo podía ubicar
+ *    por posición, inmediatamente a la izquierda del código LOGISALUD.
+ *    El consolidado ya trae "CODIGO PROVEEDOR" explícito y encima lo
+ *    pone a la DERECHA, así que el texto manda y la posición queda de
+ *    respaldo.
+ *  - igv: "VVF (Sin IGV)" y "VVD (SIN IGV)" también contienen "IGV" y
+ *    vienen antes en el consolidado; hay que descartarlas o el IGV
+ *    termina leyendo el VVF.
+ *  - pvfDistribuidora: "PVF SUBDISTRIBUIDORAS/MINICADENAS" contiene
+ *    "DISTRIBUIDORA"; se excluye para no confundir el costo de
+ *    referencia con el precio de un canal.
+ *  - unidadMedida: columna inmediatamente a la derecha de
+ *    presentación y SIN encabezado. Esa condición de encabezado vacío
+ *    es la que evita tomar por unidad de medida a "PROVEEDOR", que en
+ *    el consolidado ocupa justo ese lugar.
  */
 export function findHeaderAndColumns(
   rows: RawRow[],
 ): { headerRowIndex: number; columnMap: ColumnMap } | null {
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r];
-    const codigoLogisaludIdx = findColumnByText(row, (h) => h === "CODIGO LOGISALUD");
+    const codigoLogisaludIdx = findColumnByText(
+      row,
+      (h) => h === "CODIGO LOGISALUD" || h === "CODIGO LOGISA" || h.startsWith("CODIGO LOGISA"),
+    );
     if (codigoLogisaludIdx === -1) continue;
 
     const presentacionIdx = findColumnByText(
       row,
       (h) => h.includes("PRESENTACION") || h.includes("PRESENT"),
     );
+    const unidadMedidaIdx =
+      presentacionIdx !== -1 && isBlankCell(row[presentacionIdx + 1]) ? presentacionIdx + 1 : -1;
+
+    const codigoProveedorPorTexto = findColumnByText(row, (h) => h.includes("CODIGO PROVEEDOR"));
+
+    const pvfSubdistrib = findPriceColumn(row, (h) => h.includes("SUBDISTRIB"));
+    const pvfMinicadenas = findPriceColumn(row, (h) => h.includes("MINICADENA"));
 
     const columnMap: ColumnMap = {
       codigoLogisalud: codigoLogisaludIdx,
-      codigoProveedor: codigoLogisaludIdx - 1,
+      codigoProveedor:
+        codigoProveedorPorTexto !== -1 ? codigoProveedorPorTexto : codigoLogisaludIdx - 1,
       codigoBonificacion: findColumnByText(row, (h) => h.includes("BONIFICACION")),
-      producto: findColumnByText(row, (h) => h === "PRODUCTO"),
+      producto: findColumnByText(
+        row,
+        (h) => h === "PRODUCTO" || (h.includes("DESCRIPCION") && h.includes("PRODUCTO")),
+      ),
       principioActivo: findColumnByText(
         row,
         (h) => h.includes("PRINCIPIO ACTIVO") || h.includes("COMPOSICION"),
       ),
       presentacion: presentacionIdx,
-      unidadMedida: presentacionIdx === -1 ? -1 : presentacionIdx + 1,
+      unidadMedida: unidadMedidaIdx,
+      proveedor: findColumnByText(row, (h) => h === "PROVEEDOR"),
+      linea: findColumnByText(row, (h) => h === "LINEA"),
       vvf: findColumnByText(row, (h) => h.includes("VVF")),
       vvd: findColumnByText(row, (h) => h.includes("VVD")),
-      igv: findColumnByText(row, (h) => h.includes("IGV")),
+      igv: findColumnByText(
+        row,
+        (h) => h.includes("IGV") && !h.includes("VVF") && !h.includes("VVD"),
+      ),
       fechaVigencia: findColumnByText(row, (h) => h.includes("FECHA")),
-      pvfDistribuidora: findColumnByText(row, (h) => h.includes("DISTRIBUIDORA")),
-      pvfInstituciones: findColumnByText(row, (h) => h.includes("INSTITUCIONES")),
-      pvfSubdistrib: findColumnByText(row, (h) => h.includes("SUBDISTRIB")),
-      pvfMinicadenas: findColumnByText(row, (h) => h.includes("MINICADENA")),
-      pvfMayoristaTop: findColumnByText(row, (h) => h.includes("MAYORISTA")),
-      pvfFarma: findColumnByText(row, (h) => h.includes("FARMA")),
+      pvfDistribuidora: findPriceColumn(
+        row,
+        (h) => h.includes("DISTRIBUIDORA") && !h.includes("SUBDISTRIBUIDORA"),
+      ),
+      pvfInstituciones: findPriceColumn(row, (h) => h.includes("INSTITUCIONES")),
+      pvfSubdistrib,
+      pvfMinicadenas,
+      pvfMayoristaTop: findPriceColumn(row, (h) => h.includes("MAYORISTA") || h.includes("TOP")),
+      pvfFarma: findPriceColumn(row, (h) => h.includes("FARMA")),
+      subdistribMinicadenasCompartidas:
+        pvfSubdistrib !== -1 && pvfSubdistrib === pvfMinicadenas,
     };
 
     return { headerRowIndex: r, columnMap };
@@ -286,13 +356,29 @@ export function parsePriceListRows(rows: RawRow[]): ParseResult {
       continue;
     }
 
-    const priceFields: Array<[string, number | null]> = [
-      ["PVF INSTITUCIONES", cellToPriceOrNull(row[columnMap.pvfInstituciones])],
-      ["PVF SUBDISTRIB.", cellToPriceOrNull(row[columnMap.pvfSubdistrib])],
-      ["PVF MINICADENAS", cellToPriceOrNull(row[columnMap.pvfMinicadenas])],
-      ["PVF MAYORISTA/TOP", cellToPriceOrNull(row[columnMap.pvfMayoristaTop])],
-      ["PVF FARMA", cellToPriceOrNull(row[columnMap.pvfFarma])],
-    ];
+    const pvfInstituciones = cellToPriceOrNull(row[columnMap.pvfInstituciones]);
+    const pvfSubdistrib = cellToPriceOrNull(row[columnMap.pvfSubdistrib]);
+    const pvfMinicadenas = cellToPriceOrNull(row[columnMap.pvfMinicadenas]);
+    const pvfMayoristaTop = cellToPriceOrNull(row[columnMap.pvfMayoristaTop]);
+    const pvfFarma = cellToPriceOrNull(row[columnMap.pvfFarma]);
+
+    // Cuando Subdistribuidoras y Minicadenas comparten columna, avisar
+    // una sola vez: son el mismo dato, dos advertencias por la misma
+    // celda vacía solo inflan el preview.
+    const priceFields: Array<[string, number | null]> = columnMap.subdistribMinicadenasCompartidas
+      ? [
+          ["PVF INSTITUCIONES", pvfInstituciones],
+          ["PVF SUBDISTRIBUIDORAS/MINICADENAS", pvfSubdistrib],
+          ["PVF MAYORISTA/TOP", pvfMayoristaTop],
+          ["PVF FARMA", pvfFarma],
+        ]
+      : [
+          ["PVF INSTITUCIONES", pvfInstituciones],
+          ["PVF SUBDISTRIB.", pvfSubdistrib],
+          ["PVF MINICADENAS", pvfMinicadenas],
+          ["PVF MAYORISTA/TOP", pvfMayoristaTop],
+          ["PVF FARMA", pvfFarma],
+        ];
     for (const [label, value] of priceFields) {
       if (value === null) {
         warnings.push({
@@ -312,16 +398,20 @@ export function parsePriceListRows(rows: RawRow[]): ParseResult {
       principioActivo: cellToStringOrNull(row[columnMap.principioActivo]),
       presentacion: cellToStringOrNull(row[columnMap.presentacion]),
       unidadMedida: cellToStringOrNull(row[columnMap.unidadMedida]),
+      proveedorNombre: cellToStringOrNull(row[columnMap.proveedor]),
+      linea: cellToStringOrNull(row[columnMap.linea]),
       vvfSinIgv: cellToPriceOrNull(row[columnMap.vvf]),
       vvdSinIgv: cellToPriceOrNull(row[columnMap.vvd]),
       igv: cellToPriceOrNull(row[columnMap.igv]),
       fechaVigenciaProveedor: cellToDateOrNull(row[columnMap.fechaVigencia]),
       pvfDistribuidora: cellToPriceOrNull(row[columnMap.pvfDistribuidora]),
-      pvfInstituciones: priceFields[0][1],
-      pvfSubdistrib: priceFields[1][1],
-      pvfMinicadenas: priceFields[2][1],
-      pvfMayoristaTop: priceFields[3][1],
-      pvfFarma: priceFields[4][1],
+      pvfInstituciones,
+      // Con columna compartida, el mismo valor alimenta los dos
+      // canales (mismo patrón que MAYORISTA/TOP).
+      pvfSubdistrib,
+      pvfMinicadenas: columnMap.subdistribMinicadenasCompartidas ? pvfSubdistrib : pvfMinicadenas,
+      pvfMayoristaTop,
+      pvfFarma,
     });
   }
 

@@ -3,6 +3,7 @@ import {
   parsePriceListRows,
   decideTaxTreatment,
   buildChannelPrices,
+  findHeaderAndColumns,
   type RawRow,
 } from "@/domain/price-list-import";
 
@@ -330,5 +331,124 @@ describe("decideTaxTreatment", () => {
   it("es GRAVADO con la tasa vigente del sistema cuando VVF/IGV tienen valor", () => {
     const treatment = decideTaxTreatment({ vvfSinIgv: 100, igv: 18 }, 18);
     expect(treatment).toEqual({ afectacionTributaria: "GRAVADO", tasaAplicable: 18 });
+  });
+});
+
+describe("formato consolidado 2026-08 (un archivo, todos los proveedores)", () => {
+  // Encabezado real del archivo "Formato_Lista_Precios_2.xlsx": el
+  // código propio se llama "CODIGO LOGISA", CODIGO PROVEEDOR está a la
+  // DERECHA (antes iba a la izquierda), aparecen PROVEEDOR y LINEA,
+  // Subdistribuidoras y Minicadenas comparten UNA columna, y detrás de
+  // los PVF vienen columnas MARGEN que repiten el mismo texto.
+  const HEADER = [
+    "CODIGO LOGISA",
+    "CODIGO PROVEEDOR",
+    "DESCRIPCION PRODUCTO",
+    "PRINCIPIO ACTIVO",
+    "PRESENTACIÓN ",
+    "PROVEEDOR",
+    "LINEA",
+    "VVF (Sin IGV)",
+    "VVD (SIN IGV)",
+    "IGV (18%)",
+    "FECHA V.",
+    "PVF A DISTRIBUIDORA 2026",
+    "PVF INSTITUCIONES",
+    "PVF SUBDISTRIBUIDORAS/MINICADENAS",
+    "PVF MAYORISTA/TOP",
+    "PVF FARMA",
+    "MARGEN - PVF INSTITUCIONES",
+    "MARGEN - PVF SUBDISTRIBUIDORAS/MINICADENAS",
+    "MARGEN - PVF MAYORISTA/TOP",
+    "MARGEN - PVF FARMA",
+  ];
+
+  const FILA_GRAVADA = [
+    "DHP104", "RX101-057", "DUO DAPHA 5", "DAPAGLIFOZINA + METFORMINA",
+    "5MG/1000MG CAJA x 30 TAB RECUB.", "DIPHASAC", "RX",
+    67.1186, 57.722, 10.39, new Date(Date.UTC(2027, 1, 28)),
+    68.112, 70.5, 75.68, 77.4, 79.2,
+    0.08, 0.1, 0.12, 0.18,
+  ];
+
+  it("mapea las columnas del consolidado sin confundirse con VVF/MARGEN", () => {
+    const found = findHeaderAndColumns([HEADER]);
+    expect(found).not.toBeNull();
+    const m = found!.columnMap;
+    expect(m.codigoLogisalud).toBe(0);
+    // Por texto, no por posición: acá está a la derecha del código propio.
+    expect(m.codigoProveedor).toBe(1);
+    expect(m.producto).toBe(2);
+    expect(m.proveedor).toBe(5);
+    expect(m.linea).toBe(6);
+    // "VVF (Sin IGV)" también contiene "IGV" y viene antes: el IGV real
+    // es la columna 9, no la 7.
+    expect(m.igv).toBe(9);
+    expect(m.vvf).toBe(7);
+    // "PVF SUBDISTRIBUIDORAS/MINICADENAS" contiene "DISTRIBUIDORA":
+    // el costo de referencia sigue siendo la 11.
+    expect(m.pvfDistribuidora).toBe(11);
+    expect(m.pvfInstituciones).toBe(12);
+    // Los PVF nunca deben caer en las columnas MARGEN (16-19).
+    expect(m.pvfMayoristaTop).toBe(14);
+    expect(m.pvfFarma).toBe(15);
+    // No hay columna de unidad de medida; PROVEEDOR ocupa ese lugar y
+    // sí tiene encabezado, así que no se la toma por unidad.
+    expect(m.unidadMedida).toBe(-1);
+  });
+
+  it("detecta que Subdistribuidoras y Minicadenas comparten columna", () => {
+    const m = findHeaderAndColumns([HEADER])!.columnMap;
+    expect(m.pvfSubdistrib).toBe(13);
+    expect(m.pvfMinicadenas).toBe(13);
+    expect(m.subdistribMinicadenasCompartidas).toBe(true);
+  });
+
+  it("un solo valor alimenta Subdistribuidores Y Minicadenas", () => {
+    const result = parsePriceListRows([HEADER, FILA_GRAVADA]);
+    expect(result.errors).toEqual([]);
+    expect(result.products).toHaveLength(1);
+    const p = result.products[0];
+    expect(p.pvfSubdistrib).toBe(75.68);
+    expect(p.pvfMinicadenas).toBe(75.68);
+    expect(p.proveedorNombre).toBe("DIPHASAC");
+    expect(p.linea).toBe("RX");
+
+    const canales = buildChannelPrices(p);
+    // Mismo patrón que MAYORISTA/TOP: una columna, dos canales.
+    expect(canales).toEqual(
+      expect.arrayContaining([
+        { channel: "Subdistribuidores", precio: 75.68 },
+        { channel: "Minicadenas", precio: 75.68 },
+        { channel: "Mayorista", precio: 77.4 },
+        { channel: "Tops", precio: 77.4 },
+        { channel: "Clínicas", precio: 70.5 },
+        { channel: "Horizontal", precio: 79.2 },
+      ]),
+    );
+    // PVF A DISTRIBUIDORA es costo referencial, nunca precio de canal.
+    expect(canales.some((c) => c.precio === 68.112)).toBe(false);
+  });
+
+  it("avisa una sola vez cuando la columna compartida viene vacía", () => {
+    const sinSubMin = [...FILA_GRAVADA];
+    sinSubMin[13] = "-";
+    const result = parsePriceListRows([HEADER, sinSubMin]);
+    const avisos = result.warnings.filter((w) => w.code === "NO_PRICE");
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0].message).toContain("SUBDISTRIBUIDORAS/MINICADENAS");
+  });
+
+  it("trata como INAFECTO la fila con VVF e IGV en '-'", () => {
+    const inafecta = [...FILA_GRAVADA];
+    inafecta[0] = "BODHP106";
+    inafecta[2] = "DAPHA 10";
+    inafecta[7] = "-";
+    inafecta[9] = "-";
+    const p = parsePriceListRows([HEADER, inafecta]).products[0];
+    expect(decideTaxTreatment(p, 18)).toEqual({
+      afectacionTributaria: "INAFECTO",
+      tasaAplicable: 0,
+    });
   });
 });
