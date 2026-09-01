@@ -89,7 +89,15 @@ export default async function ReporteOrdenesCompra({
                   <Td>{ETIQUETA_TIPO[f.tipo]}</Td>
                   <Td>{f.fechaEmision}</Td>
                   <Td>{f.fechaEntregaEstimada ?? '—'}</Td>
-                  <Td>{ETIQUETA_ESTADO[f.estado]}</Td>
+                  <Td>
+                    {f.cierreTipo === 'saldo_no_entregado' ? (
+                      <span title={f.cierreMotivo ?? undefined} className="font-medium text-amber-700">
+                        Cerrada — saldo no entregado
+                      </span>
+                    ) : (
+                      ETIQUETA_ESTADO[f.estado]
+                    )}
+                  </Td>
                   <Td className="text-right tabular-nums"><Money valor={f.total} moneda={f.moneda} /></Td>
                   <Td className="text-right tabular-nums">{f.porcentajeRecibido}%</Td>
                   <Td className={`text-right tabular-nums ${f.discrepanciasAbiertas > 0 ? 'font-semibold text-amber-700' : ''}`}>
