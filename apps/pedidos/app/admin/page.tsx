@@ -52,6 +52,11 @@ const SECTIONS = [
     description: "Bandeja de Operaciones: preparar y despachar pedidos listos.",
   },
   {
+    href: "/aprobador-comercial",
+    title: "Aprobaciones comerciales",
+    description: "Solicitudes de descuento pendientes: el pedido no avanza hasta resolverlas.",
+  },
+  {
     href: "/control-pedidos/documentos",
     title: "Documentación electrónica",
     description: "Borradores de factura/boleta y guía de remisión generados al despachar.",
