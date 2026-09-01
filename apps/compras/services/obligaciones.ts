@@ -303,6 +303,145 @@ export async function registrarObligacionDesdeRecepcion(
   return { id: obligacion.id, conforme: conciliacion.conforme }
 }
 
+export type LineaFacturacionCompra = { ocItemId: string; cantidadFacturada: number; precioFacturado: number }
+
+export type InputObligacionMultiRecepcion = {
+  ocId: string
+  proveedorId: string
+  moneda: string
+  tipoCambio: number | null
+  numeroFactura: string
+  fechaFactura: string
+  tasaDetraccionId: string | null
+  montoDetraccion: number | null
+  lineas: LineaFacturacionCompra[]
+  /** Ya resueltas por el llamador (services/facturas-pendientes.ts): las
+   * recepciones conformes de esta OC que esta factura cubre. */
+  recepcionIds: string[]
+  /** Ya calculada por domain/vencimiento-obligacion.ts desde la fecha de
+   * conformidad MÁS TARDÍA de `recepcionIds`. */
+  fechaVencimientoReal: string
+  /** = montoTotalConciliado de domain/conciliacion.ts — el monto VERIFICADO,
+   * no necesariamente lo que dice la factura (regla de negocio 5). */
+  baseImponible: number
+  /** = !conciliacion.tieneExcepciones */
+  conforme: boolean
+  observaciones: string | null
+}
+
+/**
+ * Crea la obligación del flujo NUEVO multi-recepción: a diferencia de
+ * `registrarObligacionDesdeRecepcion` (flujo viejo, intacto, un
+ * `recepcion_id` directo), esta deja `recepcion_id` en null y en cambio
+ * inserta una fila en `cuentas_x_pagar.obligacion_recepciones` por cada
+ * recepción que la factura cubre (0029_obligacion_recepciones.sql). La
+ * orquestación de CUÁNDO llamarla (¿ya hay saldo recibido? ¿qué recepciones
+ * cubre?) vive en services/facturas-pendientes.ts, que es quien conoce la
+ * cola — esta función solo sabe crear la Obligación (su Aggregate Root, ver
+ * sección 1 del documento maestro) a partir de datos ya resueltos.
+ */
+export async function crearObligacionCompraMultiRecepcion(
+  input: InputObligacionMultiRecepcion
+): Promise<{ id: string }> {
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  if (input.lineas.length === 0) throw new Error('Agrega al menos una línea facturada.')
+  if (input.recepcionIds.length === 0) throw new Error('No hay ninguna recepción conforme que respalde esta factura todavía.')
+
+  const numeroFacturaNormalizado = normalizarNumeroFactura(input.numeroFactura)
+  const { data: facturaExistente } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id')
+    .eq('proveedor_id', input.proveedorId)
+    .eq('numero_factura', numeroFacturaNormalizado)
+    .maybeSingle()
+  if (facturaExistente) {
+    throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
+  }
+
+  const { data: obligacion, error: errIns } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .insert({
+      origen: 'compra',
+      proveedor_id: input.proveedorId,
+      oc_id: input.ocId,
+      recepcion_id: null,
+      numero_factura: numeroFacturaNormalizado,
+      fecha_factura: input.fechaFactura,
+      moneda: input.moneda,
+      tipo_cambio: input.tipoCambio,
+      base_imponible: input.baseImponible,
+      tasa_detraccion_id: input.tasaDetraccionId,
+      monto_detraccion: input.montoDetraccion ?? 0,
+      estado: input.conforme ? 'registrada' : 'observada',
+      fecha_vencimiento_real: input.fechaVencimientoReal,
+      created_by: usuario.id,
+      observaciones: input.observaciones,
+    })
+    .select('id')
+    .single()
+
+  if (errIns) {
+    if (errIns.code === '23505') {
+      throw new Error('Ya existe una obligación con ese número de factura para este proveedor.')
+    }
+    throw new Error(`No se pudo registrar la obligación: ${errIns.message}`)
+  }
+
+  const { error: errItems } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones_items')
+    .insert(
+      input.lineas.map((l) => ({
+        obligacion_id: obligacion.id,
+        oc_item_id: l.ocItemId,
+        cantidad_facturada: l.cantidadFacturada,
+        precio_facturado: l.precioFacturado,
+      }))
+    )
+  if (errItems) {
+    await supabase.schema('cuentas_x_pagar').from('obligaciones').delete().eq('id', obligacion.id)
+    throw new Error(`No se pudieron guardar las líneas: ${errItems.message}`)
+  }
+
+  const { error: errPuente } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligacion_recepciones')
+    .insert(input.recepcionIds.map((recepcionId) => ({ obligacion_id: obligacion.id, recepcion_id: recepcionId })))
+  if (errPuente) {
+    await supabase.schema('cuentas_x_pagar').from('obligaciones').delete().eq('id', obligacion.id)
+    throw new Error(`No se pudieron vincular las recepciones: ${errPuente.message}`)
+  }
+
+  const { data: itemsOC } = await supabase
+    .schema('compras')
+    .from('ordenes_compra_items')
+    .select('id, cantidad_pedida, cantidad_facturada')
+    .eq('oc_id', input.ocId)
+  const itemsMap = new Map((itemsOC ?? []).map((i) => [i.id, i]))
+
+  for (const l of input.lineas) {
+    const item = itemsMap.get(l.ocItemId)
+    if (!item) continue
+    await supabase
+      .schema('compras')
+      .from('ordenes_compra_items')
+      .update({ cantidad_facturada: Number(item.cantidad_facturada) + l.cantidadFacturada })
+      .eq('id', l.ocItemId)
+    item.cantidad_facturada = Number(item.cantidad_facturada) + l.cantidadFacturada
+  }
+
+  const completo = [...itemsMap.values()].every((i) => Number(i.cantidad_facturada) >= Number(i.cantidad_pedida))
+  if (puedeMarcarseFacturada(completo)) {
+    await supabase.schema('compras').from('ordenes_compra').update({ estado: 'facturada' }).eq('id', input.ocId)
+  }
+
+  return { id: obligacion.id }
+}
+
 export type ObligacionListada = {
   id: string
   codigo: string
@@ -655,7 +794,10 @@ export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promi
   return { id: obligacion.id }
 }
 
-/** Para la ficha de la OC: si ya se registró una factura, de acá sale el link a la obligación. */
+/** Para la ficha de la OC: si ya se registró una factura, de acá sale el link a la obligación.
+ * Devuelve la más reciente — se mantiene por compatibilidad con el flujo viejo
+ * (una OC con una sola factura). Para el caso multi-recepción usar
+ * `listarObligacionesPorOC`. */
 export async function obtenerObligacionPorOC(ocId: string): Promise<{ id: string; codigo: string; estado: EstadoObligacion } | null> {
   const supabase = crearClienteServidor()
   const { data } = await supabase
@@ -663,8 +805,26 @@ export async function obtenerObligacionPorOC(ocId: string): Promise<{ id: string
     .from('obligaciones')
     .select('id, codigo, estado')
     .eq('oc_id', ocId)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
   return data ?? null
+}
+
+/** Una OC puede tener VARIAS obligaciones (una por factura parcial) —
+ * usada en la ficha de la OC para listarlas todas, no solo la última. */
+export async function listarObligacionesPorOC(
+  ocId: string
+): Promise<{ id: string; codigo: string; estado: EstadoObligacion; numero_factura: string | null; neto_a_pagar: number }[]> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id, codigo, estado, numero_factura, neto_a_pagar')
+    .eq('oc_id', ocId)
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(`No se pudieron listar las obligaciones de la orden: ${error.message}`)
+  return (data ?? []).map((o) => ({ ...o, neto_a_pagar: Number(o.neto_a_pagar) }))
 }
 
 export async function listarTasasDetraccion() {

@@ -48,7 +48,8 @@ export default async function Dashboard() {
     loops.obligacionesObservadas.length +
     loops.discrepancias.length +
     loops.anticiposSinRendir.length +
-    loops.serviciosSinConformidad.length
+    loops.serviciosSinConformidad.length +
+    loops.ocsParcialesSobreUmbral.length
 
   const hoy = new Date().toISOString().slice(0, 10)
   const diasVencida = (fecha: string) => Math.max(1, Math.round((Date.parse(hoy) - Date.parse(fecha)) / 86400000))
@@ -146,6 +147,20 @@ export default async function Dashboard() {
                   <Fila titulo={s.codigo} monto={<Money valor={s.monto} moneda={s.moneda} />} />
                   <p className="mt-0.5 text-sm text-gray-600">
                     El área usuaria todavía no dio conformidad — Contabilidad no puede avanzar sin eso.
+                  </p>
+                </Item>
+              ))}
+            </Seccion>
+          ) : null}
+
+          {loops.ocsParcialesSobreUmbral.length > 0 ? (
+            <Seccion titulo="Órdenes de compra recibidas en parte hace demasiado">
+              {loops.ocsParcialesSobreUmbral.map((o) => (
+                <Item key={o.id} href={`/ordenes-compra/${o.id}`}>
+                  <Fila titulo={o.codigo} monto={`${o.diasEnParcial} día(s)`} />
+                  <p className="mt-0.5 text-sm text-gray-600">
+                    {o.proveedorNombre ?? 'Proveedor'} — contactalo para saber si falta entregar el resto, o cerrala con
+                    saldo pendiente si ya no va a llegar.
                   </p>
                 </Item>
               ))}

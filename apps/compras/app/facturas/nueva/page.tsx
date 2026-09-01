@@ -33,6 +33,12 @@ export default async function RegistrarFacturaBuscar({
       <p className="-mt-4 mb-4 text-sm text-gray-600">
         Busca la orden de compra o de servicio ya aprobada y vincúlala con su factura.
       </p>
+      <p className="-mt-2 mb-4 text-sm">
+        ¿La factura llegó antes que la mercadería, o cubre varias recepciones de la misma orden?{' '}
+        <Link href="/facturas/nueva/por-oc" className="text-logisalud-teal underline">
+          Regístrala contra la orden de compra directamente.
+        </Link>
+      </p>
 
       <form className="card mb-4 grid gap-3 sm:grid-cols-4" method="get">
         <div className="sm:col-span-2">

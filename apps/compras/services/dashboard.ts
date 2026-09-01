@@ -6,6 +6,8 @@ import {
   agruparPorMoneda,
   venceEnProximosDias,
   estaVencidaObligacion,
+  diasEnEstado,
+  ocParcialSuperaUmbral,
   type MontoPorMoneda,
 } from '@/domain/dashboard'
 import { estaVencida } from '@/domain/financiamiento'
@@ -150,32 +152,84 @@ export async function listarCuotasFraccionamientoVencidas(): Promise<LoopFraccio
   }))
 }
 
+export type LoopOCParcial = { id: string; codigo: string; diasEnParcial: number; proveedorNombre: string | null }
+
+/**
+ * Umbral de "OC parcial hace demasiado tiempo" — configurable vía
+ * `compras.configuracion` (0031_configuracion.sql), nunca hardcodeado.
+ * Default 30 si la fila no existiera todavía (no debería pasar, la
+ * migración la siembra, pero un fallback explícito es más seguro que
+ * lanzar acá y tumbar el dashboard entero).
+ */
+export async function obtenerUmbralOCParcialDias(): Promise<number> {
+  const supabase = crearClienteServidor()
+  const { data } = await supabase.schema('compras').from('configuracion').select('valor').eq('clave', 'oc_parcial_alerta_dias').maybeSingle()
+  const umbral = Number(data?.valor)
+  return Number.isFinite(umbral) && umbral > 0 ? umbral : 30
+}
+
+/**
+ * Regla 7 del encargo: OC parcialmente recibida hace más del umbral
+ * configurado. Se calcula al vuelo, sin cron — mismo patrón que el resto de
+ * los loops abiertos de este archivo.
+ */
+export async function listarOCsParcialesSobreUmbral(): Promise<LoopOCParcial[]> {
+  const supabase = crearClienteServidor()
+  const hoy = new Date().toISOString().slice(0, 10)
+  const umbralDias = await obtenerUmbralOCParcialDias()
+
+  const { data: ocs, error } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .select('id, codigo, fecha_emision, proveedor_id')
+    .eq('estado', 'parcialmente_recibida')
+  if (error) throw new Error(`No se pudieron leer las órdenes parciales: ${error.message}`)
+  if (!ocs || ocs.length === 0) return []
+
+  const { data: proveedores } = await supabase.schema('compras').from('proveedores').select('id, razon_social').in('id', [...new Set(ocs.map((o) => o.proveedor_id))])
+  const nombrePorId = new Map((proveedores ?? []).map((p: any) => [p.id, p.razon_social]))
+
+  return ocs
+    .map((o) => ({ id: o.id, codigo: o.codigo, diasEnParcial: diasEnEstado(o.fecha_emision, hoy), proveedorNombre: nombrePorId.get(o.proveedor_id) ?? null }))
+    .filter((o) => ocParcialSuperaUmbral(o.diasEnParcial, umbralDias))
+    .sort((a, b) => b.diasEnParcial - a.diasEnParcial)
+}
+
 export type LoopsAbiertos = {
   fraccionamientosVencidos: LoopFraccionamientoVencido[]
   obligacionesObservadas: ObligacionListada[]
   discrepancias: LoopDiscrepancia[]
   anticiposSinRendir: LoopAnticipo[]
   serviciosSinConformidad: LoopServicio[]
+  ocsParcialesSobreUmbral: LoopOCParcial[]
 }
 
 /**
- * Junta los cinco loops abiertos del módulo (Carta de Simplicidad regla 5).
+ * Junta los loops abiertos del módulo (Carta de Simplicidad regla 5).
  * Orden fijo por urgencia financiera: primero lo que tiene un riesgo con
  * fecha (perder el beneficio del fraccionamiento), después lo que bloquea
  * un pago (obligación observada, discrepancia sin resolver), por último lo
- * que es dinero ya entregado pendiente de sustento.
+ * que es dinero ya entregado pendiente de sustento o una entrega que se
+ * está demorando.
  */
 export async function obtenerLoopsAbiertos(): Promise<LoopsAbiertos> {
-  const [fraccionamientosVencidos, obligacionesObservadas, discrepancias, anticiposSinRendir, serviciosSinConformidad] =
-    await Promise.all([
-      listarCuotasFraccionamientoVencidas(),
-      listarObligaciones('observada'),
-      listarDiscrepanciasSinResolver(),
-      listarAnticiposSinRendir(),
-      listarServiciosSinConformidad(),
-    ])
+  const [
+    fraccionamientosVencidos,
+    obligacionesObservadas,
+    discrepancias,
+    anticiposSinRendir,
+    serviciosSinConformidad,
+    ocsParcialesSobreUmbral,
+  ] = await Promise.all([
+    listarCuotasFraccionamientoVencidas(),
+    listarObligaciones('observada'),
+    listarDiscrepanciasSinResolver(),
+    listarAnticiposSinRendir(),
+    listarServiciosSinConformidad(),
+    listarOCsParcialesSobreUmbral(),
+  ])
 
-  return { fraccionamientosVencidos, obligacionesObservadas, discrepancias, anticiposSinRendir, serviciosSinConformidad }
+  return { fraccionamientosVencidos, obligacionesObservadas, discrepancias, anticiposSinRendir, serviciosSinConformidad, ocsParcialesSobreUmbral }
 }
 
 // ---------------------------------------------------------------------------

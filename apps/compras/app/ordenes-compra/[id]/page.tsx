@@ -5,13 +5,15 @@ import { Money } from '@/components/money'
 import { StepperOrden, TarjetaSiguientePaso } from '@/components/stepper-orden'
 import { Historial } from '@/components/historial'
 import { obtenerOC } from '@/services/ordenes-compra'
-import { obtenerObligacionPorOC } from '@/services/obligaciones'
+import { listarObligacionesPorOC } from '@/services/obligaciones'
 import { listarRecepcionesPorOC } from '@/services/recepciones'
 import { obtenerHistorialOC } from '@/services/historial-orden'
-import { calcularTotales, ETIQUETA_ESTADO, puedeEditarse, puedeRecibirse } from '@/domain/orden-compra'
+import { calcularTotales, ETIQUETA_ESTADO, puedeEditarse, puedeRecibirse, puedeCerrarseParcial } from '@/domain/orden-compra'
+import { diasEnEstado, ocParcialSuperaUmbral } from '@/domain/dashboard'
 import { ETIQUETA_ESTADO as ETIQUETA_ESTADO_OBLIGACION } from '@/domain/obligacion'
 import { PASOS_OC, pasoAlcanzadoOC, siguientePasoOC } from '@/domain/ordenes-unificadas'
-import { BotonMarcarEnviada, BotonMarcarConfirmada } from './acciones-estado'
+import { obtenerUmbralOCParcialDias } from '@/services/dashboard'
+import { BotonMarcarEnviada, BotonMarcarConfirmada, BotonCerrarConSaldoPendiente } from './acciones-estado'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,17 +27,21 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
   const oc = await obtenerOC(params.id)
   if (!oc) notFound()
 
-  const [totales, obligacion, recepciones, historial] = [
-    calcularTotales(
-      oc.items.map((i) => ({
-        cantidadPedida: Number(i.cantidad_pedida),
-        precioUnitario: Number(i.precio_unitario),
-      }))
-    ),
-    await obtenerObligacionPorOC(oc.id),
-    await listarRecepcionesPorOC(oc.id),
-    await obtenerHistorialOC(oc.id),
-  ]
+  const totales = calcularTotales(
+    oc.items.map((i) => ({
+      cantidadPedida: Number(i.cantidad_pedida),
+      precioUnitario: Number(i.precio_unitario),
+    }))
+  )
+  const [obligaciones, recepciones, historial, umbralDias] = await Promise.all([
+    listarObligacionesPorOC(oc.id),
+    listarRecepcionesPorOC(oc.id),
+    obtenerHistorialOC(oc.id),
+    obtenerUmbralOCParcialDias(),
+  ])
+
+  const diasParcial = oc.estado === 'parcialmente_recibida' ? diasEnEstado(oc.fecha_emision, new Date().toISOString().slice(0, 10)) : 0
+  const superaUmbral = oc.estado === 'parcialmente_recibida' && ocParcialSuperaUmbral(diasParcial, umbralDias)
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -59,6 +65,7 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
             Registrar recepción
           </Link>
         ) : null}
+        {puedeCerrarseParcial(oc.estado) ? <BotonCerrarConSaldoPendiente ocId={oc.id} /> : null}
         {puedeEditarse(oc.estado) ? (
           <>
             <Link href={`/ordenes-compra/${oc.id}/editar`} className="btn-secondary">
@@ -75,6 +82,13 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
         )}
       </div>
 
+      {superaUmbral ? (
+        <p className="card mb-4 border-amber-300 bg-amber-50 text-sm text-amber-900">
+          Lleva {diasParcial} días recibida en parte (más del umbral de {umbralDias}) — contactá al
+          proveedor por el saldo, o cerrala con saldo pendiente si ya no va a llegar.
+        </p>
+      ) : null}
+
       <TarjetaSiguientePaso texto={siguientePasoOC(oc.estado)} />
 
       <section className="card mt-4">
@@ -90,6 +104,11 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
           />
         </dl>
         {oc.notas ? <p className="mt-3 text-sm text-gray-700">{oc.notas}</p> : null}
+        {oc.cierre_tipo === 'saldo_no_entregado' ? (
+          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Cerrada con saldo pendiente: {oc.cierre_motivo}
+          </p>
+        ) : null}
       </section>
 
       <section className="card mt-4">
@@ -160,13 +179,16 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
               </Link> — {ETIQUETA_ESTADO_RECEPCION[r.estado] ?? r.estado}
             </li>
           ))}
-          {obligacion ? (
-            <li>
-              Factura / obligación: <Link href={`/cuentas-por-pagar/${obligacion.id}`} className="text-logisalud-teal underline">
-                {obligacion.codigo}
-              </Link> — {ETIQUETA_ESTADO_OBLIGACION[obligacion.estado]}
-              {obligacion.estado === 'pagada' || obligacion.estado === 'cerrada' ? ' (abrí la obligación para ver el voucher)' : ''}
-            </li>
+          {obligaciones.length > 0 ? (
+            obligaciones.map((o) => (
+              <li key={o.id}>
+                Factura / obligación{o.numero_factura ? ` (${o.numero_factura})` : ''}:{' '}
+                <Link href={`/cuentas-por-pagar/${o.id}`} className="text-logisalud-teal underline">
+                  {o.codigo}
+                </Link> — {ETIQUETA_ESTADO_OBLIGACION[o.estado]}
+                {o.estado === 'pagada' || o.estado === 'cerrada' ? ' (abrí la obligación para ver el voucher)' : ''}
+              </li>
+            ))
           ) : (
             <li className="text-gray-500">Factura / obligación: todavía no se registró.</li>
           )}

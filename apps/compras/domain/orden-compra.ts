@@ -227,6 +227,21 @@ export function validarOC(oc: BorradorOC): ErrorValidacion[] {
 }
 
 /**
+ * Cierre manual de una OC con saldo pendiente que ya no se va a completar
+ * (0030_oc_cierre_parcial.sql). No es un estado nuevo — sigue siendo
+ * 'cerrada', solo que con `cierre_tipo`/`cierre_motivo` contando por qué.
+ * Solo tiene sentido para una OC que quedó a medio recibir: una que nunca
+ * recibió nada se anula, no se "cierra parcial"; una ya recibida completa
+ * se cierra por el flujo normal (cierre_tipo queda en null).
+ */
+export const TIPOS_CIERRE_PARCIAL = ['completa', 'saldo_no_entregado'] as const
+export type CierreTipo = (typeof TIPOS_CIERRE_PARCIAL)[number]
+
+export function puedeCerrarseParcial(estado: EstadoOC): boolean {
+  return estado === 'parcialmente_recibida'
+}
+
+/**
  * Siguiente código de OC. Formato OC-AAAA-NNNN, correlativo por año.
  *
  * Recibe el último código del año en vez de contar filas: contar filas daría
