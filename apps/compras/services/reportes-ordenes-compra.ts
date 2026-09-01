@@ -19,6 +19,11 @@ export type FilaReporteOC = {
   fechaEmision: string
   fechaEntregaEstimada: string | null
   estado: EstadoOC
+  /** Solo tiene valor cuando `estado === 'cerrada'` — distingue una OC 100%
+   *  completada de un cierre manual con saldo que ya no se va a entregar
+   *  (ver services/ordenes-compra.ts::cerrarOCConSaldoPendiente). */
+  cierreTipo: 'completa' | 'saldo_no_entregado' | null
+  cierreMotivo: string | null
   moneda: string
   total: number
   porcentajeRecibido: number
@@ -37,6 +42,7 @@ export async function obtenerReporteOrdenesCompra(filtros: FiltrosReporteOC): Pr
     .schema('compras')
     .from('ordenes_compra')
     .select(`id, codigo, tipo, estado, fecha_emision, fecha_entrega_estimada, moneda, proveedor_id,
+             cierre_tipo, cierre_motivo,
              ordenes_compra_items(cantidad_pedida, precio_unitario, cantidad_recibida)`)
     .order('codigo', { ascending: false })
     .limit(500)
@@ -66,6 +72,8 @@ export async function obtenerReporteOrdenesCompra(filtros: FiltrosReporteOC): Pr
       fechaEmision: f.fecha_emision,
       fechaEntregaEstimada: f.fecha_entrega_estimada,
       estado: f.estado,
+      cierreTipo: f.cierre_tipo,
+      cierreMotivo: f.cierre_motivo,
       moneda: f.moneda,
       total: redondear(items.reduce((acc, i) => acc + Number(i.cantidad_pedida) * Number(i.precio_unitario), 0)),
       porcentajeRecibido: porcentajeRecibidoOC(
