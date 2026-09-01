@@ -1,6 +1,6 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
-import { diasVencido, estadoPagoSabana, saldoPendiente, ETIQUETA_ORIGEN, type OrigenObligacion } from '@/domain/reportes'
+import { diasVencido, estadoYSaldoSabana, ETIQUETA_ORIGEN, type OrigenObligacion, type EstadoPagoSabana } from '@/domain/reportes'
 import type { EstadoObligacion } from '@/domain/obligacion'
 
 /**
@@ -41,7 +41,7 @@ export type FilaSabana = {
   montoOriginal: number
   montoPagado: number
   saldoPendiente: number
-  estado: 'pendiente' | 'parcial' | 'pagado'
+  estado: EstadoPagoSabana
   area: string | null
   responsable: string | null
   fechaPago: string | null
@@ -111,6 +111,7 @@ export async function obtenerSabanaMaestra(filtros: FiltrosSabana): Promise<Fila
     const montoPagado = pagados.get(f.id) ?? 0
     const responsable = f.created_by ? responsables.get(f.created_by) ?? null : null
     const pago = pagos.get(f.id)
+    const { estado, saldo } = estadoYSaldoSabana(f.estado, Number(f.neto_a_pagar), montoPagado)
     return {
       id: f.id,
       codigo: f.codigo,
@@ -130,8 +131,8 @@ export async function obtenerSabanaMaestra(filtros: FiltrosSabana): Promise<Fila
       moneda: f.moneda,
       montoOriginal: Number(f.neto_a_pagar),
       montoPagado,
-      saldoPendiente: saldoPendiente(Number(f.neto_a_pagar), montoPagado),
-      estado: estadoPagoSabana(Number(f.neto_a_pagar), montoPagado),
+      saldoPendiente: saldo,
+      estado,
       area: responsable?.area ?? null,
       responsable: responsable?.nombre ?? null,
       fechaPago: pago?.fecha_pago ?? null,
