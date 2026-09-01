@@ -6,6 +6,7 @@ import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearOrdenCompraBien, type EstadoFormulario } from './actions'
 import { calcularTotales } from '@/domain/orden-compra'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
+import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
 
 type Linea = { descripcion: string; cantidad: string; precio: string }
 
@@ -65,12 +66,10 @@ export function FormularioOCBien() {
             </select>
           </Campo>
           <Campo etiqueta="Días de pago" error={errorDe('condicionesPagoDias')}>
-            <input
-              type="number" name="condicionesPagoDias" min={0} required
+            <SelectorCondicionPago
+              name="condicionesPagoDias" required
               key={proveedor?.condicionPagoDias ?? 'x'}
-              defaultValue={proveedor?.condicionPagoDias ?? ''}
-              placeholder="0 = contado"
-              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+              defaultValue={proveedor?.condicionPagoDias ?? null}
             />
           </Campo>
         </div>

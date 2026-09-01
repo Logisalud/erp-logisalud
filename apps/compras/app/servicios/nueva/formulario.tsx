@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearOSAction, type EstadoFormulario } from './actions'
+import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
 
 type ProveedorServicio = { id: string; razon_social: string }
 
@@ -44,8 +45,8 @@ export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[]
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Campo etiqueta="Condición de pago en días (opcional)">
-            <input type="number" name="condicionesPagoDias" min="0" required className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+          <Campo etiqueta="Condición de pago en días">
+            <SelectorCondicionPago name="condicionesPagoDias" required />
           </Campo>
           <Campo etiqueta="Fecha de entrega estimada (opcional)">
             <input type="date" name="fechaEntregaEstimada" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
