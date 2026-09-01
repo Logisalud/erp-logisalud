@@ -5,6 +5,7 @@ import {
   NOTA_NO_COMPROBANTE,
   computeOrderTotals,
   formatFechaHora,
+  precioEspecialLabel,
   type OrderEmailData,
 } from "@/domain/order-email";
 
@@ -48,11 +49,12 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
     { width: 12 },
     { width: 14 },
     { width: 14 },
+    { width: 34 },
   ];
 
   const titulo = sheet.addRow([`LOGISALUD — Pedido #${data.numero}`]);
   titulo.font = { bold: true, size: 14, color: { argb: `FF${VERDE}` } };
-  sheet.mergeCells(titulo.number, 1, titulo.number, 7);
+  sheet.mergeCells(titulo.number, 1, titulo.number, 8);
 
   sheet.addRow([`Enviado el ${formatFechaHora(data.fechaEnvio)}`]);
   sheet.addRow([]);
@@ -60,7 +62,7 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
   function dato(label: string, value: string | null) {
     const row = sheet.addRow([label, value && value.trim() !== "" ? value : "—"]);
     row.getCell(1).font = { bold: true };
-    sheet.mergeCells(row.number, 2, row.number, 7);
+    sheet.mergeCells(row.number, 2, row.number, 8);
   }
 
   dato("Cliente", data.cliente.razonSocial);
@@ -80,6 +82,7 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
     "IGV",
     "Subtotal",
     "Total",
+    "Precio especial",
   ]);
   header.eachCell((cell) => {
     cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -88,6 +91,7 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
   });
 
   for (const item of data.items) {
+    const especial = precioEspecialLabel(item.precioEspecial);
     const row = sheet.addRow([
       item.codigo,
       item.descripcion,
@@ -96,9 +100,20 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
       item.igv,
       item.subtotal,
       item.total,
+      especial ?? "",
     ]);
     for (const col of [4, 5, 6, 7]) {
       row.getCell(col).numFmt = '"S/ "#,##0.00';
+    }
+
+    // Una línea negociada no puede pasar desapercibida entre veinte a precio
+    // de lista: se pinta la fila entera, no sólo la celda de la nota. El
+    // ámbar es el mismo que usan los estados de excepción en pantalla.
+    if (especial) {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+      });
+      row.getCell(8).font = { bold: true, color: { argb: "FF92400E" } };
     }
   }
 
@@ -120,7 +135,7 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
   sheet.addRow([]);
   const nota = sheet.addRow([NOTA_NO_COMPROBANTE]);
   nota.font = { italic: true, size: 9 };
-  sheet.mergeCells(nota.number, 1, nota.number, 7);
+  sheet.mergeCells(nota.number, 1, nota.number, 8);
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);

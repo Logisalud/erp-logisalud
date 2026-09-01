@@ -8,6 +8,7 @@ import {
   renderOrderEmailHtml,
   renderOrderEmailText,
   type OrderEmailData,
+  precioEspecialLabel,
 } from "@/domain/order-email";
 
 function buildData(overrides: Partial<OrderEmailData> = {}): OrderEmailData {
@@ -172,5 +173,47 @@ describe("renderOrderEmailText", () => {
     expect(text).toContain("DAPHA10-EJ");
     expect(text).toContain(NOTA_NO_COMPROBANTE);
     expect(text).not.toContain("<");
+  });
+});
+
+describe("precioEspecialLabel", () => {
+  const base = {
+    precioSolicitado: 2,
+    porcentajeDescuento: null,
+    estado: "PENDIENTE",
+    decision: null,
+    precioAprobado: null,
+  };
+
+  it("devuelve null cuando el ítem va a precio de lista", () => {
+    expect(precioEspecialLabel(null)).toBeNull();
+    expect(precioEspecialLabel(undefined)).toBeNull();
+  });
+
+  it("avisa que está pendiente y cuánto se pidió", () => {
+    expect(precioEspecialLabel(base)).toBe("PENDIENTE — pide S/ 2.00");
+  });
+
+  it("soporta que el vendedor pida un porcentaje en vez de un precio", () => {
+    expect(
+      precioEspecialLabel({ ...base, precioSolicitado: null, porcentajeDescuento: 15 }),
+    ).toBe("PENDIENTE — pide 15% dcto.");
+  });
+
+  it("contrasta el precio aprobado contra el pedido", () => {
+    expect(
+      precioEspecialLabel({
+        ...base,
+        estado: "RESUELTO",
+        decision: "APROBAR_OTRO_PRECIO",
+        precioAprobado: 60,
+      }),
+    ).toBe("Aprobado S/ 60.00 (pidió S/ 2.00)");
+  });
+
+  it("deja constancia del rechazo", () => {
+    expect(
+      precioEspecialLabel({ ...base, estado: "RESUELTO", decision: "RECHAZAR" }),
+    ).toBe("Rechazado (pidió S/ 2.00)");
   });
 });

@@ -20,6 +20,22 @@ export const NOTA_NO_COMPROBANTE =
   "Documento de control interno — no válido como comprobante de pago. " +
   "El comprobante electrónico se genera al momento del despacho.";
 
+/**
+ * Un ítem puede llevar una solicitud de precio especial del vendedor. Sin
+ * esto, el Excel muestra un precio y nada indica que alguien lo negoció:
+ * quien lo revisa no tiene forma de notar que hay algo que decidir.
+ */
+export type OrderEmailPrecioEspecial = {
+  /** Lo que pidió el vendedor. Puede pedir precio o porcentaje, no ambos. */
+  precioSolicitado: number | null;
+  porcentajeDescuento: number | null;
+  /** PENDIENTE mientras nadie la resuelve; el pedido no avanza. */
+  estado: string;
+  /** APROBAR | APROBAR_OTRO_PRECIO | RECHAZAR | SOLICITAR_INFO, o null. */
+  decision: string | null;
+  precioAprobado: number | null;
+};
+
 export type OrderEmailItem = {
   codigo: string;
   descripcion: string;
@@ -28,7 +44,45 @@ export type OrderEmailItem = {
   igv: number;
   subtotal: number;
   total: number;
+  precioEspecial?: OrderEmailPrecioEspecial | null;
 };
+
+function soles(n: number): string {
+  return `S/ ${n.toFixed(2)}`;
+}
+
+/**
+ * Resumen en una línea para la columna "Precio especial". Devuelve null
+ * cuando el ítem va a precio de lista, que es el caso normal.
+ */
+export function precioEspecialLabel(pe: OrderEmailPrecioEspecial | null | undefined): string | null {
+  if (!pe) return null;
+
+  const pedido =
+    pe.precioSolicitado !== null
+      ? soles(pe.precioSolicitado)
+      : pe.porcentajeDescuento !== null
+        ? `${pe.porcentajeDescuento}% dcto.`
+        : "sin monto";
+
+  if (pe.estado === "PENDIENTE") return `PENDIENTE — pide ${pedido}`;
+
+  switch (pe.decision) {
+    case "APROBAR":
+    case "APROBAR_OTRO_PRECIO":
+      // El precio aprobado es el que ya quedó en el ítem; se repite acá para
+      // que se vea contra lo que se había pedido.
+      return pe.precioAprobado !== null
+        ? `Aprobado ${soles(pe.precioAprobado)} (pidió ${pedido})`
+        : `Aprobado (pidió ${pedido})`;
+    case "RECHAZAR":
+      return `Rechazado (pidió ${pedido})`;
+    case "SOLICITAR_INFO":
+      return `Se pidió más información (pide ${pedido})`;
+    default:
+      return `Pidió ${pedido}`;
+  }
+}
 
 export type OrderEmailData = {
   numero: number;

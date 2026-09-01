@@ -134,3 +134,77 @@ describe("buildOrderExcel", () => {
     expect(textos).toContain("—");
   });
 });
+
+describe("columna de precio especial", () => {
+  it("queda vacía cuando todos los ítems van a precio de lista", async () => {
+    const { textos } = await leer(await buildOrderExcel(data()));
+    expect(textos).toContain("Precio especial");
+    expect(textos.some((t) => t.includes("PENDIENTE") || t.includes("Aprobado"))).toBe(false);
+  });
+
+  it("marca el ítem con solicitud pendiente y deja ver cuánto pidió", async () => {
+    const conPendiente = data({
+      items: [
+        {
+          ...data().items[0],
+          precioEspecial: {
+            precioSolicitado: 2,
+            porcentajeDescuento: null,
+            estado: "PENDIENTE",
+            decision: null,
+            precioAprobado: null,
+          },
+        },
+        data().items[1],
+      ],
+    });
+    const { textos } = await leer(await buildOrderExcel(conPendiente));
+    expect(textos).toContain("PENDIENTE — pide S/ 2.00");
+  });
+
+  it("muestra el precio aprobado junto al que se había pedido", async () => {
+    const aprobado = data({
+      items: [
+        {
+          ...data().items[0],
+          precioUnitario: 2,
+          precioEspecial: {
+            precioSolicitado: 2,
+            porcentajeDescuento: null,
+            estado: "RESUELTO",
+            decision: "APROBAR",
+            precioAprobado: 2,
+          },
+        },
+      ],
+    });
+    const { textos } = await leer(await buildOrderExcel(aprobado));
+    expect(textos).toContain("Aprobado S/ 2.00 (pidió S/ 2.00)");
+  });
+
+  it("resalta la fila negociada para que no pase desapercibida", async () => {
+    const conPendiente = data({
+      items: [
+        {
+          ...data().items[0],
+          precioEspecial: {
+            precioSolicitado: 2,
+            porcentajeDescuento: null,
+            estado: "PENDIENTE",
+            decision: null,
+            precioAprobado: null,
+          },
+        },
+      ],
+    });
+    const { sheet } = await leer(await buildOrderExcel(conPendiente));
+    let pintada = false;
+    sheet.eachRow((row) => {
+      if (String(row.getCell(1).value) === "DAPHA10-EJ") {
+        const fill = row.getCell(1).fill as { fgColor?: { argb?: string } };
+        pintada = fill?.fgColor?.argb === "FFFEF3C7";
+      }
+    });
+    expect(pintada).toBe(true);
+  });
+});

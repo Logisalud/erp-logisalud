@@ -10,6 +10,7 @@ import {
   renderOrderEmailText,
   type OrderEmailData,
   type OrderEmailItem,
+  type OrderEmailPrecioEspecial,
 } from "@/domain/order-email";
 import { displayNombreProducto } from "@/domain/products";
 
@@ -146,12 +147,23 @@ type OrderRow = {
 };
 
 type ItemRow = {
+  id: string;
   cantidad: number | string;
   precio_unitario: number | string;
   igv: number | string;
   subtotal: number | string;
   total: number | string;
   product: { codigo_interno: string; descripcion: string } | null;
+};
+
+type ApprovalRow = {
+  order_item_id: string;
+  precio_solicitado: number | string | null;
+  porcentaje_descuento: number | string | null;
+  estado: string;
+  approval_decisions:
+    | { decision: string; precio_aprobado: number | string | null; created_at: string }[]
+    | null;
 };
 
 function num(value: number | string | null | undefined): number {
@@ -176,7 +188,7 @@ export async function loadOrderEmailData(
 ): Promise<OrderEmailData | null> {
   const admin = createAdminClient();
 
-  const [orderResult, itemsResult] = await Promise.all([
+  const [orderResult, itemsResult, approvalsResult] = await Promise.all([
     admin
       .from("orders")
       .select(
@@ -190,14 +202,45 @@ export async function loadOrderEmailData(
     admin
       .from("order_items")
       .select(
-        "cantidad, precio_unitario, igv, subtotal, total, product:products(codigo_interno, descripcion)",
+        "id, cantidad, precio_unitario, igv, subtotal, total, product:products(codigo_interno, descripcion)",
+      )
+      .eq("order_id", orderId),
+    // Solicitudes de precio especial del pedido. Se leen aparte y no con un
+    // join sobre order_items porque son la excepción: la enorme mayoría de
+    // los pedidos no tiene ninguna.
+    admin
+      .from("approval_requests")
+      .select(
+        `order_item_id, precio_solicitado, porcentaje_descuento, estado,
+         approval_decisions(decision, precio_aprobado, created_at)`,
       )
       .eq("order_id", orderId),
   ]);
 
   if (orderResult.error) throw new Error(orderResult.error.message);
   if (itemsResult.error) throw new Error(itemsResult.error.message);
+  if (approvalsResult.error) throw new Error(approvalsResult.error.message);
   if (!orderResult.data) return null;
+
+  // Una solicitud puede acumular varias decisiones (SOLICITAR_INFO y después
+  // la resolución): manda la última.
+  const especialPorItem = new Map<string, OrderEmailPrecioEspecial>();
+  for (const row of (approvalsResult.data ?? []) as unknown as ApprovalRow[]) {
+    const ultima = [...(row.approval_decisions ?? [])].sort((a, b) =>
+      a.created_at.localeCompare(b.created_at),
+    ).at(-1);
+    especialPorItem.set(row.order_item_id, {
+      precioSolicitado: row.precio_solicitado === null ? null : num(row.precio_solicitado),
+      porcentajeDescuento:
+        row.porcentaje_descuento === null ? null : num(row.porcentaje_descuento),
+      estado: row.estado,
+      decision: ultima?.decision ?? null,
+      precioAprobado:
+        ultima?.precio_aprobado === null || ultima?.precio_aprobado === undefined
+          ? null
+          : num(ultima.precio_aprobado),
+    });
+  }
 
   const order = orderResult.data as unknown as OrderRow;
   const items: OrderEmailItem[] = ((itemsResult.data ?? []) as unknown as ItemRow[]).map((i) => ({
@@ -212,6 +255,7 @@ export async function loadOrderEmailData(
     igv: num(i.igv),
     subtotal: num(i.subtotal),
     total: num(i.total),
+    precioEspecial: especialPorItem.get(i.id) ?? null,
   }));
 
   return {
