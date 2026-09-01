@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearProveedorAction, type EstadoFormulario } from './actions'
+import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
 
 export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: 'mercaderia' | 'bien' | 'ambos'; volver?: string }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearProveedorAction, null)
@@ -85,10 +86,9 @@ export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: 'mer
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="font-medium text-gray-800">Condición de pago (días)</span>
-          <input
-            type="number" name="condicionPagoDias" min="0" defaultValue={30} required
-            className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
-          />
+          <div className="mt-1">
+            <SelectorCondicionPago name="condicionPagoDias" defaultValue={30} required />
+          </div>
           {errorDe('condicionPagoDias') ? <p className="mt-1 text-red-700">{errorDe('condicionPagoDias')}</p> : null}
         </label>
         <label className="block text-sm">

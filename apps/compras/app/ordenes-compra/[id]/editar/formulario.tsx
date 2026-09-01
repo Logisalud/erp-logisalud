@@ -6,6 +6,7 @@ import { actualizarOrdenCompraAction, type EstadoFormulario } from './actions'
 import { calcularTotales } from '@/domain/orden-compra'
 import { BuscadorProducto, type ProductoElegido } from '@/components/buscador-producto'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
+import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
 
 type LineaMercaderia = { producto: ProductoElegido | null; cantidad: string; precio: string }
 type LineaBien = { descripcion: string; cantidad: string; precio: string }
@@ -105,11 +106,9 @@ export function FormularioEditarOC({
             </select>
           </Campo>
           <Campo etiqueta="Días de pago" error={errorDe('condicionesPagoDias')}>
-            <input
-              type="number" name="condicionesPagoDias" min={0} required
-              defaultValue={oc.condiciones_pago_dias ?? ''}
-              placeholder="0 = contado"
-              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+            <SelectorCondicionPago
+              name="condicionesPagoDias" required
+              defaultValue={oc.condiciones_pago_dias ?? null}
             />
           </Campo>
         </div>
