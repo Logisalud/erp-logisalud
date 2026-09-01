@@ -4,6 +4,7 @@ import {
   diasVencido,
   esObligacionAbierta,
   estadoPagoSabana,
+  estadoYSaldoSabana,
   porcentajeRecibidoOC,
   saldoPendiente,
 } from '@/domain/reportes'
@@ -68,6 +69,17 @@ describe('estadoPagoSabana / saldoPendiente', () => {
     expect(saldoPendiente(1000, 1000)).toBe(0)
     expect(estadoPagoSabana(1000, 1200)).toBe('pagado')
     expect(saldoPendiente(1000, 1200)).toBe(0)
+  })
+})
+
+describe('estadoYSaldoSabana', () => {
+  it('una obligación canjeada_por_letra es "canjeada" con saldo 0, aunque nunca se le aplicó un pago', () => {
+    expect(estadoYSaldoSabana('canjeada_por_letra', 1000, 0)).toEqual({ estado: 'canjeada', saldo: 0 })
+  })
+  it('cualquier otro estado sigue el cálculo normal de estadoPagoSabana/saldoPendiente', () => {
+    expect(estadoYSaldoSabana('registrada', 1000, 0)).toEqual({ estado: 'pendiente', saldo: 1000 })
+    expect(estadoYSaldoSabana('conforme', 1000, 400)).toEqual({ estado: 'parcial', saldo: 600 })
+    expect(estadoYSaldoSabana('pagada', 1000, 1000)).toEqual({ estado: 'pagado', saldo: 0 })
   })
 })
 

@@ -79,13 +79,22 @@ export function esObligacionAbierta(estado: EstadoObligacion): boolean {
   return (ESTADOS_OBLIGACION_ABIERTA as readonly string[]).includes(estado)
 }
 
-export const ESTADOS_PAGO_SABANA = ['pendiente', 'parcial', 'pagado'] as const
+export const ESTADOS_PAGO_SABANA = ['pendiente', 'parcial', 'pagado', 'canjeada'] as const
 export type EstadoPagoSabana = (typeof ESTADOS_PAGO_SABANA)[number]
 
 export const ETIQUETA_ESTADO_PAGO_SABANA: Record<EstadoPagoSabana, string> = {
   pendiente: 'Pendiente',
   parcial: 'Parcial',
   pagado: 'Pagado',
+  // Factura de compra canjeada por letra(s) — cuentas_x_pagar.obligaciones.estado
+  // = 'canjeada_por_letra'. No es "pagada" (no se movió dinero, cambió de
+  // instrumento) ni "pendiente" (ya no se le debe nada por esta fila — lo que
+  // queda por cobrar son las letras nuevas, cada una su propia fila de la
+  // sábana con origen='letra_por_pagar'). Sin esto, estadoPagoSabana()/
+  // saldoPendiente() la mostrarían como "Pendiente" con el saldo completo
+  // (nunca se le aplicó un pago) — deuda duplicada en cualquier suma por
+  // proveedor en Excel, ya que las letras también cuentan.
+  canjeada: 'Canjeada por letra',
 }
 
 /**
@@ -103,6 +112,24 @@ export function estadoPagoSabana(netoAPagar: number, montoPagado: number): Estad
 
 export function saldoPendiente(netoAPagar: number, montoPagado: number): number {
   return Math.max(0, redondear2(netoAPagar - montoPagado))
+}
+
+/**
+ * Estado + saldo de una fila de la sábana, con el caso especial de una
+ * factura de compra canjeada por letra(s) (regla 8 de Financiamiento):
+ * `montoPagado` sigue en 0 (nunca se le aplicó un pago), pero no está
+ * "pendiente" — lo que se le debía se repartió en las letras nuevas, cada
+ * una su propia fila de la sábana. Sin este caso especial, la fila se
+ * mostraría como "Pendiente" con el saldo completo — deuda duplicada si se
+ * suma la columna por proveedor en Excel.
+ */
+export function estadoYSaldoSabana(
+  estadoObligacion: EstadoObligacion,
+  netoAPagar: number,
+  montoPagado: number
+): { estado: EstadoPagoSabana; saldo: number } {
+  if (estadoObligacion === 'canjeada_por_letra') return { estado: 'canjeada', saldo: 0 }
+  return { estado: estadoPagoSabana(netoAPagar, montoPagado), saldo: saldoPendiente(netoAPagar, montoPagado) }
 }
 
 function redondear2(n: number): number {
