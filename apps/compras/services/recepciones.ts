@@ -8,6 +8,7 @@ import {
   type TipoDiscrepancia,
 } from '@/domain/recepcion'
 import { estadoTrasRecepcion, puedeRecibirse, ETIQUETA_ESTADO, type EstadoOC } from '@/domain/orden-compra'
+import { intentarConciliarPendientes } from '@/services/facturas-pendientes'
 
 export type OCParaRecibir = {
   id: string
@@ -233,6 +234,14 @@ export async function registrarRecepcion(borrador: BorradorRecepcion): Promise<{
         : { estado: 'con_discrepancia' }
     )
     .eq('id', recepcion.id)
+
+  // Flujo nuevo multi-recepción: si había alguna factura "esperando
+  // mercadería" para esta OC, esta recepción puede ser justo lo que le
+  // faltaba para conciliar. Best-effort — nunca revierte la recepción que
+  // ya se guardó arriba.
+  if (conforme) {
+    await intentarConciliarPendientes(borrador.ocId)
+  }
 
   return { id: recepcion.id }
 }

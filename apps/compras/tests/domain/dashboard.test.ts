@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { discrepanciaAbierta, servicioSinConformidad } from '@/domain/dashboard'
+import { diasEnEstado, discrepanciaAbierta, ocParcialSuperaUmbral, servicioSinConformidad } from '@/domain/dashboard'
+
+describe('diasEnEstado / ocParcialSuperaUmbral', () => {
+  it('cuenta días corridos entre dos fechas', () => {
+    expect(diasEnEstado('2026-08-01', '2026-08-31')).toBe(30)
+  })
+  it('supera el umbral configurado', () => {
+    expect(ocParcialSuperaUmbral(31, 30)).toBe(true)
+    expect(ocParcialSuperaUmbral(30, 30)).toBe(false)
+    expect(ocParcialSuperaUmbral(29, 30)).toBe(false)
+  })
+})
 
 describe('discrepanciaAbierta', () => {
   it('una discrepancia real sin resolución está abierta', () => {

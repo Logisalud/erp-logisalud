@@ -1,12 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import {
   calcularTotales,
+  puedeCerrarseParcial,
   puedeEditarse,
   redondear,
   siguienteCodigoOC,
   transicionPermitida,
   validarOC,
 } from '@/domain/orden-compra'
+
+describe('puedeCerrarseParcial', () => {
+  it('solo una OC parcialmente recibida puede cerrarse con saldo pendiente', () => {
+    expect(puedeCerrarseParcial('parcialmente_recibida')).toBe(true)
+  })
+  it('una OC recibida completa, borrador, o ya cerrada no aplica', () => {
+    expect(puedeCerrarseParcial('recibida_completa')).toBe(false)
+    expect(puedeCerrarseParcial('borrador')).toBe(false)
+    expect(puedeCerrarseParcial('cerrada')).toBe(false)
+  })
+})
 
 describe('calcularTotales', () => {
   it('suma, aplica IGV y redondea a 2 decimales', () => {

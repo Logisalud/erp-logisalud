@@ -1,10 +1,12 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { exigirUsuario } from '@logisalud/auth/server'
+import { perfilActual } from '@logisalud/auth/server'
 import {
   siguienteCodigoOC,
   transicionPermitida,
   puedeEditarse,
+  puedeCerrarseParcial,
   ETIQUETA_ESTADO,
   type BorradorOC,
   type EstadoOC,
@@ -32,6 +34,8 @@ export type OCDetalle = {
   notas: string | null
   proveedor_id: string
   cuenta_bancaria_id: string | null
+  cierre_tipo: 'completa' | 'saldo_no_entregado' | null
+  cierre_motivo: string | null
   items: {
     id: string
     producto_id: string | null
@@ -84,6 +88,7 @@ export async function obtenerOC(id: string): Promise<OCDetalle | null> {
     .from('ordenes_compra')
     .select(`id, codigo, tipo, estado, fecha_emision, fecha_entrega_estimada, moneda,
              condiciones_pago_dias, notas, proveedor_id, cuenta_bancaria_id,
+             cierre_tipo, cierre_motivo,
              ordenes_compra_items(id, producto_id, descripcion_libre, cantidad_pedida,
                                   precio_unitario, cantidad_recibida, cantidad_facturada)`)
     .eq('id', id)
@@ -307,4 +312,48 @@ export async function cambiarEstadoOC(id: string, nuevoEstado: EstadoOC): Promis
     .update({ estado: nuevoEstado, updated_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw new Error(`No se pudo actualizar el estado: ${error.message}`)
+}
+
+/**
+ * Cierre manual de una OC con saldo pendiente que ya no se va a completar
+ * (0030_oc_cierre_parcial.sql). Acción explícita de Compras/admin, con
+ * motivo obligatorio — no cambia el `estado` (sigue el CHECK existente,
+ * pasa a 'cerrada' igual que el cierre normal) sino que deja registrado
+ * `cierre_tipo = 'saldo_no_entregado'` y el motivo, para distinguirla de
+ * una OC cerrada por el flujo normal (recibida y facturada completa, que
+ * deja esas dos columnas en null).
+ */
+export async function cerrarOCConSaldoPendiente(id: string, motivo: string): Promise<void> {
+  const perfil = await perfilActual()
+  const puedeCerrar = perfil?.area === 'admin' || perfil?.area === 'compras'
+  if (!puedeCerrar) {
+    throw new Error('Solo Compras (o admin) puede cerrar una orden con saldo pendiente.')
+  }
+  if (!motivo.trim()) {
+    throw new Error('El motivo del cierre es obligatorio.')
+  }
+
+  const supabase = crearClienteServidor()
+  const { data: oc, error: errLectura } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .select('estado')
+    .eq('id', id)
+    .maybeSingle()
+  if (errLectura || !oc) throw new Error('No se encontró la orden de compra.')
+  if (!puedeCerrarseParcial(oc.estado as EstadoOC)) {
+    throw new Error(`La orden está en estado "${ETIQUETA_ESTADO[oc.estado as EstadoOC]}" — solo una orden recibida en parte se puede cerrar con saldo pendiente.`)
+  }
+
+  const { error } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .update({
+      estado: 'cerrada',
+      cierre_tipo: 'saldo_no_entregado',
+      cierre_motivo: motivo.trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (error) throw new Error(`No se pudo cerrar la orden: ${error.message}`)
 }

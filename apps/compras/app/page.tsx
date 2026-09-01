@@ -75,6 +75,11 @@ export default async function Inicio() {
           titulo="Reportes"
           descripcion="Consulta y descarga la información de compras y pagos."
         />
+        <MenuItem
+          href="/facturas-pendientes" emoji="⏳"
+          titulo="Facturas por conciliar"
+          descripcion="Facturas esperando mercadería y excepciones de conciliación."
+        />
       </Grupo>
 
       <Grupo titulo="Otras gestiones">

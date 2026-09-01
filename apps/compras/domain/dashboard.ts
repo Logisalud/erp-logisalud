@@ -64,3 +64,24 @@ export function venceEnProximosDias(diasVencido: number | null, ventanaDias: num
 export function estaVencidaObligacion(diasVencido: number | null): boolean {
   return diasVencido != null && diasVencido > 0
 }
+
+/**
+ * Alerta de OC parcial hace demasiado tiempo (loop abierto nuevo): días
+ * corridos desde `fecha_emision`, comparado contra el umbral configurable
+ * en `compras.configuracion` (clave 'oc_parcial_alerta_dias', ver
+ * 0031_configuracion.sql). Se usa `fecha_emision` como ancla porque el
+ * modelo de datos no guarda la fecha exacta en que la OC pasó a
+ * 'parcialmente_recibida' (misma brecha ya documentada en
+ * services/historial-orden.ts para otras transiciones sin columna propia)
+ * — es una aproximación conservadora: la OC lleva AL MENOS ese tiempo
+ * parcial, nunca menos.
+ */
+export function diasEnEstado(fechaDesdeISO: string, hoyISO: string): number {
+  const desde = new Date(`${fechaDesdeISO.slice(0, 10)}T00:00:00Z`)
+  const hoy = new Date(`${hoyISO.slice(0, 10)}T00:00:00Z`)
+  return Math.round((hoy.getTime() - desde.getTime()) / 86_400_000)
+}
+
+export function ocParcialSuperaUmbral(diasEnParcial: number, umbralDias: number): boolean {
+  return diasEnParcial > umbralDias
+}
