@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
-import { listOrdersForSeller, sellerTienePedidos, PAGE_SIZE } from "@/services/orders";
+import { listOrdersForSeller, PAGE_SIZE } from "@/services/orders";
 import {
   PESTANAS,
   estadoEstilo,
@@ -10,7 +10,6 @@ import {
   type PestanaPedidos,
 } from "@/domain/order-status";
 import { displayRazonSocial } from "@/domain/customer-search";
-import { repetirUltimoPedido } from "./actions";
 
 /**
  * "Mis pedidos".
@@ -55,12 +54,9 @@ export default async function PedidosHomePage({
   const pageParsed = Number.parseInt(searchParams.page ?? "1", 10);
   const page = Number.isFinite(pageParsed) && pageParsed > 0 ? pageParsed : 1;
 
-  const [{ orders, hayMas }, tienePedidos] = user?.sellerId
-    ? await Promise.all([
-        listOrdersForSeller(user.sellerId, { estados: estadosDePestana(pestana), page }),
-        sellerTienePedidos(user.sellerId),
-      ])
-    : [{ orders: [], hayMas: false }, false];
+  const { orders, hayMas } = user?.sellerId
+    ? await listOrdersForSeller(user.sellerId, { estados: estadosDePestana(pestana), page })
+    : { orders: [], hayMas: false };
 
   return (
     <div className="flex flex-col gap-6">
@@ -73,7 +69,7 @@ export default async function PedidosHomePage({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         <Link href="/pedidos/nuevo" className="card p-5 hover:shadow-md">
           <h3 className="font-semibold text-logisalud-green">Nuevo pedido</h3>
           <p className="mt-1 text-sm text-gray-600">
@@ -82,23 +78,6 @@ export default async function PedidosHomePage({
               : "Arma un pedido para uno de tus clientes."}
           </p>
         </Link>
-        {/*
-          "Repetir último pedido" copia el ÚLTIMO pedido, sea del estado que
-          sea. Antes se mostraba solo si había borradores, que es una
-          condición distinta a la que la acción necesita: con todos los
-          pedidos ya enviados, el botón desaparecía aunque hubiera algo que
-          repetir.
-        */}
-        {user?.sellerId && tienePedidos && (
-          <form action={repetirUltimoPedido}>
-            <button type="submit" className="card w-full p-5 text-left hover:shadow-md">
-              <h3 className="font-semibold text-logisalud-green">Repetir último pedido</h3>
-              <p className="mt-1 text-sm text-gray-600">
-                Crea un borrador nuevo con los mismos productos.
-              </p>
-            </button>
-          </form>
-        )}
       </div>
 
       {user?.sellerId && (

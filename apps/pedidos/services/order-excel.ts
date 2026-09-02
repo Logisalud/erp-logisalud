@@ -4,6 +4,7 @@ import {
   COLOR_VERDE,
   NOTA_NO_COMPROBANTE,
   computeOrderTotals,
+  etiquetaObservacion,
   formatFechaHora,
   precioEspecialLabel,
   type OrderEmailData,
@@ -131,6 +132,27 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
   totalRow("Subtotal", totals.subtotal);
   totalRow("IGV", totals.igv);
   totalRow("Total", totals.total, true);
+
+  // Las observaciones van DESPUÉS de los totales y antes de la nota legal:
+  // no son parte del importe, pero quien prepara el despacho las tiene que
+  // leer, y hasta ahora no salían del sistema.
+  const observaciones = data.observaciones ?? [];
+  if (observaciones.length > 0) {
+    sheet.addRow([]);
+    const titulo = sheet.addRow(["Observaciones del pedido"]);
+    titulo.font = { bold: true, color: { argb: `FF${VERDE}` } };
+    sheet.mergeCells(titulo.number, 1, titulo.number, 8);
+
+    for (const o of observaciones) {
+      const fila = sheet.addRow([o.comentario]);
+      fila.alignment = { wrapText: true, vertical: "top" };
+      sheet.mergeCells(fila.number, 1, fila.number, 8);
+
+      const meta = sheet.addRow([etiquetaObservacion(o)]);
+      meta.font = { italic: true, size: 9, color: { argb: "FF475569" } };
+      sheet.mergeCells(meta.number, 1, meta.number, 8);
+    }
+  }
 
   sheet.addRow([]);
   const nota = sheet.addRow([NOTA_NO_COMPROBANTE]);

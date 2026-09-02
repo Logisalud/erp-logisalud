@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/session";
-import { listActiveCustomers } from "@/services/customers";
+import { listActiveCustomers, listZonasSeleccionables } from "@/services/customers";
 import { listActiveSellers } from "@/services/sellers";
 import { listCatalog, listPaymentTerms } from "@/services/catalog";
 import { NewOrderForm } from "./new-order-form";
@@ -12,7 +12,9 @@ export default async function NuevoPedidoPage() {
     listActiveCustomers(),
     listPaymentTerms(),
     listCatalog("sales_channels"),
-    listCatalog("zones"),
+    // Sólo las zonas que el usuario puede usar: un cliente registrado en
+    // otra zona le queda invisible por RLS y el registro rebota.
+    listZonasSeleccionables(isAdmin),
     isAdmin ? listActiveSellers() : Promise.resolve([]),
   ]);
 
@@ -35,7 +37,7 @@ export default async function NuevoPedidoPage() {
             permite_dias_libres: p.permite_dias_libres,
           }))}
           salesChannels={salesChannels.map((c) => ({ id: c.id, nombre: c.nombre }))}
-          zones={zones.map((z) => ({ id: z.id, nombre: z.nombre }))}
+          zones={zones}
         />
       </div>
     </div>

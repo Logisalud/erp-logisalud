@@ -23,7 +23,7 @@ export function UserMenu({
   fullName: string | null;
   email: string | null;
   roleLabel: string | null;
-  /** Si no se pasa, el ítem "Cambiar contraseña" no se muestra (ej. rol sin acceso a /admin/perfil). */
+  /** Si no se pasa, el ítem "Mi perfil" no se muestra. */
   perfilHref?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -72,7 +72,7 @@ export function UserMenu({
               onClick={() => setOpen(false)}
               className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >
-              Cambiar contraseña
+              Mi perfil (cambiar contraseña)
             </Link>
           )}
 

@@ -51,12 +51,12 @@ export function displayNombreProducto(descripcion: string, codigoInterno: string
 /**
  * ¿Este producto se le puede ofrecer al vendedor al armar un pedido?
  *
- * Dos condiciones, y las dos son de negocio, no de interfaz:
- *
  * - **Activo.** Un producto inactivo no se puede facturar. Desde `0052` eso
  *   incluye a los que no existen en el catálogo de NubeFact.
  * - **Con precio vigente** en algún canal, o no hay con qué valorizar la
- *   línea.
+ *   línea… **salvo las bonificaciones**: se entregan gratis y la mayoría no
+ *   tiene precio propio en ninguna lista, así que exigirles precio era lo
+ *   que las dejaba fuera del buscador. Entran a S/ 0.00 explícito.
  *
  * Vive acá y no dentro de la pantalla para que la regla se pueda probar y
  * para que no se desincronice entre los lugares que la aplican. La garantía
@@ -66,6 +66,25 @@ export function displayNombreProducto(descripcion: string, codigoInterno: string
 export function esOfrecibleEnPedido(producto: {
   estado: string;
   hasCurrentPrice: boolean;
+  /** Hace falta para reconocer una bonificación. Sin él se exige precio. */
+  codigo_interno?: string;
 }): boolean {
-  return producto.estado === "activo" && producto.hasCurrentPrice;
+  if (producto.estado !== "activo") return false;
+  if (producto.hasCurrentPrice) return true;
+  return producto.codigo_interno !== undefined && esBonificacion(producto.codigo_interno);
+}
+
+/**
+ * ¿Esta línea puede ir sin precio de lista, a S/ 0.00?
+ *
+ * Sólo las bonificaciones. Es una excepción angosta y explícita: para
+ * cualquier otro producto, "no tiene precio" es un dato que falta y la
+ * línea se bloquea en vez de valorizarse en cero por accidente.
+ *
+ * NO es el motor de promociones (escalas, "3+1" automático): eso sigue
+ * pendiente de diseño. Esto sólo permite cargar a mano una bonificación
+ * que ya se acordó con el cliente.
+ */
+export function admitePrecioCero(codigoInterno: string): boolean {
+  return esBonificacion(codigoInterno);
 }

@@ -990,6 +990,96 @@ primer correo falla, el siguiente que salga abre el hilo.
 se verifica con "Mostrar original" en el primer correo. La alternativa
 sería leer el `Message-ID` real por la API de Resend después de enviar.
 
+## Cliente nuevo: el comprobante se deriva del documento
+
+`requestNewCustomer` no seteaba `tipo_comprobante_permitido`, así que la
+fila tomaba el default de la tabla (`FACTURA`). Con un DNI en el campo de
+RUC —el caso más común de cliente nuevo— eso viola
+`customers_boleta_only_sin_ruc_valido` y el registro reventaba con un
+error de servidor en pantalla ("An error occurred in the Server Components
+render"). Reproducido con los datos reales del reporte: `pepito`,
+documento `74453490`.
+
+Ahora se deriva con `resolveTipoComprobantePermitido()`, el mismo criterio
+que ya usaba el importador de la cartera: 20… → `FACTURA`, 10…/15…/17… →
+`FACTURA_O_BOLETA`, y cualquier otra cosa → `BOLETA`.
+
+**Segunda causa, distinta, del mismo síntoma:** un vendedor que registra
+un cliente en una zona que **no es la suya**. El INSERT pasa, pero el
+`RETURNING` no: `customers_select` filtra por
+`current_user_zone_ids()`, y Postgres reporta eso como *"new row violates
+row-level security policy"*. Se corrige en dos capas — la pantalla sólo
+ofrece las zonas propias del vendedor (`listZonasSeleccionables`), la
+Server Action revalida contra esa misma lista, y los dos errores de base
+que este formulario puede provocar se traducen a mensajes legibles en vez
+de llegar crudos a la pantalla.
+
+## Aprobación masiva de los clientes con DNI cargado como RUC
+
+Los 150 clientes que quedaron `PENDIENTE_DE_VALIDACION` con la
+advertencia "Posible DNI cargado como RUC" se aprobaron **en bloque**, por
+autorización explícita del administrador, sin revisión individual.
+
+- Pasaron a `ACTIVO`, con `validado_por` y `fecha_validacion`.
+- **`tipo_comprobante_permitido` sigue en `BOLETA`**: no cambia nada, no
+  tienen RUC de contribuyente válido y el constraint lo sostiene. Aprobar
+  al cliente no lo convierte en facturable.
+- Auditado en `pedidos.audit_logs` con acción `aprobar_clientes_masivo`:
+  una fila con la lista de ids, el criterio usado, quién lo autorizó y
+  que fue masiva y no individual. Los 150 cambios de estado además quedan
+  uno por uno por el trigger `customers_audit`.
+
+## "Repetir último pedido": eliminado
+
+Se quitó por completo — botón, Server Action (`repetirUltimoPedido`),
+servicio (`repeatLastOrder`) y el helper que existía sólo para decidir si
+mostrarlo (`sellerTienePedidos`). **No se dejó comentado**: código muerto
+que nadie ejecuta se desincroniza en silencio con el resto (esa función ya
+había necesitado dos arreglos por cambios ajenos), y el historial de git
+lo conserva si alguna vez se quiere volver a habilitar.
+
+## Cambiar contraseña: cualquier rol
+
+La pantalla vivía en `/admin/perfil` y por lo tanto sólo la alcanzaba un
+administrador — justo el rol que menos la necesita. Se movió a `/perfil`,
+que sólo exige estar autenticado, y el menú de usuario la ofrece a todos.
+`/admin/perfil` queda como redirección. El componente y la Server Action
+son los mismos, incluida la reautenticación con la contraseña actual:
+tener la sesión abierta no alcanza para cambiarla.
+
+## Las observaciones del pedido salen en el correo y en el Excel
+
+El vendedor escribe ahí lo que no entra en ninguna línea ("entregar antes
+del viernes", "coordinar con Rosa") y hasta ahora no salía del sistema:
+quien prepara el despacho no las veía.
+
+**Se muestran TODAS, de la más vieja a la más nueva**, no sólo la última:
+son pocas (una o dos por pedido) y forman una conversación — quedarse con
+la última esconde el pedido original. Incluye las de Control de Pedidos
+además de las del vendedor, con fecha, autor (resuelto contra `profiles`)
+y el contexto de la excepción cuando lo tienen: para quien despacha valen
+lo mismo. En el Excel van después de los totales y antes de la nota legal.
+
+## Bonificaciones: se pueden cargar a mano, a S/ 0.00
+
+Los códigos `BO…` no aparecían en el buscador de productos porque
+`esOfrecibleEnPedido` exigía precio vigente y casi ninguno lo tiene: se
+entregan gratis. Y el bloqueo de verdad estaba en `submit_order`, que
+levantaba *"Sin precio vigente para el producto X"* y tumbaba el envío
+**entero** por una sola línea de bonificación.
+
+Ahora una bonificación sin precio de lista entra con **S/ 0.00
+explícito**, en el buscador y al enviar. Es una excepción angosta y
+deliberada: para cualquier otro producto, "no tiene precio" es un dato que
+falta y la línea se sigue bloqueando, en vez de valorizarse en cero por
+accidente. La regla vive en `domain/products.ts` (`admitePrecioCero`) y su
+espejo en SQL en `1015`.
+
+Esto **no** es el motor de promociones automáticas (escalas, "3+1",
+bonificación calculada por volumen), que sigue pendiente de diseño a la
+espera del archivo de promociones. Sólo permite cargar a mano una
+bonificación ya acordada con el cliente.
+
 ## Qué NO cubre esta fase
 
 Explícitamente fuera de alcance por ahora (ver README y CLAUDE.md):

@@ -7,6 +7,7 @@ import {
   normalizeSearchTerm,
   soloDigitos,
 } from "@/domain/customer-search";
+import { resolveTipoComprobantePermitido } from "@/domain/customers";
 
 export type PendingCustomer = {
   id: string;
@@ -125,6 +126,13 @@ export async function requestNewCustomer(input: {
 }): Promise<{ customer: ActiveCustomerOption; addressId: string }> {
   const supabase = createClient();
 
+  // El comprobante permitido se DERIVA del documento, no se deja en el
+  // default de la tabla ('FACTURA'): un DNI en el campo de RUC no puede
+  // facturar, y el constraint customers_boleta_only_sin_ruc_valido rechaza
+  // la fila entera. Eso era el error de servidor al registrar un cliente
+  // con DNI — el caso más común de cliente nuevo.
+  const tipoComprobante = resolveTipoComprobantePermitido(input.rucODocumento);
+
   const { data: customer, error: customerError } = await supabase
     .from("customers")
     .insert({
@@ -133,6 +141,7 @@ export async function requestNewCustomer(input: {
       canal_id: input.canalId,
       zona_id: input.zonaId,
       condicion_pago_habitual_id: input.condicionPagoHabitualId,
+      tipo_comprobante_permitido: tipoComprobante,
       estado: "PENDIENTE_DE_VALIDACION",
       solicitado_por: input.solicitadoPor,
     })
@@ -142,6 +151,18 @@ export async function requestNewCustomer(input: {
   if (customerError) {
     if (customerError.code === "23505") {
       throw new Error("Ya existe un cliente con ese RUC/documento.");
+    }
+    // Errores crudos de la base son ilegibles y llegan a la pantalla como
+    // "An error occurred in the Server Components render". Los dos que de
+    // verdad puede provocar este formulario se traducen.
+    if (customerError.code === "42501" || /row-level security/i.test(customerError.message)) {
+      throw new Error(MENSAJE_ZONA_AJENA);
+    }
+    if (customerError.code === "23514") {
+      throw new Error(
+        "El documento no corresponde a un RUC de contribuyente válido y el cliente quedaría sin " +
+          "comprobante posible. Revisá el número antes de registrarlo.",
+      );
     }
     throw new Error(customerError.message);
   }
@@ -161,6 +182,58 @@ export async function requestNewCustomer(input: {
 
   return { customer: customer as unknown as ActiveCustomerOption, addressId: address.id };
 }
+
+/**
+ * Un vendedor sólo ve —y por lo tanto sólo puede usar— los clientes de su
+ * zona (`customers_select`). Si registra uno en otra zona, la fila entra
+ * pero no la puede leer de vuelta: PostgREST devuelve el INSERT ...
+ * RETURNING como violación de RLS y la pantalla se cae con un error de
+ * servidor. Mejor decirle qué pasó.
+ */
+/**
+ * Las zonas que el usuario puede elegir al registrar un cliente.
+ *
+ * Un administrador ve todas. Un vendedor ve sólo las suyas, porque un
+ * cliente en otra zona le queda invisible por RLS: la pantalla no debería
+ * ofrecerle una opción que la base le va a rechazar.
+ *
+ * La lista sale de `current_user_zone_ids()`, la misma función que usa la
+ * policy — no se reimplementa el criterio acá.
+ */
+export async function listZonasSeleccionables(
+  esAdmin: boolean,
+): Promise<Array<{ id: number; nombre: string }>> {
+  const supabase = createClient();
+
+  if (esAdmin) {
+    const { data, error } = await supabase.from("zones").select("id, nombre").order("nombre");
+    if (error) throw new Error(error.message);
+    return data as Array<{ id: number; nombre: string }>;
+  }
+
+  const { data: propias, error: zonasError } = await supabase.rpc("current_user_zone_ids");
+  if (zonasError) throw new Error(zonasError.message);
+
+  const ids = (propias as Array<number> | null) ?? [];
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("zones")
+    .select("id, nombre")
+    .in("id", ids)
+    .order("nombre");
+  if (error) throw new Error(error.message);
+  return data as Array<{ id: number; nombre: string }>;
+}
+
+export const MENSAJE_ZONA_AJENA =
+  "Esa zona no es tuya, así que el cliente quedaría invisible para vos y no lo podrías usar en " +
+  "un pedido. Elegí una de tus zonas o pedile a un administrador que lo registre.";
+
+/** Un vendedor sin zonas no puede registrar clientes: no hay dónde ponerlos. */
+export const MENSAJE_SIN_ZONA_ASIGNADA =
+  "No tenés ninguna zona asignada, así que no podés registrar clientes. Pedile a un " +
+  "administrador que te asigne tu zona.";
 
 export async function listCustomerAddresses(customerId: string) {
   const supabase = createClient();

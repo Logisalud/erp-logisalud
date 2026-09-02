@@ -3,6 +3,7 @@ import {
   codigoRegularDeBonificacion,
   displayNombreProducto,
   esBonificacion,
+  admitePrecioCero,
   esOfrecibleEnPedido,
 } from "@/domain/products";
 
@@ -61,6 +62,38 @@ describe("displayNombreProducto", () => {
 
   it("no marca dos veces si el origen ya lo decía", () => {
     expect(displayNombreProducto("ALGO BONIFICACION", "BOX1")).toBe("ALGO BONIFICACION");
+  });
+});
+
+describe("bonificaciones a precio cero", () => {
+  it("una bonificación sin precio SÍ se puede ofrecer", () => {
+    // Se entregan gratis y casi ninguna tiene precio propio en la lista del
+    // canal: exigirlo era lo que las dejaba fuera del buscador.
+    expect(
+      esOfrecibleEnPedido({ estado: "activo", hasCurrentPrice: false, codigo_interno: "BOBSA207" }),
+    ).toBe(true);
+  });
+
+  it("un producto regular sin precio sigue bloqueado", () => {
+    expect(
+      esOfrecibleEnPedido({ estado: "activo", hasCurrentPrice: false, codigo_interno: "BSA207" }),
+    ).toBe(false);
+  });
+
+  it("una bonificación inactiva no se ofrece: no se puede facturar", () => {
+    expect(
+      esOfrecibleEnPedido({
+        estado: "inactivo",
+        hasCurrentPrice: false,
+        codigo_interno: "BOBSA207",
+      }),
+    ).toBe(false);
+  });
+
+  it("admitePrecioCero es sólo para bonificaciones", () => {
+    expect(admitePrecioCero("BOBSA207")).toBe(true);
+    expect(admitePrecioCero("BSA207")).toBe(false);
+    expect(admitePrecioCero("BO")).toBe(false);
   });
 });
 

@@ -10,6 +10,7 @@ import {
   renderOrderEmailText,
   type OrderEmailData,
   type OrderEmailItem,
+  type OrderEmailObservacion,
   type OrderEmailPrecioEspecial,
 } from "@/domain/order-email";
 import { displayNombreProducto } from "@/domain/products";
@@ -220,7 +221,7 @@ export async function loadOrderEmailData(
 ): Promise<OrderEmailData | null> {
   const admin = createAdminClient();
 
-  const [orderResult, itemsResult, approvalsResult] = await Promise.all([
+  const [orderResult, itemsResult, approvalsResult, observacionesResult] = await Promise.all([
     admin
       .from("orders")
       .select(
@@ -249,9 +250,18 @@ export async function loadOrderEmailData(
          approval_decisions(decision, precio_aprobado, fecha)`,
       )
       .eq("order_id", orderId),
+    // Las observaciones del pedido, con el nombre de quien las escribió
+    // cuando el perfil lo tiene. Van al correo y al Excel: son lo que el
+    // vendedor escribe para lo que no entra en ninguna línea.
+    admin
+      .from("order_observations")
+      .select("comentario, fecha, contexto, autor")
+      .eq("order_id", orderId)
+      .order("fecha", { ascending: true }),
   ]);
 
   if (orderResult.error) throw new Error(orderResult.error.message);
+  if (observacionesResult.error) throw new Error(observacionesResult.error.message);
   if (itemsResult.error) throw new Error(itemsResult.error.message);
   if (approvalsResult.error) throw new Error(approvalsResult.error.message);
   if (!orderResult.data) return null;
@@ -276,6 +286,36 @@ export async function loadOrderEmailData(
           : num(ultima.precio_aprobado),
     });
   }
+
+  type ObservacionRow = {
+    comentario: string;
+    fecha: string;
+    contexto: string | null;
+    autor: string | null;
+  };
+  const observacionesCrudas = (observacionesResult.data ?? []) as unknown as ObservacionRow[];
+
+  // Los autores se resuelven en UNA consulta, no una por observación.
+  const autores = Array.from(
+    new Set(observacionesCrudas.map((o) => o.autor).filter((a): a is string => a !== null)),
+  );
+  const nombrePorUsuario = new Map<string, string>();
+  if (autores.length > 0) {
+    const { data: perfiles } = await admin
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", autores);
+    for (const p of (perfiles ?? []) as Array<{ id: string; full_name: string | null }>) {
+      if (p.full_name) nombrePorUsuario.set(p.id, p.full_name);
+    }
+  }
+
+  const observaciones: OrderEmailObservacion[] = observacionesCrudas.map((o) => ({
+    comentario: o.comentario,
+    fecha: o.fecha,
+    contexto: o.contexto,
+    autor: o.autor ? nombrePorUsuario.get(o.autor) ?? null : null,
+  }));
 
   const order = orderResult.data as unknown as OrderRow;
   const items: OrderEmailItem[] = ((itemsResult.data ?? []) as unknown as ItemRow[]).map((i) => ({
@@ -313,6 +353,7 @@ export async function loadOrderEmailData(
       order.dias_credito_solicitados,
     ),
     items,
+    observaciones,
   };
 }
 
