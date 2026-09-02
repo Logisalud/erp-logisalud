@@ -1,8 +1,9 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "./audit-log";
-import { sendEmail } from "./email";
+import { emailFromAddress, sendEmail } from "./email";
 import { buildOrderExcel, buildOrderExcelFilename } from "./order-excel";
 import {
   buildOrderEmailSubject,
@@ -14,6 +15,13 @@ import {
 } from "@/domain/order-email";
 import { displayNombreProducto } from "@/domain/products";
 import { etiquetaCondicionPago } from "@/domain/payment-terms";
+import {
+  asuntoDeRespuesta,
+  cabecerasDeHilo,
+  esMessageIdValido,
+  normalizarDominio,
+  nuevoMessageId,
+} from "@/domain/email-threading";
 
 // ---------------------------------------------------------------------
 // Destinatarios (gestión por el administrador)
@@ -310,6 +318,54 @@ export async function loadOrderEmailData(
   };
 }
 
+type HiloDelPedido = {
+  /** Si ya salió al menos un correo: entonces este es una respuesta. */
+  abierto: boolean;
+  /** Cadena de Message-IDs del hilo, del más viejo al más nuevo. */
+  referencias: string[];
+};
+
+/**
+ * El hilo de correo del pedido: el ancla y la cadena de mensajes que ya
+ * salieron. El ancla vive en `orders` y no se deduce de los logs porque es
+ * el dato que define el hilo; los logs aportan el resto de la cadena.
+ *
+ * Sólo entran los envíos que de verdad salieron (los logs de un envío
+ * fallido no tienen message_id) y los ids sintácticamente válidos: un id
+ * roto en `References` rompe el emparentado sin avisar.
+ */
+async function leerHiloDelPedido(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string,
+): Promise<HiloDelPedido> {
+  const [orderResult, logsResult] = await Promise.all([
+    admin.from("orders").select("email_thread_message_id").eq("id", orderId).maybeSingle(),
+    admin
+      .from("notification_logs")
+      .select("message_id, created_at")
+      .eq("order_id", orderId)
+      .not("message_id", "is", null)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (orderResult.error) throw new Error(orderResult.error.message);
+  if (logsResult.error) throw new Error(logsResult.error.message);
+
+  const ancla = (orderResult.data as { email_thread_message_id: string | null } | null)
+    ?.email_thread_message_id ?? null;
+  const enviados = ((logsResult.data ?? []) as Array<{ message_id: string | null }>)
+    .map((l) => l.message_id)
+    .filter((id): id is string => esMessageIdValido(id));
+
+  // El ancla primero aunque el log correspondiente se haya perdido: es la
+  // referencia que emparenta todo el hilo.
+  const referencias = esMessageIdValido(ancla)
+    ? [ancla as string, ...enviados.filter((id) => id !== ancla)]
+    : enviados;
+
+  return { abierto: referencias.length > 0, referencias };
+}
+
 export type NotifyResult = {
   estado: "enviado" | "fallido" | "sin_destinatarios";
   destinatarios: string[];
@@ -421,14 +477,20 @@ async function notificarPedido({
 }): Promise<NotifyResult> {
   const admin = createAdminClient();
 
-  async function registrar(result: NotifyResult, messageId: string | null, proveedor: string | null) {
+  async function registrar(
+    result: NotifyResult,
+    proveedorMessageId: string | null,
+    proveedor: string | null,
+    messageId: string | null = null,
+  ) {
     const { error } = await admin.from("notification_logs").insert({
       order_id: orderId,
       tipo,
       estado: result.estado,
       destinatarios: result.destinatarios,
       proveedor,
-      proveedor_message_id: messageId,
+      proveedor_message_id: proveedorMessageId,
+      message_id: messageId,
       error_mensaje: result.error ?? null,
     });
     // Si ni el log se puede escribir, no hay nada más que hacer acá: no
@@ -498,22 +560,57 @@ async function notificarPedido({
       );
     }
 
+    // Threading: este correo tiene su propio Message-ID y, si el pedido ya
+    // tiene hilo abierto, responde dentro de él. Ver domain/email-threading.ts
+    // para por qué el id lo generamos nosotros.
+    const hilo = await leerHiloDelPedido(admin, orderId);
+    const messageId = nuevoMessageId({
+      numero: base.numero,
+      dominio: normalizarDominio(emailFromAddress()),
+      unico: randomUUID(),
+    });
+    const headers = cabecerasDeHilo({ messageId, referencias: hilo.referencias });
+
+    // Dentro de un hilo, el asunto es el MISMO del correo inicial con
+    // "Re: " adelante. El evento concreto (descuento aprobado, rechazado)
+    // se lee en el título del cuerpo: cambiar el asunto es lo que hace que
+    // Outlook abra una conversación nueva.
+    // El asunto base se recalcula, no se guarda: sale del número del pedido
+    // y de la razón social del snapshot, que quedan fijos al enviarse.
+    const asuntoBase = buildOrderEmailSubject({ ...data, evento: null });
+    const asunto = hilo.abierto ? asuntoDeRespuesta(asuntoBase) : asuntoBase;
+
     const sent = await sendEmail({
       to: destinatarios,
-      subject: buildOrderEmailSubject(data),
+      subject: asunto,
       html: renderOrderEmailHtml(data),
       text: renderOrderEmailText(data),
       attachments,
+      headers,
     });
 
     if (!sent.ok) {
       const result: NotifyResult = { estado: "fallido", destinatarios, error: sent.error };
+      // Sin message_id: el correo no salió, así que ese id no existe en
+      // ninguna bandeja y meterlo en la cadena de References rompería el
+      // emparentado de los que sí salgan.
       await registrar(result, null, sent.proveedor);
       return result;
     }
 
     const result: NotifyResult = { estado: "enviado", destinatarios };
-    await registrar(result, sent.messageId, sent.proveedor);
+    await registrar(result, sent.messageId, sent.proveedor, messageId);
+
+    // El primer correo que sale de verdad abre el hilo: queda como ancla y
+    // su asunto es el que van a llevar todas las respuestas.
+    if (!hilo.abierto) {
+      const { error } = await admin
+        .from("orders")
+        .update({ email_thread_message_id: messageId })
+        .eq("id", orderId);
+      if (error) console.error("No se pudo guardar el ancla del hilo de correo:", error.message);
+    }
+
     return result;
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
