@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * Los tres avisos de un pedido tienen que salir como UN hilo.
  *
- * Esto ejercita el servicio de verdad —el que arma los encabezados y
- * guarda el ancla—, no una reimplementación: la base y el proveedor de
- * correo son lo único falso. Es la parte que "parece funcionar" con más
- * facilidad, porque un In-Reply-To mal armado no rompe nada visible: el
- * correo llega igual, sólo que como conversación nueva.
+ * Esto ejercita el servicio de verdad —el que arma los encabezados, lee el
+ * Message-ID real de Resend y guarda el ancla—, no una reimplementación:
+ * la base y el proveedor de correo son lo único falso. Es la parte que
+ * "parece funcionar" con más facilidad, porque un In-Reply-To mal armado no
+ * rompe nada visible: el correo llega igual, sólo que como conversación
+ * nueva.
  */
 
 // ---------------------------------------------------------------------
@@ -15,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // ---------------------------------------------------------------------
 
 type Log = {
+  id: number;
   order_id: string;
   tipo: string;
   estado: string;
@@ -43,31 +45,22 @@ const db = {
   reloj: 0,
 };
 
+/** Message-ID que "asigna Resend", por cada id interno. */
+const messageIdsDeResend = new Map<string, string | null>();
+
 function tabla(nombre: string) {
-  const api: Record<string, unknown> = {};
-  const chain = () => api as never;
-
-  Object.assign(api, {
-    select: chain,
-    eq: chain,
-    not: chain,
-    order: chain,
-    limit: chain,
-    then: undefined,
-  });
-
   if (nombre === "order_notification_recipients") {
     return {
-      select: () => ({ eq: async () => ({ data: [{ email: "aromero@logisalud.com" }], error: null }) }),
+      select: () => ({
+        eq: async () => ({ data: [{ email: "aromero@logisalud.com" }], error: null }),
+      }),
     };
   }
 
   if (nombre === "orders") {
     return {
       select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({ data: db.order, error: null }),
-        }),
+        eq: () => ({ maybeSingle: async () => ({ data: db.order, error: null }) }),
       }),
       update: (valores: { email_thread_message_id?: string }) => ({
         eq: async () => {
@@ -112,21 +105,34 @@ function tabla(nombre: string) {
     return {
       select: () => ({
         eq: () => ({
-          not: () => ({
+          eq: () => ({
             order: async () => ({
-              data: db.logs
-                .filter((l) => l.message_id !== null)
-                .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+              data: [...db.logs].sort((a, b) => a.created_at.localeCompare(b.created_at)),
               error: null,
             }),
           }),
         }),
       }),
-      insert: async (fila: Omit<Log, "created_at">) => {
+      insert: (fila: Omit<Log, "id" | "created_at" | "message_id">) => {
         db.reloj += 1;
-        db.logs.push({ ...fila, created_at: `2026-09-02T15:0${db.reloj}:00Z` });
-        return { error: null };
+        const log: Log = {
+          ...fila,
+          id: db.reloj,
+          message_id: null,
+          created_at: `2026-09-02T15:0${db.reloj}:00Z`,
+        };
+        db.logs.push(log);
+        return {
+          select: () => ({ maybeSingle: async () => ({ data: { id: log.id }, error: null }) }),
+        };
       },
+      update: (valores: { message_id?: string }) => ({
+        eq: async (_col: string, id: number) => {
+          const log = db.logs.find((l) => l.id === id);
+          if (log && valores.message_id !== undefined) log.message_id = valores.message_id;
+          return { error: null };
+        },
+      }),
     };
   }
 
@@ -136,86 +142,131 @@ function tabla(nombre: string) {
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ from: (nombre: string) => tabla(nombre) }),
 }));
-
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => ({ from: (nombre: string) => tabla(nombre) }),
 }));
-
-vi.mock("./audit-log", () => ({ logAudit: async () => {} }));
 vi.mock("@/services/audit-log", () => ({ logAudit: async () => {} }));
 
 const enviados: Array<{ subject: string; headers?: Record<string, string> }> = [];
 
 vi.mock("@/services/email", () => ({
-  emailFromAddress: () => "pedidos@logisalud.com",
   isEmailConfigured: () => true,
   sendEmail: async (input: { subject: string; headers?: Record<string, string> }) => {
     enviados.push({ subject: input.subject, headers: input.headers });
-    return { ok: true as const, proveedor: "resend" as const, messageId: `resend-${enviados.length}` };
+    const resendId = `resend-${enviados.length}`;
+    // Resend le asigna SU Message-ID, ignorando el que le mandemos.
+    if (!messageIdsDeResend.has(resendId)) {
+      messageIdsDeResend.set(resendId, `<010f-${enviados.length}@us-east-2.amazonses.com>`);
+    }
+    return { ok: true as const, proveedor: "resend" as const, messageId: resendId };
   },
+  fetchResendMessageId: async (resendId: string) => messageIdsDeResend.get(resendId) ?? null,
 }));
 
-const {
-  notifyOrderSubmitted,
+import {
   notifyDiscountRequested,
   notifyDiscountResolved,
-} = await import("@/services/order-notifications");
+  notifyOrderSubmitted,
+} from "@/services/order-notifications";
 
 beforeEach(() => {
   db.order.email_thread_message_id = null;
   db.logs = [];
   db.reloj = 0;
   enviados.length = 0;
+  messageIdsDeResend.clear();
 });
 
 describe("los tres avisos de un pedido forman un solo hilo", () => {
-  it("el primero abre el hilo; los siguientes responden dentro", async () => {
+  it("el hilo se arma con los Message-ID REALES de Resend", async () => {
     const r1 = await notifyOrderSubmitted("o1", "COMMERCIAL_EXCEPTION", "u1");
     const r2 = await notifyDiscountRequested("o1", "COMMERCIAL_EXCEPTION", "u1");
     const r3 = await notifyDiscountResolved("o1", "READY_FOR_OPERATIONS", "u1", "APROBAR");
 
     expect([r1.estado, r2.estado, r3.estado]).toEqual(["enviado", "enviado", "enviado"]);
-    expect(enviados).toHaveLength(3);
-
     const [uno, dos, tres] = enviados;
 
-    // 1) El primero lleva sólo su Message-ID y el asunto base.
+    const idReal1 = "<010f-1@us-east-2.amazonses.com>";
+    const idReal2 = "<010f-2@us-east-2.amazonses.com>";
+
+    // 1) El primero: asunto base y NINGÚN encabezado de threading (no se
+    //    manda Message-ID propio porque Resend lo reescribe).
     expect(uno.subject).toBe("Nuevo pedido #123 — FARMACIA QUEEN");
-    expect(uno.headers?.["Message-ID"]).toMatch(/^<pedido-123\..+@logisalud\.com>$/);
-    expect(uno.headers?.["In-Reply-To"]).toBeUndefined();
-    expect(uno.headers?.References).toBeUndefined();
+    expect(uno.headers).toEqual({});
 
-    const ancla = uno.headers?.["Message-ID"] as string;
+    // Y el ancla guardada es el Message-ID real, no uno inventado.
+    expect(db.order.email_thread_message_id).toBe(idReal1);
+    expect(db.logs[0].message_id).toBe(idReal1);
 
-    // Y queda guardado como ancla del hilo.
-    expect(db.order.email_thread_message_id).toBe(ancla);
-
-    // 2) El segundo responde al primero y lo referencia.
+    // 2) Responde al primero, con el id real.
     expect(dos.subject).toBe("Re: Nuevo pedido #123 — FARMACIA QUEEN");
-    expect(dos.headers?.["In-Reply-To"]).toBe(ancla);
-    expect(dos.headers?.References).toBe(ancla);
+    expect(dos.headers).toEqual({ "In-Reply-To": idReal1, References: idReal1 });
 
-    // 3) El tercero responde al SEGUNDO y acumula la cadena completa.
-    const segundo = dos.headers?.["Message-ID"] as string;
+    // 3) Responde al SEGUNDO y acumula la cadena real completa.
     expect(tres.subject).toBe("Re: Nuevo pedido #123 — FARMACIA QUEEN");
-    expect(tres.headers?.["In-Reply-To"]).toBe(segundo);
-    expect(tres.headers?.References).toBe(`${ancla} ${segundo}`);
-
-    // Los tres Message-ID son distintos: dos correos con el mismo id es
-    // otra forma de romper el hilo.
-    const ids = enviados.map((e) => e.headers?.["Message-ID"]);
-    expect(new Set(ids).size).toBe(3);
+    expect(tres.headers).toEqual({
+      "In-Reply-To": idReal2,
+      References: `${idReal1} ${idReal2}`,
+    });
 
     // El ancla no se reescribe con cada aviso.
-    expect(db.order.email_thread_message_id).toBe(ancla);
+    expect(db.order.email_thread_message_id).toBe(idReal1);
   });
 
-  it("un envío que falla no entra en la cadena", async () => {
+  it("si el correo quedó en cola, el aviso siguiente resuelve el hueco", async () => {
+    // Resend todavía no le asignó Message-ID al primero cuando se envía.
+    messageIdsDeResend.set("resend-1", null);
+    await notifyOrderSubmitted("o1", "SUBMITTED", "u1");
+    expect(db.logs[0].message_id).toBeNull();
+    expect(db.order.email_thread_message_id).toBeNull();
+
+    // Ya salió: ahora sí tiene id. El aviso siguiente lo busca antes de
+    // armar su cadena, así que el hilo se recupera en vez de quedar partido.
+    messageIdsDeResend.set("resend-1", "<010f-tarde@us-east-2.amazonses.com>");
+    await notifyDiscountRequested("o1", "COMMERCIAL_EXCEPTION", "u1");
+
+    expect(db.logs[0].message_id).toBe("<010f-tarde@us-east-2.amazonses.com>");
+    expect(db.order.email_thread_message_id).toBe("<010f-tarde@us-east-2.amazonses.com>");
+    expect(enviados[1].headers).toEqual({
+      "In-Reply-To": "<010f-tarde@us-east-2.amazonses.com>",
+      References: "<010f-tarde@us-east-2.amazonses.com>",
+    });
+    expect(enviados[1].subject).toBe("Re: Nuevo pedido #123 — FARMACIA QUEEN");
+  });
+
+  it("un id fabricado por la implementación anterior se ignora y se corrige", async () => {
+    // Estado real de los pedidos que ya salieron con el intento anterior:
+    // un ancla que Resend nunca usó. Referenciarla no enlaza nada.
+    db.order.email_thread_message_id = "<pedido-123.viejo-uuid@logisalud.com>";
+    db.logs.push({
+      id: 99,
+      order_id: "o1",
+      tipo: "pedido_enviado",
+      estado: "enviado",
+      message_id: "<pedido-123.viejo-uuid@logisalud.com>",
+      proveedor_message_id: "resend-viejo",
+      created_at: "2026-09-01T10:00:00Z",
+    });
+    messageIdsDeResend.set("resend-viejo", "<010f-viejo-real@us-east-2.amazonses.com>");
+    db.reloj = 99;
+
+    await notifyDiscountRequested("o1", "COMMERCIAL_EXCEPTION", "u1");
+
+    // El id fabricado se reemplaza por el real, que sí existe en la bandeja.
+    expect(db.logs[0].message_id).toBe("<010f-viejo-real@us-east-2.amazonses.com>");
+    expect(db.order.email_thread_message_id).toBe("<010f-viejo-real@us-east-2.amazonses.com>");
+    expect(enviados[0].headers).toEqual({
+      "In-Reply-To": "<010f-viejo-real@us-east-2.amazonses.com>",
+      References: "<010f-viejo-real@us-east-2.amazonses.com>",
+    });
+  });
+
+  it("un envío fallido no entra en la cadena", async () => {
     const email = await import("@/services/email");
     const spy = vi.spyOn(email, "sendEmail");
 
     await notifyOrderSubmitted("o1", "SUBMITTED", "u1");
-    const ancla = enviados[0].headers?.["Message-ID"] as string;
+    const idReal1 = "<010f-1@us-east-2.amazonses.com>";
 
     spy.mockResolvedValueOnce({
       ok: false,
@@ -230,32 +281,7 @@ describe("los tres avisos de un pedido forman un solo hilo", () => {
 
     // El correo que no salió no existe en ninguna bandeja: referenciarlo
     // rompería el emparentado del que sí salió.
-    const ultimo = enviados.at(-1);
-    expect(ultimo?.headers?.References).toBe(ancla);
-    expect(ultimo?.headers?.["In-Reply-To"]).toBe(ancla);
-    spy.mockRestore();
-  });
-
-  it("si el primer correo falla, el siguiente abre el hilo", async () => {
-    const email = await import("@/services/email");
-    const spy = vi.spyOn(email, "sendEmail");
-    spy.mockResolvedValueOnce({
-      ok: false,
-      proveedor: "resend",
-      error: "Resend respondió 500",
-    } as never);
-
-    const primero = await notifyOrderSubmitted("o1", "SUBMITTED", "u1");
-    expect(primero.estado).toBe("fallido");
-    expect(db.order.email_thread_message_id).toBeNull();
-
-    const segundo = await notifyDiscountRequested("o1", "COMMERCIAL_EXCEPTION", "u1");
-    expect(segundo.estado).toBe("enviado");
-    const ultimo = enviados.at(-1);
-    // Sin hilo previo: asunto base, sin Re:, y queda como ancla.
-    expect(ultimo?.subject).toBe("Nuevo pedido #123 — FARMACIA QUEEN");
-    expect(ultimo?.headers?.["In-Reply-To"]).toBeUndefined();
-    expect(db.order.email_thread_message_id).toBe(ultimo?.headers?.["Message-ID"]);
+    expect(enviados.at(-1)?.headers).toEqual({ "In-Reply-To": idReal1, References: idReal1 });
     spy.mockRestore();
   });
 });

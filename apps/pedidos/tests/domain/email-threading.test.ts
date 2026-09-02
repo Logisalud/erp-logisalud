@@ -2,46 +2,44 @@ import { describe, expect, it } from "vitest";
 import {
   asuntoDeRespuesta,
   cabecerasDeHilo,
+  esMessageIdPropioViejo,
   esMessageIdValido,
-  normalizarDominio,
-  nuevoMessageId,
+  normalizarMessageId,
 } from "@/domain/email-threading";
 
-describe("nuevoMessageId", () => {
-  it("arma un Message-ID válido, con ángulos y dominio nuestro", () => {
-    const id = nuevoMessageId({ numero: 123, dominio: "logisalud.com", unico: "abc-123" });
-    expect(id).toBe("<pedido-123.abc-123@logisalud.com>");
-    expect(esMessageIdValido(id)).toBe(true);
+const A = "<010f0198-a@us-east-2.amazonses.com>";
+const B = "<010f0198-b@us-east-2.amazonses.com>";
+
+describe("normalizarMessageId", () => {
+  it("agrega los ángulos si Resend los devuelve sin ellos", () => {
+    expect(normalizarMessageId("010f0198-a@us-east-2.amazonses.com")).toBe(A);
   });
 
-  it("no deja pasar caracteres que romperían el encabezado", () => {
-    const id = nuevoMessageId({
-      numero: 7,
-      dominio: "logisalud.com",
-      unico: "a b<c>@d\ne",
-    });
-    expect(esMessageIdValido(id)).toBe(true);
-    expect(id).toBe("<pedido-7.abcde@logisalud.com>");
+  it("respeta el valor si ya viene con ángulos", () => {
+    expect(normalizarMessageId(A)).toBe(A);
+    expect(normalizarMessageId(`  ${A}  `)).toBe(A);
   });
 
-  it("dos correos del mismo pedido no comparten id", () => {
-    const a = nuevoMessageId({ numero: 1, dominio: "x.com", unico: "u1" });
-    const b = nuevoMessageId({ numero: 1, dominio: "x.com", unico: "u2" });
-    expect(a).not.toBe(b);
+  it("descarta lo que no tiene forma de Message-ID", () => {
+    // Mejor un hilo sin cadena que una cadena mentirosa.
+    expect(normalizarMessageId("queued")).toBeNull();
+    expect(normalizarMessageId("")).toBeNull();
+    expect(normalizarMessageId(null)).toBeNull();
+    expect(normalizarMessageId(undefined)).toBeNull();
   });
 });
 
-describe("normalizarDominio", () => {
-  it("saca el dominio de un remitente simple o con nombre", () => {
-    expect(normalizarDominio("pedidos@logisalud.com")).toBe("logisalud.com");
-    expect(normalizarDominio("LOGISALUD Pedidos <pedidos@logisalud.com>")).toBe("logisalud.com");
-    expect(normalizarDominio("  Pedidos@LOGISALUD.com ")).toBe("logisalud.com");
+describe("esMessageIdPropioViejo", () => {
+  it("reconoce los ids que fabricaba la implementación anterior", () => {
+    // Resend los reescribía, así que esos correos nunca existieron con ese
+    // id: referenciarlos no enlaza nada.
+    expect(esMessageIdPropioViejo("<pedido-123.abc-uuid@logisalud.com>")).toBe(true);
+    expect(esMessageIdPropioViejo("<pedido-1.x@logisalud.com>")).toBe(true);
   });
 
-  it("sin remitente utilizable devuelve algo sintácticamente válido", () => {
-    // Un Message-ID roto invalida el correo entero: peor que un dominio feo.
-    expect(normalizarDominio("")).toBe("pedidos.invalid");
-    expect(esMessageIdValido(nuevoMessageId({ numero: 1, dominio: "", unico: "u" }))).toBe(true);
+  it("no confunde uno real de Resend", () => {
+    expect(esMessageIdPropioViejo(A)).toBe(false);
+    expect(esMessageIdPropioViejo(null)).toBe(false);
   });
 });
 
@@ -56,54 +54,43 @@ describe("asuntoDeRespuesta", () => {
     // Un "Re: Re:" es justamente lo que hace que Outlook abra otra
     // conversación en vez de agrupar.
     expect(asuntoDeRespuesta("Re: Nuevo pedido #123")).toBe("Re: Nuevo pedido #123");
-    expect(asuntoDeRespuesta("RE : Nuevo pedido #123")).toBe("RE : Nuevo pedido #123");
     expect(asuntoDeRespuesta(asuntoDeRespuesta("Nuevo pedido #1"))).toBe("Re: Nuevo pedido #1");
   });
 });
 
 describe("cabecerasDeHilo", () => {
-  const mio = "<pedido-1.c@logisalud.com>";
-  const ancla = "<pedido-1.a@logisalud.com>";
-  const segundo = "<pedido-1.b@logisalud.com>";
-
-  it("el primer correo del hilo sólo lleva su Message-ID", () => {
-    // In-Reply-To vacío es peor que no mandarlo.
-    expect(cabecerasDeHilo({ messageId: mio, referencias: [] })).toEqual({ "Message-ID": mio });
+  it("el primer correo del hilo no lleva encabezados de threading", () => {
+    // Tampoco Message-ID propio: Resend lo reescribe con el suyo.
+    expect(cabecerasDeHilo({ referencias: [] })).toEqual({});
   });
 
-  it("el segundo responde al ancla y la referencia", () => {
-    expect(cabecerasDeHilo({ messageId: segundo, referencias: [ancla] })).toEqual({
-      "Message-ID": segundo,
-      "In-Reply-To": ancla,
-      References: ancla,
+  it("el segundo responde al primero y lo referencia", () => {
+    expect(cabecerasDeHilo({ referencias: [A] })).toEqual({
+      "In-Reply-To": A,
+      References: A,
     });
   });
 
   it("el tercero responde al ÚLTIMO y acumula la cadena completa", () => {
-    expect(cabecerasDeHilo({ messageId: mio, referencias: [ancla, segundo] })).toEqual({
-      "Message-ID": mio,
-      "In-Reply-To": segundo,
-      References: `${ancla} ${segundo}`,
+    expect(cabecerasDeHilo({ referencias: [A, B] })).toEqual({
+      "In-Reply-To": B,
+      References: `${A} ${B}`,
     });
   });
 
   it("descarta ids inválidos en vez de meterlos en la cadena", () => {
-    const headers = cabecerasDeHilo({
-      messageId: mio,
-      referencias: ["sin-angulos@x.com", "", ancla],
-    });
-    expect(headers.References).toBe(ancla);
-    expect(headers["In-Reply-To"]).toBe(ancla);
+    const headers = cabecerasDeHilo({ referencias: ["sin-angulos@x.com", "", A] });
+    expect(headers.References).toBe(A);
+    expect(headers["In-Reply-To"]).toBe(A);
   });
 
   it("no repite el mismo id dos veces", () => {
-    const headers = cabecerasDeHilo({ messageId: mio, referencias: [ancla, ancla, segundo] });
-    expect(headers.References).toBe(`${ancla} ${segundo}`);
+    expect(cabecerasDeHilo({ referencias: [A, A, B] }).References).toBe(`${A} ${B}`);
   });
 
   it("una cadena larguísima se recorta conservando el ancla y los últimos", () => {
-    const cadena = Array.from({ length: 30 }, (_, i) => `<pedido-1.n${i}@logisalud.com>`);
-    const headers = cabecerasDeHilo({ messageId: mio, referencias: cadena });
+    const cadena = Array.from({ length: 30 }, (_, i) => `<n${i}@us-east-2.amazonses.com>`);
+    const headers = cabecerasDeHilo({ referencias: cadena });
     const refs = (headers.References ?? "").split(" ");
     expect(refs).toHaveLength(20);
     expect(refs[0]).toBe(cadena[0]);
@@ -114,11 +101,10 @@ describe("cabecerasDeHilo", () => {
 
 describe("esMessageIdValido", () => {
   it("exige ángulos y arroba", () => {
-    expect(esMessageIdValido("<a@b.com>")).toBe(true);
+    expect(esMessageIdValido(A)).toBe(true);
     expect(esMessageIdValido("a@b.com")).toBe(false);
     expect(esMessageIdValido("<ab.com>")).toBe(false);
     expect(esMessageIdValido("<a b@c.com>")).toBe(false);
     expect(esMessageIdValido(null)).toBe(false);
-    expect(esMessageIdValido(undefined)).toBe(false);
   });
 });

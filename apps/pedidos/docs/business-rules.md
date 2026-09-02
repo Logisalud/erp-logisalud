@@ -950,12 +950,33 @@ van como un solo hilo, con threading de verdad y no "mismo asunto":
   conversación—. Qué avisa cada correo se lee en el título del cuerpo,
   no en el asunto.
 
-**El `Message-ID` lo generamos nosotros** (`domain/email-threading.ts`),
-colgado del dominio del remitente, y va en el campo `headers` del payload
-de Resend. No se usa el id que devuelve la API al enviar: ese es el id
-interno de Resend (un UUID), no el `Message-ID` del correo, así que armar
-el hilo con él obligaría a adivinar cómo lo compone. Generándolo acá el
-ancla es un dato nuestro y no depende de ninguna suposición.
+**El `Message-ID` es el de Resend, leído después de enviar** (`1014`). El
+primer intento fue generarlo nosotros y mandarlo en `headers`, y no
+funciona: comprobado contra el encabezado real de un correo recibido en
+Outlook, **Resend reescribe el `Message-ID` de salida** con su propio
+formato (`@…amazonses.com`) e ignora el valor personalizado. El correo 2
+referenciaba entonces un id que nunca existió en el correo 1, así que
+ningún cliente podía enlazarlos. `In-Reply-To` y `References` sí se
+respetan tal cual se envían.
+
+El flujo real es: enviar, y con el `id` interno que devuelve el POST
+consultar `GET /emails/{id}` — cuya respuesta trae `message_id`, además
+de `id`, `to`, `from`, `subject`, `html`, `text`, `cc`, `bcc`,
+`reply_to`, `created_at`, `scheduled_at`, `last_event`, `tags` y
+`object`. Ese `message_id` es el que se guarda.
+
+**Ya no se manda `Message-ID` propio**: era ruido, y encima invitaba a
+armar la cadena con ids inexistentes.
+
+Un correo puede quedar **en cola** en el momento del envío: ahí Resend
+todavía no le asignó `message_id`, y la consulta vuelve vacía. Se
+reintenta un par de veces con esperas cortas (el vendedor ya vio "pedido
+enviado", no se lo hace esperar más) y, si no aparece, el **aviso
+siguiente resuelve el hueco** antes de armar su cadena, buscando el
+`message_id` a partir del `proveedor_message_id` que sí quedó guardado.
+El hilo se recupera solo en vez de quedar partido por un timing de un
+segundo. Por lo mismo, un id fabricado por la implementación vieja
+(`<pedido-N.…>`) se ignora y se reemplaza por el real.
 
 La cadena se arma con `notification_logs.message_id`, que guarda con qué
 `Message-ID` salió cada aviso. **Un envío fallido no entra en la cadena**
