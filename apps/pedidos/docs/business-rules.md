@@ -1080,6 +1080,60 @@ bonificación calculada por volumen), que sigue pendiente de diseño a la
 espera del archivo de promociones. Sólo permite cargar a mano una
 bonificación ya acordada con el cliente.
 
+## Las 18 bonificaciones creadas como producto (`1016`)
+
+Los códigos `BO…` no aparecían en el buscador por una razón más simple que
+la del precio: **no existían como fila de `products`**. De 40 productos que
+declaran un `codigo_bonificacion`, sólo `BODHP106` existía —y por
+accidente: el proveedor lo puso como una fila más de su lista de precios—.
+Sin el producto, la excepción de precio cero de `1015` no habilitaba nada.
+
+Se crearon **18**, confirmadas por el administrador el 2026-09-02 sobre un
+reporte de priorización. El criterio, con datos: **par regular ACTIVO y con
+precio vigente en los 6 canales**, o sea productos que hoy se pueden vender
+y cuya bonificación se puede necesitar mañana.
+
+```
+BODHP002  BODHP003  BODHP007  BODHP008  BODHP016  BODHP019
+BODHP022  BODHP206  BODHP207  BODHP208  BODHP217  BODHP301
+BODHP303  BODHP304  BODHP402  BODHP405  BODHP407  BODHP408
+```
+
+Cada una copia del par regular la descripción **exacta**, presentación,
+unidad de medida, proveedor, código de proveedor y principio activo. La
+descripción idéntica es deliberada: es lo que hace que
+`displayNombreProducto` pueda marcarlas con `(Bonificación)` y que esa
+marca sea lo único que las distingue en el buscador — ver "Bonificaciones:
+el prefijo `BO`".
+
+**Sin precio en `price_list_items`, a propósito.** Se entregan gratis:
+entran al pedido a S/ 0.00 explícito por la excepción de `1015`. Darles
+precio las convertiría en un producto vendible más.
+
+Las otras 22 quedaron fuera y siguen sin existir como producto: 16 tienen
+el par regular inactivo, 4 no tienen precio en ningún canal (familia DAPHA
+y una amoxicilina), `BODHP027` espera el precio de Clínicas de su par y
+`BODHP106` ya existía.
+
+### El tratamiento tributario de estas 18 NO está resuelto
+
+Heredan el perfil de su par regular: las 18 quedaron **GRAVADO 18%**. Es lo
+único defendible con la información de hoy, pero **no es una decisión de
+Contabilidad**, y conviene tratarlo como provisional:
+
+- En el catálogo de NubeFact, de **207 códigos `BO` sólo 2 son INAFECTO**
+  (`BODHP109` JAMOL 5 y `BODHP110` GLICOFAST 1000), sin criterio visible
+  que explique por qué esas dos y no las otras 205.
+- Si el tratamiento correcto de una bonificación es el de **transferencia
+  gratuita** —y por lo tanto INAFECTA por regla general—, entonces estas 18
+  están mal y hay que corregirlas.
+
+**Cómo corregirlas si Contabilidad lo determina:** versionando el perfil
+(cerrar el vigente con `vigente_hasta` e insertar el nuevo), nunca
+editándolo en su lugar. Los pedidos ya emitidos conservan su afectación
+porque `order_items` la copia al enviarse. Se cruza con el supuesto
+pendiente #1 de Fase 6.
+
 ## Qué NO cubre esta fase
 
 Explícitamente fuera de alcance por ahora (ver README y CLAUDE.md):
