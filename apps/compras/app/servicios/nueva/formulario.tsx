@@ -36,13 +36,21 @@ export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[]
           <Campo etiqueta="Monto estimado" error={errorDe('montoEstimado')}>
             <input type="number" name="montoEstimado" min="0" step="0.01" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
           </Campo>
-          <Campo etiqueta="Moneda">
-            <select name="moneda" defaultValue="PEN" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
-              <option value="PEN">PEN — Soles</option>
-              <option value="USD">USD — Dólares</option>
+          <Campo etiqueta="¿El monto es con IGV o sin IGV?" error={errorDe('montoIncluyeIgv')}>
+            <select name="montoIncluyeIgv" defaultValue="" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+              <option value="" disabled>Elegir...</option>
+              <option value="false">Sin IGV (es la base imponible)</option>
+              <option value="true">Con IGV (es el total)</option>
             </select>
           </Campo>
         </div>
+
+        <Campo etiqueta="Moneda">
+          <select name="moneda" defaultValue="PEN" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+            <option value="PEN">PEN — Soles</option>
+            <option value="USD">USD — Dólares</option>
+          </select>
+        </Campo>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo etiqueta="Condición de pago en días">

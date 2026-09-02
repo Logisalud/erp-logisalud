@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   estadoTrasConformidad, estadoTrasSubirFactura, transicionPermitida,
-  validarObligacionServicio, validarOS, superaUmbralDetraccion,
+  validarObligacionServicio, validarOS, superaUmbralDetraccion, facturaSuperaMontoOS,
 } from '@/domain/servicio'
 
 describe('superaUmbralDetraccion', () => {
@@ -64,7 +64,7 @@ describe('estadoTrasConformidad', () => {
 describe('validarOS', () => {
   const base = {
     proveedorServicioId: 'p-1', descripcionServicio: 'Mantenimiento', montoEstimado: 800,
-    moneda: 'PEN' as const, condicionesPagoDias: 30,
+    montoIncluyeIgv: false, moneda: 'PEN' as const, condicionesPagoDias: 30,
   }
 
   it('sin errores con un borrador completo', () => {
@@ -73,6 +73,15 @@ describe('validarOS', () => {
 
   it('exige proveedor de servicio', () => {
     expect(validarOS({ ...base, proveedorServicioId: '' }).some((e) => e.campo === 'proveedorServicioId')).toBe(true)
+  })
+
+  it('exige indicar si el monto es con o sin IGV — no se puede dejar ambiguo', () => {
+    expect(validarOS({ ...base, montoIncluyeIgv: null }).some((e) => e.campo === 'montoIncluyeIgv')).toBe(true)
+  })
+
+  it('acepta explícitamente con IGV (true) o sin IGV (false)', () => {
+    expect(validarOS({ ...base, montoIncluyeIgv: true })).toEqual([])
+    expect(validarOS({ ...base, montoIncluyeIgv: false })).toEqual([])
   })
 
   it('exige condición de pago — no se puede dejar en blanco', () => {
@@ -105,5 +114,36 @@ describe('validarObligacionServicio', () => {
 
   it('exige número de factura', () => {
     expect(validarObligacionServicio({ ...base, numeroFactura: '' }).some((e) => e.campo === 'numeroFactura')).toBe(true)
+  })
+
+  it('bloquea si la factura supera el monto de la OS (hallazgo de Mariela, Contabilidad)', () => {
+    const os = { montoEstimado: 100, montoIncluyeIgv: false, moneda: 'PEN' as const }
+    const errores = validarObligacionServicio({ ...base, baseImponible: 150, igv: 0 }, os)
+    expect(errores.some((e) => e.campo === 'baseImponible' && e.mensaje.includes('supera el monto de la Orden de Servicio'))).toBe(true)
+  })
+
+  it('no bloquea si la factura calza con el monto de la OS', () => {
+    const os = { montoEstimado: 118, montoIncluyeIgv: true, moneda: 'PEN' as const }
+    expect(validarObligacionServicio({ ...base, baseImponible: 100, igv: 18 }, os)).toEqual([])
+  })
+
+  it('sin contexto de OS no valida el tope (compatibilidad con llamadas que no lo pasan)', () => {
+    expect(validarObligacionServicio(base)).toEqual([])
+  })
+})
+
+describe('facturaSuperaMontoOS', () => {
+  it('OS "sin IGV": compara contra la base imponible de la factura', () => {
+    expect(facturaSuperaMontoOS(100, 18, 100, false)).toBe(false)
+    expect(facturaSuperaMontoOS(100.01, 0, 100, false)).toBe(true)
+  })
+
+  it('OS "con IGV": compara contra el total (base + IGV) de la factura', () => {
+    expect(facturaSuperaMontoOS(100, 18, 118, true)).toBe(false)
+    expect(facturaSuperaMontoOS(100, 18.01, 118, true)).toBe(true)
+  })
+
+  it('OS vieja sin el dato (montoIncluyeIgv null): nunca bloquea', () => {
+    expect(facturaSuperaMontoOS(999999, 0, 1, null)).toBe(false)
   })
 })

@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { registrarObligacionServicioAction, type EstadoFormulario } from './actions'
-import { superaUmbralDetraccion, UMBRAL_DETRACCION_SERVICIOS_PEN, type Moneda } from '@/domain/servicio'
+import { facturaSuperaMontoOS, superaUmbralDetraccion, UMBRAL_DETRACCION_SERVICIOS_PEN, type Moneda } from '@/domain/servicio'
 
 const SUGERENCIA_IGV = 0.18
 
-export function FormularioObligacionServicio({ osId, moneda }: { osId: string; moneda: string }) {
+export function FormularioObligacionServicio({
+  osId, moneda, montoEstimado, montoIncluyeIgv,
+}: { osId: string; moneda: string; montoEstimado: number; montoIncluyeIgv: boolean | null }) {
   const accionConDatos = registrarObligacionServicioAction.bind(null, osId)
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(accionConDatos, null)
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
@@ -25,6 +27,7 @@ export function FormularioObligacionServicio({ osId, moneda }: { osId: string; m
   }
 
   const total = (Number(base) || 0) + (Number(igv) || 0)
+  const superaMontoOS = facturaSuperaMontoOS(Number(base) || 0, Number(igv) || 0, montoEstimado, montoIncluyeIgv)
 
   return (
     <form action={accion} className="space-y-4">
@@ -78,17 +81,24 @@ export function FormularioObligacionServicio({ osId, moneda }: { osId: string; m
             registro.
           </p>
         ) : null}
+
+        {superaMontoOS ? (
+          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
+            Factura supera el valor de la Orden de Servicio ({moneda} {montoEstimado.toFixed(2)}
+            {montoIncluyeIgv ? ' con IGV' : ' sin IGV'}) — corrige el monto antes de guardar.
+          </p>
+        ) : null}
       </section>
 
-      <BotonGuardar />
+      <BotonGuardar deshabilitado={superaMontoOS} />
     </form>
   )
 }
 
-function BotonGuardar() {
+function BotonGuardar({ deshabilitado }: { deshabilitado: boolean }) {
   const { pending } = useFormStatus()
   return (
-    <button type="submit" disabled={pending} className="btn-primary w-full sm:w-auto">
+    <button type="submit" disabled={pending || deshabilitado} className="btn-primary w-full sm:w-auto">
       {pending ? 'Guardando…' : 'Registrar obligación'}
     </button>
   )

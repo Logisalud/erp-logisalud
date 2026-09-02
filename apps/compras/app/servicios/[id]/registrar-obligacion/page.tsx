@@ -18,7 +18,12 @@ export default async function RegistrarObligacionServicio({ params }: { params: 
         <p className="text-sm text-gray-600">{os.proveedor?.razon_social} · {os.descripcion_servicio}</p>
       </section>
 
-      <FormularioObligacionServicio osId={os.id} moneda={os.moneda} />
+      <FormularioObligacionServicio
+        osId={os.id}
+        moneda={os.moneda}
+        montoEstimado={Number(os.monto_estimado)}
+        montoIncluyeIgv={os.monto_incluye_igv}
+      />
     </main>
   )
 }

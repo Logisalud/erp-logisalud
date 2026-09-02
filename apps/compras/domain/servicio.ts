@@ -74,6 +74,10 @@ export type BorradorOS = {
   proveedorServicioId: string
   descripcionServicio: string
   montoEstimado: number
+  /** true = montoEstimado ya incluye IGV, false = es la base sin IGV. Null
+   *  solo en OS viejas que se crearon antes de este campo (ver 0033) —
+   *  las nuevas lo piden siempre, no queda ambiguo como antes. */
+  montoIncluyeIgv: boolean | null
   moneda: Moneda
   condicionesPagoDias?: number | null
   fechaEntregaEstimada?: string | null
@@ -84,6 +88,9 @@ export function validarOS(b: BorradorOS): ErrorValidacion[] {
   if (!b.proveedorServicioId) errores.push({ campo: 'proveedorServicioId', mensaje: 'Elige un proveedor de servicio.' })
   if (!b.descripcionServicio.trim()) errores.push({ campo: 'descripcionServicio', mensaje: 'Cuenta qué servicio es.' })
   if (!(Number(b.montoEstimado) > 0)) errores.push({ campo: 'montoEstimado', mensaje: 'El monto estimado tiene que ser mayor a 0.' })
+  if (b.montoIncluyeIgv == null) {
+    errores.push({ campo: 'montoIncluyeIgv', mensaje: 'Indica si el monto es con IGV o sin IGV.' })
+  }
   if (b.moneda !== 'PEN' && b.moneda !== 'USD') errores.push({ campo: 'moneda', mensaje: 'La moneda tiene que ser PEN o USD.' })
   if (b.condicionesPagoDias == null) {
     errores.push({ campo: 'condicionesPagoDias', mensaje: 'Pon la condición de pago (0 = contado).' })
@@ -91,6 +98,29 @@ export function validarOS(b: BorradorOS): ErrorValidacion[] {
     errores.push({ campo: 'condicionesPagoDias', mensaje: 'Los días no pueden ser negativos.' })
   }
   return errores
+}
+
+/**
+ * Regla nueva (hallazgo de Mariela, Contabilidad): la factura real de una
+ * OS no puede pedir más de lo que la OS aprobó. Compara sobre la MISMA
+ * base que `montoIncluyeIgv` señaló al crear la OS — si el monto estimado
+ * es "sin IGV", se compara contra la base imponible de la factura (nunca
+ * se inventa una tasa de IGV para "completar" la comparación); si es "con
+ * IGV", se compara contra el total (base + IGV) de la factura.
+ *
+ * `montoIncluyeIgv === null` (OS vieja, de antes de 0033) → no hay forma
+ * de saber la base de comparación real, así que no se bloquea nada: mejor
+ * dejar pasar que bloquear con un dato que no existe.
+ */
+export function facturaSuperaMontoOS(
+  baseImponible: number,
+  igv: number,
+  montoEstimado: number,
+  montoIncluyeIgv: boolean | null
+): boolean {
+  if (montoIncluyeIgv == null) return false
+  const montoFactura = montoIncluyeIgv ? Number(baseImponible) + Number(igv) : Number(baseImponible)
+  return montoFactura > montoEstimado
 }
 
 /**
@@ -108,7 +138,10 @@ export type BorradorObligacionServicio = {
   igv: number
 }
 
-export function validarObligacionServicio(b: BorradorObligacionServicio): ErrorValidacion[] {
+/** Datos de la OS necesarios para chequear que la factura no la supere — ver facturaSuperaMontoOS. */
+export type OSParaValidarFactura = { montoEstimado: number; montoIncluyeIgv: boolean | null; moneda: Moneda }
+
+export function validarObligacionServicio(b: BorradorObligacionServicio, os?: OSParaValidarFactura): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
   if (!b.numeroFactura.trim()) errores.push({ campo: 'numeroFactura', mensaje: 'Falta el número de factura.' })
   if (!b.fechaFactura) errores.push({ campo: 'fechaFactura', mensaje: 'Falta la fecha de factura.' })
@@ -117,6 +150,12 @@ export function validarObligacionServicio(b: BorradorObligacionServicio): ErrorV
   }
   if (b.igv == null || Number(b.igv) < 0) {
     errores.push({ campo: 'igv', mensaje: 'Pon el IGV tal como figura en la factura (puede ser 0).' })
+  }
+  if (os && facturaSuperaMontoOS(Number(b.baseImponible), Number(b.igv), os.montoEstimado, os.montoIncluyeIgv)) {
+    errores.push({
+      campo: 'baseImponible',
+      mensaje: `La factura supera el monto de la Orden de Servicio (${os.moneda} ${os.montoEstimado.toFixed(2)}${os.montoIncluyeIgv ? ' con IGV' : ' sin IGV'}).`,
+    })
   }
   return errores
 }

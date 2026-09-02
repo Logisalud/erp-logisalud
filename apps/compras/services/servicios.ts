@@ -1,7 +1,7 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import {
-  estadoTrasConformidad, estadoTrasSubirFactura,
+  estadoTrasConformidad, estadoTrasSubirFactura, facturaSuperaMontoOS,
   type BorradorObligacionServicio, type BorradorOS, type EstadoOS,
 } from '@/domain/servicio'
 import { normalizarNumeroFactura } from '@/domain/obligacion'
@@ -77,6 +77,7 @@ export async function crearOS(borrador: BorradorOS): Promise<{ id: string }> {
       proveedor_servicio_id: borrador.proveedorServicioId,
       descripcion_servicio: borrador.descripcionServicio,
       monto_estimado: borrador.montoEstimado,
+      monto_incluye_igv: borrador.montoIncluyeIgv,
       moneda: borrador.moneda,
       condiciones_pago_dias: borrador.condicionesPagoDias ?? null,
       fecha_entrega_estimada: borrador.fechaEntregaEstimada ?? null,
@@ -126,6 +127,7 @@ export async function listarOSPendientes(): Promise<OSListada[]> {
 
 export type OSDetalle = OSListada & {
   proveedor: ProveedorServicio | null
+  monto_incluye_igv: boolean | null
   condiciones_pago_dias: number | null
   fecha_entrega_estimada: string | null
   storage_path_factura_proveedor: string | null
@@ -138,7 +140,7 @@ export async function obtenerOS(id: string): Promise<OSDetalle | null> {
   const { data, error } = await supabase
     .schema('servicios')
     .from('ordenes_servicio')
-    .select(`id, codigo, estado, descripcion_servicio, monto_estimado, moneda, area_solicitante, created_at,
+    .select(`id, codigo, estado, descripcion_servicio, monto_estimado, monto_incluye_igv, moneda, area_solicitante, created_at,
              proveedor_servicio_id, condiciones_pago_dias, fecha_entrega_estimada, storage_path_factura_proveedor`)
     .eq('id', id)
     .maybeSingle()
@@ -286,12 +288,16 @@ export async function registrarObligacionDesdeOS(borrador: BorradorObligacionSer
   const { data: os, error } = await supabase
     .schema('servicios')
     .from('ordenes_servicio')
-    .select('id, proveedor_servicio_id, moneda, estado')
+    .select('id, proveedor_servicio_id, moneda, estado, monto_estimado, monto_incluye_igv')
     .eq('id', borrador.osId)
     .maybeSingle()
   if (error || !os) throw new Error('No se encontró la orden de servicio.')
   if (!['facturada', 'conformada'].includes(os.estado)) {
     throw new Error('Solo se puede registrar la obligación de una orden ya facturada.')
+  }
+  if (facturaSuperaMontoOS(Number(borrador.baseImponible), Number(borrador.igv), Number(os.monto_estimado), os.monto_incluye_igv)) {
+    const conIgv = os.monto_incluye_igv ? ' con IGV' : ' sin IGV'
+    throw new Error(`La factura supera el monto de la Orden de Servicio (${os.moneda} ${Number(os.monto_estimado).toFixed(2)}${conIgv}).`)
   }
 
   const { data: existente } = await supabase.schema('cuentas_x_pagar').from('obligaciones').select('id').eq('os_id', borrador.osId).maybeSingle()
