@@ -10,6 +10,11 @@ import { cleanEnv } from "@/lib/env";
  * `fetch` directo en vez de agregar el SDK: una dependencia menos que
  * mantener para un endpoint que no va a cambiar.
  *
+ * `messageId` del resultado es el id INTERNO de Resend (un UUID), no el
+ * `Message-ID` del correo: la API no devuelve ese encabezado. El del hilo
+ * lo generamos nosotros y lo mandamos en `headers` — ver
+ * domain/email-threading.ts.
+ *
  * Variables de entorno (ver .env.example):
  *  - RESEND_API_KEY   — key del proyecto en Resend.
  *  - RESEND_FROM_EMAIL — remitente, sobre un dominio verificado en
@@ -33,11 +38,23 @@ export type SendEmailInput = {
   html: string;
   text: string;
   attachments?: EmailAttachment[];
+  /**
+   * Encabezados propios. Se usan para el threading del pedido
+   * (`Message-ID`, `In-Reply-To`, `References`): sin ellos, cada aviso
+   * llega como una conversación nueva. La API de Resend acepta headers
+   * libres en el campo `headers` del payload.
+   */
+  headers?: Record<string, string>;
 };
 
 export type SendEmailResult =
   | { ok: true; proveedor: "resend"; messageId: string | null }
   | { ok: false; proveedor: "resend"; error: string };
+
+/** Remitente configurado, para colgar el Message-ID de un dominio nuestro. */
+export function emailFromAddress(): string {
+  return cleanEnv(process.env.RESEND_FROM_EMAIL);
+}
 
 export function isEmailConfigured(): boolean {
   return cleanEnv(process.env.RESEND_API_KEY) !== "" && cleanEnv(process.env.RESEND_FROM_EMAIL) !== "";
@@ -72,6 +89,9 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         subject: input.subject,
         html: input.html,
         text: input.text,
+        ...(input.headers && Object.keys(input.headers).length > 0
+          ? { headers: input.headers }
+          : {}),
         // La API REST de Resend espera el adjunto en base64.
         ...(input.attachments && input.attachments.length > 0
           ? {

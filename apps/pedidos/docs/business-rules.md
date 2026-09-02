@@ -931,6 +931,44 @@ clientes (vista previa primero, publicar después).
 - Una fuente **inactiva** se reporta distinto de una **inexistente**:
   decir "no existe" empujaría al usuario a crear un duplicado.
 
+## Un pedido, un hilo de correo (`1013`)
+
+Los tres avisos de un pedido —enviado, cae en excepción comercial, se
+resuelve la excepción— llegaban como tres conversaciones separadas. Ahora
+van como un solo hilo, con threading de verdad y no "mismo asunto":
+
+- `Message-ID` en el primer correo, guardado en
+  `orders.email_thread_message_id`. Ese es el ancla del hilo.
+- En los siguientes, `In-Reply-To` con el **último** mensaje del hilo (no
+  el primero: es lo que espera un cliente al reconstruir el árbol) y
+  `References` con la cadena completa desde el ancla, en orden y sin
+  repetidos. `In-Reply-To` solo agrupa en Gmail, pero se le escapa a
+  Outlook.
+- Asunto: el **mismo** asunto base del hilo (`Nuevo pedido #123 —
+  FARMACIA QUEEN`) prefijado con `Re: `, idempotente para que nunca
+  quede `Re: Re: ` —que es justo lo que hace que Outlook abra otra
+  conversación—. Qué avisa cada correo se lee en el título del cuerpo,
+  no en el asunto.
+
+**El `Message-ID` lo generamos nosotros** (`domain/email-threading.ts`),
+colgado del dominio del remitente, y va en el campo `headers` del payload
+de Resend. No se usa el id que devuelve la API al enviar: ese es el id
+interno de Resend (un UUID), no el `Message-ID` del correo, así que armar
+el hilo con él obligaría a adivinar cómo lo compone. Generándolo acá el
+ancla es un dato nuestro y no depende de ninguna suposición.
+
+La cadena se arma con `notification_logs.message_id`, que guarda con qué
+`Message-ID` salió cada aviso. **Un envío fallido no entra en la cadena**
+(su log queda sin `message_id`): referenciar un correo que no llegó a
+ninguna bandeja rompería el emparentado de los que sí salieron. Y si el
+primer correo falla, el siguiente que salga abre el hilo.
+
+**Pendiente de confirmar en producción:** que Resend respete el
+`Message-ID` propio en vez de reescribirlo. Si lo reescribe, el
+`In-Reply-To` apunta a un id que nadie tiene y el agrupamiento se cae;
+se verifica con "Mostrar original" en el primer correo. La alternativa
+sería leer el `Message-ID` real por la API de Resend después de enviar.
+
 ## Qué NO cubre esta fase
 
 Explícitamente fuera de alcance por ahora (ver README y CLAUDE.md):
