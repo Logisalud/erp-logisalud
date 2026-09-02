@@ -125,6 +125,22 @@
   }
 
   /*
+   * Espacio reservado al pie para que la barra fija no tape el final de la
+   * pantalla. Va en el contenedor de TODA la página y no en el componente
+   * que dibuja la barra: lo que quedaba tapado eran justamente las
+   * secciones que vienen después (Observaciones), y un padding puesto
+   * adentro del componente no las alcanza.
+   *
+   * La altura real de la barra la publica el propio componente en
+   * `--alto-barra-pie` (cambia con el ancho, con el aviso de "agrega al
+   * menos un producto" y con el safe-area del iPhone). El valor de acá es
+   * el que vale sin JavaScript: generoso a propósito.
+   */
+  .reserva-barra-pie {
+    padding-bottom: calc(var(--alto-barra-pie, 8rem) + 1.5rem);
+  }
+
+  /*
    * Barra de total pegada al pie. `env(safe-area-inset-bottom)` evita que
    * el botón quede debajo de la barra de gestos en los iPhone.
    */

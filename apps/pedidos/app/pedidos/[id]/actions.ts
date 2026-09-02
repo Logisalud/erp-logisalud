@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUserId } from "@/lib/auth/session";
+import { getCurrentUser, requireUserId } from "@/lib/auth/session";
 import {
   addOrderItem,
   changeOrderCustomer,
   removeOrderItem,
+  setItemSpecialPriceAsAdmin,
   submitOrder,
   updateOrderAddress,
   updateOrderItemQuantity,
@@ -15,6 +16,8 @@ import { listCustomerAddresses, searchActiveCustomers } from "@/services/custome
 import { mensajeCambioBloqueado } from "@/domain/order-header";
 import { createApprovalRequest } from "@/services/approvals";
 import { addOrderObservation } from "@/services/order-exceptions";
+import { listPaymentTerms } from "@/services/catalog";
+import { validarCondicionDePago } from "@/domain/payment-terms";
 
 export async function agregarProducto(orderId: string, customerId: string, formData: FormData) {
   const productId = String(formData.get("productId") ?? "");
@@ -45,8 +48,19 @@ export async function quitarProducto(orderId: string, itemId: string) {
 export async function actualizarCondicionPago(orderId: string, formData: FormData) {
   const userId = await requireUserId();
   const paymentTermsId = Number(formData.get("paymentTermsId"));
-  if (!paymentTermsId) throw new Error("Selecciona una condición de pago.");
-  await updatePaymentTerms(orderId, paymentTermsId, userId);
+  // Se revalida contra el catálogo real: si la condición es la de días
+  // libres, el número es obligatorio, y con cualquier otra no puede venir.
+  const condicion = validarCondicionDePago(await listPaymentTerms(), {
+    paymentTermsId: paymentTermsId || "",
+    diasCredito: String(formData.get("diasCredito") ?? ""),
+  });
+  if (!condicion.ok) throw new Error(condicion.mensaje);
+  await updatePaymentTerms(
+    orderId,
+    condicion.paymentTermsId,
+    userId,
+    condicion.diasCreditoSolicitados,
+  );
   revalidatePath(`/pedidos/${orderId}`);
 }
 
@@ -63,6 +77,38 @@ export async function agregarObservacion(orderId: string, formData: FormData) {
   if (!comentario) throw new Error("Escribe un comentario.");
   await addOrderObservation({ orderId, comentario, actor: userId });
   revalidatePath(`/pedidos/${orderId}`);
+}
+
+/**
+ * Precio especial fijado por el administrador, sin solicitud de aprobación.
+ *
+ * El rol se verifica dos veces a propósito: acá, para poder devolver un
+ * mensaje entendible, y en la base con `pedidos.is_admin()` dentro del RPC,
+ * que es la que de verdad manda. Un vendedor que llame a esta Server Action
+ * a mano no pasa de la primera.
+ */
+export async function fijarPrecioEspecial(orderId: string, itemId: string, formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("No autenticado");
+  if (!user.roles.includes("administrador")) {
+    throw new Error("Solo un administrador puede fijar un precio sin aprobación comercial.");
+  }
+
+  const precio = Number(formData.get("precio"));
+  if (!Number.isFinite(precio) || precio <= 0) {
+    throw new Error("Escribe el precio unitario que quieres fijar.");
+  }
+
+  const resultado = await setItemSpecialPriceAsAdmin({
+    orderId,
+    itemId,
+    precio,
+    motivo: String(formData.get("motivo") ?? "").trim() || null,
+    actor: user.userId,
+  });
+
+  revalidatePath(`/pedidos/${orderId}`);
+  return resultado;
 }
 
 export async function solicitarDescuento(orderId: string, itemId: string, formData: FormData) {

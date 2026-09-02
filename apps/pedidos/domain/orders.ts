@@ -86,10 +86,19 @@ export function computeAutomaticValidationOutcome(input: {
   customerEstado: CustomerEstado;
   orderPaymentTermsId: number;
   customerCondicionPagoHabitualId: number | null;
+  /**
+   * Días de crédito escritos a mano (condición de entrada libre). No hay
+   * condición habitual con la cual puedan coincidir —por definición no es
+   * una condición estándar—, así que Administración los revisa siempre.
+   */
+  diasCreditoSolicitados?: number | null;
   hasPendingApprovalRequest: boolean;
 }): Exclude<OrderEstado, "DRAFT" | "SUBMITTED"> {
   if (input.customerEstado === "PENDIENTE_DE_VALIDACION") {
     return "NEW_CUSTOMER_VALIDATION";
+  }
+  if (input.diasCreditoSolicitados != null) {
+    return "ADMINISTRATIVE_EXCEPTION";
   }
   if (
     input.customerCondicionPagoHabitualId !== null &&

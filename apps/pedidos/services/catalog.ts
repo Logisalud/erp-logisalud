@@ -29,6 +29,29 @@ export async function listCatalog(table: CatalogTable): Promise<CatalogItem[]> {
   return data as CatalogItem[];
 }
 
+export type PaymentTermItem = CatalogItem & { permite_dias_libres: boolean };
+
+/**
+ * Condiciones de pago con la marca de entrada libre.
+ *
+ * Va aparte de `listCatalog` porque la pantalla del pedido necesita saber
+ * cuál es la opción de días a mano: sin ese dato no puede pedir el número
+ * y el pedido se guardaría sin el plazo real.
+ */
+export async function listPaymentTerms(): Promise<PaymentTermItem[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("payment_terms")
+    .select("id, nombre, descripcion, estado, permite_dias_libres")
+    .eq("estado", "activo")
+    // La opción de entrada libre va al final: es la excepción, no la
+    // primera cosa que el vendedor debería considerar.
+    .order("permite_dias_libres")
+    .order("id");
+  if (error) throw new Error(error.message);
+  return data as PaymentTermItem[];
+}
+
 export async function createCatalogItem(
   table: CatalogTable,
   payload: { nombre: string; descripcion?: string },

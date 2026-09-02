@@ -4,7 +4,7 @@ import { getOrderDetail } from "@/services/orders";
 import { getFulfillmentForOrder } from "@/services/fulfillments";
 import { getCurrentUser } from "@/lib/auth/session";
 import { listProducts } from "@/services/products";
-import { listCatalog } from "@/services/catalog";
+import { listPaymentTerms } from "@/services/catalog";
 import { formatSoles } from "@/domain/order-email";
 import { displayRazonSocial } from "@/domain/customer-search";
 import { OrderItemComposer } from "./order-item-composer";
@@ -13,6 +13,7 @@ import { ObservationForm } from "./observation-form";
 import { displayNombreProducto, esOfrecibleEnPedido } from "@/domain/products";
 import { IconDownload } from "@/components/icons";
 import { estadoEstilo, estadoLabel } from "@/domain/order-status";
+import { etiquetaCondicionPago } from "@/domain/payment-terms";
 
 export default async function OrderDetailPage({
   params,
@@ -40,7 +41,7 @@ export default async function OrderDetailPage({
 
   const [products, paymentTerms] = await Promise.all([
     isDraft ? listProducts() : Promise.resolve([]),
-    listCatalog("payment_terms"),
+    listPaymentTerms(),
   ]);
 
   // La regla vive en domain/products.ts para poder probarla; acá solo se
@@ -53,7 +54,11 @@ export default async function OrderDetailPage({
   const total = order.items.reduce((acc, item) => acc + item.total, 0);
 
   return (
-    <div className="flex flex-col gap-4">
+    // En borrador la barra de "Total del pedido / Enviar pedido" va fija al
+    // pie: sin este espacio reservado tapa lo último de la página (las
+    // Observaciones y su campo de texto), y en móvil no hay scroll que las
+    // rescate porque el documento termina ahí.
+    <div className={`flex flex-col gap-4${isDraft ? " reserva-barra-pie" : ""}`}>
       {isDraft ? (
         <>
           <OrderHeader
@@ -64,8 +69,13 @@ export default async function OrderDetailPage({
               rucODocumento: order.customer?.ruc_o_documento ?? "—",
             }}
             address={{ id: order.customer_address_id, direccion: order.address?.direccion ?? "—" }}
-            paymentTerms={paymentTerms.map((p) => ({ id: p.id, nombre: p.nombre }))}
+            paymentTerms={paymentTerms.map((p) => ({
+              id: p.id,
+              nombre: p.nombre,
+              permite_dias_libres: p.permite_dias_libres,
+            }))}
             currentPaymentTermsId={order.payment_terms_id}
+            currentDiasCredito={order.dias_credito_solicitados}
             tieneLineas={order.items.length > 0}
           />
 
@@ -74,6 +84,7 @@ export default async function OrderDetailPage({
             customerId={order.customer_id}
             items={order.items}
             products={activeProducts}
+            esAdmin={currentUser?.roles.includes("administrador") ?? false}
           />
         </>
       ) : (
@@ -104,7 +115,9 @@ export default async function OrderDetailPage({
               </div>
               <div className="flex gap-2">
                 <dt className="shrink-0 text-slate-600">Pago:</dt>
-                <dd className="text-slate-900">{order.payment_terms?.nombre ?? "—"}</dd>
+                <dd className="text-slate-900">
+                  {etiquetaCondicionPago(order.payment_terms?.nombre, order.dias_credito_solicitados)}
+                </dd>
               </div>
               <div className="flex gap-2">
                 <dt className="shrink-0 text-slate-600">Vendedor:</dt>

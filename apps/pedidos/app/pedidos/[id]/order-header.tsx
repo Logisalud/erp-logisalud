@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { Combobox, type ComboboxOption } from "@/components/combobox";
 import { displayRazonSocial, MIN_SEARCH_LENGTH } from "@/domain/customer-search";
 import { IconAlert, IconChevronDown, IconEdit, IconError, IconSpinner } from "@/components/icons";
+import { PaymentTermsPicker, type PaymentTermOption } from "@/components/payment-terms-picker";
+import { etiquetaCondicionPago, validarCondicionDePago } from "@/domain/payment-terms";
 import {
   buscarClientesParaPedido,
   cambiarCliente,
@@ -13,7 +15,7 @@ import {
 } from "./actions";
 
 type Address = { id: string; direccion: string; es_principal: boolean };
-type PaymentTerm = { id: number; nombre: string };
+
 
 /**
  * Encabezado del pedido: cliente, dirección de entrega y condición de pago.
@@ -35,13 +37,16 @@ export function OrderHeader({
   address,
   paymentTerms,
   currentPaymentTermsId,
+  currentDiasCredito,
   tieneLineas,
 }: {
   orderId: string;
   customer: { id: string; razonSocial: string; rucODocumento: string };
   address: { id: string; direccion: string };
-  paymentTerms: PaymentTerm[];
+  paymentTerms: PaymentTermOption[];
   currentPaymentTermsId: number;
+  /** Días escritos a mano, si la condición grabada es la de entrada libre. */
+  currentDiasCredito: number | null;
   tieneLineas: boolean;
 }) {
   const [abierto, setAbierto] = useState(false);
@@ -54,7 +59,13 @@ export function OrderHeader({
   });
   const [direcciones, setDirecciones] = useState<Address[] | null>(null);
   const [direccionId, setDireccionId] = useState(address.id);
-  const [condicionId, setCondicionId] = useState(currentPaymentTermsId);
+  const [condicion, setCondicion] = useState<{
+    paymentTermsId: number | "";
+    diasCredito: string;
+  }>({
+    paymentTermsId: currentPaymentTermsId,
+    diasCredito: currentDiasCredito === null ? "" : String(currentDiasCredito),
+  });
 
   const [error, setError] = useState<string | null>(null);
   const [bloqueo, setBloqueo] = useState<string | null>(null);
@@ -88,7 +99,10 @@ export function OrderHeader({
       description: customer.rucODocumento,
     });
     setDireccionId(address.id);
-    setCondicionId(currentPaymentTermsId);
+    setCondicion({
+      paymentTermsId: currentPaymentTermsId,
+      diasCredito: currentDiasCredito === null ? "" : String(currentDiasCredito),
+    });
     setError(null);
     setBloqueo(null);
   }
@@ -131,6 +145,12 @@ export function OrderHeader({
       return;
     }
 
+    const validacion = validarCondicionDePago(paymentTerms, condicion);
+    if (!validacion.ok) {
+      setError(validacion.mensaje);
+      return;
+    }
+
     startTransition(async () => {
       try {
         if (cambioDeCliente) {
@@ -143,9 +163,13 @@ export function OrderHeader({
           await cambiarDireccion(orderId, direccionId);
         }
 
-        if (condicionId !== currentPaymentTermsId) {
+        if (
+          validacion.paymentTermsId !== currentPaymentTermsId ||
+          validacion.diasCreditoSolicitados !== currentDiasCredito
+        ) {
           const fd = new FormData();
-          fd.set("paymentTermsId", String(condicionId));
+          fd.set("paymentTermsId", String(validacion.paymentTermsId));
+          fd.set("diasCredito", condicion.diasCredito);
           await actualizarCondicionPago(orderId, fd);
         }
 
@@ -157,7 +181,10 @@ export function OrderHeader({
     });
   }
 
-  const condicionActual = paymentTerms.find((p) => p.id === currentPaymentTermsId)?.nombre ?? "—";
+  const condicionActual = etiquetaCondicionPago(
+    paymentTerms.find((p) => p.id === currentPaymentTermsId)?.nombre ?? null,
+    currentDiasCredito,
+  );
 
   if (!abierto) {
     return (
@@ -285,23 +312,14 @@ export function OrderHeader({
           )}
         </div>
 
-        <div>
-          <label className="etiqueta" htmlFor="condicion">
-            Condición de pago
-          </label>
-          <select
-            id="condicion"
-            className="campo"
-            value={condicionId}
-            onChange={(e) => setCondicionId(Number(e.target.value))}
-          >
-            {paymentTerms.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
+        <PaymentTermsPicker
+          paymentTerms={paymentTerms}
+          paymentTermsId={condicion.paymentTermsId}
+          diasCredito={condicion.diasCredito}
+          onChange={setCondicion}
+          disabled={isPending}
+          idPrefix="condicion-encabezado"
+        />
       </div>
 
       <div className="mt-5 flex gap-2">

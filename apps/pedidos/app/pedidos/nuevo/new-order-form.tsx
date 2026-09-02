@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Combobox, type ComboboxOption } from "@/components/combobox";
+import { PaymentTermsPicker, type PaymentTermOption } from "@/components/payment-terms-picker";
+import { validarCondicionDePago } from "@/domain/payment-terms";
 import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
 import { MIN_SEARCH_LENGTH, displayRazonSocial } from "@/domain/customer-search";
 import { IconAlert, IconError, IconPlus, IconSpinner } from "@/components/icons";
@@ -25,7 +27,7 @@ type Customer = {
   nombre_comercial?: string | null;
   ruc_o_documento: string;
 };
-type PaymentTerm = { id: number; nombre: string };
+
 type CatalogOption = { id: number; nombre: string };
 type Address = { id: string; direccion: string; es_principal: boolean };
 
@@ -59,7 +61,7 @@ export function NewOrderForm({
   isAdmin: boolean;
   sellers: Seller[];
   customers: Customer[];
-  paymentTerms: PaymentTerm[];
+  paymentTerms: PaymentTermOption[];
   salesChannels: CatalogOption[];
   zones: CatalogOption[];
 }) {
@@ -69,6 +71,10 @@ export function NewOrderForm({
   const [selectedOption, setSelectedOption] = useState<ComboboxOption | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [condicion, setCondicion] = useState<{
+    paymentTermsId: number | "";
+    diasCredito: string;
+  }>({ paymentTermsId: "", diasCredito: "" });
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
@@ -185,6 +191,15 @@ export function NewOrderForm({
       setError("Elige un cliente.");
       return;
     }
+    if (condicion.paymentTermsId === "") {
+      setError("Elige una condición de pago.");
+      return;
+    }
+    const validacion = validarCondicionDePago(paymentTerms, condicion);
+    if (!validacion.ok) {
+      setError(validacion.mensaje);
+      return;
+    }
     startTransition(async () => {
       try {
         await crearBorrador(formData);
@@ -292,11 +307,18 @@ export function NewOrderForm({
               onChange={(e) => updateNewCustomer("condicionPagoHabitualId", e.target.value)}
             >
               <option value="">Condición de pago habitual</option>
-              {paymentTerms.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
+              {/*
+                La opción de días a mano no puede ser la condición HABITUAL de
+                un cliente: es un plazo distinto en cada pedido, no una
+                costumbre contra la cual comparar.
+              */}
+              {paymentTerms
+                .filter((p) => !p.permite_dias_libres)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
             </select>
             <input
               className="campo"
@@ -401,24 +423,20 @@ export function NewOrderForm({
         </div>
       )}
 
-      <div>
-        <label className="etiqueta" htmlFor="paymentTermsId">
-          Condición de pago
-        </label>
-        <select id="paymentTermsId" name="paymentTermsId" required className="campo">
-          <option value="">Elige una condición</option>
-          {paymentTerms.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
-      </div>
+      <PaymentTermsPicker
+        paymentTerms={paymentTerms}
+        paymentTermsId={condicion.paymentTermsId}
+        diasCredito={condicion.diasCredito}
+        onChange={setCondicion}
+        idPrefix="condicion-nuevo"
+      />
 
       <button
         type="submit"
         className="btn-primary"
-        disabled={isPending || !selectedCustomerId || !selectedAddressId}
+        disabled={
+          isPending || !selectedCustomerId || !selectedAddressId || condicion.paymentTermsId === ""
+        }
       >
         {isPending ? <IconSpinner className="h-5 w-5" /> : null}
         Empezar el pedido

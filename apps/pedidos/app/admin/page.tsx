@@ -42,6 +42,11 @@ const SECTIONS = [
     description: "Aprobar o rechazar clientes nuevos solicitados por vendedores.",
   },
   {
+    href: "/admin/maestros/stock",
+    title: "Cargar stock",
+    description: "Carga masiva del stock disponible por producto y fuente, desde CSV o Excel.",
+  },
+  {
     href: "/admin/maestros/despacho",
     title: "Despacho",
     description: "Fuentes de stock, almacenes, vehículos, choferes y transportistas.",
