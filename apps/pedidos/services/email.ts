@@ -1,5 +1,6 @@
 import "server-only";
 import { cleanEnv } from "@/lib/env";
+import { normalizarMessageId } from "@/domain/email-threading";
 
 /**
  * Envío de correo vía Resend.
@@ -11,9 +12,10 @@ import { cleanEnv } from "@/lib/env";
  * mantener para un endpoint que no va a cambiar.
  *
  * `messageId` del resultado es el id INTERNO de Resend (un UUID), no el
- * `Message-ID` del correo: la API no devuelve ese encabezado. El del hilo
- * lo generamos nosotros y lo mandamos en `headers` — ver
- * domain/email-threading.ts.
+ * `Message-ID` del correo. El `Message-ID` real —el que hace falta para
+ * armar un hilo— se lee después con `fetchResendMessageId`, porque Resend
+ * reescribe el de salida con el suyo e ignora cualquier valor propio que
+ * se mande en `headers` (comprobado contra un encabezado real).
  *
  * Variables de entorno (ver .env.example):
  *  - RESEND_API_KEY   — key del proyecto en Resend.
@@ -58,6 +60,44 @@ export function emailFromAddress(): string {
 
 export function isEmailConfigured(): boolean {
   return cleanEnv(process.env.RESEND_API_KEY) !== "" && cleanEnv(process.env.RESEND_FROM_EMAIL) !== "";
+}
+
+/**
+ * El `Message-ID` REAL que Resend le puso a un correo ya enviado.
+ *
+ * `GET /emails/{id}` devuelve `message_id` (además de id, to, from,
+ * subject, html, text, cc, bcc, reply_to, created_at, scheduled_at,
+ * last_event, tags y object). Ese es el único valor que sirve como
+ * `In-Reply-To`: el que mandamos nosotros no sobrevive al envío.
+ *
+ * Nunca lanza y nunca bloquea: sin este id el correo ya salió igual, sólo
+ * queda sin hilo. Devuelve null también cuando el correo todavía está en
+ * cola y Resend no le asignó `message_id`; quien llama puede reintentar.
+ */
+export async function fetchResendMessageId(resendId: string): Promise<string | null> {
+  const apiKey = cleanEnv(process.env.RESEND_API_KEY);
+  if (!apiKey || !resendId) return null;
+
+  try {
+    const response = await fetch(`${RESEND_ENDPOINT}/${encodeURIComponent(resendId)}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) {
+      console.error(`Resend GET /emails/${resendId} respondió ${response.status}`);
+      return null;
+    }
+    const body = (await response.json().catch(() => null)) as
+      | { message_id?: string | null; last_event?: string }
+      | null;
+    return normalizarMessageId(body?.message_id);
+  } catch (err) {
+    console.error(
+      `No se pudo leer el Message-ID de Resend para ${resendId}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {

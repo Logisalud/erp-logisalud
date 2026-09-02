@@ -9,13 +9,19 @@
  * Gmail casi no — así que se cuidan las dos: encabezados correctos y
  * `Re: ` sobre el MISMO asunto base del hilo.
  *
- * Decisión de diseño: el `Message-ID` lo generamos NOSOTROS y lo mandamos
- * en los headers, en vez de intentar leer el que asigna el proveedor. La
- * respuesta de la API de Resend al enviar devuelve sólo su `id` interno
- * (un UUID), no el `Message-ID` del correo, así que armar el hilo a partir
- * de eso obligaría a adivinar con qué dominio lo compone. Generándolo acá
- * el ancla del hilo es un dato nuestro, guardado en la base, y no depende
- * de ninguna suposición.
+ * De dónde sale el `Message-ID` del hilo: **de Resend, leído después de
+ * enviar**. El primer intento fue generarlo nosotros y mandarlo en los
+ * headers, y no funciona: se comprobó contra el encabezado real de un
+ * correo recibido en Outlook que Resend **reescribe** el `Message-ID` de
+ * salida con su propio formato (`@…amazonses.com`) e ignora el valor
+ * personalizado. Un `In-Reply-To` apuntando al id que inventamos
+ * referencia un correo que nunca existió, así que ningún cliente puede
+ * enlazar nada. `In-Reply-To` y `References`, en cambio, **sí** se
+ * respetan tal cual se envían.
+ *
+ * Por eso el flujo es: enviar, leer el `message_id` real con
+ * `GET /emails/{id}` (la respuesta de la API SÍ lo trae) y guardar ESE
+ * como ancla. Ver services/order-notifications.ts.
  *
  * Nada de este módulo toca red ni base: sólo texto.
  */
@@ -24,32 +30,24 @@
 const MAX_REFERENCIAS = 20;
 
 /**
- * Un `Message-ID` para un correo del pedido. `unico` lo inyecta quien
- * llama (un UUID) para que esta función quede pura y testeable: dos
- * correos del mismo pedido en el mismo milisegundo no pueden compartir id.
+ * El `message_id` que devuelve Resend, listo para usar en un encabezado.
  *
- * El dominio tiene que ser uno nuestro —el del remitente— porque el
- * `Message-ID` es un identificador global y colgarlo de un dominio ajeno
- * es cómo se pisan dos hilos distintos.
+ * Los ángulos son parte del valor, no decoración (RFC 5322), y la API
+ * puede devolverlo con o sin ellos: se agregan si faltan. Lo que no tiene
+ * forma de `algo@algo` se descarta — un id roto en `References` rompe el
+ * emparentado sin avisar, y es mejor un hilo sin cadena que una cadena
+ * mentirosa.
  */
-export function nuevoMessageId(input: {
-  numero: number;
-  dominio: string;
-  unico: string;
-}): string {
-  const dominio = normalizarDominio(input.dominio);
-  const unico = input.unico.replace(/[^A-Za-z0-9._-]/g, "");
-  return `<pedido-${input.numero}.${unico}@${dominio}>`;
+export function normalizarMessageId(valor: string | null | undefined): string | null {
+  if (!valor) return null;
+  const limpio = valor.trim();
+  const conAngulos = limpio.startsWith("<") && limpio.endsWith(">") ? limpio : `<${limpio}>`;
+  return esMessageIdValido(conAngulos) ? conAngulos : null;
 }
 
-/** `pedidos@logisalud.com`, `LOGISALUD <pedidos@logisalud.com>` → `logisalud.com`. */
-export function normalizarDominio(valor: string): string {
-  const sinNombre = valor.includes("<") ? (valor.split("<")[1] ?? "").split(">")[0] : valor;
-  const dominio = sinNombre.includes("@") ? sinNombre.split("@").pop() ?? "" : sinNombre;
-  const limpio = dominio.trim().toLowerCase().replace(/[^a-z0-9.-]/g, "");
-  // Sin remitente utilizable igual hay que devolver algo sintácticamente
-  // válido: un Message-ID roto invalida el correo entero.
-  return limpio === "" ? "pedidos.invalid" : limpio;
+/** Un id fabricado por nosotros, de la implementación anterior a este fix. */
+export function esMessageIdPropioViejo(valor: string | null | undefined): boolean {
+  return valor !== null && valor !== undefined && /^<pedido-\d+\./.test(valor.trim());
 }
 
 /**
@@ -67,7 +65,6 @@ export type CabecerasHilo = Record<string, string>;
 /**
  * Los encabezados de threading de un correo.
  *
- * - `Message-ID`: el de ESTE correo, siempre.
  * - `In-Reply-To`: el correo al que responde — el último del hilo, no el
  *   primero, que es lo que espera un cliente de correo al reconstruir el
  *   árbol.
@@ -75,17 +72,20 @@ export type CabecerasHilo = Record<string, string>;
  *   repetidos. Un `In-Reply-To` sin `References` agrupa en Gmail pero se
  *   le escapa a Outlook.
  *
- * El primer correo del hilo devuelve sólo `Message-ID`: mandar
+ * **No se manda `Message-ID`**: Resend lo reescribe con el suyo, así que
+ * mandarlo era ruido que además invitaba a construir la cadena con ids
+ * que no existen en ninguna bandeja.
+ *
+ * El primer correo del hilo no lleva ningún encabezado de estos: mandar
  * `In-Reply-To` vacío es peor que no mandarlo.
  */
 export function cabecerasDeHilo(input: {
-  messageId: string;
   /** Cadena del hilo, del más viejo al más nuevo, sin incluir este correo. */
   referencias: string[];
 }): CabecerasHilo {
   const cadena = dedup(input.referencias.filter((r) => esMessageIdValido(r)));
 
-  if (cadena.length === 0) return { "Message-ID": input.messageId };
+  if (cadena.length === 0) return {};
 
   const recortada =
     cadena.length <= MAX_REFERENCIAS
@@ -95,7 +95,6 @@ export function cabecerasDeHilo(input: {
         [cadena[0], ...cadena.slice(-(MAX_REFERENCIAS - 1))];
 
   return {
-    "Message-ID": input.messageId,
     "In-Reply-To": cadena[cadena.length - 1],
     References: recortada.join(" "),
   };
