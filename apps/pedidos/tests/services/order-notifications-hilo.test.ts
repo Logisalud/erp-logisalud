@@ -42,6 +42,12 @@ const db = {
     payment_terms: { nombre: "Contado" },
   },
   logs: [] as Log[],
+  observaciones: [] as Array<{
+    comentario: string;
+    fecha: string;
+    contexto: string | null;
+    autor: string | null;
+  }>,
   reloj: 0,
 };
 
@@ -99,6 +105,22 @@ function tabla(nombre: string) {
 
   if (nombre === "approval_requests") {
     return { select: () => ({ eq: async () => ({ data: [], error: null }) }) };
+  }
+
+  if (nombre === "order_observations") {
+    return {
+      select: () => ({
+        eq: () => ({ order: async () => ({ data: db.observaciones, error: null }) }),
+      }),
+    };
+  }
+
+  if (nombre === "profiles") {
+    return {
+      select: () => ({
+        in: async () => ({ data: [{ id: "u1", full_name: "LUIS VARGAS" }], error: null }),
+      }),
+    };
   }
 
   if (nombre === "notification_logs") {
@@ -172,6 +194,14 @@ import {
 beforeEach(() => {
   db.order.email_thread_message_id = null;
   db.logs = [];
+  db.observaciones = [
+    {
+      comentario: "Entregar antes del viernes.",
+      fecha: "2026-09-02T15:00:00Z",
+      contexto: null,
+      autor: "u1",
+    },
+  ];
   db.reloj = 0;
   enviados.length = 0;
   messageIdsDeResend.clear();

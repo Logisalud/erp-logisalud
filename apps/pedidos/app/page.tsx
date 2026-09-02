@@ -6,7 +6,6 @@ import { UserMenu } from "@/components/user-menu";
 
 export default async function Home() {
   const user = await getCurrentUser();
-  const isAdmin = user?.roles.includes("administrador") ?? false;
 
   const sections = user ? seccionesParaRoles(user.roles) : [];
 
@@ -22,7 +21,7 @@ export default async function Home() {
             fullName={user.fullName}
             email={user.email}
             roleLabel={user.roles[0] ? roleLabel(user.roles[0]) : null}
-            perfilHref={isAdmin ? "/admin/perfil" : undefined}
+            perfilHref="/perfil"
           />
         )}
       </header>

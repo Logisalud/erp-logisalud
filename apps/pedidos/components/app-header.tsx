@@ -26,7 +26,6 @@ export function AppHeader({
   ancho?: "3xl" | "4xl";
 }) {
   const secciones = seccionesParaRoles(user.roles);
-  const isAdmin = user.roles.includes("administrador");
   // Tailwind necesita la clase literal en el código: no sirve interpolar.
   const maxW = ancho === "3xl" ? "max-w-3xl" : "max-w-4xl";
 
@@ -76,7 +75,7 @@ export function AppHeader({
             fullName={user.fullName}
             email={user.email}
             roleLabel={user.roles[0] ? roleLabel(user.roles[0]) : null}
-            perfilHref={isAdmin ? "/admin/perfil" : undefined}
+            perfilHref="/perfil"
           />
         </div>
       </div>

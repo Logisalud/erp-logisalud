@@ -232,3 +232,53 @@ describe("columna de precio especial", () => {
     expect(pintada).toBe(true);
   });
 });
+
+describe("observaciones en el Excel", () => {
+  it("las lista todas, con su fecha y autor", async () => {
+    const conObservaciones = data({
+      observaciones: [
+        {
+          comentario: "Entregar antes del viernes, coordinar con Rosa.",
+          fecha: "2026-09-02T15:00:00Z",
+          autor: "LUIS VARGAS",
+          contexto: null,
+        },
+        {
+          comentario: "Plazo aprobado por Administración.",
+          fecha: "2026-09-02T16:30:00Z",
+          autor: "ANA ROMERO",
+          contexto: "ADMINISTRATIVE_EXCEPTION",
+        },
+      ],
+    });
+    const { textos } = await leer(await buildOrderExcel(conObservaciones));
+    expect(textos).toContain("Observaciones del pedido");
+    expect(textos).toContain("Entregar antes del viernes, coordinar con Rosa.");
+    expect(textos).toContain("Plazo aprobado por Administración.");
+    expect(textos.some((t) => t.includes("LUIS VARGAS"))).toBe(true);
+    expect(textos.some((t) => t.includes("excepción administrativa"))).toBe(true);
+  });
+
+  it("sin observaciones no agrega la sección", async () => {
+    const { textos } = await leer(await buildOrderExcel(data()));
+    expect(textos).not.toContain("Observaciones del pedido");
+  });
+
+  it("van después de los totales y antes de la nota legal", async () => {
+    const { textos } = await leer(
+      await buildOrderExcel(
+        data({
+          observaciones: [
+            { comentario: "Nota del vendedor", fecha: "2026-09-02T15:00:00Z", autor: null, contexto: null },
+          ],
+        }),
+      ),
+    );
+    const iTotal = textos.findIndex((t) => t === "Total");
+    const iObs = textos.findIndex((t) => t === "Nota del vendedor");
+    const iNota = textos.findIndex((t) => t.startsWith("Documento de control interno"));
+    expect(iTotal).toBeGreaterThanOrEqual(0);
+    expect(iObs).toBeGreaterThan(iTotal);
+    expect(iNota).toBeGreaterThan(iObs);
+  });
+});

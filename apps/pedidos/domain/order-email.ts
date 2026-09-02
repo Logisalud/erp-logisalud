@@ -48,6 +48,21 @@ export type OrderEmailPrecioEspecial = {
   motivo?: string | null;
 };
 
+/**
+ * Una observación escrita en el pedido. El vendedor las usa para lo que no
+ * entra en ninguna línea ("entregar antes del viernes", "coordinar con
+ * Rosa"), y hasta ahora no salían del sistema: no estaban ni en el correo
+ * ni en el Excel, así que quien prepara el despacho no las veía.
+ */
+export type OrderEmailObservacion = {
+  comentario: string;
+  fecha: string;
+  /** Nombre de quien la escribió, si se pudo resolver. */
+  autor: string | null;
+  /** COMMERCIAL_EXCEPTION | ADMINISTRATIVE_EXCEPTION | null. */
+  contexto: string | null;
+};
+
 export type OrderEmailItem = {
   codigo: string;
   descripcion: string;
@@ -181,6 +196,16 @@ export type OrderEmailData = {
   items: OrderEmailItem[];
   /** Ausente en el correo de envío, que es el caso por defecto. */
   evento?: OrderEmailEvento | null;
+  /**
+   * TODAS las observaciones del pedido, de la más vieja a la más nueva.
+   *
+   * Se muestran todas y no sólo la última: son pocas (una o dos por
+   * pedido) y forman una conversación — quedarse con la última esconde el
+   * pedido original ("mandar 20 cajas" seguido de "confirmado con Rosa"
+   * pierde justamente el pedido). Incluye las de Control de Pedidos, no
+   * sólo las del vendedor: para quien despacha valen lo mismo.
+   */
+  observaciones?: OrderEmailObservacion[] | null;
 };
 
 export type OrderEmailTotals = {
@@ -256,6 +281,19 @@ function datoRow(label: string, value: string): string {
       <td style="padding:4px 12px 4px 0;font-size:13px;color:#6b7280;white-space:nowrap;vertical-align:top;">${escapeHtml(label)}</td>
       <td style="padding:4px 0;font-size:13px;color:#111827;font-weight:600;">${value}</td>
     </tr>`;
+}
+
+/**
+ * Etiqueta de una observación: fecha, y de quién viene cuando se sabe.
+ * `contexto` distingue la que escribió el vendedor de la que dejó Control
+ * de Pedidos al resolver una excepción.
+ */
+export function etiquetaObservacion(o: OrderEmailObservacion): string {
+  const partes = [formatFechaHora(o.fecha)];
+  if (o.autor) partes.push(o.autor);
+  if (o.contexto === "ADMINISTRATIVE_EXCEPTION") partes.push("excepción administrativa");
+  if (o.contexto === "COMMERCIAL_EXCEPTION") partes.push("excepción comercial");
+  return partes.join(" · ");
 }
 
 export function renderOrderEmailHtml(data: OrderEmailData): string {
@@ -366,6 +404,24 @@ export function renderOrderEmailHtml(data: OrderEmailData): string {
             </td>
           </tr>
 
+          ${
+            (data.observaciones ?? []).length > 0
+              ? `<tr>
+            <td style="padding:18px 24px 0;">
+              <p style="margin:0 0 8px;font-family:${FONT_HEADING};font-size:14px;color:#111827;text-transform:uppercase;letter-spacing:0.5px;">Observaciones del pedido</p>
+              ${(data.observaciones ?? [])
+                .map(
+                  (o) => `<div style="margin:0 0 8px;padding:10px 12px;background-color:#f9fafb;border-left:3px solid ${COLOR_TEAL};border-radius:0 8px 8px 0;">
+                <p style="margin:0;font-size:13px;color:#111827;white-space:pre-line;">${escapeHtml(o.comentario)}</p>
+                <p style="margin:4px 0 0;font-size:11px;color:#6b7280;">${escapeHtml(etiquetaObservacion(o))}</p>
+              </div>`,
+                )
+                .join("")}
+            </td>
+          </tr>`
+              : ""
+          }
+
           <tr>
             <td style="padding:20px 24px 24px;">
               <p style="margin:0;padding:12px 14px;background-color:#fffbeb;border-left:4px solid #f59e0b;font-size:12px;color:#92400e;line-height:1.5;">
@@ -415,6 +471,16 @@ export function renderOrderEmailText(data: OrderEmailData): string {
     "PRODUCTOS",
     ...(lineas.length > 0 ? lineas : ["  (el pedido no tiene líneas)"]),
     "",
+    ...((data.observaciones ?? []).length > 0
+      ? [
+          "OBSERVACIONES DEL PEDIDO",
+          ...(data.observaciones ?? []).flatMap((o) => [
+            `  - ${o.comentario}`,
+            `    (${etiquetaObservacion(o)})`,
+          ]),
+          "",
+        ]
+      : []),
     `Subtotal: ${formatSoles(totals.subtotal)}`,
     `IGV: ${formatSoles(totals.igv)}`,
     `TOTAL: ${formatSoles(totals.total)}`,

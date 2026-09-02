@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "./audit-log";
 import { notifyDiscountRequested, notifyOrderSubmitted, type NotifyResult } from "./order-notifications";
 import { calculateLineItem, canEditPaymentTerms } from "@/domain/orders";
+import { admitePrecioCero } from "@/domain/products";
 import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
 import { evaluarCambioDeCliente, type ConflictoDePrecio } from "@/domain/order-header";
 
@@ -123,26 +124,6 @@ export async function listOrdersForSeller(
   return { orders: filas.slice(0, PAGE_SIZE), hayMas: filas.length > PAGE_SIZE };
 }
 
-/**
- * ¿El vendedor tiene al menos un pedido? Sirve para decidir si mostrar
- * "Repetir último pedido", que necesita uno anterior de cualquier estado —no
- * solo un borrador— porque `repeatLastOrder` copia el último pedido a secas.
- *
- * Se pide una sola fila en vez de un `count`: la respuesta es un booleano y
- * contar toda la tabla para saber si hay algo es trabajo de más.
- */
-export async function sellerTienePedidos(sellerId: string): Promise<boolean> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("orders")
-    .select("id")
-    .eq("seller_id", sellerId)
-    .limit(1);
-
-  if (error) throw new Error(error.message);
-  return (data ?? []).length > 0;
-}
-
 export async function createDraftOrder(input: {
   sellerId: string;
   creadoPor: string;
@@ -247,7 +228,7 @@ export async function addOrderItem(input: {
   // mano metería al pedido algo que después no se puede emitir.
   const { data: product, error: productError } = await supabase
     .from("products")
-    .select("estado")
+    .select("estado, codigo_interno")
     .eq("id", input.productId)
     .maybeSingle();
   if (productError) throw new Error(productError.message);
@@ -269,7 +250,16 @@ export async function addOrderItem(input: {
     .eq("sales_channel_id", customer.canal_id)
     .is("vigente_hasta", null)
     .maybeSingle();
-  if (!priceRow) return { ok: false, reason: "NO_PRICE" };
+
+  // Una bonificación se entrega gratis y casi nunca tiene precio propio en
+  // la lista del canal: entra a S/ 0.00 explícito en vez de bloquearse.
+  // Para cualquier otro producto, sin precio no hay línea.
+  const precio = priceRow
+    ? priceRow.precio
+    : admitePrecioCero(product.codigo_interno)
+      ? 0
+      : null;
+  if (precio === null) return { ok: false, reason: "NO_PRICE" };
 
   const { data: taxProfile } = await supabase
     .from("product_tax_profiles")
@@ -281,7 +271,7 @@ export async function addOrderItem(input: {
 
   const line = calculateLineItem({
     cantidad: input.cantidad,
-    precioVigente: priceRow.precio,
+    precioVigente: precio,
     afectacionTributaria: taxProfile.afectacion_tributaria as "GRAVADO" | "INAFECTO",
     tasaAplicable: taxProfile.tasa_aplicable,
   });
@@ -293,7 +283,7 @@ export async function addOrderItem(input: {
       order_id: input.orderId,
       product_id: input.productId,
       cantidad: input.cantidad,
-      precio_unitario: priceRow.precio,
+      precio_unitario: precio,
       afectacion_tributaria: taxProfile.afectacion_tributaria,
       tasa_igv: taxProfile.tasa_aplicable,
       subtotal: line.subtotal,
@@ -461,40 +451,6 @@ export async function submitOrder(orderId: string, actor: string): Promise<Submi
     priceDrift: data.priceDrift ?? [],
     notificacion,
   };
-}
-
-export async function repeatLastOrder(sellerId: string, actor: string) {
-  const supabase = createClient();
-  const { data: last, error: lastError } = await supabase
-    .from("orders")
-    .select("id, customer_id, customer_address_id, payment_terms_id, dias_credito_solicitados")
-    .eq("seller_id", sellerId)
-    .order("fecha_creacion", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (lastError) throw new Error(lastError.message);
-  if (!last) throw new Error("No hay pedidos anteriores para repetir.");
-
-  const { data: items, error: itemsError } = await supabase
-    .from("order_items")
-    .select("product_id, cantidad")
-    .eq("order_id", last.id);
-  if (itemsError) throw new Error(itemsError.message);
-
-  const draft = await createDraftOrder({
-    sellerId,
-    creadoPor: actor,
-    customerId: last.customer_id,
-    customerAddressId: last.customer_address_id,
-    paymentTermsId: last.payment_terms_id,
-    diasCreditoSolicitados: last.dias_credito_solicitados,
-  });
-
-  for (const item of items ?? []) {
-    await addOrderItem({ orderId: draft.id, customerId: last.customer_id, productId: item.product_id, cantidad: item.cantidad });
-  }
-
-  return draft;
 }
 
 /**

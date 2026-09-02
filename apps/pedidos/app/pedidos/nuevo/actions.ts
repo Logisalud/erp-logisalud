@@ -8,8 +8,11 @@ import { createDraftOrder } from "@/services/orders";
 import { listPaymentTerms } from "@/services/catalog";
 import { validarCondicionDePago } from "@/domain/payment-terms";
 import {
+  MENSAJE_SIN_ZONA_ASIGNADA,
+  MENSAJE_ZONA_AJENA,
   addCustomerAddress,
   listCustomerAddresses,
+  listZonasSeleccionables,
   requestNewCustomer,
   searchActiveCustomers,
 } from "@/services/customers";
@@ -72,6 +75,17 @@ export async function crearClienteNuevo(input: {
   if (!input.zonaId) throw new Error("Selecciona una zona.");
   if (!input.condicionPagoHabitualId) throw new Error("Selecciona una condición de pago habitual.");
   if (!direccion) throw new Error("La dirección es requerida.");
+
+  // La zona se revalida contra las que el usuario puede usar: la pantalla
+  // ya las filtra, pero si llega otra (petición armada a mano, o pestaña
+  // vieja) la base la rechaza por RLS y eso se veía como un error de
+  // servidor en pantalla.
+  const user = await getCurrentUser();
+  const esAdmin = user?.roles.includes("administrador") ?? false;
+  const zonas = await listZonasSeleccionables(esAdmin);
+  if (!zonas.some((z) => z.id === input.zonaId)) {
+    throw new Error(zonas.length === 0 ? MENSAJE_SIN_ZONA_ASIGNADA : MENSAJE_ZONA_AJENA);
+  }
 
   const { customer, addressId } = await requestNewCustomer({
     rucODocumento,

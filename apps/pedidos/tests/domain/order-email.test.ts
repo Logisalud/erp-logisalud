@@ -8,6 +8,7 @@ import {
   renderOrderEmailHtml,
   renderOrderEmailText,
   type OrderEmailData,
+  etiquetaObservacion,
   precioEspecialLabel,
   precioEspecialVigente,
   descuentoAplicado,
@@ -394,5 +395,88 @@ describe("precio comparado en el cuerpo del correo", () => {
 
   it("el asunto refleja el evento cuando hay uno", () => {
     expect(buildOrderEmailSubject(conDescuento)).toContain("Descuento aprobado");
+  });
+});
+
+describe("observaciones del pedido", () => {
+  const conObservaciones = buildData({
+    observaciones: [
+      {
+        comentario: "Entregar antes del viernes, coordinar con Rosa.",
+        fecha: "2026-09-02T15:00:00Z",
+        autor: "LUIS VARGAS",
+        contexto: null,
+      },
+      {
+        comentario: "Plazo aprobado por Administración.",
+        fecha: "2026-09-02T16:30:00Z",
+        autor: "ANA ROMERO",
+        contexto: "ADMINISTRATIVE_EXCEPTION",
+      },
+    ],
+  });
+
+  it("el HTML muestra TODAS las observaciones, no sólo la última", () => {
+    // Son una conversación: quedarse con la última esconde el pedido
+    // original ("mandar 20 cajas" seguido de "confirmado con Rosa").
+    const html = renderOrderEmailHtml(conObservaciones);
+    expect(html).toContain("Observaciones del pedido");
+    expect(html).toContain("Entregar antes del viernes, coordinar con Rosa.");
+    expect(html).toContain("Plazo aprobado por Administración.");
+  });
+
+  it("cada una dice cuándo y de quién viene", () => {
+    const html = renderOrderEmailHtml(conObservaciones);
+    expect(html).toContain("LUIS VARGAS");
+    expect(html).toContain("excepción administrativa");
+  });
+
+  it("la versión de texto también las lleva", () => {
+    const text = renderOrderEmailText(conObservaciones);
+    expect(text).toContain("OBSERVACIONES DEL PEDIDO");
+    expect(text).toContain("Entregar antes del viernes, coordinar con Rosa.");
+    expect(text).toContain("Plazo aprobado por Administración.");
+  });
+
+  it("un pedido sin observaciones no muestra la sección vacía", () => {
+    const html = renderOrderEmailHtml(buildData({ observaciones: [] }));
+    expect(html).not.toContain("Observaciones del pedido");
+    expect(renderOrderEmailText(buildData())).not.toContain("OBSERVACIONES DEL PEDIDO");
+  });
+
+  it("escapa el HTML de lo que escribió el vendedor", () => {
+    const html = renderOrderEmailHtml(
+      buildData({
+        observaciones: [
+          { comentario: "<script>alert(1)</script>", fecha: "2026-09-02T15:00:00Z", autor: null, contexto: null },
+        ],
+      }),
+    );
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("etiquetaObservacion", () => {
+  it("junta fecha, autor y contexto", () => {
+    const etiqueta = etiquetaObservacion({
+      comentario: "x",
+      fecha: "2026-09-02T15:00:00Z",
+      autor: "LUIS VARGAS",
+      contexto: "COMMERCIAL_EXCEPTION",
+    });
+    expect(etiqueta).toContain("LUIS VARGAS");
+    expect(etiqueta).toContain("excepción comercial");
+  });
+
+  it("sin autor no deja un separador colgando", () => {
+    const etiqueta = etiquetaObservacion({
+      comentario: "x",
+      fecha: "2026-09-02T15:00:00Z",
+      autor: null,
+      contexto: null,
+    });
+    expect(etiqueta.endsWith("·")).toBe(false);
+    expect(etiqueta).not.toContain("· ·");
   });
 });
