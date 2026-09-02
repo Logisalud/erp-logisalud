@@ -26,6 +26,9 @@ export type OrderItemRow = {
   subtotal: number;
   igv: number;
   total: number;
+  precio_fijado_por_admin: boolean;
+  precio_lista_original: number | null;
+  motivo_precio_especial: string | null;
   product: { descripcion: string; codigo_interno: string } | null;
 };
 
@@ -50,6 +53,7 @@ export type OrderDetail = OrderSummary & {
   customer_id: string;
   customer_address_id: string;
   payment_terms_id: number;
+  dias_credito_solicitados: number | null;
   customer: {
     razon_social: string;
     ruc_o_documento: string;
@@ -57,7 +61,7 @@ export type OrderDetail = OrderSummary & {
     condicion_pago_habitual_id: number | null;
   } | null;
   address: { direccion: string } | null;
-  payment_terms: { nombre: string } | null;
+  payment_terms: { nombre: string; permite_dias_libres: boolean } | null;
   items: OrderItemRow[];
   history: OrderStatusHistoryRow[];
   observations: OrderObservationRow[];
@@ -145,6 +149,8 @@ export async function createDraftOrder(input: {
   customerId: string;
   customerAddressId: string;
   paymentTermsId: number;
+  /** Sólo con la condición de pago de días libres; con las estándar va null. */
+  diasCreditoSolicitados?: number | null;
 }) {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -155,6 +161,7 @@ export async function createDraftOrder(input: {
       customer_id: input.customerId,
       customer_address_id: input.customerAddressId,
       payment_terms_id: input.paymentTermsId,
+      dias_credito_solicitados: input.diasCreditoSolicitados ?? null,
     })
     .select()
     .single();
@@ -170,10 +177,11 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail | nul
     .from("orders")
     .select(
       `id, numero, estado, fecha_creacion, fecha_envio, seller_id, customer_id, customer_address_id, payment_terms_id,
+      dias_credito_solicitados,
       seller:sellers(nombre_completo),
       customer:customers(razon_social, ruc_o_documento, canal_id, condicion_pago_habitual_id),
       address:customer_addresses(direccion),
-      payment_terms:payment_terms(nombre)`,
+      payment_terms:payment_terms(nombre, permite_dias_libres)`,
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -185,7 +193,11 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail | nul
     await Promise.all([
       supabase
         .from("order_items")
-        .select("id, product_id, cantidad, precio_unitario, afectacion_tributaria, tasa_igv, subtotal, igv, total, product:products(descripcion, codigo_interno)")
+        .select(
+          "id, product_id, cantidad, precio_unitario, afectacion_tributaria, tasa_igv, subtotal, igv, total, " +
+            "precio_fijado_por_admin, precio_lista_original, motivo_precio_especial, " +
+            "product:products(descripcion, codigo_interno)",
+        )
         .eq("order_id", orderId),
       supabase
         .from("order_status_history")
@@ -295,18 +307,87 @@ export async function addOrderItem(input: {
   return { ok: true, itemId: data.id };
 }
 
+/**
+ * El administrador fija el precio de una línea, directo.
+ *
+ * Un vendedor que quiere otro precio abre una solicitud y el pedido espera
+ * (COMMERCIAL_EXCEPTION). El administrador no: ya tiene la autoridad, así
+ * que pedírsela a sí mismo solo agrega un paso y un pedido frenado. El
+ * precio se aplica a la línea y el pedido sigue su curso normal.
+ *
+ * La autoridad la verifica el RPC con `pedidos.is_admin()`, sobre los roles
+ * reales de la sesión: esta función no decide nada de permisos, y una
+ * llamada armada a mano por un vendedor rebota en la base.
+ *
+ * Queda auditado en pedidos.audit_logs con los dos precios y el motivo,
+ * porque es exactamente el caso donde después alguien va a preguntar por
+ * qué esta línea salió a este precio.
+ */
+export async function setItemSpecialPriceAsAdmin(input: {
+  orderId: string;
+  itemId: string;
+  precio: number;
+  motivo?: string | null;
+  actor: string;
+}): Promise<{ precioAnterior: number; precioLista: number; precioNuevo: number }> {
+  if (!Number.isFinite(input.precio) || input.precio <= 0) {
+    throw new Error("El precio tiene que ser mayor que cero.");
+  }
+
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("set_item_special_price", {
+    p_order_item_id: input.itemId,
+    p_precio: input.precio,
+    p_motivo: input.motivo ?? null,
+  });
+  if (error) throw new Error(error.message);
+
+  const resultado = data as {
+    orderId: string;
+    precioAnterior: number;
+    precioLista: number;
+    precioNuevo: number;
+  };
+
+  await logAudit({
+    actor: input.actor,
+    accion: "fijar_precio_especial_admin",
+    entidad: "order_items",
+    entidadId: input.itemId,
+    datosAntes: { precio_unitario: resultado.precioAnterior },
+    datosDespues: {
+      order_id: resultado.orderId,
+      precio_unitario: resultado.precioNuevo,
+      precio_lista_original: resultado.precioLista,
+      motivo: input.motivo?.trim() || null,
+      sin_aprobacion_comercial: true,
+    },
+  });
+
+  return {
+    precioAnterior: resultado.precioAnterior,
+    precioLista: resultado.precioLista,
+    precioNuevo: resultado.precioNuevo,
+  };
+}
+
 export async function removeOrderItem(itemId: string) {
   const supabase = createClient();
   const { error } = await supabase.from("order_items").delete().eq("id", itemId);
   if (error) throw new Error(error.message);
 }
 
-export async function updatePaymentTerms(orderId: string, paymentTermsId: number, actor: string) {
+export async function updatePaymentTerms(
+  orderId: string,
+  paymentTermsId: number,
+  actor: string,
+  diasCreditoSolicitados: number | null = null,
+) {
   const supabase = createClient();
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("estado, payment_terms_id")
+    .select("estado, payment_terms_id, dias_credito_solicitados")
     .eq("id", orderId)
     .single();
   if (orderError) throw new Error(orderError.message);
@@ -314,7 +395,14 @@ export async function updatePaymentTerms(orderId: string, paymentTermsId: number
     throw new Error("La condición de pago solo se puede editar mientras el pedido está en borrador.");
   }
 
-  const { error } = await supabase.from("orders").update({ payment_terms_id: paymentTermsId }).eq("id", orderId);
+  // Los días se escriben SIEMPRE junto con la condición, y volver a una
+  // condición estándar los limpia en el mismo update: dejarlos colgados
+  // haría que el pedido dijera "Contado" y arrastrara 15 días fantasma
+  // (el trigger de la base rechaza justamente esa combinación).
+  const { error } = await supabase
+    .from("orders")
+    .update({ payment_terms_id: paymentTermsId, dias_credito_solicitados: diasCreditoSolicitados })
+    .eq("id", orderId);
   if (error) throw new Error(error.message);
 
   await logAudit({
@@ -322,8 +410,14 @@ export async function updatePaymentTerms(orderId: string, paymentTermsId: number
     accion: "cambiar_condicion_pago",
     entidad: "orders",
     entidadId: orderId,
-    datosAntes: { payment_terms_id: order.payment_terms_id },
-    datosDespues: { payment_terms_id: paymentTermsId },
+    datosAntes: {
+      payment_terms_id: order.payment_terms_id,
+      dias_credito_solicitados: order.dias_credito_solicitados,
+    },
+    datosDespues: {
+      payment_terms_id: paymentTermsId,
+      dias_credito_solicitados: diasCreditoSolicitados,
+    },
   });
 }
 
@@ -373,7 +467,7 @@ export async function repeatLastOrder(sellerId: string, actor: string) {
   const supabase = createClient();
   const { data: last, error: lastError } = await supabase
     .from("orders")
-    .select("id, customer_id, customer_address_id, payment_terms_id")
+    .select("id, customer_id, customer_address_id, payment_terms_id, dias_credito_solicitados")
     .eq("seller_id", sellerId)
     .order("fecha_creacion", { ascending: false })
     .limit(1)
@@ -393,6 +487,7 @@ export async function repeatLastOrder(sellerId: string, actor: string) {
     customerId: last.customer_id,
     customerAddressId: last.customer_address_id,
     paymentTermsId: last.payment_terms_id,
+    diasCreditoSolicitados: last.dias_credito_solicitados,
   });
 
   for (const item of items ?? []) {

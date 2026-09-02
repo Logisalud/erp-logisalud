@@ -839,6 +839,98 @@ grabó `submit_order`, igual que el cuerpo del correo, para que el adjunto
 no pueda contradecir a la BD. Si generar el Excel falla, **el correo sale
 igual sin adjunto** — perder el adjunto es malo, no avisar es peor.
 
+## Condición de pago con días de crédito a mano (`1010`, `1012`)
+
+El catálogo cubre `Contado` y `Crédito 30 / 45 / 60 / 90 / 120 días`.
+Cuando el cliente negocia otro plazo —15 días, 75 días— el vendedor no
+tenía dónde anotarlo: elegía la opción más parecida y el dato real se
+perdía.
+
+Se agregó **una** opción de entrada libre, `Crédito (otro número de
+días)`, marcada con `payment_terms.permite_dias_libres`. El número que
+escribe el vendedor va en `orders.dias_credito_solicitados`, no en el
+catálogo: dos pedidos con la misma condición pueden pedir 15 y 75, y
+sumar una fila al catálogo por cada plazo lo volvería una condición
+"estándar" más, que es exactamente lo contrario de lo que se quiere.
+
+Reglas, todas en la base porque es la autoridad:
+
+- **Siempre cae en `ADMINISTRATIVE_EXCEPTION`**, incluso si el cliente
+  no tiene condición habitual definida (que es el caso de los 3.399
+  clientes migrados). No hay contra qué comparar porque, por
+  definición, no es una condición estándar: Administración tiene que
+  ver el plazo antes de que el pedido salga a Operaciones.
+- **Coherencia condición ↔ días**, sostenida por el trigger
+  `check_dias_credito_coherentes`: con la opción libre el número es
+  obligatorio, y con cualquier condición estándar tiene que quedar
+  `null`. Un pedido que dijera "Contado" arrastrando 15 días fantasma
+  no puede existir. No es un `CHECK` porque la regla mira otra tabla.
+- **Rango 1 a 365 días** (`orders_dias_credito_rango_check`).
+- La opción libre **no puede ser la condición habitual de un cliente**:
+  las pantallas de cliente la filtran del selector. Un plazo distinto
+  en cada pedido no es una costumbre contra la cual comparar.
+
+En pantalla, en el correo y en el Excel la condición se muestra con
+`etiquetaCondicionPago()`: con días a mano dice `Crédito 15 días (no
+estándar)` y no el nombre del catálogo, que no informa nada.
+
+## El administrador fija precio sin aprobación (`1011`, `1012`)
+
+Cualquier precio distinto al de lista abría una solicitud
+(`approval_requests`) y frenaba el pedido en `COMMERCIAL_EXCEPTION`.
+Para un vendedor eso es el control que corresponde; para el
+administrador es pedirse permiso a sí mismo.
+
+Ahora hay dos caminos según el rol de quien arma el pedido:
+
+- **Vendedor:** sin cambios. Solicitud de descuento, pedido frenado
+  hasta que un aprobador comercial la resuelva.
+- **Administrador:** el precio se aplica directo a la línea vía
+  `pedidos.set_item_special_price()`. No se crea solicitud, el pedido
+  no espera a nadie y la validación automática sigue su curso normal.
+
+La autoridad la verifica el RPC con `pedidos.is_admin()` sobre los roles
+reales de la sesión, no la pantalla: una Server Action llamada a mano
+por un vendedor rebota en la base (probado).
+
+Dos detalles que hacían falta para que funcione de verdad:
+
+- `submit_order` **no resincroniza** las líneas con
+  `precio_fijado_por_admin = true`. Antes de `1012`, el bucle de envío
+  sobrescribía `precio_unitario` con el precio de lista vigente de
+  todas las líneas, así que el precio que el administrador acababa de
+  fijar se perdía justo al enviar el pedido. Tampoco cuenta como
+  `priceDrift`: no cambió solo, lo cambió él.
+- `order_items.precio_lista_original` guarda el precio de lista del
+  momento del cambio, para que el correo y el Excel puedan mostrar los
+  dos precios (`lista S/ 2.50 → fijado por administración S/ 1.00`).
+
+Queda auditado en `pedidos.audit_logs` con acción
+`fijar_precio_especial_admin`: los dos precios, el motivo y
+`sin_aprobacion_comercial: true`.
+
+## Carga masiva de stock (`services/stock-import.ts`)
+
+El stock sigue siendo **registro manual** —no hay integración con un
+ERP de inventario— pero ya no se carga de a uno: hay importador
+CSV/Excel en `/admin/maestros/stock`, mismo patrón que precios y
+clientes (vista previa primero, publicar después).
+
+- Columnas: `codigo_producto`, `inventory_source` (por nombre) y
+  `cantidad_disponible`. La cabecera no tiene que ser la primera fila y
+  los nombres admiten variantes.
+- La escritura es un **upsert sobre la PK
+  `(product_id, inventory_source_id)`**: actualiza el registro que ya
+  existe y crea el que no. Cargar dos veces el mismo archivo no
+  duplica.
+- La vista previa dice cuántos se crean, cuántos se actualizan, cuántos
+  quedan igual y **qué códigos de producto no existen**. Una fila que
+  no resuelve nunca se descarta en silencio: "cargué 150 y quedaron
+  148" sin decir cuáles es la forma más rápida de perderle la confianza
+  a un importador.
+- Una fuente **inactiva** se reporta distinto de una **inexistente**:
+  decir "no existe" empujaría al usuario a crear un duplicado.
+
 ## Qué NO cubre esta fase
 
 Explícitamente fuera de alcance por ahora (ver README y CLAUDE.md):
@@ -849,7 +941,9 @@ Explícitamente fuera de alcance por ahora (ver README y CLAUDE.md):
   no perder el dato mientras tanto.
 - Pantalla dedicada de asignación de zonas — se gestiona vía
   SQL/dashboard de Supabase por ahora.
-- Gestión de stock.
+- Gestión de stock **transaccional** (reservas, descuento automático al
+  despachar, kardex). El nivel de stock se registra a mano o se carga
+  masivamente; nada lo mueve solo.
 - Integración con NubeFact (documentación electrónica).
 - Cálculo real de retenciones.
 - Integración con Odoo.

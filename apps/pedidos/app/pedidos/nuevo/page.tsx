@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/auth/session";
 import { listActiveCustomers } from "@/services/customers";
 import { listActiveSellers } from "@/services/sellers";
-import { listCatalog } from "@/services/catalog";
+import { listCatalog, listPaymentTerms } from "@/services/catalog";
 import { NewOrderForm } from "./new-order-form";
 
 export default async function NuevoPedidoPage() {
@@ -10,7 +10,7 @@ export default async function NuevoPedidoPage() {
 
   const [customers, paymentTerms, salesChannels, zones, sellers] = await Promise.all([
     listActiveCustomers(),
-    listCatalog("payment_terms"),
+    listPaymentTerms(),
     listCatalog("sales_channels"),
     listCatalog("zones"),
     isAdmin ? listActiveSellers() : Promise.resolve([]),
@@ -29,7 +29,11 @@ export default async function NuevoPedidoPage() {
           isAdmin={isAdmin}
           sellers={sellers}
           customers={customers}
-          paymentTerms={paymentTerms.map((p) => ({ id: p.id, nombre: p.nombre }))}
+          paymentTerms={paymentTerms.map((p) => ({
+            id: p.id,
+            nombre: p.nombre,
+            permite_dias_libres: p.permite_dias_libres,
+          }))}
           salesChannels={salesChannels.map((c) => ({ id: c.id, nombre: c.nombre }))}
           zones={zones.map((z) => ({ id: z.id, nombre: z.nombre }))}
         />

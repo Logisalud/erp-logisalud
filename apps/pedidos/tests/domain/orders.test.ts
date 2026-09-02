@@ -286,3 +286,38 @@ describe("valorUnitarioSinIgv", () => {
     expect(valorUnitarioSinIgv(50, "INAFECTO", 0)).toBe(50);
   });
 });
+
+describe("computeAutomaticValidationOutcome con días de crédito a mano", () => {
+  const base = {
+    customerEstado: "ACTIVO" as const,
+    orderPaymentTermsId: 7,
+    customerCondicionPagoHabitualId: null,
+    hasPendingApprovalRequest: false,
+  };
+
+  it("los días escritos a mano caen SIEMPRE en excepción administrativa", () => {
+    // Ni siquiera hace falta que el cliente tenga condición habitual: es el
+    // caso de los 3.399 clientes migrados, y sin esta regla el pedido salía
+    // derecho a Operaciones con un plazo que nadie aprobó.
+    expect(computeAutomaticValidationOutcome({ ...base, diasCreditoSolicitados: 15 })).toBe(
+      "ADMINISTRATIVE_EXCEPTION",
+    );
+  });
+
+  it("sin días a mano, el mismo pedido no es excepción", () => {
+    expect(computeAutomaticValidationOutcome({ ...base, diasCreditoSolicitados: null })).toBe(
+      "READY_FOR_OPERATIONS",
+    );
+    expect(computeAutomaticValidationOutcome(base)).toBe("READY_FOR_OPERATIONS");
+  });
+
+  it("un cliente pendiente de validación sigue mandando sobre todo lo demás", () => {
+    expect(
+      computeAutomaticValidationOutcome({
+        ...base,
+        customerEstado: "PENDIENTE_DE_VALIDACION",
+        diasCreditoSolicitados: 15,
+      }),
+    ).toBe("NEW_CUSTOMER_VALIDATION");
+  });
+});

@@ -244,6 +244,32 @@ describe("precioEspecialLabel", () => {
     ).toBe("Rechazado, queda en lista S/ 100.00 (pidió S/ 2.00)");
   });
 
+  it("un precio fijado por el administrador no dice 'aprobado': no lo aprobó nadie", () => {
+    expect(
+      precioEspecialLabel({
+        ...base,
+        precioOriginal: 2.5,
+        precioSolicitado: 1,
+        estado: "RESUELTO",
+        decision: "FIJADO_POR_ADMIN",
+        precioAprobado: 1,
+      }),
+    ).toBe("lista S/ 2.50 → fijado por administración S/ 1.00 (−S/ 1.50, −60.0%)");
+  });
+
+  it("el precio fijado por administración arrastra su motivo cuando hay uno", () => {
+    expect(
+      precioEspecialLabel({
+        ...base,
+        precioOriginal: 2.5,
+        estado: "RESUELTO",
+        decision: "FIJADO_POR_ADMIN",
+        precioAprobado: 1,
+        motivo: "Cierre de campaña",
+      }),
+    ).toContain("· Cierre de campaña");
+  });
+
   it("pendiente también contrasta contra el precio de lista", () => {
     expect(precioEspecialLabel({ ...base, precioOriginal: 100 })).toBe(
       "PENDIENTE — lista S/ 100.00, pide S/ 2.00",
@@ -273,6 +299,10 @@ describe("precioEspecialVigente", () => {
   it("un rechazo deja la línea al precio de lista", () => {
     expect(precioEspecialVigente({ ...base, decision: "RECHAZAR" })).toBeNull();
     expect(precioEspecialVigente({ ...base, decision: "SOLICITAR_INFO" })).toBeNull();
+  });
+
+  it("un precio fijado por el administrador también es precio vigente", () => {
+    expect(precioEspecialVigente({ ...base, decision: "FIJADO_POR_ADMIN" })).toBe(80);
   });
 
   it("sin solicitud no hay nada que mostrar", () => {

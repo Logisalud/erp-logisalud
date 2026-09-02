@@ -37,9 +37,15 @@ export type OrderEmailPrecioEspecial = {
   porcentajeDescuento: number | null;
   /** PENDIENTE mientras nadie la resuelve; el pedido no avanza. */
   estado: string;
-  /** APROBAR | APROBAR_OTRO_PRECIO | RECHAZAR | SOLICITAR_INFO, o null. */
+  /**
+   * APROBAR | APROBAR_OTRO_PRECIO | RECHAZAR | SOLICITAR_INFO, o null.
+   * FIJADO_POR_ADMIN es el caso sin solicitud: el administrador puso el
+   * precio directo, sin pedirle aprobación a nadie.
+   */
   decision: string | null;
   precioAprobado: number | null;
+  /** Motivo, cuando quien fijó el precio dejó uno. */
+  motivo?: string | null;
 };
 
 export type OrderEmailItem = {
@@ -66,7 +72,13 @@ export function precioEspecialVigente(
   pe: OrderEmailPrecioEspecial | null | undefined,
 ): number | null {
   if (!pe || pe.estado !== "RESUELTO") return null;
-  if (pe.decision !== "APROBAR" && pe.decision !== "APROBAR_OTRO_PRECIO") return null;
+  if (
+    pe.decision !== "APROBAR" &&
+    pe.decision !== "APROBAR_OTRO_PRECIO" &&
+    pe.decision !== "FIJADO_POR_ADMIN"
+  ) {
+    return null;
+  }
   return pe.precioAprobado;
 }
 
@@ -108,6 +120,16 @@ export function precioEspecialLabel(pe: OrderEmailPrecioEspecial | null | undefi
   }
 
   switch (pe.decision) {
+    // El administrador no pide aprobación: fija el precio. Se dice así,
+    // porque "aprobado" haría pensar que alguien más lo revisó.
+    case "FIJADO_POR_ADMIN": {
+      const dcto = descuentoAplicado(pe);
+      const cabeza =
+        lista && dcto
+          ? `${lista} → fijado por administración ${soles(pe.precioAprobado ?? 0)} (−${soles(dcto.monto)}, −${dcto.porcentaje.toFixed(1)}%)`
+          : `Fijado por administración ${soles(pe.precioAprobado ?? 0)}`;
+      return pe.motivo ? `${cabeza} · ${pe.motivo}` : cabeza;
+    }
     case "APROBAR":
     case "APROBAR_OTRO_PRECIO": {
       // Se muestran los DOS precios: quien revisa necesita ver contra qué se

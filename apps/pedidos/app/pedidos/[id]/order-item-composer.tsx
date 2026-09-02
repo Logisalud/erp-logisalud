@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Combobox, type ComboboxOption } from "@/components/combobox";
 import { IconCheck, IconError, IconPlus, IconSpinner, IconTrash } from "@/components/icons";
@@ -9,6 +9,7 @@ import {
   agregarProducto,
   cambiarCantidad,
   enviarPedido,
+  fijarPrecioEspecial,
   quitarProducto,
   solicitarDescuento,
 } from "./actions";
@@ -23,6 +24,9 @@ type OrderItem = {
   subtotal: number;
   igv: number;
   total: number;
+  precio_fijado_por_admin: boolean;
+  precio_lista_original: number | null;
+  motivo_precio_especial: string | null;
   product: { descripcion: string; codigo_interno: string } | null;
 };
 
@@ -51,11 +55,18 @@ export function OrderItemComposer({
   customerId,
   items,
   products,
+  esAdmin,
 }: {
   orderId: string;
   customerId: string;
   items: OrderItem[];
   products: Product[];
+  /**
+   * El administrador fija el precio directo; el vendedor abre una solicitud
+   * y el pedido espera aprobación. El servidor vuelve a verificar el rol:
+   * esto solo decide qué formulario se muestra.
+   */
+  esAdmin: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -73,6 +84,7 @@ export function OrderItemComposer({
   // acusar recibo, o el vendedor no sabe si se grabó.
   const [cantidadGuardada, setCantidadGuardada] = useState<string | null>(null);
   const cantidadRef = useRef<HTMLInputElement>(null);
+  const barraRef = useRef<HTMLDivElement>(null);
 
   const opciones: ComboboxOption[] = products.map((p) => ({
     id: p.id,
@@ -158,6 +170,21 @@ export function OrderItemComposer({
     });
   }
 
+  function fijarPrecio(itemId: string, e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await fijarPrecioEspecial(orderId, itemId, formData);
+        setDiscountFormItemId(null);
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudo fijar el precio.");
+      }
+    });
+  }
+
   function enviar() {
     setError(null);
     startTransition(async () => {
@@ -174,9 +201,42 @@ export function OrderItemComposer({
   const total = items.reduce((acc, item) => acc + item.total, 0);
   const unidades = items.reduce((acc, item) => acc + item.cantidad, 0);
 
+  // La barra fija tapaba el final de la pantalla —Observaciones y su campo
+  // de texto quedaban debajo, sin forma de alcanzarlos con scroll—. El
+  // espacio se reserva en el contenedor de la página (`.reserva-barra-pie`)
+  // y acá se publica cuánto mide la barra de verdad: cambia con el ancho,
+  // con el aviso de "agrega al menos un producto" y con el safe-area del
+  // iPhone, así que medirla es más confiable que estimarla.
+  useEffect(() => {
+    const barra = barraRef.current;
+    if (!barra) return;
+
+    const publicar = () =>
+      document.documentElement.style.setProperty("--alto-barra-pie", `${barra.offsetHeight}px`);
+
+    publicar();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", publicar);
+      return () => {
+        window.removeEventListener("resize", publicar);
+        document.documentElement.style.removeProperty("--alto-barra-pie");
+      };
+    }
+
+    const observer = new ResizeObserver(publicar);
+    observer.observe(barra);
+    return () => {
+      observer.disconnect();
+      // Al salir del borrador la barra ya no existe: dejar el valor puesto
+      // reservaría espacio vacío en el resto de las pantallas.
+      document.documentElement.style.removeProperty("--alto-barra-pie");
+    };
+  }, [items.length]);
+
   return (
     <>
-      <div className="flex flex-col gap-4 pb-28">
+      <div className="flex flex-col gap-4">
         {error && (
           <p className="aviso-error" role="alert">
             <IconError className="mt-0.5 h-4 w-4 shrink-0" />
@@ -299,6 +359,15 @@ export function OrderItemComposer({
                     <p className="cifra mt-0.5 text-sm text-slate-600">
                       {item.product?.codigo_interno ?? "—"} · {formatSoles(item.precio_unitario)} c/u
                     </p>
+                    {item.precio_fijado_por_admin && (
+                      <p className="mt-1 text-sm font-medium text-amber-800">
+                        Precio fijado por administración
+                        {item.precio_lista_original !== null
+                          ? ` · lista ${formatSoles(item.precio_lista_original)}`
+                          : ""}
+                        {item.motivo_precio_especial ? ` · ${item.motivo_precio_especial}` : ""}
+                      </p>
+                    )}
 
                     <div className="mt-2 flex items-center gap-2">
                       <label className="sr-only" htmlFor={`cant-${item.id}`}>
@@ -338,7 +407,7 @@ export function OrderItemComposer({
                           }
                           className="min-h-11 rounded-lg px-2 text-sm font-medium text-[#1c6d71] hover:bg-logisalud-teal/10"
                         >
-                          Precio especial
+                          {esAdmin ? "Fijar precio" : "Precio especial"}
                         </button>
                       )}
                       <button
@@ -353,7 +422,42 @@ export function OrderItemComposer({
                     </div>
                   </div>
 
-                  {discountFormItemId === item.id && (
+                  {discountFormItemId === item.id && esAdmin && (
+                    <form
+                      onSubmit={(e) => fijarPrecio(item.id, e)}
+                      className="mx-4 mb-4 flex flex-col gap-2 rounded-lg bg-slate-50 p-3"
+                    >
+                      <p className="text-sm text-slate-700">
+                        Como administrador, el precio se aplica al pedido de inmediato: no genera
+                        solicitud ni espera aprobación de nadie. Queda registrado quién lo fijó,
+                        contra qué precio de lista y con qué motivo.
+                      </p>
+                      <input
+                        name="precio"
+                        type="number"
+                        step="0.0001"
+                        min="0.0001"
+                        required
+                        defaultValue={item.precio_unitario}
+                        aria-label="Precio unitario a fijar"
+                        className="campo cifra h-11 min-h-11 text-sm sm:max-w-sm"
+                      />
+                      <input
+                        name="motivo"
+                        placeholder="Motivo (opcional, recomendado)"
+                        className="campo h-11 min-h-11 text-sm"
+                      />
+                      <button
+                        type="submit"
+                        className="btn-secondary self-start text-sm"
+                        disabled={isPending}
+                      >
+                        Aplicar precio
+                      </button>
+                    </form>
+                  )}
+
+                  {discountFormItemId === item.id && !esAdmin && (
                     <form
                       onSubmit={(e) => pedirDescuento(item.id, e)}
                       className="mx-4 mb-4 flex flex-col gap-2 rounded-lg bg-slate-50 p-3"
@@ -417,7 +521,7 @@ export function OrderItemComposer({
         servidor, igual que el correo y el Excel, para que la pantalla no
         pueda contradecir a la base.
       */}
-      <div className="barra-pie pt-3">
+      <div ref={barraRef} className="barra-pie pt-3">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 sm:px-6">
           <div>
             <p className="text-sm text-slate-600">Total del pedido</p>

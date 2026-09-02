@@ -5,6 +5,8 @@ import { getCurrentUser, requireUserId } from "@/lib/auth/session";
 import { resolveOrderSellerId } from "@/domain/orders";
 import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
 import { createDraftOrder } from "@/services/orders";
+import { listPaymentTerms } from "@/services/catalog";
+import { validarCondicionDePago } from "@/domain/payment-terms";
 import {
   addCustomerAddress,
   listCustomerAddresses,
@@ -111,14 +113,22 @@ export async function crearBorrador(formData: FormData) {
     const direcciones = await listCustomerAddresses(customerId);
     throw new Error(direcciones.length === 0 ? MENSAJE_SIN_DIRECCION : "Selecciona una dirección.");
   }
-  if (!paymentTermsId) throw new Error("Selecciona una condición de pago.");
+  // La condición y los días se validan de nuevo acá contra el catálogo
+  // real: la pantalla puede mentir, y un pedido con "Contado" más 15 días
+  // colgados (o la opción de días libres sin número) no debería existir.
+  const condicion = validarCondicionDePago(await listPaymentTerms(), {
+    paymentTermsId: paymentTermsId || "",
+    diasCredito: String(formData.get("diasCredito") ?? ""),
+  });
+  if (!condicion.ok) throw new Error(condicion.mensaje);
 
   const draft = await createDraftOrder({
     sellerId,
     creadoPor: userId,
     customerId,
     customerAddressId,
-    paymentTermsId,
+    paymentTermsId: condicion.paymentTermsId,
+    diasCreditoSolicitados: condicion.diasCreditoSolicitados,
   });
 
   redirect(`/pedidos/${draft.id}`);

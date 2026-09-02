@@ -13,6 +13,7 @@ import {
   type OrderEmailPrecioEspecial,
 } from "@/domain/order-email";
 import { displayNombreProducto } from "@/domain/products";
+import { etiquetaCondicionPago } from "@/domain/payment-terms";
 
 // ---------------------------------------------------------------------
 // Destinatarios (gestión por el administrador)
@@ -142,6 +143,7 @@ type OrderRow = {
   canal_snapshot: string | null;
   zona_snapshot: string | null;
   vendedor_snapshot: string | null;
+  dias_credito_solicitados: number | null;
   customer: { razon_social: string; ruc_o_documento: string } | null;
   payment_terms: { nombre: string } | null;
 };
@@ -153,6 +155,9 @@ type ItemRow = {
   igv: number | string;
   subtotal: number | string;
   total: number | string;
+  precio_fijado_por_admin: boolean | null;
+  precio_lista_original: number | string | null;
+  motivo_precio_especial: string | null;
   product: { codigo_interno: string; descripcion: string } | null;
 };
 
@@ -169,6 +174,26 @@ type ApprovalRow = {
 
 function num(value: number | string | null | undefined): number {
   return typeof value === "number" ? value : Number(value ?? 0);
+}
+
+/**
+ * Un precio que fijó el administrador no pasa por approval_requests —no le
+ * pide permiso a nadie—, pero en el correo y en el Excel tiene que verse
+ * igual de marcado que un descuento aprobado: quien recibe el pedido
+ * necesita notar que esa línea no va a precio de lista.
+ */
+function precioEspecialDeAdmin(item: ItemRow): OrderEmailPrecioEspecial | null {
+  if (!item.precio_fijado_por_admin) return null;
+  const precio = num(item.precio_unitario);
+  return {
+    precioOriginal: item.precio_lista_original === null ? null : num(item.precio_lista_original),
+    precioSolicitado: precio,
+    porcentajeDescuento: null,
+    estado: "RESUELTO",
+    decision: "FIJADO_POR_ADMIN",
+    precioAprobado: precio,
+    motivo: item.motivo_precio_especial,
+  };
 }
 
 /**
@@ -193,7 +218,7 @@ export async function loadOrderEmailData(
     admin
       .from("orders")
       .select(
-        `numero, fecha_envio, created_at,
+        `numero, fecha_envio, created_at, dias_credito_solicitados,
          razon_social_snapshot, direccion_snapshot, canal_snapshot, zona_snapshot, vendedor_snapshot,
          customer:customers(razon_social, ruc_o_documento),
          payment_terms:payment_terms(nombre)`,
@@ -203,7 +228,9 @@ export async function loadOrderEmailData(
     admin
       .from("order_items")
       .select(
-        "id, cantidad, precio_unitario, igv, subtotal, total, product:products(codigo_interno, descripcion)",
+        "id, cantidad, precio_unitario, igv, subtotal, total, " +
+          "precio_fijado_por_admin, precio_lista_original, motivo_precio_especial, " +
+          "product:products(codigo_interno, descripcion)",
       )
       .eq("order_id", orderId),
     // Solicitudes de precio especial del pedido. Se leen aparte y no con un
@@ -257,7 +284,7 @@ export async function loadOrderEmailData(
     igv: num(i.igv),
     subtotal: num(i.subtotal),
     total: num(i.total),
-    precioEspecial: especialPorItem.get(i.id) ?? null,
+    precioEspecial: especialPorItem.get(i.id) ?? precioEspecialDeAdmin(i),
   }));
 
   return {
@@ -273,7 +300,12 @@ export async function loadOrderEmailData(
       zona: order.zona_snapshot,
     },
     vendedor: order.vendedor_snapshot,
-    condicionPago: order.payment_terms?.nombre ?? null,
+    // Con días escritos a mano, el nombre del catálogo ("Crédito (otro
+    // número de días)") no dice nada: se muestra el plazo real.
+    condicionPago: etiquetaCondicionPago(
+      order.payment_terms?.nombre,
+      order.dias_credito_solicitados,
+    ),
     items,
   };
 }
