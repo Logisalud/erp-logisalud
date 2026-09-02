@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "./audit-log";
+import { notifyDiscountResolved } from "./order-notifications";
 
 export type ApprovalRequestWithOrder = {
   id: string;
@@ -31,9 +32,21 @@ export async function createApprovalRequest(input: {
   evidenciaUrl?: string;
 }) {
   const supabase = createClient();
+
+  // El precio de lista se congela acá porque aprobar el descuento sobreescribe
+  // `order_items.precio_unitario`: si no se guarda ahora, después no queda de
+  // dónde sacar contra qué se comparó, ni en el correo ni en el Excel.
+  const { data: item, error: itemError } = await supabase
+    .from("order_items")
+    .select("precio_unitario")
+    .eq("id", input.orderItemId)
+    .single();
+  if (itemError) throw new Error(itemError.message);
+
   const { data, error } = await supabase
     .from("approval_requests")
     .insert({
+      precio_original: item.precio_unitario,
       order_id: input.orderId,
       order_item_id: input.orderItemId,
       solicitado_por: input.solicitadoPor,
@@ -110,4 +123,24 @@ export async function decideApprovalRequest(input: {
     entidadId: input.requestId,
     datosDespues: { decision: input.decision, precioAprobado: input.precioAprobado, comentario: input.comentario },
   });
+
+  // Aviso por correo de cómo se resolvió. Va al final y no lanza nunca: la
+  // decisión ya está aplicada en la base y un proveedor de correo caído no
+  // puede revertirla. El estado se relee porque decide_approval_request
+  // mueve el pedido (a DRAFT si se rechaza, a READY_FOR_OPERATIONS si ya no
+  // queda nada pendiente).
+  const { data: resuelta } = await supabase
+    .from("approval_requests")
+    .select("order_id, order:orders(estado)")
+    .eq("id", input.requestId)
+    .single<{ order_id: string; order: { estado: string } | null }>();
+
+  if (resuelta) {
+    await notifyDiscountResolved(
+      resuelta.order_id,
+      resuelta.order?.estado ?? "COMMERCIAL_EXCEPTION",
+      input.actor,
+      input.decision,
+    );
+  }
 }

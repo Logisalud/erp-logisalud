@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "./audit-log";
-import { notifyOrderSubmitted, type NotifyResult } from "./order-notifications";
+import { notifyDiscountRequested, notifyOrderSubmitted, type NotifyResult } from "./order-notifications";
 import { calculateLineItem, canEditPaymentTerms } from "@/domain/orders";
 import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
 import { evaluarCambioDeCliente, type ConflictoDePrecio } from "@/domain/order-header";
@@ -348,11 +348,19 @@ export async function submitOrder(orderId: string, actor: string): Promise<Submi
   });
 
   // Notificación por correo a la lista de destinatarios. Va DESPUÉS del
-  // RPC y de la auditoría, y notifyOrderSubmitted no lanza nunca: el
-  // pedido ya quedó SUBMITTED y un proveedor de correo caído no puede
-  // revertirlo ni mostrarle un error al vendedor. El desenlace queda en
-  // pedidos.notification_logs para reintentar a mano.
-  const notificacion = await notifyOrderSubmitted(orderId, data.estadoResultado, actor);
+  // RPC y de la auditoría, y no lanza nunca: el pedido ya quedó SUBMITTED y
+  // un proveedor de correo caído no puede revertirlo ni mostrarle un error
+  // al vendedor. El desenlace queda en pedidos.notification_logs para
+  // reintentar a mano.
+  //
+  // Las solicitudes de descuento se piden en borrador, así que el pedido
+  // "entra a excepción comercial" exactamente acá: en ese caso el aviso es
+  // el de descuento por aprobar, no el de pedido enviado, para que el
+  // aprobador no tenga que deducirlo del cuerpo.
+  const notificacion =
+    data.estadoResultado === "COMMERCIAL_EXCEPTION"
+      ? await notifyDiscountRequested(orderId, data.estadoResultado, actor)
+      : await notifyOrderSubmitted(orderId, data.estadoResultado, actor);
 
   return {
     estadoResultado: data.estadoResultado,

@@ -9,6 +9,8 @@ import {
   renderOrderEmailText,
   type OrderEmailData,
   precioEspecialLabel,
+  precioEspecialVigente,
+  descuentoAplicado,
 } from "@/domain/order-email";
 
 function buildData(overrides: Partial<OrderEmailData> = {}): OrderEmailData {
@@ -178,6 +180,7 @@ describe("renderOrderEmailText", () => {
 
 describe("precioEspecialLabel", () => {
   const base = {
+    precioOriginal: null,
     precioSolicitado: 2,
     porcentajeDescuento: null,
     estado: "PENDIENTE",
@@ -215,5 +218,151 @@ describe("precioEspecialLabel", () => {
     expect(
       precioEspecialLabel({ ...base, estado: "RESUELTO", decision: "RECHAZAR" }),
     ).toBe("Rechazado (pidió S/ 2.00)");
+  });
+
+  it("muestra los dos precios y el descuento cuando se conoce el de lista", () => {
+    expect(
+      precioEspecialLabel({
+        ...base,
+        precioOriginal: 100,
+        precioSolicitado: 80,
+        estado: "RESUELTO",
+        decision: "APROBAR",
+        precioAprobado: 80,
+      }),
+    ).toBe("lista S/ 100.00 → aprobado S/ 80.00 (−S/ 20.00, −20.0%)");
+  });
+
+  it("con el de lista conocido, el rechazo dice a qué precio queda la línea", () => {
+    expect(
+      precioEspecialLabel({
+        ...base,
+        precioOriginal: 100,
+        estado: "RESUELTO",
+        decision: "RECHAZAR",
+      }),
+    ).toBe("Rechazado, queda en lista S/ 100.00 (pidió S/ 2.00)");
+  });
+
+  it("pendiente también contrasta contra el precio de lista", () => {
+    expect(precioEspecialLabel({ ...base, precioOriginal: 100 })).toBe(
+      "PENDIENTE — lista S/ 100.00, pide S/ 2.00",
+    );
+  });
+});
+
+describe("precioEspecialVigente", () => {
+  const base = {
+    precioOriginal: 100,
+    precioSolicitado: 80,
+    porcentajeDescuento: null,
+    estado: "RESUELTO",
+    decision: "APROBAR",
+    precioAprobado: 80,
+  };
+
+  it("es el precio aprobado cuando la solicitud se resolvió a favor", () => {
+    expect(precioEspecialVigente(base)).toBe(80);
+    expect(precioEspecialVigente({ ...base, decision: "APROBAR_OTRO_PRECIO", precioAprobado: 85 })).toBe(85);
+  });
+
+  it("no hay precio especial vigente mientras la solicitud está pendiente", () => {
+    expect(precioEspecialVigente({ ...base, estado: "PENDIENTE", decision: null, precioAprobado: null })).toBeNull();
+  });
+
+  it("un rechazo deja la línea al precio de lista", () => {
+    expect(precioEspecialVigente({ ...base, decision: "RECHAZAR" })).toBeNull();
+    expect(precioEspecialVigente({ ...base, decision: "SOLICITAR_INFO" })).toBeNull();
+  });
+
+  it("sin solicitud no hay nada que mostrar", () => {
+    expect(precioEspecialVigente(null)).toBeNull();
+    expect(precioEspecialVigente(undefined)).toBeNull();
+  });
+});
+
+describe("descuentoAplicado", () => {
+  const base = {
+    precioOriginal: 100,
+    precioSolicitado: 75,
+    porcentajeDescuento: null,
+    estado: "RESUELTO",
+    decision: "APROBAR",
+    precioAprobado: 75,
+  };
+
+  it("calcula monto y porcentaje contra el precio de lista", () => {
+    expect(descuentoAplicado(base)).toEqual({ monto: 25, porcentaje: 25 });
+  });
+
+  it("sin precio de lista capturado no se puede calcular", () => {
+    expect(descuentoAplicado({ ...base, precioOriginal: null })).toBeNull();
+  });
+
+  it("no divide por cero si el precio de lista era cero", () => {
+    expect(descuentoAplicado({ ...base, precioOriginal: 0 })).toBeNull();
+  });
+
+  it("sin precio especial vigente no hay descuento aplicado", () => {
+    expect(descuentoAplicado({ ...base, decision: "RECHAZAR" })).toBeNull();
+  });
+});
+
+describe("precio comparado en el cuerpo del correo", () => {
+  const conDescuento = buildData({
+    estadoResultado: "COMMERCIAL_EXCEPTION",
+    evento: {
+      titulo: "Descuento aprobado — pedido #1042",
+      lead: "El precio especial quedó aplicado.",
+      asunto: "Descuento aprobado — pedido",
+    },
+    items: [
+      {
+        codigo: "DAPHA10-EJ",
+        descripcion: "DAPHA 10 x 30 TAB",
+        cantidad: 10,
+        precioUnitario: 80,
+        igv: 0,
+        subtotal: 800,
+        total: 800,
+        precioEspecial: {
+          precioOriginal: 100,
+          precioSolicitado: 80,
+          porcentajeDescuento: null,
+          estado: "RESUELTO",
+          decision: "APROBAR",
+          precioAprobado: 80,
+        },
+      },
+      {
+        codigo: "SIN-DCTO",
+        descripcion: "PRODUCTO A PRECIO DE LISTA",
+        cantidad: 2,
+        precioUnitario: 50,
+        igv: 18,
+        subtotal: 100,
+        total: 118,
+      },
+    ],
+  });
+
+  it("muestra precio de lista, precio especial y descuento en el HTML", () => {
+    const html = renderOrderEmailHtml(conDescuento);
+    expect(html).toContain("lista S/ 100.00 → aprobado S/ 80.00 (−S/ 20.00, −20.0%)");
+  });
+
+  it("muestra la comparación también en la versión de texto", () => {
+    const text = renderOrderEmailText(conDescuento);
+    expect(text).toContain("Precio especial · lista S/ 100.00 → aprobado S/ 80.00");
+  });
+
+  it("la línea sin descuento no gana ninguna nota de precio especial", () => {
+    const html = renderOrderEmailHtml(conDescuento);
+    const desdeLaLinea = html.slice(html.indexOf("PRODUCTO A PRECIO DE LISTA"));
+    expect(desdeLaLinea).not.toContain("Precio especial ·");
+  });
+
+  it("el asunto refleja el evento cuando hay uno", () => {
+    expect(buildOrderEmailSubject(conDescuento)).toContain("Descuento aprobado");
   });
 });

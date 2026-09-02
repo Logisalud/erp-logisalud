@@ -26,6 +26,12 @@ export const NOTA_NO_COMPROBANTE =
  * quien lo revisa no tiene forma de notar que hay algo que decidir.
  */
 export type OrderEmailPrecioEspecial = {
+  /**
+   * Precio de lista del canal, capturado al crear la solicitud. Al aprobar,
+   * `order_items.precio_unitario` se sobrescribe, así que sin esto el precio
+   * de antes ya no existe en ninguna parte. Null en solicitudes viejas.
+   */
+  precioOriginal: number | null;
   /** Lo que pidió el vendedor. Puede pedir precio o porcentaje, no ambos. */
   precioSolicitado: number | null;
   porcentajeDescuento: number | null;
@@ -52,6 +58,34 @@ function soles(n: number): string {
 }
 
 /**
+ * El precio que realmente se está cobrando en la línea, cuando la solicitud
+ * ya se resolvió a favor. Null mientras está pendiente o si se rechazó: ahí
+ * la línea va al precio de lista.
+ */
+export function precioEspecialVigente(
+  pe: OrderEmailPrecioEspecial | null | undefined,
+): number | null {
+  if (!pe || pe.estado !== "RESUELTO") return null;
+  if (pe.decision !== "APROBAR" && pe.decision !== "APROBAR_OTRO_PRECIO") return null;
+  return pe.precioAprobado;
+}
+
+/**
+ * Cuánto se resignó contra el precio de lista, en monto y en porcentaje.
+ * Null si falta alguno de los dos precios o si el de lista es cero (no hay
+ * porcentaje que calcular contra cero).
+ */
+export function descuentoAplicado(
+  pe: OrderEmailPrecioEspecial | null | undefined,
+): { monto: number; porcentaje: number } | null {
+  const vigente = precioEspecialVigente(pe);
+  const lista = pe?.precioOriginal ?? null;
+  if (vigente === null || lista === null || lista === 0) return null;
+  const monto = lista - vigente;
+  return { monto, porcentaje: (monto / lista) * 100 };
+}
+
+/**
  * Resumen en una línea para la columna "Precio especial". Devuelve null
  * cuando el ítem va a precio de lista, que es el caso normal.
  */
@@ -65,24 +99,49 @@ export function precioEspecialLabel(pe: OrderEmailPrecioEspecial | null | undefi
         ? `${pe.porcentajeDescuento}% dcto.`
         : "sin monto";
 
-  if (pe.estado === "PENDIENTE") return `PENDIENTE — pide ${pedido}`;
+  const lista = pe.precioOriginal !== null ? `lista ${soles(pe.precioOriginal)}` : null;
+
+  if (pe.estado === "PENDIENTE") {
+    return lista
+      ? `PENDIENTE — ${lista}, pide ${pedido}`
+      : `PENDIENTE — pide ${pedido}`;
+  }
 
   switch (pe.decision) {
     case "APROBAR":
-    case "APROBAR_OTRO_PRECIO":
-      // El precio aprobado es el que ya quedó en el ítem; se repite acá para
-      // que se vea contra lo que se había pedido.
-      return pe.precioAprobado !== null
-        ? `Aprobado ${soles(pe.precioAprobado)} (pidió ${pedido})`
-        : `Aprobado (pidió ${pedido})`;
+    case "APROBAR_OTRO_PRECIO": {
+      // Se muestran los DOS precios: quien revisa necesita ver contra qué se
+      // negoció, no sólo el número final.
+      if (pe.precioAprobado === null) return `Aprobado (pidió ${pedido})`;
+      const dcto = descuentoAplicado(pe);
+      if (lista && dcto) {
+        return `${lista} → aprobado ${soles(pe.precioAprobado)} (−${soles(dcto.monto)}, −${dcto.porcentaje.toFixed(1)}%)`;
+      }
+      return `Aprobado ${soles(pe.precioAprobado)} (pidió ${pedido})`;
+    }
     case "RECHAZAR":
-      return `Rechazado (pidió ${pedido})`;
+      return lista
+        ? `Rechazado, queda en ${lista} (pidió ${pedido})`
+        : `Rechazado (pidió ${pedido})`;
     case "SOLICITAR_INFO":
       return `Se pidió más información (pide ${pedido})`;
     default:
       return `Pidió ${pedido}`;
   }
 }
+
+/**
+ * Qué avisa este correo. El pedido tiene tres momentos que se notifican —
+ * enviado, cae en excepción comercial, y se resuelve la excepción — y los
+ * tres reusan el mismo cuerpo: el detalle del pedido es lo que hay que ver
+ * en todos. Sólo cambia el encabezado y la bajada.
+ */
+export type OrderEmailEvento = {
+  titulo: string;
+  /** Una línea explicando qué se espera de quien lo lee. */
+  lead: string | null;
+  asunto: string;
+};
 
 export type OrderEmailData = {
   numero: number;
@@ -98,6 +157,8 @@ export type OrderEmailData = {
   vendedor: string | null;
   condicionPago: string | null;
   items: OrderEmailItem[];
+  /** Ausente en el correo de envío, que es el caso por defecto. */
+  evento?: OrderEmailEvento | null;
 };
 
 export type OrderEmailTotals = {
@@ -143,6 +204,7 @@ export function formatFechaHora(iso: string): string {
 }
 
 export function buildOrderEmailSubject(data: OrderEmailData): string {
+  if (data.evento) return `${data.evento.asunto} #${data.numero} — ${data.cliente.razonSocial}`;
   return `Nuevo pedido #${data.numero} — ${data.cliente.razonSocial}`;
 }
 
@@ -164,6 +226,8 @@ const TD = `style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:13
 const TD_R = `style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#111827;text-align:right;white-space:nowrap;"`;
 const TH = `style="padding:8px 10px;background-color:${COLOR_VERDE};color:#ffffff;font-size:12px;text-align:left;font-weight:600;"`;
 const TH_R = `style="padding:8px 10px;background-color:${COLOR_VERDE};color:#ffffff;font-size:12px;text-align:right;font-weight:600;white-space:nowrap;"`;
+// Ámbar, el mismo de los estados de excepción en pantalla y del Excel.
+const TD_ESPECIAL = `style="padding:6px 10px;border-bottom:1px solid #e5e7eb;background-color:#fef3c7;font-size:12px;color:#92400e;font-weight:600;"`;
 
 function datoRow(label: string, value: string): string {
   return `<tr>
@@ -175,9 +239,13 @@ function datoRow(label: string, value: string): string {
 export function renderOrderEmailHtml(data: OrderEmailData): string {
   const totals = computeOrderTotals(data.items);
 
+  // La línea negociada lleva una segunda fila en ámbar con los dos precios.
+  // Va como fila aparte y no como columna extra porque una octava columna
+  // rompe la tabla en Outlook, que no reflowea.
   const filas = data.items
-    .map(
-      (i) => `<tr>
+    .map((i) => {
+      const especial = precioEspecialLabel(i.precioEspecial);
+      const fila = `<tr>
       <td ${TD}>${escapeHtml(i.codigo)}</td>
       <td ${TD}>${escapeHtml(i.descripcion)}</td>
       <td ${TD_R}>${i.cantidad.toLocaleString("es-PE")}</td>
@@ -185,8 +253,13 @@ export function renderOrderEmailHtml(data: OrderEmailData): string {
       <td ${TD_R}>${formatSoles(i.igv)}</td>
       <td ${TD_R}>${formatSoles(i.subtotal)}</td>
       <td ${TD_R}><strong>${formatSoles(i.total)}</strong></td>
-    </tr>`,
-    )
+    </tr>`;
+      if (!especial) return fila;
+      return (
+        fila +
+        `<tr><td ${TD_ESPECIAL} colspan="7">Precio especial · ${escapeHtml(especial)}</td></tr>`
+      );
+    })
     .join("");
 
   const sinItems = `<tr><td ${TD} colspan="7">El pedido no tiene líneas.</td></tr>`;
@@ -207,8 +280,9 @@ export function renderOrderEmailHtml(data: OrderEmailData): string {
           <tr>
             <td style="padding:20px 24px;border-top:4px solid ${COLOR_TEAL};">
               <p style="margin:0;font-family:${FONT_HEADING};font-size:22px;letter-spacing:0.5px;color:${COLOR_VERDE};text-transform:uppercase;">LOGISALUD</p>
-              <p style="margin:6px 0 0;font-family:${FONT_HEADING};font-size:18px;color:#111827;">Nuevo pedido #${data.numero}</p>
+              <p style="margin:6px 0 0;font-family:${FONT_HEADING};font-size:18px;color:#111827;">${escapeHtml(data.evento?.titulo ?? `Nuevo pedido #${data.numero}`)}</p>
               <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">Enviado el ${escapeHtml(formatFechaHora(data.fechaEnvio))} · Estado: ${escapeHtml(data.estadoResultado)}</p>
+              ${data.evento?.lead ? `<p style="margin:10px 0 0;padding:10px 12px;background-color:#fef3c7;border-radius:8px;font-size:13px;color:#92400e;font-weight:600;">${escapeHtml(data.evento.lead)}</p>` : ""}
             </td>
           </tr>
 
@@ -292,15 +366,18 @@ export function renderOrderEmailHtml(data: OrderEmailData): string {
  */
 export function renderOrderEmailText(data: OrderEmailData): string {
   const totals = computeOrderTotals(data.items);
-  const lineas = data.items.map(
-    (i) =>
+  const lineas = data.items.flatMap((i) => {
+    const linea =
       `  - ${i.codigo} · ${i.descripcion} · ${i.cantidad} x ${formatSoles(i.precioUnitario)}` +
-      ` · IGV ${formatSoles(i.igv)} · total ${formatSoles(i.total)}`,
-  );
+      ` · IGV ${formatSoles(i.igv)} · total ${formatSoles(i.total)}`;
+    const especial = precioEspecialLabel(i.precioEspecial);
+    return especial ? [linea, `      Precio especial · ${especial}`] : [linea];
+  });
 
   return [
-    `LOGISALUD — Nuevo pedido #${data.numero}`,
+    `LOGISALUD — ${data.evento?.titulo ?? `Nuevo pedido #${data.numero}`}`,
     `Enviado el ${formatFechaHora(data.fechaEnvio)} · Estado: ${data.estadoResultado}`,
+    ...(data.evento?.lead ? ["", data.evento.lead] : []),
     "",
     "CLIENTE",
     `  Razón social: ${data.cliente.razonSocial}`,
