@@ -14,7 +14,13 @@ import { displayNombreProducto, esOfrecibleEnPedido } from "@/domain/products";
 import { IconDownload } from "@/components/icons";
 import { estadoEstilo, estadoLabel } from "@/domain/order-status";
 
-export default async function OrderDetailPage({ params }: { params: { id: string } }) {
+export default async function OrderDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { excel?: string };
+}) {
   const order = await getOrderDetail(params.id);
   if (!order) notFound();
 
@@ -110,15 +116,25 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               Ancla simple, no un botón con JS: el navegador maneja la descarga
               por el Content-Disposition y funciona igual sin JavaScript.
               La descarga NO depende de que el correo se haya enviado.
+
+              Sin atributo `download` a propósito: el Content-Disposition de la
+              ruta ya fuerza la descarga, y `download` hacía que un fallo del
+              servidor se guardara como archivo (un "excel.txt" con la página de
+              error adentro) en vez de dejar navegar al aviso de error.
             */}
-            <a
-              href={`/pedidos/${order.id}/excel`}
-              className="btn-secondary mt-4 inline-flex text-sm"
-              download
-            >
+            <a href={`/pedidos/${order.id}/excel`} className="btn-secondary mt-4 inline-flex text-sm">
               <IconDownload className="h-4 w-4" />
               Descargar Excel
             </a>
+
+            {searchParams?.excel === "error" && (
+              <p
+                role="alert"
+                className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+              >
+                No se pudo generar el Excel, intenta de nuevo o contacta soporte.
+              </p>
+            )}
           </section>
 
           <section className="panel" aria-labelledby="productos-titulo">

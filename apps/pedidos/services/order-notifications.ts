@@ -160,9 +160,10 @@ type ApprovalRow = {
   order_item_id: string;
   precio_solicitado: number | string | null;
   porcentaje_descuento: number | string | null;
+  precio_original: number | string | null;
   estado: string;
   approval_decisions:
-    | { decision: string; precio_aprobado: number | string | null; created_at: string }[]
+    | { decision: string; precio_aprobado: number | string | null; fecha: string }[]
     | null;
 };
 
@@ -211,8 +212,8 @@ export async function loadOrderEmailData(
     admin
       .from("approval_requests")
       .select(
-        `order_item_id, precio_solicitado, porcentaje_descuento, estado,
-         approval_decisions(decision, precio_aprobado, created_at)`,
+        `order_item_id, precio_solicitado, porcentaje_descuento, precio_original, estado,
+         approval_decisions(decision, precio_aprobado, fecha)`,
       )
       .eq("order_id", orderId),
   ]);
@@ -226,10 +227,11 @@ export async function loadOrderEmailData(
   // la resolución): manda la última.
   const especialPorItem = new Map<string, OrderEmailPrecioEspecial>();
   for (const row of (approvalsResult.data ?? []) as unknown as ApprovalRow[]) {
-    const ultima = [...(row.approval_decisions ?? [])].sort((a, b) =>
-      a.created_at.localeCompare(b.created_at),
-    ).at(-1);
+    const ultima = [...(row.approval_decisions ?? [])]
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+      .at(-1);
     especialPorItem.set(row.order_item_id, {
+      precioOriginal: row.precio_original === null ? null : num(row.precio_original),
       precioSolicitado: row.precio_solicitado === null ? null : num(row.precio_solicitado),
       porcentajeDescuento:
         row.porcentaje_descuento === null ? null : num(row.porcentaje_descuento),
@@ -296,12 +298,101 @@ export async function notifyOrderSubmitted(
   estadoResultado: string,
   actor: string,
 ): Promise<NotifyResult> {
+  return notificarPedido({ orderId, estadoResultado, actor, tipo: "pedido_enviado" });
+}
+
+/**
+ * Avisa que el pedido cayó en excepción comercial y espera decisión.
+ *
+ * Sin esto, el aprobador tenía que acordarse de mirar la bandeja: el pedido
+ * se frena y nadie se enteraba. El cuerpo es el mismo detalle del pedido, con
+ * las líneas negociadas marcadas y sus dos precios.
+ */
+export async function notifyDiscountRequested(
+  orderId: string,
+  estadoResultado: string,
+  actor: string,
+): Promise<NotifyResult> {
+  return notificarPedido({
+    orderId,
+    estadoResultado,
+    actor,
+    tipo: "descuento_solicitado",
+    evento: {
+      asunto: "Descuento por aprobar — pedido",
+      titulo: `Descuento por aprobar — pedido #__NUMERO__`,
+      lead:
+        "Un vendedor pidió un precio especial. El pedido no avanza hasta que " +
+        "se apruebe o se rechace en Aprobaciones comerciales.",
+    },
+  });
+}
+
+/**
+ * Avisa cómo se resolvió la excepción comercial, para que el ciclo quede
+ * trazado por correo y no sólo en la pantalla del aprobador.
+ */
+export async function notifyDiscountResolved(
+  orderId: string,
+  estadoResultado: string,
+  actor: string,
+  decision: string,
+): Promise<NotifyResult> {
+  const aprobado = decision === "APROBAR" || decision === "APROBAR_OTRO_PRECIO";
+  const rechazado = decision === "RECHAZAR";
+  return notificarPedido({
+    orderId,
+    estadoResultado,
+    actor,
+    tipo: "descuento_resuelto",
+    evento: {
+      asunto: aprobado
+        ? "Descuento aprobado — pedido"
+        : rechazado
+          ? "Descuento rechazado — pedido"
+          : "Solicitud de descuento — pedido",
+      titulo: aprobado
+        ? "Descuento aprobado — pedido #__NUMERO__"
+        : rechazado
+          ? "Descuento rechazado — pedido #__NUMERO__"
+          : "Solicitud de descuento — pedido #__NUMERO__",
+      lead: aprobado
+        ? "El precio especial quedó aplicado. Abajo, cada línea negociada con su precio de lista y el aprobado."
+        : rechazado
+          ? "El descuento se rechazó y el pedido volvió a borrador: las líneas quedan al precio de lista."
+          : "Se pidió más información sobre la solicitud; el pedido sigue frenado.",
+    },
+  });
+}
+
+type EventoPlantilla = { asunto: string; titulo: string; lead: string | null };
+
+/**
+ * El envío en sí, común a los tres avisos.
+ *
+ * NUNCA lanza: el pedido ya está guardado, y un problema de correo no puede
+ * revertirlo ni mostrarle un error a quien no hizo nada mal. Todo desenlace
+ * queda en pedidos.notification_logs para reintentar a mano.
+ */
+async function notificarPedido({
+  orderId,
+  estadoResultado,
+  actor,
+  tipo,
+  evento,
+}: {
+  orderId: string;
+  estadoResultado: string;
+  actor: string;
+  tipo: "pedido_enviado" | "descuento_solicitado" | "descuento_resuelto";
+  evento?: EventoPlantilla;
+}): Promise<NotifyResult> {
   const admin = createAdminClient();
 
   async function registrar(result: NotifyResult, messageId: string | null, proveedor: string | null) {
     const { error } = await admin.from("notification_logs").insert({
       order_id: orderId,
-      tipo: "pedido_enviado",
+      tipo,
       estado: result.estado,
       destinatarios: result.destinatarios,
       proveedor,
@@ -330,7 +421,7 @@ export async function notifyOrderSubmitted(
       await registrar(result, null, null);
       await logAudit({
         actor,
-        accion: "notificar_pedido_sin_destinatarios",
+        accion: `notificar_sin_destinatarios:${tipo}`,
         entidad: "orders",
         entidadId: orderId,
         datosDespues: { motivo: "sin destinatarios configurados, correo no enviado" },
@@ -338,8 +429,8 @@ export async function notifyOrderSubmitted(
       return result;
     }
 
-    const data = await loadOrderEmailData(orderId, estadoResultado);
-    if (!data) {
+    const base = await loadOrderEmailData(orderId, estadoResultado);
+    if (!base) {
       const result: NotifyResult = {
         estado: "fallido",
         destinatarios,
@@ -348,6 +439,17 @@ export async function notifyOrderSubmitted(
       await registrar(result, null, null);
       return result;
     }
+
+    const data: OrderEmailData = evento
+      ? {
+          ...base,
+          evento: {
+            asunto: evento.asunto,
+            titulo: evento.titulo.replace("__NUMERO__", String(base.numero)),
+            lead: evento.lead,
+          },
+        }
+      : base;
 
     // El Excel es un adjunto: si falla generarlo, el correo sale igual con
     // el detalle en el cuerpo. Perder el adjunto es peor que no avisar,

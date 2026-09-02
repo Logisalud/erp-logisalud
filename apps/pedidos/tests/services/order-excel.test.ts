@@ -148,6 +148,7 @@ describe("columna de precio especial", () => {
         {
           ...data().items[0],
           precioEspecial: {
+            precioOriginal: null,
             precioSolicitado: 2,
             porcentajeDescuento: null,
             estado: "PENDIENTE",
@@ -162,13 +163,35 @@ describe("columna de precio especial", () => {
     expect(textos).toContain("PENDIENTE — pide S/ 2.00");
   });
 
-  it("muestra el precio aprobado junto al que se había pedido", async () => {
+  it("muestra el precio de lista y el especial aprobado, con el descuento", async () => {
     const aprobado = data({
       items: [
         {
           ...data().items[0],
           precioUnitario: 2,
           precioEspecial: {
+            precioOriginal: 3.5,
+            precioSolicitado: 2,
+            porcentajeDescuento: null,
+            estado: "RESUELTO",
+            decision: "APROBAR",
+            precioAprobado: 2,
+          },
+        },
+      ],
+    });
+    const { textos } = await leer(await buildOrderExcel(aprobado));
+    expect(textos).toContain("lista S/ 3.50 → aprobado S/ 2.00 (−S/ 1.50, −42.9%)");
+  });
+
+  it("sin precio de lista capturado igual deja ver el aprobado", async () => {
+    const aprobado = data({
+      items: [
+        {
+          ...data().items[0],
+          precioUnitario: 2,
+          precioEspecial: {
+            precioOriginal: null,
             precioSolicitado: 2,
             porcentajeDescuento: null,
             estado: "RESUELTO",
@@ -188,6 +211,7 @@ describe("columna de precio especial", () => {
         {
           ...data().items[0],
           precioEspecial: {
+            precioOriginal: null,
             precioSolicitado: 2,
             porcentajeDescuento: null,
             estado: "PENDIENTE",
