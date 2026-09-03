@@ -94,7 +94,9 @@ describe("fetchResendMessageId", () => {
     });
     const id = await fetchResendMessageId("abc");
     expect(id).toBe("<010f0198-a@us-east-2.amazonses.com>");
-    expect(String(spy.mock.calls[0][0])).toBe("https://api.resend.com/emails/abc");
+    expect(String((spy.mock.calls[0] as unknown as [string])[0])).toBe(
+      "https://api.resend.com/emails/abc",
+    );
   });
 
   it("null mientras el correo sigue en cola y no tiene Message-ID", async () => {
