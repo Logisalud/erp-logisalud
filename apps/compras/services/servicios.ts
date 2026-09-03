@@ -1,7 +1,7 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import {
-  estadoTrasConformidad, estadoTrasSubirFactura, facturaSuperaMontoOS,
+  estadoTrasConformidad, estadoTrasRegistrarObligacion, estadoTrasSubirFactura, facturaSuperaMontoOS,
   type BorradorObligacionServicio, type BorradorOS, type EstadoOS,
 } from '@/domain/servicio'
 import { normalizarNumeroFactura } from '@/domain/obligacion'
@@ -196,8 +196,6 @@ export async function subirFacturaOS(osId: string, archivo: File): Promise<void>
     throw new Error(`La orden está en "${os.estado}" — solo se puede subir la factura de una orden aprobada.`)
   }
 
-  const { data: conformidad } = await supabase.schema('servicios').from('conformidad_servicio').select('conforme').eq('os_id', osId).eq('conforme', true).maybeSingle()
-
   let storagePath: string | null = null
   if (archivo && archivo.size > 0) {
     const ahora = new Date()
@@ -213,7 +211,7 @@ export async function subirFacturaOS(osId: string, archivo: File): Promise<void>
   const { error: errUpd } = await supabase
     .schema('servicios')
     .from('ordenes_servicio')
-    .update({ storage_path_factura_proveedor: storagePath, estado: estadoTrasSubirFactura(!!conformidad) })
+    .update({ storage_path_factura_proveedor: storagePath, estado: estadoTrasSubirFactura() })
     .eq('id', osId)
   if (errUpd) throw new Error(`La factura se subió pero no se pudo actualizar la orden: ${errUpd.message}`)
 }
@@ -235,7 +233,7 @@ export async function registrarConformidad(osId: string, conforme: boolean, obse
 
   const { data: os, error } = await supabase.schema('servicios').from('ordenes_servicio').select('id, estado, storage_path_factura_proveedor').eq('id', osId).maybeSingle()
   if (error || !os) throw new Error('No se encontró la orden de servicio.')
-  if (!['aprobada', 'en_ejecucion', 'facturada'].includes(os.estado)) {
+  if (!['aprobada', 'en_ejecucion', 'factura_adjunta', 'facturada'].includes(os.estado)) {
     throw new Error(`La orden está en "${os.estado}" — no corresponde dar conformidad ahí.`)
   }
 
@@ -248,7 +246,7 @@ export async function registrarConformidad(osId: string, conforme: boolean, obse
   if (errIns) throw new Error(`No se pudo registrar la conformidad: ${errIns.message}`)
 
   if (conforme) {
-    const nuevoEstado = estadoTrasConformidad(!!os.storage_path_factura_proveedor, os.estado as any)
+    const nuevoEstado = estadoTrasConformidad(os.estado as any)
     if (nuevoEstado !== os.estado) {
       await supabase.schema('servicios').from('ordenes_servicio').update({ estado: nuevoEstado }).eq('id', osId)
     }
@@ -257,14 +255,21 @@ export async function registrarConformidad(osId: string, conforme: boolean, obse
 
 export type OSParaObligar = { id: string; codigo: string; descripcion_servicio: string; monto_estimado: number; moneda: string; proveedor: ProveedorServicio | null }
 
-/** Contabilidad: OS ya facturadas (con la factura real ya en mano) que todavía no tienen una obligación registrada. */
+/**
+ * Contabilidad: OS con la factura real ya en mano (`factura_adjunta`) que
+ * todavía no tienen una obligación registrada. Desde que
+ * registrarObligacionDesdeOS mueve el estado a 'facturada'/'conformada' en
+ * el mismo paso que crea la obligación, ninguna OS debería quedar en esos
+ * dos estados sin obligación — el filtro por `estado` ya alcanza, el
+ * segundo chequeo (`yaObligadas`) queda como red de seguridad.
+ */
 export async function listarOSSinObligacion(): Promise<OSParaObligar[]> {
   const supabase = crearClienteServidor()
   const { data: os, error } = await supabase
     .schema('servicios')
     .from('ordenes_servicio')
     .select('id, codigo, descripcion_servicio, monto_estimado, moneda, proveedor_servicio_id')
-    .in('estado', ['facturada', 'conformada'])
+    .eq('estado', 'factura_adjunta')
   if (error) throw new Error(`No se pudieron listar las órdenes de servicio: ${error.message}`)
   if (!os || os.length === 0) return []
 
@@ -292,8 +297,8 @@ export async function registrarObligacionDesdeOS(borrador: BorradorObligacionSer
     .eq('id', borrador.osId)
     .maybeSingle()
   if (error || !os) throw new Error('No se encontró la orden de servicio.')
-  if (!['facturada', 'conformada'].includes(os.estado)) {
-    throw new Error('Solo se puede registrar la obligación de una orden ya facturada.')
+  if (os.estado !== 'factura_adjunta') {
+    throw new Error('Solo se puede registrar la obligación de una orden con la factura ya adjunta.')
   }
   if (facturaSuperaMontoOS(Number(borrador.baseImponible), Number(borrador.igv), Number(os.monto_estimado), os.monto_incluye_igv)) {
     const conIgv = os.monto_incluye_igv ? ' con IGV' : ' sin IGV'
@@ -342,6 +347,23 @@ export async function registrarObligacionDesdeOS(borrador: BorradorObligacionSer
     if (errOb.code === '23505') throw new Error('Ya existe una obligación con ese número de factura para este proveedor.')
     throw new Error(`No se pudo registrar la obligación: ${errOb.message}`)
   }
+
+  // Recién acá la OS pasa a su estado final — antes de esto se quedaba en
+  // 'factura_adjunta' (documento sin datos reales), que es la causa raíz
+  // que reportó Mariela: el estado no debe adelantarse a que este registro
+  // exista de verdad.
+  const { data: conformidad } = await supabase
+    .schema('servicios')
+    .from('conformidad_servicio')
+    .select('conforme')
+    .eq('os_id', os.id)
+    .eq('conforme', true)
+    .maybeSingle()
+  await supabase
+    .schema('servicios')
+    .from('ordenes_servicio')
+    .update({ estado: estadoTrasRegistrarObligacion(!!conformidad) })
+    .eq('id', os.id)
 
   return obligacion
 }

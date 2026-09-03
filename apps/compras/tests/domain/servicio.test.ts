@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  estadoTrasConformidad, estadoTrasSubirFactura, transicionPermitida,
+  estadoTrasConformidad, estadoTrasRegistrarObligacion, estadoTrasSubirFactura, transicionPermitida,
   validarObligacionServicio, validarOS, superaUmbralDetraccion, facturaSuperaMontoOS,
 } from '@/domain/servicio'
 
@@ -26,9 +26,15 @@ describe('transicionPermitida', () => {
     expect(transicionPermitida('pendiente_jefe', 'rechazada_jefe')).toBe(true)
   })
 
-  it('aprobada puede saltar directo a conformada (factura y conformidad en cualquier orden)', () => {
-    expect(transicionPermitida('aprobada', 'conformada')).toBe(true)
-    expect(transicionPermitida('aprobada', 'facturada')).toBe(true)
+  it('aprobada solo puede pasar a factura_adjunta — nunca directo a facturada/conformada (hallazgo de Mariela, punto 2)', () => {
+    expect(transicionPermitida('aprobada', 'factura_adjunta')).toBe(true)
+    expect(transicionPermitida('aprobada', 'facturada')).toBe(false)
+    expect(transicionPermitida('aprobada', 'conformada')).toBe(false)
+  })
+
+  it('factura_adjunta puede pasar a facturada o directo a conformada (según si ya había conformidad)', () => {
+    expect(transicionPermitida('factura_adjunta', 'facturada')).toBe(true)
+    expect(transicionPermitida('factura_adjunta', 'conformada')).toBe(true)
   })
 
   it('rechazada_jefe y cerrada son estados finales', () => {
@@ -42,22 +48,36 @@ describe('transicionPermitida', () => {
 })
 
 describe('estadoTrasSubirFactura', () => {
-  it('sin conformidad previa: queda facturada', () => {
-    expect(estadoTrasSubirFactura(false)).toBe('facturada')
-  })
-
-  it('con conformidad ya dada: salta directo a conformada', () => {
-    expect(estadoTrasSubirFactura(true)).toBe('conformada')
+  it('siempre queda en factura_adjunta — nunca salta directo a facturada/conformada, ni con conformidad ya dada', () => {
+    // Causa raíz real del hallazgo de Mariela (Contabilidad, punto 2):
+    // subir el PDF marcaba la OS como resuelta antes de que existieran
+    // los datos reales de la factura (N°/fecha/Base/IGV).
+    expect(estadoTrasSubirFactura()).toBe('factura_adjunta')
   })
 })
 
 describe('estadoTrasConformidad', () => {
-  it('sin factura todavía: el estado no cambia', () => {
-    expect(estadoTrasConformidad(false, 'aprobada')).toBe('aprobada')
+  it('sin factura todavía (aprobada/en_ejecucion): el estado no cambia', () => {
+    expect(estadoTrasConformidad('aprobada')).toBe('aprobada')
+    expect(estadoTrasConformidad('en_ejecucion')).toBe('en_ejecucion')
   })
 
-  it('con factura ya subida: pasa a conformada', () => {
-    expect(estadoTrasConformidad(true, 'facturada')).toBe('conformada')
+  it('factura adjunta pero datos sin completar: tampoco cambia — saltar a conformada ahí repetiría el mismo bug', () => {
+    expect(estadoTrasConformidad('factura_adjunta')).toBe('factura_adjunta')
+  })
+
+  it('ya facturada (datos completos vía Registrar obligación): pasa a conformada', () => {
+    expect(estadoTrasConformidad('facturada')).toBe('conformada')
+  })
+})
+
+describe('estadoTrasRegistrarObligacion', () => {
+  it('sin conformidad previa: queda facturada (falta la conformidad)', () => {
+    expect(estadoTrasRegistrarObligacion(false)).toBe('facturada')
+  })
+
+  it('con conformidad ya dada mientras estaba en factura_adjunta: pasa directo a conformada', () => {
+    expect(estadoTrasRegistrarObligacion(true)).toBe('conformada')
   })
 })
 

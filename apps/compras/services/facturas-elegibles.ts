@@ -9,8 +9,10 @@ import { recepcionEsFacturable, osEsFacturable, saldoDisponibleLinea } from '@/d
  *   - compra: la recepción conforme sin obligación → /cuentas-por-pagar/nueva/[recepcionId]
  *     (services/obligaciones.ts::registrarObligacionDesdeRecepcion, con su
  *     conciliación de 3 vías real).
- *   - servicio: la OS aprobada/en ejecución sin factura subida todavía →
- *     /servicios/[id] (el mismo formulario de factura que ya usa esa ficha).
+ *   - servicio: la OS aprobada/en ejecución (falta subir el documento) o ya
+ *     en factura_adjunta (documento subido, faltan los datos reales) →
+ *     /servicios/[id] (el mismo formulario de factura, o "Registrar
+ *     obligación", que ya usa esa ficha en cada caso).
  * Esta función solo decide QUÉ es elegible y muestra saldo disponible —
  * el saldo sale de `cantidad_facturada` (compra) o de si ya hay archivo
  * subido (servicio), columnas que ya existen, nada inventado.
@@ -120,11 +122,11 @@ async function buscarOSFacturables(): Promise<FilaFacturable[]> {
     .schema('servicios')
     .from('ordenes_servicio')
     .select('id, codigo, descripcion_servicio, monto_estimado, moneda, proveedor_servicio_id, fecha_solicitud, estado, storage_path_factura_proveedor')
-    .in('estado', ['aprobada', 'en_ejecucion'])
+    .in('estado', ['aprobada', 'en_ejecucion', 'factura_adjunta'])
     .order('fecha_solicitud', { ascending: false })
     .limit(200)
   if (error) throw new Error(`No se pudieron buscar órdenes de servicio: ${error.message}`)
-  const elegibles = (oss ?? []).filter((o) => osEsFacturable(o.estado, !!o.storage_path_factura_proveedor))
+  const elegibles = (oss ?? []).filter((o) => osEsFacturable(o.estado))
   if (elegibles.length === 0) return []
 
   const proveedores = await mapaProveedoresServicio([...new Set(elegibles.map((o: any) => o.proveedor_servicio_id))])
@@ -143,7 +145,7 @@ async function buscarOSFacturables(): Promise<FilaFacturable[]> {
       totalOrden: Number(o.monto_estimado),
       montoFacturado: 0,
       saldoDisponible: Number(o.monto_estimado),
-      estado: 'Aprobada — sin factura',
+      estado: o.estado === 'factura_adjunta' ? 'Factura adjunta — falta completar los datos' : 'Aprobada — sin factura',
       hrefRegistro: `/servicios/${o.id}`,
     }
   })

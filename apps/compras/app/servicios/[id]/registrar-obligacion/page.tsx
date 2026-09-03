@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export default async function RegistrarObligacionServicio({ params }: { params: { id: string } }) {
   const os = await obtenerOS(params.id)
   if (!os) notFound()
-  if (!['facturada', 'conformada'].includes(os.estado) || os.obligacion) notFound()
+  if (os.estado !== 'factura_adjunta' || os.obligacion) notFound()
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">

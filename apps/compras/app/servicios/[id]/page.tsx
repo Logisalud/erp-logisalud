@@ -19,7 +19,7 @@ export default async function DetalleOS({ params }: { params: { id: string } }) 
   const os = await obtenerOS(params.id)
   if (!os) notFound()
 
-  const puedeSubirFacturaODarConformidad = ['aprobada', 'en_ejecucion', 'facturada'].includes(os.estado)
+  const puedeSubirFacturaODarConformidad = ['aprobada', 'en_ejecucion', 'factura_adjunta', 'facturada'].includes(os.estado)
   const yaDioConformidadPositiva = os.conformidad?.conforme === true
   const historial = await obtenerHistorialOS(os.id)
 
@@ -86,7 +86,7 @@ export default async function DetalleOS({ params }: { params: { id: string } }) 
             </Link>
           </p>
         </section>
-      ) : ['facturada', 'conformada'].includes(os.estado) ? (
+      ) : os.estado === 'factura_adjunta' ? (
         <section className="card mt-4">
           <h2 className="font-heading text-lg">Obligación</h2>
           <p className="mb-3 text-sm text-gray-600">

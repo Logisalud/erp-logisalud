@@ -31,8 +31,11 @@ describe('pasoAlcanzadoOS', () => {
   it('rechazada_jefe no tiene progreso', () => {
     expect(pasoAlcanzadoOS('rechazada_jefe')).toBe(-1)
   })
+  it('factura_adjunta llega a su propio paso (documento subido, faltan los datos)', () => {
+    expect(pasoAlcanzadoOS('factura_adjunta')).toBe(2)
+  })
   it('conformada llega al penúltimo paso', () => {
-    expect(pasoAlcanzadoOS('conformada')).toBe(3)
+    expect(pasoAlcanzadoOS('conformada')).toBe(4)
   })
 })
 
