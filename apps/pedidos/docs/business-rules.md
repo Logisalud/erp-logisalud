@@ -1134,14 +1134,123 @@ editándolo en su lugar. Los pedidos ya emitidos conservan su afectación
 porque `order_items` la copia al enviarse. Se cruza con el supuesto
 pendiente #1 de Fase 6.
 
+## Motor de promociones de Diphasac (`1017`, `1018`)
+
+Tres mecánicas, data-driven, con gating por canal. Se aplican **solas** al
+armar el pedido y otra vez al enviarlo; no generan solicitud de aprobación
+ni frenan el pedido en `COMMERCIAL_EXCEPTION`. Una promoción de catálogo no
+es un descuento discrecional del vendedor.
+
+Diseño aprobado por el administrador el 2026-09-03, sobre el archivo real
+`promos_diphasac.xlsx` (53 productos, 19 con promoción).
+
+### Las tres mecánicas
+
+1. **`promo_bonificaciones` — compra N, lleva M.** El motor agrega una
+   línea del mismo producto a S/ 0.00, marcada `es_linea_gratis`.
+   `juegos = floor(cantidad_pagada / cantidad_comprada)`; el divisor es lo
+   comprado, no la suma: el archivo dice "2 + 1", así que 6 unidades dan 3
+   juegos, no 2. `producto_bonificado_id` queda null (se bonifica el mismo
+   producto) y existe para el día que Comercial bonifique con otro.
+2. **`promo_escalas` — desde N unidades, % de descuento.** Alcanzado el
+   umbral, **todas** las unidades de la línea van al precio promocional, no
+   sólo las que exceden el mínimo. Confirmado explícitamente por el
+   administrador; no hay campo configurable para la otra lectura.
+3. **`promo_descuentos_condicionados` — con X en el pedido, Y lleva %.**
+   Un producto recibe descuento sólo si otro está presente, y sólo por
+   `min(N, M)` unidades. Único caso real: Ibucalm 200 (`DHP211`) al 16%
+   cuando el pedido tiene Mucoflux 200 (`DHP020`), canal Horizontal. Las
+   unidades que no se emparejan quedan a precio de lista, en **otra línea**:
+   promediar los dos precios sería más cómodo y menos honesto — el vendedor
+   tiene que ver cuántas unidades llevan el descuento.
+
+Sólo cuentan las **unidades pagadas** como condición: un Mucoflux que entró
+como línea bonificada no habilita el descuento del Ibucalm. Una unidad
+recibe una sola promoción de precio (condicionada > escala); la bonificación
+no compite, porque agrega unidades gratis sin cambiar el precio de las
+pagadas.
+
+### Se guarda el porcentaje, no el precio
+
+El porcentaje es el invariante; el precio sale del PVF de cada canal. El
+bloque "MAYORISTA/SUBDISTRIBUIDORA" del archivo se expande a cuatro canales
+(Mayorista, Subdistribuidores, Minicadenas, Tops) con PVF distintos:
+guardar el precio de uno rompería a los otros tres. El precio promocional
+del archivo se guarda igual, en `precio_promocional_declarado`, sólo para
+que el importador valide su propia lectura.
+
+**El precio promocional se guarda exacto, con 4 decimales, sin redondear a
+2.** Mucoflux con su 10% da `19.7550`; redondearlo a `19.76` cobraría
+10.02% en vez del 10% que declara el archivo. La consecuencia conocida y
+aceptada: un par Ibucalm + Mucoflux da S/ 50.00 clavado, dos pares dan
+S/ 99.99 y cuatro S/ 199.98 — un céntimo cada dos pares. Es el redondeo
+normal de cualquier sistema con IGV incluido, y pasa igual con los precios
+de lista.
+
+### Dónde corre y por qué
+
+`pedidos.aplicar_promociones(order_id)` es **SQL**, no TypeScript. La capa
+de servicio la llama después de cada cambio de línea (agregar, quitar,
+cambiar cantidad) y `submit_order` la llama otra vez por dentro. Si viviera
+sólo del lado de Next, el envío la borraría: `submit_order` reescribe cada
+precio con el de lista vigente. Es exactamente el bug que ya tuvimos con el
+precio fijado por el administrador (`1012`).
+
+Es **idempotente**: borra y regenera las líneas gratis, deshace los precios
+de promoción y **fusiona las líneas partidas** del mismo producto antes de
+volver a repartirlas. Sin esa fusión, un pedido con Ibucalm partido en 1 + 2
+se volvería a partir en cada corrida y acumularía líneas.
+
+Las decisiones humanas le ganan siempre: una línea con
+`precio_fijado_por_admin`, con `origen_precio` de aprobación comercial o con
+una `approval_request` asociada no se toca ni se fusiona.
+
+### `order_items.origen_precio`
+
+Por qué esa línea vale lo que vale: `LISTA`, `PROMO_ESCALA`,
+`PROMO_BONIFICACION`, `PROMO_CONDICIONADA`, `APROBACION_COMERCIAL`,
+`FIJADO_POR_ADMIN`. Junto con `promocion_ref` (`"escala:12"`,
+`"condicionada:1"`) permite explicar un pedido viejo. En la pantalla del
+pedido, el correo y el Excel las líneas con promoción se muestran como
+"lista S/ 36.00 → promoción S/ 30.24 (−S/ 5.76, −16.0%)", y las líneas
+gratis se marcan "BONIFICACIÓN (S/ 0.00)" — son el mismo producto que la
+línea pagada, así que sin esa marca parecen un error de precio.
+
+### El importador (`services/promo-import.ts`)
+
+Mismo patrón que precios, clientes y stock: vista previa antes de publicar,
+con el botón de publicar deshabilitado hasta haberla visto. Vive en
+`/admin/maestros/promociones`. Cruza por `codigo_proveedor` (la columna
+"CÓDIGO DIPHASAC"), ignorando los productos `BO…` que comparten ese código
+con su par regular: la promoción es del producto que se vende.
+
+**La validación que importa:** la vista previa calcula el precio promocional
+con el PVF de nuestro catálogo y lo contrasta con el que declara el archivo.
+Si difieren más de un céntimo, esa fila no se publica. Es la red que atrapa
+un cambio de estructura del Excel —una columna corrida— antes de que llegue
+a un pedido.
+
+**El descuento condicionado NO se importa.** En el archivo es una nota en
+prosa ("NUEVO PAQUETE: IBUCALM 200 + MUCOFLUX 200 ( S/. 50)") en la columna
+de escalas. El importador la muestra como nota y la fila se carga a mano en
+la migración `1017`. Adivinar prosa es la clase de error que este proyecto
+ya pagó caro.
+
+Publicar cierra las promociones vigentes de esos productos y canales
+(`vigente_hasta` = ayer) y abre las nuevas desde hoy; nunca sobrescribe.
+Publicar dos veces el mismo día reemplaza, porque una promo que no llegó a
+estar vigente un día entero no es historia que valga la pena guardar.
+
+**Sólo Diphasac.** Biosana y Prades quedan sin promociones hasta que
+entreguen su archivo. No se inventan.
+
 ## Qué NO cubre esta fase
 
 Explícitamente fuera de alcance por ahora (ver README y CLAUDE.md):
 
-- Promociones, bonificaciones y escalas de precio — se implementan en
-  un paso posterior, cuando exista esa información de Biosana y
-  Prades. `products.codigo_bonificacion` ya se guarda desde ahora para
-  no perder el dato mientras tanto.
+- Promociones de **Biosana y Prades** — el motor existe (`1017`) y es
+  data-driven, pero sólo está cargado el archivo de Diphasac. Falta que
+  esos dos proveedores entreguen el suyo.
 - Pantalla dedicada de asignación de zonas — se gestiona vía
   SQL/dashboard de Supabase por ahora.
 - Gestión de stock **transaccional** (reservas, descuento automático al

@@ -165,6 +165,9 @@ type ItemRow = {
   precio_fijado_por_admin: boolean | null;
   precio_lista_original: number | string | null;
   motivo_precio_especial: string | null;
+  origen_precio: string | null;
+  promocion_ref: string | null;
+  es_linea_gratis: boolean | null;
   product: { codigo_interno: string; descripcion: string } | null;
 };
 
@@ -204,6 +207,34 @@ function precioEspecialDeAdmin(item: ItemRow): OrderEmailPrecioEspecial | null {
 }
 
 /**
+ * Una promoción del catálogo tampoco pasa por approval_requests: se aplica
+ * sola. Se muestra con la misma forma que el precio especial —lista →
+ * promoción, con el descuento— porque la pregunta de quien lee el correo
+ * es la misma: por qué esta línea no va a precio de lista.
+ */
+const ETIQUETA_PROMOCION: Record<string, string> = {
+  PROMO_ESCALA: "Escala por cantidad",
+  PROMO_CONDICIONADA: "Promoción por combinación de productos",
+  PROMO_BONIFICACION: "Bonificación",
+};
+
+function precioDePromocion(item: ItemRow): OrderEmailPrecioEspecial | null {
+  const origen = item.origen_precio ?? "";
+  if (!origen.startsWith("PROMO_")) return null;
+  if (item.es_linea_gratis) return null;
+  const precio = num(item.precio_unitario);
+  return {
+    precioOriginal: item.precio_lista_original === null ? null : num(item.precio_lista_original),
+    precioSolicitado: precio,
+    porcentajeDescuento: null,
+    estado: "RESUELTO",
+    decision: "PROMOCION",
+    precioAprobado: precio,
+    motivo: ETIQUETA_PROMOCION[origen] ?? null,
+  };
+}
+
+/**
  * Lee todo lo que el correo necesita. Usa la service role key porque
  * corre después de que el pedido ya quedó SUBMITTED: los datos son los
  * snapshots que grabó pedidos.submit_order, y el notificar no debería
@@ -237,6 +268,7 @@ export async function loadOrderEmailData(
       .select(
         "id, cantidad, precio_unitario, igv, subtotal, total, " +
           "precio_fijado_por_admin, precio_lista_original, motivo_precio_especial, " +
+          "origen_precio, promocion_ref, es_linea_gratis, " +
           "product:products(codigo_interno, descripcion)",
       )
       .eq("order_id", orderId),
@@ -322,15 +354,19 @@ export async function loadOrderEmailData(
     codigo: i.product?.codigo_interno ?? "—",
     // El correo y el Excel los lee la oficina, que corre el mismo riesgo de
     // confundir un producto con su bonificación: misma descripción exacta.
-    descripcion: i.product
-      ? displayNombreProducto(i.product.descripcion, i.product.codigo_interno)
-      : "—",
+    // Una línea gratis del motor es el MISMO producto que la pagada: sin
+    // decirlo, en el correo se ven dos líneas iguales y una a S/ 0.00, que
+    // parece un error de precio en vez de la bonificación que es.
+    descripcion:
+      (i.product ? displayNombreProducto(i.product.descripcion, i.product.codigo_interno) : "—") +
+      (i.es_linea_gratis ? " — BONIFICACIÓN (S/ 0.00)" : ""),
     cantidad: num(i.cantidad),
     precioUnitario: num(i.precio_unitario),
     igv: num(i.igv),
     subtotal: num(i.subtotal),
     total: num(i.total),
-    precioEspecial: especialPorItem.get(i.id) ?? precioEspecialDeAdmin(i),
+    precioEspecial:
+      especialPorItem.get(i.id) ?? precioEspecialDeAdmin(i) ?? precioDePromocion(i),
   }));
 
   return {

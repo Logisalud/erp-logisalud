@@ -47,6 +47,12 @@ const SECTIONS = [
     description: "Carga masiva del stock disponible por producto y fuente, desde CSV o Excel.",
   },
   {
+    href: "/admin/maestros/promociones",
+    title: "Promociones",
+    description:
+      "Escalas y bonificaciones por producto y canal, desde el archivo de Diphasac. Se aplican solas al pedido.",
+  },
+  {
     href: "/admin/maestros/despacho",
     title: "Despacho",
     description: "Fuentes de stock, almacenes, vehículos, choferes y transportistas.",

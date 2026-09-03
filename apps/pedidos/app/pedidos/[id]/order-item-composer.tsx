@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Combobox, type ComboboxOption } from "@/components/combobox";
-import { IconCheck, IconError, IconPlus, IconSpinner, IconTrash } from "@/components/icons";
+import {
+  IconCheck,
+  IconError,
+  IconPlus,
+  IconSpinner,
+  IconTrash,
+} from "@/components/icons";
 import { formatSoles } from "@/domain/order-email";
 import {
   agregarProducto,
@@ -27,14 +33,13 @@ type OrderItem = {
   precio_fijado_por_admin: boolean;
   precio_lista_original: number | null;
   motivo_precio_especial: string | null;
+  origen_precio: string;
+  es_linea_gratis: boolean;
   product: { descripcion: string; codigo_interno: string } | null;
 };
 
 function normalize(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
 /**
@@ -73,13 +78,21 @@ export function OrderItemComposer({
   const [error, setError] = useState<string | null>(null);
   const [submitResult, setSubmitResult] = useState<{
     estadoResultado: string;
-    priceDrift: Array<{ orderItemId: string; precioAnterior: number; precioNuevo: number }>;
+    priceDrift: Array<{
+      orderItemId: string;
+      precioAnterior: number;
+      precioNuevo: number;
+    }>;
   } | null>(null);
 
-  const [productoElegido, setProductoElegido] = useState<ComboboxOption | null>(null);
+  const [productoElegido, setProductoElegido] = useState<ComboboxOption | null>(
+    null,
+  );
   const [cantidad, setCantidad] = useState("");
   const [ultimaAgregada, setUltimaAgregada] = useState<string | null>(null);
-  const [discountFormItemId, setDiscountFormItemId] = useState<string | null>(null);
+  const [discountFormItemId, setDiscountFormItemId] = useState<string | null>(
+    null,
+  );
   // Confirmación efímera por línea: cambiar una cantidad tiene que
   // acusar recibo, o el vendedor no sabe si se grabó.
   const [cantidadGuardada, setCantidadGuardada] = useState<string | null>(null);
@@ -97,7 +110,11 @@ export function OrderItemComposer({
   async function buscarProducto(term: string): Promise<ComboboxOption[]> {
     const q = normalize(term);
     return opciones
-      .filter((o) => normalize(o.label).includes(q) || normalize(o.description ?? "").includes(q))
+      .filter(
+        (o) =>
+          normalize(o.label).includes(q) ||
+          normalize(o.description ?? "").includes(q),
+      )
       .slice(0, 30);
   }
 
@@ -125,7 +142,11 @@ export function OrderItemComposer({
         setProductoElegido(null);
         setCantidad("");
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo agregar el producto.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo agregar el producto.",
+        );
       }
     });
   }
@@ -136,7 +157,9 @@ export function OrderItemComposer({
       try {
         await quitarProducto(orderId, itemId);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo quitar el producto.");
+        setError(
+          err instanceof Error ? err.message : "No se pudo quitar el producto.",
+        );
       }
     });
   }
@@ -149,9 +172,16 @@ export function OrderItemComposer({
       try {
         await cambiarCantidad(orderId, itemId, n);
         setCantidadGuardada(itemId);
-        setTimeout(() => setCantidadGuardada((id) => (id === itemId ? null : id)), 2200);
+        setTimeout(
+          () => setCantidadGuardada((id) => (id === itemId ? null : id)),
+          2200,
+        );
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo cambiar la cantidad.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo cambiar la cantidad.",
+        );
       }
     });
   }
@@ -165,7 +195,11 @@ export function OrderItemComposer({
         await solicitarDescuento(orderId, itemId, formData);
         setDiscountFormItemId(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo registrar la solicitud.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo registrar la solicitud.",
+        );
       }
     });
   }
@@ -180,7 +214,9 @@ export function OrderItemComposer({
         setDiscountFormItemId(null);
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo fijar el precio.");
+        setError(
+          err instanceof Error ? err.message : "No se pudo fijar el precio.",
+        );
       }
     });
   }
@@ -193,7 +229,9 @@ export function OrderItemComposer({
         setSubmitResult(result);
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo enviar el pedido.");
+        setError(
+          err instanceof Error ? err.message : "No se pudo enviar el pedido.",
+        );
       }
     });
   }
@@ -212,7 +250,10 @@ export function OrderItemComposer({
     if (!barra) return;
 
     const publicar = () =>
-      document.documentElement.style.setProperty("--alto-barra-pie", `${barra.offsetHeight}px`);
+      document.documentElement.style.setProperty(
+        "--alto-barra-pie",
+        `${barra.offsetHeight}px`,
+      );
 
     publicar();
 
@@ -252,8 +293,10 @@ export function OrderItemComposer({
               {submitResult.priceDrift.length > 0 && (
                 <p className="mt-1">
                   El precio de {submitResult.priceDrift.length}{" "}
-                  {submitResult.priceDrift.length === 1 ? "línea cambió" : "líneas cambiaron"} desde
-                  que armaste el borrador. Ya quedaron al precio vigente.
+                  {submitResult.priceDrift.length === 1
+                    ? "línea cambió"
+                    : "líneas cambiaron"}{" "}
+                  desde que armaste el borrador. Ya quedaron al precio vigente.
                 </p>
               )}
             </div>
@@ -267,8 +310,8 @@ export function OrderItemComposer({
 
           {products.length === 0 ? (
             <p className="mt-2 text-sm text-slate-600">
-              No hay productos activos con precio vigente para agregar. Revisa las listas de precios
-              en Maestros.
+              No hay productos activos con precio vigente para agregar. Revisa
+              las listas de precios en Maestros.
             </p>
           ) : (
             <div className="mt-3 flex flex-col gap-3">
@@ -314,7 +357,11 @@ export function OrderItemComposer({
                   className="btn-primary flex-1 sm:flex-none sm:px-8"
                   disabled={isPending}
                 >
-                  {isPending ? <IconSpinner className="h-5 w-5" /> : <IconPlus className="h-5 w-5" />}
+                  {isPending ? (
+                    <IconSpinner className="h-5 w-5" />
+                  ) : (
+                    <IconPlus className="h-5 w-5" />
+                  )}
                   Agregar
                 </button>
               </div>
@@ -329,7 +376,8 @@ export function OrderItemComposer({
             </h2>
             {items.length > 0 && (
               <p className="cifra text-sm text-slate-600">
-                {items.length} {items.length === 1 ? "línea" : "líneas"} · {unidades} u.
+                {items.length} {items.length === 1 ? "línea" : "líneas"} ·{" "}
+                {unidades} u.
               </p>
             )}
           </div>
@@ -343,13 +391,20 @@ export function OrderItemComposer({
               {items.map((item) => (
                 <li
                   key={item.id}
-                  className={item.product_id === ultimaAgregada ? "linea-nueva" : undefined}
+                  className={
+                    item.product_id === ultimaAgregada
+                      ? "linea-nueva"
+                      : undefined
+                  }
                 >
                   <div className="px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <p className="min-w-0 font-medium leading-snug text-slate-900">
                         {item.product
-                          ? displayNombreProducto(item.product.descripcion, item.product.codigo_interno)
+                          ? displayNombreProducto(
+                              item.product.descripcion,
+                              item.product.codigo_interno,
+                            )
                           : "—"}
                       </p>
                       <p className="cifra shrink-0 font-semibold text-slate-900">
@@ -357,69 +412,94 @@ export function OrderItemComposer({
                       </p>
                     </div>
                     <p className="cifra mt-0.5 text-sm text-slate-600">
-                      {item.product?.codigo_interno ?? "—"} · {formatSoles(item.precio_unitario)} c/u
+                      {item.product?.codigo_interno ?? "—"} ·{" "}
+                      {formatSoles(item.precio_unitario)} c/u
                     </p>
+                    {item.es_linea_gratis && (
+                      <p className="mt-1 text-sm font-medium text-[#276b3b]">
+                        Bonificación automática · va sin costo. La calcula el
+                        sistema con la promoción vigente: no se edita ni se
+                        quita a mano.
+                      </p>
+                    )}
+                    {!item.es_linea_gratis &&
+                      item.origen_precio.startsWith("PROMO_") && (
+                        <p className="mt-1 text-sm font-medium text-[#276b3b]">
+                          {item.origen_precio === "PROMO_CONDICIONADA"
+                            ? "Precio de promoción por combinación de productos"
+                            : "Precio de promoción por cantidad"}
+                          {item.precio_lista_original !== null
+                            ? ` · lista ${formatSoles(item.precio_lista_original)}`
+                            : ""}
+                        </p>
+                      )}
                     {item.precio_fijado_por_admin && (
                       <p className="mt-1 text-sm font-medium text-amber-800">
                         Precio fijado por administración
                         {item.precio_lista_original !== null
                           ? ` · lista ${formatSoles(item.precio_lista_original)}`
                           : ""}
-                        {item.motivo_precio_especial ? ` · ${item.motivo_precio_especial}` : ""}
+                        {item.motivo_precio_especial
+                          ? ` · ${item.motivo_precio_especial}`
+                          : ""}
                       </p>
                     )}
 
-                    <div className="mt-2 flex items-center gap-2">
-                      <label className="sr-only" htmlFor={`cant-${item.id}`}>
-                        Cantidad de {item.product?.descripcion ?? "la línea"}
-                      </label>
-                      <input
-                        id={`cant-${item.id}`}
-                        className="campo cifra h-11 min-h-11 w-[4.5rem] px-2 text-center"
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        step={1}
-                        defaultValue={item.cantidad}
-                        disabled={isPending}
-                        onBlur={(e) => {
-                          if (Number(e.target.value) !== item.cantidad) {
-                            corregirCantidad(item.id, e.target.value);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") e.currentTarget.blur();
-                        }}
-                      />
-                      {cantidadGuardada === item.id ? (
-                        <span
-                          className="flex items-center gap-1 text-sm font-medium text-[#276b3b]"
-                          role="status"
-                        >
-                          <IconCheck className="h-4 w-4" />
-                          Guardado
-                        </span>
-                      ) : (
+                    {!item.es_linea_gratis && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <label className="sr-only" htmlFor={`cant-${item.id}`}>
+                          Cantidad de {item.product?.descripcion ?? "la línea"}
+                        </label>
+                        <input
+                          id={`cant-${item.id}`}
+                          className="campo cifra h-11 min-h-11 w-[4.5rem] px-2 text-center"
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          step={1}
+                          defaultValue={item.cantidad}
+                          disabled={isPending}
+                          onBlur={(e) => {
+                            if (Number(e.target.value) !== item.cantidad) {
+                              corregirCantidad(item.id, e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                          }}
+                        />
+                        {cantidadGuardada === item.id ? (
+                          <span
+                            className="flex items-center gap-1 text-sm font-medium text-[#276b3b]"
+                            role="status"
+                          >
+                            <IconCheck className="h-4 w-4" />
+                            Guardado
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDiscountFormItemId(
+                                discountFormItemId === item.id ? null : item.id,
+                              )
+                            }
+                            className="min-h-11 rounded-lg px-2 text-sm font-medium text-[#1c6d71] hover:bg-logisalud-teal/10"
+                          >
+                            {esAdmin ? "Fijar precio" : "Precio especial"}
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() =>
-                            setDiscountFormItemId(discountFormItemId === item.id ? null : item.id)
-                          }
-                          className="min-h-11 rounded-lg px-2 text-sm font-medium text-[#1c6d71] hover:bg-logisalud-teal/10"
+                          onClick={() => quitar(item.id)}
+                          className="btn-ghost ml-auto hover:text-red-700"
+                          disabled={isPending}
+                          aria-label={`Quitar ${item.product?.descripcion ?? "la línea"} del pedido`}
                         >
-                          {esAdmin ? "Fijar precio" : "Precio especial"}
+                          <IconTrash className="h-5 w-5" />
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => quitar(item.id)}
-                        className="btn-ghost ml-auto hover:text-red-700"
-                        disabled={isPending}
-                        aria-label={`Quitar ${item.product?.descripcion ?? "la línea"} del pedido`}
-                      >
-                        <IconTrash className="h-5 w-5" />
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {discountFormItemId === item.id && esAdmin && (
@@ -428,9 +508,10 @@ export function OrderItemComposer({
                       className="mx-4 mb-4 flex flex-col gap-2 rounded-lg bg-slate-50 p-3"
                     >
                       <p className="text-sm text-slate-700">
-                        Como administrador, el precio se aplica al pedido de inmediato: no genera
-                        solicitud ni espera aprobación de nadie. Queda registrado quién lo fijó,
-                        contra qué precio de lista y con qué motivo.
+                        Como administrador, el precio se aplica al pedido de
+                        inmediato: no genera solicitud ni espera aprobación de
+                        nadie. Queda registrado quién lo fijó, contra qué precio
+                        de lista y con qué motivo.
                       </p>
                       <input
                         name="precio"
@@ -462,10 +543,14 @@ export function OrderItemComposer({
                       onSubmit={(e) => pedirDescuento(item.id, e)}
                       className="mx-4 mb-4 flex flex-col gap-2 rounded-lg bg-slate-50 p-3"
                     >
-                      <input type="hidden" name="cantidad" value={item.cantidad} />
+                      <input
+                        type="hidden"
+                        name="cantidad"
+                        value={item.cantidad}
+                      />
                       <p className="text-sm text-slate-700">
-                        Pedir un precio especial no cambia el pedido: queda como solicitud para que
-                        la apruebe un aprobador comercial.
+                        Pedir un precio especial no cambia el pedido: queda como
+                        solicitud para que la apruebe un aprobador comercial.
                       </p>
                       <div className="flex flex-wrap gap-2">
                         <input
