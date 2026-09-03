@@ -33,6 +33,26 @@ export function codigoRegularDeBonificacion(codigoInterno: string): string | nul
 export const SUFIJO_BONIFICACION = " (Bonificación)";
 
 /**
+ * El código que se MUESTRA para una línea bonificada.
+ *
+ * El motor de promociones entrega la bonificación como una línea del mismo
+ * producto a S/ 0.00 (`es_linea_gratis`), así que en el papel el código es
+ * el del producto regular: "DHP200" cobrado y "DHP200" gratis, dos veces el
+ * mismo código. Quien prepara el despacho separa el bonificado por su
+ * código `BO`, así que acá se le antepone.
+ *
+ * **Sólo visualización**: no toca `products.codigo_interno` ni supone que
+ * exista una fila con ese código. Si el producto ya es una bonificación
+ * —el día que una promo bonifique con el par `BO` real— se devuelve tal
+ * cual, para no terminar en "BOBODHP200".
+ */
+export function codigoVisibleDeLineaGratis(codigoInterno: string): string {
+  const codigo = codigoInterno.trim().toUpperCase();
+  if (codigo === "" || esBonificacion(codigo)) return codigoInterno;
+  return `BO${codigo}`;
+}
+
+/**
  * Nombre a mostrar. Agrega "(Bonificación)" cuando corresponde, para que sea
  * imposible confundir el producto con su par regular.
  *

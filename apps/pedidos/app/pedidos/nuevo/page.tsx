@@ -2,13 +2,14 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { listActiveCustomers, listZonasSeleccionables } from "@/services/customers";
 import { listActiveSellers } from "@/services/sellers";
 import { listCatalog, listPaymentTerms } from "@/services/catalog";
+import { listDepartamentos } from "@/services/ubigeos";
 import { NewOrderForm } from "./new-order-form";
 
 export default async function NuevoPedidoPage() {
   const user = await getCurrentUser();
   const isAdmin = user?.roles.includes("administrador") ?? false;
 
-  const [customers, paymentTerms, salesChannels, zones, sellers] = await Promise.all([
+  const [customers, paymentTerms, salesChannels, zones, sellers, departamentos] = await Promise.all([
     listActiveCustomers(),
     listPaymentTerms(),
     listCatalog("sales_channels"),
@@ -16,6 +17,9 @@ export default async function NuevoPedidoPage() {
     // otra zona le queda invisible por RLS y el registro rebota.
     listZonasSeleccionables(isAdmin),
     isAdmin ? listActiveSellers() : Promise.resolve([]),
+    // Sólo los 25 departamentos: las provincias y los distritos se piden
+    // cuando el vendedor elige, para no mandarle 1.884 filas al celular.
+    listDepartamentos(),
   ]);
 
   return (
@@ -38,6 +42,7 @@ export default async function NuevoPedidoPage() {
           }))}
           salesChannels={salesChannels.map((c) => ({ id: c.id, nombre: c.nombre }))}
           zones={zones}
+          departamentos={departamentos}
         />
       </div>
     </div>

@@ -1244,6 +1244,97 @@ estar vigente un día entero no es historia que valga la pena guardar.
 **Sólo Diphasac.** Biosana y Prades quedan sin promociones hasta que
 entreguen su archivo. No se inventan.
 
+## Ubigeo: catálogo, direcciones reales y captura (`1019`, `1020`)
+
+NubeFact exige el **ubigeo INEI de 6 dígitos** en el punto de partida y en
+el de llegada de la guía de remisión. Hasta acá existía uno solo, cargado a
+mano: el del almacén de Lurín (`150119`, en `warehouses` y en
+`company_settings`). Las direcciones de clientes no tenían ninguno, y de
+3.403 clientes sólo 10 tenían dirección: ninguna guía se podía emitir.
+
+### El catálogo
+
+`pedidos.ubigeos` (codigo_inei PK, departamento, provincia, distrito):
+**1.884 distritos**, 196 provincias, 25 departamentos, cargados de una vez
+en la migración `1019` desde el CSV oficial de RENIEC. Es catálogo estático
+y oficial: no tiene pantalla de importación, y un distrito nuevo del INEI
+es una migración nueva.
+
+Del CSV entran las 1.884 filas que traen `UBIGEO_INEI`. Las otras 1.839 son
+ubicaciones del extranjero (AFRICA, AMERICA, ASIA, EUROPA, OCEANIA) que
+RENIEC usa para registrar residentes fuera del país: no tienen ubigeo INEI
+y no sirven para una guía nacional.
+
+### El cruce por nombre
+
+`pedidos.normalizar_nombre(texto)` es lo único que permite cruzar los
+nombres como los escribe la gente: pasa a mayúsculas, saca tildes, colapsa
+espacios, trata el guión como espacio ("CARMEN DE LA LEGUA-REYNOSO" =
+"CARMEN DE LA LEGUA REYNOSO") y descarta un paréntesis final ("LIMA (PE)" =
+"LIMA"). Verificado sobre las 1.884 filas: la clave
+departamento+provincia+distrito sigue siendo **única** con esa
+normalización.
+
+`pedidos.resolver_ubigeo(dep, prov, dist)` devuelve el código o **null**.
+Null significa "no se pudo resolver" y el llamador lo deja pendiente de
+revisión: **nunca se inventa un código**, porque un ubigeo equivocado en una
+guía es un problema con SUNAT, no un dato feo.
+
+**Trampa concreta, ya pagada:** la función se declara `IMMUTABLE` para poder
+indexarla, así que Postgres no se entera cuando cambia y el índice
+`ubigeos_nombre_idx` sigue respondiendo con los valores viejos — el cruce
+falla en silencio. Por eso la migración **borra y recrea** el índice en cada
+corrida. Si se vuelve a tocar `normalizar_nombre`, hay que reindexar.
+
+### La carga de las direcciones reales
+
+El archivo de NubeFact (29.024 filas) trae 976 con dirección real —el resto
+dice "SIN DIRECCION"—, que son 956 RUC distintos. Se carga **una dirección
+por RUC**, la primera del archivo, marcada como principal: un cliente con
+dos establecimientos se resuelve a mano, porque el archivo no dice cuál es
+el domicilio fiscal.
+
+El RUC del archivo viene de una celda numérica de Excel y perdió los ceros
+de la izquierda ("6086136" es "00006086136"), así que el cruce compara los
+dos lados rellenados a 11 dígitos.
+
+Resultado de la carga: 884 de los 956 RUC cruzan con un cliente (72 no
+existen en el sistema), 4 ya tenían dirección y no se pisaron, **880
+direcciones creadas** — 871 con ubigeo resuelto y 9 pendientes. Más 6
+direcciones viejas resueltas por el nombre guardado en `customers`.
+
+Las 13 direcciones que quedan sin ubigeo son errores de tipeo del archivo
+("EL TAMBBO", "CHORRRILLOS", "SAM JUAN DE LURIGANCHO", "SURCO" por
+"SANTIAGO DE SURCO") o clientes de prueba sin distrito cargado. Quedan con
+`ubigeo` null a propósito, para corregirlas a mano.
+
+### Hacia adelante: el vendedor no escribe el código
+
+En "cliente nuevo" y en "agregar dirección" (el que aparece cuando falta
+dirección al armar un pedido) hay un selector **departamento → provincia →
+distrito** en cascada (`components/ubigeo-picker.tsx`). El vendedor elige
+tres nombres y el servidor resuelve el código con la misma función SQL que
+usó la carga masiva: pantalla y migración no pueden divergir.
+
+- Los 25 departamentos viajan con la página; provincias y distritos se
+  piden al elegir. Son 1.884 filas y el vendedor trabaja desde el celular,
+  en la calle: mandarle el catálogo entero es peso que paga sin usarlo.
+- Cambiar de departamento **borra** provincia y distrito. Sin ese reset
+  queda "PIURA / LIMA / LURIN", que no existe, y el ubigeo se resolvería a
+  null.
+- El ubigeo es **obligatorio** en una dirección nueva: el botón de guardar
+  está deshabilitado hasta que estén los tres niveles, y la Server Action lo
+  revalida. Las 13 direcciones sin ubigeo son deuda de la carga masiva, no
+  un camino que la pantalla deba seguir abriendo.
+- En un cliente nuevo se guardan además los tres nombres en
+  `customers.departamento/provincia/distrito`: son lo que una persona lee
+  cuando hay que revisar una dirección, y lo que permitió resolver el
+  ubigeo de las direcciones viejas.
+
+**Lo que esto NO toca:** la generación del JSON de la guía de remisión. Los
+datos y la captura quedan resueltos; la conexión con NubeFact es un paso
+aparte.
+
 ## Qué NO cubre esta fase
 
 Explícitamente fuera de alcance por ahora (ver README y CLAUDE.md):

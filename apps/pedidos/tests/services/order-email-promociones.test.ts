@@ -106,8 +106,17 @@ describe("las promociones se explican en el correo y en el Excel", () => {
     expect(mail.html).toContain("BONIFICACIÓN (S/ 0.00)");
     expect(mail.text).toContain("BONIFICACIÓN (S/ 0.00)");
 
+    // El código de la línea gratis lleva el prefijo BO: es como Operaciones
+    // separa el bonificado del que se cobra, y en el papel las dos líneas
+    // son el mismo producto.
+    expect(mail.html).toContain("BODHP200");
+    expect(mail.text).toContain("BODHP200");
+
     const celdas = await celdasDelExcel(data!);
     expect(celdas).toContain("VITAMINA E 400 UI CJA. X 30 CAP. BDA. — BONIFICACIÓN (S/ 0.00)");
+    expect(celdas).toContain("BODHP200");
+    // Y la línea pagada sigue con el suyo, sin prefijo.
+    expect(celdas).toContain("DHP200");
   });
 });
 
