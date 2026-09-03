@@ -41,7 +41,8 @@ export type OrderEmailPrecioEspecial = {
    * APROBAR | APROBAR_OTRO_PRECIO | RECHAZAR | SOLICITAR_INFO, o null.
    * FIJADO_POR_ADMIN es el caso sin solicitud: el administrador puso el
    * precio directo, sin pedirle aprobación a nadie. PROMOCION es el otro:
-   * lo decidió el catálogo, no una persona.
+   * lo decidió el catálogo, no una persona. BONIFICACION_MANUAL es el
+   * tercero: unidades regaladas a mano, sin promoción configurada.
    */
   decision: string | null;
   precioAprobado: number | null;
@@ -92,7 +93,8 @@ export function precioEspecialVigente(
     pe.decision !== "APROBAR" &&
     pe.decision !== "APROBAR_OTRO_PRECIO" &&
     pe.decision !== "FIJADO_POR_ADMIN" &&
-    pe.decision !== "PROMOCION"
+    pe.decision !== "PROMOCION" &&
+    pe.decision !== "BONIFICACION_MANUAL"
   ) {
     return null;
   }
@@ -145,6 +147,14 @@ export function precioEspecialLabel(pe: OrderEmailPrecioEspecial | null | undefi
         lista && dcto
           ? `${lista} → fijado por administración ${soles(pe.precioAprobado ?? 0)} (−${soles(dcto.monto)}, −${dcto.porcentaje.toFixed(1)}%)`
           : `Fijado por administración ${soles(pe.precioAprobado ?? 0)}`;
+      return pe.motivo ? `${cabeza} · ${pe.motivo}` : cabeza;
+    }
+    // Unidades regaladas a mano, sin promoción detrás. Lo que hay que ver
+    // es el motivo: es lo único que explica por qué van sin costo.
+    case "BONIFICACION_MANUAL": {
+      const cabeza = lista
+        ? `Bonificación manual · ${lista} c/u, va sin costo`
+        : "Bonificación manual · va sin costo";
       return pe.motivo ? `${cabeza} · ${pe.motivo}` : cabeza;
     }
     // Una promoción de catálogo no la aprobó nadie: se aplicó sola. Decirlo

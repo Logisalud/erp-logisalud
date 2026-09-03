@@ -1335,6 +1335,75 @@ usó la carga masiva: pantalla y migración no pueden divergir.
 datos y la captura quedan resueltos; la conexión con NubeFact es un paso
 aparte.
 
+## Bonificación manual: unidades a S/ 0.00 sin promoción (`1021`)
+
+Caso real: el vendedor acuerda **5 A-Fiebrin pagados + 5 bonificados**, y no
+existe ninguna regla de promoción para ese producto. El motor automático
+(`promo_bonificaciones`, `1017`) no sirve acá: eso es catálogo, calculado y
+repetible. Esto es discrecional — una persona lo decide y escribe por qué.
+
+Las unidades bonificadas entran en una **línea aparte** del mismo producto,
+con `origen_precio = 'BONIFICACION_MANUAL'`, `es_linea_gratis = true`,
+precio S/ 0.00 y `motivo_precio_especial` **obligatorio**. El precio de
+lista queda guardado en `precio_lista_original`: es cuánto se está
+regalando, y es lo que el aprobador necesita para decidir.
+
+### Quién puede, y a qué costo
+
+- **Vendedor:** al enviar el pedido, `submit_order` crea una
+  `approval_request` por cada línea manual (precio solicitado S/ 0.00) y el
+  pedido cae en `COMMERCIAL_EXCEPTION`. Regalar unidades es un descuento
+  del **100%**, más grande que cualquier precio especial: pasa por el mismo
+  control.
+- **Administrador:** se aplica directo, sin solicitud. Es la misma
+  autoridad que ya tiene para fijar precio (`1011`).
+
+La solicitud se crea en el **envío**, no al marcar la línea: hasta que el
+pedido no se envía no hay nada que aprobar, y el vendedor puede corregir la
+cantidad las veces que quiera sin ensuciar la bandeja del aprobador. Volver
+a marcar el mismo producto **corrige** la línea existente (y borra su
+solicitud pendiente, que ya no describe lo que se pide) en vez de acumular
+otra línea gratis.
+
+### Rechazar quita la línea
+
+Este es el punto donde el flujo normal de rechazo no alcanza. Un precio
+especial rechazado "queda al precio de lista"; una bonificación rechazada
+no puede quedar así, porque **cobraría unidades que el cliente aceptó como
+regalo** — cambiaría el pedido en vez de negar el pedido. Y dejarla gratis
+sería aprobar lo que se acaba de negar.
+
+Así que al rechazar, la línea se va y el pedido vuelve a `DRAFT`, como
+cualquier rechazo. Sin eso, además, el pedido volvería a pedir la misma
+aprobación en cada envío, para siempre.
+
+La solicitud y su decisión caen por cascada junto con la línea
+(`approval_requests.order_item_id` es `ON DELETE CASCADE`), así que el
+registro que sobrevive es `pedidos.audit_logs`
+(`rechazar_bonificacion_manual`) con la cantidad, el precio de lista, el
+motivo del vendedor y el comentario del aprobador.
+
+### Lo que NO comparte con el motor automático
+
+Comparten `es_linea_gratis` a propósito, para que la línea se vea igual en
+el correo y en el Excel (con el prefijo `BO` en el código). Nada más:
+
+- El motor **no la genera**: sólo inserta líneas `PROMO_BONIFICACION`.
+- El motor **no la borra**: su paso de limpieza filtra por
+  `origen_precio = 'PROMO_BONIFICACION'`. Borrarla sería borrar una
+  decisión humana.
+- El motor **no la fusiona**: la consolidación de líneas partidas excluye
+  `BONIFICACION_MANUAL`. Fusionar "5 pagadas" con "5 gratis" daría 10
+  unidades a S/ 0.00 — regalar el pedido entero.
+- **No habilita promociones ajenas**: el conteo de unidades que activan una
+  escala, un descuento condicionado o una bonificación automática sólo mira
+  unidades pagadas.
+
+En el correo y el Excel la línea sale como `BODHP014 · A - FIEBRIN … —
+BONIFICACIÓN (S/ 0.00)` con la etiqueta "Bonificación manual · lista
+S/ 2.50 c/u, va sin costo · <motivo>". Cuando la pidió un vendedor, la
+etiqueta de la solicitud aprobada gana, porque además dice quién la aprobó.
+
 ## Qué NO cubre esta fase
 
 Explícitamente fuera de alcance por ahora (ver README y CLAUDE.md):

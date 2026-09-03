@@ -5,6 +5,8 @@ import { getCurrentUser, requireUserId } from "@/lib/auth/session";
 import {
   addOrderItem,
   changeOrderCustomer,
+  marcarBonificacionManual,
+  quitarBonificacionManual,
   removeOrderItem,
   setItemSpecialPriceAsAdmin,
   submitOrder,
@@ -109,6 +111,49 @@ export async function fijarPrecioEspecial(orderId: string, itemId: string, formD
 
   revalidatePath(`/pedidos/${orderId}`);
   return resultado;
+}
+
+/**
+ * Marca unidades como bonificación manual (S/ 0.00) sin que exista ninguna
+ * promoción configurada.
+ *
+ * No exige rol: lo puede pedir el vendedor y lo puede aplicar el
+ * administrador, y la diferencia la hace el envío del pedido —al vendedor
+ * le abre una solicitud de aprobación, al administrador no—. Quién es
+ * quién lo verifica la base, no esta capa.
+ */
+export async function marcarComoBonificacion(
+  orderId: string,
+  itemId: string,
+  formData: FormData,
+) {
+  const userId = await requireUserId();
+
+  const cantidad = Number(formData.get("cantidad"));
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (!Number.isInteger(cantidad) || cantidad < 1) {
+    throw new Error("Escribí cuántas unidades van bonificadas.");
+  }
+  if (!motivo) {
+    throw new Error("Escribí el motivo de la bonificación: es lo que va a revisar el aprobador.");
+  }
+
+  const resultado = await marcarBonificacionManual({
+    orderId,
+    itemId,
+    cantidad,
+    motivo,
+    actor: userId,
+  });
+
+  revalidatePath(`/pedidos/${orderId}`);
+  return resultado;
+}
+
+export async function quitarBonificacion(orderId: string, itemId: string) {
+  const userId = await requireUserId();
+  await quitarBonificacionManual({ itemId, actor: userId });
+  revalidatePath(`/pedidos/${orderId}`);
 }
 
 export async function solicitarDescuento(orderId: string, itemId: string, formData: FormData) {
