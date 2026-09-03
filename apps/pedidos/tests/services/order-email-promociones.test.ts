@@ -35,6 +35,28 @@ const PEDIDOS: Record<string, { order: unknown; items: unknown[]; obs: unknown[]
     ],
     obs: [],
   },
+  "56": {
+    order: {
+      numero: 56, fecha_envio: "2026-09-03T14:26:00Z", created_at: "2026-09-03T14:25:00Z",
+      dias_credito_solicitados: null,
+      razon_social_snapshot: "***** ALVINAGORTA BALTAZAR, NELLY NANCY", direccion_snapshot: "AV123",
+      canal_snapshot: "Horizontal", zona_snapshot: "ZONA 16", vendedor_snapshot: "VENDEDOR DE PRUEBA ADMIN 1",
+      customer: { razon_social: "***** ALVINAGORTA BALTAZAR, NELLY NANCY", ruc_o_documento: "10412460389" },
+      payment_terms: { nombre: "Contado" },
+    },
+    items: [
+      { id: "61f26d83", cantidad: 5, precio_unitario: 2.5, igv: 1.91, subtotal: 10.59, total: 12.5,
+        precio_fijado_por_admin: false, precio_lista_original: null, motivo_precio_especial: null,
+        origen_precio: "LISTA", promocion_ref: null, es_linea_gratis: false,
+        product: { codigo_interno: "DHP014", descripcion: "A - FIEBRIN 1G/ 2ML CJA X 1 AMP." } },
+      { id: "1c1f40f9", cantidad: 5, precio_unitario: 0, igv: 0, subtotal: 0, total: 0,
+        precio_fijado_por_admin: false, precio_lista_original: 2.5,
+        motivo_precio_especial: "acuerdo comercial - aplicado por administracion",
+        origen_precio: "BONIFICACION_MANUAL", promocion_ref: null, es_linea_gratis: true,
+        product: { codigo_interno: "DHP014", descripcion: "A - FIEBRIN 1G/ 2ML CJA X 1 AMP." } },
+    ],
+    obs: [],
+  },
   "53": {
     order: {
       numero: 53, fecha_envio: "2026-09-03T03:09:34Z", created_at: "2026-09-03T03:08:17Z",
@@ -117,6 +139,26 @@ describe("las promociones se explican en el correo y en el Excel", () => {
     expect(celdas).toContain("BODHP200");
     // Y la línea pagada sigue con el suyo, sin prefijo.
     expect(celdas).toContain("DHP200");
+  });
+
+  it("#56: la bonificación marcada a mano dice por qué va sin costo", async () => {
+    // Es la que más falta hace explicar: no hay promoción detrás, sólo el
+    // motivo que escribió quien la marcó. Y como la aplicó un
+    // administrador, no hay solicitud de aprobación que lo cuente.
+    actual = "56";
+    const data = await loadOrderEmailData("x", "READY_FOR_OPERATIONS");
+    const mail = { html: renderOrderEmailHtml(data!), text: renderOrderEmailText(data!) };
+
+    expect(mail.html).toContain("Bonificación manual · lista S/ 2.50 c/u, va sin costo");
+    expect(mail.html).toContain("acuerdo comercial - aplicado por administracion");
+    expect(mail.html).toContain("BODHP014");
+    expect(mail.text).toContain("BONIFICACIÓN (S/ 0.00)");
+
+    const celdas = await celdasDelExcel(data!);
+    expect(celdas).toContain("BODHP014");
+    expect(
+      celdas.some((c) => c.includes("Bonificación manual") && c.includes("acuerdo comercial")),
+    ).toBe(true);
   });
 });
 

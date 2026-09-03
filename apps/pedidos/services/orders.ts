@@ -390,6 +390,110 @@ export async function setItemSpecialPriceAsAdmin(input: {
   };
 }
 
+/**
+ * Marca unidades de un producto como bonificación manual: entran al pedido
+ * a S/ 0.00, en una línea aparte.
+ *
+ * Es discrecional y no tiene nada que ver con el motor de promociones. Un
+ * vendedor puede pedirlo —al enviar el pedido, `submit_order` le abre una
+ * solicitud de aprobación por cada línea manual y el pedido queda en
+ * COMMERCIAL_EXCEPTION, porque regalar unidades es un descuento del 100%—.
+ * Un administrador la aplica directo, igual que un precio especial.
+ *
+ * Quién es quién lo decide el RPC con `is_admin()`/`current_seller_id()`
+ * sobre los roles reales de la sesión: esta función no decide permisos.
+ */
+export async function marcarBonificacionManual(input: {
+  orderId: string;
+  itemId: string;
+  cantidad: number;
+  motivo: string;
+  actor: string;
+}): Promise<{
+  itemId: string;
+  cantidad: number;
+  precioLista: number;
+  motivo: string;
+  requiereAprobacion: boolean;
+}> {
+  if (!Number.isInteger(input.cantidad) || input.cantidad < 1) {
+    throw new Error("La cantidad bonificada tiene que ser un número entero de 1 o más.");
+  }
+  const motivo = input.motivo.trim();
+  if (!motivo) {
+    throw new Error("Escribí el motivo de la bonificación: es lo que va a revisar el aprobador.");
+  }
+
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("marcar_bonificacion_manual", {
+    p_order_item_id: input.itemId,
+    p_cantidad: input.cantidad,
+    p_motivo: motivo,
+  });
+  if (error) throw new Error(error.message);
+
+  const resultado = data as {
+    orderId: string;
+    orderItemId: string;
+    productId: string;
+    cantidad: number;
+    precioLista: number;
+    motivo: string;
+    requiereAprobacion: boolean;
+  };
+
+  await logAudit({
+    actor: input.actor,
+    accion: "marcar_bonificacion_manual",
+    entidad: "order_items",
+    entidadId: resultado.orderItemId,
+    datosDespues: {
+      order_id: resultado.orderId,
+      product_id: resultado.productId,
+      cantidad: resultado.cantidad,
+      precio_unitario: 0,
+      precio_lista_original: resultado.precioLista,
+      motivo: resultado.motivo,
+      requiere_aprobacion_comercial: resultado.requiereAprobacion,
+    },
+  });
+
+  return {
+    itemId: resultado.orderItemId,
+    cantidad: resultado.cantidad,
+    precioLista: resultado.precioLista,
+    motivo: resultado.motivo,
+    requiereAprobacion: resultado.requiereAprobacion,
+  };
+}
+
+/** Deshace la bonificación manual: la línea gratis se va del pedido. */
+export async function quitarBonificacionManual(input: {
+  itemId: string;
+  actor: string;
+}): Promise<void> {
+  const supabase = createClient();
+
+  const { data: item } = await supabase
+    .from("order_items")
+    .select("order_id, product_id, cantidad, motivo_precio_especial")
+    .eq("id", input.itemId)
+    .maybeSingle();
+
+  const { error } = await supabase.rpc("quitar_bonificacion_manual", {
+    p_order_item_id: input.itemId,
+  });
+  if (error) throw new Error(error.message);
+
+  await logAudit({
+    actor: input.actor,
+    accion: "quitar_bonificacion_manual",
+    entidad: "order_items",
+    entidadId: input.itemId,
+    datosAntes: item ?? null,
+  });
+}
+
 export async function removeOrderItem(itemId: string) {
   const supabase = createClient();
 

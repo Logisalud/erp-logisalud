@@ -220,6 +220,23 @@ const ETIQUETA_PROMOCION: Record<string, string> = {
 
 function precioDePromocion(item: ItemRow): OrderEmailPrecioEspecial | null {
   const origen = item.origen_precio ?? "";
+
+  // Bonificación marcada a mano: no hay promoción que la explique, sólo el
+  // motivo que escribió quien la marcó. Cuando la pidió un vendedor hay
+  // además una solicitud de aprobación, y esa gana (dice quién la aprobó).
+  if (origen === "BONIFICACION_MANUAL") {
+    return {
+      precioOriginal:
+        item.precio_lista_original === null ? null : num(item.precio_lista_original),
+      precioSolicitado: 0,
+      porcentajeDescuento: null,
+      estado: "RESUELTO",
+      decision: "BONIFICACION_MANUAL",
+      precioAprobado: 0,
+      motivo: item.motivo_precio_especial,
+    };
+  }
+
   if (!origen.startsWith("PROMO_")) return null;
   if (item.es_linea_gratis) return null;
   const precio = num(item.precio_unitario);

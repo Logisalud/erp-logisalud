@@ -16,6 +16,8 @@ import {
   cambiarCantidad,
   enviarPedido,
   fijarPrecioEspecial,
+  marcarComoBonificacion,
+  quitarBonificacion,
   quitarProducto,
   solicitarDescuento,
 } from "./actions";
@@ -90,6 +92,7 @@ export function OrderItemComposer({
   );
   const [cantidad, setCantidad] = useState("");
   const [ultimaAgregada, setUltimaAgregada] = useState<string | null>(null);
+  const [bonifFormItemId, setBonifFormItemId] = useState<string | null>(null);
   const [discountFormItemId, setDiscountFormItemId] = useState<string | null>(
     null,
   );
@@ -216,6 +219,44 @@ export function OrderItemComposer({
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "No se pudo fijar el precio.",
+        );
+      }
+    });
+  }
+
+  function marcarBonificacion(
+    itemId: string,
+    e: React.FormEvent<HTMLFormElement>,
+  ) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await marcarComoBonificacion(orderId, itemId, formData);
+        setBonifFormItemId(null);
+        router.refresh();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo marcar la bonificación.",
+        );
+      }
+    });
+  }
+
+  function quitarBonif(itemId: string) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await quitarBonificacion(orderId, itemId);
+        router.refresh();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo quitar la bonificación.",
         );
       }
     });
@@ -415,13 +456,44 @@ export function OrderItemComposer({
                       {item.product?.codigo_interno ?? "—"} ·{" "}
                       {formatSoles(item.precio_unitario)} c/u
                     </p>
-                    {item.es_linea_gratis && (
-                      <p className="mt-1 text-sm font-medium text-[#276b3b]">
-                        Bonificación automática · va sin costo. La calcula el
-                        sistema con la promoción vigente: no se edita ni se
-                        quita a mano.
-                      </p>
-                    )}
+                    {item.es_linea_gratis &&
+                      item.origen_precio === "BONIFICACION_MANUAL" && (
+                        <div className="mt-1">
+                          <p className="text-sm font-medium text-[#276b3b]">
+                            Bonificación marcada a mano · va sin costo
+                            {item.precio_lista_original !== null
+                              ? ` · lista ${formatSoles(item.precio_lista_original)} c/u`
+                              : ""}
+                          </p>
+                          {item.motivo_precio_especial && (
+                            <p className="text-sm text-slate-600">
+                              Motivo: {item.motivo_precio_especial}
+                            </p>
+                          )}
+                          {!esAdmin && (
+                            <p className="text-sm text-amber-800">
+                              Al enviar el pedido va a esperar aprobación
+                              comercial: son unidades regaladas.
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => quitarBonif(item.id)}
+                            className="min-h-11 rounded-lg px-0 text-sm font-medium text-[#1c6d71] hover:underline"
+                            disabled={isPending}
+                          >
+                            Quitar la bonificación
+                          </button>
+                        </div>
+                      )}
+                    {item.es_linea_gratis &&
+                      item.origen_precio !== "BONIFICACION_MANUAL" && (
+                        <p className="mt-1 text-sm font-medium text-[#276b3b]">
+                          Bonificación automática · va sin costo. La calcula el
+                          sistema con la promoción vigente: no se edita ni se
+                          quita a mano.
+                        </p>
+                      )}
                     {!item.es_linea_gratis &&
                       item.origen_precio.startsWith("PROMO_") && (
                         <p className="mt-1 text-sm font-medium text-[#276b3b]">
@@ -491,6 +563,17 @@ export function OrderItemComposer({
                         )}
                         <button
                           type="button"
+                          onClick={() =>
+                            setBonifFormItemId(
+                              bonifFormItemId === item.id ? null : item.id,
+                            )
+                          }
+                          className="min-h-11 rounded-lg px-2 text-sm font-medium text-[#1c6d71] hover:bg-logisalud-teal/10"
+                        >
+                          Bonificar
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => quitar(item.id)}
                           className="btn-ghost ml-auto hover:text-red-700"
                           disabled={isPending}
@@ -501,6 +584,50 @@ export function OrderItemComposer({
                       </div>
                     )}
                   </div>
+
+                  {bonifFormItemId === item.id && !item.es_linea_gratis && (
+                    <form
+                      onSubmit={(e) => marcarBonificacion(item.id, e)}
+                      className="mx-4 mb-4 flex flex-col gap-2 rounded-lg bg-slate-50 p-3"
+                    >
+                      <p className="text-sm text-slate-700">
+                        {esAdmin
+                          ? "Las unidades bonificadas entran en una línea aparte a S/ 0.00. Como administrador se aplica de inmediato, sin aprobación."
+                          : "Las unidades bonificadas entran en una línea aparte a S/ 0.00. Es un descuento del 100%, así que al enviar el pedido queda esperando aprobación comercial."}
+                      </p>
+                      <label
+                        className="etiqueta"
+                        htmlFor={`bonif-cant-${item.id}`}
+                      >
+                        Unidades bonificadas (además de las {item.cantidad} que
+                        se cobran)
+                      </label>
+                      <input
+                        id={`bonif-cant-${item.id}`}
+                        name="cantidad"
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        step={1}
+                        required
+                        defaultValue={item.cantidad}
+                        className="campo cifra h-11 min-h-11 w-[6rem] px-2 text-center text-sm"
+                      />
+                      <input
+                        name="motivo"
+                        required
+                        placeholder="Motivo (obligatorio): ej. acuerdo comercial con el cliente"
+                        className="campo h-11 min-h-11 text-sm"
+                      />
+                      <button
+                        type="submit"
+                        className="btn-secondary self-start text-sm"
+                        disabled={isPending}
+                      >
+                        Marcar como bonificación
+                      </button>
+                    </form>
+                  )}
 
                   {discountFormItemId === item.id && esAdmin && (
                     <form
