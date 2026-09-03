@@ -30,6 +30,9 @@ export type OrderItemRow = {
   precio_fijado_por_admin: boolean;
   precio_lista_original: number | null;
   motivo_precio_especial: string | null;
+  origen_precio: string;
+  promocion_ref: string | null;
+  es_linea_gratis: boolean;
   product: { descripcion: string; codigo_interno: string } | null;
 };
 
@@ -177,6 +180,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail | nul
         .select(
           "id, product_id, cantidad, precio_unitario, afectacion_tributaria, tasa_igv, subtotal, igv, total, " +
             "precio_fijado_por_admin, precio_lista_original, motivo_precio_especial, " +
+            "origen_precio, promocion_ref, es_linea_gratis, " +
             "product:products(descripcion, codigo_interno)",
         )
         .eq("order_id", orderId),
@@ -214,6 +218,25 @@ export type AddOrderItemResult =
  * valor que realmente queda grabado lo decide pedidos.submit_order() en
  * el servidor al momento de enviar (ver domain/orders.ts).
  */
+/**
+ * Recalcula las promociones automáticas del pedido.
+ *
+ * Se llama después de cada cambio de línea, y `submit_order` lo llama otra
+ * vez por su cuenta: el motor vive en SQL justamente para que las dos
+ * puertas den el mismo resultado. Es idempotente —borra y regenera las
+ * líneas gratis, deshace y vuelve a aplicar los descuentos—, así que
+ * llamarlo de más no acumula nada.
+ *
+ * Un error acá sí interrumpe la acción: dejar el pedido con la línea
+ * agregada y las promociones a medio aplicar es peor que fallar y que el
+ * vendedor lo intente de nuevo.
+ */
+export async function aplicarPromociones(orderId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("aplicar_promociones", { p_order_id: orderId });
+  if (error) throw new Error(error.message);
+}
+
 export async function addOrderItem(input: {
   orderId: string;
   customerId: string;
@@ -294,6 +317,12 @@ export async function addOrderItem(input: {
     .single();
 
   if (error) throw new Error(error.message);
+
+  // El producto recién agregado puede disparar una bonificación, alcanzar
+  // el umbral de una escala o completar el par de un descuento
+  // condicionado. El vendedor tiene que verlo ahora, no al enviar.
+  await aplicarPromociones(input.orderId);
+
   return { ok: true, itemId: data.id };
 }
 
@@ -363,8 +392,21 @@ export async function setItemSpecialPriceAsAdmin(input: {
 
 export async function removeOrderItem(itemId: string) {
   const supabase = createClient();
+
+  // Hay que saber a qué pedido pertenecía antes de borrarla: quitar una
+  // línea también puede quitar una promoción (la bonificación que dependía
+  // de ella, o el par del descuento condicionado).
+  const { data: item, error: itemError } = await supabase
+    .from("order_items")
+    .select("order_id")
+    .eq("id", itemId)
+    .maybeSingle();
+  if (itemError) throw new Error(itemError.message);
+
   const { error } = await supabase.from("order_items").delete().eq("id", itemId);
   if (error) throw new Error(error.message);
+
+  if (item?.order_id) await aplicarPromociones(item.order_id);
 }
 
 export async function updatePaymentTerms(
@@ -709,6 +751,10 @@ export async function updateOrderItemQuantity(input: {
     })
     .eq("id", input.itemId);
   if (error) throw new Error(error.message);
+
+  // La cantidad es lo que decide si se alcanza el umbral de una escala y
+  // cuántas unidades se bonifican.
+  await aplicarPromociones(input.orderId);
 
   await logAudit({
     actor: input.actor,

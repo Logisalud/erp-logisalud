@@ -40,7 +40,8 @@ export type OrderEmailPrecioEspecial = {
   /**
    * APROBAR | APROBAR_OTRO_PRECIO | RECHAZAR | SOLICITAR_INFO, o null.
    * FIJADO_POR_ADMIN es el caso sin solicitud: el administrador puso el
-   * precio directo, sin pedirle aprobación a nadie.
+   * precio directo, sin pedirle aprobación a nadie. PROMOCION es el otro:
+   * lo decidió el catálogo, no una persona.
    */
   decision: string | null;
   precioAprobado: number | null;
@@ -90,7 +91,8 @@ export function precioEspecialVigente(
   if (
     pe.decision !== "APROBAR" &&
     pe.decision !== "APROBAR_OTRO_PRECIO" &&
-    pe.decision !== "FIJADO_POR_ADMIN"
+    pe.decision !== "FIJADO_POR_ADMIN" &&
+    pe.decision !== "PROMOCION"
   ) {
     return null;
   }
@@ -143,6 +145,17 @@ export function precioEspecialLabel(pe: OrderEmailPrecioEspecial | null | undefi
         lista && dcto
           ? `${lista} → fijado por administración ${soles(pe.precioAprobado ?? 0)} (−${soles(dcto.monto)}, −${dcto.porcentaje.toFixed(1)}%)`
           : `Fijado por administración ${soles(pe.precioAprobado ?? 0)}`;
+      return pe.motivo ? `${cabeza} · ${pe.motivo}` : cabeza;
+    }
+    // Una promoción de catálogo no la aprobó nadie: se aplicó sola. Decirlo
+    // así evita que quien lea el correo salga a buscar quién autorizó el
+    // descuento.
+    case "PROMOCION": {
+      const dcto = descuentoAplicado(pe);
+      const cabeza =
+        lista && dcto
+          ? `${lista} → promoción ${soles(pe.precioAprobado ?? 0)} (−${soles(dcto.monto)}, −${dcto.porcentaje.toFixed(1)}%)`
+          : `Promoción ${soles(pe.precioAprobado ?? 0)}`;
       return pe.motivo ? `${cabeza} · ${pe.motivo}` : cabeza;
     }
     case "APROBAR":

@@ -16,9 +16,12 @@ listas de precios) completadas. La cartera real de clientes ya está
 cargada vía importador CSV (ver "Carga de la cartera real de clientes" en
 [docs/data-model.md](docs/data-model.md)).
 
-No hay todavía motor de promociones/escalas, gestión de stock, despacho
-real, integración NubeFact ni cálculo de retenciones — eso es Fase 5 en
-adelante. Antes de implementar cualquiera de esos, leer
+No hay todavía gestión de stock transaccional, despacho real, integración
+NubeFact ni cálculo de retenciones — eso es Fase 5 en adelante. El motor de
+promociones (escalas, bonificaciones y descuentos condicionados) sí existe
+desde la migración `1017`, con el archivo de Diphasac cargado por
+importador; Biosana y Prades todavía no entregaron el suyo. Antes de
+implementar cualquiera de los que faltan, leer
 [docs/business-rules.md](docs/business-rules.md) y
 [docs/data-model.md](docs/data-model.md) — hay supuestos de negocio
 marcados explícitamente como "pendientes de confirmar con Contabilidad".

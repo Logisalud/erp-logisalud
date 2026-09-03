@@ -11,7 +11,7 @@ import { emailFromAddress, fetchResendMessageId, sendEmail } from "@/services/em
 const ORIGINAL_ENV = { ...process.env };
 
 function stubFetch(respuesta: { ok: boolean; body?: unknown; status?: number }) {
-  const spy = vi.fn(async (..._args: unknown[]) =>
+  const spy = vi.fn(async () =>
     respuesta.ok
       ? new Response(JSON.stringify(respuesta.body ?? { id: "resend-uuid" }), { status: 200 })
       : new Response("nope", { status: respuesta.status ?? 422 }),
