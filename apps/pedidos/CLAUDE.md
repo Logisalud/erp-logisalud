@@ -100,9 +100,24 @@ un trigger de auditoría de respaldo además de la llamada a `logAudit()`
 desde la capa de servicio — ver la sección de auditoría en
 [docs/architecture.md](docs/architecture.md) para el criterio.
 
-**Las migraciones se aplican solas al mergear a `main`** (integración de
-Supabase con GitHub), así que hay que probarlas antes del merge. El
-contenedor trae `postgresql-16`: se puede correr la cadena completa
+**Las migraciones ya NO se aplican solas al mergear a `main`.** La
+integración de Supabase con GitHub lee `supabase/migrations` desde la RAÍZ
+del repo, y con la mudanza al monorepo este directorio pasó a
+`apps/pedidos/supabase/migrations`: desde entonces la integración no aplica
+nada. Se comprobó el 2026-09-03 — en
+`supabase_migrations.schema_migrations` no hay ni un registro de las
+migraciones `1007`–`1021`; las que están en producción se aplicaron a mano.
+Los registros `0001`–`0052` son de la época pre-monorepo, cuando el
+directorio sí estaba en la raíz.
+
+Mientras siga así: **aplicar cada migración nueva a mano** (MCP de Supabase
+o `supabase db push` apuntando al directorio de la app) y verificar que
+quedó aplicada; no dar por hecho que el merge la corre. Arreglarlo es
+configurar el path del directorio en cada proyecto Supabase (son dos:
+`pedidos` por un lado, `cobranzas`/`compras` por otro), y va en un cambio
+aparte.
+
+El contenedor trae `postgresql-16`: se puede correr la cadena completa
 contra una base local stubbeando lo que da Supabase — ver "Migraciones"
 en [docs/architecture.md](docs/architecture.md).
 
