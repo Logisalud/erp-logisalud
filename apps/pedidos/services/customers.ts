@@ -122,6 +122,11 @@ export async function requestNewCustomer(input: {
   zonaId: number;
   condicionPagoHabitualId: number;
   direccion: string;
+  /** Código INEI ya resuelto por la capa de acción, nunca escrito a mano. */
+  ubigeo?: string | null;
+  departamento?: string | null;
+  provincia?: string | null;
+  distrito?: string | null;
   solicitadoPor: string;
 }): Promise<{ customer: ActiveCustomerOption; addressId: string }> {
   const supabase = createClient();
@@ -142,6 +147,12 @@ export async function requestNewCustomer(input: {
       zona_id: input.zonaId,
       condicion_pago_habitual_id: input.condicionPagoHabitualId,
       tipo_comprobante_permitido: tipoComprobante,
+      // Los nombres se guardan además del código: son lo que una persona
+      // lee cuando hay que revisar una dirección, y lo que permitió
+      // resolver el ubigeo de las direcciones viejas.
+      departamento: input.departamento ?? null,
+      provincia: input.provincia ?? null,
+      distrito: input.distrito ?? null,
       estado: "PENDIENTE_DE_VALIDACION",
       solicitado_por: input.solicitadoPor,
     })
@@ -172,6 +183,7 @@ export async function requestNewCustomer(input: {
     .insert({
       customer_id: customer.id,
       direccion: input.direccion,
+      ubigeo: input.ubigeo ?? null,
       es_principal: true,
       solicitado_por: input.solicitadoPor,
     })

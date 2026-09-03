@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   codigoRegularDeBonificacion,
+  codigoVisibleDeLineaGratis,
   displayNombreProducto,
   esBonificacion,
   admitePrecioCero,
@@ -122,5 +123,22 @@ describe("esOfrecibleEnPedido", () => {
       esOfrecibleEnPedido({ estado: "inactivo", hasCurrentPrice: true }),
     );
     expect(ofrecibles).toHaveLength(0);
+  });
+});
+
+describe("codigoVisibleDeLineaGratis", () => {
+  it("antepone BO al código del producto regalado", () => {
+    // La bonificación es una línea del MISMO producto a S/ 0.00: sin esto,
+    // el Excel muestra "DHP200" dos veces y Operaciones no sabe cuál es la
+    // que va sin costo.
+    expect(codigoVisibleDeLineaGratis("DHP200")).toBe("BODHP200");
+  });
+
+  it("no duplica el prefijo si el producto ya es una bonificación", () => {
+    expect(codigoVisibleDeLineaGratis("BODHP008")).toBe("BODHP008");
+  });
+
+  it("no inventa un código cuando no hay ninguno", () => {
+    expect(codigoVisibleDeLineaGratis("")).toBe("");
   });
 });

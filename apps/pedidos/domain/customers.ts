@@ -102,6 +102,19 @@ export function documentoAlerta(rucODocumento: string): string | null {
 export const MENSAJE_SIN_DIRECCION =
   "Este cliente no tiene dirección registrada, agrégala antes de continuar";
 
+/**
+ * El ubigeo no es opcional en una dirección nueva: sin él la guía de
+ * remisión no se puede emitir, y descubrirlo el día del despacho es tarde.
+ * Las 13 direcciones viejas que quedaron sin ubigeo son deuda de la carga
+ * masiva, no un camino que la pantalla deba seguir abriendo.
+ */
+export const MENSAJE_UBIGEO_REQUERIDO =
+  "Elegí departamento, provincia y distrito: sin eso no se puede emitir la guía de remisión.";
+
+export const MENSAJE_UBIGEO_NO_RESUELTO =
+  "Esa combinación de departamento, provincia y distrito no existe en el catálogo oficial. " +
+  "Volvé a elegirla de las listas.";
+
 export function puedeTomarPedido(input: {
   estado: CustomerEstado;
   direccionesActivas: number;

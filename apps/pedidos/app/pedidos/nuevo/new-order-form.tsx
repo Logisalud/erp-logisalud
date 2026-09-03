@@ -8,7 +8,15 @@ import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
 import { MIN_SEARCH_LENGTH, displayRazonSocial } from "@/domain/customer-search";
 import { IconAlert, IconError, IconPlus, IconSpinner } from "@/components/icons";
 import {
+  UBIGEO_VACIO,
+  UbigeoPicker,
+  ubigeoCompleto,
+  type UbigeoSeleccion,
+} from "@/components/ubigeo-picker";
+import {
   agregarDireccionCliente,
+  buscarDistritos,
+  buscarProvincias,
   buscarClientes,
   crearBorrador,
   crearClienteNuevo,
@@ -57,6 +65,7 @@ export function NewOrderForm({
   paymentTerms,
   salesChannels,
   zones,
+  departamentos,
 }: {
   isAdmin: boolean;
   sellers: Seller[];
@@ -64,6 +73,8 @@ export function NewOrderForm({
   paymentTerms: PaymentTermOption[];
   salesChannels: CatalogOption[];
   zones: CatalogOption[];
+  /** Los 25 departamentos; provincias y distritos se piden al elegir. */
+  departamentos: string[];
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +90,8 @@ export function NewOrderForm({
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
   const [newAddress, setNewAddress] = useState({ direccion: "", referencia: "" });
+  const [newAddressUbigeo, setNewAddressUbigeo] = useState<UbigeoSeleccion>(UBIGEO_VACIO);
+  const [newCustomerUbigeo, setNewCustomerUbigeo] = useState<UbigeoSeleccion>(UBIGEO_VACIO);
   const [newAddressError, setNewAddressError] = useState<string | null>(null);
   const [newCustomer, setNewCustomer] = useState({
     razonSocial: "",
@@ -118,10 +131,14 @@ export function NewOrderForm({
           customerId: selectedCustomerId,
           direccion: newAddress.direccion,
           referencia: newAddress.referencia,
+          departamento: newAddressUbigeo.departamento,
+          provincia: newAddressUbigeo.provincia,
+          distrito: newAddressUbigeo.distrito,
         });
         setAddresses((prev) => [...prev, created]);
         setSelectedAddressId(created.id);
         setNewAddress({ direccion: "", referencia: "" });
+        setNewAddressUbigeo(UBIGEO_VACIO);
       } catch (err) {
         setNewAddressError(err instanceof Error ? err.message : "No se pudo guardar la dirección.");
       }
@@ -136,6 +153,7 @@ export function NewOrderForm({
     setSelectedAddressId("");
     setNewAddressError(null);
     setNewAddress({ direccion: "", referencia: "" });
+    setNewAddressUbigeo(UBIGEO_VACIO);
     if (!customerId) return;
     setLoadingAddresses(true);
     startTransition(async () => {
@@ -160,6 +178,9 @@ export function NewOrderForm({
           zonaId: Number(newCustomer.zonaId),
           condicionPagoHabitualId: Number(newCustomer.condicionPagoHabitualId),
           direccion: newCustomer.direccion,
+          departamento: newCustomerUbigeo.departamento,
+          provincia: newCustomerUbigeo.provincia,
+          distrito: newCustomerUbigeo.distrito,
         });
         // El cliente recién creado queda elegido en el mismo campo.
         setSelectedOption(toOption(customer));
@@ -175,6 +196,7 @@ export function NewOrderForm({
           condicionPagoHabitualId: "",
           direccion: "",
         });
+        setNewCustomerUbigeo(UBIGEO_VACIO);
       } catch (err) {
         setNewCustomerError(err instanceof Error ? err.message : "No se pudo registrar el cliente.");
       }
@@ -326,11 +348,25 @@ export function NewOrderForm({
               value={newCustomer.direccion}
               onChange={(e) => updateNewCustomer("direccion", e.target.value)}
             />
+            {/*
+              El distrito no es un dato de relleno: de ahí sale el ubigeo del
+              punto de llegada de la guía de remisión. El vendedor elige los
+              tres nombres y el servidor resuelve el código.
+            */}
+            <UbigeoPicker
+              idPrefijo="cliente-nuevo"
+              valor={newCustomerUbigeo}
+              onChange={setNewCustomerUbigeo}
+              departamentos={departamentos}
+              cargarProvincias={buscarProvincias}
+              cargarDistritos={buscarDistritos}
+              disabled={isPending}
+            />
             <button
               type="button"
               onClick={handleCreateCustomer}
               className="btn-secondary self-start"
-              disabled={isPending}
+              disabled={isPending || !ubigeoCompleto(newCustomerUbigeo)}
             >
               {isPending ? <IconSpinner className="h-5 w-5" /> : null}
               Registrar cliente
@@ -392,11 +428,24 @@ export function NewOrderForm({
                 value={newAddress.referencia}
                 onChange={(e) => setNewAddress((p) => ({ ...p, referencia: e.target.value }))}
               />
+              <UbigeoPicker
+                idPrefijo="direccion-nueva"
+                valor={newAddressUbigeo}
+                onChange={setNewAddressUbigeo}
+                departamentos={departamentos}
+                cargarProvincias={buscarProvincias}
+                cargarDistritos={buscarDistritos}
+                disabled={isPending}
+              />
               <button
                 type="button"
                 onClick={handleAddAddress}
                 className="btn-secondary self-start"
-                disabled={isPending || newAddress.direccion.trim() === ""}
+                disabled={
+                  isPending ||
+                  newAddress.direccion.trim() === "" ||
+                  !ubigeoCompleto(newAddressUbigeo)
+                }
               >
                 {isPending ? <IconSpinner className="h-5 w-5" /> : <IconPlus className="h-5 w-5" />}
                 Guardar dirección

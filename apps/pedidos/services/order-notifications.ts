@@ -13,7 +13,7 @@ import {
   type OrderEmailObservacion,
   type OrderEmailPrecioEspecial,
 } from "@/domain/order-email";
-import { displayNombreProducto } from "@/domain/products";
+import { codigoVisibleDeLineaGratis, displayNombreProducto } from "@/domain/products";
 import { etiquetaCondicionPago } from "@/domain/payment-terms";
 import {
   asuntoDeRespuesta,
@@ -351,7 +351,14 @@ export async function loadOrderEmailData(
 
   const order = orderResult.data as unknown as OrderRow;
   const items: OrderEmailItem[] = ((itemsResult.data ?? []) as unknown as ItemRow[]).map((i) => ({
-    codigo: i.product?.codigo_interno ?? "—",
+    // La línea gratis se muestra con el código BO del producto: es el que
+    // usa Operaciones para separarla. Es sólo presentación —el correo y el
+    // Excel comparten este armado—, no hay ningún producto nuevo detrás.
+    codigo: i.product
+      ? i.es_linea_gratis
+        ? codigoVisibleDeLineaGratis(i.product.codigo_interno)
+        : i.product.codigo_interno
+      : "—",
     // El correo y el Excel los lee la oficina, que corre el mismo riesgo de
     // confundir un producto con su bonificación: misma descripción exacta.
     // Una línea gratis del motor es el MISMO producto que la pagada: sin

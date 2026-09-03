@@ -3,10 +3,15 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, requireUserId } from "@/lib/auth/session";
 import { resolveOrderSellerId } from "@/domain/orders";
-import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
+import {
+  MENSAJE_SIN_DIRECCION,
+  MENSAJE_UBIGEO_NO_RESUELTO,
+  MENSAJE_UBIGEO_REQUERIDO,
+} from "@/domain/customers";
 import { createDraftOrder } from "@/services/orders";
 import { listPaymentTerms } from "@/services/catalog";
 import { validarCondicionDePago } from "@/domain/payment-terms";
+import { listDistritos, listProvincias, resolverUbigeo } from "@/services/ubigeos";
 import {
   MENSAJE_SIN_ZONA_ASIGNADA,
   MENSAJE_ZONA_AJENA,
@@ -33,6 +38,21 @@ export async function buscarClientes(query: string) {
 }
 
 /**
+ * Las dos acciones del selector de ubigeo en cascada. Van al servidor a
+ * propósito: el catálogo son 1.884 distritos y el vendedor sólo necesita
+ * las provincias del departamento que eligió.
+ */
+export async function buscarProvincias(departamento: string) {
+  await requireUserId();
+  return listProvincias(departamento);
+}
+
+export async function buscarDistritos(departamento: string, provincia: string) {
+  await requireUserId();
+  return listDistritos(departamento, provincia);
+}
+
+/**
  * Alta de dirección desde el propio flujo de pedido, para desbloquear a
  * un cliente de la cartera migrada que entró sin dirección de entrega.
  */
@@ -40,16 +60,28 @@ export async function agregarDireccionCliente(input: {
   customerId: string;
   direccion: string;
   referencia?: string;
+  departamento?: string;
+  provincia?: string;
+  distrito?: string;
 }) {
   const userId = await requireUserId();
 
   const direccion = input.direccion.trim();
   if (!input.customerId) throw new Error("Falta el cliente.");
   if (!direccion) throw new Error("La dirección es requerida.");
+  if (!input.departamento?.trim() || !input.provincia?.trim() || !input.distrito?.trim()) {
+    throw new Error(MENSAJE_UBIGEO_REQUERIDO);
+  }
+
+  // El código lo resuelve el servidor con el catálogo oficial; la pantalla
+  // sólo manda los nombres que el vendedor eligió de las listas.
+  const ubigeo = await resolverUbigeo(input.departamento, input.provincia, input.distrito);
+  if (!ubigeo) throw new Error(MENSAJE_UBIGEO_NO_RESUELTO);
 
   return addCustomerAddress({
     customerId: input.customerId,
     direccion,
+    ubigeo,
     referencia: input.referencia?.trim() || null,
     solicitadoPor: userId,
   });
@@ -62,6 +94,9 @@ export async function crearClienteNuevo(input: {
   zonaId: number;
   condicionPagoHabitualId: number;
   direccion: string;
+  departamento: string;
+  provincia: string;
+  distrito: string;
 }) {
   const userId = await requireUserId();
 
@@ -75,6 +110,12 @@ export async function crearClienteNuevo(input: {
   if (!input.zonaId) throw new Error("Selecciona una zona.");
   if (!input.condicionPagoHabitualId) throw new Error("Selecciona una condición de pago habitual.");
   if (!direccion) throw new Error("La dirección es requerida.");
+  if (!input.departamento.trim() || !input.provincia.trim() || !input.distrito.trim()) {
+    throw new Error(MENSAJE_UBIGEO_REQUERIDO);
+  }
+
+  const ubigeo = await resolverUbigeo(input.departamento, input.provincia, input.distrito);
+  if (!ubigeo) throw new Error(MENSAJE_UBIGEO_NO_RESUELTO);
 
   // La zona se revalida contra las que el usuario puede usar: la pantalla
   // ya las filtra, pero si llega otra (petición armada a mano, o pestaña
@@ -94,6 +135,10 @@ export async function crearClienteNuevo(input: {
     zonaId: input.zonaId,
     condicionPagoHabitualId: input.condicionPagoHabitualId,
     direccion,
+    ubigeo,
+    departamento: input.departamento.trim(),
+    provincia: input.provincia.trim(),
+    distrito: input.distrito.trim(),
     solicitadoPor: userId,
   });
 
