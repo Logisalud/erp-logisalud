@@ -44,9 +44,14 @@ export async function GET(req: NextRequest) {
       return q.range(from, to);
     });
 
+    // Agrupa por vendedor + zona, no solo por vendedor: si una persona cubre
+    // varias zonas (ej. Cinthya con LIMH05 y LIMH06 desde que heredó la
+    // cartera de Cristian), esto la muestra como una fila por zona en vez de
+    // mezclar los totales/aging de ambas en una sola fila. Para el resto de
+    // vendedores (una sola zona) no cambia nada.
     const grupos = new Map<string, GrupoVendedor>();
     for (const row of data) {
-      const key = row.vendedor_id ?? '__sin_asignar__';
+      const key = `${row.vendedor_id ?? '__sin_asignar__'}::${row.zona_nombre ?? '__sin_zona__'}`;
       if (!grupos.has(key)) {
         grupos.set(key, {
           vendedor_id: row.vendedor_id, vendedor_codigo: row.vendedor_codigo,

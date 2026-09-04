@@ -156,7 +156,10 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
     setClienteInfo(null);
     try {
       const id  = v.vendedor_id ?? 'sin-asignar';
-      const res = await fetch(`/api/estado-cuenta/vendedor/${id}?solo_deuda=${sd}`, { cache: 'no-store' });
+      // Si el vendedor cubre varias zonas (resumen desglosado por
+      // vendedor+zona), filtra solo la de la fila que se clickeó.
+      const zonaQS = v.zona_nombre ? `&zona=${encodeURIComponent(v.zona_nombre)}` : '';
+      const res = await fetch(`/api/estado-cuenta/vendedor/${id}?solo_deuda=${sd}${zonaQS}`, { cache: 'no-store' });
       const d   = await res.json();
       if (d.error) throw new Error(d.error);
       setClientes(d.clientes); setVista('clientes');
@@ -358,7 +361,7 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
               <span className="text-gray-300">›</span>
               <button onClick={goClientes}
                 className={vista === 'clientes' ? 'text-gray-400 cursor-default' : 'text-logisalud-green font-semibold hover:underline'}>
-                {vendedorSel.vendedor_nombre ?? 'Sin asignar'}
+                {vendedorSel.vendedor_nombre ?? 'Sin asignar'}{vendedorSel.zona_nombre ? ` · ${vendedorSel.zona_nombre}` : ''}
               </button>
             </>)}
             {clienteSel && (<>
@@ -405,14 +408,19 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
         {!cargando && vista === 'vendedores' && (
           <AgingTable titulo={`${resumenFiltrado.length} vendedores`} col1Header="Vendedor" col2Header="Zona"
             filas={resumenFiltrado.map(v => ({
-              key: v.vendedor_id ?? '__sin__',
+              // vendedor_id solo NO alcanza como key: si cubre varias zonas
+              // (ver /api/estado-cuenta/resumen), sale una fila por zona con
+              // el mismo vendedor_id y React necesita keys únicas.
+              key: `${v.vendedor_id ?? '__sin__'}::${v.zona_nombre ?? '__sinzona__'}`,
               col1: v.vendedor_codigo ? `${v.vendedor_codigo} — ${v.vendedor_nombre}` : 'Sin asignar',
               col2: v.zona_nombre ?? '—', ...v, onClick: () => drillVendedor(v, soloDeuda),
             }))} totales={totV} />
         )}
 
         {!cargando && vista === 'clientes' && (
-          <AgingTable titulo={`${clientesFiltrados.length} clientes — ${vendedorSel?.vendedor_nombre ?? 'Sin asignar'}`} col1Header="Cliente" col2Header="RUC"
+          <AgingTable
+            titulo={`${clientesFiltrados.length} clientes — ${vendedorSel?.vendedor_nombre ?? 'Sin asignar'}${vendedorSel?.zona_nombre ? ` · ${vendedorSel.zona_nombre}` : ''}`}
+            col1Header="Cliente" col2Header="RUC"
             filas={clientesFiltrados.map(c => ({
               key: c.cliente_ruc, col1: c.razon_social, col2: c.cliente_ruc, ...c,
               onClick: () => drillCliente(c, soloDeuda),

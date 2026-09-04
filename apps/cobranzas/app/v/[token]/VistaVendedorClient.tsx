@@ -11,6 +11,7 @@ export interface FacturaVista {
   razon_social: string;
   distrito: string | null;
   celular: string | null;
+  zona: string | null;
   fecha_emision: string;
   fecha_venc: string | null;   // vencimiento efectivo (próxima letra si tiene)
   fecha_vencimiento_real: string | null; // vencimiento del documento (Nubefact), usado para el motor de descuento
@@ -197,6 +198,31 @@ function agrupar(facturas: FacturaVista[]): GrupoCliente[] {
   return [...map.values()];
 }
 
+interface GrupoZona {
+  zona: string;
+  facturas: FacturaVista[];
+  saldo: number;
+  vencido: number;
+  morosidad: number;
+}
+
+// Desglose por zona: solo tiene sentido mostrarlo cuando el vendedor cubre
+// más de una (ej. heredó una zona adicional de otro vendedor) — para uno
+// con una sola zona sería un duplicado exacto del total general.
+function agruparPorZona(facturas: FacturaVista[]): GrupoZona[] {
+  const map = new Map<string, GrupoZona>();
+  for (const f of facturas) {
+    const zona = f.zona ?? 'Sin zona';
+    let g = map.get(zona);
+    if (!g) { g = { zona, facturas: [], saldo: 0, vencido: 0, morosidad: 0 }; map.set(zona, g); }
+    g.facturas.push(f);
+    g.saldo += f.saldo_pendiente;
+    g.vencido += f.vencido;
+  }
+  for (const g of map.values()) g.morosidad = g.saldo > 0 ? Math.round(g.vencido / g.saldo * 100) : 0;
+  return [...map.values()].sort((a, b) => b.saldo - a.saldo);
+}
+
 export default function VistaVendedorClient({
   facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, letras, cobranzaMes, token, mostrarWhatsapp,
 }: {
@@ -213,11 +239,14 @@ export default function VistaVendedorClient({
   token: string;
   mostrarWhatsapp: boolean;
 }) {
-  const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes'>('tarjetas');
+  const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes' | 'zona'>('tarjetas');
 
   const grupos = facturas.length ? agrupar(facturas) : [];
   const totalVencido = facturas.reduce((s, f) => s + f.vencido, 0);
   const hayFacturasConLetras = facturas.some(f => f.tiene_letras);
+  const zonasUnicas = new Set(facturas.map(f => f.zona).filter((z): z is string => !!z));
+  const hayVariasZonas = zonasUnicas.size > 1;
+  const gruposZona = hayVariasZonas ? agruparPorZona(facturas) : [];
 
   const carteraAlDia = (
     <div className="max-w-2xl mx-auto bg-white rounded-xl border border-gray-200 p-8 mt-3 text-center">
@@ -227,12 +256,13 @@ export default function VistaVendedorClient({
     </div>
   );
 
-  const opciones: { key: 'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes'; label: string }[] = [
+  const opciones: { key: 'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes' | 'zona'; label: string }[] = [
     { key: 'tarjetas', label: 'Tarjetas' },
     { key: 'tabla', label: 'Tabla' },
     { key: 'contado', label: `Contado${contado.length ? ` (${contado.length})` : ''}` },
     { key: 'letras', label: `Letras${letras.length ? ` (${letras.length})` : ''}` },
     { key: 'mes', label: `Este mes${cobranzaMes.length ? ` (${cobranzaMes.length})` : ''}` },
+    ...(hayVariasZonas ? [{ key: 'zona' as const, label: 'Por Zona' }] : []),
   ];
 
   return (
@@ -520,6 +550,33 @@ export default function VistaVendedorClient({
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {vista === 'zona' && (
+        <div className="max-w-2xl mx-auto mt-3">
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-[11px] uppercase tracking-wider" style={{ color: '#4ABCC2' }}>Por zona</p>
+            <p className="text-gray-500 text-xs mt-0.5">Comparación de tu cartera entre las zonas que cubres.</p>
+          </div>
+          <div className="mt-2 space-y-2">
+            {gruposZona.map(g => (
+              <div key={g.zona} className="bg-white rounded-xl border border-gray-200 px-3.5 py-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-gray-800 text-sm font-semibold">{g.zona}</p>
+                  <p className="font-oswald text-lg text-gray-800">{fmt(g.saldo)}</p>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 mt-1">
+                  <p className="text-xs text-gray-400">
+                    {g.facturas.length} {g.facturas.length === 1 ? 'documento' : 'documentos'}
+                  </p>
+                  <p className={`text-xs font-semibold ${g.morosidad >= 30 ? 'text-red-600' : 'text-gray-500'}`}>
+                    Morosidad {g.morosidad}% · vencido {fmt(g.vencido)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </>

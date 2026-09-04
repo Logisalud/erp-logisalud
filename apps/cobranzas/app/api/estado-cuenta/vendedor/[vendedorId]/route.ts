@@ -25,7 +25,12 @@ export async function GET(
   if (!auth.ok) return auth.respuesta;
 
   try {
-    const soloDeuda = new URL(req.url).searchParams.get('solo_deuda') !== 'false';
+    const url = new URL(req.url);
+    const soloDeuda = url.searchParams.get('solo_deuda') !== 'false';
+    // Zona opcional: cuando el resumen viene desglosado por vendedor+zona
+    // (ver /api/estado-cuenta/resumen), el drill-down de una fila puntual
+    // (ej. "Cinthya · LIMH05") debe traer solo esa zona, no toda su cartera.
+    const zona = url.searchParams.get('zona')?.trim() || null;
     const { vendedorId } = params;
     const db = crearClienteServidor();
 
@@ -36,6 +41,7 @@ export async function GET(
       q = vendedorId === 'sin-asignar'
         ? q.is('vendedor_id', null)
         : q.eq('vendedor_id', vendedorId);
+      if (zona) q = q.eq('zona_nombre', zona);
       if (soloDeuda) q = q.gt('saldo_pendiente', 0);
       return q.range(from, to);
     });
