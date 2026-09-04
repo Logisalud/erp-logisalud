@@ -37,6 +37,7 @@ const COLOR_OS: Record<EstadoOS, ColorEstado> = {
   rechazada_jefe: 'rojo',
   aprobada: 'teal',
   en_ejecucion: 'teal',
+  factura_adjunta: 'ambar',
   facturada: 'ambar',
   conformada: 'teal',
   cerrada: 'verde',
@@ -71,8 +72,9 @@ const SIGUIENTE_PASO_OS: Record<EstadoOS, string> = {
   rechazada_jefe: 'Orden rechazada por el jefe de área',
   aprobada: 'Ejecutar el servicio contratado',
   en_ejecucion: 'Subir la factura al terminar el servicio',
+  factura_adjunta: 'Completar los datos de la factura (Registrar obligación)',
   facturada: 'Dar conformidad de que el servicio se cumplió',
-  conformada: 'Contabilidad registra la obligación',
+  conformada: 'Esperando el pago',
   cerrada: 'Ciclo cerrado',
   anulada: 'Orden anulada',
 }
@@ -97,6 +99,7 @@ export const PASOS_OC = [
 export const PASOS_OS = [
   { clave: 'creada', titulo: 'Orden creada', estados: ['pendiente_jefe'] as EstadoOS[] },
   { clave: 'aprobada', titulo: 'Aprobada', estados: ['aprobada', 'en_ejecucion'] as EstadoOS[] },
+  { clave: 'factura_adjunta', titulo: 'Factura adjunta', estados: ['factura_adjunta'] as EstadoOS[] },
   { clave: 'facturada', titulo: 'Factura registrada', estados: ['facturada'] as EstadoOS[] },
   { clave: 'conformada', titulo: 'Conforme', estados: ['conformada'] as EstadoOS[] },
   { clave: 'cerrada', titulo: 'Cerrada', estados: ['cerrada'] as EstadoOS[] },

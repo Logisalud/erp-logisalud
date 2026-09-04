@@ -15,19 +15,20 @@ describe('recepcionEsFacturable', () => {
 })
 
 describe('osEsFacturable', () => {
-  it('aprobada sin factura subida: facturable', () => {
-    expect(osEsFacturable('aprobada', false)).toBe(true)
+  it('aprobada: facturable (falta subir el documento)', () => {
+    expect(osEsFacturable('aprobada')).toBe(true)
   })
-  it('en_ejecucion sin factura subida: facturable', () => {
-    expect(osEsFacturable('en_ejecucion', false)).toBe(true)
+  it('en_ejecucion: facturable (falta subir el documento)', () => {
+    expect(osEsFacturable('en_ejecucion')).toBe(true)
   })
-  it('con factura ya subida: no facturable de nuevo', () => {
-    expect(osEsFacturable('aprobada', true)).toBe(false)
+  it('factura_adjunta: sigue facturable (documento subido, faltan los datos reales — hallazgo de Mariela, punto 2)', () => {
+    expect(osEsFacturable('factura_adjunta')).toBe(true)
   })
-  it('estado que no admite facturar (borrador, rechazada, facturada): no facturable', () => {
-    expect(osEsFacturable('borrador', false)).toBe(false)
-    expect(osEsFacturable('rechazada', false)).toBe(false)
-    expect(osEsFacturable('facturada', false)).toBe(false)
+  it('estado que no admite facturar (borrador, rechazada, facturada, conformada): no facturable', () => {
+    expect(osEsFacturable('borrador')).toBe(false)
+    expect(osEsFacturable('rechazada')).toBe(false)
+    expect(osEsFacturable('facturada')).toBe(false)
+    expect(osEsFacturable('conformada')).toBe(false)
   })
 })
 

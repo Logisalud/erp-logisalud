@@ -96,7 +96,9 @@ export default async function RegistrarFacturaBuscar({
                   <td className="px-3 py-2 text-right tabular-nums"><Money valor={f.totalOrden} moneda={f.moneda} /></td>
                   <td className="px-3 py-2 text-right tabular-nums"><Money valor={f.montoFacturado} moneda={f.moneda} /></td>
                   <td className="px-3 py-2 text-right font-medium tabular-nums"><Money valor={f.saldoDisponible} moneda={f.moneda} /></td>
-                  <td className="px-3 py-2 text-gray-600">{f.estado}</td>
+                  <td className={`px-3 py-2 ${f.estado.startsWith('Factura adjunta') ? 'font-medium text-amber-700' : 'text-gray-600'}`}>
+                    {f.estado}
+                  </td>
                   <td className="px-3 py-2">
                     <Link href={f.hrefRegistro} className="btn-secondary whitespace-nowrap">
                       Seleccionar orden

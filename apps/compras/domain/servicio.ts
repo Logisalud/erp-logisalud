@@ -17,6 +17,7 @@ export const ESTADOS_OS = [
   'rechazada_jefe',
   'aprobada',
   'en_ejecucion',
+  'factura_adjunta',
   'facturada',
   'conformada',
   'cerrada',
@@ -29,6 +30,7 @@ export const ETIQUETA_ESTADO_OS: Record<EstadoOS, string> = {
   rechazada_jefe: 'Rechazada por el jefe de área',
   aprobada: 'Aprobada — en ejecución',
   en_ejecucion: 'En ejecución',
+  factura_adjunta: 'Factura adjunta — falta completar los datos',
   facturada: 'Facturada — falta la conformidad',
   conformada: 'Conforme — en camino a pago',
   cerrada: 'Cerrada',
@@ -38,8 +40,9 @@ export const ETIQUETA_ESTADO_OS: Record<EstadoOS, string> = {
 const TRANSICIONES: Record<EstadoOS, readonly EstadoOS[]> = {
   pendiente_jefe: ['aprobada', 'rechazada_jefe'],
   rechazada_jefe: [],
-  aprobada: ['facturada', 'conformada'],
-  en_ejecucion: ['facturada', 'conformada'],
+  aprobada: ['factura_adjunta'],
+  en_ejecucion: ['factura_adjunta'],
+  factura_adjunta: ['facturada', 'conformada'],
   facturada: ['conformada'],
   conformada: ['cerrada'],
   cerrada: [],
@@ -51,29 +54,51 @@ export function transicionPermitida(desde: EstadoOS, hacia: EstadoOS): boolean {
 }
 
 /**
- * Factura y conformidad pueden pasar en cualquier orden: si la conformidad
- * ya existía cuando se sube la factura, el estado salta directo a
- * 'conformada' en vez de pasar por 'facturada' — ese estado intermedio
- * solo tiene sentido mientras falta uno de los dos hechos.
+ * Subir el PDF de la factura NUNCA marca la OS como 'facturada'/'conformada'
+ * directo, sin importar si la conformidad ya existía — eso era la causa
+ * raíz real de que Mariela viera una OS "resuelta" sin estarlo (hallazgo
+ * de Contabilidad, punto 2). Adjuntar el documento solo mueve a
+ * 'factura_adjunta' — el estado final recién llega cuando se completan los
+ * datos reales en "Registrar obligación" (ver estadoTrasRegistrarObligacion).
  */
-export function estadoTrasSubirFactura(conformidadYaExiste: boolean): EstadoOS {
-  return conformidadYaExiste ? 'conformada' : 'facturada'
+export function estadoTrasSubirFactura(): EstadoOS {
+  return 'factura_adjunta'
 }
 
 /**
  * Si la factura todavía no se subió, dar conformidad no mueve el estado
- * visible (sigue 'aprobada'/'en_ejecucion') — la fila en
- * `conformidad_servicio` ya quedó guardada igual, el estado solo refleja
- * el hecho que faltaba.
+ * visible (sigue 'aprobada'/'en_ejecucion'). Si el documento ya está
+ * adjunto pero todavía faltan los datos reales ('factura_adjunta'),
+ * tampoco — saltar a 'conformada' ahí sería el mismo error que con la
+ * factura: marcar como resuelto algo que no lo está. Solo si ya se
+ * completó "Registrar obligación" (estado 'facturada') la conformidad
+ * mueve a 'conformada'. En todos los casos, la fila en
+ * `conformidad_servicio` ya quedó guardada igual — el estado de la OS
+ * solo refleja lo que falta.
  */
-export function estadoTrasConformidad(facturaYaSubida: boolean, estadoActual: EstadoOS): EstadoOS {
-  return facturaYaSubida ? 'conformada' : estadoActual
+export function estadoTrasConformidad(estadoActual: EstadoOS): EstadoOS {
+  if (estadoActual === 'facturada') return 'conformada'
+  return estadoActual
+}
+
+/**
+ * Al completar "Registrar obligación" (N° de factura, fecha, Base, IGV
+ * reales) la OS recién pasa a su estado final: 'conformada' si la
+ * conformidad ya se había dado mientras estaba en 'factura_adjunta', o
+ * 'facturada' (falta la conformidad) si no.
+ */
+export function estadoTrasRegistrarObligacion(conformidadYaExiste: boolean): EstadoOS {
+  return conformidadYaExiste ? 'conformada' : 'facturada'
 }
 
 export type BorradorOS = {
   proveedorServicioId: string
   descripcionServicio: string
   montoEstimado: number
+  /** true = montoEstimado ya incluye IGV, false = es la base sin IGV. Null
+   *  solo en OS viejas que se crearon antes de este campo (ver 0033) —
+   *  las nuevas lo piden siempre, no queda ambiguo como antes. */
+  montoIncluyeIgv: boolean | null
   moneda: Moneda
   condicionesPagoDias?: number | null
   fechaEntregaEstimada?: string | null
@@ -84,6 +109,9 @@ export function validarOS(b: BorradorOS): ErrorValidacion[] {
   if (!b.proveedorServicioId) errores.push({ campo: 'proveedorServicioId', mensaje: 'Elige un proveedor de servicio.' })
   if (!b.descripcionServicio.trim()) errores.push({ campo: 'descripcionServicio', mensaje: 'Cuenta qué servicio es.' })
   if (!(Number(b.montoEstimado) > 0)) errores.push({ campo: 'montoEstimado', mensaje: 'El monto estimado tiene que ser mayor a 0.' })
+  if (b.montoIncluyeIgv == null) {
+    errores.push({ campo: 'montoIncluyeIgv', mensaje: 'Indica si el monto es con IGV o sin IGV.' })
+  }
   if (b.moneda !== 'PEN' && b.moneda !== 'USD') errores.push({ campo: 'moneda', mensaje: 'La moneda tiene que ser PEN o USD.' })
   if (b.condicionesPagoDias == null) {
     errores.push({ campo: 'condicionesPagoDias', mensaje: 'Pon la condición de pago (0 = contado).' })
@@ -91,6 +119,29 @@ export function validarOS(b: BorradorOS): ErrorValidacion[] {
     errores.push({ campo: 'condicionesPagoDias', mensaje: 'Los días no pueden ser negativos.' })
   }
   return errores
+}
+
+/**
+ * Regla nueva (hallazgo de Mariela, Contabilidad): la factura real de una
+ * OS no puede pedir más de lo que la OS aprobó. Compara sobre la MISMA
+ * base que `montoIncluyeIgv` señaló al crear la OS — si el monto estimado
+ * es "sin IGV", se compara contra la base imponible de la factura (nunca
+ * se inventa una tasa de IGV para "completar" la comparación); si es "con
+ * IGV", se compara contra el total (base + IGV) de la factura.
+ *
+ * `montoIncluyeIgv === null` (OS vieja, de antes de 0033) → no hay forma
+ * de saber la base de comparación real, así que no se bloquea nada: mejor
+ * dejar pasar que bloquear con un dato que no existe.
+ */
+export function facturaSuperaMontoOS(
+  baseImponible: number,
+  igv: number,
+  montoEstimado: number,
+  montoIncluyeIgv: boolean | null
+): boolean {
+  if (montoIncluyeIgv == null) return false
+  const montoFactura = montoIncluyeIgv ? Number(baseImponible) + Number(igv) : Number(baseImponible)
+  return montoFactura > montoEstimado
 }
 
 /**
@@ -108,7 +159,10 @@ export type BorradorObligacionServicio = {
   igv: number
 }
 
-export function validarObligacionServicio(b: BorradorObligacionServicio): ErrorValidacion[] {
+/** Datos de la OS necesarios para chequear que la factura no la supere — ver facturaSuperaMontoOS. */
+export type OSParaValidarFactura = { montoEstimado: number; montoIncluyeIgv: boolean | null; moneda: Moneda }
+
+export function validarObligacionServicio(b: BorradorObligacionServicio, os?: OSParaValidarFactura): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
   if (!b.numeroFactura.trim()) errores.push({ campo: 'numeroFactura', mensaje: 'Falta el número de factura.' })
   if (!b.fechaFactura) errores.push({ campo: 'fechaFactura', mensaje: 'Falta la fecha de factura.' })
@@ -117,6 +171,12 @@ export function validarObligacionServicio(b: BorradorObligacionServicio): ErrorV
   }
   if (b.igv == null || Number(b.igv) < 0) {
     errores.push({ campo: 'igv', mensaje: 'Pon el IGV tal como figura en la factura (puede ser 0).' })
+  }
+  if (os && facturaSuperaMontoOS(Number(b.baseImponible), Number(b.igv), os.montoEstimado, os.montoIncluyeIgv)) {
+    errores.push({
+      campo: 'baseImponible',
+      mensaje: `La factura supera el monto de la Orden de Servicio (${os.moneda} ${os.montoEstimado.toFixed(2)}${os.montoIncluyeIgv ? ' con IGV' : ' sin IGV'}).`,
+    })
   }
   return errores
 }

@@ -11,6 +11,7 @@ export async function crearOSAction(_previo: EstadoFormulario, form: FormData): 
     proveedorServicioId: String(form.get('proveedorServicioId') ?? ''),
     descripcionServicio: String(form.get('descripcionServicio') ?? ''),
     montoEstimado: Number(form.get('montoEstimado') ?? 0),
+    montoIncluyeIgv: parsearBooleano(form.get('montoIncluyeIgv')),
     moneda: String(form.get('moneda') ?? 'PEN') as 'PEN' | 'USD',
     condicionesPagoDias: form.get('condicionesPagoDias') ? Number(form.get('condicionesPagoDias')) : null,
     fechaEntregaEstimada: textoONull(form.get('fechaEntregaEstimada')),
@@ -32,4 +33,10 @@ export async function crearOSAction(_previo: EstadoFormulario, form: FormData): 
 function textoONull(v: FormDataEntryValue | null): string | null {
   const s = v == null ? '' : String(v).trim()
   return s === '' ? null : s
+}
+
+function parsearBooleano(v: FormDataEntryValue | null): boolean | null {
+  if (v === 'true') return true
+  if (v === 'false') return false
+  return null
 }
