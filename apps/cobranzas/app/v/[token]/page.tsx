@@ -170,6 +170,17 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   // Vencimiento efectivo: próxima letra si existe, si no el vencimiento de la factura
   const fechaEfectiva = (f: FacturaPendiente) => proximaLetra.get(f.id) ?? f.fecha_vencimiento;
 
+  // Cuántas letras de cada documento ya vencieron (sin pagar) a hoy — es lo
+  // que realmente compone el "Vencido" que ya calcula v_saldos con la fecha
+  // de cada letra. Las que aún no llegan a su fecha NO cuentan como mora,
+  // aunque la factura "tenga letras": se muestran aparte para que quede
+  // claro que ese vencido es real, no un error de cálculo con la fecha
+  // original de la factura.
+  const letrasVencidasPorDoc = new Map<string, number>();
+  for (const [documentoId, letrasDoc] of letrasPorDoc.entries()) {
+    letrasVencidasPorDoc.set(documentoId, letrasDoc.filter(l => l.fecha_vencimiento < hoyISO).length);
+  }
+
   // Orden principal: por fecha de vencimiento, de la más próxima a la menos próxima
   facturasVisibles.sort((a, b) =>
     (diasParaVencer(fechaEfectiva(a), hoyISO) ?? 99999) - (diasParaVencer(fechaEfectiva(b), hoyISO) ?? 99999));
@@ -196,6 +207,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
       fecha_venc: fechaEfectiva(f),
       fecha_vencimiento_real: f.fecha_vencimiento,
       letra_fecha: proximaLetra.get(f.id) ?? null,
+      letras_vencidas: letrasVencidasPorDoc.get(f.id) ?? 0,
       tiene_letras: f.tiene_letras,
       importe_total: Number(f.importe_total) || 0,
       total_nc: Number(f.total_nc) || 0,
