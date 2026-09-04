@@ -9,6 +9,12 @@ import {
   type EstadoSolicitud,
   type TipoSolicitud,
 } from '@/domain/gasto'
+import { sendEmail } from '@/services/email'
+import { asuntoEmailAnticipo, renderAnticipoEmailHtml, renderAnticipoEmailText } from '@/domain/anticipo-email'
+
+/** URL fija de producción (CLAUDE.md: "se sirve bajo erp.logisalud.com/compras
+ * vía rewrite") — esta app todavía no tiene una env var de site URL propia. */
+const URL_BASE_PRODUCCION = 'https://erp.logisalud.com/compras'
 
 export type CategoriaGasto = { id: string; nombre: string; cuenta_contable: string | null }
 
@@ -63,12 +69,118 @@ export async function crearSolicitud(borrador: BorradorSolicitud): Promise<{ id:
       fecha_inicio: borrador.fechaInicio ?? null,
       fecha_fin: borrador.fechaFin ?? null,
       asignado_a: borrador.tipo === 'anticipo' ? borrador.asignadoA ?? null : null,
+      quien_autoriza: borrador.tipo === 'anticipo' ? borrador.quienAutoriza ?? null : null,
     })
     .select('id, codigo')
     .single()
 
   if (error) throw new Error(`No se pudo crear la solicitud: ${error.message}`)
   return data
+}
+
+/**
+ * Sugerencia para el campo "Quién autoriza" (Pieza 2): el responsable del
+ * área de quien llama, vía el helper `nombre_responsable_de_mi_area()`
+ * (migración 0036, SECURITY DEFINER — RLS de perfiles no dejaría leer el
+ * nombre de otra persona directo). Puede volver null si el área no tiene
+ * responsable cargado en `area_responsables` todavía — la pantalla lo deja
+ * en blanco y la persona lo escribe a mano, no se bloquea nada.
+ */
+export async function sugerenciaResponsableArea(): Promise<string | null> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase.rpc('nombre_responsable_de_mi_area')
+  if (error) return null
+  return (data as string | null) ?? null
+}
+
+/**
+ * Sube la cotización/sustento del anticipo (Pieza 1) — NO es una factura,
+ * no se OCRea, es solo el archivo (ej. la cotización de un vuelo o de un
+ * evento). Mismo bucket y mismo patrón de path que `subirComprobante` más
+ * abajo, pero escribe directo en `solicitudes_gasto.cotizacion_storage_path`
+ * en vez de crear una fila en `solicitud_comprobantes` — conceptualmente es
+ * sustento de un gasto FUTURO, no evidencia de un gasto ya ocurrido.
+ * Best-effort: si falla, la solicitud ya está creada igual.
+ */
+export async function subirCotizacion(solicitudId: string, archivo: File): Promise<boolean> {
+  if (archivo.size === 0) return false
+  const supabase = crearClienteServidor()
+
+  const { data: solicitud } = await supabase
+    .schema('gastos')
+    .from('solicitudes_gasto')
+    .select('codigo')
+    .eq('id', solicitudId)
+    .maybeSingle()
+  if (!solicitud?.codigo) return false
+
+  const ahora = new Date()
+  const yyyy = String(ahora.getFullYear())
+  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
+  const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const path = `${yyyy}/${mm}/${solicitud.codigo}/${Date.now()}-${nombreLimpio}`
+
+  const { error: errUpload } = await supabase.storage
+    .from('legajos-gastos')
+    .upload(path, archivo, { contentType: archivo.type || undefined })
+  if (errUpload) return false
+
+  const { error: errUpd } = await supabase
+    .schema('gastos')
+    .from('solicitudes_gasto')
+    .update({ cotizacion_storage_path: path })
+    .eq('id', solicitudId)
+  return !errUpd
+}
+
+/**
+ * Notificación por correo de un anticipo recién creado (Pieza 3) — a
+ * contabilidad@logisalud.com (Milagritos paga, Mariela hace seguimiento
+ * de su equipo) y a quien lo creó (para su propio seguimiento). Se
+ * dispara al CREAR, no en ninguna aprobación: el anticipo no tiene un
+ * paso de aprobación real hasta Contabilidad, que ya tiene su propia
+ * bandeja dentro del ERP — esto es solo un aviso.
+ *
+ * Best-effort y no bloqueante: la solicitud ya quedó guardada antes de
+ * llamar a esto, así que un fallo de Resend no debe tumbar la creación.
+ * Quien llama no necesita mirar el resultado — se loguea para poder
+ * confirmarlo después en los logs de runtime de Vercel.
+ */
+export async function notificarAnticipoCreado(input: {
+  solicitudId: string
+  codigo: string
+  solicitanteNombre: string
+  solicitanteCorreo: string | null
+  monto: number
+  moneda: string
+  descripcion: string
+  quienAutoriza: string | null
+  tieneCotizacion: boolean
+}): Promise<void> {
+  const destinatarios = ['contabilidad@logisalud.com', ...(input.solicitanteCorreo ? [input.solicitanteCorreo] : [])]
+  const datos = {
+    codigo: input.codigo,
+    solicitanteNombre: input.solicitanteNombre,
+    monto: input.monto,
+    moneda: input.moneda,
+    descripcion: input.descripcion,
+    quienAutoriza: input.quienAutoriza,
+    tieneCotizacion: input.tieneCotizacion,
+    urlSolicitud: `${URL_BASE_PRODUCCION}/gastos/${input.solicitudId}`,
+  }
+
+  const resultado = await sendEmail({
+    to: destinatarios,
+    subject: asuntoEmailAnticipo(datos),
+    html: renderAnticipoEmailHtml(datos),
+    text: renderAnticipoEmailText(datos),
+  })
+
+  if (!resultado.ok) {
+    console.error(`[notificarAnticipoCreado] No se pudo notificar el anticipo ${input.codigo}: ${resultado.error}`)
+  } else {
+    console.log(`[notificarAnticipoCreado] Anticipo ${input.codigo} notificado — messageId=${resultado.messageId ?? 'n/a'}`)
+  }
 }
 
 export type SolicitudListada = {
@@ -135,6 +247,10 @@ export type SolicitudDetalle = SolicitudListada & {
    * duplicar el visor de archivos acá. */
   obligacion_id: string | null
   comprobantes: ComprobanteGasto[]
+  /** Solo `anticipo` — Pieza 1: cotización/sustento adjunto al pedir. */
+  cotizacionStoragePath: string | null
+  /** Solo `anticipo` — Pieza 2: texto libre, informativo (ver domain/gasto.ts). */
+  quienAutoriza: string | null
   liquidacion: {
     monto_anticipo: number
     monto_sustentado: number
@@ -151,6 +267,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     .from('solicitudes_gasto')
     .select(`id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, area, created_at,
              destino, fecha_inicio, fecha_fin, categoria_id, asignado_a, obligacion_id,
+             cotizacion_storage_path, quien_autoriza,
              comprobantes:solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
     .eq('id', id)
     .maybeSingle()
@@ -172,7 +289,14 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
       : Promise.resolve({ data: null }),
   ])
 
-  return { ...(data as any), categoria, liquidacion, asignadoA: asignado?.nombre ?? null }
+  return {
+    ...(data as any),
+    categoria,
+    liquidacion,
+    asignadoA: asignado?.nombre ?? null,
+    cotizacionStoragePath: (data as any).cotizacion_storage_path ?? null,
+    quienAutoriza: (data as any).quien_autoriza ?? null,
+  }
 }
 
 async function cambiarEstado(id: string, desde: EstadoSolicitud[], hacia: EstadoSolicitud, campos: Record<string, unknown> = {}) {

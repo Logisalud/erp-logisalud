@@ -1,7 +1,8 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { crearSolicitud, subirComprobante } from '@/services/solicitudes-gasto'
+import { exigirUsuario, perfilActual } from '@logisalud/auth/server'
+import { crearSolicitud, subirComprobante, subirCotizacion, notificarAnticipoCreado } from '@/services/solicitudes-gasto'
 import { validarSolicitud, montoTotalSolicitud, type BorradorSolicitud } from '@/domain/gasto'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
@@ -20,6 +21,7 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
     fechaInicio: textoONull(form.get('fechaInicio')),
     fechaFin: textoONull(form.get('fechaFin')),
     asignadoA: tipo === 'anticipo' ? textoONull(form.get('asignadoA')) : null,
+    quienAutoriza: tipo === 'anticipo' ? textoONull(form.get('quienAutoriza')) : null,
   }
 
   const errores = validarSolicitud(borrador)
@@ -30,6 +32,39 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
     solicitud = await crearSolicitud(borrador)
   } catch (e) {
     return { errores: [{ campo: 'general', mensaje: (e as Error).message }] }
+  }
+
+  if (tipo === 'anticipo') {
+    // Pieza 1: la cotización/sustento es opcional — si falla la subida o
+    // no se adjuntó nada, la solicitud igual queda creada (mismo criterio
+    // best-effort que el comprobante de abajo).
+    const archivoCotizacion = form.get('cotizacion')
+    let tieneCotizacion = false
+    try {
+      tieneCotizacion =
+        archivoCotizacion instanceof File ? await subirCotizacion(solicitud.id, archivoCotizacion) : false
+    } catch {
+      // No tumbar la creación de la solicitud por una cotización que falló.
+    }
+
+    // Pieza 3: notificación por correo — no bloquea el flujo si Resend
+    // falla o no está configurado, el resultado queda en los logs.
+    try {
+      const [usuario, perfil] = await Promise.all([exigirUsuario(), perfilActual()])
+      await notificarAnticipoCreado({
+        solicitudId: solicitud.id,
+        codigo: solicitud.codigo,
+        solicitanteNombre: perfil?.nombre ?? usuario.email ?? 'Alguien del ERP',
+        solicitanteCorreo: usuario.email ?? null,
+        monto: montoTotalSolicitud(borrador),
+        moneda: borrador.moneda,
+        descripcion: borrador.descripcion,
+        quienAutoriza: borrador.quienAutoriza ?? null,
+        tieneCotizacion,
+      })
+    } catch (e) {
+      console.error('[crearSolicitudAction] No se pudo notificar el anticipo por correo:', e)
+    }
   }
 
   // El comprobante (foto/PDF + tipo) es opcional en este paso — si la

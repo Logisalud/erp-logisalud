@@ -15,10 +15,14 @@ export function FormularioSolicitud({
   categorias,
   usuarios,
   tipoPreseleccionado,
+  sugerenciaAutoriza,
 }: {
   categorias: CategoriaGasto[]
   usuarios: Usuario[]
   tipoPreseleccionado?: TipoSolicitud
+  /** Pieza 2: nombre del responsable del área de quien crea la solicitud,
+   * o null si esa área no tiene responsable cargado todavía. */
+  sugerenciaAutoriza: string | null
 }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearSolicitudAction, null)
   const sucio = useMarcarSucioAlEditar()
@@ -114,6 +118,30 @@ export function FormularioSolicitud({
                 </p>
               </Campo>
             ) : null}
+
+            <Campo etiqueta="Quién autoriza (opcional)">
+              <input
+                type="text" name="quienAutoriza" defaultValue={sugerenciaAutoriza ?? ''}
+                placeholder="Sugerido: responsable de tu área"
+                className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Solo informativo — no bloquea el envío ni le pide a esa persona que entre al
+                sistema. El sistema no conoce a tu jefe directo, sugiere el responsable de tu
+                área; corrígelo si no es quien corresponde acá.
+              </p>
+            </Campo>
+
+            <Campo etiqueta="Cotización o sustento (opcional)">
+              <input
+                type="file" name="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                No es una factura — es lo que sustenta el monto pedido (ej. la cotización de un
+                vuelo o de un evento), si lo tienes a mano.
+              </p>
+            </Campo>
           </div>
         ) : (
           <div className="space-y-3 rounded-md border border-gray-200 p-3">

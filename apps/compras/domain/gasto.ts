@@ -104,6 +104,12 @@ export type BorradorSolicitud = {
    * vendedor). Si queda null, el beneficiario es quien la crea — ver
    * services/solicitudes-gasto.ts. */
   asignadoA?: string | null
+  /** Solo aplica a `anticipo`: texto libre, puramente informativo — NO es
+   * un paso de aprobación real, no bloquea nada ni requiere que esa
+   * persona entre al sistema (ver quien_autoriza en la migración 0036).
+   * La pantalla lo sugiere con el responsable del área de quien crea la
+   * solicitud, pero es editable a mano. */
+  quienAutoriza?: string | null
 }
 
 /** El monto total que queda en `solicitudes_gasto.monto_solicitado`. */
