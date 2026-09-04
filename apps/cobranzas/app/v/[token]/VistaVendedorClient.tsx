@@ -15,6 +15,7 @@ export interface FacturaVista {
   fecha_venc: string | null;   // vencimiento efectivo (próxima letra si tiene)
   fecha_vencimiento_real: string | null; // vencimiento del documento (Nubefact), usado para el motor de descuento
   letra_fecha: string | null;  // fecha de la próxima letra pendiente, si aplica
+  letras_vencidas: number;     // cuántas de sus letras ya pasaron su fecha sin pagarse (0 si no tiene letras o ninguna está vencida)
   tiene_letras: boolean;
   importe_total: number;
   total_nc: number;
@@ -216,6 +217,7 @@ export default function VistaVendedorClient({
 
   const grupos = facturas.length ? agrupar(facturas) : [];
   const totalVencido = facturas.reduce((s, f) => s + f.vencido, 0);
+  const hayFacturasConLetras = facturas.some(f => f.tiene_letras);
 
   const carteraAlDia = (
     <div className="max-w-2xl mx-auto bg-white rounded-xl border border-gray-200 p-8 mt-3 text-center">
@@ -253,6 +255,13 @@ export default function VistaVendedorClient({
         </div>
       </div>
 
+      {hayFacturasConLetras && (vista === 'tarjetas' || vista === 'tabla') && (
+        <p className="max-w-2xl mx-auto mt-2 text-[11px] text-gray-400 print:hidden">
+          💡 Las facturas canjeadas por letra usan la fecha de cada letra, no la fecha original de la factura.
+          Solo las letras ya vencidas sin pagar cuentan como mora — las que aún no llegan a su fecha, no.
+        </p>
+      )}
+
       {vista === 'tarjetas' && (facturas.length === 0 ? carteraAlDia : (
         <div className="max-w-2xl mx-auto mt-3 space-y-2">
           {facturas.map(f => {
@@ -268,15 +277,24 @@ export default function VistaVendedorClient({
                   {f.distrito && <span className="text-gray-500"> · {f.distrito}</span>}
                 </p>
                 <div className="flex items-baseline justify-between gap-3 mt-0.5">
-                  <p className="text-gray-400 text-xs font-mono shrink-0">
-                    {f.comprobante}
-                    {f.letra_fecha && <span className="ml-1.5 font-sans" style={{ color: '#4ABCC2' }}>letra {fmtFecha(f.letra_fecha)}</span>}
-                  </p>
-                  <p className="text-xs text-right">
-                    <span className="text-gray-400">Vence {fmtFecha(f.fecha_venc)}</span>
-                    <span className="mx-1 text-gray-300">·</span>
-                    <Plazo dias={dias} />
-                  </p>
+                  <p className="text-gray-400 text-xs font-mono shrink-0">{f.comprobante}</p>
+                  {f.tiene_letras ? (
+                    <p className="text-xs text-right">
+                      {f.letras_vencidas > 0 ? (
+                        <span className="text-red-600 font-semibold">
+                          ⚠ {f.letras_vencidas} {f.letras_vencidas === 1 ? 'letra vencida' : 'letras vencidas'}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#4ABCC2' }}>Próxima letra: {fmtFecha(f.fecha_venc)}</span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-right">
+                      <span className="text-gray-400">Vence {fmtFecha(f.fecha_venc)}</span>
+                      <span className="mx-1 text-gray-300">·</span>
+                      <Plazo dias={dias} />
+                    </p>
+                  )}
                 </div>
                 <BotonesWhatsApp f={f} hoyISO={hoyISO} token={token} mostrarWhatsapp={mostrarWhatsapp} />
               </div>
@@ -328,11 +346,23 @@ export default function VistaVendedorClient({
                         <tr key={f.id} className="hover:bg-gray-50 print:break-inside-avoid">
                           <td className="px-3 py-2 font-mono text-gray-700 whitespace-nowrap">
                             {f.comprobante}
-                            {f.letra_fecha && <span className="ml-1.5 font-sans" style={{ color: '#4ABCC2' }}>letra</span>}
+                            {f.tiene_letras && <span className="ml-1.5 font-sans" style={{ color: '#4ABCC2' }}>letra</span>}
                           </td>
                           <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtFecha(f.fecha_emision)}</td>
                           <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtFecha(f.fecha_venc)}</td>
-                          <td className={`px-3 py-2 whitespace-nowrap ${p.cls}`} style={p.color ? { color: p.color } : undefined}>{p.txt}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {f.tiene_letras ? (
+                              f.letras_vencidas > 0 ? (
+                                <span className="text-red-600 font-semibold">
+                                  ⚠ {f.letras_vencidas} {f.letras_vencidas === 1 ? 'vencida' : 'vencidas'}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#4ABCC2' }}>próx. letra</span>
+                              )
+                            ) : (
+                              <span className={p.cls} style={p.color ? { color: p.color } : undefined}>{p.txt}</span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-right tabular-nums text-gray-600 whitespace-nowrap">{fmt(f.importe_total)}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-green-600 whitespace-nowrap">{f.total_nc > 0 ? fmt(f.total_nc) : '—'}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-blue-500 whitespace-nowrap">{f.total_pagado > 0 ? fmt(f.total_pagado) : '—'}</td>
