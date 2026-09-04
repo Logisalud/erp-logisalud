@@ -45,6 +45,15 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
         {solicitud.asignadoA ? (
           <p className="mt-1 text-sm text-gray-600">Para: {solicitud.asignadoA}</p>
         ) : null}
+        {solicitud.quienAutoriza ? (
+          <p className="mt-1 text-sm text-gray-600">Quién autoriza: {solicitud.quienAutoriza}</p>
+        ) : null}
+        {solicitud.cotizacionStoragePath ? (
+          <p className="mt-1 text-sm text-gray-600">
+            Cotización adjunta
+            <VerComprobante storagePath={solicitud.cotizacionStoragePath} />
+          </p>
+        ) : null}
         {solicitud.obligacion_id ? (
           <p className="mt-1 text-sm">
             <Link href={`/cuentas-por-pagar/${solicitud.obligacion_id}`} className="text-logisalud-teal underline">

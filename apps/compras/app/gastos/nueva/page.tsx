@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { perfilActual } from '@logisalud/auth/server'
 import { Encabezado } from '@/components/nav'
-import { listarCategoriasGasto } from '@/services/solicitudes-gasto'
+import { listarCategoriasGasto, sugerenciaResponsableArea } from '@/services/solicitudes-gasto'
 import { listarUsuarios } from '@/services/usuarios'
 import { TIPOS_SOLICITUD, type TipoSolicitud } from '@/domain/gasto'
 import { FormularioSolicitud } from './formulario'
@@ -26,6 +26,7 @@ export default async function NuevaSolicitud({
   const tipoPreseleccionado = tipoValido(searchParams.tipo)
   const perfil = await perfilActual()
   const puedeCargarCategoria = perfil?.area === 'contabilidad' || perfil?.area === 'admin'
+  const sugerenciaAutoriza = await sugerenciaResponsableArea()
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -45,7 +46,10 @@ export default async function NuevaSolicitud({
           ) : null}
         </div>
       ) : (
-        <FormularioSolicitud categorias={categorias} usuarios={usuarios} tipoPreseleccionado={tipoPreseleccionado} />
+        <FormularioSolicitud
+          categorias={categorias} usuarios={usuarios} tipoPreseleccionado={tipoPreseleccionado}
+          sugerenciaAutoriza={sugerenciaAutoriza}
+        />
       )}
     </main>
   )
