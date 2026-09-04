@@ -48,11 +48,11 @@ describe('registrarPagoDirecto — pre-chequeo de factura duplicada (proveedor +
     const { cliente } = crearSupabaseMock([
       { data: { id: 'prov-1', condicion_pago_dias: 30 }, error: null },
       { data: null, error: null }, // no hay duplicado
-      { data: { id: 'ob-nueva' }, error: null }, // insert
+      { data: { id: 'ob-nueva', codigo: 'C-2026-0001', total: 118 }, error: null }, // insert
     ])
     vi.mocked(crearClienteServidor).mockReturnValue(cliente)
 
     const resultado = await registrarPagoDirecto(borrador())
-    expect(resultado).toEqual({ id: 'ob-nueva' })
+    expect(resultado).toEqual({ id: 'ob-nueva', codigo: 'C-2026-0001', total: 118 })
   })
 })

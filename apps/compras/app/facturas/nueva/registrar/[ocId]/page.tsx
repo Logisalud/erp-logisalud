@@ -33,7 +33,7 @@ export default async function RegistrarFacturaDirecta({ params }: { params: { oc
     <main className="mx-auto max-w-2xl px-4 py-8">
       <Encabezado titulo={oc.codigo} atras={{ href: '/facturas/nueva/por-oc', texto: 'Facturas por orden de compra' }} />
       <p className="mb-4 text-sm text-gray-600">
-        {oc.proveedor?.razon_social ?? 'proveedor no legible'} — transcribí la factura real. Si todavía no hay
+        {oc.proveedor?.razon_social ?? 'proveedor no legible'} — transcribe la factura real. Si todavía no hay
         recepción que la respalde, queda esperando a que llegue la mercadería; si ya la hay, el sistema concilia
         de una y crea la obligación por el monto verificado.
       </p>

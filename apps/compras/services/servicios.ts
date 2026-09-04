@@ -4,7 +4,7 @@ import {
   estadoTrasConformidad, estadoTrasRegistrarObligacion, estadoTrasSubirFactura, facturaSuperaMontoOS,
   type BorradorObligacionServicio, type BorradorOS, type EstadoOS,
 } from '@/domain/servicio'
-import { normalizarNumeroFactura } from '@/domain/obligacion'
+import { calcularFechaVencimientoReal, normalizarNumeroFactura } from '@/domain/obligacion'
 
 export type ProveedorServicio = { id: string; razon_social: string }
 
@@ -62,7 +62,7 @@ export async function crearProveedorServicio(borrador: BorradorProveedorServicio
 }
 
 /** Área usuaria: cualquiera puede crear una OS — `area_solicitante` sale del perfil, nunca del formulario. */
-export async function crearOS(borrador: BorradorOS): Promise<{ id: string }> {
+export async function crearOS(borrador: BorradorOS): Promise<{ id: string; codigo: string }> {
   const usuario = await exigirUsuario()
   const perfil = await perfilActual()
   if (!perfil?.area) throw new Error('Tu cuenta no tiene un área asignada — no se puede crear la orden de servicio.')
@@ -82,7 +82,7 @@ export async function crearOS(borrador: BorradorOS): Promise<{ id: string }> {
       condiciones_pago_dias: borrador.condicionesPagoDias ?? null,
       fecha_entrega_estimada: borrador.fechaEntregaEstimada ?? null,
     })
-    .select('id')
+    .select('id, codigo')
     .single()
   if (error) throw new Error(`No se pudo crear la orden de servicio: ${error.message}`)
   return data
@@ -250,7 +250,59 @@ export async function registrarConformidad(osId: string, conforme: boolean, obse
     if (nuevoEstado !== os.estado) {
       await supabase.schema('servicios').from('ordenes_servicio').update({ estado: nuevoEstado }).eq('id', osId)
     }
+    await fecharVencimientoDesdeConformidad(osId)
   }
+}
+
+/**
+ * Pieza F: el vencimiento del pago de un servicio se cuenta desde la FECHA
+ * DE CONFORMIDAD — el momento en que alguien verificó que el servicio se
+ * cumplió — más la condición de pago de la OS. Mismo criterio que usa
+ * Compras con una recepción conforme (regla de negocio 3 del documento
+ * maestro: se ancla a lo VERIFICADO, nunca a lo que dice el proveedor).
+ *
+ * Se llama desde los dos lados porque la conformidad y el registro de la
+ * obligación pueden pasar en cualquier orden:
+ *  - `registrarConformidad`, si la obligación ya existía;
+ *  - `registrarObligacionDesdeOS`, si la conformidad ya estaba dada.
+ * Si todavía falta la otra mitad, no hay nada que calcular y sale sin tocar
+ * nada — la que llegue segunda completa el dato.
+ */
+async function fecharVencimientoDesdeConformidad(osId: string): Promise<void> {
+  const supabase = crearClienteServidor()
+
+  const { data: obligacion } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id, fecha_vencimiento_real')
+    .eq('os_id', osId)
+    .maybeSingle()
+  if (!obligacion || obligacion.fecha_vencimiento_real) return
+
+  const [{ data: os }, { data: conformidad }] = await Promise.all([
+    supabase.schema('servicios').from('ordenes_servicio').select('condiciones_pago_dias').eq('id', osId).maybeSingle(),
+    supabase
+      .schema('servicios')
+      .from('conformidad_servicio')
+      .select('fecha_conformidad')
+      .eq('os_id', osId)
+      .eq('conforme', true)
+      .order('fecha_conformidad', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+  if (!conformidad?.fecha_conformidad) return
+
+  await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .update({
+      fecha_vencimiento_real: calcularFechaVencimientoReal(
+        String(conformidad.fecha_conformidad).slice(0, 10),
+        os?.condiciones_pago_dias ?? 0,
+      ),
+    })
+    .eq('id', obligacion.id)
 }
 
 export type OSParaObligar = { id: string; codigo: string; descripcion_servicio: string; monto_estimado: number; moneda: string; proveedor: ProveedorServicio | null }
@@ -364,6 +416,10 @@ export async function registrarObligacionDesdeOS(borrador: BorradorObligacionSer
     .from('ordenes_servicio')
     .update({ estado: estadoTrasRegistrarObligacion(!!conformidad) })
     .eq('id', os.id)
+
+  // Pieza F: si la conformidad ya estaba dada, el vencimiento se puede
+  // calcular ahora mismo; si todavía falta, lo completa registrarConformidad.
+  await fecharVencimientoDesdeConformidad(os.id)
 
   return obligacion
 }

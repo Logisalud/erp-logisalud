@@ -48,6 +48,9 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
         {solicitud.quienAutoriza ? (
           <p className="mt-1 text-sm text-gray-600">Quién autoriza: {solicitud.quienAutoriza}</p>
         ) : null}
+        {solicitud.fecha_factura ? (
+          <p className="mt-1 text-sm text-gray-600">Fecha del comprobante: {solicitud.fecha_factura}</p>
+        ) : null}
         {solicitud.cotizacionStoragePath ? (
           <p className="mt-1 text-sm text-gray-600">
             Cotización adjunta

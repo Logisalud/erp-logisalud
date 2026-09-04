@@ -85,3 +85,20 @@ export function diasEnEstado(fechaDesdeISO: string, hoyISO: string): number {
 export function ocParcialSuperaUmbral(diasEnParcial: number, umbralDias: number): boolean {
   return diasEnParcial > umbralDias
 }
+
+/**
+ * Pieza I: un anticipo pagado que sigue sin rendición pasado el umbral
+ * configurable (`compras.configuracion`, clave 'anticipo_sin_rendir_alerta_dias',
+ * ver 0037) — mismo criterio que la OC parcial, con dos diferencias:
+ *
+ *  - el ancla es exacta, no aproximada: `fecha_pendiente_rendicion` se
+ *    escribe justo cuando Tesorería paga (services/solicitudes-gasto.ts::
+ *    marcarSolicitudPagada), que es el momento en que el empleado ya tiene
+ *    la plata y recién ahí corresponde exigirle los comprobantes;
+ *  - un anticipo sin esa fecha (pagado antes de 0037) no se alerta: sin
+ *    ancla no se puede afirmar cuántos días lleva, y una alerta inventada
+ *    es peor que ninguna.
+ */
+export function anticipoSinRendirSuperaUmbral(diasSinRendir: number | null, umbralDias: number): boolean {
+  return diasSinRendir != null && diasSinRendir > umbralDias
+}

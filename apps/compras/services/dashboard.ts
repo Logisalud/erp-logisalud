@@ -6,6 +6,7 @@ import {
   agruparPorMoneda,
   venceEnProximosDias,
   estaVencidaObligacion,
+  anticipoSinRendirSuperaUmbral,
   diasEnEstado,
   ocParcialSuperaUmbral,
   type MontoPorMoneda,
@@ -58,15 +59,39 @@ export async function listarDiscrepanciasSinResolver(): Promise<LoopDiscrepancia
   }))
 }
 
-export type LoopAnticipo = { id: string; codigo: string; monto: number; moneda: string; solicitanteNombre: string | null }
+export type LoopAnticipo = { id: string; codigo: string; monto: number; moneda: string; solicitanteNombre: string | null; diasSinRendir: number | null }
 
-/** Regla 7: un anticipo pagado queda 'pendiente_rendicion' hasta que el empleado sube sus comprobantes reales. */
+/**
+ * Umbral de "anticipo pagado que sigue sin rendir" — configurable vía
+ * `compras.configuracion` (clave 'anticipo_sin_rendir_alerta_dias', ver
+ * 0037), mismo patrón que el de la OC parcial. Default 15 solo como red de
+ * seguridad si la fila no existiera.
+ */
+export async function obtenerUmbralAnticipoSinRendirDias(): Promise<number> {
+  const supabase = crearClienteServidor()
+  const { data } = await supabase.schema('compras').from('configuracion').select('valor').eq('clave', 'anticipo_sin_rendir_alerta_dias').maybeSingle()
+  const umbral = Number(data?.valor)
+  return Number.isFinite(umbral) && umbral > 0 ? umbral : 15
+}
+
+/**
+ * Regla 7: un anticipo pagado queda 'pendiente_rendicion' hasta que el
+ * empleado sube sus comprobantes reales.
+ *
+ * Pieza I: el loop abierto solo lista los que pasaron el umbral — un
+ * anticipo pagado ayer no es un problema, uno de hace tres semanas sí. Los
+ * pagados antes de 0037 no tienen `fecha_pendiente_rendicion` y quedan
+ * fuera: sin ancla no se puede afirmar cuántos días llevan.
+ */
 export async function listarAnticiposSinRendir(): Promise<LoopAnticipo[]> {
   const supabase = crearClienteServidor()
+  const hoy = new Date().toISOString().slice(0, 10)
+  const umbralDias = await obtenerUmbralAnticipoSinRendirDias()
+
   const { data, error } = await supabase
     .schema('gastos')
     .from('solicitudes_gasto')
-    .select('id, codigo, monto_solicitado, moneda, solicitante_id')
+    .select('id, codigo, monto_solicitado, moneda, solicitante_id, fecha_pendiente_rendicion')
     .eq('estado', 'pendiente_rendicion')
     .order('created_at')
   if (error) throw new Error(`No se pudieron leer los anticipos sin rendir: ${error.message}`)
@@ -76,13 +101,19 @@ export async function listarAnticiposSinRendir(): Promise<LoopAnticipo[]> {
   const { data: perfiles } = await supabase.from('perfiles').select('id, nombre').in('id', ids)
   const nombrePorId = new Map((perfiles ?? []).map((p: any) => [p.id, p.nombre]))
 
-  return data.map((d) => ({
-    id: d.id,
-    codigo: d.codigo,
-    monto: Number(d.monto_solicitado),
-    moneda: d.moneda,
-    solicitanteNombre: nombrePorId.get(d.solicitante_id) ?? null,
-  }))
+  return data
+    .map((d) => ({
+      id: d.id,
+      codigo: d.codigo,
+      monto: Number(d.monto_solicitado),
+      moneda: d.moneda,
+      solicitanteNombre: nombrePorId.get(d.solicitante_id) ?? null,
+      diasSinRendir: d.fecha_pendiente_rendicion
+        ? diasEnEstado(String(d.fecha_pendiente_rendicion).slice(0, 10), hoy)
+        : null,
+    }))
+    .filter((a) => anticipoSinRendirSuperaUmbral(a.diasSinRendir, umbralDias))
+    .sort((a, b) => (b.diasSinRendir ?? 0) - (a.diasSinRendir ?? 0))
 }
 
 export type LoopServicio = { id: string; codigo: string; monto: number; moneda: string }

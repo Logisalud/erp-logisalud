@@ -2,13 +2,22 @@
 
 import { redirect } from 'next/navigation'
 import { exigirUsuario, perfilActual } from '@logisalud/auth/server'
-import { crearSolicitud, subirComprobante, subirCotizacion, notificarAnticipoCreado } from '@/services/solicitudes-gasto'
-import { validarSolicitud, montoTotalSolicitud, type BorradorSolicitud } from '@/domain/gasto'
+import { crearSolicitud, subirComprobante, subirCotizacion } from '@/services/solicitudes-gasto'
+import { avisarCreacionSinRomper } from '@/services/avisos'
+import { formatoMonto } from '@/domain/aviso-email'
+import {
+  validarSolicitud,
+  montoTotalSolicitud,
+  type BorradorSolicitud,
+  type TipoComprobante,
+} from '@/domain/gasto'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 
 export async function crearSolicitudAction(_previo: EstadoFormulario, form: FormData): Promise<EstadoFormulario> {
   const tipo = String(form.get('tipo') ?? 'gasto_directo') as BorradorSolicitud['tipo']
+  const tipoComprobante = String(form.get('tipoComprobante') ?? 'boleta') as TipoComprobante
+
   const borrador: BorradorSolicitud = {
     tipo,
     categoriaId: String(form.get('categoriaId') ?? ''),
@@ -21,7 +30,11 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
     fechaInicio: textoONull(form.get('fechaInicio')),
     fechaFin: textoONull(form.get('fechaFin')),
     asignadoA: tipo === 'anticipo' ? textoONull(form.get('asignadoA')) : null,
-    quienAutoriza: tipo === 'anticipo' ? textoONull(form.get('quienAutoriza')) : null,
+    // Pieza A: informativo en Anticipo y en Reembolso.
+    quienAutoriza: tipo === 'gasto_directo' ? null : textoONull(form.get('quienAutoriza')),
+    // Pieza H: fecha del comprobante real (no aplica a un anticipo).
+    fechaFactura: tipo === 'anticipo' ? null : textoONull(form.get('fechaFactura')),
+    tipoComprobante: tipo === 'anticipo' ? null : tipoComprobante,
   }
 
   const errores = validarSolicitud(borrador)
@@ -34,36 +47,19 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
     return { errores: [{ campo: 'general', mensaje: (e as Error).message }] }
   }
 
+  const monto = montoTotalSolicitud(borrador)
+  let tieneCotizacion = false
+
   if (tipo === 'anticipo') {
-    // Pieza 1: la cotización/sustento es opcional — si falla la subida o
-    // no se adjuntó nada, la solicitud igual queda creada (mismo criterio
-    // best-effort que el comprobante de abajo).
+    // La cotización/sustento es opcional — si falla la subida o no se
+    // adjuntó nada, la solicitud igual queda creada (best-effort, mismo
+    // criterio que el comprobante de abajo).
     const archivoCotizacion = form.get('cotizacion')
-    let tieneCotizacion = false
     try {
       tieneCotizacion =
         archivoCotizacion instanceof File ? await subirCotizacion(solicitud.id, archivoCotizacion) : false
     } catch {
       // No tumbar la creación de la solicitud por una cotización que falló.
-    }
-
-    // Pieza 3: notificación por correo — no bloquea el flujo si Resend
-    // falla o no está configurado, el resultado queda en los logs.
-    try {
-      const [usuario, perfil] = await Promise.all([exigirUsuario(), perfilActual()])
-      await notificarAnticipoCreado({
-        solicitudId: solicitud.id,
-        codigo: solicitud.codigo,
-        solicitanteNombre: perfil?.nombre ?? usuario.email ?? 'Alguien del ERP',
-        solicitanteCorreo: usuario.email ?? null,
-        monto: montoTotalSolicitud(borrador),
-        moneda: borrador.moneda,
-        descripcion: borrador.descripcion,
-        quienAutoriza: borrador.quienAutoriza ?? null,
-        tieneCotizacion,
-      })
-    } catch (e) {
-      console.error('[crearSolicitudAction] No se pudo notificar el anticipo por correo:', e)
     }
   }
 
@@ -73,7 +69,6 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
   // faltar el sustento es una alerta, no un bloqueo).
   if (tipo !== 'anticipo') {
     const archivo = form.get('archivo')
-    const tipoComprobante = String(form.get('tipoComprobante') ?? 'boleta') as 'factura' | 'boleta' | 'sin_comprobante'
     try {
       await subirComprobante({
         solicitudId: solicitud.id,
@@ -81,13 +76,38 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
         tipoComprobante,
         numero: textoONull(form.get('numero')),
         rucEmisor: textoONull(form.get('rucEmisor')),
-        monto: montoTotalSolicitud(borrador),
+        monto,
         sustentable: tipoComprobante !== 'sin_comprobante',
         archivo: archivo instanceof File ? archivo : null,
       })
     } catch {
       // No tumbar la creación de la solicitud por un comprobante que falló.
     }
+  }
+
+  // Pieza D: aviso a Contabilidad al CREAR. Solo Anticipo y Reembolso — un
+  // `gasto_directo` como solicitud es un flujo que el menú ya no ofrece.
+  if (tipo === 'anticipo' || tipo === 'reembolso') {
+    const [usuario, perfil] = await Promise.all([exigirUsuario(), perfilActual()])
+    await avisarCreacionSinRomper({
+      tipo,
+      codigo: solicitud.codigo,
+      monto,
+      moneda: borrador.moneda,
+      referencia: String(form.get('categoriaNombre') ?? '').trim() || (tipo === 'anticipo' ? 'Anticipo' : 'Reembolso'),
+      filas: [
+        { etiqueta: 'Solicitado por', valor: perfil?.nombre ?? usuario.email ?? null },
+        { etiqueta: 'Tipo', valor: tipo === 'anticipo' ? 'Anticipo' : 'Reembolso' },
+        { etiqueta: 'Monto', valor: formatoMonto(monto, borrador.moneda) },
+        { etiqueta: 'Categoría', valor: String(form.get('categoriaNombre') ?? '').trim() || null },
+        { etiqueta: 'Motivo', valor: borrador.descripcion },
+        { etiqueta: 'Quién autoriza', valor: borrador.quienAutoriza ?? 'No informado' },
+        { etiqueta: 'Fecha comprob.', valor: borrador.fechaFactura ?? null },
+        { etiqueta: 'Cotización', valor: tipo === 'anticipo' ? (tieneCotizacion ? 'adjunta' : 'no adjunta') : null },
+      ],
+      ruta: `/gastos/${solicitud.id}`,
+      creadorCorreo: usuario.email ?? null,
+    })
   }
 
   redirect(`/gastos/${solicitud.id}`)

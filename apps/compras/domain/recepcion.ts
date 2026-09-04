@@ -201,7 +201,7 @@ export function validarRecepcion(borrador: BorradorRecepcion): ErrorValidacion[]
   if (conCantidad.length === 0) {
     errores.push({
       campo: 'lineas',
-      mensaje: 'Registrá la cantidad física recibida de al menos un producto.',
+      mensaje: 'Registra la cantidad física recibida de al menos un producto.',
     })
   }
 

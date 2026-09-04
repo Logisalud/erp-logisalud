@@ -89,7 +89,7 @@ export default async function Dashboard() {
                     monto={<Money valor={c.monto} />}
                   />
                   <p className="mt-0.5 text-sm text-red-700">
-                    Venció hace {diasVencida(c.fechaVencimiento)} día(s) — generá su obligación en
+                    Venció hace {diasVencida(c.fechaVencimiento)} día(s) — genera su obligación en
                     Vencimientos próximos antes de perder el beneficio del fraccionamiento.
                   </p>
                 </Item>

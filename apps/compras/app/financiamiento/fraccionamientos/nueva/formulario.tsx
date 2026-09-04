@@ -58,7 +58,7 @@ export function FormularioFraccionamiento({ tiposImpuesto }: { tiposImpuesto: Ti
       <section className="card">
         <h2 className="font-heading mb-2 text-lg">Cronograma de cuotas</h2>
         <p className="mb-3 text-sm text-gray-600">
-          Transcribí cada cuota tal como figura en la resolución de SUNAT — subí un Excel, generá N
+          Transcribe cada cuota tal como figura en la resolución de SUNAT — sube un Excel, genera N
           cuotas iguales, o llená la tabla a mano.
         </p>
         <CuotasInput error={errorDe('cuotas')} permitirExcel plantillaHref="/financiamiento/fraccionamientos/nueva/plantilla-cuotas" />

@@ -24,7 +24,7 @@ export default async function NuevoPagoDirecto() {
       <Encabezado titulo="Pago directo" atras={{ href: '/pedir-pago', texto: '¿Cómo es tu situación?' }} />
       <p className="mb-4 text-sm text-gray-600">
         Factura de un proveedor sin Orden de Compra ni Orden de Servicio — luz, agua, peajes,
-        notaría, seguros, courier y el resto de las categorías de excepción. Transcribí la
+        notaría, seguros, courier y el resto de las categorías de excepción. Transcribe la
         factura real; Contabilidad revisa y da conformidad antes de que entre a una propuesta
         de pago.
       </p>

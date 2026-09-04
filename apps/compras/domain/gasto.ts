@@ -17,6 +17,19 @@ export const ETIQUETA_TIPO: Record<TipoSolicitud, string> = {
   anticipo: 'Anticipo',
 }
 
+/**
+ * `pendiente_jefe` y `rechazada_jefe` quedan como estados VESTIGIALES: desde
+ * la migración 0037 ninguna solicitud nace ahí. El "jefe de área" aprobaba
+ * un Reembolso o un Gasto directo cuando el dinero YA había salido de la
+ * empresa, así que no decidía nada; para un Anticipo la decisión real la
+ * toma Contabilidad al generar la obligación. Lo que quedó en su lugar es el
+ * campo informativo "Quién autoriza" (0036).
+ *
+ * Se conservan en la lista para que una fila histórica siga siendo legible —
+ * la aprobación real que SÍ decide algo (Orden de Servicio antes de
+ * `en_ejecucion`, Reposición de Caja Chica por el jefe de Almacén) vive en
+ * domain/servicio.ts y domain/caja-chica.ts, y no se toca.
+ */
 export const ESTADOS_SOLICITUD = [
   'pendiente_jefe',
   'rechazada_jefe',
@@ -65,6 +78,15 @@ export function transicionPermitida(desde: EstadoSolicitud, hacia: EstadoSolicit
 }
 
 /**
+ * Estado con el que nace toda solicitud desde la migración 0037 — los tres
+ * tipos entran directo a la bandeja de Contabilidad, sin paso de jefe. Se
+ * escribe explícito en `crearSolicitud()` además de estar como default de la
+ * columna: si mañana alguien cambia el default en la base, el código sigue
+ * diciendo lo que el negocio decidió.
+ */
+export const ESTADO_INICIAL_SOLICITUD: EstadoSolicitud = 'pendiente_contabilidad'
+
+/**
  * Estado de la solicitud cuando Tesorería paga la obligación asociada
  * (regla 6, la contraparte de estadoTrasRecepcion en domain/orden-compra.ts):
  * un anticipo queda pendiente de rendir, gasto_directo y reembolso se
@@ -104,13 +126,23 @@ export type BorradorSolicitud = {
    * vendedor). Si queda null, el beneficiario es quien la crea — ver
    * services/solicitudes-gasto.ts. */
   asignadoA?: string | null
-  /** Solo aplica a `anticipo`: texto libre, puramente informativo — NO es
-   * un paso de aprobación real, no bloquea nada ni requiere que esa
-   * persona entre al sistema (ver quien_autoriza en la migración 0036).
-   * La pantalla lo sugiere con el responsable del área de quien crea la
-   * solicitud, pero es editable a mano. */
+  /** Texto libre, puramente informativo — NO es un paso de aprobación real,
+   * no bloquea nada ni requiere que esa persona entre al sistema (ver
+   * quien_autoriza en la migración 0036). La pantalla lo sugiere con el
+   * responsable del área de quien crea la solicitud, pero es editable a
+   * mano. Aplica a `anticipo` y a `reembolso`. */
   quienAutoriza?: string | null
+  /** Solo `gasto_directo`/`reembolso`: la fecha que figura en el comprobante
+   * real. Obligatoria salvo que no haya comprobante (ver validarSolicitud). */
+  fechaFactura?: string | null
+  /** Solo `gasto_directo`/`reembolso`: qué comprobante se está sustentando.
+   * Vive en el borrador porque de él depende si `fechaFactura` es
+   * obligatoria — así la regla es pura y testeable, sin leer el FormData. */
+  tipoComprobante?: TipoComprobante | null
 }
+
+export const TIPOS_COMPROBANTE = ['factura', 'boleta', 'sin_comprobante'] as const
+export type TipoComprobante = (typeof TIPOS_COMPROBANTE)[number]
 
 /** El monto total que queda en `solicitudes_gasto.monto_solicitado`. */
 export function montoTotalSolicitud(b: Pick<BorradorSolicitud, 'tipo' | 'montoAnticipo' | 'baseImponible' | 'igv'>): number {
@@ -137,6 +169,12 @@ export function validarSolicitud(b: BorradorSolicitud): ErrorValidacion[] {
     }
     if (b.igv == null || Number(b.igv) < 0) {
       errores.push({ campo: 'igv', mensaje: 'Pon el IGV tal como figura en tu comprobante (puede ser 0).' })
+    }
+    // Si hay comprobante, tiene una fecha impresa: pedirla no cuesta nada y
+    // es el dato con el que Contabilidad ubica el gasto en el periodo. Sin
+    // comprobante no hay nada de dónde copiarla, así que ahí no se exige.
+    if (b.tipoComprobante !== 'sin_comprobante' && !b.fechaFactura) {
+      errores.push({ campo: 'fechaFactura', mensaje: 'Pon la fecha que figura en tu factura o boleta.' })
     }
   }
 

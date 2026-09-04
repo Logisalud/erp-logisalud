@@ -46,7 +46,7 @@ export default async function NuevaObligacion({ params }: { params: { recepcionI
     <main className="mx-auto max-w-2xl px-4 py-8">
       <Encabezado titulo={recepcion.oc?.codigo ?? 'Recepción'} atras={{ href: '/almacen', texto: 'Almacén' }} />
       <p className="mb-4 text-sm text-gray-600">
-        {recepcion.oc?.proveedor?.razon_social ?? 'proveedor no legible'} — transcribí la factura
+        {recepcion.oc?.proveedor?.razon_social ?? 'proveedor no legible'} — transcribe la factura
         real del proveedor. El sistema concilia automáticamente contra lo pedido y lo recibido; si
         algo no cuadra, la obligación queda observada para que la revises antes de darle
         conformidad.

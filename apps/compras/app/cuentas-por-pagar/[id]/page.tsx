@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
+import { CompletarFactura } from './completar-factura'
 import { Money } from '@/components/money'
 import Link from 'next/link'
 import { perfilActual } from '@logisalud/auth/server'
@@ -25,6 +26,9 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   const califica = perfil?.area === 'admin' || (perfil?.area === 'contabilidad' && perfil?.rol === 'admin')
   const puedeDarConformidad =
     califica && (obligacion.estado === 'registrada' || obligacion.estado === 'observada')
+  // Pieza E: sin factura real no hay nada que conformar ni pagar — lo único
+  // que se puede hacer es completar el comprobante que faltaba.
+  const pendienteDeFactura = obligacion.estado === 'pendiente_factura'
   const puedeCanjearPorLetras =
     obligacion.origen === 'compra' &&
     !!obligacion.proveedor &&
@@ -89,6 +93,9 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           </div>
         ) : null}
 
+        {pendienteDeFactura ? (
+          <CompletarFactura obligacionId={obligacion.id} baseCotizada={Number(obligacion.base_imponible)} />
+        ) : null}
         {puedeDarConformidad ? <BotonConformidad obligacionId={obligacion.id} /> : null}
         {puedeCanjearPorLetras ? (
           <Link href={`/financiamiento/letras/canjear/${obligacion.id}`} className="btn-secondary mt-4 inline-block">

@@ -45,7 +45,7 @@ export function FormularioPrestamo() {
       <section className="card">
         <h2 className="font-heading mb-2 text-lg">Cronograma de cuotas</h2>
         <p className="mb-3 text-sm text-gray-600">
-          Transcribí cada cuota tal como figura en el cronograma del banco — el sistema no calcula
+          Transcribe cada cuota tal como figura en el cronograma del banco — el sistema no calcula
           ninguna amortización.
         </p>
         <CuotasInput error={errorDe('cuotas')} />

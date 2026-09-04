@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import {
-  aprobarPorJefe, rechazarPorJefe, aprobarPorContabilidad, rechazarPorContabilidad,
+  aprobarPorContabilidad, rechazarPorContabilidad,
   subirComprobante, liquidarAnticipo, obtenerUrlComprobante,
 } from '@/services/solicitudes-gasto'
 
@@ -16,14 +16,6 @@ async function ejecutar(solicitudId: string, fn: () => Promise<void>): Promise<E
   }
   revalidatePath(`/gastos/${solicitudId}`)
   return null
-}
-
-export async function aprobarPorJefeAction(id: string): Promise<EstadoAccion> {
-  return ejecutar(id, () => aprobarPorJefe(id))
-}
-
-export async function rechazarPorJefeAction(id: string): Promise<EstadoAccion> {
-  return ejecutar(id, () => rechazarPorJefe(id))
 }
 
 export async function aprobarPorContabilidadAction(id: string): Promise<EstadoAccion> {

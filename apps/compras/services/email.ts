@@ -27,6 +27,10 @@ export type EmailAttachment = {
 
 export type SendEmailInput = {
   to: string[]
+  /** Copia — se usa para que quien creó el registro reciba su propio aviso
+   * sin aparecer como destinatario principal (el dueño del aviso es
+   * Contabilidad). */
+  cc?: string[]
   subject: string
   html: string
   text: string
@@ -66,6 +70,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       body: JSON.stringify({
         from,
         to: input.to,
+        ...(input.cc && input.cc.length > 0 ? { cc: input.cc } : {}),
         subject: input.subject,
         html: input.html,
         text: input.text,
