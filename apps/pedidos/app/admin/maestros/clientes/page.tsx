@@ -1,6 +1,7 @@
 import { getCarteraSummary } from "@/services/customers-import";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { CustomerImporter } from "./customer-importer";
+import { CustomerSearch } from "./customer-search";
 
 export default async function ClientesPage() {
   const summary = await getCarteraSummary();
@@ -15,6 +16,17 @@ export default async function ClientesPage() {
           clientes existentes por RUC en vez de duplicarlos.
         </p>
       </div>
+
+      <section>
+        <h3 className="font-heading text-lg">Buscar un cliente</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          Para ver o corregir la ficha de un cliente puntual: sus datos básicos y sus direcciones
+          de entrega, con el distrito y el ubigeo que necesita la guía de remisión.
+        </p>
+        <div className="mt-3">
+          <CustomerSearch />
+        </div>
+      </section>
 
       <section>
         <h3 className="font-heading text-lg">Estado actual de la cartera</h3>

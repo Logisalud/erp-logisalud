@@ -1335,6 +1335,44 @@ usó la carga masiva: pantalla y migración no pueden divergir.
 datos y la captura quedan resueltos; la conexión con NubeFact es un paso
 aparte.
 
+## Ficha de un cliente: buscar y corregir
+
+`/admin/maestros/clientes` tenía sólo el importador masivo: para tocar un
+cliente puntual había que entrar por SQL. Ahora esa pantalla arranca con un
+buscador —razón social, nombre comercial o RUC— que lleva a
+`/admin/maestros/clientes/<ruc>`, la ficha del cliente.
+
+El RUC va en la URL en vez del uuid porque es el dato que la gente tiene a
+mano: aparece en el CSV del importador, en el comprobante y en la planilla
+de la carga masiva.
+
+Dos decisiones que importan:
+
+- **El buscador de esta pantalla busca en cualquier estado**, a diferencia
+  del que usa el vendedor al armar un pedido (que sólo ofrece `ACTIVO`). El
+  cliente que se viene a corregir es justamente el que está mal cargado o
+  pendiente de validación; filtrarlo por estado lo esconde.
+- **El RUC no se edita.** Identifica al cliente en los comprobantes ya
+  emitidos y es la clave con la que el importador decide actualizar en vez
+  de duplicar. Cambiarlo es dar de alta otro cliente.
+
+Editar es sólo de **administrador** (`exigirAdministrador()` en la Server
+Action, además de la RLS). Un no administrador ve la ficha con los campos
+bloqueados y sin botones de edición: la información sirve igual para
+diagnosticar, y el aviso explica por qué no puede tocarla.
+
+Cada dirección se edita con el **mismo selector en cascada** que usa el
+vendedor, así que el ubigeo lo resuelve el servidor con la función SQL de la
+carga masiva y el typo de distrito no se puede repetir a mano. Una dirección
+sin ubigeo se muestra con un aviso explícito ("no se puede emitir la guía de
+remisión de esta dirección"): es la deuda que esta pantalla vino a pagar —
+las 13 direcciones que la carga masiva dejó sin resolver se cierran desde
+acá, en un minuto cada una y sin SQL.
+
+Todo cambio se audita: `editar_cliente`, `editar_direccion_cliente` y
+`agregar_direccion_cliente` en `pedidos.audit_logs`, con el antes y el
+después.
+
 ## Bonificación manual: unidades a S/ 0.00 sin promoción (`1021`)
 
 Caso real: el vendedor acuerda **5 A-Fiebrin pagados + 5 bonificados**, y no

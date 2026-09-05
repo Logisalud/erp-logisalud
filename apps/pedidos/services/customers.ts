@@ -303,6 +303,288 @@ export async function addCustomerAddress(input: {
   return data as unknown as { id: string; direccion: string; es_principal: boolean };
 }
 
+// ---------------------------------------------------------------------
+// Ficha de un cliente (Maestros → Clientes)
+// ---------------------------------------------------------------------
+
+export type CustomerSearchHit = {
+  id: string;
+  ruc_o_documento: string;
+  razon_social: string;
+  nombre_comercial: string | null;
+  estado: string;
+  canal: { nombre: string } | null;
+  zona: { nombre: string } | null;
+  direcciones: number;
+};
+
+/**
+ * Busca clientes de la cartera **en cualquier estado**, para la pantalla de
+ * Maestros.
+ *
+ * `searchActiveCustomers` filtra por ACTIVO porque sirve para tomar un
+ * pedido: no se le puede vender a un cliente pendiente de validación. Acá
+ * es lo contrario — justamente hay que poder encontrar al que está mal
+ * cargado, pendiente o inactivo, que es el que se viene a corregir.
+ *
+ * La RLS sigue aplicando: un vendedor sólo ve su zona. Editar es otra cosa
+ * y la decide `customers_admin_write`.
+ */
+export async function searchCustomersAnyState(
+  rawQuery: string,
+  limit: number = SEARCH_RESULT_LIMIT,
+): Promise<CustomerSearchHit[]> {
+  const term = normalizeSearchTerm(rawQuery);
+  if (term.length < MIN_SEARCH_LENGTH) return [];
+
+  const patrones = [
+    `razon_social.ilike.%${term}%`,
+    `nombre_comercial.ilike.%${term}%`,
+    `ruc_o_documento.ilike.%${term}%`,
+  ];
+  const digitos = soloDigitos(term);
+  if (digitos.length >= MIN_SEARCH_LENGTH && digitos !== term) {
+    patrones.push(`ruc_o_documento.ilike.%${digitos}%`);
+  }
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select(
+      `id, ruc_o_documento, razon_social, nombre_comercial, estado,
+       canal:sales_channels(nombre), zona:zones(nombre),
+       customer_addresses(id)`,
+    )
+    .or(patrones.join(","))
+    .order("razon_social")
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+
+  type Fila = Omit<CustomerSearchHit, "direcciones"> & {
+    customer_addresses: Array<{ id: string }> | null;
+  };
+
+  return ((data ?? []) as unknown as Fila[]).map((f) => ({
+    id: f.id,
+    ruc_o_documento: f.ruc_o_documento,
+    razon_social: f.razon_social,
+    nombre_comercial: f.nombre_comercial,
+    estado: f.estado,
+    canal: f.canal,
+    zona: f.zona,
+    direcciones: (f.customer_addresses ?? []).length,
+  }));
+}
+
+export type CustomerAddressDetail = {
+  id: string;
+  direccion: string;
+  referencia: string | null;
+  ubigeo: string | null;
+  es_principal: boolean;
+  estado: string;
+  /** Nombres del ubigeo, para no mostrarle "150119" a una persona. */
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
+};
+
+export type CustomerDetail = {
+  id: string;
+  ruc_o_documento: string;
+  razon_social: string;
+  nombre_comercial: string | null;
+  tipo_comprobante_permitido: string;
+  canal_id: number | null;
+  zona_id: number | null;
+  condicion_pago_habitual_id: number | null;
+  estado: string;
+  es_agente_retencion: boolean;
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
+  whatsapp: string | null;
+  created_at: string;
+  canal: { nombre: string } | null;
+  zona: { nombre: string } | null;
+  condicion_pago: { nombre: string } | null;
+  direcciones: CustomerAddressDetail[];
+};
+
+/**
+ * La ficha completa de un cliente, buscado por su RUC/documento (que es
+ * único y es lo que la gente tiene a mano).
+ *
+ * Los nombres del ubigeo de cada dirección se resuelven con una segunda
+ * consulta: `customer_addresses.ubigeo` es texto suelto, sin FK contra
+ * `ubigeos`, así que PostgREST no lo puede embeber. Con 1.884 filas en el
+ * catálogo y un puñado de direcciones por cliente, dos consultas es más
+ * simple que una vista.
+ */
+export async function getCustomerByRuc(ruc: string): Promise<CustomerDetail | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select(
+      `id, ruc_o_documento, razon_social, nombre_comercial, tipo_comprobante_permitido,
+       canal_id, zona_id, condicion_pago_habitual_id, estado, es_agente_retencion,
+       departamento, provincia, distrito, whatsapp, created_at,
+       canal:sales_channels(nombre), zona:zones(nombre),
+       condicion_pago:payment_terms(nombre),
+       customer_addresses(id, direccion, referencia, ubigeo, es_principal, estado)`,
+    )
+    .eq("ruc_o_documento", ruc.trim())
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  type Fila = Omit<CustomerDetail, "direcciones"> & {
+    customer_addresses: Array<{
+      id: string;
+      direccion: string;
+      referencia: string | null;
+      ubigeo: string | null;
+      es_principal: boolean;
+      estado: string;
+    }> | null;
+  };
+  const fila = data as unknown as Fila;
+  const crudas = fila.customer_addresses ?? [];
+
+  const codigos = Array.from(
+    new Set(crudas.map((d) => d.ubigeo).filter((u): u is string => !!u && u.trim() !== "")),
+  );
+  const nombres = new Map<string, { departamento: string; provincia: string; distrito: string }>();
+  if (codigos.length > 0) {
+    const { data: ubigeos, error: errorUbigeos } = await supabase
+      .from("ubigeos")
+      .select("codigo_inei, departamento, provincia, distrito")
+      .in("codigo_inei", codigos);
+    if (errorUbigeos) throw new Error(errorUbigeos.message);
+    for (const u of ubigeos ?? []) {
+      nombres.set(u.codigo_inei as string, {
+        departamento: u.departamento as string,
+        provincia: u.provincia as string,
+        distrito: u.distrito as string,
+      });
+    }
+  }
+
+  return {
+    ...fila,
+    direcciones: crudas
+      .map((d) => {
+        const n = d.ubigeo ? nombres.get(d.ubigeo) : undefined;
+        return {
+          ...d,
+          departamento: n?.departamento ?? null,
+          provincia: n?.provincia ?? null,
+          distrito: n?.distrito ?? null,
+        };
+      })
+      .sort((a, b) => Number(b.es_principal) - Number(a.es_principal)),
+  };
+}
+
+/**
+ * Corrige los datos básicos del cliente. Sólo el administrador: lo decide
+ * `customers_admin_write` en la base, no esta función.
+ *
+ * Devuelve el estado anterior para que la capa de acción lo audite: un
+ * cambio de canal mueve el precio de todos sus pedidos futuros, y un cambio
+ * de estado lo habilita o lo bloquea para vender.
+ */
+export async function updateCustomerBasics(input: {
+  customerId: string;
+  razonSocial: string;
+  nombreComercial: string | null;
+  tipoComprobantePermitido: string;
+  canalId: number | null;
+  zonaId: number | null;
+  condicionPagoHabitualId: number | null;
+  estado: string;
+}): Promise<{ antes: Record<string, unknown>; despues: Record<string, unknown> }> {
+  const supabase = createClient();
+
+  const { data: antes, error: errorAntes } = await supabase
+    .from("customers")
+    .select(
+      "razon_social, nombre_comercial, tipo_comprobante_permitido, canal_id, zona_id, condicion_pago_habitual_id, estado",
+    )
+    .eq("id", input.customerId)
+    .maybeSingle();
+  if (errorAntes) throw new Error(errorAntes.message);
+  if (!antes) throw new Error("El cliente no existe o no es visible.");
+
+  const despues = {
+    razon_social: input.razonSocial,
+    nombre_comercial: input.nombreComercial,
+    tipo_comprobante_permitido: input.tipoComprobantePermitido,
+    canal_id: input.canalId,
+    zona_id: input.zonaId,
+    condicion_pago_habitual_id: input.condicionPagoHabitualId,
+    estado: input.estado,
+  };
+
+  const { error } = await supabase
+    .from("customers")
+    .update({ ...despues, updated_at: new Date().toISOString() })
+    .eq("id", input.customerId);
+
+  if (error) {
+    if (error.code === "42501" || /row-level security/i.test(error.message)) {
+      throw new Error("No tenés permiso para editar este cliente.");
+    }
+    if (error.code === "23514") {
+      throw new Error(
+        "El tipo de comprobante no es compatible con el documento del cliente: un DNI sólo puede " +
+          "recibir BOLETA.",
+      );
+    }
+    throw new Error(error.message);
+  }
+
+  return { antes, despues };
+}
+
+/** Corrige una dirección ya registrada, ubigeo incluido. */
+export async function updateCustomerAddress(input: {
+  addressId: string;
+  direccion: string;
+  referencia: string | null;
+  ubigeo: string | null;
+}): Promise<{ antes: Record<string, unknown> }> {
+  const supabase = createClient();
+
+  const { data: antes, error: errorAntes } = await supabase
+    .from("customer_addresses")
+    .select("customer_id, direccion, referencia, ubigeo")
+    .eq("id", input.addressId)
+    .maybeSingle();
+  if (errorAntes) throw new Error(errorAntes.message);
+  if (!antes) throw new Error("La dirección no existe o no es visible.");
+
+  const { error } = await supabase
+    .from("customer_addresses")
+    .update({
+      direccion: input.direccion,
+      referencia: input.referencia,
+      ubigeo: input.ubigeo,
+    })
+    .eq("id", input.addressId);
+
+  if (error) {
+    if (error.code === "42501" || /row-level security/i.test(error.message)) {
+      throw new Error("No tenés permiso para editar esta dirección.");
+    }
+    throw new Error(error.message);
+  }
+
+  return { antes };
+}
+
 export async function listPendingCustomers(): Promise<PendingCustomer[]> {
   const supabase = createClient();
   const { data, error } = await supabase
