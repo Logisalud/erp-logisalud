@@ -14,7 +14,7 @@ export default async function VencimientosProximos() {
       <p className="mb-4 text-sm text-gray-600">
         Cuotas de préstamo, cuotas de fraccionamiento SUNAT y letras por pagar que vencen en los
         próximos 7 días y todavía no tienen una obligación generada. Elige las que correspondan y
-        generá su obligación — de ahí siguen el embudo normal de Cuentas por Pagar.
+        genera su obligación — de ahí siguen el embudo normal de Cuentas por Pagar.
       </p>
 
       {vencimientos.length === 0 ? (

@@ -5,16 +5,11 @@ import {
   calcularLiquidacion,
   estadoTrasPago,
   montoTotalSolicitud,
+  ESTADO_INICIAL_SOLICITUD,
   type BorradorSolicitud,
   type EstadoSolicitud,
   type TipoSolicitud,
 } from '@/domain/gasto'
-import { sendEmail } from '@/services/email'
-import { asuntoEmailAnticipo, renderAnticipoEmailHtml, renderAnticipoEmailText } from '@/domain/anticipo-email'
-
-/** URL fija de producción (CLAUDE.md: "se sirve bajo erp.logisalud.com/compras
- * vía rewrite") — esta app todavía no tiene una env var de site URL propia. */
-const URL_BASE_PRODUCCION = 'https://erp.logisalud.com/compras'
 
 export type CategoriaGasto = { id: string; nombre: string; cuenta_contable: string | null }
 
@@ -69,7 +64,15 @@ export async function crearSolicitud(borrador: BorradorSolicitud): Promise<{ id:
       fecha_inicio: borrador.fechaInicio ?? null,
       fecha_fin: borrador.fechaFin ?? null,
       asignado_a: borrador.tipo === 'anticipo' ? borrador.asignadoA ?? null : null,
-      quien_autoriza: borrador.tipo === 'anticipo' ? borrador.quienAutoriza ?? null : null,
+      // Informativo en Anticipo y en Reembolso (Pieza A): reemplaza la
+      // aprobación del jefe, que en estos flujos no decidía nada.
+      quien_autoriza: borrador.tipo === 'gasto_directo' ? null : borrador.quienAutoriza ?? null,
+      // Pieza H: la fecha del comprobante real. Un anticipo todavía no tiene
+      // comprobante, así que ahí no aplica.
+      fecha_factura: borrador.tipo === 'anticipo' ? null : borrador.fechaFactura ?? null,
+      // Explícito además del default de la columna — ver
+      // ESTADO_INICIAL_SOLICITUD en domain/gasto.ts.
+      estado: ESTADO_INICIAL_SOLICITUD,
     })
     .select('id, codigo')
     .single()
@@ -131,56 +134,6 @@ export async function subirCotizacion(solicitudId: string, archivo: File): Promi
     .update({ cotizacion_storage_path: path })
     .eq('id', solicitudId)
   return !errUpd
-}
-
-/**
- * Notificación por correo de un anticipo recién creado (Pieza 3) — a
- * contabilidad@logisalud.com (Milagritos paga, Mariela hace seguimiento
- * de su equipo) y a quien lo creó (para su propio seguimiento). Se
- * dispara al CREAR, no en ninguna aprobación: el anticipo no tiene un
- * paso de aprobación real hasta Contabilidad, que ya tiene su propia
- * bandeja dentro del ERP — esto es solo un aviso.
- *
- * Best-effort y no bloqueante: la solicitud ya quedó guardada antes de
- * llamar a esto, así que un fallo de Resend no debe tumbar la creación.
- * Quien llama no necesita mirar el resultado — se loguea para poder
- * confirmarlo después en los logs de runtime de Vercel.
- */
-export async function notificarAnticipoCreado(input: {
-  solicitudId: string
-  codigo: string
-  solicitanteNombre: string
-  solicitanteCorreo: string | null
-  monto: number
-  moneda: string
-  descripcion: string
-  quienAutoriza: string | null
-  tieneCotizacion: boolean
-}): Promise<void> {
-  const destinatarios = ['contabilidad@logisalud.com', ...(input.solicitanteCorreo ? [input.solicitanteCorreo] : [])]
-  const datos = {
-    codigo: input.codigo,
-    solicitanteNombre: input.solicitanteNombre,
-    monto: input.monto,
-    moneda: input.moneda,
-    descripcion: input.descripcion,
-    quienAutoriza: input.quienAutoriza,
-    tieneCotizacion: input.tieneCotizacion,
-    urlSolicitud: `${URL_BASE_PRODUCCION}/gastos/${input.solicitudId}`,
-  }
-
-  const resultado = await sendEmail({
-    to: destinatarios,
-    subject: asuntoEmailAnticipo(datos),
-    html: renderAnticipoEmailHtml(datos),
-    text: renderAnticipoEmailText(datos),
-  })
-
-  if (!resultado.ok) {
-    console.error(`[notificarAnticipoCreado] No se pudo notificar el anticipo ${input.codigo}: ${resultado.error}`)
-  } else {
-    console.log(`[notificarAnticipoCreado] Anticipo ${input.codigo} notificado — messageId=${resultado.messageId ?? 'n/a'}`)
-  }
 }
 
 export type SolicitudListada = {
@@ -249,8 +202,10 @@ export type SolicitudDetalle = SolicitudListada & {
   comprobantes: ComprobanteGasto[]
   /** Solo `anticipo` — Pieza 1: cotización/sustento adjunto al pedir. */
   cotizacionStoragePath: string | null
-  /** Solo `anticipo` — Pieza 2: texto libre, informativo (ver domain/gasto.ts). */
+  /** `anticipo` y `reembolso` — texto libre, informativo (ver domain/gasto.ts). */
   quienAutoriza: string | null
+  /** Solo `gasto_directo`/`reembolso` — fecha del comprobante real (Pieza H). */
+  fecha_factura: string | null
   liquidacion: {
     monto_anticipo: number
     monto_sustentado: number
@@ -267,7 +222,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     .from('solicitudes_gasto')
     .select(`id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, area, created_at,
              destino, fecha_inicio, fecha_fin, categoria_id, asignado_a, obligacion_id,
-             cotizacion_storage_path, quien_autoriza,
+             cotizacion_storage_path, quien_autoriza, fecha_factura,
              comprobantes:solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
     .eq('id', id)
     .maybeSingle()
@@ -310,20 +265,17 @@ async function cambiarEstado(id: string, desde: EstadoSolicitud[], hacia: Estado
   if (errUpd) throw new Error(`No se pudo actualizar la solicitud: ${errUpd.message}`)
 }
 
-export async function aprobarPorJefe(id: string): Promise<void> {
-  const usuario = await exigirUsuario()
-  await cambiarEstado(id, ['pendiente_jefe'], 'pendiente_contabilidad', {
-    aprobado_jefe_por: usuario.id, aprobado_jefe_fecha: new Date().toISOString(),
-  })
-}
-
-export async function rechazarPorJefe(id: string): Promise<void> {
-  const usuario = await exigirUsuario()
-  await cambiarEstado(id, ['pendiente_jefe'], 'rechazada_jefe', {
-    aprobado_jefe_por: usuario.id, aprobado_jefe_fecha: new Date().toISOString(),
-  })
-}
-
+/**
+ * Pieza A: `aprobarPorJefe`/`rechazarPorJefe` se eliminaron a propósito. En
+ * Reembolso y Gasto directo el dinero YA salió de la empresa cuando la
+ * solicitud se crea, así que aprobar después del hecho no decidía nada; en
+ * Anticipo la decisión real la toma Contabilidad al generar la obligación.
+ * En su lugar quedó el campo informativo "Quién autoriza" (0036).
+ *
+ * La aprobación que SÍ decide algo no se toca y vive en otros servicios:
+ * `services/servicios.ts` (Orden de Servicio, antes de `en_ejecucion`) y
+ * `services/caja-chica.ts` (Reposición, jefe de Almacén).
+ */
 export async function rechazarPorContabilidad(id: string): Promise<void> {
   const usuario = await exigirUsuario()
   await cambiarEstado(id, ['pendiente_contabilidad'], 'rechazada_contabilidad', {
@@ -420,10 +372,17 @@ export async function marcarSolicitudPagada(obligacionId: string): Promise<void>
     .maybeSingle()
   if (!solicitud || solicitud.estado !== 'aprobada') return
 
+  const estado = estadoTrasPago(solicitud.tipo)
   await supabase
     .schema('gastos')
     .from('solicitudes_gasto')
-    .update({ estado: estadoTrasPago(solicitud.tipo) })
+    .update({
+      estado,
+      // Pieza I: acá arranca el reloj de "anticipo sin rendir". Se guarda al
+      // pagar porque es el momento en que el empleado ya tiene la plata y
+      // recién entonces se le puede exigir la rendición.
+      fecha_pendiente_rendicion: estado === 'pendiente_rendicion' ? new Date().toISOString() : null,
+    })
     .eq('id', solicitud.id)
 }
 

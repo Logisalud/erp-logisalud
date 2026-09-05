@@ -65,7 +65,7 @@ export function CuotasInput({ error, permitirExcel, plantillaHref }: { error?: s
               ) : null}
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Si subís un archivo, reemplaza lo que hayas escrito abajo — no hace falta llenar la
+              Si subes un archivo, reemplaza lo que hayas escrito abajo — no hace falta llenar la
               tabla manual.
             </p>
           </div>

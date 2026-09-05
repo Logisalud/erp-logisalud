@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ESTADO_INICIAL_SOLICITUD,
   calcularLiquidacion,
   estadoTrasPago,
   montoTotalSolicitud,
@@ -70,6 +71,7 @@ describe('validarSolicitud', () => {
   const base = {
     tipo: 'gasto_directo' as const, categoriaId: 'cat-1', moneda: 'PEN',
     baseImponible: 100, igv: 18, descripcion: 'Útiles de oficina',
+    tipoComprobante: 'factura' as const, fechaFactura: '2026-08-15',
   }
 
   it('sin errores con un borrador completo (gasto_directo con base/igv)', () => {
@@ -130,5 +132,43 @@ describe('montoTotalSolicitud', () => {
 
   it('gasto_directo con IGV en 0 (RUS): el total es solo la base', () => {
     expect(montoTotalSolicitud({ tipo: 'reembolso', baseImponible: 100, igv: 0 })).toBe(100)
+  })
+})
+
+describe('validarSolicitud: fecha del comprobante (Pieza H)', () => {
+  const reembolso = {
+    tipo: 'reembolso' as const,
+    categoriaId: 'cat-1',
+    moneda: 'PEN',
+    baseImponible: 100,
+    igv: 18,
+    descripcion: 'Taxi a la notaría',
+  }
+
+  it('con factura o boleta, la fecha del comprobante es obligatoria', () => {
+    const errores = validarSolicitud({ ...reembolso, tipoComprobante: 'factura', fechaFactura: null })
+    expect(errores.some((e) => e.campo === 'fechaFactura')).toBe(true)
+  })
+
+  it('con la fecha puesta no hay error', () => {
+    expect(validarSolicitud({ ...reembolso, tipoComprobante: 'factura', fechaFactura: '2026-09-01' })).toEqual([])
+  })
+
+  it('sin comprobante no se exige: no hay nada de dónde copiarla', () => {
+    expect(validarSolicitud({ ...reembolso, tipoComprobante: 'sin_comprobante', fechaFactura: null })).toEqual([])
+  })
+
+  it('un anticipo no lleva fecha de comprobante — se sustenta al rendirlo', () => {
+    const errores = validarSolicitud({
+      tipo: 'anticipo', categoriaId: 'cat-1', moneda: 'PEN',
+      montoAnticipo: 500, descripcion: 'Viaje a Trujillo',
+    })
+    expect(errores).toEqual([])
+  })
+})
+
+describe('ESTADO_INICIAL_SOLICITUD (Pieza A)', () => {
+  it('una solicitud nace en Contabilidad, no esperando a un jefe', () => {
+    expect(ESTADO_INICIAL_SOLICITUD).toBe('pendiente_contabilidad')
   })
 })

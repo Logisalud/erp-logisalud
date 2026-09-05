@@ -7,7 +7,10 @@ import {
   normalizarNumeroFactura,
   redondear,
   transicionPermitida,
+  etiquetaCondicionPago,
+  igvDeBase,
   validarObligacion,
+  validarObligacionSinFactura,
   validarPagoDirecto,
   type BorradorPagoDirecto,
 } from '@/domain/obligacion'
@@ -189,5 +192,79 @@ describe('validarPagoDirecto', () => {
   it('no aplica el tope en USD — no hay tipo de cambio de referencia', () => {
     const errores = validarPagoDirecto({ ...base, moneda: 'USD', tipoCambio: 3.8, baseImponible: 10000 })
     expect(errores.some((e) => e.campo === 'baseImponible')).toBe(false)
+  })
+})
+
+describe('igvDeBase', () => {
+  it('es el 18% de la base, redondeado a dos decimales', () => {
+    expect(igvDeBase(100)).toBe(18)
+    expect(igvDeBase(84.75)).toBe(15.26)
+  })
+
+  it('una base vacía o no numérica da 0, no NaN — la pantalla lo muestra en vivo mientras se escribe', () => {
+    expect(igvDeBase(0)).toBe(0)
+    expect(igvDeBase(Number.NaN)).toBe(0)
+  })
+})
+
+describe('etiquetaCondicionPago', () => {
+  it('0 días es "Contado", no "0 días"', () => {
+    expect(etiquetaCondicionPago(0)).toBe('Contado')
+    expect(etiquetaCondicionPago(30)).toBe('30 días')
+  })
+})
+
+describe('validarObligacionSinFactura (Pieza E)', () => {
+  const base = {
+    proveedorId: 'prov-1',
+    numeroFactura: '',
+    fechaFactura: '',
+    moneda: 'PEN',
+    baseImponible: 100,
+  }
+
+  it('no exige número ni fecha de factura: todavía no existe el comprobante', () => {
+    expect(validarObligacionSinFactura(base)).toEqual([])
+  })
+
+  it('sigue exigiendo lo que no depende de la factura (proveedor, base)', () => {
+    const errores = validarObligacionSinFactura({ ...base, proveedorId: '', baseImponible: 0 })
+    expect(errores.some((e) => e.campo === 'proveedorId')).toBe(true)
+    expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
+  })
+})
+
+describe('pago directo pendiente de factura (Pieza E)', () => {
+  const base: BorradorPagoDirecto = {
+    proveedorId: 'prov-1',
+    categoriaId: 'cat-1',
+    descripcion: 'Servicio de fumigación cotizado',
+    numeroFactura: '',
+    fechaFactura: '',
+    moneda: 'PEN',
+    baseImponible: 100,
+    pendienteFactura: true,
+  }
+
+  it('con la cotización basta: sin número ni fecha no hay errores', () => {
+    expect(validarPagoDirecto(base)).toEqual([])
+  })
+
+  it('sin marcar pendiente, esos mismos datos vacíos sí son error', () => {
+    const errores = validarPagoDirecto({ ...base, pendienteFactura: false })
+    expect(errores.some((e) => e.campo === 'numeroFactura')).toBe(true)
+  })
+
+  it('la condición de pago tiene que ser una de la lista (Pieza F)', () => {
+    expect(validarPagoDirecto({ ...base, condicionPagoDias: 30 })).toEqual([])
+    expect(validarPagoDirecto({ ...base, condicionPagoDias: 0 })).toEqual([])
+    const errores = validarPagoDirecto({ ...base, condicionPagoDias: 17 })
+    expect(errores.some((e) => e.campo === 'condicionPagoDias')).toBe(true)
+  })
+
+  it('una obligación pendiente de factura solo puede pasar a registrada', () => {
+    expect(transicionPermitida('pendiente_factura', 'registrada')).toBe(true)
+    expect(transicionPermitida('pendiente_factura', 'conforme')).toBe(false)
+    expect(transicionPermitida('pendiente_factura', 'pagada')).toBe(false)
   })
 })

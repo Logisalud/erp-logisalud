@@ -3,6 +3,7 @@ import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/au
 import {
   calcularFechaVencimientoReal,
   conciliarLineas,
+  igvDeBase,
   normalizarNumeroFactura,
   redondear,
   TASA_IGV,
@@ -736,30 +737,44 @@ export async function listarCategoriasPagoDirecto(): Promise<CategoriaPagoDirect
  * fecha de conformidad de recepción acá — la factura es el único hito real)
  * más la condición de pago del proveedor.
  */
-export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promise<{ id: string }> {
+export async function registrarPagoDirecto(
+  borrador: BorradorPagoDirecto,
+): Promise<{ id: string; codigo: string; total: number }> {
   const usuario = await exigirUsuario()
   const supabase = crearClienteServidor()
 
   const { data: proveedor, error: errProv } = await supabase
     .schema('compras')
     .from('proveedores')
-    .select('id, condicion_pago_dias')
+    .select('id, razon_social, condicion_pago_dias')
     .eq('id', borrador.proveedorId)
     .maybeSingle()
   if (errProv || !proveedor) throw new Error('No se encontró el proveedor.')
 
-  const fechaVencimientoReal = calcularFechaVencimientoReal(borrador.fechaFactura, proveedor.condicion_pago_dias)
+  // Pieza F: la condición de pago que se eligió en la pantalla manda; el
+  // valor del proveedor es solo la propuesta inicial. Se guarda en la fila
+  // para que "Completar factura" (Pieza E) calcule el vencimiento con el
+  // mismo número, no con el default que el proveedor tenga meses después.
+  const condicionPagoDias = borrador.condicionPagoDias ?? proveedor.condicion_pago_dias
 
-  const numeroFacturaNormalizado = normalizarNumeroFactura(borrador.numeroFactura)
-  const { data: facturaExistente } = await supabase
-    .schema('cuentas_x_pagar')
-    .from('obligaciones')
-    .select('id')
-    .eq('proveedor_id', borrador.proveedorId)
-    .eq('numero_factura', numeroFacturaNormalizado)
-    .maybeSingle()
-  if (facturaExistente) {
-    throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
+  // Pieza E: sin factura todavía no hay de dónde contar los días de crédito;
+  // el vencimiento se calcula al completar la factura.
+  const fechaVencimientoReal = borrador.pendienteFactura
+    ? null
+    : calcularFechaVencimientoReal(borrador.fechaFactura, condicionPagoDias)
+
+  const numeroFacturaNormalizado = borrador.pendienteFactura ? null : normalizarNumeroFactura(borrador.numeroFactura)
+  if (numeroFacturaNormalizado) {
+    const { data: facturaExistente } = await supabase
+      .schema('cuentas_x_pagar')
+      .from('obligaciones')
+      .select('id')
+      .eq('proveedor_id', borrador.proveedorId)
+      .eq('numero_factura', numeroFacturaNormalizado)
+      .maybeSingle()
+    if (facturaExistente) {
+      throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
+    }
   }
 
   const { data: obligacion, error: errIns } = await supabase
@@ -770,18 +785,23 @@ export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promi
       proveedor_id: borrador.proveedorId,
       categoria_pago_directo_id: borrador.categoriaId,
       numero_factura: numeroFacturaNormalizado,
-      fecha_factura: borrador.fechaFactura,
+      fecha_factura: borrador.pendienteFactura ? null : borrador.fechaFactura,
       moneda: borrador.moneda,
       tipo_cambio: borrador.tipoCambio,
       base_imponible: borrador.baseImponible,
+      // Pieza B2: esto FALTABA — la columna tiene default 0, así que todo
+      // Pago Directo quedaba con IGV 0 y, como `total` y `neto_a_pagar` son
+      // columnas generadas sobre (base + igv), Tesorería veía 18% de menos.
+      igv: igvDeBase(borrador.baseImponible),
+      condicion_pago_dias: condicionPagoDias,
       tasa_detraccion_id: borrador.tasaDetraccionId,
       monto_detraccion: borrador.montoDetraccion ?? 0,
-      estado: 'registrada',
+      estado: borrador.pendienteFactura ? 'pendiente_factura' : 'registrada',
       fecha_vencimiento_real: fechaVencimientoReal,
       observaciones: borrador.descripcion,
       created_by: usuario.id,
     })
-    .select('id')
+    .select('id, codigo, total')
     .single()
 
   if (errIns) {
@@ -791,7 +811,85 @@ export async function registrarPagoDirecto(borrador: BorradorPagoDirecto): Promi
     throw new Error(`No se pudo registrar el pago directo: ${errIns.message}`)
   }
 
-  return { id: obligacion.id }
+  return { id: obligacion.id, codigo: obligacion.codigo, total: Number(obligacion.total) }
+}
+
+/**
+ * Pieza E: llegó la factura que faltaba. Completa los datos reales, calcula
+ * el vencimiento con la condición de pago que se guardó al registrar, y pasa
+ * la obligación a `registrada` para que siga el embudo normal (conformidad →
+ * propuesta → pago).
+ */
+export async function completarFacturaPagoDirecto(input: {
+  obligacionId: string
+  numeroFactura: string
+  fechaFactura: string
+  baseImponible: number
+}): Promise<void> {
+  const supabase = crearClienteServidor()
+
+  const { data: obligacion, error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id, estado, proveedor_id, condicion_pago_dias')
+    .eq('id', input.obligacionId)
+    .maybeSingle()
+  if (error || !obligacion) throw new Error('No se encontró la obligación.')
+  if (obligacion.estado !== 'pendiente_factura') {
+    throw new Error('Esta obligación ya tiene su factura registrada.')
+  }
+
+  const numeroFacturaNormalizado = normalizarNumeroFactura(input.numeroFactura)
+  const { data: facturaExistente } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id')
+    .eq('proveedor_id', obligacion.proveedor_id)
+    .eq('numero_factura', numeroFacturaNormalizado)
+    .maybeSingle()
+  if (facturaExistente) {
+    throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
+  }
+
+  const { error: errUpd } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .update({
+      numero_factura: numeroFacturaNormalizado,
+      fecha_factura: input.fechaFactura,
+      base_imponible: input.baseImponible,
+      igv: igvDeBase(input.baseImponible),
+      estado: 'registrada',
+      fecha_vencimiento_real: calcularFechaVencimientoReal(input.fechaFactura, obligacion.condicion_pago_dias ?? 0),
+    })
+    .eq('id', input.obligacionId)
+  if (errUpd) throw new Error(`No se pudo completar la factura: ${errUpd.message}`)
+}
+
+/**
+ * Sube la cotización que sustenta un Pago Directo registrado sin factura
+ * (Pieza E) — mismo bucket y mismo patrón de path que el resto de los
+ * documentos de compras (`legajos-compras`, `<YYYY>/<MM>/<codigo>/…`).
+ * Best-effort: la obligación ya está creada cuando esto corre.
+ */
+export async function subirCotizacionPagoDirecto(obligacionId: string, codigo: string, archivo: File): Promise<boolean> {
+  if (!archivo || archivo.size === 0) return false
+  const supabase = crearClienteServidor()
+  const ahora = new Date()
+  const yyyy = String(ahora.getFullYear())
+  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
+  const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const path = `${yyyy}/${mm}/${codigo}/cotizacion-${Date.now()}-${nombreLimpio}`
+
+  const { error } = await supabase.storage.from('legajos-compras').upload(path, archivo, { contentType: archivo.type || undefined })
+  if (error) return false
+
+  const { error: errUpd } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .update({ cotizacion_storage_path: path })
+    .eq('id', obligacionId)
+  return !errUpd
 }
 
 /** Para la ficha de la OC: si ya se registró una factura, de acá sale el link a la obligación.

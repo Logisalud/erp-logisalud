@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearOSAction, type EstadoFormulario } from './actions'
@@ -8,6 +9,8 @@ import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
 type ProveedorServicio = { id: string; razon_social: string }
 
 export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[] }) {
+  // El aviso por correo (Pieza K) necesita el nombre del proveedor, no el id.
+  const [proveedorId, setProveedorId] = useState('')
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearOSAction, null)
   const sucio = useMarcarSucioAlEditar()
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
@@ -19,8 +22,16 @@ export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[]
       ) : null}
 
       <section className="card space-y-3">
-        <Campo etiqueta="Proveedor de servicio" error={errorDe('proveedorServicioId')}>
-          <select name="proveedorServicioId" required className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+        <Campo etiqueta="Proveedor de servicio *" error={errorDe('proveedorServicioId')}>
+          <input
+            type="hidden" name="proveedorNombre"
+            value={proveedores.find((p) => p.id === proveedorId)?.razon_social ?? ''}
+          />
+          <select
+            name="proveedorServicioId" required value={proveedorId}
+            onChange={(e) => setProveedorId(e.target.value)}
+            className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
+          >
             <option value="">Elige uno…</option>
             {proveedores.map((p) => (
               <option key={p.id} value={p.id}>{p.razon_social}</option>

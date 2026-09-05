@@ -1,8 +1,11 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { crearOC } from '@/services/ordenes-compra'
-import { validarOC, type BorradorOC } from '@/domain/orden-compra'
+import { avisarCreacionSinRomper } from '@/services/avisos'
+import { formatoMonto } from '@/domain/aviso-email'
+import { calcularTotales, validarOC, type BorradorOC } from '@/domain/orden-compra'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 
@@ -33,12 +36,38 @@ export async function crearOrdenCompra(
   const errores = validarOC(borrador)
   if (errores.length > 0) return { errores }
 
-  let oc: { id: string }
+  let oc: { id: string; codigo: string }
   try {
     oc = await crearOC(borrador)
   } catch (e) {
     return { errores: [{ campo: 'general', mensaje: (e as Error).message }] }
   }
+
+  // Pieza K: aviso a Contabilidad al crear la orden.
+  const totales = calcularTotales(lineas)
+  const [usuario, perfil] = await Promise.all([exigirUsuario(), perfilActual()])
+  const proveedorNombre = String(form.get('proveedorNombre') ?? '').trim()
+  await avisarCreacionSinRomper({
+    tipo: 'oc_mercaderia',
+    codigo: oc.codigo,
+    monto: totales.total,
+    moneda: borrador.moneda,
+    referencia: proveedorNombre || 'Orden de compra',
+    filas: [
+      { etiqueta: 'Creada por', valor: perfil?.nombre ?? usuario.email ?? null },
+      { etiqueta: 'Tipo', valor: 'OC de mercadería' },
+      { etiqueta: 'Proveedor', valor: proveedorNombre || null },
+      { etiqueta: 'Monto', valor: formatoMonto(totales.total, borrador.moneda) },
+      { etiqueta: 'Líneas', valor: String(lineas.length) },
+      { etiqueta: 'Fecha emisión', valor: borrador.fechaEmision },
+      {
+        etiqueta: 'Condición pago',
+        valor: borrador.condicionesPagoDias != null ? `${borrador.condicionesPagoDias} días` : null,
+      },
+    ],
+    ruta: `/ordenes-compra/${oc.id}`,
+    creadorCorreo: usuario.email ?? null,
+  })
 
   redirect(`/ordenes-compra/${oc.id}`)
 }

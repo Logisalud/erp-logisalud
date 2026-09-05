@@ -12,6 +12,7 @@
  */
 
 export const ESTADOS_OBLIGACION = [
+  'pendiente_factura',
   'registrada',
   'observada',
   'conforme',
@@ -23,6 +24,7 @@ export const ESTADOS_OBLIGACION = [
 export type EstadoObligacion = (typeof ESTADOS_OBLIGACION)[number]
 
 export const ETIQUETA_ESTADO: Record<EstadoObligacion, string> = {
+  pendiente_factura: 'Pendiente de factura',
   registrada: 'Registrada',
   observada: 'Observada',
   conforme: 'Conforme',
@@ -42,6 +44,10 @@ export const ETIQUETA_ESTADO: Record<EstadoObligacion, string> = {
  * domain/orden-compra.ts.
  */
 const TRANSICIONES: Record<EstadoObligacion, readonly EstadoObligacion[]> = {
+  // Pago Directo registrado con una cotización, cuando el proveedor todavía
+  // no emitió la factura: la única salida es completar los datos reales de
+  // la factura. No puede darse conformidad ni pagarse desde acá.
+  pendiente_factura: ['registrada'],
   registrada: ['observada', 'conforme'],
   observada: ['conforme'],
   conforme: ['canjeada_por_letra'],
@@ -226,6 +232,18 @@ export function validarObligacion(b: BorradorObligacion): ErrorValidacion[] {
 }
 
 /**
+ * Igual que `validarObligacion` pero sin exigir número ni fecha de factura:
+ * es el caso de un Pago Directo registrado contra una COTIZACIÓN, cuando el
+ * proveedor todavía no emitió el comprobante (Pieza E). Todo lo demás —
+ * proveedor, base, moneda, tipo de cambio en USD — se sigue exigiendo: el
+ * monto comprometido ya se conoce, es lo que dice la cotización.
+ */
+export function validarObligacionSinFactura(b: BorradorObligacion): ErrorValidacion[] {
+  return validarObligacion({ ...b, numeroFactura: 'sin-factura-aun', fechaFactura: '0000-00-00' })
+    .filter((e) => e.campo !== 'numeroFactura' && e.campo !== 'fechaFactura')
+}
+
+/**
  * "Pago directo" — origen `gasto_directo`: factura de un proveedor SIN
  * Orden de Compra ni Orden de Servicio (luz, agua, peajes, notaría,
  * seguros, courier…). El beneficiario es el proveedor, no un empleado —
@@ -243,11 +261,36 @@ export const TOPE_PAGO_DIRECTO_PEN = 5000
 export type BorradorPagoDirecto = BorradorObligacion & {
   categoriaId: string
   descripcion: string
+  /** Pieza E: el proveedor todavía no emitió la factura y lo que se registra
+   * es la cotización. Sin número ni fecha de factura, que llegan después. */
+  pendienteFactura?: boolean
+  /** Pieza F: días de crédito con los que se calcula el vencimiento del pago
+   * (0 = contado). Se propone el del proveedor y se puede ajustar. */
+  condicionPagoDias?: number | null
+}
+
+/**
+ * Condiciones de pago que ofrece el desplegable — las mismas que maneja
+ * Compras con los proveedores reales (Prades varía 75/90/105, ver
+ * CONTEXTO.md). "Contado" es 0 días, no un caso aparte.
+ */
+export const CONDICIONES_PAGO_DIAS = [0, 15, 30, 45, 60, 75, 90, 105] as const
+
+export function etiquetaCondicionPago(dias: number): string {
+  return dias === 0 ? 'Contado' : `${dias} días`
+}
+
+/** IGV que se le calcula a una base — el mismo 18% que muestra la pantalla. */
+export function igvDeBase(baseImponible: number): number {
+  return redondear((Number(baseImponible) || 0) * TASA_IGV)
 }
 
 export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
-  const errores = validarObligacion(b)
+  const errores = b.pendienteFactura ? validarObligacionSinFactura(b) : validarObligacion(b)
   if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elige una categoría.' })
+  if (b.condicionPagoDias != null && !CONDICIONES_PAGO_DIAS.includes(b.condicionPagoDias as (typeof CONDICIONES_PAGO_DIAS)[number])) {
+    errores.push({ campo: 'condicionPagoDias', mensaje: 'Elige una condición de pago de la lista.' })
+  }
   if (!b.descripcion.trim()) errores.push({ campo: 'descripcion', mensaje: 'Cuenta para qué es este gasto.' })
   if (b.moneda === 'PEN' && b.baseImponible * (1 + TASA_IGV) >= TOPE_PAGO_DIRECTO_PEN) {
     errores.push({
