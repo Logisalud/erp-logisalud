@@ -372,3 +372,77 @@ export function mapLegacySnapshotRows(
 
   return { rows, errors, warnings };
 }
+
+// ---------------------------------------------------------------------
+// Reimportación sobre clientes que ya existen
+// ---------------------------------------------------------------------
+
+/** Lo que la base ya tiene de un cliente, para decidir qué se pisa y qué no. */
+export type ClienteExistente = {
+  canalId: number | null;
+  condicionPagoHabitualId: number | null;
+  estado: CustomerEstado;
+};
+
+export type CamposDeCartera = {
+  canalId: number;
+  condicionPagoHabitualId: number | null;
+  estado: CustomerEstado;
+};
+
+/**
+ * Qué valor de canal, condición de pago habitual y estado se escribe al
+ * reimportar la cartera.
+ *
+ * Estos tres campos NO vienen del archivo: el canal lo pone el importador
+ * por defecto, la condición habitual entra en null, y el estado se deriva
+ * del documento. Los tres, en cambio, sí se corrigen a mano después — el
+ * canal decide el precio de lista, la condición habitual decide si el
+ * pedido cae en excepción administrativa, y el estado es el resultado de
+ * la validación de un cliente nuevo. Pisarlos en cada reimportación
+ * borraba ese trabajo en silencio.
+ *
+ * La regla: **sobre un cliente que ya existe estos tres campos no se
+ * tocan; sólo se completan si están vacíos.** El estado de uno que ya
+ * existe nunca se recalcula: es una decisión de una persona (se validó, se
+ * rechazó, se dio de baja), no un dato del archivo.
+ *
+ * Lo que sí se actualiza siempre con lo que traiga el archivo —razón
+ * social, zona, vendedor, distrito/provincia/departamento, celular— no
+ * pasa por acá: eso es identificación y ubicación, y el archivo nuevo es
+ * la fuente.
+ */
+export function resolverCamposDeCartera(input: {
+  existente: ClienteExistente | null;
+  canalPorDefectoId: number;
+  estadoDelArchivo: CustomerEstado;
+}): CamposDeCartera {
+  const { existente, canalPorDefectoId, estadoDelArchivo } = input;
+
+  if (!existente) {
+    return {
+      canalId: canalPorDefectoId,
+      condicionPagoHabitualId: null,
+      estado: estadoDelArchivo,
+    };
+  }
+
+  return {
+    canalId: existente.canalId ?? canalPorDefectoId,
+    condicionPagoHabitualId: existente.condicionPagoHabitualId,
+    estado: existente.estado,
+  };
+}
+
+/** Si reimportar este cliente pisaría algo que alguien puso a mano. */
+export function pisaTrabajoManual(input: {
+  existente: ClienteExistente;
+  canalPorDefectoId: number;
+  estadoDelArchivo: CustomerEstado;
+}): { canal: boolean; condicionPago: boolean; estado: boolean } {
+  return {
+    canal: input.existente.canalId !== null && input.existente.canalId !== input.canalPorDefectoId,
+    condicionPago: input.existente.condicionPagoHabitualId !== null,
+    estado: input.existente.estado !== input.estadoDelArchivo,
+  };
+}
