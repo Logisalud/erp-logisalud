@@ -1,15 +1,11 @@
 import { Encabezado } from '@/components/nav'
 import { obtenerOCParaFacturaDirecta } from '@/services/facturas-pendientes'
-import { listarTasasDetraccion } from '@/services/obligaciones'
 import { FormularioFacturaCompra } from './formulario'
 
 export const dynamic = 'force-dynamic'
 
 export default async function RegistrarFacturaDirecta({ params }: { params: { ocId: string } }) {
-  const [oc, tasasDetraccion] = await Promise.all([
-    obtenerOCParaFacturaDirecta(params.ocId),
-    listarTasasDetraccion(),
-  ])
+  const oc = await obtenerOCParaFacturaDirecta(params.ocId)
 
   if (!oc) {
     return (
@@ -42,7 +38,6 @@ export default async function RegistrarFacturaDirecta({ params }: { params: { oc
         ocCodigo={oc.codigo}
         moneda={oc.moneda}
         items={oc.items}
-        tasasDetraccion={tasasDetraccion}
       />
     </main>
   )

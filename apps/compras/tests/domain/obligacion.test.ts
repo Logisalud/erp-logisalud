@@ -8,7 +8,9 @@ import {
   redondear,
   transicionPermitida,
   etiquetaCondicionPago,
+  exigeRespuestaDetraccion,
   igvDeBase,
+  validarDeclaracionDetraccion,
   validarObligacion,
   validarObligacionSinFactura,
   validarPagoDirecto,
@@ -185,7 +187,7 @@ describe('validarPagoDirecto', () => {
   })
 
   it('acepta un total apenas debajo del tope', () => {
-    const errores = validarPagoDirecto({ ...base, baseImponible: 4000 })
+    const errores = validarPagoDirecto({ ...base, baseImponible: 4000, tieneDetraccion: false })
     expect(errores).toEqual([])
   })
 
@@ -266,5 +268,44 @@ describe('pago directo pendiente de factura (Pieza E)', () => {
     expect(transicionPermitida('pendiente_factura', 'registrada')).toBe(true)
     expect(transicionPermitida('pendiente_factura', 'conforme')).toBe(false)
     expect(transicionPermitida('pendiente_factura', 'pagada')).toBe(false)
+  })
+})
+
+describe('exigeRespuestaDetraccion / validarDeclaracionDetraccion (sesión 2026-09-07)', () => {
+  it('exige contestar cuando el total en soles supera S/700', () => {
+    expect(exigeRespuestaDetraccion(700.01, 'PEN')).toBe(true)
+    expect(exigeRespuestaDetraccion(701, 'PEN')).toBe(true)
+  })
+
+  it('no exige con exactamente 700 o menos', () => {
+    expect(exigeRespuestaDetraccion(700, 'PEN')).toBe(false)
+    expect(exigeRespuestaDetraccion(500, 'PEN')).toBe(false)
+  })
+
+  it('en USD nunca exige — no hay tipo de cambio de referencia para el umbral', () => {
+    expect(exigeRespuestaDetraccion(10000, 'USD')).toBe(false)
+  })
+
+  it('por debajo del umbral, sin contestar, no hay error', () => {
+    expect(validarDeclaracionDetraccion({ total: 500, moneda: 'PEN', tieneDetraccion: null })).toEqual([])
+  })
+
+  it('por encima del umbral, sin contestar, exige tieneDetraccion', () => {
+    const errores = validarDeclaracionDetraccion({ total: 800, moneda: 'PEN', tieneDetraccion: null })
+    expect(errores).toEqual([{ campo: 'tieneDetraccion', mensaje: expect.stringContaining('S/700') }])
+  })
+
+  it('por encima del umbral, contestando que no, no exige nada más', () => {
+    expect(validarDeclaracionDetraccion({ total: 800, moneda: 'PEN', tieneDetraccion: false })).toEqual([])
+  })
+
+  it('contestando que sí, exige % y monto positivos', () => {
+    const errores = validarDeclaracionDetraccion({ total: 800, moneda: 'PEN', tieneDetraccion: true, porcentaje: 0, monto: 0 })
+    expect(errores.map((e) => e.campo).sort()).toEqual(['montoDetraccion', 'porcentajeDetraccion'])
+  })
+
+  it('contestando que sí con % y monto completos, sin errores', () => {
+    const errores = validarDeclaracionDetraccion({ total: 800, moneda: 'PEN', tieneDetraccion: true, porcentaje: 12, monto: 96 })
+    expect(errores).toEqual([])
   })
 })

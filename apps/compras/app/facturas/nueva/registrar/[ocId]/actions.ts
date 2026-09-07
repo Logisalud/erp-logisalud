@@ -25,9 +25,6 @@ export async function registrarFacturaAction(
   const igvFactura = Number(form.get('igvFactura') ?? 0)
   const totalFactura = Number(form.get('totalFactura') ?? 0)
   const tipoCambio = numeroONull(form.get('tipoCambio'))
-  const tasaDetraccionId = textoONull(form.get('tasaDetraccionId'))
-  const porcentajeDetraccion = numeroONull(form.get('porcentajeDetraccion'))
-  const montoDetraccion = numeroONull(form.get('montoDetraccion'))
   const fechaRecepcionFactura = textoONull(form.get('fechaRecepcionFactura'))
   const lineas = leerLineas(form)
 
@@ -53,9 +50,6 @@ export async function registrarFacturaAction(
     igvFactura,
     totalFactura,
     tipoCambio,
-    tasaDetraccionId,
-    porcentajeDetraccion,
-    montoDetraccion,
     fechaRecepcionFactura,
     lineas,
     storagePath,

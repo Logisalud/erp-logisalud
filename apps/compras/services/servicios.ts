@@ -390,6 +390,10 @@ export async function registrarObligacionDesdeOS(borrador: BorradorObligacionSer
       tipo_cambio: borrador.tipoCambio ?? null,
       base_imponible: borrador.baseImponible,
       igv: borrador.igv,
+      // Sesión 2026-09-07: declaración explícita de quien registra, no una
+      // categoría de un catálogo — ver domain/obligacion.ts::validarDeclaracionDetraccion.
+      porcentaje_detraccion: borrador.tieneDetraccion ? borrador.porcentajeDetraccion : null,
+      monto_detraccion: borrador.tieneDetraccion ? borrador.montoDetraccion ?? 0 : 0,
       estado: 'registrada',
       created_by: usuario.id,
     })

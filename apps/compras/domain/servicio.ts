@@ -9,6 +9,8 @@
  * el servicio se cumplió — dos hechos independientes, no un paso único.
  */
 
+import { redondear, validarDeclaracionDetraccion } from './obligacion'
+
 export type Moneda = 'PEN' | 'USD'
 export type ErrorValidacion = { campo: string; mensaje: string }
 
@@ -157,6 +159,10 @@ export type BorradorObligacionServicio = {
   tipoCambio?: number | null
   baseImponible: number
   igv: number
+  /** Detracción declarada por quien registra — ver domain/obligacion.ts::validarDeclaracionDetraccion. */
+  tieneDetraccion?: boolean | null
+  porcentajeDetraccion?: number | null
+  montoDetraccion?: number | null
 }
 
 /** Datos de la OS necesarios para chequear que la factura no la supere — ver facturaSuperaMontoOS. */
@@ -178,20 +184,14 @@ export function validarObligacionServicio(b: BorradorObligacionServicio, os?: OS
       mensaje: `La factura supera el monto de la Orden de Servicio (${os.moneda} ${os.montoEstimado.toFixed(2)}${os.montoIncluyeIgv ? ' con IGV' : ' sin IGV'}).`,
     })
   }
+  errores.push(
+    ...validarDeclaracionDetraccion({
+      total: redondear(Number(b.baseImponible) + Number(b.igv)),
+      moneda: (os?.moneda ?? 'PEN') as 'PEN' | 'USD',
+      tieneDetraccion: b.tieneDetraccion ?? null,
+      porcentaje: b.porcentajeDetraccion,
+      monto: b.montoDetraccion,
+    })
+  )
   return errores
-}
-
-/**
- * Regla 1.8: una factura de servicio en soles que supera S/700 suele caer
- * en detracción (Anexo 3 SUNAT) — pero la tasa exacta depende de la
- * categoría de servicio, que todavía no está modelada acá (ver "Pendiente
- * de confirmar" del documento maestro, sección 10: "tasas de detracción
- * reales del anexo SUNAT"). Por eso esto es una ALERTA, no un cálculo ni un
- * bloqueo — Contabilidad decide si aplica y por cuánto, igual que la
- * alerta de comprobante no sustentable (regla 12).
- */
-export const UMBRAL_DETRACCION_SERVICIOS_PEN = 700
-
-export function superaUmbralDetraccion(totalFactura: number, moneda: Moneda): boolean {
-  return moneda === 'PEN' && totalFactura > UMBRAL_DETRACCION_SERVICIOS_PEN
 }

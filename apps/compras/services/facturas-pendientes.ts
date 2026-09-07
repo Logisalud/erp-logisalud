@@ -17,6 +17,13 @@ import { crearObligacionCompraMultiRecepcion, type LineaFacturacionCompra } from
 
 export type LineaFacturaInput = { ocItemId: string; cantidadFacturada: number; precioFacturado: number }
 
+// Sin campos de detracción: esta pantalla es para OC de mercadería/bien
+// (compras.ordenes_compra, catálogo de productos) — la detracción real
+// (Anexo SUNAT) aplica a servicios, no a bienes. Mismo criterio ya
+// documentado en app/cuentas-por-pagar/nueva/[recepcionId]/formulario.tsx
+// para el flujo viejo de una sola recepción. `facturas_pendientes.
+// porcentaje_detraccion`/`monto_detraccion`/`tasa_detraccion_id` quedan en
+// la tabla (0028) pero sin usarse desde acá.
 export type BorradorFacturaCompra = {
   ocId: string
   numeroFactura: string
@@ -31,9 +38,6 @@ export type BorradorFacturaCompra = {
   igvFactura: number
   totalFactura: number
   tipoCambio: number | null
-  tasaDetraccionId: string | null
-  porcentajeDetraccion: number | null
-  montoDetraccion: number | null
   /** Informativa — nunca participa del cálculo de vencimiento (regla 3). */
   fechaRecepcionFactura: string | null
   lineas: LineaFacturaInput[]
@@ -194,9 +198,6 @@ export async function registrarFacturaCompra(borrador: BorradorFacturaCompra): P
       base_imponible: borrador.baseFactura,
       igv: borrador.igvFactura,
       total: borrador.totalFactura,
-      tasa_detraccion_id: borrador.tasaDetraccionId,
-      porcentaje_detraccion: borrador.porcentajeDetraccion,
-      monto_detraccion: borrador.montoDetraccion,
       tipo_cambio: borrador.tipoCambio,
       fecha_recepcion_factura: borrador.fechaRecepcionFactura,
       lineas: borrador.lineas,
@@ -222,7 +223,7 @@ async function procesarFacturaPendiente(facturaPendienteId: string, ocYaCargada?
   const { data: fila, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('facturas_pendientes')
-    .select('id, oc_id, numero_factura, fecha_factura, tipo_cambio, tasa_detraccion_id, monto_detraccion, lineas, estado')
+    .select('id, oc_id, numero_factura, fecha_factura, tipo_cambio, lineas, estado')
     .eq('id', facturaPendienteId)
     .maybeSingle()
   if (error || !fila) throw new Error('No se encontró la factura pendiente.')
@@ -279,8 +280,6 @@ async function procesarFacturaPendiente(facturaPendienteId: string, ocYaCargada?
     tipoCambio: fila.tipo_cambio,
     numeroFactura: fila.numero_factura ?? '',
     fechaFactura: fila.fecha_factura ?? new Date().toISOString().slice(0, 10),
-    tasaDetraccionId: fila.tasa_detraccion_id,
-    montoDetraccion: fila.monto_detraccion,
     lineas: lineasFacturacion,
     recepcionIds,
     fechaVencimientoReal,

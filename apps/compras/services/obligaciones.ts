@@ -306,6 +306,10 @@ export async function registrarObligacionDesdeRecepcion(
 
 export type LineaFacturacionCompra = { ocItemId: string; cantidadFacturada: number; precioFacturado: number }
 
+// Sin campos de detracción: origen 'compra' es mercadería/bien, y la
+// detracción real (Anexo SUNAT) aplica a servicios — mismo criterio que
+// registrarObligacionDesdeRecepcion (flujo viejo) y
+// services/facturas-pendientes.ts::BorradorFacturaCompra.
 export type InputObligacionMultiRecepcion = {
   ocId: string
   proveedorId: string
@@ -313,8 +317,6 @@ export type InputObligacionMultiRecepcion = {
   tipoCambio: number | null
   numeroFactura: string
   fechaFactura: string
-  tasaDetraccionId: string | null
-  montoDetraccion: number | null
   lineas: LineaFacturacionCompra[]
   /** Ya resueltas por el llamador (services/facturas-pendientes.ts): las
    * recepciones conformes de esta OC que esta factura cubre. */
@@ -375,8 +377,6 @@ export async function crearObligacionCompraMultiRecepcion(
       moneda: input.moneda,
       tipo_cambio: input.tipoCambio,
       base_imponible: input.baseImponible,
-      tasa_detraccion_id: input.tasaDetraccionId,
-      monto_detraccion: input.montoDetraccion ?? 0,
       estado: input.conforme ? 'registrada' : 'observada',
       fecha_vencimiento_real: input.fechaVencimientoReal,
       created_by: usuario.id,
@@ -794,8 +794,11 @@ export async function registrarPagoDirecto(
       // columnas generadas sobre (base + igv), Tesorería veía 18% de menos.
       igv: igvDeBase(borrador.baseImponible),
       condicion_pago_dias: condicionPagoDias,
-      tasa_detraccion_id: borrador.tasaDetraccionId,
-      monto_detraccion: borrador.montoDetraccion ?? 0,
+      // Sesión 2026-09-07: ya no se elige una categoría de
+      // `tasas_detraccion` (catálogo nunca cargado) — quien registra
+      // declara directamente el % mirando la factura real.
+      porcentaje_detraccion: borrador.tieneDetraccion ? borrador.porcentajeDetraccion : null,
+      monto_detraccion: borrador.tieneDetraccion ? borrador.montoDetraccion ?? 0 : 0,
       estado: borrador.pendienteFactura ? 'pendiente_factura' : 'registrada',
       fecha_vencimiento_real: fechaVencimientoReal,
       observaciones: borrador.descripcion,
@@ -923,16 +926,4 @@ export async function listarObligacionesPorOC(
     .order('created_at', { ascending: false })
   if (error) throw new Error(`No se pudieron listar las obligaciones de la orden: ${error.message}`)
   return (data ?? []).map((o) => ({ ...o, neto_a_pagar: Number(o.neto_a_pagar) }))
-}
-
-export async function listarTasasDetraccion() {
-  const supabase = crearClienteServidor()
-  const { data, error } = await supabase
-    .schema('cuentas_x_pagar')
-    .from('tasas_detraccion')
-    .select('id, categoria, porcentaje, anexo_sunat')
-    .eq('vigente', true)
-    .order('categoria')
-  if (error) throw new Error(`No se pudieron listar las tasas de detracción: ${error.message}`)
-  return data ?? []
 }

@@ -5,37 +5,33 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarPagoDirectoAction, type EstadoFormulario } from './actions'
 import {
-  calcularDetraccionSugerida,
   CONDICIONES_PAGO_DIAS,
   etiquetaCondicionPago,
   igvDeBase,
 } from '@/domain/obligacion'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
+import { CampoDetraccion } from '@/components/campo-detraccion'
 
 type CategoriaOpcion = { id: string; nombre: string }
-type TasaDetraccion = { id: string; categoria: string; porcentaje: number; anexo_sunat: string | null }
 
 const fmt = (n: number) => n.toFixed(2)
 
 export function FormularioPagoDirecto({
-  categorias, tasasDetraccion,
+  categorias,
 }: {
   categorias: CategoriaOpcion[]
-  tasasDetraccion: TasaDetraccion[]
 }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(registrarPagoDirectoAction, null)
   const sucio = useMarcarSucioAlEditar()
   const [proveedor, setProveedor] = useState<ProveedorElegido | null>(null)
-  const [moneda, setMoneda] = useState('PEN')
+  const [moneda, setMoneda] = useState<'PEN' | 'USD'>('PEN')
   const [categoriaId, setCategoriaId] = useState('')
   const [baseImponible, setBaseImponible] = useState('')
-  const [tasaDetraccionId, setTasaDetraccionId] = useState('')
+  const [tieneDetraccion, setTieneDetraccion] = useState<boolean | null>(null)
+  const [porcentajeDetraccion, setPorcentajeDetraccion] = useState('')
   const [montoDetraccion, setMontoDetraccion] = useState('')
   const [pendienteFactura, setPendienteFactura] = useState(false)
   const [condicionPagoDias, setCondicionPagoDias] = useState<number | null>(null)
-
-  const tasaElegida = tasasDetraccion.find((t) => t.id === tasaDetraccionId)
-  const detraccionSugerida = tasaElegida ? calcularDetraccionSugerida(Number(baseImponible) || 0, tasaElegida.porcentaje) : null
 
   // Pieza B1: el IGV no es editable, pero sí tiene que verse mientras se
   // escribe la base — antes había que guardar para descubrir el total.
@@ -52,7 +48,7 @@ export function FormularioPagoDirecto({
 
   // Pieza G: registrar en dólares es la excepción, no un ítem más de un
   // desplegable — el cambio de moneda pide confirmación explícita.
-  const elegirMoneda = (nueva: string) => {
+  const elegirMoneda = (nueva: 'PEN' | 'USD') => {
     if (nueva === 'USD' && moneda !== 'USD') {
       const ok = window.confirm('¿Estás seguro? Vas a registrar este pago en dólares.')
       if (!ok) return
@@ -139,7 +135,7 @@ export function FormularioPagoDirecto({
       <section className="card grid gap-3 sm:grid-cols-2">
         <Campo etiqueta="Moneda *" error={errorDe('moneda')}>
           <div className="flex gap-2">
-            {['PEN', 'USD'].map((m) => (
+            {(['PEN', 'USD'] as const).map((m) => (
               <button
                 key={m} type="button" onClick={() => elegirMoneda(m)}
                 aria-pressed={moneda === m}
@@ -197,35 +193,19 @@ export function FormularioPagoDirecto({
         </div>
       </section>
 
-      <section className="card space-y-3">
-        <h2 className="font-heading text-lg">Detracción</h2>
-        <Campo etiqueta="Categoría">
-          <select
-            name="tasaDetraccionId"
-            value={tasaDetraccionId}
-            onChange={(e) => { setTasaDetraccionId(e.target.value); setMontoDetraccion('') }}
-            className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
-          >
-            <option value="">Sin detracción</option>
-            {tasasDetraccion.map((t) => (
-              <option key={t.id} value={t.id}>{t.categoria} — {t.porcentaje}%</option>
-            ))}
-          </select>
-        </Campo>
-        {tasaElegida ? (
-          <Campo etiqueta="Monto de detracción" error={errorDe('montoDetraccion')}>
-            <input
-              type="number" name="montoDetraccion" min="0" step="0.01"
-              value={montoDetraccion || (detraccionSugerida != null ? String(detraccionSugerida) : '')}
-              onChange={(e) => setMontoDetraccion(e.target.value)}
-              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Sugerido: {detraccionSugerida} (base + IGV × {tasaElegida.porcentaje}%) — se puede ajustar.
-            </p>
-          </Campo>
-        ) : null}
-      </section>
+      <CampoDetraccion
+        total={total}
+        moneda={moneda}
+        tieneDetraccion={tieneDetraccion}
+        onTieneDetraccionChange={setTieneDetraccion}
+        porcentaje={porcentajeDetraccion}
+        onPorcentajeChange={setPorcentajeDetraccion}
+        monto={montoDetraccion}
+        onMontoChange={setMontoDetraccion}
+        errorTieneDetraccion={errorDe('tieneDetraccion')}
+        errorPorcentaje={errorDe('porcentajeDetraccion')}
+        errorMonto={errorDe('montoDetraccion')}
+      />
 
       <BotonGuardar />
     </form>

@@ -1,22 +1,47 @@
 import { describe, expect, it } from 'vitest'
 import {
   estadoTrasConformidad, estadoTrasRegistrarObligacion, estadoTrasSubirFactura, transicionPermitida,
-  validarObligacionServicio, validarOS, superaUmbralDetraccion, facturaSuperaMontoOS,
+  validarObligacionServicio, validarOS, facturaSuperaMontoOS,
+  type BorradorObligacionServicio,
 } from '@/domain/servicio'
 
-describe('superaUmbralDetraccion', () => {
-  it('alerta cuando el total en soles supera S/700', () => {
-    expect(superaUmbralDetraccion(700.01, 'PEN')).toBe(true)
-    expect(superaUmbralDetraccion(701, 'PEN')).toBe(true)
+// exigeRespuestaDetraccion/UMBRAL_DETRACCION_PEN se movieron a domain/obligacion.ts
+// (sesión 2026-09-07): dejaron de ser exclusivos de Servicios — Pago Directo y OC
+// también los usan. Sus tests están en tests/domain/obligacion.test.ts.
+
+describe('validarObligacionServicio — detracción declarada (sesión 2026-09-07)', () => {
+  const base: BorradorObligacionServicio = {
+    osId: 'os-1', numeroFactura: 'F001-1', fechaFactura: '2026-09-01', baseImponible: 1000, igv: 180,
+  }
+  const os = { montoEstimado: 5000, montoIncluyeIgv: false, moneda: 'PEN' as const }
+
+  it('por encima de S/700 en soles, exige contestar sí/no', () => {
+    const errores = validarObligacionServicio(base, os)
+    expect(errores.some((e) => e.campo === 'tieneDetraccion')).toBe(true)
   })
 
-  it('no alerta con exactamente 700 o menos', () => {
-    expect(superaUmbralDetraccion(700, 'PEN')).toBe(false)
-    expect(superaUmbralDetraccion(500, 'PEN')).toBe(false)
+  it('contestando que sí, exige % y monto', () => {
+    const errores = validarObligacionServicio({ ...base, tieneDetraccion: true }, os)
+    expect(errores.some((e) => e.campo === 'porcentajeDetraccion')).toBe(true)
+    expect(errores.some((e) => e.campo === 'montoDetraccion')).toBe(true)
   })
 
-  it('no alerta en USD — la detracción se calcula sobre soles', () => {
-    expect(superaUmbralDetraccion(1000, 'USD')).toBe(false)
+  it('contestando que sí con % y monto, sin errores de detracción', () => {
+    const errores = validarObligacionServicio(
+      { ...base, tieneDetraccion: true, porcentajeDetraccion: 12, montoDetraccion: 141.6 },
+      os
+    )
+    expect(errores.some((e) => e.campo.startsWith('tieneDetraccion') || e.campo.includes('Detraccion'))).toBe(false)
+  })
+
+  it('contestando que no, no exige nada más', () => {
+    const errores = validarObligacionServicio({ ...base, tieneDetraccion: false }, os)
+    expect(errores.some((e) => e.campo.includes('Detraccion'))).toBe(false)
+  })
+
+  it('por debajo del umbral no exige contestar', () => {
+    const errores = validarObligacionServicio({ ...base, baseImponible: 100, igv: 18 }, os)
+    expect(errores.some((e) => e.campo === 'tieneDetraccion')).toBe(false)
   })
 })
 
