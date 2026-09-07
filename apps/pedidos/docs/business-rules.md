@@ -617,13 +617,51 @@ PDF descargable en la app.
 - **Nota obligatoria en el correo**: "Documento de control interno — no
   válido como comprobante de pago. El comprobante electrónico se genera
   al momento del despacho."
-- **Lista vacía no es un error**: el pedido se envía igual y queda
-  registrado como `sin_destinatarios` en `notification_logs` (y en
-  `audit_logs`, porque ahí la causa es configuración pendiente).
+- **Nadie a quien avisar no es un error**: el pedido se envía igual y
+  queda registrado como `sin_destinatarios` en `notification_logs` (y en
+  `audit_logs`, porque ahí la causa es configuración pendiente). Ojo que
+  eso hoy exige que estén vacías las dos cosas: la lista fija y el correo
+  del vendedor del pedido (ver abajo).
 - **Un fallo de envío no revierte nada**: el pedido ya está `SUBMITTED`.
   Queda como `fallido` en `notification_logs` para reintentar a mano.
 - Solo el **administrador** gestiona la lista, en
   `/admin/configuracion/notificaciones`.
+
+### Quién recibe los avisos: la oficina fija + el vendedor del pedido
+
+Los destinatarios de los tres avisos (envío, excepción comercial,
+resolución de la aprobación) son la **suma** de dos cosas:
+
+1. La lista fija de `order_notification_recipients` — la oficina, siempre
+   la misma para cualquier pedido, gestionada por el administrador.
+2. El **vendedor responsable de ese pedido**, resuelto en el momento del
+   envío.
+
+El correo del vendedor sale de su cuenta (`orders.seller_id` →
+`sellers.user_id` → `profiles.email`), no de un campo aparte: así no hay
+dos correos del mismo vendedor que puedan discrepar.
+
+**Es `seller_id`, no `creado_por`.** Cuando un administrador arma el pedido
+a nombre de un vendedor (el selector "a nombre de qué vendedor/zona", que
+el administrador está obligado a usar — ver `resolveOrderSellerId`), el
+responsable comercial es el vendedor elegido: es su cliente, su zona y su
+venta, y es quien tiene que enterarse de que el pedido cayó en excepción o
+se aprobó. Quien lo armó no se pierde nada, porque un administrador ya está
+en la lista fija de la oficina.
+
+Tres detalles que importan:
+
+- **Sin duplicados**: la mezcla normaliza (espacios, mayúsculas) y
+  deduplica, así que un vendedor que además esté en la lista fija recibe un
+  solo correo.
+- **Desde el correo 1**: el vendedor entra en el primer aviso, así que ve
+  el hilo completo. Si entrara recién en el segundo, Outlook le mostraría
+  una conversación empezada a mitad.
+- **Un seller sin cuenta vinculada no frena nada**: hay vendedores de la
+  cartera que todavía no tienen cuenta de Auth. En ese caso el aviso sale
+  igual a la lista fija, y el motivo queda en el log. Y al revés: con la
+  lista fija vacía el aviso ahora **sí** sale, al vendedor — antes quedaba
+  como `sin_destinatarios` y no se enteraba nadie, ni él.
 
 ### Número de pedido
 
