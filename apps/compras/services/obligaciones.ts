@@ -306,6 +306,10 @@ export async function registrarObligacionDesdeRecepcion(
 
 export type LineaFacturacionCompra = { ocItemId: string; cantidadFacturada: number; precioFacturado: number }
 
+// Sin campos de detracción: origen 'compra' es mercadería/bien, y la
+// detracción real (Anexo SUNAT) aplica a servicios — mismo criterio que
+// registrarObligacionDesdeRecepcion (flujo viejo) y
+// services/facturas-pendientes.ts::BorradorFacturaCompra.
 export type InputObligacionMultiRecepcion = {
   ocId: string
   proveedorId: string
@@ -313,8 +317,6 @@ export type InputObligacionMultiRecepcion = {
   tipoCambio: number | null
   numeroFactura: string
   fechaFactura: string
-  porcentajeDetraccion: number | null
-  montoDetraccion: number | null
   lineas: LineaFacturacionCompra[]
   /** Ya resueltas por el llamador (services/facturas-pendientes.ts): las
    * recepciones conformes de esta OC que esta factura cubre. */
@@ -375,8 +377,6 @@ export async function crearObligacionCompraMultiRecepcion(
       moneda: input.moneda,
       tipo_cambio: input.tipoCambio,
       base_imponible: input.baseImponible,
-      porcentaje_detraccion: input.porcentajeDetraccion,
-      monto_detraccion: input.montoDetraccion ?? 0,
       estado: input.conforme ? 'registrada' : 'observada',
       fecha_vencimiento_real: input.fechaVencimientoReal,
       created_by: usuario.id,

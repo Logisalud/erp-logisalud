@@ -5,7 +5,6 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarFacturaAction, extraerCamposDeArchivoAction, type EstadoFormulario } from './actions'
 import { redondear } from '@/domain/obligacion'
-import { CampoDetraccion } from '@/components/campo-detraccion'
 
 type ItemOC = {
   ocItemId: string
@@ -43,9 +42,6 @@ export function FormularioFacturaCompra({
   const [igvEditadoAMano, setIgvEditadoAMano] = useState(false)
   const [total, setTotal] = useState('')
   const [totalEditadoAMano, setTotalEditadoAMano] = useState(false)
-  const [tieneDetraccion, setTieneDetraccion] = useState<boolean | null>(null)
-  const [porcentajeDetraccion, setPorcentajeDetraccion] = useState('')
-  const [montoDetraccion, setMontoDetraccion] = useState('')
   const [fechaRecepcionFactura, setFechaRecepcionFactura] = useState('')
 
   const [lineas, setLineas] = useState<Record<string, { cantidad: string; precio: string }>>(
@@ -65,14 +61,6 @@ export function FormularioFacturaCompra({
       const igvActual = igvEditadoAMano ? Number(igv) || 0 : redondear(n * SUGERENCIA_IGV)
       setTotal(n > 0 ? String(redondear(n + igvActual)) : '')
     }
-  }
-
-  const netoAPagar = redondear((Number(total) || 0) - (Number(montoDetraccion) || 0))
-
-  const cambiarPorcentajeDetraccion = (valor: string) => {
-    setPorcentajeDetraccion(valor)
-    const pct = Number(valor) || 0
-    setMontoDetraccion(pct > 0 ? String(redondear((Number(total) || 0) * (pct / 100))) : '')
   }
 
   async function leerArchivo(archivo: File) {
@@ -95,10 +83,6 @@ export function FormularioFacturaCompra({
     if (c.base != null && !base) cambiarBase(String(c.base))
     if (c.igv != null && !igv) { setIgv(String(c.igv)); setIgvEditadoAMano(true) }
     if (c.total != null && !total) { setTotal(String(c.total)); setTotalEditadoAMano(true) }
-    if (c.porcentajeDetraccion != null && !porcentajeDetraccion) {
-      setTieneDetraccion(true)
-      cambiarPorcentajeDetraccion(String(c.porcentajeDetraccion))
-    }
     setOcrMensaje('Se leyeron algunos campos del documento — revísalos, siguen editables.')
   }
 
@@ -181,22 +165,6 @@ export function FormularioFacturaCompra({
           Sugeridos en 18% desde la base — nunca desde el total de la orden de compra. Ajustalos si la factura trae otros valores.
         </p>
       </section>
-
-      <input type="hidden" name="moneda" value={moneda} />
-      <CampoDetraccion
-        total={Number(total) || 0}
-        moneda={moneda as 'PEN' | 'USD'}
-        tieneDetraccion={tieneDetraccion}
-        onTieneDetraccionChange={setTieneDetraccion}
-        porcentaje={porcentajeDetraccion}
-        onPorcentajeChange={setPorcentajeDetraccion}
-        monto={montoDetraccion}
-        onMontoChange={setMontoDetraccion}
-        errorTieneDetraccion={errorDe('tieneDetraccion')}
-        errorPorcentaje={errorDe('porcentajeDetraccion')}
-        errorMonto={errorDe('montoDetraccion')}
-      />
-      <p className="text-sm text-gray-700">Neto a pagar: <span className="font-medium tabular-nums">{netoAPagar.toFixed(2)}</span> {moneda}</p>
 
       <section className="card space-y-3">
         <h2 className="font-heading text-lg">Líneas facturadas</h2>
