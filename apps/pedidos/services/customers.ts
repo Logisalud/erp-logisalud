@@ -44,8 +44,9 @@ const CUSTOMER_OPTION_COLUMNS =
  * lento y —lo que pasó en producción— silenciosamente truncado. Buscar es
  * trabajo de `searchActiveCustomers`, en el servidor.
  *
- * RLS ya limita por zona si es vendedor, o muestra todos si es
- * admin/control_pedidos — ver customers_select en 0012_customers.sql.
+ * La RLS decide qué se ve (customers_select, 0012_customers.sql).
+ * TEMPORAL (2026-09-07, migración 1022): el filtro por zona del vendedor
+ * está apagado, así que hoy cualquier vendedor ve la cartera completa.
  */
 export async function listActiveCustomers(
   limit: number = INITIAL_CUSTOMER_LIMIT,
@@ -65,8 +66,10 @@ export async function listActiveCustomers(
 /**
  * Busca clientes ACTIVO por RUC/documento, razón social o nombre
  * comercial. Corre en el servidor con el cliente del usuario (nunca el
- * admin), así que **la RLS por zona aplica igual**: un vendedor solo
- * encuentra clientes de su(s) zona(s), un admin busca sobre todos.
+ * admin), así que **la RLS decide igual** qué entra en el resultado.
+ * TEMPORAL (2026-09-07, migración 1022): con el filtro de zona apagado, un
+ * vendedor encuentra clientes de cualquier zona; al reactivarlo vuelve a
+ * ver sólo los suyos sin tocar esta consulta.
  *
  * Coincidencia por `ilike %term%`, no por prefijo: la cartera legacy trae
  * nombres con basura al inicio (asteriscos, barras), así que buscar
@@ -203,11 +206,33 @@ export async function requestNewCustomer(input: {
  * servidor. Mejor decirle qué pasó.
  */
 /**
+ * Si el filtro de zona sigue vigente para los vendedores.
+ *
+ * La verdad está en la base (`pedidos.zonas_restringen_visibilidad()`, que
+ * usan las policies): la pantalla pregunta en vez de tener su propia copia
+ * del criterio, para que no puedan divergir cuando se revierta.
+ *
+ * Ante cualquier problema para leerla se asume el criterio ORIGINAL
+ * (restringido): equivocarse hacia el lado que muestra de menos es mejor
+ * que hacia el que muestra de más.
+ */
+export async function zonaRestringeVisibilidad(): Promise<boolean> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("zonas_restringen_visibilidad");
+  if (error) {
+    console.error("No se pudo leer la bandera de zonas:", error.message);
+    return true;
+  }
+  return data !== false;
+}
+
+/**
  * Las zonas que el usuario puede elegir al registrar un cliente.
  *
- * Un administrador ve todas. Un vendedor ve sólo las suyas, porque un
- * cliente en otra zona le queda invisible por RLS: la pantalla no debería
- * ofrecerle una opción que la base le va a rechazar.
+ * Un administrador ve todas. Un vendedor ve sólo las suyas —cuando el
+ * filtro de zona está activo—, porque un cliente en otra zona le quedaría
+ * invisible por RLS y la pantalla no debería ofrecerle una opción que la
+ * base le va a rechazar.
  *
  * La lista sale de `current_user_zone_ids()`, la misma función que usa la
  * policy — no se reimplementa el criterio acá.
@@ -217,7 +242,12 @@ export async function listZonasSeleccionables(
 ): Promise<Array<{ id: number; nombre: string }>> {
   const supabase = createClient();
 
-  if (esAdmin) {
+  // TEMPORAL (2026-09-07, migración 1022): con el filtro de zona apagado un
+  // cliente de otra zona NO le queda invisible al vendedor, así que no hay
+  // motivo para no dejarlo elegir cualquier zona — y varios vendedores
+  // tienen la zona mal asignada o ninguna. Volver a la rama de abajo cuando
+  // se reactive la bandera. Ver docs/business-rules.md.
+  if (esAdmin || !(await zonaRestringeVisibilidad())) {
     const { data, error } = await supabase.from("zones").select("id, nombre").order("nombre");
     if (error) throw new Error(error.message);
     return data as Array<{ id: number; nombre: string }>;
