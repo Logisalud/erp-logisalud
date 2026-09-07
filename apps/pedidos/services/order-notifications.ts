@@ -14,6 +14,7 @@ import {
   type OrderEmailPrecioEspecial,
 } from "@/domain/order-email";
 import { codigoVisibleDeLineaGratis, displayNombreProducto } from "@/domain/products";
+import { combinarDestinatarios } from "@/domain/notification-recipients";
 import { etiquetaCondicionPago } from "@/domain/payment-terms";
 import {
   asuntoDeRespuesta,
@@ -621,6 +622,60 @@ export async function notifyDiscountResolved(
   });
 }
 
+/**
+ * El correo del vendedor responsable del pedido, o null si no se puede
+ * resolver.
+ *
+ * Se toma de `orders.seller_id`, NO de `creado_por`: cuando un
+ * administrador arma el pedido a nombre de un vendedor (el selector "a
+ * nombre de qué vendedor/zona"), el responsable comercial es el vendedor
+ * elegido, y es quien tiene que enterarse de que su pedido cayó en
+ * excepción o se aprobó. El administrador que lo armó ya está en la lista
+ * fija de la oficina.
+ *
+ * El correo del vendedor es el de su cuenta (`sellers.user_id` →
+ * `profiles.email`), no un campo aparte: así no hay dos correos que puedan
+ * discrepar. Un seller sin cuenta vinculada —los hay: la cartera trae
+ * vendedores que todavía no la tienen— devuelve null, y el aviso sale
+ * igual a la lista fija.
+ *
+ * Nunca lanza: quedarse sin el vendedor no puede impedir que el aviso
+ * llegue a la oficina.
+ */
+async function emailDelVendedorDelPedido(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string,
+): Promise<{ email: string; nombre: string | null } | null> {
+  try {
+    const { data: order, error } = await admin
+      .from("orders")
+      .select("seller:sellers(nombre_completo, user_id)")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+
+    const seller = (order as { seller: { nombre_completo: string; user_id: string | null } | null } | null)
+      ?.seller ?? null;
+    if (!seller?.user_id) return null;
+
+    const { data: perfil, error: perfilError } = await admin
+      .from("profiles")
+      .select("email")
+      .eq("id", seller.user_id)
+      .maybeSingle();
+    if (perfilError) throw new Error(perfilError.message);
+
+    const email = (perfil as { email: string | null } | null)?.email ?? null;
+    return email ? { email, nombre: seller.nombre_completo } : null;
+  } catch (err) {
+    console.error(
+      "No se pudo resolver el correo del vendedor del pedido; el aviso sale sólo a la lista fija:",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
+}
+
 type EventoPlantilla = { asunto: string; titulo: string; lead: string | null };
 
 /**
@@ -683,7 +738,12 @@ async function notificarPedido({
       .eq("activo", true);
     if (recipientsError) throw new Error(recipientsError.message);
 
-    const destinatarios = ((recipients ?? []) as Array<{ email: string }>).map((r) => r.email);
+    const fijos = ((recipients ?? []) as Array<{ email: string }>).map((r) => r.email);
+
+    // Y el vendedor responsable de ESTE pedido, que la lista fija no
+    // puede contemplar: cambia con cada pedido.
+    const vendedor = await emailDelVendedorDelPedido(admin, orderId);
+    const destinatarios = combinarDestinatarios(fijos, [vendedor?.email]);
 
     if (destinatarios.length === 0) {
       const result: NotifyResult = { estado: "sin_destinatarios", destinatarios: [] };
@@ -693,7 +753,10 @@ async function notificarPedido({
         accion: `notificar_sin_destinatarios:${tipo}`,
         entidad: "orders",
         entidadId: orderId,
-        datosDespues: { motivo: "sin destinatarios configurados, correo no enviado" },
+        datosDespues: {
+          motivo: "sin destinatarios configurados, correo no enviado",
+          vendedorDelPedido: vendedor?.email ?? null,
+        },
       });
       return result;
     }
