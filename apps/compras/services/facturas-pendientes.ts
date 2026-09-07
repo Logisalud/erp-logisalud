@@ -31,7 +31,6 @@ export type BorradorFacturaCompra = {
   igvFactura: number
   totalFactura: number
   tipoCambio: number | null
-  tasaDetraccionId: string | null
   porcentajeDetraccion: number | null
   montoDetraccion: number | null
   /** Informativa — nunca participa del cálculo de vencimiento (regla 3). */
@@ -194,7 +193,6 @@ export async function registrarFacturaCompra(borrador: BorradorFacturaCompra): P
       base_imponible: borrador.baseFactura,
       igv: borrador.igvFactura,
       total: borrador.totalFactura,
-      tasa_detraccion_id: borrador.tasaDetraccionId,
       porcentaje_detraccion: borrador.porcentajeDetraccion,
       monto_detraccion: borrador.montoDetraccion,
       tipo_cambio: borrador.tipoCambio,
@@ -222,7 +220,7 @@ async function procesarFacturaPendiente(facturaPendienteId: string, ocYaCargada?
   const { data: fila, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('facturas_pendientes')
-    .select('id, oc_id, numero_factura, fecha_factura, tipo_cambio, tasa_detraccion_id, monto_detraccion, lineas, estado')
+    .select('id, oc_id, numero_factura, fecha_factura, tipo_cambio, porcentaje_detraccion, monto_detraccion, lineas, estado')
     .eq('id', facturaPendienteId)
     .maybeSingle()
   if (error || !fila) throw new Error('No se encontró la factura pendiente.')
@@ -279,7 +277,7 @@ async function procesarFacturaPendiente(facturaPendienteId: string, ocYaCargada?
     tipoCambio: fila.tipo_cambio,
     numeroFactura: fila.numero_factura ?? '',
     fechaFactura: fila.fecha_factura ?? new Date().toISOString().slice(0, 10),
-    tasaDetraccionId: fila.tasa_detraccion_id,
+    porcentajeDetraccion: fila.porcentaje_detraccion,
     montoDetraccion: fila.monto_detraccion,
     lineas: lineasFacturacion,
     recepcionIds,

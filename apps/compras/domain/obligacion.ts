@@ -92,6 +92,54 @@ export function calcularDetraccionSugerida(baseImponible: number, porcentaje: nu
 }
 
 /**
+ * Detracción (sesión 2026-09-07): en vez de que el sistema adivine si una
+ * categoría lleva detracción — dependía de cargar `tasas_detraccion` con el
+ * catálogo real del Anexo SUNAT, que nunca se cargó — quien registra el
+ * pago declara explícitamente mirando la factura real (que por ley trae el
+ * dato impreso si aplica SPOT). Compartido por Pago Directo, OS y el
+ * registro de factura de OC: las tres son "una factura = una decisión de
+ * detracción", nunca por línea.
+ *
+ * El umbral aplica igual sin importar si la factura es de un bien o de un
+ * servicio — no hay una lista de categorías que "nunca" llevan detracción:
+ * es la persona, mirando la factura, quien contesta que no. Ver también
+ * `superaUmbralDetraccion` (antes en domain/servicio.ts, ahora acá porque
+ * dejó de ser exclusivo de Servicios).
+ */
+export const UMBRAL_DETRACCION_PEN = 700
+
+/** Solo en soles: no hay un tipo de cambio de referencia para convertir un monto en USD contra este umbral. */
+export function exigeRespuestaDetraccion(total: number, moneda: 'PEN' | 'USD'): boolean {
+  return moneda === 'PEN' && total > UMBRAL_DETRACCION_PEN
+}
+
+export function validarDeclaracionDetraccion(input: {
+  total: number
+  moneda: 'PEN' | 'USD'
+  /** null = todavía sin contestar — distinto de `false` (contestó que no). */
+  tieneDetraccion: boolean | null
+  porcentaje?: number | null
+  monto?: number | null
+}): ErrorValidacion[] {
+  const errores: ErrorValidacion[] = []
+  if (exigeRespuestaDetraccion(input.total, input.moneda) && input.tieneDetraccion == null) {
+    errores.push({
+      campo: 'tieneDetraccion',
+      mensaje: `Indica si esta factura incluye detracción — supera S/${UMBRAL_DETRACCION_PEN}.`,
+    })
+  }
+  if (input.tieneDetraccion) {
+    if (!(Number(input.porcentaje) > 0)) {
+      errores.push({ campo: 'porcentajeDetraccion', mensaje: 'Pon el % de detracción tal como figura en la factura.' })
+    }
+    if (!(Number(input.monto) > 0)) {
+      errores.push({ campo: 'montoDetraccion', mensaje: 'El monto de detracción tiene que ser mayor a 0.' })
+    }
+  }
+  return errores
+}
+
+/**
  * Regla 9: al aplicar una nota de crédito, el monto a pagar de la obligación
  * se reduce en ese valor al armar la propuesta de pago. Nunca por debajo de
  * cero: una NC más grande que lo que falta pagar es un error de captura, no
@@ -267,6 +315,9 @@ export type BorradorPagoDirecto = BorradorObligacion & {
   /** Pieza F: días de crédito con los que se calcula el vencimiento del pago
    * (0 = contado). Se propone el del proveedor y se puede ajustar. */
   condicionPagoDias?: number | null
+  /** Detracción declarada por quien registra — ver validarDeclaracionDetraccion. */
+  tieneDetraccion?: boolean | null
+  porcentajeDetraccion?: number | null
 }
 
 /**
@@ -298,5 +349,14 @@ export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
       mensaje: `Pago directo es para montos menores a S/${TOPE_PAGO_DIRECTO_PEN.toLocaleString('es-PE')} — con esto, la compra tiene que pasar por una Orden de Compra o de Servicio.`,
     })
   }
+  errores.push(
+    ...validarDeclaracionDetraccion({
+      total: redondear(b.baseImponible * (1 + TASA_IGV)),
+      moneda: b.moneda as 'PEN' | 'USD',
+      tieneDetraccion: b.tieneDetraccion ?? null,
+      porcentaje: b.porcentajeDetraccion,
+      monto: b.montoDetraccion,
+    })
+  )
   return errores
 }

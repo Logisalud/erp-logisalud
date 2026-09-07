@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarFacturaAction, extraerCamposDeArchivoAction, type EstadoFormulario } from './actions'
 import { redondear } from '@/domain/obligacion'
+import { CampoDetraccion } from '@/components/campo-detraccion'
 
 type ItemOC = {
   ocItemId: string
@@ -15,18 +16,15 @@ type ItemOC = {
   producto: { codigo: string; descripcion: string; unidad_medida: string } | null
 }
 
-type TasaDetraccion = { id: string; categoria: string; porcentaje: number; anexo_sunat: string | null }
-
 const SUGERENCIA_IGV = 0.18
 
 export function FormularioFacturaCompra({
-  ocId, ocCodigo, moneda, items, tasasDetraccion,
+  ocId, ocCodigo, moneda, items,
 }: {
   ocId: string
   ocCodigo: string
   moneda: string
   items: ItemOC[]
-  tasasDetraccion: TasaDetraccion[]
 }) {
   const accionConOC = registrarFacturaAction.bind(null, ocId, ocCodigo)
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(accionConOC, null)
@@ -45,10 +43,9 @@ export function FormularioFacturaCompra({
   const [igvEditadoAMano, setIgvEditadoAMano] = useState(false)
   const [total, setTotal] = useState('')
   const [totalEditadoAMano, setTotalEditadoAMano] = useState(false)
-  const [tasaDetraccionId, setTasaDetraccionId] = useState('')
+  const [tieneDetraccion, setTieneDetraccion] = useState<boolean | null>(null)
   const [porcentajeDetraccion, setPorcentajeDetraccion] = useState('')
   const [montoDetraccion, setMontoDetraccion] = useState('')
-  const [montoDetraccionEditadoAMano, setMontoDetraccionEditadoAMano] = useState(false)
   const [fechaRecepcionFactura, setFechaRecepcionFactura] = useState('')
 
   const [lineas, setLineas] = useState<Record<string, { cantidad: string; precio: string }>>(
@@ -72,23 +69,10 @@ export function FormularioFacturaCompra({
 
   const netoAPagar = redondear((Number(total) || 0) - (Number(montoDetraccion) || 0))
 
-  const elegirTasaDetraccion = (id: string) => {
-    setTasaDetraccionId(id)
-    const tasa = tasasDetraccion.find((t) => t.id === id)
-    if (tasa) {
-      setPorcentajeDetraccion(String(tasa.porcentaje))
-      if (!montoDetraccionEditadoAMano) {
-        setMontoDetraccion(String(redondear((Number(total) || 0) * (tasa.porcentaje / 100))))
-      }
-    }
-  }
-
   const cambiarPorcentajeDetraccion = (valor: string) => {
     setPorcentajeDetraccion(valor)
-    if (!montoDetraccionEditadoAMano) {
-      const pct = Number(valor) || 0
-      setMontoDetraccion(pct > 0 ? String(redondear((Number(total) || 0) * (pct / 100))) : '')
-    }
+    const pct = Number(valor) || 0
+    setMontoDetraccion(pct > 0 ? String(redondear((Number(total) || 0) * (pct / 100))) : '')
   }
 
   async function leerArchivo(archivo: File) {
@@ -111,7 +95,10 @@ export function FormularioFacturaCompra({
     if (c.base != null && !base) cambiarBase(String(c.base))
     if (c.igv != null && !igv) { setIgv(String(c.igv)); setIgvEditadoAMano(true) }
     if (c.total != null && !total) { setTotal(String(c.total)); setTotalEditadoAMano(true) }
-    if (c.porcentajeDetraccion != null && !porcentajeDetraccion) cambiarPorcentajeDetraccion(String(c.porcentajeDetraccion))
+    if (c.porcentajeDetraccion != null && !porcentajeDetraccion) {
+      setTieneDetraccion(true)
+      cambiarPorcentajeDetraccion(String(c.porcentajeDetraccion))
+    }
     setOcrMensaje('Se leyeron algunos campos del documento — revísalos, siguen editables.')
   }
 
@@ -195,37 +182,21 @@ export function FormularioFacturaCompra({
         </p>
       </section>
 
-      <section className="card space-y-3">
-        <h2 className="font-heading text-lg">Detracción</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Campo etiqueta="Categoría (opcional)">
-            <select
-              name="tasaDetraccionId" value={tasaDetraccionId} onChange={(e) => elegirTasaDetraccion(e.target.value)}
-              className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
-            >
-              <option value="">Sin detracción</option>
-              {tasasDetraccion.map((t) => (
-                <option key={t.id} value={t.id}>{t.categoria} — {t.porcentaje}%</option>
-              ))}
-            </select>
-          </Campo>
-          <Campo etiqueta="% detracción">
-            <input
-              type="number" name="porcentajeDetraccion" min="0" max="100" step="0.01" value={porcentajeDetraccion}
-              onChange={(e) => cambiarPorcentajeDetraccion(e.target.value)}
-              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
-            />
-          </Campo>
-          <Campo etiqueta="Valor de detracción">
-            <input
-              type="number" name="montoDetraccion" min="0" step="0.01" value={montoDetraccion}
-              onChange={(e) => { setMontoDetraccion(e.target.value); setMontoDetraccionEditadoAMano(true) }}
-              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
-            />
-          </Campo>
-        </div>
-        <p className="text-sm text-gray-700">Neto a pagar: <span className="font-medium tabular-nums">{netoAPagar.toFixed(2)}</span> {moneda}</p>
-      </section>
+      <input type="hidden" name="moneda" value={moneda} />
+      <CampoDetraccion
+        total={Number(total) || 0}
+        moneda={moneda as 'PEN' | 'USD'}
+        tieneDetraccion={tieneDetraccion}
+        onTieneDetraccionChange={setTieneDetraccion}
+        porcentaje={porcentajeDetraccion}
+        onPorcentajeChange={setPorcentajeDetraccion}
+        monto={montoDetraccion}
+        onMontoChange={setMontoDetraccion}
+        errorTieneDetraccion={errorDe('tieneDetraccion')}
+        errorPorcentaje={errorDe('porcentajeDetraccion')}
+        errorMonto={errorDe('montoDetraccion')}
+      />
+      <p className="text-sm text-gray-700">Neto a pagar: <span className="font-medium tabular-nums">{netoAPagar.toFixed(2)}</span> {moneda}</p>
 
       <section className="card space-y-3">
         <h2 className="font-heading text-lg">Líneas facturadas</h2>

@@ -26,7 +26,8 @@ export async function registrarPagoDirectoAction(_previo: EstadoFormulario, form
     moneda,
     tipoCambio: tipoCambioRaw ? Number(tipoCambioRaw) : null,
     baseImponible: Number(form.get('baseImponible') ?? 0),
-    tasaDetraccionId: String(form.get('tasaDetraccionId') ?? '') || null,
+    tieneDetraccion: leerTieneDetraccion(form.get('tieneDetraccion')),
+    porcentajeDetraccion: form.get('porcentajeDetraccion') ? Number(form.get('porcentajeDetraccion')) : null,
     montoDetraccion: form.get('montoDetraccion') ? Number(form.get('montoDetraccion')) : null,
     pendienteFactura,
     condicionPagoDias: condicionPagoRaw !== null && condicionPagoRaw !== '' ? Number(condicionPagoRaw) : null,
@@ -100,4 +101,11 @@ export async function completarFacturaAction(
   }
 
   redirect(`/cuentas-por-pagar/${obligacionId}`)
+}
+
+/** `<input type="radio" name="tieneDetraccion" value="si"|"no">` — ver components/campo-detraccion.tsx. */
+function leerTieneDetraccion(v: FormDataEntryValue | null): boolean | null {
+  if (v === 'si') return true
+  if (v === 'no') return false
+  return null
 }

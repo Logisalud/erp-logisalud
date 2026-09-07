@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { registrarObligacionServicioAction, type EstadoFormulario } from './actions'
-import { facturaSuperaMontoOS, superaUmbralDetraccion, UMBRAL_DETRACCION_SERVICIOS_PEN, type Moneda } from '@/domain/servicio'
+import { facturaSuperaMontoOS, type Moneda } from '@/domain/servicio'
+import { CampoDetraccion } from '@/components/campo-detraccion'
 
 const SUGERENCIA_IGV = 0.18
 
@@ -17,6 +18,9 @@ export function FormularioObligacionServicio({
   const [base, setBase] = useState('')
   const [igv, setIgv] = useState('')
   const [igvEditadoAMano, setIgvEditadoAMano] = useState(false)
+  const [tieneDetraccion, setTieneDetraccion] = useState<boolean | null>(null)
+  const [porcentajeDetraccion, setPorcentajeDetraccion] = useState('')
+  const [montoDetraccion, setMontoDetraccion] = useState('')
 
   const cambiarBase = (valor: string) => {
     setBase(valor)
@@ -74,14 +78,6 @@ export function FormularioObligacionServicio({
 
         <p className="text-sm text-gray-700">Total: {total.toFixed(2)}</p>
 
-        {superaUmbralDetraccion(total, moneda as Moneda) ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
-            El total supera S/ {UMBRAL_DETRACCION_SERVICIOS_PEN} — revisa si este servicio está
-            sujeto a detracción (Anexo 3 SUNAT) antes de que Tesorería pague. Esto no bloquea el
-            registro.
-          </p>
-        ) : null}
-
         {superaMontoOS ? (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
             Factura supera el valor de la Orden de Servicio ({moneda} {montoEstimado.toFixed(2)}
@@ -89,6 +85,20 @@ export function FormularioObligacionServicio({
           </p>
         ) : null}
       </section>
+
+      <CampoDetraccion
+        total={total}
+        moneda={moneda as Moneda}
+        tieneDetraccion={tieneDetraccion}
+        onTieneDetraccionChange={setTieneDetraccion}
+        porcentaje={porcentajeDetraccion}
+        onPorcentajeChange={setPorcentajeDetraccion}
+        monto={montoDetraccion}
+        onMontoChange={setMontoDetraccion}
+        errorTieneDetraccion={errorDe('tieneDetraccion')}
+        errorPorcentaje={errorDe('porcentajeDetraccion')}
+        errorMonto={errorDe('montoDetraccion')}
+      />
 
       <BotonGuardar deshabilitado={superaMontoOS} />
     </form>

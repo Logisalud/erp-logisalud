@@ -8,6 +8,7 @@ import {
   type LineaFacturaInput,
 } from '@/services/facturas-pendientes'
 import { extraerCamposFactura, type ResultadoExtraccion } from '@/services/ocr-documento'
+import { validarDeclaracionDetraccion } from '@/domain/obligacion'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 
@@ -24,8 +25,9 @@ export async function registrarFacturaAction(
   const baseFactura = Number(form.get('baseFactura') ?? 0)
   const igvFactura = Number(form.get('igvFactura') ?? 0)
   const totalFactura = Number(form.get('totalFactura') ?? 0)
+  const moneda = String(form.get('moneda') ?? 'PEN') as 'PEN' | 'USD'
   const tipoCambio = numeroONull(form.get('tipoCambio'))
-  const tasaDetraccionId = textoONull(form.get('tasaDetraccionId'))
+  const tieneDetraccion = leerTieneDetraccion(form.get('tieneDetraccion'))
   const porcentajeDetraccion = numeroONull(form.get('porcentajeDetraccion'))
   const montoDetraccion = numeroONull(form.get('montoDetraccion'))
   const fechaRecepcionFactura = textoONull(form.get('fechaRecepcionFactura'))
@@ -35,6 +37,9 @@ export async function registrarFacturaAction(
   if (!numeroFactura) errores.push({ campo: 'numeroFactura', mensaje: 'Falta el número de factura.' })
   if (!fechaFactura) errores.push({ campo: 'fechaFactura', mensaje: 'Falta la fecha de factura.' })
   if (lineas.length === 0) errores.push({ campo: 'lineas', mensaje: 'Carga al menos una línea facturada.' })
+  errores.push(
+    ...validarDeclaracionDetraccion({ total: totalFactura, moneda, tieneDetraccion, porcentaje: porcentajeDetraccion, monto: montoDetraccion })
+  )
   if (errores.length > 0) return { errores }
 
   let storagePath: string | null = null
@@ -53,9 +58,8 @@ export async function registrarFacturaAction(
     igvFactura,
     totalFactura,
     tipoCambio,
-    tasaDetraccionId,
-    porcentajeDetraccion,
-    montoDetraccion,
+    porcentajeDetraccion: tieneDetraccion ? porcentajeDetraccion : null,
+    montoDetraccion: tieneDetraccion ? montoDetraccion : null,
     fechaRecepcionFactura,
     lineas,
     storagePath,
@@ -115,4 +119,11 @@ export async function extraerCamposDeArchivoAction(form: FormData): Promise<Resu
     }
   }
   return extraerCamposFactura({ name: archivo.name, type: archivo.type, size: archivo.size })
+}
+
+/** `<input type="radio" name="tieneDetraccion" value="si"|"no">` — ver components/campo-detraccion.tsx. */
+function leerTieneDetraccion(v: FormDataEntryValue | null): boolean | null {
+  if (v === 'si') return true
+  if (v === 'no') return false
+  return null
 }

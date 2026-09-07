@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { perfilActual } from '@logisalud/auth/server'
-import { listarCategoriasPagoDirecto, listarTasasDetraccion } from '@/services/obligaciones'
+import { listarCategoriasPagoDirecto } from '@/services/obligaciones'
 import { FormularioPagoDirecto } from './formulario'
 
 export const dynamic = 'force-dynamic'
@@ -14,10 +14,7 @@ export default async function NuevoPagoDirecto() {
   const perfil = await perfilActual()
   if (perfil?.area !== 'contabilidad' && perfil?.area !== 'admin') redirect('/pedir-pago')
 
-  const [categorias, tasasDetraccion] = await Promise.all([
-    listarCategoriasPagoDirecto(),
-    listarTasasDetraccion(),
-  ])
+  const categorias = await listarCategoriasPagoDirecto()
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -28,7 +25,7 @@ export default async function NuevoPagoDirecto() {
         factura real; Contabilidad revisa y da conformidad antes de que entre a una propuesta
         de pago.
       </p>
-      <FormularioPagoDirecto categorias={categorias} tasasDetraccion={tasasDetraccion} />
+      <FormularioPagoDirecto categorias={categorias} />
     </main>
   )
 }

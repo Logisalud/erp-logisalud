@@ -18,6 +18,9 @@ export async function registrarObligacionServicioAction(
     tipoCambio: form.get('tipoCambio') ? Number(form.get('tipoCambio')) : null,
     baseImponible: Number(form.get('baseImponible') ?? 0),
     igv: Number(form.get('igv') ?? 0),
+    tieneDetraccion: leerTieneDetraccion(form.get('tieneDetraccion')),
+    porcentajeDetraccion: form.get('porcentajeDetraccion') ? Number(form.get('porcentajeDetraccion')) : null,
+    montoDetraccion: form.get('montoDetraccion') ? Number(form.get('montoDetraccion')) : null,
   }
 
   const os = await obtenerOS(osId)
@@ -35,4 +38,11 @@ export async function registrarObligacionServicioAction(
   }
 
   redirect(`/cuentas-por-pagar/${obligacion.id}`)
+}
+
+/** `<input type="radio" name="tieneDetraccion" value="si"|"no">` — ver components/campo-detraccion.tsx. */
+function leerTieneDetraccion(v: FormDataEntryValue | null): boolean | null {
+  if (v === 'si') return true
+  if (v === 'no') return false
+  return null
 }
