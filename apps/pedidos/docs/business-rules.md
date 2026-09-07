@@ -15,6 +15,67 @@ validar**, no reglas ya implementadas.
 | `operaciones` | Confirma despacho y asigna la fuente de stock. |
 | `administrador` | Gestiona usuarios, roles y configuración del módulo. |
 
+## ⚠️ TEMPORAL (2026-09-07): el filtro de zona está APAGADO
+
+**Qué cambió.** Hasta hoy un vendedor sólo veía —y por lo tanto sólo podía
+venderle a— los clientes de su(s) zona(s), por RLS. Desde la migración
+`1022`, cualquier vendedor autenticado ve y puede armar pedidos para
+**cualquier cliente**, sin filtro de zona.
+
+**Por qué.** La estructura de zonas todavía no es confiable: hay clientes
+asignados a zonas que no corresponden y vendedores con la zona incompleta o
+sin zona. El filtro estaba escondiendo clientes reales a quien tiene que
+venderles, que es peor que el problema que resuelve.
+
+**Cuándo hay que revertirlo.** Cuando la asignación de zonas esté limpia y
+validada — es decir, cuando se haya revisado la zona de los 3.4k clientes y
+la de los 16 vendedores, y el negocio confirme que el mapa es correcto.
+Mientras eso no pase, esto sigue apagado a propósito, no por olvido.
+
+**Cómo se revierte — un solo paso.** Cambiar el cuerpo de la bandera:
+
+```sql
+create or replace function pedidos.zonas_restringen_visibilidad()
+returns boolean language sql stable as $$ select true; $$;
+```
+
+Las seis policies afectadas (`customers_select`,
+`customer_addresses_select`, `customer_addresses_insert_vendedor`,
+`customer_contacts_select`, `customer_contacts_insert_vendedor`,
+`customer_seller_reassignments_select`) **conservan el predicado de zona
+original intacto**, guardado detrás de la bandera: con la bandera en `true`
+vuelven exactamente al comportamiento anterior sin tocar ninguna policy. La
+pantalla tampoco tiene su propia copia del criterio: `listZonasSeleccionables`
+pregunta por la misma bandera (`zonaRestringeVisibilidad()`), así que
+front y base no pueden divergir. Probado el 2026-09-07 en producción: con la
+bandera en `true`, SUSANA RAMOS vuelve a ver 212 clientes; con `false`, 3.401.
+
+**Qué NO cambió** (importante, porque es lo que se confunde):
+
+- **La auditoría queda intacta.** `audit_logs`, `creado_por`,
+  `solicitado_por` y el historial de cada pedido y cliente siguen igual.
+  Se quitó VISIBILIDAD, no trazabilidad.
+- **Cada vendedor sigue viendo sólo SUS pedidos** (`orders_select` filtra
+  por `seller_id`, y eso no se tocó). Ve toda la cartera de clientes, no
+  los pedidos de sus compañeros.
+- **Los otros roles no se tocaron**: admin, `control_pedidos`,
+  `operaciones` y `aprobador_comercial` ya veían todo.
+- **Escribir sigue restringido igual**: un vendedor sigue sin poder editar
+  clientes (`customers_update` es de admin/control) y un cliente que
+  registra sigue entrando en `PENDIENTE_DE_VALIDACION`.
+
+Dos consecuencias que conviene tener presentes mientras dure:
+
+- Un vendedor ve clientes en **cualquier estado** de la cartera, no sólo
+  `ACTIVO` — las pantallas siguen filtrando por `ACTIVO` donde corresponde
+  (el selector del pedido), pero la RLS ya no lo hace por él. Es a
+  propósito: si sólo viera los `ACTIVO`, no podría leer de vuelta el
+  cliente nuevo que él mismo acaba de registrar.
+- Un vendedor puede **elegir cualquier zona** al registrar un cliente. La
+  restricción anterior existía sólo porque un cliente en otra zona le
+  quedaba invisible; sin filtro, ese motivo desaparece, y varios vendedores
+  no tienen zona con la cual registrarlo.
+
 ## Supuestos pendientes de validar (Fase 6)
 
 Estos tres puntos están anotados aquí para que no se pierdan entre
@@ -1345,6 +1406,26 @@ Las 13 direcciones que quedan sin ubigeo son errores de tipeo del archivo
 ("EL TAMBBO", "CHORRRILLOS", "SAM JUAN DE LURIGANCHO", "SURCO" por
 "SANTIAGO DE SURCO") o clientes de prueba sin distrito cargado. Quedan con
 `ubigeo` null a propósito, para corregirlas a mano.
+
+### El selector traía sólo 11 departamentos (`1023`)
+
+`listDepartamentos()` leía `select departamento from ubigeos order by
+departamento` y deduplicaba en TypeScript. PostgREST no hace `DISTINCT` y
+tope las respuestas en **1.000 filas**: de las 1.884 del catálogo llegaban
+las primeras 1.000, cuyo corte cae dentro de **JUNIN**. El selector ofrecía
+11 de los 25 departamentos y se comía los 14 siguientes por orden
+alfabético — **LIMA incluido** —, sin ningún error visible.
+
+El `DISTINCT` lo hace ahora la base (`pedidos.ubigeo_departamentos()` y
+`pedidos.ubigeo_provincias(text)`), así que viajan 25 y 10 filas en vez de
+1.884 y 171. Las provincias no llegaban a truncarse hoy (LIMA, el
+departamento más grande, tiene 171 distritos) pero era el mismo error
+esperando a crecer.
+
+Verificado el 2026-09-07 contra producción, como vendedor: 25
+departamentos, LIMA con sus 10 provincias y JUNIN con sus 9. Y no hay
+ningún filtro por zona ni por vendedor en el catálogo: `ubigeos` es una
+tabla oficial estática, la misma para todos.
 
 ### Hacia adelante: el vendedor no escribe el código
 
