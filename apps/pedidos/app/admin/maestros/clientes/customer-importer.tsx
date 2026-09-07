@@ -200,6 +200,9 @@ function PreviewPanel({ preview }: { preview: CustomerImportPreview }) {
         <Stat label="Filas de snapshot legacy" value={preview.snapshotFilas} />
         <Stat label="Sin zona" value={preview.sinZona} tone="warn" />
         <Stat label="Sin dirección de entrega" value={preview.sinDireccion} tone="warn" />
+        <Stat label="Conservan su canal" value={preview.conservan.canal} />
+        <Stat label="Conservan su condición de pago" value={preview.conservan.condicionPago} />
+        <Stat label="Conservan su estado" value={preview.conservan.estado} />
       </div>
 
       <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -209,8 +212,11 @@ function PreviewPanel({ preview }: { preview: CustomerImportPreview }) {
       </p>
 
       <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
-        Todos entran con canal <strong>{preview.canalPorDefecto}</strong> y sin condición de pago
-        habitual.
+        Los clientes <strong>nuevos</strong> entran con canal{" "}
+        <strong>{preview.canalPorDefecto}</strong> y sin condición de pago habitual. A los que{" "}
+        <strong>ya existen</strong> no se les toca el canal, la condición de pago habitual ni el
+        estado: sólo se completan si están vacíos. Razón social, zona, vendedor y
+        distrito/provincia/departamento sí se actualizan con lo que traiga el archivo.
       </p>
 
       <IssueList title="Filas con error (se omiten)" issues={preview.errors} tone="error" />
@@ -224,8 +230,8 @@ function ResultPanel({ result }: { result: CustomerImportResult }) {
     <div className="card-highlight flex flex-col gap-4 p-5">
       <h3 className="font-heading text-lg">Carga completada</h3>
       <p className="text-sm text-gray-600">
-        Todos quedaron con canal <strong>{result.canalPorDefecto}</strong> y sin condición de pago
-        habitual.
+        Los clientes nuevos quedaron con canal <strong>{result.canalPorDefecto}</strong> y sin
+        condición de pago habitual. A los que ya existían se les respetó lo que tenían cargado.
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Clientes cargados" value={result.clientesCargados} />
@@ -236,6 +242,9 @@ function ResultPanel({ result }: { result: CustomerImportResult }) {
         <Stat label="Snapshot legacy" value={result.snapshotFilasCargadas} />
         <Stat label="Sin dirección" value={result.sinDireccion} tone="warn" />
         <Stat label="Filas omitidas por error" value={result.filasOmitidasPorError} tone="warn" />
+        <Stat label="Conservaron su canal" value={result.preservados.canal} />
+        <Stat label="Conservaron su condición de pago" value={result.preservados.condicionPago} />
+        <Stat label="Conservaron su estado" value={result.preservados.estado} />
       </div>
     </div>
   );

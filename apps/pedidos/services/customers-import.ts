@@ -7,10 +7,14 @@ import {
   mapCustomerRows,
   mapLegacySnapshotRows,
   parseCsv,
+  pisaTrabajoManual,
+  resolverCamposDeCartera,
+  type ClienteExistente,
   type ImportRefs,
   type MappedCustomer,
   type RowIssue,
 } from "@/domain/customer-import";
+import type { CustomerEstado } from "@/domain/customers";
 
 /** Insert/upsert en tandas: 3.399 filas en una sola sentencia es innecesariamente frágil. */
 const BATCH_SIZE = 500;
@@ -202,6 +206,12 @@ export type CustomerImportPreview = {
   snapshotFilas: number;
   /** Clientes que quedarían sin ninguna dirección de entrega registrada. */
   sinDireccion: number;
+  /**
+   * Clientes ya existentes que CONSERVAN lo que tienen en vez de volver al
+   * default del archivo: canal distinto del por defecto, condición de pago
+   * habitual cargada, o estado distinto del que derivaría el archivo.
+   */
+  conservan: { canal: number; condicionPago: number; estado: number };
   /** Canal que se asignará a todos (supuesto temporal). */
   canalPorDefecto: string;
   errors: RowIssue[];
@@ -230,34 +240,76 @@ async function parseAndMap(input: CustomerImportInput) {
   };
 }
 
+type FilaExistente = ClienteExistente & { tieneDireccion: boolean };
+
+/**
+ * Lo que la base ya sabe de los RUC del archivo.
+ *
+ * Se lee una sola vez y sirve para las dos cosas que dependen de ello: no
+ * pisar el canal/condición/estado que alguien puso a mano, y contar
+ * cuántos quedarían sin dirección de entrega.
+ */
+async function leerExistentesPorRuc(
+  cliente: { from: (tabla: string) => any },
+  rucs: string[],
+): Promise<Map<string, FilaExistente>> {
+  const porRuc = new Map<string, FilaExistente>();
+
+  await inBatches(rucs, async (batch) => {
+    const { data, error } = await cliente
+      .from("customers")
+      .select(
+        "ruc_o_documento, canal_id, condicion_pago_habitual_id, estado, customer_addresses(id)",
+      )
+      .in("ruc_o_documento", batch);
+    if (error) throw new Error(error.message);
+
+    for (const row of (data ?? []) as Array<{
+      ruc_o_documento: string;
+      canal_id: number | null;
+      condicion_pago_habitual_id: number | null;
+      estado: string;
+      customer_addresses: Array<{ id: string }> | null;
+    }>) {
+      porRuc.set(row.ruc_o_documento, {
+        canalId: row.canal_id,
+        condicionPagoHabitualId: row.condicion_pago_habitual_id,
+        estado: row.estado as CustomerEstado,
+        tieneDireccion: (row.customer_addresses ?? []).length > 0,
+      });
+    }
+  });
+
+  return porRuc;
+}
+
 export async function previewCustomerImport(
   input: CustomerImportInput,
 ): Promise<CustomerImportPreview> {
   const { totalFilas, mapped, snapshot, errors, warnings } = await parseAndMap(input);
   const supabase = createClient();
 
-  // Se resuelve en el preview (y no solo al publicar) para que el error
-  // salte antes de escribir nada si el catálogo de canales cambió.
-  await getCanalPorDefectoId();
-
+  const canalPorDefectoId = await getCanalPorDefectoId();
   const rucs = mapped.customers.map((c) => c.rucODocumento);
-  const existentes = new Set<string>();
-  const conDireccion = new Set<string>();
+  const existentes = await leerExistentesPorRuc(supabase, rucs);
 
-  await inBatches(rucs, async (batch) => {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, ruc_o_documento, customer_addresses(id)")
-      .in("ruc_o_documento", batch);
-    if (error) throw new Error(error.message);
-    for (const row of (data ?? []) as Array<{
-      ruc_o_documento: string;
-      customer_addresses: Array<{ id: string }>;
-    }>) {
-      existentes.add(row.ruc_o_documento);
-      if ((row.customer_addresses ?? []).length > 0) conDireccion.add(row.ruc_o_documento);
-    }
-  });
+  // Cuántos clientes conservan lo que alguien les puso a mano en vez de
+  // volver al default del archivo. Va en la vista previa porque es la
+  // pregunta que uno se hace antes de reimportar: "¿esto me pisa lo que
+  // corregí?".
+  const conservan = { canal: 0, condicionPago: 0, estado: 0 };
+  for (const c of mapped.customers) {
+    const existente = existentes.get(c.rucODocumento);
+    if (!existente) continue;
+    const pisaria = pisaTrabajoManual({
+      existente,
+      canalPorDefectoId,
+      estadoDelArchivo: c.estado,
+    });
+    if (pisaria.canal) conservan.canal++;
+    if (pisaria.condicionPago) conservan.condicionPago++;
+    if (pisaria.estado) conservan.estado++;
+  }
 
   const porEstado = { ACTIVO: 0, PENDIENTE_DE_VALIDACION: 0 };
   const porTipoComprobante = { FACTURA: 0, FACTURA_O_BOLETA: 0, BOLETA: 0 };
@@ -272,6 +324,7 @@ export async function previewCustomerImport(
     aCargar: mapped.customers.length,
     nuevos: mapped.customers.filter((c) => !existentes.has(c.rucODocumento)).length,
     yaExistentes: mapped.customers.filter((c) => existentes.has(c.rucODocumento)).length,
+    conservan,
     porEstado,
     porTipoComprobante,
     conCelular: mapped.customers.filter((c) => c.celular !== null).length,
@@ -279,7 +332,9 @@ export async function previewCustomerImport(
     sinZona: mapped.customers.filter((c) => c.zonaId === null).length,
     reasignaciones: mapped.customers.filter((c) => c.reasignacion !== null).length,
     snapshotFilas: snapshot.rows.length,
-    sinDireccion: mapped.customers.filter((c) => !conDireccion.has(c.rucODocumento)).length,
+    sinDireccion: mapped.customers.filter(
+      (c) => !existentes.get(c.rucODocumento)?.tieneDireccion,
+    ).length,
     canalPorDefecto: CANAL_POR_DEFECTO,
     errors,
     warnings,
@@ -294,6 +349,11 @@ export type CustomerImportResult = {
   pendientesDeValidacion: number;
   contactosCreados: number;
   reasignacionesCargadas: number;
+  /**
+   * Clientes ya existentes a los que se les respetó lo cargado a mano en
+   * vez de volver al default del archivo.
+   */
+  preservados: { canal: number; condicionPago: number; estado: number };
   snapshotFilasCargadas: number;
   sinDireccion: number;
   filasOmitidasPorError: number;
@@ -323,31 +383,65 @@ export async function publishCustomerImport(
   const canalId = await getCanalPorDefectoId();
   const admin = createAdminClient();
 
+  // Lo que la base ya tiene: sobre un cliente que ya existe, el canal, la
+  // condición de pago habitual y el estado NO se pisan — ver
+  // resolverCamposDeCartera. Se lee antes del upsert porque después ya no
+  // se puede distinguir lo que había de lo que acaba de escribirse.
+  const existentes = await leerExistentesPorRuc(
+    admin,
+    mapped.customers.map((c) => c.rucODocumento),
+  );
+
+  const preservados = { canal: 0, condicionPago: 0, estado: 0 };
+  for (const c of mapped.customers) {
+    const existente = existentes.get(c.rucODocumento);
+    if (!existente) continue;
+    const pisaria = pisaTrabajoManual({
+      existente,
+      canalPorDefectoId: canalId,
+      estadoDelArchivo: c.estado,
+    });
+    if (pisaria.canal) preservados.canal++;
+    if (pisaria.condicionPago) preservados.condicionPago++;
+    if (pisaria.estado) preservados.estado++;
+  }
+
   // --- Clientes -------------------------------------------------------
   const idByRuc = new Map<string, string>();
   await inBatches(mapped.customers, async (batch) => {
     const { data, error } = await admin
       .from("customers")
       .upsert(
-        batch.map((c) => ({
-          ruc_o_documento: c.rucODocumento,
-          razon_social: c.razonSocial,
-          zona_id: c.zonaId,
-          vendedor_id: c.vendedorId,
-          tipo_comprobante_permitido: c.tipoComprobantePermitido,
-          estado: c.estado,
-          zona_asignada_manualmente: c.zonaAsignadaManualmente,
-          distrito: c.distrito,
-          provincia: c.provincia,
-          departamento: c.departamento,
-          whatsapp: c.celular,
-          canal_id: canalId,
-          // Deliberadamente null: el archivo de origen no trae condición
-          // de pago, y no se inventa una por cliente. El vendedor elige
-          // la del pedido, y sin habitual definida eso no dispara
-          // excepción administrativa (ver 0043 y domain/orders.ts).
-          condicion_pago_habitual_id: null,
-        })),
+        batch.map((c) => {
+          // El archivo manda en identificación y ubicación; los tres
+          // campos que se corrigen a mano en la app, no.
+          const campos = resolverCamposDeCartera({
+            existente: existentes.get(c.rucODocumento) ?? null,
+            canalPorDefectoId: canalId,
+            estadoDelArchivo: c.estado,
+          });
+
+          return {
+            ruc_o_documento: c.rucODocumento,
+            razon_social: c.razonSocial,
+            zona_id: c.zonaId,
+            vendedor_id: c.vendedorId,
+            tipo_comprobante_permitido: c.tipoComprobantePermitido,
+            zona_asignada_manualmente: c.zonaAsignadaManualmente,
+            distrito: c.distrito,
+            provincia: c.provincia,
+            departamento: c.departamento,
+            whatsapp: c.celular,
+            estado: campos.estado,
+            canal_id: campos.canalId,
+            // En un cliente nuevo entra null: el archivo de origen no trae
+            // condición de pago y no se inventa una. El vendedor elige la
+            // del pedido, y sin habitual definida eso no dispara excepción
+            // administrativa (ver 0043 y domain/orders.ts). En uno que ya
+            // existe se conserva la que tenga.
+            condicion_pago_habitual_id: campos.condicionPagoHabitualId,
+          };
+        }),
         { onConflict: "ruc_o_documento" },
       )
       .select("id, ruc_o_documento");
@@ -458,13 +552,23 @@ export async function publishCustomerImport(
     }
   });
 
+  // Los estados que quedaron ESCRITOS, no los que derivaba el archivo: en
+  // un cliente que ya existía manda el que tenía.
+  const estadosEscritos = mapped.customers.map(
+    (c) =>
+      resolverCamposDeCartera({
+        existente: existentes.get(c.rucODocumento) ?? null,
+        canalPorDefectoId: canalId,
+        estadoDelArchivo: c.estado,
+      }).estado,
+  );
+
   const result: CustomerImportResult = {
     canalPorDefecto: CANAL_POR_DEFECTO,
     clientesCargados: idByRuc.size,
-    activos: mapped.customers.filter((c) => c.estado === "ACTIVO").length,
-    pendientesDeValidacion: mapped.customers.filter(
-      (c) => c.estado === "PENDIENTE_DE_VALIDACION",
-    ).length,
+    activos: estadosEscritos.filter((e) => e === "ACTIVO").length,
+    pendientesDeValidacion: estadosEscritos.filter((e) => e === "PENDIENTE_DE_VALIDACION").length,
+    preservados,
     contactosCreados: contactosNuevos.length,
     reasignacionesCargadas: reasignaciones.length,
     snapshotFilasCargadas,
@@ -476,7 +580,9 @@ export async function publishCustomerImport(
     actor: actorUserId,
     accion: "importar_cartera_clientes",
     entidad: "customers",
-    datosDespues: { ...result, canalId, condicionPagoHabitualId: null },
+    // canalId y la condición null son lo que se aplica a los clientes
+    // NUEVOS; a los que ya existían se les respetó lo que tenían.
+    datosDespues: { ...result, canalIdNuevos: canalId, condicionPagoHabitualIdNuevos: null },
   });
 
   return result;

@@ -168,7 +168,32 @@ persiste (ver `buildLegacyVendorMap` en `domain/customer-import.ts`).
 
 Es idempotente: los clientes se upsertan por `ruc_o_documento`, y el
 historial migrado y el snapshot legacy se reemplazan en vez de
-acumularse. Usa la service role key porque crea clientes en `ACTIVO`,
+acumularse.
+
+**Reimportar NO pisa lo que se corrigió a mano** (2026-09-07). Sobre un
+cliente que **ya existe**, tres campos no se tocan — sólo se completan si
+están vacíos:
+
+| Campo | Por qué no se pisa |
+|---|---|
+| `canal_id` | Decide el precio de lista de sus pedidos. El archivo no lo trae: el importador ponía "Horizontal" a todos. |
+| `condicion_pago_habitual_id` | Decide si el pedido cae en excepción administrativa. El archivo tampoco lo trae. |
+| `estado` | Es el resultado de una decisión de una persona (se validó el cliente nuevo, se rechazó, se dio de baja), no un dato del archivo. |
+
+El resto **sí se actualiza siempre** con lo que traiga el archivo nuevo,
+porque es identificación y ubicación y ahí el archivo es la fuente: razón
+social, zona, vendedor, distrito/provincia/departamento, celular y tipo de
+comprobante permitido.
+
+La regla vive en `resolverCamposDeCartera` (`domain/customer-import.ts`),
+pura y testeada aparte. La vista previa muestra, antes de escribir nada,
+cuántos clientes conservan su canal, su condición de pago y su estado — y
+el resultado de la carga repite esos tres números.
+
+Antes de este cambio, cada reimportación devolvía a los 3.4k clientes al
+canal por defecto, les borraba la condición de pago habitual y recalculaba
+el estado desde el documento. Con la ficha de cliente ya en uso para
+corregir clientes uno por uno, eso habría borrado ese trabajo en silencio. Usa la service role key porque crea clientes en `ACTIVO`,
 algo que ninguna policy de RLS permite — queda registrado en
 `audit_logs` con el actor real (`importar_cartera_clientes`).
 
