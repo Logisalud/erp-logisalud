@@ -83,12 +83,37 @@ export async function computeCobranza(db: SupabaseClient, desde: string, hasta: 
   };
 }
 
+// Rellena con 0 los días del rango sin ningún pago — `computeCobranza`
+// devuelve `dias` disperso (solo fechas con cobro real), que alcanza para
+// el ranking por vendedor pero no para un reporte "día por día": ahí un día
+// flojo (o sin cobros) tiene que verse como una fila en 0, no faltar.
+export function diasCompletos(desde: string, hasta: string, dias: DiaItem[]): DiaItem[] {
+  const porFecha = new Map(dias.map(d => [d.fecha, d]));
+  const [y0, m0, d0] = desde.split('-').map(Number);
+  const [y1, m1, d1] = hasta.split('-').map(Number);
+  const cursor = new Date(Date.UTC(y0, m0 - 1, d0));
+  const fin = new Date(Date.UTC(y1, m1 - 1, d1));
+  const out: DiaItem[] = [];
+  while (cursor <= fin) {
+    const fecha = cursor.toISOString().slice(0, 10);
+    out.push(porFecha.get(fecha) ?? { fecha, total: 0, vencido: 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+}
+
 export function rankingPorVencido(data: CobranzaData): RankItem[] {
   return [...data.ranking].sort((a, b) => b.vencido - a.vencido || b.total - a.total);
 }
 
-// Genera un .xlsx (Buffer) con una hoja "por vendedor" por cada sección dada.
-export function buildCobranzaXlsx(secciones: { nombre: string; data: CobranzaData }[]): Buffer {
+// Genera un .xlsx (Buffer) con una hoja "por vendedor" por cada sección dada,
+// y opcionalmente una hoja día por día (para el acumulado del mes en el
+// reporte diario — el ranking por vendedor no sirve ahí, se quiere ver la
+// evolución día a día).
+export function buildCobranzaXlsx(
+  secciones: { nombre: string; data: CobranzaData }[],
+  diasSeccion?: { nombre: string; data: CobranzaData },
+): Buffer {
   const wb = XLSX.utils.book_new();
   for (const s of secciones) {
     const filas = rankingPorVencido(s.data).map((v, i) => ({
@@ -102,6 +127,24 @@ export function buildCobranzaXlsx(secciones: { nombre: string; data: CobranzaDat
     const ws = XLSX.utils.json_to_sheet(filas.length ? filas : [{ 'Pos': '', 'Vendedor': 'Sin cobros', 'De lo Vencido': 0, 'Cobranza Total': 0, 'Al Día': 0, 'N° Cobros': 0 }]);
     ws['!cols'] = [{ wch: 5 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 13 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, ws, s.nombre.slice(0, 31));
+  }
+  if (diasSeccion) {
+    const filas = diasSeccion.data.dias.map(d => ({
+      'Fecha': d.fecha,
+      'Cobrado': d.total,
+      'De lo Vencido': d.vencido,
+      'Al Día': d.total - d.vencido,
+    }));
+    const ws = XLSX.utils.json_to_sheet(filas.length ? filas : [{ 'Fecha': '', 'Cobrado': 0, 'De lo Vencido': 0, 'Al Día': 0 }]);
+    ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
+    if (filas.length) {
+      const totalCobrado = filas.reduce((s, f) => s + f['Cobrado'], 0);
+      const totalVencido = filas.reduce((s, f) => s + f['De lo Vencido'], 0);
+      XLSX.utils.sheet_add_json(ws, [{ 'Fecha': 'TOTAL', 'Cobrado': totalCobrado, 'De lo Vencido': totalVencido, 'Al Día': totalCobrado - totalVencido }], {
+        header: Object.keys(filas[0]), skipHeader: true, origin: -1,
+      });
+    }
+    XLSX.utils.book_append_sheet(wb, ws, diasSeccion.nombre.slice(0, 31));
   }
   const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   return raw;
