@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
-import { computeCobranza, buildCobranzaXlsx, CobranzaData } from '@/lib/cobranza';
+import { computeCobranza, buildCobranzaXlsx, diasCompletos, CobranzaData } from '@/lib/cobranza';
 
 const VERDE = '#4BB168', TEAL = '#4ABCC2';
 const fmt = (n: number) => 'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -18,6 +18,8 @@ function lunesDe(iso: string): string {
   const dt = new Date(Date.UTC(y, m - 1, d)); const dow = (dt.getUTCDay() + 6) % 7;
   dt.setUTCDate(dt.getUTCDate() - dow); return dt.toISOString().slice(0, 10);
 }
+function primerDiaMesDe(iso: string): string { return iso.slice(0, 7) + '-01'; }
+function fechaCorta(iso: string): string { const [, m, d] = iso.split('-'); return `${d}/${m}`; }
 function fechaLarga(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -70,7 +72,40 @@ function tablaRanking(titulo: string, filas: FilaRank[]): string {
   </table>`;
 }
 
-function construirHtml(ayerISO: string, ayer: CobranzaData, semana: CobranzaData, rankAyer: FilaRank[], rankSemana: FilaRank[]): string {
+// Día por día del mes en curso — pedido puntual de gerencia comercial: no
+// alcanza con el total acumulado de la semana, quieren ver cuánto entró
+// cada día del mes para detectar días flojos o picos.
+function tablaDias(titulo: string, dias: { fecha: string; total: number; vencido: number }[]): string {
+  const totalCobrado = dias.reduce((s, d) => s + d.total, 0);
+  const totalVencido = dias.reduce((s, d) => s + d.vencido, 0);
+  const rows = dias.map(d => `
+    <tr>
+      <td style="padding:6px 10px;color:#374151;">${fechaCorta(d.fecha)}</td>
+      <td style="padding:6px 10px;text-align:right;font-weight:600;color:#111827;white-space:nowrap;">${fmt(d.total)}</td>
+      <td style="padding:6px 10px;text-align:right;color:${d.vencido > 0 ? VERDE : '#9ca3af'};white-space:nowrap;">${d.vencido > 0 ? fmt(d.vencido) : '—'}</td>
+    </tr>`).join('');
+  return `
+  <p style="font:600 13px Arial,Helvetica,sans-serif;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin:22px 0 8px;">${titulo}</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font:400 13px Arial,Helvetica,sans-serif;">
+    <thead>
+      <tr style="background:#f9fafb;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">
+        <th style="padding:8px 10px;text-align:left;">Día</th>
+        <th style="padding:8px 10px;text-align:right;">Cobrado</th>
+        <th style="padding:8px 10px;text-align:right;color:${VERDE};">De lo vencido</th>
+      </tr>
+    </thead>
+    <tbody>${rows || `<tr><td colspan="3" style="padding:14px;text-align:center;color:#9ca3af;">Sin cobros</td></tr>`}</tbody>
+    <tfoot>
+      <tr style="border-top:2px solid #e5e7eb;background:#f9fafb;font-weight:700;">
+        <td style="padding:8px 10px;color:#111827;">TOTAL</td>
+        <td style="padding:8px 10px;text-align:right;color:#111827;white-space:nowrap;">${fmt(totalCobrado)}</td>
+        <td style="padding:8px 10px;text-align:right;color:${VERDE};white-space:nowrap;">${fmt(totalVencido)}</td>
+      </tr>
+    </tfoot>
+  </table>`;
+}
+
+function construirHtml(ayerISO: string, ayer: CobranzaData, semana: CobranzaData, mes: CobranzaData, rankAyer: FilaRank[], rankSemana: FilaRank[]): string {
   const top = rankAyer.find(f => f.vencido > 0) ?? null;
   const ceros = rankAyer.filter(f => f.vencido <= 0);
   const nombresCeros = ceros.slice(0, 4).map(f => f.nombre).join(', ');
@@ -119,10 +154,11 @@ function construirHtml(ayerISO: string, ayer: CobranzaData, semana: CobranzaData
     <tr><td style="padding:0 22px 8px;">
       ${tablaRanking('Ranking de ayer (por lo vencido)', rankAyer)}
       ${tablaRanking('Acumulado de la semana', rankSemana)}
+      ${tablaDias('Acumulado del mes — día por día', mes.dias)}
     </td></tr>
 
     <tr><td style="padding:6px 22px 20px;">
-      <p style="font:400 12px Arial;color:#9ca3af;margin:8px 0 0;">📎 Adjunto: Excel con el detalle completo (ayer + semana) por vendedor.</p>
+      <p style="font:400 12px Arial;color:#9ca3af;margin:8px 0 0;">📎 Adjunto: Excel con el detalle completo (ayer + semana por vendedor, mes día por día).</p>
       <p style="font:400 11px Arial;color:#c0c4cc;margin:14px 0 0;border-top:1px solid #eee;padding-top:12px;">
         Cobranza = pagos reales del período (excluye retenciones de IGV y notas de crédito). "De lo vencido" = pagos aplicados a facturas ya vencidas al momento del pago. Generado automáticamente por LOGISALUD.
       </p>
@@ -163,11 +199,13 @@ export async function GET(req: NextRequest) {
     const hoy = limaHoy();
     const ayerISO = addDays(hoy, -1);
     const lunes = lunesDe(hoy);
+    const primerDiaMes = primerDiaMesDe(hoy);
 
     const db = supabaseAdmin();
-    const [ayer, semana] = await Promise.all([
+    const [ayer, semana, mes] = await Promise.all([
       computeCobranza(db, ayerISO, ayerISO),
       computeCobranza(db, lunes, hoy),
+      computeCobranza(db, primerDiaMes, hoy),
     ]);
 
     const roster = (await fetchAll<{ id: string; nombres: string; apellidos: string | null; codigo: string | null; activo: boolean }>((from, to) =>
@@ -176,9 +214,15 @@ export async function GET(req: NextRequest) {
 
     const rankAyer = mergeRoster(roster, ayer);
     const rankSemana = mergeRoster(roster, semana);
+    // Con los días en 0 rellenados: un día sin ningún cobro tiene que verse
+    // como fila en 0, no desaparecer del reporte.
+    const mesCompleto: CobranzaData = { ...mes, dias: diasCompletos(primerDiaMes, hoy, mes.dias) };
 
-    const html = construirHtml(ayerISO, ayer, semana, rankAyer, rankSemana);
-    const xlsx = buildCobranzaXlsx([{ nombre: 'Ayer', data: ayer }, { nombre: 'Semana', data: semana }]);
+    const html = construirHtml(ayerISO, ayer, semana, mesCompleto, rankAyer, rankSemana);
+    const xlsx = buildCobranzaXlsx(
+      [{ nombre: 'Ayer', data: ayer }, { nombre: 'Semana', data: semana }],
+      { nombre: 'Mes por día', data: mesCompleto },
+    );
 
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -198,7 +242,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: `Resend ${resp.status}: ${body}` }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, ayer: ayerISO, destinatarios: destinatarios.length, totalAyer: ayer.totalCobrado, vencidoAyer: ayer.totalVencido }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ ok: true, ayer: ayerISO, destinatarios: destinatarios.length, totalAyer: ayer.totalCobrado, vencidoAyer: ayer.totalVencido, totalMes: mes.totalCobrado, diasConCobroEnElMes: mes.dias.length }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     console.error(`[reporte-cobranza] Error: ${String(err)}`);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
