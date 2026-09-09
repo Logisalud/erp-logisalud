@@ -36,6 +36,7 @@ export type OCDetalle = {
   cuenta_bancaria_id: string | null
   cierre_tipo: 'completa' | 'saldo_no_entregado' | null
   cierre_motivo: string | null
+  cotizacion_storage_path: string | null
   items: {
     id: string
     producto_id: string | null
@@ -88,7 +89,7 @@ export async function obtenerOC(id: string): Promise<OCDetalle | null> {
     .from('ordenes_compra')
     .select(`id, codigo, tipo, estado, fecha_emision, fecha_entrega_estimada, moneda,
              condiciones_pago_dias, notas, proveedor_id, cuenta_bancaria_id,
-             cierre_tipo, cierre_motivo,
+             cierre_tipo, cierre_motivo, cotizacion_storage_path,
              ordenes_compra_items(id, producto_id, descripcion_libre, cantidad_pedida,
                                   precio_unitario, cantidad_recibida, cantidad_facturada)`)
     .eq('id', id)
@@ -356,4 +357,36 @@ export async function cerrarOCConSaldoPendiente(id: string, motivo: string): Pro
     })
     .eq('id', id)
   if (error) throw new Error(`No se pudo cerrar la orden: ${error.message}`)
+}
+
+/**
+ * Cotización del proveedor que sustenta una OC de bien — mismo criterio de
+ * "mejor esfuerzo" que subirCotizacionPagoDirecto: si falla la subida, la OC
+ * igual queda creada.
+ */
+export async function subirCotizacionOC(ocId: string, codigo: string, archivo: File): Promise<boolean> {
+  if (!archivo || archivo.size === 0) return false
+  const supabase = crearClienteServidor()
+  const ahora = new Date()
+  const yyyy = String(ahora.getFullYear())
+  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
+  const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const path = `${yyyy}/${mm}/${codigo}/cotizacion-${Date.now()}-${nombreLimpio}`
+
+  const { error } = await supabase.storage.from('legajos-compras').upload(path, archivo, { contentType: archivo.type || undefined })
+  if (error) return false
+
+  const { error: errUpd } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .update({ cotizacion_storage_path: path })
+    .eq('id', ocId)
+  return !errUpd
+}
+
+export async function obtenerUrlCotizacionOC(storagePath: string): Promise<string> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase.storage.from('legajos-compras').createSignedUrl(storagePath, 60)
+  if (error || !data) throw new Error(`No se pudo generar el enlace de la cotización: ${error?.message ?? ''}`)
+  return data.signedUrl
 }

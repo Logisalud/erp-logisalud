@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { exigirUsuario, perfilActual } from '@logisalud/auth/server'
-import { crearOC } from '@/services/ordenes-compra'
+import { crearOC, subirCotizacionOC } from '@/services/ordenes-compra'
 import { avisarCreacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
 import { calcularTotales, validarOC, type BorradorOC } from '@/domain/orden-compra'
@@ -35,6 +35,17 @@ export async function crearOrdenCompraBien(
     oc = await crearOC(borrador)
   } catch (e) {
     return { errores: [{ campo: 'general', mensaje: (e as Error).message }] }
+  }
+
+  // La cotización es best-effort, igual que el resto de los adjuntos del
+  // módulo: si falla la subida, la orden igual quedó creada.
+  const archivoCotizacion = form.get('cotizacion')
+  if (archivoCotizacion instanceof File) {
+    try {
+      await subirCotizacionOC(oc.id, oc.codigo, archivoCotizacion)
+    } catch {
+      // No tumbar la orden por una cotización que falló.
+    }
   }
 
   // Pieza K: aviso a Contabilidad al crear la orden.

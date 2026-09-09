@@ -1,17 +1,16 @@
 import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
-import { perfilActual } from '@logisalud/auth/server'
 import { listarProveedores } from '@/services/proveedores'
 import { FormularioOC } from './formulario'
 
 export const dynamic = 'force-dynamic'
 
 export default async function NuevaOC() {
-  const [proveedores, perfil] = await Promise.all([
-    listarProveedores({ tipo: 'mercaderia' }),
-    perfilActual(),
-  ])
-  const puedeRegistrarProveedor = perfil?.area === 'compras' || perfil?.area === 'admin'
+  const proveedores = await listarProveedores({ tipo: 'mercaderia' })
+  // Acceso abierto a toda persona logueada mientras dure
+  // `compras.flags.acceso_abierto_temporal` (mismo criterio que la policy
+  // RLS `proveedores_acceso_temporal`).
+  const puedeRegistrarProveedor = true
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
