@@ -25,12 +25,9 @@ export default async function Proveedores({
     <main className="mx-auto max-w-3xl px-4 py-8">
       <Encabezado titulo="Proveedores" atras={{ href: '/', texto: 'Módulos' }} />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4">
         <Link href="/proveedores/nuevo" className="btn-primary w-full sm:w-auto">
-          + Nuevo proveedor de mercadería/bienes
-        </Link>
-        <Link href="/servicios/proveedores/nuevo" className="btn-secondary w-full sm:w-auto">
-          + Nuevo proveedor de servicios
+          + Nuevo proveedor
         </Link>
       </div>
 

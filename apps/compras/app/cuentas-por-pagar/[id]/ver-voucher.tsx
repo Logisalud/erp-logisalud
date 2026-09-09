@@ -3,14 +3,21 @@
 import { useState, useTransition } from 'react'
 import { verVoucherAction } from './actions'
 
-export function VerVoucher({ storagePath, etiqueta }: { storagePath: string; etiqueta: string }) {
+type AccionVerArchivo = (storagePath: string) => Promise<{ url: string } | { error: string }>
+
+/** `accion` por defecto abre desde `legajos-pagos` (voucher/detracción) — para
+ * otro bucket (ej. la cotización/factura de Pago Directo, en `legajos-compras`)
+ * se pasa `verLegajoPagoDirectoAction`. */
+export function VerVoucher({
+  storagePath, etiqueta, accion = verVoucherAction,
+}: { storagePath: string; etiqueta: string; accion?: AccionVerArchivo }) {
   const [pending, iniciar] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   const abrir = () => {
     setError(null)
     iniciar(async () => {
-      const resultado = await verVoucherAction(storagePath)
+      const resultado = await accion(storagePath)
       if ('error' in resultado) setError(resultado.error)
       else window.open(resultado.url, '_blank', 'noopener,noreferrer')
     })

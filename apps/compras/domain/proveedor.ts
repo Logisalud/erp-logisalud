@@ -28,15 +28,30 @@ export function enmascararCuenta(numero: string): string {
 
 export type ErrorValidacionProveedor = { campo: string; mensaje: string }
 
+/** 'servicio' además de las 3 de compras.proveedores — un solo formulario de
+ * alta para las dos tablas (ver services/proveedores-unificado.ts::crearProveedorUnificado),
+ * la persona no tiene que saber de antemano en qué schema vive cada una. */
+export type TipoProveedorUnificado = 'mercaderia' | 'bien' | 'ambos' | 'servicio'
+
 export type BorradorProveedorUnificado = {
+  tipo: TipoProveedorUnificado
   ruc: string
   razonSocial: string
+  nombreComercial?: string
+  contactoNombre?: string
+  contactoEmail?: string
+  contactoTelefono?: string
   condicionPagoDias: number
   monedaPrincipal: string
 }
 
+const TIPOS_PROVEEDOR_UNIFICADO: readonly TipoProveedorUnificado[] = ['mercaderia', 'bien', 'ambos', 'servicio']
+
 export function validarProveedor(b: BorradorProveedorUnificado): ErrorValidacionProveedor[] {
   const errores: ErrorValidacionProveedor[] = []
+  if (!TIPOS_PROVEEDOR_UNIFICADO.includes(b.tipo)) {
+    errores.push({ campo: 'tipo', mensaje: 'Elige qué le compras a este proveedor.' })
+  }
   if (!validarRUC(b.ruc)) errores.push({ campo: 'ruc', mensaje: 'El RUC tiene que tener 11 dígitos.' })
   if (!b.razonSocial.trim()) errores.push({ campo: 'razonSocial', mensaje: 'Escribe la razón social.' })
   if (b.condicionPagoDias < 0) errores.push({ campo: 'condicionPagoDias', mensaje: 'Los días de condición de pago tienen que ser 0 o más.' })

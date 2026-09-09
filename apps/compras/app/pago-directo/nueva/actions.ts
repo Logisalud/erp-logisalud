@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { validarPagoDirecto } from '@/domain/obligacion'
-import { registrarPagoDirecto, subirCotizacionPagoDirecto, completarFacturaPagoDirecto } from '@/services/obligaciones'
+import { registrarPagoDirecto, subirCotizacionPagoDirecto, subirFacturaPagoDirecto, completarFacturaPagoDirecto } from '@/services/obligaciones'
 import { avisarCreacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
 
@@ -45,15 +45,20 @@ export async function registrarPagoDirectoAction(_previo: EstadoFormulario, form
     return { errores: [{ campo: 'general', mensaje: e instanceof Error ? e.message : 'No se pudo registrar el pago directo.' }] }
   }
 
-  // La cotización es best-effort, igual que el resto de los adjuntos del
-  // módulo: si falla la subida, el registro igual quedó creado.
+  // La cotización/factura es best-effort, igual que el resto de los adjuntos
+  // del módulo: si falla la subida, el registro igual quedó creado. Nunca
+  // se suben las dos — pendienteFactura decide cuál de los dos campos vino
+  // en el formulario.
   const archivoCotizacion = form.get('cotizacion')
-  if (archivoCotizacion instanceof File) {
-    try {
+  const archivoFactura = form.get('factura')
+  try {
+    if (pendienteFactura && archivoCotizacion instanceof File) {
       await subirCotizacionPagoDirecto(registro.id, registro.codigo, archivoCotizacion)
-    } catch {
-      // No tumbar el registro por una cotización que falló.
+    } else if (!pendienteFactura && archivoFactura instanceof File) {
+      await subirFacturaPagoDirecto(registro.id, registro.codigo, archivoFactura)
     }
+  } catch {
+    // No tumbar el registro por un adjunto que falló.
   }
 
   // Pieza D: aviso a Contabilidad al CREAR — independiente de "Dar

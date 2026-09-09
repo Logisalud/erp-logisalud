@@ -4,8 +4,9 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearProveedorAction, type EstadoFormulario } from './actions'
 import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
+import type { TipoProveedorUnificado } from '@/domain/proveedor'
 
-export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: 'mercaderia' | 'bien' | 'ambos'; volver?: string }) {
+export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: TipoProveedorUnificado; volver?: string }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearProveedorAction, null)
   const sucio = useMarcarSucioAlEditar(estado)
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
@@ -28,6 +29,7 @@ export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: 'mer
           <option value="mercaderia">Mercadería (productos que revendemos)</option>
           <option value="bien">Bienes que NO revendemos (equipos, muebles)</option>
           <option value="ambos">Ambos</option>
+          <option value="servicio">Servicio (notaría, seguros, courier…)</option>
         </select>
       </label>
 

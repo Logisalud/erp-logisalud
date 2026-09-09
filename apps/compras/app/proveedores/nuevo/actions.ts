@@ -1,46 +1,47 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { crearProveedor, type TipoProveedor } from '@/services/proveedores'
+import { crearProveedorUnificado } from '@/services/proveedores-unificado'
+import { validarProveedor, type TipoProveedorUnificado } from '@/domain/proveedor'
 
-const TIPOS_VALIDOS: TipoProveedor[] = ['mercaderia', 'bien', 'ambos']
+const TIPOS_VALIDOS: TipoProveedorUnificado[] = ['mercaderia', 'bien', 'ambos', 'servicio']
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 
 export async function crearProveedorAction(_previo: EstadoFormulario, form: FormData): Promise<EstadoFormulario> {
-  const ruc = String(form.get('ruc') ?? '').trim()
-  const razonSocial = String(form.get('razonSocial') ?? '').trim()
-  const condicionPagoDias = Number(form.get('condicionPagoDias') ?? 30)
   const tipoRaw = String(form.get('tipo') ?? 'mercaderia')
-  const tipo: TipoProveedor = TIPOS_VALIDOS.includes(tipoRaw as TipoProveedor) ? (tipoRaw as TipoProveedor) : 'mercaderia'
+  const tipo: TipoProveedorUnificado = TIPOS_VALIDOS.includes(tipoRaw as TipoProveedorUnificado)
+    ? (tipoRaw as TipoProveedorUnificado)
+    : 'mercaderia'
   // Ruta interna a la que volver tras registrar — nunca se confía en un
   // query param para redirigir fuera del propio módulo.
   const volverRaw = String(form.get('volver') ?? '')
   const volver = volverRaw.startsWith('/') ? volverRaw : undefined
 
-  const errores: { campo: string; mensaje: string }[] = []
-  if (!/^\d{11}$/.test(ruc)) errores.push({ campo: 'ruc', mensaje: 'El RUC tiene que tener 11 dígitos.' })
-  if (!razonSocial) errores.push({ campo: 'razonSocial', mensaje: 'Escribe la razón social.' })
-  if (condicionPagoDias < 0 || Number.isNaN(condicionPagoDias)) errores.push({ campo: 'condicionPagoDias', mensaje: 'Los días de condición de pago tienen que ser 0 o más.' })
+  const borrador = {
+    tipo,
+    ruc: String(form.get('ruc') ?? '').trim(),
+    razonSocial: String(form.get('razonSocial') ?? '').trim(),
+    nombreComercial: String(form.get('nombreComercial') ?? '').trim() || undefined,
+    contactoNombre: String(form.get('contactoNombre') ?? '').trim() || undefined,
+    contactoEmail: String(form.get('contactoEmail') ?? '').trim() || undefined,
+    contactoTelefono: String(form.get('contactoTelefono') ?? '').trim() || undefined,
+    condicionPagoDias: Number(form.get('condicionPagoDias') ?? 30),
+    monedaPrincipal: String(form.get('monedaPrincipal') ?? 'PEN'),
+  }
+
+  const errores = validarProveedor(borrador)
   if (errores.length > 0) return { errores }
 
   let id: string
+  let fuente: 'compra' | 'servicio'
   try {
-    const proveedor = await crearProveedor({
-      ruc,
-      razonSocial,
-      nombreComercial: String(form.get('nombreComercial') ?? '').trim() || undefined,
-      contactoNombre: String(form.get('contactoNombre') ?? '').trim() || undefined,
-      contactoEmail: String(form.get('contactoEmail') ?? '').trim() || undefined,
-      contactoTelefono: String(form.get('contactoTelefono') ?? '').trim() || undefined,
-      condicionPagoDias,
-      monedaPrincipal: String(form.get('monedaPrincipal') ?? 'PEN'),
-      tipo,
-    })
+    const proveedor = await crearProveedorUnificado(borrador)
     id = proveedor.id
+    fuente = proveedor.fuente
   } catch (e) {
     return { errores: [{ campo: 'general', mensaje: e instanceof Error ? e.message : 'No se pudo registrar el proveedor.' }] }
   }
 
-  redirect(volver ?? `/proveedores/${id}`)
+  redirect(volver ?? (fuente === 'servicio' ? `/proveedores/servicio/${id}` : `/proveedores/${id}`))
 }
