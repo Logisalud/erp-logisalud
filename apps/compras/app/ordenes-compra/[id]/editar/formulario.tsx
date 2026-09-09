@@ -43,7 +43,9 @@ export function FormularioEditarOC({
     esBien
       ? []
       : oc.items.map((i) => ({
-          producto: i.producto && i.producto_id ? { id: i.producto_id, ...i.producto } : null,
+          // precio_compra: null — esta línea ya trae su propio precio_unitario
+          // pactado (abajo), el precio de compra del catálogo no aplica acá.
+          producto: i.producto && i.producto_id ? { id: i.producto_id, ...i.producto, precio_compra: null } : null,
           cantidad: String(i.cantidad_pedida),
           precio: String(i.precio_unitario),
         }))
@@ -190,7 +192,11 @@ export function FormularioEditarOC({
                   valor={linea.producto}
                   onElegir={(p) => {
                     const copia = [...lineasMercaderia]
-                    copia[i] = { ...copia[i], producto: p }
+                    // El precio de compra del catálogo autocompleta, pero
+                    // nunca pisa un precio que la persona ya haya escrito
+                    // (ni el que ya traía la línea al editar la OC).
+                    const precio = !copia[i].precio && p?.precio_compra != null ? String(p.precio_compra) : copia[i].precio
+                    copia[i] = { ...copia[i], producto: p, precio }
                     setLineasMercaderia(copia)
                   }}
                 />

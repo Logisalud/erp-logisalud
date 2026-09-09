@@ -106,7 +106,10 @@ export function FormularioOC() {
                 valor={linea.producto}
                 onElegir={(p) => {
                   const copia = [...lineas]
-                  copia[i] = { ...copia[i], producto: p }
+                  // El precio de compra del catálogo autocompleta, pero
+                  // nunca pisa un precio que la persona ya haya escrito.
+                  const precio = !copia[i].precio && p?.precio_compra != null ? String(p.precio_compra) : copia[i].precio
+                  copia[i] = { ...copia[i], producto: p, precio }
                   setLineas(copia)
                 }}
               />

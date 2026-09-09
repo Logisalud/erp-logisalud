@@ -7,6 +7,10 @@ export type ProductoElegido = {
   codigo: string
   descripcion: string
   unidad_medida: string
+  /** Precio de compra cargado en el catálogo (catalogo.productos.precio_compra)
+   * — null si todavía no se cargó para este producto. Sirve para
+   * autocompletar el precio unitario de la línea, nunca para forzarlo. */
+  precio_compra: number | null
 }
 
 /**

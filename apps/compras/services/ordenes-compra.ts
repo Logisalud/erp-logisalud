@@ -134,7 +134,7 @@ export async function buscarProductos(termino: string) {
   const { data, error } = await supabase
     .schema('catalogo')
     .from('productos')
-    .select('id, codigo, descripcion, unidad_medida')
+    .select('id, codigo, descripcion, unidad_medida, precio_compra')
     .eq('estado', 'activo')
     .or(`codigo.ilike.%${t}%,descripcion.ilike.%${t}%`)
     .order('descripcion')
