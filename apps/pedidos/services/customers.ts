@@ -125,6 +125,14 @@ export async function requestNewCustomer(input: {
   zonaId: number;
   condicionPagoHabitualId: number;
   direccion: string;
+  /** Celular del contacto. Opcional: no frena el alta desde la calle. */
+  celular?: string | null;
+  /**
+   * Domicilio fiscal del RUC, distinto de la dirección de entrega.
+   * Opcional al registrar; es el que va a pedir el comprobante
+   * electrónico.
+   */
+  direccionFiscal?: string | null;
   /** Código INEI ya resuelto por la capa de acción, nunca escrito a mano. */
   ubigeo?: string | null;
   departamento?: string | null;
@@ -146,6 +154,8 @@ export async function requestNewCustomer(input: {
     .insert({
       ruc_o_documento: input.rucODocumento,
       razon_social: input.razonSocial,
+      whatsapp: input.celular ?? null,
+      direccion_fiscal: input.direccionFiscal ?? null,
       canal_id: input.canalId,
       zona_id: input.zonaId,
       condicion_pago_habitual_id: input.condicionPagoHabitualId,
@@ -435,6 +445,8 @@ export type CustomerDetail = {
   provincia: string | null;
   distrito: string | null;
   whatsapp: string | null;
+  /** Domicilio fiscal del RUC. No es una dirección de entrega. */
+  direccion_fiscal: string | null;
   created_at: string;
   canal: { nombre: string } | null;
   zona: { nombre: string } | null;
@@ -459,7 +471,7 @@ export async function getCustomerByRuc(ruc: string): Promise<CustomerDetail | nu
     .select(
       `id, ruc_o_documento, razon_social, nombre_comercial, tipo_comprobante_permitido,
        canal_id, zona_id, condicion_pago_habitual_id, estado, es_agente_retencion,
-       departamento, provincia, distrito, whatsapp, created_at,
+       departamento, provincia, distrito, whatsapp, direccion_fiscal, created_at,
        canal:sales_channels(nombre), zona:zones(nombre),
        condicion_pago:payment_terms(nombre),
        customer_addresses(id, direccion, referencia, ubigeo, es_principal, estado)`,
@@ -535,13 +547,15 @@ export async function updateCustomerBasics(input: {
   zonaId: number | null;
   condicionPagoHabitualId: number | null;
   estado: string;
+  celular: string | null;
+  direccionFiscal: string | null;
 }): Promise<{ antes: Record<string, unknown>; despues: Record<string, unknown> }> {
   const supabase = createClient();
 
   const { data: antes, error: errorAntes } = await supabase
     .from("customers")
     .select(
-      "razon_social, nombre_comercial, tipo_comprobante_permitido, canal_id, zona_id, condicion_pago_habitual_id, estado",
+      "razon_social, nombre_comercial, tipo_comprobante_permitido, canal_id, zona_id, condicion_pago_habitual_id, estado, whatsapp, direccion_fiscal",
     )
     .eq("id", input.customerId)
     .maybeSingle();
@@ -556,6 +570,8 @@ export async function updateCustomerBasics(input: {
     zona_id: input.zonaId,
     condicion_pago_habitual_id: input.condicionPagoHabitualId,
     estado: input.estado,
+    whatsapp: input.celular,
+    direccion_fiscal: input.direccionFiscal,
   };
 
   const { error } = await supabase

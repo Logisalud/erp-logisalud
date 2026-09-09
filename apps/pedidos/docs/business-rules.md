@@ -1454,6 +1454,35 @@ usó la carga masiva: pantalla y migración no pueden divergir.
 datos y la captura quedan resueltos; la conexión con NubeFact es un paso
 aparte.
 
+## Dirección fiscal vs. direcciones de entrega (`1024`)
+
+Son dos cosas distintas y se confunden fácil, así que están separadas en el
+modelo y etiquetadas en pantalla:
+
+| | Dónde vive | Cuántas | Para qué |
+|---|---|---|---|
+| **Dirección fiscal (RUC)** | `customers.direccion_fiscal` | **Una sola** por cliente | El domicilio declarado en SUNAT. Es la que va a pedir el comprobante electrónico cuando se conecte NubeFact en vivo. |
+| **Dirección de entrega** | `customer_addresses` | **Varias** (local, almacén, sucursal) | A dónde llega la mercadería. De ahí sale el ubigeo de la guía de remisión. |
+
+La fiscal **no** entra como una fila más de `customer_addresses`: ahí el
+vendedor elige el destino del pedido, y una fiscal mezclada se podría
+elegir como punto de entrega. Por eso es columna del cliente.
+
+**Las dos son opcionales al registrar.** Hoy el alta ya no exige dirección
+de entrega, y exigir la fiscal frenaría el alta de un cliente desde la
+calle, que es el caso real. La pantalla la recomienda ("conviene cargarla
+si la tenés a mano") sin bloquear. Los 3.4k clientes de la cartera migrada
+entran con `direccion_fiscal` en null.
+
+El **celular** se captura en el mismo formulario y va a
+`customers.whatsapp`, la columna que ya existía desde `0012` (la carga de
+cartera trajo 456 números): el formulario de cliente nuevo simplemente no
+lo pedía. No hizo falta columna nueva.
+
+Los dos campos están en el alta (`/pedidos/nuevo`, "Cliente nuevo") y en la
+ficha (`/admin/maestros/clientes/<ruc>`), para completarlos o corregirlos
+después.
+
 ## Ficha de un cliente: buscar y corregir
 
 `/admin/maestros/clientes` tenía sólo el importador masivo: para tocar un

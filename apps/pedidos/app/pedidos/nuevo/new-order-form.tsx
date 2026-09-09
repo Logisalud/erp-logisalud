@@ -100,6 +100,8 @@ export function NewOrderForm({
     zonaId: "",
     condicionPagoHabitualId: "",
     direccion: "",
+    celular: "",
+    direccionFiscal: "",
   });
 
   function updateNewCustomer(field: keyof typeof newCustomer, value: string) {
@@ -178,6 +180,8 @@ export function NewOrderForm({
           zonaId: Number(newCustomer.zonaId),
           condicionPagoHabitualId: Number(newCustomer.condicionPagoHabitualId),
           direccion: newCustomer.direccion,
+          celular: newCustomer.celular,
+          direccionFiscal: newCustomer.direccionFiscal,
           departamento: newCustomerUbigeo.departamento,
           provincia: newCustomerUbigeo.provincia,
           distrito: newCustomerUbigeo.distrito,
@@ -195,6 +199,8 @@ export function NewOrderForm({
           zonaId: "",
           condicionPagoHabitualId: "",
           direccion: "",
+          celular: "",
+          direccionFiscal: "",
         });
         setNewCustomerUbigeo(UBIGEO_VACIO);
       } catch (err) {
@@ -344,10 +350,45 @@ export function NewOrderForm({
             </select>
             <input
               className="campo"
-              placeholder="Dirección de entrega"
-              value={newCustomer.direccion}
-              onChange={(e) => updateNewCustomer("direccion", e.target.value)}
+              inputMode="tel"
+              placeholder="Celular (opcional)"
+              value={newCustomer.celular}
+              onChange={(e) => updateNewCustomer("celular", e.target.value)}
             />
+            {/*
+              Las dos direcciones son distintas y se confunden fácil, así
+              que cada una lleva su etiqueta: la fiscal es la del RUC (una
+              sola, la que va a pedir el comprobante) y la de entrega es a
+              dónde llega la mercadería (puede haber varias).
+            */}
+            <div>
+              <label className="etiqueta" htmlFor="cliente-nuevo-direccion-fiscal">
+                Dirección fiscal (RUC) — opcional
+              </label>
+              <input
+                id="cliente-nuevo-direccion-fiscal"
+                className="campo"
+                placeholder="Domicilio fiscal declarado en SUNAT"
+                value={newCustomer.direccionFiscal}
+                onChange={(e) => updateNewCustomer("direccionFiscal", e.target.value)}
+              />
+              <p className="text-xs text-slate-600">
+                No frena el registro, pero conviene cargarla si la tenés a mano: es la que va a
+                necesitar la factura o boleta electrónica.
+              </p>
+            </div>
+            <div>
+              <label className="etiqueta" htmlFor="cliente-nuevo-direccion-entrega">
+                Dirección de entrega
+              </label>
+              <input
+                id="cliente-nuevo-direccion-entrega"
+                className="campo"
+                placeholder="A dónde se entrega la mercadería"
+                value={newCustomer.direccion}
+                onChange={(e) => updateNewCustomer("direccion", e.target.value)}
+              />
+            </div>
             {/*
               El distrito no es un dato de relleno: de ahí sale el ubigeo del
               punto de llegada de la guía de remisión. El vendedor elige los
