@@ -70,10 +70,10 @@ function Dato({ termino, valor }: { termino: string; valor: string | null }) {
 function FormularioDatosAdicionales({ proveedor }: { proveedor: DetalleProveedorUnificado }) {
   const accion = guardarDatosProveedorAction.bind(null, proveedor.fuente, proveedor.id)
   const [estado, ejecutar] = useFormState<EstadoAccion, FormData>(accion, null)
-  const sucio = useMarcarSucioAlEditar()
+  const sucio = useMarcarSucioAlEditar(estado)
 
   return (
-    <form action={ejecutar} onChange={sucio.onChange} className="card mt-4 space-y-3">
+    <form action={ejecutar} onChange={sucio.onChange} onSubmit={sucio.onSubmit} className="card mt-4 space-y-3">
       <h2 className="font-heading text-lg">Dirección y observaciones</h2>
       {estado?.error ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">{estado.error}</p>
@@ -132,7 +132,7 @@ function CuentasBancarias({
   const [mostrarCompletas, setMostrarCompletas] = useState<Set<string>>(new Set())
   const accion = crearCuentaBancariaAction.bind(null, fuente, proveedorId)
   const [estado, ejecutar] = useFormState<EstadoFormularioCuenta, FormData>(accion, null)
-  const sucio = useMarcarSucioAlEditar()
+  const sucio = useMarcarSucioAlEditar(estado)
 
   function alternarVisible(id: string) {
     setMostrarCompletas((actual) => {
@@ -187,7 +187,7 @@ function CuentasBancarias({
       <details className="mt-4">
         <summary className="cursor-pointer text-sm font-medium text-logisalud-teal">Agregar cuenta</summary>
 
-        <form action={ejecutar} onChange={sucio.onChange} className="mt-3 space-y-3">
+        <form action={ejecutar} onChange={sucio.onChange} onSubmit={sucio.onSubmit} className="mt-3 space-y-3">
           {estado?.error ? (
             <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">{estado.error}</p>
           ) : null}

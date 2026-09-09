@@ -22,7 +22,7 @@ export function FormularioPagoDirecto({
   categorias: CategoriaOpcion[]
 }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(registrarPagoDirectoAction, null)
-  const sucio = useMarcarSucioAlEditar()
+  const sucio = useMarcarSucioAlEditar(estado)
   const [proveedor, setProveedor] = useState<ProveedorElegido | null>(null)
   const [moneda, setMoneda] = useState<'PEN' | 'USD'>('PEN')
   const [categoriaId, setCategoriaId] = useState('')
@@ -57,7 +57,7 @@ export function FormularioPagoDirecto({
   }
 
   return (
-    <form action={accion} onChange={sucio.onChange} className="space-y-4">
+    <form action={accion} onChange={sucio.onChange} onSubmit={sucio.onSubmit} className="space-y-4">
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
           {errorDe('general')}
