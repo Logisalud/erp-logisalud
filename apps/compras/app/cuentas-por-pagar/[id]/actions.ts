@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { darConformidad, obtenerObligacion } from '@/services/obligaciones'
+import { darConformidad, obtenerObligacion, obtenerUrlLegajoPagoDirecto } from '@/services/obligaciones'
 import { registrarNotaCredito, aplicarNotaCredito } from '@/services/notas-credito'
 import { obtenerUrlLegajoPago } from '@/services/pagos'
 
@@ -58,6 +58,15 @@ export async function aplicarNotaCreditoAction(obligacionId: string, notaCredito
 export async function verVoucherAction(storagePath: string): Promise<{ url: string } | { error: string }> {
   try {
     const url = await obtenerUrlLegajoPago(storagePath)
+    return { url }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+}
+
+export async function verLegajoPagoDirectoAction(storagePath: string): Promise<{ url: string } | { error: string }> {
+  try {
+    const url = await obtenerUrlLegajoPagoDirecto(storagePath)
     return { url }
   } catch (e) {
     return { error: (e as Error).message }

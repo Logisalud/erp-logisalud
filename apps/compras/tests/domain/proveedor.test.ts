@@ -35,8 +35,10 @@ describe('enmascararCuenta', () => {
 })
 
 describe('validarProveedor', () => {
-  const base = { ruc: '20123456789', razonSocial: 'Acme SAC', condicionPagoDias: 30, monedaPrincipal: 'PEN' }
+  const base = { tipo: 'mercaderia' as const, ruc: '20123456789', razonSocial: 'Acme SAC', condicionPagoDias: 30, monedaPrincipal: 'PEN' }
   it('borrador válido: sin errores', () => expect(validarProveedor(base)).toEqual([]))
+  it('tipo servicio también es válido', () => expect(validarProveedor({ ...base, tipo: 'servicio' })).toEqual([]))
+  it('tipo inválido', () => expect(validarProveedor({ ...base, tipo: 'otro' as any }).some((e) => e.campo === 'tipo')).toBe(true))
   it('RUC inválido', () => expect(validarProveedor({ ...base, ruc: '123' }).some((e) => e.campo === 'ruc')).toBe(true))
   it('razón social vacía', () => expect(validarProveedor({ ...base, razonSocial: '  ' }).some((e) => e.campo === 'razonSocial')).toBe(true))
   it('días de pago negativos', () => expect(validarProveedor({ ...base, condicionPagoDias: -1 }).some((e) => e.campo === 'condicionPagoDias')).toBe(true))

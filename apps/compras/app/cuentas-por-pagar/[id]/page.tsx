@@ -12,6 +12,7 @@ import { ETIQUETA_ESTADO_VENCIMIENTO } from '@/domain/financiamiento'
 import { BotonConformidad } from './conformidad'
 import { NotasCredito } from './notas-credito'
 import { VerVoucher } from './ver-voucher'
+import { verLegajoPagoDirectoAction } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +77,16 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
             {obligacion.recepcion.storage_path_guia_recibida ? 'guía ✓' : 'guía —'}
             {' · '}
             {obligacion.recepcion.storage_path_factura_proveedor ? 'factura ✓' : 'factura —'}
+          </p>
+        ) : null}
+        {obligacion.cotizacion_storage_path || obligacion.factura_storage_path ? (
+          <p className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
+            {obligacion.cotizacion_storage_path ? (
+              <VerVoucher storagePath={obligacion.cotizacion_storage_path} etiqueta="Ver cotización" accion={verLegajoPagoDirectoAction} />
+            ) : null}
+            {obligacion.factura_storage_path ? (
+              <VerVoucher storagePath={obligacion.factura_storage_path} etiqueta="Ver factura escaneada" accion={verLegajoPagoDirectoAction} />
+            ) : null}
           </p>
         ) : null}
         {obligacion.pago ? (

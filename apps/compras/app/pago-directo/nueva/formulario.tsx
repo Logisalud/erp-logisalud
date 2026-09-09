@@ -118,15 +118,23 @@ export function FormularioPagoDirecto({
             />
           </Campo>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Campo etiqueta="N° de factura *" error={errorDe('numeroFactura')}>
-              <input type="text" name="numeroFactura" required className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
-            </Campo>
-            <Campo etiqueta="Fecha de factura *" error={errorDe('fechaFactura')}>
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Campo etiqueta="N° de factura *" error={errorDe('numeroFactura')}>
+                <input type="text" name="numeroFactura" required className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+              </Campo>
+              <Campo etiqueta="Fecha de factura *" error={errorDe('fechaFactura')}>
+                <input
+                  type="date" name="fechaFactura" required
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+                />
+              </Campo>
+            </div>
+            <Campo etiqueta="📎 Factura escaneada (opcional)">
               <input
-                type="date" name="fechaFactura" required
-                defaultValue={new Date().toISOString().slice(0, 10)}
-                className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+                type="file" name="factura" accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
               />
             </Campo>
           </div>

@@ -545,6 +545,11 @@ export type ObligacionDetalle = ObligacionListada & {
   }[]
   notasCredito: { id: string; numero_nc: string | null; monto: number; motivo: string; aplicada: boolean }[]
   categoriaPagoDirecto: { nombre: string } | null
+  /** Solo Pago Directo: cotización (si se registró "pendiente de factura") o
+   * la factura escaneada (si sí había factura) — ver subirCotizacionPagoDirecto
+   * / subirFacturaPagoDirecto. Nunca las dos a la vez. */
+  cotizacion_storage_path: string | null
+  factura_storage_path: string | null
   pago: {
     numero_voucher: string | null
     storage_path_voucher: string | null
@@ -559,7 +564,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .from('obligaciones')
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, igv,
              monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, proveedor_servicio_id, beneficiario_persona,
-             oc_id, recepcion_id, categoria_pago_directo_id,
+             oc_id, recepcion_id, categoria_pago_directo_id, cotizacion_storage_path, factura_storage_path,
              obligaciones_items(id, oc_item_id, cantidad_facturada, precio_facturado)`)
     .eq('id', id)
     .maybeSingle()
@@ -610,6 +615,8 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     })),
     notasCredito,
     categoriaPagoDirecto,
+    cotizacion_storage_path: data.cotizacion_storage_path,
+    factura_storage_path: data.factura_storage_path,
     pago,
   }
 }
@@ -927,6 +934,41 @@ export async function subirCotizacionPagoDirecto(obligacionId: string, codigo: s
     .update({ cotizacion_storage_path: path })
     .eq('id', obligacionId)
   return !errUpd
+}
+
+/**
+ * Sube el escaneo/PDF de la factura real de un Pago Directo (cuando SÍ hay
+ * factura — lo opuesto de `subirCotizacionPagoDirecto`, que es para cuando
+ * todavía no la emitieron). Mismo bucket y mismo patrón de path. Best-effort,
+ * igual que el resto de los adjuntos del módulo.
+ */
+export async function subirFacturaPagoDirecto(obligacionId: string, codigo: string, archivo: File): Promise<boolean> {
+  if (!archivo || archivo.size === 0) return false
+  const supabase = crearClienteServidor()
+  const ahora = new Date()
+  const yyyy = String(ahora.getFullYear())
+  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
+  const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const path = `${yyyy}/${mm}/${codigo}/factura-${Date.now()}-${nombreLimpio}`
+
+  const { error } = await supabase.storage.from('legajos-compras').upload(path, archivo, { contentType: archivo.type || undefined })
+  if (error) return false
+
+  const { error: errUpd } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .update({ factura_storage_path: path })
+    .eq('id', obligacionId)
+  return !errUpd
+}
+
+/** Firma un link temporal (60s) para ver la cotización o la factura escaneada
+ * de un Pago Directo — mismo bucket `legajos-compras` para las dos. */
+export async function obtenerUrlLegajoPagoDirecto(storagePath: string): Promise<string> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase.storage.from('legajos-compras').createSignedUrl(storagePath, 60)
+  if (error || !data) throw new Error(`No se pudo generar el enlace del archivo: ${error?.message ?? ''}`)
+  return data.signedUrl
 }
 
 /** Para la ficha de la OC: si ya se registró una factura, de acá sale el link a la obligación.

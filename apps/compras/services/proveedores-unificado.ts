@@ -1,6 +1,8 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
-import { validarCuentaBancaria, type FuenteProveedor } from '@/domain/proveedor'
+import { validarCuentaBancaria, validarProveedor, type BorradorProveedorUnificado, type FuenteProveedor } from '@/domain/proveedor'
+import { crearProveedor } from '@/services/proveedores'
+import { crearProveedorServicio } from '@/services/servicios'
 
 /**
  * Búsqueda unificada de proveedores — junta compras.proveedores (mercadería
@@ -92,6 +94,44 @@ export async function buscarProveedoresUnificado(filtros: FiltrosProveedorUnific
     )
   }
   return filas.sort((a, b) => a.razonSocial.localeCompare(b.razonSocial))
+}
+
+/**
+ * Alta de proveedor con un solo formulario para las dos tablas — la persona
+ * elige "qué le compra" (mercadería/bien/ambos/servicio) y esto decide sola
+ * a qué schema va el insert. Reusa crearProveedor/crearProveedorServicio
+ * (la validación y el insert de cada tabla no cambian, esto es solo el
+ * despachador) — ver domain/proveedor.ts::validarProveedor para las
+ * reglas compartidas.
+ */
+export async function crearProveedorUnificado(
+  b: BorradorProveedorUnificado
+): Promise<{ id: string; fuente: FuenteProveedor }> {
+  if (b.tipo === 'servicio') {
+    const { id } = await crearProveedorServicio({
+      ruc: b.ruc,
+      razonSocial: b.razonSocial,
+      nombreComercial: b.nombreComercial,
+      contactoNombre: b.contactoNombre,
+      contactoEmail: b.contactoEmail,
+      contactoTelefono: b.contactoTelefono,
+      condicionPagoDias: b.condicionPagoDias,
+      monedaPrincipal: b.monedaPrincipal,
+    })
+    return { id, fuente: 'servicio' }
+  }
+  const { id } = await crearProveedor({
+    ruc: b.ruc,
+    razonSocial: b.razonSocial,
+    nombreComercial: b.nombreComercial,
+    contactoNombre: b.contactoNombre,
+    contactoEmail: b.contactoEmail,
+    contactoTelefono: b.contactoTelefono,
+    condicionPagoDias: b.condicionPagoDias,
+    monedaPrincipal: b.monedaPrincipal,
+    tipo: b.tipo,
+  })
+  return { id, fuente: 'compra' }
 }
 
 /** true si el proveedor (de la fuente que sea) ya tiene al menos una OC/OS emitida — nunca se borra, solo se desactiva. */
