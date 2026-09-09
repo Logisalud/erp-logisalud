@@ -17,7 +17,8 @@ import {
 import { listCustomerAddresses, searchActiveCustomers } from "@/services/customers";
 import { mensajeCambioBloqueado } from "@/domain/order-header";
 import { createApprovalRequest } from "@/services/approvals";
-import { addOrderObservation } from "@/services/order-exceptions";
+import { addOrderObservation, getOrderEstado } from "@/services/order-exceptions";
+import { notifyObservationAdded } from "@/services/order-notifications";
 import { listPaymentTerms } from "@/services/catalog";
 import { validarCondicionDePago } from "@/domain/payment-terms";
 
@@ -77,7 +78,17 @@ export async function agregarObservacion(orderId: string, formData: FormData) {
   const userId = await requireUserId();
   const comentario = String(formData.get("comentario") ?? "").trim();
   if (!comentario) throw new Error("Escribe un comentario.");
+
+  const estado = await getOrderEstado(orderId);
   await addOrderObservation({ orderId, comentario, actor: userId });
+
+  // Si el pedido ya salió, su correo ya se mandó: esta observación no
+  // llegaría a nadie salvo que se avise aparte. En DRAFT no hace falta,
+  // porque va a salir en el correo del envío.
+  if (estado && estado !== "DRAFT") {
+    await notifyObservationAdded(orderId, estado, userId, comentario);
+  }
+
   revalidatePath(`/pedidos/${orderId}`);
 }
 

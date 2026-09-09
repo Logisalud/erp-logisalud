@@ -53,6 +53,18 @@ export async function resolveAdministrativeException(input: {
   });
 }
 
+/** El estado del pedido, para decidir si la observación además se avisa. */
+export async function getOrderEstado(orderId: string): Promise<string | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("estado")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as { estado: string } | null)?.estado ?? null;
+}
+
 export async function addOrderObservation(input: {
   orderId: string;
   comentario: string;

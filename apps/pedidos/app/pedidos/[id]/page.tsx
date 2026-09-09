@@ -84,6 +84,7 @@ export default async function OrderDetailPage({
             customerId={order.customer_id}
             items={order.items}
             products={activeProducts}
+            observaciones={order.observations}
             esAdmin={currentUser?.roles.includes("administrador") ?? false}
           />
         </>
@@ -267,8 +268,17 @@ export default async function OrderDetailPage({
         </section>
       )}
 
+      {/*
+        En DRAFT esta sección no se repite: el composer ya la muestra
+        pegada al botón de enviar, que es donde tiene que estar para que
+        entre en el correo del pedido.
+      */}
+      {!isDraft && (
       <section className="panel p-4">
         <h3 className="text-lg text-slate-900">Observaciones</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          Una observación agregada ahora sale por correo a la oficina, en el mismo hilo del pedido.
+        </p>
         {order.observations.length === 0 ? (
           <p className="mt-2 text-sm text-slate-600">Sin observaciones.</p>
         ) : (
@@ -287,6 +297,7 @@ export default async function OrderDetailPage({
           <ObservationForm orderId={order.id} />
         </div>
       </section>
+      )}
     </div>
   );
 }

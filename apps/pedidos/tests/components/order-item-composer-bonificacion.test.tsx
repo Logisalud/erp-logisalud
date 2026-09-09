@@ -44,6 +44,7 @@ describe("la línea bonificada en la pantalla del pedido", () => {
         customerId="d0eef330-9812-4ccc-bace-291f0e290a5f"
         items={items}
         products={[]}
+        observaciones={[]}
         esAdmin={false}
       />,
     );
@@ -82,6 +83,7 @@ function renderConItems(items: typeof manuales, esAdmin: boolean) {
       customerId="d0eef330-9812-4ccc-bace-291f0e290a5f"
       items={items}
       products={[]}
+      observaciones={[]}
       esAdmin={esAdmin}
     />,
   );
