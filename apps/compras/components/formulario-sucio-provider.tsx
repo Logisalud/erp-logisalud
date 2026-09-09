@@ -99,14 +99,23 @@ export function useFormularioSucio(): ContextoFormularioSucio {
 
 /**
  * Atajo para un <form> completo: un solo `onChange` en el `<form>` (los
- * eventos de sus inputs burbujean) marca sucio apenas alguien toca algo, y
- * al desmontarse (navegación real hacia otra pantalla — incluida la que
- * hace un Server Action con `redirect()` al guardar bien) limpia el estado
- * solo. No hace falta que cada formulario sepa distinguir "guardado" de
- * "cancelado": si el componente se desmonta es porque ya se fue de la
- * pantalla, en cualquiera de los dos casos corresponde limpiar.
+ * eventos de sus inputs burbujean) marca sucio apenas alguien toca algo.
+ *
+ * `onSubmit` limpia el estado apenas se envía el formulario, sin esperar a
+ * que termine la Server Action — si guarda bien y hace `redirect()`, la
+ * pantalla cambia y no hace falta nada más; si el formulario se queda en la
+ * misma pantalla tras guardar bien (ej. "Dirección y observaciones" en la
+ * ficha de proveedor, que no navega a ningún lado), igual queda limpio. Sin
+ * este `onSubmit`, el aviso de "¿seguro que quieres salir?" podía
+ * dispararse durante el propio guardado exitoso — mientras la Server Action
+ * todavía está en vuelo el formulario sigue "sucio" y cualquier intento de
+ * navegar en ese instante (incluido el redirect final) lo disparaba.
+ *
+ * Si la Server Action devuelve un `estadoAccion` (validación falló, no hubo
+ * redirect ni cambio de pantalla) se vuelve a marcar sucio: los cambios
+ * siguen sin guardarse.
  */
-export function useMarcarSucioAlEditar() {
+export function useMarcarSucioAlEditar(estadoAccion?: unknown) {
   const { marcarSucio } = useFormularioSucio()
 
   useEffect(() => {
@@ -114,5 +123,13 @@ export function useMarcarSucioAlEditar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return { onChange: () => marcarSucio(true) }
+  useEffect(() => {
+    if (estadoAccion != null) marcarSucio(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoAccion])
+
+  return {
+    onChange: () => marcarSucio(true),
+    onSubmit: () => marcarSucio(false),
+  }
 }

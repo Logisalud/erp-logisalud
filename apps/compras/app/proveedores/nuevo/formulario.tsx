@@ -7,11 +7,11 @@ import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
 
 export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: 'mercaderia' | 'bien' | 'ambos'; volver?: string }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearProveedorAction, null)
-  const sucio = useMarcarSucioAlEditar()
+  const sucio = useMarcarSucioAlEditar(estado)
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
   return (
-    <form action={accion} onChange={sucio.onChange} className="card space-y-3">
+    <form action={accion} onChange={sucio.onChange} onSubmit={sucio.onSubmit} className="card space-y-3">
       {volver ? <input type="hidden" name="volver" value={volver} /> : null}
       {errorDe('general') ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
