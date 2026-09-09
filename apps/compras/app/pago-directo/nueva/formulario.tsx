@@ -72,6 +72,7 @@ export function FormularioPagoDirecto({
         <Campo etiqueta="Proveedor *" error={errorDe('proveedorId')}>
           <BuscadorProveedor valor={proveedor} onElegir={setProveedor} />
           <input type="hidden" name="proveedorId" value={proveedor?.id ?? ''} />
+          <input type="hidden" name="proveedorFuente" value={proveedor?.fuente ?? 'compra'} />
         </Campo>
 
         <Campo etiqueta="Categoría *" error={errorDe('categoriaId')}>

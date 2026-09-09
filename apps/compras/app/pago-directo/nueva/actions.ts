@@ -17,8 +17,10 @@ export async function registrarPagoDirectoAction(_previo: EstadoFormulario, form
   // es la cotización.
   const pendienteFactura = form.get('pendienteFactura') === 'si'
 
+  const proveedorFuenteRaw = String(form.get('proveedorFuente') ?? 'compra')
   const borrador = {
     proveedorId: String(form.get('proveedorId') ?? ''),
+    proveedorFuente: (proveedorFuenteRaw === 'servicio' ? 'servicio' : 'compra') as 'compra' | 'servicio',
     categoriaId: String(form.get('categoriaId') ?? ''),
     descripcion: String(form.get('descripcion') ?? '').trim(),
     numeroFactura: String(form.get('numeroFactura') ?? '').trim(),
