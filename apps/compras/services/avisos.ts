@@ -1,5 +1,5 @@
 import 'server-only'
-import { sendEmail } from '@/services/email'
+import { sendEmail, type EmailAttachment } from '@/services/email'
 import {
   asuntoAviso,
   renderAvisoHtml,
@@ -8,6 +8,7 @@ import {
   type FilaAviso,
   type TipoAviso,
 } from '@/domain/aviso-email'
+import { generarPdfOrden, obtenerDatosPdfOC, obtenerDatosPdfOS } from '@/services/pdf-documentos'
 
 /**
  * Aviso por correo al crear un registro que compromete plata (Piezas D y K).
@@ -39,6 +40,29 @@ export type AvisoCreacion = {
   ruta: string
   /** Correo de quien creó el registro, para la copia. */
   creadorCorreo: string | null
+  /**
+   * Id de la OC/OS para adjuntar su PDF — solo se usa (y solo tiene efecto)
+   * cuando `tipo` es 'oc_mercaderia', 'oc_bien' u 'os'. Pago Directo,
+   * Anticipo y Reembolso no generan un documento formal de este tipo, así
+   * que para esos tipos este campo se ignora aunque venga cargado.
+   */
+  idParaPdf?: string
+}
+
+const TIPOS_CON_PDF: readonly TipoAviso[] = ['oc_mercaderia', 'oc_bien', 'os']
+
+/** Best-effort: si el PDF falla, el aviso igual sale, sin adjunto. */
+async function intentarAdjuntoPdf(aviso: AvisoCreacion): Promise<EmailAttachment[] | undefined> {
+  if (!aviso.idParaPdf || !TIPOS_CON_PDF.includes(aviso.tipo)) return undefined
+  try {
+    const datos = aviso.tipo === 'os' ? await obtenerDatosPdfOS(aviso.idParaPdf) : await obtenerDatosPdfOC(aviso.idParaPdf)
+    if (!datos) return undefined
+    const buffer = await generarPdfOrden(datos)
+    return [{ filename: `${aviso.codigo}.pdf`, content: buffer }]
+  } catch (e) {
+    console.error(`[avisarCreacion] No se pudo generar el PDF adjunto de ${aviso.tipo} ${aviso.codigo}:`, e)
+    return undefined
+  }
 }
 
 export async function avisarCreacion(aviso: AvisoCreacion): Promise<void> {
@@ -52,12 +76,15 @@ export async function avisarCreacion(aviso: AvisoCreacion): Promise<void> {
     url: `${URL_BASE_PRODUCCION}${aviso.ruta}`,
   }
 
+  const attachments = await intentarAdjuntoPdf(aviso)
+
   const resultado = await sendEmail({
     to: [CORREO_CONTABILIDAD],
     cc: aviso.creadorCorreo ? [aviso.creadorCorreo] : undefined,
     subject: asuntoAviso(datos),
     html: renderAvisoHtml(datos),
     text: renderAvisoTexto(datos),
+    attachments,
   })
 
   if (resultado.ok) {

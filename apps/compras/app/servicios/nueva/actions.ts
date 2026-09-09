@@ -54,6 +54,7 @@ export async function crearOSAction(_previo: EstadoFormulario, form: FormData): 
       },
     ],
     ruta: `/servicios/${os.id}`,
+    idParaPdf: os.id,
     creadorCorreo: usuario.email ?? null,
   })
 
