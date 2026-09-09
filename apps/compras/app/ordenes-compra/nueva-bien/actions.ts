@@ -60,6 +60,7 @@ export async function crearOrdenCompraBien(
       },
     ],
     ruta: `/ordenes-compra/${oc.id}`,
+    idParaPdf: oc.id,
     creadorCorreo: usuario.email ?? null,
   })
 

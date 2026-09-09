@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { obtenerOC } from '@/services/ordenes-compra'
 import { obtenerProveedor } from '@/services/proveedores'
 import { calcularTotales } from '@/domain/orden-compra'
@@ -45,8 +46,15 @@ export default async function ImprimirOC({ params }: { params: { id: string } })
 
       <header className="flex items-start justify-between border-b-2 border-logisalud-green pb-4">
         <div>
-          <p className="font-heading text-2xl tracking-wide text-logisalud-green">LOGISALUD</p>
-          <p className="text-xs text-gray-600">Orden de compra</p>
+          <Image
+            src="/brand/logisalud-color-horizontal.png"
+            alt="Logisalud"
+            width={1798}
+            height={358}
+            style={{ height: '32px', width: 'auto' }}
+            priority
+          />
+          <p className="mt-1 text-xs text-gray-600">Orden de compra</p>
         </div>
         <div className="text-right">
           <p className="font-heading text-xl">{oc.codigo}</p>
