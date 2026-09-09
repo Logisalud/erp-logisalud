@@ -22,6 +22,7 @@ import {
   solicitarDescuento,
 } from "./actions";
 import { displayNombreProducto } from "@/domain/products";
+import { ObservationForm } from "./observation-form";
 
 type Product = { id: string; descripcion: string; codigo_interno: string };
 type OrderItem = {
@@ -62,12 +63,19 @@ export function OrderItemComposer({
   customerId,
   items,
   products,
+  observaciones,
   esAdmin,
 }: {
   orderId: string;
   customerId: string;
   items: OrderItem[];
   products: Product[];
+  /**
+   * Las que ya tiene el pedido. Se muestran acá y no sólo al pie de la
+   * página porque el vendedor manda el pedido desde esta pantalla: lo que
+   * no vea antes de tocar "Enviar pedido" no va a salir en el correo.
+   */
+  observaciones: Array<{ id: string; comentario: string; fecha: string }>;
   /**
    * El administrador fija el precio directo; el vendedor abre una solicitud
    * y el pedido espera aprobación. El servidor vuelve a verificar el rol:
@@ -727,6 +735,40 @@ export function OrderItemComposer({
           )}
         </section>
       </div>
+
+      {/*
+        La observación se escribe ANTES de enviar, no en una sección al pie
+        de la página: el correo del pedido sale al enviarlo, así que una
+        observación escrita después ya no entra en él. Acá está a la vista,
+        pegada al botón que la va a mandar.
+      */}
+      <section className="panel mt-4 p-4">
+        <h3 className="text-lg text-slate-900">Observaciones para este pedido</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          Salen en el correo y en el Excel que recibe la oficina — por ejemplo “entregar el lunes a
+          las 2” o “coordinar con el encargado antes de ir”.
+        </p>
+
+        {observaciones.length > 0 && (
+          <ul className="mt-3 flex flex-col gap-2 text-sm">
+            {observaciones.map((o) => (
+              <li
+                key={o.id}
+                className="rounded-r-lg border-l-[3px] border-logisalud-teal bg-slate-50 px-3 py-2"
+              >
+                <p className="whitespace-pre-line text-slate-900">{o.comentario}</p>
+                <p className="cifra mt-0.5 text-xs text-slate-600">
+                  {new Date(o.fecha).toLocaleString("es-PE", { timeZone: "America/Lima" })}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-3">
+          <ObservationForm orderId={orderId} />
+        </div>
+      </section>
 
       {/*
         El total no se recalcula acá: se suman las líneas que grabó el

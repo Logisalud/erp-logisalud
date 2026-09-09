@@ -1146,6 +1146,32 @@ que sólo exige estar autenticado, y el menú de usuario la ofrece a todos.
 son los mismos, incluida la reautenticación con la contraseña actual:
 tener la sesión abierta no alcanza para cambiarla.
 
+## Dónde se escribe una observación, y cuándo sale por correo (`1025`)
+
+El correo del pedido sale **al enviarlo**. Eso hacía que la única forma de
+escribir una observación —una sección al pie de la pantalla del pedido, por
+debajo del botón de enviar— llegara siempre tarde: el vendedor mandaba el
+pedido y recién después veía dónde escribir "entregar el lunes a las 2", y
+esa observación ya no entraba en ningún correo. Pasó en el pedido **#83**
+(2026-09-09): se armó y se envió en 17 segundos, sin ninguna observación
+guardada, y el correo salió sin el bloque.
+
+Dos cambios, que se necesitan los dos:
+
+1. **Antes de enviar**: la caja de observaciones está ahora dentro del
+   armado del pedido, pegada al botón "Enviar pedido", con las que ya tiene
+   a la vista y diciendo explícitamente que salen en el correo y el Excel.
+   En `DRAFT` la sección del pie no se repite.
+2. **Después de enviar**: una observación agregada a un pedido que ya salió
+   dispara un aviso corto —`observacion_agregada`— **dentro del mismo hilo
+   de correo del pedido**, con el texto de la observación en el encabezado
+   y el detalle completo del pedido abajo. Sin esto, todo lo que se escribe
+   después del envío se queda en una pantalla que la oficina no mira.
+
+En `DRAFT` no se avisa nada: esa observación va a salir en el correo del
+envío, y adelantarla sería un correo de un pedido que para la oficina
+todavía no existe.
+
 ## Las observaciones del pedido salen en el correo y en el Excel
 
 El vendedor escribe ahí lo que no entra en ninguna línea ("entregar antes

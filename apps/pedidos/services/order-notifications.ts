@@ -676,6 +676,41 @@ async function emailDelVendedorDelPedido(
   }
 }
 
+/**
+ * Avisa que se agregó una observación a un pedido YA enviado.
+ *
+ * El correo del pedido sale al enviarlo; una observación escrita después
+ * ("entregar el lunes a las 2") se quedaba sólo en la pantalla, que la
+ * oficina no mira. Sale como respuesta dentro del mismo hilo, con el
+ * detalle completo del pedido: quien lo lee necesita saber a qué pedido
+ * corresponde sin buscar el correo anterior.
+ *
+ * Mientras el pedido sigue en DRAFT no se avisa: esa observación va a
+ * salir en el correo de envío, y adelantarla sería un correo de un pedido
+ * que todavía no existe para la oficina.
+ */
+export async function notifyObservationAdded(
+  orderId: string,
+  estadoResultado: string,
+  actor: string,
+  comentario: string,
+): Promise<NotifyResult> {
+  return notificarPedido({
+    orderId,
+    estadoResultado,
+    actor,
+    tipo: "observacion_agregada",
+    evento: {
+      asunto: "Observación agregada — pedido",
+      titulo: "Observación agregada — pedido #__NUMERO__",
+      lead:
+        "Se agregó una observación al pedido: “" +
+        comentario.trim() +
+        "”. Abajo, el detalle completo del pedido con todas sus observaciones.",
+    },
+  });
+}
+
 type EventoPlantilla = { asunto: string; titulo: string; lead: string | null };
 
 /**
@@ -695,7 +730,7 @@ async function notificarPedido({
   orderId: string;
   estadoResultado: string;
   actor: string;
-  tipo: "pedido_enviado" | "descuento_solicitado" | "descuento_resuelto";
+  tipo: "pedido_enviado" | "descuento_solicitado" | "descuento_resuelto" | "observacion_agregada";
   evento?: EventoPlantilla;
 }): Promise<NotifyResult> {
   const admin = createAdminClient();
