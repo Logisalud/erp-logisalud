@@ -165,12 +165,22 @@ export function FormularioOCBien() {
         </dl>
       </section>
 
-      <section className="card">
+      <section className="card space-y-3">
         <Campo etiqueta="Notas para el proveedor">
           <textarea
             name="notas" rows={3}
             className="w-full rounded-md border border-gray-300 px-3 py-2"
           />
+        </Campo>
+
+        <Campo etiqueta="📎 Cotización del proveedor (opcional)">
+          <input
+            type="file" name="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
+            className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            El documento que sustenta el monto de esta orden, si lo tenés a mano.
+          </p>
         </Campo>
       </section>
 

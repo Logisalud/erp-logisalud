@@ -1,19 +1,16 @@
-import { redirect } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
-import { perfilActual } from '@logisalud/auth/server'
 import { listarCategoriasPagoDirecto } from '@/services/obligaciones'
 import { FormularioPagoDirecto } from './formulario'
 
 export const dynamic = 'force-dynamic'
 
 /** "Pago directo" — factura de un proveedor SIN Orden de Compra ni Orden de
- * Servicio (luz, agua, peajes, notaría…). Solo Contabilidad/admin puede
- * registrar obligaciones (mismo criterio que el resto de Cuentas por
- * Pagar — RLS `obligaciones_escritura`). */
+ * Servicio (luz, agua, peajes, notaría…). Acceso abierto a toda persona
+ * logueada mientras dure `compras.flags.acceso_abierto_temporal` (mismo
+ * criterio que la policy RLS `obligaciones_acceso_temporal`) — cualquiera
+ * puede pedir que la empresa pague directo, Contabilidad revisa y da
+ * conformidad después. */
 export default async function NuevoPagoDirecto() {
-  const perfil = await perfilActual()
-  if (perfil?.area !== 'contabilidad' && perfil?.area !== 'admin') redirect('/pedir-pago')
-
   const categorias = await listarCategoriasPagoDirecto()
 
   return (

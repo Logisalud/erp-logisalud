@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { cambiarEstadoOC, cerrarOCConSaldoPendiente } from '@/services/ordenes-compra'
+import { cambiarEstadoOC, cerrarOCConSaldoPendiente, obtenerUrlCotizacionOC } from '@/services/ordenes-compra'
 
 export type EstadoAccionOC = { error: string } | null
 
@@ -34,4 +34,13 @@ export async function cerrarConSaldoPendienteAction(id: string, _previo: EstadoA
   }
   revalidatePath(`/ordenes-compra/${id}`)
   return null
+}
+
+export async function verCotizacionAction(storagePath: string): Promise<{ url: string } | { error: string }> {
+  try {
+    const url = await obtenerUrlCotizacionOC(storagePath)
+    return { url }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo abrir la cotización.' }
+  }
 }

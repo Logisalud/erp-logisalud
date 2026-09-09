@@ -14,6 +14,7 @@ import { ETIQUETA_ESTADO as ETIQUETA_ESTADO_OBLIGACION } from '@/domain/obligaci
 import { PASOS_OC, pasoAlcanzadoOC, siguientePasoOC } from '@/domain/ordenes-unificadas'
 import { obtenerUmbralOCParcialDias } from '@/services/dashboard'
 import { BotonMarcarEnviada, BotonMarcarConfirmada, BotonCerrarConSaldoPendiente } from './acciones-estado'
+import { VerCotizacion } from './ver-cotizacion'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,6 +105,12 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
           />
         </dl>
         {oc.notas ? <p className="mt-3 text-sm text-gray-700">{oc.notas}</p> : null}
+        {oc.cotizacion_storage_path ? (
+          <p className="mt-3 text-sm text-gray-600">
+            Cotización adjunta
+            <VerCotizacion storagePath={oc.cotizacion_storage_path} />
+          </p>
+        ) : null}
         {oc.cierre_tipo === 'saldo_no_entregado' ? (
           <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Cerrada con saldo pendiente: {oc.cierre_motivo}

@@ -1,6 +1,4 @@
-import { redirect } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
-import { perfilActual } from '@logisalud/auth/server'
 import { FormularioProveedor } from './formulario'
 import type { TipoProveedor } from '@/services/proveedores'
 
@@ -8,14 +6,14 @@ export const dynamic = 'force-dynamic'
 
 const TIPOS_VALIDOS: TipoProveedor[] = ['mercaderia', 'bien', 'ambos']
 
+/** Acceso abierto a toda persona logueada mientras dure
+ * `compras.flags.acceso_abierto_temporal` (mismo criterio que la policy RLS
+ * `proveedores_acceso_temporal`) — sin gate por área acá. */
 export default async function NuevoProveedor({
   searchParams,
 }: {
   searchParams: { tipo?: string; volver?: string }
 }) {
-  const perfil = await perfilActual()
-  if (perfil?.area !== 'compras' && perfil?.area !== 'admin') redirect('/proveedores')
-
   const tipoInicial = TIPOS_VALIDOS.includes(searchParams.tipo as TipoProveedor)
     ? (searchParams.tipo as TipoProveedor)
     : 'mercaderia'
