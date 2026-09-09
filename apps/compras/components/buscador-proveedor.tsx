@@ -7,6 +7,11 @@ export type ProveedorElegido = {
   nombre: string
   condicionPagoDias: number
   moneda: string
+  /** compras.proveedores o servicios.proveedores_servicio — solo viene
+   * poblado cuando el combobox busca sin `tipo` (Pago Directo, que puede
+   * pagarle a cualquiera de los dos). En OC (tipo='mercaderia'/'bien')
+   * siempre es 'compra', no hace falta que el formulario lo use. */
+  fuente?: 'compra' | 'servicio'
 }
 
 /**

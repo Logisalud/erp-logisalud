@@ -309,6 +309,12 @@ export const TOPE_PAGO_DIRECTO_PEN = 5000
 export type BorradorPagoDirecto = BorradorObligacion & {
   categoriaId: string
   descripcion: string
+  /** A diferencia de una OC (siempre compras.proveedores), Pago Directo puede
+   * pagarle también a un proveedor de servicio (notaría, seguros, courier…)
+   * — sin este campo, `proveedorId` se buscaba siempre en la tabla
+   * equivocada para esos casos. Default 'compra' si no viene (formularios
+   * viejos / tests que no lo mandan). */
+  proveedorFuente?: 'compra' | 'servicio'
   /** Pieza E: el proveedor todavía no emitió la factura y lo que se registra
    * es la cotización. Sin número ni fecha de factura, que llegan después. */
   pendienteFactura?: boolean

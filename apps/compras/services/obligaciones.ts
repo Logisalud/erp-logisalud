@@ -472,7 +472,7 @@ export async function listarObligaciones(estado?: EstadoObligacion): Promise<Obl
   let q = supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, beneficiario_persona, observaciones')
+    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones')
     .order('created_at', { ascending: false })
     .limit(200)
 
@@ -482,12 +482,15 @@ export async function listarObligaciones(estado?: EstadoObligacion): Promise<Obl
   if (error) throw new Error(`No se pudieron listar las obligaciones: ${error.message}`)
 
   const [proveedores, beneficiarios] = await Promise.all([
-    mapaProveedoresBasico([...new Set((data ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[]),
+    mapaProveedoresBasico(
+      [...new Set((data ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[],
+      [...new Set((data ?? []).map((o) => o.proveedor_servicio_id).filter(Boolean))] as string[]
+    ),
     mapaBeneficiarios([...new Set((data ?? []).map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
   ])
   return (data ?? []).map((o) => ({
     ...o,
-    proveedor: o.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null,
+    proveedor: proveedores.get(o.proveedor_id ?? o.proveedor_servicio_id ?? '') ?? null,
     beneficiario: o.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
   }))
 }
@@ -500,11 +503,26 @@ async function mapaBeneficiarios(ids: string[]) {
   return new Map((data ?? []).map((p: any) => [p.id, { nombre: p.nombre }]))
 }
 
-async function mapaProveedoresBasico(ids: string[]) {
+/**
+ * Una obligación le paga a un proveedor de compras.proveedores
+ * (`proveedor_id`) O a uno de servicios.proveedores_servicio
+ * (`proveedor_servicio_id`) — Pago Directo puede ser cualquiera de los dos
+ * (notaría, seguros, courier son "servicio"). `idsServicio` es opcional
+ * para no tocar los llamadores que solo manejan proveedor_id.
+ */
+async function mapaProveedoresBasico(idsCompra: string[], idsServicio: string[] = []) {
   const supabase = crearClienteServidor()
-  if (ids.length === 0) return new Map()
-  const { data } = await supabase.schema('compras').from('proveedores').select('id, razon_social').in('id', ids)
-  return new Map((data ?? []).map((p: any) => [p.id, { id: p.id, razon_social: p.razon_social }]))
+  const [compra, servicio] = await Promise.all([
+    idsCompra.length
+      ? supabase.schema('compras').from('proveedores').select('id, razon_social').in('id', idsCompra)
+      : Promise.resolve({ data: [] as { id: string; razon_social: string }[] }),
+    idsServicio.length
+      ? supabase.schema('servicios').from('proveedores_servicio').select('id, razon_social').in('id', idsServicio)
+      : Promise.resolve({ data: [] as { id: string; razon_social: string }[] }),
+  ])
+  return new Map(
+    [...(compra.data ?? []), ...(servicio.data ?? [])].map((p) => [p.id, { id: p.id, razon_social: p.razon_social }])
+  )
 }
 
 export type ObligacionDetalle = ObligacionListada & {
@@ -540,7 +558,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .schema('cuentas_x_pagar')
     .from('obligaciones')
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, igv,
-             monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, beneficiario_persona,
+             monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, proveedor_servicio_id, beneficiario_persona,
              oc_id, recepcion_id, categoria_pago_directo_id,
              obligaciones_items(id, oc_item_id, cantidad_facturada, precio_facturado)`)
     .eq('id', id)
@@ -550,7 +568,10 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
   if (!data) return null
 
   const [proveedores, beneficiarios, oc, recepcion, notasCredito, pago, categoriaPagoDirecto] = await Promise.all([
-    mapaProveedoresBasico(data.proveedor_id ? [data.proveedor_id] : []),
+    mapaProveedoresBasico(
+      data.proveedor_id ? [data.proveedor_id] : [],
+      data.proveedor_servicio_id ? [data.proveedor_servicio_id] : []
+    ),
     mapaBeneficiarios(data.beneficiario_persona ? [data.beneficiario_persona] : []),
     data.oc_id ? obtenerOCBasica(data.oc_id) : Promise.resolve(null),
     data.recepcion_id ? obtenerRecepcionBasica(data.recepcion_id) : Promise.resolve(null),
@@ -577,7 +598,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     estado: data.estado,
     fecha_vencimiento_real: data.fecha_vencimiento_real,
     observaciones: data.observaciones,
-    proveedor: data.proveedor_id ? proveedores.get(data.proveedor_id) ?? null : null,
+    proveedor: proveedores.get(data.proveedor_id ?? data.proveedor_servicio_id ?? '') ?? null,
     beneficiario: data.beneficiario_persona ? beneficiarios.get(data.beneficiario_persona) ?? null : null,
     oc,
     recepcion,
@@ -742,13 +763,22 @@ export async function registrarPagoDirecto(
 ): Promise<{ id: string; codigo: string; total: number }> {
   const usuario = await exigirUsuario()
   const supabase = crearClienteServidor()
+  const fuente = borrador.proveedorFuente ?? 'compra'
 
-  const { data: proveedor, error: errProv } = await supabase
-    .schema('compras')
-    .from('proveedores')
-    .select('id, razon_social, condicion_pago_dias')
-    .eq('id', borrador.proveedorId)
-    .maybeSingle()
+  const { data: proveedor, error: errProv } =
+    fuente === 'servicio'
+      ? await supabase
+          .schema('servicios')
+          .from('proveedores_servicio')
+          .select('id, razon_social, condicion_pago_dias')
+          .eq('id', borrador.proveedorId)
+          .maybeSingle()
+      : await supabase
+          .schema('compras')
+          .from('proveedores')
+          .select('id, razon_social, condicion_pago_dias')
+          .eq('id', borrador.proveedorId)
+          .maybeSingle()
   if (errProv || !proveedor) throw new Error('No se encontró el proveedor.')
 
   // Pieza F: la condición de pago que se eligió en la pantalla manda; el
@@ -765,13 +795,16 @@ export async function registrarPagoDirecto(
 
   const numeroFacturaNormalizado = borrador.pendienteFactura ? null : normalizarNumeroFactura(borrador.numeroFactura)
   if (numeroFacturaNormalizado) {
-    const { data: facturaExistente } = await supabase
+    let qFacturaExistente = supabase
       .schema('cuentas_x_pagar')
       .from('obligaciones')
       .select('id')
-      .eq('proveedor_id', borrador.proveedorId)
       .eq('numero_factura', numeroFacturaNormalizado)
-      .maybeSingle()
+    qFacturaExistente =
+      fuente === 'servicio'
+        ? qFacturaExistente.eq('proveedor_servicio_id', borrador.proveedorId)
+        : qFacturaExistente.eq('proveedor_id', borrador.proveedorId)
+    const { data: facturaExistente } = await qFacturaExistente.maybeSingle()
     if (facturaExistente) {
       throw new Error(`Ya existe una obligación registrada con la factura ${numeroFacturaNormalizado} para este proveedor.`)
     }
@@ -782,7 +815,8 @@ export async function registrarPagoDirecto(
     .from('obligaciones')
     .insert({
       origen: 'gasto_directo',
-      proveedor_id: borrador.proveedorId,
+      proveedor_id: fuente === 'compra' ? borrador.proveedorId : null,
+      proveedor_servicio_id: fuente === 'servicio' ? borrador.proveedorId : null,
       categoria_pago_directo_id: borrador.categoriaId,
       numero_factura: numeroFacturaNormalizado,
       fecha_factura: borrador.pendienteFactura ? null : borrador.fechaFactura,
