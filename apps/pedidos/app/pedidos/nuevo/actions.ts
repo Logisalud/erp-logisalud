@@ -97,6 +97,9 @@ export async function crearClienteNuevo(input: {
   departamento: string;
   provincia: string;
   distrito: string;
+  /** Los dos opcionales: no frenan el alta de un cliente desde la calle. */
+  celular?: string;
+  direccionFiscal?: string;
 }) {
   const userId = await requireUserId();
 
@@ -131,6 +134,8 @@ export async function crearClienteNuevo(input: {
   const { customer, addressId } = await requestNewCustomer({
     rucODocumento,
     razonSocial,
+    celular: input.celular?.trim() || null,
+    direccionFiscal: input.direccionFiscal?.trim() || null,
     canalId: input.canalId,
     zonaId: input.zonaId,
     condicionPagoHabitualId: input.condicionPagoHabitualId,

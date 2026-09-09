@@ -151,6 +151,47 @@ export function CustomerDetailForm({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
+              <label className="etiqueta" htmlFor="celular">
+                Celular
+              </label>
+              <input
+                id="celular"
+                name="celular"
+                inputMode="tel"
+                defaultValue={cliente.whatsapp ?? ""}
+                disabled={!puedeEditar || isPending}
+                className="campo"
+              />
+              <p className="text-xs text-slate-600">
+                El número con el que se lo contacta. Opcional.
+              </p>
+            </div>
+            <div>
+              {/*
+                Las dos direcciones se confunden fácil: la fiscal es la del
+                RUC —una sola, la que pide el comprobante— y las de entrega
+                son a dónde llega la mercadería, abajo, y pueden ser varias.
+              */}
+              <label className="etiqueta" htmlFor="direccionFiscal">
+                Dirección fiscal (RUC)
+              </label>
+              <input
+                id="direccionFiscal"
+                name="direccionFiscal"
+                defaultValue={cliente.direccion_fiscal ?? ""}
+                disabled={!puedeEditar || isPending}
+                className="campo"
+                placeholder="Domicilio fiscal declarado en SUNAT"
+              />
+              <p className="text-xs text-slate-600">
+                No es una dirección de entrega: es la que va a llevar la factura o boleta
+                electrónica. Opcional, pero conviene completarla.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
               <label className="etiqueta" htmlFor="tipoComprobante">
                 Comprobante permitido
               </label>
@@ -280,6 +321,11 @@ export function CustomerDetailForm({
             </span>
           )}
         </div>
+
+        <p className="mt-1 text-sm text-slate-600">
+          A dónde llega la mercadería. Puede haber varias; la fiscal del RUC es otra cosa y va
+          arriba, en los datos del cliente.
+        </p>
 
         {cliente.direcciones.length === 0 && (
           <p className="mt-3 text-sm text-slate-600">

@@ -111,6 +111,11 @@ export async function guardarDatosDelCliente(
     zonaId: numeroONull("zonaId"),
     condicionPagoHabitualId: numeroONull("condicionPagoHabitualId"),
     estado: String(formData.get("estado") ?? "").trim(),
+    celular: String(formData.get("celular") ?? "").trim() || null,
+    // Vacío se guarda como null y no como "": null dice "no lo tenemos",
+    // que es la pregunta que se le va a hacer a esta columna cuando haya
+    // que emitir el comprobante.
+    direccionFiscal: String(formData.get("direccionFiscal") ?? "").trim() || null,
   });
 
   await logAudit({

@@ -35,7 +35,8 @@ const CLIENTE: CustomerDetail = {
   departamento: "JUNIN",
   provincia: "HUANCAYO",
   distrito: "EL TAMBBO",
-  whatsapp: null,
+  whatsapp: "999111222",
+  direccion_fiscal: null,
   created_at: "2026-08-01T00:00:00Z",
   canal: { nombre: "FARMACIAS" },
   zona: { nombre: "ZONA 5" },
@@ -96,6 +97,25 @@ describe("CustomerDetailForm", () => {
     const razon = contenedor.querySelector<HTMLInputElement>("#razonSocial")!;
     expect(razon.disabled).toBe(true);
     expect(razon.value).toBe("CASIMIRO CARASCO KETTY SUSAN");
+  });
+
+  it("captura celular y dirección fiscal, separadas de las de entrega", () => {
+    const { contenedor } = montar(true);
+
+    const celular = contenedor.querySelector<HTMLInputElement>("#celular")!;
+    expect(celular.value).toBe("999111222");
+    expect(celular.name).toBe("celular");
+
+    const fiscal = contenedor.querySelector<HTMLInputElement>("#direccionFiscal")!;
+    // Este cliente no la tiene cargada: el campo queda vacío y no bloquea nada.
+    expect(fiscal.value).toBe("");
+    expect(fiscal.required).toBe(false);
+
+    // La distinción tiene que estar dicha en pantalla, no sólo en el código:
+    // es el error que se comete al cargarlas.
+    expect(contenedor.textContent).toContain("Dirección fiscal (RUC)");
+    expect(contenedor.textContent).toContain("Direcciones de entrega");
+    expect(contenedor.textContent).toContain("No es una dirección de entrega");
   });
 
   it("el RUC se muestra pero no es un campo editable", () => {
