@@ -102,6 +102,83 @@ export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: Tipo
         </label>
       </div>
 
+      <label className="block text-sm">
+        <span className="font-medium text-gray-800">Dirección fiscal</span>
+        <input
+          type="text" name="direccionFiscal"
+          className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
+        />
+      </label>
+
+      {/* Antes la cuenta bancaria solo se podía cargar DESPUÉS, desde la
+          ficha del proveedor — y así quedaban proveedores a los que no se
+          les podía pagar, cosa que recién se descubría el día del pago. */}
+      <fieldset className="rounded-md border border-gray-200 p-3">
+        <legend className="px-1 text-sm font-medium text-gray-800">Cuenta bancaria para pagarle</legend>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className="text-gray-700">Banco</span>
+            <input
+              type="text" name="banco" required
+              className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
+            />
+            {errorDe('banco') ? <p className="mt-1 text-red-700">{errorDe('banco')}</p> : null}
+          </label>
+          <label className="block text-sm">
+            <span className="text-gray-700">Tipo de cuenta (opcional)</span>
+            <select name="tipoCuenta" defaultValue="" className="mt-1 min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+              <option value="">Sin especificar</option>
+              <option value="ahorros">Ahorros</option>
+              <option value="corriente">Corriente</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className="text-gray-700">Número de cuenta</span>
+            <input
+              type="text" name="numeroCuenta" required inputMode="numeric"
+              className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
+            />
+            {errorDe('numeroCuenta') ? <p className="mt-1 text-red-700">{errorDe('numeroCuenta')}</p> : null}
+          </label>
+          <label className="block text-sm">
+            <span className="text-gray-700">CCI (20 dígitos)</span>
+            <input
+              type="text" name="cci" required maxLength={20} inputMode="numeric"
+              className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
+            />
+            {errorDe('cci') ? <p className="mt-1 text-red-700">{errorDe('cci')}</p> : null}
+          </label>
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className="text-gray-700">Titular de la cuenta</span>
+            <input
+              type="text" name="titular" required
+              className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
+            />
+            {errorDe('titular') ? <p className="mt-1 text-red-700">{errorDe('titular')}</p> : null}
+          </label>
+          <label className="block text-sm">
+            <span className="text-gray-700">Moneda de la cuenta</span>
+            <select name="monedaCuenta" defaultValue="PEN" className="mt-1 min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+              <option value="PEN">PEN — Soles</option>
+              <option value="USD">USD — Dólares</option>
+            </select>
+            {errorDe('monedaCuenta') ? <p className="mt-1 text-red-700">{errorDe('monedaCuenta')}</p> : null}
+          </label>
+        </div>
+
+        <p className="mt-2 text-xs text-gray-500">
+          Si todavía no tenés el CCI a mano, podés crear el proveedor desde el buscador de una orden
+          y completar la cuenta después — va a quedar marcado como incompleto hasta entonces.
+        </p>
+      </fieldset>
+
       <BotonGuardar />
     </form>
   )

@@ -140,6 +140,32 @@ export function validarLetras(letras: readonly BorradorLetra[], montoObligacion:
   return errores
 }
 
+/**
+ * "Pago en cuotas" (0044): qué obligaciones se pueden partir en varios
+ * vencimientos con fecha.
+ *
+ * Solo las que le pagan a un PROVEEDOR. Un anticipo o un reembolso le pagan
+ * a un empleado y no se cuotean; una cuota de préstamo, de fraccionamiento
+ * o una letra ya ES una cuota, partirla otra vez no significa nada; y un
+ * impuesto lo cobra SUNAT con su propio cronograma (para eso está el
+ * fraccionamiento).
+ */
+export const ORIGENES_CUOTEABLES: readonly string[] = ['compra', 'servicio', 'gasto_directo']
+
+/** Ya se pagó, ya salió del embudo, o ya se cortó — no hay nada que partir. */
+export const ESTADOS_NO_CUOTEABLES: readonly string[] = [
+  'en_propuesta',
+  'pagada',
+  'cerrada',
+  'canjeada_por_letra',
+  'rechazada',
+  'anulada',
+]
+
+export function puedePagarseEnCuotas(origen: string, estado: string, tieneProveedor: boolean): boolean {
+  return tieneProveedor && ORIGENES_CUOTEABLES.includes(origen) && !ESTADOS_NO_CUOTEABLES.includes(estado)
+}
+
 export type TipoVencimiento = 'prestamo' | 'fraccionamiento' | 'letra'
 
 export type VencimientoProximo = {

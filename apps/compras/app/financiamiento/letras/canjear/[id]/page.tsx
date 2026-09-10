@@ -12,7 +12,7 @@ export default async function CanjearPorLetras({ params }: { params: { id: strin
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
-      <Encabezado titulo={`Canjear ${obligacion.codigo} por letras`} atras={{ href: `/cuentas-por-pagar/${obligacion.id}`, texto: obligacion.codigo }} />
+      <Encabezado titulo={`Pagar ${obligacion.codigo} en cuotas`} atras={{ href: `/cuentas-por-pagar/${obligacion.id}`, texto: obligacion.codigo }} />
 
       <section className="card mb-4">
         <p className="text-sm text-gray-600">{obligacion.proveedor?.razon_social}{obligacion.numero_factura ? ` · ${obligacion.numero_factura}` : ''}</p>

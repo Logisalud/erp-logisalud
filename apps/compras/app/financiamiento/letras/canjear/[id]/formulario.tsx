@@ -17,8 +17,9 @@ export function FormularioCanje({ obligacionId, montoObligacion }: { obligacionI
 
       <section className="card">
         <p className="mb-3 text-sm text-gray-600">
-          Las letras tienen que sumar exactamente lo mismo que se está canjeando — no es un gasto
-          nuevo, es la misma deuda partida en plazos.
+          Las cuotas tienen que sumar exactamente lo mismo que se está partiendo — no es un gasto
+          nuevo, es la misma deuda repartida en plazos. El N° de letra y el banco solo se llenan si
+          de verdad hay una letra de cambio de por medio.
         </p>
         <LetrasInput montoObligacion={montoObligacion} error={errorDe('letras')} />
       </section>
@@ -32,7 +33,7 @@ function BotonGuardar() {
   const { pending } = useFormStatus()
   return (
     <button type="submit" disabled={pending} className="btn-primary w-full sm:w-auto">
-      {pending ? 'Guardando…' : 'Canjear por letras'}
+      {pending ? 'Guardando…' : 'Guardar el plan de cuotas'}
     </button>
   )
 }

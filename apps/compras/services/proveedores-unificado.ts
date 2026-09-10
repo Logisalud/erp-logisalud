@@ -23,6 +23,10 @@ export type ProveedorUnificado = {
   condicionPagoDias: number
   monedaPrincipal: string
   activo: boolean
+  /** false = no se le puede pagar todavía. Los proveedores creados desde el
+   * alta rápida del combobox nacen así hasta que alguien les carga la
+   * cuenta — ver domain/proveedor.ts::faltaCuentaBancaria. */
+  tieneCuenta: boolean
 }
 
 export type FiltrosProveedorUnificado = { busqueda?: string; fuente?: FuenteProveedor }
@@ -55,6 +59,9 @@ export async function buscarProveedoresUnificado(filtros: FiltrosProveedorUnific
                 condicionPagoDias: p.condicion_pago_dias,
                 monedaPrincipal: p.moneda_principal,
                 activo: p.activo,
+                // Lo resuelve marcarQuienTieneCuenta() más abajo, en una
+                // sola consulta por schema en vez de una por proveedor.
+                tieneCuenta: false,
               })
             )
           }),
@@ -78,6 +85,9 @@ export async function buscarProveedoresUnificado(filtros: FiltrosProveedorUnific
                 condicionPagoDias: p.condicion_pago_dias,
                 monedaPrincipal: p.moneda_principal,
                 activo: p.activo,
+                // Lo resuelve marcarQuienTieneCuenta() más abajo, en una
+                // sola consulta por schema en vez de una por proveedor.
+                tieneCuenta: false,
               })
             )
           }),
@@ -93,7 +103,43 @@ export async function buscarProveedoresUnificado(filtros: FiltrosProveedorUnific
         (p.nombreComercial ? normalizar(p.nombreComercial).includes(q) : false)
     )
   }
+  filas = await marcarQuienTieneCuenta(filas)
   return filas.sort((a, b) => a.razonSocial.localeCompare(b.razonSocial))
+}
+
+/**
+ * Quién tiene al menos una cuenta bancaria cargada. Dos consultas (una por
+ * schema) en vez de una por proveedor — mismo patrón de `Map` que el resto
+ * del módulo para cruces que PostgREST no embebe.
+ */
+async function marcarQuienTieneCuenta(filas: ProveedorUnificado[]): Promise<ProveedorUnificado[]> {
+  if (filas.length === 0) return filas
+  const supabase = crearClienteServidor()
+  const idsCompra = filas.filter((p) => p.fuente === 'compra').map((p) => p.id)
+  const idsServicio = filas.filter((p) => p.fuente === 'servicio').map((p) => p.id)
+
+  const [cuentasCompra, cuentasServicio] = await Promise.all([
+    idsCompra.length
+      ? supabase
+          .schema('compras')
+          .from('proveedor_cuentas_bancarias')
+          .select('proveedor_id')
+          .in('proveedor_id', idsCompra)
+      : Promise.resolve({ data: [] as { proveedor_id: string }[] }),
+    idsServicio.length
+      ? supabase
+          .schema('servicios')
+          .from('proveedor_servicio_cuentas_bancarias')
+          .select('proveedor_servicio_id')
+          .in('proveedor_servicio_id', idsServicio)
+      : Promise.resolve({ data: [] as { proveedor_servicio_id: string }[] }),
+  ])
+
+  const conCuenta = new Set<string>([
+    ...((cuentasCompra.data ?? []) as any[]).map((c) => c.proveedor_id as string),
+    ...((cuentasServicio.data ?? []) as any[]).map((c) => c.proveedor_servicio_id as string),
+  ])
+  return filas.map((p) => ({ ...p, tieneCuenta: conCuenta.has(p.id) }))
 }
 
 /**
@@ -105,33 +151,76 @@ export async function buscarProveedoresUnificado(filtros: FiltrosProveedorUnific
  * reglas compartidas.
  */
 export async function crearProveedorUnificado(
-  b: BorradorProveedorUnificado
+  b: BorradorProveedorUnificado,
+  /**
+   * Alta completa (`/proveedores/nuevo`): la cuenta bancaria y la dirección
+   * fiscal se cargan JUNTO con el proveedor, no después desde su ficha.
+   * El alta rápida del combobox no manda nada de esto y sigue funcionando
+   * igual — ver domain/proveedor.ts::validarAltaCompleta.
+   */
+  extras?: { cuenta?: BorradorCuentaBancariaUnificada; direccionFiscal?: string | null }
 ): Promise<{ id: string; fuente: FuenteProveedor }> {
-  if (b.tipo === 'servicio') {
-    const { id } = await crearProveedorServicio({
-      ruc: b.ruc,
-      razonSocial: b.razonSocial,
-      nombreComercial: b.nombreComercial,
-      contactoNombre: b.contactoNombre,
-      contactoEmail: b.contactoEmail,
-      contactoTelefono: b.contactoTelefono,
-      condicionPagoDias: b.condicionPagoDias,
-      monedaPrincipal: b.monedaPrincipal,
-    })
-    return { id, fuente: 'servicio' }
+  const fuente: FuenteProveedor = b.tipo === 'servicio' ? 'servicio' : 'compra'
+
+  const { id } =
+    b.tipo === 'servicio'
+      ? await crearProveedorServicio({
+          ruc: b.ruc,
+          razonSocial: b.razonSocial,
+          nombreComercial: b.nombreComercial,
+          contactoNombre: b.contactoNombre,
+          contactoEmail: b.contactoEmail,
+          contactoTelefono: b.contactoTelefono,
+          condicionPagoDias: b.condicionPagoDias,
+          monedaPrincipal: b.monedaPrincipal,
+        })
+      : await crearProveedor({
+          ruc: b.ruc,
+          razonSocial: b.razonSocial,
+          nombreComercial: b.nombreComercial,
+          contactoNombre: b.contactoNombre,
+          contactoEmail: b.contactoEmail,
+          contactoTelefono: b.contactoTelefono,
+          condicionPagoDias: b.condicionPagoDias,
+          monedaPrincipal: b.monedaPrincipal,
+          tipo: b.tipo,
+        })
+
+  // No hay transacciones en este módulo: si la cuenta falla, se borra el
+  // proveedor recién creado en vez de dejarlo a medias — mismo criterio que
+  // crearOC() con sus líneas. Sin esto, el reintento chocaría contra el
+  // unique del RUC y la persona quedaría trabada.
+  if (extras?.cuenta) {
+    try {
+      await crearCuentaBancariaUnificada(fuente, id, extras.cuenta)
+    } catch (e) {
+      await borrarProveedorReciente(fuente, id)
+      throw new Error(
+        `No se pudo guardar la cuenta bancaria, así que no se registró el proveedor: ${
+          e instanceof Error ? e.message : 'error desconocido'
+        }`
+      )
+    }
   }
-  const { id } = await crearProveedor({
-    ruc: b.ruc,
-    razonSocial: b.razonSocial,
-    nombreComercial: b.nombreComercial,
-    contactoNombre: b.contactoNombre,
-    contactoEmail: b.contactoEmail,
-    contactoTelefono: b.contactoTelefono,
-    condicionPagoDias: b.condicionPagoDias,
-    monedaPrincipal: b.monedaPrincipal,
-    tipo: b.tipo,
-  })
-  return { id, fuente: 'compra' }
+
+  if (extras?.direccionFiscal?.trim()) {
+    // Best-effort: el proveedor y su cuenta ya son válidos sin esto, no
+    // vale la pena tirar abajo el alta por la dirección.
+    await actualizarDatosProveedor(fuente, id, {
+      direccionFiscal: extras.direccionFiscal.trim(),
+      observaciones: null,
+    }).catch(() => undefined)
+  }
+
+  return { id, fuente }
+}
+
+/** Solo para deshacer un alta a medio hacer — ver crearProveedorUnificado. */
+async function borrarProveedorReciente(fuente: FuenteProveedor, id: string): Promise<void> {
+  const supabase = crearClienteServidor()
+  const schema = fuente === 'compra' ? 'compras' : 'servicios'
+  const tabla = fuente === 'compra' ? 'proveedores' : 'proveedores_servicio'
+  await supabase.schema(schema).from(tabla).delete().eq('id', id)
 }
 
 /** true si el proveedor (de la fuente que sea) ya tiene al menos una OC/OS emitida — nunca se borra, solo se desactiva. */

@@ -11,7 +11,7 @@ import {
   puedeRechazarsePagoDirecto, UMBRAL_DETRACCION_PEN,
 } from '@/domain/obligacion'
 import type { Moneda } from '@/domain/servicio'
-import { ETIQUETA_ESTADO_VENCIMIENTO } from '@/domain/financiamiento'
+import { ETIQUETA_ESTADO_VENCIMIENTO, puedePagarseEnCuotas } from '@/domain/financiamiento'
 import { BotonConformidad } from './conformidad'
 import { BotonAnularPagoDirecto, BotonRechazarPagoDirecto } from './acciones-pago-directo'
 import { NotasCredito } from './notas-credito'
@@ -34,10 +34,9 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   // Pieza E: sin factura real no hay nada que conformar ni pagar — lo único
   // que se puede hacer es completar el comprobante que faltaba.
   const pendienteDeFactura = obligacion.estado === 'pendiente_factura'
-  const puedeCanjearPorLetras =
-    obligacion.origen === 'compra' &&
-    !!obligacion.proveedor &&
-    !['pagada', 'canjeada_por_letra', 'en_propuesta'].includes(obligacion.estado)
+  // "Pago en cuotas" (0044): ya no es exclusivo de compras — un servicio o
+  // un pago directo a un proveedor también se pueden pactar en cuotas.
+  const puedeCanjearPorLetras = puedePagarseEnCuotas(obligacion.origen, obligacion.estado, !!obligacion.proveedor)
   const letras = obligacion.estado === 'canjeada_por_letra' ? await listarLetrasDeObligacion(obligacion.id) : []
   // Desde 0043 anular y rechazar escriben un estado real, así que
   // `puedeAnularsePagoDirecto`/`puedeRechazarsePagoDirecto` ya devuelven
@@ -134,7 +133,7 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
         {puedeRechazar ? <BotonRechazarPagoDirecto obligacionId={obligacion.id} /> : null}
         {puedeCanjearPorLetras ? (
           <Link href={`/financiamiento/letras/canjear/${obligacion.id}`} className="btn-secondary mt-4 inline-block">
-            Canjear por letras
+            Pago en cuotas
           </Link>
         ) : null}
         {puedeAnular ? <BotonAnularPagoDirecto obligacionId={obligacion.id} /> : null}
@@ -142,7 +141,7 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
 
       {letras.length > 0 ? (
         <section className="card mt-4">
-          <h2 className="font-heading text-lg">Letras por pagar</h2>
+          <h2 className="font-heading text-lg">Cuotas pactadas</h2>
           <ul className="mt-2 space-y-1 text-sm">
             {letras.map((l) => (
               <li key={l.id} className="flex items-center justify-between border-b border-gray-100 py-1.5 last:border-0">

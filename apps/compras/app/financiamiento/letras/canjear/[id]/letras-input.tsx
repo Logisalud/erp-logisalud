@@ -23,24 +23,28 @@ export function LetrasInput({ montoObligacion, error }: { montoObligacion: numbe
         {filas.map((f, i) => (
           <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_2rem] items-center gap-2">
             <input
-              type="text" placeholder="N° letra" value={f.numero} onChange={(e) => actualizar(i, 'numero', e.target.value)}
-              className="min-h-12 w-full rounded-md border border-gray-300 px-2 text-sm"
-            />
-            <input
               type="number" min="0" step="0.01" placeholder="Monto" value={f.monto} onChange={(e) => actualizar(i, 'monto', e.target.value)}
               className="min-h-12 w-full rounded-md border border-gray-300 px-2 text-sm"
+              aria-label={`Cuota ${i + 1}: monto`}
             />
             <input
               type="date" value={f.fechaVencimiento} onChange={(e) => actualizar(i, 'fechaVencimiento', e.target.value)}
               className="min-h-12 w-full rounded-md border border-gray-300 px-2 text-sm"
+              aria-label={`Cuota ${i + 1}: vencimiento`}
+            />
+            <input
+              type="text" placeholder="N° letra (opcional)" value={f.numero} onChange={(e) => actualizar(i, 'numero', e.target.value)}
+              className="min-h-12 w-full rounded-md border border-gray-300 px-2 text-sm"
+              aria-label={`Cuota ${i + 1}: número de letra, opcional`}
             />
             <input
               type="text" placeholder="Banco (opcional)" value={f.bancoNegociacion} onChange={(e) => actualizar(i, 'bancoNegociacion', e.target.value)}
               className="min-h-12 w-full rounded-md border border-gray-300 px-2 text-sm"
+              aria-label={`Cuota ${i + 1}: banco de negociación, opcional`}
             />
             <button
               type="button" onClick={() => quitar(i)} disabled={filas.length === 1}
-              className="text-gray-400 hover:text-red-700 disabled:opacity-30" aria-label={`Quitar letra ${i + 1}`}
+              className="text-gray-400 hover:text-red-700 disabled:opacity-30" aria-label={`Quitar cuota ${i + 1}`}
             >
               ✕
             </button>
@@ -52,7 +56,7 @@ export function LetrasInput({ montoObligacion, error }: { montoObligacion: numbe
       </p>
       {error ? <p className="mt-1 text-sm text-red-700">{error}</p> : null}
       <button type="button" onClick={agregar} className="btn-secondary mt-2">
-        Agregar letra
+        Agregar cuota
       </button>
     </div>
   )

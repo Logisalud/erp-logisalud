@@ -2,6 +2,8 @@ import 'server-only'
 import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
 import {
   estaVencida,
+  ESTADOS_NO_CUOTEABLES,
+  ORIGENES_CUOTEABLES,
   type BorradorCuota,
   type BorradorFraccionamiento,
   type BorradorLetra,
@@ -185,22 +187,45 @@ export type ObligacionParaCanje = {
   moneda: string
   neto_a_pagar: number
   proveedor: { id: string; razon_social: string } | null
+  /** En qué catálogo vive el proveedor — define en qué columna de
+   * `letras_por_pagar` se guarda cada cuota (ver migración 0044). */
+  fuenteProveedor: 'compra' | 'servicio'
 }
 
-/** Regla 8: solo una obligación de compra (con proveedor real) ya facturada se puede canjear por letras. */
+/**
+ * "Pago en cuotas": partir una obligación ya registrada en varios
+ * vencimientos con fecha. Sirve para una compra, un servicio o un pago
+ * directo — lo único que se exige es que todavía no esté pagada, en una
+ * propuesta o ya partida, y que se le pague a un proveedor (no a un
+ * empleado: un anticipo o un reembolso no se cuotea).
+ *
+ * Hasta 0044 esto era exclusivo de `origen = 'compra'`, porque
+ * `letras_por_pagar.proveedor_id` solo apuntaba a compras.proveedores.
+ */
 export async function obtenerObligacionParaCanje(obligacionId: string): Promise<ObligacionParaCanje | null> {
   const supabase = crearClienteServidor()
   const { data, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, numero_factura, moneda, neto_a_pagar, estado, proveedor_id')
+    .select('id, codigo, origen, numero_factura, moneda, neto_a_pagar, estado, proveedor_id, proveedor_servicio_id')
     .eq('id', obligacionId)
     .maybeSingle()
   if (error) throw new Error(`No se pudo leer la obligación: ${error.message}`)
-  if (!data || data.origen !== 'compra' || !data.proveedor_id) return null
-  if (['pagada', 'canjeada_por_letra', 'en_propuesta'].includes(data.estado)) return null
+  if (!data) return null
+  if (!ORIGENES_CUOTEABLES.includes(data.origen)) return null
+  if (!data.proveedor_id && !data.proveedor_servicio_id) return null
+  if (ESTADOS_NO_CUOTEABLES.includes(data.estado)) return null
 
-  const { data: proveedor } = await supabase.schema('compras').from('proveedores').select('id, razon_social').eq('id', data.proveedor_id).maybeSingle()
+  const fuenteProveedor: 'compra' | 'servicio' = data.proveedor_id ? 'compra' : 'servicio'
+  const { data: proveedor } =
+    fuenteProveedor === 'compra'
+      ? await supabase.schema('compras').from('proveedores').select('id, razon_social').eq('id', data.proveedor_id).maybeSingle()
+      : await supabase
+          .schema('servicios')
+          .from('proveedores_servicio')
+          .select('id, razon_social')
+          .eq('id', data.proveedor_servicio_id)
+          .maybeSingle()
 
   return {
     id: data.id,
@@ -209,23 +234,36 @@ export async function obtenerObligacionParaCanje(obligacionId: string): Promise<
     moneda: data.moneda,
     neto_a_pagar: Number(data.neto_a_pagar),
     proveedor: proveedor ?? null,
+    fuenteProveedor,
   }
 }
 
 /**
- * Canjea una obligación de compra ya existente por una o más letras (regla
- * 8) — la obligación original queda `canjeada_por_letra` y ya no entra a
- * ninguna propuesta de pago; lo que se paga de ahora en más son las letras.
+ * Parte una obligación ya registrada en varias cuotas con fecha (regla 8) —
+ * la original queda `canjeada_por_letra` y ya no entra a ninguna propuesta
+ * de pago; lo que se paga de ahora en más son las cuotas.
+ *
+ * En pantalla esto se llama "Pago en cuotas": el número de letra y el banco
+ * de negociación son opcionales y se llenan solo cuando de verdad hay una
+ * letra de cambio de por medio (típico de mercadería). Un servicio o un
+ * pago directo pactado en cuotas usa el mismo mecanismo sin esos datos.
  */
 export async function canjearPorLetras(obligacionId: string, letras: readonly BorradorLetra[]): Promise<void> {
   const supabase = crearClienteServidor()
   const obligacion = await obtenerObligacionParaCanje(obligacionId)
-  if (!obligacion || !obligacion.proveedor) throw new Error('Esta obligación no se puede canjear por letras.')
+  if (!obligacion || !obligacion.proveedor) throw new Error('Esta obligación no se puede pagar en cuotas.')
+
+  // Exactamente una de las dos columnas, según de qué catálogo salga el
+  // proveedor — lo exige el CHECK `letras_proveedor_exactamente_uno` (0044).
+  const columnaProveedor =
+    obligacion.fuenteProveedor === 'compra'
+      ? { proveedor_id: obligacion.proveedor.id, proveedor_servicio_id: null }
+      : { proveedor_id: null, proveedor_servicio_id: obligacion.proveedor.id }
 
   const { error: errLetras } = await supabase.schema('financiamiento').from('letras_por_pagar').insert(
     letras.map((l) => ({
       obligacion_origen_id: obligacionId,
-      proveedor_id: obligacion.proveedor!.id,
+      ...columnaProveedor,
       numero_letra: l.numero ?? null,
       monto: l.monto,
       moneda: obligacion.moneda,
@@ -233,14 +271,14 @@ export async function canjearPorLetras(obligacionId: string, letras: readonly Bo
       banco_negociacion: l.bancoNegociacion ?? null,
     }))
   )
-  if (errLetras) throw new Error(`No se pudieron crear las letras: ${errLetras.message}`)
+  if (errLetras) throw new Error(`No se pudieron crear las cuotas: ${errLetras.message}`)
 
   const { error: errUpd } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
     .update({ estado: 'canjeada_por_letra' })
     .eq('id', obligacionId)
-  if (errUpd) throw new Error(`Las letras se crearon pero no se pudo actualizar la obligación original: ${errUpd.message}`)
+  if (errUpd) throw new Error(`Las cuotas se crearon pero no se pudo actualizar la obligación original: ${errUpd.message}`)
 }
 
 export type LetraListada = {
@@ -438,7 +476,7 @@ export async function generarObligacionesVencimientos(items: readonly { tipo: Ti
       const { data: letra } = await supabase
         .schema('financiamiento')
         .from('letras_por_pagar')
-        .select('id, proveedor_id, moneda, monto')
+        .select('id, proveedor_id, proveedor_servicio_id, moneda, monto')
         .eq('id', item.id)
         .maybeSingle()
       if (!letra) continue
@@ -447,7 +485,13 @@ export async function generarObligacionesVencimientos(items: readonly { tipo: Ti
         .schema('cuentas_x_pagar')
         .from('obligaciones')
         .insert({
-          origen: 'letra_por_pagar', proveedor_id: letra.proveedor_id, moneda: letra.moneda,
+          origen: 'letra_por_pagar',
+          // Desde 0044 una cuota puede ser de un proveedor de servicio —
+          // la obligación que genera tiene que apuntar al mismo catálogo,
+          // si no Tesorería no sabe a quién le paga.
+          proveedor_id: letra.proveedor_id,
+          proveedor_servicio_id: letra.proveedor_servicio_id,
+          moneda: letra.moneda,
           base_imponible: letra.monto, igv: 0, estado: 'registrada', created_by: usuario.id,
         })
         .select('id')

@@ -1,8 +1,8 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { crearProveedorUnificado } from '@/services/proveedores-unificado'
-import { validarProveedor, type TipoProveedorUnificado } from '@/domain/proveedor'
+import { crearProveedorUnificado, type BorradorCuentaBancariaUnificada } from '@/services/proveedores-unificado'
+import { validarAltaCompleta, type TipoProveedorUnificado } from '@/domain/proveedor'
 
 const TIPOS_VALIDOS: TipoProveedorUnificado[] = ['mercaderia', 'bien', 'ambos', 'servicio']
 
@@ -30,13 +30,29 @@ export async function crearProveedorAction(_previo: EstadoFormulario, form: Form
     monedaPrincipal: String(form.get('monedaPrincipal') ?? 'PEN'),
   }
 
-  const errores = validarProveedor(borrador)
+  // El alta completa exige cuenta bancaria: un proveedor sin forma de
+  // pagarle no sirve, y antes eso recién se descubría el día del pago.
+  const tipoCuentaRaw = String(form.get('tipoCuenta') ?? '')
+  const cuenta: BorradorCuentaBancariaUnificada = {
+    banco: String(form.get('banco') ?? '').trim(),
+    tipoCuenta: tipoCuentaRaw === 'ahorros' || tipoCuentaRaw === 'corriente' ? tipoCuentaRaw : null,
+    numeroCuenta: String(form.get('numeroCuenta') ?? '').trim(),
+    cci: String(form.get('cci') ?? '').trim(),
+    moneda: String(form.get('monedaCuenta') ?? 'PEN'),
+    titular: String(form.get('titular') ?? '').trim(),
+    esPrincipal: true,
+  }
+
+  const errores = validarAltaCompleta(borrador, cuenta)
   if (errores.length > 0) return { errores }
 
   let id: string
   let fuente: 'compra' | 'servicio'
   try {
-    const proveedor = await crearProveedorUnificado(borrador)
+    const proveedor = await crearProveedorUnificado(borrador, {
+      cuenta,
+      direccionFiscal: String(form.get('direccionFiscal') ?? '').trim() || null,
+    })
     id = proveedor.id
     fuente = proveedor.fuente
   } catch (e) {
