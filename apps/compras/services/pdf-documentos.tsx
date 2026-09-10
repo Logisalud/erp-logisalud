@@ -1,7 +1,6 @@
 import 'server-only'
-import fs from 'fs'
-import path from 'path'
 import { Document, Page, View, Text, Image, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
+import { LOGO_LOGISALUD_BASE64 } from '@/services/logo-base64'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { obtenerOC } from '@/services/ordenes-compra'
 import { obtenerProveedor } from '@/services/proveedores'
@@ -65,7 +64,7 @@ export type DatosPdfOrden = {
  * `window.print()` de OC y de este PDF (sesión 2026-09-09, ver PR #50 para
  * el bug de basePath que ya se resolvió del lado de next/image). */
 function bufferLogo(): Buffer {
-  return fs.readFileSync(path.join(process.cwd(), 'public', 'brand', 'logisalud-color-horizontal.png'))
+  return Buffer.from(LOGO_LOGISALUD_BASE64, 'base64')
 }
 
 /** Reusa obtenerOC/obtenerProveedor — no duplica la lectura de la orden. */
