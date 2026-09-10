@@ -282,3 +282,38 @@ describe("observaciones en el Excel", () => {
     expect(iNota).toBeGreaterThan(iObs);
   });
 });
+
+describe("cliente nuevo en el Excel", () => {
+  /**
+   * El Excel es lo que se abre para preparar el despacho. Si el cliente
+   * todavía no está validado, tiene que verse ahí: en una planilla no hay
+   * color de estado que lo diga.
+   */
+  it("avisa arriba y marca la razón social", async () => {
+    const { textos } = await leer(
+      await buildOrderExcel(
+        data({
+          estadoResultado: "NEW_CUSTOMER_VALIDATION",
+          cliente: {
+            razonSocial: "BOTICA RECIEN ABIERTA E.I.R.L.",
+            rucODocumento: "20600000001",
+            direccionEntrega: "Av. Nueva 1",
+            canal: "Horizontal",
+            zona: "ZONA 02",
+            esClienteNuevo: true,
+          },
+        }),
+      ),
+    );
+
+    expect(textos.some((t) => t.includes("CLIENTE NUEVO — todavía sin validar"))).toBe(true);
+    expect(textos).toContain("BOTICA RECIEN ABIERTA E.I.R.L.  [CLIENTE NUEVO]");
+  });
+
+  it("un cliente validado no lleva ninguna marca", async () => {
+    const { textos } = await leer(await buildOrderExcel(data()));
+    expect(textos.some((t) => t.includes("CLIENTE NUEVO"))).toBe(false);
+    expect(textos).toContain("CLINICA EJEMPLO S.A.C.");
+  });
+});
+

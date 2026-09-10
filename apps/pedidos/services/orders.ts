@@ -63,6 +63,8 @@ export type OrderDetail = OrderSummary & {
     ruc_o_documento: string;
     canal_id: number | null;
     condicion_pago_habitual_id: number | null;
+    /** `PENDIENTE_DE_VALIDACION` = cliente nuevo, todavía sin validar. */
+    estado: string;
   } | null;
   address: { direccion: string } | null;
   payment_terms: { nombre: string; permite_dias_libres: boolean } | null;
@@ -163,7 +165,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail | nul
       `id, numero, estado, fecha_creacion, fecha_envio, seller_id, customer_id, customer_address_id, payment_terms_id,
       dias_credito_solicitados,
       seller:sellers(nombre_completo),
-      customer:customers(razon_social, ruc_o_documento, canal_id, condicion_pago_habitual_id),
+      customer:customers(razon_social, ruc_o_documento, canal_id, condicion_pago_habitual_id, estado),
       address:customer_addresses(direccion),
       payment_terms:payment_terms(nombre, permite_dias_libres)`,
     )

@@ -58,6 +58,23 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
   sheet.mergeCells(titulo.number, 1, titulo.number, 8);
 
   sheet.addRow([`Enviado el ${formatFechaHora(data.fechaEnvio)}`]);
+
+  // Un cliente sin validar tiene que saltar a la vista de quien abre el
+  // archivo para despachar: es lo que frena el pedido, y en una planilla
+  // no hay color de estado que lo diga.
+  if (data.cliente.esClienteNuevo) {
+    const aviso = sheet.addRow([
+      "CLIENTE NUEVO — todavía sin validar. Hay que revisarlo y aprobarlo para poder atender este pedido.",
+    ]);
+    aviso.font = { bold: true, color: { argb: "FF92400E" } };
+    aviso.getCell(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFFEF3C7" },
+    };
+    sheet.mergeCells(aviso.number, 1, aviso.number, 8);
+  }
+
   sheet.addRow([]);
 
   function dato(label: string, value: string | null) {
@@ -66,7 +83,10 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
     sheet.mergeCells(row.number, 2, row.number, 8);
   }
 
-  dato("Cliente", data.cliente.razonSocial);
+  dato(
+    "Cliente",
+    data.cliente.razonSocial + (data.cliente.esClienteNuevo ? "  [CLIENTE NUEVO]" : ""),
+  );
   dato("RUC / documento", data.cliente.rucODocumento);
   dato("Dirección de entrega", data.cliente.direccionEntrega);
   dato("Canal", data.cliente.canal);

@@ -95,10 +95,21 @@ export default async function OrderDetailPage({
               <div className="min-w-0">
                 <h2 className="text-xl text-slate-900">
                   {displayRazonSocial(order.customer?.razon_social ?? "Pedido")}
+                  {order.customer?.estado === "PENDIENTE_DE_VALIDACION" && (
+                    <span className="ml-2 whitespace-nowrap rounded border border-amber-400 bg-amber-50 px-2 py-0.5 align-middle text-xs font-bold text-amber-900">
+                      CLIENTE NUEVO
+                    </span>
+                  )}
                 </h2>
                 <p className="cifra mt-0.5 text-sm text-slate-600">
                   {order.customer?.ruc_o_documento ?? "—"}
                 </p>
+                {order.customer?.estado === "PENDIENTE_DE_VALIDACION" && (
+                  <p className="mt-1 text-sm text-amber-800">
+                    Es un cliente nuevo y todavía sin validar: hay que revisarlo y aprobarlo para
+                    poder atender este pedido.
+                  </p>
+                )}
               </div>
               <span
                 className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${estadoEstilo(

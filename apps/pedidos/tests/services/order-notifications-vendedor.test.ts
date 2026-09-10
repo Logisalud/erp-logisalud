@@ -51,7 +51,11 @@ const order = {
   zona_snapshot: "ZONA 01",
   vendedor_snapshot: "SUSANA RAMOS",
   dias_credito_solicitados: null,
-  customer: { razon_social: "FARMACIA QUEEN", ruc_o_documento: "20517006514" },
+  customer: {
+    razon_social: "FARMACIA QUEEN",
+    ruc_o_documento: "20517006514",
+    estado: "ACTIVO" as string,
+  },
   payment_terms: { nombre: "Contado" },
 };
 
@@ -179,16 +183,22 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@/services/audit-log", () => ({ logAudit: async () => {} }));
 
-const enviados: Array<{ to: string[]; subject: string; headers?: Record<string, string> }> = [];
+const enviados: Array<{ to: string[]; subject: string; html: string; headers?: Record<string, string> }> = [];
 
 vi.mock("@/services/email", () => ({
   isEmailConfigured: () => true,
   sendEmail: async (input: {
     to: string[];
     subject: string;
+    html: string;
     headers?: Record<string, string>;
   }) => {
-    enviados.push({ to: input.to, subject: input.subject, headers: input.headers });
+    enviados.push({
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      headers: input.headers,
+    });
     return {
       ok: true as const,
       proveedor: "resend" as const,
@@ -214,6 +224,7 @@ beforeEach(() => {
   db.logs = [];
   db.reloj = 0;
   order.email_thread_message_id = null;
+  order.customer.estado = "ACTIVO";
   enviados.length = 0;
 });
 
@@ -283,5 +294,20 @@ describe("el vendedor del pedido recibe los avisos", () => {
     const r = await notifyOrderSubmitted("o1", "READY_FOR_OPERATIONS", "u-admin");
     expect(r.estado).toBe("sin_destinatarios");
     expect(enviados).toHaveLength(0);
+  });
+
+  it("marca CLIENTE NUEVO cuando el cliente todavía no está validado", async () => {
+    // Es el estado ACTUAL del cliente el que manda: quien recibe el correo
+    // tiene que saber que ese pedido no avanza hasta que alguien lo revise.
+    order.customer.estado = "PENDIENTE_DE_VALIDACION";
+    await notifyOrderSubmitted("o1", "NEW_CUSTOMER_VALIDATION", "u-susana");
+
+    expect(enviados[0].html).toContain("CLIENTE NUEVO");
+    expect(enviados[0].html).toContain("para poder atender este pedido");
+
+    // Y una vez validado, el aviso siguiente del MISMO pedido ya no lo pide.
+    order.customer.estado = "ACTIVO";
+    await notifyDiscountResolved("o1", "READY_FOR_OPERATIONS", "u-admin", "APROBAR");
+    expect(enviados[1].html).not.toContain("CLIENTE NUEVO");
   });
 });
