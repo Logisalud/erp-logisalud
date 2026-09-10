@@ -39,7 +39,7 @@ export function StockImporter({ fuentes }: { fuentes: string[] }) {
     });
   }
 
-  const puedePublicar = preview !== null && preview.items.length > 0;
+  const puedePublicar = preview !== null && preview.lotes.length > 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -154,11 +154,18 @@ function PreviewPanel({ preview }: { preview: StockImportPreview }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Se crean" value={resumen.crear} />
-        <Stat label="Se actualizan" value={resumen.actualizar} />
-        <Stat label="Quedan igual" value={resumen.sinCambio} />
+        <Stat label="Lotes nuevos" value={resumen.crear} />
+        <Stat label="Lotes que se actualizan" value={resumen.actualizar} />
+        <Stat label="Lotes que quedan igual" value={resumen.sinCambio} />
         <Stat label="Filas con problema" value={preview.errors.length} tone="warn" />
+        <Stat label="Productos con stock" value={resumen.productos} />
+        <Stat label="Unidades totales" value={resumen.unidades} />
       </div>
+
+      <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+        Las filas sin FUENTE se cargan en <strong>{preview.fuentePorDefecto}</strong>. El stock se
+        guarda por lote: un mismo producto puede tener varios, cada uno con su vencimiento.
+      </p>
 
       {preview.codigosSinProducto.length > 0 && (
         <div className="aviso-bloqueo flex-col items-start" role="alert">
@@ -194,13 +201,31 @@ function PreviewPanel({ preview }: { preview: StockImportPreview }) {
         </div>
       )}
 
-      {preview.items.length > 0 && (
+      {preview.warnings.length > 0 && (
+        <details className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <summary className="min-h-11 cursor-pointer font-medium">
+            Advertencias ({preview.warnings.length.toLocaleString("es-PE")}) — no bloquean la carga
+          </summary>
+          <ul className="mt-2 max-h-64 overflow-y-auto">
+            {preview.warnings.slice(0, 200).map((issue, i) => (
+              <li key={`${issue.rowNumber}-${issue.code}-${i}`} className="py-0.5">
+                {issue.rowNumber > 0 ? `Fila ${issue.rowNumber}: ` : ""}
+                {issue.message}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {preview.lotes.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[36rem] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-600">
                 <th className="py-2 pr-3 font-medium">Código</th>
                 <th className="py-2 pr-3 font-medium">Producto</th>
+                <th className="py-2 pr-3 font-medium">Lote</th>
+                <th className="py-2 pr-3 font-medium">Vence</th>
                 <th className="py-2 pr-3 font-medium">Fuente</th>
                 <th className="py-2 pr-3 text-right font-medium">Ahora</th>
                 <th className="py-2 pr-3 text-right font-medium">Queda en</th>
@@ -208,13 +233,15 @@ function PreviewPanel({ preview }: { preview: StockImportPreview }) {
               </tr>
             </thead>
             <tbody>
-              {preview.items.slice(0, 200).map((item) => (
+              {preview.lotes.slice(0, 200).map((item) => (
                 <tr
-                  key={`${item.productId}-${item.inventorySourceId}`}
+                  key={`${item.productId}-${item.inventorySourceId}-${item.lote}`}
                   className="border-b border-slate-100 last:border-0"
                 >
                   <td className="cifra py-2 pr-3">{item.codigoProducto}</td>
                   <td className="py-2 pr-3">{item.descripcion}</td>
+                  <td className="cifra py-2 pr-3">{item.lote}</td>
+                  <td className="cifra py-2 pr-3">{item.fechaVencimiento ?? "—"}</td>
                   <td className="py-2 pr-3">{item.fuenteNombre}</td>
                   <td className="cifra py-2 pr-3 text-right text-slate-600">
                     {item.cantidadActual === null
@@ -231,9 +258,9 @@ function PreviewPanel({ preview }: { preview: StockImportPreview }) {
               ))}
             </tbody>
           </table>
-          {preview.items.length > 200 && (
+          {preview.lotes.length > 200 && (
             <p className="mt-2 text-sm italic text-slate-600">
-              …y {(preview.items.length - 200).toLocaleString("es-PE")} filas más, que también se
+              …y {(preview.lotes.length - 200).toLocaleString("es-PE")} lotes más, que también se
               cargan.
             </p>
           )}

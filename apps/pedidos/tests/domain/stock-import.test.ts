@@ -2,227 +2,264 @@ import { describe, expect, it } from "vitest";
 import {
   encontrarCabeceras,
   parsearCantidad,
+  parsearFechaVencimiento,
   parseStockRows,
   resolverStockImport,
   resumirStockImport,
+  type CatalogoFuente,
   type RawRow,
 } from "@/domain/stock-import";
 
+/**
+ * El importador de stock lee el archivo REAL del almacén, que trae una
+ * fila por lote: el mismo producto aparece varias veces, cada vez con su
+ * lote, su vencimiento y su cantidad. Lo que se prueba acá es lo que
+ * distingue este importador del anterior —lotes, fechas, la fuente por
+ * defecto y los lotes repetidos— porque es donde se pierde stock real sin
+ * que nadie se entere.
+ */
+
+const CENTRAL: CatalogoFuente = { id: 1, nombre: "Almacén Central Lima", estado: "activo" };
+const TRUJILLO: CatalogoFuente = { id: 2, nombre: "Almacén Regional Trujillo", estado: "inactivo" };
+
 const PRODUCTOS = [
-  { id: "p1", codigo_interno: "DHP014", descripcion: "A - FIEBRIN 1G/ 2ML CJA X 1 AMP." },
-  { id: "p2", codigo_interno: "BSA301", descripcion: "ALLERGY-BIO 5 MG CJA X 60 TAB REC" },
+  { id: "p1", codigo_interno: "DHP414", descripcion: "ACIDO TRANEXAMICO", controla_lote: true },
+  { id: "p2", codigo_interno: "BSA301", descripcion: "ALLERGY-BIO", controla_lote: false },
 ];
 
-const FUENTES = [
-  { id: 1, nombre: "Almacén Central Lima", estado: "activo" },
-  { id: 2, nombre: "Almacén Arequipa", estado: "activo" },
-  { id: 3, nombre: "Almacén Regional Trujillo", estado: "inactivo" },
-];
-
-function catalogos(existentes: Array<[string, number]> = []) {
-  return { productos: PRODUCTOS, fuentes: FUENTES, existentes: new Map(existentes) };
+function resolver(filas: RawRow[], existentes = new Map<string, number>()) {
+  const parsed = parseStockRows(filas);
+  return {
+    parsed,
+    resuelto: resolverStockImport(parsed.rows, {
+      productos: PRODUCTOS,
+      fuentes: [CENTRAL, TRUJILLO],
+      fuentePorDefecto: CENTRAL,
+      existentes,
+    }),
+  };
 }
 
+/** Las cabeceras exactas del archivo real, incluido "CANTIDA" sin la D. */
+const CABECERA_REAL: RawRow = [
+  "CODIGO",
+  "FUENTE",
+  "DESCRIPCION",
+  "LOTE",
+  "FV",
+  "CANTIDA",
+  "PROVEEDOR",
+];
+
 describe("encontrarCabeceras", () => {
-  it("encuentra las columnas por el nombre canónico", () => {
-    const rows: RawRow[] = [["codigo_producto", "inventory_source", "cantidad_disponible"]];
-    expect(encontrarCabeceras(rows)).toEqual({
-      headerRowNumber: 1,
-      columns: { codigoProducto: 0, fuente: 1, cantidad: 2 },
+  it("reconoce las cabeceras del archivo real, con CANTIDA y FV", () => {
+    const encontrado = encontrarCabeceras([["STOCK AL 09/09"], [], CABECERA_REAL]);
+    expect(encontrado).toEqual({
+      headerRowNumber: 3,
+      columns: {
+        codigoProducto: 0,
+        fuente: 1,
+        lote: 3,
+        fechaVencimiento: 4,
+        cantidad: 5,
+        proveedor: 6,
+      },
     });
   });
 
-  it("acepta variantes, tildes y mayúsculas", () => {
-    const rows: RawRow[] = [["Código", "Fuente de stock", "Cantidad"]];
-    expect(encontrarCabeceras(rows)?.columns).toEqual({
-      codigoProducto: 0,
-      fuente: 1,
-      cantidad: 2,
-    });
+  it("acepta un archivo sin fuente, vencimiento ni proveedor: lo mínimo es código, lote y cantidad", () => {
+    const encontrado = encontrarCabeceras([["CODIGO", "LOTE", "CANTIDAD"]]);
+    expect(encontrado?.columns).toMatchObject({ fuente: -1, fechaVencimiento: -1, proveedor: -1 });
   });
 
-  it("no exige que la cabecera sea la primera fila", () => {
-    const rows: RawRow[] = [
-      ["STOCK AL 02/09/2026"],
-      [],
-      ["codigo", "almacen", "stock"],
-    ];
-    expect(encontrarCabeceras(rows)?.headerRowNumber).toBe(3);
+  it("sin lote no hay cabecera reconocible: el stock se lleva por lote", () => {
+    expect(encontrarCabeceras([["CODIGO", "FUENTE", "CANTIDAD"]])).toBeNull();
+  });
+});
+
+describe("parsearFechaVencimiento", () => {
+  it("de una fecha de Excel toma el día local y descarta la hora", () => {
+    // La celda real trae "2027-10-30 16:47:55": la hora es basura del
+    // formato. Y con toISOString(), en hora de Perú, esto retrocedía un día.
+    expect(parsearFechaVencimiento(new Date(2027, 9, 30, 16, 47, 55))).toBe("2027-10-30");
+    expect(parsearFechaVencimiento(new Date(2028, 0, 1, 0, 0, 0))).toBe("2028-01-01");
   });
 
-  it("devuelve null si falta una de las tres columnas", () => {
-    expect(encontrarCabeceras([["codigo_producto", "cantidad_disponible"]])).toBeNull();
+  it("acepta dd/mm/yyyy, que es como se escribe a mano acá", () => {
+    expect(parsearFechaVencimiento("31/12/2027")).toBe("2027-12-31");
+    expect(parsearFechaVencimiento("1-5-27")).toBe("2027-05-01");
+  });
+
+  it("acepta ISO y rechaza lo que no es una fecha", () => {
+    expect(parsearFechaVencimiento("2027-12-31")).toBe("2027-12-31");
+    expect(parsearFechaVencimiento("s/f")).toBeNull();
+    expect(parsearFechaVencimiento("")).toBeNull();
+    expect(parsearFechaVencimiento(null)).toBeNull();
   });
 });
 
 describe("parsearCantidad", () => {
-  it("lee celdas numéricas y texto simple", () => {
-    expect(parsearCantidad(12)).toBe(12);
-    expect(parsearCantidad("12")).toBe(12);
-    expect(parsearCantidad("0")).toBe(0);
-  });
-
-  it("tolera coma decimal y espacios", () => {
+  it("lee números de Excel y los escritos a mano", () => {
+    expect(parsearCantidad(180)).toBe(180);
+    expect(parsearCantidad("1 200")).toBe(1200);
     expect(parsearCantidad("1,5")).toBe(1.5);
-    expect(parsearCantidad(" 1 200 ")).toBe(1200);
-  });
-
-  it("con los dos separadores, la coma es el decimal", () => {
     expect(parsearCantidad("1.200,50")).toBe(1200.5);
   });
 
-  it("rechaza lo que no es un número en vez de adivinar", () => {
-    expect(parsearCantidad("s/d")).toBeNull();
+  it("rechaza lo que no se entiende en vez de adivinarlo", () => {
+    expect(parsearCantidad("varios")).toBeNull();
     expect(parsearCantidad("")).toBeNull();
     expect(parsearCantidad(null)).toBeNull();
-    expect(parsearCantidad("12 cajas")).toBeNull();
   });
 });
 
 describe("parseStockRows", () => {
-  it("lee las filas y numera como el Excel que ve el usuario", () => {
-    const rows: RawRow[] = [
-      ["codigo_producto", "inventory_source", "cantidad_disponible"],
-      ["DHP014", "Almacén Central Lima", 120],
-      ["bsa301", "Almacén Arequipa", "45"],
-    ];
-    const r = parseStockRows(rows);
-    expect(r.headerRowNumber).toBe(1);
-    expect(r.errors).toEqual([]);
-    expect(r.rows).toEqual([
-      { rowNumber: 2, codigoProducto: "DHP014", fuente: "Almacén Central Lima", cantidad: 120 },
-      { rowNumber: 3, codigoProducto: "BSA301", fuente: "Almacén Arequipa", cantidad: 45 },
+  it("lee las filas del archivo real, con la fuente en blanco", () => {
+    const { parsed } = resolver([
+      CABECERA_REAL,
+      ["DHP414", null, "ACIDO TRANEXAMICO", "PT12412", new Date(2027, 9, 30, 16, 47, 55), 180, "DIPHASAC"],
+    ]);
+    expect(parsed.rows).toEqual([
+      {
+        rowNumber: 2,
+        codigoProducto: "DHP414",
+        fuente: "",
+        lote: "PT12412",
+        fechaVencimiento: "2027-10-30",
+        cantidad: 180,
+        proveedor: "DIPHASAC",
+      },
     ]);
   });
 
-  it("saltea las filas vacías del final sin llenar la pantalla de errores", () => {
-    const rows: RawRow[] = [
-      ["codigo_producto", "inventory_source", "cantidad_disponible"],
-      ["DHP014", "Almacén Central Lima", 10],
-      [],
-      [null, null, null],
-      ["", "", ""],
-    ];
-    const r = parseStockRows(rows);
-    expect(r.rows).toHaveLength(1);
-    expect(r.errors).toEqual([]);
+  it("una fila sin lote no se puede cargar y se dice por qué", () => {
+    const { parsed } = resolver([CABECERA_REAL, ["DHP414", null, "X", "", new Date(), 10, "P"]]);
+    expect(parsed.rows).toHaveLength(0);
+    expect(parsed.errors[0].code).toBe("SIN_LOTE");
   });
 
-  it("reporta la fila incompleta y sigue con el resto", () => {
-    const rows: RawRow[] = [
-      ["codigo_producto", "inventory_source", "cantidad_disponible"],
-      ["", "Almacén Central Lima", 10],
-      ["DHP014", "", 10],
-      ["DHP014", "Almacén Central Lima", "s/d"],
-      ["DHP014", "Almacén Central Lima", -5],
-      ["BSA301", "Almacén Arequipa", 7],
-    ];
-    const r = parseStockRows(rows);
-    expect(r.rows).toHaveLength(1);
-    expect(r.errors.map((e) => e.code)).toEqual([
-      "SIN_CODIGO",
-      "SIN_FUENTE",
-      "CANTIDAD_INVALIDA",
-      "CANTIDAD_NEGATIVA",
+  it("ignora las filas vacías del final sin ensuciar los errores", () => {
+    const { parsed } = resolver([CABECERA_REAL, [null, null, null, null, null, null, null], []]);
+    expect(parsed.rows).toHaveLength(0);
+    expect(parsed.errors).toHaveLength(0);
+  });
+
+  it("rechaza cantidad no numérica y negativa", () => {
+    const { parsed } = resolver([
+      CABECERA_REAL,
+      ["DHP414", null, "X", "L1", null, "varios", "P"],
+      ["DHP414", null, "X", "L2", null, -3, "P"],
     ]);
-  });
-
-  it("sin cabeceras reconocibles no inventa columnas", () => {
-    const r = parseStockRows([["cosa", "otra"], ["x", "y"]]);
-    expect(r.headerRowNumber).toBeNull();
-    expect(r.rows).toEqual([]);
-    expect(r.errors[0].code).toBe("SIN_CABECERAS");
+    expect(parsed.errors.map((e) => e.code)).toEqual(["CANTIDAD_INVALIDA", "CANTIDAD_NEGATIVA"]);
   });
 });
 
 describe("resolverStockImport", () => {
-  const filas = [
-    { rowNumber: 2, codigoProducto: "DHP014", fuente: "Almacén Central Lima", cantidad: 120 },
-    { rowNumber: 3, codigoProducto: "BSA301", fuente: "Almacén Arequipa", cantidad: 45 },
-  ];
+  it("sin FUENTE, el lote va al almacén por defecto", () => {
+    const { resuelto } = resolver([
+      CABECERA_REAL,
+      ["DHP414", null, "X", "PT1", new Date(2027, 11, 31), 5, "DIPHASAC"],
+    ]);
+    expect(resuelto.lotes[0]).toMatchObject({
+      inventorySourceId: 1,
+      fuenteNombre: "Almacén Central Lima",
+      lote: "PT1",
+      cantidad: 5,
+      accion: "crear",
+    });
+  });
 
-  it("distingue crear de actualizar según lo que ya está cargado", () => {
-    const r = resolverStockImport(filas, catalogos([["p1|1", 80]]));
-    expect(r.items.map((i) => [i.codigoProducto, i.accion, i.cantidadActual])).toEqual([
-      ["DHP014", "actualizar", 80],
-      ["BSA301", "crear", null],
+  it("el mismo lote en varias filas SUMA las cantidades", () => {
+    // Caso real: DHP414 lote PT12502 viene en dos filas, 1 y 21. Quedarse
+    // con la última perdería 1 unidad sin que nadie se entere.
+    const { resuelto } = resolver([
+      CABECERA_REAL,
+      ["DHP414", null, "X", "PT12502", new Date(2027, 11, 31), 1, "DIPHASAC"],
+      ["DHP414", null, "X", "PT12502", new Date(2027, 11, 31), 21, "DIPHASAC"],
+    ]);
+    expect(resuelto.lotes).toHaveLength(1);
+    expect(resuelto.lotes[0].cantidad).toBe(22);
+    expect(resuelto.lotes[0].rowNumbers).toEqual([2, 3]);
+    const aviso = resuelto.warnings.find((w) => w.code === "LOTE_REPETIDO_EN_ARCHIVO");
+    expect(aviso?.message).toContain("SUMAN: 22");
+  });
+
+  it("si dos filas del mismo lote discrepan en el vencimiento, gana el más temprano", () => {
+    const { resuelto } = resolver([
+      CABECERA_REAL,
+      ["DHP414", null, "X", "PT1", new Date(2028, 0, 31), 5, "P"],
+      ["DHP414", null, "X", "PT1", new Date(2027, 5, 30), 5, "P"],
+    ]);
+    expect(resuelto.lotes[0].fechaVencimiento).toBe("2027-06-30");
+  });
+
+  it("distingue crear de actualizar por lote, no por producto", () => {
+    const { resuelto } = resolver(
+      [
+        CABECERA_REAL,
+        ["DHP414", null, "X", "PT1", null, 10, "P"],
+        ["DHP414", null, "X", "PT2", null, 7, "P"],
+      ],
+      new Map([["p1|1|PT1", 4]]),
+    );
+    expect(resuelto.lotes.map((l) => [l.lote, l.accion, l.cantidadActual])).toEqual([
+      ["PT1", "actualizar", 4],
+      ["PT2", "crear", null],
     ]);
   });
 
-  it("cruza la fuente sin importar tildes ni mayúsculas", () => {
-    const r = resolverStockImport(
-      [{ rowNumber: 2, codigoProducto: "DHP014", fuente: "almacen central lima", cantidad: 5 }],
-      catalogos(),
-    );
-    expect(r.items).toHaveLength(1);
-    expect(r.items[0].inventorySourceId).toBe(1);
+  it("un código que no está en el catálogo se reporta y no se carga", () => {
+    const { resuelto } = resolver([CABECERA_REAL, ["NOEXISTE", null, "X", "L1", null, 3, "P"]]);
+    expect(resuelto.lotes).toHaveLength(0);
+    expect(resuelto.codigosSinProducto).toEqual(["NOEXISTE"]);
+    expect(resuelto.errors[0].code).toBe("PRODUCTO_DESCONOCIDO");
   });
 
-  it("reporta los códigos que no existen y no los descarta en silencio", () => {
-    const r = resolverStockImport(
-      [{ rowNumber: 2, codigoProducto: "NOEXISTE", fuente: "Almacén Central Lima", cantidad: 5 }],
-      catalogos(),
-    );
-    expect(r.items).toEqual([]);
-    expect(r.codigosSinProducto).toEqual(["NOEXISTE"]);
-    expect(r.errors[0].code).toBe("PRODUCTO_DESCONOCIDO");
+  it("una fuente inactiva no se confunde con una que no existe", () => {
+    const { resuelto } = resolver([
+      CABECERA_REAL,
+      ["DHP414", "Almacén Regional Trujillo", "X", "L1", null, 3, "P"],
+      ["DHP414", "Almacén Fantasma", "X", "L2", null, 3, "P"],
+    ]);
+    expect(resuelto.fuentesInactivas).toEqual(["Almacén Regional Trujillo"]);
+    expect(resuelto.fuentesDesconocidas).toEqual(["Almacén Fantasma"]);
+    expect(resuelto.lotes).toHaveLength(0);
   });
 
-  it("una fuente inactiva no es una fuente inexistente, y se dice distinto", () => {
-    const r = resolverStockImport(
-      [
-        {
-          rowNumber: 2,
-          codigoProducto: "DHP014",
-          fuente: "Almacén Regional Trujillo",
-          cantidad: 5,
-        },
-      ],
-      catalogos(),
-    );
-    expect(r.items).toEqual([]);
-    expect(r.fuentesDesconocidas).toEqual([]);
-    expect(r.fuentesInactivas).toEqual(["Almacén Regional Trujillo"]);
-    expect(r.errors[0].code).toBe("FUENTE_INACTIVA");
-  });
-
-  it("reporta las fuentes desconocidas", () => {
-    const r = resolverStockImport(
-      [{ rowNumber: 2, codigoProducto: "DHP014", fuente: "Depósito Piura", cantidad: 5 }],
-      catalogos(),
-    );
-    expect(r.items).toEqual([]);
-    expect(r.fuentesDesconocidas).toEqual(["Depósito Piura"]);
-    expect(r.errors[0].code).toBe("FUENTE_DESCONOCIDA");
-  });
-
-  it("con el mismo producto+fuente repetido gana el último valor, y se avisa", () => {
-    const r = resolverStockImport(
-      [
-        { rowNumber: 2, codigoProducto: "DHP014", fuente: "Almacén Central Lima", cantidad: 10 },
-        { rowNumber: 5, codigoProducto: "DHP014", fuente: "Almacén Central Lima", cantidad: 99 },
-      ],
-      catalogos(),
-    );
-    expect(r.items).toHaveLength(1);
-    expect(r.items[0].cantidad).toBe(99);
-    expect(r.errors[0].code).toBe("DUPLICADO_EN_ARCHIVO");
-    expect(r.errors[0].message).toContain("fila 2");
+  it("avisa —sin bloquear— cuando el catálogo dice que el producto no controla lote", () => {
+    const { resuelto } = resolver([
+      CABECERA_REAL,
+      ["BSA301", null, "ALLERGY-BIO", "2050415", null, 11, "BIOSANA"],
+    ]);
+    // Se carga igual: el archivo es la realidad del almacén.
+    expect(resuelto.lotes).toHaveLength(1);
+    expect(resuelto.productosSinControlDeLote).toEqual(["BSA301"]);
+    const aviso = resuelto.warnings.find((w) => w.code === "PRODUCTO_SIN_CONTROL_DE_LOTE");
+    expect(aviso?.message).toContain("BSA301");
+    expect(resuelto.errors).toHaveLength(0);
   });
 });
 
 describe("resumirStockImport", () => {
-  it("cuenta creados, actualizados y los que quedan igual", () => {
-    const r = resolverStockImport(
+  it("cuenta lotes, productos y unidades", () => {
+    const { resuelto } = resolver(
       [
-        { rowNumber: 2, codigoProducto: "DHP014", fuente: "Almacén Central Lima", cantidad: 120 },
-        { rowNumber: 3, codigoProducto: "BSA301", fuente: "Almacén Arequipa", cantidad: 45 },
+        CABECERA_REAL,
+        ["DHP414", null, "X", "PT1", null, 10, "P"],
+        ["DHP414", null, "X", "PT2", null, 7, "P"],
+        ["BSA301", null, "Y", "L9", null, 3, "P"],
       ],
-      catalogos([
-        ["p1|1", 80],
-        ["p2|2", 45],
+      new Map([
+        ["p1|1|PT1", 4],
+        ["p1|1|PT2", 7],
       ]),
     );
-    expect(resumirStockImport(r.items)).toEqual({ crear: 0, actualizar: 1, sinCambio: 1 });
+    expect(resumirStockImport(resuelto.lotes)).toEqual({
+      crear: 1,
+      actualizar: 1,
+      sinCambio: 1,
+      productos: 2,
+      unidades: 20,
+    });
   });
 });

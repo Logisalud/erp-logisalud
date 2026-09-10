@@ -49,6 +49,22 @@ export const SECCIONES: Seccion[] = [
     roles: ["administrador"],
   },
   {
+    // Todos los roles: el vendedor necesita saber cuánto hay antes de
+    // ofrecerle un producto a un cliente, y hasta ahora el stock vivía
+    // dentro de Maestros, que sólo ve el administrador. Es de sólo
+    // lectura; cargarlo sigue siendo del administrador.
+    href: "/stock",
+    title: "Stock",
+    description: "Consultar por producto y lote cuánto hay en almacén y cuándo vence.",
+    roles: [
+      "administrador",
+      "vendedor",
+      "operaciones",
+      "control_pedidos",
+      "aprobador_comercial",
+    ],
+  },
+  {
     href: "/operaciones",
     title: "Despachos",
     description: "Preparar y despachar los pedidos listos para operaciones.",

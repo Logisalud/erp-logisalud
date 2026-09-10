@@ -1,15 +1,16 @@
 /**
- * Carga masiva de stock: parseo y resolución puros.
+ * Carga masiva de stock POR LOTE: parseo y resolución puros.
  *
- * Hasta acá el stock se cargaba fila por fila desde la base. Con 177
- * productos y varias fuentes eso no es una tarea, es una tarde.
+ * El archivo real de stock diario trae una fila por lote, no por producto:
+ * el mismo código aparece varias veces, cada vez con su lote, su fecha de
+ * vencimiento y su cantidad. Ese detalle es justamente lo que hace falta
+ * para despachar —qué lote sale y cuál vence primero—, así que se carga
+ * tal cual y la suma por producto la hace la vista `stock_levels`.
  *
- * Mismo criterio que el importador de precios y el de clientes: primero se
- * entiende el archivo y se muestra qué va a pasar (cuántos se crean,
- * cuántos se actualizan, qué códigos no existen), y sólo después se
- * escribe. Nada acá toca Supabase ni lee archivos — eso vive en
- * services/stock-import.ts — para poder probar el criterio completo sin
- * base de datos.
+ * Mismo criterio que los otros importadores: primero se entiende el
+ * archivo y se muestra qué va a pasar, y sólo después se escribe. Nada acá
+ * toca Supabase ni lee archivos —eso vive en services/stock-import.ts—
+ * para poder probar el criterio completo sin base de datos.
  */
 
 export type RawCell = string | number | Date | null | undefined;
@@ -25,14 +26,25 @@ export type StockIssue = {
 export type ParsedStockRow = {
   rowNumber: number;
   codigoProducto: string;
+  /** Vacío = almacén por defecto. Lo resuelve `resolverStockImport`. */
   fuente: string;
+  lote: string;
+  /** ISO `YYYY-MM-DD`, o null si el archivo no la trae. */
+  fechaVencimiento: string | null;
   cantidad: number;
+  proveedor: string | null;
 };
 
 export type StockColumnMap = {
   codigoProducto: number;
+  /** -1 cuando el archivo no trae columna de fuente. */
   fuente: number;
+  lote: number;
+  /** -1 cuando el archivo no trae fecha de vencimiento. */
+  fechaVencimiento: number;
   cantidad: number;
+  /** -1 cuando el archivo no trae proveedor. */
+  proveedor: number;
 };
 
 export type StockParseResult = {
@@ -43,25 +55,34 @@ export type StockParseResult = {
   errors: StockIssue[];
 };
 
-/** Cabeceras aceptadas por columna. Se comparan normalizadas. */
+/**
+ * Cabeceras aceptadas por columna. El archivo real escribe "CANTIDA" (sin
+ * la D) y "FV" en vez de fecha de vencimiento: se aceptan como vienen en
+ * vez de pedirle a la gente que renombre columnas antes de cargar.
+ */
 const CABECERAS = {
-  codigoProducto: ["codigo_producto", "codigo producto", "codigo", "codigo_interno", "producto"],
-  fuente: [
-    "inventory_source",
-    "fuente",
-    "fuente_stock",
-    "fuente de stock",
-    "almacen",
-    "origen",
+  codigoProducto: ["codigo", "codigo_producto", "codigo producto", "codigo_interno", "producto"],
+  fuente: ["fuente", "inventory_source", "fuente_stock", "fuente de stock", "almacen", "origen"],
+  lote: ["lote", "nro lote", "numero de lote", "lote_producto"],
+  fechaVencimiento: [
+    "fv",
+    "f.v.",
+    "fecha_vencimiento",
+    "fecha vencimiento",
+    "fecha de vencimiento",
+    "vencimiento",
+    "vence",
   ],
   cantidad: [
+    "cantida",
+    "cantidad",
     "cantidad_disponible",
     "cantidad disponible",
-    "cantidad",
     "stock",
     "disponible",
     "saldo",
   ],
+  proveedor: ["proveedor", "laboratorio", "marca"],
 } as const;
 
 function normalizar(valor: RawCell): string {
@@ -82,7 +103,7 @@ export function claveDeNombre(valor: string): string {
 
 function buscarColumna(fila: RawRow, aceptadas: readonly string[]): number {
   return fila.findIndex((celda) => {
-    const texto = normalizar(celda).replace(/\s+/g, " ");
+    const texto = normalizar(celda);
     return aceptadas.some((a) => texto === a || texto === a.replace(/_/g, " "));
   });
 }
@@ -92,6 +113,10 @@ function buscarColumna(fila: RawRow, aceptadas: readonly string[]): number {
  * archivos que la gente arma a mano suelen traer un título arriba, y
  * exigirle una plantilla exacta es la clase de rigidez que hace que el
  * importador no se use.
+ *
+ * Lo mínimo indispensable es código, lote y cantidad. Fuente, fecha de
+ * vencimiento y proveedor son opcionales: sin fuente se usa el almacén por
+ * defecto, y las otras dos son datos que se guardan si vienen.
  */
 export function encontrarCabeceras(
   rows: RawRow[],
@@ -100,10 +125,20 @@ export function encontrarCabeceras(
   for (let i = 0; i < limite; i++) {
     const fila = rows[i] ?? [];
     const codigoProducto = buscarColumna(fila, CABECERAS.codigoProducto);
-    const fuente = buscarColumna(fila, CABECERAS.fuente);
+    const lote = buscarColumna(fila, CABECERAS.lote);
     const cantidad = buscarColumna(fila, CABECERAS.cantidad);
-    if (codigoProducto !== -1 && fuente !== -1 && cantidad !== -1) {
-      return { headerRowNumber: i + 1, columns: { codigoProducto, fuente, cantidad } };
+    if (codigoProducto !== -1 && lote !== -1 && cantidad !== -1) {
+      return {
+        headerRowNumber: i + 1,
+        columns: {
+          codigoProducto,
+          lote,
+          cantidad,
+          fuente: buscarColumna(fila, CABECERAS.fuente),
+          fechaVencimiento: buscarColumna(fila, CABECERAS.fechaVencimiento),
+          proveedor: buscarColumna(fila, CABECERAS.proveedor),
+        },
+      };
     }
   }
   return null;
@@ -113,6 +148,42 @@ function textoDeCelda(valor: RawCell): string {
   if (valor === null || valor === undefined) return "";
   if (valor instanceof Date) return "";
   return String(valor).trim();
+}
+
+/**
+ * Fecha de vencimiento a ISO `YYYY-MM-DD`.
+ *
+ * La celda del archivo real es una fecha de Excel con hora ("2027-10-30
+ * 16:47:55"): la hora es basura del formato, no un dato, y se descarta.
+ * Se toman los componentes LOCALES de la fecha y no `toISOString()`, que
+ * en zona horaria de Perú retrocede un día.
+ */
+export function parsearFechaVencimiento(valor: RawCell): string | null {
+  if (valor instanceof Date) {
+    if (Number.isNaN(valor.getTime())) return null;
+    const y = valor.getFullYear();
+    const m = String(valor.getMonth() + 1).padStart(2, "0");
+    const d = String(valor.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  const texto = textoDeCelda(valor);
+  if (texto === "") return null;
+
+  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  // dd/mm/yyyy y dd-mm-yyyy, que es como se escribe a mano en Perú.
+  const local = texto.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+  if (local) {
+    const dia = Number(local[1]);
+    const mes = Number(local[2]);
+    const anio = Number(local[3].length === 2 ? `20${local[3]}` : local[3]);
+    if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+    return `${anio}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  }
+
+  return null;
 }
 
 /**
@@ -128,8 +199,6 @@ export function parsearCantidad(valor: RawCell): number | null {
   if (texto === "") return null;
 
   const sinEspacios = texto.replace(/\s/g, "");
-  // Con los dos separadores presentes no hay ambigüedad: la coma es el
-  // decimal y el punto agrupa miles. Con sólo coma, es el decimal.
   const normalizado =
     sinEspacios.includes(",") && sinEspacios.includes(".")
       ? sinEspacios.replace(/\./g, "").replace(",", ".")
@@ -152,7 +221,7 @@ export function parseStockRows(rows: RawRow[]): StockParseResult {
           rowNumber: 1,
           code: "SIN_CABECERAS",
           message:
-            "No se encontraron las columnas codigo_producto, inventory_source y cantidad_disponible en las primeras 20 filas.",
+            "No se encontraron las columnas CODIGO, LOTE y CANTIDAD en las primeras 20 filas.",
         },
       ],
     };
@@ -162,27 +231,31 @@ export function parseStockRows(rows: RawRow[]): StockParseResult {
   const parsed: ParsedStockRow[] = [];
   const errors: StockIssue[] = [];
 
+  const celda = (fila: RawRow, indice: number): RawCell => (indice === -1 ? null : fila[indice]);
+
   for (let i = headerRowNumber; i < rows.length; i++) {
     const fila = rows[i] ?? [];
     const rowNumber = i + 1;
 
-    const codigoProducto = textoDeCelda(fila[columns.codigoProducto]).toUpperCase();
-    const fuente = textoDeCelda(fila[columns.fuente]);
-    const cantidadCruda = fila[columns.cantidad];
+    const codigoProducto = textoDeCelda(celda(fila, columns.codigoProducto)).toUpperCase();
+    const fuente = textoDeCelda(celda(fila, columns.fuente));
+    const lote = textoDeCelda(celda(fila, columns.lote));
+    const cantidadCruda = celda(fila, columns.cantidad);
+    const proveedor = textoDeCelda(celda(fila, columns.proveedor)) || null;
 
     // Fila completamente vacía: es el relleno normal al final de una hoja,
     // no un error que valga la pena mostrarle a nadie.
-    if (codigoProducto === "" && fuente === "" && textoDeCelda(cantidadCruda) === "") continue;
+    if (codigoProducto === "" && lote === "" && textoDeCelda(cantidadCruda) === "") continue;
 
     if (codigoProducto === "") {
       errors.push({ rowNumber, code: "SIN_CODIGO", message: "Falta el código de producto." });
       continue;
     }
-    if (fuente === "") {
+    if (lote === "") {
       errors.push({
         rowNumber,
-        code: "SIN_FUENTE",
-        message: `${codigoProducto}: falta la fuente de stock.`,
+        code: "SIN_LOTE",
+        message: `${codigoProducto}: falta el lote. El stock se lleva por lote, así que sin él la fila no se puede cargar.`,
       });
       continue;
     }
@@ -205,7 +278,15 @@ export function parseStockRows(rows: RawRow[]): StockParseResult {
       continue;
     }
 
-    parsed.push({ rowNumber, codigoProducto, fuente, cantidad });
+    parsed.push({
+      rowNumber,
+      codigoProducto,
+      fuente,
+      lote,
+      fechaVencimiento: parsearFechaVencimiento(celda(fila, columns.fechaVencimiento)),
+      cantidad,
+      proveedor,
+    });
   }
 
   return { headerRowNumber, columns, rows: parsed, errors };
@@ -215,17 +296,26 @@ export function parseStockRows(rows: RawRow[]): StockParseResult {
 // Resolución contra los catálogos
 // ---------------------------------------------------------------------
 
-export type CatalogoProducto = { id: string; codigo_interno: string; descripcion: string };
+export type CatalogoProducto = {
+  id: string;
+  codigo_interno: string;
+  descripcion: string;
+  controla_lote?: boolean | null;
+};
 export type CatalogoFuente = { id: number; nombre: string; estado?: string };
 
-export type StockItemResuelto = {
-  rowNumber: number;
+export type StockLoteResuelto = {
+  /** Filas del archivo que aportaron a este lote (puede ser más de una). */
+  rowNumbers: number[];
   codigoProducto: string;
   descripcion: string;
   productId: string;
   inventorySourceId: number;
   fuenteNombre: string;
+  lote: string;
+  fechaVencimiento: string | null;
   cantidad: number;
+  proveedor: string | null;
   /** Qué va a pasar al publicar. */
   accion: "crear" | "actualizar";
   /** Lo que hay hoy en la base, sólo cuando la acción es actualizar. */
@@ -233,45 +323,53 @@ export type StockItemResuelto = {
 };
 
 export type StockResolveResult = {
-  items: StockItemResuelto[];
+  lotes: StockLoteResuelto[];
   errors: StockIssue[];
+  warnings: StockIssue[];
   /** Códigos del archivo que no existen en el catálogo de productos. */
   codigosSinProducto: string[];
   /** Fuentes del archivo que no existen en el catálogo. */
   fuentesDesconocidas: string[];
   /** Fuentes que existen pero están inactivas: no es lo mismo que no existir. */
   fuentesInactivas: string[];
+  /** Productos marcados como que NO controlan lote, pero el archivo trae lote. */
+  productosSinControlDeLote: string[];
 };
 
 /**
  * Cruza las filas del archivo con los catálogos y decide crear o
- * actualizar. Una fila que no resuelve no se descarta en silencio: se
- * reporta, porque "cargué 150 y quedaron 148" sin decir cuáles es la forma
- * más rápida de perderle la confianza a un importador.
+ * actualizar cada lote. Una fila que no resuelve no se descarta en
+ * silencio: se reporta, porque "cargué 200 y quedaron 176" sin decir
+ * cuáles es la forma más rápida de perderle la confianza a un importador.
  */
 export function resolverStockImport(
   filas: ParsedStockRow[],
   catalogos: {
     productos: CatalogoProducto[];
     fuentes: CatalogoFuente[];
-    /** Stock ya registrado, por `${productId}|${inventorySourceId}`. */
+    /** La que se usa cuando la fila no dice fuente. */
+    fuentePorDefecto: CatalogoFuente;
+    /** Stock ya registrado, por `${productId}|${inventorySourceId}|${lote}`. */
     existentes: Map<string, number>;
   },
 ): StockResolveResult {
-  const porCodigo = new Map(
-    catalogos.productos.map((p) => [claveDeNombre(p.codigo_interno), p]),
-  );
+  const porCodigo = new Map(catalogos.productos.map((p) => [claveDeNombre(p.codigo_interno), p]));
   const porFuente = new Map(catalogos.fuentes.map((f) => [claveDeNombre(f.nombre), f]));
 
-  const items: StockItemResuelto[] = [];
   const errors: StockIssue[] = [];
+  const warnings: StockIssue[] = [];
   const codigosSinProducto = new Set<string>();
   const fuentesDesconocidas = new Set<string>();
   const fuentesInactivas = new Set<string>();
-  // Última fila gana, pero se avisa: dos filas del mismo producto+fuente
-  // suelen ser un copy/paste, y publicar la primera en silencio deja al
-  // usuario creyendo que cargó la otra.
-  const vistos = new Map<string, number>();
+  const productosSinControlDeLote = new Set<string>();
+
+  /**
+   * Un mismo lote puede venir en VARIAS filas del archivo (el real trae 34
+   * casos). No es un copy/paste: son entradas distintas del mismo lote, y
+   * lo que corresponde con una cantidad es SUMARLAS. Quedarse con la
+   * última perdería stock real sin que nadie se entere.
+   */
+  const porLote = new Map<string, StockLoteResuelto>();
 
   for (const fila of filas) {
     const producto = porCodigo.get(claveDeNombre(fila.codigoProducto));
@@ -285,7 +383,10 @@ export function resolverStockImport(
       continue;
     }
 
-    const fuente = porFuente.get(claveDeNombre(fila.fuente));
+    // Sin fuente en la fila manda el almacén por defecto: hoy hay un solo
+    // almacén activo y el archivo lo deja en blanco en la mayoría de las
+    // filas. Decisión de negocio confirmada, no un supuesto.
+    const fuente = fila.fuente === "" ? catalogos.fuentePorDefecto : porFuente.get(claveDeNombre(fila.fuente));
     if (!fuente) {
       fuentesDesconocidas.add(fila.fuente);
       errors.push({
@@ -308,57 +409,100 @@ export function resolverStockImport(
       continue;
     }
 
-    const clave = `${producto.id}|${fuente.id}`;
-    const duplicadaEnFila = vistos.get(clave);
-    if (duplicadaEnFila !== undefined) {
-      errors.push({
+    // Avisa, no bloquea: el archivo es la realidad del almacén, y que el
+    // catálogo diga que ese producto no controla lote es un dato del
+    // catálogo por corregir, no un motivo para descartar stock real.
+    if (producto.controla_lote === false) productosSinControlDeLote.add(producto.codigo_interno);
+
+    const clave = `${producto.id}|${fuente.id}|${fila.lote}`;
+    const yaVisto = porLote.get(clave);
+
+    if (yaVisto) {
+      yaVisto.cantidad += fila.cantidad;
+      yaVisto.rowNumbers.push(fila.rowNumber);
+      // La fecha de vencimiento del lote es una sola; si dos filas
+      // discrepan gana la más temprana, que es la que manda para despachar.
+      if (
+        fila.fechaVencimiento &&
+        (!yaVisto.fechaVencimiento || fila.fechaVencimiento < yaVisto.fechaVencimiento)
+      ) {
+        yaVisto.fechaVencimiento = fila.fechaVencimiento;
+      }
+      warnings.push({
         rowNumber: fila.rowNumber,
-        code: "DUPLICADO_EN_ARCHIVO",
-        message: `${fila.codigoProducto} en ${fuente.nombre}: repetido (también en la fila ${duplicadaEnFila}). Se aplica el último valor.`,
+        code: "LOTE_REPETIDO_EN_ARCHIVO",
+        message: `${fila.codigoProducto} lote ${fila.lote}: aparece en varias filas (${yaVisto.rowNumbers.join(", ")}). Las cantidades se SUMAN: ${yaVisto.cantidad}.`,
       });
-      const anterior = items.findIndex((i) => `${i.productId}|${i.inventorySourceId}` === clave);
-      if (anterior !== -1) items.splice(anterior, 1);
+      continue;
     }
-    vistos.set(clave, fila.rowNumber);
 
     const cantidadActual = catalogos.existentes.get(clave);
-    items.push({
-      rowNumber: fila.rowNumber,
+    porLote.set(clave, {
+      rowNumbers: [fila.rowNumber],
       codigoProducto: producto.codigo_interno,
       descripcion: producto.descripcion,
       productId: producto.id,
       inventorySourceId: fuente.id,
       fuenteNombre: fuente.nombre,
+      lote: fila.lote,
+      fechaVencimiento: fila.fechaVencimiento,
       cantidad: fila.cantidad,
+      proveedor: fila.proveedor,
       accion: cantidadActual === undefined ? "crear" : "actualizar",
       cantidadActual: cantidadActual ?? null,
     });
   }
 
+  if (productosSinControlDeLote.size > 0) {
+    const codigos = Array.from(productosSinControlDeLote).sort();
+    warnings.push({
+      rowNumber: 0,
+      code: "PRODUCTO_SIN_CONTROL_DE_LOTE",
+      message:
+        `${codigos.length} producto(s) tienen controla_lote = false en el catálogo pero el archivo les trae lote. ` +
+        `Se cargan igual; conviene corregir el catálogo. Ejemplos: ${codigos.slice(0, 8).join(", ")}` +
+        (codigos.length > 8 ? "…" : ""),
+    });
+  }
+
   return {
-    items,
+    lotes: Array.from(porLote.values()),
     errors,
+    warnings,
     codigosSinProducto: Array.from(codigosSinProducto),
     fuentesDesconocidas: Array.from(fuentesDesconocidas),
     fuentesInactivas: Array.from(fuentesInactivas),
+    productosSinControlDeLote: Array.from(productosSinControlDeLote),
   };
 }
 
 export type StockImportResumen = {
+  /** Lotes que no existían. */
   crear: number;
+  /** Lotes que existen y cambian de cantidad. */
   actualizar: number;
-  /** Filas que van a quedar igual: ya tienen exactamente esa cantidad. */
+  /** Lotes que ya tienen exactamente esa cantidad. */
   sinCambio: number;
+  /** Productos distintos que quedan con stock. */
+  productos: number;
+  /** Unidades totales del archivo, ya sumados los lotes repetidos. */
+  unidades: number;
 };
 
-export function resumirStockImport(items: StockItemResuelto[]): StockImportResumen {
+export function resumirStockImport(lotes: StockLoteResuelto[]): StockImportResumen {
   let crear = 0;
   let actualizar = 0;
   let sinCambio = 0;
-  for (const item of items) {
-    if (item.accion === "crear") crear++;
-    else if (item.cantidadActual === item.cantidad) sinCambio++;
+  for (const lote of lotes) {
+    if (lote.accion === "crear") crear++;
+    else if (lote.cantidadActual === lote.cantidad) sinCambio++;
     else actualizar++;
   }
-  return { crear, actualizar, sinCambio };
+  return {
+    crear,
+    actualizar,
+    sinCambio,
+    productos: new Set(lotes.map((l) => l.productId)).size,
+    unidades: lotes.reduce((acc, l) => acc + l.cantidad, 0),
+  };
 }
