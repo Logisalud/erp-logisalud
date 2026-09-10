@@ -1,0 +1,632 @@
+<title>Manual Compras y Pagos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --surface-2: #f0f4ef;
+    --surface-3: #e7ede5;
+    --border: #dde5db;
+    --text: #1c2a21;
+    --text-muted: #5c6d61;
+    --accent: #2e7a48;
+    --accent-bright: #4bb168;
+    --accent-soft: #e4f2e8;
+    --teal: #227d84;
+    --teal-bright: #4abcc2;
+    --teal-soft: #e3f4f5;
+    --warn-text: #8a5a09;
+    --warn-bg: #fbf0dc;
+    --warn-border: #eed6a6;
+    --danger-text: #a3352c;
+    --danger-bg: #fbeae8;
+    --danger-border: #f0c6c1;
+    --shadow: 0 1px 2px rgba(28, 42, 33, 0.06), 0 6px 20px rgba(28, 42, 33, 0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101d15;
+      --surface: #162419;
+      --surface-2: #1b2e20;
+      --surface-3: #23392a;
+      --border: #2c4433;
+      --text: #e9f2ec;
+      --text-muted: #9fb6a8;
+      --accent: #6cd68d;
+      --accent-bright: #57c07a;
+      --accent-soft: #1e3a28;
+      --teal: #6bd7dd;
+      --teal-bright: #4fbfc5;
+      --teal-soft: #163438;
+      --warn-text: #f0c887;
+      --warn-bg: #3a2c11;
+      --warn-border: #5a4720;
+      --danger-text: #f2a49c;
+      --danger-bg: #3a201d;
+      --danger-border: #5c332e;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101d15;
+    --surface: #162419;
+    --surface-2: #1b2e20;
+    --surface-3: #23392a;
+    --border: #2c4433;
+    --text: #e9f2ec;
+    --text-muted: #9fb6a8;
+    --accent: #6cd68d;
+    --accent-bright: #57c07a;
+    --accent-soft: #1e3a28;
+    --teal: #6bd7dd;
+    --teal-bright: #4fbfc5;
+    --teal-soft: #163438;
+    --warn-text: #f0c887;
+    --warn-bg: #3a2c11;
+    --warn-border: #5a4720;
+    --danger-text: #f2a49c;
+    --danger-bg: #3a201d;
+    --danger-border: #5c332e;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Poppins', system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    padding-inline: 20px;
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Oswald', system-ui, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-wrap: balance;
+    color: var(--text);
+    margin: 0;
+  }
+  a { color: var(--accent); }
+
+  .shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 250px minmax(0, 720px);
+    gap: 56px;
+    padding-block: 40px 96px;
+    justify-content: center;
+  }
+  @media (max-width: 880px) {
+    .shell { grid-template-columns: 1fr; gap: 24px; }
+    nav.toc { display: none; }
+    .toc-mobile { display: block !important; }
+  }
+
+  /* ---------- Sidebar nav ---------- */
+  nav.toc {
+    position: sticky;
+    top: 28px;
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: calc(100vh - 56px);
+    overflow-y: auto;
+  }
+  nav.toc .brand {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  nav.toc a {
+    text-decoration: none;
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border-left: 2px solid transparent;
+  }
+  nav.toc a:hover { color: var(--text); background: var(--surface-2); }
+  nav.toc a.section-link { font-weight: 600; color: var(--text); margin-top: 14px; }
+  nav.toc a.section-link:first-child { margin-top: 0; }
+
+  .toc-mobile { display: none; margin-bottom: 8px; }
+  .toc-mobile summary {
+    cursor: pointer;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .toc-mobile[open] summary { border-radius: 10px 10px 0 0; }
+  .toc-mobile .links {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 10px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--surface);
+  }
+  .toc-mobile a { color: var(--text-muted); text-decoration: none; font-size: 0.88rem; }
+
+  /* ---------- Header ---------- */
+  header.hero {
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-bright); }
+  header.hero h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); line-height: 1.15; }
+  header.hero p.lede {
+    margin-top: 14px;
+    max-width: 62ch;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+  }
+
+  /* ---------- Sections ---------- */
+  section { padding-block: 40px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+  section:last-of-type { border-bottom: none; }
+  .section-label {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  section h2 { font-size: 1.5rem; margin-bottom: 6px; }
+  section > p.intro { color: var(--text-muted); max-width: 64ch; margin-top: 10px; margin-bottom: 24px; }
+
+  /* ---------- Golden rule callout ---------- */
+  .rule-box {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 24px;
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+  }
+  .rule-box .icon {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.6rem;
+    color: var(--accent);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .rule-box p { margin: 0; color: var(--text); }
+  .rule-box strong { color: var(--accent); }
+
+  /* ---------- Role legend ---------- */
+  .roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
+  }
+  .role-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 14px;
+  }
+  .role-card .name { font-weight: 600; font-size: 0.92rem; }
+  .role-card .desc { color: var(--text-muted); font-size: 0.83rem; margin-top: 3px; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 3px 9px;
+    border-radius: 100px;
+    white-space: nowrap;
+  }
+  .pill-compras { background: var(--accent-soft); color: var(--accent); }
+  .pill-almacen { background: var(--warn-bg); color: var(--warn-text); }
+  .pill-contabilidad { background: var(--teal-soft); color: var(--teal); }
+  .pill-tesoreria { background: var(--surface-3); color: var(--text); }
+  .pill-gerencia { background: var(--danger-bg); color: var(--danger-text); }
+  .pill-empleado { background: var(--surface-3); color: var(--text-muted); }
+  .pill-sistema { background: var(--surface-3); color: var(--text-muted); font-style: italic; }
+
+  /* ---------- Flow card ---------- */
+  .flow {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 26px 26px;
+    margin-bottom: 22px;
+    box-shadow: var(--shadow);
+  }
+  .flow-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .flow-head h3 { font-size: 1.15rem; }
+  .flow-head .tag {
+    font-family: ui-monospace, monospace;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+  }
+  .flow p.desc { color: var(--text-muted); margin: 8px 0 18px; font-size: 0.94rem; }
+
+  ol.steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  ol.steps li {
+    position: relative;
+    padding: 10px 0 10px 34px;
+    border-top: 1px solid var(--border);
+    font-size: 0.94rem;
+  }
+  ol.steps li:first-child { border-top: none; padding-top: 2px; }
+  ol.steps li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 11px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.66rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  ol.steps li:first-child::before { top: 3px; }
+  ol.steps { counter-reset: step; }
+  ol.steps .who { margin-right: 8px; }
+
+  .flow-footer {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+    font-size: 0.86rem;
+    color: var(--text-muted);
+  }
+  .flow-footer strong { color: var(--text); }
+
+  /* ---------- Callouts ---------- */
+  .note {
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 0.9rem;
+    margin-top: 16px;
+    border: 1px solid;
+  }
+  .note.warn { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-text); }
+  .note.danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
+  .note strong { color: inherit; }
+
+  /* ---------- FAQ ---------- */
+  .faq { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+  .faq details { border-top: 1px solid var(--border); }
+  .faq details:first-child { border-top: none; }
+  .faq summary {
+    cursor: pointer;
+    padding: 15px 18px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after {
+    content: '+';
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .faq details[open] summary::after { content: '–'; }
+  .faq .a { padding: 0 18px 17px; color: var(--text-muted); font-size: 0.92rem; max-width: 62ch; }
+
+  code.inline {
+    font-family: ui-monospace, monospace;
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+
+  footer.page-end {
+    padding-top: 36px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="Contenido">
+    <div class="brand">Compras y Pagos</div>
+    <a class="section-link" href="#regla-de-oro">La regla de oro</a>
+    <a href="#quien-es-quien">Quién es quién</a>
+    <a class="section-link" href="#circuitos">Los circuitos</a>
+    <a href="#c-compras">Comprar mercadería</a>
+    <a href="#c-servicios">Contratar un servicio</a>
+    <a href="#c-pago-directo">Pago directo</a>
+    <a href="#c-gastos">Anticipos y reembolsos</a>
+    <a href="#c-caja-chica">Caja chica</a>
+    <a href="#c-financiamiento">Préstamos, SUNAT e impuestos</a>
+    <a class="section-link" href="#anular">Corregir un error</a>
+    <a class="section-link" href="#preguntas">Preguntas frecuentes</a>
+  </nav>
+
+  <main>
+    <details class="toc-mobile">
+      <summary>Ver contenido</summary>
+      <div class="links">
+        <a href="#regla-de-oro">La regla de oro</a>
+        <a href="#quien-es-quien">Quién es quién</a>
+        <a href="#c-compras">Comprar mercadería</a>
+        <a href="#c-servicios">Contratar un servicio</a>
+        <a href="#c-pago-directo">Pago directo</a>
+        <a href="#c-gastos">Anticipos y reembolsos</a>
+        <a href="#c-caja-chica">Caja chica</a>
+        <a href="#c-financiamiento">Préstamos, SUNAT e impuestos</a>
+        <a href="#anular">Corregir un error</a>
+        <a href="#preguntas">Preguntas frecuentes</a>
+      </div>
+    </details>
+
+    <header class="hero">
+      <div class="eyebrow"><span class="dot"></span> Manual para todo el equipo</div>
+      <h1>Compras y Pagos, explicado sin tecnicismos</h1>
+      <p class="lede">
+        Esta guía explica, en criollo, qué hace cada pantalla del sistema y quién aprieta
+        cada botón — desde que Compras pide algo hasta que Tesorería lo paga. No hace falta
+        saber de sistemas para entenderla.
+      </p>
+    </header>
+
+    <section id="regla-de-oro">
+      <div class="section-label">Lo único que hay que entender primero</div>
+      <h2>Toda plata que sale pasa por el mismo embudo</h2>
+      <p class="intro">
+        No importa si es una factura de un proveedor, un anticipo de viáticos o una cuota de un
+        préstamo: antes de pagarse, cada deuda pasa a ser una <strong>Obligación</strong> — el
+        mismo tipo de fila, en el mismo lugar del sistema.
+      </p>
+      <div class="rule-box">
+        <div class="icon">§</div>
+        <p>
+          <strong>Una Obligación es cualquier deuda pendiente de pago</strong>, sin importar de
+          dónde salió: una compra, un servicio, un anticipo, la caja chica, un préstamo o un
+          impuesto. Todas terminan en la misma bandeja de Cuentas por Pagar, así nadie se olvida
+          de pagar algo solo porque nació en una pantalla distinta.
+        </p>
+      </div>
+    </section>
+
+    <section id="quien-es-quien">
+      <div class="section-label">Antes de empezar</div>
+      <h2>Quién es quién</h2>
+      <p class="intro">Los mismos nombres se repiten en todos los circuitos de abajo.</p>
+      <div class="roles-grid">
+        <div class="role-card">
+          <div class="name"><span class="pill pill-compras">Compras</span></div>
+          <div class="desc">Pide mercadería y bienes a los proveedores — emite la Orden de Compra.</div>
+        </div>
+        <div class="role-card">
+          <div class="name"><span class="pill pill-almacen">Almacén</span></div>
+          <div class="desc">Charlie, Jose Carlos y Sandra Chau reciben lo que llega y avisan si algo no cuadra. Roberto además cuida la caja chica.</div>
+        </div>
+        <div class="role-card">
+          <div class="name"><span class="pill pill-contabilidad">Contabilidad</span></div>
+          <div class="desc">Mariela, Beatriz y Mily revisan cada factura, calculan impuestos y dan el visto bueno para pagar.</div>
+        </div>
+        <div class="role-card">
+          <div class="name"><span class="pill pill-tesoreria">Tesorería</span></div>
+          <div class="desc">Junta lo que hay que pagar cada semana y ejecuta el pago.</div>
+        </div>
+        <div class="role-card">
+          <div class="name"><span class="pill pill-gerencia">Gerencia</span></div>
+          <div class="desc">Aprueba la lista completa de pagos de la semana de una sola vez.</div>
+        </div>
+        <div class="role-card">
+          <div class="name"><span class="pill pill-empleado">Área usuaria / empleado</span></div>
+          <div class="desc">Cualquier persona: pide un servicio, un anticipo o un reembolso, y confirma cuando algo se cumplió.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="circuitos">
+      <div class="section-label">Paso a paso</div>
+      <h2>Los circuitos del día a día</h2>
+      <p class="intro">
+        Cada tarjeta es un camino completo, de principio a fin. Buscá la que se parece a lo que
+        estás por hacer.
+      </p>
+
+      <div class="flow" id="c-compras">
+        <div class="flow-head">
+          <h3>1 · Comprar mercadería (Orden de Compra)</h3>
+          <span class="tag mono">OC-2026-0001</span>
+        </div>
+        <p class="desc">Para productos que se van a revender — todo lo que vive en el catálogo.</p>
+        <ol class="steps">
+          <li><span class="pill pill-compras who">Compras</span> arma la Orden de Compra con el proveedor y las cantidades. No necesita que nadie la apruebe antes de mandarla.</li>
+          <li><span class="pill pill-compras who">Compras</span> la envía al proveedor y confirma cuando el proveedor aceptó el pedido — recién ahí Almacén puede recibir mercadería contra ella.</li>
+          <li><span class="pill pill-almacen who">Almacén</span> cuenta lo que llegó contra la guía, registra el lote y la fecha de vencimiento, y sube la guía y la factura escaneadas.</li>
+          <li><span class="pill pill-sistema who">El sistema</span> avisa solo si algo no coincide (faltó, sobró, llegó dañado o vencido) y sugiere qué hacer.</li>
+          <li><span class="pill pill-almacen who">Almacén</span> confirma la sugerencia o decide otra cosa si hay una diferencia que resolver.</li>
+          <li><span class="pill pill-contabilidad who">Contabilidad</span> registra la factura — ya tiene la guía y la factura que subió Almacén, no hace falta pedirlas de nuevo.</li>
+          <li><span class="pill pill-tesoreria who">Tesorería</span> la incluye en la propuesta de pago semanal.</li>
+          <li><span class="pill pill-gerencia who">Gerencia</span> aprueba la propuesta completa y <span class="pill pill-tesoreria who">Tesorería</span> paga.</li>
+        </ol>
+        <div class="flow-footer">La fecha límite de pago se cuenta desde el día que Almacén confirmó que todo llegó bien — nunca desde la fecha de la orden.</div>
+      </div>
+
+      <div class="flow" id="c-servicios">
+        <div class="flow-head">
+          <h3>2 · Contratar un servicio (Orden de Servicio)</h3>
+          <span class="tag mono">OS-2026-0001</span>
+        </div>
+        <p class="desc">Para servicios, no productos: mantenimiento, publicidad, capacitaciones, alquileres.</p>
+        <ol class="steps">
+          <li><span class="pill pill-empleado who">Cualquier área</span> crea la Orden de Servicio contando qué necesita y cuánto cuesta.</li>
+          <li>El jefe del área da el visto bueno para contratarlo.</li>
+          <li>Ya contratado, en cualquier orden: <span class="pill pill-empleado who">el área que lo pidió</span> sube la factura del proveedor <em>y</em> confirma que el servicio se cumplió de verdad. Son dos pasos distintos — uno no reemplaza al otro.</li>
+          <li><span class="pill pill-contabilidad who">Contabilidad</span> registra la obligación con los datos reales de la factura.</li>
+          <li>Sigue el mismo camino de siempre: propuesta semanal, aprobación de Gerencia y pago.</li>
+        </ol>
+        <div class="note warn"><strong>Ojo:</strong> Contabilidad no puede marcar un servicio como "conforme" si el área que lo pidió todavía no confirmó que se cumplió.</div>
+      </div>
+
+      <div class="flow" id="c-pago-directo">
+        <div class="flow-head">
+          <h3>3 · Pago directo</h3>
+          <span class="tag mono">gasto directo</span>
+        </div>
+        <p class="desc">Facturas chicas sin Orden de Compra ni de Servicio — luz, agua, peajes, notaría, seguros. Por debajo de S/5,000.</p>
+        <ol class="steps">
+          <li><span class="pill pill-contabilidad who">Contabilidad</span> (o quien registre el gasto) carga la factura directo, con o sin comprobante todavía en mano.</li>
+          <li>Si faltaba la factura, se completa apenas el proveedor la emite.</li>
+          <li><span class="pill pill-contabilidad who">Contabilidad</span> da conformidad y sigue el embudo normal de pago.</li>
+        </ol>
+      </div>
+
+      <div class="flow" id="c-gastos">
+        <div class="flow-head">
+          <h3>4 · Anticipos y reembolsos</h3>
+          <span class="tag mono">gastos y viáticos</span>
+        </div>
+        <p class="desc">Plata que entra o sale del bolsillo de un empleado.</p>
+        <ol class="steps">
+          <li><span class="pill pill-empleado who">El empleado</span> pide un <strong>anticipo</strong> (plata antes de un gasto, como viáticos) o un <strong>reembolso</strong> (ya pagó de su bolsillo y sube la factura).</li>
+          <li><span class="pill pill-contabilidad who">Contabilidad</span> revisa y aprueba — al aprobar, la obligación se genera sola, nadie la carga a mano.</li>
+          <li><span class="pill pill-tesoreria who">Tesorería</span> paga.</li>
+          <li>Si era un anticipo, queda <strong>pendiente de rendir</strong>: <span class="pill pill-empleado who">el empleado</span> sube las boletas reales de lo que gastó.</li>
+          <li><span class="pill pill-sistema who">El sistema</span> compara: si gastó menos, debe devolver la diferencia; si gastó más, se genera un reembolso adicional solo.</li>
+        </ol>
+      </div>
+
+      <div class="flow" id="c-caja-chica">
+        <div class="flow-head">
+          <h3>5 · Caja chica</h3>
+          <span class="tag mono">fondo fijo</span>
+        </div>
+        <p class="desc">El fondo fijo de Roberto para gastos chicos del día a día (combustible, peajes) — nunca mantenimiento.</p>
+        <ol class="steps">
+          <li><span class="pill pill-almacen who">Roberto</span> va gastando del fondo y guardando cada boleta.</li>
+          <li>Cuando el fondo se agota, arma una <strong>reposición</strong> con todo lo gastado.</li>
+          <li>El jefe de Almacén aprueba, y <span class="pill pill-contabilidad who">Contabilidad</span> aprueba después.</li>
+          <li><span class="pill pill-tesoreria who">Tesorería</span> repone el fondo a su monto original — sin rendición posterior, porque las boletas ya estaban desde el principio.</li>
+        </ol>
+      </div>
+
+      <div class="flow" id="c-financiamiento">
+        <div class="flow-head">
+          <h3>6 · Préstamos, SUNAT e impuestos</h3>
+          <span class="tag mono">deudas con cronograma</span>
+        </div>
+        <p class="desc">Deudas que ya vienen con fecha y monto pactados de antemano.</p>
+        <ol class="steps">
+          <li>Un préstamo bancario o un fraccionamiento SUNAT (incluido IGV Justo) tiene su cronograma de cuotas cargado desde el principio.</li>
+          <li>Antes de que venza cada cuota, <span class="pill pill-contabilidad who">Contabilidad</span> la convierte en obligación desde la bandeja de vencimientos próximos.</li>
+          <li>Para impuestos de planilla (Essalud, ONP, AFP, Renta, Seguro Vida Ley): Gestión Humana carga el monto desde BUK y Contabilidad confirma.</li>
+          <li>Sigue el embudo normal de pago.</li>
+        </ol>
+        <div class="note warn"><strong>Alerta automática:</strong> si una cuota de fraccionamiento SUNAT se pasa de la fecha, el sistema la marca en el panel principal para que no se pierda el beneficio.</div>
+      </div>
+    </section>
+
+    <section id="anular">
+      <div class="section-label">Cuando algo se cargó mal</div>
+      <h2>Cómo corregir un error de captura</h2>
+      <p class="intro">
+        Se cargó una orden con el monto equivocado, o directamente no debía existir. Para eso
+        está <strong>Anular</strong> (o <strong>Rechazar</strong>, en Anticipos y Reembolsos).
+      </p>
+      <div class="flow">
+        <ol class="steps">
+          <li>Entrá a la Orden de Compra, Orden de Servicio, Pago Directo, Anticipo o Reembolso que hay que corregir.</li>
+          <li>Tocá <strong>"Anular…"</strong> (o <strong>"Rechazar…"</strong>) — el botón aparece mientras el registro todavía no llegó a la etapa de pago.</li>
+          <li>Contá el motivo. Es obligatorio: queda guardado en el historial para siempre.</li>
+          <li>Si ya se había avisado por correo que ese registro se creó, Contabilidad recibe un segundo correo confirmando que quedó anulado y por qué.</li>
+        </ol>
+        <div class="note danger"><strong>Puede anularlo cualquiera</strong> — no hace falta ser quien lo creó. Una vez anulado, el registro no desaparece: queda visible con el motivo, para que el historial sea siempre confiable.</div>
+      </div>
+    </section>
+
+    <section id="preguntas">
+      <div class="section-label">Dudas comunes</div>
+      <h2>Preguntas frecuentes</h2>
+      <div class="faq">
+        <details open>
+          <summary>¿Por qué no puedo anular una Orden de Compra que ya llegó a Almacén?</summary>
+          <div class="a">Porque ya hay mercadería física de por medio — anularla ahí escondería una recepción real. Para esos casos existe "Cerrar con saldo pendiente", que es distinto: no borra nada, solo cierra lo que ya no va a completarse.</div>
+        </details>
+        <details>
+          <summary>¿Qué pasa si el proveedor cambia el precio después de que se envió la orden?</summary>
+          <div class="a">Se puede seguir editando mientras la orden esté "En borrador" o "Enviada al proveedor". Apenas el proveedor confirma el pedido, las líneas quedan fijas — a partir de ahí, cualquier diferencia se resuelve en la recepción o la factura.</div>
+        </details>
+        <details>
+          <summary>¿Por qué la fecha de vencimiento del pago no es la fecha de la factura?</summary>
+          <div class="a">Porque el crédito con el proveedor se cuenta desde que Logisalud confirmó que recibió todo conforme — no desde el papel. Así el sistema nunca calcula un vencimiento más corto del que en realidad se pactó.</div>
+        </details>
+        <details>
+          <summary>¿Dónde veo si me falta rendir un anticipo?</summary>
+          <div class="a">En el panel principal — los anticipos sin rendir aparecen ahí como un pendiente abierto, junto con las demás cosas que todavía esperan una acción de alguien.</div>
+        </details>
+        <details>
+          <summary>¿Un reembolso y un anticipo son lo mismo?</summary>
+          <div class="a">No. El reembolso es plata que el empleado ya puso de su bolsillo y pide de vuelta con la factura en mano. El anticipo es al revés: la empresa entrega la plata antes del gasto, y el empleado la rinde con boletas después.</div>
+        </details>
+      </div>
+    </section>
+
+    <footer class="page-end">
+      Manual del módulo Compras y Pagos — ERP Logisalud. Actualizado a la última versión con
+      "Anular" para Órdenes de Compra, Órdenes de Servicio y Pago Directo.
+    </footer>
+  </main>
+</div>
