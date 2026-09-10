@@ -1132,11 +1132,23 @@ que sólo ve el administrador. Muestra código, producto, lote, vencimiento,
 cantidad, fuente y proveedor, ordenado por **vencimiento más próximo
 primero** (la pregunta operativa real: qué hay que sacar antes).
 
-Busca por código o nombre y pagina en el servidor de a 50 con `range` — no
-trayendo todo para cortar en el navegador, porque PostgREST tope las
-respuestas en 1.000 filas y eso es una lista truncada en silencio esperando
-a pasar. Escribir sigue siendo sólo del administrador, desde el importador
-en Maestros; lo garantiza la RLS de `stock_lotes`, no la pantalla.
+Busca por código o nombre. Escribir sigue siendo sólo del administrador,
+desde el importador en Maestros; lo garantiza la RLS de `stock_lotes`, no la
+pantalla.
+
+**El orden por defecto es alfabético por nombre de producto**, que es cómo
+lo busca un vendedor cuando el cliente le nombra algo. Un clic lo cambia a
+"vence primero", que es la pregunta de Operaciones. Dentro de cada
+producto, sus lotes salen siempre con el que vence antes arriba.
+
+Eso obligó a **paginar por PRODUCTO y no por lote**: los lotes viven en
+`stock_lotes` y el nombre en `products`, y PostgREST no ordena las filas de
+una tabla por una columna de la tabla embebida. Así que la consulta va en
+tres pasos —qué productos tienen stock (la vista agregada, una fila por
+producto), sus nombres ordenados por la base, y después los lotes de esa
+página—. Ordenar cada página por separado en el navegador no servía: un
+producto podía aparecer dos veces o ninguna al pasar de página. De paso
+queda mejor para leer, porque los lotes de un producto salen juntos.
 
 ## Carga masiva de stock (`services/stock-import.ts`)
 
