@@ -9,7 +9,12 @@ import { evaluarCambioDeCliente, type ConflictoDePrecio } from "@/domain/order-h
 
 export type OrderSummary = {
   id: string;
-  numero: number;
+  /**
+   * `null` mientras el pedido es borrador: el correlativo se asigna recién al
+   * enviarlo (trigger `orders_numero_al_enviar`), para que un borrador que
+   * nunca se envía no consuma un número.
+   */
+  numero: number | null;
   estado: string;
   fecha_creacion: string;
   fecha_envio: string | null;
@@ -115,7 +120,9 @@ export async function listOrdersForSeller(
     // mismo instante tendrían orden arbitrario, y una fila que baila entre
     // páginas se ve dos veces o ninguna.
     .order("fecha_creacion", { ascending: false })
-    .order("numero", { ascending: false })
+    // Los borradores todavía no tienen número; van primero, que es donde los
+    // deja igual `fecha_creacion` descendente.
+    .order("numero", { ascending: false, nullsFirst: true })
     .range(desde, desde + PAGE_SIZE);
 
   if (opciones.estados && opciones.estados.length > 0) {

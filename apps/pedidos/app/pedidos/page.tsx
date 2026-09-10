@@ -10,6 +10,7 @@ import {
   type PestanaPedidos,
 } from "@/domain/order-status";
 import { displayRazonSocial } from "@/domain/customer-search";
+import { etiquetaNumeroDePedido } from "@/domain/orders";
 
 /**
  * "Mis pedidos".
@@ -152,7 +153,8 @@ export default async function PedidosHomePage({
                         la fecha, y arriba ya dice que esto es un pedido.
                       */}
                       <p className="cifra truncate text-sm text-gray-500">
-                        #{order.numero} · {fecha(order.fecha_creacion)}
+                        {etiquetaNumeroDePedido(order.numero)} ·{" "}
+                        {fecha(order.fecha_creacion)}
                       </p>
                       <span
                         className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${estadoEstilo(
