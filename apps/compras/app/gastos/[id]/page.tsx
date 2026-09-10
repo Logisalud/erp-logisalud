@@ -57,6 +57,11 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
             <VerComprobante storagePath={solicitud.cotizacionStoragePath} />
           </p>
         ) : null}
+        {solicitud.estado === 'rechazada_contabilidad' ? (
+          <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            Rechazada: {solicitud.rechazo_motivo}
+          </p>
+        ) : null}
         {solicitud.obligacion_id ? (
           <p className="mt-1 text-sm">
             <Link href={`/cuentas-por-pagar/${solicitud.obligacion_id}`} className="text-logisalud-teal underline">

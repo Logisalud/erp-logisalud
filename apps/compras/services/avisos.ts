@@ -4,7 +4,11 @@ import {
   asuntoAviso,
   renderAvisoHtml,
   renderAvisoTexto,
+  asuntoAnulacion,
+  renderAnulacionHtml,
+  renderAnulacionTexto,
   type DatosAviso,
+  type DatosAnulacion,
   type FilaAviso,
   type TipoAviso,
 } from '@/domain/aviso-email'
@@ -103,5 +107,61 @@ export async function avisarCreacionSinRomper(aviso: AvisoCreacion): Promise<voi
     await avisarCreacion(aviso)
   } catch (e) {
     console.error(`[avisarCreacion] Falló el aviso de ${aviso.tipo} ${aviso.codigo}:`, e)
+  }
+}
+
+export type AvisoAnulacion = {
+  tipo: TipoAviso
+  codigo: string
+  monto: number
+  moneda: string
+  referencia: string
+  motivo: string
+  anuladoPor: string
+  filas: FilaAviso[]
+  ruta: string
+  creadorCorreo: string | null
+}
+
+/**
+ * Segundo correo cuando se anula un registro que ya había avisado su
+ * creación — mismos destinatarios, nunca con el PDF adjunto (a diferencia
+ * de la creación de OC/OS): lo que importa acá es el motivo, no reimprimir
+ * el documento.
+ */
+export async function avisarAnulacion(aviso: AvisoAnulacion): Promise<void> {
+  const datos: DatosAnulacion = {
+    tipo: aviso.tipo,
+    codigo: aviso.codigo,
+    monto: aviso.monto,
+    moneda: aviso.moneda,
+    referencia: aviso.referencia,
+    motivo: aviso.motivo,
+    anuladoPor: aviso.anuladoPor,
+    filas: aviso.filas,
+    url: `${URL_BASE_PRODUCCION}${aviso.ruta}`,
+  }
+
+  const resultado = await sendEmail({
+    to: [CORREO_CONTABILIDAD],
+    cc: aviso.creadorCorreo ? [aviso.creadorCorreo] : undefined,
+    subject: asuntoAnulacion(datos),
+    html: renderAnulacionHtml(datos),
+    text: renderAnulacionTexto(datos),
+  })
+
+  if (resultado.ok) {
+    console.log(`[avisarAnulacion] ${aviso.tipo} ${aviso.codigo} avisado — messageId=${resultado.messageId ?? 'n/a'}`)
+  } else {
+    console.error(`[avisarAnulacion] No se pudo avisar ${aviso.tipo} ${aviso.codigo}: ${resultado.error}`)
+  }
+}
+
+/** Envuelve `avisarAnulacion` — la anulación ya quedó guardada cuando esto corre. */
+export async function avisarAnulacionSinRomper(aviso: AvisoAnulacion): Promise<void> {
+  try {
+    await avisarAnulacion(aviso)
+  } catch (e) {
+    console.error(`[avisarAnulacion] Falló el aviso de anulación de ${aviso.tipo} ${aviso.codigo}:`, e)
   }
 }

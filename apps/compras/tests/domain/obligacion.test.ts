@@ -14,8 +14,22 @@ import {
   validarObligacion,
   validarObligacionSinFactura,
   validarPagoDirecto,
+  puedeAnularsePagoDirecto,
   type BorradorPagoDirecto,
 } from '@/domain/obligacion'
+
+describe('puedeAnularsePagoDirecto (sesión 2026-09-09)', () => {
+  it('se puede anular antes de que Contabilidad le dé conformidad', () => {
+    expect(puedeAnularsePagoDirecto('pendiente_factura')).toBe(true)
+    expect(puedeAnularsePagoDirecto('registrada')).toBe(true)
+  })
+  it('ya no se puede anular una vez observada/conforme en adelante', () => {
+    expect(puedeAnularsePagoDirecto('observada')).toBe(false)
+    expect(puedeAnularsePagoDirecto('conforme')).toBe(false)
+    expect(puedeAnularsePagoDirecto('pagada')).toBe(false)
+    expect(puedeAnularsePagoDirecto('cerrada')).toBe(false)
+  })
+})
 
 describe('normalizarNumeroFactura', () => {
   it('mayúsculas y sin espacios al borde', () => {

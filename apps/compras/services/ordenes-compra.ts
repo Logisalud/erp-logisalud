@@ -7,10 +7,13 @@ import {
   transicionPermitida,
   puedeEditarse,
   puedeCerrarseParcial,
+  puedeAnularse,
   ETIQUETA_ESTADO,
   type BorradorOC,
   type EstadoOC,
 } from '@/domain/orden-compra'
+import { avisarAnulacionSinRomper } from '@/services/avisos'
+import { formatoMonto } from '@/domain/aviso-email'
 
 export type OCListada = {
   id: string
@@ -37,6 +40,7 @@ export type OCDetalle = {
   cierre_tipo: 'completa' | 'saldo_no_entregado' | null
   cierre_motivo: string | null
   cotizacion_storage_path: string | null
+  anulado_motivo: string | null
   items: {
     id: string
     producto_id: string | null
@@ -89,7 +93,7 @@ export async function obtenerOC(id: string): Promise<OCDetalle | null> {
     .from('ordenes_compra')
     .select(`id, codigo, tipo, estado, fecha_emision, fecha_entrega_estimada, moneda,
              condiciones_pago_dias, notas, proveedor_id, cuenta_bancaria_id,
-             cierre_tipo, cierre_motivo, cotizacion_storage_path,
+             cierre_tipo, cierre_motivo, cotizacion_storage_path, anulado_motivo,
              ordenes_compra_items(id, producto_id, descripcion_libre, cantidad_pedida,
                                   precio_unitario, cantidad_recibida, cantidad_facturada)`)
     .eq('id', id)
@@ -186,6 +190,7 @@ export async function crearOC(
       estado: 'borrador',
       notas: borrador.notas ?? null,
       creado_por: usuario.id,
+      creador_correo: usuario.email ?? null,
     })
     .select('id, codigo')
     .single()
@@ -389,4 +394,62 @@ export async function obtenerUrlCotizacionOC(storagePath: string): Promise<strin
   const { data, error } = await supabase.storage.from('legajos-compras').createSignedUrl(storagePath, 60)
   if (error || !data) throw new Error(`No se pudo generar el enlace de la cotización: ${error?.message ?? ''}`)
   return data.signedUrl
+}
+
+/**
+ * Anular una OC por error de captura (Pieza D/K, sesión 2026-09-09): mismo
+ * criterio de acceso abierto que el resto del módulo — cualquiera puede
+ * anular, sin importar quién la creó. Motivo obligatorio, igual que
+ * `cerrarOCConSaldoPendiente`. Dispara un segundo correo si la creación ya
+ * había avisado a Contabilidad (best-effort, nunca rompe la anulación).
+ */
+export async function anularOC(id: string, motivo: string): Promise<void> {
+  if (!motivo.trim()) throw new Error('El motivo de la anulación es obligatorio.')
+  const usuario = await exigirUsuario()
+  const perfil = await perfilActual()
+  const supabase = crearClienteServidor()
+
+  const { data: oc, error: errLectura } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .select(`id, codigo, tipo, estado, moneda, creador_correo,
+             proveedor:proveedores(razon_social),
+             ordenes_compra_items(cantidad_pedida, precio_unitario)`)
+    .eq('id', id)
+    .maybeSingle()
+  if (errLectura || !oc) throw new Error('No se encontró la orden de compra.')
+  if (!puedeAnularse(oc.estado as EstadoOC)) {
+    throw new Error(`Ya no se puede anular: está "${ETIQUETA_ESTADO[oc.estado as EstadoOC]}".`)
+  }
+
+  const { error } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .update({
+      estado: 'anulada',
+      anulado_motivo: motivo.trim(),
+      anulado_por: usuario.id,
+      anulado_en: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (error) throw new Error(`No se pudo anular la orden: ${error.message}`)
+
+  const proveedor = Array.isArray((oc as any).proveedor) ? (oc as any).proveedor[0] : (oc as any).proveedor
+  const total = ((oc as any).ordenes_compra_items ?? []).reduce(
+    (acc: number, i: any) => acc + Number(i.cantidad_pedida) * Number(i.precio_unitario),
+    0
+  )
+  await avisarAnulacionSinRomper({
+    tipo: oc.tipo === 'bien' ? 'oc_bien' : 'oc_mercaderia',
+    codigo: oc.codigo,
+    monto: total,
+    moneda: oc.moneda,
+    referencia: proveedor?.razon_social ?? 'Orden de compra',
+    motivo: motivo.trim(),
+    anuladoPor: perfil?.nombre ?? usuario.email ?? 'alguien del ERP',
+    filas: [{ etiqueta: 'Monto', valor: formatoMonto(total, oc.moneda) }],
+    ruta: `/ordenes-compra/${id}`,
+    creadorCorreo: oc.creador_correo ?? null,
+  })
 }

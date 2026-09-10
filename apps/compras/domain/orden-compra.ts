@@ -63,6 +63,16 @@ export function puedeRecibirse(estado: EstadoOC): boolean {
 }
 
 /**
+ * Una OC se puede anular mientras Almacén todavía no haya recibido nada
+ * contra ella — desde 'parcialmente_recibida' ya hay mercadería adentro y
+ * una recepción real que revertir, fuera de alcance de esta pieza (ver
+ * TRANSICIONES: 'anulada' solo sale de borrador/enviada/confirmada).
+ */
+export function puedeAnularse(estado: EstadoOC): boolean {
+  return transicionPermitida(estado, 'anulada')
+}
+
+/**
  * Estado de la OC después de registrar una recepción — lo decide Almacén al
  * recibir, nunca una persona a mano (ver comentario de TRANSICIONES).
  */

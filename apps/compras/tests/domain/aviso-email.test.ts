@@ -3,10 +3,14 @@ import {
   ETIQUETA_TIPO_AVISO,
   TIPOS_AVISO,
   asuntoAviso,
+  asuntoAnulacion,
   formatoMonto,
   renderAvisoHtml,
   renderAvisoTexto,
+  renderAnulacionHtml,
+  renderAnulacionTexto,
   type DatosAviso,
+  type DatosAnulacion,
 } from '@/domain/aviso-email'
 
 const base: DatosAviso = {
@@ -84,6 +88,41 @@ describe('renderAvisoHtml', () => {
       ...base,
       filas: [{ etiqueta: 'Motivo', valor: '<script>alert("x")</script>' }],
     })
+    expect(html).not.toContain('<script>')
+    expect(html).toContain('&lt;script&gt;')
+  })
+})
+
+const baseAnulacion: DatosAnulacion = {
+  ...base,
+  motivo: 'Se registró con el monto equivocado.',
+  anuladoPor: 'Mariela',
+  filas: [{ etiqueta: 'Monto', valor: 'S/ 1500.00' }],
+}
+
+describe('asuntoAnulacion (sesión 2026-09-09)', () => {
+  it('antepone [ANULADO] al mismo asunto de la creación', () => {
+    expect(asuntoAnulacion(baseAnulacion)).toBe(`[ANULADO] ${asuntoAviso(base)}`)
+  })
+})
+
+describe('renderAnulacionTexto', () => {
+  it('incluye el motivo, quién anuló y el link', () => {
+    const texto = renderAnulacionTexto(baseAnulacion)
+    expect(texto).toContain('Se registró con el monto equivocado.')
+    expect(texto).toContain('Mariela')
+    expect(texto).toContain(baseAnulacion.url)
+  })
+})
+
+describe('renderAnulacionHtml', () => {
+  it('arma filas para motivo y quién anuló, y escapa el motivo', () => {
+    const html = renderAnulacionHtml({
+      ...baseAnulacion,
+      motivo: '<script>alert("x")</script>',
+    })
+    expect(html).toContain('<strong>Motivo</strong>')
+    expect(html).toContain('<strong>Anulado por</strong>')
     expect(html).not.toContain('<script>')
     expect(html).toContain('&lt;script&gt;')
   })

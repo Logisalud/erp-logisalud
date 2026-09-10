@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
-import { marcarEnviadaAction, marcarConfirmadaAction, cerrarConSaldoPendienteAction, type EstadoAccionOC } from './actions'
+import { marcarEnviadaAction, marcarConfirmadaAction, cerrarConSaldoPendienteAction, anularOCAction, type EstadoAccionOC } from './actions'
 
 /** "Enviar al proveedor" es manual — no manda correo ni nada automático
  * (decisión explícita). Descargar el PDF y avisar que se cambió el estado
@@ -79,6 +79,56 @@ function BotonConfirmarCierre() {
   return (
     <button type="submit" disabled={pending} className="btn-primary">
       {pending ? 'Cerrando…' : 'Confirmar cierre'}
+    </button>
+  )
+}
+
+/**
+ * Anular por error de captura (Pieza D/K, sesión 2026-09-09) — Contabilidad
+ * (Mariela, Beatriz, Mily) no tenía ninguna forma de rechazar una OC ya
+ * creada. Mismo patrón que "Cerrar con saldo pendiente…": detrás de un
+ * botón secundario que revela el motivo obligatorio, nunca de un solo clic —
+ * anular no se hace por accidente.
+ */
+export function BotonAnularOC({ ocId }: { ocId: string }) {
+  const accion = anularOCAction.bind(null, ocId)
+  const [estado, dispatch] = useFormState<EstadoAccionOC, FormData>(accion, null)
+  const [abierto, setAbierto] = useState(false)
+
+  if (!abierto) {
+    return (
+      <button type="button" onClick={() => setAbierto(true)} className="btn-secondary">
+        Anular…
+      </button>
+    )
+  }
+
+  return (
+    <form action={dispatch} className="card w-full space-y-2 border-red-200">
+      <p className="text-sm text-gray-700">
+        Esto anula la orden de compra por un error de captura — contá qué pasó, Contabilidad recibe un
+        aviso con el motivo.
+      </p>
+      {estado?.error ? <p className="text-sm text-red-700">{estado.error}</p> : null}
+      <textarea
+        name="motivo" required rows={2} placeholder="Motivo de la anulación…"
+        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+      />
+      <div className="flex gap-2">
+        <BotonConfirmarAnulacion />
+        <button type="button" onClick={() => setAbierto(false)} className="btn-secondary">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function BotonConfirmarAnulacion() {
+  const { pending } = useFormStatus()
+  return (
+    <button type="submit" disabled={pending} className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+      {pending ? 'Anulando…' : 'Confirmar anulación'}
     </button>
   )
 }

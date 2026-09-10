@@ -8,12 +8,12 @@ import { obtenerOC } from '@/services/ordenes-compra'
 import { listarObligacionesPorOC } from '@/services/obligaciones'
 import { listarRecepcionesPorOC } from '@/services/recepciones'
 import { obtenerHistorialOC } from '@/services/historial-orden'
-import { calcularTotales, ETIQUETA_ESTADO, puedeEditarse, puedeRecibirse, puedeCerrarseParcial } from '@/domain/orden-compra'
+import { calcularTotales, ETIQUETA_ESTADO, puedeEditarse, puedeRecibirse, puedeCerrarseParcial, puedeAnularse } from '@/domain/orden-compra'
 import { diasEnEstado, ocParcialSuperaUmbral } from '@/domain/dashboard'
 import { ETIQUETA_ESTADO as ETIQUETA_ESTADO_OBLIGACION } from '@/domain/obligacion'
 import { PASOS_OC, pasoAlcanzadoOC, siguientePasoOC } from '@/domain/ordenes-unificadas'
 import { obtenerUmbralOCParcialDias } from '@/services/dashboard'
-import { BotonMarcarEnviada, BotonMarcarConfirmada, BotonCerrarConSaldoPendiente } from './acciones-estado'
+import { BotonMarcarEnviada, BotonMarcarConfirmada, BotonCerrarConSaldoPendiente, BotonAnularOC } from './acciones-estado'
 import { VerCotizacion } from './ver-cotizacion'
 
 export const dynamic = 'force-dynamic'
@@ -67,6 +67,7 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
           </Link>
         ) : null}
         {puedeCerrarseParcial(oc.estado) ? <BotonCerrarConSaldoPendiente ocId={oc.id} /> : null}
+        {puedeAnularse(oc.estado) ? <BotonAnularOC ocId={oc.id} /> : null}
         {puedeEditarse(oc.estado) ? (
           <>
             <Link href={`/ordenes-compra/${oc.id}/editar`} className="btn-secondary">
@@ -114,6 +115,11 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
         {oc.cierre_tipo === 'saldo_no_entregado' ? (
           <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Cerrada con saldo pendiente: {oc.cierre_motivo}
+          </p>
+        ) : null}
+        {oc.estado === 'anulada' ? (
+          <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            Anulada: {oc.anulado_motivo}
           </p>
         ) : null}
       </section>

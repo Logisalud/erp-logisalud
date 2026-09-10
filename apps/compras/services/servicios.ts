@@ -2,9 +2,12 @@ import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import {
   estadoTrasConformidad, estadoTrasRegistrarObligacion, estadoTrasSubirFactura, facturaSuperaMontoOS,
+  puedeAnularse, ETIQUETA_ESTADO_OS,
   type BorradorObligacionServicio, type BorradorOS, type EstadoOS,
 } from '@/domain/servicio'
 import { calcularFechaVencimientoReal, normalizarNumeroFactura } from '@/domain/obligacion'
+import { avisarAnulacionSinRomper } from '@/services/avisos'
+import { formatoMonto } from '@/domain/aviso-email'
 
 export type ProveedorServicio = { id: string; razon_social: string }
 
@@ -81,6 +84,7 @@ export async function crearOS(borrador: BorradorOS): Promise<{ id: string; codig
       moneda: borrador.moneda,
       condiciones_pago_dias: borrador.condicionesPagoDias ?? null,
       fecha_entrega_estimada: borrador.fechaEntregaEstimada ?? null,
+      creador_correo: usuario.email ?? null,
     })
     .select('id, codigo')
     .single()
@@ -131,6 +135,7 @@ export type OSDetalle = OSListada & {
   condiciones_pago_dias: number | null
   fecha_entrega_estimada: string | null
   storage_path_factura_proveedor: string | null
+  anulado_motivo: string | null
   conformidad: { conforme: boolean; observaciones: string | null; fecha_conformidad: string } | null
   obligacion: { id: string; codigo: string; estado: string } | null
 }
@@ -141,7 +146,7 @@ export async function obtenerOS(id: string): Promise<OSDetalle | null> {
     .schema('servicios')
     .from('ordenes_servicio')
     .select(`id, codigo, estado, descripcion_servicio, monto_estimado, monto_incluye_igv, moneda, area_solicitante, created_at,
-             proveedor_servicio_id, condiciones_pago_dias, fecha_entrega_estimada, storage_path_factura_proveedor`)
+             proveedor_servicio_id, condiciones_pago_dias, fecha_entrega_estimada, storage_path_factura_proveedor, anulado_motivo`)
     .eq('id', id)
     .maybeSingle()
   if (error) throw new Error(`No se pudo leer la orden de servicio: ${error.message}`)
@@ -437,4 +442,59 @@ export async function marcarServicioPagado(obligacionId: string): Promise<void> 
   const { data: obligacion } = await supabase.schema('cuentas_x_pagar').from('obligaciones').select('os_id').eq('id', obligacionId).maybeSingle()
   if (!obligacion?.os_id) return
   await supabase.schema('servicios').from('ordenes_servicio').update({ estado: 'cerrada' }).eq('id', obligacion.os_id)
+}
+
+/**
+ * Anular una OS por error de captura (Pieza D/K, sesión 2026-09-09) — mismo
+ * criterio que `anularOC`: acceso abierto, motivo obligatorio, segundo
+ * correo best-effort si la creación ya había avisado a Contabilidad.
+ */
+export async function anularOS(id: string, motivo: string): Promise<void> {
+  if (!motivo.trim()) throw new Error('El motivo de la anulación es obligatorio.')
+  const usuario = await exigirUsuario()
+  const perfil = await perfilActual()
+  const supabase = crearClienteServidor()
+
+  const { data: os, error } = await supabase
+    .schema('servicios')
+    .from('ordenes_servicio')
+    .select('id, codigo, estado, monto_estimado, moneda, proveedor_servicio_id, creador_correo')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !os) throw new Error('No se encontró la orden de servicio.')
+  if (!puedeAnularse(os.estado as EstadoOS)) {
+    throw new Error(`Ya no se puede anular: está "${ETIQUETA_ESTADO_OS[os.estado as EstadoOS]}".`)
+  }
+
+  const { error: errUpd } = await supabase
+    .schema('servicios')
+    .from('ordenes_servicio')
+    .update({
+      estado: 'anulada',
+      anulado_motivo: motivo.trim(),
+      anulado_por: usuario.id,
+      anulado_en: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (errUpd) throw new Error(`No se pudo anular la orden de servicio: ${errUpd.message}`)
+
+  const { data: proveedor } = await supabase
+    .schema('servicios')
+    .from('proveedores_servicio')
+    .select('razon_social')
+    .eq('id', os.proveedor_servicio_id)
+    .maybeSingle()
+
+  await avisarAnulacionSinRomper({
+    tipo: 'os',
+    codigo: os.codigo,
+    monto: Number(os.monto_estimado),
+    moneda: os.moneda,
+    referencia: proveedor?.razon_social ?? 'Orden de servicio',
+    motivo: motivo.trim(),
+    anuladoPor: perfil?.nombre ?? usuario.email ?? 'alguien del ERP',
+    filas: [{ etiqueta: 'Monto', valor: formatoMonto(Number(os.monto_estimado), os.moneda) }],
+    ruta: `/servicios/${id}`,
+    creadorCorreo: os.creador_correo ?? null,
+  })
 }

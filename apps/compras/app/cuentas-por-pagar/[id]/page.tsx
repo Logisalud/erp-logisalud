@@ -6,10 +6,11 @@ import Link from 'next/link'
 import { perfilActual } from '@logisalud/auth/server'
 import { obtenerObligacion } from '@/services/obligaciones'
 import { listarLetrasDeObligacion } from '@/services/financiamiento'
-import { ETIQUETA_ESTADO, exigeRespuestaDetraccion, UMBRAL_DETRACCION_PEN } from '@/domain/obligacion'
+import { ETIQUETA_ESTADO, exigeRespuestaDetraccion, puedeAnularsePagoDirecto, UMBRAL_DETRACCION_PEN } from '@/domain/obligacion'
 import type { Moneda } from '@/domain/servicio'
 import { ETIQUETA_ESTADO_VENCIMIENTO } from '@/domain/financiamiento'
 import { BotonConformidad } from './conformidad'
+import { BotonAnularPagoDirecto } from './anular-pago-directo'
 import { NotasCredito } from './notas-credito'
 import { VerVoucher } from './ver-voucher'
 import { verLegajoPagoDirectoAction } from './actions'
@@ -35,6 +36,8 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
     !!obligacion.proveedor &&
     !['pagada', 'canjeada_por_letra', 'en_propuesta'].includes(obligacion.estado)
   const letras = obligacion.estado === 'canjeada_por_letra' ? await listarLetrasDeObligacion(obligacion.id) : []
+  const puedeAnular =
+    obligacion.origen === 'gasto_directo' && !obligacion.anulada_en && puedeAnularsePagoDirecto(obligacion.estado)
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -55,6 +58,11 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
         {obligacion.observaciones ? (
           <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
             {obligacion.observaciones}
+          </p>
+        ) : null}
+        {obligacion.anulada_en ? (
+          <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            Anulado: {obligacion.anulada_motivo}
           </p>
         ) : null}
         {obligacion.origen === 'servicio' &&
@@ -114,6 +122,7 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
             Canjear por letras
           </Link>
         ) : null}
+        {puedeAnular ? <BotonAnularPagoDirecto obligacionId={obligacion.id} /> : null}
       </section>
 
       {letras.length > 0 ? (

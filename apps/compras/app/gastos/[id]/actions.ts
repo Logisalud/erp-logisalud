@@ -22,8 +22,13 @@ export async function aprobarPorContabilidadAction(id: string): Promise<EstadoAc
   return ejecutar(id, () => aprobarPorContabilidad(id))
 }
 
-export async function rechazarPorContabilidadAction(id: string): Promise<EstadoAccion> {
-  return ejecutar(id, () => rechazarPorContabilidad(id))
+export async function rechazarPorContabilidadAction(
+  id: string,
+  _previo: EstadoAccion,
+  form: FormData
+): Promise<EstadoAccion> {
+  const motivo = String(form.get('motivo') ?? '')
+  return ejecutar(id, () => rechazarPorContabilidad(id, motivo))
 }
 
 export async function subirComprobanteAction(

@@ -67,6 +67,20 @@ export function puedeEntrarAPropuesta(estado: EstadoObligacion): boolean {
 }
 
 /**
+ * Un Pago Directo (origen 'gasto_directo') se puede anular por error de
+ * captura mientras Contabilidad todavía no le dio conformidad — desde
+ * 'observada' en adelante ya hubo una revisión real y una obligación en
+ * camino a pagarse, fuera de alcance de esta pieza (una reversión post-pago
+ * es un mecanismo futuro, no este). `estado` no cambia al anular — ver
+ * comentario de las columnas `anulada_*` en la migración 0042: esta tabla es
+ * compartida por 9 orígenes, así que la anulación se marca con columnas de
+ * auditoría en vez de agregar 'anulada' a su CHECK.
+ */
+export function puedeAnularsePagoDirecto(estado: EstadoObligacion): boolean {
+  return estado === 'pendiente_factura' || estado === 'registrada'
+}
+
+/**
  * Regla de negocio 3 del documento maestro: la fecha de vencimiento del PAGO
  * se calcula desde la fecha de CONFORMIDAD de la recepción (nunca la fecha
  * de la OC ni la de la factura) más la condición de pago del proveedor (o de

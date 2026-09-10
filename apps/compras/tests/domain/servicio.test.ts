@@ -1,13 +1,29 @@
 import { describe, expect, it } from 'vitest'
 import {
   estadoTrasConformidad, estadoTrasRegistrarObligacion, estadoTrasSubirFactura, transicionPermitida,
-  validarObligacionServicio, validarOS, facturaSuperaMontoOS,
+  validarObligacionServicio, validarOS, facturaSuperaMontoOS, puedeAnularse,
   type BorradorObligacionServicio,
 } from '@/domain/servicio'
 
 // exigeRespuestaDetraccion/UMBRAL_DETRACCION_PEN se movieron a domain/obligacion.ts
 // (sesión 2026-09-07): dejaron de ser exclusivos de Servicios — Pago Directo y OC
 // también los usan. Sus tests están en tests/domain/obligacion.test.ts.
+
+describe('puedeAnularse (sesión 2026-09-09)', () => {
+  it('se puede anular mientras no exista una obligación registrada', () => {
+    expect(puedeAnularse('pendiente_jefe')).toBe(true)
+    expect(puedeAnularse('aprobada')).toBe(true)
+    expect(puedeAnularse('en_ejecucion')).toBe(true)
+    expect(puedeAnularse('factura_adjunta')).toBe(true)
+  })
+  it('ya no se puede anular con la obligación registrada, ni un estado terminal', () => {
+    expect(puedeAnularse('facturada')).toBe(false)
+    expect(puedeAnularse('conformada')).toBe(false)
+    expect(puedeAnularse('cerrada')).toBe(false)
+    expect(puedeAnularse('anulada')).toBe(false)
+    expect(puedeAnularse('rechazada_jefe')).toBe(false)
+  })
+})
 
 describe('validarObligacionServicio — detracción declarada (sesión 2026-09-07)', () => {
   const base: BorradorObligacionServicio = {
