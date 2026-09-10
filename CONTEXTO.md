@@ -1,4 +1,71 @@
-Última actualización: 2026-08-28. Léeme completo antes de tocar código. Actualízame cuando algo cambie de verdad (arquitectura, reglas, estado de módulo) — no en cada sesión.
+Última actualización: 2026-09-10. Léeme completo antes de tocar código. Actualízame cuando algo cambie de verdad (arquitectura, reglas, estado de módulo) — no en cada sesión.
+
+---
+
+# 🚨 PENDIENTE PRIORITARIO — Hueco de control de acceso (abierto desde 2026-09-10)
+
+**Esto NO es deuda técnica menor ni prolijidad de código: hoy el módulo de
+Compras y Pagos no tiene control de acceso real.** Sebas pidió explícitamente
+retomarlo como conversación propia en la próxima sesión — no dejarlo pasar.
+
+Encontrado al diseñar "Pendientes de aprobar". Son tres problemas
+independientes y hay que cerrar los tres:
+
+### (a) El flag `acceso_abierto_temporal` anula toda la RLS del módulo
+
+`cuentas_x_pagar.obligaciones`, `gastos.solicitudes_gasto`,
+`caja_chica.reposiciones` y `servicios.ordenes_servicio` tienen cada una una
+policy `*_acceso_temporal` con `cmd=ALL` y condición `compras_acceso_abierto()`,
+que lee `compras.flags.acceso_abierto_temporal` — **hoy en `true` en
+producción**. Las policies de Postgres se combinan con OR, así que mientras ese
+flag esté prendido cualquier persona logueada con perfil tiene lectura y
+escritura completa sobre las cuatro tablas. Las policies "buenas"
+(`_actualiza`, `_escritura`) están escritas y son correctas, pero **no se
+aplican**. Apagar el flag es un cambio de blast radius grande: hay pantallas
+que hoy funcionan de prestado gracias a él, así que requiere su propio PR con
+prueba pantalla por pantalla.
+
+### (b) Tres de las cuatro Server Actions de aprobación no chequean permiso
+
+| Acción | Gate en la app |
+|---|---|
+| `darConformidad` / `rechazarPagoDirecto` | solo en la UI (`app/cuentas-por-pagar/[id]/page.tsx`), la Server Action no valida |
+| `aprobarPorContabilidad` (Gastos) | **ninguno** |
+| `aprobarPorJefe` / `aprobarPorContabilidad` (Caja Chica) | **ninguno** |
+| `aprobarOS` / `rechazarOS` | **ninguno** |
+
+Los servicios solo validan el ESTADO, nunca quién llama. Con el flag prendido,
+RLS tampoco los frena.
+
+### (c) Auto-aprobación permitida por las policies nominales
+
+Aun apagando el flag, las policies de UPDATE dejan que alguien se apruebe a sí
+mismo: `gastos.solicitudes_gasto` y `servicios.ordenes_servicio` incluyen
+`solicitante_id = auth.uid()`, y `caja_chica.reposiciones` incluye
+`custodio_id = auth.uid()`. O sea: quien pide un anticipo puede aprobárselo, y
+el custodio de un fondo puede aprobar su propia reposición.
+
+### Consecuencia mientras esto siga abierto
+
+**"Pendientes de aprobar" es una ayuda de priorización, NO un control de
+acceso.** Muestra a cada quien lo que le toca decidir, pero quien no debería
+aprobar algo lo sigue pudiendo hacer entrando por URL directa al detalle. El
+gate de esa pantalla está replicado en JS (`domain/pendientes-aprobar.ts`)
+justo porque no se puede confiar en RLS hoy. Lo mismo vale para el gate de
+Beatriz en Pago Directo: es cosmético hasta que se cierre (a) y (b).
+
+---
+
+## Deuda técnica conocida (menor, revisar aparte)
+
+- **Impuestos — estado `en_propuesta` muerto**: las filas de impuestos pueden
+  quedar en un estado que ningún flujo alcanza de verdad.
+- **`confirmarObligacionTributaria` sin transacción**: si falla a mitad puede
+  dejar una obligación huérfana. El módulo entero no usa transacciones (no hay
+  un solo `supabase.rpc`), así que esto es un caso particular de un patrón
+  general, no un bug aislado.
+
+---
 
 ## Quién soy y cómo trabajamos
 

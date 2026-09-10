@@ -4,6 +4,7 @@ import { perfilActual, usuarioActual } from '@logisalud/auth/server'
 import { BrandMark } from '@logisalud/design-system/componentes'
 import { determinarVistaEntrada } from '@/domain/inicio'
 import { obtenerResumenGerencia, obtenerResumenTesoreria } from '@/services/inicio'
+import { resumenPendientesDeAprobar } from '@/services/pendientes-aprobar'
 import { RegistrarPaso } from '@/components/registrar-paso'
 
 export const dynamic = 'force-dynamic'
@@ -18,6 +19,9 @@ export default async function Inicio() {
   const usuario = await usuarioActual()
   const perfil = await perfilActual()
   const vista = determinarVistaEntrada(perfil?.area)
+  // Solo aparece para quien decide de verdad sobre alguna de las cuatro
+  // fuentes con gate de aprobación — ver domain/pendientes-aprobar.ts.
+  const pendientes = await resumenPendientesDeAprobar()
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -37,6 +41,17 @@ export default async function Inicio() {
       {vista === 'gerencia' ? <HeroGerencia /> : null}
 
       <Grupo titulo="Para hacer">
+        {pendientes.califica ? (
+          <MenuItem
+            href="/pendientes-aprobar" emoji="🔔"
+            titulo={
+              pendientes.total > 0
+                ? `Pendientes de aprobar (${pendientes.total})`
+                : 'Pendientes de aprobar'
+            }
+            descripcion="Lo que espera una decisión tuya, con lo que más tiempo lleva esperando primero."
+          />
+        ) : null}
         <MenuItem
           href="/ordenes" emoji="🛒"
           titulo="Órdenes de compra y servicio"
