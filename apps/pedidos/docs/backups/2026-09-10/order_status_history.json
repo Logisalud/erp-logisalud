@@ -1,0 +1,1289 @@
+[
+ {
+  "id": 1,
+  "order_id": "56b55584-da58-4c68-9ddb-1be43c530f25",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-03T02:58:28.23201+00:00"
+ },
+ {
+  "id": 2,
+  "order_id": "56b55584-da58-4c68-9ddb-1be43c530f25",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-03T02:58:28.23201+00:00"
+ },
+ {
+  "id": 3,
+  "order_id": "82f5ab38-dc7c-4399-bee4-28f6eb7387f3",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-03T03:00:10.492445+00:00"
+ },
+ {
+  "id": 4,
+  "order_id": "82f5ab38-dc7c-4399-bee4-28f6eb7387f3",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-03T03:00:10.492445+00:00"
+ },
+ {
+  "id": 5,
+  "order_id": "ecc4c412-0c82-4398-a3c6-da7e695c4639",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-03T15:16:00.877105+00:00"
+ },
+ {
+  "id": 6,
+  "order_id": "ecc4c412-0c82-4398-a3c6-da7e695c4639",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-03T15:16:00.877105+00:00"
+ },
+ {
+  "id": 7,
+  "order_id": "f49aa7d8-ee8b-4c34-8a1b-e79a52da027d",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-03T15:52:29.398113+00:00"
+ },
+ {
+  "id": 8,
+  "order_id": "f49aa7d8-ee8b-4c34-8a1b-e79a52da027d",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "NEW_CUSTOMER_VALIDATION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-03T15:52:29.398113+00:00"
+ },
+ {
+  "id": 9,
+  "order_id": "f49aa7d8-ee8b-4c34-8a1b-e79a52da027d",
+  "estado_anterior": "NEW_CUSTOMER_VALIDATION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Cliente validado",
+  "fecha": "2026-08-03T15:52:56.64638+00:00"
+ },
+ {
+  "id": 10,
+  "order_id": "ce4ae40b-9067-42ec-a09c-87f84fc8d4f3",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-03T16:33:13.31999+00:00"
+ },
+ {
+  "id": 11,
+  "order_id": "ce4ae40b-9067-42ec-a09c-87f84fc8d4f3",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-03T16:33:13.31999+00:00"
+ },
+ {
+  "id": 12,
+  "order_id": "d72826cd-10d2-4141-90fa-4636e6d2d443",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-03T16:36:18.354522+00:00"
+ },
+ {
+  "id": 13,
+  "order_id": "d72826cd-10d2-4141-90fa-4636e6d2d443",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-03T16:36:18.354522+00:00"
+ },
+ {
+  "id": 14,
+  "order_id": "9e1ceb9f-3adf-415a-a4e8-5a45db606746",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-03T20:58:00.47102+00:00"
+ },
+ {
+  "id": 15,
+  "order_id": "9e1ceb9f-3adf-415a-a4e8-5a45db606746",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "NEW_CUSTOMER_VALIDATION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-03T20:58:00.47102+00:00"
+ },
+ {
+  "id": 16,
+  "order_id": "9e1ceb9f-3adf-415a-a4e8-5a45db606746",
+  "estado_anterior": "NEW_CUSTOMER_VALIDATION",
+  "estado_nuevo": "DRAFT",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Cliente rechazado",
+  "fecha": "2026-08-03T20:58:20.454405+00:00"
+ },
+ {
+  "id": 17,
+  "order_id": "5637a9f8-0193-4ce4-a3e5-d106f167b237",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-07T18:50:13.443871+00:00"
+ },
+ {
+  "id": 18,
+  "order_id": "5637a9f8-0193-4ce4-a3e5-d106f167b237",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-07T18:50:13.443871+00:00"
+ },
+ {
+  "id": 19,
+  "order_id": "00aa37b6-518d-4630-9b32-346fd4029670",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-11T19:38:56.117821+00:00"
+ },
+ {
+  "id": 20,
+  "order_id": "00aa37b6-518d-4630-9b32-346fd4029670",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-11T19:38:56.117821+00:00"
+ },
+ {
+  "id": 21,
+  "order_id": "bc4d9bf7-7f4b-4e99-886d-c74b249bdd00",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-12T01:49:10.15999+00:00"
+ },
+ {
+  "id": 22,
+  "order_id": "bc4d9bf7-7f4b-4e99-886d-c74b249bdd00",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-12T01:49:10.15999+00:00"
+ },
+ {
+  "id": 23,
+  "order_id": "b2ac9547-d643-4e03-b0a2-ba02a965a0e3",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-14T17:09:23.621061+00:00"
+ },
+ {
+  "id": 24,
+  "order_id": "b2ac9547-d643-4e03-b0a2-ba02a965a0e3",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "ADMINISTRATIVE_EXCEPTION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-14T17:09:23.621061+00:00"
+ },
+ {
+  "id": 25,
+  "order_id": "bc4d9bf7-7f4b-4e99-886d-c74b249bdd00",
+  "estado_anterior": "READY_FOR_OPERATIONS",
+  "estado_nuevo": "DISPATCHED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Despacho confirmado",
+  "fecha": "2026-08-14T17:13:52.511019+00:00"
+ },
+ {
+  "id": 26,
+  "order_id": "26c2c4e7-d318-43f9-a880-887c7b566132",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-24T17:34:19.983728+00:00"
+ },
+ {
+  "id": 27,
+  "order_id": "26c2c4e7-d318-43f9-a880-887c7b566132",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "ADMINISTRATIVE_EXCEPTION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-24T17:34:19.983728+00:00"
+ },
+ {
+  "id": 28,
+  "order_id": "025e2eee-8e00-4b06-8a82-55fed85e6952",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-25T16:09:07.781156+00:00"
+ },
+ {
+  "id": 29,
+  "order_id": "025e2eee-8e00-4b06-8a82-55fed85e6952",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "ADMINISTRATIVE_EXCEPTION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-25T16:09:07.781156+00:00"
+ },
+ {
+  "id": 30,
+  "order_id": "bda13eb3-d08a-4fb2-9b07-d2c43bf04dbb",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-25T23:45:31.790887+00:00"
+ },
+ {
+  "id": 31,
+  "order_id": "bda13eb3-d08a-4fb2-9b07-d2c43bf04dbb",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-25T23:45:31.790887+00:00"
+ },
+ {
+  "id": 32,
+  "order_id": "bda13eb3-d08a-4fb2-9b07-d2c43bf04dbb",
+  "estado_anterior": "READY_FOR_OPERATIONS",
+  "estado_nuevo": "DISPATCHED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Despacho confirmado",
+  "fecha": "2026-08-25T23:46:26.225761+00:00"
+ },
+ {
+  "id": 33,
+  "order_id": "f7bf84c4-8b1d-4832-8341-54a43a539ffe",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-25T23:47:34.304094+00:00"
+ },
+ {
+  "id": 34,
+  "order_id": "f7bf84c4-8b1d-4832-8341-54a43a539ffe",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-25T23:47:34.304094+00:00"
+ },
+ {
+  "id": 35,
+  "order_id": "8f1cb659-77d8-40c8-8ab6-bc962c152eda",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-26T02:51:43.31464+00:00"
+ },
+ {
+  "id": 36,
+  "order_id": "8f1cb659-77d8-40c8-8ab6-bc962c152eda",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-26T02:51:43.31464+00:00"
+ },
+ {
+  "id": 37,
+  "order_id": "8f1cb659-77d8-40c8-8ab6-bc962c152eda",
+  "estado_anterior": "READY_FOR_OPERATIONS",
+  "estado_nuevo": "DISPATCHED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Despacho confirmado",
+  "fecha": "2026-08-26T02:54:22.848193+00:00"
+ },
+ {
+  "id": 38,
+  "order_id": "11452878-babc-4761-82cc-9581262c5d78",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-31T14:08:22.63926+00:00"
+ },
+ {
+  "id": 39,
+  "order_id": "11452878-babc-4761-82cc-9581262c5d78",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "ADMINISTRATIVE_EXCEPTION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-31T14:08:22.63926+00:00"
+ },
+ {
+  "id": 40,
+  "order_id": "e6336c7b-6da5-44db-b9d5-7eb7f6d86ad6",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-31T21:00:47.418706+00:00"
+ },
+ {
+  "id": 41,
+  "order_id": "e6336c7b-6da5-44db-b9d5-7eb7f6d86ad6",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-31T21:00:47.418706+00:00"
+ },
+ {
+  "id": 42,
+  "order_id": "273dd4ed-66af-4bec-8562-2654507b44d4",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-31T21:08:46.15859+00:00"
+ },
+ {
+  "id": 43,
+  "order_id": "273dd4ed-66af-4bec-8562-2654507b44d4",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-31T21:08:46.15859+00:00"
+ },
+ {
+  "id": 44,
+  "order_id": "273dd4ed-66af-4bec-8562-2654507b44d4",
+  "estado_anterior": "READY_FOR_OPERATIONS",
+  "estado_nuevo": "DISPATCHED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Despacho confirmado",
+  "fecha": "2026-08-31T21:10:08.084743+00:00"
+ },
+ {
+  "id": 45,
+  "order_id": "2033e791-5c0f-46bb-b09e-23b6e3f65049",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-31T21:22:59.336202+00:00"
+ },
+ {
+  "id": 46,
+  "order_id": "2033e791-5c0f-46bb-b09e-23b6e3f65049",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-31T21:22:59.336202+00:00"
+ },
+ {
+  "id": 47,
+  "order_id": "2033e791-5c0f-46bb-b09e-23b6e3f65049",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-08-31T21:38:35.107924+00:00"
+ },
+ {
+  "id": 48,
+  "order_id": "6f98ab73-8025-4bdd-9c77-ebf16eae3524",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-31T21:42:39.790147+00:00"
+ },
+ {
+  "id": 49,
+  "order_id": "6f98ab73-8025-4bdd-9c77-ebf16eae3524",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-31T21:42:39.790147+00:00"
+ },
+ {
+  "id": 50,
+  "order_id": "619d4856-e9e2-45d4-b844-2585ff5090d9",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-31T21:45:58.952028+00:00"
+ },
+ {
+  "id": 51,
+  "order_id": "619d4856-e9e2-45d4-b844-2585ff5090d9",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-31T21:45:58.952028+00:00"
+ },
+ {
+  "id": 52,
+  "order_id": "7e50ff22-fec9-493d-9f98-450b6a7ff527",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-08-31T21:48:19.38161+00:00"
+ },
+ {
+  "id": 53,
+  "order_id": "7e50ff22-fec9-493d-9f98-450b6a7ff527",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-08-31T21:48:19.38161+00:00"
+ },
+ {
+  "id": 54,
+  "order_id": "f32f2efa-197e-42e5-8ecd-7984a7329c54",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-01T00:03:39.015884+00:00"
+ },
+ {
+  "id": 55,
+  "order_id": "f32f2efa-197e-42e5-8ecd-7984a7329c54",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-01T00:03:39.015884+00:00"
+ },
+ {
+  "id": 56,
+  "order_id": "f32f2efa-197e-42e5-8ecd-7984a7329c54",
+  "estado_anterior": "READY_FOR_OPERATIONS",
+  "estado_nuevo": "DISPATCHED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Despacho confirmado",
+  "fecha": "2026-09-01T00:05:08.954466+00:00"
+ },
+ {
+  "id": 57,
+  "order_id": "7468661e-8fb6-44d2-b1cb-ca0ee07e57c0",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-02T00:41:38.560519+00:00"
+ },
+ {
+  "id": 58,
+  "order_id": "7468661e-8fb6-44d2-b1cb-ca0ee07e57c0",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T00:41:38.560519+00:00"
+ },
+ {
+  "id": 59,
+  "order_id": "7468661e-8fb6-44d2-b1cb-ca0ee07e57c0",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-02T00:42:03.771191+00:00"
+ },
+ {
+  "id": 60,
+  "order_id": "8b646b09-26f3-4e79-aacf-e96eb2c90d58",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-02T15:42:28.736023+00:00"
+ },
+ {
+  "id": 61,
+  "order_id": "8b646b09-26f3-4e79-aacf-e96eb2c90d58",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "ADMINISTRATIVE_EXCEPTION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T15:42:28.736023+00:00"
+ },
+ {
+  "id": 62,
+  "order_id": "8b646b09-26f3-4e79-aacf-e96eb2c90d58",
+  "estado_anterior": "ADMINISTRATIVE_EXCEPTION",
+  "estado_nuevo": "ADMINISTRATIVE_EXCEPTION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-02T15:47:29.493756+00:00"
+ },
+ {
+  "id": 63,
+  "order_id": "5be5e899-72f5-437d-af53-aa769dfac238",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Prueba dias de credito 15",
+  "fecha": "2026-09-02T16:16:21.608298+00:00"
+ },
+ {
+  "id": 64,
+  "order_id": "5be5e899-72f5-437d-af53-aa769dfac238",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "ADMINISTRATIVE_EXCEPTION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T16:16:21.608298+00:00"
+ },
+ {
+  "id": 65,
+  "order_id": "859e58ba-2c84-487c-bac6-fc6bbb73de35",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Control condicion estandar",
+  "fecha": "2026-09-02T16:16:32.001521+00:00"
+ },
+ {
+  "id": 66,
+  "order_id": "859e58ba-2c84-487c-bac6-fc6bbb73de35",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T16:16:32.001521+00:00"
+ },
+ {
+  "id": 67,
+  "order_id": "7790f97a-50a2-4e96-82c5-df46071c6bbc",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Prueba precio fijado por admin",
+  "fecha": "2026-09-02T16:16:59.25115+00:00"
+ },
+ {
+  "id": 68,
+  "order_id": "7790f97a-50a2-4e96-82c5-df46071c6bbc",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T16:16:59.25115+00:00"
+ },
+ {
+  "id": 69,
+  "order_id": "5acc2583-f93f-48b6-b937-65a1046620e3",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-02T20:54:04.842888+00:00"
+ },
+ {
+  "id": 70,
+  "order_id": "5acc2583-f93f-48b6-b937-65a1046620e3",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "ADMINISTRATIVE_EXCEPTION",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T20:54:04.842888+00:00"
+ },
+ {
+  "id": 71,
+  "order_id": "34652405-1bf9-4196-8b3d-163d2fdbb4f2",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-02T21:04:21.293333+00:00"
+ },
+ {
+  "id": 72,
+  "order_id": "34652405-1bf9-4196-8b3d-163d2fdbb4f2",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T21:04:21.293333+00:00"
+ },
+ {
+  "id": 73,
+  "order_id": "af5f7ce8-b46e-476f-bca8-1814bb705ab6",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-02T21:04:53.387149+00:00"
+ },
+ {
+  "id": 74,
+  "order_id": "af5f7ce8-b46e-476f-bca8-1814bb705ab6",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T21:04:53.387149+00:00"
+ },
+ {
+  "id": 75,
+  "order_id": "af5f7ce8-b46e-476f-bca8-1814bb705ab6",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-02T21:05:49.082546+00:00"
+ },
+ {
+  "id": 76,
+  "order_id": "f73e0c3c-e634-4139-a69e-9cb343c659f7",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-02T21:20:50.651603+00:00"
+ },
+ {
+  "id": 77,
+  "order_id": "f73e0c3c-e634-4139-a69e-9cb343c659f7",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T21:20:50.651603+00:00"
+ },
+ {
+  "id": 78,
+  "order_id": "f73e0c3c-e634-4139-a69e-9cb343c659f7",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-02T21:22:03.076795+00:00"
+ },
+ {
+  "id": 81,
+  "order_id": "ed3e82b7-2e56-495a-93c8-033fd0f14051",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Prueba de bonificaciones a S/ 0.00",
+  "fecha": "2026-09-02T22:39:43.09938+00:00"
+ },
+ {
+  "id": 82,
+  "order_id": "ed3e82b7-2e56-495a-93c8-033fd0f14051",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validación automática",
+  "fecha": "2026-09-02T22:39:43.09938+00:00"
+ },
+ {
+  "id": 83,
+  "order_id": "068fc41a-d121-40a6-a8cd-3471adaf00bf",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Prueba motor de promociones - caso A",
+  "fecha": "2026-09-03T02:59:47.548841+00:00"
+ },
+ {
+  "id": 84,
+  "order_id": "068fc41a-d121-40a6-a8cd-3471adaf00bf",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T02:59:47.548841+00:00"
+ },
+ {
+  "id": 85,
+  "order_id": "e95bc862-e1aa-45d1-8aa7-aa2a7ba5be34",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Prueba motor de promociones - caso B",
+  "fecha": "2026-09-03T02:59:47.548841+00:00"
+ },
+ {
+  "id": 86,
+  "order_id": "e95bc862-e1aa-45d1-8aa7-aa2a7ba5be34",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T02:59:47.548841+00:00"
+ },
+ {
+  "id": 87,
+  "order_id": "043d70b5-1f2d-4012-af09-0bc37f7d950c",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Prueba motor de promociones - caso C",
+  "fecha": "2026-09-03T02:59:47.548841+00:00"
+ },
+ {
+  "id": 88,
+  "order_id": "043d70b5-1f2d-4012-af09-0bc37f7d950c",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T02:59:47.548841+00:00"
+ },
+ {
+  "id": 89,
+  "order_id": "73982bd9-bc6f-431c-aae8-0bed45a2c929",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Prueba visual del motor de promociones",
+  "fecha": "2026-09-03T03:09:34.542167+00:00"
+ },
+ {
+  "id": 90,
+  "order_id": "73982bd9-bc6f-431c-aae8-0bed45a2c929",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T03:09:34.542167+00:00"
+ },
+ {
+  "id": 91,
+  "order_id": "2e363a68-82a1-4c9f-8465-b67e1f320124",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T03:22:04.154282+00:00"
+ },
+ {
+  "id": 92,
+  "order_id": "2e363a68-82a1-4c9f-8465-b67e1f320124",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T03:22:04.154282+00:00"
+ },
+ {
+  "id": 93,
+  "order_id": "e4ccfd59-19e9-4933-8d44-7c88b3fbd975",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "2a1b90dc-8ee0-4b26-ab29-05d6c5b71f8c",
+  "motivo": "Prueba bonificación manual - vendedor",
+  "fecha": "2026-09-03T14:28:59.027348+00:00"
+ },
+ {
+  "id": 94,
+  "order_id": "e4ccfd59-19e9-4933-8d44-7c88b3fbd975",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "2a1b90dc-8ee0-4b26-ab29-05d6c5b71f8c",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T14:28:59.027348+00:00"
+ },
+ {
+  "id": 95,
+  "order_id": "e4ccfd59-19e9-4933-8d44-7c88b3fbd975",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-03T14:29:11.922687+00:00"
+ },
+ {
+  "id": 96,
+  "order_id": "caa85fa0-12f3-40ca-be70-1029364b1c59",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Prueba bonificación manual - administrador",
+  "fecha": "2026-09-03T14:29:27.828344+00:00"
+ },
+ {
+  "id": 97,
+  "order_id": "caa85fa0-12f3-40ca-be70-1029364b1c59",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T14:29:27.828344+00:00"
+ },
+ {
+  "id": 98,
+  "order_id": "d3c96bb2-5bca-4b1d-b558-3aa1d46bcfed",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "2a1b90dc-8ee0-4b26-ab29-05d6c5b71f8c",
+  "motivo": "Prueba bonificación manual - rechazo",
+  "fecha": "2026-09-03T14:29:45.72213+00:00"
+ },
+ {
+  "id": 99,
+  "order_id": "d3c96bb2-5bca-4b1d-b558-3aa1d46bcfed",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "2a1b90dc-8ee0-4b26-ab29-05d6c5b71f8c",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T14:29:45.72213+00:00"
+ },
+ {
+  "id": 100,
+  "order_id": "d3c96bb2-5bca-4b1d-b558-3aa1d46bcfed",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "DRAFT",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento rechazada: No corresponde regalar unidades en este cliente",
+  "fecha": "2026-09-03T14:29:45.72213+00:00"
+ },
+ {
+  "id": 101,
+  "order_id": "84a89c77-eb8a-4e73-b6fd-2b52b2b921bb",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T14:45:56.385627+00:00"
+ },
+ {
+  "id": 102,
+  "order_id": "84a89c77-eb8a-4e73-b6fd-2b52b2b921bb",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T14:45:56.385627+00:00"
+ },
+ {
+  "id": 103,
+  "order_id": "2e363a68-82a1-4c9f-8465-b67e1f320124",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-03T14:46:29.942915+00:00"
+ },
+ {
+  "id": 104,
+  "order_id": "626e7f1a-0eeb-4c7d-9f97-f7e8b46a9d8f",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T14:48:49.727403+00:00"
+ },
+ {
+  "id": 105,
+  "order_id": "626e7f1a-0eeb-4c7d-9f97-f7e8b46a9d8f",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T14:48:49.727403+00:00"
+ },
+ {
+  "id": 106,
+  "order_id": "626e7f1a-0eeb-4c7d-9f97-f7e8b46a9d8f",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-03T14:49:42.125044+00:00"
+ },
+ {
+  "id": 107,
+  "order_id": "84a89c77-eb8a-4e73-b6fd-2b52b2b921bb",
+  "estado_anterior": "READY_FOR_OPERATIONS",
+  "estado_nuevo": "DISPATCHED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Despacho confirmado",
+  "fecha": "2026-09-03T14:52:17.474321+00:00"
+ },
+ {
+  "id": 108,
+  "order_id": "bbd19e94-cc96-48e4-9617-45df38df45bf",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T14:59:11.36637+00:00"
+ },
+ {
+  "id": 109,
+  "order_id": "bbd19e94-cc96-48e4-9617-45df38df45bf",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T14:59:11.36637+00:00"
+ },
+ {
+  "id": 110,
+  "order_id": "8f348675-8009-4086-b11c-8015215b0b27",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "6f5c032c-2e96-484f-989d-51d7a9e53d78",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T17:29:16.09826+00:00"
+ },
+ {
+  "id": 111,
+  "order_id": "8f348675-8009-4086-b11c-8015215b0b27",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "6f5c032c-2e96-484f-989d-51d7a9e53d78",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T17:29:16.09826+00:00"
+ },
+ {
+  "id": 112,
+  "order_id": "69b6e7b4-de33-4250-ab63-8f3ea49fb402",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "ee617005-6df0-4c0d-a2f7-324321d8d70c",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T17:31:17.099413+00:00"
+ },
+ {
+  "id": 113,
+  "order_id": "69b6e7b4-de33-4250-ab63-8f3ea49fb402",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "ee617005-6df0-4c0d-a2f7-324321d8d70c",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T17:31:17.099413+00:00"
+ },
+ {
+  "id": 114,
+  "order_id": "8f348675-8009-4086-b11c-8015215b0b27",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-03T17:33:34.213717+00:00"
+ },
+ {
+  "id": 115,
+  "order_id": "d9cf1d54-a573-4726-bb10-92fb16eb3c3e",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "2a1b90dc-8ee0-4b26-ab29-05d6c5b71f8c",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T17:35:42.206928+00:00"
+ },
+ {
+  "id": 116,
+  "order_id": "d9cf1d54-a573-4726-bb10-92fb16eb3c3e",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "2a1b90dc-8ee0-4b26-ab29-05d6c5b71f8c",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T17:35:42.206928+00:00"
+ },
+ {
+  "id": 117,
+  "order_id": "c859c8d8-d980-4fa9-851c-c0d6583213a1",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "6b83ab99-ebb1-41fc-85a4-7fd4449faa73",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T17:47:37.477778+00:00"
+ },
+ {
+  "id": 118,
+  "order_id": "c859c8d8-d980-4fa9-851c-c0d6583213a1",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "6b83ab99-ebb1-41fc-85a4-7fd4449faa73",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T17:47:37.477778+00:00"
+ },
+ {
+  "id": 119,
+  "order_id": "53366e4f-eadd-4447-b263-6a85f2663af7",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "6b83ab99-ebb1-41fc-85a4-7fd4449faa73",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T17:56:54.894402+00:00"
+ },
+ {
+  "id": 120,
+  "order_id": "53366e4f-eadd-4447-b263-6a85f2663af7",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "6b83ab99-ebb1-41fc-85a4-7fd4449faa73",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T17:56:54.894402+00:00"
+ },
+ {
+  "id": 121,
+  "order_id": "b56b8d8b-e3c3-477e-87e5-c922419cf837",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "2a1b90dc-8ee0-4b26-ab29-05d6c5b71f8c",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T18:00:31.921202+00:00"
+ },
+ {
+  "id": 122,
+  "order_id": "b56b8d8b-e3c3-477e-87e5-c922419cf837",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "2a1b90dc-8ee0-4b26-ab29-05d6c5b71f8c",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T18:00:31.921202+00:00"
+ },
+ {
+  "id": 123,
+  "order_id": "a96e6873-9c70-44c6-829c-ba86a4859456",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "6b83ab99-ebb1-41fc-85a4-7fd4449faa73",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-03T18:03:01.274288+00:00"
+ },
+ {
+  "id": 124,
+  "order_id": "a96e6873-9c70-44c6-829c-ba86a4859456",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "6b83ab99-ebb1-41fc-85a4-7fd4449faa73",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-03T18:03:01.274288+00:00"
+ },
+ {
+  "id": 125,
+  "order_id": "c7983b36-6cc8-4759-8fb8-c052b4b7d1cf",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "918ce7cf-5ce3-4c53-b64c-8d87c1e57ec3",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-05T14:45:38.495252+00:00"
+ },
+ {
+  "id": 126,
+  "order_id": "c7983b36-6cc8-4759-8fb8-c052b4b7d1cf",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "918ce7cf-5ce3-4c53-b64c-8d87c1e57ec3",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-05T14:45:38.495252+00:00"
+ },
+ {
+  "id": 127,
+  "order_id": "fa4c716f-3f8d-40ac-a0b3-a5fe6f5b2759",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "05d7f101-9310-4023-b62e-03562d5da7f2",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-05T14:45:46.79008+00:00"
+ },
+ {
+  "id": 128,
+  "order_id": "fa4c716f-3f8d-40ac-a0b3-a5fe6f5b2759",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "05d7f101-9310-4023-b62e-03562d5da7f2",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-05T14:45:46.79008+00:00"
+ },
+ {
+  "id": 129,
+  "order_id": "2c7b04ea-2614-49ce-975f-2b7e1271a50c",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "918ce7cf-5ce3-4c53-b64c-8d87c1e57ec3",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-05T14:48:26.474055+00:00"
+ },
+ {
+  "id": 130,
+  "order_id": "2c7b04ea-2614-49ce-975f-2b7e1271a50c",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "918ce7cf-5ce3-4c53-b64c-8d87c1e57ec3",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-05T14:48:26.474055+00:00"
+ },
+ {
+  "id": 131,
+  "order_id": "6b1dbb43-d4e3-4b0f-b6a8-be6836b5ef07",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "c4013e58-4610-4eda-bfcc-eb48c065fc41",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-05T14:48:48.406174+00:00"
+ },
+ {
+  "id": 132,
+  "order_id": "6b1dbb43-d4e3-4b0f-b6a8-be6836b5ef07",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "c4013e58-4610-4eda-bfcc-eb48c065fc41",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-05T14:48:48.406174+00:00"
+ },
+ {
+  "id": 133,
+  "order_id": "9ab0b676-75e2-4814-8392-bf3c13f60e8d",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "e862f2e1-315c-4c73-90ea-31abf17c0581",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-05T14:49:35.144415+00:00"
+ },
+ {
+  "id": 134,
+  "order_id": "9ab0b676-75e2-4814-8392-bf3c13f60e8d",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "e862f2e1-315c-4c73-90ea-31abf17c0581",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-05T14:49:35.144415+00:00"
+ },
+ {
+  "id": 135,
+  "order_id": "d9cf1d54-a573-4726-bb10-92fb16eb3c3e",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-05T14:49:51.944438+00:00"
+ },
+ {
+  "id": 136,
+  "order_id": "53366e4f-eadd-4447-b263-6a85f2663af7",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-05T14:49:56.352666+00:00"
+ },
+ {
+  "id": 137,
+  "order_id": "baaae4c1-9359-4bee-8f15-d5ccaefebb23",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "4e060902-448a-4505-9cc3-35c929d8988d",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-05T14:50:10.912634+00:00"
+ },
+ {
+  "id": 138,
+  "order_id": "baaae4c1-9359-4bee-8f15-d5ccaefebb23",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "COMMERCIAL_EXCEPTION",
+  "usuario": "4e060902-448a-4505-9cc3-35c929d8988d",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-05T14:50:10.912634+00:00"
+ },
+ {
+  "id": 139,
+  "order_id": "9ab0b676-75e2-4814-8392-bf3c13f60e8d",
+  "estado_anterior": "COMMERCIAL_EXCEPTION",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Solicitud de descuento aprobada",
+  "fecha": "2026-09-05T14:50:18.280053+00:00"
+ },
+ {
+  "id": 140,
+  "order_id": "295713b7-6ccc-4f52-a36e-fe8a45768775",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-05T14:53:01.076295+00:00"
+ },
+ {
+  "id": 141,
+  "order_id": "295713b7-6ccc-4f52-a36e-fe8a45768775",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-05T14:53:01.076295+00:00"
+ },
+ {
+  "id": 142,
+  "order_id": "55fcf9f3-3168-42ff-a2b7-491c0fb21d9e",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-09T00:24:03.801012+00:00"
+ },
+ {
+  "id": 143,
+  "order_id": "55fcf9f3-3168-42ff-a2b7-491c0fb21d9e",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "READY_FOR_OPERATIONS",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-09T00:24:03.801012+00:00"
+ },
+ {
+  "id": 144,
+  "order_id": "1b01ee98-a167-49b5-854f-5991fa75f61e",
+  "estado_anterior": "DRAFT",
+  "estado_nuevo": "SUBMITTED",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Envío de pedido",
+  "fecha": "2026-09-10T18:15:45.304224+00:00"
+ },
+ {
+  "id": 145,
+  "order_id": "1b01ee98-a167-49b5-854f-5991fa75f61e",
+  "estado_anterior": "SUBMITTED",
+  "estado_nuevo": "NEW_CUSTOMER_VALIDATION",
+  "usuario": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "motivo": "Validacion automatica",
+  "fecha": "2026-09-10T18:15:45.304224+00:00"
+ }
+]

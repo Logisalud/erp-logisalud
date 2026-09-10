@@ -1,0 +1,810 @@
+[
+ {
+  "id": 1,
+  "order_id": "5637a9f8-0193-4ce4-a3e5-d106f167b237",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-07T18:50:14.349886+00:00",
+  "message_id": null
+ },
+ {
+  "id": 2,
+  "order_id": "00aa37b6-518d-4630-9b32-346fd4029670",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-11T19:38:57.263898+00:00",
+  "message_id": null
+ },
+ {
+  "id": 3,
+  "order_id": "bc4d9bf7-7f4b-4e99-886d-c74b249bdd00",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-12T01:49:10.854923+00:00",
+  "message_id": null
+ },
+ {
+  "id": 4,
+  "order_id": "b2ac9547-d643-4e03-b0a2-ba02a965a0e3",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-14T17:09:25.078469+00:00",
+  "message_id": null
+ },
+ {
+  "id": 5,
+  "order_id": "26c2c4e7-d318-43f9-a880-887c7b566132",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-24T17:34:22.192324+00:00",
+  "message_id": null
+ },
+ {
+  "id": 6,
+  "order_id": "025e2eee-8e00-4b06-8a82-55fed85e6952",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-25T16:09:10.077172+00:00",
+  "message_id": null
+ },
+ {
+  "id": 7,
+  "order_id": "bda13eb3-d08a-4fb2-9b07-d2c43bf04dbb",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-25T23:45:32.803599+00:00",
+  "message_id": null
+ },
+ {
+  "id": 8,
+  "order_id": "f7bf84c4-8b1d-4832-8341-54a43a539ffe",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-25T23:47:34.919704+00:00",
+  "message_id": null
+ },
+ {
+  "id": 9,
+  "order_id": "8f1cb659-77d8-40c8-8ab6-bc962c152eda",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-26T02:51:43.9965+00:00",
+  "message_id": null
+ },
+ {
+  "id": 10,
+  "order_id": "11452878-babc-4761-82cc-9581262c5d78",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "2d8212d2-9828-4c5c-af50-98894cd3fb54",
+  "error_mensaje": null,
+  "created_at": "2026-08-31T14:08:23.685582+00:00",
+  "message_id": null
+ },
+ {
+  "id": 11,
+  "order_id": "e6336c7b-6da5-44db-b9d5-7eb7f6d86ad6",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": null,
+  "error_mensaje": "Falta configurar el envío de correo: se requieren RESEND_API_KEY y RESEND_FROM_EMAIL.",
+  "created_at": "2026-08-31T21:00:50.595556+00:00",
+  "message_id": null
+ },
+ {
+  "id": 12,
+  "order_id": "273dd4ed-66af-4bec-8562-2654507b44d4",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "d22ec8af-9f26-4f09-ac3c-54d5b9091a3a",
+  "error_mensaje": null,
+  "created_at": "2026-08-31T21:08:47.242736+00:00",
+  "message_id": null
+ },
+ {
+  "id": 13,
+  "order_id": "2033e791-5c0f-46bb-b09e-23b6e3f65049",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "97015e5a-4458-4a00-b379-c9b8b57db4df",
+  "error_mensaje": null,
+  "created_at": "2026-08-31T21:23:00.080282+00:00",
+  "message_id": null
+ },
+ {
+  "id": 14,
+  "order_id": "6f98ab73-8025-4bdd-9c77-ebf16eae3524",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "c008be7b-3e69-4fc9-98b1-b6b3f0c26ab8",
+  "error_mensaje": null,
+  "created_at": "2026-08-31T21:42:40.535401+00:00",
+  "message_id": null
+ },
+ {
+  "id": 15,
+  "order_id": "619d4856-e9e2-45d4-b844-2585ff5090d9",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "b445d5bb-b8f1-4a08-b59c-cd7e78f75df9",
+  "error_mensaje": null,
+  "created_at": "2026-08-31T21:45:59.815507+00:00",
+  "message_id": null
+ },
+ {
+  "id": 16,
+  "order_id": "7e50ff22-fec9-493d-9f98-450b6a7ff527",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "efefe400-fc7d-4065-8d1f-b8837ddc4e84",
+  "error_mensaje": null,
+  "created_at": "2026-08-31T21:48:20.121491+00:00",
+  "message_id": null
+ },
+ {
+  "id": 17,
+  "order_id": "f32f2efa-197e-42e5-8ecd-7984a7329c54",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "371cbac2-e6c6-4ea5-9645-661f28951a82",
+  "error_mensaje": null,
+  "created_at": "2026-09-01T00:03:40.249397+00:00",
+  "message_id": null
+ },
+ {
+  "id": 18,
+  "order_id": "7468661e-8fb6-44d2-b1cb-ca0ee07e57c0",
+  "tipo": "pedido_enviado",
+  "estado": "fallido",
+  "destinatarios": [],
+  "proveedor": null,
+  "proveedor_message_id": null,
+  "error_mensaje": "column approval_decisions_1.created_at does not exist",
+  "created_at": "2026-09-02T00:41:39.700695+00:00",
+  "message_id": null
+ },
+ {
+  "id": 19,
+  "order_id": "8b646b09-26f3-4e79-aacf-e96eb2c90d58",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "e5af2275-bccb-4e3d-aa91-e3f56b961c9e",
+  "error_mensaje": null,
+  "created_at": "2026-09-02T15:42:29.880469+00:00",
+  "message_id": null
+ },
+ {
+  "id": 20,
+  "order_id": "8b646b09-26f3-4e79-aacf-e96eb2c90d58",
+  "tipo": "descuento_resuelto",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "377eb110-31f7-46a3-9348-a310bee02009",
+  "error_mensaje": null,
+  "created_at": "2026-09-02T15:47:31.105921+00:00",
+  "message_id": null
+ },
+ {
+  "id": 21,
+  "order_id": "5acc2583-f93f-48b6-b937-65a1046620e3",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a063e6-7ffb-7287-8b4a-08996d7d8fbf",
+  "error_mensaje": null,
+  "created_at": "2026-09-02T20:54:05.959619+00:00",
+  "message_id": null
+ },
+ {
+  "id": 22,
+  "order_id": "34652405-1bf9-4196-8b3d-163d2fdbb4f2",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a063ef-e8ee-7341-b51d-66c7f5e540c1",
+  "error_mensaje": null,
+  "created_at": "2026-09-02T21:04:22.425895+00:00",
+  "message_id": null
+ },
+ {
+  "id": 23,
+  "order_id": "af5f7ce8-b46e-476f-bca8-1814bb705ab6",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a063f0-65e5-77ee-967f-59dc4e830a3f",
+  "error_mensaje": null,
+  "created_at": "2026-09-02T21:04:54.540779+00:00",
+  "message_id": null
+ },
+ {
+  "id": 24,
+  "order_id": "af5f7ce8-b46e-476f-bca8-1814bb705ab6",
+  "tipo": "descuento_resuelto",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a063f1-40bd-736d-ae26-5fab3c94b206",
+  "error_mensaje": null,
+  "created_at": "2026-09-02T21:05:50.502798+00:00",
+  "message_id": null
+ },
+ {
+  "id": 25,
+  "order_id": "f73e0c3c-e634-4139-a69e-9cb343c659f7",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a063ff-01c2-76af-80a8-8ab599e8991c",
+  "error_mensaje": null,
+  "created_at": "2026-09-02T21:20:51.962881+00:00",
+  "message_id": "<010301a063ff04db-66d96fb3-307d-4eb4-b3f8-ce2988b2ea87-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 26,
+  "order_id": "f73e0c3c-e634-4139-a69e-9cb343c659f7",
+  "tipo": "descuento_resuelto",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a06400-1dce-74ed-8451-5155d3b4e366",
+  "error_mensaje": null,
+  "created_at": "2026-09-02T21:22:04.70329+00:00",
+  "message_id": "<010301a0640020c1-170a6ce0-e30c-42ba-9f09-19c35b0d0bb6-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 27,
+  "order_id": "2e363a68-82a1-4c9f-8465-b67e1f320124",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a06549-b838-75bd-bffd-9a50f97817e5",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T03:22:05.585914+00:00",
+  "message_id": "<010301a06549bb24-f9db0943-dfe0-4230-8e8f-7b42854cc230-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 28,
+  "order_id": "84a89c77-eb8a-4e73-b6fd-2b52b2b921bb",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a067bb-d313-702d-9c4f-cc0b4619c698",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T14:45:57.782968+00:00",
+  "message_id": "<010301a067bbd5e6-f016010b-6c65-4bb2-ba3c-dcddd118db0c-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 29,
+  "order_id": "2e363a68-82a1-4c9f-8465-b67e1f320124",
+  "tipo": "descuento_resuelto",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a067bc-5697-77b5-b0ab-f14dc132d0c9",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T14:46:31.474861+00:00",
+  "message_id": "<010301a067bc599a-baf48d8b-8600-4772-b4e3-329cfd39b246-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 30,
+  "order_id": "626e7f1a-0eeb-4c7d-9f97-f7e8b46a9d8f",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a067be-76ad-731f-b91e-720c03b25c4e",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T14:48:50.772333+00:00",
+  "message_id": "<010301a067be7987-260e50ea-53fb-4b33-bd44-de2d9f9d1ef9-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 31,
+  "order_id": "626e7f1a-0eeb-4c7d-9f97-f7e8b46a9d8f",
+  "tipo": "descuento_resuelto",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a067bf-43fa-77b5-a5a9-897a2fddf7fb",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T14:49:43.304108+00:00",
+  "message_id": "<010301a067bf475b-e59f6dda-59b7-4db0-b617-db423c614ca9-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 32,
+  "order_id": "bbd19e94-cc96-48e4-9617-45df38df45bf",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a067c7-f295-70cc-9685-18a0e40ed195",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T14:59:12.298647+00:00",
+  "message_id": "<010301a067c7f584-c48a9ad8-be4e-4ab8-bd83-a094b6c72de2-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 33,
+  "order_id": "8f348675-8009-4086-b11c-8015215b0b27",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a06851-59ac-709d-925a-a1722bde011b",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T17:29:17.10889+00:00",
+  "message_id": "<010301a068515c91-014a5c91-b2a5-4843-828f-9393924ff1b3-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 34,
+  "order_id": "69b6e7b4-de33-4250-ab63-8f3ea49fb402",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a06853-3afa-7056-9f93-0d85830bd7d8",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T17:31:20.374634+00:00",
+  "message_id": "<010301a068533dd8-199a2622-481d-4f52-a3b7-5836051dc578-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 35,
+  "order_id": "8f348675-8009-4086-b11c-8015215b0b27",
+  "tipo": "descuento_resuelto",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a06855-4a37-777c-990d-c54c3c818127",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T17:33:35.336767+00:00",
+  "message_id": "<010301a068554d22-5dfe3888-6d86-4e62-8ce7-8f5170fdf5e6-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 36,
+  "order_id": "d9cf1d54-a573-4726-bb10-92fb16eb3c3e",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a06857-3fa1-7754-b0a2-40f59ba49fad",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T17:35:43.799704+00:00",
+  "message_id": "<010301a068574276-1384d003-5ca1-46d4-80eb-01e9ca1145f5-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 37,
+  "order_id": "c859c8d8-d980-4fa9-851c-c0d6583213a1",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a06862-28f6-7281-bb69-a1d2ccf2328e",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T17:47:38.756724+00:00",
+  "message_id": "<010301a068622bdd-7d632de0-48ae-4eee-8e70-fd1cd69d5b40-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 38,
+  "order_id": "53366e4f-eadd-4447-b263-6a85f2663af7",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a0686a-ab9e-7201-9f13-9740940bfb66",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T17:56:56.648755+00:00",
+  "message_id": "<010301a0686aae72-a966160f-0df5-4f8d-a9c9-1034186e5450-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 39,
+  "order_id": "b56b8d8b-e3c3-477e-87e5-c922419cf837",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a0686e-07f1-72b0-875a-ed24a1633800",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T18:00:38.656319+00:00",
+  "message_id": "<010301a0686e13a5-5ecd6b1c-e938-4e12-bfc8-a58579e89620-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 40,
+  "order_id": "a96e6873-9c70-44c6-829c-ba86a4859456",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "01a06870-41ac-76a7-b1b8-fe7c2d8c4f7b",
+  "error_mensaje": null,
+  "created_at": "2026-09-03T18:03:02.843927+00:00",
+  "message_id": "<010301a06870466a-d9fae84a-b204-4925-b0bd-3e5cf07f794d-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 41,
+  "order_id": "c7983b36-6cc8-4759-8fb8-c052b4b7d1cf",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "ceb1b28c-0078-4a1c-9183-ebcbdfb3d528",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:45:39.968004+00:00",
+  "message_id": "<010301a072084797-a6801b38-92fb-4561-add2-5b5c2c18ceef-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 42,
+  "order_id": "fa4c716f-3f8d-40ac-a0b3-a5fe6f5b2759",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "560b79a6-09ec-40fc-88cf-8ee6174942e8",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:45:47.655095+00:00",
+  "message_id": "<010301a072086677-8553dd0c-3cdb-4750-b47a-7b5164f9a9e7-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 43,
+  "order_id": "2c7b04ea-2614-49ce-975f-2b7e1271a50c",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "0c53874c-e503-4205-b791-161fa55fa649",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:48:27.520157+00:00",
+  "message_id": "<010301a0720ad6dd-6bee679d-81dc-43b4-9006-c8cafdcee0c6-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 44,
+  "order_id": "6b1dbb43-d4e3-4b0f-b6a8-be6836b5ef07",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "51bd989d-3b15-473f-b317-0c8ec6cbf8de",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:48:49.309754+00:00",
+  "message_id": "<010301a0720b2bca-0b8f6210-bcd5-48cc-be23-b5b45b35e1cb-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 45,
+  "order_id": "9ab0b676-75e2-4814-8392-bf3c13f60e8d",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "9e756f98-17ff-4412-abc5-d32020f62978",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:49:36.269486+00:00",
+  "message_id": "<010301a0720be2a8-f77bfa7c-20e5-4797-b7f0-a0cf8d60cffd-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 46,
+  "order_id": "d9cf1d54-a573-4726-bb10-92fb16eb3c3e",
+  "tipo": "descuento_resuelto",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "a92c6606-9cfc-4ef8-a33d-75abf9f35798",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:49:52.871606+00:00",
+  "message_id": "<010301a0720c2418-24112dbd-1ed9-4a9c-8c2e-92d6afb44f27-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 47,
+  "order_id": "53366e4f-eadd-4447-b263-6a85f2663af7",
+  "tipo": "descuento_resuelto",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "83a5fdf6-ca12-4339-8c0c-4bcb3b386eb5",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:49:57.319686+00:00",
+  "message_id": "<010301a0720c3598-46c89213-2598-4997-8c12-cf73f4655052-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 48,
+  "order_id": "baaae4c1-9359-4bee-8f15-d5ccaefebb23",
+  "tipo": "descuento_solicitado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "4c2fc10b-8966-4ca7-ab65-8d14d51f2e82",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:50:11.715816+00:00",
+  "message_id": "<010301a0720c6dd1-082c3cdf-6f9e-4a27-85db-0110c795055c-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 49,
+  "order_id": "9ab0b676-75e2-4814-8392-bf3c13f60e8d",
+  "tipo": "descuento_resuelto",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "da979275-351c-489d-a1ec-652662182ec5",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:50:19.348371+00:00",
+  "message_id": "<010301a0720c8bbd-e7983914-0c0a-4777-a836-447c40cca17f-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 50,
+  "order_id": "295713b7-6ccc-4f52-a36e-fe8a45768775",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "e7db6746-be80-4101-9c46-765782205b1a",
+  "error_mensaje": null,
+  "created_at": "2026-09-05T14:53:02.131362+00:00",
+  "message_id": "<010301a0720f0765-65d298fb-2f0d-4937-8c87-cfa72bec54ad-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 51,
+  "order_id": "55fcf9f3-3168-42ff-a2b7-491c0fb21d9e",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com",
+   "lvargas@logisaludventas.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "af8ed2a6-e2e1-45b8-a75d-1d044256975b",
+  "error_mensaje": null,
+  "created_at": "2026-09-09T00:24:05.72919+00:00",
+  "message_id": "<010301a0838cedaf-cbed727b-3d10-449a-a99f-7361564d4198-000000@sa-east-1.amazonses.com>"
+ },
+ {
+  "id": 52,
+  "order_id": "1b01ee98-a167-49b5-854f-5991fa75f61e",
+  "tipo": "pedido_enviado",
+  "estado": "enviado",
+  "destinatarios": [
+   "aromero@logisalud.com",
+   "sgonzales@logisalud.com",
+   "a.aguilar@logisalud.com",
+   "operaciones-team@logisalud.com",
+   "lvargas@logisaludventas.com"
+  ],
+  "proveedor": "resend",
+  "proveedor_message_id": "c540ce8f-32b3-4f35-8f0e-5074d8523f7c",
+  "error_mensaje": null,
+  "created_at": "2026-09-10T18:15:49.92409+00:00",
+  "message_id": "<010301a08c887e5a-2f873d26-a13a-4568-a6e5-f476932d2ad2-000000@sa-east-1.amazonses.com>"
+ }
+]
