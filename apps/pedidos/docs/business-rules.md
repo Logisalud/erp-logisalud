@@ -1008,6 +1008,76 @@ Queda auditado en `pedidos.audit_logs` con acción
 `fijar_precio_especial_admin`: los dos precios, el motivo y
 `sin_aprobacion_comercial: true`.
 
+## El stock se lleva por LOTE (`1026`)
+
+El archivo real del almacén trae **una fila por lote**, no por producto: el
+mismo código aparece varias veces, cada vez con su lote, su fecha de
+vencimiento y su cantidad. `DHP414` viene con 5 lotes distintos. El modelo
+anterior —una fila por producto+fuente con la cantidad agregada— perdía
+justamente lo que hace falta para despachar: qué lote sale y cuál vence
+primero.
+
+**`pedidos.stock_lotes`** es ahora la tabla real: `product_id`,
+`inventory_source_id`, `lote`, `fecha_vencimiento`, `cantidad_disponible`,
+`proveedor` (referencial) y `fecha_actualizacion`, con índice único por
+`(product_id, inventory_source_id, lote)` — reimportar el mismo lote
+actualiza su cantidad, nunca lo duplica.
+
+**`stock_levels` sigue existiendo, como VISTA**: suma
+`cantidad_disponible` por producto+fuente y agrega `lotes` y
+`vence_primero`. Todo lo que ya la consultaba —el aviso de "sin stock" al
+armar el pedido, la pantalla de Operaciones— sigue leyendo las mismas
+columnas sin que se reescribiera una línea. Se pudo hacer así porque nadie
+escribía en ella salvo el importador, que ahora escribe en `stock_lotes`, y
+porque la tabla estaba vacía (0 filas) al momento del cambio.
+
+Una limitación de la vista que conviene tener presente: al no tener claves
+foráneas, PostgREST **no puede embeber** `products` ni `inventory_sources`
+desde ella. Lo que necesita mostrar código o nombre lee `stock_lotes`
+directo, que sí las tiene.
+
+### Lo que decide el importador con el archivo real
+
+- **Fila sin FUENTE → Almacén Central Lima.** Decisión de negocio
+  confirmada (2026-09-10): hoy hay un solo almacén activo y el archivo deja
+  la columna vacía en 189 de 241 filas. Si algún día hay más de un almacén,
+  esto tiene que volver a preguntarse en vez de seguir asumiendo.
+- **El mismo lote en varias filas SUMA.** El archivo real trae 34 claves
+  repetidas (`DHP414` lote `PT12502` viene en dos filas, con 1 y 21).
+  No son un copy/paste: son entradas distintas del mismo lote. Quedarse con
+  la última —que es lo que hacía el importador anterior con producto+fuente—
+  perdería stock real sin que nadie se entere. Se suman y se avisa fila por
+  fila.
+- **Si dos filas del mismo lote discrepan en el vencimiento, gana el más
+  temprano**: es el que manda para despachar.
+- **`FV` es una fecha de Excel con hora** ("2027-10-30 16:47:55"). La hora
+  es basura del formato y se descarta tomando los componentes locales, no
+  `toISOString()`, que en hora de Perú retrocede un día.
+- **`CANTIDA` sin la D** y **`FV`** se aceptan tal cual vienen: renombrar
+  columnas antes de cargar es la clase de fricción que hace que el
+  importador no se use.
+- **`DESCRIPCION` no se guarda**: ya está en el catálogo. Sólo se muestra en
+  la vista previa para que una persona reconozca la fila.
+- **`controla_lote = false` avisa, no bloquea.** El archivo es la realidad
+  del almacén; que el catálogo diga lo contrario es un dato del catálogo por
+  corregir. Hoy los 235 productos lo tienen en `false`, así que el aviso sale
+  agrupado en una línea y no una vez por fila.
+
+### Pantalla de Stock, para todos los roles
+
+`/stock` es de **sólo lectura y la ve cualquier rol autenticado**, el
+vendedor incluido: necesita responder "¿cuánto hay de esto?" antes de
+ofrecérselo a un cliente, y hasta ahora el stock vivía dentro de Maestros,
+que sólo ve el administrador. Muestra código, producto, lote, vencimiento,
+cantidad, fuente y proveedor, ordenado por **vencimiento más próximo
+primero** (la pregunta operativa real: qué hay que sacar antes).
+
+Busca por código o nombre y pagina en el servidor de a 50 con `range` — no
+trayendo todo para cortar en el navegador, porque PostgREST tope las
+respuestas en 1.000 filas y eso es una lista truncada en silencio esperando
+a pasar. Escribir sigue siendo sólo del administrador, desde el importador
+en Maestros; lo garantiza la RLS de `stock_lotes`, no la pantalla.
+
 ## Carga masiva de stock (`services/stock-import.ts`)
 
 El stock sigue siendo **registro manual** —no hay integración con un

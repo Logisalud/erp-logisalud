@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "./audit-log";
 import {
+  claveDeNombre,
   parseStockRows,
   resolverStockImport,
   resumirStockImport,
@@ -10,7 +11,7 @@ import {
   type RawRow,
   type StockImportResumen,
   type StockIssue,
-  type StockItemResuelto,
+  type StockLoteResuelto,
 } from "@/domain/stock-import";
 
 /**
@@ -18,8 +19,8 @@ import {
  *
  * Mismo contrato que los otros dos importadores: `preview` no escribe nada
  * y `publish` escribe lo que la vista previa mostró. La escritura es un
- * upsert sobre la PK (product_id, inventory_source_id), así que volver a
- * cargar el mismo archivo actualiza; nunca duplica.
+ * upsert sobre (product_id, inventory_source_id, lote), así que volver a
+ * cargar el mismo archivo actualiza el lote; nunca lo duplica.
  */
 
 // ---------------------------------------------------------------------
@@ -126,25 +127,40 @@ async function leerArchivo(file: File): Promise<RawRow[]> {
 export type StockImportPreview = {
   fileName: string;
   headerRowNumber: number | null;
-  items: StockItemResuelto[];
+  lotes: StockLoteResuelto[];
   resumen: StockImportResumen;
   errors: StockIssue[];
+  warnings: StockIssue[];
   codigosSinProducto: string[];
   fuentesDesconocidas: string[];
   fuentesInactivas: string[];
   /** Para que el usuario vea contra qué nombres se está comparando. */
   fuentesDisponibles: string[];
+  /** La que se aplica a las filas sin FUENTE. */
+  fuentePorDefecto: string;
 };
+
+/**
+ * El almacén que se asume cuando la fila no dice nada.
+ *
+ * Decisión de negocio confirmada (2026-09-10): el archivo real deja la
+ * columna FUENTE vacía en la mayoría de las filas, y hoy hay un solo
+ * almacén activo. Si algún día hay más de uno, esto tiene que volver a
+ * preguntarse en vez de seguir asumiendo.
+ */
+const FUENTE_POR_DEFECTO = "Almacén Central Lima";
 
 async function cargarCatalogos() {
   const supabase = createClient();
 
   const [productos, fuentes, stock] = await Promise.all([
-    supabase.from("products").select("id, codigo_interno, descripcion"),
+    supabase.from("products").select("id, codigo_interno, descripcion, controla_lote"),
     // Todas, no sólo las activas: si el archivo nombra una fuente inactiva
     // hay que decir eso y no "no existe" (que empujaría a duplicarla).
     supabase.from("inventory_sources").select("id, nombre, estado"),
-    supabase.from("stock_levels").select("product_id, inventory_source_id, cantidad_disponible"),
+    supabase
+      .from("stock_lotes")
+      .select("product_id, inventory_source_id, lote, cantidad_disponible"),
   ]);
 
   if (productos.error) throw new Error(productos.error.message);
@@ -154,14 +170,26 @@ async function cargarCatalogos() {
   const existentes = new Map<string, number>();
   for (const fila of stock.data ?? []) {
     existentes.set(
-      `${fila.product_id}|${fila.inventory_source_id}`,
+      `${fila.product_id}|${fila.inventory_source_id}|${fila.lote}`,
       Number(fila.cantidad_disponible),
+    );
+  }
+
+  const fuentesLista = fuentes.data ?? [];
+  const fuentePorDefecto = fuentesLista.find(
+    (f) => claveDeNombre(f.nombre) === claveDeNombre(FUENTE_POR_DEFECTO),
+  );
+  if (!fuentePorDefecto) {
+    throw new Error(
+      `No existe la fuente de stock "${FUENTE_POR_DEFECTO}" en el catálogo, y el archivo trae ` +
+        "filas sin fuente. Creala en Maestros → Despacho antes de importar.",
     );
   }
 
   return {
     productos: productos.data ?? [],
-    fuentes: fuentes.data ?? [],
+    fuentes: fuentesLista,
+    fuentePorDefecto,
     existentes,
   };
 }
@@ -175,16 +203,18 @@ export async function previewStockImport(file: File): Promise<StockImportPreview
   return {
     fileName: file.name,
     headerRowNumber: parsed.headerRowNumber,
-    items: resuelto.items,
-    resumen: resumirStockImport(resuelto.items),
+    lotes: resuelto.lotes,
+    resumen: resumirStockImport(resuelto.lotes),
     // Los errores de formato van primero: son los que impiden leer la fila.
     errors: [...parsed.errors, ...resuelto.errors].sort((a, b) => a.rowNumber - b.rowNumber),
+    warnings: resuelto.warnings,
     codigosSinProducto: resuelto.codigosSinProducto,
     fuentesDesconocidas: resuelto.fuentesDesconocidas,
     fuentesInactivas: resuelto.fuentesInactivas,
     fuentesDisponibles: catalogos.fuentes
       .filter((f) => f.estado === "activo")
       .map((f) => f.nombre),
+    fuentePorDefecto: catalogos.fuentePorDefecto.nombre,
   };
 }
 
@@ -204,31 +234,34 @@ export type StockImportResult = {
 export async function publishStockImport(file: File, actor: string): Promise<StockImportResult> {
   const preview = await previewStockImport(file);
 
-  if (preview.items.length === 0) {
+  if (preview.lotes.length === 0) {
     throw new Error(
       "El archivo no tiene ninguna fila aplicable. Revisá la vista previa antes de publicar.",
     );
   }
 
   const supabase = createClient();
-  // Upsert sobre la PK (product_id, inventory_source_id): actualiza el
-  // registro que ya existe y crea el que no. Nunca duplica, que era el
-  // riesgo concreto de cargar dos veces el mismo archivo.
-  const { error } = await supabase.from("stock_levels").upsert(
-    preview.items.map((item) => ({
-      product_id: item.productId,
-      inventory_source_id: item.inventorySourceId,
-      cantidad_disponible: item.cantidad,
+  // Upsert sobre (product_id, inventory_source_id, lote): actualiza el
+  // lote que ya existe y crea el que no. Nunca duplica, que era el riesgo
+  // concreto de cargar dos veces el mismo archivo.
+  const { error } = await supabase.from("stock_lotes").upsert(
+    preview.lotes.map((lote) => ({
+      product_id: lote.productId,
+      inventory_source_id: lote.inventorySourceId,
+      lote: lote.lote,
+      fecha_vencimiento: lote.fechaVencimiento,
+      cantidad_disponible: lote.cantidad,
+      proveedor: lote.proveedor,
       fecha_actualizacion: new Date().toISOString(),
     })),
-    { onConflict: "product_id,inventory_source_id" },
+    { onConflict: "product_id,inventory_source_id,lote" },
   );
   if (error) throw new Error(error.message);
 
   await logAudit({
     actor,
     accion: "importar_stock",
-    entidad: "stock_levels",
+    entidad: "stock_lotes",
     entidadId: file.name,
     datosDespues: {
       archivo: file.name,
@@ -255,17 +288,27 @@ export async function publishStockImport(file: File, actor: string): Promise<Sto
 export type StockLevelRow = {
   codigo: string;
   descripcion: string;
+  lote: string;
+  fechaVencimiento: string | null;
   fuente: string;
   cantidad: number;
   fechaActualizacion: string;
 };
 
+/**
+ * Los últimos lotes cargados, para ver el resultado sin salir de la
+ * pantalla del importador.
+ *
+ * Lee `stock_lotes` y no la vista `stock_levels`: la vista agrega —perdería
+ * justamente el lote— y además, al no tener claves foráneas, PostgREST no
+ * puede embeber el producto ni la fuente desde ella.
+ */
 export async function listStockLevels(limit = 50): Promise<StockLevelRow[]> {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("stock_levels")
+    .from("stock_lotes")
     .select(
-      "cantidad_disponible, fecha_actualizacion, product:products(codigo_interno, descripcion), source:inventory_sources(nombre)",
+      "lote, fecha_vencimiento, cantidad_disponible, fecha_actualizacion, product:products(codigo_interno, descripcion), source:inventory_sources(nombre)",
     )
     .order("fecha_actualizacion", { ascending: false })
     .limit(limit);
@@ -273,6 +316,8 @@ export async function listStockLevels(limit = 50): Promise<StockLevelRow[]> {
   if (error) throw new Error(error.message);
 
   type Fila = {
+    lote: string;
+    fecha_vencimiento: string | null;
     cantidad_disponible: number | string;
     fecha_actualizacion: string;
     product: { codigo_interno: string; descripcion: string } | null;
@@ -282,6 +327,8 @@ export async function listStockLevels(limit = 50): Promise<StockLevelRow[]> {
   return ((data ?? []) as unknown as Fila[]).map((f) => ({
     codigo: f.product?.codigo_interno ?? "—",
     descripcion: f.product?.descripcion ?? "—",
+    lote: f.lote,
+    fechaVencimiento: f.fecha_vencimiento,
     fuente: f.source?.nombre ?? "—",
     cantidad: Number(f.cantidad_disponible),
     fechaActualizacion: f.fecha_actualizacion,
