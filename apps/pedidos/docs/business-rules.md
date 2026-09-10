@@ -1008,6 +1008,66 @@ Queda auditado en `pedidos.audit_logs` con acción
 `fijar_precio_especial_admin`: los dos precios, el motivo y
 `sin_aprobacion_comercial: true`.
 
+## Los 26 códigos que el stock tenía y el catálogo no (`1027`, `1028`)
+
+El archivo de stock del 09/09 trajo 26 códigos sin producto: 35 filas,
+10.205 unidades de mercadería real que no se podían cargar. La lista
+maestra del usuario confirmó el patrón de bonificación por proveedor, y con
+eso los 26 quedaron identificados:
+
+| Proveedor | Producto | Bonificación |
+|---|---|---|
+| Diphasac | `DHP###` | `BODHP###` |
+| Biosana | `BSA###` | `BOBSA###` |
+| Dare Nutrition | `DRN###` | `BOD###` |
+| **Prades** | `PLGS##` | **`BOP0000##`** |
+
+El de Prades es el que no teníamos identificado: `BOP000018` no se parece a
+`PLGS18` en nada, así que los 12 códigos `BOP0000xx` figuraban como
+"formato desconocido" hasta que la lista maestra los emparejó.
+
+**Dos productos REGULARES tampoco existían**: `DHP109` (JAMOL 5 x10) y
+`DHP110` (GLICOFAST 1000 x10). Estaban en la lista maestra y en el stock,
+pero no en el catálogo — se crearon derivados de su hermano de 30 tabletas
+(`DHP108` y `DHP107`), que es lo único que cambia entre ellos: la
+presentación. Su perfil tributario también sale de ahí: **INAFECTO**, por
+ser de la familia metabólica.
+
+Criterio de las 22 bonificaciones, el mismo de las 18 de `1016`: producto
+real con su propio código, que hereda del par regular la descripción, el
+proveedor, la presentación y el **perfil tributario** —una bonificación de
+un producto INAFECTO no puede salir GRAVADA—, entra `activo` porque hay
+stock físico confirmado, y **sin precio de lista**: no se vende, se
+entrega.
+
+Los 4 productos normales (`BSA119`, `DHP028`, `DRN048`, `PLGS24`) también
+entran **sin precio**, y eso es una deuda anotada, no un descuido: sin
+precio vigente `submit_order` aborta, así que **no se pueden vender hasta
+que se cargue su precio**, igual que cualquier producto sin precio. Queda
+en `nota_estado` de cada uno.
+
+### La línea gratis ahora consume el stock del producto BO (`1028`)
+
+`promo_bonificaciones.producto_bonificado_id` estaba en null en todas las
+reglas ("la línea gratis es el mismo producto"). Con el stock real cargado
+eso quedó corto: el almacén lleva la bonificación como su propio SKU
+—`BODHP200` tiene 133 unidades físicas, aparte de las 241 de `DHP200`—, así
+que la línea gratis tiene que salir de ESE stock. Se apunta sólo donde el
+par existe: 8 reglas de 4 productos (`DHP104`, `DHP107`, `DHP200`,
+`DHP308`).
+
+**El correo y el Excel se ven exactamente igual**: ya mostraban el código
+con prefijo BO —lo calcula `codigoVisibleDeLineaGratis` para la
+presentación— y la descripción del producto BO es la misma que la del
+regular. El único cambio real es de qué stock sale la línea gratis.
+
+### Un dato mal cargado que conviene arreglar
+
+Los productos `PLGS*` tienen un **número** en `unidad_medida`
+(`70.33898305084746`) en vez de una unidad: un precio que se filtró a la
+columna equivocada en su importación. No se propagó a las bonificaciones
+nuevas —ahí va `UND`—, pero sigue mal en los `PLGS*` originales.
+
 ## El stock se lleva por LOTE (`1026`)
 
 El archivo real del almacén trae **una fila por lote**, no por producto: el
