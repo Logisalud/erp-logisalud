@@ -61,7 +61,15 @@ export function validarProveedor(b: BorradorProveedorUnificado): ErrorValidacion
   return errores
 }
 
-export type CuentaBancariaBorrador = { numeroCuenta: string; cci: string; titular: string }
+export type CuentaBancariaBorrador = {
+  numeroCuenta: string
+  cci: string
+  titular: string
+  /** Opcionales acá para no romper a los llamadores viejos; el alta
+   * completa los exige vía `validarCuentaBancariaCompleta`. */
+  banco?: string
+  moneda?: string
+}
 
 export function validarCuentaBancaria(b: CuentaBancariaBorrador): ErrorValidacionProveedor[] {
   const errores: ErrorValidacionProveedor[] = []
@@ -69,6 +77,43 @@ export function validarCuentaBancaria(b: CuentaBancariaBorrador): ErrorValidacio
   if (!validarCCI(b.cci)) errores.push({ campo: 'cci', mensaje: 'El CCI tiene que tener 20 dígitos.' })
   if (!b.titular.trim()) errores.push({ campo: 'titular', mensaje: 'Falta el titular de la cuenta.' })
   return errores
+}
+
+/**
+ * Igual que `validarCuentaBancaria` más el banco y la moneda, que la tabla
+ * exige (`banco not null`, `moneda check (PEN|USD)`) y que hasta ahora se
+ * chequeaban sueltos en el servicio.
+ */
+export function validarCuentaBancariaCompleta(b: CuentaBancariaBorrador): ErrorValidacionProveedor[] {
+  const errores = validarCuentaBancaria(b)
+  if (!b.banco?.trim()) errores.push({ campo: 'banco', mensaje: 'Falta el banco.' })
+  if (b.moneda !== 'PEN' && b.moneda !== 'USD') {
+    errores.push({ campo: 'monedaCuenta', mensaje: 'La moneda de la cuenta tiene que ser PEN o USD.' })
+  }
+  return errores
+}
+
+/**
+ * Alta COMPLETA de proveedor (`/proveedores/nuevo`): además de los datos
+ * del proveedor exige una cuenta bancaria. Antes la cuenta solo se podía
+ * cargar después de crearlo, desde su ficha — y así quedaban proveedores
+ * sin forma de pagarles, que recién se descubría cuando había que pagar.
+ *
+ * El alta RÁPIDA desde el combobox (crearProveedorRapidoAction) sigue
+ * usando `validarProveedor` a secas: ahí la persona está en medio de una OC
+ * y frenarla a pedir el CCI cuesta más de lo que resuelve. Esos quedan
+ * marcados como incompletos hasta que alguien les cargue la cuenta.
+ */
+export function validarAltaCompleta(
+  b: BorradorProveedorUnificado,
+  cuenta: CuentaBancariaBorrador
+): ErrorValidacionProveedor[] {
+  return [...validarProveedor(b), ...validarCuentaBancariaCompleta(cuenta)]
+}
+
+/** Un proveedor sin ninguna cuenta bancaria cargada — no se le puede pagar. */
+export function faltaCuentaBancaria(cantidadCuentas: number): boolean {
+  return cantidadCuentas === 0
 }
 
 export type FuenteProveedor = 'compra' | 'servicio'

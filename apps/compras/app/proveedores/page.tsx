@@ -59,9 +59,18 @@ export default async function Proveedores({
                 href={p.fuente === 'compra' ? `/proveedores/${p.id}` : `/proveedores/servicio/${p.id}`}
                 className="card block transition hover:shadow-sm"
               >
-                <div className="flex items-baseline justify-between gap-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <span className="font-medium">{p.razonSocial}</span>
-                  {!p.activo ? <span className="text-xs text-gray-500">inactivo</span> : null}
+                  <span className="flex items-center gap-2">
+                    {/* Creado desde el alta rápida de una orden, sin cuenta
+                        todavía — no se le puede pagar hasta cargarla. */}
+                    {!p.tieneCuenta ? (
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                        Falta cuenta bancaria
+                      </span>
+                    ) : null}
+                    {!p.activo ? <span className="text-xs text-gray-500">inactivo</span> : null}
+                  </span>
                 </div>
                 <p className="mt-0.5 text-sm text-gray-600">
                   RUC {p.ruc} · {p.condicionPagoDias} días · {p.monedaPrincipal} · {ETIQUETA_FUENTE_PROVEEDOR[p.fuente as FuenteProveedor]}

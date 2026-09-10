@@ -11,7 +11,7 @@ import {
   type EstadoFormularioCuenta,
 } from './acciones-unificadas'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
-import { enmascararCuenta, ETIQUETA_FUENTE_PROVEEDOR, type FuenteProveedor } from '@/domain/proveedor'
+import { enmascararCuenta, faltaCuentaBancaria, ETIQUETA_FUENTE_PROVEEDOR, type FuenteProveedor } from '@/domain/proveedor'
 import type { DetalleProveedorUnificado, CuentaBancariaUnificada } from '@/services/proveedores-unificado'
 
 /**
@@ -144,7 +144,17 @@ function CuentasBancarias({
 
   return (
     <section className="card mt-4">
-      <h2 className="font-heading text-lg">Cuentas bancarias</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-heading text-lg">Cuentas bancarias</h2>
+        {/* Los proveedores creados desde el alta rápida de una orden nacen
+            sin cuenta: hasta cargarla no se les puede pagar, y eso tiene
+            que verse acá y no descubrirse el día del pago. */}
+        {faltaCuentaBancaria(cuentas.length) ? (
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+            Falta cuenta bancaria
+          </span>
+        ) : null}
+      </div>
 
       {cuentas.length > 0 ? (
         <ul className="mt-3 space-y-2">
