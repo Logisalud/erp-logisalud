@@ -42,6 +42,11 @@ export default async function DetalleOS({ params }: { params: { id: string } }) 
         </dl>
         <p className="mt-1"><Money valor={os.monto_estimado} moneda={os.moneda} /></p>
         <p className="mt-2 text-sm text-gray-700">{os.descripcion_servicio}</p>
+        {os.estado === 'anulada' ? (
+          <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            Anulada: {os.anulado_motivo}
+          </p>
+        ) : null}
 
         <AccionesOS osId={os.id} estado={os.estado} />
       </section>

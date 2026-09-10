@@ -8,12 +8,16 @@ import {
   redondear,
   TASA_IGV,
   validarNoSobrefacturar,
+  puedeAnularsePagoDirecto,
+  ETIQUETA_ESTADO,
   type EstadoObligacion,
   type LineaConciliacion,
   type BorradorPagoDirecto,
   type LineaFacturacion,
 } from '@/domain/obligacion'
 import { puedeMarcarseFacturada } from '@/domain/orden-compra'
+import { avisarAnulacionSinRomper } from '@/services/avisos'
+import { formatoMonto } from '@/domain/aviso-email'
 
 export type ItemParaObligar = {
   ocItemId: string
@@ -555,6 +559,9 @@ export type ObligacionDetalle = ObligacionListada & {
     storage_path_voucher: string | null
     storage_path_detraccion: string | null
   } | null
+  /** Solo Pago Directo — ver anularPagoDirecto/puedeAnularsePagoDirecto. */
+  anulada_en: string | null
+  anulada_motivo: string | null
 }
 
 export async function obtenerObligacion(id: string): Promise<ObligacionDetalle | null> {
@@ -565,6 +572,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, igv,
              monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, proveedor_servicio_id, beneficiario_persona,
              oc_id, recepcion_id, categoria_pago_directo_id, cotizacion_storage_path, factura_storage_path,
+             anulada_en, anulada_motivo,
              obligaciones_items(id, oc_item_id, cantidad_facturada, precio_facturado)`)
     .eq('id', id)
     .maybeSingle()
@@ -618,6 +626,8 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     cotizacion_storage_path: data.cotizacion_storage_path,
     factura_storage_path: data.factura_storage_path,
     pago,
+    anulada_en: (data as any).anulada_en,
+    anulada_motivo: (data as any).anulada_motivo,
   }
 }
 
@@ -844,6 +854,7 @@ export async function registrarPagoDirecto(
       fecha_vencimiento_real: fechaVencimientoReal,
       observaciones: borrador.descripcion,
       created_by: usuario.id,
+      creador_correo: usuario.email ?? null,
     })
     .select('id, codigo, total')
     .single()
@@ -969,6 +980,65 @@ export async function obtenerUrlLegajoPagoDirecto(storagePath: string): Promise<
   const { data, error } = await supabase.storage.from('legajos-compras').createSignedUrl(storagePath, 60)
   if (error || !data) throw new Error(`No se pudo generar el enlace del archivo: ${error?.message ?? ''}`)
   return data.signedUrl
+}
+
+/**
+ * Anular un Pago Directo por error de captura (Pieza D/K, sesión
+ * 2026-09-09). A diferencia de OC/OS, `cuentas_x_pagar.obligaciones` es
+ * compartida por 9 orígenes — no se toca `estado` (ver
+ * domain/obligacion.ts::puedeAnularsePagoDirecto), solo se marca con las
+ * columnas `anulada_*`. Solo aplica a origen 'gasto_directo': anular una
+ * obligación de compra/servicio/etc. es una pieza distinta (para esas, la OC
+ * u OS es la que se anula, no la obligación).
+ */
+export async function anularPagoDirecto(id: string, motivo: string): Promise<void> {
+  if (!motivo.trim()) throw new Error('El motivo de la anulación es obligatorio.')
+  const usuario = await exigirUsuario()
+  const perfil = await perfilActual()
+  const supabase = crearClienteServidor()
+
+  const { data: obligacion, error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id, codigo, origen, estado, moneda, total, creador_correo, categoria_pago_directo_id, anulada_en')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !obligacion) throw new Error('No se encontró la obligación.')
+  if (obligacion.origen !== 'gasto_directo') {
+    throw new Error('Solo un Pago Directo se anula desde acá.')
+  }
+  if (obligacion.anulada_en) throw new Error('Este pago directo ya está anulado.')
+  if (!puedeAnularsePagoDirecto(obligacion.estado as EstadoObligacion)) {
+    throw new Error(`Ya no se puede anular: está "${ETIQUETA_ESTADO[obligacion.estado as EstadoObligacion]}".`)
+  }
+
+  const { error: errUpd } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .update({
+      anulada_motivo: motivo.trim(),
+      anulada_por: usuario.id,
+      anulada_en: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (errUpd) throw new Error(`No se pudo anular el pago directo: ${errUpd.message}`)
+
+  const categoria = obligacion.categoria_pago_directo_id
+    ? await obtenerCategoriaPagoDirectoBasica(obligacion.categoria_pago_directo_id)
+    : null
+
+  await avisarAnulacionSinRomper({
+    tipo: 'pago_directo',
+    codigo: obligacion.codigo,
+    monto: Number(obligacion.total),
+    moneda: obligacion.moneda,
+    referencia: categoria?.nombre ?? 'Pago directo',
+    motivo: motivo.trim(),
+    anuladoPor: perfil?.nombre ?? usuario.email ?? 'alguien del ERP',
+    filas: [{ etiqueta: 'Monto', valor: formatoMonto(Number(obligacion.total), obligacion.moneda) }],
+    ruta: `/cuentas-por-pagar/${id}`,
+    creadorCorreo: obligacion.creador_correo ?? null,
+  })
 }
 
 /** Para la ficha de la OC: si ya se registró una factura, de acá sale el link a la obligación.

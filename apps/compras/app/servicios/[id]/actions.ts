@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import {
-  aprobarOS, rechazarOS, subirFacturaOS, registrarConformidad, obtenerUrlFacturaOS,
+  aprobarOS, rechazarOS, anularOS, subirFacturaOS, registrarConformidad, obtenerUrlFacturaOS,
 } from '@/services/servicios'
 
 export type EstadoAccion = { error: string } | null
@@ -24,6 +24,11 @@ export async function aprobarOSAction(id: string): Promise<EstadoAccion> {
 
 export async function rechazarOSAction(id: string): Promise<EstadoAccion> {
   return ejecutar(id, () => rechazarOS(id))
+}
+
+export async function anularOSAction(id: string, _previo: EstadoAccion, form: FormData): Promise<EstadoAccion> {
+  const motivo = String(form.get('motivo') ?? '')
+  return ejecutar(id, () => anularOS(id, motivo))
 }
 
 export async function subirFacturaAction(osId: string, _previo: EstadoAccion, form: FormData): Promise<EstadoAccion> {

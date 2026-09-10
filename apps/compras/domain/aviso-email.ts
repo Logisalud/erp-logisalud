@@ -109,3 +109,54 @@ export function formatoMonto(monto: number, moneda: string): string {
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
+
+/**
+ * Aviso de ANULACIÓN (Piezas D y K, sesión 2026-09-09): quien creó un
+ * registro por error tiene que poder anularlo, pero si ya salió el correo de
+ * creación, Contabilidad ya lo tiene en su radar — así que anularlo dispara
+ * un segundo correo, "Este registro fue anulado", a los mismos
+ * destinatarios. Reusa `DatosAviso`/`FilaAviso` en vez de un tipo aparte: el
+ * motivo y quién anuló son una fila más, no una estructura distinta.
+ */
+export type DatosAnulacion = Omit<DatosAviso, 'filas'> & {
+  motivo: string
+  anuladoPor: string
+  filas: FilaAviso[]
+}
+
+export function asuntoAnulacion(d: Pick<DatosAnulacion, 'tipo' | 'codigo' | 'monto' | 'moneda' | 'referencia'>): string {
+  return `[ANULADO] ${asuntoAviso(d)}`
+}
+
+export function renderAnulacionHtml(d: DatosAnulacion): string {
+  const filas = filasVisibles(d)
+    .map((f) => `<tr><td><strong>${escapeHtml(f.etiqueta)}</strong></td><td>${escapeHtml(f.valor!)}</td></tr>`)
+    .join('\n        ')
+
+  return `
+    <div style="font-family: sans-serif; font-size: 14px; color: #111827;">
+      <p>Se anuló ${NOMBRE_REGISTRO[d.tipo]} en el ERP de Compras y Pagos.</p>
+      <table cellpadding="4" cellspacing="0">
+        <tr><td><strong>Código</strong></td><td>${escapeHtml(d.codigo)}</td></tr>
+        <tr><td><strong>Anulado por</strong></td><td>${escapeHtml(d.anuladoPor)}</td></tr>
+        <tr><td><strong>Motivo</strong></td><td>${escapeHtml(d.motivo)}</td></tr>
+        ${filas}
+      </table>
+      <p><a href="${d.url}">Ver en el ERP</a></p>
+    </div>
+  `.trim()
+}
+
+export function renderAnulacionTexto(d: DatosAnulacion): string {
+  const filas = filasVisibles(d).map((f) => `${f.etiqueta.padEnd(ANCHO_ETIQUETA)}${f.valor}`)
+  return [
+    `Se anuló ${NOMBRE_REGISTRO[d.tipo]} en el ERP de Compras y Pagos.`,
+    '',
+    `${'Código'.padEnd(ANCHO_ETIQUETA)}${d.codigo}`,
+    `${'Anulado por'.padEnd(ANCHO_ETIQUETA)}${d.anuladoPor}`,
+    `${'Motivo'.padEnd(ANCHO_ETIQUETA)}${d.motivo}`,
+    ...filas,
+    '',
+    `Ver en el ERP: ${d.url}`,
+  ].join('\n')
+}

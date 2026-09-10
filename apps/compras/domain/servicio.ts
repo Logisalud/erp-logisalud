@@ -40,15 +40,27 @@ export const ETIQUETA_ESTADO_OS: Record<EstadoOS, string> = {
 }
 
 const TRANSICIONES: Record<EstadoOS, readonly EstadoOS[]> = {
-  pendiente_jefe: ['aprobada', 'rechazada_jefe'],
+  pendiente_jefe: ['aprobada', 'rechazada_jefe', 'anulada'],
   rechazada_jefe: [],
-  aprobada: ['factura_adjunta'],
-  en_ejecucion: ['factura_adjunta'],
-  factura_adjunta: ['facturada', 'conformada'],
+  aprobada: ['factura_adjunta', 'anulada'],
+  en_ejecucion: ['factura_adjunta', 'anulada'],
+  factura_adjunta: ['facturada', 'conformada', 'anulada'],
   facturada: ['conformada'],
   conformada: ['cerrada'],
   cerrada: [],
   anulada: [],
+}
+
+/**
+ * Una OS se puede anular mientras todavía no exista una obligación
+ * (services/obligaciones.ts::registrarObligacionDesdeOS la crea al llegar a
+ * 'facturada'/'conformada') — a partir de ahí ya hay plata comprometida
+ * formalmente y anularla es fuera de alcance (correcciones futuras, no esta
+ * pieza). 'rechazada_jefe' no se anula: ya es un estado terminal sin ningún
+ * compromiso, no hay nada que deshacer.
+ */
+export function puedeAnularse(estado: EstadoOS): boolean {
+  return estado === 'pendiente_jefe' || estado === 'aprobada' || estado === 'en_ejecucion' || estado === 'factura_adjunta'
 }
 
 export function transicionPermitida(desde: EstadoOS, hacia: EstadoOS): boolean {

@@ -6,10 +6,13 @@ import {
   estadoTrasPago,
   montoTotalSolicitud,
   ESTADO_INICIAL_SOLICITUD,
+  ETIQUETA_TIPO,
   type BorradorSolicitud,
   type EstadoSolicitud,
   type TipoSolicitud,
 } from '@/domain/gasto'
+import { avisarAnulacionSinRomper } from '@/services/avisos'
+import { formatoMonto } from '@/domain/aviso-email'
 
 export type CategoriaGasto = { id: string; nombre: string; cuenta_contable: string | null }
 
@@ -73,6 +76,7 @@ export async function crearSolicitud(borrador: BorradorSolicitud): Promise<{ id:
       // Explícito además del default de la columna — ver
       // ESTADO_INICIAL_SOLICITUD en domain/gasto.ts.
       estado: ESTADO_INICIAL_SOLICITUD,
+      creador_correo: usuario.email ?? null,
     })
     .select('id, codigo')
     .single()
@@ -206,6 +210,8 @@ export type SolicitudDetalle = SolicitudListada & {
   quienAutoriza: string | null
   /** Solo `gasto_directo`/`reembolso` — fecha del comprobante real (Pieza H). */
   fecha_factura: string | null
+  /** Solo si `estado === 'rechazada_contabilidad'` — ver rechazarPorContabilidad. */
+  rechazo_motivo: string | null
   liquidacion: {
     monto_anticipo: number
     monto_sustentado: number
@@ -222,7 +228,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     .from('solicitudes_gasto')
     .select(`id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, area, created_at,
              destino, fecha_inicio, fecha_fin, categoria_id, asignado_a, obligacion_id,
-             cotizacion_storage_path, quien_autoriza, fecha_factura,
+             cotizacion_storage_path, quien_autoriza, fecha_factura, rechazo_motivo,
              comprobantes:solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
     .eq('id', id)
     .maybeSingle()
@@ -276,11 +282,51 @@ async function cambiarEstado(id: string, desde: EstadoSolicitud[], hacia: Estado
  * `services/servicios.ts` (Orden de Servicio, antes de `en_ejecucion`) y
  * `services/caja-chica.ts` (Reposición, jefe de Almacén).
  */
-export async function rechazarPorContabilidad(id: string): Promise<void> {
+/**
+ * Motivo obligatorio (Pieza D/K, sesión 2026-09-09) — mismo criterio que
+ * anularOC/anularOS/anularPagoDirecto: quien creó la solicitud por error
+ * tiene que enterarse de que se rechazó y por qué. Solo Anticipo y Reembolso
+ * mandan el segundo correo — Gasto directo nunca mandó el de creación (ver
+ * app/gastos/nueva/actions.ts), así que tampoco le corresponde el de
+ * anulación.
+ */
+export async function rechazarPorContabilidad(id: string, motivo: string): Promise<void> {
+  if (!motivo.trim()) throw new Error('El motivo del rechazo es obligatorio.')
   const usuario = await exigirUsuario()
+  const perfil = await perfilActual()
+  const supabase = crearClienteServidor()
+
+  const { data: solicitud, error } = await supabase
+    .schema('gastos')
+    .from('solicitudes_gasto')
+    .select('id, codigo, tipo, moneda, monto_solicitado, descripcion, creador_correo')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !solicitud) throw new Error('No se encontró la solicitud.')
+
   await cambiarEstado(id, ['pendiente_contabilidad'], 'rechazada_contabilidad', {
-    aprobado_contabilidad_por: usuario.id, aprobado_contabilidad_fecha: new Date().toISOString(),
+    aprobado_contabilidad_por: usuario.id,
+    aprobado_contabilidad_fecha: new Date().toISOString(),
+    rechazo_motivo: motivo.trim(),
   })
+
+  if (solicitud.tipo === 'anticipo' || solicitud.tipo === 'reembolso') {
+    await avisarAnulacionSinRomper({
+      tipo: solicitud.tipo,
+      codigo: solicitud.codigo,
+      monto: Number(solicitud.monto_solicitado),
+      moneda: solicitud.moneda,
+      referencia: ETIQUETA_TIPO[solicitud.tipo as TipoSolicitud],
+      motivo: motivo.trim(),
+      anuladoPor: perfil?.nombre ?? usuario.email ?? 'alguien del ERP',
+      filas: [
+        { etiqueta: 'Monto', valor: formatoMonto(Number(solicitud.monto_solicitado), solicitud.moneda) },
+        { etiqueta: 'Descripción', valor: solicitud.descripcion },
+      ],
+      ruta: `/gastos/${id}`,
+      creadorCorreo: solicitud.creador_correo ?? null,
+    })
+  }
 }
 
 /**

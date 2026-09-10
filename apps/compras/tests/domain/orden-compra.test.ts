@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   calcularTotales,
+  puedeAnularse,
   puedeCerrarseParcial,
   puedeEditarse,
   redondear,
@@ -8,6 +9,21 @@ import {
   transicionPermitida,
   validarOC,
 } from '@/domain/orden-compra'
+
+describe('puedeAnularse', () => {
+  it('se puede anular en borrador, enviada o confirmada', () => {
+    expect(puedeAnularse('borrador')).toBe(true)
+    expect(puedeAnularse('enviada')).toBe(true)
+    expect(puedeAnularse('confirmada')).toBe(true)
+  })
+  it('ya no se puede anular una vez que Almacén recibió algo, ni una ya cerrada/anulada', () => {
+    expect(puedeAnularse('parcialmente_recibida')).toBe(false)
+    expect(puedeAnularse('recibida_completa')).toBe(false)
+    expect(puedeAnularse('facturada')).toBe(false)
+    expect(puedeAnularse('cerrada')).toBe(false)
+    expect(puedeAnularse('anulada')).toBe(false)
+  })
+})
 
 describe('puedeCerrarseParcial', () => {
   it('solo una OC parcialmente recibida puede cerrarse con saldo pendiente', () => {
