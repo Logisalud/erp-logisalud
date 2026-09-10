@@ -4,8 +4,12 @@ Tomado antes de vaciar el historial transaccional para arrancar la
 operación real. Cierre de la etapa de pruebas: se probaron promociones,
 bonificación manual, aprobaciones, despachos, correos y stock.
 
-**Al momento de este respaldo NO se había borrado nada.** El borrado va en
-la migración `1029_vaciar_historial_de_pedidos.sql`.
+**Borrado EJECUTADO el 2026-09-10** con la migración
+`1029_vaciar_historial_de_pedidos.sql`, después de la aprobación de los
+conteos. Las diez tablas quedaron en 0 y `orders.numero` reiniciado: se
+comprobó insertando un pedido de prueba dentro de una transacción abortada,
+que recibió el **número 1**. Queda registrado en `audit_logs` (id 4351,
+acción `vaciar_historial_pedidos`) con los conteos de antes.
 
 ## Contenido
 
