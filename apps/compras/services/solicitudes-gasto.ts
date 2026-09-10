@@ -312,6 +312,7 @@ export async function rechazarPorContabilidad(id: string, motivo: string): Promi
 
   if (solicitud.tipo === 'anticipo' || solicitud.tipo === 'reembolso') {
     await avisarAnulacionSinRomper({
+      accion: 'rechazo',
       tipo: solicitud.tipo,
       codigo: solicitud.codigo,
       monto: Number(solicitud.monto_solicitado),

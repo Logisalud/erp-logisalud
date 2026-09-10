@@ -96,6 +96,27 @@ export function estadoTrasPago(tipo: TipoSolicitud): EstadoSolicitud {
   return tipo === 'anticipo' ? 'pendiente_rendicion' : 'cerrada'
 }
 
+/**
+ * Qué falta hacer, en imperativo y desde el lado de quien pidió la plata —
+ * la contraparte de SIGUIENTE_PASO_OC/OS de domain/ordenes-unificadas.ts.
+ * ETIQUETA_ESTADO describe en qué estado está; esto dice qué sigue.
+ */
+const SIGUIENTE_PASO_SOLICITUD: Record<EstadoSolicitud, string> = {
+  pendiente_jefe: 'Esperando la aprobación de tu jefe de área',
+  rechazada_jefe: 'Rechazada por tu jefe de área',
+  pendiente_contabilidad: 'Esperando la revisión de Contabilidad',
+  rechazada_contabilidad: 'Rechazada por Contabilidad',
+  aprobada: 'Esperando el pago de Tesorería',
+  pagada: 'Pagada',
+  pendiente_rendicion: 'Subí tus comprobantes para rendir el anticipo',
+  rendida: 'Rendida — esperando el cierre',
+  cerrada: 'Ciclo cerrado',
+}
+
+export function siguientePasoSolicitud(estado: EstadoSolicitud): string {
+  return SIGUIENTE_PASO_SOLICITUD[estado]
+}
+
 export type ErrorValidacion = { campo: string; mensaje: string }
 
 /**

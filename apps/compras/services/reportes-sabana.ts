@@ -83,6 +83,11 @@ export async function obtenerSabanaMaestra(filtros: FiltrosSabana): Promise<Fila
     )
     .order('created_at', { ascending: false })
     .limit(2000)
+    // Una obligación rechazada o anulada (0043) ya no es una deuda: sin este
+    // filtro caería en el caso general de estadoYSaldoSabana y aparecería
+    // como "Pendiente" con su saldo completo, inflando lo que la empresa
+    // debe cuando se suma la columna por proveedor.
+    .not('estado', 'in', '("rechazada","anulada")')
   if (filtros.origen) q = q.eq('origen', filtros.origen)
   if (filtros.proveedorId) q = q.eq('proveedor_id', filtros.proveedorId)
   if (filtros.fechaDesde) q = q.gte('created_at', filtros.fechaDesde)

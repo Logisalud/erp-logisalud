@@ -74,7 +74,8 @@ export const ESTADOS_OBLIGACION_ABIERTA: readonly EstadoObligacion[] = [
   'en_propuesta',
 ]
 
-/** Una obligación está "abierta" (pendiente de pago) mientras no llegó a pagada/cerrada/canjeada. */
+/** Una obligación está "abierta" (pendiente de pago) mientras no llegó a
+ * pagada/cerrada/canjeada, ni la cortaron rechazándola o anulándola (0043). */
 export function esObligacionAbierta(estado: EstadoObligacion): boolean {
   return (ESTADOS_OBLIGACION_ABIERTA as readonly string[]).includes(estado)
 }

@@ -20,6 +20,14 @@ export const ESTADOS_OBLIGACION = [
   'pagada',
   'cerrada',
   'canjeada_por_letra',
+  // Dos finales de línea, distintos entre sí (0043): 'rechazada' es
+  // Contabilidad devolviendo el documento al revisarlo ("esto está mal");
+  // 'anulada' es corregir un registro que no debió existir. Los dos son
+  // estados reales y no columnas laterales para que `darConformidad` y la
+  // búsqueda de candidatos a propuesta los excluyan solas — ver el
+  // comentario largo de la migración 0043.
+  'rechazada',
+  'anulada',
 ] as const
 export type EstadoObligacion = (typeof ESTADOS_OBLIGACION)[number]
 
@@ -32,6 +40,8 @@ export const ETIQUETA_ESTADO: Record<EstadoObligacion, string> = {
   pagada: 'Pagada',
   cerrada: 'Cerrada',
   canjeada_por_letra: 'Canjeada por letra',
+  rechazada: 'Rechazada por Contabilidad',
+  anulada: 'Anulada',
 }
 
 /**
@@ -45,16 +55,19 @@ export const ETIQUETA_ESTADO: Record<EstadoObligacion, string> = {
  */
 const TRANSICIONES: Record<EstadoObligacion, readonly EstadoObligacion[]> = {
   // Pago Directo registrado con una cotización, cuando el proveedor todavía
-  // no emitió la factura: la única salida es completar los datos reales de
-  // la factura. No puede darse conformidad ni pagarse desde acá.
-  pendiente_factura: ['registrada'],
-  registrada: ['observada', 'conforme'],
+  // no emitió la factura: la única salida hacia adelante es completar los
+  // datos reales de la factura. No puede darse conformidad ni pagarse desde
+  // acá — pero sí rechazarse o anularse, que son salidas hacia atrás.
+  pendiente_factura: ['registrada', 'rechazada', 'anulada'],
+  registrada: ['observada', 'conforme', 'rechazada', 'anulada'],
   observada: ['conforme'],
   conforme: ['canjeada_por_letra'],
   en_propuesta: [],
   pagada: ['cerrada'],
   cerrada: [],
   canjeada_por_letra: [],
+  rechazada: [],
+  anulada: [],
 }
 
 export function transicionPermitida(desde: EstadoObligacion, hacia: EstadoObligacion): boolean {
@@ -77,7 +90,51 @@ export function puedeEntrarAPropuesta(estado: EstadoObligacion): boolean {
  * auditoría en vez de agregar 'anulada' a su CHECK.
  */
 export function puedeAnularsePagoDirecto(estado: EstadoObligacion): boolean {
-  return estado === 'pendiente_factura' || estado === 'registrada'
+  return transicionPermitida(estado, 'anulada')
+}
+
+/**
+ * "Rechazar" es la contraparte de "Dar conformidad": Contabilidad revisa la
+ * factura (o la cotización, si todavía no hay factura) y la devuelve. Misma
+ * ventana que anular — una vez que dio conformidad, la obligación ya está en
+ * camino a pagarse y sale del alcance de esta pieza.
+ *
+ * Distinto de anular: anular es corregir un registro que no debió existir
+ * (error de captura de quien lo cargó); rechazar es una decisión de revisión
+ * de Contabilidad sobre un registro que sí existía bien.
+ */
+export function puedeRechazarsePagoDirecto(estado: EstadoObligacion): boolean {
+  return transicionPermitida(estado, 'rechazada')
+}
+
+/**
+ * Qué falta hacer con esta obligación, en imperativo — la contraparte de
+ * SIGUIENTE_PASO_OC/OS de domain/ordenes-unificadas.ts, que hasta ahora no
+ * existía para obligaciones (ETIQUETA_ESTADO describe el estado, no dice qué
+ * hacer).
+ */
+const SIGUIENTE_PASO_PAGO_DIRECTO: Record<EstadoObligacion, string> = {
+  pendiente_factura: 'Completar los datos de la factura cuando llegue',
+  registrada: 'Esperando la revisión de Contabilidad',
+  observada: 'Resolver lo observado por Contabilidad',
+  conforme: 'Esperando la propuesta de pago de Tesorería',
+  en_propuesta: 'Esperando la aprobación de Gerencia',
+  pagada: 'Pagado — el voucher cierra el ciclo',
+  cerrada: 'Ciclo cerrado',
+  canjeada_por_letra: 'Canjeada por letras — se paga en sus vencimientos',
+  rechazada: 'Rechazado por Contabilidad',
+  anulada: 'Registro anulado',
+}
+
+export function siguientePasoPagoDirecto(estado: EstadoObligacion): string {
+  return SIGUIENTE_PASO_PAGO_DIRECTO[estado]
+}
+
+/** Una obligación está pagada cuando Tesorería ejecutó el pago (`pagada`) o
+ * cuando ya se cerró después de eso (`cerrada`) — ver services/pagos.ts,
+ * que pone 'pagada' en la misma operación que registra el pago. */
+export function obligacionPagada(estado: EstadoObligacion): boolean {
+  return estado === 'pagada' || estado === 'cerrada'
 }
 
 /**

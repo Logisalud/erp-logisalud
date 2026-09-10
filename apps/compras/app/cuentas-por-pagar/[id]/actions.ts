@@ -1,7 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { darConformidad, anularPagoDirecto, obtenerObligacion, obtenerUrlLegajoPagoDirecto } from '@/services/obligaciones'
+import {
+  darConformidad, anularPagoDirecto, rechazarPagoDirecto,
+  obtenerObligacion, obtenerUrlLegajoPagoDirecto,
+} from '@/services/obligaciones'
 import { registrarNotaCredito, aplicarNotaCredito } from '@/services/notas-credito'
 import { obtenerUrlLegajoPago } from '@/services/pagos'
 
@@ -25,6 +28,21 @@ export async function anularPagoDirectoAction(
   const motivo = String(form.get('motivo') ?? '')
   try {
     await anularPagoDirecto(obligacionId, motivo)
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  return null
+}
+
+export async function rechazarPagoDirectoAction(
+  obligacionId: string,
+  _previo: EstadoAccion,
+  form: FormData
+): Promise<EstadoAccion> {
+  const motivo = String(form.get('motivo') ?? '')
+  try {
+    await rechazarPagoDirecto(obligacionId, motivo)
   } catch (e) {
     return { error: (e as Error).message }
   }
