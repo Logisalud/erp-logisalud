@@ -1,0 +1,50 @@
+[
+ {
+  "id": "65791964-d764-4548-8fff-1140ee0fc9fc",
+  "order_id": "2033e791-5c0f-46bb-b09e-23b6e3f65049",
+  "autor": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "comentario": "Con cita",
+  "contexto": null,
+  "fecha": "2026-08-31T21:22:55.146909+00:00"
+ },
+ {
+  "id": "d31785e0-30c7-4b50-b235-952e5947e92f",
+  "order_id": "6f98ab73-8025-4bdd-9c77-ebf16eae3524",
+  "autor": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "comentario": "Enviar el lunes",
+  "contexto": null,
+  "fecha": "2026-08-31T21:43:51.797021+00:00"
+ },
+ {
+  "id": "cdd4b071-8724-42ef-8d2a-3d7947a774b7",
+  "order_id": "73982bd9-bc6f-431c-aae8-0bed45a2c929",
+  "autor": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "comentario": "Prueba del motor de promociones: 2 Vitamina E con su bonificacion 1+1.",
+  "contexto": null,
+  "fecha": "2026-09-03T03:08:17.282186+00:00"
+ },
+ {
+  "id": "6954bfce-4da1-49ac-9569-20ca4708c8ae",
+  "order_id": "f189e06f-1e5d-4054-b285-31e86dda821d",
+  "autor": "d0f0a50b-464e-46a8-b81b-fc40b595526b",
+  "comentario": "Bonificacion por PAP",
+  "contexto": null,
+  "fecha": "2026-09-03T18:01:07.012646+00:00"
+ },
+ {
+  "id": "81319d42-4945-4cd9-908c-d468d47a3c8f",
+  "order_id": "6b1dbb43-d4e3-4b0f-b6a8-be6836b5ef07",
+  "autor": "c4013e58-4610-4eda-bfcc-eb48c065fc41",
+  "comentario": ".",
+  "contexto": null,
+  "fecha": "2026-09-05T14:50:33.053633+00:00"
+ },
+ {
+  "id": "9e576f3e-160f-4c5f-9ed8-6c617a62a580",
+  "order_id": "1b01ee98-a167-49b5-854f-5991fa75f61e",
+  "autor": "bad18086-4a75-4526-a9e2-a21b8365e0b4",
+  "comentario": "ENTREGAR EL LUNES",
+  "contexto": null,
+  "fecha": "2026-09-10T18:15:41.014413+00:00"
+ }
+]

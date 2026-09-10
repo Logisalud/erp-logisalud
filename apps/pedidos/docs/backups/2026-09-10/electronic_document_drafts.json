@@ -1,0 +1,896 @@
+[
+ {
+  "id": "5b28911e-bdca-4468-ba1e-4c9f996feb5d",
+  "order_id": "bc4d9bf7-7f4b-4e99-886d-c74b249bdd00",
+  "fulfillment_id": "8d15cbc3-59e2-49bc-bb22-94e220af7be6",
+  "tipo": "COMPROBANTE",
+  "tipo_comprobante": "FACTURA",
+  "payload": {
+   "items": [
+    {
+     "igv": 0.45,
+     "total": 2.95,
+     "codigo": "DHP014",
+     "cantidad": 1,
+     "subtotal": 2.5,
+     "descripcion": "A - FIEBRIN",
+     "tipo_de_igv": 1,
+     "valor_unitario": 2.5,
+     "precio_unitario": 2.95,
+     "unidad_de_medida": "AMPOLLA"
+    }
+   ],
+   "serie": "F001",
+   "total": 2.95,
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "moneda": 1,
+   "numero": 11,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "El cliente admite FACTURA o BOLETA y el pedido no registra cuál eligió el vendedor (orders no tiene ese campo todavía). Se asumió FACTURA — confirmar antes de emitir.",
+     "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+     "La serie \"F001\" y el número 11 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 11,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_comprobante",
+   "total_igv": 0.45,
+   "observaciones": "Pedido interno #11 · Vendedor: MALENA GAONA · Condición de pago: Contado",
+   "total_gravada": 2.5,
+   "total_inafecta": 0,
+   "fecha_de_emision": "11-08-2026",
+   "cliente_direccion": "AV.123",
+   "porcentaje_de_igv": 18,
+   "sunat_transaction": 1,
+   "tipo_de_comprobante": 1,
+   "cliente_denominacion": "* BOTICA EL ROSARIO",
+   "cliente_tipo_de_documento": 6,
+   "cliente_numero_de_documento": "10209880976"
+  },
+  "advertencias": [
+   "El cliente admite FACTURA o BOLETA y el pedido no registra cuál eligió el vendedor (orders no tiene ese campo todavía). Se asumió FACTURA — confirmar antes de emitir.",
+   "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+   "La serie \"F001\" y el número 11 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+  ],
+  "generado_en": "2026-08-14T17:13:53.61276+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "333f5f01-bfd8-40db-9b66-b44bb3a74212",
+  "order_id": "bc4d9bf7-7f4b-4e99-886d-c74b249bdd00",
+  "fulfillment_id": "8d15cbc3-59e2-49bc-bb22-94e220af7be6",
+  "tipo": "GUIA_REMISION",
+  "tipo_comprobante": null,
+  "payload": {
+   "items": [
+    {
+     "codigo": "DHP014",
+     "cantidad": 1,
+     "descripcion": "A - FIEBRIN",
+     "unidad_de_medida": "AMPOLLA"
+    }
+   ],
+   "serie": "T001",
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "numero": 11,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+     "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+     "1 de 1 producto(s) no tienen peso unitario registrado (DHP014), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+     "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 11,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_guia",
+   "observaciones": "Pedido interno #11 · Fuente: Almacén Central Lima · Almacén: Almacén Central Lima",
+   "fecha_de_emision": "14-08-2026",
+   "numero_de_bultos": 1,
+   "peso_bruto_total": 0,
+   "motivo_de_traslado": "01",
+   "tipo_de_transporte": "02",
+   "tipo_de_comprobante": 7,
+   "cliente_denominacion": "* BOTICA EL ROSARIO",
+   "cliente_destinatario": "* BOTICA EL ROSARIO",
+   "conductor_denominacion": "MICHELE YERMAIN MAURIELLO DIAZ",
+   "punto_de_llegada_ubigeo": "",
+   "punto_de_partida_ubigeo": "150119",
+   "cliente_tipo_de_documento": 6,
+   "punto_de_llegada_direccion": "AV.123",
+   "punto_de_partida_direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08",
+   "transportista_denominacion": "",
+   "transportista_placa_numero": "BKW757 - Hyundai",
+   "cliente_numero_de_documento": "10209880976",
+   "fecha_de_inicio_de_traslado": "14-08-2026",
+   "peso_bruto_unidad_de_medida": "KGM",
+   "transportista_documento_tipo": ""
+  },
+  "advertencias": [
+   "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+   "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+   "1 de 1 producto(s) no tienen peso unitario registrado (DHP014), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+   "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+  ],
+  "generado_en": "2026-08-14T17:13:53.61276+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "1cea88a4-7e23-47b1-bd8b-21010099a9d7",
+  "order_id": "bda13eb3-d08a-4fb2-9b07-d2c43bf04dbb",
+  "fulfillment_id": "a330be7f-1bfd-42a4-913b-8be39c0db6ac",
+  "tipo": "COMPROBANTE",
+  "tipo_comprobante": "FACTURA",
+  "payload": {
+   "items": [
+    {
+     "igv": 2.44,
+     "total": 16,
+     "codigo": "DHP200",
+     "cantidad": 1,
+     "subtotal": 13.56,
+     "descripcion": "VITAMINA E 400 UI CJA. X 30 CAP. BDA.",
+     "tipo_de_igv": 1,
+     "valor_unitario": 13.5593,
+     "precio_unitario": 16,
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    }
+   ],
+   "serie": "F001",
+   "total": 16,
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "moneda": 1,
+   "numero": 16,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "El cliente admite FACTURA o BOLETA y el pedido no registra cuál eligió el vendedor (orders no tiene ese campo todavía). Se asumió FACTURA — confirmar antes de emitir.",
+     "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+     "La serie \"F001\" y el número 16 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 16,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_comprobante",
+   "total_igv": 2.44,
+   "observaciones": "Pedido interno #16 · Vendedor: TITO MINGUILLO · Condición de pago: Contado",
+   "total_gravada": 13.56,
+   "total_inafecta": 0,
+   "fecha_de_emision": "25-08-2026",
+   "cliente_direccion": "AV.123",
+   "porcentaje_de_igv": 18,
+   "sunat_transaction": 1,
+   "tipo_de_comprobante": 1,
+   "cliente_denominacion": "* BOTICA EL ROSARIO",
+   "cliente_tipo_de_documento": 6,
+   "cliente_numero_de_documento": "10209880976"
+  },
+  "advertencias": [
+   "El cliente admite FACTURA o BOLETA y el pedido no registra cuál eligió el vendedor (orders no tiene ese campo todavía). Se asumió FACTURA — confirmar antes de emitir.",
+   "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+   "La serie \"F001\" y el número 16 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+  ],
+  "generado_en": "2026-08-25T23:46:27.522255+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "6661ff0d-7590-4d09-aaa1-448be2ae34ea",
+  "order_id": "bda13eb3-d08a-4fb2-9b07-d2c43bf04dbb",
+  "fulfillment_id": "a330be7f-1bfd-42a4-913b-8be39c0db6ac",
+  "tipo": "GUIA_REMISION",
+  "tipo_comprobante": null,
+  "payload": {
+   "items": [
+    {
+     "codigo": "DHP200",
+     "cantidad": 1,
+     "descripcion": "VITAMINA E 400 UI CJA. X 30 CAP. BDA.",
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    }
+   ],
+   "serie": "T001",
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "numero": 16,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+     "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+     "1 de 1 producto(s) no tienen peso unitario registrado (DHP200), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+     "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 16,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_guia",
+   "observaciones": "Pedido interno #16 · Fuente: Almacén Central Lima · Almacén: Almacén Central Lima",
+   "fecha_de_emision": "25-08-2026",
+   "numero_de_bultos": 1,
+   "peso_bruto_total": 0,
+   "motivo_de_traslado": "01",
+   "tipo_de_transporte": "02",
+   "tipo_de_comprobante": 7,
+   "cliente_denominacion": "* BOTICA EL ROSARIO",
+   "cliente_destinatario": "* BOTICA EL ROSARIO",
+   "conductor_denominacion": "MICHELE YERMAIN MAURIELLO DIAZ",
+   "punto_de_llegada_ubigeo": "",
+   "punto_de_partida_ubigeo": "150119",
+   "cliente_tipo_de_documento": 6,
+   "punto_de_llegada_direccion": "AV.123",
+   "punto_de_partida_direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08",
+   "transportista_denominacion": "",
+   "transportista_placa_numero": "BKW757 - Hyundai",
+   "cliente_numero_de_documento": "10209880976",
+   "fecha_de_inicio_de_traslado": "25-08-2026",
+   "peso_bruto_unidad_de_medida": "KGM",
+   "transportista_documento_tipo": ""
+  },
+  "advertencias": [
+   "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+   "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+   "1 de 1 producto(s) no tienen peso unitario registrado (DHP200), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+   "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+  ],
+  "generado_en": "2026-08-25T23:46:27.522255+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "3def6872-46f2-4181-900b-83e3ec308afa",
+  "order_id": "8f1cb659-77d8-40c8-8ab6-bc962c152eda",
+  "fulfillment_id": "b23552fa-8026-4b63-8d59-db4480682cf6",
+  "tipo": "COMPROBANTE",
+  "tipo_comprobante": "FACTURA",
+  "payload": {
+   "items": [
+    {
+     "igv": 0.76,
+     "total": 5,
+     "codigo": "DHP014",
+     "cantidad": 2,
+     "subtotal": 4.24,
+     "descripcion": "A - FIEBRIN 1G/ 2ML CJA X 1 AMP.",
+     "tipo_de_igv": 1,
+     "valor_unitario": 2.1186,
+     "precio_unitario": 2.5,
+     "unidad_de_medida": "AMPOLLA"
+    }
+   ],
+   "serie": "F001",
+   "total": 5,
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "moneda": 1,
+   "numero": 18,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "El cliente admite FACTURA o BOLETA y el pedido no registra cuál eligió el vendedor (orders no tiene ese campo todavía). Se asumió FACTURA — confirmar antes de emitir.",
+     "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+     "La serie \"F001\" y el número 18 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 18,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_comprobante",
+   "total_igv": 0.76,
+   "observaciones": "Pedido interno #18 · Vendedor: LUPE CASTRO · Condición de pago: Contado",
+   "total_gravada": 4.24,
+   "total_inafecta": 0,
+   "fecha_de_emision": "25-08-2026",
+   "cliente_direccion": "AV.123",
+   "porcentaje_de_igv": 18,
+   "sunat_transaction": 1,
+   "tipo_de_comprobante": 1,
+   "cliente_denominacion": "* BOTICA EL ROSARIO",
+   "cliente_tipo_de_documento": 6,
+   "cliente_numero_de_documento": "10209880976"
+  },
+  "advertencias": [
+   "El cliente admite FACTURA o BOLETA y el pedido no registra cuál eligió el vendedor (orders no tiene ese campo todavía). Se asumió FACTURA — confirmar antes de emitir.",
+   "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+   "La serie \"F001\" y el número 18 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+  ],
+  "generado_en": "2026-08-26T02:54:24.078658+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "7e2356f6-3ece-42d1-b43c-57fe32cc61bf",
+  "order_id": "8f1cb659-77d8-40c8-8ab6-bc962c152eda",
+  "fulfillment_id": "b23552fa-8026-4b63-8d59-db4480682cf6",
+  "tipo": "GUIA_REMISION",
+  "tipo_comprobante": null,
+  "payload": {
+   "items": [
+    {
+     "codigo": "DHP014",
+     "cantidad": 2,
+     "descripcion": "A - FIEBRIN 1G/ 2ML CJA X 1 AMP.",
+     "unidad_de_medida": "AMPOLLA"
+    }
+   ],
+   "serie": "T001",
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "numero": 18,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+     "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+     "1 de 1 producto(s) no tienen peso unitario registrado (DHP014), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+     "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 18,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_guia",
+   "observaciones": "Pedido interno #18 · Fuente: Almacén Central Lima · Almacén: Almacén Central Lima",
+   "fecha_de_emision": "25-08-2026",
+   "numero_de_bultos": 1,
+   "peso_bruto_total": 0,
+   "motivo_de_traslado": "01",
+   "tipo_de_transporte": "02",
+   "tipo_de_comprobante": 7,
+   "cliente_denominacion": "* BOTICA EL ROSARIO",
+   "cliente_destinatario": "* BOTICA EL ROSARIO",
+   "conductor_denominacion": "MICHELE YERMAIN MAURIELLO DIAZ",
+   "punto_de_llegada_ubigeo": "",
+   "punto_de_partida_ubigeo": "150119",
+   "cliente_tipo_de_documento": 6,
+   "punto_de_llegada_direccion": "AV.123",
+   "punto_de_partida_direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08",
+   "transportista_denominacion": "",
+   "transportista_placa_numero": "BKW757 - Hyundai",
+   "cliente_numero_de_documento": "10209880976",
+   "fecha_de_inicio_de_traslado": "25-08-2026",
+   "peso_bruto_unidad_de_medida": "KGM",
+   "transportista_documento_tipo": ""
+  },
+  "advertencias": [
+   "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+   "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+   "1 de 1 producto(s) no tienen peso unitario registrado (DHP014), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+   "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+  ],
+  "generado_en": "2026-08-26T02:54:24.078658+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "88db79f1-987b-4acc-936f-4d0a5904d273",
+  "order_id": "273dd4ed-66af-4bec-8562-2654507b44d4",
+  "fulfillment_id": "7b9e7742-c8b8-4c66-b42e-9b3fc678ba59",
+  "tipo": "COMPROBANTE",
+  "tipo_comprobante": "FACTURA",
+  "payload": {
+   "items": [
+    {
+     "igv": 0.76,
+     "total": 5,
+     "codigo": "DHP014",
+     "cantidad": 2,
+     "subtotal": 4.24,
+     "descripcion": "A - FIEBRIN 1G/ 2ML CJA X 1 AMP.",
+     "tipo_de_igv": 1,
+     "valor_unitario": 2.1186,
+     "precio_unitario": 2.5,
+     "unidad_de_medida": "AMPOLLA"
+    },
+    {
+     "igv": 5.8,
+     "total": 38,
+     "codigo": "BSA102",
+     "cantidad": 2,
+     "subtotal": 32.2,
+     "descripcion": "BIOPROPOL N CJA X 1 FCO X 120ML",
+     "tipo_de_igv": 1,
+     "valor_unitario": 16.1017,
+     "precio_unitario": 19,
+     "unidad_de_medida": "FRASCO"
+    }
+   ],
+   "serie": "F001",
+   "total": 43,
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "moneda": 1,
+   "numero": 21,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "El cliente admite FACTURA o BOLETA y el pedido no registra cuál eligió el vendedor (orders no tiene ese campo todavía). Se asumió FACTURA — confirmar antes de emitir.",
+     "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+     "La serie \"F001\" y el número 21 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 21,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_comprobante",
+   "total_igv": 6.56,
+   "observaciones": "Pedido interno #21 · Vendedor: CINTHYA VILCHEZ · Condición de pago: Crédito 120 días",
+   "total_gravada": 36.44,
+   "total_inafecta": 0,
+   "fecha_de_emision": "31-08-2026",
+   "cliente_direccion": "AV.123",
+   "porcentaje_de_igv": 18,
+   "sunat_transaction": 1,
+   "tipo_de_comprobante": 1,
+   "cliente_denominacion": "* BOTICA EL ROSARIO",
+   "cliente_tipo_de_documento": 6,
+   "cliente_numero_de_documento": "10209880976"
+  },
+  "advertencias": [
+   "El cliente admite FACTURA o BOLETA y el pedido no registra cuál eligió el vendedor (orders no tiene ese campo todavía). Se asumió FACTURA — confirmar antes de emitir.",
+   "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+   "La serie \"F001\" y el número 21 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+  ],
+  "generado_en": "2026-08-31T21:10:08.991047+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "dfd84db6-5323-4330-9c78-168c29864356",
+  "order_id": "273dd4ed-66af-4bec-8562-2654507b44d4",
+  "fulfillment_id": "7b9e7742-c8b8-4c66-b42e-9b3fc678ba59",
+  "tipo": "GUIA_REMISION",
+  "tipo_comprobante": null,
+  "payload": {
+   "items": [
+    {
+     "codigo": "DHP014",
+     "cantidad": 2,
+     "descripcion": "A - FIEBRIN 1G/ 2ML CJA X 1 AMP.",
+     "unidad_de_medida": "AMPOLLA"
+    },
+    {
+     "codigo": "BSA102",
+     "cantidad": 2,
+     "descripcion": "BIOPROPOL N CJA X 1 FCO X 120ML",
+     "unidad_de_medida": "FRASCO"
+    }
+   ],
+   "serie": "T001",
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "numero": 21,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+     "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+     "2 de 2 producto(s) no tienen peso unitario registrado (DHP014, BSA102), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+     "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 21,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_guia",
+   "observaciones": "Pedido interno #21 · Fuente: Almacén Central Lima · Almacén: Almacén Central Lima",
+   "fecha_de_emision": "31-08-2026",
+   "numero_de_bultos": 2,
+   "peso_bruto_total": 0,
+   "motivo_de_traslado": "01",
+   "tipo_de_transporte": "02",
+   "tipo_de_comprobante": 7,
+   "cliente_denominacion": "* BOTICA EL ROSARIO",
+   "cliente_destinatario": "* BOTICA EL ROSARIO",
+   "conductor_denominacion": "MICHELE YERMAIN MAURIELLO DIAZ",
+   "punto_de_llegada_ubigeo": "",
+   "punto_de_partida_ubigeo": "150119",
+   "cliente_tipo_de_documento": 6,
+   "punto_de_llegada_direccion": "AV.123",
+   "punto_de_partida_direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08",
+   "transportista_denominacion": "",
+   "transportista_placa_numero": "BKW757 - Hyundai",
+   "cliente_numero_de_documento": "10209880976",
+   "fecha_de_inicio_de_traslado": "31-08-2026",
+   "peso_bruto_unidad_de_medida": "KGM",
+   "transportista_documento_tipo": ""
+  },
+  "advertencias": [
+   "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+   "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+   "2 de 2 producto(s) no tienen peso unitario registrado (DHP014, BSA102), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+   "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+  ],
+  "generado_en": "2026-08-31T21:10:08.991047+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "f4dedb8f-aa6b-411e-8072-8e72a1886370",
+  "order_id": "f32f2efa-197e-42e5-8ecd-7984a7329c54",
+  "fulfillment_id": "1dee6e6a-d687-4255-89e6-6469c8e57ede",
+  "tipo": "COMPROBANTE",
+  "tipo_comprobante": "FACTURA",
+  "payload": {
+   "items": [
+    {
+     "igv": 2.44,
+     "total": 16,
+     "codigo": "DHP200",
+     "cantidad": 1,
+     "subtotal": 13.56,
+     "descripcion": "VITAMINA E 400 UI CJA. X 30 CAP. BDA.",
+     "tipo_de_igv": 1,
+     "valor_unitario": 13.5593,
+     "precio_unitario": 16,
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    },
+    {
+     "igv": 18.03,
+     "total": 118.2,
+     "codigo": "DHP205",
+     "cantidad": 2,
+     "subtotal": 100.17,
+     "descripcion": "PROSTAMICIL 320 320 MG CJA X 30 CAP. BDA",
+     "tipo_de_igv": 1,
+     "valor_unitario": 50.0847,
+     "precio_unitario": 59.1,
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    }
+   ],
+   "serie": "F001",
+   "total": 134.2,
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "moneda": 1,
+   "numero": 27,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+     "La serie \"F001\" y el número 27 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 27,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_comprobante",
+   "total_igv": 20.47,
+   "observaciones": "Pedido interno #27 · Vendedor: LUIS VARGAS · Condición de pago: Contado",
+   "total_gravada": 113.73,
+   "total_inafecta": 0,
+   "fecha_de_emision": "31-08-2026",
+   "cliente_direccion": "Abc",
+   "porcentaje_de_igv": 18,
+   "sunat_transaction": 1,
+   "tipo_de_comprobante": 1,
+   "cliente_denominacion": "INVERSIONES BIOFAR S.A.C.",
+   "cliente_tipo_de_documento": 6,
+   "cliente_numero_de_documento": "20517006514"
+  },
+  "advertencias": [
+   "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+   "La serie \"F001\" y el número 27 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+  ],
+  "generado_en": "2026-09-01T00:05:10.112991+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "f27f402c-81aa-4dac-84c5-d7f558e5e0a5",
+  "order_id": "f32f2efa-197e-42e5-8ecd-7984a7329c54",
+  "fulfillment_id": "1dee6e6a-d687-4255-89e6-6469c8e57ede",
+  "tipo": "GUIA_REMISION",
+  "tipo_comprobante": null,
+  "payload": {
+   "items": [
+    {
+     "codigo": "DHP200",
+     "cantidad": 1,
+     "descripcion": "VITAMINA E 400 UI CJA. X 30 CAP. BDA.",
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    },
+    {
+     "codigo": "DHP205",
+     "cantidad": 2,
+     "descripcion": "PROSTAMICIL 320 320 MG CJA X 30 CAP. BDA",
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    }
+   ],
+   "serie": "T001",
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "numero": 27,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+     "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+     "2 de 2 producto(s) no tienen peso unitario registrado (DHP200, DHP205), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+     "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 27,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_guia",
+   "observaciones": "Pedido interno #27 · Fuente: Almacén Central Lima · Almacén: Almacén Central Lima",
+   "fecha_de_emision": "31-08-2026",
+   "numero_de_bultos": 2,
+   "peso_bruto_total": 0,
+   "motivo_de_traslado": "01",
+   "tipo_de_transporte": "02",
+   "tipo_de_comprobante": 7,
+   "cliente_denominacion": "INVERSIONES BIOFAR S.A.C.",
+   "cliente_destinatario": "INVERSIONES BIOFAR S.A.C.",
+   "conductor_denominacion": "MICHELE YERMAIN MAURIELLO DIAZ",
+   "punto_de_llegada_ubigeo": "",
+   "punto_de_partida_ubigeo": "150119",
+   "cliente_tipo_de_documento": 6,
+   "punto_de_llegada_direccion": "Abc",
+   "punto_de_partida_direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08",
+   "transportista_denominacion": "",
+   "transportista_placa_numero": "BKW757 - Hyundai",
+   "cliente_numero_de_documento": "20517006514",
+   "fecha_de_inicio_de_traslado": "31-08-2026",
+   "peso_bruto_unidad_de_medida": "KGM",
+   "transportista_documento_tipo": ""
+  },
+  "advertencias": [
+   "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+   "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+   "2 de 2 producto(s) no tienen peso unitario registrado (DHP200, DHP205), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía.",
+   "La dirección de entrega del cliente no tiene ubigeo; la guía lo exige como punto de llegada."
+  ],
+  "generado_en": "2026-09-01T00:05:10.112991+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "65bfc788-6347-4633-8af8-51d16ac816ab",
+  "order_id": "84a89c77-eb8a-4e73-b6fd-2b52b2b921bb",
+  "fulfillment_id": "2aa3f80b-9af9-4447-9a85-32877b10cfae",
+  "tipo": "COMPROBANTE",
+  "tipo_comprobante": "FACTURA",
+  "payload": {
+   "items": [
+    {
+     "igv": 4.88,
+     "total": 32,
+     "codigo": "DHP200",
+     "cantidad": 2,
+     "subtotal": 27.12,
+     "descripcion": "VITAMINA E 400 UI CJA. X 30 CAP. BDA.",
+     "tipo_de_igv": 1,
+     "valor_unitario": 13.5593,
+     "precio_unitario": 16,
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    },
+    {
+     "igv": 0.76,
+     "total": 5,
+     "codigo": "DHP014",
+     "cantidad": 2,
+     "subtotal": 4.24,
+     "descripcion": "A - FIEBRIN 1G/ 2ML CJA X 1 AMP.",
+     "tipo_de_igv": 1,
+     "valor_unitario": 2.1186,
+     "precio_unitario": 2.5,
+     "unidad_de_medida": "AMPOLLA"
+    },
+    {
+     "igv": 0,
+     "total": 0,
+     "codigo": "DHP014",
+     "cantidad": 2,
+     "subtotal": 0,
+     "descripcion": "A - FIEBRIN 1G/ 2ML CJA X 1 AMP.",
+     "tipo_de_igv": 1,
+     "valor_unitario": 0,
+     "precio_unitario": 0,
+     "unidad_de_medida": "AMPOLLA"
+    },
+    {
+     "igv": 0,
+     "total": 0,
+     "codigo": "DHP200",
+     "cantidad": 2,
+     "subtotal": 0,
+     "descripcion": "VITAMINA E 400 UI CJA. X 30 CAP. BDA.",
+     "tipo_de_igv": 1,
+     "valor_unitario": 0,
+     "precio_unitario": 0,
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    }
+   ],
+   "serie": "F001",
+   "total": 37,
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "moneda": 1,
+   "numero": 58,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+     "La serie \"F001\" y el número 58 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 58,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_comprobante",
+   "total_igv": 5.64,
+   "observaciones": "Pedido interno #58 · Vendedor: VENDEDOR DE PRUEBA ADMIN 1 · Condición de pago: Crédito 120 días",
+   "total_gravada": 31.36,
+   "total_inafecta": 0,
+   "fecha_de_emision": "03-09-2026",
+   "cliente_direccion": "AV. AUGUSTO SALAZAR BONDY 131 NRO. . URB. SAN JUAN-SAN JUAN DE  MIRAFLORES-LIMA -LIMA",
+   "porcentaje_de_igv": 18,
+   "sunat_transaction": 1,
+   "tipo_de_comprobante": 1,
+   "cliente_denominacion": "CORPORACION BOTICAS PERU S.A.C.",
+   "cliente_tipo_de_documento": 6,
+   "cliente_numero_de_documento": "20515346113"
+  },
+  "advertencias": [
+   "El bloque `emisor` sale de pedidos.company_settings. NubeFact normalmente toma al emisor de la configuración de la cuenta, así que este bloque puede sobrar en el payload real — confirmar contra el manual.",
+   "La serie \"F001\" y el número 58 son PLACEHOLDER. La serie real la autoriza SUNAT y el correlativo fiscal lo lleva NubeFact; orders.numero es el número interno del pedido, no el del comprobante."
+  ],
+  "generado_en": "2026-09-03T14:52:18.378928+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ },
+ {
+  "id": "00029085-c797-4f58-833f-4e9e5c8cc1f5",
+  "order_id": "84a89c77-eb8a-4e73-b6fd-2b52b2b921bb",
+  "fulfillment_id": "2aa3f80b-9af9-4447-9a85-32877b10cfae",
+  "tipo": "GUIA_REMISION",
+  "tipo_comprobante": null,
+  "payload": {
+   "items": [
+    {
+     "codigo": "DHP200",
+     "cantidad": 2,
+     "descripcion": "VITAMINA E 400 UI CJA. X 30 CAP. BDA.",
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    },
+    {
+     "codigo": "DHP014",
+     "cantidad": 2,
+     "descripcion": "A - FIEBRIN 1G/ 2ML CJA X 1 AMP.",
+     "unidad_de_medida": "AMPOLLA"
+    },
+    {
+     "codigo": "DHP014",
+     "cantidad": 2,
+     "descripcion": "A - FIEBRIN 1G/ 2ML CJA X 1 AMP.",
+     "unidad_de_medida": "AMPOLLA"
+    },
+    {
+     "codigo": "DHP200",
+     "cantidad": 2,
+     "descripcion": "VITAMINA E 400 UI CJA. X 30 CAP. BDA.",
+     "unidad_de_medida": "CÁPSULA BLANDA"
+    }
+   ],
+   "serie": "T001",
+   "emisor": {
+    "ruc": "20610284508",
+    "email": "hola@logisalud.com",
+    "ubigeo": "150119",
+    "telefono": "950242412",
+    "direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08, LURIN - LIMA - LIMA",
+    "razon_social": "LOGISSA SOCIEDAD ANONIMA CERRADA"
+   },
+   "numero": 58,
+   "_borrador": {
+    "aviso": "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+    "advertencias": [
+     "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+     "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+     "4 de 4 producto(s) no tienen peso unitario registrado (DHP200, DHP014, DHP014, DHP200), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía."
+    ],
+    "generado_por": "erp-logisalud-pedidos",
+    "pedido_numero": 58,
+    "quitar_este_bloque_antes_de_enviar": true
+   },
+   "operacion": "generar_guia",
+   "observaciones": "Pedido interno #58 · Fuente: Almacén Central Lima · Almacén: Almacén Central Lima",
+   "fecha_de_emision": "03-09-2026",
+   "numero_de_bultos": 4,
+   "peso_bruto_total": 0,
+   "motivo_de_traslado": "01",
+   "tipo_de_transporte": "02",
+   "tipo_de_comprobante": 7,
+   "cliente_denominacion": "CORPORACION BOTICAS PERU S.A.C.",
+   "cliente_destinatario": "CORPORACION BOTICAS PERU S.A.C.",
+   "conductor_denominacion": "MICHELE YERMAIN MAURIELLO DIAZ",
+   "punto_de_llegada_ubigeo": "070101",
+   "punto_de_partida_ubigeo": "150119",
+   "cliente_tipo_de_documento": 6,
+   "punto_de_llegada_direccion": "AV. AUGUSTO SALAZAR BONDY 131 NRO. . URB. SAN JUAN-SAN JUAN DE  MIRAFLORES-LIMA -LIMA",
+   "punto_de_partida_direccion": "CAR. PANAMERICANA SUR KM.29.5 INT.A-08",
+   "transportista_denominacion": "",
+   "transportista_placa_numero": "BKW757 - Hyundai",
+   "cliente_numero_de_documento": "20515346113",
+   "fecha_de_inicio_de_traslado": "03-09-2026",
+   "peso_bruto_unidad_de_medida": "KGM",
+   "transportista_documento_tipo": ""
+  },
+  "advertencias": [
+   "BORRADOR SIN VALIDAR — generado localmente para revisión humana. No se envió a NubeFact. Los nombres y códigos de campo están sin confirmar contra el manual oficial.",
+   "La serie y el número de la guía son PLACEHOLDER; los autoriza SUNAT y los lleva NubeFact.",
+   "4 de 4 producto(s) no tienen peso unitario registrado (DHP200, DHP014, DHP014, DHP200), así que peso_bruto_total (0) está incompleto. SUNAT exige el peso bruto real en la guía."
+  ],
+  "generado_en": "2026-09-03T14:52:18.378928+00:00",
+  "generado_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba"
+ }
+]

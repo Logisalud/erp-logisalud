@@ -1,0 +1,110 @@
+[
+ {
+  "id": "5e83b59b-0bf5-4809-8dd8-bf2e61e59a61",
+  "approval_request_id": "a8656e11-de5c-474b-8a29-a133cdf536bb",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": null,
+  "comentario": null,
+  "fecha": "2026-08-31T21:38:35.107924+00:00"
+ },
+ {
+  "id": "44d049b1-bed2-46d8-adf4-f49808ba351f",
+  "approval_request_id": "77e855f0-e1ce-4c48-8c76-8fb5cd3757a6",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 1.0,
+  "comentario": null,
+  "fecha": "2026-09-02T00:42:03.771191+00:00"
+ },
+ {
+  "id": "9727c8fd-bb3c-4d93-95e3-890b580b5413",
+  "approval_request_id": "e8a9d61f-9917-4753-9b66-f053fa6e1636",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 1.0,
+  "comentario": null,
+  "fecha": "2026-09-02T15:47:29.493756+00:00"
+ },
+ {
+  "id": "d7f864f4-bc7b-4082-bec5-bdb540935f3f",
+  "approval_request_id": "24e34f9f-5f8d-491e-af77-6b9b3f50719d",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 6.0,
+  "comentario": null,
+  "fecha": "2026-09-02T21:05:49.082546+00:00"
+ },
+ {
+  "id": "461def07-4e5b-4417-b553-c6ed9f72e78b",
+  "approval_request_id": "dba861b5-fd36-4ca2-9b24-e6adf775aa46",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 1.0,
+  "comentario": null,
+  "fecha": "2026-09-02T21:22:03.076795+00:00"
+ },
+ {
+  "id": "002e7bc7-1632-44f8-ada1-fdf3845c68d8",
+  "approval_request_id": "80896dba-2501-4197-acdd-fffc0f84ab28",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 0.0,
+  "comentario": "Aprobado: acuerdo comercial vigente",
+  "fecha": "2026-09-03T14:29:11.922687+00:00"
+ },
+ {
+  "id": "ce6bd9dd-3ecc-41c6-809c-cf85e901f3bc",
+  "approval_request_id": "8fdb3206-3dd6-4ad0-b99b-6aa3b2567081",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 2.0,
+  "comentario": null,
+  "fecha": "2026-09-03T14:46:29.942915+00:00"
+ },
+ {
+  "id": "78305671-bf4b-42eb-981a-8b76b6763b0d",
+  "approval_request_id": "ba70a22f-5fa3-4c7c-96ae-79883d522c2f",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 50.0,
+  "comentario": null,
+  "fecha": "2026-09-03T14:49:42.125044+00:00"
+ },
+ {
+  "id": "8af28a33-c5bf-40c5-be03-0c155e38c9c5",
+  "approval_request_id": "4b14edc2-81ff-470d-a1fc-0b7ad92e0aef",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 4.0,
+  "comentario": null,
+  "fecha": "2026-09-03T17:33:34.213717+00:00"
+ },
+ {
+  "id": "c09a4dd5-8a69-4ca8-82d0-af7e4c44e1f3",
+  "approval_request_id": "cc38de3c-e6ae-4979-9046-de844f4a9f1f",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 60.0,
+  "comentario": null,
+  "fecha": "2026-09-05T14:49:51.944438+00:00"
+ },
+ {
+  "id": "0c75231a-0c15-4efe-a471-721185c5a333",
+  "approval_request_id": "00dcd400-5b0f-406c-a4e4-4834cb8e79da",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 50.0,
+  "comentario": null,
+  "fecha": "2026-09-05T14:49:56.352666+00:00"
+ },
+ {
+  "id": "c4680724-2fb3-4d92-a7d3-0becfb0676ef",
+  "approval_request_id": "83402523-7436-429e-8d5c-cbca456c4d8e",
+  "decidido_por": "842aa287-1939-41ab-aae1-c26aa77bc9ba",
+  "decision": "APROBAR",
+  "precio_aprobado": 60.0,
+  "comentario": null,
+  "fecha": "2026-09-05T14:50:18.280053+00:00"
+ }
+]
