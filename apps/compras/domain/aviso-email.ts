@@ -122,10 +122,48 @@ export type DatosAnulacion = Omit<DatosAviso, 'filas'> & {
   motivo: string
   anuladoPor: string
   filas: FilaAviso[]
+  /**
+   * Dos cosas distintas que cortan un registro y mandan este mismo correo:
+   * 'anulacion' es corregir algo que no debió existir; 'rechazo' es
+   * Contabilidad devolviéndolo al revisarlo. Default 'anulacion' para no
+   * romper a los llamadores que solo anulan.
+   */
+  accion?: AccionAviso
 }
 
-export function asuntoAnulacion(d: Pick<DatosAnulacion, 'tipo' | 'codigo' | 'monto' | 'moneda' | 'referencia'>): string {
-  return `[ANULADO] ${asuntoAviso(d)}`
+export const ACCIONES_AVISO = ['anulacion', 'rechazo'] as const
+export type AccionAviso = (typeof ACCIONES_AVISO)[number]
+
+/** Cómo se nombra el registro cuando YA existía (a diferencia de
+ * NOMBRE_REGISTRO, que lo presenta como nuevo al crearlo). */
+const NOMBRE_REGISTRO_EXISTENTE: Record<TipoAviso, string> = {
+  oc_mercaderia: 'la orden de compra de mercadería',
+  oc_bien: 'la orden de compra de un bien',
+  os: 'la orden de servicio',
+  pago_directo: 'el pago directo',
+  anticipo: 'el anticipo',
+  reembolso: 'el reembolso',
+}
+
+const VERBO_ACCION: Record<AccionAviso, string> = {
+  anulacion: 'Se anuló',
+  rechazo: 'Se rechazó',
+}
+
+const ETIQUETA_ASUNTO_ACCION: Record<AccionAviso, string> = {
+  anulacion: 'ANULADO',
+  rechazo: 'RECHAZADO',
+}
+
+const ETIQUETA_QUIEN: Record<AccionAviso, string> = {
+  anulacion: 'Anulado por',
+  rechazo: 'Rechazado por',
+}
+
+export function asuntoAnulacion(
+  d: Pick<DatosAnulacion, 'tipo' | 'codigo' | 'monto' | 'moneda' | 'referencia' | 'accion'>
+): string {
+  return `[${ETIQUETA_ASUNTO_ACCION[d.accion ?? 'anulacion']}] ${asuntoAviso(d)}`
 }
 
 export function renderAnulacionHtml(d: DatosAnulacion): string {
@@ -133,12 +171,13 @@ export function renderAnulacionHtml(d: DatosAnulacion): string {
     .map((f) => `<tr><td><strong>${escapeHtml(f.etiqueta)}</strong></td><td>${escapeHtml(f.valor!)}</td></tr>`)
     .join('\n        ')
 
+  const accion = d.accion ?? 'anulacion'
   return `
     <div style="font-family: sans-serif; font-size: 14px; color: #111827;">
-      <p>Se anuló ${NOMBRE_REGISTRO[d.tipo]} en el ERP de Compras y Pagos.</p>
+      <p>${VERBO_ACCION[accion]} ${NOMBRE_REGISTRO_EXISTENTE[d.tipo]} en el ERP de Compras y Pagos.</p>
       <table cellpadding="4" cellspacing="0">
         <tr><td><strong>Código</strong></td><td>${escapeHtml(d.codigo)}</td></tr>
-        <tr><td><strong>Anulado por</strong></td><td>${escapeHtml(d.anuladoPor)}</td></tr>
+        <tr><td><strong>${ETIQUETA_QUIEN[accion]}</strong></td><td>${escapeHtml(d.anuladoPor)}</td></tr>
         <tr><td><strong>Motivo</strong></td><td>${escapeHtml(d.motivo)}</td></tr>
         ${filas}
       </table>
@@ -148,12 +187,13 @@ export function renderAnulacionHtml(d: DatosAnulacion): string {
 }
 
 export function renderAnulacionTexto(d: DatosAnulacion): string {
+  const accion = d.accion ?? 'anulacion'
   const filas = filasVisibles(d).map((f) => `${f.etiqueta.padEnd(ANCHO_ETIQUETA)}${f.valor}`)
   return [
-    `Se anuló ${NOMBRE_REGISTRO[d.tipo]} en el ERP de Compras y Pagos.`,
+    `${VERBO_ACCION[accion]} ${NOMBRE_REGISTRO_EXISTENTE[d.tipo]} en el ERP de Compras y Pagos.`,
     '',
     `${'Código'.padEnd(ANCHO_ETIQUETA)}${d.codigo}`,
-    `${'Anulado por'.padEnd(ANCHO_ETIQUETA)}${d.anuladoPor}`,
+    `${ETIQUETA_QUIEN[accion].padEnd(ANCHO_ETIQUETA)}${d.anuladoPor}`,
     `${'Motivo'.padEnd(ANCHO_ETIQUETA)}${d.motivo}`,
     ...filas,
     '',

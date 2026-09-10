@@ -9,6 +9,7 @@ import {
   TASA_IGV,
   validarNoSobrefacturar,
   puedeAnularsePagoDirecto,
+  puedeRechazarsePagoDirecto,
   ETIQUETA_ESTADO,
   type EstadoObligacion,
   type LineaConciliacion,
@@ -559,9 +560,11 @@ export type ObligacionDetalle = ObligacionListada & {
     storage_path_voucher: string | null
     storage_path_detraccion: string | null
   } | null
-  /** Solo Pago Directo — ver anularPagoDirecto/puedeAnularsePagoDirecto. */
+  /** Solo Pago Directo — ver anularPagoDirecto/rechazarPagoDirecto. */
   anulada_en: string | null
   anulada_motivo: string | null
+  rechazada_en: string | null
+  rechazo_motivo: string | null
 }
 
 export async function obtenerObligacion(id: string): Promise<ObligacionDetalle | null> {
@@ -572,7 +575,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, igv,
              monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, proveedor_servicio_id, beneficiario_persona,
              oc_id, recepcion_id, categoria_pago_directo_id, cotizacion_storage_path, factura_storage_path,
-             anulada_en, anulada_motivo,
+             anulada_en, anulada_motivo, rechazada_en, rechazo_motivo,
              obligaciones_items(id, oc_item_id, cantidad_facturada, precio_facturado)`)
     .eq('id', id)
     .maybeSingle()
@@ -628,6 +631,8 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     pago,
     anulada_en: (data as any).anulada_en,
     anulada_motivo: (data as any).anulada_motivo,
+    rechazada_en: (data as any).rechazada_en,
+    rechazo_motivo: (data as any).rechazo_motivo,
   }
 }
 
@@ -983,16 +988,53 @@ export async function obtenerUrlLegajoPagoDirecto(storagePath: string): Promise<
 }
 
 /**
- * Anular un Pago Directo por error de captura (Pieza D/K, sesión
- * 2026-09-09). A diferencia de OC/OS, `cuentas_x_pagar.obligaciones` es
- * compartida por 9 orígenes — no se toca `estado` (ver
- * domain/obligacion.ts::puedeAnularsePagoDirecto), solo se marca con las
- * columnas `anulada_*`. Solo aplica a origen 'gasto_directo': anular una
- * obligación de compra/servicio/etc. es una pieza distinta (para esas, la OC
- * u OS es la que se anula, no la obligación).
+ * Los dos finales de línea de un Pago Directo, que comparten todo salvo el
+ * verbo (ver domain/obligacion.ts y la migración 0043):
+ *
+ *  - `anular`: quien lo cargó se equivocó y el registro no debió existir.
+ *  - `rechazar`: Contabilidad lo revisó y lo devuelve — la contraparte
+ *    negativa de "Dar conformidad".
+ *
+ * Desde 0043 los dos escriben un `estado` real ('anulada' / 'rechazada')
+ * además de sus columnas de auditoría. Eso es lo que los saca solos de
+ * `darConformidad` y de los candidatos a propuesta de pago: antes, con la
+ * anulación solo en columnas laterales, la fila seguía en 'registrada' y
+ * seguía siendo elegible para conformarse y pagarse.
  */
-export async function anularPagoDirecto(id: string, motivo: string): Promise<void> {
-  if (!motivo.trim()) throw new Error('El motivo de la anulación es obligatorio.')
+type CorteDePagoDirecto = {
+  estado: Extract<EstadoObligacion, 'anulada' | 'rechazada'>
+  /** Cómo se llama la acción en los mensajes de error de la pantalla. */
+  sustantivo: 'anulación' | 'rechazo'
+  puedeCortarse: (estado: EstadoObligacion) => boolean
+  columnas: (usuarioId: string, motivo: string, ahora: string) => Record<string, unknown>
+}
+
+const CORTES: Record<'anular' | 'rechazar', CorteDePagoDirecto> = {
+  anular: {
+    estado: 'anulada',
+    sustantivo: 'anulación',
+    puedeCortarse: puedeAnularsePagoDirecto,
+    columnas: (usuarioId, motivo, ahora) => ({
+      anulada_motivo: motivo,
+      anulada_por: usuarioId,
+      anulada_en: ahora,
+    }),
+  },
+  rechazar: {
+    estado: 'rechazada',
+    sustantivo: 'rechazo',
+    puedeCortarse: puedeRechazarsePagoDirecto,
+    columnas: (usuarioId, motivo, ahora) => ({
+      rechazo_motivo: motivo,
+      rechazada_por: usuarioId,
+      rechazada_en: ahora,
+    }),
+  },
+}
+
+async function cortarPagoDirecto(id: string, motivo: string, accion: 'anular' | 'rechazar'): Promise<void> {
+  const corte = CORTES[accion]
+  if (!motivo.trim()) throw new Error(`El motivo ${accion === 'anular' ? 'de la anulación' : 'del rechazo'} es obligatorio.`)
   const usuario = await exigirUsuario()
   const perfil = await perfilActual()
   const supabase = crearClienteServidor()
@@ -1000,34 +1042,33 @@ export async function anularPagoDirecto(id: string, motivo: string): Promise<voi
   const { data: obligacion, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, estado, moneda, total, creador_correo, categoria_pago_directo_id, anulada_en')
+    .select('id, codigo, origen, estado, moneda, total, creador_correo, categoria_pago_directo_id')
     .eq('id', id)
     .maybeSingle()
   if (error || !obligacion) throw new Error('No se encontró la obligación.')
   if (obligacion.origen !== 'gasto_directo') {
-    throw new Error('Solo un Pago Directo se anula desde acá.')
+    throw new Error(`Solo un Pago Directo se ${accion === 'anular' ? 'anula' : 'rechaza'} desde acá.`)
   }
-  if (obligacion.anulada_en) throw new Error('Este pago directo ya está anulado.')
-  if (!puedeAnularsePagoDirecto(obligacion.estado as EstadoObligacion)) {
-    throw new Error(`Ya no se puede anular: está "${ETIQUETA_ESTADO[obligacion.estado as EstadoObligacion]}".`)
+  if (!corte.puedeCortarse(obligacion.estado as EstadoObligacion)) {
+    throw new Error(
+      `Ya no se puede ${accion}: está "${ETIQUETA_ESTADO[obligacion.estado as EstadoObligacion]}".`
+    )
   }
 
+  const ahora = new Date().toISOString()
   const { error: errUpd } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .update({
-      anulada_motivo: motivo.trim(),
-      anulada_por: usuario.id,
-      anulada_en: new Date().toISOString(),
-    })
+    .update({ estado: corte.estado, ...corte.columnas(usuario.id, motivo.trim(), ahora) })
     .eq('id', id)
-  if (errUpd) throw new Error(`No se pudo anular el pago directo: ${errUpd.message}`)
+  if (errUpd) throw new Error(`No se pudo registrar ${accion === 'anular' ? 'la anulación' : 'el rechazo'}: ${errUpd.message}`)
 
   const categoria = obligacion.categoria_pago_directo_id
     ? await obtenerCategoriaPagoDirectoBasica(obligacion.categoria_pago_directo_id)
     : null
 
   await avisarAnulacionSinRomper({
+    accion: accion === 'anular' ? 'anulacion' : 'rechazo',
     tipo: 'pago_directo',
     codigo: obligacion.codigo,
     monto: Number(obligacion.total),
@@ -1039,6 +1080,16 @@ export async function anularPagoDirecto(id: string, motivo: string): Promise<voi
     ruta: `/cuentas-por-pagar/${id}`,
     creadorCorreo: obligacion.creador_correo ?? null,
   })
+}
+
+/** Anular un Pago Directo por error de captura (Pieza D/K, sesión 2026-09-09). */
+export async function anularPagoDirecto(id: string, motivo: string): Promise<void> {
+  await cortarPagoDirecto(id, motivo, 'anular')
+}
+
+/** Contabilidad rechaza un Pago Directo al revisarlo — contraparte de `darConformidad`. */
+export async function rechazarPagoDirecto(id: string, motivo: string): Promise<void> {
+  await cortarPagoDirecto(id, motivo, 'rechazar')
 }
 
 /** Para la ficha de la OC: si ya se registró una factura, de acá sale el link a la obligación.

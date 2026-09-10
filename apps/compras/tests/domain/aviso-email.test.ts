@@ -104,6 +104,32 @@ describe('asuntoAnulacion (sesión 2026-09-09)', () => {
   it('antepone [ANULADO] al mismo asunto de la creación', () => {
     expect(asuntoAnulacion(baseAnulacion)).toBe(`[ANULADO] ${asuntoAviso(base)}`)
   })
+
+  it('un rechazo dice [RECHAZADO], no [ANULADO] — son cosas distintas', () => {
+    expect(asuntoAnulacion({ ...baseAnulacion, accion: 'rechazo' })).toBe(`[RECHAZADO] ${asuntoAviso(base)}`)
+  })
+})
+
+describe('verbo del correo según la acción', () => {
+  it('anular dice "Se anuló" y nombra el registro como ya existente, no como nuevo', () => {
+    const texto = renderAnulacionTexto(baseAnulacion)
+    expect(texto).toContain('Se anuló el anticipo')
+    expect(texto).not.toContain('un nuevo anticipo')
+    expect(texto).toContain('Anulado por')
+  })
+
+  it('rechazar dice "Se rechazó" y firma como "Rechazado por"', () => {
+    const texto = renderAnulacionTexto({ ...baseAnulacion, accion: 'rechazo' })
+    expect(texto).toContain('Se rechazó el anticipo')
+    expect(texto).toContain('Rechazado por')
+    expect(texto).not.toContain('Se anuló')
+  })
+
+  it('el HTML sigue el mismo verbo que el texto plano', () => {
+    expect(renderAnulacionHtml({ ...baseAnulacion, accion: 'rechazo' })).toContain('Se rechazó')
+    expect(renderAnulacionHtml({ ...baseAnulacion, tipo: 'pago_directo', accion: 'rechazo' }))
+      .toContain('Se rechazó el pago directo')
+  })
 })
 
 describe('renderAnulacionTexto', () => {

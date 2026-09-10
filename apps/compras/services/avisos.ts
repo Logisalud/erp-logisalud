@@ -9,6 +9,7 @@ import {
   renderAnulacionTexto,
   type DatosAviso,
   type DatosAnulacion,
+  type AccionAviso,
   type FilaAviso,
   type TipoAviso,
 } from '@/domain/aviso-email'
@@ -121,6 +122,8 @@ export type AvisoAnulacion = {
   filas: FilaAviso[]
   ruta: string
   creadorCorreo: string | null
+  /** 'anulacion' (default) o 'rechazo' — cambia el verbo y el prefijo del asunto. */
+  accion?: AccionAviso
 }
 
 /**
@@ -138,6 +141,7 @@ export async function avisarAnulacion(aviso: AvisoAnulacion): Promise<void> {
     referencia: aviso.referencia,
     motivo: aviso.motivo,
     anuladoPor: aviso.anuladoPor,
+    accion: aviso.accion ?? 'anulacion',
     filas: aviso.filas,
     url: `${URL_BASE_PRODUCCION}${aviso.ruta}`,
   }

@@ -61,6 +61,11 @@ export default async function Inicio() {
 
       <Grupo titulo="Para consultar">
         <MenuItem
+          href="/mis-operaciones" emoji="📋"
+          titulo="Mis operaciones"
+          descripcion="Todo lo que registraste vos: en qué estado quedó y si ya se pagó."
+        />
+        <MenuItem
           href="/dashboard" emoji="📊"
           titulo="Dashboard"
           descripcion="Revisa pendientes, alertas y próximos vencimientos."

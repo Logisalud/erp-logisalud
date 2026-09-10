@@ -6,11 +6,14 @@ import Link from 'next/link'
 import { perfilActual } from '@logisalud/auth/server'
 import { obtenerObligacion } from '@/services/obligaciones'
 import { listarLetrasDeObligacion } from '@/services/financiamiento'
-import { ETIQUETA_ESTADO, exigeRespuestaDetraccion, puedeAnularsePagoDirecto, UMBRAL_DETRACCION_PEN } from '@/domain/obligacion'
+import {
+  ETIQUETA_ESTADO, exigeRespuestaDetraccion, puedeAnularsePagoDirecto,
+  puedeRechazarsePagoDirecto, UMBRAL_DETRACCION_PEN,
+} from '@/domain/obligacion'
 import type { Moneda } from '@/domain/servicio'
 import { ETIQUETA_ESTADO_VENCIMIENTO } from '@/domain/financiamiento'
 import { BotonConformidad } from './conformidad'
-import { BotonAnularPagoDirecto } from './anular-pago-directo'
+import { BotonAnularPagoDirecto, BotonRechazarPagoDirecto } from './acciones-pago-directo'
 import { NotasCredito } from './notas-credito'
 import { VerVoucher } from './ver-voucher'
 import { verLegajoPagoDirectoAction } from './actions'
@@ -36,8 +39,14 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
     !!obligacion.proveedor &&
     !['pagada', 'canjeada_por_letra', 'en_propuesta'].includes(obligacion.estado)
   const letras = obligacion.estado === 'canjeada_por_letra' ? await listarLetrasDeObligacion(obligacion.id) : []
-  const puedeAnular =
-    obligacion.origen === 'gasto_directo' && !obligacion.anulada_en && puedeAnularsePagoDirecto(obligacion.estado)
+  // Desde 0043 anular y rechazar escriben un estado real, así que
+  // `puedeAnularsePagoDirecto`/`puedeRechazarsePagoDirecto` ya devuelven
+  // false sobre algo ya cortado — no hace falta chequear las columnas.
+  const puedeAnular = obligacion.origen === 'gasto_directo' && puedeAnularsePagoDirecto(obligacion.estado)
+  // "Rechazar" es la contraparte de "Dar conformidad", así que lo ve quien
+  // puede conformar: Contabilidad rol admin (mismo criterio de la Fase 1.7).
+  const puedeRechazar =
+    califica && obligacion.origen === 'gasto_directo' && puedeRechazarsePagoDirecto(obligacion.estado)
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -63,6 +72,11 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
         {obligacion.anulada_en ? (
           <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
             Anulado: {obligacion.anulada_motivo}
+          </p>
+        ) : null}
+        {obligacion.rechazada_en ? (
+          <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            Rechazado por Contabilidad: {obligacion.rechazo_motivo}
           </p>
         ) : null}
         {obligacion.origen === 'servicio' &&
@@ -117,6 +131,7 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           <CompletarFactura obligacionId={obligacion.id} baseCotizada={Number(obligacion.base_imponible)} />
         ) : null}
         {puedeDarConformidad ? <BotonConformidad obligacionId={obligacion.id} /> : null}
+        {puedeRechazar ? <BotonRechazarPagoDirecto obligacionId={obligacion.id} /> : null}
         {puedeCanjearPorLetras ? (
           <Link href={`/financiamiento/letras/canjear/${obligacion.id}`} className="btn-secondary mt-4 inline-block">
             Canjear por letras

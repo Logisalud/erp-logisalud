@@ -15,6 +15,8 @@ import {
   validarObligacionSinFactura,
   validarPagoDirecto,
   puedeAnularsePagoDirecto,
+  puedeRechazarsePagoDirecto,
+  obligacionPagada,
   type BorradorPagoDirecto,
 } from '@/domain/obligacion'
 
@@ -28,6 +30,46 @@ describe('puedeAnularsePagoDirecto (sesión 2026-09-09)', () => {
     expect(puedeAnularsePagoDirecto('conforme')).toBe(false)
     expect(puedeAnularsePagoDirecto('pagada')).toBe(false)
     expect(puedeAnularsePagoDirecto('cerrada')).toBe(false)
+  })
+  it('algo ya cortado no se puede volver a cortar', () => {
+    expect(puedeAnularsePagoDirecto('anulada')).toBe(false)
+    expect(puedeAnularsePagoDirecto('rechazada')).toBe(false)
+  })
+})
+
+describe('puedeRechazarsePagoDirecto (0043)', () => {
+  it('misma ventana que anular: mientras Contabilidad todavía lo está revisando', () => {
+    expect(puedeRechazarsePagoDirecto('pendiente_factura')).toBe(true)
+    expect(puedeRechazarsePagoDirecto('registrada')).toBe(true)
+  })
+  it('una vez conforme ya no se rechaza — está en camino a pagarse', () => {
+    expect(puedeRechazarsePagoDirecto('conforme')).toBe(false)
+    expect(puedeRechazarsePagoDirecto('en_propuesta')).toBe(false)
+    expect(puedeRechazarsePagoDirecto('pagada')).toBe(false)
+  })
+})
+
+describe('rechazada y anulada son estados terminales reales (0043)', () => {
+  it('no se sale de ninguno de los dos', () => {
+    expect(transicionPermitida('rechazada', 'conforme')).toBe(false)
+    expect(transicionPermitida('anulada', 'registrada')).toBe(false)
+  })
+
+  it('cierran la fuga: ninguno de los dos es un estado del que se pueda conformar', () => {
+    // `darConformidad` solo acepta 'registrada'/'observada'; el punto de que
+    // sean estados y no columnas laterales es exactamente este.
+    expect(transicionPermitida('rechazada', 'en_propuesta')).toBe(false)
+    expect(transicionPermitida('anulada', 'conforme')).toBe(false)
+  })
+})
+
+describe('obligacionPagada', () => {
+  it('pagada y cerrada cuentan como pagada; el resto no', () => {
+    expect(obligacionPagada('pagada')).toBe(true)
+    expect(obligacionPagada('cerrada')).toBe(true)
+    expect(obligacionPagada('conforme')).toBe(false)
+    expect(obligacionPagada('en_propuesta')).toBe(false)
+    expect(obligacionPagada('rechazada')).toBe(false)
   })
 })
 
