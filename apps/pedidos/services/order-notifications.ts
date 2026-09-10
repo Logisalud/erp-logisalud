@@ -152,7 +152,7 @@ type OrderRow = {
   zona_snapshot: string | null;
   vendedor_snapshot: string | null;
   dias_credito_solicitados: number | null;
-  customer: { razon_social: string; ruc_o_documento: string } | null;
+  customer: { razon_social: string; ruc_o_documento: string; estado: string } | null;
   payment_terms: { nombre: string } | null;
 };
 
@@ -276,7 +276,7 @@ export async function loadOrderEmailData(
       .select(
         `numero, fecha_envio, created_at, dias_credito_solicitados,
          razon_social_snapshot, direccion_snapshot, canal_snapshot, zona_snapshot, vendedor_snapshot,
-         customer:customers(razon_social, ruc_o_documento),
+         customer:customers(razon_social, ruc_o_documento, estado),
          payment_terms:payment_terms(nombre)`,
       )
       .eq("id", orderId)
@@ -405,6 +405,10 @@ export async function loadOrderEmailData(
       direccionEntrega: order.direccion_snapshot,
       canal: order.canal_snapshot,
       zona: order.zona_snapshot,
+      // Se mira el estado ACTUAL del cliente, no un snapshot: si ya lo
+      // validaron, el aviso siguiente del mismo pedido ya no tiene por qué
+      // seguir pidiendo que lo revisen.
+      esClienteNuevo: order.customer?.estado === "PENDIENTE_DE_VALIDACION",
     },
     vendedor: order.vendedor_snapshot,
     // Con días escritos a mano, el nombre del catálogo ("Crédito (otro

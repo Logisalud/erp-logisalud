@@ -10,6 +10,17 @@
  * el resto cae a una sans-serif del sistema sin romper el diseño.
  */
 
+import { estadoLabel } from "./order-status";
+
+/**
+ * El estado en castellano. En el encabezado iba el código crudo
+ * ("NEW_CUSTOMER_VALIDATION"), que dentro del sistema se entiende pero en
+ * una bandeja de correo no le dice nada a nadie.
+ */
+function etiquetaEstado(estado: string): string {
+  return estadoLabel(estado);
+}
+
 export const COLOR_VERDE = "#4BB168";
 export const COLOR_TEAL = "#4ABCC2";
 
@@ -213,6 +224,14 @@ export type OrderEmailData = {
     direccionEntrega: string | null;
     canal: string | null;
     zona: string | null;
+    /**
+     * El cliente todavía no está validado: lo dio de alta el vendedor y
+     * alguien tiene que revisarlo antes de que el pedido avance. Se dice
+     * en el correo con todas las letras porque quien lo lee tiene que
+     * ATENDERLO, y "Estado: NEW_CUSTOMER_VALIDATION" en el encabezado no
+     * es algo que nadie lea como una tarea.
+     */
+    esClienteNuevo?: boolean;
   };
   vendedor: string | null;
   condicionPago: string | null;
@@ -364,7 +383,12 @@ export function renderOrderEmailHtml(data: OrderEmailData): string {
             <td style="padding:20px 24px;border-top:4px solid ${COLOR_TEAL};">
               <p style="margin:0;font-family:${FONT_HEADING};font-size:22px;letter-spacing:0.5px;color:${COLOR_VERDE};text-transform:uppercase;">LOGISALUD</p>
               <p style="margin:6px 0 0;font-family:${FONT_HEADING};font-size:18px;color:#111827;">${escapeHtml(data.evento?.titulo ?? `Nuevo pedido #${data.numero}`)}</p>
-              <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">Enviado el ${escapeHtml(formatFechaHora(data.fechaEnvio))} · Estado: ${escapeHtml(data.estadoResultado)}</p>
+              <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">Enviado el ${escapeHtml(formatFechaHora(data.fechaEnvio))} · Estado: ${escapeHtml(etiquetaEstado(data.estadoResultado))}</p>
+              ${
+                data.cliente.esClienteNuevo
+                  ? `<p style="margin:10px 0 0;padding:10px 12px;background-color:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:13px;color:#92400e;font-weight:700;">CLIENTE NUEVO — todavía sin validar. Hay que revisarlo y aprobarlo para poder atender este pedido.</p>`
+                  : ""
+              }
               ${data.evento?.lead ? `<p style="margin:10px 0 0;padding:10px 12px;background-color:#fef3c7;border-radius:8px;font-size:13px;color:#92400e;font-weight:600;">${escapeHtml(data.evento.lead)}</p>` : ""}
             </td>
           </tr>
@@ -373,7 +397,13 @@ export function renderOrderEmailHtml(data: OrderEmailData): string {
             <td style="padding:0 24px 8px;">
               <p style="margin:16px 0 8px;font-family:${FONT_HEADING};font-size:14px;color:#111827;text-transform:uppercase;letter-spacing:0.5px;">Cliente</p>
               <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-                ${datoRow("Razón social", escapeHtml(data.cliente.razonSocial))}
+                ${datoRow(
+                  "Razón social",
+                  escapeHtml(data.cliente.razonSocial) +
+                    (data.cliente.esClienteNuevo
+                      ? ` <span style="display:inline-block;margin-left:6px;padding:1px 6px;background-color:#fef3c7;border:1px solid #f59e0b;border-radius:4px;font-size:11px;color:#92400e;font-weight:700;">CLIENTE NUEVO</span>`
+                      : ""),
+                )}
                 ${datoRow("RUC / documento", escapeHtml(data.cliente.rucODocumento))}
                 ${datoRow("Dirección de entrega", dash(data.cliente.direccionEntrega))}
                 ${datoRow("Canal", dash(data.cliente.canal))}
@@ -477,11 +507,18 @@ export function renderOrderEmailText(data: OrderEmailData): string {
 
   return [
     `LOGISALUD — ${data.evento?.titulo ?? `Nuevo pedido #${data.numero}`}`,
-    `Enviado el ${formatFechaHora(data.fechaEnvio)} · Estado: ${data.estadoResultado}`,
+    `Enviado el ${formatFechaHora(data.fechaEnvio)} · Estado: ${etiquetaEstado(data.estadoResultado)}`,
+    ...(data.cliente.esClienteNuevo
+      ? [
+          "",
+          "** CLIENTE NUEVO — todavía sin validar. Hay que revisarlo y aprobarlo para poder",
+          "   atender este pedido. **",
+        ]
+      : []),
     ...(data.evento?.lead ? ["", data.evento.lead] : []),
     "",
     "CLIENTE",
-    `  Razón social: ${data.cliente.razonSocial}`,
+    `  Razón social: ${data.cliente.razonSocial}${data.cliente.esClienteNuevo ? "  [CLIENTE NUEVO]" : ""}`,
     `  RUC / documento: ${data.cliente.rucODocumento}`,
     `  Dirección de entrega: ${data.cliente.direccionEntrega ?? "—"}`,
     `  Canal: ${data.cliente.canal ?? "—"}`,

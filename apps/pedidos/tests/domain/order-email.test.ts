@@ -480,3 +480,56 @@ describe("etiquetaObservacion", () => {
     expect(etiqueta).not.toContain("· ·");
   });
 });
+
+describe("cliente nuevo", () => {
+  /**
+   * El pedido de un cliente sin validar frena hasta que alguien lo
+   * revise. Quien recibe el correo tiene que ver ESO, no deducirlo de un
+   * código de estado: es la diferencia entre atenderlo hoy y que quede
+   * esperando.
+   */
+  const nuevo = (extra: Partial<OrderEmailData> = {}) =>
+    buildData({
+      estadoResultado: "NEW_CUSTOMER_VALIDATION",
+      cliente: {
+        razonSocial: "BOTICA RECIEN ABIERTA E.I.R.L.",
+        rucODocumento: "20600000001",
+        direccionEntrega: "Av. Nueva 1",
+        canal: "Horizontal",
+        zona: "ZONA 02",
+        esClienteNuevo: true,
+      },
+      ...extra,
+    });
+
+  it("lo dice con todas las letras en el HTML, y qué hay que hacer", () => {
+    const html = renderOrderEmailHtml(nuevo());
+    expect(html).toContain("CLIENTE NUEVO");
+    expect(html).toContain("todavía sin validar");
+    expect(html).toContain("para poder atender este pedido");
+  });
+
+  it("también en el texto plano, que es lo que ven algunos clientes de correo", () => {
+    const texto = renderOrderEmailText(nuevo());
+    expect(texto).toContain("CLIENTE NUEVO");
+    expect(texto).toContain("BOTICA RECIEN ABIERTA E.I.R.L.  [CLIENTE NUEVO]");
+  });
+
+  it("el estado sale en castellano, no como código", () => {
+    // Antes el encabezado decía "Estado: NEW_CUSTOMER_VALIDATION", que
+    // dentro del sistema se entiende y en una bandeja de correo no.
+    const html = renderOrderEmailHtml(nuevo());
+    expect(html).toContain("Esperando validación de cliente nuevo");
+    expect(html).not.toContain("NEW_CUSTOMER_VALIDATION");
+    expect(renderOrderEmailText(nuevo())).toContain("Esperando validación de cliente nuevo");
+  });
+
+  it("un cliente ya validado no lleva ninguna marca", () => {
+    const html = renderOrderEmailHtml(buildData({ estadoResultado: "READY_FOR_OPERATIONS" }));
+    expect(html).not.toContain("CLIENTE NUEVO");
+    expect(renderOrderEmailText(buildData())).not.toContain("CLIENTE NUEVO");
+    // Y el estado igual sale legible.
+    expect(html).toContain("Listo para operaciones");
+  });
+});
+

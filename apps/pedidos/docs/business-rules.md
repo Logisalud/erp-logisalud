@@ -1288,6 +1288,41 @@ que sólo exige estar autenticado, y el menú de usuario la ofrece a todos.
 son los mismos, incluida la reautenticación con la contraseña actual:
 tener la sesión abierta no alcanza para cambiarla.
 
+## El pedido de un cliente nuevo lo dice con todas las letras
+
+Un cliente que dio de alta el vendedor entra en `PENDIENTE_DE_VALIDACION`,
+y su pedido queda frenado en `NEW_CUSTOMER_VALIDATION` hasta que alguien lo
+revise. Eso ya estaba, pero sólo se veía como el **código de estado** en el
+encabezado del correo — "Estado: NEW_CUSTOMER_VALIDATION" —, que dentro del
+sistema se entiende y en una bandeja de correo no le dice a nadie que tiene
+una tarea.
+
+Ahora, cuando el cliente sigue sin validar:
+
+- El **correo** abre con un aviso destacado: "CLIENTE NUEVO — todavía sin
+  validar. Hay que revisarlo y aprobarlo para poder atender este pedido", y
+  la razón social lleva además una etiqueta `CLIENTE NUEVO` al lado. En la
+  versión de texto plano va el mismo aviso.
+- El **Excel adjunto** lo repite arriba, sobre fondo ámbar, y marca la razón
+  social con `[CLIENTE NUEVO]`: es el archivo que se abre para preparar el
+  despacho, y ahí no hay color de estado que lo diga.
+- La **pantalla del pedido** muestra la etiqueta al lado del nombre y una
+  línea explicando qué falta.
+
+Y de paso el **estado sale en castellano** en el correo y el Excel
+("Esperando validación de cliente nuevo"), con el mismo diccionario que usa
+la app (`estadoLabel`), en vez del código crudo.
+
+**Se mira el estado ACTUAL del cliente, no un snapshot**: si entre el
+correo de envío y el siguiente aviso del mismo pedido alguien ya validó al
+cliente, el segundo correo no vuelve a pedir que lo revisen. Un dato que
+pide una acción tiene que reflejar si esa acción ya se hizo.
+
+**Dónde NO hace falta**: en la cola de Despachos y en Documentación
+electrónica el pedido recién llega DESPUÉS de que el cliente se validó —es
+lo que lo desbloquea—, así que ahí la marca nunca se daría. Y en Validación
+de clientes la pantalla entera ya es sobre eso.
+
 ## Dónde se escribe una observación, y cuándo sale por correo (`1025`)
 
 El correo del pedido sale **al enviarlo**. Eso hacía que la única forma de
