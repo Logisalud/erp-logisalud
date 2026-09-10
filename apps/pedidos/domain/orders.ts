@@ -177,3 +177,15 @@ function round2(n: number): number {
 export function canEditPaymentTerms(estado: OrderEstado): boolean {
   return estado === "DRAFT";
 }
+
+/**
+ * Cómo se identifica un pedido en pantalla.
+ *
+ * El correlativo se asigna al enviar, no al crear el borrador, para que un
+ * borrador abandonado no se lleve un número. Mientras tanto `numero` es
+ * `null` y no hay nada que numerar: decir "Borrador" es más honesto que
+ * "#0" o "#—", que se leen como un número que se perdió.
+ */
+export function etiquetaNumeroDePedido(numero: number | null): string {
+  return numero === null ? "Borrador" : `#${numero}`;
+}

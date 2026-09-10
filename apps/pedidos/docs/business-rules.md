@@ -726,11 +726,33 @@ Tres detalles que importan:
 
 ### Número de pedido
 
-`orders.numero` es un correlativo global que asigna la BD al crear el
-pedido — **incluido el borrador**, así que la numeración tiene huecos si
-un borrador se abandona. Se aceptó a cambio de que el número sea estable
-desde el minuto uno: si se asignara al enviar, el mismo pedido cambiaría
-de identificador a mitad del flujo.
+`orders.numero` es un correlativo global que la BD asigna **al enviar el
+pedido**, no al crearlo: mientras el pedido es borrador vale `null` y en
+pantalla se muestra "Borrador". Un borrador que nunca se envía —o que se
+abandona— no consume número, así que la numeración de los pedidos que
+realmente salieron no tiene huecos.
+
+Antes se asignaba al crear el borrador (a cambio de un identificador
+estable desde el minuto uno) y la numeración quedaba con huecos. Se cambió
+el 2026-09-10, cuando en producción los primeros pedidos enviados salieron
+como #2 y #5: los números intermedios se los habían llevado borradores que
+nunca se enviaron, y para quien recibe el correo eso se lee como pedidos
+perdidos.
+
+Cómo funciona (migración `1030_numero_al_enviar.sql`):
+
+- `pedidos.order_numbering` es una tabla de un solo registro con el último
+  número entregado. Deliberadamente **no** es una `sequence` ni una
+  columna `identity`: una secuencia no vuelve atrás si la transacción
+  falla, y cada envío fallido dejaría un hueco. Una fila sí revierte con
+  la transacción.
+- El trigger `orders_numero_al_enviar` (BEFORE UPDATE) asigna el número
+  cuando `numero is null` y el estado deja de ser `DRAFT`. Es idempotente:
+  un pedido que ya tiene número no lo cambia nunca, así que el número que
+  salió por correo sigue siendo el mismo el resto del flujo.
+- Los números ya emitidos no se reescribieron: los pedidos #2 y #5 se
+  quedaron como están porque esos números ya salieron por correo, y el
+  contador arrancó desde el máximo ya enviado.
 
 **No es un número de comprobante fiscal.** Ese lo emite el proveedor de
 facturación electrónica al despachar, y no tiene por qué coincidir.
