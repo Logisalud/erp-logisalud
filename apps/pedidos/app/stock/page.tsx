@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { getCurrentUser } from "@/lib/auth/session";
 import { displayNombreProducto } from "@/domain/products";
-import { getStockResumen, listStockLotes, STOCK_PAGE_SIZE } from "@/services/stock";
+import { getStockResumen, listStockLotes, STOCK_PAGE_SIZE, type StockOrden } from "@/services/stock";
 
 /**
  * Consulta de stock, de sólo lectura, para cualquier rol.
@@ -16,22 +16,28 @@ import { getStockResumen, listStockLotes, STOCK_PAGE_SIZE } from "@/services/sto
 export default async function StockPage({
   searchParams,
 }: {
-  searchParams: { q?: string; pagina?: string };
+  searchParams: { q?: string; pagina?: string; orden?: string };
 }) {
   const busqueda = (searchParams.q ?? "").trim();
   const pagina = Math.max(1, Number(searchParams.pagina ?? "1") || 1);
+  // Alfabético por defecto: es cómo busca un vendedor cuando el cliente le
+  // nombra un producto. El orden por vencimiento sigue a un clic.
+  const orden: StockOrden = searchParams.orden === "vencimiento" ? "vencimiento" : "producto";
 
   const [user, resumen, page] = await Promise.all([
     getCurrentUser(),
     getStockResumen(),
-    listStockLotes({ busqueda, pagina }),
+    listStockLotes({ busqueda, pagina, orden }),
   ]);
 
   const esAdmin = user?.roles.includes("administrador") ?? false;
-  const hrefPagina = (n: number) => {
+  const href = (cambios: { pagina?: number; orden?: StockOrden }) => {
     const params = new URLSearchParams();
     if (busqueda) params.set("q", busqueda);
-    if (n > 1) params.set("pagina", String(n));
+    const ordenFinal = cambios.orden ?? orden;
+    if (ordenFinal !== "producto") params.set("orden", ordenFinal);
+    const nPagina = cambios.pagina ?? 1;
+    if (nPagina > 1) params.set("pagina", String(nPagina));
     const qs = params.toString();
     return qs ? `/stock?${qs}` : "/stock";
   };
@@ -42,8 +48,8 @@ export default async function StockPage({
         <Breadcrumb items={[{ label: "Stock" }]} />
         <h2 className="text-xl font-semibold">Stock disponible</h2>
         <p className="mt-1 text-sm text-gray-600">
-          Lo que hay en almacén, por lote. Es sólo de consulta: la carga la hace un administrador
-          desde el importador.
+          Lo que hay en almacén, por lote, en orden alfabético de producto. Es sólo de consulta:
+          la carga la hace un administrador desde el importador.
           {resumen.ultimaActualizacion && (
             <>
               {" "}
@@ -90,10 +96,38 @@ export default async function StockPage({
           placeholder="Código o nombre del producto…"
           className="campo flex-1"
         />
+        {/* El orden viaja con la búsqueda: buscar no lo pierde. */}
+        {orden !== "producto" && <input type="hidden" name="orden" value={orden} />}
         <button type="submit" className="btn-secondary sm:w-40">
           Buscar
         </button>
       </form>
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-slate-600">Ordenar por:</span>
+        <Link
+          href={href({ orden: "producto" })}
+          aria-current={orden === "producto" ? "true" : undefined}
+          className={
+            orden === "producto"
+              ? "rounded-lg bg-logisalud-teal/15 px-3 py-1.5 font-medium text-[#1c6d71]"
+              : "rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+          }
+        >
+          Producto (A-Z)
+        </Link>
+        <Link
+          href={href({ orden: "vencimiento" })}
+          aria-current={orden === "vencimiento" ? "true" : undefined}
+          className={
+            orden === "vencimiento"
+              ? "rounded-lg bg-logisalud-teal/15 px-3 py-1.5 font-medium text-[#1c6d71]"
+              : "rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+          }
+        >
+          Vence primero
+        </Link>
+      </div>
 
       {page.filas.length === 0 ? (
         <p className="text-sm text-slate-600">
@@ -104,7 +138,9 @@ export default async function StockPage({
       ) : (
         <>
           <p className="text-sm text-slate-600">
-            {page.total.toLocaleString("es-PE")} lote{page.total === 1 ? "" : "s"}
+            {page.totalProductos.toLocaleString("es-PE")} producto
+            {page.totalProductos === 1 ? "" : "s"} · {page.totalLotes.toLocaleString("es-PE")} lote
+            {page.totalLotes === 1 ? "" : "s"}
             {busqueda ? ` para “${busqueda}”` : ""} · página {page.pagina} de {page.paginas}
           </p>
 
@@ -142,17 +178,17 @@ export default async function StockPage({
           {page.paginas > 1 && (
             <div className="flex items-center justify-between gap-3">
               {page.pagina > 1 ? (
-                <Link href={hrefPagina(page.pagina - 1)} className="btn-secondary text-sm">
+                <Link href={href({ pagina: page.pagina - 1 })} className="btn-secondary text-sm">
                   Anterior
                 </Link>
               ) : (
                 <span />
               )}
               <span className="text-sm text-slate-600">
-                {STOCK_PAGE_SIZE} lotes por página
+                {STOCK_PAGE_SIZE} productos por página
               </span>
               {page.pagina < page.paginas ? (
-                <Link href={hrefPagina(page.pagina + 1)} className="btn-secondary text-sm">
+                <Link href={href({ pagina: page.pagina + 1 })} className="btn-secondary text-sm">
                   Siguiente
                 </Link>
               ) : (
