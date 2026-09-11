@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import {
   aprobarPorContabilidad, rechazarPorContabilidad,
-  subirComprobante, liquidarAnticipo, obtenerUrlComprobante,
+  subirComprobante, liquidarAnticipo, obtenerUrlComprobante, anularSolicitud,
 } from '@/services/solicitudes-gasto'
 
 export type EstadoAccion = { error: string } | null
@@ -65,6 +65,15 @@ export async function verComprobanteAction(storagePath: string): Promise<{ url: 
 
 export async function liquidarAnticipoAction(id: string): Promise<EstadoAccion> {
   return ejecutar(id, () => liquidarAnticipo(id))
+}
+
+export async function anularSolicitudAction(
+  id: string,
+  _previo: EstadoAccion,
+  form: FormData
+): Promise<EstadoAccion> {
+  const motivo = String(form.get('motivo') ?? '')
+  return ejecutar(id, () => anularSolicitud(id, motivo))
 }
 
 function textoONull(v: FormDataEntryValue | null): string | null {

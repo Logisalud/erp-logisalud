@@ -7,6 +7,10 @@ import {
 } from '@/domain/servicio'
 import { calcularFechaVencimientoReal, normalizarNumeroFactura } from '@/domain/obligacion'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
+import {
+  ERROR_AUTO_APROBACION, ERROR_ANULAR_AJENO, ERROR_ANULAR_TARDE,
+  autoridadYaDecidioOS, esAutoridadFinal, puedeAnular, puedeDecidirSobre,
+} from '@/domain/auto-aprobacion'
 import { formatoMonto } from '@/domain/aviso-email'
 
 export type ProveedorServicio = { id: string; razon_social: string }
@@ -177,14 +181,34 @@ async function cambiarEstado(id: string, desde: EstadoOS[], hacia: EstadoOS, cam
   if (errUpd) throw new Error(`No se pudo actualizar la orden de servicio: ${errUpd.message}`)
 }
 
-export async function aprobarOS(id: string): Promise<void> {
+/**
+ * Pieza H: nadie decide sobre una OS que cargó él mismo. Se chequea acá y
+ * no solo en RLS porque el flag `acceso_abierto_temporal` hoy anula las
+ * policies (ver domain/auto-aprobacion.ts).
+ */
+async function exigirQuePuedaDecidirSobreLaOS(id: string): Promise<string> {
   const usuario = await exigirUsuario()
-  await cambiarEstado(id, ['pendiente_jefe'], 'aprobada', { aprobado_por: usuario.id, aprobado_fecha: new Date().toISOString() })
+  const supabase = crearClienteServidor()
+  const { data: os } = await supabase
+    .schema('servicios')
+    .from('ordenes_servicio')
+    .select('solicitante_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (!puedeDecidirSobre(await perfilActual(), usuario.id, (os as any)?.solicitante_id ?? null)) {
+    throw new Error(ERROR_AUTO_APROBACION)
+  }
+  return usuario.id
+}
+
+export async function aprobarOS(id: string): Promise<void> {
+  const usuarioId = await exigirQuePuedaDecidirSobreLaOS(id)
+  await cambiarEstado(id, ['pendiente_jefe'], 'aprobada', { aprobado_por: usuarioId, aprobado_fecha: new Date().toISOString() })
 }
 
 export async function rechazarOS(id: string): Promise<void> {
-  const usuario = await exigirUsuario()
-  await cambiarEstado(id, ['pendiente_jefe'], 'rechazada_jefe', { aprobado_por: usuario.id, aprobado_fecha: new Date().toISOString() })
+  const usuarioId = await exigirQuePuedaDecidirSobreLaOS(id)
+  await cambiarEstado(id, ['pendiente_jefe'], 'rechazada_jefe', { aprobado_por: usuarioId, aprobado_fecha: new Date().toISOString() })
 }
 
 /**
@@ -460,12 +484,33 @@ export async function anularOS(id: string, motivo: string): Promise<void> {
   const { data: os, error } = await supabase
     .schema('servicios')
     .from('ordenes_servicio')
-    .select('id, codigo, estado, monto_estimado, moneda, proveedor_servicio_id, creador_correo')
+    .select('id, codigo, estado, monto_estimado, moneda, proveedor_servicio_id, creador_correo, solicitante_id, area_solicitante')
     .eq('id', id)
     .maybeSingle()
   if (error || !os) throw new Error('No se encontró la orden de servicio.')
   if (!puedeAnularse(os.estado as EstadoOS)) {
     throw new Error(`Ya no se puede anular: está "${ETIQUETA_ESTADO_OS[os.estado as EstadoOS]}".`)
+  }
+
+  // Pieza G: quien la creó puede anularla SOLO mientras el jefe de área no
+  // haya decidido. Después, anular queda para la autoridad — antes esto
+  // dejaba al creador anular una OS ya aprobada o en ejecución.
+  // La autoridad de una OS es el JEFE DEL ÁREA SOLICITANTE, no Contabilidad
+  // — por eso no alcanza `esAutoridadFinal` acá. Se resuelve igual que
+  // `es_jefe_de()` en las policies: mirando `public.area_responsables`.
+  const esAutoridadDeEstaOS =
+    esAutoridadFinal(perfil) || (await esJefeDelArea(usuario.id, (os as any).area_solicitante ?? null))
+  if (
+    !puedeAnular(
+      esAutoridadDeEstaOS,
+      usuario.id,
+      (os as any).solicitante_id ?? null,
+      autoridadYaDecidioOS(os.estado as string)
+    )
+  ) {
+    throw new Error(
+      (os as any).solicitante_id === usuario.id ? ERROR_ANULAR_TARDE : ERROR_ANULAR_AJENO
+    )
   }
 
   const { error: errUpd } = await supabase
@@ -499,4 +544,17 @@ export async function anularOS(id: string, motivo: string): Promise<void> {
     ruta: `/servicios/${id}`,
     creadorCorreo: os.creador_correo ?? null,
   })
+}
+
+/** El `es_jefe_de()` de las policies, resuelto en JS — ver services/pendientes-aprobar.ts. */
+async function esJefeDelArea(usuarioId: string, area: string | null): Promise<boolean> {
+  if (!area) return false
+  const supabase = crearClienteServidor()
+  const { data } = await supabase
+    .from('area_responsables')
+    .select('area')
+    .eq('responsable_id', usuarioId)
+    .eq('area', area)
+    .maybeSingle()
+  return !!data
 }

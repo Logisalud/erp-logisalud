@@ -1,6 +1,7 @@
 import 'server-only'
-import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
+import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { baseEIgvMovimiento, type BorradorMovimiento, type EstadoReposicion } from '@/domain/caja-chica'
+import { ERROR_AUTO_APROBACION, puedeDecidirSobre } from '@/domain/auto-aprobacion'
 
 export type Fondo = {
   id: string
@@ -291,8 +292,35 @@ async function desenlazarMovimientos(reposicionId: string) {
   await supabase.schema('caja_chica').from('movimientos').update({ reposicion_id: null }).eq('reposicion_id', reposicionId)
 }
 
+/**
+ * Pieza H: el custodio del fondo es quien PIDE la reposición, así que no
+ * puede ser quien la aprueba. Se chequea acá porque el flag
+ * `acceso_abierto_temporal` anula hoy las policies (ver
+ * domain/auto-aprobacion.ts).
+ */
+async function exigirQueNoSeaSuPropiaReposicion(id: string, usuarioId: string): Promise<void> {
+  const supabase = crearClienteServidor()
+  const { data: reposicion } = await supabase
+    .schema('caja_chica')
+    .from('reposiciones')
+    .select('fondo_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (!reposicion) return
+  const { data: fondo } = await supabase
+    .schema('caja_chica')
+    .from('fondos')
+    .select('custodio_id')
+    .eq('id', (reposicion as any).fondo_id)
+    .maybeSingle()
+  if (!puedeDecidirSobre(await perfilActual(), usuarioId, (fondo as any)?.custodio_id ?? null)) {
+    throw new Error(ERROR_AUTO_APROBACION)
+  }
+}
+
 export async function aprobarPorJefe(id: string): Promise<void> {
   const usuario = await exigirUsuario()
+  await exigirQueNoSeaSuPropiaReposicion(id, usuario.id)
   await cambiarEstado(id, ['pendiente_jefe'], 'pendiente_contabilidad', {
     aprobado_jefe_por: usuario.id, aprobado_jefe_fecha: new Date().toISOString(),
   })
@@ -300,6 +328,7 @@ export async function aprobarPorJefe(id: string): Promise<void> {
 
 export async function rechazarPorJefe(id: string): Promise<void> {
   const usuario = await exigirUsuario()
+  await exigirQueNoSeaSuPropiaReposicion(id, usuario.id)
   await cambiarEstado(id, ['pendiente_jefe'], 'rechazada_jefe', {
     aprobado_jefe_por: usuario.id, aprobado_jefe_fecha: new Date().toISOString(),
   })
@@ -308,6 +337,7 @@ export async function rechazarPorJefe(id: string): Promise<void> {
 
 export async function rechazarPorContabilidad(id: string): Promise<void> {
   const usuario = await exigirUsuario()
+  await exigirQueNoSeaSuPropiaReposicion(id, usuario.id)
   await cambiarEstado(id, ['pendiente_contabilidad'], 'rechazada_contabilidad', {
     aprobado_contabilidad_por: usuario.id, aprobado_contabilidad_fecha: new Date().toISOString(),
   })
@@ -324,6 +354,7 @@ export async function rechazarPorContabilidad(id: string): Promise<void> {
  */
 export async function aprobarPorContabilidad(id: string): Promise<void> {
   const usuario = await exigirUsuario()
+  await exigirQueNoSeaSuPropiaReposicion(id, usuario.id)
   const supabase = crearClienteServidor()
 
   const { data: reposicion, error } = await supabase

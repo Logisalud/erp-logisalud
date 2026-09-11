@@ -40,6 +40,7 @@ export const ESTADOS_SOLICITUD = [
   'pendiente_rendicion',
   'rendida',
   'cerrada',
+  'anulada',
 ] as const
 export type EstadoSolicitud = (typeof ESTADOS_SOLICITUD)[number]
 
@@ -53,6 +54,7 @@ export const ETIQUETA_ESTADO: Record<EstadoSolicitud, string> = {
   pendiente_rendicion: 'Pagada — pendiente de rendir',
   rendida: 'Rendida',
   cerrada: 'Cerrada',
+  anulada: 'Anulada',
 }
 
 /**
@@ -62,10 +64,11 @@ export const ETIQUETA_ESTADO: Record<EstadoSolicitud, string> = {
  * Almacén. Por eso no sale de `aprobada` acá.
  */
 const TRANSICIONES: Record<EstadoSolicitud, readonly EstadoSolicitud[]> = {
-  pendiente_jefe: ['pendiente_contabilidad', 'rechazada_jefe'],
+  pendiente_jefe: ['pendiente_contabilidad', 'rechazada_jefe', 'anulada'],
   rechazada_jefe: [],
-  pendiente_contabilidad: ['aprobada', 'rechazada_contabilidad'],
+  pendiente_contabilidad: ['aprobada', 'rechazada_contabilidad', 'anulada'],
   rechazada_contabilidad: [],
+  anulada: [],
   aprobada: [],
   pagada: [],
   pendiente_rendicion: ['rendida'],
@@ -111,6 +114,7 @@ const SIGUIENTE_PASO_SOLICITUD: Record<EstadoSolicitud, string> = {
   pendiente_rendicion: 'Subí tus comprobantes para rendir el anticipo',
   rendida: 'Rendida — esperando el cierre',
   cerrada: 'Ciclo cerrado',
+  anulada: 'Anulada por error de captura',
 }
 
 export function siguientePasoSolicitud(estado: EstadoSolicitud): string {
@@ -153,6 +157,12 @@ export type BorradorSolicitud = {
    * responsable del área de quien crea la solicitud, pero es editable a
    * mano. Aplica a `anticipo` y a `reembolso`. */
   quienAutoriza?: string | null
+  /** "¿Para cuándo necesitas el dinero?" — anticipo y reembolso. Distinta de
+   * `fechaInicio`/`fechaFin`, que son del VIAJE (el rango que cubren los
+   * viáticos, usado después en la rendición): esta es para que Tesorería
+   * priorice el desembolso. Conviven a propósito — el dinero normalmente se
+   * necesita ANTES de que arranque el viaje. Opcional. */
+  fechaRequerida?: string | null
   /** Solo `gasto_directo`/`reembolso`: la fecha que figura en el comprobante
    * real. Obligatoria salvo que no haya comprobante (ver validarSolicitud). */
   fechaFactura?: string | null
@@ -233,4 +243,28 @@ export function calcularLiquidacion(montoAnticipo: number, comprobantes: readonl
 
 function redondear(n: number): number {
   return Number(`${Math.round(Number(`${n}e2`))}e-2`)
+}
+
+/**
+ * Anular una solicitud: quien la creó puede corregir su propio error, pero
+ * solo mientras Contabilidad no la haya mirado. Después de eso, anular es
+ * de la autoridad (ver domain/auto-aprobacion.ts) — acá va solo la parte de
+ * ESTADO, que es la que depende de esta máquina.
+ */
+export function puedeAnularseSolicitud(estado: EstadoSolicitud): boolean {
+  return transicionPermitida(estado, 'anulada')
+}
+
+/**
+ * Aviso suave, NO error: pedir el dinero para después de que el viaje
+ * arrancó suele ser un tipeo, pero puede ser legítimo (un viaje largo con
+ * un segundo desembolso), así que informa y no bloquea.
+ */
+export function avisoFechaRequeridaTardia(
+  fechaRequerida: string | null | undefined,
+  fechaInicio: string | null | undefined
+): string | null {
+  if (!fechaRequerida || !fechaInicio) return null
+  if (fechaRequerida <= fechaInicio) return null
+  return 'Ojo: pediste el dinero para después de que arranca el viaje. Si es a propósito, dejalo así.'
 }

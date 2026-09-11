@@ -1,5 +1,5 @@
 import 'server-only'
-import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
+import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import {
   montoAPagarConNotasCredito,
   puedeEntrarAPropuesta,
@@ -10,6 +10,7 @@ import {
   validarPropuesta,
   type EstadoPropuesta,
 } from '@/domain/propuesta'
+import { puedeAprobarPropuesta, totalesDeLote, type MontoPorMoneda } from '@/domain/propuesta-permisos'
 
 export type ObligacionConforme = {
   id: string
@@ -196,7 +197,15 @@ export async function enviarAAprobacion(propuestaId: string): Promise<void> {
 }
 
 /** Gerencia aprueba el lote entero de una vez — nunca obligación por obligación (sección 5 del documento maestro). */
+/**
+ * Pieza I: aprobar el lote pasa de Gerencia a Contabilidad rol admin o
+ * admin — ver domain/propuesta-permisos.ts. El chequeo va acá y no solo en
+ * la policy porque hoy el flag `acceso_abierto_temporal` la anula.
+ */
 export async function aprobarPropuesta(propuestaId: string): Promise<void> {
+  if (!puedeAprobarPropuesta(await perfilActual())) {
+    throw new Error('Solo Contabilidad (rol admin) o un administrador pueden aprobar una propuesta de pago.')
+  }
   await cambiarEstadoPropuesta(propuestaId, ['pendiente_aprobacion'], 'aprobada')
 }
 
@@ -207,6 +216,9 @@ export async function aprobarPropuesta(propuestaId: string): Promise<void> {
  * contenga.
  */
 export async function rechazarPropuesta(propuestaId: string): Promise<void> {
+  if (!puedeAprobarPropuesta(await perfilActual())) {
+    throw new Error('Solo Contabilidad (rol admin) o un administrador pueden rechazar una propuesta de pago.')
+  }
   await cambiarEstadoPropuesta(propuestaId, ['pendiente_aprobacion'], 'rechazada')
   const supabase = crearClienteServidor()
   const { data: detalle } = await supabase.schema('cuentas_x_pagar').from('propuesta_detalle').select('obligacion_id').eq('propuesta_id', propuestaId)
@@ -217,6 +229,10 @@ export async function rechazarPropuesta(propuestaId: string): Promise<void> {
 }
 
 export type PropuestaListada = {
+  /** Totales del lote agrupados por moneda — nunca un único número: una
+   * propuesta puede mezclar PEN y USD (Pieza I). */
+  totalPorMoneda?: MontoPorMoneda[]
+  pendientePorMoneda?: MontoPorMoneda[]
   id: string
   codigo: string
   periodo: string | null
@@ -230,13 +246,52 @@ export async function listarPropuestas(): Promise<PropuestaListada[]> {
   const { data, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('propuestas_pago')
-    .select('id, codigo, periodo, estado, created_at, propuesta_detalle(id)')
+    .select('id, codigo, periodo, estado, created_at, propuesta_detalle(id, obligacion_id, monto_a_pagar)')
     .order('created_at', { ascending: false })
   if (error) throw new Error(`No se pudieron listar las propuestas: ${error.message}`)
-  return (data ?? []).map((p: any) => ({
-    id: p.id, codigo: p.codigo, periodo: p.periodo, estado: p.estado, created_at: p.created_at,
-    totalObligaciones: (p.propuesta_detalle ?? []).length,
-  }))
+
+  const filas = (data ?? []) as any[]
+  // La moneda vive en la obligación, no en el detalle (cross-schema no, pero
+  // sí otra tabla) — y sin ella no se puede agrupar sin mentir. Una consulta
+  // más para todas las propuestas juntas, no una por fila.
+  const detalleIds = filas.flatMap((p) => (p.propuesta_detalle ?? []).map((d: any) => d.obligacion_id))
+  const [monedas, pagadas] = await Promise.all([
+    mapaMonedas(detalleIds),
+    idsYaPagadas(detalleIds),
+  ])
+
+  return filas.map((p: any) => {
+    const lineas = (p.propuesta_detalle ?? []).map((d: any) => ({
+      moneda: monedas.get(d.obligacion_id) ?? 'PEN',
+      montoAPagar: Number(d.monto_a_pagar),
+      yaPagada: pagadas.has(d.obligacion_id),
+    }))
+    const totales = totalesDeLote(lineas)
+    return {
+      id: p.id, codigo: p.codigo, periodo: p.periodo, estado: p.estado, created_at: p.created_at,
+      totalObligaciones: lineas.length,
+      totalPorMoneda: totales.total,
+      pendientePorMoneda: totales.pendiente,
+    }
+  })
+}
+
+async function mapaMonedas(obligacionIds: string[]): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>()
+  const ids = [...new Set(obligacionIds)]
+  if (ids.length === 0) return mapa
+  const supabase = crearClienteServidor()
+  const { data } = await supabase.schema('cuentas_x_pagar').from('obligaciones').select('id, moneda').in('id', ids)
+  for (const o of (data ?? []) as any[]) mapa.set(o.id, o.moneda)
+  return mapa
+}
+
+async function idsYaPagadas(obligacionIds: string[]): Promise<Set<string>> {
+  const ids = [...new Set(obligacionIds)]
+  if (ids.length === 0) return new Set()
+  const supabase = crearClienteServidor()
+  const { data } = await supabase.schema('cuentas_x_pagar').from('pago_aplicacion').select('obligacion_id').in('obligacion_id', ids)
+  return new Set((data ?? []).map((p: any) => p.obligacion_id))
 }
 
 export type PropuestaDetalle = {

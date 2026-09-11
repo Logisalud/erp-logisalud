@@ -46,6 +46,7 @@ export default async function PendientesDeAprobar() {
                   <th className="px-3 py-2 font-medium">Fecha</th>
                   <th className="px-3 py-2 text-right font-medium">Monto</th>
                   <th className="px-3 py-2 font-medium">Esperando hace</th>
+                  <th className="px-3 py-2 font-medium">Lo necesita para</th>
                   <th className="px-3 py-2 font-medium">Decide</th>
                   <th className="px-3 py-2 font-medium">Acción</th>
                 </tr>
@@ -66,6 +67,10 @@ export default async function PendientesDeAprobar() {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <Espera dias={f.diasEsperando} />
+                    </td>
+                    {/* Solo Anticipo y Reembolso capturan esta fecha. */}
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                      {f.fechaRequerida ?? '—'}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-gray-600">{f.quienDecide}</td>
                     <td className="px-3 py-2 whitespace-nowrap">

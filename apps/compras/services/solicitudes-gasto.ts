@@ -10,8 +10,14 @@ import {
   type BorradorSolicitud,
   type EstadoSolicitud,
   type TipoSolicitud,
+  puedeAnularseSolicitud,
+  ETIQUETA_ESTADO,
 } from '@/domain/gasto'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
+import {
+  ERROR_AUTO_APROBACION, ERROR_ANULAR_AJENO, ERROR_ANULAR_TARDE,
+  autoridadYaDecidioSolicitud, esAutoridadFinal, puedeAnular, puedeDecidirSobre,
+} from '@/domain/auto-aprobacion'
 import { formatoMonto } from '@/domain/aviso-email'
 
 export type CategoriaGasto = { id: string; nombre: string; cuenta_contable: string | null }
@@ -66,6 +72,7 @@ export async function crearSolicitud(borrador: BorradorSolicitud): Promise<{ id:
       destino: borrador.destino ?? null,
       fecha_inicio: borrador.fechaInicio ?? null,
       fecha_fin: borrador.fechaFin ?? null,
+      fecha_requerida: borrador.fechaRequerida ?? null,
       asignado_a: borrador.tipo === 'anticipo' ? borrador.asignadoA ?? null : null,
       // Informativo en Anticipo y en Reembolso (Pieza A): reemplaza la
       // aprobación del jefe, que en estos flujos no decidía nada.
@@ -212,6 +219,10 @@ export type SolicitudDetalle = SolicitudListada & {
   fecha_factura: string | null
   /** Solo si `estado === 'rechazada_contabilidad'` — ver rechazarPorContabilidad. */
   rechazo_motivo: string | null
+  /** "¿Para cuándo necesitas el dinero?" — anticipo y reembolso (Pieza J). */
+  fecha_requerida: string | null
+  /** Solo si `estado === 'anulada'` — ver anularSolicitud. */
+  anulado_motivo: string | null
   liquidacion: {
     monto_anticipo: number
     monto_sustentado: number
@@ -229,6 +240,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     .select(`id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, area, created_at,
              destino, fecha_inicio, fecha_fin, categoria_id, asignado_a, obligacion_id,
              cotizacion_storage_path, quien_autoriza, fecha_factura, rechazo_motivo,
+             fecha_requerida, anulado_motivo,
              comprobantes:solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
     .eq('id', id)
     .maybeSingle()
@@ -299,10 +311,14 @@ export async function rechazarPorContabilidad(id: string, motivo: string): Promi
   const { data: solicitud, error } = await supabase
     .schema('gastos')
     .from('solicitudes_gasto')
-    .select('id, codigo, tipo, moneda, monto_solicitado, descripcion, creador_correo')
+    .select('id, codigo, tipo, moneda, monto_solicitado, descripcion, creador_correo, solicitante_id, estado')
     .eq('id', id)
     .maybeSingle()
   if (error || !solicitud) throw new Error('No se encontró la solicitud.')
+  // Pieza H: rechazar es decidir, así que tampoco se rechaza lo propio.
+  if (!puedeDecidirSobre(perfil, usuario.id, (solicitud as any).solicitante_id ?? null)) {
+    throw new Error(ERROR_AUTO_APROBACION)
+  }
 
   await cambiarEstado(id, ['pendiente_contabilidad'], 'rechazada_contabilidad', {
     aprobado_contabilidad_por: usuario.id,
@@ -364,6 +380,12 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
   if (error || !solicitud) throw new Error('No se encontró la solicitud.')
   if (solicitud.estado !== 'pendiente_contabilidad') {
     throw new Error(`La solicitud está en "${solicitud.estado}", no en espera de Contabilidad.`)
+  }
+  // Pieza H: nadie aprueba lo suyo. Mira `solicitante_id` (quien la cargó),
+  // no `asignado_a` — Contabilidad arma anticipos para vendedores y no
+  // corresponde bloquearla por eso.
+  if (!puedeDecidirSobre(await perfilActual(), usuario.id, solicitud.solicitante_id ?? null)) {
+    throw new Error(ERROR_AUTO_APROBACION)
   }
 
   const { baseImponible, igv } =
@@ -577,4 +599,75 @@ function reversarBaseEIgv(montoTotal: number): { baseImponible: number; igv: num
   const baseImponible = Math.round((montoTotal / (1 + TASA_IGV)) * 100) / 100
   const igv = Math.round((montoTotal - baseImponible) * 100) / 100
   return { baseImponible, igv }
+}
+
+
+/**
+ * Anular una solicitud por error de captura (Pieza G). No existía: lo único
+ * que había era `rechazarPorContabilidad`, que es la acción de la autoridad
+ * — quien cargaba mal un anticipo no tenía forma de corregirse.
+ *
+ * Mismo patrón que anularOC/anularOS/anularPagoDirecto: motivo obligatorio,
+ * estado terminal, el registro queda. Quien la creó puede anularla solo
+ * mientras Contabilidad no la haya mirado; después es de la autoridad.
+ */
+export async function anularSolicitud(id: string, motivo: string): Promise<void> {
+  if (!motivo.trim()) throw new Error('El motivo de la anulación es obligatorio.')
+  const usuario = await exigirUsuario()
+  const perfil = await perfilActual()
+  const supabase = crearClienteServidor()
+
+  const { data: solicitud, error } = await supabase
+    .schema('gastos')
+    .from('solicitudes_gasto')
+    .select('id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, solicitante_id, creador_correo')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !solicitud) throw new Error('No se encontró la solicitud.')
+  if (!puedeAnularseSolicitud(solicitud.estado as EstadoSolicitud)) {
+    throw new Error(`Ya no se puede anular: está "${ETIQUETA_ESTADO[solicitud.estado as EstadoSolicitud]}".`)
+  }
+  if (
+    !puedeAnular(
+      esAutoridadFinal(perfil),
+      usuario.id,
+      solicitud.solicitante_id ?? null,
+      autoridadYaDecidioSolicitud(solicitud.estado as string)
+    )
+  ) {
+    throw new Error(solicitud.solicitante_id === usuario.id ? ERROR_ANULAR_TARDE : ERROR_ANULAR_AJENO)
+  }
+
+  const { error: errUpd } = await supabase
+    .schema('gastos')
+    .from('solicitudes_gasto')
+    .update({
+      estado: 'anulada',
+      anulado_motivo: motivo.trim(),
+      anulado_por: usuario.id,
+      anulado_en: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (errUpd) throw new Error(`No se pudo anular la solicitud: ${errUpd.message}`)
+
+  // Mismo criterio que rechazarPorContabilidad: solo avisa si la creación
+  // había avisado (gasto_directo nunca manda correo de creación).
+  if (solicitud.tipo === 'anticipo' || solicitud.tipo === 'reembolso') {
+    await avisarAnulacionSinRomper({
+      accion: 'anulacion',
+      tipo: solicitud.tipo,
+      codigo: solicitud.codigo,
+      monto: Number(solicitud.monto_solicitado),
+      moneda: solicitud.moneda,
+      referencia: ETIQUETA_TIPO[solicitud.tipo as TipoSolicitud],
+      motivo: motivo.trim(),
+      anuladoPor: perfil?.nombre ?? usuario.email ?? 'alguien del ERP',
+      filas: [
+        { etiqueta: 'Monto', valor: formatoMonto(Number(solicitud.monto_solicitado), solicitud.moneda) },
+        { etiqueta: 'Descripción', valor: solicitud.descripcion },
+      ],
+      ruta: `/gastos/${id}`,
+      creadorCorreo: solicitud.creador_correo ?? null,
+    })
+  }
 }
