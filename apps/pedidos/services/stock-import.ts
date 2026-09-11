@@ -4,12 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "./audit-log";
 import {
   claveDeNombre,
+  lotesSobrantes,
   parseStockRows,
   resolverStockImport,
   resumirStockImport,
   type RawCell,
   type RawRow,
   type StockImportResumen,
+  type StockExistente,
   type StockIssue,
   type StockLoteResuelto,
 } from "@/domain/stock-import";
@@ -145,6 +147,15 @@ export type StockImportPreview = {
    * qué falta un dato que ayer estaba.
    */
   columnasAusentes: string[];
+  /**
+   * Lotes cargados hoy, en las fuentes que el archivo toca, que el archivo
+   * NO menciona. Con el modo "reemplazar" se dan de baja.
+   */
+  sobrantes: Array<{ codigoProducto: string; descripcion: string; lote: string; cantidad: number }>;
+  /** Unidades que suman esos sobrantes, para dimensionar la baja. */
+  unidadesSobrantes: number;
+  /** Los ids de esos lotes, que es lo que se da de baja al publicar. */
+  sobrantesIds: string[];
 };
 
 /**
@@ -157,6 +168,40 @@ export type StockImportPreview = {
  */
 const FUENTE_POR_DEFECTO = "Almacén Central Lima";
 
+type StockLoteFila = {
+  id: string;
+  product_id: string;
+  inventory_source_id: number;
+  lote: string;
+  cantidad_disponible: number | string;
+};
+
+/**
+ * Todo el stock cargado, en páginas.
+ *
+ * PostgREST corta las respuestas en 1.000 filas y no avisa: una lectura
+ * suelta haría que, pasado ese tamaño, los lotes no leídos parecieran
+ * nuevos (y, con el modo "reemplazar", que el archivo no los menciona).
+ */
+async function leerStockCompleto(): Promise<StockLoteFila[]> {
+  const supabase = createClient();
+  const PAGINA = 1000;
+  const filas: StockLoteFila[] = [];
+
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data, error } = await supabase
+      .from("stock_lotes")
+      .select("id, product_id, inventory_source_id, lote, cantidad_disponible")
+      .order("id", { ascending: true })
+      .range(desde, desde + PAGINA - 1);
+    if (error) throw new Error(error.message);
+
+    const pagina = (data ?? []) as unknown as StockLoteFila[];
+    filas.push(...pagina);
+    if (pagina.length < PAGINA) return filas;
+  }
+}
+
 async function cargarCatalogos() {
   const supabase = createClient();
 
@@ -165,21 +210,33 @@ async function cargarCatalogos() {
     // Todas, no sólo las activas: si el archivo nombra una fuente inactiva
     // hay que decir eso y no "no existe" (que empujaría a duplicarla).
     supabase.from("inventory_sources").select("id, nombre, estado"),
-    supabase
-      .from("stock_lotes")
-      .select("product_id, inventory_source_id, lote, cantidad_disponible"),
+    leerStockCompleto(),
   ]);
 
   if (productos.error) throw new Error(productos.error.message);
   if (fuentes.error) throw new Error(fuentes.error.message);
-  if (stock.error) throw new Error(stock.error.message);
+
+  const nombrePorProducto = new Map(
+    (productos.data ?? []).map((p) => [p.id, p as { codigo_interno: string; descripcion: string }]),
+  );
 
   const existentes = new Map<string, number>();
-  for (const fila of stock.data ?? []) {
+  const existentesDetalle: StockExistente[] = [];
+  for (const fila of stock) {
     existentes.set(
       `${fila.product_id}|${fila.inventory_source_id}|${fila.lote}`,
       Number(fila.cantidad_disponible),
     );
+    const producto = nombrePorProducto.get(fila.product_id);
+    existentesDetalle.push({
+      id: fila.id,
+      productId: fila.product_id,
+      inventorySourceId: fila.inventory_source_id,
+      lote: fila.lote,
+      cantidad: Number(fila.cantidad_disponible),
+      codigoProducto: producto?.codigo_interno ?? "—",
+      descripcion: producto?.descripcion ?? "—",
+    });
   }
 
   const fuentesLista = fuentes.data ?? [];
@@ -198,6 +255,7 @@ async function cargarCatalogos() {
     fuentes: fuentesLista,
     fuentePorDefecto,
     existentes,
+    existentesDetalle,
   };
 }
 
@@ -213,6 +271,8 @@ export async function previewStockImport(file: File): Promise<StockImportPreview
     if (parsed.columns.fechaVencimiento === -1) columnasAusentes.push("FV (vencimiento)");
     if (parsed.columns.proveedor === -1) columnasAusentes.push("PROVEEDOR");
   }
+
+  const sobrantes = lotesSobrantes(resuelto.lotes, catalogos.existentesDetalle);
 
   return {
     fileName: file.name,
@@ -230,6 +290,14 @@ export async function previewStockImport(file: File): Promise<StockImportPreview
       .map((f) => f.nombre),
     fuentePorDefecto: catalogos.fuentePorDefecto.nombre,
     columnasAusentes,
+    sobrantes: sobrantes.map((l) => ({
+      codigoProducto: l.codigoProducto,
+      descripcion: l.descripcion,
+      lote: l.lote,
+      cantidad: l.cantidad,
+    })),
+    unidadesSobrantes: sobrantes.reduce((acc, l) => acc + l.cantidad, 0),
+    sobrantesIds: sobrantes.map((l) => l.id),
   };
 }
 
@@ -244,9 +312,26 @@ export type StockImportResult = {
   sinCambio: number;
   /** Filas del archivo que no se pudieron aplicar. */
   omitidos: number;
+  /** Lotes dados de baja por no estar en el archivo (modo "reemplazar"). */
+  dadosDeBaja: number;
 };
 
-export async function publishStockImport(file: File, actor: string): Promise<StockImportResult> {
+/**
+ * Qué hacer con los lotes que ya están cargados y el archivo no menciona.
+ *
+ * `reemplazar` es el modo normal y el que corresponde a un archivo de
+ * stock, que es una foto del almacén: lo que no está en la foto ya no está
+ * en el almacén. `solo_actualizar` existe para el archivo parcial —el de un
+ * proveedor, una corrección de unas pocas filas— donde dar de baja lo que
+ * no aparece sería borrar stock que sí hay.
+ */
+export type ModoStockImport = "reemplazar" | "solo_actualizar";
+
+export async function publishStockImport(
+  file: File,
+  actor: string,
+  modo: ModoStockImport = "reemplazar",
+): Promise<StockImportResult> {
   const preview = await previewStockImport(file);
 
   if (preview.lotes.length === 0) {
@@ -304,6 +389,26 @@ export async function publishStockImport(file: File, actor: string): Promise<Sto
     if (resultado.error) throw new Error(resultado.error.message);
   }
 
+  /*
+    La baja va DESPUÉS de las altas y actualizaciones, y no antes: si algo
+    falla al escribir, el stock viejo sigue ahí. Al revés quedaría un
+    almacén vacío.
+
+    Se borra la fila en vez de dejarla en 0: `stock_lotes` es la foto del
+    almacén de hoy, nadie la referencia (no tiene claves foráneas
+    entrantes), y 200 lotes en 0 arrastrados de cargas viejas ensucian la
+    pantalla sin aportar nada. El detalle de lo dado de baja queda en la
+    bitácora.
+  */
+  const dadosDeBaja = modo === "reemplazar" ? preview.sobrantesIds : [];
+  for (let i = 0; i < dadosDeBaja.length; i += 200) {
+    const { error: errorBaja } = await supabase
+      .from("stock_lotes")
+      .delete()
+      .in("id", dadosDeBaja.slice(i, i + 200));
+    if (errorBaja) throw new Error(errorBaja.message);
+  }
+
   await logAudit({
     actor,
     accion: "importar_stock",
@@ -311,10 +416,17 @@ export async function publishStockImport(file: File, actor: string): Promise<Sto
     entidadId: file.name,
     datosDespues: {
       archivo: file.name,
+      modo,
       creados: preview.resumen.crear,
       actualizados: preview.resumen.actualizar,
       sin_cambio: preview.resumen.sinCambio,
       omitidos: preview.errors.length,
+      dados_de_baja: dadosDeBaja.length,
+      unidades_dadas_de_baja: modo === "reemplazar" ? preview.unidadesSobrantes : 0,
+      lotes_dados_de_baja:
+        modo === "reemplazar"
+          ? preview.sobrantes.map((l) => `${l.codigoProducto} ${l.lote} (${l.cantidad})`)
+          : [],
     },
   });
 
@@ -324,6 +436,7 @@ export async function publishStockImport(file: File, actor: string): Promise<Sto
     actualizados: preview.resumen.actualizar,
     sinCambio: preview.resumen.sinCambio,
     omitidos: preview.errors.length,
+    dadosDeBaja: dadosDeBaja.length,
   };
 }
 

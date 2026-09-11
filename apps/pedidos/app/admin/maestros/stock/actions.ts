@@ -5,6 +5,7 @@ import { requireUserId } from "@/lib/auth/session";
 import {
   previewStockImport,
   publishStockImport,
+  type ModoStockImport,
   type StockImportPreview,
   type StockImportResult,
 } from "@/services/stock-import";
@@ -24,7 +25,11 @@ export async function previewImport(formData: FormData): Promise<StockImportPrev
 
 export async function publishImport(formData: FormData): Promise<StockImportResult> {
   const userId = await requireUserId();
-  const result = await publishStockImport(extraerArchivo(formData), userId);
+  // El modo lo elige quien carga, en el formulario. Ante cualquier valor
+  // raro se cae al conservador: no dar de baja nada.
+  const modo: ModoStockImport =
+    String(formData.get("modo") ?? "") === "reemplazar" ? "reemplazar" : "solo_actualizar";
+  const result = await publishStockImport(extraerArchivo(formData), userId, modo);
   revalidatePath("/admin/maestros/stock");
   return result;
 }

@@ -71,6 +71,32 @@ export function StockImporter({ fuentes }: { fuentes: string[] }) {
           />
         </div>
 
+        <fieldset className="rounded-lg border border-slate-200 p-3 text-sm">
+          {/*
+            La pregunta de fondo no es "cómo escribo estas filas" sino "qué
+            pasa con lo que ya está cargado y este archivo no menciona", que
+            es lo que duplicó el stock en producción el 2026-09-11.
+          */}
+          <legend className="px-1 font-medium text-slate-700">
+            Lo que este archivo no menciona
+          </legend>
+          <label className="flex items-start gap-2 py-1">
+            <input type="radio" name="modo" value="reemplazar" defaultChecked className="mt-1" />
+            <span className="text-slate-700">
+              <strong>Es el stock completo del almacén</strong> — los lotes que hoy están cargados
+              y no vengan en el archivo se dan de baja. Es lo normal para el archivo del día.
+            </span>
+          </label>
+          <label className="flex items-start gap-2 py-1">
+            <input type="radio" name="modo" value="solo_actualizar" className="mt-1" />
+            <span className="text-slate-700">
+              <strong>Es una carga parcial</strong> — sólo actualiza lo que viene en el archivo y
+              deja el resto como está. Para el archivo de un proveedor o una corrección de unas
+              pocas filas.
+            </span>
+          </label>
+        </fieldset>
+
         <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
           <p className="font-medium">Columnas que necesita el archivo</p>
           <ul className="mt-1 list-disc pl-5 text-slate-600">
@@ -166,6 +192,30 @@ function PreviewPanel({ preview }: { preview: StockImportPreview }) {
         Las filas sin FUENTE se cargan en <strong>{preview.fuentePorDefecto}</strong>. El stock se
         guarda por lote: un mismo producto puede tener varios, cada uno con su vencimiento.
       </p>
+
+      {preview.sobrantes.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p className="font-medium">
+            {preview.sobrantes.length === 1
+              ? "1 lote cargado hoy no viene en este archivo"
+              : `${preview.sobrantes.length} lotes cargados hoy no vienen en este archivo`}{" "}
+            ({preview.unidadesSobrantes} unidades)
+          </p>
+          <p className="mt-1">
+            Con <strong>&ldquo;Es el stock completo del almacén&rdquo;</strong> se dan de baja al
+            publicar. Con <strong>&ldquo;Es una carga parcial&rdquo;</strong> quedan como están —y
+            si el archivo trae los mismos productos con otro lote, el stock queda contado dos
+            veces.
+          </p>
+          <p className="cifra mt-1 break-words">
+            {preview.sobrantes
+              .slice(0, 12)
+              .map((l) => `${l.codigoProducto} ${l.lote} (${l.cantidad})`)
+              .join(" · ")}
+            {preview.sobrantes.length > 12 ? ` … y ${preview.sobrantes.length - 12} más` : ""}
+          </p>
+        </div>
+      )}
 
       {preview.columnasAusentes.length > 0 && (
         <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
@@ -309,6 +359,7 @@ function ResultPanel({ result }: { result: StockImportResult }) {
         <Stat label="Registros actualizados" value={result.actualizados} />
         <Stat label="Sin cambio" value={result.sinCambio} />
         <Stat label="Filas omitidas" value={result.omitidos} tone="warn" />
+        <Stat label="Lotes dados de baja" value={result.dadosDeBaja} />
       </div>
     </div>
   );

@@ -506,3 +506,49 @@ export function resumirStockImport(lotes: StockLoteResuelto[]): StockImportResum
     unidades: lotes.reduce((acc, l) => acc + l.cantidad, 0),
   };
 }
+
+// ---------------------------------------------------------------------
+// Lo que el archivo NO menciona
+// ---------------------------------------------------------------------
+
+/** Un lote ya cargado en la base, para compararlo contra el archivo. */
+export type StockExistente = {
+  id: string;
+  productId: string;
+  inventorySourceId: number;
+  lote: string;
+  cantidad: number;
+  codigoProducto: string;
+  descripcion: string;
+};
+
+/**
+ * Los lotes que hoy están cargados y el archivo no menciona.
+ *
+ * El archivo de stock es una FOTO del almacén, no una lista de novedades:
+ * si un lote se acabó, el archivo del día siguiente simplemente no lo trae.
+ * Con sólo upsert ese lote se queda cargado para siempre y el producto
+ * aparece dos veces —el lote viejo y el nuevo—, sumando stock que no
+ * existe. Pasó en producción el 2026-09-11: dos archivos del mismo día
+ * nombraban los mismos productos con lotes distintos y el total quedó
+ * duplicado.
+ *
+ * Se mira **sólo dentro de las fuentes que el archivo toca**: un archivo de
+ * un almacén no puede decir nada sobre el stock de otro, y borrarlo por
+ * omisión sería vaciar un almacén que nadie nombró.
+ */
+export function lotesSobrantes(
+  lotes: StockLoteResuelto[],
+  existentes: StockExistente[],
+): StockExistente[] {
+  const fuentesDelArchivo = new Set(lotes.map((l) => l.inventorySourceId));
+  const clavesDelArchivo = new Set(
+    lotes.map((l) => `${l.productId}|${l.inventorySourceId}|${l.lote}`),
+  );
+
+  return existentes.filter(
+    (e) =>
+      fuentesDelArchivo.has(e.inventorySourceId) &&
+      !clavesDelArchivo.has(`${e.productId}|${e.inventorySourceId}|${e.lote}`),
+  );
+}
