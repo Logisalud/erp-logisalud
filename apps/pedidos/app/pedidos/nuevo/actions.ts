@@ -16,10 +16,9 @@ import {
   ClienteDuplicadoError,
   type ActiveCustomerOption,
   MENSAJE_SIN_ZONA_ASIGNADA,
-  MENSAJE_ZONA_AJENA,
   addCustomerAddress,
   listCustomerAddresses,
-  listZonasSeleccionables,
+  zonaDelVendedor,
   requestNewCustomer,
   searchActiveCustomers,
 } from "@/services/customers";
@@ -152,7 +151,6 @@ export async function crearClienteNuevo(input: {
   razonSocial: string;
   rucODocumento: string;
   canalId: number;
-  zonaId: number;
   condicionPagoHabitualId: number;
   direccion: string;
   departamento: string;
@@ -161,6 +159,8 @@ export async function crearClienteNuevo(input: {
   /** Los dos opcionales: no frenan el alta de un cliente desde la calle. */
   celular?: string;
   direccionFiscal?: string;
+  /** A nombre de qué vendedor, cuando lo registra un administrador. */
+  sellerId?: string | null;
 }): Promise<ResultadoAccion<{ customer: ActiveCustomerOption; addressId: string }>> {
   try {
     return { ok: true, ...(await altaDeCliente(input)) };
@@ -173,7 +173,6 @@ async function altaDeCliente(input: {
   razonSocial: string;
   rucODocumento: string;
   canalId: number;
-  zonaId: number;
   condicionPagoHabitualId: number;
   direccion: string;
   departamento: string;
@@ -181,6 +180,7 @@ async function altaDeCliente(input: {
   distrito: string;
   celular?: string;
   direccionFiscal?: string;
+  sellerId?: string | null;
 }): Promise<{ customer: ActiveCustomerOption; addressId: string }> {
   const userId = await requireUserId();
 
@@ -191,7 +191,6 @@ async function altaDeCliente(input: {
   if (!razonSocial) throw new Error("La razón social es requerida.");
   if (!rucODocumento) throw new Error("El RUC/documento es requerido.");
   if (!input.canalId) throw new Error("Selecciona un canal.");
-  if (!input.zonaId) throw new Error("Selecciona una zona.");
   if (!input.condicionPagoHabitualId) throw new Error("Selecciona una condición de pago habitual.");
   if (!direccion) throw new Error("La dirección es requerida.");
   if (!input.departamento.trim() || !input.provincia.trim() || !input.distrito.trim()) {
@@ -201,16 +200,22 @@ async function altaDeCliente(input: {
   const ubigeo = await resolverUbigeo(input.departamento, input.provincia, input.distrito);
   if (!ubigeo) throw new Error(MENSAJE_UBIGEO_NO_RESUELTO);
 
-  // La zona se revalida contra las que el usuario puede usar: la pantalla
-  // ya las filtra, pero si llega otra (petición armada a mano, o pestaña
-  // vieja) la base la rechaza por RLS y eso se veía como un error de
-  // servidor en pantalla.
+  // La zona NO se pregunta: sale del vendedor con el que va a salir el
+  // pedido. Era la pregunta que ningún vendedor sabía contestar —su zona es
+  // un dato de la empresa ("ZONA 04", código LIMH04), no algo que él
+  // maneje— y equivocarse dejaba al cliente en una zona ajena, invisible
+  // para él en cuanto vuelva el filtro por zona.
   const user = await getCurrentUser();
-  const esAdmin = user?.roles.includes("administrador") ?? false;
-  const zonas = await listZonasSeleccionables(esAdmin);
-  if (!zonas.some((z) => z.id === input.zonaId)) {
-    throw new Error(zonas.length === 0 ? MENSAJE_SIN_ZONA_ASIGNADA : MENSAJE_ZONA_AJENA);
-  }
+  if (!user) throw new Error("No autenticado.");
+
+  const sellerId = resolveOrderSellerId({
+    rol: user.roles.includes("administrador") ? "administrador" : "vendedor",
+    callerSellerId: user.sellerId,
+    selectedSellerId: input.sellerId ?? null,
+  });
+
+  const zona = await zonaDelVendedor(sellerId);
+  if (!zona) throw new Error(MENSAJE_SIN_ZONA_ASIGNADA);
 
   const { customer, addressId } = await requestNewCustomer({
     rucODocumento,
@@ -218,7 +223,7 @@ async function altaDeCliente(input: {
     celular: input.celular?.trim() || null,
     direccionFiscal: input.direccionFiscal?.trim() || null,
     canalId: input.canalId,
-    zonaId: input.zonaId,
+    zonaId: zona.id,
     condicionPagoHabitualId: input.condicionPagoHabitualId,
     direccion,
     ubigeo,

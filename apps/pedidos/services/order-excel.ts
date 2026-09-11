@@ -5,6 +5,7 @@ import {
   NOTA_NO_COMPROBANTE,
   computeOrderTotals,
   etiquetaObservacion,
+  etiquetaVendedor,
   formatFechaHora,
   precioEspecialLabel,
   type OrderEmailData,
@@ -91,7 +92,8 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
   dato("Dirección de entrega", data.cliente.direccionEntrega);
   dato("Canal", data.cliente.canal);
   dato("Zona", data.cliente.zona);
-  dato("Vendedor", data.vendedor);
+  // Mismo formato que el correo: nombre, código de representante y de zona.
+  dato("Vendedor", etiquetaVendedor(data));
   dato("Condición de pago", data.condicionPago);
   sheet.addRow([]);
 

@@ -153,6 +153,13 @@ type OrderRow = {
   vendedor_snapshot: string | null;
   dias_credito_solicitados: number | null;
   customer: { razon_social: string; ruc_o_documento: string; estado: string } | null;
+  /**
+   * El vendedor VIVO, no el snapshot: los códigos son identificadores
+   * estables de la empresa, y si alguno se corrige, el correo siguiente del
+   * mismo pedido tiene que salir con el bueno. El NOMBRE sí sale del
+   * snapshot, que es lo que el pedido tenía al enviarse.
+   */
+  seller: { codigo_representante: string; zona: { codigo_zona: string | null } | null } | null;
   payment_terms: { nombre: string } | null;
 };
 
@@ -277,6 +284,7 @@ export async function loadOrderEmailData(
         `numero, fecha_envio, created_at, dias_credito_solicitados,
          razon_social_snapshot, direccion_snapshot, canal_snapshot, zona_snapshot, vendedor_snapshot,
          customer:customers(razon_social, ruc_o_documento, estado),
+         seller:sellers(codigo_representante, zona:zones(codigo_zona)),
          payment_terms:payment_terms(nombre)`,
       )
       .eq("id", orderId)
@@ -411,6 +419,8 @@ export async function loadOrderEmailData(
       esClienteNuevo: order.customer?.estado === "PENDIENTE_DE_VALIDACION",
     },
     vendedor: order.vendedor_snapshot,
+    vendedorCodigo: order.seller?.codigo_representante ?? null,
+    vendedorZonaCodigo: order.seller?.zona?.codigo_zona ?? null,
     // Con días escritos a mano, el nombre del catálogo ("Crédito (otro
     // número de días)") no dice nada: se muestra el plazo real.
     condicionPago: etiquetaCondicionPago(

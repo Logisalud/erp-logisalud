@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/session";
-import { listActiveCustomers, listZonasSeleccionables } from "@/services/customers";
+import { listActiveCustomers } from "@/services/customers";
 import { listActiveSellers } from "@/services/sellers";
 import { listCatalog, listPaymentTerms } from "@/services/catalog";
 import { listDepartamentos } from "@/services/ubigeos";
@@ -9,13 +9,12 @@ export default async function NuevoPedidoPage() {
   const user = await getCurrentUser();
   const isAdmin = user?.roles.includes("administrador") ?? false;
 
-  const [customers, paymentTerms, salesChannels, zones, sellers, departamentos] = await Promise.all([
+  // La zona del cliente nuevo ya no se elige: sale del vendedor con el que
+  // va a salir el pedido, así que la pantalla no necesita el catálogo.
+  const [customers, paymentTerms, salesChannels, sellers, departamentos] = await Promise.all([
     listActiveCustomers(),
     listPaymentTerms(),
     listCatalog("sales_channels"),
-    // Sólo las zonas que el usuario puede usar: un cliente registrado en
-    // otra zona le queda invisible por RLS y el registro rebota.
-    listZonasSeleccionables(isAdmin),
     isAdmin ? listActiveSellers() : Promise.resolve([]),
     // Sólo los 25 departamentos: las provincias y los distritos se piden
     // cuando el vendedor elige, para no mandarle 1.884 filas al celular.
@@ -41,7 +40,6 @@ export default async function NuevoPedidoPage() {
             permite_dias_libres: p.permite_dias_libres,
           }))}
           salesChannels={salesChannels.map((c) => ({ id: c.id, nombre: c.nombre }))}
-          zones={zones}
           departamentos={departamentos}
         />
       </div>

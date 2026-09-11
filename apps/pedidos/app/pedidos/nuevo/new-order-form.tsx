@@ -74,7 +74,6 @@ export function NewOrderForm({
   customers: initialCustomers,
   paymentTerms,
   salesChannels,
-  zones,
   departamentos,
 }: {
   isAdmin: boolean;
@@ -82,7 +81,6 @@ export function NewOrderForm({
   customers: Customer[];
   paymentTerms: PaymentTermOption[];
   salesChannels: CatalogOption[];
-  zones: CatalogOption[];
   /** Los 25 departamentos; provincias y distritos se piden al elegir. */
   departamentos: string[];
 }) {
@@ -99,6 +97,12 @@ export function NewOrderForm({
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
+  /**
+   * Sólo lo usa el administrador, que elige a nombre de qué vendedor va el
+   * pedido. Está acá y no suelto en el form porque el alta de cliente
+   * también lo necesita: la zona del cliente sale de ese vendedor.
+   */
+  const [sellerId, setSellerId] = useState("");
   /** El cliente que ya tenía ese RUC, para poder elegirlo de un toque. */
   const [clienteExistente, setClienteExistente] = useState<ClienteExistente | null>(null);
   const [newAddress, setNewAddress] = useState({ direccion: "", referencia: "" });
@@ -109,7 +113,6 @@ export function NewOrderForm({
     razonSocial: "",
     rucODocumento: "",
     canalId: "",
-    zonaId: "",
     condicionPagoHabitualId: "",
     direccion: "",
     celular: "",
@@ -190,7 +193,7 @@ export function NewOrderForm({
         razonSocial: newCustomer.razonSocial,
         rucODocumento: newCustomer.rucODocumento,
         canalId: Number(newCustomer.canalId),
-        zonaId: Number(newCustomer.zonaId),
+        sellerId: sellerId || null,
         condicionPagoHabitualId: Number(newCustomer.condicionPagoHabitualId),
         direccion: newCustomer.direccion,
         celular: newCustomer.celular,
@@ -219,7 +222,6 @@ export function NewOrderForm({
         razonSocial: "",
         rucODocumento: "",
         canalId: "",
-        zonaId: "",
         condicionPagoHabitualId: "",
         direccion: "",
         celular: "",
@@ -270,7 +272,14 @@ export function NewOrderForm({
           <label className="etiqueta" htmlFor="sellerId">
             A nombre de qué vendedor
           </label>
-          <select id="sellerId" name="sellerId" required className="campo">
+          <select
+            id="sellerId"
+            name="sellerId"
+            required
+            className="campo"
+            value={sellerId}
+            onChange={(e) => setSellerId(e.target.value)}
+          >
             <option value="">Elige un vendedor</option>
             {sellers.map((s) => (
               <option key={s.id} value={s.id}>
@@ -299,7 +308,8 @@ export function NewOrderForm({
               <IconAlert className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 El cliente queda pendiente de validación. Podés armarle el pedido, pero no se puede
-                enviar hasta que Control de Pedidos lo apruebe.
+                enviar hasta que Control de Pedidos lo apruebe. La zona no se pregunta: es la tuya,
+                la misma con la que sale el pedido.
               </span>
             </p>
 
@@ -369,18 +379,6 @@ export function NewOrderForm({
               {salesChannels.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.nombre}
-                </option>
-              ))}
-            </select>
-            <select
-              className="campo"
-              value={newCustomer.zonaId}
-              onChange={(e) => updateNewCustomer("zonaId", e.target.value)}
-            >
-              <option value="">Zona</option>
-              {zones.map((z) => (
-                <option key={z.id} value={z.id}>
-                  {z.nombre}
                 </option>
               ))}
             </select>
