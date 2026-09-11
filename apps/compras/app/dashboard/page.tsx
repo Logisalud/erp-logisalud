@@ -120,7 +120,7 @@ export default async function Dashboard() {
                 <Item key={d.recepcionId} href={`/almacen/recepciones/${d.recepcionId}`}>
                   <Fila titulo={d.ocCodigo} monto={`${d.cantidadLineas} línea(s)`} />
                   <p className="mt-0.5 text-sm text-gray-600">
-                    Resolvé la acción de cada línea antes de que Contabilidad registre la obligación.
+                    Resuelve la acción de cada línea antes de que Contabilidad registre la obligación.
                   </p>
                 </Item>
               ))}
@@ -133,7 +133,7 @@ export default async function Dashboard() {
                 <Item key={a.id} href={`/gastos/${a.id}`}>
                   <Fila titulo={a.codigo} monto={<Money valor={a.monto} moneda={a.moneda} />} />
                   <p className="mt-0.5 text-sm text-gray-600">
-                    {a.solicitanteNombre ?? 'Empleado'} todavía no subió sus comprobantes — pedile que rinda el anticipo.
+                    {a.solicitanteNombre ?? 'Empleado'} todavía no subió sus comprobantes — pídele que rinda el anticipo.
                   </p>
                 </Item>
               ))}

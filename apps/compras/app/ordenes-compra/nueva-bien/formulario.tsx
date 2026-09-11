@@ -179,7 +179,7 @@ export function FormularioOCBien() {
             className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
           />
           <p className="mt-1 text-xs text-gray-500">
-            El documento que sustenta el monto de esta orden, si lo tenés a mano.
+            El documento que sustenta el monto de esta orden, si lo tienes a mano.
           </p>
         </Campo>
       </section>

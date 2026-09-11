@@ -42,7 +42,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
       ? supabase
           .schema('cuentas_x_pagar')
           .from('obligaciones')
-          .select('id, codigo, estado, moneda, total, created_at, created_by, creador_correo')
+          .select('id, codigo, estado, moneda, total, created_at, created_by, creador_correo, observaciones, categoria_pago_directo_id')
           .eq('origen', 'gasto_directo')
           .in('estado', ESTADOS_QUE_ESPERAN_DECISION.pago_directo)
       : null,
@@ -50,7 +50,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
       ? supabase
           .schema('gastos')
           .from('solicitudes_gasto')
-          .select('id, codigo, tipo, estado, moneda, monto_solicitado, created_at, solicitante_id, creador_correo, fecha_requerida')
+          .select('id, codigo, tipo, estado, moneda, monto_solicitado, created_at, solicitante_id, creador_correo, fecha_requerida, descripcion, categoria_id')
           .in('tipo', ['anticipo', 'reembolso'])
           .in('estado', ESTADOS_QUE_ESPERAN_DECISION.gasto)
       : null,
@@ -65,7 +65,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
       ? supabase
           .schema('servicios')
           .from('ordenes_servicio')
-          .select('id, codigo, estado, moneda, monto_estimado, created_at, solicitante_id, creador_correo, area_solicitante')
+          .select('id, codigo, estado, moneda, monto_estimado, created_at, solicitante_id, creador_correo, area_solicitante, descripcion_servicio')
           .in('estado', ESTADOS_QUE_ESPERAN_DECISION.os)
       : null,
   ])
@@ -89,6 +89,11 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   // area_en('contabilidad')`. Un jefe de área que no sea de Contabilidad no
   // puede leer el nombre de otra persona, así que se cae a `creador_correo`
   // — la columna que dejó la 0042 justo para no depender de esa lectura.
+  const [categoriasPD, categoriasGasto] = await Promise.all([
+    mapaCategorias('cuentas_x_pagar', 'categorias_pago_directo', filasPD.map((o) => o.categoria_pago_directo_id)),
+    mapaCategorias('gastos', 'categorias_gasto', filasSol.map((s) => s.categoria_id)),
+  ])
+
   const personas = await mapaPersonas([
     ...filasPD.map((o) => o.created_by),
     ...filasSol.map((s) => s.solicitante_id),
@@ -109,6 +114,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     moneda: pd.moneda,
     quienDecide: 'Contabilidad',
     fechaRequerida: null,
+    concepto: unirConcepto(categoriasPD.get(pd.categoria_pago_directo_id), pd.observaciones),
     href: `/cuentas-por-pagar/${pd.id}`,
   }))
 
@@ -123,6 +129,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     moneda: sol.moneda,
     quienDecide: 'Contabilidad',
     fechaRequerida: sol.fecha_requerida ?? null,
+    concepto: unirConcepto(categoriasGasto.get(sol.categoria_id), sol.descripcion),
     href: `/gastos/${sol.id}`,
   }))
 
@@ -145,6 +152,9 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
           ? 'Contabilidad'
           : `Jefe de ${fondo?.area ?? 'área'}`,
       fechaRequerida: null,
+      // La reposición no tiene concepto propio: es la suma de movimientos
+      // que ya se registraron uno por uno. Lo más útil es de qué fondo es.
+      concepto: fondo?.descripcion ? `Fondo: ${fondo.descripcion}` : null,
       href: `/caja-chica/reposiciones/${rep.id}`,
     }
   })
@@ -160,6 +170,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     moneda: os.moneda,
     quienDecide: `Jefe de ${os.area_solicitante ?? 'área'}`,
     fechaRequerida: null,
+    concepto: os.descripcion_servicio ?? null,
     href: `/servicios/${os.id}`,
   }))
 
@@ -193,16 +204,19 @@ async function areasQueLidero(usuarioId: string): Promise<string[]> {
   return (data ?? []).map((f: any) => f.area as string)
 }
 
-type Fondo = { area: string | null; moneda: string | null; custodioId: string | null }
+type Fondo = { area: string | null; moneda: string | null; custodioId: string | null; descripcion: string | null }
 
 async function mapaFondos(ids: (string | null)[]): Promise<Map<string, Fondo>> {
   const mapa = new Map<string, Fondo>()
   const limpios = [...new Set(ids.filter((id): id is string => !!id))]
   if (limpios.length === 0) return mapa
   const supabase = crearClienteServidor()
-  const { data } = await supabase.schema('caja_chica').from('fondos').select('id, area, moneda, custodio_id').in('id', limpios)
+  const { data } = await supabase.schema('caja_chica').from('fondos').select('id, area, moneda, custodio_id, descripcion').in('id', limpios)
   for (const f of (data ?? []) as any[]) {
-    mapa.set(f.id, { area: f.area ?? null, moneda: f.moneda ?? null, custodioId: f.custodio_id ?? null })
+    mapa.set(f.id, {
+      area: f.area ?? null, moneda: f.moneda ?? null,
+      custodioId: f.custodio_id ?? null, descripcion: f.descripcion ?? null,
+    })
   }
   return mapa
 }
@@ -216,4 +230,29 @@ async function mapaPersonas(ids: (string | null)[]): Promise<Map<string, string>
   const { data } = await supabase.from('perfiles').select('id, nombre').in('id', limpios)
   for (const p of (data ?? []) as any[]) mapa.set(p.id, p.nombre)
   return mapa
+}
+
+
+/** Nombre de una categoría, resuelto en una segunda consulta (cross-schema). */
+async function mapaCategorias(
+  schema: 'cuentas_x_pagar' | 'gastos',
+  tabla: string,
+  ids: (string | null)[]
+): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>()
+  const limpios = [...new Set(ids.filter((id): id is string => !!id))]
+  if (limpios.length === 0) return mapa
+  const supabase = crearClienteServidor()
+  const { data } = await supabase.schema(schema).from(tabla).select('id, nombre').in('id', limpios)
+  for (const c of (data ?? []) as any[]) mapa.set(c.id, c.nombre)
+  return mapa
+}
+
+/**
+ * Categoría y texto libre en una sola celda. Si falta uno de los dos se
+ * muestra el otro solo, en vez de un separador colgando.
+ */
+function unirConcepto(categoria: string | undefined, detalle: string | null | undefined): string | null {
+  const partes = [categoria, detalle?.trim()].filter((p): p is string => !!p)
+  return partes.length === 0 ? null : partes.join(' — ')
 }

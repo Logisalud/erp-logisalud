@@ -61,11 +61,13 @@ export default async function PagosPorEjecutar() {
                     {l.pendientes} de {l.total} {l.total === 1 ? 'obligación' : 'obligaciones'} sin pagar
                     {l.periodo ? ` · ${l.periodo}` : ''}
                   </p>
-                  {/* "Creada hace" y no "aprobada hace": propuestas_pago no
-                      guarda la fecha de aprobación, y decir lo segundo sería
-                      un dato inventado. */}
+                  {/* La espera que le importa a Tesorería arranca en la
+                      aprobación (migración 0050). Los lotes aprobados antes
+                      de esa migración no tienen la fecha, y ahí la etiqueta
+                      dice "creada" en vez de afirmar algo que no se sabe. */}
                   <p className="mt-1 text-xs text-gray-500">
-                    Creada hace {etiquetaEspera(l.diasEsperando).toLowerCase()}
+                    {l.esperaDesde === 'aprobacion' ? 'Aprobada' : 'Creada'} hace{' '}
+                    {etiquetaEspera(l.diasEsperando).toLowerCase()}
                   </p>
                 </Link>
               </li>

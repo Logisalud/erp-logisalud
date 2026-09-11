@@ -158,7 +158,7 @@ export default async function Inicio() {
       {usuario && !perfil ? (
         <p className="card mt-4 border-amber-200 bg-amber-50 text-sm text-amber-900">
           Tu cuenta existe pero no tiene fila en <code>public.perfiles</code>, así que las
-          políticas RLS te van a negar todo. Corré <code>scripts/seed-usuarios.ts</code>.
+          políticas RLS te van a negar todo. Corre <code>scripts/seed-usuarios.ts</code>.
         </p>
       ) : null}
 

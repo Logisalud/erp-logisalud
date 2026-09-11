@@ -85,7 +85,7 @@ export default async function DetallePropuesta({ params }: { params: { id: strin
       {!puedeAprobar && propuesta.estado === 'pendiente_aprobacion' ? (
         <p className="card mb-4 text-sm text-gray-600">
           Esperando la aprobación de Contabilidad. Cuando la aprueben, vas a poder registrar cada
-          pago desde acá.
+          pago desde aquí.
         </p>
       ) : null}
 

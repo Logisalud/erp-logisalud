@@ -121,7 +121,7 @@ export function FormularioMovimiento({ fondoId, categorias }: { fondoId: string;
                   className="min-h-12 w-full rounded-md border border-gray-300 px-3"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Sugerido en 18% de la base — cambialo si tu comprobante trae otro valor (por
+                  Sugerido en 18% de la base — cámbialo si tu comprobante trae otro valor (por
                   ejemplo, 0 en boletas de un régimen que no discrimina IGV).
                 </p>
               </Campo>

@@ -34,7 +34,7 @@ export default function Financiamiento() {
       </ul>
 
       <p className="mt-4 text-sm text-gray-500">
-        Las letras por pagar nacen del canje de una obligación de compra ya existente — entrá a esa
+        Las letras por pagar nacen del canje de una obligación de compra ya existente — entra a esa
         obligación en Cuentas por Pagar y usa "Canjear por letras".
       </p>
     </main>

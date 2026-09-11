@@ -19,7 +19,7 @@ export function BotonAnularPagoDirecto({ obligacionId }: { obligacionId: string 
       obligacionId={obligacionId}
       accion={anularPagoDirectoAction}
       etiqueta="Anular…"
-      explicacion="Esto anula el pago directo por un error de captura — contá qué pasó, Contabilidad recibe un aviso con el motivo."
+      explicacion="Esto anula el pago directo por un error de captura — cuenta qué pasó, Contabilidad recibe un aviso con el motivo."
       placeholder="Motivo de la anulación…"
       confirmar="Confirmar anulación"
       confirmando="Anulando…"
@@ -33,7 +33,7 @@ export function BotonRechazarPagoDirecto({ obligacionId }: { obligacionId: strin
       obligacionId={obligacionId}
       accion={rechazarPagoDirectoAction}
       etiqueta="Rechazar…"
-      explicacion="Esto devuelve el pago directo sin conformidad — contá qué está mal, quien lo registró recibe un aviso con el motivo."
+      explicacion="Esto devuelve el pago directo sin conformidad — cuenta qué está mal, quien lo registró recibe un aviso con el motivo."
       placeholder="Motivo del rechazo…"
       confirmar="Confirmar rechazo"
       confirmando="Rechazando…"

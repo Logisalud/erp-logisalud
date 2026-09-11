@@ -24,13 +24,19 @@ export type LotePorEjecutar = {
   /** Cuánto falta desembolsar, por moneda — nunca un único número. */
   pendientePorMoneda: readonly { moneda: string; monto: number }[]
   /**
-   * Desde cuándo se cuenta la espera. Sería más exacto medirla desde que se
-   * APROBÓ el lote —ahí empieza a esperar a Tesorería—, pero
-   * `propuestas_pago` no guarda esa fecha: solo tiene `created_at`. Así que
-   * es desde que se armó, y la pantalla lo dice con esas palabras en vez de
-   * llamarlo "aprobada hace", que sería falso.
+   * Desde cuándo se cuenta la espera: desde que Contabilidad APROBÓ el lote
+   * (migración 0050), que es cuando empieza a esperar a Tesorería — los días
+   * que pasó esperando aprobación no son su demora.
+   *
+   * Puede venir null en las propuestas aprobadas ANTES de la 0050: esa
+   * fecha no se rellenó con `created_at` para no inventarla. Ahí se cae a la
+   * fecha de creación y la pantalla cambia la etiqueta, en vez de llamar
+   * "aprobada hace" a un dato que no lo es.
    */
+  aprobadaEn: string | null
   creadaEn: string
+  /** Qué fecha se está mostrando de verdad — decide la etiqueta. */
+  esperaDesde: 'aprobacion' | 'creacion'
   diasEsperando: number
   href: string
 }
@@ -48,5 +54,7 @@ export function esperaEjecucion(estado: string, pendientes: number): boolean {
 
 /** Lo más viejo sin pagar, primero. */
 export function ordenarPorEspera(lotes: readonly LotePorEjecutar[]): LotePorEjecutar[] {
-  return [...lotes].sort((a, b) => a.creadaEn.localeCompare(b.creadaEn))
+  return [...lotes].sort((a, b) =>
+    (a.aprobadaEn ?? a.creadaEn).localeCompare(b.aprobadaEn ?? b.creadaEn)
+  )
 }

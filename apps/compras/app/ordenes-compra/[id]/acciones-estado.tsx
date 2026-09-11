@@ -56,7 +56,7 @@ export function BotonCerrarConSaldoPendiente({ ocId }: { ocId: string }) {
   return (
     <form action={dispatch} className="card w-full space-y-2 border-amber-200">
       <p className="text-sm text-gray-700">
-        El proveedor ya no va a entregar el resto de esta orden — contá por qué, para que quede en el
+        El proveedor ya no va a entregar el resto de esta orden — cuenta por qué, para que quede en el
         historial.
       </p>
       {estado?.error ? <p className="text-sm text-red-700">{estado.error}</p> : null}
@@ -106,7 +106,7 @@ export function BotonAnularOC({ ocId }: { ocId: string }) {
   return (
     <form action={dispatch} className="card w-full space-y-2 border-red-200">
       <p className="text-sm text-gray-700">
-        Esto anula la orden de compra por un error de captura — contá qué pasó, Contabilidad recibe un
+        Esto anula la orden de compra por un error de captura — cuenta qué pasó, Contabilidad recibe un
         aviso con el motivo.
       </p>
       {estado?.error ? <p className="text-sm text-red-700">{estado.error}</p> : null}

@@ -105,7 +105,7 @@ export default async function ReporteAntiguedad({
       )}
       <p className="mt-3 text-xs text-gray-500">
         Cada monto de la tabla ya está separado por moneda — nunca se suma PEN con USD en un mismo
-        total. Tocá un monto para ver las obligaciones que lo componen.
+        total. Toca un monto para ver las obligaciones que lo componen.
       </p>
     </main>
   )

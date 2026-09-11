@@ -112,7 +112,7 @@ export function FormularioSolicitud({
             <p className="mt-1 text-xs text-gray-500">
               Solo informativo — no bloquea el envío ni le pide a esa persona que entre al
               sistema. El sistema no conoce a tu jefe directo, sugiere el responsable de tu
-              área; corrígelo si no es quien corresponde acá.
+              área; corrígelo si no es quien corresponde aquí.
             </p>
           </Campo>
         ) : null}
@@ -144,7 +144,7 @@ export function FormularioSolicitud({
                   </select>
                   <p className="mt-1 text-xs text-gray-500">
                     Si estás armando el anticipo para otra persona (ej. viáticos de un vendedor),
-                    elígela acá — el pago le va a llegar a su cuenta, no a la tuya.
+                    elígela aquí — el pago le va a llegar a su cuenta, no a la tuya.
                   </p>
                 </Campo>
               ) : null}
@@ -193,7 +193,7 @@ export function FormularioSolicitud({
                 className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Va acá cualquier comprobante válido: <strong>factura</strong>, boleta o ticket. Si
+                Va aquí cualquier comprobante válido: <strong>factura</strong>, boleta o ticket. Si
                 tienes factura, esta es su casilla — no hace falta otro lugar.
               </p>
             </Campo>

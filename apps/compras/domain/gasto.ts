@@ -111,7 +111,7 @@ const SIGUIENTE_PASO_SOLICITUD: Record<EstadoSolicitud, string> = {
   rechazada_contabilidad: 'Rechazada por Contabilidad',
   aprobada: 'Esperando el pago de Tesorería',
   pagada: 'Pagada',
-  pendiente_rendicion: 'Subí tus comprobantes para rendir el anticipo',
+  pendiente_rendicion: 'Sube tus comprobantes para rendir el anticipo',
   rendida: 'Rendida — esperando el cierre',
   cerrada: 'Ciclo cerrado',
   anulada: 'Anulada por error de captura',
