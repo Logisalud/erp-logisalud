@@ -724,6 +724,38 @@ Tres detalles que importan:
   lista fija vacía el aviso ahora **sí** sale, al vendedor — antes quedaba
   como `sin_destinatarios` y no se enteraba nadie, ni él.
 
+### Aviso cuando se resuelve un cliente nuevo
+
+Cuando Control de Pedidos **aprueba o rechaza** un cliente sale un correo a
+la misma lista de destinatarios que los avisos de pedido, **más el vendedor
+que lo registró** — que es el que está esperando la respuesta y hasta ahora
+no se enteraba nunca: su única manera de averiguarlo era volver a buscar el
+cliente en el selector del pedido.
+
+El correo dice de qué cliente se trata, quién lo registró y —lo operativo—
+**qué pasó con los pedidos que estaban esperándolo**: aprobar un cliente no
+es un trámite aislado, destraba pedidos ya armados (o los devuelve a
+borrador si se rechaza).
+
+También sale al rechazar, y no sólo al aprobar: el pedido del vendedor
+volvió a borrador y él tiene que saberlo.
+
+No entra en el hilo del pedido: es un aviso sobre el CLIENTE, y puede no
+haber ningún pedido —o haber varios, y ninguno sería "el" hilo correcto—.
+El desenlace queda en `notification_logs` (`tipo` `cliente_aprobado` /
+`cliente_rechazado`, con `customer_id` y sin `order_id`), y **nunca frena la
+decisión**: ya está tomada y los pedidos ya se movieron.
+
+### Mis clientes nuevos (`/mis-clientes`)
+
+El vendedor ve ahí los clientes que registró él y en qué quedaron: primero
+los que esperan validación, después los rechazados, y al final los
+aprobados. Cada uno dice cuántos pedidos quedaron frenados esperándolo, que
+es lo que separa un pendiente cualquiera de uno urgente.
+
+Se filtra por `solicitado_por`, no por zona: son "los míos" en el sentido de
+que yo los cargué y estoy esperando respuesta.
+
 ### Con qué clientes se puede empezar un pedido
 
 El selector de cliente (pedido nuevo y cambio de cliente) ofrece los

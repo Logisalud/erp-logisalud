@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { notifyCustomerValidated } from "./customer-notifications";
 import {
   INITIAL_CUSTOMER_LIMIT,
   MIN_SEARCH_LENGTH,
@@ -729,7 +730,7 @@ export async function resolveCustomerValidation(
   // avanzando solo).
   const { data: pendingOrders, error: pendingError } = await supabase
     .from("orders")
-    .select("id")
+    .select("id, numero")
     .eq("customer_id", customerId)
     .eq("estado", "NEW_CUSTOMER_VALIDATION");
   if (pendingError) throw new Error(pendingError.message);
@@ -751,5 +752,120 @@ export async function resolveCustomerValidation(
     }
   }
 
-  return data;
+  // El aviso va al final y no lanza nunca: la decisión ya está tomada y los
+  // pedidos ya se movieron; un problema de correo no puede revertir eso ni
+  // mostrarle un error a quien aprobó bien. El desenlace queda en
+  // notification_logs.
+  const notificacion = await notifyCustomerValidated({
+    customerId,
+    decision,
+    actor,
+    pedidosDestrabados: ((pendingOrders ?? []) as Array<{ id: string; numero: number | null }>).map(
+      (o) => ({ id: o.id, numero: o.numero }),
+    ),
+  });
+
+  return { ...data, notificacion };
+}
+
+// ---------------------------------------------------------------------
+// Los clientes que registró un vendedor
+// ---------------------------------------------------------------------
+
+export type MiClienteNuevo = {
+  id: string;
+  razonSocial: string;
+  rucODocumento: string;
+  estado: string;
+  zona: string | null;
+  direccion: string | null;
+  fechaSolicitud: string | null;
+  fechaValidacion: string | null;
+  /** Pedidos frenados esperando que se valide este cliente. */
+  pedidosEsperando: number;
+};
+
+/** Primero lo que necesita atención, y dentro de cada grupo lo más nuevo. */
+const ORDEN_DE_ESTADO: Record<string, number> = {
+  PENDIENTE_DE_VALIDACION: 0,
+  RECHAZADO: 1,
+  ACTIVO: 2,
+};
+
+/**
+ * Los clientes que registró esta persona, con en qué quedaron.
+ *
+ * Existe porque el vendedor no tenía dónde ver eso: registraba un cliente,
+ * quedaba pendiente de validación y no se enteraba nunca de si lo aprobaron
+ * — su única manera de averiguarlo era volver a buscarlo en el selector del
+ * pedido. Se filtra por `solicitado_por` y no por zona: son "los míos" en el
+ * sentido de que yo los cargué y estoy esperando respuesta.
+ */
+export async function listMisClientesNuevos(userId: string): Promise<MiClienteNuevo[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select(
+      "id, razon_social, ruc_o_documento, estado, created_at, fecha_validacion, zona:zones(nombre), customer_addresses(direccion, es_principal)",
+    )
+    .eq("solicitado_por", userId)
+    .order("created_at", { ascending: false })
+    .limit(SEARCH_RESULT_LIMIT);
+
+  if (error) throw new Error(error.message);
+
+  type Fila = {
+    id: string;
+    razon_social: string;
+    ruc_o_documento: string;
+    estado: string;
+    created_at: string | null;
+    fecha_validacion: string | null;
+    zona: { nombre: string } | null;
+    customer_addresses: Array<{ direccion: string; es_principal: boolean }> | null;
+  };
+  const filas = (data ?? []) as unknown as Fila[];
+  if (filas.length === 0) return [];
+
+  // Cuántos pedidos quedaron frenados por cada uno. Es el dato que convierte
+  // la lista en algo accionable: no es lo mismo un cliente pendiente suelto
+  // que uno con un pedido ya armado esperándolo.
+  const { data: frenados, error: frenadosError } = await supabase
+    .from("orders")
+    .select("customer_id")
+    .eq("estado", "NEW_CUSTOMER_VALIDATION")
+    .in(
+      "customer_id",
+      filas.map((f) => f.id),
+    );
+  if (frenadosError) throw new Error(frenadosError.message);
+
+  const esperandoPorCliente = new Map<string, number>();
+  for (const o of ((frenados ?? []) as Array<{ customer_id: string }>)) {
+    esperandoPorCliente.set(o.customer_id, (esperandoPorCliente.get(o.customer_id) ?? 0) + 1);
+  }
+
+  return filas
+    .map((f) => {
+      const direcciones = f.customer_addresses ?? [];
+      const principal = direcciones.find((d) => d.es_principal) ?? direcciones[0] ?? null;
+      return {
+        id: f.id,
+        razonSocial: f.razon_social,
+        rucODocumento: f.ruc_o_documento,
+        estado: f.estado,
+        zona: f.zona?.nombre ?? null,
+        direccion: principal?.direccion ?? null,
+        fechaSolicitud: f.created_at,
+        fechaValidacion: f.fecha_validacion,
+        pedidosEsperando: esperandoPorCliente.get(f.id) ?? 0,
+      };
+    })
+    .sort((a, b) => {
+      const ea = ORDEN_DE_ESTADO[a.estado] ?? 9;
+      const eb = ORDEN_DE_ESTADO[b.estado] ?? 9;
+      if (ea !== eb) return ea - eb;
+      return (b.fechaSolicitud ?? "").localeCompare(a.fechaSolicitud ?? "");
+    });
 }

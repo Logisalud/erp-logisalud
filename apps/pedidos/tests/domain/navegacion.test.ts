@@ -11,7 +11,8 @@ describe("seccionesParaRoles", () => {
   it("el vendedor ve Pedidos y Stock", () => {
     // Stock es de consulta para todos: el vendedor necesita saber cuánto
     // hay antes de ofrecerle un producto a un cliente.
-    expect(titulos(["vendedor"])).toEqual(["Pedidos", "Stock"]);
+    // "Mis clientes" también: es donde ve si le aprobaron los que registró.
+    expect(titulos(["vendedor"])).toEqual(["Pedidos", "Stock", "Mis clientes"]);
   });
 
   it("operaciones ve Stock y Despachos", () => {
