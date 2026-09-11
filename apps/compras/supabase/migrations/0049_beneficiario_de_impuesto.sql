@@ -1,9 +1,10 @@
 -- PIEZA D — Beneficiario de cada tipo de impuesto.
 --
--- ⚠️ ESTA MIGRACIÓN NO SE APLICÓ TODAVÍA. Falta la confirmación de Mariela
--- sobre si "Renta" e "Impuesto a la Renta" son el mismo concepto o si quiso
--- separar el pago a cuenta mensual de la regularización anual. Esos dos
--- tipos quedan deliberadamente FUERA de este script.
+-- Incluye la unificación de "Renta" e "Impuesto a la Renta": son el mismo
+-- tributo (el segundo es el nombre completo del primero). Las categorías
+-- que sí son conceptos distintos —4ta y 5ta— ya están sembradas aparte, y
+-- lo que quedaba como "Renta"/"Impuesto a la Renta" es el de tercera
+-- categoría. Autorizado por Sebas el 2026-09-11.
 --
 -- Modelo elegido (opción i): el catálogo guarda un beneficiario POR DEFECTO
 -- y cada obligación tributaria puede sobreescribirlo. Ocho de los diez
@@ -45,5 +46,15 @@ update impuestos.tipos_impuesto set beneficiario = 'AFP (indicar cuál en cada o
 update impuestos.tipos_impuesto set beneficiario = 'Compañía de seguros (indicar cuál en cada obligación)'
  where lower(trim(nombre)) = 'seguro vida ley' and beneficiario is null;
 
--- 'Renta' e 'Impuesto a la Renta' quedan SIN beneficiario a propósito,
--- esperando la definición de Mariela.
+-- Unificación: queda "Impuesto a la Renta" (el nombre completo, que no se
+-- confunde con las categorías 4ta/5ta) y "Renta" se DESACTIVA en vez de
+-- borrarse. Nunca se borra una fila de catálogo: aunque hoy tenga 0 usos
+-- (verificado en obligaciones_tributarias y en fraccionamientos_sunat), un
+-- delete rompería cualquier referencia futura y perdería la traza de que
+-- ese tipo existió.
+update impuestos.tipos_impuesto set beneficiario = 'SUNAT'
+ where lower(trim(nombre)) = 'impuesto a la renta'
+   and beneficiario is distinct from 'SUNAT';
+
+update impuestos.tipos_impuesto set activo = false
+ where lower(trim(nombre)) = 'renta' and activo;
