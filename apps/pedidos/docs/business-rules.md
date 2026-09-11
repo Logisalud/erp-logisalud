@@ -1166,6 +1166,28 @@ directo, que sí las tiene.
   del almacén; que el catálogo diga lo contrario es un dato del catálogo por
   corregir. Hoy los 235 productos lo tienen en `false`, así que el aviso sale
   agrupado en una línea y no una vez por fila.
+- **El archivo es la FOTO del almacén, no una lista de novedades.** Lo que
+  hoy está cargado, en las fuentes que el archivo toca, y el archivo no
+  menciona, se **da de baja** al publicar (modo `reemplazar`, el de por
+  defecto). Encontrado en producción el 2026-09-11: dos archivos del mismo
+  día nombraban los mismos productos con lotes distintos (`DHP026` con
+  `TL457BC25001` y con `DX0326`, 22 unidades cada uno), y como el importador
+  sólo hacía upsert, el lote viejo se quedó cargado: el producto aparecía
+  dos veces en la pantalla y su stock se contaba dos veces.
+  - Se mira **sólo dentro de las fuentes que el archivo nombra**: un archivo
+    de un almacén no puede decir nada del stock de otro, y darlo de baja por
+    omisión sería vaciar un almacén que nadie mencionó.
+  - La vista previa dice cuántos lotes y cuántas unidades se darían de baja,
+    con el detalle, **antes** de publicar.
+  - El modo `solo_actualizar` existe para la carga parcial —el archivo de un
+    proveedor, una corrección de unas filas—, donde dar de baja lo que no
+    aparece sería borrar stock que sí hay.
+  - La baja va **después** de las altas y actualizaciones: si algo falla al
+    escribir, el stock viejo sigue ahí en vez de quedar un almacén vacío. Se
+    borra la fila en vez de dejarla en 0 —`stock_lotes` es la foto de hoy y
+    nadie la referencia— y el detalle de lo dado de baja queda en la
+    bitácora.
+
 - **Una columna que el archivo no trae NO borra lo que ya está guardado.**
   Encontrado en producción el 2026-09-11: dos cargas seguidas con archivos
   sin columna `PROVEEDOR` dejaron los 382 lotes sin proveedor, porque el
