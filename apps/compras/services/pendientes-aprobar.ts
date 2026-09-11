@@ -6,6 +6,8 @@ import {
   ESTADOS_QUE_ESPERAN_DECISION,
   type FilaPendiente, type FuenteAprobacion, type PerfilAprobador,
 } from '@/domain/pendientes-aprobar'
+import { totalesDeLote } from '@/domain/propuesta-permisos'
+import { puedeDecidirSobre } from '@/domain/auto-aprobacion'
 
 /**
  * "Pendientes de aprobar": todo lo que espera una decisión de la persona que
@@ -37,7 +39,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   const corre = (f: FuenteAprobacion) => fuentes.includes(f)
   const ahora = new Date().toISOString()
 
-  const [pagosDirectos, solicitudes, reposiciones, ordenesServicio] = await Promise.all([
+  const [pagosDirectos, solicitudes, reposiciones, propuestas, ordenesServicio] = await Promise.all([
     corre('pago_directo')
       ? supabase
           .schema('cuentas_x_pagar')
@@ -61,6 +63,13 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
           .select('id, codigo, estado, monto_solicitado, created_at, aprobado_jefe_fecha, fondo_id')
           .in('estado', ESTADOS_QUE_ESPERAN_DECISION.caja_chica)
       : null,
+    corre('propuesta')
+      ? supabase
+          .schema('cuentas_x_pagar')
+          .from('propuestas_pago')
+          .select('id, codigo, periodo, estado, created_at, creado_por')
+          .in('estado', ESTADOS_QUE_ESPERAN_DECISION.propuesta)
+      : null,
     corre('os')
       ? supabase
           .schema('servicios')
@@ -74,6 +83,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   const filasSol = (solicitudes?.data ?? []) as any[]
   const filasRep = (reposiciones?.data ?? []) as any[]
   const filasOS = (ordenesServicio?.data ?? []) as any[]
+  const filasProp = (propuestas?.data ?? []) as any[]
 
   // El fondo trae el área (para el filtro del jefe), la moneda y el custodio
   // — `reposiciones` no tiene ninguno de los tres.
@@ -99,6 +109,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     ...filasSol.map((s) => s.solicitante_id),
     ...filasRepMias.map((r) => fondos.get(r.fondo_id)?.custodioId ?? null),
     ...filasOSMias.map((os) => os.solicitante_id),
+    ...filasProp.map((p) => p.creado_por),
   ])
   const quien = (id: string | null, correo: string | null): string | null =>
     (id ? personas.get(id) ?? null : null) ?? correo ?? null
@@ -174,7 +185,38 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     href: `/servicios/${os.id}`,
   }))
 
-  return ordenarPorAntiguedad([...pendientesPD, ...pendientesSol, ...pendientesRep, ...pendientesOS])
+  // Una propuesta es un LOTE, no un registro suelto: el monto es el total
+  // del lote y el "concepto" dice cuántas obligaciones agrupa, en vez de
+  // inventarle un proveedor a una fila que junta varios.
+  const totalesPorPropuesta = await totalesDeCadaPropuesta(filasProp.map((p) => p.id))
+  const pendientesProp: FilaPendiente[] = filasProp
+    // La auto-aprobación se evalúa contra quien ARMÓ el lote (Tesorería),
+    // que es el único "creador" que tiene una propuesta.
+    .filter((p) => puedeDecidirSobre(perfil, usuario.id, p.creado_por ?? null))
+    .map((p) => {
+      const resumen = totalesPorPropuesta.get(p.id)
+      const primera = resumen?.totalPorMoneda[0]
+      return {
+        id: p.id,
+        tipo: 'propuesta' as const,
+        codigo: p.codigo,
+        quienLoCreo: quien(p.creado_por, null),
+        esperandoDesde: p.created_at,
+        diasEsperando: diasEsperando(p.created_at, ahora),
+        // Si el lote mezcla monedas se muestra la primera y el concepto
+        // aclara el resto — la columna Monto es una sola celda.
+        monto: primera?.monto ?? 0,
+        moneda: primera?.moneda ?? 'PEN',
+        quienDecide: 'Contabilidad',
+        fechaRequerida: null,
+        concepto: conceptoDeLote(resumen, p.periodo),
+        href: `/cuentas-por-pagar/propuestas/${p.id}`,
+      }
+    })
+
+  return ordenarPorAntiguedad([
+    ...pendientesPD, ...pendientesSol, ...pendientesRep, ...pendientesOS, ...pendientesProp,
+  ])
 }
 
 /**
@@ -255,4 +297,56 @@ async function mapaCategorias(
 function unirConcepto(categoria: string | undefined, detalle: string | null | undefined): string | null {
   const partes = [categoria, detalle?.trim()].filter((p): p is string => !!p)
   return partes.length === 0 ? null : partes.join(' — ')
+}
+
+
+type ResumenLote = { obligaciones: number; totalPorMoneda: { moneda: string; monto: number }[] }
+
+/** Cuántas obligaciones y cuánto suma cada lote, por moneda. */
+async function totalesDeCadaPropuesta(propuestaIds: string[]): Promise<Map<string, ResumenLote>> {
+  const mapa = new Map<string, ResumenLote>()
+  const ids = [...new Set(propuestaIds)]
+  if (ids.length === 0) return mapa
+  const supabase = crearClienteServidor()
+
+  const { data: detalle } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('propuesta_detalle')
+    .select('propuesta_id, obligacion_id, monto_a_pagar')
+    .in('propuesta_id', ids)
+  const filas = (detalle ?? []) as any[]
+  if (filas.length === 0) return mapa
+
+  // La moneda vive en la obligación, no en el detalle.
+  const { data: obligaciones } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id, moneda')
+    .in('id', [...new Set(filas.map((f) => f.obligacion_id))])
+  const monedaDe = new Map((obligaciones ?? []).map((o: any) => [o.id, o.moneda as string]))
+
+  for (const id of ids) {
+    const propias = filas.filter((f) => f.propuesta_id === id)
+    if (propias.length === 0) continue
+    const { total } = totalesDeLote(
+      propias.map((f) => ({
+        moneda: monedaDe.get(f.obligacion_id) ?? 'PEN',
+        montoAPagar: Number(f.monto_a_pagar),
+        // Una propuesta pendiente de aprobación no tiene pagos todavía.
+        yaPagada: false,
+      }))
+    )
+    mapa.set(id, { obligaciones: propias.length, totalPorMoneda: total })
+  }
+  return mapa
+}
+
+function conceptoDeLote(resumen: ResumenLote | undefined, periodo: string | null): string {
+  if (!resumen) return periodo ?? 'Lote sin obligaciones'
+  const cuantas = `${resumen.obligaciones} ${resumen.obligaciones === 1 ? 'obligación' : 'obligaciones'}`
+  const otrasMonedas = resumen.totalPorMoneda
+    .slice(1)
+    .map((t) => `${t.moneda} ${t.monto.toFixed(2)}`)
+    .join(' · ')
+  return [cuantas, periodo, otrasMonedas ? `+ ${otrasMonedas}` : null].filter(Boolean).join(' · ')
 }

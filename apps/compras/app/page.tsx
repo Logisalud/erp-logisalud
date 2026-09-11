@@ -59,7 +59,7 @@ export default async function Inicio() {
         ) : null}
         {puedeVerPagos ? (
           <MenuItem
-            href="/pagos-por-ejecutar" emoji="💸"
+            href="/pagos-por-ejecutar" emoji="🏦"
             titulo={lotesPorPagar > 0 ? `Pagos por ejecutar (${lotesPorPagar})` : 'Pagos por ejecutar'}
             descripcion="Los lotes ya aprobados que faltan desembolsar, con lo que queda por pagar."
           />

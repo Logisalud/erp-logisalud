@@ -27,8 +27,16 @@ describe('quién decide', () => {
 })
 
 describe('fuentesQueMeTocan', () => {
-  it('Contabilidad ve las tres suyas, pero NO las OS (las aprueba el área usuaria)', () => {
-    expect(fuentesQueMeTocan(mariela, []).sort()).toEqual(['caja_chica', 'gasto', 'pago_directo'])
+  it('Contabilidad ve las suyas —incluidas las propuestas de pago— pero NO las OS', () => {
+    expect(fuentesQueMeTocan(mariela, []).sort()).toEqual(['caja_chica', 'gasto', 'pago_directo', 'propuesta'])
+  })
+
+  it('un lote de pago espera en pendiente_aprobacion, y solo ahí', () => {
+    expect(ESTADOS_QUE_ESPERAN_DECISION.propuesta).toEqual(['pendiente_aprobacion'])
+  })
+
+  it('un jefe de área que no es Contabilidad NO ve las propuestas', () => {
+    expect(fuentesQueMeTocan(vendedor, ['ventas'])).not.toContain('propuesta')
   })
 
   it('un jefe de área que no es Contabilidad ve solo OS y Caja Chica', () => {
@@ -43,12 +51,12 @@ describe('fuentesQueMeTocan', () => {
 
   it('un jefe de área que además es Contabilidad ve las cuatro', () => {
     expect(fuentesQueMeTocan(mariela, ['contabilidad']).sort()).toEqual([
-      'caja_chica', 'gasto', 'os', 'pago_directo',
+      'caja_chica', 'gasto', 'os', 'pago_directo', 'propuesta',
     ])
   })
 
   it('admin ve las cuatro aunque no sea jefe de ninguna área', () => {
-    expect(fuentesQueMeTocan(admin, []).sort()).toEqual(['caja_chica', 'gasto', 'os', 'pago_directo'])
+    expect(fuentesQueMeTocan(admin, []).sort()).toEqual(['caja_chica', 'gasto', 'os', 'pago_directo', 'propuesta'])
   })
 })
 

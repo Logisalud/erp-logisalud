@@ -23,12 +23,12 @@ export default function Reportes() {
         <ItemReporte
           href="/reportes/proveedores-sin-responsable"
           titulo="Proveedores sin responsable"
-          descripcion="Quién tiene asignado cada proveedor, y si la última orden la generó esa misma persona."
+          descripcion="Qué proveedores no tienen a nadie a cargo, y cuáles lo tienen desactualizado frente a quien generó la última orden."
         />
         <ItemReporte
           href="/reportes/ordenes-compra"
           titulo="Órdenes de compra"
-          descripcion="Seguimiento del pedido: estado, % recibido, discrepancias abiertas."
+          descripcion="Una fila por orden: proveedor, entrega estimada, monto, cuánto se recibió y discrepancias abiertas."
         />
       </GrupoReportes>
 
@@ -36,27 +36,27 @@ export default function Reportes() {
         <ItemReporte
           href="/reportes/cuentas-por-pagar/antiguedad"
           titulo="Antigüedad de saldos"
-          descripcion="Por vencer, 1-30, 31-60, 61-90 y +90 días, por proveedor."
+          descripcion="Cuánto le debes a cada proveedor, repartido por cuánto lleva vencido (por vencer, 1-30, 31-60, 61-90, +90 días)."
         />
         <ItemReporte
           href="/reportes/cuentas-por-pagar/abiertas"
           titulo="Obligaciones abiertas"
-          descripcion="Una fila por obligación sin pagar."
+          descripcion="Una fila por deuda sin pagar: a quién, de dónde viene, cuándo vence y cuántos días lleva vencida."
         />
         <ItemReporte
           href="/reportes/cuentas-por-pagar/proyeccion-pagos"
           titulo="Proyección de pagos"
-          descripcion="Qué hay que pagar esta semana, este mes y el próximo."
+          descripcion="Cuánta plata sale esta semana, este mes, el próximo y más adelante, con el total por moneda."
         />
         <ItemReporte
           href="/reportes/cuentas-por-pagar/historial-pagos"
           titulo="Historial de pagos"
-          descripcion="Lo ya pagado, por proveedor o periodo."
+          descripcion="Todo lo ya pagado: fecha, a quién, número de operación y monto. Filtrable por proveedor y fechas."
         />
         <ItemReporte
           href="/reportes/cuentas-por-pagar/detracciones"
           titulo="Detracciones"
-          descripcion="Reporte SUNAT-facing, separado del aging general."
+          descripcion="Facturas con detracción: base imponible, monto detraído y categoría del anexo SUNAT."
         />
       </GrupoReportes>
 
@@ -64,7 +64,7 @@ export default function Reportes() {
         <ItemReporte
           href="/reportes/sabana-maestra"
           titulo="Sábana maestra"
-          descripcion="Una fila por obligación, todos los campos — para Excel o Power BI."
+          descripcion="Todas las obligaciones en una tabla plana con monto, pagado, saldo y estado — descargable a Excel."
         />
       </GrupoReportes>
     </main>
