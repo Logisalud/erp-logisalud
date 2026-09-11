@@ -13,7 +13,7 @@ import {
 } from '@/domain/dashboard'
 import { estaVencida } from '@/domain/financiamiento'
 import { listarObligaciones, type ObligacionListada } from '@/services/obligaciones'
-import { obtenerObligacionesAbiertas } from '@/services/reportes-cuentas-por-pagar-detalle'
+import { obtenerObligacionesAbiertas, type FilaObligacionAbierta } from '@/services/reportes-cuentas-por-pagar-detalle'
 import { buscarOrdenesFacturables } from '@/services/facturas-elegibles'
 import { diasVencido } from '@/domain/reportes'
 
@@ -202,7 +202,7 @@ export async function obtenerUmbralOCParcialDias(): Promise<number> {
 /**
  * Regla 7 del encargo: OC parcialmente recibida hace más del umbral
  * configurado. Se calcula al vuelo, sin cron — mismo patrón que el resto de
- * los loops abiertos de este archivo.
+ * lo que necesita atención, más abajo en este archivo.
  */
 export async function listarOCsParcialesSobreUmbral(): Promise<LoopOCParcial[]> {
   const supabase = crearClienteServidor()
@@ -236,7 +236,8 @@ export type LoopsAbiertos = {
 }
 
 /**
- * Junta los loops abiertos del módulo (Carta de Simplicidad regla 5).
+ * Junta todo lo que está trabado en el módulo — "Qué necesita atención"
+ * en pantalla (Carta de Simplicidad regla 5).
  * Orden fijo por urgencia financiera: primero lo que tiene un riesgo con
  * fecha (perder el beneficio del fraccionamiento), después lo que bloquea
  * un pago (obligación observada, discrepancia sin resolver), por último lo
@@ -275,6 +276,10 @@ export type KPIsDashboard = {
   ordenesAprobadasSinFactura: { cantidad: number }
   pagadoEsteMes: MontoPorMoneda[]
   obligacionesObservadas: MontoPorMoneda[]
+  /** Las obligaciones vencidas y por vencer, en detalle. Antes solo vivían
+   * en la pantalla "Reportes — Cuentas por Pagar", que se fusionó acá. */
+  listaVencidas: FilaObligacionAbierta[]
+  listaVenceProximos7Dias: FilaObligacionAbierta[]
 }
 
 /**
@@ -313,6 +318,12 @@ export async function obtenerKPIsDashboard(obligacionesObservadasYaCargadas?: Ob
     totalPendiente,
     totalVencido,
     venceProximos7Dias,
+    // Las LISTAS, no solo los totales: son lo único que la pantalla
+    // "Reportes — Cuentas por Pagar" tenía y el Dashboard no, y por eso
+    // había que abrir las dos. Ya venían calculadas de `abiertas`, así que
+    // exponerlas no cuesta ni una consulta más.
+    listaVencidas: vencidas,
+    listaVenceProximos7Dias: porVencerPronto,
     facturasPendientesRevision,
     ordenesAprobadasSinFactura: { cantidad: facturables.length },
     pagadoEsteMes,

@@ -8,23 +8,16 @@ export const dynamic = 'force-dynamic'
  * cada rol ve lo que le toca). Sin tabs: cada reporte es su propia pantalla,
  * con sus propios filtros por `searchParams`, igual que el resto del módulo.
  *
- * El dashboard de "loops abiertos" (Fase 1.5, /cuentas-por-pagar/reportes)
- * queda como una tarjeta más acá — es un propósito distinto (qué necesita
- * atención AHORA) del de estos reportes tabulares/exportables, así que no se
- * fusionan.
+ * El tablero de "Qué necesita atención" vive en /dashboard, no acá: absorbió
+ * la pantalla /cuentas-por-pagar/reportes el 2026-09-11, que estaba listada
+ * en este índice como un reporte más siendo un tablero. Acá van REPORTES —
+ * información para leer, filtrar y exportar —, y el grupo "Qué necesita
+ * atención ahora" se eliminó porque su único ítem era ese tablero.
  */
 export default function Reportes() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <Encabezado titulo="Ver reportes" atras={{ href: '/', texto: 'Compras y Pagos' }} />
-
-      <GrupoReportes titulo="Qué necesita atención ahora">
-        <ItemReporte
-          href="/cuentas-por-pagar/reportes"
-          titulo="Loops abiertos de Cuentas por Pagar"
-          descripcion="Vencidas, por vencer, observadas y lo pagado este mes."
-        />
-      </GrupoReportes>
 
       <GrupoReportes titulo="Operativo — Compras y Almacén">
         <ItemReporte

@@ -619,7 +619,18 @@ async function mapaBeneficiarios(ids: string[]) {
  * (notaría, seguros, courier son "servicio"). `idsServicio` es opcional
  * para no tocar los llamadores que solo manejan proveedor_id.
  */
-async function mapaProveedoresBasico(idsCompra: string[], idsServicio: string[] = []) {
+/**
+ * Proveedores de las DOS tablas. Una obligación puede apuntar a
+ * `compras.proveedores` (mercadería y bienes) o a
+ * `servicios.proveedores_servicio` (notaría, seguros, courier, alquileres),
+ * y hay que mirar las dos: un Pago Directo casi siempre le paga a un
+ * proveedor de servicio.
+ *
+ * Exportado porque services/reportes-cuentas-por-pagar.ts tenía su propia
+ * copia que solo consultaba `compras`, y por eso mostraba "sin proveedor ni
+ * beneficiario" en TODAS las filas. Un solo lugar que sabe hacer el cruce.
+ */
+export async function mapaProveedoresBasico(idsCompra: string[], idsServicio: string[] = []) {
   const supabase = crearClienteServidor()
   const [compra, servicio] = await Promise.all([
     idsCompra.length

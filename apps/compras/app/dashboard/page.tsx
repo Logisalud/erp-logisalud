@@ -35,15 +35,26 @@ function fraseDelDia() {
 
 /**
  * Carta de Simplicidad UX, regla 5: este es el único lugar del sistema
- * pensado para ver de un vistazo qué necesita atención — prioriza
- * visualmente los "loops abiertos" por encima de cualquier métrica. No
- * hay un botón primario acá: es una pantalla de vistazo, cada loop lleva
- * a la pantalla donde se resuelve.
+ * pensado para ver de un vistazo QUÉ NECESITA ATENCIÓN — prioriza las cosas
+ * trabadas por encima de cualquier métrica. No hay un botón primario acá:
+ * es una pantalla de vistazo, y cada fila lleva a donde se resuelve.
+ *
+ * Desde 2026-09-11 absorbió la pantalla "Reportes — Cuentas por Pagar", que
+ * respondía la MISMA pregunta con otro corte y obligaba a abrir las dos. Lo
+ * único que esa pantalla tenía y esta no eran las listas de vencidas y por
+ * vencer; los totales ya estaban acá como tiles. Se eliminó, y de paso
+ * `/reportes` quedó con nueve reportes de verdad en vez de ocho más un
+ * tablero infiltrado.
+ *
+ * El término "loops abiertos" se retiró de la UI: era jerga interna. En
+ * pantalla se dice "Qué necesita atención", de forma consistente.
  */
 export default async function Dashboard() {
   const loops = await obtenerLoopsAbiertos()
   const kpis = await obtenerKPIsDashboard(loops.obligacionesObservadas)
   const totalAbiertos =
+    kpis.listaVencidas.length +
+    kpis.listaVenceProximos7Dias.length +
     loops.fraccionamientosVencidos.length +
     loops.obligacionesObservadas.length +
     loops.discrepancias.length +
@@ -76,10 +87,45 @@ export default async function Dashboard() {
 
       {totalAbiertos === 0 ? (
         <p className="card border-logisalud-green text-sm text-gray-700">
-          Todo al día — no hay ningún loop abierto ahora mismo.
+          Todo al día — no hay nada esperando atención ahora mismo.
         </p>
       ) : (
         <div className="space-y-6">
+          {/* Vencidas y por vencer: lo que traía la pantalla fusionada. Van
+              primero porque son las que cuestan dinero si se pasan. */}
+          {kpis.listaVencidas.length > 0 ? (
+            <Seccion titulo="Obligaciones vencidas" urgente>
+              {kpis.listaVencidas.map((o) => (
+                <Item key={o.id} href={`/cuentas-por-pagar/${o.id}`}>
+                  <Fila
+                    titulo={`${o.codigo}${o.numeroFactura ? ` · ${o.numeroFactura}` : ''}`}
+                    monto={<Money valor={o.netoAPagar} moneda={o.moneda} />}
+                  />
+                  <p className="mt-0.5 text-sm text-red-700">
+                    {o.quien} · venció hace {o.diasVencido} día(s)
+                  </p>
+                </Item>
+              ))}
+            </Seccion>
+          ) : null}
+
+          {kpis.listaVenceProximos7Dias.length > 0 ? (
+            <Seccion titulo="Vencen en los próximos 7 días">
+              {kpis.listaVenceProximos7Dias.map((o) => (
+                <Item key={o.id} href={`/cuentas-por-pagar/${o.id}`}>
+                  <Fila
+                    titulo={`${o.codigo}${o.numeroFactura ? ` · ${o.numeroFactura}` : ''}`}
+                    monto={<Money valor={o.netoAPagar} moneda={o.moneda} />}
+                  />
+                  <p className="mt-0.5 text-sm text-gray-600">
+                    {o.quien}
+                    {o.fechaVencimiento ? ` · vence ${o.fechaVencimiento}` : ''}
+                  </p>
+                </Item>
+              ))}
+            </Seccion>
+          ) : null}
+
           {loops.fraccionamientosVencidos.length > 0 ? (
             <Seccion titulo="Cuotas de fraccionamiento SUNAT vencidas" urgente>
               {loops.fraccionamientosVencidos.map((c) => (

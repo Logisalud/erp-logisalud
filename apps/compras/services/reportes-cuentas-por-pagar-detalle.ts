@@ -1,5 +1,6 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
+import { mapaProveedoresBasico } from '@/services/obligaciones'
 import {
   bucketAntiguedad,
   diasVencido,
@@ -20,13 +21,6 @@ import type { EstadoObligacion } from '@/domain/obligacion'
  */
 
 export type QuienDebe = { proveedor: string | null; beneficiario: string | null; referencia: string | null }
-
-async function mapaProveedores(ids: string[]) {
-  const supabase = crearClienteServidor()
-  if (ids.length === 0) return new Map<string, string>()
-  const { data } = await supabase.schema('compras').from('proveedores').select('id, razon_social').in('id', ids)
-  return new Map((data ?? []).map((p: any) => [p.id, p.razon_social as string]))
-}
 
 async function mapaProveedoresConRuc(ids: string[]) {
   const supabase = crearClienteServidor()
@@ -57,19 +51,37 @@ type ObligacionBase = {
   fecha_vencimiento_real: string | null
   observaciones: string | null
   proveedor_id: string | null
+  /** La otra tabla de proveedores — servicios.proveedores_servicio. */
+  proveedor_servicio_id: string | null
   beneficiario_persona: string | null
+  /** Respaldo del nombre cuando la RLS de perfiles no deja leerlo (0042). */
+  creador_correo: string | null
 }
 
 async function resolverQuienDebe(filas: readonly ObligacionBase[]): Promise<Map<string, QuienDebe>> {
+  // Las DOS tablas de proveedor. Antes esto solo miraba `compras.proveedores`
+  // y el respaldo a `observaciones` tapaba el hueco: los cinco reportes de
+  // acá mostraban la observación en vez del nombre del proveedor de
+  // SERVICIO, que es a quien le paga casi todo Pago Directo.
   const [proveedores, beneficiarios] = await Promise.all([
-    mapaProveedores([...new Set(filas.map((f) => f.proveedor_id).filter((x): x is string => !!x))]),
+    mapaProveedoresBasico(
+      [...new Set(filas.map((f) => f.proveedor_id).filter((x): x is string => !!x))],
+      [...new Set(filas.map((f) => f.proveedor_servicio_id).filter((x): x is string => !!x))]
+    ),
     mapaBeneficiarios([...new Set(filas.map((f) => f.beneficiario_persona).filter((x): x is string => !!x))]),
   ])
   const resultado = new Map<string, QuienDebe>()
   for (const f of filas) {
+    const proveedor = proveedores.get(f.proveedor_id ?? f.proveedor_servicio_id ?? '')
     resultado.set(f.id, {
-      proveedor: f.proveedor_id ? proveedores.get(f.proveedor_id) ?? null : null,
-      beneficiario: f.beneficiario_persona ? beneficiarios.get(f.beneficiario_persona) ?? null : null,
+      proveedor: proveedor?.razon_social ?? null,
+      // La RLS de `public.perfiles` solo deja a admin y contabilidad leer el
+      // nombre de otra persona, así que para Tesorería un reembolso caía al
+      // respaldo. `creador_correo` (columna de la 0042) lo resuelve con el
+      // mismo criterio que "Pendientes de aprobar".
+      beneficiario:
+        (f.beneficiario_persona ? beneficiarios.get(f.beneficiario_persona) ?? null : null) ??
+        (f.beneficiario_persona ? f.creador_correo ?? null : null),
       // Para prestamo/fraccionamiento_sunat/impuesto la referencia ya queda
       // escrita en observaciones al generar la obligación (ver
       // services/financiamiento.ts e services/impuestos.ts) — no hay
@@ -81,7 +93,7 @@ async function resolverQuienDebe(filas: readonly ObligacionBase[]): Promise<Map<
 }
 
 const COLUMNAS_BASE =
-  'id, codigo, origen, numero_factura, moneda, neto_a_pagar, estado, fecha_vencimiento_real, observaciones, proveedor_id, beneficiario_persona'
+  'id, codigo, origen, numero_factura, moneda, neto_a_pagar, estado, fecha_vencimiento_real, observaciones, proveedor_id, proveedor_servicio_id, beneficiario_persona, creador_correo'
 
 // ---------------------------------------------------------------------------
 // 1. Antigüedad de saldos (AP Aging)
