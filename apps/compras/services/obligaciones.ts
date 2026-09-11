@@ -18,6 +18,7 @@ import {
   type LineaFacturacion,
 } from '@/domain/obligacion'
 import { puedeMarcarseFacturada } from '@/domain/orden-compra'
+import { ERROR_AUTO_APROBACION, esAutoridadFinal, puedeAnular, puedeDecidirSobre, autoridadYaDecidioPagoDirecto, ERROR_ANULAR_TARDE, ERROR_ANULAR_AJENO } from '@/domain/auto-aprobacion'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
 
@@ -725,12 +726,18 @@ export async function darConformidad(obligacionId: string): Promise<void> {
   const { data: obligacion, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, estado, origen, os_id')
+    .select('id, estado, origen, os_id, created_by')
     .eq('id', obligacionId)
     .maybeSingle()
   if (error || !obligacion) throw new Error('No se encontró la obligación.')
   if (obligacion.estado !== 'registrada' && obligacion.estado !== 'observada') {
     throw new Error('Solo una obligación registrada u observada puede pasar a conforme.')
+  }
+  // Nadie da conformidad a lo que cargó él mismo (Pieza H). La autoridad
+  // final queda exenta: no hay a quién derivarlo por encima de ella.
+  const usuario = await exigirUsuario()
+  if (!puedeDecidirSobre(perfil, usuario.id, obligacion.created_by ?? null)) {
+    throw new Error(ERROR_AUTO_APROBACION)
   }
 
   if (obligacion.origen === 'servicio') {
@@ -746,7 +753,6 @@ export async function darConformidad(obligacionId: string): Promise<void> {
     }
   }
 
-  const usuario = await exigirUsuario()
   const { error: errUpd } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -1049,7 +1055,7 @@ async function cortarPagoDirecto(id: string, motivo: string, accion: 'anular' | 
   const { data: obligacion, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, estado, moneda, total, creador_correo, categoria_pago_directo_id')
+    .select('id, codigo, origen, estado, moneda, total, creador_correo, categoria_pago_directo_id, created_by')
     .eq('id', id)
     .maybeSingle()
   if (error || !obligacion) throw new Error('No se encontró la obligación.')
@@ -1059,6 +1065,29 @@ async function cortarPagoDirecto(id: string, motivo: string, accion: 'anular' | 
   if (!corte.puedeCortarse(obligacion.estado as EstadoObligacion)) {
     throw new Error(
       `Ya no se puede ${accion}: está "${ETIQUETA_ESTADO[obligacion.estado as EstadoObligacion]}".`
+    )
+  }
+
+  // Pieza G/H. Rechazar es una decisión de la autoridad y solo ella la
+  // toma. Anular lo puede hacer también quien lo creó, pero únicamente
+  // mientras Contabilidad no le haya dado conformidad todavía.
+  if (accion === 'rechazar') {
+    if (!esAutoridadFinal(perfil)) {
+      throw new Error('Solo Contabilidad (rol admin) puede rechazar un Pago Directo.')
+    }
+    if (!puedeDecidirSobre(perfil, usuario.id, (obligacion as any).created_by ?? null)) {
+      throw new Error(ERROR_AUTO_APROBACION)
+    }
+  } else if (
+    !puedeAnular(
+      esAutoridadFinal(perfil),
+      usuario.id,
+      (obligacion as any).created_by ?? null,
+      autoridadYaDecidioPagoDirecto(obligacion.estado as string)
+    )
+  ) {
+    throw new Error(
+      (obligacion as any).created_by === usuario.id ? ERROR_ANULAR_TARDE : ERROR_ANULAR_AJENO
     )
   }
 

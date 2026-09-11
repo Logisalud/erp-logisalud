@@ -27,6 +27,9 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
     igv: tipo === 'anticipo' ? null : Number(form.get('igv') ?? 0),
     descripcion: String(form.get('descripcion') ?? ''),
     destino: textoONull(form.get('destino')),
+    // Anticipo y reembolso: para cuándo se necesita el dinero. Nada que ver
+    // con fechaInicio/fechaFin, que son del viaje (ver domain/gasto.ts).
+    fechaRequerida: tipo === 'gasto_directo' ? null : textoONull(form.get('fechaRequerida')),
     fechaInicio: textoONull(form.get('fechaInicio')),
     fechaFin: textoONull(form.get('fechaFin')),
     asignadoA: tipo === 'anticipo' ? textoONull(form.get('asignadoA')) : null,

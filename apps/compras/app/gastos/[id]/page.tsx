@@ -33,6 +33,10 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
           <Dato termino="Estado" valor={ETIQUETA_ESTADO[solicitud.estado]} />
           <Dato termino="Categoría" valor={solicitud.categoria?.nombre ?? null} />
           <Dato termino="Área" valor={solicitud.area} />
+          {/* Pieza J: lo pide quien solicita, lo usa Tesorería para priorizar. */}
+          {solicitud.fecha_requerida ? (
+            <Dato termino="Necesita el dinero para" valor={solicitud.fecha_requerida} />
+          ) : null}
         </dl>
         <p className="mt-1"><Money valor={solicitud.monto_solicitado} moneda={solicitud.moneda} /></p>
         <p className="mt-2 text-sm text-gray-700">{solicitud.descripcion}</p>

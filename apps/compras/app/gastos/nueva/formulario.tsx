@@ -117,6 +117,17 @@ export function FormularioSolicitud({
           </Campo>
         ) : null}
 
+        {tipo !== 'gasto_directo' ? (
+          <Campo etiqueta="¿Para cuándo necesitas el dinero?">
+            <input type="date" name="fechaRequerida" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+            <p className="mt-1 text-xs text-gray-500">
+              Opcional. Le sirve a Tesorería para priorizar el desembolso — no es un compromiso
+              de pago. Si es un viaje, esto no reemplaza las fechas del viaje: normalmente
+              necesitas la plata antes de salir.
+            </p>
+          </Campo>
+        ) : null}
+
         {tipo === 'anticipo' ? (
           <>
             <div className="grid gap-3 sm:grid-cols-3">

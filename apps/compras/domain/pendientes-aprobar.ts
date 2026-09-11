@@ -156,6 +156,9 @@ export type FilaPendiente = {
   moneda: string
   /** "Contabilidad" o "Jefe de <área>" — útil para admin, que ve las cuatro. */
   quienDecide: string
+  /** Anticipo/Reembolso: para cuándo pidieron el dinero (Pieza J). Null en
+   * el resto — solo esas dos fuentes capturan el dato. */
+  fechaRequerida: string | null
   href: string
 }
 

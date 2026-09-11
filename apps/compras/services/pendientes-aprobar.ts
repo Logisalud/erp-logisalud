@@ -50,7 +50,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
       ? supabase
           .schema('gastos')
           .from('solicitudes_gasto')
-          .select('id, codigo, tipo, estado, moneda, monto_solicitado, created_at, solicitante_id, creador_correo')
+          .select('id, codigo, tipo, estado, moneda, monto_solicitado, created_at, solicitante_id, creador_correo, fecha_requerida')
           .in('tipo', ['anticipo', 'reembolso'])
           .in('estado', ESTADOS_QUE_ESPERAN_DECISION.gasto)
       : null,
@@ -108,6 +108,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     monto: Number(pd.total),
     moneda: pd.moneda,
     quienDecide: 'Contabilidad',
+    fechaRequerida: null,
     href: `/cuentas-por-pagar/${pd.id}`,
   }))
 
@@ -121,6 +122,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     monto: Number(sol.monto_solicitado),
     moneda: sol.moneda,
     quienDecide: 'Contabilidad',
+    fechaRequerida: sol.fecha_requerida ?? null,
     href: `/gastos/${sol.id}`,
   }))
 
@@ -142,6 +144,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
         quienDecideCajaChica(rep.estado) === 'contabilidad'
           ? 'Contabilidad'
           : `Jefe de ${fondo?.area ?? 'área'}`,
+      fechaRequerida: null,
       href: `/caja-chica/reposiciones/${rep.id}`,
     }
   })
@@ -156,6 +159,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     monto: Number(os.monto_estimado),
     moneda: os.moneda,
     quienDecide: `Jefe de ${os.area_solicitante ?? 'área'}`,
+    fechaRequerida: null,
     href: `/servicios/${os.id}`,
   }))
 

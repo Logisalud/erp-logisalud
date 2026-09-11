@@ -28,6 +28,11 @@ export default function Reportes() {
 
       <GrupoReportes titulo="Operativo — Compras y Almacén">
         <ItemReporte
+          href="/reportes/proveedores-sin-responsable"
+          titulo="Proveedores sin responsable"
+          descripcion="Quién tiene asignado cada proveedor, y si la última orden la generó esa misma persona."
+        />
+        <ItemReporte
           href="/reportes/ordenes-compra"
           titulo="Órdenes de compra"
           descripcion="Seguimiento del pedido: estado, % recibido, discrepancias abiertas."
