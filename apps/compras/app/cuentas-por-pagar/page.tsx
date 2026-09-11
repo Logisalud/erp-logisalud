@@ -4,27 +4,66 @@ import { Money } from '@/components/money'
 import { listarObligaciones } from '@/services/obligaciones'
 import { ETIQUETA_ESTADO, ESTADOS_OBLIGACION, type EstadoObligacion } from '@/domain/obligacion'
 import { ETIQUETA_ESTADO_PROPUESTA, type EstadoPropuesta } from '@/domain/propuesta'
+import { ETIQUETA_ORIGEN, type OrigenObligacion } from '@/domain/reportes'
+import {
+  CATEGORIAS_ESTADO, ETIQUETA_CATEGORIA, categoriaDeEstado, estaVencida,
+  estadosDeCategoria, estadosVisiblesPorDefecto,
+  type CategoriaEstado,
+} from '@/domain/categorias-estado-obligacion'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * El índice de obligaciones, en tabla y no en tarjetas: son hasta 200 filas
+ * de nueve orígenes distintos y lo que se hace acá es ESCANEAR — buscar una
+ * fila, comparar montos, ver qué venció. Mismo criterio que "Mis
+ * operaciones" y "Pendientes de aprobar".
+ *
+ * Los filtros van por CATEGORÍA de estado (6) y no por estado técnico (10):
+ * nadie recorre diez chips para encontrar "lo que falta pagar". La precisión
+ * no se pierde — cada fila muestra su estado exacto, y "Ver todos los
+ * estados" despliega los diez para cuando Contabilidad necesite el detalle.
+ *
+ * Acá NO se paga: el pago vive en la propuesta aprobada, y ofrecerlo por
+ * fila haría que armar y aprobar el lote pasen a ser opcionales (regla de
+ * oro, sección 4 del documento maestro). La columna "Lote" es el camino
+ * hacia donde sí se paga.
+ */
 export default async function CuentasPorPagar({
   searchParams,
-}: { searchParams: { estado?: string; listas?: string } }) {
-  const estado = ESTADOS_OBLIGACION.includes(searchParams.estado as EstadoObligacion)
+}: {
+  searchParams: { estado?: string; categoria?: string; listas?: string; avanzado?: string }
+}) {
+  const estadoExacto = ESTADOS_OBLIGACION.includes(searchParams.estado as EstadoObligacion)
     ? (searchParams.estado as EstadoObligacion)
     : undefined
-  // "Listas para pagar" no es un estado de la obligación: es estar dentro de
-  // una propuesta YA APROBADA y todavía sin pagar. Por eso es un filtro
-  // aparte y no un chip más — el estado propio de la fila sigue siendo
-  // `en_propuesta`, que por sí solo no dice si el lote pasó la aprobación.
+  const categoria = CATEGORIAS_ESTADO.includes(searchParams.categoria as CategoriaEstado)
+    ? (searchParams.categoria as CategoriaEstado)
+    : undefined
+  // "Listas para pagar" no es un estado: es estar en una propuesta YA
+  // APROBADA y sin pagar. `en_propuesta` por sí solo no dice si el lote pasó
+  // la aprobación, así que va como filtro aparte.
   const soloListas = searchParams.listas === '1'
-  const todas = await listarObligaciones(soloListas ? undefined : estado)
+  const verAvanzado = searchParams.avanzado === '1' || !!estadoExacto
+
+  const filtroEstados = soloListas
+    ? undefined
+    : estadoExacto
+      ? estadoExacto
+      : categoria
+        ? estadosDeCategoria(categoria)
+        : estadosVisiblesPorDefecto()
+
+  const todas = await listarObligaciones(soloListas ? undefined : filtroEstados)
   const obligaciones = soloListas
     ? todas.filter((o) => o.propuesta?.estado === 'aprobada' && !o.yaPagada)
     : todas
 
+  const hoy = new Date().toISOString().slice(0, 10)
+  const sinFiltro = !soloListas && !estadoExacto && !categoria
+
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-8">
       <Encabezado titulo="Registros — Cuentas por Pagar" atras={{ href: '/', texto: 'Módulos' }} />
 
       <div className="mb-5 flex flex-wrap gap-2">
@@ -36,17 +75,51 @@ export default async function CuentasPorPagar({
         </Link>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2 text-sm">
-        <FiltroEstado
-          etiqueta="💸 Listas para pagar"
-          activo={soloListas}
-          href="/cuentas-por-pagar?listas=1"
-        />
-        <FiltroEstado etiqueta="Todas" activo={!estado && !soloListas} href="/cuentas-por-pagar" />
-        {ESTADOS_OBLIGACION.map((e) => (
-          <FiltroEstado key={e} etiqueta={ETIQUETA_ESTADO[e]} activo={!soloListas && estado === e} href={`/cuentas-por-pagar?estado=${e}`} />
+      <div className="mb-2 flex flex-wrap gap-2 text-sm">
+        <Chip etiqueta="💸 Listas para pagar" activo={soloListas} href="/cuentas-por-pagar?listas=1" />
+        <Chip etiqueta="Todas" activo={sinFiltro} href="/cuentas-por-pagar" />
+        {CATEGORIAS_ESTADO.map((c) => (
+          <Chip
+            key={c}
+            etiqueta={ETIQUETA_CATEGORIA[c]}
+            activo={categoria === c}
+            href={`/cuentas-por-pagar?categoria=${c}`}
+          />
         ))}
       </div>
+
+      {/* El detalle técnico existe pero no estorba: quien lo necesita lo
+          abre, y no es la vista por defecto. */}
+      {verAvanzado ? (
+        <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 p-3">
+          <p className="mb-2 text-xs font-medium uppercase text-gray-500">Estados técnicos</p>
+          <div className="flex flex-wrap gap-2 text-sm">
+            {ESTADOS_OBLIGACION.map((e) => (
+              <Chip
+                key={e}
+                etiqueta={ETIQUETA_ESTADO[e]}
+                activo={estadoExacto === e}
+                href={`/cuentas-por-pagar?estado=${e}`}
+              />
+            ))}
+          </div>
+          <Link href="/cuentas-por-pagar" className="mt-2 inline-block text-xs text-gray-500 underline">
+            Ocultar estados técnicos
+          </Link>
+        </div>
+      ) : (
+        <div className="mb-4">
+          <Link href="/cuentas-por-pagar?avanzado=1" className="text-xs text-gray-500 underline">
+            Ver todos los estados
+          </Link>
+        </div>
+      )}
+
+      {sinFiltro ? (
+        <p className="mb-3 text-xs text-gray-500">
+          No se muestran las rechazadas ni las anuladas — están en el chip &ldquo;No procede&rdquo;.
+        </p>
+      ) : null}
 
       {obligaciones.length === 0 ? (
         <p className="card text-sm text-gray-600">
@@ -55,69 +128,136 @@ export default async function CuentasPorPagar({
             : 'No hay obligaciones para este filtro.'}
         </p>
       ) : (
-        <ul className="space-y-2">
-          {obligaciones.map((o) => (
-            <li key={o.id} className="card transition hover:shadow-sm">
-              <Link href={`/cuentas-por-pagar/${o.id}`} className="block">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium">{o.codigo}{o.numero_factura ? ` · ${o.numero_factura}` : ''}</span>
-                  <Money valor={o.neto_a_pagar} moneda={o.moneda} />
-                </div>
-                <p className="mt-0.5 text-sm text-gray-600">
-                  {o.proveedor?.razon_social ?? o.beneficiario?.nombre ?? o.observaciones ?? 'sin proveedor ni beneficiario'} · {ETIQUETA_ESTADO[o.estado]}
-                  {o.fecha_vencimiento_real ? ` · vence ${o.fecha_vencimiento_real}` : ''}
-                </p>
-              </Link>
-              {/* El link a la propuesta va FUERA del link a la ficha: un <a>
-                  no puede anidar otro. Es el camino a la pantalla donde se
-                  paga — acá no se paga (ver ObligacionListada.propuesta). */}
-              <EnQuePropuesta propuesta={o.propuesta ?? null} yaPagada={!!o.yaPagada} />
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
+                <th className="px-3 py-2 font-medium">Código</th>
+                <th className="px-3 py-2 font-medium">Proveedor / Beneficiario</th>
+                <th className="px-3 py-2 font-medium">Origen</th>
+                <th className="px-3 py-2 font-medium">Estado</th>
+                <th className="px-3 py-2 text-right font-medium">Monto</th>
+                <th className="px-3 py-2 font-medium">Vencimiento</th>
+                <th className="px-3 py-2 font-medium">Lote</th>
+                <th className="px-3 py-2 font-medium">Concepto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {obligaciones.map((o) => (
+                <tr key={o.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <Link href={`/cuentas-por-pagar/${o.id}`} className="font-medium text-logisalud-teal underline">
+                      {o.codigo}
+                    </Link>
+                    {o.numero_factura ? (
+                      <span className="block text-xs text-gray-500">{o.numero_factura}</span>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-2 max-w-[220px] truncate">
+                    {o.proveedor?.razon_social ?? o.beneficiario?.nombre ?? '—'}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                    {ETIQUETA_ORIGEN[o.origen as OrigenObligacion] ?? o.origen}
+                  </td>
+                  {/* El estado EXACTO, no la categoría: el filtro agrupa, la
+                      fila no pierde precisión. */}
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <EstadoChip estado={o.estado} />
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    <Money valor={o.neto_a_pagar} moneda={o.moneda} />
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <Vencimiento
+                      fecha={o.fecha_vencimiento_real}
+                      vencida={estaVencida(o.fecha_vencimiento_real, o.estado, hoy)}
+                    />
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <CeldaLote propuesta={o.propuesta ?? null} yaPagada={!!o.yaPagada} />
+                  </td>
+                  <td className="px-3 py-2 max-w-[240px] truncate" title={o.concepto ?? undefined}>
+                    {o.concepto ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </main>
   )
 }
 
+/** Tono por categoría, nunca como única señal: siempre acompaña al texto. */
+const TONO_POR_CATEGORIA: Record<CategoriaEstado, string> = {
+  por_completar: 'border-amber-200 bg-amber-50 text-amber-800',
+  en_revision: 'border-amber-200 bg-amber-50 text-amber-800',
+  en_camino_a_pago: 'border-sky-200 bg-sky-50 text-sky-800',
+  pagada: 'border-green-200 bg-green-50 text-green-800',
+  en_cuotas: 'border-gray-200 bg-gray-50 text-gray-700',
+  no_procede: 'border-red-200 bg-red-50 text-red-800',
+}
+
+function EstadoChip({ estado }: { estado: EstadoObligacion }) {
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TONO_POR_CATEGORIA[categoriaDeEstado(estado)]}`}
+    >
+      {ETIQUETA_ESTADO[estado]}
+    </span>
+  )
+}
+
 /**
- * En qué lote entró la obligación, y si ese lote ya se puede pagar. Antes el
- * listado decía "en propuesta" sin decir en cuál ni si estaba aprobada, así
- * que Tesorería no tenía forma de llegar a la pantalla del pago.
+ * El vencido en rojo — pero solo cuando todavía hay algo que pagar (ver
+ * `estaVencida`): pintar de rojo una obligación ya pagada entrenaría a
+ * ignorar el color.
  */
-function EnQuePropuesta({
+function Vencimiento({ fecha, vencida }: { fecha: string | null; vencida: boolean }) {
+  if (!fecha) return <span className="text-gray-400">—</span>
+  return (
+    <span className={vencida ? 'font-medium text-red-700' : 'text-gray-600'}>
+      {fecha}
+      {vencida ? <span className="block text-xs">vencida</span> : null}
+    </span>
+  )
+}
+
+/** En qué lote entró, y si ese lote ya se puede pagar. */
+function CeldaLote({
   propuesta,
   yaPagada,
 }: {
   propuesta: { id: string; codigo: string; estado: string } | null
   yaPagada: boolean
 }) {
-  if (!propuesta) return null
-  if (yaPagada) {
-    return (
-      <p className="mt-1.5 text-xs text-gray-500">
-        Pagada — lote{' '}
-        <Link href={`/cuentas-por-pagar/propuestas/${propuesta.id}`} className="text-logisalud-teal underline">
-          {propuesta.codigo}
-        </Link>
-      </p>
-    )
-  }
+  if (!propuesta) return <span className="text-gray-400">—</span>
   const aprobada = propuesta.estado === 'aprobada'
   return (
-    <p className="mt-1.5 text-xs">
+    <>
       <Link
         href={`/cuentas-por-pagar/propuestas/${propuesta.id}`}
-        className={aprobada ? 'font-medium text-logisalud-green underline' : 'text-logisalud-teal underline'}
+        className={
+          aprobada && !yaPagada
+            ? 'font-medium text-logisalud-green underline'
+            : 'text-logisalud-teal underline'
+        }
       >
-        {aprobada ? `Lista para pagar en ${propuesta.codigo} →` : `En el lote ${propuesta.codigo}`}
+        {propuesta.codigo}
       </Link>
-      {!aprobada ? <span className="text-gray-500"> · {ETIQUETA_ESTADO_PROPUESTA[propuesta.estado as EstadoPropuesta]}</span> : null}
-    </p>
+      <span className="block text-xs text-gray-500">
+        {yaPagada
+          ? 'pagada'
+          : aprobada
+            ? 'lista para pagar'
+            : ETIQUETA_ESTADO_PROPUESTA[propuesta.estado as EstadoPropuesta]}
+      </span>
+    </>
   )
 }
 
-function FiltroEstado({ etiqueta, activo, href }: { etiqueta: string; activo: boolean; href: string }) {
+function Chip({ etiqueta, activo, href }: { etiqueta: string; activo: boolean; href: string }) {
   return (
     <Link
       href={href}

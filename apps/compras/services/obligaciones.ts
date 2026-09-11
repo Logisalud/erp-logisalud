@@ -479,6 +479,10 @@ export type ObligacionListada = {
   propuesta?: { id: string; codigo: string; estado: string } | null
   /** Ya tiene un pago aplicado — con `propuesta.estado === 'aprobada'` es lo que define "lista para pagar". */
   yaPagada?: boolean
+  /** De qué se trata, para no entrar a la ficha. Categoría de Pago Directo
+   * más `observaciones`; para el resto de los orígenes, `observaciones`
+   * sola, que es donde cada servicio deja su etiqueta legible. */
+  concepto?: string | null
   /**
    * Fallback de display para origen prestamo/fraccionamiento_sunat/impuesto:
    * ninguno de esos tiene proveedor ni beneficiario_persona (no le pagan a
@@ -490,22 +494,34 @@ export type ObligacionListada = {
   observaciones: string | null
 }
 
-export async function listarObligaciones(estado?: EstadoObligacion): Promise<ObligacionListada[]> {
+/**
+ * `estado` acepta uno o varios: el listado filtra por CATEGORÍA (que agrupa
+ * dos o tres estados) además de por estado suelto — ver
+ * domain/categorias-estado-obligacion.ts.
+ */
+export async function listarObligaciones(
+  estado?: EstadoObligacion | readonly EstadoObligacion[]
+): Promise<ObligacionListada[]> {
   const supabase = crearClienteServidor()
   let q = supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones')
+    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones, categoria_pago_directo_id')
     .order('created_at', { ascending: false })
     .limit(200)
 
-  if (estado) q = q.eq('estado', estado)
+  if (Array.isArray(estado)) {
+    if (estado.length === 0) return []
+    q = q.in('estado', estado as string[])
+  } else if (estado) {
+    q = q.eq('estado', estado)
+  }
 
   const { data, error } = await q
   if (error) throw new Error(`No se pudieron listar las obligaciones: ${error.message}`)
 
   const ids = (data ?? []).map((o) => o.id)
-  const [proveedores, beneficiarios, propuestas, pagadas] = await Promise.all([
+  const [proveedores, beneficiarios, propuestas, pagadas, categoriasPD] = await Promise.all([
     mapaProveedoresBasico(
       [...new Set((data ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[],
       [...new Set((data ?? []).map((o) => o.proveedor_servicio_id).filter(Boolean))] as string[]
@@ -513,6 +529,7 @@ export async function listarObligaciones(estado?: EstadoObligacion): Promise<Obl
     mapaBeneficiarios([...new Set((data ?? []).map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
     mapaPropuestaDeObligacion(ids),
     idsConPagoAplicado(ids),
+    mapaCategoriasPagoDirecto((data ?? []).map((o: any) => o.categoria_pago_directo_id)),
   ])
   return (data ?? []).map((o) => ({
     ...o,
@@ -520,6 +537,9 @@ export async function listarObligaciones(estado?: EstadoObligacion): Promise<Obl
     beneficiario: o.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
     propuesta: propuestas.get(o.id) ?? null,
     yaPagada: pagadas.has(o.id),
+    concepto: [categoriasPD.get((o as any).categoria_pago_directo_id ?? ''), o.observaciones?.trim()]
+      .filter((p): p is string => !!p)
+      .join(' — ') || null,
   }))
 }
 
@@ -555,6 +575,20 @@ async function mapaPropuestaDeObligacion(
     const propuesta = porId.get(fila.propuesta_id)
     if (propuesta) mapa.set(fila.obligacion_id, propuesta as any)
   }
+  return mapa
+}
+
+async function mapaCategoriasPagoDirecto(ids: (string | null)[]): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>()
+  const limpios = [...new Set(ids.filter((id): id is string => !!id))]
+  if (limpios.length === 0) return mapa
+  const supabase = crearClienteServidor()
+  const { data } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('categorias_pago_directo')
+    .select('id, nombre')
+    .in('id', limpios)
+  for (const c of (data ?? []) as any[]) mapa.set(c.id, c.nombre)
   return mapa
 }
 
