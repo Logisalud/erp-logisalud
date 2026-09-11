@@ -1,0 +1,2397 @@
+[
+ {
+  "ruc": "10000371560",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10000379391",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10001661367",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10001874808",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10009641853",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10009832144",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10010047167",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10010130692",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10010442571",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10010954563",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10040424631",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10054159795",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10064415315",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10073243420",
+  "zona_anterior": "LIMH02",
+  "zona_nueva": "LIMH01"
+ },
+ {
+  "ruc": "10076800443",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10082882699",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10091932666",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10102935280",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10106690346",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10107840546",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10166282719",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10178074119",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10178296782",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10178425132",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10178791210",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10178902895",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10178985502",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10180034418",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10180935580",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10181083536",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10181333613",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10181539271",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10181546421",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10181936211",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10198035462",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10198241526",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10198379307",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10198466676",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10198704020",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10198711336",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10198963173",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10199129614",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10199171149",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10199342598",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10199592055",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10199706433",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10199824932",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10200045799",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10200068161",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10200155322",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10200227072",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10200262366",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10200383333",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10200424064",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10200451363",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10200460648",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10200491497",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10200604968",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10200658227",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10200876305",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10200924172",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10201127969",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10204051220",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10205948096",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10206412157",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10206445748",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10206554741",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10207103077",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10207141467",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10207218371",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10207264097",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10209660976",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10209856153",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10209880976",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10209949704",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10209988858",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10210107351",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10211337244",
+  "zona_anterior": "LIMH06",
+  "zona_nueva": "LIMH05"
+ },
+ {
+  "ruc": "10211435416",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10212980761",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10214240977",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10214350403",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10215475617",
+  "zona_anterior": "LIMH08",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10224969452",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10225056043",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10225093895",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10229634246",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10229651787",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10229811083",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10230023021",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10232577156",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10234710562",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10239733366",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10274145540",
+  "zona_anterior": "LIMH02",
+  "zona_nueva": "LIMH01"
+ },
+ {
+  "ruc": "10282360565",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10282515968",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10282823816",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10283022051",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10285716590",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10285779869",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10329596091",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10400028864",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10400572513",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10400677676",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10402455816",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10403098731",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10403641737",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10404971650",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10406343851",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10406563257",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10406768355",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10407261505",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10408209922",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10408748513",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10409048990",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10409684586",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10410152229",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10410154086",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10410501991",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10410769099",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10410927654",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10413647369",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10413817655",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10413819615",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10414092352",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10414552841",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10414985683",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10415264998",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10416595556",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10418361439",
+  "zona_anterior": "LIMH08",
+  "zona_nueva": "LIMH01"
+ },
+ {
+  "ruc": "10419284608",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10419607857",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10420003159",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10420466248",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10420888606",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10421986393",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10422309794",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10422857554",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10423628613",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10424105801",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10424186118",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10424615990",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10424668741",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10426195572",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10426310274",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10426499997",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10427480921",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10427916672",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10428141151",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10428852813",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10429540033",
+  "zona_anterior": "LIMH06",
+  "zona_nueva": "LIMH05"
+ },
+ {
+  "ruc": "10431505113",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10432195363",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10432330945",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10432663014",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10433229750",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10433447773",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10433674257",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10433901300",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10435307871",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10436395588",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10436647331",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10438988845",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10439286381",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10440101033",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10440690365",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10440788705",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10441752909",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10442564782",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10443028957",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10443086345",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10444414711",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10444532101",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10445670176",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10446279896",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10446709360",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10447322361",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10447398414",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10448572787",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10449341355",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10449421812",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "LIMH04"
+ },
+ {
+  "ruc": "10450609361",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10450954182",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10450955804",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10451178666",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10451346241",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10451394245",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10451396949",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10451710015",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10452156879",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10454772674",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10455181149",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10455571532",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10455737961",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10455964089",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10455978225",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10456985497",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10457511685",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10457941663",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10458150635",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10459138795",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10459766711",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10459964881",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10460604317",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10461228262",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10461596059",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10461701871",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10461782430",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10461906503",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10461932482",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10462271404",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10462439747",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10462678113",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10462945626",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10464149509",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10464768152",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10464950406",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10465255213",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10465577270",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10465577644",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10465706673",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10466242891",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10466401221",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10468441620",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10469018097",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10469446706",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10470068031",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10470759858",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10472086397",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10472580324",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10473252762",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10473857141",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10474846852",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10475870790",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10476426494",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10477515539",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10478535843",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10479771532",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10479772300",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10480091936",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10482327821",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10483126234",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10484713575",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10484767829",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10485161941",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10485708265",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10486125379",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10486324690",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10487655860",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10489852506",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10603205915",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10603958468",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10701506591",
+  "zona_anterior": "CUZM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10701619035",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10701983365",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10702149261",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10702251724",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10702741659",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10703140501",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10703544865",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10706143098",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10707579141",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10707848702",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10707904840",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10708123906",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10708581335",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10709214891",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10710160398",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10710483413",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10712298541",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10712693261",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10712785816",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10712939147",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10713929293",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10714767190",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10715729402",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10716655381",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10716957280",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10717214396",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10718163027",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10718288849",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10718746715",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10719230445",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10720440429",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10720470590",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10723960989",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10725357325",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10730790487",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10731163796",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10731889533",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10733264158",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10734154496",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10735683930",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10735849056",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10741281002",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10741478141",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10742221950",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "10742372001",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10743702781",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10743871478",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10744079522",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10744794108",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10748822157",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10752199260",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10752463544",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10755086733",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10755492863",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10756519749",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10759925527",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10762073230",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10764290009",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10764378534",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10765382080",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10768251741",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10769231515",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10770998277",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10774271576",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10778054251",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10801196085",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "10802691179",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "10805633081",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "10806715196",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20130297685",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20131914416",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20140236153",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20191223285",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20309800690",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20337889167",
+  "zona_anterior": "LIMV03",
+  "zona_nueva": "LIMH07"
+ },
+ {
+  "ruc": "20352421473",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20370715107",
+  "zona_anterior": "AREM01",
+  "zona_nueva": "DIST01"
+ },
+ {
+  "ruc": "20393620588",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20393647605",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20393872048",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20446964012",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20450312097",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20450337839",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20452279283",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20452565707",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20477549412",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20477840931",
+  "zona_anterior": "LIMV01",
+  "zona_nueva": "LIMH04"
+ },
+ {
+  "ruc": "20479695220",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "CHIM01"
+ },
+ {
+  "ruc": "20482539549",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20485947273",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20486562341",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20486772078",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20486871998",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20486877333",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20486881870",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20486887304",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20486942330",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20486945355",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20489554951",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20494176085",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20494436761",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20494913527",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20495127169",
+  "zona_anterior": "LIMH08",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20529098058",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20539767195",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20541319418",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20542490714",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20543372995",
+  "zona_anterior": "LIMV02",
+  "zona_nueva": "LIMH06"
+ },
+ {
+  "ruc": "20560142847",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20568020619",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20568065558",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20568807635",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20568916761",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20569033641",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20569043442",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20573003293",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20573298072",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20573926731",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20600116763",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20600144635",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20600169646",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20600351461",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20600376897",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20600897811",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20600939140",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20600996054",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20601400732",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20601435277",
+  "zona_anterior": "LIMH07",
+  "zona_nueva": "CHIM01"
+ },
+ {
+  "ruc": "20601633184",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20601713765",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20601736129",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20601742218",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20601926955",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20601955360",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20602019455",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20602105335",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20602497721",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20602709559",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20602995071",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20603717601",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20603742185",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20603769369",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20603814216",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20603838026",
+  "zona_anterior": "TRUM03",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20603896123",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20603961031",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20604122075",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20604615942",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20604727970",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20604734356",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20604767670",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20604927634",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20605078371",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20605379886",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20605412701",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20605420746",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20605779221",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20605817123",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20606094532",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20606112522",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20606152753",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20606386045",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20606392584",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20606398078",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20606478268",
+  "zona_anterior": "LIMH02",
+  "zona_nueva": "LIMH04"
+ },
+ {
+  "ruc": "20606497327",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20606512032",
+  "zona_anterior": "LIMH02",
+  "zona_nueva": "LIMV01"
+ },
+ {
+  "ruc": "20606630124",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20606662395",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20606712325",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20606736534",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20606766042",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20606981105",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20607101729",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20607166502",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20607210404",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20607277894",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20607517721",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20607727920",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20607756849",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20607769231",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20607771376",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20607794082",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20607879177",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20607901563",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20607990418",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20608341910",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20608343041",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20608416871",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20608474031",
+  "zona_anterior": "LIMH02",
+  "zona_nueva": "LIMH06"
+ },
+ {
+  "ruc": "20608802500",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20608978080",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20609027577",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20609432480",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20609560861",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20609591910",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20609630354",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20609661951",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20609670836",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20609756731",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20610013199",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20610630945",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20610653961",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20611037857",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20611068027",
+  "zona_anterior": "LIMH07",
+  "zona_nueva": "LIMV03"
+ },
+ {
+  "ruc": "20611105593",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20611110601",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20611460733",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20611674385",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20611684356",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20611741023",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20611981890",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20611986808",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20612036749",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20612366757",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20612487651",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20612495387",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "PUCM01"
+ },
+ {
+  "ruc": "20612593834",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20613085131",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20613717731",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20613841599",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20613915959",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ },
+ {
+  "ruc": "20614055104",
+  "zona_anterior": "HYOM01",
+  "zona_nueva": "HYOM02"
+ },
+ {
+  "ruc": "20614555751",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20614659441",
+  "zona_anterior": "TRUM02",
+  "zona_nueva": "TRUM03"
+ },
+ {
+  "ruc": "20615558941",
+  "zona_anterior": "HYOM02",
+  "zona_nueva": "HYOM01"
+ }
+]
