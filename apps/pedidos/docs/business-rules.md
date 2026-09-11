@@ -756,6 +756,44 @@ es lo que separa un pendiente cualquiera de uno urgente.
 Se filtra por `solicitado_por`, no por zona: son "los míos" en el sentido de
 que yo los cargué y estoy esperando respuesta.
 
+### La zona del cliente nuevo no se pregunta
+
+Al registrar un cliente desde el pedido, su zona sale del **vendedor** con
+el que va a salir ese pedido (`sellers.zone_id`), no de un selector.
+
+Era la única pregunta del formulario que el vendedor no sabía contestar: su
+zona es un dato de la empresa —"ZONA 04", código `LIMH04`— y no algo que él
+maneje. Elegir mal dejaba al cliente en una zona ajena, invisible para él en
+cuanto vuelva el filtro por zona, y encima con el pedido ya armado.
+
+Cada vendedor tiene exactamente una zona, así que no hay ambigüedad. Cuando
+registra un **administrador**, la zona sale del vendedor que eligió arriba
+("A nombre de qué vendedor"), que es el mismo criterio con el que se decide
+de quién es el pedido (`resolveOrderSellerId`). Un vendedor que mande otro
+`sellerId` a mano no cambia nada: manda su propio seller, igual que en el
+pedido.
+
+Un vendedor **sin zona configurada** no puede registrar clientes, y se lo
+dice: no hay dónde ponerlo. Se arregla en Maestros, no en la pantalla del
+pedido.
+
+> Nota: la zona **no** se deriva del distrito. Los distritos de Lima están
+> repartidos entre varios vendedores —no hay una tabla distrito → zona, ni
+> podría haberla sin duplicar el reparto comercial—, así que el único origen
+> correcto es el vendedor.
+
+### El vendedor en el correo va con sus códigos
+
+En el correo y en el Excel del pedido, el vendedor sale como
+`LUPE CASTRO · CRP1012 · LIMH04`: nombre, código de representante y código
+de zona. Fuera del sistema lo que rige son los códigos — la oficina y el
+almacén trabajan con ellos, no con el nombre.
+
+El **nombre** sale del snapshot del pedido (lo que tenía al enviarse); los
+**códigos**, del vendedor vivo: son identificadores estables de la empresa,
+y si alguno se corrige, el correo siguiente del mismo pedido tiene que salir
+con el bueno. Lo que falte se omite en vez de dejar un separador colgando.
+
 ### Con qué clientes se puede empezar un pedido
 
 El selector de cliente (pedido nuevo y cambio de cliente) ofrece los

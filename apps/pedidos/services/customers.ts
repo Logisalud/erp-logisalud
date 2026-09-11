@@ -261,83 +261,41 @@ export async function requestNewCustomer(input: {
 }
 
 /**
- * Un vendedor sólo ve —y por lo tanto sólo puede usar— los clientes de su
- * zona (`customers_select`). Si registra uno en otra zona, la fila entra
- * pero no la puede leer de vuelta: PostgREST devuelve el INSERT ...
- * RETURNING como violación de RLS y la pantalla se cae con un error de
- * servidor. Mejor decirle qué pasó.
- */
-/**
- * Si el filtro de zona sigue vigente para los vendedores.
+ * La zona de un vendedor, que es la del cliente que registra.
  *
- * La verdad está en la base (`pedidos.zonas_restringen_visibilidad()`, que
- * usan las policies): la pantalla pregunta en vez de tener su propia copia
- * del criterio, para que no puedan divergir cuando se revierta.
+ * Antes la zona se elegía a mano en el formulario de "Cliente nuevo", y era
+ * la pregunta que ningún vendedor sabía contestar: su zona es un dato de la
+ * empresa ("ZONA 04", código LIMH04), no algo que él maneje. Elegir mal
+ * dejaba al cliente en una zona ajena — invisible para él en cuanto vuelva
+ * el filtro por zona.
  *
- * Ante cualquier problema para leerla se asume el criterio ORIGINAL
- * (restringido): equivocarse hacia el lado que muestra de menos es mejor
- * que hacia el que muestra de más.
+ * Sale de `sellers.zone_id`: cada vendedor tiene exactamente una, y es la
+ * misma con la que va a salir el pedido. Se lee con el cliente de sesión,
+ * así que la RLS sigue decidiendo qué se puede ver.
  */
-export async function zonaRestringeVisibilidad(): Promise<boolean> {
+export async function zonaDelVendedor(
+  sellerId: string,
+): Promise<{ id: number; nombre: string } | null> {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc("zonas_restringen_visibilidad");
-  if (error) {
-    console.error("No se pudo leer la bandera de zonas:", error.message);
-    return true;
-  }
-  return data !== false;
-}
-
-/**
- * Las zonas que el usuario puede elegir al registrar un cliente.
- *
- * Un administrador ve todas. Un vendedor ve sólo las suyas —cuando el
- * filtro de zona está activo—, porque un cliente en otra zona le quedaría
- * invisible por RLS y la pantalla no debería ofrecerle una opción que la
- * base le va a rechazar.
- *
- * La lista sale de `current_user_zone_ids()`, la misma función que usa la
- * policy — no se reimplementa el criterio acá.
- */
-export async function listZonasSeleccionables(
-  esAdmin: boolean,
-): Promise<Array<{ id: number; nombre: string }>> {
-  const supabase = createClient();
-
-  // TEMPORAL (2026-09-07, migración 1022): con el filtro de zona apagado un
-  // cliente de otra zona NO le queda invisible al vendedor, así que no hay
-  // motivo para no dejarlo elegir cualquier zona — y varios vendedores
-  // tienen la zona mal asignada o ninguna. Volver a la rama de abajo cuando
-  // se reactive la bandera. Ver docs/business-rules.md.
-  if (esAdmin || !(await zonaRestringeVisibilidad())) {
-    const { data, error } = await supabase.from("zones").select("id, nombre").order("nombre");
-    if (error) throw new Error(error.message);
-    return data as Array<{ id: number; nombre: string }>;
-  }
-
-  const { data: propias, error: zonasError } = await supabase.rpc("current_user_zone_ids");
-  if (zonasError) throw new Error(zonasError.message);
-
-  const ids = (propias as Array<number> | null) ?? [];
-  if (ids.length === 0) return [];
-
   const { data, error } = await supabase
-    .from("zones")
-    .select("id, nombre")
-    .in("id", ids)
-    .order("nombre");
+    .from("sellers")
+    .select("zona:zones(id, nombre)")
+    .eq("id", sellerId)
+    .maybeSingle();
+
   if (error) throw new Error(error.message);
-  return data as Array<{ id: number; nombre: string }>;
+  const zona = (data as { zona: { id: number; nombre: string } | null } | null)?.zona ?? null;
+  return zona;
 }
 
 export const MENSAJE_ZONA_AJENA =
   "Esa zona no es tuya, así que el cliente quedaría invisible para vos y no lo podrías usar en " +
   "un pedido. Elegí una de tus zonas o pedile a un administrador que lo registre.";
 
-/** Un vendedor sin zonas no puede registrar clientes: no hay dónde ponerlos. */
+/** Un vendedor sin zona no puede registrar clientes: no hay dónde ponerlos. */
 export const MENSAJE_SIN_ZONA_ASIGNADA =
-  "No tenés ninguna zona asignada, así que no podés registrar clientes. Pedile a un " +
-  "administrador que te asigne tu zona.";
+  "Tu usuario no tiene zona asignada, así que el cliente no se puede registrar. Pedile a un " +
+  "administrador que te configure la zona.";
 
 export async function listCustomerAddresses(customerId: string) {
   const supabase = createClient();

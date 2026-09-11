@@ -234,6 +234,14 @@ export type OrderEmailData = {
     esClienteNuevo?: boolean;
   };
   vendedor: string | null;
+  /**
+   * Código del representante ("CRP1012") y código de su zona ("LIMH04").
+   *
+   * Van al lado del nombre porque son los que rigen fuera del sistema: la
+   * oficina y el almacén trabajan con esos códigos, no con "LUPE CASTRO".
+   */
+  vendedorCodigo?: string | null;
+  vendedorZonaCodigo?: string | null;
   condicionPago: string | null;
   items: OrderEmailItem[];
   /** Ausente en el correo de envío, que es el caso por defecto. */
@@ -290,6 +298,22 @@ export function formatFechaHora(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/**
+ * "LUPE CASTRO · CRP1012 · LIMH04". Los códigos van pegados al nombre y no
+ * en filas aparte: es una sola identidad, y separarlos obliga a leer tres
+ * renglones para saber quién vendió.
+ */
+export function etiquetaVendedor(data: {
+  vendedor: string | null;
+  vendedorCodigo?: string | null;
+  vendedorZonaCodigo?: string | null;
+}): string {
+  const partes = [data.vendedor, data.vendedorCodigo, data.vendedorZonaCodigo]
+    .map((p) => p?.trim())
+    .filter((p): p is string => !!p);
+  return partes.length > 0 ? partes.join(" · ") : "—";
 }
 
 export function buildOrderEmailSubject(data: OrderEmailData): string {
@@ -412,7 +436,7 @@ export function renderOrderEmailHtml(data: OrderEmailData): string {
 
               <p style="margin:18px 0 8px;font-family:${FONT_HEADING};font-size:14px;color:#111827;text-transform:uppercase;letter-spacing:0.5px;">Pedido</p>
               <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-                ${datoRow("Vendedor responsable", dash(data.vendedor))}
+                ${datoRow("Vendedor responsable", escapeHtml(etiquetaVendedor(data)))}
                 ${datoRow("Condición de pago", dash(data.condicionPago))}
               </table>
             </td>
@@ -525,7 +549,7 @@ export function renderOrderEmailText(data: OrderEmailData): string {
     `  Zona: ${data.cliente.zona ?? "—"}`,
     "",
     "PEDIDO",
-    `  Vendedor responsable: ${data.vendedor ?? "—"}`,
+    `  Vendedor responsable: ${etiquetaVendedor(data)}`,
     `  Condición de pago: ${data.condicionPago ?? "—"}`,
     "",
     "PRODUCTOS",
