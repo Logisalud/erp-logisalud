@@ -35,6 +35,7 @@ type Customer = {
   razon_social: string;
   nombre_comercial?: string | null;
   ruc_o_documento: string;
+  estado?: string;
 };
 
 type CatalogOption = { id: number; nombre: string };
@@ -49,7 +50,15 @@ function toOption(c: Customer): ComboboxOption {
   const nombre = displayRazonSocial(c.razon_social);
   const comercial = c.nombre_comercial?.trim();
   const alias = comercial && comercial.toUpperCase() !== nombre.toUpperCase() ? ` — ${comercial}` : "";
-  return { id: c.id, label: `${nombre}${alias}`, description: c.ruc_o_documento };
+  // Un cliente recién registrado aparece en la lista (si no, el vendedor no
+  // volvería a encontrarlo), pero se dice que está sin validar: el pedido se
+  // arma igual y queda esperando a Control de Pedidos.
+  const pendiente = c.estado === "PENDIENTE_DE_VALIDACION" ? " · cliente nuevo, sin validar" : "";
+  return {
+    id: c.id,
+    label: `${nombre}${alias}`,
+    description: `${c.ruc_o_documento}${pendiente}`,
+  };
 }
 
 /**
@@ -470,7 +479,7 @@ export function NewOrderForm({
             initialOptions={initialOptions}
             placeholder="Busca por RUC, razón social o nombre comercial..."
             minSearchLength={MIN_SEARCH_LENGTH}
-            emptyMessage="Ningún cliente activo de tu cartera coincide"
+            emptyMessage="Ningún cliente de tu cartera coincide"
             hint={`Escribe ${MIN_SEARCH_LENGTH} caracteres o más para buscar en toda tu cartera.`}
           />
         )}

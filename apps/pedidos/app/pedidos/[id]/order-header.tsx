@@ -262,12 +262,15 @@ export function OrderHeader({
               return results.map((c) => ({
                 id: c.id,
                 label: displayRazonSocial(c.razon_social),
-                description: c.ruc_o_documento,
+                description:
+                  c.estado === "PENDIENTE_DE_VALIDACION"
+                    ? `${c.ruc_o_documento} · cliente nuevo, sin validar`
+                    : c.ruc_o_documento,
               }));
             }}
             placeholder="Busca por RUC o razón social..."
             minSearchLength={MIN_SEARCH_LENGTH}
-            emptyMessage="Ningún cliente activo de tu cartera coincide"
+            emptyMessage="Ningún cliente de tu cartera coincide"
           />
           {tieneLineas && (
             <p className="mt-1.5 text-sm text-slate-600">

@@ -30,7 +30,24 @@ export type ActiveCustomerOption = {
   ruc_o_documento: string;
   canal_id: number | null;
   condicion_pago_habitual_id: number | null;
+  /** `PENDIENTE_DE_VALIDACION` = registrado por un vendedor, sin aprobar. */
+  estado: string;
 };
+
+/**
+ * Los estados con los que se puede empezar un pedido.
+ *
+ * **`PENDIENTE_DE_VALIDACION` entra**, y no es un descuido: el propio flujo
+ * de "Cliente nuevo" crea el cliente en ese estado y sigue armando el
+ * pedido, que después queda en `NEW_CUSTOMER_VALIDATION` hasta que Control
+ * de Pedidos lo apruebe. Dejarlo fuera del buscador hacía que el vendedor
+ * no volviera a encontrar al cliente que acababa de registrar: buscaba el
+ * RUC, no aparecía, lo registraba otra vez y la base le contestaba que ya
+ * existía. Pasó el 2026-09-11 con el documento 10435922304.
+ *
+ * `RECHAZADO` NO entra: ahí alguien miró el cliente y decidió que no.
+ */
+export const ESTADOS_PARA_PEDIR = ["ACTIVO", "PENDIENTE_DE_VALIDACION"];
 
 /**
  * El RUC/documento ya está en la cartera.
@@ -41,9 +58,9 @@ export type ActiveCustomerOption = {
  * servidor.
  */
 export class ClienteDuplicadoError extends Error {
-  readonly existente: (ActiveCustomerOption & { estado: string }) | null;
+  readonly existente: ActiveCustomerOption | null;
 
-  constructor(mensaje: string, existente: (ActiveCustomerOption & { estado: string }) | null) {
+  constructor(mensaje: string, existente: ActiveCustomerOption | null) {
     super(mensaje);
     this.name = "ClienteDuplicadoError";
     this.existente = existente;
@@ -51,11 +68,11 @@ export class ClienteDuplicadoError extends Error {
 }
 
 const CUSTOMER_OPTION_COLUMNS =
-  "id, razon_social, nombre_comercial, ruc_o_documento, canal_id, condicion_pago_habitual_id";
+  "id, razon_social, nombre_comercial, ruc_o_documento, canal_id, condicion_pago_habitual_id, estado";
 
 /**
- * Primeros clientes ACTIVO visibles para el usuario actual, para que el
- * selector no abra vacío.
+ * Primeros clientes con los que se puede pedir (ver `ESTADOS_PARA_PEDIR`)
+ * visibles para el usuario actual, para que el selector no abra vacío.
  *
  * **Es una primera página, no la cartera.** Son 3.4k clientes y PostgREST
  * tope las respuestas en 1.000 filas: traerlos todos al navegador sería
@@ -73,7 +90,7 @@ export async function listActiveCustomers(
   const { data, error } = await supabase
     .from("customers")
     .select(CUSTOMER_OPTION_COLUMNS)
-    .eq("estado", "ACTIVO")
+    .in("estado", ESTADOS_PARA_PEDIR)
     .order("razon_social")
     .limit(limit);
 
@@ -82,8 +99,8 @@ export async function listActiveCustomers(
 }
 
 /**
- * Busca clientes ACTIVO por RUC/documento, razón social o nombre
- * comercial. Corre en el servidor con el cliente del usuario (nunca el
+ * Busca clientes con los que se puede pedir (ver `ESTADOS_PARA_PEDIR`) por
+ * RUC/documento, razón social o nombre comercial. Corre en el servidor con el cliente del usuario (nunca el
  * admin), así que **la RLS decide igual** qué entra en el resultado.
  * TEMPORAL (2026-09-07, migración 1022): con el filtro de zona apagado, un
  * vendedor encuentra clientes de cualquier zona; al reactivarlo vuelve a
@@ -118,7 +135,7 @@ export async function searchActiveCustomers(
   const { data, error } = await supabase
     .from("customers")
     .select(CUSTOMER_OPTION_COLUMNS)
-    .eq("estado", "ACTIVO")
+    .in("estado", ESTADOS_PARA_PEDIR)
     .or(patrones.join(","))
     .order("razon_social")
     .limit(limit);
@@ -196,13 +213,11 @@ export async function requestNewCustomer(input: {
       // es suyo, cómo se llama ni qué hacer con el pedido que está armando.
       const { data: existente } = await supabase
         .from("customers")
-        .select(`${CUSTOMER_OPTION_COLUMNS}, estado`)
+        .select(CUSTOMER_OPTION_COLUMNS)
         .eq("ruc_o_documento", input.rucODocumento)
         .maybeSingle();
 
-      const cliente = (existente ?? null) as unknown as
-        | (ActiveCustomerOption & { estado: string })
-        | null;
+      const cliente = (existente ?? null) as unknown as ActiveCustomerOption | null;
 
       throw new ClienteDuplicadoError(
         cliente
@@ -398,10 +413,9 @@ export type CustomerSearchHit = {
  * Busca clientes de la cartera **en cualquier estado**, para la pantalla de
  * Maestros.
  *
- * `searchActiveCustomers` filtra por ACTIVO porque sirve para tomar un
- * pedido: no se le puede vender a un cliente pendiente de validación. Acá
- * es lo contrario — justamente hay que poder encontrar al que está mal
- * cargado, pendiente o inactivo, que es el que se viene a corregir.
+ * `searchActiveCustomers` deja fuera a los RECHAZADO porque sirve para
+ * tomar un pedido. Acá entran todos — justamente hay que poder encontrar al
+ * que está mal cargado o rechazado, que es el que se viene a corregir.
  *
  * La RLS sigue aplicando: un vendedor sólo ve su zona. Editar es otra cosa
  * y la decide `customers_admin_write`.
