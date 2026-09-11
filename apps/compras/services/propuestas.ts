@@ -174,7 +174,13 @@ export async function crearPropuesta(obligacionIds: string[]): Promise<{ id: str
   return { id: propuesta.id }
 }
 
-async function cambiarEstadoPropuesta(propuestaId: string, desde: EstadoPropuesta[], hacia: EstadoPropuesta) {
+async function cambiarEstadoPropuesta(
+  propuestaId: string,
+  desde: EstadoPropuesta[],
+  hacia: EstadoPropuesta,
+  /** Columnas extra del mismo update — ej. `fecha_aprobacion` al aprobar. */
+  campos: Record<string, unknown> = {}
+) {
   const supabase = crearClienteServidor()
   const { data: propuesta, error } = await supabase
     .schema('cuentas_x_pagar')
@@ -186,7 +192,11 @@ async function cambiarEstadoPropuesta(propuestaId: string, desde: EstadoPropuest
   if (!desde.includes(propuesta.estado) || !transicionPermitida(propuesta.estado, hacia)) {
     throw new Error(`La propuesta está en "${propuesta.estado}" y no puede pasar a "${hacia}".`)
   }
-  const { error: errUpd } = await supabase.schema('cuentas_x_pagar').from('propuestas_pago').update({ estado: hacia }).eq('id', propuestaId)
+  const { error: errUpd } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('propuestas_pago')
+    .update({ estado: hacia, ...campos })
+    .eq('id', propuestaId)
   if (errUpd) throw new Error(`No se pudo actualizar la propuesta: ${errUpd.message}`)
   return propuesta
 }
@@ -206,7 +216,9 @@ export async function aprobarPropuesta(propuestaId: string): Promise<void> {
   if (!puedeAprobarPropuesta(await perfilActual())) {
     throw new Error('Solo Contabilidad (rol admin) o un administrador pueden aprobar una propuesta de pago.')
   }
-  await cambiarEstadoPropuesta(propuestaId, ['pendiente_aprobacion'], 'aprobada')
+  await cambiarEstadoPropuesta(propuestaId, ['pendiente_aprobacion'], 'aprobada', {
+    fecha_aprobacion: new Date().toISOString(),
+  })
 }
 
 /**
@@ -229,6 +241,9 @@ export async function rechazarPropuesta(propuestaId: string): Promise<void> {
 }
 
 export type PropuestaListada = {
+  /** Cuándo se aprobó el lote (migración 0050). Null si nunca se aprobó, o
+   * si se aprobó antes de esa migración. */
+  fecha_aprobacion?: string | null
   /** Totales del lote agrupados por moneda — nunca un único número: una
    * propuesta puede mezclar PEN y USD (Pieza I). */
   totalPorMoneda?: MontoPorMoneda[]
@@ -246,7 +261,7 @@ export async function listarPropuestas(): Promise<PropuestaListada[]> {
   const { data, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('propuestas_pago')
-    .select('id, codigo, periodo, estado, created_at, propuesta_detalle(id, obligacion_id, monto_a_pagar)')
+    .select('id, codigo, periodo, estado, created_at, fecha_aprobacion, propuesta_detalle(id, obligacion_id, monto_a_pagar)')
     .order('created_at', { ascending: false })
   if (error) throw new Error(`No se pudieron listar las propuestas: ${error.message}`)
 
@@ -269,6 +284,7 @@ export async function listarPropuestas(): Promise<PropuestaListada[]> {
     const totales = totalesDeLote(lineas)
     return {
       id: p.id, codigo: p.codigo, periodo: p.periodo, estado: p.estado, created_at: p.created_at,
+      fecha_aprobacion: p.fecha_aprobacion ?? null,
       totalObligaciones: lineas.length,
       totalPorMoneda: totales.total,
       pendientePorMoneda: totales.pendiente,

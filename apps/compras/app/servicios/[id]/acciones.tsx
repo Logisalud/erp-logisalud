@@ -54,7 +54,7 @@ function BotonAnularOS({ osId }: { osId: string }) {
   return (
     <form action={dispatch} className="card w-full space-y-2 border-red-200">
       <p className="text-sm text-gray-700">
-        Esto anula la orden de servicio por un error de captura — contá qué pasó, Contabilidad recibe un
+        Esto anula la orden de servicio por un error de captura — cuenta qué pasó, Contabilidad recibe un
         aviso con el motivo.
       </p>
       {estadoForm?.error ? <p className="text-sm text-red-700">{estadoForm.error}</p> : null}

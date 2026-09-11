@@ -27,7 +27,7 @@ export default async function MisOperaciones() {
       {filas.length === 0 ? (
         <p className="card text-sm text-gray-600">
           Todavía no creaste ninguna orden, pago directo, anticipo ni reembolso. Cuando lo hagas, van
-          a aparecer todos acá con su estado.
+          a aparecer todos aquí con su estado.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">

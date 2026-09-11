@@ -36,7 +36,7 @@ export default async function NuevaRecepcion({ params }: { params: { ocId: strin
     <main className="mx-auto max-w-2xl px-4 py-8">
       <Encabezado titulo={oc.codigo} atras={{ href: '/almacen/recepciones/nueva', texto: 'Elegir otra orden' }} />
       <p className="mb-4 text-sm text-gray-600">
-        {oc.proveedor?.razon_social ?? 'proveedor no legible'} — cargá lo que llegó
+        {oc.proveedor?.razon_social ?? 'proveedor no legible'} — carga lo que llegó
         físicamente línea por línea. El sistema clasifica automáticamente si hay alguna
         discrepancia contra lo pedido.
       </p>

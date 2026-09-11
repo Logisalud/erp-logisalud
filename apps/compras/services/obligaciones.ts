@@ -1128,7 +1128,7 @@ async function cortarPagoDirecto(id: string, motivo: string, accion: 'anular' | 
     .maybeSingle()
   if (error || !obligacion) throw new Error('No se encontró la obligación.')
   if (obligacion.origen !== 'gasto_directo') {
-    throw new Error(`Solo un Pago Directo se ${accion === 'anular' ? 'anula' : 'rechaza'} desde acá.`)
+    throw new Error(`Solo un Pago Directo se ${accion === 'anular' ? 'anula' : 'rechaza'} desde aquí.`)
   }
   if (!corte.puedeCortarse(obligacion.estado as EstadoObligacion)) {
     throw new Error(

@@ -88,7 +88,7 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
 
       {superaUmbral ? (
         <p className="card mb-4 border-amber-300 bg-amber-50 text-sm text-amber-900">
-          Lleva {diasParcial} días recibida en parte (más del umbral de {umbralDias}) — contactá al
+          Lleva {diasParcial} días recibida en parte (más del umbral de {umbralDias}) — contacta al
           proveedor por el saldo, o cerrala con saldo pendiente si ya no va a llegar.
         </p>
       ) : null}
@@ -201,7 +201,7 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
                 <Link href={`/cuentas-por-pagar/${o.id}`} className="text-logisalud-teal underline">
                   {o.codigo}
                 </Link> — {ETIQUETA_ESTADO_OBLIGACION[o.estado]}
-                {o.estado === 'pagada' || o.estado === 'cerrada' ? ' (abrí la obligación para ver el voucher)' : ''}
+                {o.estado === 'pagada' || o.estado === 'cerrada' ? ' (abre la obligación para ver el voucher)' : ''}
               </li>
             ))
           ) : (

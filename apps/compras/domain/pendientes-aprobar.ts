@@ -159,6 +159,18 @@ export type FilaPendiente = {
   /** Anticipo/Reembolso: para cuándo pidieron el dinero (Pieza J). Null en
    * el resto — solo esas dos fuentes capturan el dato. */
   fechaRequerida: string | null
+  /**
+   * De qué se trata la fila, para no tener que entrar al detalle. Cada
+   * fuente lo guarda en un campo distinto y con otro nombre, así que se
+   * normaliza acá: categoría más el texto libre de quien lo cargó.
+   *
+   *  - Pago Directo → categoría de pago directo + `observaciones`
+   *  - Anticipo/Reembolso → categoría de gasto + `descripcion`
+   *  - OS → `descripcion_servicio` (no tiene categoría)
+   *  - Caja Chica → la descripción del fondo (la reposición no tiene
+   *    concepto propio: es la suma de movimientos ya registrados)
+   */
+  concepto: string | null
   href: string
 }
 

@@ -26,7 +26,7 @@ export function CompletarFactura({ obligacionId, baseCotizada }: { obligacionId:
     <form action={accion} className="mt-4 space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
       <p className="text-sm text-amber-900">
         Esta obligación está <strong>pendiente de factura</strong>: se registró con la cotización.
-        Cuando el proveedor emita el comprobante, completa acá los datos reales — recién entonces
+        Cuando el proveedor emita el comprobante, completa aquí los datos reales — recién entonces
         se puede dar conformidad y pagar.
       </p>
 

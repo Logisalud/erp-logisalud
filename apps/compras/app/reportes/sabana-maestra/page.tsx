@@ -31,7 +31,7 @@ export default async function SabanaMaestra({
       <Encabezado titulo="Sábana maestra" atras={{ href: '/reportes', texto: 'Ver reportes' }} />
       <p className="mb-4 text-sm text-gray-600">
         Una fila por obligación, todos los campos — para análisis libre en Excel o Power BI. Los
-        mismos filtros de acá se aplican al archivo descargado.
+        mismos filtros de aquí se aplican al archivo descargado.
       </p>
 
       <form className="card mb-4 grid gap-3 sm:grid-cols-5" method="get">

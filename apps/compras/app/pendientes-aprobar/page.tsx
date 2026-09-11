@@ -42,11 +42,12 @@ export default async function PendientesDeAprobar() {
                 <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
                   <th className="px-3 py-2 font-medium">Tipo</th>
                   <th className="px-3 py-2 font-medium">Código</th>
+                  <th className="px-3 py-2 font-medium">Concepto</th>
                   <th className="px-3 py-2 font-medium">Quién lo creó</th>
                   <th className="px-3 py-2 font-medium">Fecha</th>
                   <th className="px-3 py-2 text-right font-medium">Monto</th>
                   <th className="px-3 py-2 font-medium">Esperando hace</th>
-                  <th className="px-3 py-2 font-medium">Lo necesita para</th>
+                  <th className="px-3 py-2 font-medium">Fecha requerida</th>
                   <th className="px-3 py-2 font-medium">Decide</th>
                   <th className="px-3 py-2 font-medium">Acción</th>
                 </tr>
@@ -59,6 +60,12 @@ export default async function PendientesDeAprobar() {
                       <Link href={f.href} className="font-medium text-logisalud-teal underline">
                         {f.codigo}
                       </Link>
+                    </td>
+                    {/* De qué se trata la fila, para no entrar al detalle.
+                        Truncado con el texto completo en el title: la columna
+                        no puede crecer, pero el concepto no se pierde. */}
+                    <td className="px-3 py-2 max-w-[260px] truncate" title={f.concepto ?? undefined}>
+                      {f.concepto ?? '—'}
                     </td>
                     <td className="px-3 py-2 max-w-[200px] truncate">{f.quienLoCreo ?? '—'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{f.esperandoDesde.slice(0, 10)}</td>

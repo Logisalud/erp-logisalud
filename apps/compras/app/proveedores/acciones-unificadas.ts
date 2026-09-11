@@ -35,7 +35,7 @@ export async function cambiarActivoAction(
     if (!activo) {
       const conMovimientos = await tieneMovimientos(fuente, id)
       if (conMovimientos && !confirmado) {
-        return { error: 'Este proveedor ya tiene órdenes emitidas — confirmá que igual quieres desactivarlo.' }
+        return { error: 'Este proveedor ya tiene órdenes emitidas — confirma que igual quieres desactivarlo.' }
       }
     }
     await cambiarActivoProveedor(fuente, id, activo)

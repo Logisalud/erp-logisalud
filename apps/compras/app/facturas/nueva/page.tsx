@@ -64,7 +64,7 @@ export default async function RegistrarFacturaBuscar({
         <p className="card text-sm text-gray-600">
           {searchParams.q || tipo
             ? 'No encontramos órdenes elegibles con esos filtros.'
-            : 'No hay órdenes esperando factura ahora mismo — una recepción conforme o una OS aprobada aparecen acá apenas estén listas.'}
+            : 'No hay órdenes esperando factura ahora mismo — una recepción conforme o una OS aprobada aparecen aquí apenas estén listas.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">

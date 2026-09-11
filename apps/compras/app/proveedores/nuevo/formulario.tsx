@@ -174,7 +174,7 @@ export function FormularioProveedor({ tipoInicial, volver }: { tipoInicial: Tipo
         </div>
 
         <p className="mt-2 text-xs text-gray-500">
-          Si todavía no tenés el CCI a mano, podés crear el proveedor desde el buscador de una orden
+          Si todavía no tienes el CCI a mano, puedes crear el proveedor desde el buscador de una orden
           y completar la cuenta después — va a quedar marcado como incompleto hasta entonces.
         </p>
       </fieldset>
