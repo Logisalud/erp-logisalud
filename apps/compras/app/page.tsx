@@ -75,11 +75,6 @@ export default async function Inicio() {
           descripcion="Vincúlala con una orden aprobada para continuar hacia el pago."
         />
         <MenuItem
-          href="/cuentas-por-pagar?estado=registrada" emoji="✅"
-          titulo="Revisar facturas"
-          descripcion="Revisa los documentos registrados y confirma que estén correctos."
-        />
-        <MenuItem
           href="/pedir-pago" emoji="💸"
           titulo="Pedir un pago"
           descripcion="Solicita un reembolso, anticipo o pago directo a un proveedor."
@@ -95,7 +90,7 @@ export default async function Inicio() {
         <MenuItem
           href="/dashboard" emoji="📊"
           titulo="Dashboard"
-          descripcion="Revisa pendientes, alertas y próximos vencimientos."
+          descripcion="Qué necesita atención: vencidas, observadas y todo lo que está trabado."
         />
         <MenuItem
           href="/cuentas-por-pagar" emoji="💳"

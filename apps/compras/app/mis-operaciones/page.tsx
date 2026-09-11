@@ -14,8 +14,9 @@ export const dynamic = 'force-dynamic'
 
 /**
  * Todo lo que creó la persona que está mirando, de los seis tipos, en una
- * sola tabla. No repite el trabajo del Dashboard (que prioriza los loops
- * abiertos de toda la empresa): acá la pregunta es "¿en qué quedó lo MÍO?".
+ * sola tabla. No repite el trabajo del Dashboard (que prioriza lo que
+ * necesita atención en toda la empresa): acá la pregunta es "¿en qué quedó
+ * lo MÍO?".
  */
 export default async function MisOperaciones() {
   const filas = await listarMisOperaciones()

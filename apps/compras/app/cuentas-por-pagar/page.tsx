@@ -70,7 +70,13 @@ export default async function CuentasPorPagar({
         <Link href="/cuentas-por-pagar/propuestas" className="btn-primary w-full sm:w-auto">
           Propuestas de pago
         </Link>
-        <Link href="/cuentas-por-pagar/reportes" className="btn-secondary w-full sm:w-auto">
+        {/* Decía "Ver reportes" y llevaba a UN reporte, no al índice — el
+            nombre engañaba. Ahora lleva al Dashboard, que es donde quedó ese
+            contenido, y se llama igual que allá. */}
+        <Link href="/dashboard" className="btn-secondary w-full sm:w-auto">
+          Qué necesita atención
+        </Link>
+        <Link href="/reportes" className="btn-secondary w-full sm:w-auto">
           Ver reportes
         </Link>
       </div>

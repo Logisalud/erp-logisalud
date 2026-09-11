@@ -32,7 +32,7 @@ export function servicioSinConformidad(estadoOS: string, tieneConformidadPositiv
 
 /**
  * KPIs del dashboard (regla 5 del documento maestro admite además de los
- * "loops abiertos" un resumen numérico arriba, siempre que cada número siga
+ * lo que necesita atención un resumen numérico arriba, siempre que cada número siga
  * llevando a la pantalla real donde se resuelve — nunca una métrica muerta).
  * Cada monto va separado por moneda: nunca se suma PEN con USD.
  */
