@@ -52,7 +52,7 @@ export default async function ReporteHistorialPagos({
                 <th className="px-3 py-2 font-medium">Fecha de pago</th>
                 <th className="px-3 py-2 font-medium">Obligación</th>
                 <th className="px-3 py-2 font-medium">A quién</th>
-                <th className="px-3 py-2 font-medium">N° voucher</th>
+                <th className="px-3 py-2 font-medium">N° de operación</th>
                 <th className="px-3 py-2 text-right font-medium">Monto aplicado</th>
               </tr>
             </thead>

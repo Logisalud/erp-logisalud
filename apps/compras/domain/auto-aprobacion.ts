@@ -51,7 +51,7 @@ export function puedeDecidirSobre(
 
 /** El mensaje que ve quien intenta aprobar lo suyo — dice qué hacer, no solo que no. */
 export const ERROR_AUTO_APROBACION =
-  'No puedes aprobar ni rechazar una solicitud que cargaste vos. Pedile a Contabilidad que la revise.'
+  'No puedes aprobar ni rechazar una solicitud que cargaste tú. Pídele a Contabilidad que la revise.'
 
 /**
  * "Anular" (Pieza G): puede el CREADOR o la AUTORIDAD, pero el creador solo
@@ -77,7 +77,7 @@ export function puedeAnular(
 }
 
 export const ERROR_ANULAR_TARDE =
-  'Ya no puedes anularlo vos: alguien con autoridad ya lo revisó. Pedile a quien corresponda que lo rechace o lo anule.'
+  'Ya no puedes anularlo tú: alguien con autoridad ya lo revisó. Pídele a quien corresponda que lo rechace o lo anule.'
 
 export const ERROR_ANULAR_AJENO =
   'Solo quien lo creó, o Contabilidad, puede anular este registro.'

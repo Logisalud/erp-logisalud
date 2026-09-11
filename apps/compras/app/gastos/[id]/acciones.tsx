@@ -81,7 +81,7 @@ function BotonRechazar({ solicitudId }: { solicitudId: string }) {
 
   return (
     <form action={dispatch} className="card w-full space-y-2 border-red-200">
-      <p className="text-sm text-gray-700">Contá por qué se rechaza — quien la pidió recibe un aviso con el motivo.</p>
+      <p className="text-sm text-gray-700">Cuenta por qué se rechaza — quien la pidió recibe un aviso con el motivo.</p>
       {estado?.error ? <p className="text-sm text-red-700">{estado.error}</p> : null}
       <textarea
         name="motivo" required rows={2} placeholder="Motivo del rechazo…"
@@ -128,8 +128,8 @@ function BotonAnular({ solicitudId }: { solicitudId: string }) {
   return (
     <form action={dispatch} className="card w-full space-y-2 border-red-200">
       <p className="text-sm text-gray-700">
-        Esto anula la solicitud por un error de captura — contá qué pasó. Si ya la revisó
-        Contabilidad, vas a tener que pedirle a ella que la rechace.
+        Esto anula la solicitud por un error de captura — cuenta qué pasó. Si ya la revisó
+        Contabilidad, tendrás que pedirle a ella que la rechace.
       </p>
       {estado?.error ? <p className="text-sm text-red-700">{estado.error}</p> : null}
       <textarea

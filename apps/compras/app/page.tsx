@@ -5,6 +5,7 @@ import { BrandMark } from '@logisalud/design-system/componentes'
 import { determinarVistaEntrada } from '@/domain/inicio'
 import { obtenerResumenGerencia, obtenerResumenTesoreria } from '@/services/inicio'
 import { resumenPendientesDeAprobar } from '@/services/pendientes-aprobar'
+import { listarPagosPorEjecutar, puedeVerPagosPorEjecutar } from '@/services/pagos-por-ejecutar'
 import { RegistrarPaso } from '@/components/registrar-paso'
 
 export const dynamic = 'force-dynamic'
@@ -22,6 +23,10 @@ export default async function Inicio() {
   // Solo aparece para quien decide de verdad sobre alguna de las cuatro
   // fuentes con gate de aprobación — ver domain/pendientes-aprobar.ts.
   const pendientes = await resumenPendientesDeAprobar()
+  // La bandeja de Tesorería: solo se muestra a quien ejecuta o supervisa
+  // pagos, y solo si hay lotes aprobados esperando.
+  const puedeVerPagos = await puedeVerPagosPorEjecutar()
+  const lotesPorPagar = puedeVerPagos ? (await listarPagosPorEjecutar()).length : 0
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -52,6 +57,13 @@ export default async function Inicio() {
             descripcion="Lo que espera una decisión tuya, con lo que más tiempo lleva esperando primero."
           />
         ) : null}
+        {puedeVerPagos ? (
+          <MenuItem
+            href="/pagos-por-ejecutar" emoji="💸"
+            titulo={lotesPorPagar > 0 ? `Pagos por ejecutar (${lotesPorPagar})` : 'Pagos por ejecutar'}
+            descripcion="Los lotes ya aprobados que faltan desembolsar, con lo que queda por pagar."
+          />
+        ) : null}
         <MenuItem
           href="/ordenes" emoji="🛒"
           titulo="Órdenes de compra y servicio"
@@ -78,7 +90,7 @@ export default async function Inicio() {
         <MenuItem
           href="/mis-operaciones" emoji="📋"
           titulo="Mis operaciones"
-          descripcion="Todo lo que registraste vos: en qué estado quedó y si ya se pagó."
+          descripcion="Todo lo que registraste tú: en qué estado quedó y si ya se pagó."
         />
         <MenuItem
           href="/dashboard" emoji="📊"

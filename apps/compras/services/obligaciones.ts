@@ -464,6 +464,22 @@ export type ObligacionListada = {
   /** Para origen distinto de 'compra'/'servicio': a quién se le paga (empleado, ver public.perfiles). */
   beneficiario: { nombre: string | null } | null
   /**
+   * En qué propuesta de pago entró esta obligación, si entró. Antes el
+   * listado decía "conforme" y no había forma de saber si ya estaba en un
+   * lote, en cuál, ni si ese lote estaba aprobado — así que Tesorería no
+   * podía llegar a la pantalla donde se paga sin adivinar.
+   *
+   * El pago NO se ejecuta desde el listado a propósito: eso saltearía la
+   * aprobación del lote (regla de oro, sección 4 del documento maestro).
+   * Esto es el camino hacia donde sí se paga, no un atajo que lo evita.
+   *
+   * Opcional porque `ObligacionDetalle` extiende este tipo y su consulta no
+   * los trae: la ficha individual no ofrece pagar, así que no los necesita.
+   */
+  propuesta?: { id: string; codigo: string; estado: string } | null
+  /** Ya tiene un pago aplicado — con `propuesta.estado === 'aprobada'` es lo que define "lista para pagar". */
+  yaPagada?: boolean
+  /**
    * Fallback de display para origen prestamo/fraccionamiento_sunat/impuesto:
    * ninguno de esos tiene proveedor ni beneficiario_persona (no le pagan a
    * un proveedor del catálogo ni a un empleado), así que
@@ -488,18 +504,70 @@ export async function listarObligaciones(estado?: EstadoObligacion): Promise<Obl
   const { data, error } = await q
   if (error) throw new Error(`No se pudieron listar las obligaciones: ${error.message}`)
 
-  const [proveedores, beneficiarios] = await Promise.all([
+  const ids = (data ?? []).map((o) => o.id)
+  const [proveedores, beneficiarios, propuestas, pagadas] = await Promise.all([
     mapaProveedoresBasico(
       [...new Set((data ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[],
       [...new Set((data ?? []).map((o) => o.proveedor_servicio_id).filter(Boolean))] as string[]
     ),
     mapaBeneficiarios([...new Set((data ?? []).map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
+    mapaPropuestaDeObligacion(ids),
+    idsConPagoAplicado(ids),
   ])
   return (data ?? []).map((o) => ({
     ...o,
     proveedor: proveedores.get(o.proveedor_id ?? o.proveedor_servicio_id ?? '') ?? null,
     beneficiario: o.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
+    propuesta: propuestas.get(o.id) ?? null,
+    yaPagada: pagadas.has(o.id),
   }))
+}
+
+/**
+ * La propuesta de pago en la que entró cada obligación. Dos consultas
+ * (detalle → propuestas) porque `propuesta_detalle` no trae el código ni el
+ * estado del lote, y un embed inverso desde `obligaciones` no existe.
+ */
+async function mapaPropuestaDeObligacion(
+  obligacionIds: string[]
+): Promise<Map<string, { id: string; codigo: string; estado: string }>> {
+  const mapa = new Map<string, { id: string; codigo: string; estado: string }>()
+  const ids = [...new Set(obligacionIds)]
+  if (ids.length === 0) return mapa
+  const supabase = crearClienteServidor()
+
+  const { data: detalle } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('propuesta_detalle')
+    .select('obligacion_id, propuesta_id')
+    .in('obligacion_id', ids)
+  const filas = (detalle ?? []) as { obligacion_id: string; propuesta_id: string }[]
+  if (filas.length === 0) return mapa
+
+  const { data: propuestas } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('propuestas_pago')
+    .select('id, codigo, estado')
+    .in('id', [...new Set(filas.map((f) => f.propuesta_id))])
+  const porId = new Map((propuestas ?? []).map((p: any) => [p.id, p]))
+
+  for (const fila of filas) {
+    const propuesta = porId.get(fila.propuesta_id)
+    if (propuesta) mapa.set(fila.obligacion_id, propuesta as any)
+  }
+  return mapa
+}
+
+async function idsConPagoAplicado(obligacionIds: string[]): Promise<Set<string>> {
+  const ids = [...new Set(obligacionIds)]
+  if (ids.length === 0) return new Set()
+  const supabase = crearClienteServidor()
+  const { data } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pago_aplicacion')
+    .select('obligacion_id')
+    .in('obligacion_id', ids)
+  return new Set((data ?? []).map((p: any) => p.obligacion_id))
 }
 
 /** Origen gasto_directo/reembolso/anticipo: el beneficiario es un empleado, no un proveedor. */
