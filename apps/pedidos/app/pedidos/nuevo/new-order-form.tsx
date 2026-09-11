@@ -21,6 +21,7 @@ import {
   crearBorrador,
   crearClienteNuevo,
   getAddressesForCustomer,
+  type ClienteExistente,
 } from "./actions";
 
 type Seller = {
@@ -89,6 +90,8 @@ export function NewOrderForm({
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
+  /** El cliente que ya tenía ese RUC, para poder elegirlo de un toque. */
+  const [clienteExistente, setClienteExistente] = useState<ClienteExistente | null>(null);
   const [newAddress, setNewAddress] = useState({ direccion: "", referencia: "" });
   const [newAddressUbigeo, setNewAddressUbigeo] = useState<UbigeoSeleccion>(UBIGEO_VACIO);
   const [newCustomerUbigeo, setNewCustomerUbigeo] = useState<UbigeoSeleccion>(UBIGEO_VACIO);
@@ -128,22 +131,23 @@ export function NewOrderForm({
   function handleAddAddress() {
     setNewAddressError(null);
     startTransition(async () => {
-      try {
-        const created = await agregarDireccionCliente({
-          customerId: selectedCustomerId,
-          direccion: newAddress.direccion,
-          referencia: newAddress.referencia,
-          departamento: newAddressUbigeo.departamento,
-          provincia: newAddressUbigeo.provincia,
-          distrito: newAddressUbigeo.distrito,
-        });
-        setAddresses((prev) => [...prev, created]);
-        setSelectedAddressId(created.id);
-        setNewAddress({ direccion: "", referencia: "" });
-        setNewAddressUbigeo(UBIGEO_VACIO);
-      } catch (err) {
-        setNewAddressError(err instanceof Error ? err.message : "No se pudo guardar la dirección.");
+      const resultado = await agregarDireccionCliente({
+        customerId: selectedCustomerId,
+        direccion: newAddress.direccion,
+        referencia: newAddress.referencia,
+        departamento: newAddressUbigeo.departamento,
+        provincia: newAddressUbigeo.provincia,
+        distrito: newAddressUbigeo.distrito,
+      });
+      if (!resultado.ok) {
+        setNewAddressError(resultado.mensaje);
+        return;
       }
+      const created = resultado.direccion;
+      setAddresses((prev) => [...prev, created]);
+      setSelectedAddressId(created.id);
+      setNewAddress({ direccion: "", referencia: "" });
+      setNewAddressUbigeo(UBIGEO_VACIO);
     });
   }
 
@@ -171,41 +175,48 @@ export function NewOrderForm({
 
   function handleCreateCustomer() {
     setNewCustomerError(null);
+    setClienteExistente(null);
     startTransition(async () => {
-      try {
-        const { customer, addressId } = await crearClienteNuevo({
-          razonSocial: newCustomer.razonSocial,
-          rucODocumento: newCustomer.rucODocumento,
-          canalId: Number(newCustomer.canalId),
-          zonaId: Number(newCustomer.zonaId),
-          condicionPagoHabitualId: Number(newCustomer.condicionPagoHabitualId),
-          direccion: newCustomer.direccion,
-          celular: newCustomer.celular,
-          direccionFiscal: newCustomer.direccionFiscal,
-          departamento: newCustomerUbigeo.departamento,
-          provincia: newCustomerUbigeo.provincia,
-          distrito: newCustomerUbigeo.distrito,
-        });
-        // El cliente recién creado queda elegido en el mismo campo.
-        setSelectedOption(toOption(customer));
-        setSelectedCustomerId(customer.id);
-        setAddresses([{ id: addressId, direccion: newCustomer.direccion, es_principal: true }]);
-        setSelectedAddressId(addressId);
-        setShowNewCustomerForm(false);
-        setNewCustomer({
-          razonSocial: "",
-          rucODocumento: "",
-          canalId: "",
-          zonaId: "",
-          condicionPagoHabitualId: "",
-          direccion: "",
-          celular: "",
-          direccionFiscal: "",
-        });
-        setNewCustomerUbigeo(UBIGEO_VACIO);
-      } catch (err) {
-        setNewCustomerError(err instanceof Error ? err.message : "No se pudo registrar el cliente.");
+      const resultado = await crearClienteNuevo({
+        razonSocial: newCustomer.razonSocial,
+        rucODocumento: newCustomer.rucODocumento,
+        canalId: Number(newCustomer.canalId),
+        zonaId: Number(newCustomer.zonaId),
+        condicionPagoHabitualId: Number(newCustomer.condicionPagoHabitualId),
+        direccion: newCustomer.direccion,
+        celular: newCustomer.celular,
+        direccionFiscal: newCustomer.direccionFiscal,
+        departamento: newCustomerUbigeo.departamento,
+        provincia: newCustomerUbigeo.provincia,
+        distrito: newCustomerUbigeo.distrito,
+      });
+
+      if (!resultado.ok) {
+        setNewCustomerError(resultado.mensaje);
+        // El RUC ya estaba en la cartera: se ofrece elegir ese cliente, que
+        // es lo que el vendedor quería hacer.
+        setClienteExistente(resultado.clienteExistente ?? null);
+        return;
       }
+
+      const { customer, addressId } = resultado;
+      // El cliente recién creado queda elegido en el mismo campo.
+      setSelectedOption(toOption(customer));
+      setSelectedCustomerId(customer.id);
+      setAddresses([{ id: addressId, direccion: newCustomer.direccion, es_principal: true }]);
+      setSelectedAddressId(addressId);
+      setShowNewCustomerForm(false);
+      setNewCustomer({
+        razonSocial: "",
+        rucODocumento: "",
+        canalId: "",
+        zonaId: "",
+        condicionPagoHabitualId: "",
+        direccion: "",
+        celular: "",
+        direccionFiscal: "",
+      });
+      setNewCustomerUbigeo(UBIGEO_VACIO);
     });
   }
 
@@ -229,12 +240,10 @@ export function NewOrderForm({
       return;
     }
     startTransition(async () => {
-      try {
-        await crearBorrador(formData);
-      } catch (err) {
-        if (err instanceof Error && err.message === "NEXT_REDIRECT") return;
-        setError(err instanceof Error ? err.message : "No se pudo crear el pedido.");
-      }
+      // En el camino feliz esto no vuelve: la acción termina en un
+      // `redirect()` al pedido recién creado.
+      const resultado = await crearBorrador(formData);
+      if (resultado && !resultado.ok) setError(resultado.mensaje);
     });
   }
 
@@ -290,6 +299,43 @@ export function NewOrderForm({
                 <IconError className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{newCustomerError}</span>
               </p>
+            )}
+
+            {/*
+              El RUC ya estaba en la cartera. Decirlo y quedarse ahí obliga a
+              cerrar el formulario, volver al buscador y escribir el RUC otra
+              vez; el vendedor está parado en el mostrador. Se ofrece elegirlo
+              de un toque, que es lo que quería hacer.
+            */}
+            {clienteExistente && (
+              <div className="rounded-lg border border-slate-300 bg-white p-3">
+                <p className="font-medium text-slate-900">
+                  {displayRazonSocial(clienteExistente.razonSocial)}
+                </p>
+                <p className="cifra mt-0.5 text-sm text-slate-600">
+                  {clienteExistente.rucODocumento}
+                  {clienteExistente.estado === "PENDIENTE_DE_VALIDACION"
+                    ? " · pendiente de validación"
+                    : ""}
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary mt-2 text-sm"
+                  onClick={() => {
+                    const c = clienteExistente;
+                    setClienteExistente(null);
+                    setNewCustomerError(null);
+                    setShowNewCustomerForm(false);
+                    handleSelectCustomer({
+                      id: c.id,
+                      label: displayRazonSocial(c.razonSocial),
+                      description: c.rucODocumento,
+                    });
+                  }}
+                >
+                  Usar este cliente
+                </button>
+              </div>
             )}
 
             <input

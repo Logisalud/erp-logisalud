@@ -32,6 +32,24 @@ export type ActiveCustomerOption = {
   condicion_pago_habitual_id: number | null;
 };
 
+/**
+ * El RUC/documento ya está en la cartera.
+ *
+ * Lleva el cliente que lo tiene: es lo único que le sirve al vendedor, que
+ * no quería registrar un cliente nuevo sino atender a ese. Pasó 11 veces el
+ * 2026-09-11 con una sola vendedora, y lo único que veía era un error de
+ * servidor.
+ */
+export class ClienteDuplicadoError extends Error {
+  readonly existente: (ActiveCustomerOption & { estado: string }) | null;
+
+  constructor(mensaje: string, existente: (ActiveCustomerOption & { estado: string }) | null) {
+    super(mensaje);
+    this.name = "ClienteDuplicadoError";
+    this.existente = existente;
+  }
+}
+
 const CUSTOMER_OPTION_COLUMNS =
   "id, razon_social, nombre_comercial, ruc_o_documento, canal_id, condicion_pago_habitual_id";
 
@@ -174,7 +192,25 @@ export async function requestNewCustomer(input: {
 
   if (customerError) {
     if (customerError.code === "23505") {
-      throw new Error("Ya existe un cliente con ese RUC/documento.");
+      // Se busca cuál es: "ya existe" a secas deja al vendedor sin saber si
+      // es suyo, cómo se llama ni qué hacer con el pedido que está armando.
+      const { data: existente } = await supabase
+        .from("customers")
+        .select(`${CUSTOMER_OPTION_COLUMNS}, estado`)
+        .eq("ruc_o_documento", input.rucODocumento)
+        .maybeSingle();
+
+      const cliente = (existente ?? null) as unknown as
+        | (ActiveCustomerOption & { estado: string })
+        | null;
+
+      throw new ClienteDuplicadoError(
+        cliente
+          ? `Ese RUC/documento ya está en la cartera, como "${cliente.razon_social}". ` +
+            "No hace falta registrarlo: buscalo por RUC en el selector de cliente."
+          : "Ya existe un cliente con ese RUC/documento.",
+        cliente,
+      );
     }
     // Errores crudos de la base son ilegibles y llegan a la pantalla como
     // "An error occurred in the Server Components render". Los dos que de

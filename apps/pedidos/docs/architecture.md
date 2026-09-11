@@ -13,6 +13,7 @@ Este documento cubre solo la **Fase 1 (base técnica)**. No describe
 modelos de producto, pedido, precios, stock ni integración con NubeFact:
 esos llegan en fases posteriores.
 
+
 ## Stack
 
 - **Next.js 14** (App Router) + TypeScript
@@ -39,6 +40,29 @@ el cliente de Supabase); `services` es donde vive la lógica que sí tiene
 efectos (escribir un pedido, registrar auditoría, llamar a una API
 externa). `domain` no debe importar nada de Next.js/Supabase — son
 tipos y funciones puras.
+
+## Errores de Server Action que tiene que leer el usuario
+
+Next reemplaza el mensaje de **cualquier excepción** de una Server Action
+por "An error occurred in the Server Components render…" en producción,
+para no filtrar detalles del servidor. Es lo correcto para un error
+inesperado y es pésimo para uno previsto.
+
+Pasó el 2026-09-11: una vendedora chocó **11 veces** en una tarde contra
+"ese RUC ya está en la cartera" al registrar un cliente, y en pantalla leyó
+siempre el aviso genérico — sin manera de saber que el cliente ya existía
+ni qué hacer. El mensaje estaba escrito y traducido en el servicio; lo que
+fallaba era el transporte.
+
+**Regla: un mensaje escrito para que lo lea el usuario viaja como valor de
+retorno, no como excepción.** Las acciones de `app/pedidos/nuevo/actions.ts`
+devuelven `ResultadoAccion<T>` (`{ ok: true, … } | { ok: false, mensaje }`)
+y el formulario muestra `mensaje`. Lanzar queda para lo verdaderamente
+inesperado, que es justo lo que conviene que Next redacte.
+
+Corolario: los errores de producción se miran en los logs de Vercel
+(`get_runtime_errors` del MCP), donde el mensaje real sí queda. Ahí se vio
+el de arriba, agrupado y con la cuenta de veces.
 
 ## Decisión: schema Postgres dedicado (`pedidos`)
 
