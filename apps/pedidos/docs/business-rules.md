@@ -724,6 +724,26 @@ Tres detalles que importan:
   lista fija vacía el aviso ahora **sí** sale, al vendedor — antes quedaba
   como `sin_destinatarios` y no se enteraba nadie, ni él.
 
+### Con qué clientes se puede empezar un pedido
+
+El selector de cliente (pedido nuevo y cambio de cliente) ofrece los
+**ACTIVO** y los **PENDIENTE_DE_VALIDACION**, y deja fuera los
+**RECHAZADO**.
+
+Que entren los pendientes no es un descuido: el flujo de "Cliente nuevo" lo
+crea justamente en ese estado y sigue armando el pedido, que después queda
+en `NEW_CUSTOMER_VALIDATION` hasta que Control de Pedidos lo apruebe. Con el
+filtro en ACTIVO el vendedor registraba el cliente, y al volver a buscarlo
+—al día siguiente, o simplemente tras recargar— no lo encontraba: lo
+registraba otra vez y la base le contestaba que el documento ya existía, sin
+decirle de quién. Pasó el 2026-09-11 con el documento `10435922304`.
+
+En la lista el pendiente sale marcado como "cliente nuevo, sin validar", al
+lado del RUC. Los RECHAZADO no vuelven: ahí alguien miró el cliente y
+decidió que no, y volver a ofrecerlo sería deshacer esa decisión en
+silencio. Para corregir uno de esos está la pantalla de Maestros, que busca
+en cualquier estado.
+
 ### Número de pedido
 
 `orders.numero` es un correlativo global que la BD asigna **al enviar el
