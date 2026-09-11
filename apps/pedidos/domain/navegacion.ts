@@ -65,6 +65,15 @@ export const SECCIONES: Seccion[] = [
     ],
   },
   {
+    // Del vendedor, y del administrador que también registra clientes: la
+    // pantalla muestra sólo lo que uno mismo cargó. Sin esto, registrar un
+    // cliente era mandarlo a un buzón sin respuesta.
+    href: "/mis-clientes",
+    title: "Mis clientes",
+    description: "Los clientes que registraste y si ya fueron aprobados.",
+    roles: ["administrador", "vendedor"],
+  },
+  {
     href: "/operaciones",
     title: "Despachos",
     description: "Preparar y despachar los pedidos listos para operaciones.",
