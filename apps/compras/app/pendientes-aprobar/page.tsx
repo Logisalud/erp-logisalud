@@ -27,8 +27,8 @@ export default async function PendientesDeAprobar() {
 
       {filas.length === 0 ? (
         <p className="card text-sm text-gray-600">
-          No tienes nada esperando tu aprobación. Cuando alguien cargue algo que dependa de vos, va a
-          aparecer acá con cuánto tiempo lleva esperando.
+          No tienes nada esperando tu aprobación. Cuando alguien cargue algo que dependa de ti, va a
+          aparecer aquí con cuánto tiempo lleva esperando.
         </p>
       ) : (
         <>

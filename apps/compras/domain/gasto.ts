@@ -266,5 +266,5 @@ export function avisoFechaRequeridaTardia(
 ): string | null {
   if (!fechaRequerida || !fechaInicio) return null
   if (fechaRequerida <= fechaInicio) return null
-  return 'Ojo: pediste el dinero para después de que arranca el viaje. Si es a propósito, dejalo así.'
+  return 'Ojo: pediste el dinero para después de que arranca el viaje. Si es a propósito, déjalo así.'
 }

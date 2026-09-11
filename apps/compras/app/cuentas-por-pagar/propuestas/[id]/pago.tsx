@@ -52,7 +52,10 @@ export function FormularioPago({
           </p>
         ) : null}
         <label className="block text-sm">
-          <span className="text-gray-600">N° de voucher</span>
+          {/* Lenguaje Ubicuo: Tesorería lo llama "N° de operación". El
+              campo y la columna siguen siendo `numeroVoucher` /
+              `numero_voucher` — esto es solo la etiqueta. */}
+          <span className="text-gray-600">N° de operación</span>
           <input type="text" name="numeroVoucher" className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3" />
         </label>
       </div>

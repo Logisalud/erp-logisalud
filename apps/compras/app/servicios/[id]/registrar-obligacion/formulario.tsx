@@ -83,7 +83,7 @@ export function FormularioObligacionServicio({
             <p className="mt-1 text-xs text-gray-500">
               {sinIgv
                 ? 'La operación se declaró como no gravada: el IGV queda en 0.'
-                : 'Sugerido en 18% de la base — cambialo si la factura trae otro valor.'}
+                : 'Sugerido en 18% de la base — cámbialo si la factura trae otro valor.'}
             </p>
             {/* Antes este caso se resolvía escribiendo 0 a mano, y ese 0 se
                 guardaba igual que un error de tipeo. Marcarlo lo deja
