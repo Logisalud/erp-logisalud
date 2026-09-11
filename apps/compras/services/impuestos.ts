@@ -1,6 +1,10 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
 import type { BorradorImpuesto, EstadoObligacionTributaria } from '@/domain/impuestos'
+import {
+  filasDeCarga, validarCargaMultiple,
+  type EncabezadoCarga, type LineaCarga, type ErrorValidacion,
+} from '@/domain/impuestos'
 
 export type TipoImpuesto = { id: string; nombre: string }
 
@@ -135,4 +139,76 @@ export async function confirmarObligacionTributaria(id: string): Promise<void> {
 export async function marcarImpuestoPagado(obligacionId: string): Promise<void> {
   const supabase = crearClienteServidor()
   await supabase.schema('impuestos').from('obligaciones_tributarias').update({ estado: 'pagado' }).eq('obligacion_id', obligacionId)
+}
+
+
+/**
+ * Qué tipos de impuesto YA tienen carga en ese periodo. La base tiene un
+ * unique por (tipo, periodo), pero ese solo avisa después de intentar
+ * insertar y se lleva el envío completo — con N líneas en un solo
+ * `.insert([...])`, una sola colisión perdería todo lo demás bien cargado.
+ * Esta consulta previa permite marcar la línea exacta y que Arlette corrija
+ * solo esa.
+ */
+export async function tiposYaCargadosEnPeriodo(periodo: string): Promise<string[]> {
+  const supabase = crearClienteServidor()
+  const { data } = await supabase
+    .schema('impuestos')
+    .from('obligaciones_tributarias')
+    .select('tipo_impuesto_id')
+    .eq('periodo', periodo)
+  return (data ?? []).map((o: any) => o.tipo_impuesto_id)
+}
+
+/**
+ * Carga N obligaciones tributarias de un mismo periodo en un solo envío —
+ * así llega el reporte PLAME de BUK, que agrupa varios impuestos del mes.
+ *
+ * Un único `.insert([...])`: todo o nada. Sin `lote_id` — el periodo ya
+ * cumple la función de agrupar, y una columna más sería un identificador
+ * que nadie mira.
+ *
+ * Valida contra la base ANTES de insertar y devuelve los errores por línea
+ * en vez de lanzar: el formulario los pinta en la línea que corresponde.
+ */
+export async function cargarObligacionesTributarias(
+  encabezado: EncabezadoCarga,
+  lineas: readonly LineaCarga[]
+): Promise<{ insertadas: number } | { errores: ErrorValidacion[] }> {
+  const yaCargados = await tiposYaCargadosEnPeriodo(encabezado.periodo)
+  const errores = validarCargaMultiple(encabezado, lineas, yaCargados)
+  if (errores.length > 0) return { errores }
+
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  const { error } = await supabase
+    .schema('impuestos')
+    .from('obligaciones_tributarias')
+    .insert(
+      filasDeCarga(encabezado, lineas).map((f) => ({
+        tipo_impuesto_id: f.tipoImpuestoId,
+        periodo: f.periodo,
+        monto: f.monto,
+        fecha_vencimiento: f.fechaVencimiento,
+        fuente: f.fuente,
+        cargado_por: usuario.id,
+      }))
+    )
+
+  if (error) {
+    // El unique de la base sigue siendo el guardián final: si alguien cargó
+    // el mismo tipo entre la consulta previa y el insert, cae acá.
+    if (error.code === '23505') {
+      return {
+        errores: [{
+          campo: 'general',
+          mensaje: 'Alguien cargó uno de estos impuestos para el mismo periodo mientras completabas el formulario. Revisa la lista y vuelve a intentar.',
+        }],
+      }
+    }
+    return { errores: [{ campo: 'general', mensaje: `No se pudieron cargar los impuestos: ${error.message}` }] }
+  }
+
+  return { insertadas: lineas.length }
 }
