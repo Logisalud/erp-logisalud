@@ -23,10 +23,10 @@ type Lote = {
 };
 
 const PRODUCTOS = [
-  { id: "p-vit", codigo_interno: "DHP200", descripcion: "VITAMINA E 400 UI CJA. X 30 CAP. BDA." },
-  { id: "p-aci", codigo_interno: "DHP414", descripcion: "ACIDO TRANEXAMICO 1G/ 10ML CJA X 50 AMP" },
-  { id: "p-gas", codigo_interno: "DHP308", descripcion: "GASA ESTERIL 7.5 CM X 7.5 CM CAJA X 50 SOBRES" },
-  { id: "p-sin", codigo_interno: "DHP999", descripcion: "PRODUCTO SIN STOCK" },
+  { id: "p-vit", codigo_interno: "DHP200", descripcion: "VITAMINA E 400 UI CJA. X 30 CAP. BDA.", supplier: { nombre: "Diphasac" } },
+  { id: "p-aci", codigo_interno: "DHP414", descripcion: "ACIDO TRANEXAMICO 1G/ 10ML CJA X 50 AMP", supplier: { nombre: "Diphasac" } },
+  { id: "p-gas", codigo_interno: "DHP308", descripcion: "GASA ESTERIL 7.5 CM X 7.5 CM CAJA X 50 SOBRES", supplier: null },
+  { id: "p-sin", codigo_interno: "DHP999", descripcion: "PRODUCTO SIN STOCK", supplier: { nombre: "Biosana" } },
 ];
 
 const LOTES: Lote[] = [
@@ -183,5 +183,27 @@ describe("listStockLotes", () => {
     // stock_levels para saber qué tiene stock, products para el orden y el
     // nombre, stock_lotes sólo para los productos de esta página.
     expect(pedidas).toEqual(["stock_levels", "products", "stock_lotes"]);
+  });
+});
+
+describe("el proveedor de la pantalla de stock", () => {
+  /**
+   * El archivo diario de stock trae la columna PROVEEDOR sólo a veces, y
+   * cuando no la trae la pantalla mostraba un guion aunque el maestro de
+   * productos sí sabe de quién es cada producto. Pasó en producción el
+   * 2026-09-11: dos cargas seguidas dejaron los 382 lotes sin proveedor.
+   */
+  it("sale del maestro de productos, no de la columna del archivo", async () => {
+    const page = await listStockLotes({ busqueda: "DHP414" });
+
+    // En el archivo ese lote dice "DIPHASAC - GENERICO"; el maestro dice
+    // "Diphasac", que es el proveedor de verdad y el que se muestra.
+    expect(page.filas.map((f) => f.proveedor)).toEqual(["Diphasac", "Diphasac"]);
+  });
+
+  it("si el maestro no tiene proveedor, cae a lo que dijo el archivo", async () => {
+    const page = await listStockLotes({ busqueda: "GASA" });
+
+    expect(page.filas.map((f) => f.proveedor)).toEqual(["DIPHASAC - CUIDADO PERSONAL"]);
   });
 });

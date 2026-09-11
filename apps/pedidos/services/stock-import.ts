@@ -138,6 +138,13 @@ export type StockImportPreview = {
   fuentesDisponibles: string[];
   /** La que se aplica a las filas sin FUENTE. */
   fuentePorDefecto: string;
+  /**
+   * Columnas opcionales que el archivo NO trae. Se muestran antes de
+   * publicar porque su ausencia es silenciosa: la carga funciona igual y
+   * uno se entera después, mirando la pantalla de stock y sin entender por
+   * qué falta un dato que ayer estaba.
+   */
+  columnasAusentes: string[];
 };
 
 /**
@@ -200,6 +207,13 @@ export async function previewStockImport(file: File): Promise<StockImportPreview
   const catalogos = await cargarCatalogos();
   const resuelto = resolverStockImport(parsed.rows, catalogos);
 
+  const columnasAusentes: string[] = [];
+  if (parsed.columns) {
+    if (parsed.columns.fuente === -1) columnasAusentes.push("FUENTE");
+    if (parsed.columns.fechaVencimiento === -1) columnasAusentes.push("FV (vencimiento)");
+    if (parsed.columns.proveedor === -1) columnasAusentes.push("PROVEEDOR");
+  }
+
   return {
     fileName: file.name,
     headerRowNumber: parsed.headerRowNumber,
@@ -215,6 +229,7 @@ export async function previewStockImport(file: File): Promise<StockImportPreview
       .filter((f) => f.estado === "activo")
       .map((f) => f.nombre),
     fuentePorDefecto: catalogos.fuentePorDefecto.nombre,
+    columnasAusentes,
   };
 }
 
@@ -241,22 +256,53 @@ export async function publishStockImport(file: File, actor: string): Promise<Sto
   }
 
   const supabase = createClient();
-  // Upsert sobre (product_id, inventory_source_id, lote): actualiza el
-  // lote que ya existe y crea el que no. Nunca duplica, que era el riesgo
-  // concreto de cargar dos veces el mismo archivo.
-  const { error } = await supabase.from("stock_lotes").upsert(
-    preview.lotes.map((lote) => ({
-      product_id: lote.productId,
-      inventory_source_id: lote.inventorySourceId,
-      lote: lote.lote,
-      fecha_vencimiento: lote.fechaVencimiento,
-      cantidad_disponible: lote.cantidad,
-      proveedor: lote.proveedor,
-      fecha_actualizacion: new Date().toISOString(),
-    })),
-    { onConflict: "product_id,inventory_source_id,lote" },
-  );
-  if (error) throw new Error(error.message);
+  const ahora = new Date().toISOString();
+
+  const base = (lote: (typeof preview.lotes)[number]) => ({
+    product_id: lote.productId,
+    inventory_source_id: lote.inventorySourceId,
+    lote: lote.lote,
+    fecha_vencimiento: lote.fechaVencimiento,
+    cantidad_disponible: lote.cantidad,
+    fecha_actualizacion: ahora,
+  });
+
+  /*
+    Dos upserts y no uno, por una razón concreta que se vio en producción
+    (2026-09-11): el archivo de stock del día no siempre trae la columna
+    PROVEEDOR, y el upsert anterior mandaba `proveedor: null` para todas las
+    filas, borrando el proveedor que ya estaba guardado de una carga
+    anterior. Un dato que el archivo no menciona no es un dato vacío.
+
+    PostgREST arma la lista de columnas con la unión de las claves del
+    payload, así que la única forma de NO tocar una columna es que no
+    aparezca en ninguna fila de ese lote de escritura. De ahí la separación:
+    las filas que traen proveedor lo escriben, las que no lo dejan como
+    está. Sigue siendo un upsert sobre (product_id, inventory_source_id,
+    lote): actualiza el lote que ya existe y crea el que no, nunca duplica.
+  */
+  const conProveedor = preview.lotes.filter((l) => l.proveedor !== null);
+  const sinProveedor = preview.lotes.filter((l) => l.proveedor === null);
+
+  const escrituras = [
+    conProveedor.length > 0
+      ? supabase
+          .from("stock_lotes")
+          .upsert(
+            conProveedor.map((lote) => ({ ...base(lote), proveedor: lote.proveedor })),
+            { onConflict: "product_id,inventory_source_id,lote" },
+          )
+      : null,
+    sinProveedor.length > 0
+      ? supabase
+          .from("stock_lotes")
+          .upsert(sinProveedor.map(base), { onConflict: "product_id,inventory_source_id,lote" })
+      : null,
+  ].filter((q): q is NonNullable<typeof q> => q !== null);
+
+  for (const resultado of await Promise.all(escrituras)) {
+    if (resultado.error) throw new Error(resultado.error.message);
+  }
 
   await logAudit({
     actor,

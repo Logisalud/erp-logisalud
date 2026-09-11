@@ -167,6 +167,15 @@ function PreviewPanel({ preview }: { preview: StockImportPreview }) {
         guarda por lote: un mismo producto puede tener varios, cada uno con su vencimiento.
       </p>
 
+      {preview.columnasAusentes.length > 0 && (
+        <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          Este archivo no trae la columna{" "}
+          <strong>{preview.columnasAusentes.join(", ")}</strong>. Lo que ya esté guardado de esos
+          datos <strong>no se borra</strong>: una columna que el archivo no menciona no es una
+          columna vacía.
+        </p>
+      )}
+
       {preview.codigosSinProducto.length > 0 && (
         <div className="aviso-bloqueo flex-col items-start" role="alert">
           <p className="font-medium">

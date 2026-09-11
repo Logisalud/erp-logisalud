@@ -29,6 +29,13 @@ export type StockLoteRow = {
   fechaVencimiento: string | null;
   cantidad: number;
   fuente: string;
+  /**
+   * Sale del maestro de productos (`products.supplier_id`), no de la
+   * columna PROVEEDOR del archivo de stock: quién provee un producto es un
+   * dato del producto, no del lote, y el archivo diario trae esa columna
+   * sólo a veces. Si el maestro no lo tuviera, se cae a lo que dijo el
+   * archivo antes que mostrar un guion.
+   */
   proveedor: string | null;
   fechaActualizacion: string;
 };
@@ -90,7 +97,7 @@ export async function listStockLotes(
   //    que es donde están el código y la descripción.
   let queryProductos = supabase
     .from("products")
-    .select("id, codigo_interno, descripcion")
+    .select("id, codigo_interno, descripcion, supplier:suppliers(nombre)")
     .order("descripcion", { ascending: true })
     .limit(TOPE_POSTGREST);
 
@@ -103,7 +110,12 @@ export async function listStockLotes(
   const { data: productos, error: errorProductos } = await queryProductos;
   if (errorProductos) throw new Error(errorProductos.message);
 
-  type Producto = { id: string; codigo_interno: string; descripcion: string };
+  type Producto = {
+    id: string;
+    codigo_interno: string;
+    descripcion: string;
+    supplier: { nombre: string } | null;
+  };
   const candidatos = ((productos ?? []) as unknown as Producto[]).filter((p) =>
     conStock.has(p.id),
   );
@@ -178,7 +190,7 @@ export async function listStockLotes(
         fechaVencimiento: l.fecha_vencimiento,
         cantidad: Number(l.cantidad_disponible),
         fuente: l.source?.nombre ?? "—",
-        proveedor: l.proveedor,
+        proveedor: p.supplier?.nombre ?? l.proveedor,
         fechaActualizacion: l.fecha_actualizacion,
       });
     }
