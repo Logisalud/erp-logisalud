@@ -754,6 +754,28 @@ Cómo funciona (migración `1030_numero_al_enviar.sql`):
   quedaron como están porque esos números ya salieron por correo, y el
   contador arrancó desde el máximo ya enviado.
 
+### Descartar un borrador
+
+Un pedido **en borrador** lo puede borrar su vendedor o un administrador,
+desde el propio pedido ("Descartar" al pie de la pantalla). Se lleva con él
+las líneas, las observaciones y el historial (`on delete cascade`).
+
+Un pedido **enviado no se borra nunca**, ni por un administrador: ya salió
+por correo y tiene número, así que borrarlo dejaría a la oficina con un
+correo que no corresponde a ningún pedido. Lo que se hace con un pedido
+enviado que no va es dejarlo en su estado de excepción, no hacerlo
+desaparecer. La regla la impone la base (policy `orders_delete_draft`,
+migración `1031`), no la pantalla: un `DELETE` sobre un pedido enviado
+devuelve cero filas aunque lo pida un administrador.
+
+Antes de borrar, el pedido completo —cliente, vendedor y todas sus
+líneas— queda copiado en `audit_logs` como `eliminar_pedido_borrador`. El
+cascade se lleva las líneas, así que si no se copian antes no queda rastro
+de qué tenía el pedido.
+
+Descartar un borrador **no deja hueco en la numeración**, porque un
+borrador todavía no tiene número.
+
 **No es un número de comprobante fiscal.** Ese lo emite el proveedor de
 facturación electrónica al despachar, y no tiene por qué coincidir.
 

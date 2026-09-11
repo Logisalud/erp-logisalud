@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getCurrentUser, requireUserId } from "@/lib/auth/session";
 import {
   addOrderItem,
   changeOrderCustomer,
+  deleteDraftOrder,
   marcarBonificacionManual,
   quitarBonificacionManual,
   removeOrderItem,
@@ -251,4 +253,30 @@ export async function cambiarCantidad(orderId: string, itemId: string, cantidad:
   const userId = await requireUserId();
   await updateOrderItemQuantity({ orderId, itemId, cantidad, actor: userId });
   revalidatePath(`/pedidos/${orderId}`);
+}
+
+/**
+ * Descartar el borrador y volver a la lista.
+ *
+ * No exige rol acá: lo puede hacer el vendedor dueño del borrador y el
+ * administrador, y quién es quién lo decide la policy `orders_delete_draft`
+ * en la base, que es la que de verdad manda. Esta capa solo traduce el
+ * desenlace a algo legible.
+ */
+export async function borrarBorrador(orderId: string) {
+  const userId = await requireUserId();
+  const resultado = await deleteDraftOrder(orderId, userId);
+
+  if (!resultado.ok) {
+    const mensajes: Record<typeof resultado.reason, string> = {
+      NO_ENCONTRADO: "Este pedido ya no existe.",
+      NO_ES_BORRADOR: "Este pedido ya fue enviado, así que no se puede borrar.",
+      SIN_PERMISO: "No puedes borrar este pedido: solo su vendedor o un administrador.",
+    };
+    throw new Error(mensajes[resultado.reason]);
+  }
+
+  // El pedido ya no existe: quedarse en /pedidos/[id] sería un 404.
+  revalidatePath("/pedidos");
+  redirect("/pedidos");
 }

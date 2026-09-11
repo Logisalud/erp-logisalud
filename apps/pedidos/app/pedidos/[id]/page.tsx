@@ -10,6 +10,7 @@ import { displayRazonSocial } from "@/domain/customer-search";
 import { OrderItemComposer } from "./order-item-composer";
 import { OrderHeader } from "./order-header";
 import { ObservationForm } from "./observation-form";
+import { DeleteDraftButton } from "./delete-draft-button";
 import { displayNombreProducto, esOfrecibleEnPedido } from "@/domain/products";
 import { IconDownload } from "@/components/icons";
 import { estadoEstilo, estadoLabel } from "@/domain/order-status";
@@ -87,6 +88,23 @@ export default async function OrderDetailPage({
             observaciones={order.observations}
             esAdmin={currentUser?.roles.includes("administrador") ?? false}
           />
+
+          {/*
+            Descartar el borrador va en su propio panel y al final, no en la
+            barra del pie: ahí está "Enviar pedido", y dos botones que hacen
+            lo contrario a un dedo de distancia se aciertan al revés.
+            Quién puede borrarlo lo decide la policy `orders_delete_draft`;
+            el botón se muestra a cualquiera que pueda ver el borrador, y si
+            no le corresponde, la base lo frena y sale el mensaje.
+          */}
+          <section className="panel p-4">
+            <h3 className="text-lg text-slate-900">Descartar</h3>
+            <p className="mb-3 mt-1 text-sm text-slate-600">
+              Si este pedido se cargó por error o quedó a medias, se puede borrar. Todavía no se
+              envió a nadie.
+            </p>
+            <DeleteDraftButton orderId={order.id} />
+          </section>
         </>
       ) : (
         <>

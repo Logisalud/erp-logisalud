@@ -878,3 +878,86 @@ export async function updateOrderItemQuantity(input: {
     datosDespues: { cantidad: input.cantidad },
   });
 }
+
+export type DeleteDraftResult =
+  | { ok: true }
+  | { ok: false; reason: "NO_ENCONTRADO" | "NO_ES_BORRADOR" | "SIN_PERMISO" };
+
+/**
+ * Descarta un pedido en borrador.
+ *
+ * Solo borradores: un pedido enviado ya salió por correo y tiene número, así
+ * que borrarlo dejaría a la oficina con un correo que no corresponde a nada.
+ * La regla la impone la policy `orders_delete_draft` (migración 1031); acá se
+ * repite el chequeo únicamente para poder devolver un mensaje entendible en
+ * vez de un "no se borró nada" a secas.
+ *
+ * El orden importa: primero se lee el pedido —que es lo que va a la
+ * bitácora, porque el cascade se lleva las líneas y después ya no hay qué
+ * copiar—, después se borra, y la auditoría se escribe solo si el borrado de
+ * verdad ocurrió. Al revés quedarían registros de borrados que nunca pasaron.
+ *
+ * La lectura no reusa `getOrderDetail`: para la bitácora sobran el historial,
+ * las observaciones y la condición de pago, y son tres consultas más.
+ */
+export async function deleteDraftOrder(orderId: string, actor: string): Promise<DeleteDraftResult> {
+  const supabase = createClient();
+
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select("id, estado, seller_id, customer_id, fecha_creacion, customer:customers(razon_social)")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (orderError) throw new Error(orderError.message);
+  if (!order) return { ok: false, reason: "NO_ENCONTRADO" };
+  if (order.estado !== "DRAFT") return { ok: false, reason: "NO_ES_BORRADOR" };
+
+  const { data: items, error: itemsError } = await supabase
+    .from("order_items")
+    .select("product_id, cantidad, precio_unitario, total, product:products(codigo_interno)")
+    .eq("order_id", orderId);
+
+  if (itemsError) throw new Error(itemsError.message);
+
+  const { data: borrados, error } = await supabase
+    .from("orders")
+    .delete()
+    .eq("id", orderId)
+    // Redundante con la policy, y a propósito: si alguien algún día relaja la
+    // policy, esta condición sigue impidiendo borrar un pedido enviado.
+    .eq("estado", "DRAFT")
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  // RLS no devuelve error cuando bloquea un DELETE: devuelve cero filas.
+  if (!borrados || borrados.length === 0) return { ok: false, reason: "SIN_PERMISO" };
+
+  const customer = order.customer as unknown as { razon_social: string } | null;
+
+  await logAudit({
+    actor,
+    accion: "eliminar_pedido_borrador",
+    entidad: "orders",
+    entidadId: orderId,
+    datosAntes: {
+      estado: order.estado,
+      customer_id: order.customer_id,
+      razon_social: customer?.razon_social ?? null,
+      seller_id: order.seller_id,
+      fecha_creacion: order.fecha_creacion,
+      items: (items ?? []).map((i) => {
+        const product = i.product as unknown as { codigo_interno: string } | null;
+        return {
+          product_id: i.product_id,
+          codigo_interno: product?.codigo_interno ?? null,
+          cantidad: i.cantidad,
+          precio_unitario: i.precio_unitario,
+          total: i.total,
+        };
+      }),
+    },
+  });
+
+  return { ok: true };
+}
