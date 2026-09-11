@@ -27,11 +27,11 @@
  */
 
 /** De qué tabla sale cada grupo — decide qué consultas correr. */
-export const FUENTES_APROBACION = ['pago_directo', 'gasto', 'caja_chica', 'os'] as const
+export const FUENTES_APROBACION = ['pago_directo', 'gasto', 'caja_chica', 'os', 'propuesta'] as const
 export type FuenteAprobacion = (typeof FUENTES_APROBACION)[number]
 
 /** Lo que ve la persona en la columna "Tipo" — `gasto` se abre en dos. */
-export type TipoPendiente = 'pago_directo' | 'anticipo' | 'reembolso' | 'caja_chica' | 'os'
+export type TipoPendiente = 'pago_directo' | 'anticipo' | 'reembolso' | 'caja_chica' | 'os' | 'propuesta'
 
 export const ETIQUETA_TIPO_PENDIENTE: Record<TipoPendiente, string> = {
   pago_directo: 'Pago Directo',
@@ -39,6 +39,7 @@ export const ETIQUETA_TIPO_PENDIENTE: Record<TipoPendiente, string> = {
   reembolso: 'Reembolso',
   caja_chica: 'Reposición de Caja Chica',
   os: 'Orden de Servicio',
+  propuesta: 'Propuesta de pago',
 }
 
 /** Estados en los que cada fuente está esperando una decisión real. */
@@ -50,6 +51,12 @@ export const ESTADOS_QUE_ESPERAN_DECISION: Record<FuenteAprobacion, readonly str
   // Dos decisores distintos según el estado — ver `quienDecideCajaChica`.
   caja_chica: ['pendiente_jefe', 'pendiente_contabilidad'],
   os: ['pendiente_jefe'],
+  // Un lote esperando la firma de Contabilidad. Quedó fuera de la primera
+  // versión de esta pantalla porque entonces lo aprobaba Gerencia y tenía su
+  // propia pantalla; la Pieza I cambió el aprobador a contabilidad+admin y
+  // esa razón dejó de valer, pero la lista de fuentes no se actualizó — así
+  // que había lotes esperando sin que ninguna bandeja los mostrara.
+  propuesta: ['pendiente_aprobacion'],
 }
 
 export type PerfilAprobador = { area: string | null; rol: string | null } | null
@@ -89,6 +96,9 @@ export function fuentesQueMeTocan(perfil: PerfilAprobador, misAreas: readonly st
   if (contabilidad || jefe) fuentes.push('caja_chica')
   // La OS la aprueba el jefe del área usuaria. Contabilidad no decide acá.
   if (esAdmin(perfil) || jefe) fuentes.push('os')
+  // Mismo gate que la pantalla de propuestas — se reusa `puedeAprobarPropuesta`
+  // en el servicio en vez de repetir el criterio acá.
+  if (contabilidad) fuentes.push('propuesta')
   return fuentes
 }
 
