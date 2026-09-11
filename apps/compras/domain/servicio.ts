@@ -171,6 +171,11 @@ export type BorradorObligacionServicio = {
   tipoCambio?: number | null
   baseImponible: number
   igv: number
+  /** La operación no está gravada. A diferencia de `monto_incluye_igv` de la
+   * OS —que dice si el monto ESTIMADO ya traía IGV, y solo sirve para
+   * comparar la factura contra el presupuesto— esto es un hecho tributario
+   * de la factura real. Ver la migración 0046. */
+  sinIgv?: boolean
   /** Detracción declarada por quien registra — ver domain/obligacion.ts::validarDeclaracionDetraccion. */
   tieneDetraccion?: boolean | null
   porcentajeDetraccion?: number | null

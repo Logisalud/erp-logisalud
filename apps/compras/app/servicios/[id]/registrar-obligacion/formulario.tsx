@@ -18,20 +18,30 @@ export function FormularioObligacionServicio({
   const [base, setBase] = useState('')
   const [igv, setIgv] = useState('')
   const [igvEditadoAMano, setIgvEditadoAMano] = useState(false)
+  const [sinIgv, setSinIgv] = useState(false)
   const [tieneDetraccion, setTieneDetraccion] = useState<boolean | null>(null)
   const [porcentajeDetraccion, setPorcentajeDetraccion] = useState('')
   const [montoDetraccion, setMontoDetraccion] = useState('')
 
   const cambiarBase = (valor: string) => {
     setBase(valor)
+    if (sinIgv) {
+      setIgv('0')
+      return
+    }
     if (!igvEditadoAMano) {
       const n = Number(valor)
       setIgv(n > 0 ? (Math.round(n * SUGERENCIA_IGV * 100) / 100).toString() : '')
     }
   }
 
-  const total = (Number(base) || 0) + (Number(igv) || 0)
-  const superaMontoOS = facturaSuperaMontoOS(Number(base) || 0, Number(igv) || 0, montoEstimado, montoIncluyeIgv)
+  // El IGV efectivo se deriva del check, no del estado `igv`: al marcarlo, el
+  // valor viejo del 18% sigue en `igv` y el total quedaría inflado si se
+  // leyera de ahí. El input lo espeja y manda 0 al submit (readOnly igual
+  // viaja en el FormData).
+  const igvEfectivo = sinIgv ? 0 : Number(igv) || 0
+  const total = (Number(base) || 0) + igvEfectivo
+  const superaMontoOS = facturaSuperaMontoOS(Number(base) || 0, igvEfectivo, montoEstimado, montoIncluyeIgv)
 
   return (
     <form action={accion} className="space-y-4">
@@ -65,14 +75,32 @@ export function FormularioObligacionServicio({
           </Campo>
           <Campo etiqueta="IGV" error={errorDe('igv')}>
             <input
-              type="number" name="igv" min="0" step="0.01" value={igv}
+              type="number" name="igv" min="0" step="0.01" value={sinIgv ? '0' : igv}
+              readOnly={sinIgv}
               onChange={(e) => { setIgv(e.target.value); setIgvEditadoAMano(true) }}
-              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+              className={`min-h-12 w-full rounded-md border border-gray-300 px-3 ${sinIgv ? 'bg-gray-100 text-gray-500' : ''}`}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Sugerido en 18% de la base — cambialo si la factura trae otro valor (por ejemplo, 0 en
-              un proveedor de un régimen que no discrimina IGV).
+              {sinIgv
+                ? 'La operación se declaró como no gravada: el IGV queda en 0.'
+                : 'Sugerido en 18% de la base — cambialo si la factura trae otro valor.'}
             </p>
+            {/* Antes este caso se resolvía escribiendo 0 a mano, y ese 0 se
+                guardaba igual que un error de tipeo. Marcarlo lo deja
+                registrado como decisión (columna `sin_igv`, migración 0046). */}
+            <label className="mt-2 flex items-start gap-2 text-sm">
+              <input
+                type="checkbox" name="sinIgv" value="true" checked={sinIgv}
+                onChange={(e) => {
+                  setSinIgv(e.target.checked)
+                  // Al desmarcar vuelve a la sugerencia del 18%, no al 0 que
+                  // quedó escrito mientras el check estaba activo.
+                  if (!e.target.checked) setIgvEditadoAMano(false)
+                }}
+                className="mt-0.5 h-5 w-5 rounded border-gray-300"
+              />
+              <span className="font-medium">Sin IGV (no genera IGV)</span>
+            </label>
           </Campo>
         </div>
 

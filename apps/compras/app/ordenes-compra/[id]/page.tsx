@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
+import { MarcaDocumento } from '@/components/marca-documento'
 import { Money } from '@/components/money'
 import { StepperOrden, TarjetaSiguientePaso } from '@/components/stepper-orden'
 import { Historial } from '@/components/historial'
@@ -46,6 +47,7 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
+      <MarcaDocumento etiqueta="Orden de compra" />
       <Encabezado
         titulo={oc.codigo}
         atras={{ href: '/ordenes-compra', texto: 'Órdenes de compra' }}
