@@ -64,6 +64,19 @@ Beatriz en Pago Directo: es cosmético hasta que se cierre (a) y (b).
   dejar una obligación huérfana. El módulo entero no usa transacciones (no hay
   un solo `supabase.rpc`), así que esto es un caso particular de un patrón
   general, no un bug aislado.
+- **Estado `cerrada` muerto en `cuentas_x_pagar.obligaciones`** (encontrado
+  2026-09-11 al agrupar los estados del listado): está en `ESTADOS_OBLIGACION`,
+  en el CHECK de la base, en `ETIQUETA_ESTADO` y en las transiciones
+  (`pagada → cerrada`), pero **ningún código lo escribe** — `ejecutarPago`
+  deja la obligación en `pagada` y ahí termina. `obligacionPagada()` ya trata
+  a los dos igual, y en producción hay 0 filas en cada uno. Ojo: `cerrada` SÍ
+  es un estado real y usado en `ordenes_compra`, `ordenes_servicio`,
+  `caja_chica.reposiciones` y `solicitudes_gasto` — la misma palabra hace
+  trabajo real en cuatro tablas y decorativo en la quinta, que es de donde
+  viene la confusión. **Decisión pendiente: implementarlo de verdad (¿qué
+  significaría cerrar una obligación ya pagada?) o eliminarlo del modelo.**
+  Mientras siga así, el filtro del listado los agrupa bajo "Pagada", porque
+  separarlos ofrecería una categoría que nunca tendría filas.
 
 ---
 
