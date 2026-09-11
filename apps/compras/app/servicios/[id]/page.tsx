@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
+import { MarcaDocumento } from '@/components/marca-documento'
 import { Money } from '@/components/money'
 import { StepperOrden, TarjetaSiguientePaso } from '@/components/stepper-orden'
 import { Historial } from '@/components/historial'
@@ -25,10 +26,17 @@ export default async function DetalleOS({ params }: { params: { id: string } }) 
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
+      <MarcaDocumento etiqueta="Orden de servicio" />
       <Encabezado titulo={os.codigo} atras={{ href: '/servicios', texto: 'Servicios' }} />
 
       <div className="mb-4 overflow-x-auto">
         <StepperOrden pasos={PASOS_OS} pasoAlcanzado={pasoAlcanzadoOS(os.estado)} />
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-start gap-2">
+        <Link href={`/servicios/${os.id}/imprimir`} className="btn-secondary">
+          Descargar PDF
+        </Link>
       </div>
 
       <TarjetaSiguientePaso texto={siguientePasoOS(os.estado)} />

@@ -7,7 +7,8 @@ import { registrarPagoDirectoAction, type EstadoFormulario } from './actions'
 import {
   CONDICIONES_PAGO_DIAS,
   etiquetaCondicionPago,
-  igvDeBase,
+  igvSegun,
+  totalSegun,
 } from '@/domain/obligacion'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
 import { CampoDetraccion } from '@/components/campo-detraccion'
@@ -31,13 +32,15 @@ export function FormularioPagoDirecto({
   const [porcentajeDetraccion, setPorcentajeDetraccion] = useState('')
   const [montoDetraccion, setMontoDetraccion] = useState('')
   const [pendienteFactura, setPendienteFactura] = useState(false)
+  const [sinIgv, setSinIgv] = useState(false)
   const [condicionPagoDias, setCondicionPagoDias] = useState<number | null>(null)
 
   // Pieza B1: el IGV no es editable, pero sí tiene que verse mientras se
   // escribe la base — antes había que guardar para descubrir el total.
+  // Con "Sin IGV" marcado vale 0 y el total es la base sola (migración 0046).
   const base = Number(baseImponible) || 0
-  const igv = igvDeBase(base)
-  const total = base + igv
+  const igv = igvSegun(base, sinIgv)
+  const total = totalSegun(base, sinIgv)
 
   // Pieza F: se propone la condición del proveedor y se puede ajustar. El
   // `??` mira el estado local primero para no pisar lo que la persona eligió
@@ -191,11 +194,31 @@ export function FormularioPagoDirecto({
             onChange={(e) => setBaseImponible(e.target.value)}
             className="min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
+          {/* Aplica a todas las categorías por igual: lo que decide si hay
+              IGV es la operación real (ej. un alquiler a persona natural),
+              no en qué casillero del catálogo cayó el gasto. */}
+          <label className="mt-2 flex items-start gap-2 text-sm">
+            <input
+              type="checkbox" name="sinIgv" value="true" checked={sinIgv}
+              onChange={(e) => setSinIgv(e.target.checked)}
+              className="mt-0.5 h-5 w-5 rounded border-gray-300"
+            />
+            <span>
+              <span className="font-medium">Sin IGV (no genera IGV)</span>
+              <span className="mt-0.5 block text-xs text-gray-500">
+                Marca esto si la operación no está gravada — por ejemplo un alquiler a una persona
+                natural. El IGV queda en 0 y el total es la base sola.
+              </span>
+            </span>
+          </label>
         </Campo>
 
         <div className="sm:col-span-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
           <div className="flex justify-between"><span className="text-gray-600">Base imponible</span><span className="tabular-nums">{fmt(base)}</span></div>
-          <div className="flex justify-between"><span className="text-gray-600">IGV (18%)</span><span className="tabular-nums">{fmt(igv)}</span></div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">{sinIgv ? 'IGV (no aplica)' : 'IGV (18%)'}</span>
+            <span className="tabular-nums">{fmt(igv)}</span>
+          </div>
           <div className="mt-1 flex justify-between border-t border-gray-200 pt-1 font-semibold">
             <span>Total</span><span className="tabular-nums">{fmt(total)}</span>
           </div>

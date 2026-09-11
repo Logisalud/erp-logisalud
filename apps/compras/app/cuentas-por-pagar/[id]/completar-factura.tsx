@@ -2,7 +2,7 @@
 
 import { useFormState, useFormStatus } from 'react-dom'
 import { completarFacturaAction, type EstadoCompletarFactura } from '@/app/pago-directo/nueva/actions'
-import { igvDeBase } from '@/domain/obligacion'
+import { igvSegun, totalSegun } from '@/domain/obligacion'
 import { useState } from 'react'
 
 /**
@@ -17,9 +17,10 @@ export function CompletarFactura({ obligacionId, baseCotizada }: { obligacionId:
   const accionConId = completarFacturaAction.bind(null, obligacionId)
   const [estado, accion] = useFormState<EstadoCompletarFactura, FormData>(accionConId, null)
   const [base, setBase] = useState(String(baseCotizada))
+  const [sinIgv, setSinIgv] = useState(false)
 
   const baseNum = Number(base) || 0
-  const igv = igvDeBase(baseNum)
+  const igv = igvSegun(baseNum, sinIgv)
 
   return (
     <form action={accion} className="mt-4 space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
@@ -52,8 +53,18 @@ export function CompletarFactura({ obligacionId, baseCotizada }: { obligacionId:
             className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
           <span className="mt-1 block text-xs text-gray-600">
-            IGV {igv.toFixed(2)} · total {(baseNum + igv).toFixed(2)}
+            {sinIgv ? 'Sin IGV' : `IGV ${igv.toFixed(2)}`} · total {totalSegun(baseNum, sinIgv).toFixed(2)}
           </span>
+          {/* La factura real manda sobre lo que se asumió en la cotización:
+              puede llegar gravada aunque se haya cargado sin IGV, o al revés. */}
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox" name="sinIgv" value="true" checked={sinIgv}
+              onChange={(e) => setSinIgv(e.target.checked)}
+              className="h-5 w-5 rounded border-gray-300"
+            />
+            <span>Sin IGV (no genera IGV)</span>
+          </label>
         </label>
       </div>
 

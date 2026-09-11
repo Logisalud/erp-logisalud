@@ -18,6 +18,7 @@ export async function registrarObligacionServicioAction(
     tipoCambio: form.get('tipoCambio') ? Number(form.get('tipoCambio')) : null,
     baseImponible: Number(form.get('baseImponible') ?? 0),
     igv: Number(form.get('igv') ?? 0),
+    sinIgv: form.get('sinIgv') === 'true',
     tieneDetraccion: leerTieneDetraccion(form.get('tieneDetraccion')),
     porcentajeDetraccion: form.get('porcentajeDetraccion') ? Number(form.get('porcentajeDetraccion')) : null,
     montoDetraccion: form.get('montoDetraccion') ? Number(form.get('montoDetraccion')) : null,

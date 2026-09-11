@@ -4,6 +4,7 @@ import {
   calcularFechaVencimientoReal,
   conciliarLineas,
   igvDeBase,
+  igvSegun,
   normalizarNumeroFactura,
   redondear,
   TASA_IGV,
@@ -848,7 +849,8 @@ export async function registrarPagoDirecto(
       // Pieza B2: esto FALTABA — la columna tiene default 0, así que todo
       // Pago Directo quedaba con IGV 0 y, como `total` y `neto_a_pagar` son
       // columnas generadas sobre (base + igv), Tesorería veía 18% de menos.
-      igv: igvDeBase(borrador.baseImponible),
+      igv: igvSegun(borrador.baseImponible, borrador.sinIgv),
+      sin_igv: !!borrador.sinIgv,
       condicion_pago_dias: condicionPagoDias,
       // Sesión 2026-09-07: ya no se elige una categoría de
       // `tasas_detraccion` (catálogo nunca cargado) — quien registra
@@ -885,6 +887,8 @@ export async function completarFacturaPagoDirecto(input: {
   numeroFactura: string
   fechaFactura: string
   baseImponible: number
+  /** Ver `igvSegun`: lo declara quien completa, mirando la factura real. */
+  sinIgv?: boolean
 }): Promise<void> {
   const supabase = crearClienteServidor()
 
@@ -918,7 +922,10 @@ export async function completarFacturaPagoDirecto(input: {
       numero_factura: numeroFacturaNormalizado,
       fecha_factura: input.fechaFactura,
       base_imponible: input.baseImponible,
-      igv: igvDeBase(input.baseImponible),
+      // La factura real manda: si llega gravada, deja de ser "sin IGV"
+      // aunque la cotización se hubiera cargado así (y al revés).
+      igv: igvSegun(input.baseImponible, input.sinIgv),
+      sin_igv: !!input.sinIgv,
       estado: 'registrada',
       fecha_vencimiento_real: calcularFechaVencimientoReal(input.fechaFactura, obligacion.condicion_pago_dias ?? 0),
     })

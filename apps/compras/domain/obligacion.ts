@@ -395,6 +395,9 @@ export type BorradorPagoDirecto = BorradorObligacion & {
   /** Detracción declarada por quien registra — ver validarDeclaracionDetraccion. */
   tieneDetraccion?: boolean | null
   porcentajeDetraccion?: number | null
+  /** La operación no está gravada (ej. alquiler a persona natural). Ver
+   * `igvSegun` y la migración 0046: se declara, no se infiere de igv = 0. */
+  sinIgv?: boolean
 }
 
 /**
@@ -413,6 +416,22 @@ export function igvDeBase(baseImponible: number): number {
   return redondear((Number(baseImponible) || 0) * TASA_IGV)
 }
 
+/**
+ * El IGV real de una operación: 0 si se declaró como no gravada, el 18% de
+ * la base si no. Un solo lugar para la regla, porque la usan el formulario
+ * (para mostrar el total mientras se escribe) y el servicio (para guardar) —
+ * si cada uno la calculara por su lado volverían a divergir, que es
+ * exactamente lo que pasó en la Pieza B2.
+ */
+export function igvSegun(baseImponible: number, sinIgv: boolean | undefined): number {
+  return sinIgv ? 0 : igvDeBase(baseImponible)
+}
+
+/** Base + IGV, respetando "Sin IGV". Espeja las columnas generadas `total`/`neto_a_pagar`. */
+export function totalSegun(baseImponible: number, sinIgv: boolean | undefined): number {
+  return redondear((Number(baseImponible) || 0) + igvSegun(baseImponible, sinIgv))
+}
+
 export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
   const errores = b.pendienteFactura ? validarObligacionSinFactura(b) : validarObligacion(b)
   if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elige una categoría.' })
@@ -420,7 +439,10 @@ export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
     errores.push({ campo: 'condicionPagoDias', mensaje: 'Elige una condición de pago de la lista.' })
   }
   if (!b.descripcion.trim()) errores.push({ campo: 'descripcion', mensaje: 'Cuenta para qué es este gasto.' })
-  if (b.moneda === 'PEN' && b.baseImponible * (1 + TASA_IGV) >= TOPE_PAGO_DIRECTO_PEN) {
+  // El tope y la detracción se miden contra el total REAL: una operación sin
+  // IGV que roza el tope no debe empujarse a OC/OS por un 18% que no existe.
+  const total = totalSegun(b.baseImponible, b.sinIgv)
+  if (b.moneda === 'PEN' && total >= TOPE_PAGO_DIRECTO_PEN) {
     errores.push({
       campo: 'baseImponible',
       mensaje: `Pago directo es para montos menores a S/${TOPE_PAGO_DIRECTO_PEN.toLocaleString('es-PE')} — con esto, la compra tiene que pasar por una Orden de Compra o de Servicio.`,
@@ -428,7 +450,7 @@ export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
   }
   errores.push(
     ...validarDeclaracionDetraccion({
-      total: redondear(b.baseImponible * (1 + TASA_IGV)),
+      total,
       moneda: b.moneda as 'PEN' | 'USD',
       tieneDetraccion: b.tieneDetraccion ?? null,
       porcentaje: b.porcentajeDetraccion,
