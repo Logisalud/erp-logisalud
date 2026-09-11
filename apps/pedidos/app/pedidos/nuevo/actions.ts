@@ -13,6 +13,8 @@ import { listPaymentTerms } from "@/services/catalog";
 import { validarCondicionDePago } from "@/domain/payment-terms";
 import { listDistritos, listProvincias, resolverUbigeo } from "@/services/ubigeos";
 import {
+  ClienteDuplicadoError,
+  type ActiveCustomerOption,
   MENSAJE_SIN_ZONA_ASIGNADA,
   MENSAJE_ZONA_AJENA,
   addCustomerAddress,
@@ -63,6 +65,21 @@ export async function agregarDireccionCliente(input: {
   departamento?: string;
   provincia?: string;
   distrito?: string;
+}): Promise<ResultadoAccion<{ direccion: Awaited<ReturnType<typeof addCustomerAddress>> }>> {
+  try {
+    return { ok: true, direccion: await altaDeDireccion(input) };
+  } catch (err) {
+    return comoFallo(err, "No se pudo guardar la dirección.");
+  }
+}
+
+async function altaDeDireccion(input: {
+  customerId: string;
+  direccion: string;
+  referencia?: string;
+  departamento?: string;
+  provincia?: string;
+  distrito?: string;
 }) {
   const userId = await requireUserId();
 
@@ -87,6 +104,50 @@ export async function agregarDireccionCliente(input: {
   });
 }
 
+/**
+ * Por qué estas acciones DEVUELVEN el error en vez de lanzarlo.
+ *
+ * Next reemplaza el mensaje de cualquier excepción de una Server Action por
+ * "An error occurred in the Server Components render…" en producción, para
+ * no filtrar detalles del servidor. Eso es correcto para un error inesperado
+ * y pésimo para uno previsto: el 2026-09-11 una vendedora chocó 11 veces
+ * contra "ese RUC ya está en la cartera" y en pantalla leyó siempre el aviso
+ * genérico, sin manera de saber que el cliente ya existía. Un mensaje que
+ * está escrito para que lo lea el usuario tiene que viajar como valor de
+ * retorno, no como excepción.
+ */
+export type ResultadoAccion<T> =
+  | ({ ok: true } & T)
+  | { ok: false; mensaje: string; clienteExistente?: ClienteExistente };
+
+export type ClienteExistente = {
+  id: string;
+  razonSocial: string;
+  nombreComercial: string | null;
+  rucODocumento: string;
+  estado: string;
+};
+
+function comoFallo(err: unknown, porDefecto: string): { ok: false; mensaje: string; clienteExistente?: ClienteExistente } {
+  if (err instanceof ClienteDuplicadoError) {
+    const c = err.existente;
+    return {
+      ok: false,
+      mensaje: err.message,
+      clienteExistente: c
+        ? {
+            id: c.id,
+            razonSocial: c.razon_social,
+            nombreComercial: c.nombre_comercial,
+            rucODocumento: c.ruc_o_documento,
+            estado: c.estado,
+          }
+        : undefined,
+    };
+  }
+  return { ok: false, mensaje: err instanceof Error ? err.message : porDefecto };
+}
+
 export async function crearClienteNuevo(input: {
   razonSocial: string;
   rucODocumento: string;
@@ -100,7 +161,27 @@ export async function crearClienteNuevo(input: {
   /** Los dos opcionales: no frenan el alta de un cliente desde la calle. */
   celular?: string;
   direccionFiscal?: string;
-}) {
+}): Promise<ResultadoAccion<{ customer: ActiveCustomerOption; addressId: string }>> {
+  try {
+    return { ok: true, ...(await altaDeCliente(input)) };
+  } catch (err) {
+    return comoFallo(err, "No se pudo registrar el cliente.");
+  }
+}
+
+async function altaDeCliente(input: {
+  razonSocial: string;
+  rucODocumento: string;
+  canalId: number;
+  zonaId: number;
+  condicionPagoHabitualId: number;
+  direccion: string;
+  departamento: string;
+  provincia: string;
+  distrito: string;
+  celular?: string;
+  direccionFiscal?: string;
+}): Promise<{ customer: ActiveCustomerOption; addressId: string }> {
   const userId = await requireUserId();
 
   const razonSocial = input.razonSocial.trim();
@@ -150,7 +231,22 @@ export async function crearClienteNuevo(input: {
   return { customer, addressId };
 }
 
-export async function crearBorrador(formData: FormData) {
+export async function crearBorrador(
+  formData: FormData,
+): Promise<{ ok: false; mensaje: string } | never> {
+  let destino: string;
+  try {
+    destino = await armarBorrador(formData);
+  } catch (err) {
+    return comoFallo(err, "No se pudo crear el pedido.");
+  }
+  // Fuera del try: `redirect()` corta lanzando, y atraparlo lo convertiría
+  // en un mensaje de error con el pedido ya creado.
+  redirect(`/pedidos/${destino}`);
+}
+
+/** Arma el borrador y devuelve su id. Lanza con mensajes ya legibles. */
+async function armarBorrador(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
   const userId = await requireUserId();
   if (!user) throw new Error("No autenticado.");
@@ -195,5 +291,5 @@ export async function crearBorrador(formData: FormData) {
     diasCreditoSolicitados: condicion.diasCreditoSolicitados,
   });
 
-  redirect(`/pedidos/${draft.id}`);
+  return draft.id;
 }

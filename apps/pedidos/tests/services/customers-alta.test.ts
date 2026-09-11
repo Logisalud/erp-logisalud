@@ -15,10 +15,24 @@ const escrito = {
   addresses: [] as Array<Record<string, unknown>>,
 };
 
+/** Cuando está puesto, el insert de `customers` falla con ese error. */
+let errorDeInsert: { code: string; message: string } | null = null;
+/** Lo que devuelve la búsqueda del cliente que ya tenía el documento. */
+let clienteQueYaExiste: Record<string, unknown> | null = null;
+
 function tabla(nombre: string): any {
   if (nombre === "customers") {
     return {
+      // La búsqueda del duplicado: `.select().eq().maybeSingle()`.
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => ({ data: clienteQueYaExiste, error: null }) }),
+      }),
       insert: (fila: Record<string, unknown>) => {
+        if (errorDeInsert) {
+          return {
+            select: () => ({ single: async () => ({ data: null, error: errorDeInsert }) }),
+          };
+        }
         escrito.customers.push(fila);
         return {
           select: () => ({
@@ -53,7 +67,7 @@ function tabla(nombre: string): any {
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: () => ({ from: tabla }) }));
 
-import { requestNewCustomer } from "@/services/customers";
+import { ClienteDuplicadoError, requestNewCustomer } from "@/services/customers";
 
 const BASE = {
   rucODocumento: "20517006514",
@@ -72,6 +86,8 @@ const BASE = {
 beforeEach(() => {
   escrito.customers = [];
   escrito.addresses = [];
+  errorDeInsert = null;
+  clienteQueYaExiste = null;
 });
 
 describe("alta de cliente nuevo", () => {
@@ -97,5 +113,46 @@ describe("alta de cliente nuevo", () => {
     expect(escrito.customers[0].whatsapp).toBeNull();
     expect(escrito.customers[0].direccion_fiscal).toBeNull();
     expect(escrito.addresses[0].ubigeo).toBe("150140");
+  });
+});
+
+describe("cuando el RUC ya está en la cartera", () => {
+  /**
+   * Pasó 11 veces en un día con una sola vendedora: el documento ya existía
+   * entre los 3.4k clientes y en pantalla sólo salía un error de servidor.
+   * Saber CUÁL es el cliente es lo único que le sirve, porque no quería
+   * registrar uno nuevo sino atender a ese.
+   */
+  const DUPLICADO = { code: "23505", message: 'duplicate key value violates unique constraint' };
+
+  it("dice de quién es el documento", async () => {
+    errorDeInsert = DUPLICADO;
+    clienteQueYaExiste = {
+      id: "c-ya",
+      razon_social: "NICOVAL MEDIC SALUD E.I.R.L.",
+      nombre_comercial: null,
+      ruc_o_documento: BASE.rucODocumento,
+      canal_id: 3,
+      condicion_pago_habitual_id: 1,
+      estado: "ACTIVO",
+    };
+
+    const fallo = await requestNewCustomer(BASE).catch((err) => err);
+
+    expect(fallo).toBeInstanceOf(ClienteDuplicadoError);
+    expect(fallo.message).toContain("NICOVAL MEDIC SALUD E.I.R.L.");
+    expect(fallo.existente.id).toBe("c-ya");
+    // No se creó ninguna dirección suelta para un cliente que no se creó.
+    expect(escrito.addresses).toHaveLength(0);
+  });
+
+  it("si no logra identificarlo, avisa igual en vez de romper", async () => {
+    errorDeInsert = DUPLICADO;
+    clienteQueYaExiste = null;
+
+    const fallo = await requestNewCustomer(BASE).catch((err) => err);
+
+    expect(fallo).toBeInstanceOf(ClienteDuplicadoError);
+    expect(fallo.existente).toBeNull();
   });
 });

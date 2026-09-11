@@ -67,7 +67,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-const { publishStockImport, previewStockImport } = await import("@/services/stock-import");
+import { previewStockImport, publishStockImport } from "@/services/stock-import";
 
 function archivo(csv: string): File {
   return new File([csv], "stock.csv", { type: "text/csv" });
