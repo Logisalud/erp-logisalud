@@ -1166,6 +1166,18 @@ directo, que sí las tiene.
   del almacén; que el catálogo diga lo contrario es un dato del catálogo por
   corregir. Hoy los 235 productos lo tienen en `false`, así que el aviso sale
   agrupado en una línea y no una vez por fila.
+- **Una columna que el archivo no trae NO borra lo que ya está guardado.**
+  Encontrado en producción el 2026-09-11: dos cargas seguidas con archivos
+  sin columna `PROVEEDOR` dejaron los 382 lotes sin proveedor, porque el
+  upsert mandaba `proveedor: null` para todas las filas. PostgREST arma la
+  lista de columnas con la unión de las claves del payload, así que la única
+  forma de no tocar una columna es que no aparezca en ninguna fila: las
+  filas que traen proveedor se escriben en un upsert y las que no, en otro.
+  Lo mismo vale para una celda vacía dentro de una columna que sí existe: un
+  vacío es "no informado", no "sin proveedor". La vista previa dice qué
+  columnas opcionales faltan antes de publicar, porque la ausencia es
+  silenciosa: la carga funciona igual y uno se entera al día siguiente
+  mirando la pantalla.
 
 ### Pantalla de Stock, para todos los roles
 
@@ -1175,6 +1187,14 @@ ofrecérselo a un cliente, y hasta ahora el stock vivía dentro de Maestros,
 que sólo ve el administrador. Muestra código, producto, lote, vencimiento,
 cantidad, fuente y proveedor, ordenado por **vencimiento más próximo
 primero** (la pregunta operativa real: qué hay que sacar antes).
+
+**El proveedor sale del maestro de productos** (`products.supplier_id`), no
+de la columna `PROVEEDOR` del archivo de stock: quién provee un producto es
+un dato del producto —los 263 del catálogo lo tienen— mientras que el
+archivo diario trae esa columna sólo a veces, y con la línea comercial
+pegada ("DIPHASAC - GENERICO") en vez del proveedor. Si algún producto no lo
+tuviera en el maestro, se cae a lo que haya dicho el archivo antes que
+mostrar un guion.
 
 Busca por código o nombre. Escribir sigue siendo sólo del administrador,
 desde el importador en Maestros; lo garantiza la RLS de `stock_lotes`, no la
