@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { crearPropuestaAction, type EstadoFormulario } from './actions'
 import { Money } from '@/components/money'
+import { sumarPorMoneda } from '@/domain/propuesta-permisos'
 
 type ObligacionConforme = {
   id: string
@@ -29,7 +30,12 @@ export function FormularioPropuesta({ obligaciones }: { obligaciones: Obligacion
       return next
     })
 
-  const total = obligaciones.filter((o) => elegidas.has(o.id)).reduce((acc, o) => acc + o.neto_a_pagar, 0)
+  // Agrupado por moneda y nunca sumado entre sí: antes esto sumaba PEN con
+  // USD y lo mostraba con un "S/" fijo adelante, o sea un número que no
+  // existe. Mismo criterio que `totalesDeLote` en el detalle del lote.
+  const totales = sumarPorMoneda(
+    obligaciones.filter((o) => elegidas.has(o.id)).map((o) => ({ moneda: o.moneda, monto: o.neto_a_pagar }))
+  )
 
   return (
     <form action={accion} className="space-y-4">
@@ -69,7 +75,11 @@ export function FormularioPropuesta({ obligaciones }: { obligaciones: Obligacion
 
       <div className="card flex items-center justify-between">
         <span className="text-sm text-gray-600">{elegidas.size} elegidas</span>
-        <span className="font-semibold tabular-nums">S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+        <span className="flex flex-wrap gap-x-4 font-semibold tabular-nums">
+          {totales.length === 0
+            ? '—'
+            : totales.map((t) => <Money key={t.moneda} valor={t.monto} moneda={t.moneda} />)}
+        </span>
       </div>
 
       <BotonCrear />
