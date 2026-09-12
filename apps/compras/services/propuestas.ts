@@ -3,6 +3,7 @@ import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/au
 import {
   montoAPagarConNotasCredito,
   puedeEntrarAPropuesta,
+  type EstadoObligacion,
 } from '@/domain/obligacion'
 import {
   siguienteCodigoPropuesta,
@@ -11,6 +12,10 @@ import {
   type EstadoPropuesta,
 } from '@/domain/propuesta'
 import { puedeAprobarPropuesta, totalesDeLote, type MontoPorMoneda } from '@/domain/propuesta-permisos'
+import { mapaCategoriasPagoDirecto, mapaProveedoresBasico } from '@/services/obligaciones'
+import {
+  cuentaPreferida, mapaCuentasDeLote, type CuentaDeLote,
+} from '@/services/cuentas-bancarias-lote'
 
 export type ObligacionConforme = {
   id: string
@@ -24,6 +29,12 @@ export type ObligacionConforme = {
   /** Fallback de display para prestamo/fraccionamiento_sunat/impuesto — ver ObligacionListada en services/obligaciones.ts. */
   observaciones: string | null
   notasCreditoSinAplicar: number
+  origen: string
+  estado: EstadoObligacion
+  /** Mismo campo que arma `listarObligaciones`: categoría del pago directo
+   * y/o las observaciones. Lo pidió Mariela para elegir el lote sin tener
+   * que abrir cada obligación. */
+  concepto: string | null
 }
 
 /** Lo que Tesorería puede meter a una propuesta nueva. */
@@ -32,17 +43,25 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
   const { data, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, numero_factura, moneda, neto_a_pagar, fecha_vencimiento_real, proveedor_id, beneficiario_persona, observaciones')
+    .select('id, codigo, origen, estado, numero_factura, moneda, neto_a_pagar, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones, categoria_pago_directo_id')
     .eq('estado', 'conforme')
     .order('fecha_vencimiento_real')
 
   if (error) throw new Error(`No se pudieron listar las obligaciones conformes: ${error.message}`)
   if ((data ?? []).length === 0) return []
 
-  const [proveedores, beneficiarios, notasCredito] = await Promise.all([
-    mapaProveedores([...new Set(data!.map((o) => o.proveedor_id).filter(Boolean))] as string[]),
+  // `mapaProveedoresBasico` y no el helper local: un proveedor de SERVICIO
+  // vive en otra tabla, y cruzar solo `proveedor_id` dejaba a esas filas
+  // diciendo "sin proveedor ni beneficiario" (el mismo bug que ya
+  // corregimos en los reportes — un solo helper para todo el módulo).
+  const [proveedores, beneficiarios, notasCredito, categoriasPD] = await Promise.all([
+    mapaProveedoresBasico(
+      [...new Set(data!.map((o) => o.proveedor_id).filter(Boolean))] as string[],
+      [...new Set(data!.map((o: any) => o.proveedor_servicio_id).filter(Boolean))] as string[]
+    ),
     mapaBeneficiarios([...new Set(data!.map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
     mapaNotasCreditoSinAplicar(data!.map((o) => o.id)),
+    mapaCategoriasPagoDirecto(data!.map((o: any) => o.categoria_pago_directo_id)),
   ])
 
   return data!.map((o) => ({
@@ -52,10 +71,15 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
     moneda: o.moneda,
     neto_a_pagar: Number(o.neto_a_pagar),
     fecha_vencimiento_real: o.fecha_vencimiento_real,
-    proveedor: o.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null,
+    proveedor: proveedores.get(o.proveedor_id ?? (o as any).proveedor_servicio_id ?? '') ?? null,
     beneficiario: o.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
     observaciones: o.observaciones,
     notasCreditoSinAplicar: notasCredito.get(o.id) ?? 0,
+    origen: (o as any).origen,
+    estado: (o as any).estado as EstadoObligacion,
+    concepto: [categoriasPD.get((o as any).categoria_pago_directo_id ?? ''), o.observaciones?.trim()]
+      .filter((p): p is string => !!p)
+      .join(' — ') || null,
   }))
 }
 
@@ -322,12 +346,21 @@ export type PropuestaDetalle = {
     numeroFactura: string | null
     moneda: string
     proveedorId: string | null
+    /** El de servicios vive en otra tabla; la pantalla de pago necesita
+     * saber cuál de los dos es para ofrecer las cuentas correctas. */
+    proveedorServicioId: string | null
     proveedor: { razon_social: string } | null
     beneficiarioPersonaId: string | null
     beneficiario: { nombre: string | null } | null
     observaciones: string | null
+    concepto: string | null
     estadoObligacion: string
     yaPagada: boolean
+    /** Todas las cuentas de quien cobra — traídas en bloque, no una
+     * consulta por línea (Pieza 4). Vacío = falta matricular la cuenta, y
+     * la pantalla lo avisa antes de que Tesorería intente pagar. */
+    cuentas: CuentaDeLote[]
+    cuentaPreferida: CuentaDeLote | null
   }[]
 }
 
@@ -349,11 +382,22 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
   const { data: obligaciones } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, numero_factura, moneda, estado, proveedor_id, beneficiario_persona, observaciones')
+    .select('id, codigo, numero_factura, moneda, estado, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones, categoria_pago_directo_id')
     .in('id', obligacionIds)
-  const [proveedores, beneficiarios] = await Promise.all([
-    mapaProveedores([...new Set((obligaciones ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[]),
-    mapaBeneficiarios([...new Set((obligaciones ?? []).map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
+  const idsCompra = [...new Set((obligaciones ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[]
+  const idsServicio = [...new Set((obligaciones ?? []).map((o: any) => o.proveedor_servicio_id).filter(Boolean))] as string[]
+  const idsEmpleado = [...new Set((obligaciones ?? []).map((o) => o.beneficiario_persona).filter(Boolean))] as string[]
+  // Cuatro consultas fijas para todo el lote, no cuatro por línea: antes
+  // esto se resolvía dentro del `.map()` de la pantalla (Pieza 4).
+  const [proveedores, beneficiarios, categoriasPD, cuentas] = await Promise.all([
+    mapaProveedoresBasico(idsCompra, idsServicio),
+    mapaBeneficiarios(idsEmpleado),
+    mapaCategoriasPagoDirecto((obligaciones ?? []).map((o: any) => o.categoria_pago_directo_id)),
+    mapaCuentasDeLote({
+      proveedoresCompra: idsCompra,
+      proveedoresServicio: idsServicio,
+      empleados: idsEmpleado,
+    }),
   ])
   const obligacionesMap = new Map((obligaciones ?? []).map((o) => [o.id, o]))
 
@@ -367,6 +411,9 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
     estado: data.estado,
     detalle: detalle.map((d) => {
       const o = obligacionesMap.get(d.obligacion_id)
+      const claveCuentas =
+        o?.proveedor_id ?? (o as any)?.proveedor_servicio_id ?? o?.beneficiario_persona ?? ''
+      const cuentasDe = cuentas.get(claveCuentas) ?? []
       return {
         obligacionId: d.obligacion_id,
         montoAPagar: Number(d.monto_a_pagar),
@@ -374,12 +421,19 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
         numeroFactura: o?.numero_factura ?? null,
         moneda: o?.moneda ?? 'PEN',
         proveedorId: o?.proveedor_id ?? null,
-        proveedor: o?.proveedor_id ? proveedores.get(o.proveedor_id) ?? null : null,
+        proveedorServicioId: (o as any)?.proveedor_servicio_id ?? null,
+        proveedor: proveedores.get(o?.proveedor_id ?? (o as any)?.proveedor_servicio_id ?? '') ?? null,
         beneficiarioPersonaId: o?.beneficiario_persona ?? null,
         beneficiario: o?.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
         observaciones: o?.observaciones ?? null,
+        concepto: [
+          categoriasPD.get((o as any)?.categoria_pago_directo_id ?? ''),
+          o?.observaciones?.trim(),
+        ].filter((p): p is string => !!p).join(' — ') || null,
         estadoObligacion: o?.estado ?? 'desconocido',
         yaPagada: pagadas.has(d.obligacion_id),
+        cuentas: cuentasDe,
+        cuentaPreferida: cuentaPreferida(cuentasDe),
       }
     }),
   }

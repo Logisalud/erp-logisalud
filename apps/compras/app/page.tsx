@@ -114,12 +114,15 @@ export default async function Inicio() {
           titulo="Reportes"
           descripcion="Consulta y descarga la información de compras y pagos."
         />
-        <MenuItem
-          href="/facturas-pendientes" emoji="⏳"
-          titulo="Facturas por conciliar"
-          descripcion="Facturas esperando mercadería y excepciones de conciliación."
-        />
       </Grupo>
+
+      {/* "Facturas por conciliar" salió del menú por pedido de Mariela
+          (2026-09-12): su contenido ya está cubierto por el Dashboard ("Qué
+          necesita atención") y por el chip "Por completar" de la sábana, así
+          que el ítem solo repetía trabajo ya visible en otro lado.
+          /facturas-pendientes SIGUE VIVA a propósito — hay links hacia ella
+          desde otras pantallas y sirve como entrada directa; lo que se quitó
+          es la navegación, no la pantalla. */}
 
       <Grupo titulo="Otras gestiones">
         <MenuItem

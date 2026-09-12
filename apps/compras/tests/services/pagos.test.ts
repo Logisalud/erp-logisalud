@@ -27,6 +27,7 @@ function borrador(overrides: Partial<BorradorPago> = {}): BorradorPago {
     obligacionId: 'ob-1',
     fechaPago: '2026-08-30',
     cuentaBancariaProveedorId: 'cta-1',
+    cuentaBancariaProveedorServicioId: null,
     cuentaBancariaEmpleadoId: null,
     numeroVoucher: 'V-001',
     archivoVoucher: null,

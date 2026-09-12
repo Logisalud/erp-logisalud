@@ -4,17 +4,21 @@ import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { crearPropuestaAction, type EstadoFormulario } from './actions'
 import { Money } from '@/components/money'
+import { TablaObligaciones, type FilaObligacion } from '@/components/tabla-obligaciones'
+import { sumarPorMoneda } from '@/domain/propuesta-permisos'
 
-type ObligacionConforme = {
-  id: string
-  codigo: string
-  numero_factura: string | null
-  moneda: string
+/**
+ * Armar el lote con las MISMAS columnas de Cuentas por Pagar (pedido de
+ * Mariela, 2026-09-12): antes esto era una lista de código + monto, y para
+ * decidir si una factura entraba al lote había que abrirla.
+ *
+ * La tabla es literalmente el mismo componente que usa Cuentas por Pagar,
+ * con la columna de selección encendida — no una tabla "parecida", que es
+ * como las dos pantallas empezarían a divergir sin que nadie lo note.
+ */
+
+type ObligacionConforme = FilaObligacion & {
   neto_a_pagar: number
-  fecha_vencimiento_real: string | null
-  proveedor: { razon_social: string } | null
-  beneficiario: { nombre: string | null } | null
-  observaciones: string | null
   notasCreditoSinAplicar: number
 }
 
@@ -22,14 +26,34 @@ export function FormularioPropuesta({ obligaciones }: { obligaciones: Obligacion
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearPropuestaAction, null)
   const [elegidas, setElegidas] = useState<Set<string>>(new Set())
 
-  const toggle = (id: string) =>
+  const alternar = (id: string) =>
     setElegidas((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
 
-  const total = obligaciones.filter((o) => elegidas.has(o.id)).reduce((acc, o) => acc + o.neto_a_pagar, 0)
+  // Todo o nada sobre lo que se está viendo: con un lote de 40 facturas, la
+  // diferencia entre un clic y cuarenta.
+  const todasElegidas = obligaciones.length > 0 && obligaciones.every((o) => elegidas.has(o.id))
+  const alternarTodas = () =>
+    setElegidas(todasElegidas ? new Set() : new Set(obligaciones.map((o) => o.id)))
+
+  // Agrupado por moneda y nunca sumado entre sí: antes esto sumaba PEN con
+  // USD y lo mostraba con un "S/" fijo adelante, o sea un número que no
+  // existe. Mismo criterio que `totalesDeLote` en el detalle del lote.
+  const totales = sumarPorMoneda(
+    obligaciones.filter((o) => elegidas.has(o.id)).map((o) => ({ moneda: o.moneda, monto: o.neto_a_pagar }))
+  )
+
+  const hoy = new Date().toISOString().slice(0, 10)
+  const filas: FilaObligacion[] = obligaciones.map((o) => ({
+    ...o,
+    aviso:
+      o.notasCreditoSinAplicar > 0
+        ? 'Tiene una nota de crédito sin aplicar — el monto de esta propuesta no la descuenta.'
+        : null,
+  }))
 
   return (
     <form action={accion} className="space-y-4">
@@ -37,39 +61,21 @@ export function FormularioPropuesta({ obligaciones }: { obligaciones: Obligacion
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">{estado.error}</p>
       ) : null}
 
-      <ul className="space-y-2">
-        {obligaciones.map((o) => (
-          <li key={o.id}>
-            <label className="card flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox" name="obligacionId" value={o.id}
-                checked={elegidas.has(o.id)}
-                onChange={() => toggle(o.id)}
-                className="mt-1 h-5 w-5"
-              />
-              <div className="flex-1">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium">{o.codigo}{o.numero_factura ? ` · ${o.numero_factura}` : ''}</span>
-                  <Money valor={o.neto_a_pagar} moneda={o.moneda} />
-                </div>
-                <p className="mt-0.5 text-sm text-gray-600">
-                  {o.proveedor?.razon_social ?? o.beneficiario?.nombre ?? o.observaciones ?? 'sin proveedor ni beneficiario'}
-                  {o.fecha_vencimiento_real ? ` · vence ${o.fecha_vencimiento_real}` : ''}
-                </p>
-                {o.notasCreditoSinAplicar > 0 ? (
-                  <p className="mt-1 text-xs text-amber-700">
-                    Tiene una nota de crédito sin aplicar todavía — el monto de esta propuesta no la descuenta.
-                  </p>
-                ) : null}
-              </div>
-            </label>
-          </li>
-        ))}
-      </ul>
+      <TablaObligaciones
+        filas={filas}
+        hoy={hoy}
+        seleccion={{ elegidas, alternar, alternarTodas, nombreCampo: 'obligacionId' }}
+      />
 
-      <div className="card flex items-center justify-between">
-        <span className="text-sm text-gray-600">{elegidas.size} elegidas</span>
-        <span className="font-semibold tabular-nums">S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+      <div className="card flex flex-wrap items-center justify-between gap-3">
+        <span className="text-sm text-gray-600">
+          {elegidas.size} de {obligaciones.length} {obligaciones.length === 1 ? 'elegida' : 'elegidas'}
+        </span>
+        <span className="flex flex-wrap gap-x-4 font-semibold tabular-nums">
+          {totales.length === 0
+            ? '—'
+            : totales.map((t) => <Money key={t.moneda} valor={t.monto} moneda={t.moneda} />)}
+        </span>
       </div>
 
       <BotonCrear />

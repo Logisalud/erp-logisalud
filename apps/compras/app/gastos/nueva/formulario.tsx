@@ -4,12 +4,18 @@ import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearSolicitudAction, type EstadoFormulario } from './actions'
+import { AvisoErrores, useScrollAlPrimerError } from '@/components/errores-formulario'
 import { TIPOS_SOLICITUD, ETIQUETA_TIPO, type TipoSolicitud } from '@/domain/gasto'
 
 type CategoriaGasto = { id: string; nombre: string }
 type Usuario = { id: string; nombre: string; area: string }
 
 const SUGERENCIA_IGV = 0.18
+
+/** Ancla del scroll cuando el error no es de ningún campo (ej. "tu cuenta no
+ * tiene un área asignada"): no hay nada que corregir en el formulario, así
+ * que lo que se muestra es el aviso de al lado del botón. */
+const ID_AVISO_ERRORES = 'errores-solicitud-gasto'
 
 export function FormularioSolicitud({
   categorias,
@@ -34,6 +40,9 @@ export function FormularioSolicitud({
   const [tipoComprobante, setTipoComprobante] = useState('boleta')
 
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
+  // El formulario es largo y el botón está al final: sin esto, un error de
+  // servidor quedaba fuera de pantalla y parecía que el botón no hacía nada.
+  useScrollAlPrimerError(estado, ID_AVISO_ERRORES)
 
   const cambiarBase = (valor: string) => {
     setBase(valor)
@@ -50,11 +59,7 @@ export function FormularioSolicitud({
 
   return (
     <form action={accion} onChange={sucio.onChange} onSubmit={sucio.onSubmit} className="space-y-4">
-      {errorDe('general') ? (
-        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
-          {errorDe('general')}
-        </p>
-      ) : null}
+      <AvisoErrores errores={estado?.errores} />
 
       {/* El aviso por correo (Pieza D) necesita el nombre, no el id. */}
       <input type="hidden" name="categoriaNombre" value={categorias.find((c) => c.id === categoriaId)?.nombre ?? ''} />
@@ -256,6 +261,9 @@ export function FormularioSolicitud({
         )}
       </section>
 
+      {/* El mismo aviso, otra vez, al lado del botón: es donde está la
+          persona cuando aprieta Enviar. Repetirlo es a propósito. */}
+      <AvisoErrores errores={estado?.errores} id={ID_AVISO_ERRORES} />
       <BotonGuardar />
     </form>
   )

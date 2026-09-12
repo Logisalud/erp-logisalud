@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
+import { BadgeFaltaCuenta } from '@/components/badge-falta-cuenta'
 import { buscarProveedoresUnificado } from '@/services/proveedores-unificado'
 import { ETIQUETA_FUENTE_PROVEEDOR, type FuenteProveedor } from '@/domain/proveedor'
 
@@ -64,11 +65,7 @@ export default async function Proveedores({
                   <span className="flex items-center gap-2">
                     {/* Creado desde el alta rápida de una orden, sin cuenta
                         todavía — no se le puede pagar hasta cargarla. */}
-                    {!p.tieneCuenta ? (
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
-                        Falta cuenta bancaria
-                      </span>
-                    ) : null}
+                    {!p.tieneCuenta ? <BadgeFaltaCuenta /> : null}
                     {!p.activo ? <span className="text-xs text-gray-500">inactivo</span> : null}
                   </span>
                 </div>

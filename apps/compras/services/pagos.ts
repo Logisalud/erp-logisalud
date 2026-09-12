@@ -10,6 +10,12 @@ export type BorradorPago = {
   obligacionId: string
   fechaPago: string
   cuentaBancariaProveedorId: string | null
+  /** Un proveedor de SERVICIO tiene sus cuentas en otra tabla y su propia
+   * columna en `pagos`. Existía en la base desde el principio pero ningún
+   * código la escribía: una OS pagada quedaba sin cuenta destino
+   * registrada. Se conectó al mostrar la cuenta en el desglose del lote
+   * (Pieza 4) — mostrarla y no guardarla habría sido peor que no mostrarla. */
+  cuentaBancariaProveedorServicioId: string | null
   cuentaBancariaEmpleadoId: string | null
   numeroVoucher: string | null
   archivoVoucher: File | null
@@ -18,7 +24,7 @@ export type BorradorPago = {
 
 /**
  * Tesorería ejecuta el pago de una obligación que quedó `en_propuesta` en
- * una propuesta ya `aprobada` por Gerencia.
+ * una propuesta ya `aprobada` (Contabilidad rol admin o Administración).
  *
  * Un pago acá es por obligación, no por propuesta entera: distintas
  * obligaciones de la misma propuesta pueden ir a proveedores (y cuentas
@@ -70,6 +76,7 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
       moneda: obligacion.moneda,
       monto_total: detalle.monto_a_pagar,
       cuenta_bancaria_proveedor_id: borrador.cuentaBancariaProveedorId,
+      cuenta_bancaria_proveedor_servicio_id: borrador.cuentaBancariaProveedorServicioId,
       cuenta_bancaria_empleado_id: borrador.cuentaBancariaEmpleadoId,
       numero_voucher: borrador.numeroVoucher,
       storage_path_voucher: storagePathVoucher,

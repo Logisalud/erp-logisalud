@@ -5,6 +5,14 @@ import { ejecutarPagoAction, type EstadoAccion } from './actions'
 
 type CuentaBancaria = { id: string; banco: string; numero_cuenta: string; moneda: string; es_principal: boolean }
 
+export type TipoCuentas = 'proveedor' | 'proveedor_servicio' | 'empleado'
+
+const CAMPO_POR_TIPO: Record<TipoCuentas, string> = {
+  proveedor: 'cuentaBancariaProveedorId',
+  proveedor_servicio: 'cuentaBancariaProveedorServicioId',
+  empleado: 'cuentaBancariaEmpleadoId',
+}
+
 export function FormularioPago({
   propuestaId, obligacionId, cuentas, tipoCuentas,
 }: {
@@ -12,12 +20,12 @@ export function FormularioPago({
   obligacionId: string
   cuentas: CuentaBancaria[]
   /** A quién pertenecen `cuentas` — decide qué columna de cuentas_x_pagar.pagos
-   * se llena (un proveedor y un empleado nunca comparten esa columna). */
-  tipoCuentas: 'proveedor' | 'empleado'
+   * se llena (las tres son excluyentes entre sí). */
+  tipoCuentas: TipoCuentas
 }) {
   const accionConDatos = ejecutarPagoAction.bind(null, propuestaId)
   const [estado, accion] = useFormState<EstadoAccion, FormData>(accionConDatos, null)
-  const nombreCampoCuenta = tipoCuentas === 'proveedor' ? 'cuentaBancariaProveedorId' : 'cuentaBancariaEmpleadoId'
+  const nombreCampoCuenta = CAMPO_POR_TIPO[tipoCuentas]
 
   return (
     <form action={accion} className="mt-3 space-y-2 border-t border-gray-200 pt-3">

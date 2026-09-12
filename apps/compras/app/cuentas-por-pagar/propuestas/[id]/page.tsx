@@ -1,14 +1,15 @@
+import { Fragment } from 'react'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { perfilActual } from '@logisalud/auth/server'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { obtenerPropuesta } from '@/services/propuestas'
-import { obtenerProveedor } from '@/services/proveedores'
-import { listarCuentasBancariasDe } from '@/services/empleado-cuentas-bancarias'
 import { ETIQUETA_ESTADO_PROPUESTA } from '@/domain/propuesta'
 import { puedeAprobarPropuesta, puedeVerPropuestas, totalesDeLote } from '@/domain/propuesta-permisos'
 import { AccionesPropuesta } from './acciones'
-import { FormularioPago } from './pago'
+import { FormularioPago, type TipoCuentas } from './pago'
+import { BadgeFaltaCuenta } from '@/components/badge-falta-cuenta'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +38,7 @@ export default async function DetallePropuesta({ params }: { params: { id: strin
   )
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-8">
       <Encabezado titulo={propuesta.codigo} atras={{ href: '/cuentas-por-pagar/propuestas', texto: 'Propuestas' }} />
 
       <div className="card mb-4 flex items-center justify-between">
@@ -89,41 +90,101 @@ export default async function DetallePropuesta({ params }: { params: { id: strin
         </p>
       ) : null}
 
-      <ul className="mt-4 space-y-2">
-        {await Promise.all(
-          propuesta.detalle.map(async (d) => {
-            // Un reembolso/anticipo/reposición se paga a la cuenta bancaria
-            // que el empleado cargó en "Mi cuenta bancaria" (Fase 1.3) — antes
-            // esta pantalla no ofrecía "cuenta destino" para ese caso.
-            const puedePagar = aprobada && !d.yaPagada
-            const tipoCuentas: 'proveedor' | 'empleado' = d.proveedorId ? 'proveedor' : 'empleado'
-            const cuentas = d.proveedorId
-              ? (await obtenerProveedor(d.proveedorId))?.cuentas ?? []
-              : d.beneficiarioPersonaId
-                ? await listarCuentasBancariasDe(d.beneficiarioPersonaId)
-                : []
-            return (
-              <li key={d.obligacionId} className="card">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium">{d.codigo}{d.numeroFactura ? ` · ${d.numeroFactura}` : ''}</span>
-                  <Money valor={d.montoAPagar} moneda={d.moneda} />
-                </div>
-                <p className="mt-0.5 text-sm text-gray-600">{d.proveedor?.razon_social ?? d.beneficiario?.nombre ?? d.observaciones ?? 'sin proveedor ni beneficiario'}</p>
-                {d.yaPagada ? (
-                  <span className="mt-2 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Pagada</span>
-                ) : puedePagar ? (
-                  <FormularioPago
-                    propuestaId={propuesta.id}
-                    obligacionId={d.obligacionId}
-                    cuentas={cuentas}
-                    tipoCuentas={tipoCuentas}
-                  />
-                ) : null}
-              </li>
-            )
-          })
-        )}
-      </ul>
+      {/* Pieza 4 (Mariela, 2026-09-12): el desglose línea por línea que
+          Milagritos necesita para ejecutar el lote — a quién le paga, a qué
+          cuenta, cuánto y por qué concepto. En tabla y no en tarjetas
+          porque acá se ESCANEA, igual que en Cuentas por Pagar; y con la
+          cuenta a la vista para que "falta la cuenta bancaria" se descubra
+          ANTES de intentar el pago, no adentro de un desplegable vacío. */}
+      <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
+              <th className="px-3 py-2 font-medium">Código</th>
+              <th className="px-3 py-2 font-medium">Proveedor / Beneficiario</th>
+              <th className="px-3 py-2 font-medium">Cuenta bancaria</th>
+              <th className="px-3 py-2 font-medium">Concepto</th>
+              <th className="px-3 py-2 text-right font-medium">Importe</th>
+              <th className="px-3 py-2 font-medium">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {propuesta.detalle.map((d) => {
+              const puedePagar = aprobada && !d.yaPagada
+              const tipoCuentas: TipoCuentas = d.proveedorId
+                ? 'proveedor'
+                : d.proveedorServicioId
+                  ? 'proveedor_servicio'
+                  : 'empleado'
+              const quien = d.proveedor?.razon_social ?? d.beneficiario?.nombre ?? d.observaciones ?? null
+              return (
+                <Fragment key={d.obligacionId}>
+                  <tr className="border-b border-gray-100">
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <Link
+                        href={`/cuentas-por-pagar/${d.obligacionId}`}
+                        className="font-medium text-logisalud-teal underline"
+                      >
+                        {d.codigo}
+                      </Link>
+                      {d.numeroFactura ? (
+                        <span className="block text-xs text-gray-500">{d.numeroFactura}</span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 max-w-[220px] truncate">
+                      {quien ?? <span className="text-gray-400">sin proveedor ni beneficiario</span>}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {d.cuentaPreferida ? (
+                        <>
+                          <span className="tabular-nums">{d.cuentaPreferida.numero_cuenta}</span>
+                          <span className="block text-xs text-gray-500">
+                            {d.cuentaPreferida.banco} · {d.cuentaPreferida.moneda}
+                            {d.cuentas.length > 1 ? ` · +${d.cuentas.length - 1}` : ''}
+                          </span>
+                        </>
+                      ) : (
+                        <BadgeFaltaCuenta />
+                      )}
+                    </td>
+                    <td className="px-3 py-2 max-w-[240px]">
+                      <span className="block truncate" title={d.concepto ?? undefined}>
+                        {d.concepto ?? '—'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      <Money valor={d.montoAPagar} moneda={d.moneda} />
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {d.yaPagada ? (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                          Pagada
+                        </span>
+                      ) : aprobada ? (
+                        <span className="text-xs text-gray-500">por pagar</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">esperando aprobación</span>
+                      )}
+                    </td>
+                  </tr>
+                  {puedePagar ? (
+                    <tr className="border-b border-gray-100 last:border-0">
+                      <td colSpan={6} className="bg-gray-50 px-3 pb-3">
+                        <FormularioPago
+                          propuestaId={propuesta.id}
+                          obligacionId={d.obligacionId}
+                          cuentas={d.cuentas}
+                          tipoCuentas={tipoCuentas}
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </main>
   )
 }

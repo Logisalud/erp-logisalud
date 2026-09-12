@@ -599,7 +599,7 @@ async function mapaPropuestaDeObligacion(
   return mapa
 }
 
-async function mapaCategoriasPagoDirecto(ids: (string | null)[]): Promise<Map<string, string>> {
+export async function mapaCategoriasPagoDirecto(ids: (string | null)[]): Promise<Map<string, string>> {
   const mapa = new Map<string, string>()
   const limpios = [...new Set(ids.filter((id): id is string => !!id))]
   if (limpios.length === 0) return mapa
