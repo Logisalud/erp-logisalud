@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarMovimientoAction, type EstadoFormulario } from './actions'
 import type { TipoComprobanteMovimiento } from '@/domain/caja-chica'
+import { CampoArchivo } from '@/components/campo-archivo'
 
 type CategoriaGasto = { id: string; nombre: string }
 
@@ -72,8 +73,8 @@ export function FormularioMovimiento({ fondoId, categorias }: { fondoId: string;
         </p>
 
         <Campo etiqueta="Foto o PDF del comprobante (opcional por ahora)">
-          <input
-            type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
+          <CampoArchivo
+            nombre="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
             className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
           />
         </Campo>

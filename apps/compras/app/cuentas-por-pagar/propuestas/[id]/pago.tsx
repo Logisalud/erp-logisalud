@@ -2,6 +2,7 @@
 
 import { useFormState, useFormStatus } from 'react-dom'
 import { ejecutarPagoAction, type EstadoAccion } from './actions'
+import { CampoArchivo } from '@/components/campo-archivo'
 
 type CuentaBancaria = { id: string; banco: string; numero_cuenta: string; moneda: string; es_principal: boolean }
 
@@ -71,15 +72,15 @@ export function FormularioPago({
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="text-gray-600">Voucher (foto o PDF)</span>
-          <input
-            type="file" name="archivoVoucher" accept="application/pdf,image/jpeg,image/png,image/webp"
+          <CampoArchivo
+            nombre="archivoVoucher" accept="application/pdf,image/jpeg,image/png,image/webp"
             className="mt-1 block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
           />
         </label>
         <label className="block text-sm">
           <span className="text-gray-600">Comprobante de detracción (opcional)</span>
-          <input
-            type="file" name="archivoDetraccion" accept="application/pdf,image/jpeg,image/png,image/webp"
+          <CampoArchivo
+            nombre="archivoDetraccion" accept="application/pdf,image/jpeg,image/png,image/webp"
             className="mt-1 block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-teal file:px-3 file:text-white"
           />
         </label>

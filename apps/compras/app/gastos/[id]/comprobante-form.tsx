@@ -2,6 +2,7 @@
 
 import { useFormState, useFormStatus } from 'react-dom'
 import { subirComprobanteAction, type EstadoAccion } from './actions'
+import { CampoArchivo } from '@/components/campo-archivo'
 
 export function FormularioComprobante({
   solicitudId, fase,
@@ -14,8 +15,8 @@ export function FormularioComprobante({
       {estado?.error ? <p className="mb-2 text-sm text-red-700">{estado.error}</p> : null}
       <label className="mb-3 block text-sm">
         <span className="text-gray-600">Foto o PDF del comprobante</span>
-        <input
-          type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
+        <CampoArchivo
+          nombre="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
           className="mt-1 block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
         />
       </label>

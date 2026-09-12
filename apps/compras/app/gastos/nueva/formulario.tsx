@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearSolicitudAction, type EstadoFormulario } from './actions'
 import { AvisoErrores, useScrollAlPrimerError } from '@/components/errores-formulario'
+import { CampoArchivo } from '@/components/campo-archivo'
 import { TIPOS_SOLICITUD, ETIQUETA_TIPO, type TipoSolicitud } from '@/domain/gasto'
 
 type CategoriaGasto = { id: string; nombre: string }
@@ -175,8 +176,8 @@ export function FormularioSolicitud({
             </div>
 
             <Campo etiqueta="📎 Cotización o sustento">
-              <input
-                type="file" name="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
+              <CampoArchivo
+                nombre="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
                 className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
               />
               <p className="mt-1 text-xs text-gray-500">
@@ -193,8 +194,8 @@ export function FormularioSolicitud({
             </p>
 
             <Campo etiqueta="📎 Foto o PDF del comprobante">
-              <input
-                type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
+              <CampoArchivo
+                nombre="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
                 className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
               />
               <p className="mt-1 text-xs text-gray-500">

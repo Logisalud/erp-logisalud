@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarFacturaAction, extraerCamposDeArchivoAction, type EstadoFormulario } from './actions'
 import { redondear } from '@/domain/obligacion'
+import { CampoArchivo } from '@/components/campo-archivo'
 
 type ItemOC = {
   ocItemId: string
@@ -99,9 +100,9 @@ export function FormularioFacturaCompra({
         <h2 className="font-heading text-lg">Documento de la factura</h2>
         <label className="block text-sm">
           <span className="text-gray-600">Foto o PDF de la factura</span>
-          <input
-            type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) leerArchivo(f) }}
+          <CampoArchivo
+            nombre="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
+            alElegir={leerArchivo}
             className="mt-1 block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
           />
         </label>
