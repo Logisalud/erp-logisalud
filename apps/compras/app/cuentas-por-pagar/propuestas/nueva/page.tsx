@@ -8,7 +8,7 @@ export default async function NuevaPropuesta() {
   const obligaciones = await listarObligacionesConformes()
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-8">
       <Encabezado titulo="Nueva propuesta de pago" atras={{ href: '/cuentas-por-pagar/propuestas', texto: 'Propuestas' }} />
 
       {obligaciones.length === 0 ? (

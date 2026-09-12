@@ -1,18 +1,12 @@
 import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
-import { Money } from '@/components/money'
 import { listarVistaCuentasPorPagar } from '@/services/obligaciones'
+import { TablaObligaciones } from '@/components/tabla-obligaciones'
 import {
   nombreDelRecorte, querystringDeFiltro, resolverFiltroCuentasPorPagar,
 } from '@/domain/filtros-cuentas-por-pagar'
-import { ETIQUETA_ESTADO, ESTADOS_OBLIGACION, type EstadoObligacion } from '@/domain/obligacion'
-import { ETIQUETA_ESTADO_PROPUESTA, type EstadoPropuesta } from '@/domain/propuesta'
-import { ETIQUETA_ORIGEN, type OrigenObligacion } from '@/domain/reportes'
-import {
-  CATEGORIAS_ESTADO, ETIQUETA_CATEGORIA, categoriaDeEstado, estaVencida,
-  estadosDeCategoria, estadosVisiblesPorDefecto,
-  type CategoriaEstado,
-} from '@/domain/categorias-estado-obligacion'
+import { ETIQUETA_ESTADO, ESTADOS_OBLIGACION } from '@/domain/obligacion'
+import { CATEGORIAS_ESTADO, ETIQUETA_CATEGORIA } from '@/domain/categorias-estado-obligacion'
 
 export const dynamic = 'force-dynamic'
 
@@ -125,132 +119,9 @@ export default async function CuentasPorPagar({
             : 'No hay obligaciones para este filtro.'}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
-                <th className="px-3 py-2 font-medium">Código</th>
-                <th className="px-3 py-2 font-medium">Proveedor / Beneficiario</th>
-                <th className="px-3 py-2 font-medium">Origen</th>
-                <th className="px-3 py-2 font-medium">Estado</th>
-                <th className="px-3 py-2 text-right font-medium">Monto</th>
-                <th className="px-3 py-2 font-medium">Vencimiento</th>
-                <th className="px-3 py-2 font-medium">Lote</th>
-                <th className="px-3 py-2 font-medium">Concepto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {obligaciones.map((o) => (
-                <tr key={o.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <Link href={`/cuentas-por-pagar/${o.id}`} className="font-medium text-logisalud-teal underline">
-                      {o.codigo}
-                    </Link>
-                    {o.numero_factura ? (
-                      <span className="block text-xs text-gray-500">{o.numero_factura}</span>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2 max-w-[220px] truncate">
-                    {o.proveedor?.razon_social ?? o.beneficiario?.nombre ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-600">
-                    {ETIQUETA_ORIGEN[o.origen as OrigenObligacion] ?? o.origen}
-                  </td>
-                  {/* El estado EXACTO, no la categoría: el filtro agrupa, la
-                      fila no pierde precisión. */}
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <EstadoChip estado={o.estado} />
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    <Money valor={o.neto_a_pagar} moneda={o.moneda} />
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <Vencimiento
-                      fecha={o.fecha_vencimiento_real}
-                      vencida={estaVencida(o.fecha_vencimiento_real, o.estado, hoy)}
-                    />
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <CeldaLote propuesta={o.propuesta ?? null} yaPagada={!!o.yaPagada} />
-                  </td>
-                  <td className="px-3 py-2 max-w-[240px] truncate" title={o.concepto ?? undefined}>
-                    {o.concepto ?? '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TablaObligaciones filas={obligaciones} hoy={hoy} />
       )}
     </main>
-  )
-}
-
-/** Tono por categoría, nunca como única señal: siempre acompaña al texto. */
-const TONO_POR_CATEGORIA: Record<CategoriaEstado, string> = {
-  por_completar: 'border-amber-200 bg-amber-50 text-amber-800',
-  en_revision: 'border-amber-200 bg-amber-50 text-amber-800',
-  en_camino_a_pago: 'border-sky-200 bg-sky-50 text-sky-800',
-  pagada: 'border-green-200 bg-green-50 text-green-800',
-  en_cuotas: 'border-gray-200 bg-gray-50 text-gray-700',
-  no_procede: 'border-red-200 bg-red-50 text-red-800',
-}
-
-function EstadoChip({ estado }: { estado: EstadoObligacion }) {
-  return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TONO_POR_CATEGORIA[categoriaDeEstado(estado)]}`}
-    >
-      {ETIQUETA_ESTADO[estado]}
-    </span>
-  )
-}
-
-/**
- * El vencido en rojo — pero solo cuando todavía hay algo que pagar (ver
- * `estaVencida`): pintar de rojo una obligación ya pagada entrenaría a
- * ignorar el color.
- */
-function Vencimiento({ fecha, vencida }: { fecha: string | null; vencida: boolean }) {
-  if (!fecha) return <span className="text-gray-400">—</span>
-  return (
-    <span className={vencida ? 'font-medium text-red-700' : 'text-gray-600'}>
-      {fecha}
-      {vencida ? <span className="block text-xs">vencida</span> : null}
-    </span>
-  )
-}
-
-/** En qué lote entró, y si ese lote ya se puede pagar. */
-function CeldaLote({
-  propuesta,
-  yaPagada,
-}: {
-  propuesta: { id: string; codigo: string; estado: string } | null
-  yaPagada: boolean
-}) {
-  if (!propuesta) return <span className="text-gray-400">—</span>
-  const aprobada = propuesta.estado === 'aprobada'
-  return (
-    <>
-      <Link
-        href={`/cuentas-por-pagar/propuestas/${propuesta.id}`}
-        className={
-          aprobada && !yaPagada
-            ? 'font-medium text-logisalud-green underline'
-            : 'text-logisalud-teal underline'
-        }
-      >
-        {propuesta.codigo}
-      </Link>
-      <span className="block text-xs text-gray-500">
-        {yaPagada
-          ? 'pagada'
-          : aprobada
-            ? 'lista para pagar'
-            : ETIQUETA_ESTADO_PROPUESTA[propuesta.estado as EstadoPropuesta]}
-      </span>
-    </>
   )
 }
 
