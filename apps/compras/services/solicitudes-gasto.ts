@@ -19,6 +19,7 @@ import {
   autoridadYaDecidioSolicitud, esAutoridadFinal, puedeAnular, puedeDecidirSobre,
 } from '@/domain/auto-aprobacion'
 import { formatoMonto } from '@/domain/aviso-email'
+import { ERROR_EDITAR_TARDE, puedeEditarseSolicitud } from '@/domain/edicion'
 
 export type CategoriaGasto = { id: string; nombre: string; cuenta_contable: string | null }
 
@@ -240,7 +241,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     .select(`id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, area, created_at,
              destino, fecha_inicio, fecha_fin, categoria_id, asignado_a, obligacion_id,
              cotizacion_storage_path, quien_autoriza, fecha_factura, rechazo_motivo,
-             fecha_requerida, anulado_motivo,
+             fecha_requerida, anulado_motivo, editado_por, editado_en,
              comprobantes:solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
     .eq('id', id)
     .maybeSingle()
@@ -249,7 +250,8 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
   if (!data) return null
 
   const asignadoA = (data as any).asignado_a as string | null
-  const [{ data: categoria }, { data: liquidacion }, { data: asignado }] = await Promise.all([
+  const editadoPorId = (data as any).editado_por as string | null
+  const [{ data: categoria }, { data: liquidacion }, { data: asignado }, { data: editor }] = await Promise.all([
     supabase.schema('gastos').from('categorias_gasto').select('nombre').eq('id', (data as any).categoria_id).maybeSingle(),
     supabase
       .schema('gastos')
@@ -260,6 +262,9 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     asignadoA
       ? supabase.from('perfiles').select('nombre').eq('id', asignadoA).maybeSingle()
       : Promise.resolve({ data: null }),
+    editadoPorId
+      ? supabase.from('perfiles').select('nombre').eq('id', editadoPorId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
   return {
@@ -269,6 +274,71 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     asignadoA: asignado?.nombre ?? null,
     cotizacionStoragePath: (data as any).cotizacion_storage_path ?? null,
     quienAutoriza: (data as any).quien_autoriza ?? null,
+    editadoPor: (editor as any)?.nombre ?? null,
+  }
+}
+
+/**
+ * Editar una solicitud (Anticipo / Reembolso) antes de que Contabilidad
+ * decida — ver la regla completa en domain/edicion.ts.
+ *
+ * El `tipo` NO se toca nunca: cambiarlo mutaría un anticipo en un reembolso
+ * (o al revés), que son dos cosas distintas con distinto ciclo — para eso
+ * se anula y se carga de nuevo. Tampoco se tocan `solicitante_id`, `area`
+ * ni `codigo`: son la identidad del registro, no datos que se corrigen.
+ *
+ * Los adjuntos tampoco pasan por acá: se administran desde la ficha, que ya
+ * tiene su propio formulario. Así editar un monto nunca puede hacer
+ * desaparecer un comprobante que alguien ya había subido.
+ */
+export async function editarSolicitud(
+  id: string,
+  borrador: BorradorSolicitud
+): Promise<{ montoAntes: number; montoDespues: number; codigo: string; tipo: string }> {
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  const { data: actual, error } = await supabase
+    .schema('gastos')
+    .from('solicitudes_gasto')
+    .select('id, codigo, tipo, estado, monto_solicitado, creador_correo')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !actual) throw new Error('No se encontró la solicitud.')
+  if (!puedeEditarseSolicitud(actual.estado as EstadoSolicitud)) throw new Error(ERROR_EDITAR_TARDE)
+  // El tipo manda sobre qué campos son válidos, así que se valida contra el
+  // guardado y no contra lo que venga del formulario.
+  if (borrador.tipo !== actual.tipo) throw new Error('El tipo de una solicitud no se puede cambiar.')
+
+  const montoDespues = montoTotalSolicitud(borrador)
+  const { error: errUpd } = await supabase
+    .schema('gastos')
+    .from('solicitudes_gasto')
+    .update({
+      categoria_id: borrador.categoriaId,
+      moneda: borrador.moneda,
+      monto_solicitado: montoDespues,
+      base_imponible: borrador.tipo === 'anticipo' ? null : borrador.baseImponible,
+      igv: borrador.tipo === 'anticipo' ? null : borrador.igv,
+      descripcion: borrador.descripcion,
+      destino: borrador.destino ?? null,
+      fecha_inicio: borrador.fechaInicio ?? null,
+      fecha_fin: borrador.fechaFin ?? null,
+      fecha_requerida: borrador.fechaRequerida ?? null,
+      asignado_a: borrador.tipo === 'anticipo' ? borrador.asignadoA ?? null : null,
+      quien_autoriza: borrador.tipo === 'gasto_directo' ? null : borrador.quienAutoriza ?? null,
+      fecha_factura: borrador.tipo === 'anticipo' ? null : borrador.fechaFactura ?? null,
+      editado_por: usuario.id,
+      editado_en: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (errUpd) throw new Error(`No se pudo guardar la edición: ${errUpd.message}`)
+
+  return {
+    montoAntes: Number(actual.monto_solicitado),
+    montoDespues,
+    codigo: actual.codigo,
+    tipo: actual.tipo,
   }
 }
 

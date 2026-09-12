@@ -53,11 +53,14 @@ create policy ordenes_servicio_actualiza on servicios.ordenes_servicio
     or area_en('contabilidad', 'admin')
   );
 
+-- Sin `es_jefe_de(area)`, a diferencia de la OS: desde la Pieza A un
+-- anticipo/reembolso nace en 'pendiente_contabilidad' y el jefe ya no
+-- decide nada en ese flujo ("Quién autoriza" es un campo informativo).
+-- Dejarlo acá le daría permiso de edición a alguien que ya no participa.
 drop policy if exists solicitudes_gasto_actualiza on gastos.solicitudes_gasto;
 create policy solicitudes_gasto_actualiza on gastos.solicitudes_gasto
   for update using (
     solicitante_id = auth.uid()
-    or es_jefe_de(area)
     or area_en('contabilidad', 'tesoreria', 'admin')
   );
 
