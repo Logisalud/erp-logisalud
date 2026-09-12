@@ -144,7 +144,9 @@ const SIGUIENTE_PASO_PAGO_DIRECTO: Record<EstadoObligacion, string> = {
   registrada: 'Esperando la conformidad de Contabilidad — es el paso normal siguiente',
   observada: 'Resolver lo observado por Contabilidad',
   conforme: 'Esperando la propuesta de pago de Tesorería',
-  en_propuesta: 'Esperando la aprobación de Gerencia',
+  // Desde la Pieza I aprueba Contabilidad (rol admin) o Administración, no
+  // Gerencia — ver domain/propuesta-permisos.ts.
+  en_propuesta: 'Esperando la aprobación de la propuesta de pago',
   pagada: 'Pagado — el voucher cierra el ciclo',
   cerrada: 'Ciclo cerrado',
   canjeada_por_letra: 'Canjeada por letras — se paga en sus vencimientos',

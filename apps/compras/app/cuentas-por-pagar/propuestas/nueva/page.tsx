@@ -19,8 +19,9 @@ export default async function NuevaPropuesta() {
       ) : (
         <>
           <p className="mb-4 text-sm text-gray-600">
-            Elige las obligaciones que van en este lote — Gerencia va a aprobar el lote entero de
-            una sola vez, nunca obligación por obligación.
+            Elige las obligaciones que van en este lote — la aprobación es del lote entero de una
+            sola vez, nunca obligación por obligación. Lo aprueba Contabilidad (rol admin) o
+            Administración.
           </p>
           <FormularioPropuesta obligaciones={obligaciones} />
         </>

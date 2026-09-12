@@ -16,7 +16,8 @@ export const dynamic = 'force-dynamic'
  * el motivo obligatorio. Acá no se decide nada, se decide POR DÓNDE EMPEZAR:
  * lo más viejo arriba.
  *
- * Propuestas de pago no entran: son de Gerencia y ya tienen su pantalla.
+ * Las propuestas de pago SÍ entran (quinta fuente): desde la Pieza I las
+ * aprueba Contabilidad (rol admin) o Administración, no Gerencia.
  */
 export default async function PendientesDeAprobar() {
   const filas = await listarPendientesDeAprobar()

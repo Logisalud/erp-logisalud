@@ -21,6 +21,7 @@ import {
 import { puedeMarcarseFacturada } from '@/domain/orden-compra'
 import { ERROR_AUTO_APROBACION, esAutoridadFinal, puedeAnular, puedeDecidirSobre, autoridadYaDecidioPagoDirecto, ERROR_ANULAR_TARDE, ERROR_ANULAR_AJENO } from '@/domain/auto-aprobacion'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
+import type { FiltroCuentasPorPagar } from '@/domain/filtros-cuentas-por-pagar'
 import { formatoMonto } from '@/domain/aviso-email'
 
 export type ItemParaObligar = {
@@ -542,6 +543,25 @@ export async function listarObligaciones(
       .filter((p): p is string => !!p)
       .join(' — ') || null,
   }))
+}
+
+/**
+ * La vista de /cuentas-por-pagar resuelta de punta a punta: filtro de
+ * estados + el recorte de "listas para pagar", que no se puede hacer en la
+ * consulta porque depende del estado de la PROPUESTA, no del de la
+ * obligación.
+ *
+ * La comparte la pantalla con la ruta de descarga a Excel (Pieza 1): el
+ * Excel tiene que traer exactamente las mismas filas que se están viendo,
+ * y eso solo se garantiza si las pide por el mismo camino.
+ */
+export async function listarVistaCuentasPorPagar(
+  filtro: FiltroCuentasPorPagar
+): Promise<ObligacionListada[]> {
+  const todas = await listarObligaciones(filtro.estados)
+  return filtro.soloListas
+    ? todas.filter((o) => o.propuesta?.estado === 'aprobada' && !o.yaPagada)
+    : todas
 }
 
 /**

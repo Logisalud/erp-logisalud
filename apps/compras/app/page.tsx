@@ -7,6 +7,7 @@ import { obtenerResumenGerencia, obtenerResumenTesoreria } from '@/services/inic
 import { resumenPendientesDeAprobar } from '@/services/pendientes-aprobar'
 import { listarPagosPorEjecutar, puedeVerPagosPorEjecutar } from '@/services/pagos-por-ejecutar'
 import { RegistrarPaso } from '@/components/registrar-paso'
+import { veItemDeMenu } from '@/domain/menu-principal'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,13 @@ export default async function Inicio() {
   // pagos, y solo si hay lotes aprobados esperando.
   const puedeVerPagos = await puedeVerPagosPorEjecutar()
   const lotesPorPagar = puedeVerPagos ? (await listarPagosPorEjecutar()).length : 0
+  // Pieza 3 (Mariela, 2026-09-12): Tesorería no aprueba, no crea órdenes y
+  // no registra facturas — esos tres ítems solo le estorbaban. Recorte de
+  // visibilidad, no de permisos: ver domain/menu-principal.ts.
+  const area = perfil?.area ?? null
+  const veAprobar = veItemDeMenu('pendientes_aprobar', area)
+  const veOrdenes = veItemDeMenu('ordenes', area)
+  const veRegistrarFactura = veItemDeMenu('registrar_factura', area)
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -46,7 +54,7 @@ export default async function Inicio() {
       {vista === 'gerencia' ? <HeroGerencia /> : null}
 
       <Grupo titulo="Para hacer">
-        {pendientes.califica ? (
+        {pendientes.califica && veAprobar ? (
           <MenuItem
             href="/pendientes-aprobar" emoji="🔔"
             titulo={
@@ -64,16 +72,20 @@ export default async function Inicio() {
             descripcion="Los lotes ya aprobados que faltan desembolsar, con lo que queda por pagar."
           />
         ) : null}
-        <MenuItem
-          href="/ordenes" emoji="🛒"
-          titulo="Órdenes de compra y servicio"
-          descripcion="Crea una orden o revisa en qué etapa se encuentra."
-        />
-        <MenuItem
-          href="/facturas/nueva" emoji="🧾"
-          titulo="Registrar una factura"
-          descripcion="Vincúlala con una orden aprobada para continuar hacia el pago."
-        />
+        {veOrdenes ? (
+          <MenuItem
+            href="/ordenes" emoji="🛒"
+            titulo="Órdenes de compra y servicio"
+            descripcion="Crea una orden o revisa en qué etapa se encuentra."
+          />
+        ) : null}
+        {veRegistrarFactura ? (
+          <MenuItem
+            href="/facturas/nueva" emoji="🧾"
+            titulo="Registrar una factura"
+            descripcion="Vincúlala con una orden aprobada para continuar hacia el pago."
+          />
+        ) : null}
         <MenuItem
           href="/pedir-pago" emoji="💸"
           titulo="Pedir un pago"
@@ -83,6 +95,11 @@ export default async function Inicio() {
 
       <Grupo titulo="Para consultar">
         <MenuItem
+          href="/cuentas-por-pagar" emoji="💳"
+          titulo="Cuentas por pagar"
+          descripcion="Consulta obligaciones, vencimientos y pagos realizados."
+        />
+        <MenuItem
           href="/mis-operaciones" emoji="📋"
           titulo="Mis operaciones"
           descripcion="Todo lo que registraste tú: en qué estado quedó y si ya se pagó."
@@ -91,11 +108,6 @@ export default async function Inicio() {
           href="/dashboard" emoji="📊"
           titulo="Dashboard"
           descripcion="Qué necesita atención: vencidas, observadas y todo lo que está trabado."
-        />
-        <MenuItem
-          href="/cuentas-por-pagar" emoji="💳"
-          titulo="Cuentas por pagar"
-          descripcion="Consulta obligaciones, vencimientos y pagos realizados."
         />
         <MenuItem
           href="/reportes" emoji="📈"
