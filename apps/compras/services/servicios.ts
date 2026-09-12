@@ -12,6 +12,7 @@ import {
   autoridadYaDecidioOS, esAutoridadFinal, puedeAnular, puedeDecidirSobre,
 } from '@/domain/auto-aprobacion'
 import { formatoMonto } from '@/domain/aviso-email'
+import { ERROR_EDITAR_TARDE, puedeEditarseOS } from '@/domain/edicion'
 
 export type ProveedorServicio = { id: string; razon_social: string }
 
@@ -96,6 +97,56 @@ export async function crearOS(borrador: BorradorOS): Promise<{ id: string; codig
   return data
 }
 
+/**
+ * Editar una OS mientras el jefe de área todavía no la aprobó ni rechazó —
+ * ver la regla completa en domain/edicion.ts.
+ *
+ * No se tocan `area_solicitante` ni `solicitante_id`: son la identidad del
+ * registro (y lo que la policy RLS usa para decidir quién puede escribir),
+ * no datos que se corrigen. El proveedor SÍ se puede cambiar: equivocarse
+ * de proveedor al cargar es justamente uno de los errores que esta pieza
+ * viene a resolver sin anular y volver a empezar.
+ */
+export async function editarOS(
+  id: string,
+  borrador: BorradorOS
+): Promise<{ montoAntes: number; montoDespues: number; codigo: string }> {
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  const { data: actual, error } = await supabase
+    .schema('servicios')
+    .from('ordenes_servicio')
+    .select('id, codigo, estado, monto_estimado')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !actual) throw new Error('No se encontró la orden de servicio.')
+  if (!puedeEditarseOS(actual.estado as EstadoOS)) throw new Error(ERROR_EDITAR_TARDE)
+
+  const { error: errUpd } = await supabase
+    .schema('servicios')
+    .from('ordenes_servicio')
+    .update({
+      proveedor_servicio_id: borrador.proveedorServicioId,
+      descripcion_servicio: borrador.descripcionServicio,
+      monto_estimado: borrador.montoEstimado,
+      monto_incluye_igv: borrador.montoIncluyeIgv,
+      moneda: borrador.moneda,
+      condiciones_pago_dias: borrador.condicionesPagoDias ?? null,
+      fecha_entrega_estimada: borrador.fechaEntregaEstimada ?? null,
+      editado_por: usuario.id,
+      editado_en: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (errUpd) throw new Error(`No se pudo guardar la edición: ${errUpd.message}`)
+
+  return {
+    montoAntes: Number(actual.monto_estimado),
+    montoDespues: borrador.montoEstimado,
+    codigo: actual.codigo,
+  }
+}
+
 export type OSListada = {
   id: string
   codigo: string
@@ -150,13 +201,15 @@ export async function obtenerOS(id: string): Promise<OSDetalle | null> {
     .schema('servicios')
     .from('ordenes_servicio')
     .select(`id, codigo, estado, descripcion_servicio, monto_estimado, monto_incluye_igv, moneda, area_solicitante, created_at,
-             proveedor_servicio_id, condiciones_pago_dias, fecha_entrega_estimada, storage_path_factura_proveedor, anulado_motivo`)
+             proveedor_servicio_id, condiciones_pago_dias, fecha_entrega_estimada, storage_path_factura_proveedor, anulado_motivo,
+             editado_por, editado_en`)
     .eq('id', id)
     .maybeSingle()
   if (error) throw new Error(`No se pudo leer la orden de servicio: ${error.message}`)
   if (!data) return null
 
-  const [{ data: proveedor }, { data: conformidad }, { data: obligacion }] = await Promise.all([
+  const editadoPorId = (data as any).editado_por as string | null
+  const [{ data: proveedor }, { data: conformidad }, { data: obligacion }, { data: editor }] = await Promise.all([
     supabase.schema('servicios').from('proveedores_servicio').select('id, razon_social').eq('id', data.proveedor_servicio_id).maybeSingle(),
     supabase
       .schema('servicios')
@@ -167,9 +220,18 @@ export async function obtenerOS(id: string): Promise<OSDetalle | null> {
       .limit(1)
       .maybeSingle(),
     supabase.schema('cuentas_x_pagar').from('obligaciones').select('id, codigo, estado').eq('os_id', id).maybeSingle(),
+    editadoPorId
+      ? supabase.from('perfiles').select('nombre').eq('id', editadoPorId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
-  return { ...(data as any), proveedor: proveedor ?? null, conformidad: conformidad ?? null, obligacion: obligacion ?? null }
+  return {
+    ...(data as any),
+    proveedor: proveedor ?? null,
+    conformidad: conformidad ?? null,
+    obligacion: obligacion ?? null,
+    editadoPor: (editor as any)?.nombre ?? null,
+  }
 }
 
 async function cambiarEstado(id: string, desde: EstadoOS[], hacia: EstadoOS, campos: Record<string, unknown> = {}) {

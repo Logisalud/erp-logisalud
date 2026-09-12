@@ -8,6 +8,7 @@ import { Historial } from '@/components/historial'
 import { obtenerOS } from '@/services/servicios'
 import { obtenerHistorialOS } from '@/services/historial-orden'
 import { ETIQUETA_ESTADO_OS } from '@/domain/servicio'
+import { etiquetaEdicion, puedeEditarseOS } from '@/domain/edicion'
 import { PASOS_OS, pasoAlcanzadoOS, siguientePasoOS } from '@/domain/ordenes-unificadas'
 import { AccionesOS } from './acciones'
 import { FormularioFactura } from './factura-form'
@@ -19,6 +20,7 @@ export const dynamic = 'force-dynamic'
 export default async function DetalleOS({ params }: { params: { id: string } }) {
   const os = await obtenerOS(params.id)
   if (!os) notFound()
+  const rastroEdicion = etiquetaEdicion((os as any).editadoPor ?? null, (os as any).editado_en ?? null)
 
   const puedeSubirFacturaODarConformidad = ['aprobada', 'en_ejecucion', 'factura_adjunta', 'facturada'].includes(os.estado)
   const yaDioConformidadPositiva = os.conformidad?.conforme === true
@@ -54,6 +56,15 @@ export default async function DetalleOS({ params }: { params: { id: string } }) 
           <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
             Anulada: {os.anulado_motivo}
           </p>
+        ) : null}
+        {rastroEdicion ? <p className="mt-2 text-xs text-gray-500">{rastroEdicion}</p> : null}
+
+        {/* Editar: cualquiera, pero solo mientras el jefe de área no haya
+            decidido (domain/edicion.ts). Después quedan Anular y Rechazar. */}
+        {puedeEditarseOS(os.estado) ? (
+          <Link href={`/servicios/${os.id}/editar`} className="btn-secondary mt-4 inline-flex">
+            Editar
+          </Link>
         ) : null}
 
         <AccionesOS osId={os.id} estado={os.estado} />
