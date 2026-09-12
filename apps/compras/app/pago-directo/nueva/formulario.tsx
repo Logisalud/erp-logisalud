@@ -12,6 +12,7 @@ import {
 } from '@/domain/obligacion'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
 import { CampoDetraccion } from '@/components/campo-detraccion'
+import { CampoArchivo } from '@/components/campo-archivo'
 
 type CategoriaOpcion = { id: string; nombre: string }
 
@@ -115,8 +116,8 @@ export function FormularioPagoDirecto({
 
         {pendienteFactura ? (
           <Campo etiqueta="📎 Cotización que sustenta el monto">
-            <input
-              type="file" name="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
+            <CampoArchivo
+              nombre="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
               className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
             />
           </Campo>
@@ -135,8 +136,8 @@ export function FormularioPagoDirecto({
               </Campo>
             </div>
             <Campo etiqueta="📎 Factura escaneada (opcional)">
-              <input
-                type="file" name="factura" accept="application/pdf,image/jpeg,image/png,image/webp"
+              <CampoArchivo
+                nombre="factura" accept="application/pdf,image/jpeg,image/png,image/webp"
                 className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
               />
             </Campo>

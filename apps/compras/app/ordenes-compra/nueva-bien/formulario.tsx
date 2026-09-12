@@ -7,6 +7,7 @@ import { crearOrdenCompraBien, type EstadoFormulario } from './actions'
 import { calcularTotales } from '@/domain/orden-compra'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
 import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
+import { CampoArchivo } from '@/components/campo-archivo'
 
 type Linea = { descripcion: string; cantidad: string; precio: string }
 
@@ -174,8 +175,8 @@ export function FormularioOCBien() {
         </Campo>
 
         <Campo etiqueta="📎 Cotización del proveedor (opcional)">
-          <input
-            type="file" name="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
+          <CampoArchivo
+            nombre="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
             className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
           />
           <p className="mt-1 text-xs text-gray-500">
