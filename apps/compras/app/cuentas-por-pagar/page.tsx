@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
-import { listarObligaciones } from '@/services/obligaciones'
+import { listarVistaCuentasPorPagar } from '@/services/obligaciones'
+import {
+  nombreDelRecorte, querystringDeFiltro, resolverFiltroCuentasPorPagar,
+} from '@/domain/filtros-cuentas-por-pagar'
 import { ETIQUETA_ESTADO, ESTADOS_OBLIGACION, type EstadoObligacion } from '@/domain/obligacion'
 import { ETIQUETA_ESTADO_PROPUESTA, type EstadoPropuesta } from '@/domain/propuesta'
 import { ETIQUETA_ORIGEN, type OrigenObligacion } from '@/domain/reportes'
@@ -34,33 +37,13 @@ export default async function CuentasPorPagar({
 }: {
   searchParams: { estado?: string; categoria?: string; listas?: string; avanzado?: string }
 }) {
-  const estadoExacto = ESTADOS_OBLIGACION.includes(searchParams.estado as EstadoObligacion)
-    ? (searchParams.estado as EstadoObligacion)
-    : undefined
-  const categoria = CATEGORIAS_ESTADO.includes(searchParams.categoria as CategoriaEstado)
-    ? (searchParams.categoria as CategoriaEstado)
-    : undefined
-  // "Listas para pagar" no es un estado: es estar en una propuesta YA
-  // APROBADA y sin pagar. `en_propuesta` por sí solo no dice si el lote pasó
-  // la aprobación, así que va como filtro aparte.
-  const soloListas = searchParams.listas === '1'
-  const verAvanzado = searchParams.avanzado === '1' || !!estadoExacto
+  // El filtro se resuelve en el dominio para que la descarga a Excel baje
+  // exactamente estas filas y no una reconstrucción parecida.
+  const filtro = resolverFiltroCuentasPorPagar(searchParams)
+  const { estadoExacto, categoria, soloListas, verAvanzado, sinFiltro } = filtro
 
-  const filtroEstados = soloListas
-    ? undefined
-    : estadoExacto
-      ? estadoExacto
-      : categoria
-        ? estadosDeCategoria(categoria)
-        : estadosVisiblesPorDefecto()
-
-  const todas = await listarObligaciones(soloListas ? undefined : filtroEstados)
-  const obligaciones = soloListas
-    ? todas.filter((o) => o.propuesta?.estado === 'aprobada' && !o.yaPagada)
-    : todas
-
+  const obligaciones = await listarVistaCuentasPorPagar(filtro)
   const hoy = new Date().toISOString().slice(0, 10)
-  const sinFiltro = !soloListas && !estadoExacto && !categoria
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -79,6 +62,14 @@ export default async function CuentasPorPagar({
         <Link href="/reportes" className="btn-secondary w-full sm:w-auto">
           Ver reportes
         </Link>
+        {/* Baja lo que se está viendo, con los filtros puestos — mismas
+            columnas que la tabla, no un recorte distinto. */}
+        <a
+          href={`/cuentas-por-pagar/descargar${querystringDeFiltro(filtro)}`}
+          className="btn-secondary w-full sm:w-auto"
+        >
+          Exportar a Excel
+        </a>
       </div>
 
       <div className="mb-2 flex flex-wrap gap-2 text-sm">
