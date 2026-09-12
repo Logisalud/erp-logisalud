@@ -33,7 +33,10 @@ export type EstadoObligacion = (typeof ESTADOS_OBLIGACION)[number]
 
 export const ETIQUETA_ESTADO: Record<EstadoObligacion, string> = {
   pendiente_factura: 'Pendiente de factura',
-  registrada: 'Registrada',
+  // 'Registrada' a secas no decía nada: Mariela leyó un registro en este
+  // estado como "atascado" cuando en realidad solo faltaba el paso normal
+  // siguiente. La etiqueta ahora nombra a quién le toca mover la ficha.
+  registrada: 'Esperando conformidad de Contabilidad',
   observada: 'Observada',
   conforme: 'Conforme',
   en_propuesta: 'En propuesta de pago',
@@ -80,7 +83,30 @@ export function puedeEntrarAPropuesta(estado: EstadoObligacion): boolean {
 }
 
 /**
- * Un Pago Directo (origen 'gasto_directo') se puede anular por error de
+ * Qué orígenes se cortan (anulan/rechazan) desde la ficha de la obligación.
+ *
+ * Los tres nacen de una captura manual de alguien de la empresa, así que los
+ * tres pueden estar mal cargados y necesitan una salida hacia atrás. Un
+ * anticipo o un reembolso, además, no tiene NINGUNA otra: `anularSolicitud`
+ * solo alcanza a la solicitud mientras está en 'pendiente_jefe' o
+ * 'pendiente_contabilidad', y la obligación nace justo cuando Contabilidad
+ * aprueba — o sea, siempre después de esa ventana. Hasta este cambio, una
+ * vez convertidos en obligación quedaban atrapados para siempre (caso real:
+ * G-2026-0015 a G-2026-0018).
+ *
+ * Los demás orígenes NO entran: 'compra' y 'servicio' se anulan desde su OC
+ * u OS (que es donde vive el documento), y los automáticos
+ * (reposicion_caja_chica, prestamo, fraccionamiento_sunat, letra_por_pagar,
+ * impuesto) los genera otro flujo que tiene su propia reversión.
+ */
+export const ORIGENES_ANULABLES: readonly string[] = ['gasto_directo', 'anticipo', 'reembolso']
+
+export function esOrigenAnulable(origen: string): boolean {
+  return ORIGENES_ANULABLES.includes(origen)
+}
+
+/**
+ * Un Pago Directo, un anticipo o un reembolso se pueden anular por error de
  * captura mientras Contabilidad todavía no le dio conformidad — desde
  * 'observada' en adelante ya hubo una revisión real y una obligación en
  * camino a pagarse, fuera de alcance de esta pieza (una reversión post-pago
@@ -89,7 +115,7 @@ export function puedeEntrarAPropuesta(estado: EstadoObligacion): boolean {
  * compartida por 9 orígenes, así que la anulación se marca con columnas de
  * auditoría en vez de agregar 'anulada' a su CHECK.
  */
-export function puedeAnularsePagoDirecto(estado: EstadoObligacion): boolean {
+export function puedeAnularseObligacion(estado: EstadoObligacion): boolean {
   return transicionPermitida(estado, 'anulada')
 }
 
@@ -103,7 +129,7 @@ export function puedeAnularsePagoDirecto(estado: EstadoObligacion): boolean {
  * (error de captura de quien lo cargó); rechazar es una decisión de revisión
  * de Contabilidad sobre un registro que sí existía bien.
  */
-export function puedeRechazarsePagoDirecto(estado: EstadoObligacion): boolean {
+export function puedeRechazarseObligacion(estado: EstadoObligacion): boolean {
   return transicionPermitida(estado, 'rechazada')
 }
 
@@ -115,7 +141,7 @@ export function puedeRechazarsePagoDirecto(estado: EstadoObligacion): boolean {
  */
 const SIGUIENTE_PASO_PAGO_DIRECTO: Record<EstadoObligacion, string> = {
   pendiente_factura: 'Completar los datos de la factura cuando llegue',
-  registrada: 'Esperando la revisión de Contabilidad',
+  registrada: 'Esperando la conformidad de Contabilidad — es el paso normal siguiente',
   observada: 'Resolver lo observado por Contabilidad',
   conforme: 'Esperando la propuesta de pago de Tesorería',
   en_propuesta: 'Esperando la aprobación de Gerencia',

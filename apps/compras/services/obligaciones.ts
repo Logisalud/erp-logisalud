@@ -9,8 +9,9 @@ import {
   redondear,
   TASA_IGV,
   validarNoSobrefacturar,
-  puedeAnularsePagoDirecto,
-  puedeRechazarsePagoDirecto,
+  esOrigenAnulable,
+  puedeAnularseObligacion,
+  puedeRechazarseObligacion,
   ETIQUETA_ESTADO,
   type EstadoObligacion,
   type LineaConciliacion,
@@ -1127,6 +1128,26 @@ export async function obtenerUrlLegajoPagoDirecto(storagePath: string): Promise<
  * anulación solo en columnas laterales, la fila seguía en 'registrada' y
  * seguía siendo elegible para conformarse y pagarse.
  */
+/** Cómo se nombra cada origen cortable en los mensajes de la pantalla. */
+const NOMBRE_POR_ORIGEN: Record<string, string> = {
+  gasto_directo: 'un Pago Directo',
+  anticipo: 'un anticipo',
+  reembolso: 'un reembolso',
+}
+
+const ETIQUETA_ORIGEN_CORTE: Record<string, string> = {
+  gasto_directo: 'Pago directo',
+  anticipo: 'Anticipo',
+  reembolso: 'Reembolso',
+}
+
+/** El aviso por correo ya distingue los tres (ver domain/aviso-email.ts). */
+const TIPO_AVISO_POR_ORIGEN: Record<string, 'pago_directo' | 'anticipo' | 'reembolso'> = {
+  gasto_directo: 'pago_directo',
+  anticipo: 'anticipo',
+  reembolso: 'reembolso',
+}
+
 type CorteDePagoDirecto = {
   estado: Extract<EstadoObligacion, 'anulada' | 'rechazada'>
   /** Cómo se llama la acción en los mensajes de error de la pantalla. */
@@ -1139,7 +1160,7 @@ const CORTES: Record<'anular' | 'rechazar', CorteDePagoDirecto> = {
   anular: {
     estado: 'anulada',
     sustantivo: 'anulación',
-    puedeCortarse: puedeAnularsePagoDirecto,
+    puedeCortarse: puedeAnularseObligacion,
     columnas: (usuarioId, motivo, ahora) => ({
       anulada_motivo: motivo,
       anulada_por: usuarioId,
@@ -1149,7 +1170,7 @@ const CORTES: Record<'anular' | 'rechazar', CorteDePagoDirecto> = {
   rechazar: {
     estado: 'rechazada',
     sustantivo: 'rechazo',
-    puedeCortarse: puedeRechazarsePagoDirecto,
+    puedeCortarse: puedeRechazarseObligacion,
     columnas: (usuarioId, motivo, ahora) => ({
       rechazo_motivo: motivo,
       rechazada_por: usuarioId,
@@ -1172,9 +1193,16 @@ async function cortarPagoDirecto(id: string, motivo: string, accion: 'anular' | 
     .eq('id', id)
     .maybeSingle()
   if (error || !obligacion) throw new Error('No se encontró la obligación.')
-  if (obligacion.origen !== 'gasto_directo') {
-    throw new Error(`Solo un Pago Directo se ${accion === 'anular' ? 'anula' : 'rechaza'} desde aquí.`)
+  // Antes decía `!== 'gasto_directo'`, herencia de cuando esta función solo
+  // servía a Pago Directo. Un anticipo y un reembolso llegan por el mismo
+  // camino (nacen 'registrada', los revisa Contabilidad) y no tienen otra
+  // salida hacia atrás — ver ORIGENES_ANULABLES en domain/obligacion.ts.
+  if (!esOrigenAnulable(obligacion.origen)) {
+    throw new Error(
+      `Un registro de origen "${obligacion.origen}" no se ${accion === 'anular' ? 'anula' : 'rechaza'} desde aquí — se hace desde el documento que lo originó.`
+    )
   }
+  const nombreRegistro = NOMBRE_POR_ORIGEN[obligacion.origen] ?? 'el registro'
   if (!corte.puedeCortarse(obligacion.estado as EstadoObligacion)) {
     throw new Error(
       `Ya no se puede ${accion}: está "${ETIQUETA_ESTADO[obligacion.estado as EstadoObligacion]}".`
@@ -1186,7 +1214,7 @@ async function cortarPagoDirecto(id: string, motivo: string, accion: 'anular' | 
   // mientras Contabilidad no le haya dado conformidad todavía.
   if (accion === 'rechazar') {
     if (!esAutoridadFinal(perfil)) {
-      throw new Error('Solo Contabilidad (rol admin) puede rechazar un Pago Directo.')
+      throw new Error(`Solo Contabilidad (rol admin) puede rechazar ${nombreRegistro}.`)
     }
     if (!puedeDecidirSobre(perfil, usuario.id, (obligacion as any).created_by ?? null)) {
       throw new Error(ERROR_AUTO_APROBACION)
@@ -1218,11 +1246,11 @@ async function cortarPagoDirecto(id: string, motivo: string, accion: 'anular' | 
 
   await avisarAnulacionSinRomper({
     accion: accion === 'anular' ? 'anulacion' : 'rechazo',
-    tipo: 'pago_directo',
+    tipo: TIPO_AVISO_POR_ORIGEN[obligacion.origen] ?? 'pago_directo',
     codigo: obligacion.codigo,
     monto: Number(obligacion.total),
     moneda: obligacion.moneda,
-    referencia: categoria?.nombre ?? 'Pago directo',
+    referencia: categoria?.nombre ?? ETIQUETA_ORIGEN_CORTE[obligacion.origen] ?? 'Pago directo',
     motivo: motivo.trim(),
     anuladoPor: perfil?.nombre ?? usuario.email ?? 'alguien del ERP',
     filas: [{ etiqueta: 'Monto', valor: formatoMonto(Number(obligacion.total), obligacion.moneda) }],

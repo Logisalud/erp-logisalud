@@ -5,10 +5,11 @@ import { Money } from '@/components/money'
 import Link from 'next/link'
 import { perfilActual } from '@logisalud/auth/server'
 import { obtenerObligacion } from '@/services/obligaciones'
+import { ETIQUETA_ORIGEN, type OrigenObligacion } from '@/domain/reportes'
 import { listarLetrasDeObligacion } from '@/services/financiamiento'
 import {
-  ETIQUETA_ESTADO, exigeRespuestaDetraccion, puedeAnularsePagoDirecto,
-  puedeRechazarsePagoDirecto, UMBRAL_DETRACCION_PEN,
+  ETIQUETA_ESTADO, esOrigenAnulable, exigeRespuestaDetraccion, puedeAnularseObligacion,
+  puedeRechazarseObligacion, siguientePasoPagoDirecto, UMBRAL_DETRACCION_PEN,
 } from '@/domain/obligacion'
 import type { Moneda } from '@/domain/servicio'
 import { ETIQUETA_ESTADO_VENCIMIENTO, puedePagarseEnCuotas } from '@/domain/financiamiento'
@@ -39,13 +40,16 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   const puedeCanjearPorLetras = puedePagarseEnCuotas(obligacion.origen, obligacion.estado, !!obligacion.proveedor)
   const letras = obligacion.estado === 'canjeada_por_letra' ? await listarLetrasDeObligacion(obligacion.id) : []
   // Desde 0043 anular y rechazar escriben un estado real, así que
-  // `puedeAnularsePagoDirecto`/`puedeRechazarsePagoDirecto` ya devuelven
+  // `puedeAnularseObligacion`/`puedeRechazarseObligacion` ya devuelven
   // false sobre algo ya cortado — no hace falta chequear las columnas.
-  const puedeAnular = obligacion.origen === 'gasto_directo' && puedeAnularsePagoDirecto(obligacion.estado)
+  // El origen ya no es solo 'gasto_directo': un anticipo y un reembolso
+  // convertidos en obligación no tenían NINGUNA salida hacia atrás.
+  const origenCortable = esOrigenAnulable(obligacion.origen)
+  const nombreRegistro = (ETIQUETA_ORIGEN[obligacion.origen as OrigenObligacion] ?? 'registro').toLowerCase()
+  const puedeAnular = origenCortable && puedeAnularseObligacion(obligacion.estado)
   // "Rechazar" es la contraparte de "Dar conformidad", así que lo ve quien
   // puede conformar: Contabilidad rol admin (mismo criterio de la Fase 1.7).
-  const puedeRechazar =
-    califica && obligacion.origen === 'gasto_directo' && puedeRechazarsePagoDirecto(obligacion.estado)
+  const puedeRechazar = califica && origenCortable && puedeRechazarseObligacion(obligacion.estado)
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -63,6 +67,12 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           <Dato termino="Vencimiento del pago" valor={obligacion.fecha_vencimiento_real} />
           <Dato termino="Origen" valor={obligacion.origen} />
         </dl>
+        {obligacion.estado === 'registrada' ? (
+          <p className="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-900">
+            {siguientePasoPagoDirecto(obligacion.estado)}. No está atascado.
+            {puedeAnular ? ' Mientras Contabilidad no lo revise, todavía se puede anular.' : ''}
+          </p>
+        ) : null}
         {obligacion.observaciones ? (
           <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
             {obligacion.observaciones}
@@ -130,13 +140,13 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           <CompletarFactura obligacionId={obligacion.id} baseCotizada={Number(obligacion.base_imponible)} />
         ) : null}
         {puedeDarConformidad ? <BotonConformidad obligacionId={obligacion.id} /> : null}
-        {puedeRechazar ? <BotonRechazarPagoDirecto obligacionId={obligacion.id} /> : null}
+        {puedeRechazar ? <BotonRechazarPagoDirecto obligacionId={obligacion.id} registro={nombreRegistro} /> : null}
         {puedeCanjearPorLetras ? (
           <Link href={`/financiamiento/letras/canjear/${obligacion.id}`} className="btn-secondary mt-4 inline-block">
             Pago en cuotas
           </Link>
         ) : null}
-        {puedeAnular ? <BotonAnularPagoDirecto obligacionId={obligacion.id} /> : null}
+        {puedeAnular ? <BotonAnularPagoDirecto obligacionId={obligacion.id} registro={nombreRegistro} /> : null}
       </section>
 
       {letras.length > 0 ? (

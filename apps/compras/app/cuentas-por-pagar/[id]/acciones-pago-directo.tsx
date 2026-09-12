@@ -13,13 +13,15 @@ import { anularPagoDirectoAction, rechazarPagoDirectoAction, type EstadoAccion }
  *  - Rechazar: Contabilidad lo revisó y lo devuelve — la contraparte de
  *    "Dar conformidad", y por eso aparece al lado de ese botón.
  */
-export function BotonAnularPagoDirecto({ obligacionId }: { obligacionId: string }) {
+export function BotonAnularPagoDirecto({
+  obligacionId, registro = 'pago directo',
+}: { obligacionId: string; registro?: string }) {
   return (
     <CorteConMotivo
       obligacionId={obligacionId}
       accion={anularPagoDirectoAction}
       etiqueta="Anular…"
-      explicacion="Esto anula el pago directo por un error de captura — cuenta qué pasó, Contabilidad recibe un aviso con el motivo."
+      explicacion={`Esto anula ${elLa(registro)} por un error de captura — cuenta qué pasó, Contabilidad recibe un aviso con el motivo.`}
       placeholder="Motivo de la anulación…"
       confirmar="Confirmar anulación"
       confirmando="Anulando…"
@@ -27,18 +29,27 @@ export function BotonAnularPagoDirecto({ obligacionId }: { obligacionId: string 
   )
 }
 
-export function BotonRechazarPagoDirecto({ obligacionId }: { obligacionId: string }) {
+export function BotonRechazarPagoDirecto({
+  obligacionId, registro = 'pago directo',
+}: { obligacionId: string; registro?: string }) {
   return (
     <CorteConMotivo
       obligacionId={obligacionId}
       accion={rechazarPagoDirectoAction}
       etiqueta="Rechazar…"
-      explicacion="Esto devuelve el pago directo sin conformidad — cuenta qué está mal, quien lo registró recibe un aviso con el motivo."
+      explicacion={`Esto devuelve ${elLa(registro)} sin conformidad — cuenta qué está mal, quien lo registró recibe un aviso con el motivo.`}
       placeholder="Motivo del rechazo…"
       confirmar="Confirmar rechazo"
       confirmando="Rechazando…"
     />
   )
+}
+
+/** Los tres registros cortables son masculinos ("el pago directo", "el
+ * anticipo", "el reembolso"), pero el artículo va acá y no en cada llamada
+ * para que agregar un cuarto no obligue a repetirlo. */
+function elLa(registro: string): string {
+  return `el ${registro}`
 }
 
 type AccionCorte = (obligacionId: string, previo: EstadoAccion, form: FormData) => Promise<EstadoAccion>

@@ -14,38 +14,40 @@ import {
   validarObligacion,
   validarObligacionSinFactura,
   validarPagoDirecto,
-  puedeAnularsePagoDirecto,
-  puedeRechazarsePagoDirecto,
+  esOrigenAnulable,
+  ETIQUETA_ESTADO,
+  puedeAnularseObligacion,
+  puedeRechazarseObligacion,
   obligacionPagada,
   type BorradorPagoDirecto,
 } from '@/domain/obligacion'
 
-describe('puedeAnularsePagoDirecto (sesión 2026-09-09)', () => {
+describe('puedeAnularseObligacion (sesión 2026-09-09)', () => {
   it('se puede anular antes de que Contabilidad le dé conformidad', () => {
-    expect(puedeAnularsePagoDirecto('pendiente_factura')).toBe(true)
-    expect(puedeAnularsePagoDirecto('registrada')).toBe(true)
+    expect(puedeAnularseObligacion('pendiente_factura')).toBe(true)
+    expect(puedeAnularseObligacion('registrada')).toBe(true)
   })
   it('ya no se puede anular una vez observada/conforme en adelante', () => {
-    expect(puedeAnularsePagoDirecto('observada')).toBe(false)
-    expect(puedeAnularsePagoDirecto('conforme')).toBe(false)
-    expect(puedeAnularsePagoDirecto('pagada')).toBe(false)
-    expect(puedeAnularsePagoDirecto('cerrada')).toBe(false)
+    expect(puedeAnularseObligacion('observada')).toBe(false)
+    expect(puedeAnularseObligacion('conforme')).toBe(false)
+    expect(puedeAnularseObligacion('pagada')).toBe(false)
+    expect(puedeAnularseObligacion('cerrada')).toBe(false)
   })
   it('algo ya cortado no se puede volver a cortar', () => {
-    expect(puedeAnularsePagoDirecto('anulada')).toBe(false)
-    expect(puedeAnularsePagoDirecto('rechazada')).toBe(false)
+    expect(puedeAnularseObligacion('anulada')).toBe(false)
+    expect(puedeAnularseObligacion('rechazada')).toBe(false)
   })
 })
 
-describe('puedeRechazarsePagoDirecto (0043)', () => {
+describe('puedeRechazarseObligacion (0043)', () => {
   it('misma ventana que anular: mientras Contabilidad todavía lo está revisando', () => {
-    expect(puedeRechazarsePagoDirecto('pendiente_factura')).toBe(true)
-    expect(puedeRechazarsePagoDirecto('registrada')).toBe(true)
+    expect(puedeRechazarseObligacion('pendiente_factura')).toBe(true)
+    expect(puedeRechazarseObligacion('registrada')).toBe(true)
   })
   it('una vez conforme ya no se rechaza — está en camino a pagarse', () => {
-    expect(puedeRechazarsePagoDirecto('conforme')).toBe(false)
-    expect(puedeRechazarsePagoDirecto('en_propuesta')).toBe(false)
-    expect(puedeRechazarsePagoDirecto('pagada')).toBe(false)
+    expect(puedeRechazarseObligacion('conforme')).toBe(false)
+    expect(puedeRechazarseObligacion('en_propuesta')).toBe(false)
+    expect(puedeRechazarseObligacion('pagada')).toBe(false)
   })
 })
 
@@ -363,5 +365,29 @@ describe('exigeRespuestaDetraccion / validarDeclaracionDetraccion (sesión 2026-
   it('contestando que sí con % y monto completos, sin errores', () => {
     const errores = validarDeclaracionDetraccion({ total: 800, moneda: 'PEN', tieneDetraccion: true, porcentaje: 12, monto: 96 })
     expect(errores).toEqual([])
+  })
+})
+
+describe('esOrigenAnulable — el hueco de anticipo/reembolso', () => {
+  it('deja cortar los tres orígenes de captura manual', () => {
+    expect(esOrigenAnulable('gasto_directo')).toBe(true)
+    // El bug real: G-2026-0015 a 0018 quedaron atrapados porque la
+    // obligación nace cuando Contabilidad aprueba, o sea DESPUÉS de la
+    // ventana de `anularSolicitud`.
+    expect(esOrigenAnulable('anticipo')).toBe(true)
+    expect(esOrigenAnulable('reembolso')).toBe(true)
+  })
+
+  it('no deja cortar desde acá lo que se anula en su propio documento', () => {
+    expect(esOrigenAnulable('compra')).toBe(false)
+    expect(esOrigenAnulable('servicio')).toBe(false)
+    expect(esOrigenAnulable('reposicion_caja_chica')).toBe(false)
+    expect(esOrigenAnulable('impuesto')).toBe(false)
+  })
+})
+
+describe('la etiqueta de "registrada" dice a quién le toca', () => {
+  it('no muestra el estado técnico pelado', () => {
+    expect(ETIQUETA_ESTADO.registrada).toContain('Contabilidad')
   })
 })
