@@ -22,6 +22,8 @@ import { puedeMarcarseFacturada } from '@/domain/orden-compra'
 import { ERROR_AUTO_APROBACION, esAutoridadFinal, puedeAnular, puedeDecidirSobre, autoridadYaDecidioPagoDirecto, ERROR_ANULAR_TARDE, ERROR_ANULAR_AJENO } from '@/domain/auto-aprobacion'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
 import type { FiltroCuentasPorPagar } from '@/domain/filtros-cuentas-por-pagar'
+import { ERROR_EDITAR_TARDE, puedeEditarseObligacion } from '@/domain/edicion'
+import type { ProveedorDeFormulario } from '@/domain/valores-pago-directo'
 import { formatoMonto } from '@/domain/aviso-email'
 
 export type ItemParaObligar = {
@@ -667,6 +669,9 @@ export async function mapaProveedoresBasico(idsCompra: string[], idsServicio: st
 }
 
 export type ObligacionDetalle = ObligacionListada & {
+  /** Rastro de edición: nombre de quien editó y cuándo (migración 0052). */
+  editadoPor: string | null
+  editadoEn: string | null
   base_imponible: number
   igv: number
   monto_detraccion: number
@@ -711,7 +716,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, igv,
              monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, proveedor_servicio_id, beneficiario_persona,
              oc_id, recepcion_id, categoria_pago_directo_id, cotizacion_storage_path, factura_storage_path,
-             anulada_en, anulada_motivo, rechazada_en, rechazo_motivo,
+             anulada_en, anulada_motivo, rechazada_en, rechazo_motivo, editado_por, editado_en,
              obligaciones_items(id, oc_item_id, cantidad_facturada, precio_facturado)`)
     .eq('id', id)
     .maybeSingle()
@@ -719,7 +724,8 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
   if (error) throw new Error(`No se pudo leer la obligación: ${error.message}`)
   if (!data) return null
 
-  const [proveedores, beneficiarios, oc, recepcion, notasCredito, pago, categoriaPagoDirecto] = await Promise.all([
+  const editadoPorId = (data as any).editado_por as string | null
+  const [proveedores, beneficiarios, oc, recepcion, notasCredito, pago, categoriaPagoDirecto, editor] = await Promise.all([
     mapaProveedoresBasico(
       data.proveedor_id ? [data.proveedor_id] : [],
       data.proveedor_servicio_id ? [data.proveedor_servicio_id] : []
@@ -730,12 +736,15 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     listarNotasCredito(id),
     obtenerPagoDeObligacion(id),
     data.categoria_pago_directo_id ? obtenerCategoriaPagoDirectoBasica(data.categoria_pago_directo_id) : Promise.resolve(null),
+    editadoPorId ? nombreDePerfil(editadoPorId) : Promise.resolve(null),
   ])
 
   const items: any[] = (data as any).obligaciones_items ?? []
   const productos = await mapaProductosPorOCItem(items.map((i) => i.oc_item_id))
 
   return {
+    editadoPor: editor,
+    editadoEn: (data as any).editado_en ?? null,
     id: data.id,
     codigo: data.codigo,
     origen: data.origen,
@@ -1014,6 +1023,152 @@ export async function registrarPagoDirecto(
   }
 
   return { id: obligacion.id, codigo: obligacion.codigo, total: Number(obligacion.total) }
+}
+
+
+async function nombreDePerfil(id: string): Promise<string | null> {
+  const supabase = crearClienteServidor()
+  const { data } = await supabase.from('perfiles').select('nombre').eq('id', id).maybeSingle()
+  return (data as any)?.nombre ?? null
+}
+
+/**
+ * Lo que necesita la pantalla de EDICIÓN de un Pago Directo: campos que la
+ * ficha no muestra (tipo de cambio, condición de pago, % de detracción) y
+ * por eso `obtenerObligacion` no trae.
+ *
+ * Va aparte y no ensanchando el detalle porque son necesidades distintas:
+ * la ficha muestra, el formulario reconstruye. Mezclarlas haría que toda
+ * pantalla que lee una obligación cargue columnas que no usa.
+ */
+export async function obtenerPagoDirectoParaEditar(id: string): Promise<{
+  fila: any
+  proveedor: ProveedorDeFormulario | null
+} | null> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select(`id, codigo, origen, estado, categoria_pago_directo_id, observaciones, moneda,
+             tipo_cambio, base_imponible, sin_igv, condicion_pago_dias, numero_factura,
+             fecha_factura, porcentaje_detraccion, monto_detraccion,
+             proveedor_id, proveedor_servicio_id`)
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(`No se pudo leer la obligación: ${error.message}`)
+  if (!data) return null
+
+  const fuente: 'compra' | 'servicio' = (data as any).proveedor_servicio_id ? 'servicio' : 'compra'
+  const proveedorId = ((data as any).proveedor_id ?? (data as any).proveedor_servicio_id) as string | null
+
+  let proveedor: ProveedorDeFormulario | null = null
+  if (proveedorId) {
+    const { data: p } =
+      fuente === 'servicio'
+        ? await supabase.schema('servicios').from('proveedores_servicio')
+            .select('id, razon_social, condicion_pago_dias, moneda_principal').eq('id', proveedorId).maybeSingle()
+        : await supabase.schema('compras').from('proveedores')
+            .select('id, razon_social, condicion_pago_dias, moneda_principal').eq('id', proveedorId).maybeSingle()
+    if (p) {
+      proveedor = {
+        id: (p as any).id,
+        nombre: (p as any).razon_social,
+        condicionPagoDias: (p as any).condicion_pago_dias ?? 30,
+        moneda: (p as any).moneda_principal ?? 'PEN',
+        fuente,
+      }
+    }
+  }
+
+  return { fila: data, proveedor }
+}
+
+/**
+ * Editar un Pago Directo antes de que Contabilidad le dé conformidad o lo
+ * rechace — ver la regla completa en domain/edicion.ts.
+ *
+ * Qué NO se toca acá, a propósito:
+ *  - El `origen`: un Pago Directo no se convierte en otra cosa.
+ *  - El ESTADO. En particular, "pendiente de factura" no se apaga ni se
+ *    prende editando: pasar de cotización a factura real es
+ *    `completarFacturaPagoDirecto`, que además recalcula el vencimiento.
+ *    Si editar pudiera hacerlo, habría dos caminos para lo mismo y uno de
+ *    los dos se olvidaría de recalcular.
+ *  - Los adjuntos, que viven en su propio formulario.
+ *
+ * `total` y `neto_a_pagar` son columnas generadas sobre (base + igv), así
+ * que se recalculan solas — por eso acá se escribe `igv` y nunca el total.
+ */
+export async function editarPagoDirecto(
+  id: string,
+  borrador: BorradorPagoDirecto
+): Promise<{ montoAntes: number; montoDespues: number; codigo: string }> {
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  const { data: actual, error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id, codigo, origen, estado, total, condicion_pago_dias, creador_correo')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !actual) throw new Error('No se encontró la obligación.')
+  if (actual.origen !== 'gasto_directo') {
+    throw new Error('Solo un Pago Directo se edita desde aquí.')
+  }
+  if (!puedeEditarseObligacion(actual.estado as EstadoObligacion)) throw new Error(ERROR_EDITAR_TARDE)
+
+  const fuente = borrador.proveedorFuente ?? 'compra'
+  const condicionPagoDias = borrador.condicionPagoDias ?? actual.condicion_pago_dias
+  const pendienteFactura = actual.estado === 'pendiente_factura'
+
+  // Con factura real, cambiar la fecha o la condición cambia el vencimiento:
+  // recalcularlo acá es lo que evita que el dato quede viejo y contradiga a
+  // la factura que se está corrigiendo.
+  const fechaVencimientoReal = pendienteFactura
+    ? null
+    : calcularFechaVencimientoReal(borrador.fechaFactura, condicionPagoDias)
+
+  const numeroFacturaNormalizado = pendienteFactura
+    ? null
+    : normalizarNumeroFactura(borrador.numeroFactura)
+
+  const igv = igvSegun(borrador.baseImponible, borrador.sinIgv)
+  const { error: errUpd } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .update({
+      proveedor_id: fuente === 'compra' ? borrador.proveedorId : null,
+      proveedor_servicio_id: fuente === 'servicio' ? borrador.proveedorId : null,
+      categoria_pago_directo_id: borrador.categoriaId,
+      numero_factura: numeroFacturaNormalizado,
+      fecha_factura: pendienteFactura ? null : borrador.fechaFactura,
+      moneda: borrador.moneda,
+      tipo_cambio: borrador.tipoCambio,
+      base_imponible: borrador.baseImponible,
+      igv,
+      sin_igv: !!borrador.sinIgv,
+      condicion_pago_dias: condicionPagoDias,
+      porcentaje_detraccion: borrador.tieneDetraccion ? borrador.porcentajeDetraccion : null,
+      monto_detraccion: borrador.tieneDetraccion ? borrador.montoDetraccion ?? 0 : 0,
+      fecha_vencimiento_real: fechaVencimientoReal,
+      observaciones: borrador.descripcion,
+      editado_por: usuario.id,
+      editado_en: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (errUpd) {
+    if (errUpd.code === '23505') {
+      throw new Error('Ya existe otra obligación con ese número de factura para este proveedor.')
+    }
+    throw new Error(`No se pudo guardar la edición: ${errUpd.message}`)
+  }
+
+  return {
+    montoAntes: Number(actual.total),
+    montoDespues: borrador.baseImponible + igv,
+    codigo: actual.codigo,
+  }
 }
 
 /**

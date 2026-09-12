@@ -4,18 +4,29 @@ import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearOSAction, type EstadoFormulario } from './actions'
+import type { ValoresOS } from '@/domain/valores-os'
 import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
 import { TASA_IGV, redondear } from '@/domain/obligacion'
 
 type ProveedorServicio = { id: string; razon_social: string }
 
-export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[] }) {
+export function FormularioOS({
+  proveedores, inicial, accionServidor = crearOSAction, textoBoton, textoEnviando,
+}: {
+  proveedores: ProveedorServicio[]
+  /** Valores guardados, al editar. Es el MISMO componente en los dos modos:
+   * así una regla nueva entra en el alta y en la edición a la vez. */
+  inicial?: ValoresOS
+  accionServidor?: (previo: EstadoFormulario, form: FormData) => Promise<EstadoFormulario>
+  textoBoton?: string
+  textoEnviando?: string
+}) {
   // El aviso por correo (Pieza K) necesita el nombre del proveedor, no el id.
-  const [proveedorId, setProveedorId] = useState('')
-  const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearOSAction, null)
+  const [proveedorId, setProveedorId] = useState(inicial?.proveedorServicioId ?? '')
+  const [estado, accion] = useFormState<EstadoFormulario, FormData>(accionServidor, null)
   const sucio = useMarcarSucioAlEditar(estado)
-  const [montoEstimado, setMontoEstimado] = useState('')
-  const [montoIncluyeIgv, setMontoIncluyeIgv] = useState('')
+  const [montoEstimado, setMontoEstimado] = useState(inicial?.montoEstimado ?? '')
+  const [montoIncluyeIgv, setMontoIncluyeIgv] = useState(inicial?.montoIncluyeIgv ?? '')
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
   // Mismo patrón de feedback en vivo que Gastos/Pago Directo: el monto
@@ -54,7 +65,7 @@ export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[]
         </Campo>
 
         <Campo etiqueta="Descripción del servicio" error={errorDe('descripcionServicio')}>
-          <textarea name="descripcionServicio" rows={3} className="w-full rounded-md border border-gray-300 px-3 py-2" />
+          <textarea name="descripcionServicio" rows={3} defaultValue={inicial?.descripcionServicio} className="w-full rounded-md border border-gray-300 px-3 py-2" />
         </Campo>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -89,7 +100,7 @@ export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[]
         ) : null}
 
         <Campo etiqueta="Moneda">
-          <select name="moneda" defaultValue="PEN" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+          <select name="moneda" defaultValue={inicial?.moneda ?? 'PEN'} className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
             <option value="PEN">PEN — Soles</option>
             <option value="USD">USD — Dólares</option>
           </select>
@@ -97,24 +108,27 @@ export function FormularioOS({ proveedores }: { proveedores: ProveedorServicio[]
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo etiqueta="Condición de pago en días">
-            <SelectorCondicionPago name="condicionesPagoDias" required />
+            <SelectorCondicionPago name="condicionesPagoDias" required defaultValue={inicial?.condicionesPagoDias} />
           </Campo>
           <Campo etiqueta="Fecha de entrega estimada (opcional)">
-            <input type="date" name="fechaEntregaEstimada" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+            <input type="date" name="fechaEntregaEstimada" defaultValue={inicial?.fechaEntregaEstimada} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
           </Campo>
         </div>
       </section>
 
-      <BotonGuardar />
+      <BotonGuardar
+        texto={textoBoton ?? 'Crear orden de servicio'}
+        textoEnviando={textoEnviando ?? 'Enviando…'}
+      />
     </form>
   )
 }
 
-function BotonGuardar() {
+function BotonGuardar({ texto, textoEnviando }: { texto: string; textoEnviando: string }) {
   const { pending } = useFormStatus()
   return (
     <button type="submit" disabled={pending} className="btn-primary w-full sm:w-auto">
-      {pending ? 'Enviando…' : 'Crear orden de servicio'}
+      {pending ? textoEnviando : texto}
     </button>
   )
 }

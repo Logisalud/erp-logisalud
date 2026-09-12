@@ -119,7 +119,7 @@ export default async function DetallePropuesta({ params }: { params: { id: strin
               const quien = d.proveedor?.razon_social ?? d.beneficiario?.nombre ?? d.observaciones ?? null
               return (
                 <Fragment key={d.obligacionId}>
-                  <tr className="border-b border-gray-100">
+                  <tr className={puedePagar ? 'bg-gray-50/60' : 'border-b border-gray-100'}>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <Link
                         href={`/cuentas-por-pagar/${d.obligacionId}`}
@@ -167,15 +167,25 @@ export default async function DetallePropuesta({ params }: { params: { id: strin
                       )}
                     </td>
                   </tr>
+                  {/* El formulario va pegado a SU fila y con un borde de
+                      color a la izquierda: desplegado a ancho completo y sin
+                      esa marca, no se distinguía si pertenecía a la fila de
+                      arriba o a la de abajo. */}
                   {puedePagar ? (
-                    <tr className="border-b border-gray-100 last:border-0">
-                      <td colSpan={6} className="bg-gray-50 px-3 pb-3">
-                        <FormularioPago
-                          propuestaId={propuesta.id}
-                          obligacionId={d.obligacionId}
-                          cuentas={d.cuentas}
-                          tipoCuentas={tipoCuentas}
-                        />
+                    <tr className="border-b-4 border-white bg-gray-50/60">
+                      <td colSpan={6} className="px-3 pb-4">
+                        <div className="border-l-4 border-logisalud-teal pl-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Registrar pago de {d.codigo} · {quien ?? 'sin proveedor'} ·{' '}
+                            <Money valor={d.montoAPagar} moneda={d.moneda} />
+                          </p>
+                          <FormularioPago
+                            propuestaId={propuesta.id}
+                            obligacionId={d.obligacionId}
+                            cuentas={d.cuentas}
+                            tipoCuentas={tipoCuentas}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ) : null}

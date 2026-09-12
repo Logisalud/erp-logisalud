@@ -11,6 +11,7 @@ import {
   ETIQUETA_ESTADO, esOrigenAnulable, exigeRespuestaDetraccion, puedeAnularseObligacion,
   puedeRechazarseObligacion, siguientePasoPagoDirecto, UMBRAL_DETRACCION_PEN,
 } from '@/domain/obligacion'
+import { etiquetaEdicion, puedeEditarseObligacion } from '@/domain/edicion'
 import type { Moneda } from '@/domain/servicio'
 import { ETIQUETA_ESTADO_VENCIMIENTO, puedePagarseEnCuotas } from '@/domain/financiamiento'
 import { BotonConformidad } from './conformidad'
@@ -46,6 +47,12 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   // convertidos en obligación no tenían NINGUNA salida hacia atrás.
   const origenCortable = esOrigenAnulable(obligacion.origen)
   const nombreRegistro = (ETIQUETA_ORIGEN[obligacion.origen as OrigenObligacion] ?? 'registro').toLowerCase()
+  // Editar: cualquiera, pero solo antes de la conformidad de Contabilidad
+  // (domain/edicion.ts). Solo Pago Directo — una obligación de compra o
+  // servicio se corrige en su OC u OS.
+  const puedeEditar =
+    obligacion.origen === 'gasto_directo' && puedeEditarseObligacion(obligacion.estado)
+  const rastroEdicion = etiquetaEdicion(obligacion.editadoPor, obligacion.editadoEn)
   const puedeAnular = origenCortable && puedeAnularseObligacion(obligacion.estado)
   // "Rechazar" es la contraparte de "Dar conformidad", así que lo ve quien
   // puede conformar: Contabilidad rol admin (mismo criterio de la Fase 1.7).
@@ -67,6 +74,15 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           <Dato termino="Vencimiento del pago" valor={obligacion.fecha_vencimiento_real} />
           <Dato termino="Origen" valor={obligacion.origen} />
         </dl>
+        {rastroEdicion ? <p className="mt-2 text-xs text-gray-500">{rastroEdicion}</p> : null}
+        {puedeEditar ? (
+          <Link
+            href={`/cuentas-por-pagar/${obligacion.id}/editar`}
+            className="btn-secondary mt-4 inline-flex"
+          >
+            Editar
+          </Link>
+        ) : null}
         {obligacion.estado === 'registrada' ? (
           <p className="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-900">
             {siguientePasoPagoDirecto(obligacion.estado)}. No está atascado.

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarPagoDirectoAction, type EstadoFormulario } from './actions'
+import type { ValoresPagoDirecto } from '@/domain/valores-pago-directo'
 import {
   CONDICIONES_PAGO_DIAS,
   etiquetaCondicionPago,
@@ -20,21 +21,38 @@ const fmt = (n: number) => n.toFixed(2)
 
 export function FormularioPagoDirecto({
   categorias,
+  inicial,
+  accionServidor = registrarPagoDirectoAction,
+  textoBoton,
+  textoEnviando,
 }: {
   categorias: CategoriaOpcion[]
+  /** Valores guardados, al editar. Sin esto arranca vacío y es el de alta —
+   * es el MISMO componente en los dos modos, para que una regla nueva entre
+   * en los dos caminos a la vez. */
+  inicial?: ValoresPagoDirecto
+  accionServidor?: (previo: EstadoFormulario, form: FormData) => Promise<EstadoFormulario>
+  textoBoton?: string
+  textoEnviando?: string
 }) {
-  const [estado, accion] = useFormState<EstadoFormulario, FormData>(registrarPagoDirectoAction, null)
+  const editando = !!inicial
+  const [estado, accion] = useFormState<EstadoFormulario, FormData>(accionServidor, null)
   const sucio = useMarcarSucioAlEditar(estado)
-  const [proveedor, setProveedor] = useState<ProveedorElegido | null>(null)
-  const [moneda, setMoneda] = useState<'PEN' | 'USD'>('PEN')
-  const [categoriaId, setCategoriaId] = useState('')
-  const [baseImponible, setBaseImponible] = useState('')
-  const [tieneDetraccion, setTieneDetraccion] = useState<boolean | null>(null)
-  const [porcentajeDetraccion, setPorcentajeDetraccion] = useState('')
-  const [montoDetraccion, setMontoDetraccion] = useState('')
-  const [pendienteFactura, setPendienteFactura] = useState(false)
-  const [sinIgv, setSinIgv] = useState(false)
-  const [condicionPagoDias, setCondicionPagoDias] = useState<number | null>(null)
+  const [proveedor, setProveedor] = useState<ProveedorElegido | null>(inicial?.proveedor ?? null)
+  const [moneda, setMoneda] = useState<'PEN' | 'USD'>(inicial?.moneda ?? 'PEN')
+  const [categoriaId, setCategoriaId] = useState(inicial?.categoriaId ?? '')
+  const [baseImponible, setBaseImponible] = useState(inicial?.baseImponible ?? '')
+  const [tieneDetraccion, setTieneDetraccion] = useState<boolean | null>(inicial?.tieneDetraccion ?? null)
+  const [porcentajeDetraccion, setPorcentajeDetraccion] = useState(inicial?.porcentajeDetraccion ?? '')
+  const [montoDetraccion, setMontoDetraccion] = useState(inicial?.montoDetraccion ?? '')
+  // Al editar, "pendiente de factura" es el ESTADO guardado y no se cambia
+  // desde acá: pasar de cotización a factura real es "Completar factura",
+  // que además recalcula el vencimiento (ver services/obligaciones.ts).
+  const [pendienteFactura, setPendienteFactura] = useState(inicial?.pendienteFactura ?? false)
+  const [sinIgv, setSinIgv] = useState(inicial?.sinIgv ?? false)
+  const [condicionPagoDias, setCondicionPagoDias] = useState<number | null>(
+    inicial?.condicionPagoDias ?? null
+  )
 
   // Pieza B1: el IGV no es editable, pero sí tiene que verse mientras se
   // escribe la base — antes había que guardar para descubrir el total.
@@ -93,54 +111,66 @@ export function FormularioPagoDirecto({
         </Campo>
 
         <Campo etiqueta="Para qué es este gasto *" error={errorDe('descripcion')}>
-          <textarea name="descripcion" rows={2} required className="w-full rounded-md border border-gray-300 px-3 py-2" />
+          <textarea name="descripcion" rows={2} required defaultValue={inicial?.descripcion} className="w-full rounded-md border border-gray-300 px-3 py-2" />
         </Campo>
       </section>
 
       <section className="card space-y-3">
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox" name="pendienteFactura" value="si"
-            checked={pendienteFactura}
-            onChange={(e) => setPendienteFactura(e.target.checked)}
-            className="mt-1 h-5 w-5"
-          />
-          <span>
-            <span className="font-medium text-gray-800">El proveedor todavía no emitió la factura</span>
-            <span className="mt-0.5 block text-xs text-gray-500">
-              Registra el compromiso con la cotización y queda <strong>pendiente de factura</strong>. No se puede
-              pagar hasta completar los datos reales del comprobante.
+        {editando ? (
+          <p className="text-sm text-gray-600">
+            {pendienteFactura
+              ? 'Pendiente de factura — para cargar los datos reales del comprobante usa "Completar factura" desde la ficha, que además recalcula el vencimiento.'
+              : 'Con factura registrada.'}
+          </p>
+        ) : (
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox" name="pendienteFactura" value="si"
+              checked={pendienteFactura}
+              onChange={(e) => setPendienteFactura(e.target.checked)}
+              className="mt-1 h-5 w-5"
+            />
+            <span>
+              <span className="font-medium text-gray-800">El proveedor todavía no emitió la factura</span>
+              <span className="mt-0.5 block text-xs text-gray-500">
+                Registra el compromiso con la cotización y queda <strong>pendiente de factura</strong>. No se puede
+                pagar hasta completar los datos reales del comprobante.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        )}
 
         {pendienteFactura ? (
-          <Campo etiqueta="📎 Cotización que sustenta el monto">
-            <CampoArchivo
-              nombre="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
-              className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
-            />
-          </Campo>
+          editando ? null : (
+            <Campo etiqueta="📎 Cotización que sustenta el monto">
+              <CampoArchivo
+                nombre="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+              />
+            </Campo>
+          )
         ) : (
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <Campo etiqueta="N° de factura *" error={errorDe('numeroFactura')}>
-                <input type="text" name="numeroFactura" required className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+                <input type="text" name="numeroFactura" required defaultValue={inicial?.numeroFactura} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
               </Campo>
               <Campo etiqueta="Fecha de factura *" error={errorDe('fechaFactura')}>
                 <input
                   type="date" name="fechaFactura" required
-                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  defaultValue={inicial?.fechaFactura ?? new Date().toISOString().slice(0, 10)}
                   className="min-h-12 w-full rounded-md border border-gray-300 px-3"
                 />
               </Campo>
             </div>
-            <Campo etiqueta="📎 Factura escaneada (opcional)">
-              <CampoArchivo
-                nombre="factura" accept="application/pdf,image/jpeg,image/png,image/webp"
-                className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
-              />
-            </Campo>
+            {editando ? null : (
+              <Campo etiqueta="📎 Factura escaneada (opcional)">
+                <CampoArchivo
+                  nombre="factura" accept="application/pdf,image/jpeg,image/png,image/webp"
+                  className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+                />
+              </Campo>
+            )}
           </div>
         )}
       </section>
@@ -184,7 +214,7 @@ export function FormularioPagoDirecto({
 
         {moneda === 'USD' ? (
           <Campo etiqueta="Tipo de cambio *" error={errorDe('tipoCambio')}>
-            <input type="number" name="tipoCambio" min="0" step="0.0001" required className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+            <input type="number" name="tipoCambio" min="0" step="0.0001" required defaultValue={inicial?.tipoCambio} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
           </Campo>
         ) : null}
 
@@ -240,16 +270,19 @@ export function FormularioPagoDirecto({
         errorMonto={errorDe('montoDetraccion')}
       />
 
-      <BotonGuardar />
+      <BotonGuardar
+        texto={textoBoton ?? 'Registrar pago directo'}
+        textoEnviando={textoEnviando ?? 'Registrando…'}
+      />
     </form>
   )
 }
 
-function BotonGuardar() {
+function BotonGuardar({ texto, textoEnviando }: { texto: string; textoEnviando: string }) {
   const { pending } = useFormStatus()
   return (
     <button type="submit" disabled={pending} className="btn-primary w-full sm:w-auto">
-      {pending ? 'Registrando…' : 'Registrar pago directo'}
+      {pending ? textoEnviando : texto}
     </button>
   )
 }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearSolicitudAction, type EstadoFormulario } from './actions'
+import type { ValoresSolicitud } from '@/domain/valores-solicitud'
 import { AvisoErrores, useScrollAlPrimerError } from '@/components/errores-formulario'
 import { CampoArchivo } from '@/components/campo-archivo'
 import { TIPOS_SOLICITUD, ETIQUETA_TIPO, type TipoSolicitud } from '@/domain/gasto'
@@ -23,6 +24,10 @@ export function FormularioSolicitud({
   usuarios,
   tipoPreseleccionado,
   sugerenciaAutoriza,
+  inicial,
+  accionServidor = crearSolicitudAction,
+  textoBoton = 'Enviar solicitud',
+  textoEnviando = 'Enviando…',
 }: {
   categorias: CategoriaGasto[]
   usuarios: Usuario[]
@@ -30,15 +35,25 @@ export function FormularioSolicitud({
   /** Nombre del responsable del área de quien crea la solicitud, o null si
    * esa área no tiene responsable cargado todavía. */
   sugerenciaAutoriza: string | null
+  /** Valores guardados, al editar. Sin esto el formulario arranca vacío y
+   * es el de alta — es el MISMO componente en los dos modos, así una regla
+   * nueva no se agrega en uno y se olvida en el otro. */
+  inicial?: ValoresSolicitud
+  accionServidor?: (previo: EstadoFormulario, form: FormData) => Promise<EstadoFormulario>
+  textoBoton?: string
+  textoEnviando?: string
 }) {
-  const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearSolicitudAction, null)
+  const editando = !!inicial
+  const [estado, accion] = useFormState<EstadoFormulario, FormData>(accionServidor, null)
   const sucio = useMarcarSucioAlEditar(estado)
-  const [tipo, setTipo] = useState<TipoSolicitud>(tipoPreseleccionado ?? 'gasto_directo')
-  const [categoriaId, setCategoriaId] = useState('')
-  const [base, setBase] = useState('')
-  const [igv, setIgv] = useState('')
-  const [igvEditadoAMano, setIgvEditadoAMano] = useState(false)
-  const [tipoComprobante, setTipoComprobante] = useState('boleta')
+  const [tipo, setTipo] = useState<TipoSolicitud>(inicial?.tipo ?? tipoPreseleccionado ?? 'gasto_directo')
+  const [categoriaId, setCategoriaId] = useState(inicial?.categoriaId ?? '')
+  const [base, setBase] = useState(inicial?.baseImponible ?? '')
+  const [igv, setIgv] = useState(inicial?.igv ?? '')
+  // Al editar, el IGV guardado se respeta tal cual: recalcularlo al 18%
+  // porque alguien tocó la base pisaría un valor que ya estaba revisado.
+  const [igvEditadoAMano, setIgvEditadoAMano] = useState(!!inicial)
+  const [tipoComprobante, setTipoComprobante] = useState(inicial?.tipoComprobante ?? 'boleta')
 
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
   // El formulario es largo y el botón está al final: sin esto, un error de
@@ -66,10 +81,16 @@ export function FormularioSolicitud({
       <input type="hidden" name="categoriaNombre" value={categorias.find((c) => c.id === categoriaId)?.nombre ?? ''} />
 
       <section className="card space-y-3">
-        {tipoPreseleccionado ? (
+        {/* El tipo nunca se edita: cambiar un anticipo por un reembolso
+            (o al revés) muta dos cosas con ciclos distintos. Para eso se
+            anula y se carga de nuevo. */}
+        {editando || tipoPreseleccionado ? (
           <>
             <input type="hidden" name="tipo" value={tipo} />
-            <p className="text-sm text-gray-600">{ETIQUETA_TIPO[tipoPreseleccionado]}</p>
+            <p className="text-sm text-gray-600">
+              {ETIQUETA_TIPO[tipo]}
+              {editando ? <span className="text-gray-400"> · el tipo no se puede cambiar</span> : null}
+            </p>
           </>
         ) : (
           <Campo etiqueta="Tipo *" error={errorDe('tipo')}>
@@ -98,20 +119,20 @@ export function FormularioSolicitud({
         </Campo>
 
         <Campo etiqueta="Moneda *" error={errorDe('moneda')}>
-          <select name="moneda" defaultValue="PEN" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+          <select name="moneda" defaultValue={inicial?.moneda ?? 'PEN'} className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
             <option value="PEN">PEN — Soles</option>
             <option value="USD">USD — Dólares</option>
           </select>
         </Campo>
 
         <Campo etiqueta="Descripción *" error={errorDe('descripcion')}>
-          <textarea name="descripcion" rows={3} className="w-full rounded-md border border-gray-300 px-3 py-2" />
+          <textarea name="descripcion" rows={3} defaultValue={inicial?.descripcion} className="w-full rounded-md border border-gray-300 px-3 py-2" />
         </Campo>
 
         {tipo !== 'gasto_directo' ? (
           <Campo etiqueta="Quién autoriza">
             <input
-              type="text" name="quienAutoriza" defaultValue={sugerenciaAutoriza ?? ''}
+              type="text" name="quienAutoriza" defaultValue={inicial?.quienAutoriza ?? sugerenciaAutoriza ?? ''}
               placeholder="Sugerido: responsable de tu área"
               className="min-h-12 w-full rounded-md border border-gray-300 px-3"
             />
@@ -125,7 +146,7 @@ export function FormularioSolicitud({
 
         {tipo !== 'gasto_directo' ? (
           <Campo etiqueta="¿Para cuándo necesitas el dinero?">
-            <input type="date" name="fechaRequerida" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+            <input type="date" name="fechaRequerida" defaultValue={inicial?.fechaRequerida} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
             <p className="mt-1 text-xs text-gray-500">
               Opcional. Le sirve a Tesorería para priorizar el desembolso — no es un compromiso
               de pago. Si es un viaje, esto no reemplaza las fechas del viaje: normalmente
@@ -138,11 +159,11 @@ export function FormularioSolicitud({
           <>
             <div className="grid gap-3 sm:grid-cols-3">
               <Campo etiqueta="Monto del anticipo *" error={errorDe('montoAnticipo')}>
-                <input type="number" name="montoAnticipo" min="0" step="0.01" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+                <input type="number" name="montoAnticipo" min="0" step="0.01" defaultValue={inicial?.montoAnticipo} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
               </Campo>
               {usuarios.length > 1 ? (
                 <Campo etiqueta="Vendedor o persona asignada">
-                  <select name="asignadoA" defaultValue="" className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+                  <select name="asignadoA" defaultValue={inicial?.asignadoA ?? ''} className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
                     <option value="">Para mí</option>
                     {usuarios.map((u) => (
                       <option key={u.id} value={u.id}>{u.nombre}</option>
@@ -164,17 +185,18 @@ export function FormularioSolicitud({
               </p>
               <div className="grid gap-3 sm:grid-cols-3">
                 <Campo etiqueta="Destino">
-                  <input type="text" name="destino" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+                  <input type="text" name="destino" defaultValue={inicial?.destino} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
                 </Campo>
                 <Campo etiqueta="Fecha de inicio del viaje">
-                  <input type="date" name="fechaInicio" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+                  <input type="date" name="fechaInicio" defaultValue={inicial?.fechaInicio} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
                 </Campo>
                 <Campo etiqueta="Fecha de fin del viaje" error={errorDe('fechaFin')}>
-                  <input type="date" name="fechaFin" className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+                  <input type="date" name="fechaFin" defaultValue={inicial?.fechaFin} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
                 </Campo>
               </div>
             </div>
 
+            {editando ? null : (
             <Campo etiqueta="📎 Cotización o sustento">
               <CampoArchivo
                 nombre="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
@@ -185,6 +207,7 @@ export function FormularioSolicitud({
                 vuelo o de un evento), si lo tienes a mano.
               </p>
             </Campo>
+            )}
           </>
         ) : (
           <div className="space-y-3 rounded-md border border-gray-200 p-3">
@@ -193,6 +216,7 @@ export function FormularioSolicitud({
               tal como figuran ahí — mirando el comprobante al lado.
             </p>
 
+            {editando ? null : (
             <Campo etiqueta="📎 Foto o PDF del comprobante">
               <CampoArchivo
                 nombre="archivo" accept="application/pdf,image/jpeg,image/png,image/webp"
@@ -203,6 +227,7 @@ export function FormularioSolicitud({
                 tienes factura, esta es su casilla — no hace falta otro lugar.
               </p>
             </Campo>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Campo etiqueta="Tipo de comprobante">
@@ -221,7 +246,7 @@ export function FormularioSolicitud({
                 error={errorDe('fechaFactura')}
               >
                 <input
-                  type="date" name="fechaFactura" required={exigeFechaComprobante}
+                  type="date" name="fechaFactura" required={exigeFechaComprobante} defaultValue={inicial?.fechaFactura}
                   className="min-h-12 w-full rounded-md border border-gray-300 px-3"
                 />
                 <p className="mt-1 text-xs text-gray-500">
@@ -265,16 +290,16 @@ export function FormularioSolicitud({
       {/* El mismo aviso, otra vez, al lado del botón: es donde está la
           persona cuando aprieta Enviar. Repetirlo es a propósito. */}
       <AvisoErrores errores={estado?.errores} id={ID_AVISO_ERRORES} />
-      <BotonGuardar />
+      <BotonGuardar texto={textoBoton} textoEnviando={textoEnviando} />
     </form>
   )
 }
 
-function BotonGuardar() {
+function BotonGuardar({ texto, textoEnviando }: { texto: string; textoEnviando: string }) {
   const { pending } = useFormStatus()
   return (
     <button type="submit" disabled={pending} className="btn-primary w-full sm:w-auto">
-      {pending ? 'Enviando…' : 'Enviar solicitud'}
+      {pending ? textoEnviando : texto}
     </button>
   )
 }

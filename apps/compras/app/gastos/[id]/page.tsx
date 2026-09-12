@@ -4,6 +4,7 @@ import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { obtenerSolicitud } from '@/services/solicitudes-gasto'
 import { ETIQUETA_ESTADO, ETIQUETA_TIPO } from '@/domain/gasto'
+import { etiquetaEdicion, puedeEditarseSolicitud } from '@/domain/edicion'
 import { AccionesSolicitud } from './acciones'
 import { FormularioComprobante } from './comprobante-form'
 import { VerComprobante } from './ver-comprobante'
@@ -19,6 +20,14 @@ const ETIQUETA_RESULTADO_LIQUIDACION: Record<string, string> = {
 export default async function DetalleSolicitud({ params }: { params: { id: string } }) {
   const solicitud = await obtenerSolicitud(params.id)
   if (!solicitud) notFound()
+
+  // Editar: cualquiera, pero solo antes de que Contabilidad decida (ver
+  // domain/edicion.ts). Después no edita nadie — quedan Anular y Rechazar.
+  const puedeEditar = puedeEditarseSolicitud(solicitud.estado)
+  const rastroEdicion = etiquetaEdicion(
+    (solicitud as any).editadoPor ?? null,
+    (solicitud as any).editado_en ?? null
+  )
 
   const comprobantesIniciales = solicitud.comprobantes.filter((c) => c.fase === 'inicial')
   const comprobantesRendicion = solicitud.comprobantes.filter((c) => c.fase === 'rendicion')
@@ -51,6 +60,14 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
         ) : null}
         {solicitud.quienAutoriza ? (
           <p className="mt-1 text-sm text-gray-600">Quién autoriza: {solicitud.quienAutoriza}</p>
+        ) : null}
+        {rastroEdicion ? (
+          <p className="mt-2 text-xs text-gray-500">{rastroEdicion}</p>
+        ) : null}
+        {puedeEditar ? (
+          <Link href={`/gastos/${solicitud.id}/editar`} className="btn-secondary mt-4 inline-flex">
+            Editar
+          </Link>
         ) : null}
         {solicitud.fecha_factura ? (
           <p className="mt-1 text-sm text-gray-600">Fecha del comprobante: {solicitud.fecha_factura}</p>
