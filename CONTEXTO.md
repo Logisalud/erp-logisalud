@@ -1,4 +1,4 @@
-Última actualización: 2026-09-10. Léeme completo antes de tocar código. Actualízame cuando algo cambie de verdad (arquitectura, reglas, estado de módulo) — no en cada sesión.
+Última actualización: 2026-09-14. Léeme completo antes de tocar código. Actualízame cuando algo cambie de verdad (arquitectura, reglas, estado de módulo) — no en cada sesión.
 
 ---
 
@@ -53,6 +53,44 @@ aprobar algo lo sigue pudiendo hacer entrando por URL directa al detalle. El
 gate de esa pantalla está replicado en JS (`domain/pendientes-aprobar.ts`)
 justo porque no se puede confiar en RLS hoy. Lo mismo vale para el gate de
 Beatriz en Pago Directo: es cosmético hasta que se cierre (a) y (b).
+
+---
+
+## ⏳ TEMPORAL — Categoría "Regularización de pagos antiguos (pre-ERP)"
+
+**Hay que desactivarla cuando Sebas termine el backlog.** Agregada el
+2026-09-14 (migración 0053) al catálogo de Pago Directo
+(`cuentas_x_pagar.categorias_pago_directo`).
+
+Para qué es: Sebas (Gerencia General) tiene que regularizar un conjunto
+CERRADO de pagos anteriores al ERP — facturas de mercadería viejas y
+letras/retiros viejos. Es un número limitado y se termina. Nadie más del
+equipo la usa; el resto sigue con el flujo normal (OC para mercadería nueva).
+
+Por qué es temporal y no una categoría más: **"mercadería" no es un caso de
+Pago Directo.** Pago Directo existe para lo que NO tiene OC ni OS (luz, agua,
+peajes, notaría…). Esta categoría es una excepción de migración de datos, no
+una puerta nueva. Dejarla activa para siempre sería ofrecer un camino
+permanente para saltarse la Orden de Compra, que es la regla de oro del
+módulo — y el primero que la encuentre buscando "cómo pago esta factura sin
+armar la OC" la va a usar para eso.
+
+Cómo se apaga (mismo mecanismo de 0034 y 0049 — desactivar, nunca borrar, así
+las obligaciones ya registradas siguen mostrando su nombre):
+
+```sql
+update cuentas_x_pagar.categorias_pago_directo
+set activo = false
+where nombre = 'Regularización de pagos antiguos (pre-ERP)';
+```
+
+**Ojo con el tope de S/5,000** (`TOPE_PAGO_DIRECTO_PEN` en
+`domain/obligacion.ts`): `validarPagoDirecto` rechaza en soles todo total
+mayor o igual a ese número, y una factura de mercadería vieja o una letra lo
+supera fácil. No se tocó — es una regla de negocio acordada con Sebas
+(2026-08-28) y cambiarla por un backlog sería usar la excepción para mover la
+regla. Decisión pendiente si el backlog lo necesita (ver "Pendientes de
+Sebas").
 
 ---
 
@@ -156,6 +194,14 @@ Acceso temporal (decisión 2026-08-28, PR #70): todos los usuarios internos aute
 - ~~Confirmar condición de pago real por proveedor~~ — confirmado: default 90 días, Prades varía 75/90/105, no editable por el proveedor.
 - ~~Definir monto fijo del fondo de caja chica de Roberto~~ — confirmado: S/600.
 - Completar apellido/teléfono de Jose Carlos y Christian (almacén, sin correo — login por SMS pendiente).
+- **Tope de S/5,000 y el backlog pre-ERP**: si alguna factura de mercadería
+  vieja o alguna letra del backlog supera el tope, `validarPagoDirecto` la va
+  a rechazar. No se tocó nada: el tope es una regla acordada (2026-08-28) y
+  moverla por un backlog sería usar la excepción para cambiar la regla.
+  Decidir cuál de las tres: (a) esas se cargan por OC/OS como cualquier
+  compra grande, (b) se exime SOLO a la categoría "Regularización de pagos
+  antiguos (pre-ERP)" del tope, que muere con ella, o (c) se sube el tope
+  para todos. Mi recomendación es (b) si el backlog realmente las tiene.
 
 ## Próximos pasos acordados
 
