@@ -136,25 +136,41 @@ export async function crearAportesEnLote(
  * Sube UN comprobante suelto, apenas se elige el archivo y antes de que
  * exista la fila.
  *
- * Va a `borradores/<uuid>/` porque todavía no hay código de aporte al que
- * colgarlo. Si la persona abandona el formulario, el archivo queda huérfano
- * en Storage: es el costo aceptado de no mandar N archivos en un mismo
- * request (ver CONTEXTO.md). Son archivos chicos en un bucket privado, no se
- * muestran en ninguna pantalla y no rompen nada.
+ * EL PATH TIENE QUE SER `YYYY/MM/<algo>/<archivo>`: la policy de Storage
+ * `legajos_gastos_escritura` exige `path_legajo_valido(name)`, que valida
+ * exactamente ese formato. Un `borradores/<uuid>/...` es rechazado por RLS
+ * — fue el primer intento y fallaba en silencio. Por eso el prefijo de
+ * borrador va en el TERCER segmento (`borradores-<uuid>`), que es libre.
+ *
+ * Si la persona abandona el formulario, el archivo queda huérfano: es el
+ * costo aceptado de no mandar N archivos en un mismo request (ver
+ * CONTEXTO.md). Son archivos chicos en un bucket privado e invisibles.
+ *
+ * Devuelve el motivo cuando falla, en vez de un null mudo: el comprobante es
+ * opcional, pero "no se pudo" sin decir por qué deja a la persona sin nada
+ * que hacer.
  */
-export async function subirComprobanteSuelto(archivo: File): Promise<string | null> {
+export type ResultadoSubida = { path: string } | { error: string }
+
+export async function subirComprobanteSuelto(archivo: File): Promise<ResultadoSubida> {
   await exigirPermisoDeEscritura()
-  if (archivo.size === 0) return null
+  if (archivo.size === 0) return { error: 'El archivo está vacío.' }
   const supabase = crearClienteServidor()
 
+  const ahora = new Date()
+  const yyyy = String(ahora.getFullYear())
+  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `borradores/${crypto.randomUUID()}/${nombreLimpio}`
+  const path = `${yyyy}/${mm}/borradores-${crypto.randomUUID()}/${nombreLimpio}`
 
   const { error } = await supabase.storage
     .from('legajos-gastos')
     .upload(path, archivo, { contentType: archivo.type || undefined })
-  if (error) return null
-  return path
+  if (error) {
+    console.error('[subirComprobanteSuelto] falló la subida:', error.message)
+    return { error: `No se pudo subir: ${error.message}` }
+  }
+  return { path }
 }
 
 export async function editarAporte(id: string, borrador: BorradorAporte): Promise<void> {

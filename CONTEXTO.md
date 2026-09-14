@@ -104,7 +104,11 @@ Sebas").
   general, no un bug aislado.
 - **Comprobantes huérfanos en Storage (aportes de accionista)**: desde la
   carga múltiple (2026-09-14), cada comprobante se sube al ELEGIRLO, en su
-  propio request, a `legajos-gastos/borradores/<uuid>/`. Eso es lo que evita
+  propio request, a `legajos-gastos/YYYY/MM/borradores-<uuid>/`. **El formato
+  del path no es decorativo**: la policy `legajos_gastos_escritura` exige
+  `path_legajo_valido(name)`, o sea `^[0-9]{4}/(0[1-9]|1[0-2])/[^/]+/.+$`. Un
+  `borradores/<uuid>/...` lo rechaza RLS — fue el primer intento y falló en
+  producción. Eso es lo que evita
   que N archivos juntos pasen del límite de body del submit — con 4 fotos de
   celular serían ~10 MB y el envío se rechazaría sin dejar ni un error que
   mostrar (el mismo fallo silencioso del "botón que no hacía nada"). El costo
@@ -112,7 +116,8 @@ Sebas").
   archivos quedan sin fila. Son chicos, están en un bucket privado, no se
   muestran en ninguna pantalla y no rompen nada. Limpiarlos requeriría un
   cron, que el módulo todavía no tiene — cuando exista, es una tarea de dos
-  líneas (borrar de `borradores/` lo que no esté referenciado).
+  líneas (borrar lo que tenga `borradores-` en el tercer segmento y no esté
+  referenciado en `storage_path_comprobante`).
 - **Estado `cerrada` muerto en `cuentas_x_pagar.obligaciones`** (encontrado
   2026-09-11 al agrupar los estados del listado): está en `ESTADOS_OBLIGACION`,
   en el CHECK de la base, en `ETIQUETA_ESTADO` y en las transiciones
