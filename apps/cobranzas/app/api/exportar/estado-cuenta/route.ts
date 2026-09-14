@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
     }
 
     const tipoLabel = (t: string) => t === 'retencion' ? 'Retención IGV' : 'Pago';
+    const medioLabel = (m: string) => m === 'cheque' ? 'Cheque' : 'Efectivo';
     const estadoEfectivoLabel = (p: PagoRow) => p.estado_efectivo === 'depositado'
       ? `Depositado${p.fecha_deposito ? ` (${fmtFechaCorta(p.fecha_deposito)})` : ''}`
       : 'Cobrado - por depositar';
@@ -83,12 +84,13 @@ export async function GET(req: NextRequest) {
         return p.referencia ? `${base} (Ref: ${p.referencia})` : base;
       }).join('; ');
     };
-    // "Estado Efectivo": solo los pagos en efectivo (nunca retenciones), un
-    // ítem de texto por cada uno. Vacía si todos los pagos son transferencia.
+    // "Estado Efectivo/Cheque": solo los pagos que pasan por depósito
+    // (efectivo o cheque, nunca retenciones), un ítem de texto por cada uno.
+    // Vacía si todos los pagos son transferencia.
     const estadoEfectivoDetalle = (documentoId: string) => {
-      const ps = (pagosPorDoc.get(documentoId) ?? []).filter(p => p.tipo === 'pago' && p.medio_cobro === 'efectivo');
+      const ps = (pagosPorDoc.get(documentoId) ?? []).filter(p => p.tipo === 'pago' && (p.medio_cobro === 'efectivo' || p.medio_cobro === 'cheque'));
       if (ps.length === 0) return '';
-      return ps.map(p => `${fmtFechaCorta(p.fecha_pago)}: ${estadoEfectivoLabel(p)}`).join('; ');
+      return ps.map(p => `${fmtFechaCorta(p.fecha_pago)} (${medioLabel(p.medio_cobro)}): ${estadoEfectivoLabel(p)}`).join('; ');
     };
 
     // NC (tipo '07') aplicadas a cada factura del resultado — mismo criterio:
@@ -157,7 +159,7 @@ export async function GET(req: NextRequest) {
         'Total ND':           Number(row.total_nd) || 0,
         'Total Pagado':       pagado,
         'Pagos Registrados':  pagosRegistradosLabel(id),
-        'Estado Efectivo':    estadoEfectivoDetalle(id),
+        'Estado Efectivo/Cheque': estadoEfectivoDetalle(id),
         'Saldo Pendiente':    saldo,
         'Estado Pago':        estadoPago,
         'Por Vencer':         Number(row.vigente)  || 0,
