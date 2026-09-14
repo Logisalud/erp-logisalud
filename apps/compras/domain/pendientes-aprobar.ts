@@ -182,6 +182,16 @@ export type FilaPendiente = {
   diasEsperando: number
   monto: number
   moneda: string
+  /**
+   * El total REAL de la fila, por moneda.
+   *
+   * Para casi todos los tipos es `[{moneda, monto}]` y no aporta nada. Para
+   * una PROPUESTA sí: un lote puede mezclar PEN y USD, y `monto`/`moneda`
+   * guardan solo la PRIMERA moneda porque la columna es una sola celda.
+   * Sumar `monto` entre varias propuestas perdería la otra moneda en
+   * silencio — justo en el total que existe para no aprobar a ciegas.
+   */
+  totalPorMoneda: readonly { moneda: string; monto: number }[]
   /** "Contabilidad" o "Jefe de <área>" — útil para admin, que ve las cuatro. */
   quienDecide: string
   /** Anticipo/Reembolso: para cuándo pidieron el dinero (Pieza J). Null en

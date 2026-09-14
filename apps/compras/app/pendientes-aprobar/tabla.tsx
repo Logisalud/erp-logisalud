@@ -9,8 +9,10 @@ import {
   type FilaPendiente, type TipoPendiente,
 } from '@/domain/pendientes-aprobar'
 import {
-  estadoDelCheckbox, etiquetaBotonLote, MAXIMO_POR_LOTE,
+  cuantasEntranAlLote, estadoDelCheckbox, estadoDelSeleccionarTodos, etiquetaBotonLote,
+  exigeTotalDestacado, MAXIMO_POR_LOTE, totalDeLaSeleccion,
 } from '@/domain/aprobacion-en-lote'
+import { ChipFiltro } from '@/components/chip-filtro'
 import { aprobarEnLoteAction, type EstadoLote } from './actions'
 
 /**
@@ -30,9 +32,36 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
   const [estado, accion] = useFormState<EstadoLote, FormData>(aprobarEnLoteAction, null)
   const [elegidas, setElegidas] = useState<Set<string>>(new Set())
   const [confirmando, setConfirmando] = useState(false)
+  // Filtro por tipo, en el cliente: las filas ya están todas cargadas, así
+  // que filtrar no necesita ir al servidor. Y de paso vuelve NAVEGACIÓN la
+  // restricción de "un tipo por selección": se elige el tipo primero, en
+  // vez de descubrir el límite chocando con checkbox que se apagan.
+  const [filtro, setFiltro] = useState<TipoPendiente | null>(null)
 
   const tipoActivo: TipoPendiente | null =
     filas.find((f) => elegidas.has(f.id))?.tipo ?? null
+
+  const visibles = filtro ? filas.filter((f) => f.tipo === filtro) : filas
+  const conteos = contarPorTipo(filas)
+  const seleccionarTodos = estadoDelSeleccionarTodos(filtro, visibles.length)
+
+  const cambiarFiltro = (nuevo: TipoPendiente | null) => {
+    setFiltro(nuevo)
+    setConfirmando(false)
+    // Filtrar por otro tipo con filas ya tildadas dejaría una selección
+    // invisible: se aprobaría algo que no está en pantalla. Se limpia.
+    if (nuevo !== tipoActivo) setElegidas(new Set())
+  }
+
+  const tildarTodosLosVisibles = () => {
+    if (!seleccionarTodos.habilitado) return
+    setElegidas((prev) => {
+      const todosTildados = visibles.length > 0 && visibles.every((f) => prev.has(f.id))
+      if (todosTildados) return new Set()
+      // El tope manda: con 25 filas visibles entran las primeras 20.
+      return new Set(visibles.slice(0, cuantasEntranAlLote(visibles.length)).map((f) => f.id))
+    })
+  }
 
   const alternar = (id: string) =>
     setElegidas((prev) => {
@@ -42,7 +71,10 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
     })
 
   const seleccionadas = filas.filter((f) => elegidas.has(f.id))
-  const totales = totalesPorMoneda(seleccionadas)
+  // Por MONEDA de cada fila, no por su columna Monto: una propuesta puede
+  // mezclar PEN y USD adentro y la columna solo muestra una.
+  const totales = totalDeLaSeleccion(seleccionadas)
+  const totalEnGrande = exigeTotalDestacado(tipoActivo)
 
   return (
     <form action={accion}>
@@ -60,6 +92,39 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
           {estado.ok ? estado.resumen : estado.error}
         </div>
       ) : null}
+
+      {/* Mismo chip que Cuentas por Pagar (components/chip-filtro.tsx). */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+        <ChipFiltro etiqueta="Todos" activo={filtro === null} onClick={() => cambiarFiltro(null)} />
+        {conteos.map(({ tipo, cantidad }) => (
+          <ChipFiltro
+            key={tipo}
+            etiqueta={`${ETIQUETA_TIPO_PENDIENTE[tipo]} (${cantidad})`}
+            activo={filtro === tipo}
+            onClick={() => cambiarFiltro(tipo)}
+          />
+        ))}
+      </div>
+
+      <div className="mb-3">
+        <button
+          type="button"
+          onClick={tildarTodosLosVisibles}
+          disabled={!seleccionarTodos.habilitado}
+          title={seleccionarTodos.habilitado ? undefined : seleccionarTodos.motivo}
+          className="text-sm text-logisalud-teal underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+        >
+          {filtro && visibles.length > cuantasEntranAlLote(visibles.length)
+            ? `Seleccionar los primeros ${MAXIMO_POR_LOTE} visibles`
+            : 'Seleccionar todos los visibles'}
+        </button>
+        {/* El motivo también a la vista, no solo en el title: un botón
+            apagado sin explicación hace dudar del sistema, y acá la salida
+            está a un clic en los chips de arriba. */}
+        {!seleccionarTodos.habilitado ? (
+          <span className="ml-2 text-xs text-gray-500">{seleccionarTodos.motivo}</span>
+        ) : null}
+      </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
         <table className="w-full text-sm">
@@ -79,7 +144,7 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
             </tr>
           </thead>
           <tbody>
-            {filas.map((f) => {
+            {visibles.map((f) => {
               const check = estadoDelCheckbox(f, { tipoActivo, elegidas })
               return (
                 <tr
@@ -102,8 +167,8 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     {ETIQUETA_TIPO_PENDIENTE[f.tipo]}
-                    {!check.habilitado && f.tipo === 'propuesta' ? (
-                      <span className="block text-xs text-gray-500">se aprueba de a una</span>
+                    {f.tipo === 'propuesta' ? (
+                      <span className="block text-xs text-gray-500">libera el pago de su lote</span>
                     ) : null}
                   </td>
                   <td className="px-3 py-2">
@@ -140,15 +205,40 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
 
       {elegidas.size > 0 ? (
         <div className="card mt-4 space-y-3">
+          {/* Con propuestas el total deja de ser un dato al pie: cada una
+              libera el desembolso de un lote entero, así que tres pueden
+              ser cien obligaciones. Se lee ANTES de decidir, no después. */}
+          {totalEnGrande ? (
+            <div className="rounded-md border-2 border-amber-300 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                Total que se libera al aprobar
+              </p>
+              <p className="font-heading mt-1 flex flex-wrap gap-x-6 text-2xl text-amber-900">
+                {totales.map((t) => (
+                  <span key={t.moneda} className="tabular-nums">
+                    <Money valor={t.monto} moneda={t.moneda} />
+                  </span>
+                ))}
+              </p>
+              <p className="mt-1 text-xs text-amber-900">
+                {elegidas.size === 1
+                  ? 'Es el total de la propuesta seleccionada, con todas sus obligaciones.'
+                  : `Es la suma de las ${elegidas.size} propuestas seleccionadas, con todas sus obligaciones.`}
+              </p>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <span className="text-sm text-gray-600">
               {elegidas.size} de {MAXIMO_POR_LOTE} como máximo por lote
             </span>
-            <span className="flex flex-wrap gap-x-4 font-semibold tabular-nums">
-              {totales.map((t) => (
-                <Money key={t.moneda} valor={t.monto} moneda={t.moneda} />
-              ))}
-            </span>
+            {totalEnGrande ? null : (
+              <span className="flex flex-wrap gap-x-4 font-semibold tabular-nums">
+                {totales.map((t) => (
+                  <Money key={t.moneda} valor={t.monto} moneda={t.moneda} />
+                ))}
+              </span>
+            )}
           </div>
 
           {confirmando ? (
@@ -193,6 +283,16 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
   )
 }
 
+/** Los tipos que hay hoy en la bandeja, con cuántas filas tiene cada uno —
+ * en el orden de la tabla, que es por antigüedad. */
+function contarPorTipo(
+  filas: readonly FilaPendiente[]
+): { tipo: TipoPendiente; cantidad: number }[] {
+  const mapa = new Map<TipoPendiente, number>()
+  for (const f of filas) mapa.set(f.tipo, (mapa.get(f.tipo) ?? 0) + 1)
+  return [...mapa.entries()].map(([tipo, cantidad]) => ({ tipo, cantidad }))
+}
+
 function BotonConfirmar({ texto }: { texto: string }) {
   const { pending } = useFormStatus()
   return (
@@ -200,16 +300,6 @@ function BotonConfirmar({ texto }: { texto: string }) {
       {pending ? 'Aprobando…' : `Sí, ${texto.toLowerCase()}`}
     </button>
   )
-}
-
-function totalesPorMoneda(
-  filas: readonly { moneda: string; monto: number }[]
-): { moneda: string; monto: number }[] {
-  const mapa = new Map<string, number>()
-  for (const f of filas) mapa.set(f.moneda, (mapa.get(f.moneda) ?? 0) + f.monto)
-  return [...mapa.entries()]
-    .map(([moneda, monto]) => ({ moneda, monto: Math.round(monto * 100) / 100 }))
-    .sort((a, b) => a.moneda.localeCompare(b.moneda))
 }
 
 /** Tres tonos según cuánto lleva esperando — no es adorno: la bandeja
