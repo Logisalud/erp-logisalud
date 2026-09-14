@@ -102,6 +102,17 @@ Sebas").
   dejar una obligación huérfana. El módulo entero no usa transacciones (no hay
   un solo `supabase.rpc`), así que esto es un caso particular de un patrón
   general, no un bug aislado.
+- **Comprobantes huérfanos en Storage (aportes de accionista)**: desde la
+  carga múltiple (2026-09-14), cada comprobante se sube al ELEGIRLO, en su
+  propio request, a `legajos-gastos/borradores/<uuid>/`. Eso es lo que evita
+  que N archivos juntos pasen del límite de body del submit — con 4 fotos de
+  celular serían ~10 MB y el envío se rechazaría sin dejar ni un error que
+  mostrar (el mismo fallo silencioso del "botón que no hacía nada"). El costo
+  aceptado: si alguien sube comprobantes y abandona el formulario, esos
+  archivos quedan sin fila. Son chicos, están en un bucket privado, no se
+  muestran en ninguna pantalla y no rompen nada. Limpiarlos requeriría un
+  cron, que el módulo todavía no tiene — cuando exista, es una tarea de dos
+  líneas (borrar de `borradores/` lo que no esté referenciado).
 - **Estado `cerrada` muerto en `cuentas_x_pagar.obligaciones`** (encontrado
   2026-09-11 al agrupar los estados del listado): está en `ESTADOS_OBLIGACION`,
   en el CHECK de la base, en `ETIQUETA_ESTADO` y en las transiciones

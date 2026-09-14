@@ -4,7 +4,7 @@ import { Encabezado } from '@/components/nav'
 import { listarCategoriasGasto } from '@/services/solicitudes-gasto'
 import { obtenerAporte, puedeRegistrarAporte } from '@/services/aportes-accionista'
 import { puedeEditarseAporte } from '@/domain/aporte-accionista'
-import { FormularioAporte } from '../../formulario'
+import { FormularioAporte } from '../../formulario-uno'
 import { editarAporteAction } from '../../actions'
 import { BotonAnularAporte } from './anular'
 

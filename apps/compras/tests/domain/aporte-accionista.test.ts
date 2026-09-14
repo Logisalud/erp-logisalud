@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   etiquetaCategoria, puedeAnularseAporte, puedeEditarseAporte, totalesPorCategoria,
-  totalesPorMoneda, validarAporte, type BorradorAporte,
+  totalesPorMoneda, totalEnVivo, validarAporte, validarAportes, type BorradorAporte,
 } from '@/domain/aporte-accionista'
 
 const base: BorradorAporte = {
@@ -91,5 +91,60 @@ describe('etiquetaCategoria', () => {
   })
   it('cae en la libre cuando no hay catálogo', () => {
     expect(etiquetaCategoria(null, ' Agasajo ')).toBe('Agasajo')
+  })
+})
+
+describe('carga de VARIOS aportes (2026-09-14)', () => {
+  const linea = (over: Partial<BorradorAporte> = {}): BorradorAporte => ({
+    fecha: '2026-09-01',
+    categoriaId: 'cat-1',
+    categoriaLibre: null,
+    descripcion: 'Taxi al almacén',
+    moneda: 'PEN',
+    monto: 25,
+    ...over,
+  })
+
+  it('valida cada fila por separado y marca el índice de la que falla', () => {
+    const errores = validarAportes([linea(), linea({ monto: 0 }), linea()])
+    expect(errores).toHaveLength(1)
+    expect(errores[0].linea).toBe(1)
+    expect(errores[0].campo).toBe('monto')
+  })
+
+  it('NO valida cruzado: dos aportes idénticos son válidos', () => {
+    // A diferencia de Impuestos, acá no hay regla de unicidad entre filas —
+    // dos taxis el mismo día por el mismo monto es un caso real.
+    expect(validarAportes([linea(), linea()])).toEqual([])
+  })
+
+  it('exige al menos una fila', () => {
+    expect(validarAportes([]).map((e) => e.campo)).toContain('general')
+  })
+
+  it('acumula errores de varias filas a la vez', () => {
+    const errores = validarAportes([linea({ monto: 0 }), linea({ descripcion: ' ' })])
+    expect(errores.map((e) => e.linea)).toEqual([0, 1])
+  })
+})
+
+describe('total en vivo del pie', () => {
+  it('agrupa por moneda y cuenta solo las filas con monto', () => {
+    const r = totalEnVivo([
+      { moneda: 'PEN', monto: '100' },
+      { moneda: 'USD', monto: '80' },
+      { moneda: 'PEN', monto: '40.5' },
+      // Una fila recién agregada no debe ensuciar la cuenta.
+      { moneda: 'PEN', monto: '' },
+    ])
+    expect(r.cantidad).toBe(3)
+    expect(r.totales).toEqual([
+      { moneda: 'PEN', monto: 140.5 },
+      { moneda: 'USD', monto: 80 },
+    ])
+  })
+
+  it('sin montos todavía, no inventa un cero', () => {
+    expect(totalEnVivo([{ moneda: 'PEN', monto: '' }])).toEqual({ cantidad: 0, totales: [] })
   })
 })
