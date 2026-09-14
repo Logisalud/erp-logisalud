@@ -81,6 +81,29 @@ export function totalDeLaSeleccion(
  */
 export const MAXIMO_POR_LOTE = 20
 
+/**
+ * Por qué "Seleccionar todos" puede estar apagado.
+ *
+ * Con el filtro en "Todos" no hay forma de saber de qué tipo sería — y la
+ * salida está a un clic, en los chips de arriba. Por eso el motivo dice qué
+ * hacer, no solo que no se puede.
+ */
+export function estadoDelSeleccionarTodos(
+  tipoFiltrado: TipoPendiente | null,
+  visibles: number
+): { habilitado: true } | { habilitado: false; motivo: string } {
+  if (!tipoFiltrado) {
+    return { habilitado: false, motivo: 'Filtra por un tipo para seleccionarlos todos.' }
+  }
+  if (visibles === 0) return { habilitado: false, motivo: 'No hay filas de este tipo.' }
+  return { habilitado: true }
+}
+
+/** Cuántas filas entran de verdad al tildar todo: el tope manda. */
+export function cuantasEntranAlLote(visibles: number): number {
+  return Math.min(visibles, MAXIMO_POR_LOTE)
+}
+
 export type EstadoSeleccion = {
   /** El tipo que "reservó" la selección. Null = no hay nada tildado. */
   tipoActivo: TipoPendiente | null

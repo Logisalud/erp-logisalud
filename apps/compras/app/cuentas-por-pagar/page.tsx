@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
 import { listarVistaCuentasPorPagar } from '@/services/obligaciones'
 import { TablaObligaciones } from '@/components/tabla-obligaciones'
+import { ChipFiltro as Chip } from '@/components/chip-filtro'
 import {
   nombreDelRecorte, querystringDeFiltro, resolverFiltroCuentasPorPagar,
 } from '@/domain/filtros-cuentas-por-pagar'
@@ -125,15 +126,4 @@ export default async function CuentasPorPagar({
   )
 }
 
-function Chip({ etiqueta, activo, href }: { etiqueta: string; activo: boolean; href: string }) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-full border px-3 py-1 ${
-        activo ? 'border-logisalud-teal bg-logisalud-teal/10 text-logisalud-teal' : 'border-gray-200 text-gray-600'
-      }`}
-    >
-      {etiqueta}
-    </Link>
-  )
-}
+

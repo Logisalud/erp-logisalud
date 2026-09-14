@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  admiteAprobacionEnLote, estadoDelCheckbox, etiquetaBotonLote, exigeTotalDestacado,
+  admiteAprobacionEnLote, cuantasEntranAlLote, estadoDelCheckbox,
+  estadoDelSeleccionarTodos, etiquetaBotonLote, exigeTotalDestacado,
   MAXIMO_POR_LOTE, resumirLote, totalDeLaSeleccion,
 } from '@/domain/aprobacion-en-lote'
 describe('qué tipos admiten lote', () => {
@@ -136,5 +137,32 @@ describe('resumirLote — sin transacciones, el resultado se dice como es', () =
   it('si no entró ninguno lo dice sin rodeos', () => {
     expect(resumirLote([{ codigo: 'C-1', ok: false, motivo: 'sin permiso' }]))
       .toContain('No se pudo aprobar ninguno')
+  })
+})
+
+
+describe('"Seleccionar todos" y el filtro por tipo', () => {
+  it('con "Todos" activo está apagado, y el motivo dice qué hacer', () => {
+    const r = estadoDelSeleccionarTodos(null, 9)
+    expect(r.habilitado).toBe(false)
+    // No basta con decir que no se puede: la salida está a un clic en los
+    // chips de arriba, así que el motivo tiene que señalarla.
+    if (!r.habilitado) expect(r.motivo).toContain('Filtra por un tipo')
+  })
+
+  it('filtrado por un tipo con filas, se habilita', () => {
+    expect(estadoDelSeleccionarTodos('pago_directo', 7).habilitado).toBe(true)
+  })
+
+  it('filtrado por un tipo sin filas, no tiene nada que tildar', () => {
+    const r = estadoDelSeleccionarTodos('os', 0)
+    expect(r.habilitado).toBe(false)
+    if (!r.habilitado) expect(r.motivo).toContain('No hay filas')
+  })
+
+  it('el tope manda: con más visibles que el máximo, entran los primeros', () => {
+    expect(cuantasEntranAlLote(7)).toBe(7)
+    expect(cuantasEntranAlLote(MAXIMO_POR_LOTE)).toBe(MAXIMO_POR_LOTE)
+    expect(cuantasEntranAlLote(MAXIMO_POR_LOTE + 5)).toBe(MAXIMO_POR_LOTE)
   })
 })
