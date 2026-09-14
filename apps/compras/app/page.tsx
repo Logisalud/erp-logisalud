@@ -9,6 +9,7 @@ import { listarPagosPorEjecutar, puedeVerPagosPorEjecutar } from '@/services/pag
 import { RegistrarPaso } from '@/components/registrar-paso'
 import { veItemDeMenu } from '@/domain/menu-principal'
 import { puedeRegistrarAporte } from '@/services/aportes-accionista'
+import { puedeVerPlanilla } from '@/domain/planilla'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,10 @@ export default async function Inicio() {
   // Aporte de accionista: solo lo registra Gerencia (area+rol admin). No es
   // una forma de pedir plata, así que no va dentro de "Pedir un pago".
   const veAportes = puedeRegistrarAporte(perfil)
+  // Pago de Planilla: solo quien participa del circuito (Gestión Humana
+  // carga, Contabilidad/Tesorería conforman y pagan). Gerencia y el resto
+  // de las áreas no lo ven — ver domain/planilla.ts.
+  const vePlanilla = puedeVerPlanilla(perfil)
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -139,6 +144,13 @@ export default async function Inicio() {
           titulo="Registrar un impuesto"
           descripcion="Registra obligaciones tributarias para su programación y pago."
         />
+        {vePlanilla ? (
+          <MenuItem
+            href="/planilla" emoji="👥"
+            titulo="Pago de Planilla"
+            descripcion="El total de cada pago de sueldos, tal como lo arroja BUK."
+          />
+        ) : null}
         <MenuItem
           href="/caja-chica" emoji="💰"
           titulo="Caja chica"

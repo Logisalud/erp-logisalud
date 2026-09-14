@@ -17,6 +17,7 @@ export const ORIGENES_OBLIGACION = [
   'fraccionamiento_sunat',
   'letra_por_pagar',
   'impuesto',
+  'planilla',
 ] as const
 export type OrigenObligacion = (typeof ORIGENES_OBLIGACION)[number]
 
@@ -32,6 +33,7 @@ export const ETIQUETA_ORIGEN: Record<OrigenObligacion, string> = {
   fraccionamiento_sunat: 'Fraccionamiento SUNAT',
   letra_por_pagar: 'Letra por pagar',
   impuesto: 'Impuesto',
+  planilla: 'Pago de Planilla',
 }
 
 /**
