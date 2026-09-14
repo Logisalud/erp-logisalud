@@ -3,9 +3,11 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import {
-  anularAporte, crearAporte, editarAporte, subirComprobanteAporte,
+  anularAporte, crearAportesEnLote, editarAporte,
 } from '@/services/aportes-accionista'
-import { validarAporte, type BorradorAporte } from '@/domain/aporte-accionista'
+import {
+  validarAporte, validarAportes, type BorradorAporte, type ErrorDeLinea,
+} from '@/domain/aporte-accionista'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 export type EstadoAccion = { error: string } | null
@@ -21,28 +23,42 @@ function leerBorrador(form: FormData): BorradorAporte {
   }
 }
 
-export async function crearAporteAction(
-  _previo: EstadoFormulario,
-  form: FormData
-): Promise<EstadoFormulario> {
-  const borrador = leerBorrador(form)
-  const errores = validarAporte(borrador)
-  if (errores.length > 0) return { errores }
+export type EstadoLote = { errores: ErrorDeLinea[] } | null
 
-  let aporte: { id: string; codigo: string }
-  try {
-    aporte = await crearAporte(borrador)
-  } catch (e) {
-    return { errores: [{ campo: 'general', mensaje: (e as Error).message }] }
+/**
+ * Registra N aportes de una vez.
+ *
+ * Los comprobantes ya vienen subidos —cada uno en su propio request— y lo
+ * que llega en el FormData es la RUTA. Ese es el punto del diseño: si los
+ * archivos viajaran acá, cuatro fotos de celular pasarían del límite de body
+ * y el envío se rechazaría sin dejar ni un error que mostrar.
+ */
+export async function crearAportesAction(
+  _previo: EstadoLote,
+  form: FormData
+): Promise<EstadoLote> {
+  const cantidad = Number(form.get('cantidadLineas') ?? 0)
+  const lineas: (BorradorAporte & { storagePathComprobante: string | null })[] = []
+
+  for (let i = 0; i < cantidad; i++) {
+    lineas.push({
+      fecha: String(form.get(`fecha-${i}`) ?? ''),
+      categoriaId: textoONull(form.get(`categoriaId-${i}`)),
+      categoriaLibre: textoONull(form.get(`categoriaLibre-${i}`)),
+      descripcion: String(form.get(`descripcion-${i}`) ?? ''),
+      moneda: String(form.get(`moneda-${i}`) ?? 'PEN'),
+      monto: Number(form.get(`monto-${i}`) ?? 0),
+      storagePathComprobante: textoONull(form.get(`comprobantePath-${i}`)),
+    })
   }
 
-  // Best-effort, igual que el resto de los adjuntos del módulo: si la subida
-  // falla, el aporte ya quedó registrado y el archivo se sube después.
-  const archivo = form.get('comprobante')
+  const errores = validarAportes(lineas)
+  if (errores.length > 0) return { errores }
+
   try {
-    if (archivo instanceof File) await subirComprobanteAporte(aporte.id, archivo)
-  } catch {
-    // No tumbar el registro por un comprobante que falló.
+    await crearAportesEnLote(lineas)
+  } catch (e) {
+    return { errores: [{ linea: 0, campo: 'general', mensaje: (e as Error).message }] }
   }
 
   revalidatePath('/aportes-accionista')

@@ -1,6 +1,8 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
-import { validarAporte, type BorradorAporte } from '@/domain/aporte-accionista'
+import {
+  validarAporte, validarAportes, type BorradorAporte,
+} from '@/domain/aporte-accionista'
 
 /**
  * Aportes de accionista — registro informativo, SIN obligación de pago.
@@ -83,6 +85,76 @@ export async function crearAporte(borrador: BorradorAporte): Promise<{ id: strin
     .single()
   if (error) throw new Error(`No se pudo registrar el aporte: ${error.message}`)
   return data
+}
+
+/**
+ * Carga N aportes en un solo envío — todo o nada.
+ *
+ * Un único `.insert([...])`: es UNA sentencia, así que o entran las N filas
+ * o no entra ninguna. N llamadas separadas no serían atómicas y el módulo no
+ * usa transacciones, así que un fallo en la cuarta dejaría las tres primeras
+ * cargadas sin forma de revertirlas.
+ *
+ * Los comprobantes NO se suben acá: ya vienen subidos, cada uno en su propio
+ * request, y lo que llega es la ruta. Eso es lo que evita que el envío se
+ * pase del límite de body: con 4 fotos de celular adjuntas, un submit que
+ * las llevara todas juntas rondaría los 10 MB y lo rechazaría la
+ * infraestructura ANTES de ejecutar nada — el mismo fallo silencioso que ya
+ * arreglamos una vez (ver components/campo-archivo.tsx).
+ */
+export async function crearAportesEnLote(
+  lineas: readonly (BorradorAporte & { storagePathComprobante?: string | null })[]
+): Promise<{ cantidad: number }> {
+  await exigirPermisoDeEscritura()
+  const errores = validarAportes(lineas)
+  if (errores.length > 0) throw new Error(errores[0].mensaje)
+
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  const { data, error } = await supabase
+    .schema('gastos')
+    .from('aportes_accionista')
+    .insert(
+      lineas.map((l) => ({
+        fecha: l.fecha,
+        categoria_id: l.categoriaId || null,
+        categoria_libre: l.categoriaId ? null : l.categoriaLibre?.trim() || null,
+        descripcion: l.descripcion.trim(),
+        moneda: l.moneda,
+        monto: l.monto,
+        storage_path_comprobante: l.storagePathComprobante || null,
+        registrado_por: usuario.id,
+      }))
+    )
+    .select('id')
+  if (error) throw new Error(`No se pudieron registrar los aportes: ${error.message}`)
+  return { cantidad: (data ?? []).length }
+}
+
+/**
+ * Sube UN comprobante suelto, apenas se elige el archivo y antes de que
+ * exista la fila.
+ *
+ * Va a `borradores/<uuid>/` porque todavía no hay código de aporte al que
+ * colgarlo. Si la persona abandona el formulario, el archivo queda huérfano
+ * en Storage: es el costo aceptado de no mandar N archivos en un mismo
+ * request (ver CONTEXTO.md). Son archivos chicos en un bucket privado, no se
+ * muestran en ninguna pantalla y no rompen nada.
+ */
+export async function subirComprobanteSuelto(archivo: File): Promise<string | null> {
+  await exigirPermisoDeEscritura()
+  if (archivo.size === 0) return null
+  const supabase = crearClienteServidor()
+
+  const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const path = `borradores/${crypto.randomUUID()}/${nombreLimpio}`
+
+  const { error } = await supabase.storage
+    .from('legajos-gastos')
+    .upload(path, archivo, { contentType: archivo.type || undefined })
+  if (error) return null
+  return path
 }
 
 export async function editarAporte(id: string, borrador: BorradorAporte): Promise<void> {

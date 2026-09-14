@@ -122,3 +122,46 @@ export function totalesPorCategoria(
     }))
     .sort((a, b) => a.categoria.localeCompare(b.categoria))
 }
+
+
+/**
+ * Carga de VARIOS aportes en un solo envío.
+ *
+ * A diferencia de Impuestos, donde las líneas comparten periodo y no se
+ * puede repetir un tipo dentro del mismo envío, acá cada fila es
+ * completamente independiente: no hay encabezado común ni ninguna regla de
+ * unicidad entre ellas. Dos aportes idénticos el mismo día son perfectamente
+ * posibles (dos taxis, dos almuerzos) y no hay nada que validar entre filas.
+ *
+ * Por eso esto NO valida cruzado: valida cada fila con `validarAporte` y
+ * marca cada error con el índice de su línea, para que el formulario lo
+ * pinte donde corresponde en vez de un error general que obligue a buscar
+ * cuál de las seis está mal.
+ */
+export type ErrorDeLinea = { linea: number; campo: string; mensaje: string }
+
+export function validarAportes(lineas: readonly BorradorAporte[]): ErrorDeLinea[] {
+  if (lineas.length === 0) {
+    return [{ linea: 0, campo: 'general', mensaje: 'Agrega al menos un aporte.' }]
+  }
+  return lineas.flatMap((linea, i) =>
+    validarAporte(linea).map((e) => ({ linea: i, campo: e.campo, mensaje: e.mensaje }))
+  )
+}
+
+/**
+ * El total en vivo del pie, agrupado por moneda y nunca sumado entre sí —
+ * mismo criterio que el resto del módulo. Cargar seis aportes de corrido sin
+ * ver el acumulado es fácil de hacer mal.
+ *
+ * Ignora las filas todavía sin monto: mientras se escribe, una línea recién
+ * agregada no debe ensuciar la cuenta de cuántos aportes van.
+ */
+export function totalEnVivo(
+  lineas: readonly { moneda: string; monto: number | string }[]
+): { cantidad: number; totales: MontoPorMoneda[] } {
+  const conMonto = lineas
+    .map((l) => ({ moneda: l.moneda, monto: Number(l.monto) || 0 }))
+    .filter((l) => l.monto > 0)
+  return { cantidad: conMonto.length, totales: totalesPorMoneda(conMonto) }
+}
