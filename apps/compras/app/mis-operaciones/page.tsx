@@ -3,6 +3,9 @@ import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { ChipEstado } from '@/components/chip-estado'
 import { listarMisOperaciones } from '@/services/mis-operaciones'
+import { listarAportes, puedeRegistrarAporte } from '@/services/aportes-accionista'
+import { totalesPorMoneda } from '@/domain/aporte-accionista'
+import { perfilActual } from '@logisalud/auth/server'
 import {
   ETIQUETA_ESTADO_PAGO, ETIQUETA_TIPO_OPERACION,
   type FilaOperacion, type TonoEstado,
@@ -20,6 +23,12 @@ export const dynamic = 'force-dynamic'
  */
 export default async function MisOperaciones() {
   const filas = await listarMisOperaciones()
+  // Los aportes de accionista van en su PROPIA sección, no mezclados en la
+  // tabla de arriba: ahí todo tiene un "¿ya se pagó?" y en un aporte esa
+  // pregunta no existe — no hay nada que pagar, nunca. Solo la ve quien
+  // puede registrarlos.
+  const perfil = await perfilActual()
+  const aportes = puedeRegistrarAporte(perfil) ? await listarAportes() : []
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -82,7 +91,84 @@ export default async function MisOperaciones() {
           </table>
         </div>
       )}
+
+      {aportes.length > 0 ? <SeccionAportes aportes={aportes} /> : null}
     </main>
+  )
+}
+
+/**
+ * Aportes de accionista: gastos propios que NO se reclaman. Sección aparte y
+ * con su propia explicación, porque si se leyeran como una fila más de
+ * arriba parecerían algo que la empresa todavía debe.
+ */
+function SeccionAportes({
+  aportes,
+}: {
+  aportes: Awaited<ReturnType<typeof listarAportes>>
+}) {
+  const totales = totalesPorMoneda(aportes)
+  return (
+    <section className="mt-8">
+      <h2 className="font-heading text-lg">Mis aportes de accionista</h2>
+      <p className="mb-3 mt-1 text-sm text-gray-600">
+        Gastos que pagaste de tu bolsillo y no reclamaste.{' '}
+        <strong>No son deuda de la empresa</strong> y no entran a ninguna propuesta de pago —
+        Contabilidad los asienta como aporte de capital.{' '}
+        <Link href="/aportes-accionista" className="text-logisalud-teal underline">
+          Ver todos
+        </Link>
+      </p>
+
+      <div className="card mb-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Total aportado
+        </span>
+        <span className="ml-3 font-heading text-lg tabular-nums">
+          {totales.length === 0
+            ? '—'
+            : totales.map((t) => (
+                <span key={t.moneda} className="ml-3">
+                  <Money valor={t.monto} moneda={t.moneda} />
+                </span>
+              ))}
+        </span>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
+              <th className="px-3 py-2 font-medium">Código</th>
+              <th className="px-3 py-2 font-medium">Fecha</th>
+              <th className="px-3 py-2 font-medium">Categoría</th>
+              <th className="px-3 py-2 font-medium">Descripción</th>
+              <th className="px-3 py-2 text-right font-medium">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {aportes.slice(0, 10).map((a) => (
+              <tr key={a.id} className="border-b border-gray-100 last:border-0">
+                <td className="px-3 py-2 whitespace-nowrap font-medium">{a.codigo}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-gray-600">{a.fecha}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{a.categoria}</td>
+                <td className="px-3 py-2 max-w-[280px] truncate" title={a.descripcion}>
+                  {a.descripcion}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  <Money valor={a.monto} moneda={a.moneda} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {aportes.length > 10 ? (
+        <p className="mt-2 text-xs text-gray-500">
+          Se muestran los 10 más recientes de {aportes.length}.
+        </p>
+      ) : null}
+    </section>
   )
 }
 

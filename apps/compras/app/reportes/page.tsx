@@ -58,6 +58,11 @@ export default function Reportes() {
           titulo="Detracciones"
           descripcion="Facturas con detracción: base imponible, monto detraído y categoría del anexo SUNAT."
         />
+        <ItemReporte
+          href="/reportes/aportes-accionista"
+          titulo="Aportes de accionista"
+          descripcion="Gastos del negocio pagados por el accionista sin reembolso, por categoría y período. No son deuda de la empresa."
+        />
       </GrupoReportes>
 
       <GrupoReportes titulo="Exportar">

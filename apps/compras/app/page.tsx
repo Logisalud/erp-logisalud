@@ -8,6 +8,7 @@ import { resumenPendientesDeAprobar } from '@/services/pendientes-aprobar'
 import { listarPagosPorEjecutar, puedeVerPagosPorEjecutar } from '@/services/pagos-por-ejecutar'
 import { RegistrarPaso } from '@/components/registrar-paso'
 import { veItemDeMenu } from '@/domain/menu-principal'
+import { puedeRegistrarAporte } from '@/services/aportes-accionista'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,9 @@ export default async function Inicio() {
   const veAprobar = veItemDeMenu('pendientes_aprobar', area)
   const veOrdenes = veItemDeMenu('ordenes', area)
   const veRegistrarFactura = veItemDeMenu('registrar_factura', area)
+  // Aporte de accionista: solo lo registra Gerencia (area+rol admin). No es
+  // una forma de pedir plata, así que no va dentro de "Pedir un pago".
+  const veAportes = puedeRegistrarAporte(perfil)
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -140,6 +144,13 @@ export default async function Inicio() {
           titulo="Caja chica"
           descripcion="Administra fondos, gastos y reposiciones de caja chica."
         />
+        {veAportes ? (
+          <MenuItem
+            href="/aportes-accionista" emoji="🧾"
+            titulo="Aportes de accionista"
+            descripcion="Gastos del negocio que pagaste de tu bolsillo y no vas a reclamar."
+          />
+        ) : null}
       </Grupo>
 
       <section className="mt-4">
