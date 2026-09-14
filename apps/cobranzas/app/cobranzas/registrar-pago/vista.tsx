@@ -47,7 +47,7 @@ interface Pago {
   voucher_path: string | null;
   tipo?: 'pago' | 'retencion';
   registrado_por?: string | null;
-  medio_cobro?: 'transferencia' | 'efectivo';
+  medio_cobro?: 'transferencia' | 'efectivo' | 'cheque';
   estado_efectivo?: 'cobrado_por_depositar' | 'depositado' | null;
   fecha_deposito?: string | null;
   voucher_deposito_path?: string | null;
@@ -133,7 +133,7 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
   const [fechaPago, setFechaPago]       = useState(hoy());
   const [referencia, setReferencia]     = useState('');
   const [registradoPor, setRegistradoPor] = useState('');
-  const [medioCobro, setMedioCobro]     = useState<'transferencia' | 'efectivo'>('transferencia');
+  const [medioCobro, setMedioCobro]     = useState<'transferencia' | 'efectivo' | 'cheque'>('transferencia');
   const [archivo, setArchivo]           = useState<File | null>(null);
   const [voucherPath, setVoucherPath]   = useState<string | null>(null);
   const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
@@ -862,10 +862,22 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
                       >
                         💵 Efectivo
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setMedioCobro('cheque')}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition ${
+                          medioCobro === 'cheque'
+                            ? 'bg-amber-50 border-amber-400 text-amber-700'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        🏦 Cheque
+                      </button>
                     </div>
-                    {medioCobro === 'efectivo' && (
+                    {(medioCobro === 'efectivo' || medioCobro === 'cheque') && (
                       <p className="text-[11px] text-amber-600 mt-1">
-                        Queda como &quot;cobrado, por depositar&quot; hasta que alguien lo marque como depositado.
+                        Queda como &quot;cobrado, por depositar&quot; hasta que alguien lo marque como depositado
+                        {medioCobro === 'cheque' && ' — adjunta la constancia de entrega del cheque como voucher'}.
                       </p>
                     )}
                   </div>
@@ -889,11 +901,13 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs text-gray-500 mb-1">Referencia / N° operación</label>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {medioCobro === 'cheque' ? 'N° de cheque' : 'Referencia / N° operación'}
+                      </label>
                       <input
                         type="text" value={referencia}
                         onChange={e => setReferencia(e.target.value)}
-                        placeholder="OP-123456"
+                        placeholder={medioCobro === 'cheque' ? '000123' : 'OP-123456'}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
                       />
                     </div>
@@ -1140,12 +1154,12 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
                               {p.referencia && <> · <span className="text-gray-500">{p.referencia}</span></>}
                               {p.registrado_por && <> · registrado por <span className="text-gray-500">{p.registrado_por}</span></>}
                             </p>
-                            {p.medio_cobro === 'efectivo' && (
+                            {(p.medio_cobro === 'efectivo' || p.medio_cobro === 'cheque') && (
                               <div className="mt-1.5">
                                 {p.estado_efectivo === 'depositado' ? (
                                   <>
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                      💵 Efectivo · Depositado{p.fecha_deposito ? ` (${fmtFecha(p.fecha_deposito)})` : ''}
+                                      {p.medio_cobro === 'efectivo' ? '💵 Efectivo' : '🏦 Cheque'} · Depositado{p.fecha_deposito ? ` (${fmtFecha(p.fecha_deposito)})` : ''}
                                     </span>
                                     <div className="flex items-center gap-3 mt-1 flex-wrap">
                                       {p.voucher_deposito_path && (
@@ -1169,7 +1183,7 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
                                 ) : (
                                   <>
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                      💵 Efectivo · Cobrado - por depositar ({fmtFecha(p.fecha_pago)})
+                                      {p.medio_cobro === 'efectivo' ? '💵 Efectivo' : '🏦 Cheque'} · Cobrado - por depositar ({fmtFecha(p.fecha_pago)})
                                     </span>
                                     {p.voucher_path && (
                                       <div className="mt-1">
@@ -1184,7 +1198,7 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
                             )}
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
-                            {p.voucher_path && p.medio_cobro !== 'efectivo' && (
+                            {p.voucher_path && p.medio_cobro !== 'efectivo' && p.medio_cobro !== 'cheque' && (
                               <button
                                 onClick={() => verVoucher(p.voucher_path as string)}
                                 className="text-xs text-logisalud-teal hover:underline font-medium"

@@ -13,6 +13,7 @@ interface PagoRow {
   registrado_por: string | null;
   voucher_path: string | null;
   voucher_deposito_path: string | null;
+  medio_cobro: 'efectivo' | 'cheque';
   estado_efectivo: 'cobrado_por_depositar' | 'depositado';
   fecha_deposito: string | null;
   referencia: string | null;
@@ -24,11 +25,13 @@ interface PagoRow {
   } | null;
 }
 
-// Pagos en efectivo. Por defecto solo los que faltan llevar al banco; con
-// ?depositados=1 también incluye los ya depositados (para ver su historial
-// y voucher de depósito, no solo mientras están pendientes). No toca
-// conciliación ni saldos: el pago ya está registrado y la factura ya bajó
-// de saldo — esto es solo trazabilidad de dónde está físicamente esa plata.
+// Efectivo y cheques por depositar: ambos siguen el mismo ciclo (cobrado →
+// hay que llevarlo al banco → depositado). Por defecto solo lo que falta
+// llevar al banco; con ?depositados=1 también incluye lo ya depositado
+// (para ver su historial y voucher de depósito, no solo mientras está
+// pendiente). No toca conciliación ni saldos: el pago ya está registrado y
+// la factura ya bajó de saldo — esto es solo trazabilidad de dónde está
+// físicamente esa plata.
 export async function GET(req: NextRequest) {
   const auth = await exigirArea(AREAS_LECTURA);
   if (!auth.ok) return auth.respuesta;
@@ -40,10 +43,10 @@ export async function GET(req: NextRequest) {
     .from('pagos')
     .select(`
       id, documento_id, monto, fecha_pago, created_at, registrado_por,
-      voucher_path, voucher_deposito_path, estado_efectivo, fecha_deposito, referencia,
+      voucher_path, voucher_deposito_path, medio_cobro, estado_efectivo, fecha_deposito, referencia,
       documentos:documento_id ( serie, numero, cliente_ruc, clientes:cliente_ruc ( razon_social ) )
     `)
-    .eq('medio_cobro', 'efectivo')
+    .in('medio_cobro', ['efectivo', 'cheque'])
     .order('fecha_pago', { ascending: true });
 
   query = incluirDepositados
@@ -60,6 +63,7 @@ export async function GET(req: NextRequest) {
     comprobante: p.documentos ? `${p.documentos.serie}-${p.documentos.numero}` : '—',
     cliente_ruc: p.documentos?.cliente_ruc ?? null,
     razon_social: p.documentos?.clientes?.razon_social ?? '—',
+    medio_cobro: p.medio_cobro,
     monto: p.monto,
     fecha_pago: p.fecha_pago,
     registrado_por: p.registrado_por,

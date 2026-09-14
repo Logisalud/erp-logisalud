@@ -4,8 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_ESCRITURA } from '@/lib/autorizacion';
 
-// Marca un pago en efectivo como depositado. Cualquiera con acceso al ERP
-// puede hacer este cambio — no hay restricción de rol (no existe login).
+// Marca un pago en efectivo o cheque como depositado. Cualquiera con acceso
+// de escritura puede hacer este cambio.
 export async function POST(req: NextRequest) {
   const auth = await exigirArea(AREAS_ESCRITURA);
   if (!auth.ok) return auth.respuesta;
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (!pago) return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 });
-  if (pago.medio_cobro !== 'efectivo' || pago.estado_efectivo !== 'cobrado_por_depositar')
+  if (!['efectivo', 'cheque'].includes(pago.medio_cobro) || pago.estado_efectivo !== 'cobrado_por_depositar')
     return NextResponse.json({ error: 'Este pago no está pendiente de depositar' }, { status: 400 });
 
   const { error } = await db
@@ -34,9 +34,9 @@ export async function POST(req: NextRequest) {
       fecha_deposito,
       ...(voucher_deposito_path ? { voucher_deposito_path } : {}),
       // Mismo campo `referencia` que usa cualquier pago por transferencia —
-      // acá guarda el N° de operación del depósito bancario del efectivo,
-      // para que la conciliación bancaria lo pueda cruzar exacto igual que
-      // a cualquier otro pago (ver app/api/conciliacion/auto/route.ts).
+      // acá guarda el N° de operación del depósito bancario (de efectivo o
+      // cheque), para que la conciliación bancaria lo pueda cruzar exacto
+      // igual que a cualquier otro pago (ver app/api/conciliacion/auto/route.ts).
       ...(referencia?.trim() ? { referencia: referencia.trim() } : {}),
     })
     .eq('id', pago_id);
