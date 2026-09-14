@@ -117,6 +117,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   const pendientesPD: FilaPendiente[] = filasPD.map((pd) => ({
     id: pd.id,
     tipo: 'pago_directo',
+    estado: pd.estado,
     codigo: pd.codigo,
     quienLoCreo: quien(pd.created_by, pd.creador_correo),
     esperandoDesde: pd.created_at,
@@ -132,6 +133,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   const pendientesSol: FilaPendiente[] = filasSol.map((sol) => ({
     id: sol.id,
     tipo: sol.tipo === 'anticipo' ? 'anticipo' : 'reembolso',
+    estado: sol.estado,
     codigo: sol.codigo,
     quienLoCreo: quien(sol.solicitante_id, sol.creador_correo),
     esperandoDesde: sol.created_at,
@@ -152,6 +154,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     return {
       id: rep.id,
       tipo: 'caja_chica' as const,
+      estado: rep.estado,
       codigo: rep.codigo,
       quienLoCreo: quien(fondo?.custodioId ?? null, null),
       esperandoDesde: desde,
@@ -173,6 +176,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   const pendientesOS: FilaPendiente[] = filasOSMias.map((os) => ({
     id: os.id,
     tipo: 'os',
+    estado: os.estado,
     codigo: os.codigo,
     quienLoCreo: quien(os.solicitante_id, os.creador_correo),
     esperandoDesde: os.created_at,
@@ -199,6 +203,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
       return {
         id: p.id,
         tipo: 'propuesta' as const,
+        estado: p.estado,
         codigo: p.codigo,
         quienLoCreo: quien(p.creado_por, null),
         esperandoDesde: p.created_at,

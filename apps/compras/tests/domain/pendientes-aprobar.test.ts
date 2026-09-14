@@ -136,7 +136,7 @@ describe('tiempo esperando', () => {
 describe('orden', () => {
   it('lo que más tiempo lleva esperando va primero', () => {
     const fila = (codigo: string, esperandoDesde: string): FilaPendiente => ({
-      id: codigo, tipo: 'os', codigo, quienLoCreo: null, esperandoDesde,
+      id: codigo, tipo: 'os', estado: 'pendiente_jefe', codigo, quienLoCreo: null, esperandoDesde,
       diasEsperando: 0, monto: 1, moneda: 'PEN', quienDecide: 'x', fechaRequerida: null, concepto: null, href: '/',
     })
     const orden = ordenarPorAntiguedad([

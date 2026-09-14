@@ -42,6 +42,20 @@ export const ETIQUETA_TIPO_PENDIENTE: Record<TipoPendiente, string> = {
   propuesta: 'Propuesta de pago',
 }
 
+/**
+ * El plural de cada tipo, escrito a mano. Agregarle una "s" al singular da
+ * "4 Pago Directos" y "3 Orden de Servicios": en español el plural va en el
+ * sustantivo, no al final de la frase.
+ */
+export const ETIQUETA_TIPO_PENDIENTE_PLURAL: Record<TipoPendiente, string> = {
+  pago_directo: 'Pagos Directos',
+  anticipo: 'Anticipos',
+  reembolso: 'Reembolsos',
+  caja_chica: 'Reposiciones de Caja Chica',
+  os: 'Órdenes de Servicio',
+  propuesta: 'Propuestas de pago',
+}
+
 /** Estados en los que cada fuente está esperando una decisión real. */
 export const ESTADOS_QUE_ESPERAN_DECISION: Record<FuenteAprobacion, readonly string[]> = {
   // Mismo criterio que `puedeDarConformidad` en la ficha de la obligación.
@@ -157,6 +171,10 @@ export type FilaPendiente = {
   id: string
   tipo: TipoPendiente
   codigo: string
+  /** El estado técnico de la fuente. Lo necesita Caja Chica, que tiene DOS
+   * decisores distintos según el paso — ver `quienDecideCajaChica`. No se
+   * muestra en pantalla: la bandeja habla de decisiones, no de estados. */
+  estado: string
   /** Nombre de quien lo creó; el correo si RLS de `perfiles` no deja leerlo. */
   quienLoCreo: string | null
   /** Momento en que empezó a esperar ESTA decisión. */
