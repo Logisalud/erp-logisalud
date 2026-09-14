@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  admiteAprobacionEnLote, estadoDelCheckbox, etiquetaBotonLote, MAXIMO_POR_LOTE,
-  resumirLote,
+  admiteAprobacionEnLote, estadoDelCheckbox, etiquetaBotonLote, exigeTotalDestacado,
+  MAXIMO_POR_LOTE, resumirLote, totalDeLaSeleccion,
 } from '@/domain/aprobacion-en-lote'
 describe('qué tipos admiten lote', () => {
   it('las cuatro fuentes con aprobación simple, sí', () => {
@@ -10,8 +10,46 @@ describe('qué tipos admiten lote', () => {
     }
   })
 
-  it('una propuesta NUNCA: libera el desembolso de todo su lote', () => {
-    expect(admiteAprobacionEnLote('propuesta')).toBe(false)
+  it('las propuestas también, desde el cambio de decisión de 2026-09-14', () => {
+    expect(admiteAprobacionEnLote('propuesta')).toBe(true)
+  })
+})
+
+describe('el total destacado — la salvaguarda de las propuestas', () => {
+  it('se destaca solo con propuestas: son las que liberan un lote entero', () => {
+    expect(exigeTotalDestacado('propuesta')).toBe(true)
+    expect(exigeTotalDestacado('pago_directo')).toBe(false)
+    expect(exigeTotalDestacado(null)).toBe(false)
+  })
+
+  it('suma por moneda y NUNCA mezcla dos entre sí', () => {
+    expect(
+      totalDeLaSeleccion([
+        { totalPorMoneda: [{ moneda: 'PEN', monto: 1000 }] },
+        { totalPorMoneda: [{ moneda: 'USD', monto: 250 }] },
+        { totalPorMoneda: [{ moneda: 'PEN', monto: 500.5 }] },
+      ])
+    ).toEqual([
+      { moneda: 'PEN', monto: 1500.5 },
+      { moneda: 'USD', monto: 250 },
+    ])
+  })
+
+  it('un lote que mezcla monedas aporta LAS DOS, no solo la primera', () => {
+    // Este es el caso que se perdía al sumar la columna Monto: una
+    // propuesta con PEN y USD adentro solo muestra la primera en la fila.
+    expect(
+      totalDeLaSeleccion([
+        { totalPorMoneda: [{ moneda: 'PEN', monto: 50000 }, { moneda: 'USD', monto: 12000 }] },
+      ])
+    ).toEqual([
+      { moneda: 'PEN', monto: 50000 },
+      { moneda: 'USD', monto: 12000 },
+    ])
+  })
+
+  it('sin selección no inventa un cero', () => {
+    expect(totalDeLaSeleccion([])).toEqual([])
   })
 })
 
@@ -22,10 +60,15 @@ describe('el checkbox nunca deja llegar a una selección inválida', () => {
     expect(estadoDelCheckbox({ tipo: 'pago_directo', id: 'a' }, vacia).habilitado).toBe(true)
   })
 
-  it('una propuesta está deshabilitada incluso sin nada tildado, con su motivo', () => {
-    const r = estadoDelCheckbox({ tipo: 'propuesta', id: 'p' }, vacia)
+  it('una propuesta ya se puede tildar como cualquier otro tipo', () => {
+    expect(estadoDelCheckbox({ tipo: 'propuesta', id: 'p' }, vacia).habilitado).toBe(true)
+  })
+
+  it('pero sigue sin poder mezclarse con otro tipo', () => {
+    const sel = { tipoActivo: 'propuesta' as const, elegidas: new Set(['p']) }
+    const r = estadoDelCheckbox({ tipo: 'reembolso', id: 'r' }, sel)
     expect(r.habilitado).toBe(false)
-    if (!r.habilitado) expect(r.motivo).toContain('su propia pantalla')
+    if (!r.habilitado) expect(r.motivo).toContain('un tipo por vez')
   })
 
   it('con un tipo activo, los demás se apagan y dicen por qué', () => {

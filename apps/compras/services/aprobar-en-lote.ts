@@ -6,6 +6,7 @@ import {
   aprobarPorJefe as aprobarReposicionJefe,
 } from '@/services/caja-chica'
 import { aprobarOS } from '@/services/servicios'
+import { aprobarPropuesta } from '@/services/propuestas'
 import {
   admiteAprobacionEnLote, MAXIMO_POR_LOTE, type ResultadoFila,
 } from '@/domain/aprobacion-en-lote'
@@ -87,6 +88,11 @@ async function aprobarUna(tipo: TipoPendiente, id: string, estado: string): Prom
       return aprobarGasto(id)
     case 'os':
       return aprobarOS(id)
+    case 'propuesta':
+      // Cada una libera el desembolso de su lote entero. Va por la misma
+      // función que el botón individual, así que valida el permiso
+      // (puedeAprobarPropuesta) y la transición igual que siempre.
+      return aprobarPropuesta(id)
     case 'caja_chica': {
       // Dos decisores distintos según el paso — mismo criterio que usa la
       // bandeja para la columna "Decide".

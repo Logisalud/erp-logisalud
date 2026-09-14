@@ -124,6 +124,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     diasEsperando: diasEsperando(pd.created_at, ahora),
     monto: Number(pd.total),
     moneda: pd.moneda,
+    totalPorMoneda: [{ moneda: pd.moneda, monto: Number(pd.total) }],
     quienDecide: 'Contabilidad',
     fechaRequerida: null,
     concepto: unirConcepto(categoriasPD.get(pd.categoria_pago_directo_id), pd.observaciones),
@@ -140,6 +141,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     diasEsperando: diasEsperando(sol.created_at, ahora),
     monto: Number(sol.monto_solicitado),
     moneda: sol.moneda,
+    totalPorMoneda: [{ moneda: sol.moneda, monto: Number(sol.monto_solicitado) }],
     quienDecide: 'Contabilidad',
     fechaRequerida: sol.fecha_requerida ?? null,
     concepto: unirConcepto(categoriasGasto.get(sol.categoria_id), sol.descripcion),
@@ -161,6 +163,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
       diasEsperando: diasEsperando(desde, ahora),
       monto: Number(rep.monto_solicitado),
       moneda: fondo?.moneda ?? 'PEN',
+      totalPorMoneda: [{ moneda: fondo?.moneda ?? 'PEN', monto: Number(rep.monto_solicitado) }],
       quienDecide:
         quienDecideCajaChica(rep.estado) === 'contabilidad'
           ? 'Contabilidad'
@@ -183,6 +186,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     diasEsperando: diasEsperando(os.created_at, ahora),
     monto: Number(os.monto_estimado),
     moneda: os.moneda,
+    totalPorMoneda: [{ moneda: os.moneda, monto: Number(os.monto_estimado) }],
     quienDecide: `Jefe de ${os.area_solicitante ?? 'área'}`,
     fechaRequerida: null,
     concepto: os.descripcion_servicio ?? null,
@@ -212,6 +216,9 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
         // aclara el resto — la columna Monto es una sola celda.
         monto: primera?.monto ?? 0,
         moneda: primera?.moneda ?? 'PEN',
+        // El total COMPLETO, no solo la primera moneda: es lo que suma el
+        // aviso antes de aprobar varias propuestas juntas.
+        totalPorMoneda: resumen?.totalPorMoneda ?? [],
         quienDecide: 'Contabilidad',
         fechaRequerida: null,
         concepto: conceptoDeLote(resumen, p.periodo),

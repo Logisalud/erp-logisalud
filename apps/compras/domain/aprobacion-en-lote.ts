@@ -25,19 +25,54 @@ import {
 } from './pendientes-aprobar'
 
 /**
- * Aprobar una propuesta libera el desembolso de decenas de obligaciones a
- * la vez. Es la firma más grande del módulo y no puede ser un checkbox más
- * entre siete filas — se sigue aprobando desde su pantalla, donde se ve el
- * detalle línea por línea antes de decidir.
+ * Desde 2026-09-14 TODOS los tipos admiten lote, propuestas incluidas
+ * (cambio de decisión de Sebas). La restricción de un solo tipo por
+ * selección sigue en pie y es la que sostiene el resto.
+ *
+ * La lista se conserva vacía y no se borra: si mañana un tipo tiene que
+ * salir del lote, este es el lugar, y el nombre dice qué significa.
  */
-export const TIPOS_SIN_LOTE: readonly TipoPendiente[] = ['propuesta']
+export const TIPOS_SIN_LOTE: readonly TipoPendiente[] = []
 
 export function admiteAprobacionEnLote(tipo: TipoPendiente): boolean {
   return !TIPOS_SIN_LOTE.includes(tipo)
 }
 
-export const MOTIVO_SIN_LOTE =
-  'Una propuesta libera el pago de todas sus obligaciones — se aprueba desde su propia pantalla, con el detalle a la vista.'
+export const MOTIVO_SIN_LOTE = 'Este tipo se aprueba de a uno, desde su propia pantalla.'
+
+/**
+ * Los tipos donde el total sumado se muestra EN GRANDE antes de ejecutar.
+ *
+ * Aprobar tres propuestas no son tres firmas: cada una libera el desembolso
+ * de un lote entero, así que tres pueden ser cien obligaciones y un monto
+ * muy por encima de lo que la pantalla deja intuir. El total deja de ser un
+ * detalle al pie y pasa a ser lo que se lee antes de decidir.
+ */
+export function exigeTotalDestacado(tipo: TipoPendiente | null): boolean {
+  return tipo === 'propuesta'
+}
+
+/**
+ * Suma por moneda, sin mezclar nunca dos entre sí.
+ *
+ * Recibe los totales POR MONEDA de cada fila y no un par monto/moneda: una
+ * propuesta puede mezclar PEN y USD adentro, y su columna Monto solo puede
+ * mostrar una. Sumar esa columna perdería la otra moneda en silencio —
+ * justo en el número que existe para no aprobar a ciegas.
+ */
+export function totalDeLaSeleccion(
+  filas: readonly { totalPorMoneda: readonly { moneda: string; monto: number }[] }[]
+): { moneda: string; monto: number }[] {
+  const mapa = new Map<string, number>()
+  for (const fila of filas) {
+    for (const t of fila.totalPorMoneda) {
+      mapa.set(t.moneda, (mapa.get(t.moneda) ?? 0) + t.monto)
+    }
+  }
+  return [...mapa.entries()]
+    .map(([moneda, monto]) => ({ moneda, monto: Math.round(monto * 100) / 100 }))
+    .sort((a, b) => a.moneda.localeCompare(b.moneda))
+}
 
 /**
  * Tope por lote. Cada aprobación son 2-4 consultas y no hay transacción: un

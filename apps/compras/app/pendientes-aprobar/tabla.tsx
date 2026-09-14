@@ -9,7 +9,8 @@ import {
   type FilaPendiente, type TipoPendiente,
 } from '@/domain/pendientes-aprobar'
 import {
-  estadoDelCheckbox, etiquetaBotonLote, MAXIMO_POR_LOTE,
+  estadoDelCheckbox, etiquetaBotonLote, exigeTotalDestacado, MAXIMO_POR_LOTE,
+  totalDeLaSeleccion,
 } from '@/domain/aprobacion-en-lote'
 import { aprobarEnLoteAction, type EstadoLote } from './actions'
 
@@ -42,7 +43,10 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
     })
 
   const seleccionadas = filas.filter((f) => elegidas.has(f.id))
-  const totales = totalesPorMoneda(seleccionadas)
+  // Por MONEDA de cada fila, no por su columna Monto: una propuesta puede
+  // mezclar PEN y USD adentro y la columna solo muestra una.
+  const totales = totalDeLaSeleccion(seleccionadas)
+  const totalEnGrande = exigeTotalDestacado(tipoActivo)
 
   return (
     <form action={accion}>
@@ -102,8 +106,8 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     {ETIQUETA_TIPO_PENDIENTE[f.tipo]}
-                    {!check.habilitado && f.tipo === 'propuesta' ? (
-                      <span className="block text-xs text-gray-500">se aprueba de a una</span>
+                    {f.tipo === 'propuesta' ? (
+                      <span className="block text-xs text-gray-500">libera el pago de su lote</span>
                     ) : null}
                   </td>
                   <td className="px-3 py-2">
@@ -140,15 +144,40 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
 
       {elegidas.size > 0 ? (
         <div className="card mt-4 space-y-3">
+          {/* Con propuestas el total deja de ser un dato al pie: cada una
+              libera el desembolso de un lote entero, así que tres pueden
+              ser cien obligaciones. Se lee ANTES de decidir, no después. */}
+          {totalEnGrande ? (
+            <div className="rounded-md border-2 border-amber-300 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                Total que se libera al aprobar
+              </p>
+              <p className="font-heading mt-1 flex flex-wrap gap-x-6 text-2xl text-amber-900">
+                {totales.map((t) => (
+                  <span key={t.moneda} className="tabular-nums">
+                    <Money valor={t.monto} moneda={t.moneda} />
+                  </span>
+                ))}
+              </p>
+              <p className="mt-1 text-xs text-amber-900">
+                {elegidas.size === 1
+                  ? 'Es el total de la propuesta seleccionada, con todas sus obligaciones.'
+                  : `Es la suma de las ${elegidas.size} propuestas seleccionadas, con todas sus obligaciones.`}
+              </p>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <span className="text-sm text-gray-600">
               {elegidas.size} de {MAXIMO_POR_LOTE} como máximo por lote
             </span>
-            <span className="flex flex-wrap gap-x-4 font-semibold tabular-nums">
-              {totales.map((t) => (
-                <Money key={t.moneda} valor={t.monto} moneda={t.moneda} />
-              ))}
-            </span>
+            {totalEnGrande ? null : (
+              <span className="flex flex-wrap gap-x-4 font-semibold tabular-nums">
+                {totales.map((t) => (
+                  <Money key={t.moneda} valor={t.monto} moneda={t.moneda} />
+                ))}
+              </span>
+            )}
           </div>
 
           {confirmando ? (
@@ -200,16 +229,6 @@ function BotonConfirmar({ texto }: { texto: string }) {
       {pending ? 'Aprobando…' : `Sí, ${texto.toLowerCase()}`}
     </button>
   )
-}
-
-function totalesPorMoneda(
-  filas: readonly { moneda: string; monto: number }[]
-): { moneda: string; monto: number }[] {
-  const mapa = new Map<string, number>()
-  for (const f of filas) mapa.set(f.moneda, (mapa.get(f.moneda) ?? 0) + f.monto)
-  return [...mapa.entries()]
-    .map(([moneda, monto]) => ({ moneda, monto: Math.round(monto * 100) / 100 }))
-    .sort((a, b) => a.moneda.localeCompare(b.moneda))
 }
 
 /** Tres tonos según cuánto lleva esperando — no es adorno: la bandeja
