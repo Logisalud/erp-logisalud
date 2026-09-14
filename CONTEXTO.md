@@ -133,7 +133,17 @@ Sebastián Gonzales, Gerente General de Logisalud SAC (marca Logisalud + marca E
 ## Arquitectura técnica
 
 - Monorepo: `github.com/Logisalud/erp-logisalud`.
-- Supabase consolidado, proyecto único `qpkigzniatidsvnxikox` (Pro), schemas por Bounded Context: `compras`, `servicios`, `almacen`, `cuentas_x_pagar`, `gastos`, `caja_chica`, `financiamiento`, `impuestos`, `catalogo`, `pedidos`, más `public` (perfiles, area_responsables, tablas de Cobranzas). Un solo Supabase con schemas, NO bases aisladas — decisión explícita.
+- Supabase consolidado, proyecto único `qpkigzniatidsvnxikox` (Pro), schemas por Bounded Context: `compras`, `servicios`, `almacen`, `cuentas_x_pagar`, `gastos`, `caja_chica`, `financiamiento`, `impuestos`, `planilla`, `catalogo`, `pedidos`, más `public` (perfiles, area_responsables, tablas de Cobranzas).
+
+  **`planilla` es el noveno schema del módulo de Compras y Pagos** (agregado
+  2026-09-14, migración 0055). Existe aparte de `impuestos` por una
+  corrección explícita de Sebas: Pago de Planilla comparte con los impuestos
+  el ORIGEN DEL DATO (BUK le arroja el total a Arlette, que lo transcribe) y
+  nada más — no se declara ante SUNAT, no tiene tipo de impuesto, y el
+  beneficiario son los trabajadores, no el Estado. Ponerlo como un tipo
+  dentro de `impuestos.tipos_impuesto` habría hecho que todo reporte
+  tributario sumara la planilla como si fuera un tributo. El documento
+  maestro del módulo todavía habla de 8 Bounded Contexts: son 9. Un solo Supabase con schemas, NO bases aisladas — decisión explícita.
 - Vercel, patrón Multi-Zones: `erp-logisalud` (Cobranzas, raíz de erp.logisalud.com), `erp-logisalud-compras`, `erp-logisalud-pedidos`. Raíz del dominio = selección de módulos; `/cobranzas`, `/compras`, `/pedidos` son rewrites a cada proyecto. Solo `apps/compras` usa `basePath` de Next de verdad; Cobranzas logra su prefijo `/cobranzas` con carpetas reales bajo `app/`, no con basePath.
 - Auth: magic link (Supabase + Resend SMTP, dominio logisalud.com verificado) + código de 6 dígitos de respaldo (problema de PKCE cruzando dispositivos). Trigger crea `public.perfiles` desde `usuarios_esperados` en el primer login.
 - Diseño: marca Logisalud (verde #4BB168, teal #4ABCC2, Oswald/Poppins, tokens). Regla de emojis: NUNCA en logisalud.com externo, SÍ permitido en el ERP interno (tono cercano).
