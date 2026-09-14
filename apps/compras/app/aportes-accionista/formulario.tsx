@@ -89,14 +89,16 @@ export function FormularioAportes({ categorias }: { categorias: CategoriaGasto[]
     cambiar(i, { subiendo: true, errorArchivo: null })
     const form = new FormData()
     form.append('archivo', archivo)
-    const path = await subirComprobanteAporteAction(form)
+    const resultado = await subirComprobanteAporteAction(form)
     cambiar(i, {
       subiendo: false,
-      comprobantePath: path,
-      comprobanteNombre: path ? archivo.name : null,
-      errorArchivo: path
-        ? null
-        : 'No se pudo subir el comprobante. El aporte se puede registrar igual y subirlo después desde su ficha.',
+      comprobantePath: 'path' in resultado ? resultado.path : null,
+      comprobanteNombre: 'path' in resultado ? archivo.name : null,
+      // El motivo real, no un "no se pudo" que deja sin saber si reintentar.
+      errorArchivo:
+        'path' in resultado
+          ? null
+          : `${resultado.error} El aporte se puede registrar igual y subir el comprobante después desde su ficha.`,
     })
   }
 
