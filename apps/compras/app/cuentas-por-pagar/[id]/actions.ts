@@ -1,5 +1,6 @@
 'use server'
 
+import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import {
   darConformidad, anularPagoDirecto, rechazarPagoDirecto,
@@ -7,6 +8,7 @@ import {
 } from '@/services/obligaciones'
 import { registrarNotaCredito, aplicarNotaCredito } from '@/services/notas-credito'
 import { obtenerUrlLegajoPago } from '@/services/pagos'
+import { registrarPagoHistorico, subirVoucherHistorico } from '@/services/pago-historico'
 
 export type EstadoAccion = { error: string } | null
 
@@ -104,4 +106,47 @@ export async function verLegajoPagoDirectoAction(storagePath: string): Promise<{
   } catch (e) {
     return { error: (e as Error).message }
   }
+}
+
+/**
+ * Registrar un pago del backlog que YA ocurrió. Solo para la categoría de
+ * regularización pre-ERP — el servicio lo valida contra la base, no contra
+ * el formulario.
+ */
+export async function registrarPagoHistoricoAction(
+  obligacionId: string,
+  _previo: EstadoAccion,
+  form: FormData
+): Promise<EstadoAccion> {
+  try {
+    await registrarPagoHistorico({
+      obligacionId,
+      fechaPago: String(form.get('fechaPago') ?? ''),
+      numeroOperacion: textoONullPH(form.get('numeroOperacion')),
+      storagePathVoucher: textoONullPH(form.get('voucherPath')),
+    })
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo registrar el pago.' }
+  }
+  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  redirect(`/cuentas-por-pagar/${obligacionId}`)
+}
+
+/** La constancia viaja en su propio request — ver el comentario del servicio. */
+export async function subirVoucherHistoricoAction(
+  codigoObligacion: string,
+  form: FormData
+): Promise<{ path: string } | { error: string }> {
+  const archivo = form.get('archivo')
+  if (!(archivo instanceof File)) return { error: 'No llegó ningún archivo.' }
+  try {
+    return await subirVoucherHistorico(codigoObligacion, archivo)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo subir la constancia.' }
+  }
+}
+
+function textoONullPH(v: FormDataEntryValue | null): string | null {
+  const s = v == null ? '' : String(v).trim()
+  return s === '' ? null : s
 }
