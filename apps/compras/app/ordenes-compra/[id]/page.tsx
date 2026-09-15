@@ -16,6 +16,7 @@ import { PASOS_OC, pasoAlcanzadoOC, siguientePasoOC } from '@/domain/ordenes-uni
 import { obtenerUmbralOCParcialDias } from '@/services/dashboard'
 import { BotonMarcarEnviada, BotonMarcarConfirmada, BotonCerrarConSaldoPendiente, BotonAnularOC } from './acciones-estado'
 import { VerCotizacion } from './ver-cotizacion'
+import { hoyLima } from '@/domain/fecha'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +43,7 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
     obtenerUmbralOCParcialDias(),
   ])
 
-  const diasParcial = oc.estado === 'parcialmente_recibida' ? diasEnEstado(oc.fecha_emision, new Date().toISOString().slice(0, 10)) : 0
+  const diasParcial = oc.estado === 'parcialmente_recibida' ? diasEnEstado(oc.fecha_emision, hoyLima()) : 0
   const superaUmbral = oc.estado === 'parcialmente_recibida' && ocParcialSuperaUmbral(diasParcial, umbralDias)
 
   return (

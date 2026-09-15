@@ -8,6 +8,7 @@ import {
 } from '@/domain/filtros-cuentas-por-pagar'
 import { ETIQUETA_ESTADO, ESTADOS_OBLIGACION } from '@/domain/obligacion'
 import { CATEGORIAS_ESTADO, ETIQUETA_CATEGORIA } from '@/domain/categorias-estado-obligacion'
+import { hoyLima } from '@/domain/fecha'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +39,7 @@ export default async function CuentasPorPagar({
   const { estadoExacto, categoria, soloListas, verAvanzado, sinFiltro } = filtro
 
   const obligaciones = await listarVistaCuentasPorPagar(filtro)
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">

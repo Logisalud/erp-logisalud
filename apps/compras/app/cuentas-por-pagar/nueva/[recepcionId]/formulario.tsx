@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarObligacionAction, type EstadoFormulario } from './actions'
 import { redondear } from '@/domain/obligacion'
+import { hoyLima } from '@/domain/fecha'
 
 type ItemParaObligar = {
   ocItemId: string
@@ -79,7 +80,7 @@ export function FormularioObligacion({
         <Campo etiqueta="Fecha de factura" error={errorDe('fechaFactura')}>
           <input
             type="date" name="fechaFactura" required
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={hoyLima()}
             className="min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
         </Campo>

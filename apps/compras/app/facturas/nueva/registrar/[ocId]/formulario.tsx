@@ -6,6 +6,7 @@ import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarFacturaAction, extraerCamposDeArchivoAction, type EstadoFormulario } from './actions'
 import { redondear } from '@/domain/obligacion'
 import { CampoArchivo } from '@/components/campo-archivo'
+import { hoyLima } from '@/domain/fecha'
 
 type ItemOC = {
   ocItemId: string
@@ -35,7 +36,7 @@ export function FormularioFacturaCompra({
   const [ocrMensaje, setOcrMensaje] = useState<string | null>(null)
 
   const [numeroFactura, setNumeroFactura] = useState('')
-  const [fechaFactura, setFechaFactura] = useState(new Date().toISOString().slice(0, 10))
+  const [fechaFactura, setFechaFactura] = useState(hoyLima())
   const [ruc, setRuc] = useState('')
   const [proveedorNombreLeido, setProveedorNombreLeido] = useState('')
   const [base, setBase] = useState('')

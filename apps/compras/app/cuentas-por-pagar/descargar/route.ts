@@ -4,6 +4,7 @@ import { generarExcelCuentasPorPagar } from '@/lib/excel-cuentas-por-pagar'
 import {
   nombreDelRecorte, resolverFiltroCuentasPorPagar,
 } from '@/domain/filtros-cuentas-por-pagar'
+import { hoyLima } from '@/domain/fecha'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
 
   const filas = await listarVistaCuentasPorPagar(filtro)
   const buffer = generarExcelCuentasPorPagar(filas)
-  const fecha = new Date().toISOString().slice(0, 10)
+  const fecha = hoyLima()
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

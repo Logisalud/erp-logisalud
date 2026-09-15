@@ -4,12 +4,13 @@ import { useState, useTransition } from 'react'
 import { Money } from '@/components/money'
 import { generarObligacionesAction } from './actions'
 import { ETIQUETA_TIPO_VENCIMIENTO, estaVencida, type TipoVencimiento, type VencimientoProximo } from '@/domain/financiamiento'
+import { hoyLima } from '@/domain/fecha'
 
 export function SelectorVencimientos({ vencimientos }: { vencimientos: VencimientoProximo[] }) {
   const [elegidos, setElegidos] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
 
   const clave = (v: VencimientoProximo) => `${v.tipo}:${v.id}`
   const toggle = (v: VencimientoProximo) =>

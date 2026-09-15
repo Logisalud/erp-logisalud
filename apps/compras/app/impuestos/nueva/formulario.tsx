@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { cargarObligacionesTributariasAction, type EstadoFormulario } from './actions'
 import { totalDeCarga } from '@/domain/impuestos'
+import { mesActualLima } from '@/domain/fecha'
 
 type TipoImpuesto = { id: string; nombre: string }
 
@@ -29,8 +30,7 @@ export function FormularioImpuesto({ tipos }: { tipos: TipoImpuesto[] }) {
   const sucio = useMarcarSucioAlEditar(estado)
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
 
-  const hoy = new Date()
-  const periodoActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
+  const periodoActual = mesActualLima()
   const [lineas, setLineas] = useState<LineaUI[]>([{ ...LINEA_VACIA }])
 
   const cambiar = (i: number, campo: keyof LineaUI, valor: string) =>

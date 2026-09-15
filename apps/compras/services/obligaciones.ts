@@ -25,6 +25,7 @@ import type { FiltroCuentasPorPagar } from '@/domain/filtros-cuentas-por-pagar'
 import { ERROR_EDITAR_TARDE, puedeEditarseObligacion } from '@/domain/edicion'
 import type { ProveedorDeFormulario } from '@/domain/valores-pago-directo'
 import { formatoMonto } from '@/domain/aviso-email'
+import { anioMesStorageLima } from '@/domain/fecha'
 
 export type ItemParaObligar = {
   ocItemId: string
@@ -1250,11 +1251,8 @@ export async function completarFacturaPagoDirecto(input: {
 export async function subirCotizacionPagoDirecto(obligacionId: string, codigo: string, archivo: File): Promise<boolean> {
   if (!archivo || archivo.size === 0) return false
   const supabase = crearClienteServidor()
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/${codigo}/cotizacion-${Date.now()}-${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/${codigo}/cotizacion-${Date.now()}-${nombreLimpio}`
 
   const { error } = await supabase.storage.from('legajos-compras').upload(path, archivo, { contentType: archivo.type || undefined })
   if (error) return false
@@ -1276,11 +1274,8 @@ export async function subirCotizacionPagoDirecto(obligacionId: string, codigo: s
 export async function subirFacturaPagoDirecto(obligacionId: string, codigo: string, archivo: File): Promise<boolean> {
   if (!archivo || archivo.size === 0) return false
   const supabase = crearClienteServidor()
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/${codigo}/factura-${Date.now()}-${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/${codigo}/factura-${Date.now()}-${nombreLimpio}`
 
   const { error } = await supabase.storage.from('legajos-compras').upload(path, archivo, { contentType: archivo.type || undefined })
   if (error) return false

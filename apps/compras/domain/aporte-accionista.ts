@@ -1,3 +1,4 @@
+import { hoyLima } from './fecha'
 /**
  * Aporte de accionista: un gasto que el accionista pagó de su bolsillo y NO
  * reclama como reembolso. Puro: sin Next, sin Supabase.
@@ -33,7 +34,7 @@ export function validarAporte(b: BorradorAporte): ErrorValidacion[] {
 
   if (!b.fecha) {
     errores.push({ campo: 'fecha', mensaje: 'Pon la fecha del gasto.' })
-  } else if (b.fecha > hoyISO()) {
+  } else if (b.fecha > hoyLima()) {
     // Un aporte es un gasto que YA ocurrió; con fecha futura no hay nada que
     // registrar todavía.
     errores.push({ campo: 'fecha', mensaje: 'La fecha no puede ser futura — es un gasto que ya ocurrió.' })
@@ -61,9 +62,6 @@ export function validarAporte(b: BorradorAporte): ErrorValidacion[] {
   return errores
 }
 
-function hoyISO(): string {
-  return new Date().toISOString().slice(0, 10)
-}
 
 /**
  * Editar y anular NO tienen ventana, a diferencia de todo el resto del

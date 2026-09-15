@@ -138,6 +138,71 @@ Sebas").
 
 ---
 
+## Al crear un schema nuevo: dos pasos, ninguno automático
+
+Aprendido en producción el 2026-09-15, con `/planilla` caída dos días. Un
+schema nuevo necesita **dos** habilitaciones, y cada una falla con un error
+distinto que parece un bug de código:
+
+1. **Exponerlo en el Data API** — Project Settings → Data API → Exposed
+   schemas. Esto **no se puede hacer por SQL** (existe
+   `ALTER ROLE authenticator SET pgrst.db_schemas`, pero a partir de ahí el
+   dashboard deja de administrar la lista para siempre; se decidió NO usarlo).
+   Lo hace Sebas a mano.
+   - Si falta: PostgREST responde **HTTP 406** y el mensaje es
+     `Invalid schema: <nombre>`.
+2. **Los grants a `authenticated`** — `select public.aplicar_grants_del_modulo();`
+   al final de la migración, después de agregar el schema a
+   `public.schemas_compras_y_pagos()`.
+   - Si falta: **HTTP 403**, `permission denied for schema <nombre>`.
+
+Los dos errores llegan a la pantalla como el mismo
+"Application error: a server-side exception has occurred" con un digest, así
+que **el digest hay que buscarlo en los logs de runtime de Vercel** — el
+mensaje real nunca llega al navegador. El de `planilla` fueron los dos, uno
+detrás del otro: se arregló (1) y apareció (2).
+
+Por qué la lista de schemas del módulo sigue siendo explícita y no un
+`select` sobre `pg_namespace`: en esta base hay schemas propios (owner
+`postgres`) que **no** son del módulo y a los que `authenticated` no debe
+tener nada — `pedidos` (otra app del monorepo) y
+`backup_limpieza_20260903` (un respaldo). Un loop "todo lo que sea de
+postgres" se los habría abierto a cualquier usuario logueado de Compras.
+`public.verificar_schemas_sin_grants()` los lista para revisión.
+
+**Pendiente menor**: `backup_limpieza_20260903` (28 objetos) sigue en la base
+sin grants. Si ya no hace falta, borrarlo.
+
+---
+
+## Fechas: siempre en hora de Lima, nunca en UTC
+
+Bug real (2026-09-11): Mariela registró un pago a las 22:50 de Lima y quedó
+guardado con fecha **12/09**. La causa estaba repetida en 40 lugares del
+módulo:
+
+```ts
+new Date().toISOString().slice(0, 10)   // ❌ devuelve el día en UTC
+```
+
+Lima es UTC-5, así que entre las **19:00 y la medianoche** esa expresión
+devuelve siempre el día siguiente — un quinto de cada día, y justo el tramo
+en que se carga lo que quedó pendiente. Falla por los dos lados y por
+razones distintas: en el cliente `new Date()` sí da hora de Lima pero
+`toISOString()` la corre a UTC; en el servidor el lambda de Vercel corre en
+UTC, así que ahí ni `getFullYear()`/`getMonth()` sirven.
+
+Usar siempre `domain/fecha.ts`: `hoyLima()`, `mesActualLima()`,
+`anioActualLima()`, `anioMesStorageLima()`. Sirven en cliente y servidor, así
+que nadie tiene que pensar en dónde corre su código.
+
+**La excepción**: las columnas `timestamptz` de auditoría (`editado_en`,
+`anulado_en`, `updated_at`, `conformidad_fecha`, …) siguen con
+`new Date().toISOString()`, y está bien — ahí se guarda un **instante**, no
+un día de calendario, y Postgres ya lo almacena con zona.
+
+---
+
 ## Deuda técnica conocida (menor, revisar aparte)
 
 - **Impuestos — estado `en_propuesta` muerto**: las filas de impuestos pueden

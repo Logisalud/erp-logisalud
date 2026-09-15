@@ -11,6 +11,7 @@ import {
   type TipoVencimiento,
   type VencimientoProximo,
 } from '@/domain/financiamiento'
+import { hoyLima } from '@/domain/fecha'
 
 export type Prestamo = {
   id: string
@@ -317,8 +318,13 @@ const DIAS_VENTANA_VENCIMIENTOS = 7
  */
 export async function listarVencimientosProximos(): Promise<VencimientoProximo[]> {
   const supabase = crearClienteServidor()
-  const hoy = new Date().toISOString().slice(0, 10)
-  const limite = new Date(Date.now() + DIAS_VENTANA_VENCIMIENTOS * 86400000).toISOString().slice(0, 10)
+  const hoy = hoyLima()
+  // Se suma sobre el día de Lima y no sobre Date.now(): si no, la ventana
+  // arranca en `hoy` (Lima) pero termina un día más allá esas 5 horas, y
+  // la lista de vencimientos próximos cambiaba de largo según la hora.
+  const finVentana = new Date(`${hoy}T12:00:00Z`)
+  finVentana.setUTCDate(finVentana.getUTCDate() + DIAS_VENTANA_VENCIMIENTOS)
+  const limite = finVentana.toISOString().slice(0, 10)
 
   const [{ data: cuotasPrestamo }, { data: cuotasFraccionamiento }, { data: letras }] = await Promise.all([
     supabase

@@ -5,6 +5,7 @@ import { useState } from 'react'
 // ordenes-compra/nueva/formulario.tsx para el porqué).
 import { useFormState, useFormStatus } from 'react-dom'
 import { registrarRecepcionAction, type EstadoFormulario } from './actions'
+import { hoyLima } from '@/domain/fecha'
 
 type ItemOC = {
   id: string
@@ -58,7 +59,7 @@ export function FormularioRecepcion({ ocId, items }: { ocId: string; items: Item
         <Campo etiqueta="Fecha de recepción" error={errorDe('fechaRecepcion')}>
           <input
             type="date" name="fechaRecepcion" required
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={hoyLima()}
             className="min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
         </Campo>

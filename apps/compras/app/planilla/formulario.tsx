@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { AvisoErrores, useScrollAlPrimerError } from '@/components/errores-formulario'
 import { crearPagoPlanillaAction, type EstadoFormulario } from './actions'
+import { mesActualLima } from '@/domain/fecha'
 
 export type ValoresPlanilla = {
   periodo: string
@@ -34,7 +35,7 @@ export function FormularioPlanilla({
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
   useScrollAlPrimerError(estado, ID_AVISO_ERRORES)
 
-  const mesActual = new Date().toISOString().slice(0, 7)
+  const mesActual = mesActualLima()
 
   return (
     <form action={accion} className="space-y-4">

@@ -2,6 +2,7 @@ import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { baseEIgvMovimiento, type BorradorMovimiento, type EstadoReposicion } from '@/domain/caja-chica'
 import { ERROR_AUTO_APROBACION, puedeDecidirSobre } from '@/domain/auto-aprobacion'
+import { anioMesStorageLima } from '@/domain/fecha'
 
 export type Fondo = {
   id: string
@@ -151,11 +152,8 @@ export async function registrarMovimiento(
   if (error) throw new Error(`No se pudo registrar el movimiento: ${error.message}`)
 
   if (archivo && archivo.size > 0) {
-    const ahora = new Date()
-    const yyyy = String(ahora.getFullYear())
-    const mm = String(ahora.getMonth() + 1).padStart(2, '0')
     const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const path = `${yyyy}/${mm}/movimiento-${data.id}/${Date.now()}-${nombreLimpio}`
+    const path = `${anioMesStorageLima()}/movimiento-${data.id}/${Date.now()}-${nombreLimpio}`
     const { error: errUpload } = await supabase.storage
       .from('legajos-caja-chica')
       .upload(path, archivo, { contentType: archivo.type || undefined })

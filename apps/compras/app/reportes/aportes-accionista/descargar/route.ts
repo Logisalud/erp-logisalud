@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { perfilActual } from '@logisalud/auth/server'
 import { listarAportes, puedeVerAportes } from '@/services/aportes-accionista'
 import { generarExcelAportes } from '@/lib/excel-aportes'
+import { hoyLima } from '@/domain/fecha'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
   })
 
   const buffer = generarExcelAportes(filas)
-  const fecha = new Date().toISOString().slice(0, 10)
+  const fecha = hoyLima()
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

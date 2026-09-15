@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { AvisoErrores, useScrollAlPrimerError } from '@/components/errores-formulario'
 import { CampoArchivo } from '@/components/campo-archivo'
 import type { EstadoFormulario } from './actions'
+import { hoyLima } from '@/domain/fecha'
 
 type CategoriaGasto = { id: string; nombre: string }
 
@@ -47,7 +48,7 @@ export function FormularioAporte({
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
   useScrollAlPrimerError(estado, ID_AVISO_ERRORES)
 
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
 
   return (
     <form action={accion} className="space-y-4">

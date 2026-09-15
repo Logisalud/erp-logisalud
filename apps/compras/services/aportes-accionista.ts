@@ -3,6 +3,7 @@ import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/au
 import {
   validarAporte, validarAportes, type BorradorAporte,
 } from '@/domain/aporte-accionista'
+import { anioMesStorageLima } from '@/domain/fecha'
 
 /**
  * Aportes de accionista — registro informativo, SIN obligación de pago.
@@ -157,11 +158,8 @@ export async function subirComprobanteSuelto(archivo: File): Promise<ResultadoSu
   if (archivo.size === 0) return { error: 'El archivo está vacío.' }
   const supabase = crearClienteServidor()
 
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/borradores-${crypto.randomUUID()}/${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/borradores-${crypto.randomUUID()}/${nombreLimpio}`
 
   const { error } = await supabase.storage
     .from('legajos-gastos')
@@ -320,11 +318,8 @@ export async function subirComprobanteAporte(aporteId: string, archivo: File): P
     .maybeSingle()
   if (!aporte?.codigo) return false
 
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/${aporte.codigo}/${Date.now()}-${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/${aporte.codigo}/${Date.now()}-${nombreLimpio}`
 
   const { error: errUpload } = await supabase.storage
     .from('legajos-gastos')

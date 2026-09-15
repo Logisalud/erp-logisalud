@@ -6,11 +6,11 @@ import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarMovimientoAction, type EstadoFormulario } from './actions'
 import type { TipoComprobanteMovimiento } from '@/domain/caja-chica'
 import { CampoArchivo } from '@/components/campo-archivo'
+import { hoyLima } from '@/domain/fecha'
 
 type CategoriaGasto = { id: string; nombre: string }
 
 const SUGERENCIA_IGV = 0.18
-const HOY = new Date().toISOString().slice(0, 10)
 
 export function FormularioMovimiento({ fondoId, categorias }: { fondoId: string; categorias: CategoriaGasto[] }) {
   const accionConFondo = registrarMovimientoAction.bind(null, fondoId)
@@ -22,6 +22,11 @@ export function FormularioMovimiento({ fondoId, categorias }: { fondoId: string;
   const [igvEditadoAMano, setIgvEditadoAMano] = useState(false)
 
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
+  // Dentro del render y no como constante de módulo: una constante se
+  // evalúa una sola vez al cargar el chunk, así que en una pestaña que
+  // queda abierta cruzando la medianoche el formulario seguiría
+  // proponiendo la fecha de ayer.
+  const HOY = hoyLima()
 
   const cambiarBase = (valor: string) => {
     setBase(valor)

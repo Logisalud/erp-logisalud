@@ -5,6 +5,7 @@ import { marcarReposicionPagada } from '@/services/caja-chica'
 import { marcarVencimientoPagado } from '@/services/financiamiento'
 import { marcarImpuestoPagado } from '@/services/impuestos'
 import { marcarServicioPagado } from '@/services/servicios'
+import { anioMesStorageLima } from '@/domain/fecha'
 
 export type BorradorPago = {
   obligacionId: string
@@ -126,11 +127,8 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
 async function subirLegajoPago(codigoObligacion: string, archivo: File | null): Promise<string | null> {
   if (!archivo || archivo.size === 0) return null
   const supabase = crearClienteServidor()
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/${codigoObligacion}/${Date.now()}-${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/${codigoObligacion}/${Date.now()}-${nombreLimpio}`
   const { error } = await supabase.storage
     .from('legajos-pagos')
     .upload(path, archivo, { contentType: archivo.type || undefined })

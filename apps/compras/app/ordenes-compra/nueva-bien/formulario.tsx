@@ -8,6 +8,7 @@ import { calcularTotales } from '@/domain/orden-compra'
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
 import { SelectorCondicionPago } from '@/components/selector-condicion-pago'
 import { CampoArchivo } from '@/components/campo-archivo'
+import { hoyLima } from '@/domain/fecha'
 
 type Linea = { descripcion: string; cantidad: string; precio: string }
 
@@ -46,7 +47,7 @@ export function FormularioOCBien() {
           <Campo etiqueta="Fecha de emisión" error={errorDe('fechaEmision')}>
             <input
               type="date" name="fechaEmision" required
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={hoyLima()}
               className="min-h-12 w-full rounded-md border border-gray-300 px-3"
             />
           </Campo>

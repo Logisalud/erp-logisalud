@@ -8,6 +8,7 @@ import {
 import {
   puedeReemplazarConstancia, validarReemplazo, type ArchivoConstancia,
 } from '@/domain/reemplazo-constancia'
+import { anioMesStorageLima } from '@/domain/fecha'
 
 /**
  * Registrar un pago que YA OCURRIÓ — solo para el backlog anterior al ERP.
@@ -130,11 +131,8 @@ export async function subirVoucherHistorico(
   if (archivo.size === 0) return { error: 'El archivo está vacío.' }
   const supabase = crearClienteServidor()
 
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/${codigoObligacion}/${Date.now()}-${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/${codigoObligacion}/${Date.now()}-${nombreLimpio}`
 
   const { error } = await supabase.storage
     .from('legajos-pagos')
@@ -162,11 +160,8 @@ export async function subirVoucherHistoricoSuelto(
   if (archivo.size === 0) return { error: 'El archivo está vacío.' }
   const supabase = crearClienteServidor()
 
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/borradores-${crypto.randomUUID()}/${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/borradores-${crypto.randomUUID()}/${nombreLimpio}`
 
   const { error } = await supabase.storage
     .from('legajos-pagos')

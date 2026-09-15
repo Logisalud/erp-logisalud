@@ -7,6 +7,7 @@ import { Money } from '@/components/money'
 import { TablaObligaciones, type FilaObligacion } from '@/components/tabla-obligaciones'
 import { sumarPorMoneda } from '@/domain/propuesta-permisos'
 import { estaVencida } from '@/domain/categorias-estado-obligacion'
+import { hoyLima } from '@/domain/fecha'
 
 /**
  * Armar el lote con las MISMAS columnas de Cuentas por Pagar (pedido de
@@ -40,7 +41,7 @@ export function FormularioPropuesta({ obligaciones }: { obligaciones: Obligacion
       return next
     })
 
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
   const filas: FilaObligacion[] = obligaciones.map((o) => ({
     ...o,
     aviso:

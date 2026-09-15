@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { obtenerLoopsAbiertos, obtenerKPIsDashboard } from '@/services/dashboard'
+import { hoyLima } from '@/domain/fecha'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +63,7 @@ export default async function Dashboard() {
     loops.serviciosSinConformidad.length +
     loops.ocsParcialesSobreUmbral.length
 
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
   const diasVencida = (fecha: string) => Math.max(1, Math.round((Date.parse(hoy) - Date.parse(fecha)) / 86400000))
 
   return (

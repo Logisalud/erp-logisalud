@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { obtenerSabanaMaestra } from '@/services/reportes-sabana'
 import { generarSabanaExcel } from '@/lib/excel-sabana'
 import { ORIGENES_OBLIGACION, type OrigenObligacion } from '@/domain/reportes'
+import { hoyLima } from '@/domain/fecha'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
   })
 
   const buffer = generarSabanaExcel(filas)
-  const fecha = new Date().toISOString().slice(0, 10)
+  const fecha = hoyLima()
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
