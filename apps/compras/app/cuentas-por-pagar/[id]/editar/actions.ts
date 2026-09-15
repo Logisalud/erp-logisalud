@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { validarPagoDirecto } from '@/domain/obligacion'
-import { editarPagoDirecto } from '@/services/obligaciones'
+import { editarPagoDirecto, mapaCategoriasPagoDirecto } from '@/services/obligaciones'
 import { avisarCreacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
 import { cambioExigeAviso } from '@/domain/edicion'
@@ -48,7 +48,12 @@ export async function editarPagoDirectoAction(
     condicionPagoDias: condicionPagoRaw !== null && condicionPagoRaw !== '' ? Number(condicionPagoRaw) : null,
   }
 
-  const errores = validarPagoDirecto(borrador)
+  // Igual que en el alta: el nombre sale de la base, no del formulario.
+  const nombresCategoria = await mapaCategoriasPagoDirecto([borrador.categoriaId])
+  const errores = validarPagoDirecto({
+    ...borrador,
+    categoriaNombre: nombresCategoria.get(borrador.categoriaId) ?? null,
+  })
   if (errores.length > 0) return { errores }
 
   let resultado: Awaited<ReturnType<typeof editarPagoDirecto>>

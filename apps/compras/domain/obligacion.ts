@@ -405,6 +405,28 @@ export function validarObligacionSinFactura(b: BorradorObligacion): ErrorValidac
  */
 export const TOPE_PAGO_DIRECTO_PEN = 5000
 
+/**
+ * Categorías EXENTAS del tope.
+ *
+ * Solo la del backlog pre-ERP (migración 0053). Sebas está regularizando
+ * pagos anteriores al ERP —facturas de mercadería vieja, letras, retiros— y
+ * varios superan los S/5,000. Mandarlos por una Orden de Compra sería
+ * inventar una orden para algo que ya se pagó hace meses: la OC existe para
+ * autorizar una compra ANTES de hacerla, y acá no hay nada que autorizar.
+ *
+ * La excepción muere sola: cuando el backlog termine y la categoría se
+ * desactive (ver CONTEXTO.md), nadie puede volver a elegirla y el tope
+ * vuelve a regir sin tocar una línea de código. Por eso se exime la
+ * CATEGORÍA y no se sube el tope para todos.
+ */
+export const CATEGORIAS_EXENTAS_DEL_TOPE: readonly string[] = [
+  'Regularización de pagos antiguos (pre-ERP)',
+]
+
+export function exentoDelTope(categoriaNombre: string | null | undefined): boolean {
+  return CATEGORIAS_EXENTAS_DEL_TOPE.includes((categoriaNombre ?? '').trim())
+}
+
 export type BorradorPagoDirecto = BorradorObligacion & {
   categoriaId: string
   descripcion: string
@@ -426,6 +448,15 @@ export type BorradorPagoDirecto = BorradorObligacion & {
   /** La operación no está gravada (ej. alquiler a persona natural). Ver
    * `igvSegun` y la migración 0046: se declara, no se infiere de igv = 0. */
   sinIgv?: boolean
+  /**
+   * El NOMBRE de la categoría elegida — no solo el id — porque de él depende
+   * si aplica el tope de S/5,000 (ver CATEGORIAS_EXENTAS_DEL_TOPE).
+   *
+   * Lo resuelve la Server Action contra la base a partir de `categoriaId`,
+   * NUNCA se toma del formulario: un campo del cliente sería una forma de
+   * saltarse el tope escribiendo el nombre correcto en el HTML.
+   */
+  categoriaNombre?: string | null
 }
 
 /**
@@ -470,7 +501,7 @@ export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
   // El tope y la detracción se miden contra el total REAL: una operación sin
   // IGV que roza el tope no debe empujarse a OC/OS por un 18% que no existe.
   const total = totalSegun(b.baseImponible, b.sinIgv)
-  if (b.moneda === 'PEN' && total >= TOPE_PAGO_DIRECTO_PEN) {
+  if (b.moneda === 'PEN' && total >= TOPE_PAGO_DIRECTO_PEN && !exentoDelTope(b.categoriaNombre)) {
     errores.push({
       campo: 'baseImponible',
       mensaje: `Pago directo es para montos menores a S/${TOPE_PAGO_DIRECTO_PEN.toLocaleString('es-PE')} — con esto, la compra tiene que pasar por una Orden de Compra o de Servicio.`,
