@@ -242,14 +242,15 @@ Acceso temporal (decisión 2026-08-28, PR #70): todos los usuarios internos aute
 - ~~Confirmar condición de pago real por proveedor~~ — confirmado: default 90 días, Prades varía 75/90/105, no editable por el proveedor.
 - ~~Definir monto fijo del fondo de caja chica de Roberto~~ — confirmado: S/600.
 - Completar apellido/teléfono de Jose Carlos y Christian (almacén, sin correo — login por SMS pendiente).
-- **Tope de S/5,000 y el backlog pre-ERP**: si alguna factura de mercadería
-  vieja o alguna letra del backlog supera el tope, `validarPagoDirecto` la va
-  a rechazar. No se tocó nada: el tope es una regla acordada (2026-08-28) y
-  moverla por un backlog sería usar la excepción para cambiar la regla.
-  Decidir cuál de las tres: (a) esas se cargan por OC/OS como cualquier
-  compra grande, (b) se exime SOLO a la categoría "Regularización de pagos
-  antiguos (pre-ERP)" del tope, que muere con ella, o (c) se sube el tope
-  para todos. Mi recomendación es (b) si el backlog realmente las tiene.
+- ~~**Tope de S/5,000 y el backlog pre-ERP**~~ — RESUELTO el 2026-09-15 con
+  la opción (b): se exime del tope SOLO a la categoría "Regularización de
+  pagos antiguos (pre-ERP)" (`CATEGORIAS_EXENTAS_DEL_TOPE` en
+  domain/obligacion.ts). El tope sigue rigiendo para todas las demás. La
+  excepción muere sola: al desactivar la categoría, nadie puede volver a
+  elegirla y el tope vuelve a aplicar sin tocar código. El nombre de la
+  categoría lo resuelve la Server Action CONTRA LA BASE, nunca desde el
+  formulario — un campo del cliente sería una forma de saltarse el tope
+  escribiendo el nombre correcto en el HTML.
 
 ## Próximos pasos acordados
 

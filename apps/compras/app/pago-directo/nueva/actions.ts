@@ -3,7 +3,10 @@
 import { redirect } from 'next/navigation'
 import { exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { validarPagoDirecto } from '@/domain/obligacion'
-import { registrarPagoDirecto, subirCotizacionPagoDirecto, subirFacturaPagoDirecto, completarFacturaPagoDirecto } from '@/services/obligaciones'
+import {
+  mapaCategoriasPagoDirecto, registrarPagoDirecto, subirCotizacionPagoDirecto,
+  subirFacturaPagoDirecto, completarFacturaPagoDirecto,
+} from '@/services/obligaciones'
 import { avisarCreacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
 
@@ -36,7 +39,15 @@ export async function registrarPagoDirectoAction(_previo: EstadoFormulario, form
     condicionPagoDias: condicionPagoRaw !== null && condicionPagoRaw !== '' ? Number(condicionPagoRaw) : null,
   }
 
-  const errores = validarPagoDirecto(borrador)
+  // El nombre de la categoría decide si aplica el tope de S/5,000 (ver
+  // CATEGORIAS_EXENTAS_DEL_TOPE). Se resuelve CONTRA LA BASE y nunca desde
+  // el formulario: un campo del cliente sería una forma de saltarse el tope
+  // escribiendo el nombre correcto en el HTML.
+  const nombresCategoria = await mapaCategoriasPagoDirecto([borrador.categoriaId])
+  const errores = validarPagoDirecto({
+    ...borrador,
+    categoriaNombre: nombresCategoria.get(borrador.categoriaId) ?? null,
+  })
   if (errores.length > 0) return { errores }
 
   let registro: { id: string; codigo: string; total: number }

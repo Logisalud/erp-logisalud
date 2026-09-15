@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { igvDeBase, igvSegun, totalSegun, validarPagoDirecto, TOPE_PAGO_DIRECTO_PEN } from '@/domain/obligacion'
+import { exentoDelTope, igvDeBase, igvSegun, totalSegun, validarPagoDirecto, TOPE_PAGO_DIRECTO_PEN } from '@/domain/obligacion'
 
 describe('igvSegun / totalSegun', () => {
   it('sin el flag calcula el 18% de siempre', () => {
@@ -57,5 +57,50 @@ describe('el tope de Pago Directo se mide contra el total real', () => {
       ...basePagoDirecto, baseImponible: TOPE_PAGO_DIRECTO_PEN + 1, sinIgv: true,
     })
     expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
+  })
+})
+
+describe('excepción del tope para el backlog pre-ERP', () => {
+  const grande = {
+    ...basePagoDirecto,
+    // Muy por encima del tope de S/5,000.
+    baseImponible: 18000,
+    sinIgv: true,
+    moneda: 'PEN' as const,
+  }
+
+  it('sin la categoría exenta, el tope sigue rechazando', () => {
+    const errores = validarPagoDirecto(grande)
+    expect(errores.map((e) => e.campo)).toContain('baseImponible')
+  })
+
+  it('una categoría cualquiera NO exime', () => {
+    const errores = validarPagoDirecto({ ...grande, categoriaNombre: 'Combustible' })
+    expect(errores.map((e) => e.campo)).toContain('baseImponible')
+  })
+
+  it('la categoría del backlog SÍ exime — es el caso que bloqueaba a Sebas', () => {
+    const errores = validarPagoDirecto({
+      ...grande,
+      categoriaNombre: 'Regularización de pagos antiguos (pre-ERP)',
+    })
+    expect(errores.map((e) => e.campo)).not.toContain('baseImponible')
+  })
+
+  it('exentoDelTope tolera espacios y no se confunde con nombres parecidos', () => {
+    expect(exentoDelTope(' Regularización de pagos antiguos (pre-ERP) ')).toBe(true)
+    expect(exentoDelTope('Regularización de pagos antiguos')).toBe(false)
+    expect(exentoDelTope(null)).toBe(false)
+  })
+
+  it('la exención NO toca la detracción ni el resto de las reglas', () => {
+    // Eximir del tope no puede ser una puerta trasera que apague otras
+    // validaciones: la declaración de detracción sigue exigiéndose.
+    const errores = validarPagoDirecto({
+      ...grande,
+      categoriaNombre: 'Regularización de pagos antiguos (pre-ERP)',
+      tieneDetraccion: null,
+    })
+    expect(errores.map((e) => e.campo)).toContain('tieneDetraccion')
   })
 })
