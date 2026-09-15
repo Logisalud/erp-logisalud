@@ -427,6 +427,35 @@ export function exentoDelTope(categoriaNombre: string | null | undefined): boole
   return CATEGORIAS_EXENTAS_DEL_TOPE.includes((categoriaNombre ?? '').trim())
 }
 
+/**
+ * Un pago del backlog YA OCURRIÓ: Sebas está documentando algo del pasado,
+ * no pidiendo que se pague algo. El archivo que adjunta no es una factura
+ * pendiente, es la CONSTANCIA de que ya se pagó.
+ *
+ * Por eso esta categoría salta el circuito entero —conformidad, propuesta,
+ * ejecución— y la obligación nace o pasa directo a `pagada`. Pedirle
+ * conformidad a Contabilidad sobre un desembolso de hace ocho meses no
+ * decide nada, y armarle una propuesta de pago es proponer pagar algo que ya
+ * se pagó.
+ *
+ * Se declara como EXCEPCIÓN NOMBRADA y NO se agrega `pagada` a TRANSICIONES:
+ * en la tabla general se leería como "cualquier obligación registrada puede
+ * saltar a pagada", que es exactamente lo que no queremos. Acá el nombre de
+ * la función dice de qué caso se trata.
+ */
+export function puedeRegistrarsePagoHistorico(
+  estado: EstadoObligacion,
+  categoriaNombre: string | null | undefined
+): boolean {
+  if (!exentoDelTope(categoriaNombre)) return false
+  // Antes de cualquier decisión de Contabilidad. Una obligación ya conforme,
+  // en propuesta o pagada sigue su camino normal — no se reescribe por atrás.
+  return estado === 'registrada' || estado === 'pendiente_factura'
+}
+
+export const ERROR_PAGO_HISTORICO_FUERA_DE_ALCANCE =
+  'El registro de un pago ya realizado es solo para la categoría de regularización del backlog anterior al ERP.'
+
 export type BorradorPagoDirecto = BorradorObligacion & {
   categoriaId: string
   descripcion: string

@@ -9,13 +9,15 @@ import { ETIQUETA_ORIGEN, type OrigenObligacion } from '@/domain/reportes'
 import { listarLetrasDeObligacion } from '@/services/financiamiento'
 import {
   ETIQUETA_ESTADO, esOrigenAnulable, exigeRespuestaDetraccion, puedeAnularseObligacion,
-  puedeRechazarseObligacion, siguientePasoPagoDirecto, UMBRAL_DETRACCION_PEN,
+  puedeRechazarseObligacion, puedeRegistrarsePagoHistorico, siguientePasoPagoDirecto,
+  UMBRAL_DETRACCION_PEN,
 } from '@/domain/obligacion'
 import { etiquetaEdicion, puedeEditarseObligacion } from '@/domain/edicion'
 import type { Moneda } from '@/domain/servicio'
 import { ETIQUETA_ESTADO_VENCIMIENTO, puedePagarseEnCuotas } from '@/domain/financiamiento'
 import { BotonConformidad } from './conformidad'
 import { BotonAnularPagoDirecto, BotonRechazarPagoDirecto } from './acciones-pago-directo'
+import { BotonPagoHistorico } from './pago-historico'
 import { NotasCredito } from './notas-credito'
 import { VerVoucher } from './ver-voucher'
 import { verLegajoPagoDirectoAction } from './actions'
@@ -53,6 +55,14 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   const puedeEditar =
     obligacion.origen === 'gasto_directo' && puedeEditarseObligacion(obligacion.estado)
   const rastroEdicion = etiquetaEdicion(obligacion.editadoPor, obligacion.editadoEn)
+  // Backlog pre-ERP: el pago YA ocurrió, así que se documenta y la
+  // obligación pasa directo a "pagada" — sin conformidad ni propuesta, que
+  // no deciden nada sobre un desembolso de hace meses. El servicio revalida
+  // la categoría contra la base; acá solo se decide si mostrar el botón.
+  const puedePagoHistorico = puedeRegistrarsePagoHistorico(
+    obligacion.estado,
+    obligacion.categoriaPagoDirecto?.nombre ?? null
+  )
   const puedeAnular = origenCortable && puedeAnularseObligacion(obligacion.estado)
   // "Rechazar" es la contraparte de "Dar conformidad", así que lo ve quien
   // puede conformar: Contabilidad rol admin (mismo criterio de la Fase 1.7).
@@ -83,7 +93,10 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
             Editar
           </Link>
         ) : null}
-        {obligacion.estado === 'registrada' ? (
+        {puedePagoHistorico ? (
+          <BotonPagoHistorico obligacionId={obligacion.id} codigo={obligacion.codigo} />
+        ) : null}
+        {obligacion.estado === 'registrada' && !puedePagoHistorico ? (
           <p className="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-900">
             {siguientePasoPagoDirecto(obligacion.estado)}. No está atascado.
             {puedeAnular ? ' Mientras Contabilidad no lo revise, todavía se puede anular.' : ''}

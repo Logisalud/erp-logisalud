@@ -106,6 +106,28 @@ contra él con una categoría distinta a la del backlog — señal de que alguie
 lo eligió en vez de cargar el proveedor de verdad, y hay que corregirlo
 mientras se sepa cuál era.
 
+**Esta categoría acumula TRES excepciones al circuito normal**, y todas
+dicen lo mismo — "esto ya pasó":
+
+| # | Excepción | Dónde vive |
+|---|---|---|
+| 1 | Sin tope de S/5,000 | `CATEGORIAS_EXENTAS_DEL_TOPE` en domain/obligacion.ts |
+| 2 | Sin conformidad de Contabilidad | `puedeRegistrarsePagoHistorico` |
+| 3 | Sin propuesta de pago | `services/pago-historico.ts` |
+
+Las tres se resuelven por NOMBRE de categoría, resuelto contra la base y
+nunca desde el formulario. **Desactivar la categoría cierra las tres de una
+vez**, sin tocar código: si nadie puede elegirla, ninguna excepción se
+dispara. Por eso apagarla al terminar el backlog importa más que antes.
+
+Detalle del #3: `registrarPagoHistorico` es una función APARTE y no un flag
+en `ejecutarPago`. Esa última no significa "registrar un pago" sino
+"Tesorería ejecuta un desembolso hoy" — cierra el ciclo de otros cinco
+módulos y exige propuesta aprobada. Un flag que rompiera esas guardas sería
+una forma de saltarse la aprobación para CUALQUIER obligación. La transición
+`registrada → pagada` tampoco se agregó a `TRANSICIONES`: vive como
+excepción nombrada, para que no se lea como regla general.
+
 **Ojo con el tope de S/5,000** (`TOPE_PAGO_DIRECTO_PEN` en
 `domain/obligacion.ts`): `validarPagoDirecto` rechaza en soles todo total
 mayor o igual a ese número, y una factura de mercadería vieja o una letra lo
