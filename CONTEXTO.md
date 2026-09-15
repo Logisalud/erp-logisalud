@@ -84,6 +84,28 @@ set activo = false
 where nombre = 'Regularización de pagos antiguos (pre-ERP)';
 ```
 
+**Y con ella muere el proveedor comodín** (migración 0056, del 2026-09-15):
+`compras.proveedores` con RUC `00000000000` y razón social
+`SIN IDENTIFICAR — Backlog pre-ERP`. Existe porque de algunos retiros viejos
+Sebas no sabe a qué proveedor correspondían, y el formulario de Pago Directo
+exige elegir uno con RUC. Las dos cosas se apagan juntas:
+
+```sql
+update compras.proveedores set activo = false where ruc = '00000000000';
+```
+
+Once ceros porque es el único valor que pasa `validarRUC` (11 dígitos, sin
+checksum — ver domain/proveedor.ts) y a la vez es **imposible** que sea un
+RUC real: los peruanos empiezan en 10, 15, 17 o 20. Es uno solo garantizado
+por el esquema (`UNIQUE (ruc)`), no por disciplina.
+
+El riesgo conocido: el comodín aparece en el buscador de CUALQUIER pago
+directo, no solo del backlog. Lo vigila
+**`/reportes/sin-identificar`**, que marca en ámbar toda obligación cargada
+contra él con una categoría distinta a la del backlog — señal de que alguien
+lo eligió en vez de cargar el proveedor de verdad, y hay que corregirlo
+mientras se sepa cuál era.
+
 **Ojo con el tope de S/5,000** (`TOPE_PAGO_DIRECTO_PEN` en
 `domain/obligacion.ts`): `validarPagoDirecto` rechaza en soles todo total
 mayor o igual a ese número, y una factura de mercadería vieja o una letra lo
