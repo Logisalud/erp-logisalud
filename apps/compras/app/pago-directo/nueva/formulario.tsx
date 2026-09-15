@@ -14,6 +14,9 @@ import {
 import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-proveedor'
 import { CampoDetraccion } from '@/components/campo-detraccion'
 import { CampoArchivo } from '@/components/campo-archivo'
+import { excedeTamanoMaximo, mensajeArchivoDemasiadoGrande } from '@/domain/archivo'
+import { exentoDelTope } from '@/domain/obligacion'
+import { subirVoucherAltaAction } from './actions'
 
 type CategoriaOpcion = { id: string; nombre: string }
 
@@ -53,6 +56,47 @@ export function FormularioPagoDirecto({
   const [condicionPagoDias, setCondicionPagoDias] = useState<number | null>(
     inicial?.condicionPagoDias ?? null
   )
+  // Backlog pre-ERP: en esa categoría el pago SIEMPRE ya ocurrió, así que se
+  // ofrece documentarlo en el mismo envío. Mismo criterio de visibilidad que
+  // usa el resto del módulo para esta categoría — se decide por NOMBRE, y el
+  // servidor lo revalida contra la base.
+  const [yaPagado, setYaPagado] = useState(false)
+  const [voucherPath, setVoucherPath] = useState<string | null>(null)
+  const [voucherNombre, setVoucherNombre] = useState<string | null>(null)
+  const [subiendoVoucher, setSubiendoVoucher] = useState(false)
+  const [errorVoucher, setErrorVoucher] = useState<string | null>(null)
+
+  const categoriaNombre = categorias.find((c) => c.id === categoriaId)?.nombre ?? null
+  const esBacklog = exentoDelTope(categoriaNombre)
+
+  const elegirVoucher = async (archivo: File | undefined) => {
+    if (!archivo) {
+      setVoucherPath(null)
+      setVoucherNombre(null)
+      setErrorVoucher(null)
+      return
+    }
+    if (excedeTamanoMaximo(archivo.size)) {
+      setErrorVoucher(mensajeArchivoDemasiadoGrande(archivo.name, archivo.size))
+      setVoucherPath(null)
+      setVoucherNombre(null)
+      return
+    }
+    setSubiendoVoucher(true)
+    setErrorVoucher(null)
+    const datos = new FormData()
+    datos.append('archivo', archivo)
+    const resultado = await subirVoucherAltaAction(datos)
+    setSubiendoVoucher(false)
+    if ('path' in resultado) {
+      setVoucherPath(resultado.path)
+      setVoucherNombre(archivo.name)
+    } else {
+      setVoucherPath(null)
+      setVoucherNombre(null)
+      setErrorVoucher(`${resultado.error} Puedes registrar igual y subir la constancia después desde la ficha.`)
+    }
+  }
 
   // Pieza B1: el IGV no es editable, pero sí tiene que verse mientras se
   // escribe la base — antes había que guardar para descubrir el total.
@@ -270,20 +314,99 @@ export function FormularioPagoDirecto({
         errorMonto={errorDe('montoDetraccion')}
       />
 
+      {/* Solo en la categoría del backlog: ahí el pago SIEMPRE es del
+          pasado y el archivo no es una factura pendiente sino la constancia
+          de que ya se pagó. Si se marca, la obligación nace y pasa directo a
+          "pagada", sin conformidad ni propuesta. */}
+      {esBacklog && !editando ? (
+        <section className="card space-y-3 border-2 border-logisalud-green">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox" name="yaPagado" value="si"
+              checked={yaPagado}
+              onChange={(e) => setYaPagado(e.target.checked)}
+              className="mt-1 h-5 w-5"
+            />
+            <span>
+              <span className="font-medium text-gray-800">Ya se pagó — adjuntar constancia</span>
+              <span className="mt-0.5 block text-xs text-gray-500">
+                Para el backlog anterior al ERP: el pago ya ocurrió. Marca esto y el registro
+                queda como <strong>Pagado</strong> de una vez, sin pedir conformidad ni entrar a
+                una propuesta.
+              </span>
+            </span>
+          </label>
+
+          {yaPagado ? (
+            <>
+              <input type="hidden" name="voucherHistoricoPath" value={voucherPath ?? ''} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Campo etiqueta="Fecha real del pago *">
+                  <input
+                    type="date" name="fechaPagoHistorico" required
+                    className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    La que figura en el voucher, no la de hoy.
+                  </p>
+                </Campo>
+                <Campo etiqueta="N° de operación">
+                  <input
+                    type="text" name="numeroOperacionHistorico"
+                    className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+                  />
+                </Campo>
+              </div>
+              <Campo etiqueta="📎 Constancia del pago">
+                {/* Se sube al elegirla, en su propio request: en este mismo
+                    formulario ya puede viajar una cotización o una factura, y
+                    dos archivos juntos pasarían del límite de body. */}
+                <input
+                  type="file" accept="application/pdf,image/jpeg,image/png,image/webp"
+                  onChange={(e) => elegirVoucher(e.target.files?.[0])}
+                  className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+                />
+                {subiendoVoucher ? (
+                  <p className="mt-1 text-xs text-gray-500">Subiendo…</p>
+                ) : voucherNombre ? (
+                  <p className="mt-1 text-xs text-green-700">Subida: {voucherNombre}</p>
+                ) : null}
+                {errorVoucher ? (
+                  <p className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    {errorVoucher}
+                  </p>
+                ) : null}
+              </Campo>
+            </>
+          ) : null}
+        </section>
+      ) : null}
+
       <BotonGuardar
-        texto={textoBoton ?? 'Registrar pago directo'}
+        texto={textoBoton ?? (yaPagado ? 'Registrar pago ya realizado' : 'Registrar pago directo')}
         textoEnviando={textoEnviando ?? 'Registrando…'}
+        bloqueado={subiendoVoucher}
       />
     </form>
   )
 }
 
-function BotonGuardar({ texto, textoEnviando }: { texto: string; textoEnviando: string }) {
+function BotonGuardar({
+  texto, textoEnviando, bloqueado,
+}: { texto: string; textoEnviando: string; bloqueado?: boolean }) {
   const { pending } = useFormStatus()
   return (
-    <button type="submit" disabled={pending} className="btn-primary w-full sm:w-auto">
-      {pending ? textoEnviando : texto}
-    </button>
+    <>
+      <button
+        type="submit" disabled={pending || bloqueado}
+        className="btn-primary w-full sm:w-auto"
+      >
+        {pending ? textoEnviando : texto}
+      </button>
+      {bloqueado ? (
+        <p className="mt-1 text-xs text-gray-500">Espera a que termine de subir la constancia.</p>
+      ) : null}
+    </>
   )
 }
 

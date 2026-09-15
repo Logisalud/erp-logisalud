@@ -8,6 +8,7 @@ import {
   subirFacturaPagoDirecto, completarFacturaPagoDirecto,
 } from '@/services/obligaciones'
 import { avisarCreacionSinRomper } from '@/services/avisos'
+import { registrarPagoHistorico, subirVoucherHistoricoSuelto } from '@/services/pago-historico'
 import { formatoMonto } from '@/domain/aviso-email'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
@@ -95,7 +96,45 @@ export async function registrarPagoDirectoAction(_previo: EstadoFormulario, form
     creadorCorreo: usuario.email ?? null,
   })
 
+  // Backlog pre-ERP: si se marcó "Ya se pagó", la obligación nace y pasa
+  // directo a `pagada` en el mismo envío, sin tener que volver por la ficha.
+  // `registrarPagoHistorico` revalida la categoría contra la base, así que
+  // marcar esta casilla en otra categoría no hace nada.
+  if (form.get('yaPagado') === 'si') {
+    try {
+      await registrarPagoHistorico({
+        obligacionId: registro.id,
+        fechaPago: String(form.get('fechaPagoHistorico') ?? ''),
+        numeroOperacion: textoONullPD(form.get('numeroOperacionHistorico')),
+        storagePathVoucher: textoONullPD(form.get('voucherHistoricoPath')),
+      })
+    } catch (e) {
+      // El registro YA está creado: tumbarlo acá dejaría todo a medias. Se
+      // avisa en la ficha, donde el botón "Registrar pago ya realizado"
+      // sigue disponible para completarlo.
+      console.error('[registrarPagoDirectoAction] no se pudo marcar como pagado:', e)
+    }
+  }
+
   redirect(`/cuentas-por-pagar/${registro.id}`)
+}
+
+/** La constancia viaja en su propio request — ver services/pago-historico.ts. */
+export async function subirVoucherAltaAction(
+  form: FormData
+): Promise<{ path: string } | { error: string }> {
+  const archivo = form.get('archivo')
+  if (!(archivo instanceof File)) return { error: 'No llegó ningún archivo.' }
+  try {
+    return await subirVoucherHistoricoSuelto(archivo)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo subir la constancia.' }
+  }
+}
+
+function textoONullPD(v: FormDataEntryValue | null): string | null {
+  const s = v == null ? '' : String(v).trim()
+  return s === '' ? null : s
 }
 
 export type EstadoCompletarFactura = { error: string } | null
