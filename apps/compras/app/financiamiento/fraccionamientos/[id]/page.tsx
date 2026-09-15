@@ -3,6 +3,7 @@ import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { obtenerFraccionamiento } from '@/services/financiamiento'
 import { ETIQUETA_ESTADO_VENCIMIENTO, estaVencida } from '@/domain/financiamiento'
+import { hoyLima } from '@/domain/fecha'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ export default async function DetalleFraccionamiento({ params }: { params: { id:
   const fraccionamiento = await obtenerFraccionamiento(params.id)
   if (!fraccionamiento) notFound()
 
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
   const cuotasVencidas = fraccionamiento.cuotas.filter((c) => c.estado === 'pendiente' && estaVencida(c.fecha_vencimiento, hoy))
 
   return (

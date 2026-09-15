@@ -16,6 +16,7 @@ import { listarObligaciones, type ObligacionListada } from '@/services/obligacio
 import { obtenerObligacionesAbiertas, type FilaObligacionAbierta } from '@/services/reportes-cuentas-por-pagar-detalle'
 import { buscarOrdenesFacturables } from '@/services/facturas-elegibles'
 import { diasVencido } from '@/domain/reportes'
+import { hoyLima, mesActualLima } from '@/domain/fecha'
 
 export type LoopDiscrepancia = { recepcionId: string; ocCodigo: string; cantidadLineas: number }
 
@@ -85,7 +86,7 @@ export async function obtenerUmbralAnticipoSinRendirDias(): Promise<number> {
  */
 export async function listarAnticiposSinRendir(): Promise<LoopAnticipo[]> {
   const supabase = crearClienteServidor()
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
   const umbralDias = await obtenerUmbralAnticipoSinRendirDias()
 
   const { data, error } = await supabase
@@ -152,7 +153,7 @@ export type LoopFraccionamientoVencido = {
 /** Regla 10: cuota vencida sin obligación generada — riesgo de perder el beneficio del fraccionamiento. */
 export async function listarCuotasFraccionamientoVencidas(): Promise<LoopFraccionamientoVencido[]> {
   const supabase = crearClienteServidor()
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
 
   const { data: cuotas, error } = await supabase
     .schema('financiamiento')
@@ -206,7 +207,7 @@ export async function obtenerUmbralOCParcialDias(): Promise<number> {
  */
 export async function listarOCsParcialesSobreUmbral(): Promise<LoopOCParcial[]> {
   const supabase = crearClienteServidor()
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
   const umbralDias = await obtenerUmbralOCParcialDias()
 
   const { data: ocs, error } = await supabase
@@ -291,7 +292,7 @@ export type KPIsDashboard = {
  * + el historial de pagos ya existente. Nunca se mezcla PEN con USD.
  */
 export async function obtenerKPIsDashboard(obligacionesObservadasYaCargadas?: ObligacionListada[]): Promise<KPIsDashboard> {
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
 
   const [abiertas, facturables, obligacionesObservadas, pagadoEsteMes] = await Promise.all([
     obtenerObligacionesAbiertas({}),
@@ -338,9 +339,12 @@ export async function obtenerKPIsDashboard(obligacionesObservadasYaCargadas?: Ob
  */
 async function obtenerPagadoDelMesActual(): Promise<MontoPorMoneda[]> {
   const supabase = crearClienteServidor()
-  const ahora = new Date()
-  const inicioMes = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1)).toISOString().slice(0, 10)
-  const finMes = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() + 1, 0)).toISOString().slice(0, 10)
+  // El mes se saca del día de LIMA: el 30/09 a las 21:00 de Lima el lambda
+  // (UTC) ya está en octubre, y el tablero mostraba "pagado este mes" en
+  // cero cuando en realidad faltaban tres horas para cerrar septiembre.
+  const [anio, mes] = mesActualLima().split('-').map(Number)
+  const inicioMes = new Date(Date.UTC(anio, mes - 1, 1)).toISOString().slice(0, 10)
+  const finMes = new Date(Date.UTC(anio, mes, 0)).toISOString().slice(0, 10)
 
   const { data: pagos, error } = await supabase
     .schema('cuentas_x_pagar')

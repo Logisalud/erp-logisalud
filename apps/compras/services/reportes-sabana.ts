@@ -2,6 +2,7 @@ import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { diasVencido, estadoYSaldoSabana, ETIQUETA_ORIGEN, type OrigenObligacion, type EstadoPagoSabana } from '@/domain/reportes'
 import type { EstadoObligacion } from '@/domain/obligacion'
+import { hoyLima } from '@/domain/fecha'
 
 /**
  * Sábana maestra — una fila plana por obligación, todos los campos
@@ -71,7 +72,7 @@ type ObligacionCruda = {
 
 export async function obtenerSabanaMaestra(filtros: FiltrosSabana): Promise<FilaSabana[]> {
   const supabase = crearClienteServidor()
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
 
   let q = supabase
     .schema('cuentas_x_pagar')

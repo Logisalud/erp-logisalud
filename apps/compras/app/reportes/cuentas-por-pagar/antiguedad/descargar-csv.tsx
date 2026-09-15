@@ -2,6 +2,7 @@
 
 import { BUCKETS_ANTIGUEDAD, ETIQUETA_BUCKET, type BucketAntiguedad } from '@/domain/reportes'
 import type { FilaAntiguedadProveedor } from '@/services/reportes-cuentas-por-pagar-detalle'
+import { hoyLima } from '@/domain/fecha'
 
 type Props = {
   filas: readonly FilaAntiguedadProveedor[]
@@ -31,7 +32,7 @@ export function DescargarCSV({ filas, totalesPorMoneda }: Props) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `antiguedad-saldos-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `antiguedad-saldos-${hoyLima()}.csv`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

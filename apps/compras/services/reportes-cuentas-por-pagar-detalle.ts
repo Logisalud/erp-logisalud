@@ -11,6 +11,7 @@ import {
   type OrigenObligacion,
 } from '@/domain/reportes'
 import type { EstadoObligacion } from '@/domain/obligacion'
+import { hoyLima } from '@/domain/fecha'
 
 /**
  * Los 4 reportes financieros de Cuentas por Pagar (Contabilidad/Tesorería) +
@@ -121,7 +122,7 @@ export type FiltrosAntiguedad = { busqueda?: string; moneda?: string }
 
 export async function obtenerAntiguedadSaldos(filtros: FiltrosAntiguedad = {}): Promise<ReporteAntiguedad> {
   const supabase = crearClienteServidor()
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
 
   const { data, error } = await supabase
     .schema('cuentas_x_pagar')
@@ -211,7 +212,7 @@ export type FilaObligacionAbierta = {
 
 export async function obtenerObligacionesAbiertas(filtros: FiltrosAbiertas): Promise<FilaObligacionAbierta[]> {
   const supabase = crearClienteServidor()
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
 
   let q = supabase
     .schema('cuentas_x_pagar')
@@ -270,11 +271,17 @@ export type ReporteProyeccionPagos = {
 /** Reusa el detalle de abiertas (misma data, otro agrupamiento) — evita duplicar la query. */
 export async function obtenerProyeccionPagos(): Promise<ReporteProyeccionPagos> {
   const filas = await obtenerObligacionesAbiertas({})
-  const hoy = new Date()
+  // Los cortes de la proyección se anclan en el día de LIMA, no en el del
+  // lambda: entre las 19:00 y la medianoche de Lima el servidor (UTC) ya
+  // está en el día siguiente, y con él se corrían la semana y el mes de
+  // corte — una obligación que vence hoy aparecía en "este mes" en vez de
+  // "esta semana". Se ancla al mediodía UTC del día de Lima para que la
+  // aritmética con getUTC* no pueda mover el día por redondeo de zona.
+  const hoy = new Date(`${hoyLima()}T12:00:00Z`)
   const finSemana = new Date(hoy)
-  finSemana.setDate(finSemana.getDate() + (7 - hoy.getDay()))
-  const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
-  const finProximoMes = new Date(hoy.getFullYear(), hoy.getMonth() + 2, 0)
+  finSemana.setUTCDate(finSemana.getUTCDate() + (7 - hoy.getUTCDay()))
+  const finMes = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() + 1, 0))
+  const finProximoMes = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() + 2, 0))
   const iso = (d: Date) => d.toISOString().slice(0, 10)
 
   const ventanaDe = (fecha: string | null): VentanaProyeccion => {

@@ -3,6 +3,7 @@ import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { obtenerPrestamo } from '@/services/financiamiento'
 import { ETIQUETA_ESTADO_VENCIMIENTO, estaVencida } from '@/domain/financiamiento'
+import { hoyLima } from '@/domain/fecha'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ export default async function DetallePrestamo({ params }: { params: { id: string
   const prestamo = await obtenerPrestamo(params.id)
   if (!prestamo) notFound()
 
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">

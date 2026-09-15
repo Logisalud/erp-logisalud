@@ -17,6 +17,7 @@ import { CampoArchivo } from '@/components/campo-archivo'
 import { excedeTamanoMaximo, mensajeArchivoDemasiadoGrande } from '@/domain/archivo'
 import { exentoDelTope } from '@/domain/obligacion'
 import { subirVoucherAltaAction } from './actions'
+import { hoyLima } from '@/domain/fecha'
 
 type CategoriaOpcion = { id: string; nombre: string }
 
@@ -202,7 +203,7 @@ export function FormularioPagoDirecto({
               <Campo etiqueta="Fecha de factura *" error={errorDe('fechaFactura')}>
                 <input
                   type="date" name="fechaFactura" required
-                  defaultValue={inicial?.fechaFactura ?? new Date().toISOString().slice(0, 10)}
+                  defaultValue={inicial?.fechaFactura ?? hoyLima()}
                   className="min-h-12 w-full rounded-md border border-gray-300 px-3"
                 />
               </Campo>

@@ -20,6 +20,7 @@ import {
 } from '@/domain/auto-aprobacion'
 import { formatoMonto } from '@/domain/aviso-email'
 import { ERROR_EDITAR_TARDE, puedeEditarseSolicitud } from '@/domain/edicion'
+import { anioMesStorageLima } from '@/domain/fecha'
 
 export type CategoriaGasto = { id: string; nombre: string; cuenta_contable: string | null }
 
@@ -129,11 +130,8 @@ export async function subirCotizacion(solicitudId: string, archivo: File): Promi
     .maybeSingle()
   if (!solicitud?.codigo) return false
 
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/${solicitud.codigo}/${Date.now()}-${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/${solicitud.codigo}/${Date.now()}-${nombreLimpio}`
 
   const { error: errUpload } = await supabase.storage
     .from('legajos-gastos')
@@ -555,11 +553,8 @@ export async function subirComprobante(input: {
       .eq('id', input.solicitudId)
       .maybeSingle()
     if (solicitud?.codigo) {
-      const ahora = new Date()
-      const yyyy = String(ahora.getFullYear())
-      const mm = String(ahora.getMonth() + 1).padStart(2, '0')
       const nombreLimpio = input.archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `${yyyy}/${mm}/${solicitud.codigo}/${Date.now()}-${nombreLimpio}`
+      const path = `${anioMesStorageLima()}/${solicitud.codigo}/${Date.now()}-${nombreLimpio}`
       const { error: errUpload } = await supabase.storage
         .from('legajos-gastos')
         .upload(path, input.archivo, { contentType: input.archivo.type || undefined })

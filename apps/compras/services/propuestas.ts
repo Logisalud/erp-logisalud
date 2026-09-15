@@ -16,6 +16,7 @@ import { mapaCategoriasPagoDirecto, mapaProveedoresBasico } from '@/services/obl
 import {
   cuentaPreferida, mapaCuentasDeLote, type CuentaDeLote,
 } from '@/services/cuentas-bancarias-lote'
+import { mesActualLima, anioActualLima } from '@/domain/fecha'
 
 export type ObligacionConforme = {
   id: string
@@ -159,7 +160,7 @@ export async function crearPropuesta(obligacionIds: string[]): Promise<{ id: str
 
   const notasAplicadas = await mapaNotasCreditoAplicadas(obligacionIds)
 
-  const anio = new Date().getFullYear()
+  const anio = anioActualLima()
   const { data: ultima } = await supabase
     .schema('cuentas_x_pagar')
     .from('propuestas_pago')
@@ -173,7 +174,7 @@ export async function crearPropuesta(obligacionIds: string[]): Promise<{ id: str
   const { data: propuesta, error: errIns } = await supabase
     .schema('cuentas_x_pagar')
     .from('propuestas_pago')
-    .insert({ codigo, periodo: `${anio}-S${Math.ceil((new Date().getMonth() + 1) / 1)}`, creado_por: usuario.id, estado: 'borrador' })
+    .insert({ codigo, periodo: `${anio}-S${Number(mesActualLima().slice(5, 7))}`, creado_por: usuario.id, estado: 'borrador' })
     .select('id')
     .single()
   if (errIns) throw new Error(`No se pudo crear la propuesta: ${errIns.message}`)

@@ -13,6 +13,7 @@ import {
 } from '@/domain/auto-aprobacion'
 import { formatoMonto } from '@/domain/aviso-email'
 import { ERROR_EDITAR_TARDE, puedeEditarseOS } from '@/domain/edicion'
+import { anioMesStorageLima } from '@/domain/fecha'
 
 export type ProveedorServicio = { id: string; razon_social: string }
 
@@ -289,11 +290,8 @@ export async function subirFacturaOS(osId: string, archivo: File): Promise<void>
 
   let storagePath: string | null = null
   if (archivo && archivo.size > 0) {
-    const ahora = new Date()
-    const yyyy = String(ahora.getFullYear())
-    const mm = String(ahora.getMonth() + 1).padStart(2, '0')
     const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const path = `${yyyy}/${mm}/${os.codigo}/${Date.now()}-${nombreLimpio}`
+    const path = `${anioMesStorageLima()}/${os.codigo}/${Date.now()}-${nombreLimpio}`
     const { error: errUpload } = await supabase.storage.from('legajos-servicios').upload(path, archivo, { contentType: archivo.type || undefined })
     if (!errUpload) storagePath = path
   }

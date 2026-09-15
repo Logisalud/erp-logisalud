@@ -9,6 +9,7 @@ import {
 import { totalEnVivo } from '@/domain/aporte-accionista'
 import { crearAportesAction, type EstadoLote } from './actions'
 import { subirComprobanteAporteAction } from './subir'
+import { hoyLima } from '@/domain/fecha'
 
 type CategoriaGasto = { id: string; nombre: string }
 
@@ -26,10 +27,9 @@ type LineaUI = {
   errorArchivo: string | null
 }
 
-const hoyISO = () => new Date().toISOString().slice(0, 10)
 
 const lineaVacia = (): LineaUI => ({
-  fecha: hoyISO(),
+  fecha: hoyLima(),
   categoriaId: '',
   categoriaLibre: '',
   descripcion: '',
@@ -130,7 +130,7 @@ export function FormularioAportes({ categorias }: { categorias: CategoriaGasto[]
           <div className="grid gap-3 sm:grid-cols-2">
             <Campo etiqueta="Fecha del gasto *" error={errorDe(i, 'fecha')}>
               <input
-                type="date" name={`fecha-${i}`} required max={hoyISO()}
+                type="date" name={`fecha-${i}`} required max={hoyLima()}
                 value={linea.fecha}
                 onChange={(e) => cambiar(i, { fecha: e.target.value })}
                 className="min-h-12 w-full rounded-md border border-gray-300 px-3"

@@ -4,6 +4,7 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { completarFacturaAction, type EstadoCompletarFactura } from '@/app/pago-directo/nueva/actions'
 import { igvSegun, totalSegun } from '@/domain/obligacion'
 import { useState } from 'react'
+import { hoyLima } from '@/domain/fecha'
 
 /**
  * Pieza E: la obligación se registró con una cotización porque el proveedor
@@ -41,7 +42,7 @@ export function CompletarFactura({ obligacionId, baseCotizada }: { obligacionId:
           <span className="font-medium text-gray-800">Fecha de factura *</span>
           <input
             type="date" name="fechaFactura" required
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={hoyLima()}
             className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
         </label>

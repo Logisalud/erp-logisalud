@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { ejecutarPagoAction, type EstadoAccion } from './actions'
 import { CampoArchivo } from '@/components/campo-archivo'
+import { hoyLima } from '@/domain/fecha'
 
 type CuentaBancaria = { id: string; banco: string; numero_cuenta: string; moneda: string; es_principal: boolean }
 
@@ -38,7 +39,7 @@ export function FormularioPago({
           <span className="text-gray-600">Fecha de pago</span>
           <input
             type="date" name="fechaPago" required
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={hoyLima()}
             className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
         </label>

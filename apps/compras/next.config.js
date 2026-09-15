@@ -25,6 +25,28 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
+  // `@react-pdf/renderer` pinta los PDF de OC/OS con las fuentes estándar de
+  // PDF (fontFamily: 'Helvetica' en services/pdf-documentos.tsx). Para eso
+  // `@react-pdf/font` hace `import 'pdfkit/standard-fonts/Helvetica'`, que el
+  // campo `exports` de pdfkit resuelve a `js/standard-fonts/Helvetica.cjs`.
+  // El output file tracing de Next no sigue ese salto por `exports`, así que
+  // el archivo NUNCA se subía al lambda: local existe, en /var/task no.
+  //
+  // El síntoma no era "el PDF sale mal" sino algo bastante peor: el require
+  // fallido llega como Unhandled Rejection y se lleva puesta la instancia
+  // entera junto con la petición que estuviera en vuelo. En los logs de
+  // Vercel eso son 920 ocurrencias en 34 rutas y 9 usuarios en cuatro días,
+  // casi todas en páginas que no generan ningún PDF — caían de rebote.
+  //
+  // Se incluye el directorio completo y no solo Helvetica*: el fallback de
+  // @react-pdf importa las 14 fuentes estándar de arranque, así que con una
+  // sola que falte vuelve el mismo crash. Son ~200 kB en total.
+  //
+  // La ruta arranca con ../../ porque node_modules está izado a la raíz del
+  // monorepo (npm workspaces), no dentro de apps/compras.
+  outputFileTracingIncludes: {
+    '**/*': ['../../node_modules/pdfkit/js/standard-fonts/**'],
+  },
     // Sin esto el límite del body de una Server Action es 1 MB (default de
     // Next 14) — y TODO formulario del módulo que sube un archivo pasa por
     // una Server Action. Una foto de celular pesa 2-6 MB, así que el pedido

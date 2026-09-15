@@ -4,6 +4,7 @@ import { conciliarFactura, type LineaFacturaConciliacion, type LineaOCDisponible
 import { hayRecepcionConSaldoSinFacturar } from '@/domain/facturas-pendientes'
 import { calcularFechaVencimientoMultiRecepcion } from '@/domain/vencimiento-obligacion'
 import { crearObligacionCompraMultiRecepcion, type LineaFacturacionCompra } from '@/services/obligaciones'
+import { hoyLima, anioMesStorageLima } from '@/domain/fecha'
 
 /**
  * Orquesta el flujo NUEVO de registro de factura de compra (Pieza 1 + 2):
@@ -279,7 +280,7 @@ async function procesarFacturaPendiente(facturaPendienteId: string, ocYaCargada?
     moneda: oc.moneda,
     tipoCambio: fila.tipo_cambio,
     numeroFactura: fila.numero_factura ?? '',
-    fechaFactura: fila.fecha_factura ?? new Date().toISOString().slice(0, 10),
+    fechaFactura: fila.fecha_factura ?? hoyLima(),
     lineas: lineasFacturacion,
     recepcionIds,
     fechaVencimientoReal,
@@ -554,11 +555,8 @@ export async function aprobarExcepcionConciliacion(facturaPendienteId: string): 
 export async function subirDocumentoFacturaPendiente(ocCodigo: string, archivo: File): Promise<string | null> {
   if (!archivo || archivo.size === 0) return null
   const supabase = crearClienteServidor()
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/${ocCodigo}/factura-${Date.now()}-${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/${ocCodigo}/factura-${Date.now()}-${nombreLimpio}`
   const { error } = await supabase.storage.from('legajos-compras').upload(path, archivo, { contentType: archivo.type || undefined })
   return error ? null : path
 }

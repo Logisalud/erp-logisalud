@@ -14,6 +14,7 @@ import {
 } from '@/domain/orden-compra'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
+import { anioMesStorageLima } from '@/domain/fecha'
 
 export type OCListada = {
   id: string
@@ -372,11 +373,8 @@ export async function cerrarOCConSaldoPendiente(id: string, motivo: string): Pro
 export async function subirCotizacionOC(ocId: string, codigo: string, archivo: File): Promise<boolean> {
   if (!archivo || archivo.size === 0) return false
   const supabase = crearClienteServidor()
-  const ahora = new Date()
-  const yyyy = String(ahora.getFullYear())
-  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
   const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `${yyyy}/${mm}/${codigo}/cotizacion-${Date.now()}-${nombreLimpio}`
+  const path = `${anioMesStorageLima()}/${codigo}/cotizacion-${Date.now()}-${nombreLimpio}`
 
   const { error } = await supabase.storage.from('legajos-compras').upload(path, archivo, { contentType: archivo.type || undefined })
   if (error) return false
