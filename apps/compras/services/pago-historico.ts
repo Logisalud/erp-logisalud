@@ -1,10 +1,13 @@
 import 'server-only'
-import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
+import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { mapaCategoriasPagoDirecto } from '@/services/obligaciones'
 import {
   ERROR_PAGO_HISTORICO_FUERA_DE_ALCANCE, puedeRegistrarsePagoHistorico,
   type EstadoObligacion,
 } from '@/domain/obligacion'
+import {
+  puedeReemplazarConstancia, validarReemplazo, type ArchivoConstancia,
+} from '@/domain/reemplazo-constancia'
 
 /**
  * Registrar un pago que YA OCURRIÓ — solo para el backlog anterior al ERP.
@@ -173,4 +176,60 @@ export async function subirVoucherHistoricoSuelto(
     return { error: `No se pudo subir la constancia: ${error.message}` }
   }
   return { path }
+}
+
+/**
+ * Reemplazar SOLO el archivo de la constancia de un pago ya registrado.
+ *
+ * La función no recibe fecha, monto, N° de operación ni cuenta: no puede
+ * tocarlos aunque alguien fuerce el formulario. Lo único que escribe es la
+ * ruta del archivo y el rastro de quién lo reemplazó.
+ *
+ * El archivo viejo NO se borra. Queda huérfano en Storage pero presente:
+ * borrar la evidencia anterior sería lo contrario de lo que busca el rastro.
+ */
+export async function reemplazarConstanciaPago(input: {
+  obligacionId: string
+  cual: ArchivoConstancia
+  motivo: string
+  storagePathNuevo: string
+}): Promise<void> {
+  const perfil = await perfilActual()
+  if (!puedeReemplazarConstancia(perfil)) {
+    throw new Error('Solo Administración puede reemplazar la constancia de un pago.')
+  }
+  const errores = validarReemplazo({
+    cual: input.cual,
+    motivo: input.motivo,
+    storagePathNuevo: input.storagePathNuevo,
+  })
+  if (errores.length > 0) throw new Error(errores[0].mensaje)
+
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  // El pago se alcanza por la obligación, que es lo que la ficha conoce.
+  const { data: aplicacion } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pago_aplicacion')
+    .select('pago_id')
+    .eq('obligacion_id', input.obligacionId)
+    .maybeSingle()
+  if (!aplicacion?.pago_id) throw new Error('Esta obligación no tiene un pago registrado.')
+
+  const columna =
+    input.cual === 'voucher' ? 'storage_path_voucher' : 'storage_path_detraccion'
+
+  const { error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pagos')
+    .update({
+      [columna]: input.storagePathNuevo,
+      voucher_reemplazado_por: usuario.id,
+      voucher_reemplazado_en: new Date().toISOString(),
+      voucher_reemplazado_motivo: input.motivo.trim(),
+      voucher_reemplazado_cual: input.cual,
+    })
+    .eq('id', aplicacion.pago_id)
+  if (error) throw new Error(`No se pudo reemplazar la constancia: ${error.message}`)
 }

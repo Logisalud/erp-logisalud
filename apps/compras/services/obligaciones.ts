@@ -700,6 +700,11 @@ export type ObligacionDetalle = ObligacionListada & {
     numero_voucher: string | null
     storage_path_voucher: string | null
     storage_path_detraccion: string | null
+    /** Rastro del reemplazo de constancia (migración 0057). */
+    voucher_reemplazado_cual: string | null
+    voucher_reemplazado_en: string | null
+    voucher_reemplazado_motivo: string | null
+    reemplazadoPor: string | null
   } | null
   /** Solo Pago Directo — ver anularPagoDirecto/rechazarPagoDirecto. */
   anulada_en: string | null
@@ -807,10 +812,18 @@ async function obtenerPagoDeObligacion(obligacionId: string) {
   const { data: pago } = await supabase
     .schema('cuentas_x_pagar')
     .from('pagos')
-    .select('numero_voucher, storage_path_voucher, storage_path_detraccion')
+    .select(`numero_voucher, storage_path_voucher, storage_path_detraccion,
+             voucher_reemplazado_cual, voucher_reemplazado_en, voucher_reemplazado_motivo,
+             voucher_reemplazado_por`)
     .eq('id', aplicacion.pago_id)
     .maybeSingle()
-  return pago ?? null
+  if (!pago) return null
+
+  // El nombre de quien reemplazó: cross-schema, así que va en una consulta
+  // aparte (mismo patrón del resto del módulo).
+  const reemplazadoPorId = (pago as any).voucher_reemplazado_por as string | null
+  const nombre = reemplazadoPorId ? await nombreDePerfil(reemplazadoPorId) : null
+  return { ...(pago as any), reemplazadoPor: nombre }
 }
 
 async function obtenerOCBasica(ocId: string) {

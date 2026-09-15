@@ -8,7 +8,10 @@ import {
 } from '@/services/obligaciones'
 import { registrarNotaCredito, aplicarNotaCredito } from '@/services/notas-credito'
 import { obtenerUrlLegajoPago } from '@/services/pagos'
-import { registrarPagoHistorico, subirVoucherHistorico } from '@/services/pago-historico'
+import {
+  reemplazarConstanciaPago, registrarPagoHistorico, subirVoucherHistorico,
+} from '@/services/pago-historico'
+import { esArchivoReemplazable } from '@/domain/reemplazo-constancia'
 
 export type EstadoAccion = { error: string } | null
 
@@ -149,4 +152,30 @@ export async function subirVoucherHistoricoAction(
 function textoONullPH(v: FormDataEntryValue | null): string | null {
   const s = v == null ? '' : String(v).trim()
   return s === '' ? null : s
+}
+
+/**
+ * Reemplazar SOLO el archivo de la constancia de un pago ya registrado.
+ * Ningún dato financiero viaja en este FormData — ver el servicio.
+ */
+export async function reemplazarConstanciaAction(
+  obligacionId: string,
+  _previo: EstadoAccion,
+  form: FormData
+): Promise<EstadoAccion> {
+  const cual = String(form.get('cual') ?? '')
+  if (!esArchivoReemplazable(cual)) return { error: 'Elige qué archivo estás reemplazando.' }
+
+  try {
+    await reemplazarConstanciaPago({
+      obligacionId,
+      cual,
+      motivo: String(form.get('motivo') ?? ''),
+      storagePathNuevo: String(form.get('archivoPath') ?? ''),
+    })
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo reemplazar la constancia.' }
+  }
+  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  redirect(`/cuentas-por-pagar/${obligacionId}`)
 }

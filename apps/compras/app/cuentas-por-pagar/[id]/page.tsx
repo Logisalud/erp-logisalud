@@ -18,6 +18,8 @@ import { ETIQUETA_ESTADO_VENCIMIENTO, puedePagarseEnCuotas } from '@/domain/fina
 import { BotonConformidad } from './conformidad'
 import { BotonAnularPagoDirecto, BotonRechazarPagoDirecto } from './acciones-pago-directo'
 import { BotonPagoHistorico } from './pago-historico'
+import { BotonReemplazarConstancia } from './reemplazar-constancia'
+import { etiquetaReemplazo, puedeReemplazarConstancia } from '@/domain/reemplazo-constancia'
 import { NotasCredito } from './notas-credito'
 import { VerVoucher } from './ver-voucher'
 import { verLegajoPagoDirectoAction } from './actions'
@@ -59,6 +61,17 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   // obligación pasa directo a "pagada" — sin conformidad ni propuesta, que
   // no deciden nada sobre un desembolso de hace meses. El servicio revalida
   // la categoría contra la base; acá solo se decide si mostrar el botón.
+  // Reemplazar la constancia: solo admin, y solo si hay un pago registrado.
+  // No cambia ningún dato financiero — ver domain/reemplazo-constancia.ts.
+  const puedeReemplazar = puedeReemplazarConstancia(perfil) && !!obligacion.pago
+  const rastroReemplazo = obligacion.pago
+    ? etiquetaReemplazo(
+        obligacion.pago.voucher_reemplazado_cual,
+        obligacion.pago.reemplazadoPor,
+        obligacion.pago.voucher_reemplazado_en,
+        obligacion.pago.voucher_reemplazado_motivo
+      )
+    : null
   const puedePagoHistorico = puedeRegistrarsePagoHistorico(
     obligacion.estado,
     obligacion.categoriaPagoDirecto?.nombre ?? null
@@ -163,6 +176,20 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
               <VerVoucher storagePath={obligacion.pago.storage_path_detraccion} etiqueta="Ver detracción" />
             ) : null}
           </div>
+        ) : null}
+        {/* El rastro va junto a los archivos, no escondido: es lo que
+            distingue una corrección de una alteración. */}
+        {rastroReemplazo ? (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {rastroReemplazo}
+          </p>
+        ) : null}
+        {puedeReemplazar ? (
+          <BotonReemplazarConstancia
+            obligacionId={obligacion.id}
+            codigo={obligacion.codigo}
+            tieneDetraccion={!!obligacion.pago?.storage_path_detraccion}
+          />
         ) : null}
 
         {pendienteDeFactura ? (
