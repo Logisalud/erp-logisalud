@@ -142,3 +142,35 @@ export async function subirVoucherHistorico(
   }
   return { path }
 }
+
+
+/**
+ * Sube la constancia ANTES de que exista la obligación — para el checkbox
+ * "Ya se pagó" del formulario de alta, donde todavía no hay código al que
+ * colgarla.
+ *
+ * Mismo patrón (y misma deuda de huérfanos) que los comprobantes de aportes:
+ * el prefijo de borrador va en el TERCER segmento, porque la policy de
+ * Storage exige `YYYY/MM/<algo>/<archivo>`.
+ */
+export async function subirVoucherHistoricoSuelto(
+  archivo: File
+): Promise<{ path: string } | { error: string }> {
+  if (archivo.size === 0) return { error: 'El archivo está vacío.' }
+  const supabase = crearClienteServidor()
+
+  const ahora = new Date()
+  const yyyy = String(ahora.getFullYear())
+  const mm = String(ahora.getMonth() + 1).padStart(2, '0')
+  const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const path = `${yyyy}/${mm}/borradores-${crypto.randomUUID()}/${nombreLimpio}`
+
+  const { error } = await supabase.storage
+    .from('legajos-pagos')
+    .upload(path, archivo, { contentType: archivo.type || undefined })
+  if (error) {
+    console.error('[subirVoucherHistoricoSuelto] falló la subida:', error.message)
+    return { error: `No se pudo subir la constancia: ${error.message}` }
+  }
+  return { path }
+}
