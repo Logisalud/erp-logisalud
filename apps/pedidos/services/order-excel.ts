@@ -90,6 +90,16 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
   );
   dato("RUC / documento", data.cliente.rucODocumento);
   dato("Dirección de entrega", data.cliente.direccionEntrega);
+  // Mismas filas que el correo: quien arma la guía de remisión trabaja con
+  // el Excel, y con la calle sola no le alcanza.
+  if (data.cliente.ubigeo) {
+    dato("Distrito", data.cliente.ubigeo.distrito);
+    dato(
+      "Provincia / Departamento",
+      `${data.cliente.ubigeo.provincia} / ${data.cliente.ubigeo.departamento}`,
+    );
+    dato("Ubigeo (INEI)", data.cliente.ubigeo.codigo);
+  }
   dato("Canal", data.cliente.canal);
   dato("Zona", data.cliente.zona);
   // Mismo formato que el correo: nombre, código de representante y de zona.

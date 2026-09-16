@@ -148,6 +148,8 @@ type OrderRow = {
   created_at: string;
   razon_social_snapshot: string | null;
   direccion_snapshot: string | null;
+  /** Código INEI de la dirección de entrega, tal como estaba al enviarse. */
+  ubigeo_snapshot: string | null;
   canal_snapshot: string | null;
   zona_snapshot: string | null;
   vendedor_snapshot: string | null;
@@ -282,7 +284,7 @@ export async function loadOrderEmailData(
       .from("orders")
       .select(
         `numero, fecha_envio, created_at, dias_credito_solicitados,
-         razon_social_snapshot, direccion_snapshot, canal_snapshot, zona_snapshot, vendedor_snapshot,
+         razon_social_snapshot, direccion_snapshot, ubigeo_snapshot, canal_snapshot, zona_snapshot, vendedor_snapshot,
          customer:customers(razon_social, ruc_o_documento, estado),
          seller:sellers(codigo_representante, zona:zones(codigo_zona)),
          payment_terms:payment_terms(nombre)`,
@@ -411,6 +413,7 @@ export async function loadOrderEmailData(
       razonSocial: order.razon_social_snapshot ?? order.customer?.razon_social ?? "—",
       rucODocumento: order.customer?.ruc_o_documento ?? "—",
       direccionEntrega: order.direccion_snapshot,
+      ubigeo: await resolverUbigeoDelPedido(admin, order.ubigeo_snapshot),
       canal: order.canal_snapshot,
       zona: order.zona_snapshot,
       // Se mira el estado ACTUAL del cliente, no un snapshot: si ya lo
@@ -656,6 +659,51 @@ export async function notifyDiscountResolved(
  * Nunca lanza: quedarse sin el vendedor no puede impedir que el aviso
  * llegue a la oficina.
  */
+/**
+ * El ubigeo de la entrega, en nombres.
+ *
+ * El pedido guarda el código INEI (`ubigeo_snapshot`); el correo necesita
+ * además el distrito, la provincia y el departamento, que es lo que lee una
+ * persona y lo que hace falta para armar la guía de remisión.
+ *
+ * Si el pedido no tiene código —los viejos, anteriores al selector de
+ * ubigeo— o el código no está en el catálogo, se devuelve null y el correo
+ * simplemente no muestra esas filas: mejor omitirlas que inventar un
+ * distrito.
+ */
+async function resolverUbigeoDelPedido(
+  admin: ReturnType<typeof createAdminClient>,
+  codigo: string | null,
+): Promise<{ codigo: string; departamento: string; provincia: string; distrito: string } | null> {
+  if (!codigo) return null;
+  try {
+    const { data, error } = await admin
+      .from("ubigeos")
+      .select("codigo_inei, departamento, provincia, distrito")
+      .eq("codigo_inei", codigo)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+
+    const fila = data as unknown as
+      | { codigo_inei: string; departamento: string; provincia: string; distrito: string }
+      | null;
+    if (!fila) return null;
+
+    return {
+      codigo: fila.codigo_inei,
+      departamento: fila.departamento,
+      provincia: fila.provincia,
+      distrito: fila.distrito,
+    };
+  } catch (err) {
+    console.error(
+      "No se pudo resolver el ubigeo del pedido; el correo sale sin esas filas:",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
+}
+
 async function emailDelVendedorDelPedido(
   admin: ReturnType<typeof createAdminClient>,
   orderId: string,
