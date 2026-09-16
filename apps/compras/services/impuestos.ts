@@ -1,10 +1,11 @@
 import 'server-only'
-import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
+import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import type { BorradorImpuesto, EstadoObligacionTributaria } from '@/domain/impuestos'
 import {
   filasDeCarga, validarCargaMultiple,
   type EncabezadoCarga, type LineaCarga, type ErrorValidacion,
 } from '@/domain/impuestos'
+import { esContabilidadDecisora, type PerfilAprobador } from '@/domain/pendientes-aprobar'
 
 export type TipoImpuesto = { id: string; nombre: string }
 
@@ -93,6 +94,19 @@ export async function cargarObligacionTributaria(borrador: BorradorImpuesto): Pr
  * compra sujeta a IGV.
  */
 export async function confirmarObligacionTributaria(id: string): Promise<void> {
+  // Confirmar genera una obligación real: es una decisión de plata, no un
+  // trámite. Hasta 2026-09-16 esta función solo exigía SESIÓN —cualquier
+  // persona logueada podía generar la deuda— y era uno de los agujeros del
+  // pendiente PRIORITARIO de CONTEXTO.md. Se cierra ahora porque la bandeja
+  // de Pendientes de aprobar pasó a mostrar Impuestos a Contabilidad, y una
+  // bandeja que sugiere un control que no existe es peor que no tenerla.
+  //
+  // Mismo gate que usa la bandeja (`esContabilidadDecisora`), reusado y no
+  // reescrito, para que los dos no puedan divergir.
+  const perfil = (await perfilActual()) as PerfilAprobador
+  if (!esContabilidadDecisora(perfil)) {
+    throw new Error('Solo Contabilidad (rol admin) o Administración pueden confirmar una obligación tributaria.')
+  }
   const usuario = await exigirUsuario()
   const supabase = crearClienteServidor()
 

@@ -12,6 +12,7 @@ import {
   type TipoSolicitud,
   puedeAnularseSolicitud,
   ETIQUETA_ESTADO,
+  esSugerenciaDeSiMismo,
 } from '@/domain/gasto'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
 import {
@@ -106,7 +107,23 @@ export async function sugerenciaResponsableArea(): Promise<string | null> {
   const supabase = crearClienteServidor()
   const { data, error } = await supabase.rpc('nombre_responsable_de_mi_area')
   if (error) return null
-  return (data as string | null) ?? null
+  const sugerencia = (data as string | null) ?? null
+  if (!sugerencia) return null
+
+  // Si la responsable del área es la persona misma, no se sugiere nada.
+  //
+  // Cuatro personas son hoy responsables de su propia área (Mariela en
+  // contabilidad, Katia en dirección técnica, Milagritos en tesorería, Ana
+  // Lucía en legal), y a ellas el campo se les autocompletaba con su PROPIO
+  // nombre. No es útil —nadie se autoriza a sí mismo— y encima parecía un
+  // error del sistema: fue reportado como bug. En blanco es más honesto:
+  // que escriban a quién le corresponde.
+  const perfil = await perfilActual()
+  const nombrePropio = (perfil as { nombre?: string | null } | null)?.nombre ?? null
+  if (nombrePropio && nombrePropio.trim().toLowerCase() === sugerencia.trim().toLowerCase()) {
+    return null
+  }
+  return sugerencia
 }
 
 /**

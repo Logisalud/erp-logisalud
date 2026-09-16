@@ -268,3 +268,24 @@ export function avisoFechaRequeridaTardia(
   if (fechaRequerida <= fechaInicio) return null
   return 'Ojo: pediste el dinero para después de que arranca el viaje. Si es a propósito, déjalo así.'
 }
+
+/**
+ * ¿La sugerencia de "Quién autoriza" es la persona misma?
+ *
+ * Cuatro personas son responsables de su propia área (Mariela en
+ * contabilidad, Katia en dirección técnica, Milagritos en tesorería, Ana
+ * Lucía en legal), y a ellas el campo se autocompletaba con su PROPIO
+ * nombre. No sirve —nadie se autoriza a sí mismo— y encima parecía un error
+ * del sistema: se reportó como bug. En blanco es más honesto.
+ *
+ * Compara por nombre y no por id porque `quien_autoriza` es un campo de
+ * texto libre (migración 0036): la sugerencia sale de
+ * `nombre_responsable_de_mi_area()`, que devuelve un nombre, no un uuid.
+ */
+export function esSugerenciaDeSiMismo(
+  nombrePropio: string | null | undefined,
+  sugerencia: string | null | undefined
+): boolean {
+  if (!nombrePropio || !sugerencia) return false
+  return nombrePropio.trim().toLowerCase() === sugerencia.trim().toLowerCase()
+}
