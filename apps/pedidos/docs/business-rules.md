@@ -794,6 +794,27 @@ El **nombre** sale del snapshot del pedido (lo que tenía al enviarse); los
 y si alguno se corrige, el correo siguiente del mismo pedido tiene que salir
 con el bueno. Lo que falte se omite en vez de dejar un separador colgando.
 
+### Un producto sin precio no se puede pedir, pero se dice
+
+El buscador de productos del pedido ofrece sólo los activos **con precio
+vigente** (más las bonificaciones, que van a S/ 0.00 a propósito). Sin
+precio no hay con qué valorizar la línea, así que el producto no entra.
+
+Lo que faltaba era **decirlo**. Hasta el 2026-09-16 esos productos
+simplemente no aparecían: el vendedor veía `PLGS24` (ASHWCALMEX) en Stock
+con 121 unidades, lo escribía en el buscador del pedido y no salía nada. Sin
+explicación, eso se lee como que el sistema está roto — y el reporte que
+llega es "no me aparece el producto", no "falta cargar un precio".
+
+Ahora, cuando la búsqueda coincide con un producto activo que no se puede
+pedir, la pantalla lo nombra abajo del buscador y dice por qué: *"Este
+producto existe, pero todavía no se puede pedir: no tiene precio de lista"*.
+Sigue sin poder agregarse —la regla no cambió—, pero el vendedor entiende
+qué pasa y a quién avisarle.
+
+Los **inactivos** no se nombran: ahí no falta un dato, hay una decisión
+tomada, y explicarla invitaría a pedir que lo reactiven.
+
 ### Con qué clientes se puede empezar un pedido
 
 El selector de cliente (pedido nuevo y cambio de cliente) ofrece los
