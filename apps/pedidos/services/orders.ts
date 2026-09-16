@@ -72,6 +72,12 @@ export type OrderDetail = OrderSummary & {
     estado: string;
   } | null;
   address: { direccion: string } | null;
+  /**
+   * De dónde es la dirección de entrega, resuelto contra el catálogo INEI.
+   * Sale del snapshot del pedido si ya se envió, y de la dirección viva
+   * mientras es borrador (el snapshot se escribe recién al enviar).
+   */
+  ubigeo: { codigo: string; departamento: string; provincia: string; distrito: string } | null;
   payment_terms: { nombre: string; permite_dias_libres: boolean } | null;
   items: OrderItemRow[];
   history: OrderStatusHistoryRow[];
@@ -170,10 +176,10 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail | nul
     .from("orders")
     .select(
       `id, numero, estado, fecha_creacion, fecha_envio, seller_id, customer_id, customer_address_id, payment_terms_id,
-      dias_credito_solicitados,
+      dias_credito_solicitados, ubigeo_snapshot,
       seller:sellers(nombre_completo),
       customer:customers(razon_social, ruc_o_documento, canal_id, condicion_pago_habitual_id, estado),
-      address:customer_addresses(direccion),
+      address:customer_addresses(direccion, ubigeo),
       payment_terms:payment_terms(nombre, permite_dias_libres)`,
     )
     .eq("id", orderId)
@@ -209,11 +215,52 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail | nul
   if (historyError) throw new Error(historyError.message);
   if (observationsError) throw new Error(observationsError.message);
 
+  // El catálogo de ubigeos no tiene clave foránea desde ninguna de las dos
+  // tablas, así que PostgREST no lo puede embeber: se resuelve aparte.
+  const fila = order as unknown as {
+    ubigeo_snapshot: string | null;
+    address: { direccion: string; ubigeo: string | null } | null;
+  };
+  const codigoUbigeo = fila.ubigeo_snapshot ?? fila.address?.ubigeo ?? null;
+
   return {
     ...(order as unknown as OrderDetail),
+    ubigeo: await resolverUbigeo(supabase, codigoUbigeo),
     items: (items ?? []) as unknown as OrderItemRow[],
     history: (history ?? []) as unknown as OrderStatusHistoryRow[],
     observations: (observations ?? []) as unknown as OrderObservationRow[],
+  };
+}
+
+/**
+ * El ubigeo en nombres, para mostrarlo al lado de la dirección.
+ *
+ * Un código que no está en el catálogo devuelve null y la pantalla no
+ * muestra nada: mejor omitirlo que inventar un distrito.
+ */
+async function resolverUbigeo(
+  supabase: ReturnType<typeof createClient>,
+  codigo: string | null,
+): Promise<{ codigo: string; departamento: string; provincia: string; distrito: string } | null> {
+  if (!codigo) return null;
+
+  const { data, error } = await supabase
+    .from("ubigeos")
+    .select("codigo_inei, departamento, provincia, distrito")
+    .eq("codigo_inei", codigo)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  const fila = data as unknown as
+    | { codigo_inei: string; departamento: string; provincia: string; distrito: string }
+    | null;
+  if (!fila) return null;
+
+  return {
+    codigo: fila.codigo_inei,
+    departamento: fila.departamento,
+    provincia: fila.provincia,
+    distrito: fila.distrito,
   };
 }
 

@@ -155,6 +155,19 @@ export default async function OrderDetailPage({
                 <dt className="shrink-0 text-slate-600">Entrega:</dt>
                 <dd className="min-w-0 text-slate-900">{order.address?.direccion ?? "—"}</dd>
               </div>
+              {/*
+                Dónde queda esa dirección. Con la calle sola no alcanza para
+                armar la guía de remisión ni para saber a qué ruta va.
+              */}
+              {order.ubigeo && (
+                <div className="flex gap-2">
+                  <dt className="shrink-0 text-slate-600">Ubigeo:</dt>
+                  <dd className="min-w-0 text-slate-900">
+                    {order.ubigeo.distrito} · {order.ubigeo.provincia} · {order.ubigeo.departamento}{" "}
+                    <span className="cifra text-slate-600">({order.ubigeo.codigo})</span>
+                  </dd>
+                </div>
+              )}
               <div className="flex gap-2">
                 <dt className="shrink-0 text-slate-600">Pago:</dt>
                 <dd className="text-slate-900">

@@ -222,6 +222,19 @@ export type OrderEmailData = {
     razonSocial: string;
     rucODocumento: string;
     direccionEntrega: string | null;
+    /**
+     * De dónde es la dirección de entrega, resuelto contra el catálogo INEI.
+     *
+     * Lo pidió Operaciones: con la calle sola no alcanza para armar la guía
+     * de remisión ni para saber a qué ruta va el pedido. El código es el que
+     * pide la guía; los nombres, los que lee una persona.
+     */
+    ubigeo: {
+      codigo: string;
+      departamento: string;
+      provincia: string;
+      distrito: string;
+    } | null;
     canal: string | null;
     zona: string | null;
     /**
@@ -430,6 +443,18 @@ export function renderOrderEmailHtml(data: OrderEmailData): string {
                 )}
                 ${datoRow("RUC / documento", escapeHtml(data.cliente.rucODocumento))}
                 ${datoRow("Dirección de entrega", dash(data.cliente.direccionEntrega))}
+                ${
+                  data.cliente.ubigeo
+                    ? datoRow("Distrito", escapeHtml(data.cliente.ubigeo.distrito)) +
+                      datoRow(
+                        "Provincia / Departamento",
+                        escapeHtml(
+                          `${data.cliente.ubigeo.provincia} / ${data.cliente.ubigeo.departamento}`,
+                        ),
+                      ) +
+                      datoRow("Ubigeo (INEI)", escapeHtml(data.cliente.ubigeo.codigo))
+                    : ""
+                }
                 ${datoRow("Canal", dash(data.cliente.canal))}
                 ${datoRow("Zona", dash(data.cliente.zona))}
               </table>
@@ -545,6 +570,13 @@ export function renderOrderEmailText(data: OrderEmailData): string {
     `  Razón social: ${data.cliente.razonSocial}${data.cliente.esClienteNuevo ? "  [CLIENTE NUEVO]" : ""}`,
     `  RUC / documento: ${data.cliente.rucODocumento}`,
     `  Dirección de entrega: ${data.cliente.direccionEntrega ?? "—"}`,
+    ...(data.cliente.ubigeo
+      ? [
+          `  Distrito: ${data.cliente.ubigeo.distrito}`,
+          `  Provincia / Departamento: ${data.cliente.ubigeo.provincia} / ${data.cliente.ubigeo.departamento}`,
+          `  Ubigeo (INEI): ${data.cliente.ubigeo.codigo}`,
+        ]
+      : []),
     `  Canal: ${data.cliente.canal ?? "—"}`,
     `  Zona: ${data.cliente.zona ?? "—"}`,
     "",

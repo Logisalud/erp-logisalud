@@ -794,6 +794,31 @@ El **nombre** sale del snapshot del pedido (lo que tenía al enviarse); los
 y si alguno se corrige, el correo siguiente del mismo pedido tiene que salir
 con el bueno. Lo que falte se omite en vez de dejar un separador colgando.
 
+### El pedido dice dónde se entrega, no sólo la calle
+
+El correo, el Excel y la pantalla del pedido muestran, debajo de la
+dirección de entrega: **distrito**, **provincia / departamento** y el
+**código de ubigeo (INEI)**.
+
+Con la calle sola no alcanza. Quien arma la guía de remisión necesita el
+código —es un campo obligatorio del comprobante— y quien planifica el
+despacho necesita el distrito para saber a qué ruta va el pedido. Antes
+había que ir a buscar el cliente en Maestros para averiguarlo.
+
+De dónde sale: del **ubigeo de la dirección de entrega**, no del domicilio
+fiscal del cliente ni de su zona comercial. En un pedido ya enviado, del
+`ubigeo_snapshot` que quedó fijado al enviarlo; mientras es borrador, de la
+dirección viva (el snapshot se escribe recién al enviar).
+
+El catálogo `ubigeos` no tiene clave foránea desde `orders` ni desde
+`customer_addresses` —el snapshot es texto a propósito, para que no cambie
+si el catálogo cambia—, así que PostgREST no lo puede embeber y se resuelve
+en una consulta aparte.
+
+Un pedido **sin** ubigeo (los viejos, anteriores al selector) o con un
+código que no está en el catálogo no muestra esas filas: se omiten en vez de
+inventar un distrito.
+
 ### Un producto sin precio no se puede pedir, pero se dice
 
 El buscador de productos del pedido ofrece sólo los activos **con precio
