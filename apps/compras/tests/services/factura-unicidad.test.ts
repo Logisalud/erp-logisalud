@@ -10,7 +10,11 @@ vi.mock('@logisalud/auth/server', () => ({
 }))
 
 import { crearClienteServidor } from '@logisalud/auth/server'
-import { registrarPagoDirecto, type BorradorPagoDirecto } from '@/services/obligaciones'
+import { registrarPagoDirecto } from '@/services/obligaciones'
+// El tipo se importa del DOMINIO, que es donde vive. `services/obligaciones`
+// solo lo consume para sus firmas y no lo re-exporta — pedírselo a él daba
+// TS2459 ("declares it locally, but it is not exported").
+import type { BorradorPagoDirecto } from '@/domain/obligacion'
 
 function borrador(overrides: Partial<BorradorPagoDirecto> = {}): BorradorPagoDirecto {
   return {
