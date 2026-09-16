@@ -203,6 +203,57 @@ un día de calendario, y Postgres ya lo almacena con zona.
 
 ---
 
+## Corregir un pago ya registrado: dos mecanismos, a propósito separados
+
+| qué | función | toca plata | permiso |
+|---|---|---|---|
+| el archivo de la constancia | `reemplazarConstanciaPago` | no | solo admin |
+| la fecha del pago | `corregirFechaDePago` | **sí** | solo admin |
+
+Están separadas y **no hay que unificarlas**. `reemplazarConstanciaPago` no
+tiene ni un campo financiero en su firma, y eso es una garantía legible de
+que no puede mover plata. `fecha_pago` sí la mueve: la leen `dashboard.ts`
+("Pagado este mes"), los reportes de detalle y sábana, y
+`historial-orden.ts`. Corregir un pago del 01/10 al 30/09 **cambia dos
+cierres mensuales de forma retroactiva** — de ahí la advertencia con el
+monto adentro antes de confirmar.
+
+`fecha_pago_corregida_de` guarda la fecha con la que **nació** el pago y
+**nunca se sobrescribe**. En una segunda corrección se conserva la original y
+se pierden el quién/cuándo/por qué de la primera: costo aceptado
+explícitamente (2026-09-15) para no crear la primera tabla de historial del
+módulo por un caso que esperamos raro. Si Contabilidad pide el trail completo
+para sustentar algo ante SUNAT, se evalúa entonces con ese caso en mano.
+
+---
+
+## Aprobación en lote: qué la hace segura ahora que mezcla tipos
+
+Desde 2026-09-15 un lote puede mezclar tipos. Lo que lo sostiene NO es la
+pantalla — son tres cosas del servidor, y ninguna se puede quitar sin
+reabrir el riesgo:
+
+1. **El orden de ejecución, con las propuestas al final**
+   (`ORDEN_DE_EJECUCION`). Sin transacciones, el orden es lo que decide qué
+   queda a medias si el lote se corta. Una propuesta libera el desembolso de
+   su lote entero: conviene que sea lo último, no lo primero.
+2. **Reusar la función individual de cada tipo** (`aprobarUna`). Es lo único
+   que hace que cada fila la evalúe quien de verdad decide sobre ella, y que
+   la que no le toque falle sola con su motivo. Cero escrituras directas en
+   `services/aprobar-en-lote.ts`.
+3. **El resumen parcial honesto** (`resumirLote`), que nombra tipo + código
+   de lo que no entró.
+
+`aprobarEnLote(ids)` **ya no recibe el tipo**: sale de la relectura de la
+bandeja en el servidor. Antes venía del formulario, así que el navegador
+podía afirmar de qué tipo era cada id.
+
+El total por moneda se destaca si la selección tiene **al menos una**
+propuesta (no "si el tipo es propuesta"): el caso peligroso del lote mezclado
+es una propuesta perdida entre filas chicas.
+
+---
+
 ## Deuda técnica conocida (menor, revisar aparte)
 
 - **Impuestos — estado `en_propuesta` muerto**: las filas de impuestos pueden

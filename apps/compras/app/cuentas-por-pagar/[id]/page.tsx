@@ -19,7 +19,9 @@ import { BotonConformidad } from './conformidad'
 import { BotonAnularPagoDirecto, BotonRechazarPagoDirecto } from './acciones-pago-directo'
 import { BotonPagoHistorico } from './pago-historico'
 import { BotonReemplazarConstancia } from './reemplazar-constancia'
+import { BotonCorregirFechaPago } from './corregir-fecha-pago'
 import { etiquetaReemplazo, puedeReemplazarConstancia } from '@/domain/reemplazo-constancia'
+import { etiquetaCorreccion, puedeCorregirFechaDePago } from '@/domain/correccion-fecha-pago'
 import { NotasCredito } from './notas-credito'
 import { VerVoucher } from './ver-voucher'
 import { verLegajoPagoDirectoAction } from './actions'
@@ -70,6 +72,18 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
         obligacion.pago.reemplazadoPor,
         obligacion.pago.voucher_reemplazado_en,
         obligacion.pago.voucher_reemplazado_motivo
+      )
+    : null
+  // Corregir la fecha del pago: mismo permiso que reemplazar la constancia
+  // (solo admin) y también exige que haya un pago. Va aparte porque cambiar
+  // la fecha SÍ mueve plata entre periodos — ver domain/correccion-fecha-pago.ts.
+  const puedeCorregirFecha = puedeCorregirFechaDePago(perfil) && !!obligacion.pago
+  const rastroCorreccion = obligacion.pago
+    ? etiquetaCorreccion(
+        obligacion.pago.fecha_pago_corregida_de,
+        obligacion.pago.corregidaPor,
+        obligacion.pago.fecha_pago_corregida_en,
+        obligacion.pago.fecha_pago_corregida_motivo
       )
     : null
   const puedePagoHistorico = puedeRegistrarsePagoHistorico(
@@ -184,11 +198,27 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
             {rastroReemplazo}
           </p>
         ) : null}
+        {/* El rastro de la corrección de fecha va al lado del de la
+            constancia, por la misma razón: es lo que distingue una
+            corrección de una alteración. */}
+        {rastroCorreccion ? (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {rastroCorreccion}
+          </p>
+        ) : null}
         {puedeReemplazar ? (
           <BotonReemplazarConstancia
             obligacionId={obligacion.id}
             codigo={obligacion.codigo}
             tieneDetraccion={!!obligacion.pago?.storage_path_detraccion}
+          />
+        ) : null}
+        {puedeCorregirFecha && obligacion.pago ? (
+          <BotonCorregirFechaPago
+            obligacionId={obligacion.id}
+            fechaActual={obligacion.pago.fecha_pago}
+            monto={obligacion.pago.monto_aplicado}
+            moneda={obligacion.pago.moneda}
           />
         ) : null}
 

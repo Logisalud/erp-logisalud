@@ -706,6 +706,16 @@ export type ObligacionDetalle = ObligacionListada & {
     voucher_reemplazado_en: string | null
     voucher_reemplazado_motivo: string | null
     reemplazadoPor: string | null
+    /** Lo que hace falta para ofrecer y advertir la corrección de fecha
+     *  (migración 0059). `fecha_pago` es la actual; `*_corregida_de` es la
+     *  que tenía al nacer, y solo existe si ya se corrigió alguna vez. */
+    fecha_pago: string
+    moneda: string
+    monto_aplicado: number
+    fecha_pago_corregida_de: string | null
+    fecha_pago_corregida_en: string | null
+    fecha_pago_corregida_motivo: string | null
+    corregidaPor: string | null
   } | null
   /** Solo Pago Directo — ver anularPagoDirecto/rechazarPagoDirecto. */
   anulada_en: string | null
@@ -806,7 +816,7 @@ async function obtenerPagoDeObligacion(obligacionId: string) {
   const { data: aplicacion } = await supabase
     .schema('cuentas_x_pagar')
     .from('pago_aplicacion')
-    .select('pago_id')
+    .select('pago_id, monto_aplicado')
     .eq('obligacion_id', obligacionId)
     .maybeSingle()
   if (!aplicacion) return null
@@ -815,16 +825,30 @@ async function obtenerPagoDeObligacion(obligacionId: string) {
     .from('pagos')
     .select(`numero_voucher, storage_path_voucher, storage_path_detraccion,
              voucher_reemplazado_cual, voucher_reemplazado_en, voucher_reemplazado_motivo,
-             voucher_reemplazado_por`)
+             voucher_reemplazado_por,
+             fecha_pago, moneda,
+             fecha_pago_corregida_de, fecha_pago_corregida_en,
+             fecha_pago_corregida_motivo, fecha_pago_corregida_por`)
     .eq('id', aplicacion.pago_id)
     .maybeSingle()
   if (!pago) return null
 
-  // El nombre de quien reemplazó: cross-schema, así que va en una consulta
-  // aparte (mismo patrón del resto del módulo).
+  // Los nombres de quien reemplazó y de quien corrigió: cross-schema, así
+  // que van en consultas aparte (mismo patrón del resto del módulo).
   const reemplazadoPorId = (pago as any).voucher_reemplazado_por as string | null
-  const nombre = reemplazadoPorId ? await nombreDePerfil(reemplazadoPorId) : null
-  return { ...(pago as any), reemplazadoPor: nombre }
+  const corregidaPorId = (pago as any).fecha_pago_corregida_por as string | null
+  const [nombre, nombreCorrige] = await Promise.all([
+    reemplazadoPorId ? nombreDePerfil(reemplazadoPorId) : Promise.resolve(null),
+    corregidaPorId ? nombreDePerfil(corregidaPorId) : Promise.resolve(null),
+  ])
+  return {
+    ...(pago as any),
+    reemplazadoPor: nombre,
+    corregidaPor: nombreCorrige,
+    // El monto que importa para la advertencia de cambio de mes es el
+    // APLICADO a esta obligación, no el total del pago: uno puede cubrir varias.
+    monto_aplicado: Number((aplicacion as any).monto_aplicado ?? 0),
+  }
 }
 
 async function obtenerOCBasica(ocId: string) {

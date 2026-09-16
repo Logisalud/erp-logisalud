@@ -10,7 +10,8 @@ import {
 } from '@/domain/pendientes-aprobar'
 import {
   cuantasEntranAlLote, estadoDelCheckbox, estadoDelSeleccionarTodos, etiquetaBotonLote,
-  exigeTotalDestacado, MAXIMO_POR_LOTE, totalDeLaSeleccion,
+  exigeTotalDestacado, MAXIMO_POR_LOTE, resumenDeLaSeleccion,
+  type ResumenSeleccion,
 } from '@/domain/aprobacion-en-lote'
 import { ChipFiltro } from '@/components/chip-filtro'
 import { aprobarEnLoteAction, type EstadoLote } from './actions'
@@ -19,10 +20,15 @@ import { aprobarEnLoteAction, type EstadoLote } from './actions'
  * La bandeja, con selección múltiple para aprobar varios juntos (pedido de
  * Mariela: entrar de a uno a seis pagos directos es el dolor real).
  *
- * La selección está limitada a UN TIPO por vez, y las propuestas de pago no
- * entran nunca. El porqué está en domain/aprobacion-en-lote.ts — en corto:
- * no hay transacciones, cada tipo lo decide alguien distinto, y aprobar una
- * propuesta libera el desembolso de decenas de obligaciones.
+ * Desde 2026-09-15 la selección PUEDE mezclar tipos. Lo que sostiene eso no
+ * es la pantalla sino tres cosas del servidor —el orden de ejecución con las
+ * propuestas al final, reusar la función individual de cada tipo, y el
+ * resumen parcial honesto— explicadas en domain/aprobacion-en-lote.ts.
+ *
+ * Lo que sí aporta la pantalla es el resumen ANTES de confirmar: con tipos
+ * mezclados, un total solo no deja ver que casi toda la plata son dos
+ * propuestas y el resto son firmas chicas. De ahí el desglose por tipo más
+ * el corte específico de Propuestas de pago.
  *
  * Nunca se llega a una selección inválida: los checkbox que no corresponden
  * se deshabilitan con el motivo a la vista, así no hay un error que explicar
@@ -33,24 +39,24 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
   const [elegidas, setElegidas] = useState<Set<string>>(new Set())
   const [confirmando, setConfirmando] = useState(false)
   // Filtro por tipo, en el cliente: las filas ya están todas cargadas, así
-  // que filtrar no necesita ir al servidor. Y de paso vuelve NAVEGACIÓN la
-  // restricción de "un tipo por selección": se elige el tipo primero, en
-  // vez de descubrir el límite chocando con checkbox que se apagan.
+  // que filtrar no necesita ir al servidor.
   const [filtro, setFiltro] = useState<TipoPendiente | null>(null)
-
-  const tipoActivo: TipoPendiente | null =
-    filas.find((f) => elegidas.has(f.id))?.tipo ?? null
 
   const visibles = filtro ? filas.filter((f) => f.tipo === filtro) : filas
   const conteos = contarPorTipo(filas)
-  const seleccionarTodos = estadoDelSeleccionarTodos(filtro, visibles.length)
+  const seleccionarTodos = estadoDelSeleccionarTodos(visibles.length)
 
   const cambiarFiltro = (nuevo: TipoPendiente | null) => {
     setFiltro(nuevo)
     setConfirmando(false)
-    // Filtrar por otro tipo con filas ya tildadas dejaría una selección
-    // invisible: se aprobaría algo que no está en pantalla. Se limpia.
-    if (nuevo !== tipoActivo) setElegidas(new Set())
+    // La selección SOBREVIVE al cambio de filtro, y eso es a propósito: es
+    // la forma de armar un lote mezclado (filtrar a Pagos Directos, tildar
+    // tres, pasar a Propuestas, tildar una). Antes se limpiaba, porque con
+    // un tipo por selección cambiar de filtro solo podía ser un error.
+    //
+    // El riesgo que eso abre —tener tildado algo que no está en pantalla—
+    // lo cubre el resumen de la confirmación, que lista TODO lo
+    // seleccionado por tipo, visible o no.
   }
 
   const tildarTodosLosVisibles = () => {
@@ -73,12 +79,15 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
   const seleccionadas = filas.filter((f) => elegidas.has(f.id))
   // Por MONEDA de cada fila, no por su columna Monto: una propuesta puede
   // mezclar PEN y USD adentro y la columna solo muestra una.
-  const totales = totalDeLaSeleccion(seleccionadas)
-  const totalEnGrande = exigeTotalDestacado(tipoActivo)
+  const resumen = resumenDeLaSeleccion(seleccionadas)
+  const totales = resumen.total
+  const totalEnGrande = exigeTotalDestacado(seleccionadas)
 
   return (
+    // Ya no se manda ningún `tipo`: el servidor lo saca de su propia
+    // relectura de la bandeja. Un id manipulado no puede ni afirmar de qué
+    // tipo es.
     <form action={accion}>
-      <input type="hidden" name="tipo" value={tipoActivo ?? ''} />
 
       {estado ? (
         <div
@@ -114,7 +123,7 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
           title={seleccionarTodos.habilitado ? undefined : seleccionarTodos.motivo}
           className="text-sm text-logisalud-teal underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
         >
-          {filtro && visibles.length > cuantasEntranAlLote(visibles.length)
+          {visibles.length > cuantasEntranAlLote(visibles.length)
             ? `Seleccionar los primeros ${MAXIMO_POR_LOTE} visibles`
             : 'Seleccionar todos los visibles'}
         </button>
@@ -145,7 +154,7 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
           </thead>
           <tbody>
             {visibles.map((f) => {
-              const check = estadoDelCheckbox(f, { tipoActivo, elegidas })
+              const check = estadoDelCheckbox(f, { elegidas })
               return (
                 <tr
                   key={`${f.tipo}-${f.id}`}
@@ -243,24 +252,9 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
 
           {confirmando ? (
             <>
-              {/* El monto es lo que decide: aprobar 4 pagos directos puede
-                  ser S/800 o S/80.000. Se ve ANTES de ejecutar. */}
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
-                Vas a aprobar {elegidas.size}{' '}
-                {tipoActivo
-                  ? (elegidas.size === 1
-                      ? ETIQUETA_TIPO_PENDIENTE[tipoActivo]
-                      : ETIQUETA_TIPO_PENDIENTE_PLURAL[tipoActivo]
-                    ).toLowerCase()
-                  : 'registros'}{' '}
-                por{' '}
-                {totales.map((t) => `${t.moneda} ${t.monto.toFixed(2)}`).join(' + ')}. Esta
-                decisión no se deshace desde aquí.
-              </p>
+              <ResumenDeConfirmacion resumen={resumen} />
               <div className="flex flex-wrap gap-2">
-                <BotonConfirmar
-                  texto={etiquetaBotonLote(tipoActivo, elegidas.size)}
-                />
+                <BotonConfirmar texto={etiquetaBotonLote(seleccionadas)} />
                 <button
                   type="button" onClick={() => setConfirmando(false)}
                   className="btn-secondary"
@@ -274,7 +268,7 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
               type="button" onClick={() => setConfirmando(true)}
               className="btn-primary w-full sm:w-auto"
             >
-              {etiquetaBotonLote(tipoActivo, elegidas.size)}
+              {etiquetaBotonLote(seleccionadas)}
             </button>
           )}
         </div>
@@ -307,4 +301,85 @@ function BotonConfirmar({ texto }: { texto: string }) {
 function Espera({ dias }: { dias: number }) {
   const clase = dias >= 7 ? 'text-red-700 font-medium' : dias >= 3 ? 'text-amber-700' : 'text-gray-600'
   return <span className={clase}>{etiquetaEspera(dias)}</span>
+}
+
+/**
+ * Lo que se lee ANTES de ejecutar.
+ *
+ * El monto es lo que decide: aprobar 4 pagos directos puede ser S/ 800 o
+ * S/ 80.000. Y con tipos mezclados el total solo ya no alcanza — "S/ 51,500"
+ * no deja ver que S/ 41,900 de eso son dos propuestas que liberan
+ * desembolsos enteros y el resto son seis firmas chicas. De ahí el desglose
+ * por tipo y, destacado aparte, cuánto sale de Propuestas de pago.
+ */
+function ResumenDeConfirmacion({ resumen }: { resumen: ResumenSeleccion }) {
+  return (
+    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+      <p className="font-medium">
+        Vas a aprobar {resumen.cantidad}{' '}
+        {resumen.cantidad === 1 ? 'registro' : 'registros'}
+        {resumen.mezclaTipos ? ' de distintos tipos' : ''}.
+      </p>
+
+      {/* Una línea por tipo, en el ORDEN EN QUE SE VAN A EJECUTAR: así la
+          lista no es solo un inventario, también dice qué pasa primero. */}
+      <ul className="mt-2 space-y-0.5">
+        {resumen.porTipo.map(({ tipo, cantidad, totalPorMoneda }) => (
+          <li key={tipo} className="flex flex-wrap justify-between gap-x-4">
+            <span>
+              {cantidad}{' '}
+              {cantidad === 1
+                ? ETIQUETA_TIPO_PENDIENTE[tipo]
+                : ETIQUETA_TIPO_PENDIENTE_PLURAL[tipo]}
+            </span>
+            <span className="tabular-nums">
+              {totalPorMoneda.map((t) => `${t.moneda} ${t.monto.toFixed(2)}`).join(' · ')}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-2 border-t border-amber-200 pt-2">
+        <p className="flex flex-wrap justify-between gap-x-4 font-semibold">
+          <span>TOTAL</span>
+          <span className="tabular-nums">
+            {resumen.total.map((t) => `${t.moneda} ${t.monto.toFixed(2)}`).join(' · ')}
+          </span>
+        </p>
+
+        {/* El desglose de Propuestas, destacado. Es el pedido explícito de
+            Mariela y el número que más importa: una propuesta no es una
+            firma, libera el desembolso de su lote entero. */}
+        {resumen.dePropuestas ? (
+          <p className="mt-1 flex flex-wrap justify-between gap-x-4 font-semibold text-amber-950">
+            <span>
+              └─ de Propuestas de pago ({resumen.dePropuestas.cantidad})
+            </span>
+            <span className="tabular-nums">
+              {resumen.dePropuestas.totalPorMoneda
+                .map((t) => `${t.moneda} ${t.monto.toFixed(2)}`)
+                .join(' · ')}
+            </span>
+          </p>
+        ) : null}
+        {resumen.delResto ? (
+          <p className="flex flex-wrap justify-between gap-x-4">
+            <span>└─ del resto ({resumen.delResto.cantidad})</span>
+            <span className="tabular-nums">
+              {resumen.delResto.totalPorMoneda
+                .map((t) => `${t.moneda} ${t.monto.toFixed(2)}`)
+                .join(' · ')}
+            </span>
+          </p>
+        ) : null}
+      </div>
+
+      <p className="mt-2">
+        {resumen.dePropuestas
+          ? 'Aprobar una propuesta libera el desembolso de todas sus obligaciones. '
+          : ''}
+        Esta decisión no se deshace desde aquí.
+      </p>
+    </div>
+  )
 }

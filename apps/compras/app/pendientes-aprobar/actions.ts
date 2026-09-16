@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { aprobarEnLote } from '@/services/aprobar-en-lote'
 import { resumirLote, type ResultadoFila } from '@/domain/aprobacion-en-lote'
-import type { TipoPendiente } from '@/domain/pendientes-aprobar'
 
 export type EstadoLote =
   | { ok: true; resumen: string; resultados: ResultadoFila[] }
@@ -21,11 +20,12 @@ export async function aprobarEnLoteAction(
   _previo: EstadoLote,
   form: FormData
 ): Promise<EstadoLote> {
-  const tipo = String(form.get('tipo') ?? '') as TipoPendiente
+  // Solo los ids. El tipo de cada fila lo resuelve el servicio releyendo la
+  // bandeja, así que el navegador ya no puede afirmar de qué tipo es nada.
   const ids = form.getAll('pendienteId').map(String).filter(Boolean)
 
   try {
-    const resultados = await aprobarEnLote(tipo, ids)
+    const resultados = await aprobarEnLote(ids)
     revalidatePath('/pendientes-aprobar')
     return { ok: true, resumen: resumirLote(resultados), resultados }
   } catch (e) {

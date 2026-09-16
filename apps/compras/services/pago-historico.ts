@@ -8,6 +8,9 @@ import {
 import {
   puedeReemplazarConstancia, validarReemplazo, type ArchivoConstancia,
 } from '@/domain/reemplazo-constancia'
+import {
+  puedeCorregirFechaDePago, validarCorreccionFecha,
+} from '@/domain/correccion-fecha-pago'
 import { anioMesStorageLima } from '@/domain/fecha'
 
 /**
@@ -227,4 +230,101 @@ export async function reemplazarConstanciaPago(input: {
     })
     .eq('id', aplicacion.pago_id)
   if (error) throw new Error(`No se pudo reemplazar la constancia: ${error.message}`)
+}
+
+/** Lo que la ficha necesita saber del pago para ofrecer la corrección. */
+export type PagoParaCorregir = {
+  pagoId: string
+  fechaPago: string
+  monto: number
+  moneda: string
+  /** La fecha con la que nació el pago, si ya se corrigió alguna vez. */
+  fechaOriginal: string | null
+}
+
+/**
+ * Busca el pago de una obligación junto con lo que hace falta para armar la
+ * advertencia de cambio de mes (monto y moneda). Null si no tiene pago.
+ */
+export async function obtenerPagoParaCorregir(obligacionId: string): Promise<PagoParaCorregir | null> {
+  const supabase = crearClienteServidor()
+  const { data: aplicacion } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pago_aplicacion')
+    .select('pago_id, monto_aplicado')
+    .eq('obligacion_id', obligacionId)
+    .maybeSingle()
+  if (!aplicacion?.pago_id) return null
+
+  const { data: pago } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pagos')
+    .select('id, fecha_pago, moneda, fecha_pago_corregida_de')
+    .eq('id', aplicacion.pago_id)
+    .maybeSingle()
+  if (!pago) return null
+
+  return {
+    pagoId: pago.id,
+    fechaPago: pago.fecha_pago,
+    // El monto que importa para la advertencia es el APLICADO a esta
+    // obligación, no el total del pago: un pago puede cubrir varias.
+    monto: Number((aplicacion as any).monto_aplicado ?? 0),
+    moneda: pago.moneda,
+    fechaOriginal: (pago as any).fecha_pago_corregida_de ?? null,
+  }
+}
+
+/**
+ * Corregir la fecha de un pago ya registrado.
+ *
+ * Deliberadamente SEPARADA de `reemplazarConstanciaPago`: esa función no
+ * tiene ni un campo financiero en su firma, y eso es una garantía legible de
+ * que no puede tocar plata. Cambiar `fecha_pago` sí la toca —reclasifica el
+ * pago entre periodos— así que va por su propio camino, con su propio rastro.
+ *
+ * `fecha_pago_corregida_de` se escribe UNA sola vez: en la primera
+ * corrección. Si el pago ya fue corregido antes, se conserva la fecha con la
+ * que nació y no la intermedia (decisión explícita — ver migración 0059).
+ */
+export async function corregirFechaDePago(input: {
+  obligacionId: string
+  fechaNueva: string
+  motivo: string
+}): Promise<void> {
+  const perfil = await perfilActual()
+  if (!puedeCorregirFechaDePago(perfil)) {
+    throw new Error('Solo Administración puede corregir la fecha de un pago.')
+  }
+
+  const pago = await obtenerPagoParaCorregir(input.obligacionId)
+  if (!pago) throw new Error('Esta obligación no tiene un pago registrado.')
+
+  // Se valida contra la fecha que está EN LA BASE, no contra una que venga
+  // del formulario: si alguien más corrigió mientras la pantalla estaba
+  // abierta, el "es la misma fecha" tiene que compararse con la real.
+  const errores = validarCorreccionFecha({
+    fechaNueva: input.fechaNueva,
+    fechaActual: pago.fechaPago,
+    motivo: input.motivo,
+  })
+  if (errores.length > 0) throw new Error(errores[0].mensaje)
+
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  const { error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('pagos')
+    .update({
+      fecha_pago: input.fechaNueva,
+      // Solo en la primera corrección. `?? pago.fechaPago` es lo que hace
+      // que la segunda no pise la fecha de nacimiento.
+      fecha_pago_corregida_de: pago.fechaOriginal ?? pago.fechaPago,
+      fecha_pago_corregida_por: usuario.id,
+      fecha_pago_corregida_en: new Date().toISOString(),
+      fecha_pago_corregida_motivo: input.motivo.trim(),
+    })
+    .eq('id', pago.pagoId)
+  if (error) throw new Error(`No se pudo corregir la fecha del pago: ${error.message}`)
 }

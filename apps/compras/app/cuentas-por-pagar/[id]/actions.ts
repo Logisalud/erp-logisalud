@@ -9,7 +9,7 @@ import {
 import { registrarNotaCredito, aplicarNotaCredito } from '@/services/notas-credito'
 import { obtenerUrlLegajoPago } from '@/services/pagos'
 import {
-  reemplazarConstanciaPago, registrarPagoHistorico, subirVoucherHistorico,
+  corregirFechaDePago, reemplazarConstanciaPago, registrarPagoHistorico, subirVoucherHistorico,
 } from '@/services/pago-historico'
 import { esArchivoReemplazable } from '@/domain/reemplazo-constancia'
 
@@ -175,6 +175,31 @@ export async function reemplazarConstanciaAction(
     })
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'No se pudo reemplazar la constancia.' }
+  }
+  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  redirect(`/cuentas-por-pagar/${obligacionId}`)
+}
+
+/**
+ * Corregir la fecha de un pago ya registrado.
+ *
+ * Va por su propia acción y su propio servicio, no por
+ * `reemplazarConstanciaAction`: ahí no viaja ningún dato financiero a
+ * propósito, y la fecha de pago sí lo es — mueve el pago entre periodos.
+ */
+export async function corregirFechaPagoAction(
+  obligacionId: string,
+  _previo: EstadoAccion,
+  form: FormData
+): Promise<EstadoAccion> {
+  try {
+    await corregirFechaDePago({
+      obligacionId,
+      fechaNueva: String(form.get('fechaNueva') ?? ''),
+      motivo: String(form.get('motivo') ?? ''),
+    })
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo corregir la fecha del pago.' }
   }
   revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
   redirect(`/cuentas-por-pagar/${obligacionId}`)

@@ -8,13 +8,13 @@ import {
 import { aprobarOS } from '@/services/servicios'
 import { aprobarPropuesta } from '@/services/propuestas'
 import {
-  admiteAprobacionEnLote, MAXIMO_POR_LOTE, type ResultadoFila,
+  admiteAprobacionEnLote, MAXIMO_POR_LOTE, ordenarParaEjecutar, type ResultadoFila,
 } from '@/domain/aprobacion-en-lote'
 import { quienDecideCajaChica, type TipoPendiente } from '@/domain/pendientes-aprobar'
 import { listarPendientesDeAprobar } from '@/services/pendientes-aprobar'
 
 /**
- * Aprobar varios registros del MISMO tipo de una sola vez.
+ * Aprobar varios registros de una sola vez, MEZCLANDO TIPOS si hace falta.
  *
  * NO es una transacción y no pretende serlo: el módulo entero no usa
  * transacciones (cero `supabase.rpc`), así que esto recorre la selección
@@ -26,19 +26,20 @@ import { listarPendientesDeAprobar } from '@/services/pendientes-aprobar'
  * el gate de permiso, la ventana de estado, "nadie aprueba lo suyo"
  * (ERROR_AUTO_APROBACION) y —en Gastos y Caja Chica— la creación de la
  * obligación. Un lote que escribiera el estado por su cuenta se saltearía
- * todo eso sin que nada avise.
+ * todo eso sin que nada avise. Con tipos mezclados eso pasa de conveniente a
+ * imprescindible: es lo único que hace que cada fila la evalúe quien de
+ * verdad decide sobre ella, y que la que no le toque falle sola, con su
+ * motivo, sin arrastrar al resto.
  *
  * Por eso tampoco corta al primer error: si la cuarta falla, las otras
  * cinco son decisiones válidas que no hay razón para negarle a nadie. Lo
  * que sí hace es DECIRLO — ver `resumirLote` en el dominio.
+ *
+ * Ya NO recibe el tipo: el de cada fila sale de la bandeja releída acá
+ * abajo. Antes venía del formulario y se usaba como tipo esperado; sin ese
+ * parámetro, un id manipulado no puede ni afirmar de qué tipo es.
  */
-export async function aprobarEnLote(
-  tipo: TipoPendiente,
-  ids: readonly string[]
-): Promise<ResultadoFila[]> {
-  if (!admiteAprobacionEnLote(tipo)) {
-    throw new Error('Este tipo no se aprueba en lote.')
-  }
+export async function aprobarEnLote(ids: readonly string[]): Promise<ResultadoFila[]> {
   if (ids.length === 0) throw new Error('No hay nada seleccionado.')
   if (ids.length > MAXIMO_POR_LOTE) {
     throw new Error(`Máximo ${MAXIMO_POR_LOTE} por lote.`)
@@ -53,6 +54,10 @@ export async function aprobarEnLote(
   const porId = new Map(bandeja.map((f) => [f.id, f]))
 
   const resultados: ResultadoFila[] = []
+
+  // Las que ya no están en la bandeja se resuelven primero y aparte: no
+  // tienen tipo, así que no entran en el ordenamiento.
+  const vivas = []
   for (const id of ids) {
     const fila = porId.get(id)
     if (!fila) {
@@ -63,16 +68,27 @@ export async function aprobarEnLote(
       })
       continue
     }
-    if (fila.tipo !== tipo) {
-      resultados.push({ codigo: fila.codigo, ok: false, motivo: 'no es del tipo seleccionado' })
+    if (!admiteAprobacionEnLote(fila.tipo)) {
+      resultados.push({
+        codigo: fila.codigo, tipo: fila.tipo, ok: false,
+        motivo: 'este tipo se aprueba de a uno',
+      })
       continue
     }
+    vivas.push(fila)
+  }
 
+  // EL ORDEN IMPORTA, y lo decide el servidor: propuestas al final. Sin
+  // transacciones, el orden es lo que determina qué queda a medias si el
+  // lote se corta — y una propuesta libera el desembolso de su lote entero,
+  // así que conviene que sea lo último que ocurra, no lo primero. El
+  // razonamiento completo está en ORDEN_DE_EJECUCION.
+  for (const fila of ordenarParaEjecutar(vivas)) {
     try {
       await aprobarUna(fila.tipo, fila.id, fila.estado)
-      resultados.push({ codigo: fila.codigo, ok: true })
+      resultados.push({ codigo: fila.codigo, tipo: fila.tipo, ok: true })
     } catch (e) {
-      resultados.push({ codigo: fila.codigo, ok: false, motivo: mensajeCorto(e) })
+      resultados.push({ codigo: fila.codigo, tipo: fila.tipo, ok: false, motivo: mensajeCorto(e) })
     }
   }
   return resultados
