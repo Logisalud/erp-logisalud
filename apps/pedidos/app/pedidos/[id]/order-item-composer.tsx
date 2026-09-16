@@ -63,6 +63,7 @@ export function OrderItemComposer({
   customerId,
   items,
   products,
+  sinPrecio,
   observaciones,
   esAdmin,
 }: {
@@ -70,6 +71,13 @@ export function OrderItemComposer({
   customerId: string;
   items: OrderItem[];
   products: Product[];
+  /**
+   * Productos activos que NO se pueden pedir todavía porque no tienen precio
+   * de lista. No entran al buscador —no habría con qué valorizar la línea—
+   * pero sí se nombran cuando el vendedor los busca: verlos en Stock y que
+   * acá no salga nada, sin explicación, parecía una falla del sistema.
+   */
+  sinPrecio: Array<{ descripcion: string; codigo_interno: string }>;
   /**
    * Las que ya tiene el pedido. Se muestran acá y no sólo al pie de la
    * página porque el vendedor manda el pedido desde esta pantalla: lo que
@@ -110,6 +118,11 @@ export function OrderItemComposer({
   const cantidadRef = useRef<HTMLInputElement>(null);
   const barraRef = useRef<HTMLDivElement>(null);
 
+  /** Coincidencias de la búsqueda actual que no se pueden pedir. */
+  const [bloqueados, setBloqueados] = useState<
+    Array<{ descripcion: string; codigo_interno: string }>
+  >([]);
+
   const opciones: ComboboxOption[] = products.map((p) => ({
     id: p.id,
     // La bonificación se marca acá: su par regular trae la MISMA descripción
@@ -120,6 +133,21 @@ export function OrderItemComposer({
 
   async function buscarProducto(term: string): Promise<ComboboxOption[]> {
     const q = normalize(term);
+
+    // Lo que el vendedor buscó y existe, pero no se puede pedir. Se calcula
+    // con el mismo término y se muestra al lado del buscador.
+    setBloqueados(
+      q === ""
+        ? []
+        : sinPrecio
+            .filter(
+              (p) =>
+                normalize(p.descripcion).includes(q) ||
+                normalize(p.codigo_interno).includes(q),
+            )
+            .slice(0, 5),
+    );
+
     return opciones
       .filter(
         (o) =>
@@ -376,6 +404,31 @@ export function OrderItemComposer({
                 debounceMs={120}
                 emptyMessage="Ningún producto coincide"
               />
+
+              {bloqueados.length > 0 && (
+                <div
+                  role="note"
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                >
+                  <p className="font-medium">
+                    {bloqueados.length === 1
+                      ? "Este producto existe, pero todavía no se puede pedir:"
+                      : "Estos productos existen, pero todavía no se pueden pedir:"}
+                  </p>
+                  <ul className="mt-1 list-disc pl-5">
+                    {bloqueados.map((p) => (
+                      <li key={p.codigo_interno}>
+                        {displayNombreProducto(p.descripcion, p.codigo_interno)}{" "}
+                        <span className="cifra">({p.codigo_interno})</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1">
+                    No tienen precio de lista, así que no hay con qué valorizar la línea. Avisá a la
+                    oficina para que lo carguen.
+                  </p>
+                </div>
+              )}
 
               <div className="flex items-end gap-2">
                 <div className="w-32">

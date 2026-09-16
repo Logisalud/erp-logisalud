@@ -11,7 +11,11 @@ import { OrderItemComposer } from "./order-item-composer";
 import { OrderHeader } from "./order-header";
 import { ObservationForm } from "./observation-form";
 import { DeleteDraftButton } from "./delete-draft-button";
-import { displayNombreProducto, esOfrecibleEnPedido } from "@/domain/products";
+import {
+  displayNombreProducto,
+  esOfrecibleEnPedido,
+  faltaPrecioParaPedir,
+} from "@/domain/products";
 import { IconDownload } from "@/components/icons";
 import { estadoEstilo, estadoLabel } from "@/domain/order-status";
 import { etiquetaCondicionPago } from "@/domain/payment-terms";
@@ -52,6 +56,13 @@ export default async function OrderDetailPage({
     .filter(esOfrecibleEnPedido)
     .map((p) => ({ id: p.id, descripcion: p.descripcion, codigo_interno: p.codigo_interno }));
 
+  // Los que existen y están activos pero todavía no se pueden pedir. No van
+  // al buscador —no se pueden valorizar— pero sí hacen falta para explicar
+  // por qué no aparecen cuando el vendedor los busca por nombre.
+  const sinPrecio = products
+    .filter(faltaPrecioParaPedir)
+    .map((p) => ({ descripcion: p.descripcion, codigo_interno: p.codigo_interno }));
+
   const total = order.items.reduce((acc, item) => acc + item.total, 0);
 
   return (
@@ -85,6 +96,7 @@ export default async function OrderDetailPage({
             customerId={order.customer_id}
             items={order.items}
             products={activeProducts}
+            sinPrecio={sinPrecio}
             observaciones={order.observations}
             esAdmin={currentUser?.roles.includes("administrador") ?? false}
           />

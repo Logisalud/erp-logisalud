@@ -105,6 +105,23 @@ export function esOfrecibleEnPedido(producto: {
  * pendiente de diseño. Esto sólo permite cargar a mano una bonificación
  * que ya se acordó con el cliente.
  */
+/**
+ * Un producto que existe y está activo pero que el vendedor NO puede pedir.
+ *
+ * Es el complemento exacto de `esOfrecibleEnPedido`, y existe para poder
+ * DECIRLO en pantalla. Antes estos productos simplemente no aparecían en el
+ * buscador: el vendedor veía el producto en Stock, lo escribía acá y no salía
+ * nada, sin ninguna explicación. Pasó con `PLGS24` (ASHWCALMEX) el
+ * 2026-09-16, con 121 unidades en almacén.
+ */
+export function faltaPrecioParaPedir(producto: {
+  estado: string;
+  hasCurrentPrice: boolean;
+  codigo_interno?: string;
+}): boolean {
+  return producto.estado === "activo" && !esOfrecibleEnPedido(producto);
+}
+
 export function admitePrecioCero(codigoInterno: string): boolean {
   return esBonificacion(codigoInterno);
 }
