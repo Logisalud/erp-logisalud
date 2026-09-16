@@ -3,7 +3,7 @@ import {
   diasEsperando, esAdmin, esContabilidadDecisora, etiquetaEspera,
   fuentesQueMeTocan, meTocaEstaOS, meTocaEstaReposicion,
   ordenarPorAntiguedad, quienDecideCajaChica,
-  ESTADOS_QUE_ESPERAN_DECISION,
+  ESTADOS_QUE_ESPERAN_DECISION, FUENTES_APROBACION,
   type FilaPendiente,
 } from '@/domain/pendientes-aprobar'
 
@@ -27,8 +27,10 @@ describe('quién decide', () => {
 })
 
 describe('fuentesQueMeTocan', () => {
-  it('Contabilidad ve las suyas —incluidas las propuestas de pago— pero NO las OS', () => {
-    expect(fuentesQueMeTocan(mariela, []).sort()).toEqual(['caja_chica', 'gasto', 'pago_directo', 'propuesta'])
+  it('Contabilidad ve las suyas —propuestas, planilla e impuestos incluidos— pero NO las OS', () => {
+    expect(fuentesQueMeTocan(mariela, []).sort()).toEqual([
+      'caja_chica', 'gasto', 'impuesto', 'pago_directo', 'planilla', 'propuesta',
+    ])
   })
 
   it('un lote de pago espera en pendiente_aprobacion, y solo ahí', () => {
@@ -49,14 +51,52 @@ describe('fuentesQueMeTocan', () => {
     expect(fuentesQueMeTocan(null, [])).toEqual([])
   })
 
-  it('un jefe de área que además es Contabilidad ve las cuatro', () => {
+  it('un jefe de área que además es Contabilidad ve las siete', () => {
     expect(fuentesQueMeTocan(mariela, ['contabilidad']).sort()).toEqual([
-      'caja_chica', 'gasto', 'os', 'pago_directo', 'propuesta',
+      'caja_chica', 'gasto', 'impuesto', 'os', 'pago_directo', 'planilla', 'propuesta',
     ])
   })
 
-  it('admin ve las cuatro aunque no sea jefe de ninguna área', () => {
-    expect(fuentesQueMeTocan(admin, []).sort()).toEqual(['caja_chica', 'gasto', 'os', 'pago_directo', 'propuesta'])
+  it('admin ve las siete aunque no sea jefe de ninguna área', () => {
+    expect(fuentesQueMeTocan(admin, []).sort()).toEqual([
+      'caja_chica', 'gasto', 'impuesto', 'os', 'pago_directo', 'planilla', 'propuesta',
+    ])
+  })
+})
+
+describe('Planilla e Impuestos en la bandeja (el bug de 2026-09-16)', () => {
+  const milagritos = { area: 'tesoreria', rol: 'operativo' }
+
+  it('los dos están declarados como fuente: ese era el bug', () => {
+    // Nacieron después de esta pantalla y nunca se agregaron, así que sus
+    // cargas esperaban conformidad sin que ninguna bandeja las mostrara.
+    expect(FUENTES_APROBACION).toContain('planilla')
+    expect(FUENTES_APROBACION).toContain('impuesto')
+  })
+
+  it('los dos esperan en pendiente_contabilidad, y solo ahí', () => {
+    expect(ESTADOS_QUE_ESPERAN_DECISION.planilla).toEqual(['pendiente_contabilidad'])
+    expect(ESTADOS_QUE_ESPERAN_DECISION.impuesto).toEqual(['pendiente_contabilidad'])
+  })
+
+  it('Tesorería ve Planilla — su gate es MÁS ANCHO que el de Contabilidad', () => {
+    // Es la única fuente que Milagritos ve sin ser jefa de ningún área.
+    expect(fuentesQueMeTocan(milagritos, [])).toEqual(['planilla'])
+  })
+
+  it('pero Tesorería NO ve Impuestos: esos los confirma Contabilidad', () => {
+    expect(fuentesQueMeTocan(milagritos, [])).not.toContain('impuesto')
+  })
+
+  it('Beatriz (contabilidad operativo) sigue sin ver nada: no decide', () => {
+    // El gate de planilla exige rol admin dentro de contabilidad.
+    expect(fuentesQueMeTocan(beatriz, [])).toEqual([])
+  })
+
+  it('un vendedor no ve ninguno de los dos', () => {
+    const suyas = fuentesQueMeTocan(vendedor, ['ventas'])
+    expect(suyas).not.toContain('planilla')
+    expect(suyas).not.toContain('impuesto')
   })
 })
 

@@ -7,6 +7,8 @@ import {
 } from '@/services/caja-chica'
 import { aprobarOS } from '@/services/servicios'
 import { aprobarPropuesta } from '@/services/propuestas'
+import { darConformidadPlanilla } from '@/services/planilla'
+import { confirmarObligacionTributaria } from '@/services/impuestos'
 import {
   admiteAprobacionEnLote, MAXIMO_POR_LOTE, ordenarParaEjecutar, type ResultadoFila,
 } from '@/domain/aprobacion-en-lote'
@@ -109,6 +111,15 @@ async function aprobarUna(tipo: TipoPendiente, id: string, estado: string): Prom
       // función que el botón individual, así que valida el permiso
       // (puedeAprobarPropuesta) y la transición igual que siempre.
       return aprobarPropuesta(id)
+    case 'planilla':
+      // Gate propio y más ancho (incluye Tesorería) — vive en la función,
+      // igual que el resto.
+      return darConformidadPlanilla(id)
+    case 'impuesto':
+      // OJO: esta función NO chequea permiso hoy, solo exige sesión. El lote
+      // no lo empeora —el botón individual tiene el mismo hueco— pero
+      // tampoco lo tapa. Está en el pendiente PRIORITARIO de CONTEXTO.md.
+      return confirmarObligacionTributaria(id)
     case 'caja_chica': {
       // Dos decisores distintos según el paso — mismo criterio que usa la
       // bandeja para la columna "Decide".

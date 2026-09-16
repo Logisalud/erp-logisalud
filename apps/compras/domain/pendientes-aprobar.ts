@@ -26,12 +26,18 @@
  * aunque sí se pueda rechazar desde su ficha.
  */
 
+import { puedeDarConformidadPlanilla } from './planilla'
+
 /** De qué tabla sale cada grupo — decide qué consultas correr. */
-export const FUENTES_APROBACION = ['pago_directo', 'gasto', 'caja_chica', 'os', 'propuesta'] as const
+export const FUENTES_APROBACION = [
+  'pago_directo', 'gasto', 'caja_chica', 'os', 'propuesta', 'planilla', 'impuesto',
+] as const
 export type FuenteAprobacion = (typeof FUENTES_APROBACION)[number]
 
 /** Lo que ve la persona en la columna "Tipo" — `gasto` se abre en dos. */
-export type TipoPendiente = 'pago_directo' | 'anticipo' | 'reembolso' | 'caja_chica' | 'os' | 'propuesta'
+export type TipoPendiente =
+  | 'pago_directo' | 'anticipo' | 'reembolso' | 'caja_chica' | 'os' | 'propuesta'
+  | 'planilla' | 'impuesto'
 
 export const ETIQUETA_TIPO_PENDIENTE: Record<TipoPendiente, string> = {
   pago_directo: 'Pago Directo',
@@ -40,6 +46,8 @@ export const ETIQUETA_TIPO_PENDIENTE: Record<TipoPendiente, string> = {
   caja_chica: 'Reposición de Caja Chica',
   os: 'Orden de Servicio',
   propuesta: 'Propuesta de pago',
+  planilla: 'Pago de Planilla',
+  impuesto: 'Impuesto',
 }
 
 /**
@@ -54,6 +62,8 @@ export const ETIQUETA_TIPO_PENDIENTE_PLURAL: Record<TipoPendiente, string> = {
   caja_chica: 'Reposiciones de Caja Chica',
   os: 'Órdenes de Servicio',
   propuesta: 'Propuestas de pago',
+  planilla: 'Pagos de Planilla',
+  impuesto: 'Impuestos',
 }
 
 /** Estados en los que cada fuente está esperando una decisión real. */
@@ -71,6 +81,13 @@ export const ESTADOS_QUE_ESPERAN_DECISION: Record<FuenteAprobacion, readonly str
   // esa razón dejó de valer, pero la lista de fuentes no se actualizó — así
   // que había lotes esperando sin que ninguna bandeja los mostrara.
   propuesta: ['pendiente_aprobacion'],
+  // Planilla e Impuestos nacieron DESPUÉS de esta pantalla y nunca se
+  // agregaron a FUENTES_APROBACION, así que sus cargas esperaban conformidad
+  // sin que ninguna bandeja las mostrara — el mismo olvido que había tenido
+  // `propuesta`. Los dos usan el mismo nombre de estado que el resto del
+  // módulo para "esperando a Contabilidad".
+  planilla: ['pendiente_contabilidad'],
+  impuesto: ['pendiente_contabilidad'],
 }
 
 export type PerfilAprobador = { area: string | null; rol: string | null } | null
@@ -113,6 +130,17 @@ export function fuentesQueMeTocan(perfil: PerfilAprobador, misAreas: readonly st
   // Mismo gate que la pantalla de propuestas — se reusa `puedeAprobarPropuesta`
   // en el servicio en vez de repetir el criterio acá.
   if (contabilidad) fuentes.push('propuesta')
+  // Planilla: gate propio, MÁS ANCHO que el de Contabilidad — incluye a
+  // Tesorería. Se reusa la misma función que usa la pantalla de Planilla
+  // (domain/planilla.ts) en vez de repetir el criterio, para que no puedan
+  // divergir.
+  if (puedeDarConformidadPlanilla(perfil)) fuentes.push('planilla')
+  // Impuestos: lo confirma Contabilidad ("Contabilidad confirma lo que
+  // Arlette cargó", services/impuestos.ts). OJO: hoy
+  // `confirmarObligacionTributaria` NO chequea permiso — solo exige sesión.
+  // Este gate es el de la bandeja, no el de la acción; cerrar ese hueco está
+  // en el pendiente PRIORITARIO de CONTEXTO.md.
+  if (contabilidad) fuentes.push('impuesto')
   return fuentes
 }
 

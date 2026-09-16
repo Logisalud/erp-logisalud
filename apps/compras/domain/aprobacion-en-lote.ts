@@ -199,6 +199,10 @@ export const ORDEN_DE_EJECUCION: readonly TipoPendiente[] = [
   'reembolso',
   'os',
   'caja_chica',
+  // Planilla e Impuestos van antes que las propuestas por la misma razón que
+  // el resto: crean la obligación, no liberan un desembolso.
+  'planilla',
+  'impuesto',
   'propuesta',
 ]
 

@@ -11,7 +11,7 @@ import { puedeDecidirSobre } from '@/domain/auto-aprobacion'
 
 /**
  * "Pendientes de aprobar": todo lo que espera una decisión de la persona que
- * está mirando, de las cuatro fuentes con gate de aprobación real.
+ * está mirando, de las SIETE fuentes con gate de aprobación real.
  *
  * Mismo patrón que services/mis-operaciones.ts — consultas en paralelo y
  * merge en JS, NO una vista SQL: PostgREST no cruza schemas en un solo
@@ -24,8 +24,10 @@ import { puedeDecidirSobre } from '@/domain/auto-aprobacion'
  * áreas es responsable la persona: eso sale de una única consulta previa a
  * `public.area_responsables`, que es el equivalente de `es_jefe_de()`.
  *
- * Propuestas de pago quedan afuera a propósito: las aprueba Gerencia y ya
- * tienen su propia pantalla dedicada.
+ * Planilla e Impuestos se sumaron en 2026-09-16: habían nacido después de
+ * esta pantalla y nunca se agregaron a FUENTES_APROBACION, así que sus
+ * cargas esperaban conformidad sin que ninguna bandeja las mostrara. Es el
+ * mismo olvido que ya había tenido `propuesta`.
  */
 export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   const usuario = await exigirUsuario()
@@ -39,7 +41,10 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   const corre = (f: FuenteAprobacion) => fuentes.includes(f)
   const ahora = new Date().toISOString()
 
-  const [pagosDirectos, solicitudes, reposiciones, propuestas, ordenesServicio] = await Promise.all([
+  const [
+    pagosDirectos, solicitudes, reposiciones, propuestas, ordenesServicio,
+    planillas, impuestos,
+  ] = await Promise.all([
     corre('pago_directo')
       ? supabase
           .schema('cuentas_x_pagar')
@@ -77,6 +82,20 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
           .select('id, codigo, estado, moneda, monto_estimado, created_at, solicitante_id, creador_correo, area_solicitante, descripcion_servicio')
           .in('estado', ESTADOS_QUE_ESPERAN_DECISION.os)
       : null,
+    corre('planilla')
+      ? supabase
+          .schema('planilla')
+          .from('pagos_planilla')
+          .select('id, codigo, estado, periodo, secuencia, monto, moneda, fecha_pago, created_at, cargado_por')
+          .in('estado', ESTADOS_QUE_ESPERAN_DECISION.planilla)
+      : null,
+    corre('impuesto')
+      ? supabase
+          .schema('impuestos')
+          .from('obligaciones_tributarias')
+          .select('id, estado, periodo, monto, moneda, fecha_vencimiento, created_at, cargado_por, tipo_impuesto_id')
+          .in('estado', ESTADOS_QUE_ESPERAN_DECISION.impuesto)
+      : null,
   ])
 
   const filasPD = (pagosDirectos?.data ?? []) as any[]
@@ -84,6 +103,8 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   const filasRep = (reposiciones?.data ?? []) as any[]
   const filasOS = (ordenesServicio?.data ?? []) as any[]
   const filasProp = (propuestas?.data ?? []) as any[]
+  const filasPlanilla = (planillas?.data ?? []) as any[]
+  const filasImpuesto = (impuestos?.data ?? []) as any[]
 
   // El fondo trae el área (para el filtro del jefe), la moneda y el custodio
   // — `reposiciones` no tiene ninguno de los tres.
@@ -99,9 +120,12 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
   // area_en('contabilidad')`. Un jefe de área que no sea de Contabilidad no
   // puede leer el nombre de otra persona, así que se cae a `creador_correo`
   // — la columna que dejó la 0042 justo para no depender de esa lectura.
-  const [categoriasPD, categoriasGasto] = await Promise.all([
+  const [categoriasPD, categoriasGasto, tiposImpuesto] = await Promise.all([
     mapaCategorias('cuentas_x_pagar', 'categorias_pago_directo', filasPD.map((o) => o.categoria_pago_directo_id)),
     mapaCategorias('gastos', 'categorias_gasto', filasSol.map((s) => s.categoria_id)),
+    // Mismo patrón: el nombre del impuesto vive en otra tabla y PostgREST no
+    // lo embebe desde acá.
+    mapaCategorias('impuestos', 'tipos_impuesto', filasImpuesto.map((i) => i.tipo_impuesto_id)),
   ])
 
   const personas = await mapaPersonas([
@@ -110,9 +134,51 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     ...filasRepMias.map((r) => fondos.get(r.fondo_id)?.custodioId ?? null),
     ...filasOSMias.map((os) => os.solicitante_id),
     ...filasProp.map((p) => p.creado_por),
+    ...filasPlanilla.map((p) => p.cargado_por),
+    ...filasImpuesto.map((i) => i.cargado_por),
   ])
   const quien = (id: string | null, correo: string | null): string | null =>
     (id ? personas.get(id) ?? null : null) ?? correo ?? null
+
+  const pendientesPlanilla: FilaPendiente[] = filasPlanilla.map((pl) => ({
+    id: pl.id,
+    tipo: 'planilla',
+    estado: pl.estado,
+    codigo: pl.codigo,
+    quienLoCreo: quien(pl.cargado_por, null),
+    esperandoDesde: pl.created_at,
+    diasEsperando: diasEsperando(pl.created_at, ahora),
+    monto: Number(pl.monto),
+    moneda: pl.moneda,
+    totalPorMoneda: [{ moneda: pl.moneda, monto: Number(pl.monto) }],
+    // Más ancho que el resto: Tesorería también da conformidad acá.
+    quienDecide: 'Contabilidad o Tesorería',
+    // `fecha_pago` de una planilla es un compromiso duro, no una estimación
+    // (ver la migración 0055): entra como fecha requerida para que una
+    // planilla del 15 sin aprobar el 14 salga en rojo.
+    fechaRequerida: pl.fecha_pago ?? null,
+    concepto: `Planilla ${pl.periodo} · pago ${pl.secuencia}`,
+    href: `/planilla/${pl.id}`,
+  }))
+
+  const pendientesImpuesto: FilaPendiente[] = filasImpuesto.map((im) => ({
+    id: im.id,
+    tipo: 'impuesto',
+    estado: im.estado,
+    // `obligaciones_tributarias` no tiene columna `codigo`: se identifica por
+    // tipo + periodo, que es como se la nombra en la pantalla de Impuestos.
+    codigo: `${tiposImpuesto.get(im.tipo_impuesto_id) ?? 'Impuesto'} ${im.periodo}`,
+    quienLoCreo: quien(im.cargado_por, null),
+    esperandoDesde: im.created_at,
+    diasEsperando: diasEsperando(im.created_at, ahora),
+    monto: Number(im.monto),
+    moneda: im.moneda,
+    totalPorMoneda: [{ moneda: im.moneda, monto: Number(im.monto) }],
+    quienDecide: 'Contabilidad',
+    fechaRequerida: im.fecha_vencimiento ?? null,
+    concepto: `${tiposImpuesto.get(im.tipo_impuesto_id) ?? 'Impuesto'} · periodo ${im.periodo}`,
+    href: `/impuestos`,
+  }))
 
   const pendientesPD: FilaPendiente[] = filasPD.map((pd) => ({
     id: pd.id,
@@ -228,6 +294,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
 
   return ordenarPorAntiguedad([
     ...pendientesPD, ...pendientesSol, ...pendientesRep, ...pendientesOS, ...pendientesProp,
+    ...pendientesPlanilla, ...pendientesImpuesto,
   ])
 }
 
@@ -289,7 +356,7 @@ async function mapaPersonas(ids: (string | null)[]): Promise<Map<string, string>
 
 /** Nombre de una categoría, resuelto en una segunda consulta (cross-schema). */
 async function mapaCategorias(
-  schema: 'cuentas_x_pagar' | 'gastos',
+  schema: 'cuentas_x_pagar' | 'gastos' | 'impuestos',
   tabla: string,
   ids: (string | null)[]
 ): Promise<Map<string, string>> {
