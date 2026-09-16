@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { exentoDelTope, igvDeBase, igvSegun, totalSegun, validarPagoDirecto, TOPE_PAGO_DIRECTO_PEN } from '@/domain/obligacion'
+import { advertenciasPagoDirecto, esCategoriaDeBacklog, igvDeBase, igvSegun, totalSegun, validarPagoDirecto, TOPE_PAGO_DIRECTO_PEN } from '@/domain/obligacion'
 
 describe('igvSegun / totalSegun', () => {
   it('sin el flag calcula el 18% de siempre', () => {
@@ -38,29 +38,55 @@ const basePagoDirecto = {
   porcentajeDetraccion: null,
 }
 
-describe('el tope de Pago Directo se mide contra el total real', () => {
+describe('el tope de S/5,000 AVISA pero ya no bloquea (2026-09-16)', () => {
   // Una base que con IGV pasa el tope pero sin IGV no llega.
   const baseLimite = Math.ceil((TOPE_PAGO_DIRECTO_PEN / 1.18) + 1)
 
-  it('gravada: el IGV la empuja por encima del tope y se rechaza', () => {
-    const errores = validarPagoDirecto({ ...basePagoDirecto, baseImponible: baseLimite })
-    expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
-  })
-
-  it('sin IGV: el mismo monto entra, porque ese 18% no existe', () => {
-    const errores = validarPagoDirecto({ ...basePagoDirecto, baseImponible: baseLimite, sinIgv: true })
+  it('pasar el tope NO impide guardar, en ninguna categoría', () => {
+    // Antes esto devolvía un error en `baseImponible`. La realidad lo
+    // desbordó (DIPHASAC, devoluciones a accionistas) y el control real
+    // quedó donde siempre estuvo: conformidad y propuesta de pago.
+    const errores = validarPagoDirecto({
+      ...basePagoDirecto, baseImponible: TOPE_PAGO_DIRECTO_PEN * 10, sinIgv: true,
+    })
     expect(errores.some((e) => e.campo === 'baseImponible')).toBe(false)
   })
 
-  it('sin IGV sigue rechazando si la base sola ya supera el tope', () => {
-    const errores = validarPagoDirecto({
-      ...basePagoDirecto, baseImponible: TOPE_PAGO_DIRECTO_PEN + 1, sinIgv: true,
+  it('pero sí avisa, y el aviso se mide contra el total REAL', () => {
+    // Gravada: el IGV la empuja por encima del tope.
+    expect(advertenciasPagoDirecto({
+      moneda: 'PEN', baseImponible: baseLimite, sinIgv: false,
+    })).toHaveLength(1)
+  })
+
+  it('sin IGV el mismo monto no avisa: ese 18% no existe', () => {
+    expect(advertenciasPagoDirecto({
+      moneda: 'PEN', baseImponible: baseLimite, sinIgv: true,
+    })).toEqual([])
+  })
+
+  it('sin IGV sí avisa si la base sola ya supera el tope', () => {
+    expect(advertenciasPagoDirecto({
+      moneda: 'PEN', baseImponible: TOPE_PAGO_DIRECTO_PEN + 1, sinIgv: true,
+    })).toHaveLength(1)
+  })
+
+  it('el aviso nombra la Orden de Compra y deja claro que se puede continuar', () => {
+    const [aviso] = advertenciasPagoDirecto({
+      moneda: 'PEN', baseImponible: 20000, sinIgv: true,
     })
-    expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
+    expect(aviso).toContain('Orden de Compra')
+    expect(aviso).toContain('continuar')
+  })
+
+  it('en dólares no avisa: no hay tipo de cambio de referencia definido', () => {
+    expect(advertenciasPagoDirecto({
+      moneda: 'USD', baseImponible: 99999, sinIgv: true,
+    })).toEqual([])
   })
 })
 
-describe('excepción del tope para el backlog pre-ERP', () => {
+describe('la categoría del backlog, ya sin relación con el tope', () => {
   const grande = {
     ...basePagoDirecto,
     // Muy por encima del tope de S/5,000.
@@ -69,28 +95,23 @@ describe('excepción del tope para el backlog pre-ERP', () => {
     moneda: 'PEN' as const,
   }
 
-  it('sin la categoría exenta, el tope sigue rechazando', () => {
-    const errores = validarPagoDirecto(grande)
-    expect(errores.map((e) => e.campo)).toContain('baseImponible')
+  it('ninguna categoría bloquea por monto — tampoco las comunes', () => {
+    expect(validarPagoDirecto(grande).map((e) => e.campo)).not.toContain('baseImponible')
+    expect(validarPagoDirecto({ ...grande, categoriaNombre: 'Combustible' })
+      .map((e) => e.campo)).not.toContain('baseImponible')
   })
 
-  it('una categoría cualquiera NO exime', () => {
-    const errores = validarPagoDirecto({ ...grande, categoriaNombre: 'Combustible' })
-    expect(errores.map((e) => e.campo)).toContain('baseImponible')
+  it('la lista sobrevivió al renombre porque tiene OTRO consumidor', () => {
+    // Se llamaba CATEGORIAS_EXENTAS_DEL_TOPE. Al volverse informativo el
+    // tope parecía borrable, pero `puedeRegistrarsePagoHistorico` la usa
+    // para saber qué categoría ES el backlog — ver domain/obligacion.ts.
+    expect(esCategoriaDeBacklog('Regularización de pagos antiguos (pre-ERP)')).toBe(true)
   })
 
-  it('la categoría del backlog SÍ exime — es el caso que bloqueaba a Sebas', () => {
-    const errores = validarPagoDirecto({
-      ...grande,
-      categoriaNombre: 'Regularización de pagos antiguos (pre-ERP)',
-    })
-    expect(errores.map((e) => e.campo)).not.toContain('baseImponible')
-  })
-
-  it('exentoDelTope tolera espacios y no se confunde con nombres parecidos', () => {
-    expect(exentoDelTope(' Regularización de pagos antiguos (pre-ERP) ')).toBe(true)
-    expect(exentoDelTope('Regularización de pagos antiguos')).toBe(false)
-    expect(exentoDelTope(null)).toBe(false)
+  it('esCategoriaDeBacklog tolera espacios y no se confunde con nombres parecidos', () => {
+    expect(esCategoriaDeBacklog(' Regularización de pagos antiguos (pre-ERP) ')).toBe(true)
+    expect(esCategoriaDeBacklog('Regularización de pagos antiguos')).toBe(false)
+    expect(esCategoriaDeBacklog(null)).toBe(false)
   })
 
   it('la exención NO toca la detracción ni el resto de las reglas', () => {

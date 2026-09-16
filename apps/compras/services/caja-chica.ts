@@ -430,3 +430,116 @@ export async function marcarReposicionPagada(obligacionId: string): Promise<void
 
   await supabase.schema('caja_chica').from('reposiciones').update({ estado: 'cerrada' }).eq('id', reposicion.id)
 }
+
+/**
+ * Carga una rendición entera desde el Excel de Roberto: N movimientos + la
+ * reposición que los agrupa, en una sola operación.
+ *
+ * NO reimplementa nada: los movimientos se insertan en la misma tabla y con
+ * la misma forma que `registrarMovimiento`, y la reposición la crea
+ * `crearReposicion`, que es la misma función del botón "Pedir reposición".
+ * Por eso la rendición cargada por Excel entra al embudo normal —jefe de
+ * área, después Contabilidad— y aparece sola en "Pendientes de aprobar", sin
+ * una línea de código nueva en esa pantalla.
+ *
+ * DECISIÓN CONSCIENTE sobre base e IGV: las filas entran como
+ * `sin_comprobante`, con base e igv en null. El Excel trae una sola columna
+ * de dinero y Sebas decidió (2026-09-16) no pedirle a Roberto que agregue el
+ * desglose. Se pierde el crédito fiscal —del orden de S/95 por rendición— a
+ * cambio de que él no cambie su planilla. Ver lib/excel-caja-chica.ts.
+ *
+ * Sin transacción, como todo el módulo: si algo falla después de insertar
+ * los movimientos, quedan en el fondo SIN reposición — que es exactamente el
+ * mismo estado en que los deja la carga de a uno, así que no hay nada
+ * inconsistente que limpiar. Se pueden reponer después con el botón normal.
+ */
+export async function cargarRendicionDesdeExcel(input: {
+  fondoId: string
+  filas: readonly {
+    fecha: string
+    placaVehiculo: string
+    categoriaNombre: string
+    descripcion: string
+    numero: string
+    monto: number
+  }[]
+  /** El .xlsx ya subido, en su propio request. Ver la Server Action. */
+  storagePathExcel: string | null
+}): Promise<{ reposicionId: string; movimientos: number }> {
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  if (input.filas.length === 0) throw new Error('La rendición no tiene ninguna fila.')
+
+  // Los nombres de categoría del Excel ya vienen mapeados al catálogo por el
+  // parser; acá se resuelven a id contra la BASE, nunca confiando en un id
+  // que venga del navegador.
+  const nombres = [...new Set(input.filas.map((f) => f.categoriaNombre))]
+  const { data: categorias, error: errCat } = await supabase
+    .schema('gastos')
+    .from('categorias_gasto')
+    .select('id, nombre')
+    .in('nombre', nombres)
+  if (errCat) throw new Error(`No se pudieron leer las categorías: ${errCat.message}`)
+
+  const idPorNombre = new Map((categorias ?? []).map((c: any) => [c.nombre, c.id]))
+  const sinMapear = nombres.filter((n) => !idPorNombre.has(n))
+  if (sinMapear.length > 0) {
+    throw new Error(`Estas categorías no existen en el catálogo: ${sinMapear.join(', ')}.`)
+  }
+
+  const { error: errIns } = await supabase
+    .schema('caja_chica')
+    .from('movimientos')
+    .insert(input.filas.map((f) => ({
+      fondo_id: input.fondoId,
+      fecha: f.fecha,
+      categoria_id: idPorNombre.get(f.categoriaNombre),
+      placa_vehiculo: f.placaVehiculo || null,
+      monto: f.monto,
+      // Ver el comentario de arriba: sin desglose, y `sin_comprobante` es la
+      // única combinación que el CHECK permite sin inventar base e IGV.
+      tipo_comprobante: 'sin_comprobante',
+      base_imponible: null,
+      igv: null,
+      numero: f.numero || null,
+      descripcion: f.descripcion || null,
+      registrado_por: usuario.id,
+    })))
+  if (errIns) throw new Error(`No se pudieron cargar los movimientos: ${errIns.message}`)
+
+  const reposicion = await crearReposicion(input.fondoId)
+
+  if (input.storagePathExcel) {
+    // Best-effort, igual que el resto de los adjuntos del módulo: la
+    // rendición ya está cargada y no se pierde por no poder anotar el path.
+    await supabase
+      .schema('caja_chica')
+      .from('reposiciones')
+      .update({ storage_path_excel: input.storagePathExcel })
+      .eq('id', reposicion.id)
+  }
+
+  return { reposicionId: reposicion.id, movimientos: input.filas.length }
+}
+
+/** Sube el .xlsx de la rendición. En su PROPIO request: junto con las filas
+ *  podría pasar el límite de body de una Server Action, que es el fallo
+ *  silencioso del "botón que no hacía nada". */
+export async function subirExcelRendicion(
+  fondoId: string,
+  archivo: File
+): Promise<{ path: string } | { error: string }> {
+  if (!archivo || archivo.size === 0) return { error: 'El archivo está vacío.' }
+  const supabase = crearClienteServidor()
+  const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const path = `${anioMesStorageLima()}/rendicion-${fondoId}/${Date.now()}-${nombreLimpio}`
+  const { error } = await supabase.storage
+    .from('legajos-caja-chica')
+    .upload(path, archivo, { contentType: archivo.type || undefined })
+  if (error) {
+    console.error('[subirExcelRendicion]', error.message)
+    return { error: `No se pudo subir el Excel: ${error.message}` }
+  }
+  return { path }
+}

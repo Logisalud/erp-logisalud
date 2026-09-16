@@ -51,7 +51,10 @@ Estado (ver sección 9 del documento, "Alcance por Pull Request"):
    pagarse, un anticipo queda pendiente de rendir; rendición con
    comprobantes, liquidación, reembolso adicional si gastó de más).
 7. ✅ Caja Chica (movimientos del fondo con base/IGV real del comprobante —
-   nunca inventado, mismo criterio que Gastos — reposición que junta los
+   nunca inventado, mismo criterio que Gastos; **la única excepción es la
+   carga masiva por Excel**, donde el archivo trae solo el monto total y las
+   filas entran como `sin_comprobante` sin desglose — decisión consciente de
+   2026-09-16, ver CONTEXTO.md — reposición que junta los
    movimientos sin reponer, jefe de Almacén → Contabilidad genera la
    obligación sumando la base/IGV real de cada movimiento, sigue el embudo
    normal de Cuentas por Pagar, al pagarse el fondo queda repuesto y el

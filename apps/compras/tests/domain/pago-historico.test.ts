@@ -43,14 +43,14 @@ describe('la excepción NO se filtró a la tabla general de transiciones', () =>
 })
 
 describe('el checkbox del alta se decide por la MISMA regla que el resto', () => {
-  it('exentoDelTope es la única puerta: una categoría cualquiera no la abre', async () => {
-    const { exentoDelTope } = await import('@/domain/obligacion')
+  it('esCategoriaDeBacklog es la única puerta: una categoría cualquiera no la abre', async () => {
+    const { esCategoriaDeBacklog } = await import('@/domain/obligacion')
     // El formulario pinta el checkbox con esta misma función, y el servidor
     // revalida con `puedeRegistrarsePagoHistorico`, que la usa adentro. Una
     // sola regla para las dos capas: marcar la casilla en otra categoría no
     // hace nada, ni aunque se fuerce el campo.
-    expect(exentoDelTope(BACKLOG)).toBe(true)
-    expect(exentoDelTope('Combustible')).toBe(false)
+    expect(esCategoriaDeBacklog(BACKLOG)).toBe(true)
+    expect(esCategoriaDeBacklog('Combustible')).toBe(false)
     expect(puedeRegistrarsePagoHistorico('registrada', 'Combustible')).toBe(false)
   })
 })

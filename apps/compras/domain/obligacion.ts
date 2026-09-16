@@ -406,25 +406,29 @@ export function validarObligacionSinFactura(b: BorradorObligacion): ErrorValidac
 export const TOPE_PAGO_DIRECTO_PEN = 5000
 
 /**
- * Categorías EXENTAS del tope.
+ * Las categorías del backlog pre-ERP (migración 0053).
  *
- * Solo la del backlog pre-ERP (migración 0053). Sebas está regularizando
- * pagos anteriores al ERP —facturas de mercadería vieja, letras, retiros— y
- * varios superan los S/5,000. Mandarlos por una Orden de Compra sería
- * inventar una orden para algo que ya se pagó hace meses: la OC existe para
- * autorizar una compra ANTES de hacerla, y acá no hay nada que autorizar.
+ * SE LLAMABA `CATEGORIAS_EXENTAS_DEL_TOPE` y se renombró el 2026-09-16, al
+ * volver informativo el tope de S/5,000: con nada que eximir, ese nombre
+ * describía algo que ya no existe. Pero la lista NO se pudo borrar, porque
+ * tenía un segundo consumidor que el nombre viejo tapaba —
+ * `puedeRegistrarsePagoHistorico`, el gate de "Ya se pagó, adjunto la
+ * constancia".
+ *
+ * Mientras el tope bloqueaba, los dos usos coincidían y la ambigüedad no se
+ * notaba. El nombre nuevo dice lo único que la lista significa hoy: qué
+ * categoría ES el backlog.
  *
  * La excepción muere sola: cuando el backlog termine y la categoría se
- * desactive (ver CONTEXTO.md), nadie puede volver a elegirla y el tope
- * vuelve a regir sin tocar una línea de código. Por eso se exime la
- * CATEGORÍA y no se sube el tope para todos.
+ * desactive (ver CONTEXTO.md), nadie puede volver a elegirla y con eso se
+ * cierra el registro de pagos ya realizados, sin tocar una línea de código.
  */
-export const CATEGORIAS_EXENTAS_DEL_TOPE: readonly string[] = [
+export const CATEGORIAS_DE_BACKLOG: readonly string[] = [
   'Regularización de pagos antiguos (pre-ERP)',
 ]
 
-export function exentoDelTope(categoriaNombre: string | null | undefined): boolean {
-  return CATEGORIAS_EXENTAS_DEL_TOPE.includes((categoriaNombre ?? '').trim())
+export function esCategoriaDeBacklog(categoriaNombre: string | null | undefined): boolean {
+  return CATEGORIAS_DE_BACKLOG.includes((categoriaNombre ?? '').trim())
 }
 
 /**
@@ -443,11 +447,37 @@ export function exentoDelTope(categoriaNombre: string | null | undefined): boole
  * saltar a pagada", que es exactamente lo que no queremos. Acá el nombre de
  * la función dice de qué caso se trata.
  */
+/**
+ * Advertencias NO bloqueantes de un Pago Directo.
+ *
+ * Separada de `validarPagoDirecto` a propósito: esa función devuelve lo que
+ * impide guardar, y mezclar avisos ahí obligaría a cada quien que la llama a
+ * distinguir cuáles frenan y cuáles no. Acá la respuesta es "esto conviene
+ * que lo mires", nunca "esto no se puede".
+ *
+ * Se muestra EN VIVO mientras se escribe el monto, no al enviar: un aviso
+ * que no bloquea y llega recién al final ya no cambia ninguna decisión.
+ */
+export function advertenciasPagoDirecto(
+  b: Pick<BorradorPagoDirecto, 'moneda' | 'baseImponible' | 'sinIgv'>
+): string[] {
+  const avisos: string[] = []
+  const total = totalSegun(b.baseImponible, b.sinIgv)
+  if (b.moneda === 'PEN' && total >= TOPE_PAGO_DIRECTO_PEN) {
+    avisos.push(
+      `Este monto supera S/${TOPE_PAGO_DIRECTO_PEN.toLocaleString('es-PE')}. ` +
+      'Normalmente una compra de este tamaño pasaría por una Orden de Compra ' +
+      'o de Servicio. Podés continuar si corresponde.'
+    )
+  }
+  return avisos
+}
+
 export function puedeRegistrarsePagoHistorico(
   estado: EstadoObligacion,
   categoriaNombre: string | null | undefined
 ): boolean {
-  if (!exentoDelTope(categoriaNombre)) return false
+  if (!esCategoriaDeBacklog(categoriaNombre)) return false
   // Antes de cualquier decisión de Contabilidad. Una obligación ya conforme,
   // en propuesta o pagada sigue su camino normal — no se reescribe por atrás.
   return estado === 'registrada' || estado === 'pendiente_factura'
@@ -479,7 +509,7 @@ export type BorradorPagoDirecto = BorradorObligacion & {
   sinIgv?: boolean
   /**
    * El NOMBRE de la categoría elegida — no solo el id — porque de él depende
-   * si aplica el tope de S/5,000 (ver CATEGORIAS_EXENTAS_DEL_TOPE).
+   * si la categoría es la del backlog (ver CATEGORIAS_DE_BACKLOG).
    *
    * Lo resuelve la Server Action contra la base a partir de `categoriaId`,
    * NUNCA se toma del formulario: un campo del cliente sería una forma de
@@ -530,12 +560,8 @@ export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
   // El tope y la detracción se miden contra el total REAL: una operación sin
   // IGV que roza el tope no debe empujarse a OC/OS por un 18% que no existe.
   const total = totalSegun(b.baseImponible, b.sinIgv)
-  if (b.moneda === 'PEN' && total >= TOPE_PAGO_DIRECTO_PEN && !exentoDelTope(b.categoriaNombre)) {
-    errores.push({
-      campo: 'baseImponible',
-      mensaje: `Pago directo es para montos menores a S/${TOPE_PAGO_DIRECTO_PEN.toLocaleString('es-PE')} — con esto, la compra tiene que pasar por una Orden de Compra o de Servicio.`,
-    })
-  }
+  // El tope ya NO está acá: dejó de bloquear y pasó a
+  // `advertenciasPagoDirecto`. Ver el comentario de TOPE_PAGO_DIRECTO_PEN.
   errores.push(
     ...validarDeclaracionDetraccion({
       total,

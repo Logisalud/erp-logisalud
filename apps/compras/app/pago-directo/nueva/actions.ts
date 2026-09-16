@@ -41,7 +41,7 @@ export async function registrarPagoDirectoAction(_previo: EstadoFormulario, form
   }
 
   // El nombre de la categoría decide si aplica el tope de S/5,000 (ver
-  // CATEGORIAS_EXENTAS_DEL_TOPE). Se resuelve CONTRA LA BASE y nunca desde
+  // CATEGORIAS_DE_BACKLOG). Se resuelve CONTRA LA BASE y nunca desde
   // el formulario: un campo del cliente sería una forma de saltarse el tope
   // escribiendo el nombre correcto en el HTML.
   const nombresCategoria = await mapaCategoriasPagoDirecto([borrador.categoriaId])

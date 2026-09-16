@@ -254,6 +254,89 @@ es una propuesta perdida entre filas chicas.
 
 ---
 
+## El tope de S/5,000 de Pago Directo ya NO bloquea (2026-09-16)
+
+Pasó a ser **solo un aviso**. Antes impedía guardar, y la realidad lo desbordó
+por los dos lados: abonos recurrentes a DIPHASAC y devoluciones de deuda a
+accionistas son pagos grandes, legítimos y sin OC posible. Ir agregando
+excepciones caso por caso convertía el tope en un trámite de mantenimiento.
+
+El control real está donde siempre estuvo: **conformidad de Contabilidad y
+propuesta de pago aprobada**. El aviso se muestra en vivo mientras se escribe
+el monto (`advertenciasPagoDirecto`), porque el dato sigue siendo útil — la
+mayoría de las veces que alguien pasa los S/5,000 en Pago Directo,
+efectivamente debería haber hecho una OC.
+
+**`CATEGORIAS_EXENTAS_DEL_TOPE` se renombró a `CATEGORIAS_DE_BACKLOG`** (y
+`exentoDelTope` → `esCategoriaDeBacklog`). No se pudo borrar aunque el tope ya
+no exima nada: tenía un segundo consumidor que el nombre viejo tapaba —
+`puedeRegistrarsePagoHistorico`, el gate de "Ya se pagó, adjunto la
+constancia". Mientras el tope bloqueaba los dos usos coincidían; al sacarlo, el
+nombre quedaba mintiendo.
+
+**Las otras dos excepciones del backlog siguen intactas** (sin conformidad, sin
+propuesta): son un mecanismo distinto, para pagos que YA ocurrieron.
+
+---
+
+## Beneficiarios que no son proveedores comerciales
+
+`obligaciones.beneficiario_persona` es **FK a `auth.users`**, así que no sirve
+para alguien sin cuenta en el ERP — por ejemplo Marisol, accionista que nunca
+entra al sistema y solo recibe pagos.
+
+**No existe otro mecanismo**: el único catálogo de "a quién le pagamos" sin
+cuenta de usuario es `compras.proveedores`. Por eso los accionistas se
+registran ahí, con `es_beneficiario_interno = true`, que los excluye de los
+selectores de Órdenes de Compra y de Servicio pero los deja en Pago Directo.
+
+Tienen RUC de persona natural (11 dígitos), así que pasan la validación normal
+sin ninguna excepción.
+
+**Devolución vs. aporte** son direcciones opuestas y no hay que confundirlas:
+
+| | quién pone la plata | ¿crea obligación? |
+|---|---|---|
+| Aporte de accionista | el accionista | **nunca** |
+| Devolución de deuda a accionista | la empresa | sí, vía Pago Directo |
+
+La devolución **exige** decir qué aporte salda (`aporte_accionista_id`), y
+`domain/devolucion-accionista.ts` impide devolver más de lo aportado. Es una FK
+simple, no una tabla puente: una devolución salda UN aporte. Si algún día una
+devolución necesita cubrir varios, ahí se evalúa la tabla puente.
+
+---
+
+## Caja Chica por Excel: se pierde el crédito fiscal, a propósito
+
+Roberto carga su rendición de transporte subiendo el Excel que ya mantiene, en
+vez de registrar 13 gastos a mano.
+
+**El archivo trae una sola columna de dinero (MONTO, el total).** El resto del
+módulo exige base e IGV reales del comprobante, y el CHECK
+`movimientos_base_igv_si_hay_comprobante` lo fuerza. Sebas decidió
+(2026-09-16) **no** pedirle a Roberto que agregue columnas de BASE e IGV,
+aceptando el costo: las filas entran como `sin_comprobante` y **se pierde el
+crédito fiscal, del orden de S/95 por rendición, todos los meses**.
+
+Es un trade-off elegido, no un olvido. Si algún día se quiere recuperar, el
+camino es agregar esas dos columnas al Excel de Roberto — el parser ya está
+armado para que sea un cambio chico.
+
+Los comprobantes físicos siguen en OneDrive y no se duplican; el **número** de
+cada uno sí se guarda, así que la trazabilidad no se pierde: lo que se pierde
+es el desglose tributario.
+
+**Dos trampas del archivo real, documentadas en el parser:**
+
+- La hoja se llama `DETALLE - 943,93` pero sus filas suman **623.25**. Son
+  números distintos (943,93 es el saldo de la caja). **El monto nunca se lee
+  del nombre de la hoja.**
+- El libro tiene hojas `plantilla` con la **misma estructura** y montos en
+  cero. Por eso el parser rechaza un total de 0.
+
+---
+
 ## Deuda técnica conocida (menor, revisar aparte)
 
 - **Impuestos — estado `en_propuesta` muerto**: las filas de impuestos pueden

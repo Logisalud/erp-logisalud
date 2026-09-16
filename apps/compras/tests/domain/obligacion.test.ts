@@ -238,10 +238,12 @@ describe('validarPagoDirecto', () => {
     expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
   })
 
-  it('rechaza un total (base + IGV) de S/5,000 o más en soles', () => {
-    // 4237.29 + 18% IGV = 5000.00 exacto — el tope es "menos de", así que rechaza.
+  it('YA NO rechaza un total de S/5,000 o más: el tope pasó a ser un aviso', () => {
+    // 4237.29 + 18% IGV = 5000.00 exacto. Antes lo rechazaba; desde
+    // 2026-09-16 el tope solo avisa — ver advertenciasPagoDirecto y el
+    // comentario de TOPE_PAGO_DIRECTO_PEN.
     const errores = validarPagoDirecto({ ...base, baseImponible: 4237.29 })
-    expect(errores.some((e) => e.campo === 'baseImponible')).toBe(true)
+    expect(errores.some((e) => e.campo === 'baseImponible')).toBe(false)
   })
 
   it('acepta un total apenas debajo del tope', () => {

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { CargarRendicionExcel } from './cargar-rendicion'
 import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
@@ -28,6 +29,11 @@ export default async function DetalleFondo({ params }: { params: { id: string } 
       <Link href={`/caja-chica/fondos/${fondo.id}/movimientos/nuevo`} className="btn-primary mt-4 w-full sm:w-auto">
         Registrar gasto
       </Link>
+
+      {/* La carga por Excel es una ALTERNATIVA, no un reemplazo: quien no
+          lleve planilla sigue registrando de a uno con el botón de arriba,
+          que es el primario. */}
+      <CargarRendicionExcel fondoId={fondo.id} />
 
       <section className="mt-6">
         <h2 className="font-heading mb-2 text-lg">Gastos sin reponer</h2>

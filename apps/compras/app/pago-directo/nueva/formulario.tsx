@@ -15,7 +15,7 @@ import { BuscadorProveedor, type ProveedorElegido } from '@/components/buscador-
 import { CampoDetraccion } from '@/components/campo-detraccion'
 import { CampoArchivo } from '@/components/campo-archivo'
 import { excedeTamanoMaximo, mensajeArchivoDemasiadoGrande } from '@/domain/archivo'
-import { exentoDelTope } from '@/domain/obligacion'
+import { advertenciasPagoDirecto, esCategoriaDeBacklog } from '@/domain/obligacion'
 import { subirVoucherAltaAction } from './actions'
 import { hoyLima } from '@/domain/fecha'
 
@@ -68,7 +68,7 @@ export function FormularioPagoDirecto({
   const [errorVoucher, setErrorVoucher] = useState<string | null>(null)
 
   const categoriaNombre = categorias.find((c) => c.id === categoriaId)?.nombre ?? null
-  const esBacklog = exentoDelTope(categoriaNombre)
+  const esBacklog = esCategoriaDeBacklog(categoriaNombre)
 
   const elegirVoucher = async (archivo: File | undefined) => {
     if (!archivo) {
@@ -105,6 +105,11 @@ export function FormularioPagoDirecto({
   const base = Number(baseImponible) || 0
   const igv = igvSegun(base, sinIgv)
   const total = totalSegun(base, sinIgv)
+
+  // Avisos que NO bloquean (hoy: el tope de S/5,000). Se calculan en cada
+  // render, así que aparecen mientras se escribe el monto y no al enviar: un
+  // aviso que no frena nada y llega al final ya no cambia ninguna decisión.
+  const avisos = advertenciasPagoDirecto({ moneda, baseImponible: base, sinIgv })
 
   // Pieza F: se propone la condición del proveedor y se puede ajustar. El
   // `??` mira el estado local primero para no pisar lo que la persona eligió
@@ -299,6 +304,18 @@ export function FormularioPagoDirecto({
             <span>Total</span><span className="tabular-nums">{fmt(total)}</span>
           </div>
         </div>
+
+        {/* Pegado al total y no arriba del botón: es sobre el monto, así que
+            va donde se está mirando el monto. Ámbar y no rojo — no es un
+            error, y el formulario se envía igual. */}
+        {avisos.map((aviso) => (
+          <p
+            key={aviso}
+            className="sm:col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
+          >
+            ⚠️ {aviso}
+          </p>
+        ))}
       </section>
 
       <CampoDetraccion
