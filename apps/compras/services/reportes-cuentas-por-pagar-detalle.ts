@@ -12,6 +12,7 @@ import {
 } from '@/domain/reportes'
 import type { EstadoObligacion } from '@/domain/obligacion'
 import { hoyLima } from '@/domain/fecha'
+import type { FilaProyeccion, VentanaProyeccion } from '@/domain/proyeccion-pagos'
 
 /**
  * Los 4 reportes financieros de Cuentas por Pagar (Contabilidad/Tesorería) +
@@ -254,21 +255,18 @@ export async function obtenerObligacionesAbiertas(filtros: FiltrosAbiertas): Pro
 // 3. Proyección de pagos (cash out)
 // ---------------------------------------------------------------------------
 
-export const VENTANAS_PROYECCION = ['esta_semana', 'este_mes', 'proximo_mes', 'despues'] as const
-export type VentanaProyeccion = (typeof VENTANAS_PROYECCION)[number]
-
-export const ETIQUETA_VENTANA: Record<VentanaProyeccion, string> = {
-  esta_semana: 'Esta semana',
-  este_mes: 'Este mes',
-  proximo_mes: 'Próximo mes',
-  despues: 'Más adelante',
-}
-
+/**
+ * La ventana ('Esta semana', 'Este mes', …) es ahora una COLUMNA de la tabla
+ * única del reporte, no un agrupamiento de tarjetas. El vocabulario, el orden
+ * y los totales viven en domain/proyeccion-pagos.ts; acá solo se decide en
+ * qué ventana cae cada fecha, que es lo único que necesita saber el día de
+ * hoy.
+ */
 export type ReporteProyeccionPagos = {
-  ventanas: { ventana: VentanaProyeccion; filas: FilaObligacionAbierta[]; totalPorMoneda: { moneda: string; total: number }[] }[]
+  filas: FilaProyeccion[]
 }
 
-/** Reusa el detalle de abiertas (misma data, otro agrupamiento) — evita duplicar la query. */
+/** Reusa el detalle de abiertas (misma data, otra presentación) — evita duplicar la query. */
 export async function obtenerProyeccionPagos(): Promise<ReporteProyeccionPagos> {
   const filas = await obtenerObligacionesAbiertas({})
   // Los cortes de la proyección se anclan en el día de LIMA, no en el del
@@ -292,22 +290,20 @@ export async function obtenerProyeccionPagos(): Promise<ReporteProyeccionPagos> 
     return 'despues'
   }
 
-  const porVentana = new Map<VentanaProyeccion, FilaObligacionAbierta[]>()
-  for (const v of VENTANAS_PROYECCION) porVentana.set(v, [])
-  for (const f of filas) porVentana.get(ventanaDe(f.fechaVencimiento))!.push(f)
-
   return {
-    ventanas: VENTANAS_PROYECCION.map((ventana) => {
-      const filasVentana = porVentana.get(ventana)!
-      return { ventana, filas: filasVentana, totalPorMoneda: sumarPorMoneda(filasVentana) }
-    }),
+    filas: filas.map((f) => ({
+      id: f.id,
+      codigo: f.codigo,
+      origen: f.origen,
+      quien: f.quien,
+      numeroFactura: f.numeroFactura,
+      fechaVencimiento: f.fechaVencimiento,
+      diasVencido: f.diasVencido,
+      moneda: f.moneda,
+      netoAPagar: f.netoAPagar,
+      ventana: ventanaDe(f.fechaVencimiento),
+    })),
   }
-}
-
-function sumarPorMoneda(filas: readonly { moneda: string; netoAPagar: number }[]) {
-  const mapa = new Map<string, number>()
-  for (const f of filas) mapa.set(f.moneda, (mapa.get(f.moneda) ?? 0) + f.netoAPagar)
-  return [...mapa.entries()].map(([moneda, total]) => ({ moneda, total }))
 }
 
 // ---------------------------------------------------------------------------

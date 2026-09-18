@@ -434,6 +434,99 @@ no migración.
 
 ---
 
+## Tres bugs de producción y un reporte rediseñado (2026-09-18)
+
+### El filtro de Tipo no filtraba (Órdenes de compra y servicio)
+
+Con "Tipo: Mercadería" el listado mostraba también las de tipo **Bien**.
+Diagnóstico: el filtro **no se pasaba a ninguna condición sobre las filas** —
+decidía únicamente **qué tabla consultar**. Eso alcanza para `servicio` (vive
+en `servicios.ordenes_servicio`) pero no para `mercaderia` vs `bien`: las dos
+son filas de `compras.ordenes_compra` y se distinguen por su columna `tipo`.
+Confirmado contra producción: 8 órdenes `mercaderia` y 6 `bien` en la misma
+tabla. No era una comparación mal escrita, era una comparación **ausente** —
+los otros cinco filtros sí tenían su `filter`, el de Tipo era el único sin
+uno.
+
+**La auditoría de los otros filtros encontró un segundo bug de la misma
+familia:** el de **Proveedor** comparaba por **razón social** y resolvía el id
+contra los mapas de proveedores, que se arman solo con los que **tienen**
+órdenes. Si no lo encontraba, salteaba el filtro entero y devolvía **todas**
+las órdenes en vez de ninguna. Con 10 proveedores de compras (6 con OC) y 12
+de servicio (**0** con OS), eso pasaba con la mayoría de las opciones del
+desplegable. Ahora compara ids. Tercer defecto menor, ya corregido: con "Tipo:
+Todas" el desplegable de Estado ofrecía `facturada`, `cerrada` y `anulada`
+**duplicados**, porque OC y OS comparten esos tres valores.
+
+Estado, rango de fechas y "solo pendientes" sí funcionaban. El filtrado se
+movió a `domain/ordenes-unificadas.ts::aplicarFiltrosOrdenes` (puro, 15 tests):
+un filtro que devuelve **más** filas de las que corresponde no se nota mirando
+la pantalla, y ahí estaba el problema.
+
+### El logo faltaba en el PDF descargado pero no en el del correo
+
+Son **dos documentos distintos**: el que se descarga es la vista
+`/ordenes-compra/[id]/imprimir` (HTML + `window.print()`, pide el PNG por
+URL), y el del correo lo genera `services/pdf-documentos.tsx`, que **incrusta
+el logo en base64** y no pide ninguna URL. De ahí la asimetría.
+
+Causa exacta: la app corre con `basePath: '/compras'` y el `src` iba **sin
+prefijo** porque `next/image` lo agregaba solo. Dejó de ser cierto al poner
+`images: { unoptimized: true }` (para esquivar el 404 del optimizador a través
+del rewrite entre proyectos de Vercel). Verificado en el código de Next 14:
+con `unoptimized`, `generateImgAttrs` devuelve el `src` **tal cual**, sin
+loader y sin basePath. Así que el navegador pedía `erp.logisalud.com/brand/…`
+— la raíz de **cobranzas**, que no tiene `public/brand/` — y daba 404.
+Verificado también del otro lado: `/compras/brand/…png` responde **200 con
+PNG real** en el deployment de producción. El asset nunca fue el problema.
+
+O sea: el arreglo anterior (`unoptimized`) resolvió el 404 del optimizador e
+introdujo este. Ahora el logo vive en `components/logo-logisalud.tsx`, con el
+prefijo puesto a mano desde `NEXT_PUBLIC_BASE_PATH` — la misma variable que ya
+usaban los combobox para sus `fetch`, mismo problema y misma solución, en un
+solo lugar. Afectaba **tres** pantallas: las dos vistas de impresión (OC y OS)
+y `MarcaDocumento`.
+
+### Proyección de pagos: de tarjetas por periodo a una tabla única
+
+Pedido de Mariela. Columnas estándar del módulo (Código, Origen, A quién, N°
+factura, Vencimiento, Días, Monto) más **Periodo como columna**, así la
+clasificación no se pierde. Ordenable por columna vía querystring, con
+**vencimiento ascendente** por defecto (el orden natural del reporte).
+
+**Los totales van en dos lugares, a propósito:** arriba, uno por periodo,
+calculado **siempre sobre todas las filas** —es a la vez el subtotal del
+periodo y la forma de filtrar por él, así que tiene que mostrar los cuatro
+números aunque estés viendo uno solo—; y al pie, el total de lo que estás
+viendo. **Se descartó la fila de subtotal antes de cada grupo**: solo tiene
+sentido si la tabla está siempre agrupada por periodo, y eso pelea con poder
+ordenar por vencimiento o por monto.
+
+Dos detalles del orden que no son obvios y están testeados: las filas **sin
+fecha** de vencimiento van al final en **las dos** direcciones (ascendente las
+pondría arriba y taparían justo lo que el reporte existe para mostrar), y
+ordenar por **monto agrupa primero por moneda** — comparar 1.000 soles contra
+900 dólares como si fueran el mismo número sería mezclar monedas por la puerta
+de atrás.
+
+### Código huérfano del rediseño de recepción, retirado
+
+`registrarRecepcion` (la vieja), `mapaProductosParaRecepcion`, y de
+`domain/recepcion.ts`: `clasificarLinea`, `validarRecepcion`, `mesesEntre`,
+`ESTADOS_CALIDAD`, `ETIQUETA_DISCREPANCIA` y los tipos del borrador viejo.
+**`domain/recepcion.ts` NO se pudo eliminar** como estaba previsto:
+`recepcionQuedaConforme` y `TipoDiscrepancia` siguen teniendo consumidores
+vivos en `services/recepciones.ts`. El archivo quedó en 39 líneas.
+
+**Hallazgo colateral, sin tocar:** `resolverDiscrepancia` quedó
+**inalcanzable** —su única UI (`resolucion.tsx`) se borró en el rediseño— y el
+loop "Discrepancias de Almacén sin resolver" del dashboard lee columnas que el
+flujo nuevo nunca escribe, así que no puede tener filas nunca. Inofensivo (una
+sección vacía no se renderiza), pero es una pantalla que no lleva a ninguna
+parte. Decidir aparte si se retira.
+
+---
+
 ## Deuda técnica conocida (menor, revisar aparte)
 
 - **Impuestos — estado `en_propuesta` muerto**: las filas de impuestos pueden
