@@ -452,6 +452,46 @@ no migración.
 
 ---
 
+## Varias guías de remisión, cada una con su archivo (2026-09-18)
+
+La 0062 dejó una asimetría que Sebas encontró usando la pantalla:
+`numeros_guia text[]` aceptaba varios números, pero
+`storage_path_guia_recibida text` guardaba **un solo archivo**. Almacén podía
+escribir "G-001, G-002" y subir una sola foto — el legajo quedaba incompleto y
+nada avisaba.
+
+**Migración 0064: tabla hija `almacen.recepciones_guias`** (número +
+storage_path + FK con `on delete cascade`, único por `(recepcion_id, numero)`).
+**No un segundo array**: una guía es un PAR, y dos arrays alineados por índice
+se desincronizan el día que alguien deja 3 números y 2 archivos — ahí ya no se
+sabe qué archivo es de qué guía y la base no lo impide. Acá cada fila es una
+guía completa o no existe.
+
+`numeros_guia` y `storage_path_guia_recibida` quedaron **sin uso** (con
+`comment` que lo dice). Borrarlas es una migración aparte: es lo único de esto
+que no se revierte con un deploy.
+
+**Validación por fila, no en bloque.** Una fila con número y sin archivo NO se
+ignora en silencio: se reclama nombrando la guía ("Falta subir el archivo de la
+guía G-002"). Y al revés también — un archivo subido sin número se reclama. La
+razón: quien escribió algo ahí lo escribió por algo, y descartarlo callado le
+pierde el dato.
+
+**UI:** filas repetibles con "+ Agregar otra guía" y "Quitar", cada una con su
+input de archivo. Arranca con una sola, que es el caso normal. Cada archivo
+sigue viajando en su propio request (el límite de body de las Server Actions no
+cambió). El botón de registrar se habilita con **al menos una guía completa**,
+el mismo criterio que valida el servidor.
+
+**Lectura:** `RecepcionDetalle.guias` sale de un embed directo
+`recepciones_guias(...)` — las dos tablas viven en el schema `almacen`, así que
+PostgREST sí las une; el límite es solo entre schemas distintos. La ficha de la
+recepción muestra cada número con su enlace "ver" al archivo.
+
+Riesgo de datos: ninguno. `almacen.recepciones` sigue en 0 filas.
+
+---
+
 ## Tres bugs de producción y un reporte rediseñado (2026-09-18)
 
 ### El filtro de Tipo no filtraba (Órdenes de compra y servicio)

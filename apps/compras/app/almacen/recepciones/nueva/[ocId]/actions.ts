@@ -35,12 +35,12 @@ export async function registrarRecepcionAction(
     resultado = await registrarRecepcionTresColumnas({
       ocId,
       fechaRecepcion: String(form.get('fechaRecepcion') ?? ''),
-      numerosGuia: String(form.get('numerosGuia') ?? '')
-        .split(',')
-        .map((g) => g.trim())
-        .filter(Boolean),
+      // Las guías viajan como JSON porque cada una es un par (número +
+      // archivo) y un FormData plano no representa una lista de pares sin
+      // inventar nombres tipo `guia[0][numero]`. El archivo ya se subió
+      // antes, en su propio request: acá solo llega su ruta.
+      guias: parsearGuias(form.get('guias')),
       numeroFactura: String(form.get('numeroFactura') ?? ''),
-      storagePathGuia: String(form.get('pathGuia') ?? '') || null,
       storagePathFactura: String(form.get('pathFactura') ?? '') || null,
       lineas: JSON.parse(String(form.get('lineas') ?? '[]')),
     })
@@ -48,4 +48,23 @@ export async function registrarRecepcionAction(
     return { error: e instanceof Error ? e.message : 'No se pudo registrar la recepción.' }
   }
   redirect(`/almacen/recepciones/${resultado.recepcionId}`)
+}
+
+/**
+ * Las guías que manda el formulario. Tolera basura de entrada —devuelve
+ * lista vacía— y deja que `validarRecepcionTresColumnas` sea la que exige al
+ * menos una completa: la validación de negocio vive en el dominio, no acá.
+ */
+function parsearGuias(crudo: FormDataEntryValue | null): { numero: string; storagePath: string | null }[] {
+  if (typeof crudo !== 'string' || !crudo) return []
+  try {
+    const datos = JSON.parse(crudo)
+    if (!Array.isArray(datos)) return []
+    return datos.map((g: any) => ({
+      numero: typeof g?.numero === 'string' ? g.numero : '',
+      storagePath: typeof g?.storagePath === 'string' && g.storagePath ? g.storagePath : null,
+    }))
+  } catch {
+    return []
+  }
 }

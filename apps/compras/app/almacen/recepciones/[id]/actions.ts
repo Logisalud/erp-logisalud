@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { cerrarOCConSaldoPendiente } from '@/services/ordenes-compra'
+import { obtenerUrlLegajoPagoDirecto } from '@/services/obligaciones'
 
 export type EstadoCierre = { error: string } | null
 
@@ -27,4 +28,17 @@ export async function cerrarOCDesdeRecepcionAction(
   }
   revalidatePath(`/ordenes-compra/${ocId}`)
   return null
+}
+
+/**
+ * Abre el archivo de una guía de remisión. Mismo bucket que el resto del
+ * legajo de compras, así que reusa la firma que ya existe en vez de agregar
+ * otra — un solo lugar que sabe firmar `legajos-compras`.
+ */
+export async function verArchivoGuiaAction(storagePath: string): Promise<{ url: string } | { error: string }> {
+  try {
+    return { url: await obtenerUrlLegajoPagoDirecto(storagePath) }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo abrir el archivo.' }
+  }
 }

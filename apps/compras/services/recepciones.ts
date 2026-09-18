@@ -163,8 +163,11 @@ export type RecepcionDetalle = {
   oc_id: string
   fecha_recepcion: string
   guia_remision: string | null
-  /** Las guías del modelo nuevo. Varias pueden venir con una sola factura. */
-  numeros_guia: string[] | null
+  /**
+   * Las guías, cada una con su archivo (0064). Varias pueden venir con una
+   * sola factura — de ahí que sea una lista y no un campo.
+   */
+  guias: { id: string; numero: string; storage_path: string }[]
   numero_factura: string | null
   estado: 'pendiente' | 'conforme' | 'con_discrepancia'
   observaciones: string | null
@@ -200,8 +203,9 @@ export async function obtenerRecepcion(id: string): Promise<RecepcionDetalle | n
   const { data, error } = await supabase
     .schema('almacen')
     .from('recepciones')
-    .select(`id, oc_id, fecha_recepcion, guia_remision, numeros_guia, numero_factura,
+    .select(`id, oc_id, fecha_recepcion, guia_remision, numero_factura,
              estado, observaciones,
+             recepciones_guias(id, numero, storage_path),
              recepciones_items(id, cantidad_guia, cantidad_factura, cantidad_fisica,
                                 lote, fecha_vencimiento, estado_calidad, tipo_discrepancia,
                                 cantidad_aceptada, cantidad_rechazada, observaciones,
@@ -229,7 +233,12 @@ export async function obtenerRecepcion(id: string): Promise<RecepcionDetalle | n
     oc_id: (data as any).oc_id,
     fecha_recepcion: (data as any).fecha_recepcion,
     guia_remision: (data as any).guia_remision,
-    numeros_guia: (data as any).numeros_guia ?? null,
+    // Embed directo y no una segunda consulta: las dos tablas viven en el
+    // schema `almacen`, así que PostgREST sí las une (el límite es entre
+    // schemas distintos — ver CLAUDE.md).
+    guias: ((data as any).recepciones_guias ?? []).map((g: any) => ({
+      id: g.id, numero: g.numero, storage_path: g.storage_path,
+    })),
     numero_factura: (data as any).numero_factura ?? null,
     estado: (data as any).estado,
     observaciones: (data as any).observaciones,
@@ -317,9 +326,9 @@ async function mapaProductosPorOCItem(ocItemIds: string[]) {
 export type BorradorRecepcionTresColumnas = {
   ocId: string
   fechaRecepcion: string
-  numerosGuia: string[]
+  /** Cada guía con SU archivo — ver migración 0064 y GuiaRecibida. */
+  guias: { numero: string; storagePath: string | null }[]
   numeroFactura: string
-  storagePathGuia: string | null
   storagePathFactura: string | null
   lineas: {
     ocItemId: string
@@ -395,16 +404,20 @@ export async function registrarRecepcionTresColumnas(
 
   const errores = validarRecepcionTresColumnas({
     fechaRecepcion: borrador.fechaRecepcion,
-    numerosGuia: borrador.numerosGuia,
+    guias: borrador.guias,
     numeroFactura: borrador.numeroFactura,
-    storagePathGuia: borrador.storagePathGuia,
     storagePathFactura: borrador.storagePathFactura,
     lineas: lineasDominio,
   })
   if (errores.length > 0) throw new Error(errores[0].mensaje)
 
   const totales = totalizarRecepcion(lineasDominio)
-  const guias = borrador.numerosGuia.map((g) => g.trim()).filter(Boolean)
+  // Solo las completas: la validación de arriba ya rechazó las filas a
+  // medio llenar, así que acá lo único que queda es descartar las vacías
+  // que el formulario pudo dejar de más.
+  const guias = borrador.guias
+    .map((g) => ({ numero: g.numero.trim(), storagePath: g.storagePath }))
+    .filter((g): g is { numero: string; storagePath: string } => !!g.numero && !!g.storagePath)
 
   // ── 1. La cabecera ────────────────────────────────────────────────────
   const { data: recepcion, error: errRec } = await supabase
@@ -414,12 +427,12 @@ export async function registrarRecepcionTresColumnas(
       oc_id: borrador.ocId,
       recibido_por: usuario.id,
       fecha_recepcion: borrador.fechaRecepcion,
-      // `guia_remision` (legacy) se llena con la primera para que las
-      // pantallas viejas sigan mostrando algo; el array es la fuente real.
-      guia_remision: guias[0] ?? null,
-      numeros_guia: guias,
+      // `guia_remision` (legacy) se llena con el número de la primera para
+      // que cualquier lectura vieja siga mostrando algo. Las guías de verdad
+      // van a almacen.recepciones_guias, más abajo — `numeros_guia` y
+      // `storage_path_guia_recibida` quedaron sin uso en 0064.
+      guia_remision: guias[0]?.numero ?? null,
       numero_factura: borrador.numeroFactura.trim(),
-      storage_path_guia_recibida: borrador.storagePathGuia,
       storage_path_factura_proveedor: borrador.storagePathFactura,
       estado: totales.lineasConDiscrepancia > 0 ? 'con_discrepancia' : 'conforme',
       conforme: totales.lineasConDiscrepancia === 0,
@@ -431,6 +444,23 @@ export async function registrarRecepcionTresColumnas(
     .select('id')
     .single()
   if (errRec) throw new Error(`No se pudo crear la recepción: ${errRec.message}`)
+
+  // ── 1b. Las guías, una fila por guía con su archivo ───────────────────
+  const { error: errGuias } = await supabase
+    .schema('almacen')
+    .from('recepciones_guias')
+    .insert(guias.map((g) => ({
+      recepcion_id: recepcion.id,
+      numero: g.numero,
+      storage_path: g.storagePath,
+    })))
+  if (errGuias) {
+    // Misma salida que si fallan las líneas: una recepción sin su legajo no
+    // sirve para nada, y dejarla a medias obligaría a alguien a adivinar qué
+    // le falta. El `on delete cascade` se lleva las guías que sí entraron.
+    await supabase.schema('almacen').from('recepciones').delete().eq('id', recepcion.id)
+    throw new Error(`No se pudieron guardar las guías: ${errGuias.message}`)
+  }
 
   // ── 2. Las líneas ─────────────────────────────────────────────────────
   const { error: errItems } = await supabase

@@ -109,9 +109,8 @@ describe('totales: IGV automático, nunca transcrito', () => {
 describe('validación', () => {
   const base = {
     fechaRecepcion: '2026-09-18',
-    numerosGuia: ['G-001'],
+    guias: [{ numero: 'G-001', storagePath: 'ruta/guia.pdf' }],
     numeroFactura: 'F001-123',
-    storagePathGuia: 'ruta/guia.pdf',
     storagePathFactura: 'ruta/factura.pdf',
     lineas: [linea()],
   }
@@ -120,22 +119,59 @@ describe('validación', () => {
     expect(validarRecepcionTresColumnas(base)).toEqual([])
   })
 
-  it('los DOS documentos son obligatorios: factura y guía llegan juntas', () => {
-    const sinGuia = validarRecepcionTresColumnas({ ...base, storagePathGuia: null })
-    expect(sinGuia.map((e) => e.campo)).toContain('archivoGuia')
+  it('la factura es obligatoria: llega junto con las guías', () => {
     const sinFactura = validarRecepcionTresColumnas({ ...base, storagePathFactura: null })
     expect(sinFactura.map((e) => e.campo)).toContain('archivoFactura')
   })
 
-  it('exige los dos números', () => {
-    expect(validarRecepcionTresColumnas({ ...base, numerosGuia: ['  '] })
-      .map((e) => e.campo)).toContain('numerosGuia')
+  it('exige el número de factura', () => {
     expect(validarRecepcionTresColumnas({ ...base, numeroFactura: '' })
       .map((e) => e.campo)).toContain('numeroFactura')
   })
 
-  it('varias guías con una sola factura es válido', () => {
-    expect(validarRecepcionTresColumnas({ ...base, numerosGuia: ['G-001', 'G-002'] })).toEqual([])
+  it('sin ninguna guía completa no pasa', () => {
+    expect(validarRecepcionTresColumnas({ ...base, guias: [] })
+      .map((e) => e.campo)).toContain('guias')
+    expect(validarRecepcionTresColumnas({ ...base, guias: [{ numero: '  ', storagePath: null }] })
+      .map((e) => e.campo)).toContain('guias')
+  })
+
+  it('una guía con número pero SIN archivo se reclama, no se ignora', () => {
+    const errores = validarRecepcionTresColumnas({
+      ...base,
+      guias: [{ numero: 'G-001', storagePath: 'ruta/1.pdf' }, { numero: 'G-002', storagePath: null }],
+    })
+    expect(errores.map((e) => e.campo)).toContain('guia-1-archivo')
+    expect(errores[0].mensaje).toContain('G-002')
+  })
+
+  it('un archivo subido SIN número también se reclama', () => {
+    const errores = validarRecepcionTresColumnas({
+      ...base,
+      guias: [{ numero: 'G-001', storagePath: 'ruta/1.pdf' }, { numero: '', storagePath: 'ruta/2.pdf' }],
+    })
+    expect(errores.map((e) => e.campo)).toContain('guia-1-numero')
+  })
+
+  it('dos guías con el mismo número es un error de tipeo, no un caso real', () => {
+    const errores = validarRecepcionTresColumnas({
+      ...base,
+      guias: [
+        { numero: 'G-001', storagePath: 'ruta/1.pdf' },
+        { numero: 'G-001', storagePath: 'ruta/2.pdf' },
+      ],
+    })
+    expect(errores.map((e) => e.campo)).toContain('guias')
+  })
+
+  it('varias guías, cada una con SU archivo, y una sola factura es válido', () => {
+    expect(validarRecepcionTresColumnas({
+      ...base,
+      guias: [
+        { numero: 'G-001', storagePath: 'ruta/1.pdf' },
+        { numero: 'G-002', storagePath: 'ruta/2.pdf' },
+      ],
+    })).toEqual([])
   })
 
   it('observaciones OBLIGATORIA cuando hay discrepancia factura↔físico', () => {
