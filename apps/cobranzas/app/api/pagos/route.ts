@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     retencion?: number;      // monto de retención de IGV (3%), opcional
     solo_retencion?: boolean; // si true, inserta SOLO la retención (el pago ya existe)
     registrado_por?: string; // quién registra el pago (sin sistema de login, es texto libre)
-    medio_cobro?: 'transferencia' | 'efectivo';
+    medio_cobro?: 'transferencia' | 'efectivo' | 'cheque';
   };
 
   if (!documento_id || !monto || !fecha_pago)
@@ -51,12 +51,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El monto debe ser mayor a 0' }, { status: 400 });
   if (retencion !== undefined && Number(retencion) < 0)
     return NextResponse.json({ error: 'La retención no puede ser negativa' }, { status: 400 });
-  if (medio_cobro !== undefined && medio_cobro !== 'transferencia' && medio_cobro !== 'efectivo')
+  if (medio_cobro !== undefined && !['transferencia', 'efectivo', 'cheque'].includes(medio_cobro))
     return NextResponse.json({ error: 'medio_cobro inválido' }, { status: 400 });
 
-  // Un pago en efectivo entra siempre como "cobrado, por depositar" — sin que
-  // nadie tenga que marcarlo manualmente en el momento del registro.
-  const esEfectivo = medio_cobro === 'efectivo';
+  // Efectivo y cheque entran siempre como "cobrado, por depositar" — hay que
+  // llevarlos físicamente al banco antes de que sea plata real, sin que nadie
+  // tenga que marcarlo manualmente en el momento del registro.
+  const requiereDeposito = medio_cobro === 'efectivo' || medio_cobro === 'cheque';
 
   const db = supabaseAdmin();
 
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
     voucher_path: voucher_path ?? null,
     tipo: 'pago',
     registrado_por: registrado_por?.trim() || null,
-    ...(esEfectivo ? { medio_cobro: 'efectivo', estado_efectivo: 'cobrado_por_depositar' } : {}),
+    ...(requiereDeposito ? { medio_cobro, estado_efectivo: 'cobrado_por_depositar' } : {}),
   }];
   if (retencion !== undefined && Number(retencion) > 0) {
     rows.push({

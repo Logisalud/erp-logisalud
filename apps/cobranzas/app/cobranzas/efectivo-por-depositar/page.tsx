@@ -8,6 +8,7 @@ interface Fila {
   comprobante: string;
   cliente_ruc: string | null;
   razon_social: string;
+  medio_cobro: 'efectivo' | 'cheque';
   monto: number;
   fecha_pago: string;
   registrado_por: string | null;
@@ -114,7 +115,7 @@ export default function EfectivoPorDepositarPage() {
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
-            <p className="text-white/70 text-sm">Efectivo por depositar</p>
+            <p className="text-white/70 text-sm">Efectivo y cheques por depositar</p>
           </div>
           <a href="/cobranzas" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
         </div>
@@ -147,29 +148,34 @@ export default function EfectivoPorDepositarPage() {
           <div className="text-center py-16 text-gray-400 text-sm">Cargando…</div>
         ) : filas.length === 0 ? (
           <div className="text-center py-16 text-gray-400 text-sm bg-white rounded-xl border border-gray-200">
-            No hay efectivo pendiente de depositar. 🎉
+            No hay efectivo ni cheques pendientes de depositar. 🎉
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="divide-y divide-gray-100">
               {filas.map(f => {
                 const depositado = f.estado_efectivo === 'depositado';
+                const icono = f.medio_cobro === 'cheque' ? '🏦' : '💵';
+                const medioLabel = f.medio_cobro === 'cheque' ? 'Cheque' : 'Efectivo';
                 return (
                   <div key={f.id} className={`px-5 py-4 ${depositado ? 'opacity-75' : ''}`}>
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono font-semibold text-logisalud-green text-sm">{f.comprobante}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">
+                            {icono} {medioLabel}
+                          </span>
                           {depositado ? (
                             <>
                               <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
-                                💵 Depositado {f.fecha_deposito ? `(${fmtFecha(f.fecha_deposito)})` : ''}
+                                Depositado {f.fecha_deposito ? `(${fmtFecha(f.fecha_deposito)})` : ''}
                               </span>
                               {f.referencia && <span className="text-xs text-gray-500">Ref: {f.referencia}</span>}
                             </>
                           ) : (
                             <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
-                              💵 {f.dias_sin_depositar} {f.dias_sin_depositar === 1 ? 'día' : 'días'} sin depositar
+                              {f.dias_sin_depositar} {f.dias_sin_depositar === 1 ? 'día' : 'días'} sin depositar
                             </span>
                           )}
                         </div>
