@@ -138,6 +138,24 @@ Sebas").
 
 ---
 
+## Las migraciones del proyecto consolidado se aplican A MANO
+
+No hay integración de Supabase con GitHub para `erp-cobranzas`
+(`qpkigzniatidsvnxikox`): mergear a `main` **no** aplica nada. Todas las
+migraciones de `apps/compras/supabase/migrations/` se aplican con
+`apply_migration` por MCP, una por una, y conviene verificar con
+`list_migrations` después.
+
+Ojo con no confundirlo con `apps/pedidos`, cuyo CLAUDE.md dice que las suyas
+**sí** se aplican al mergear — es otro proyecto de Supabase
+(`Logisalud_pedidos`) y otra configuración.
+
+Ya costó un viaje de ida y vuelta: la 0063 (botón de Pedidos) se mergeó el
+2026-09-18 y la pantalla siguió mostrando "Próximamente" porque la fila de
+`public.modulos` nunca se actualizó. El código estaba bien; faltaba aplicar.
+
+---
+
 ## Al crear un schema nuevo: dos pasos, ninguno automático
 
 Aprendido en producción el 2026-09-15, con `/planilla` caída dos días. Un

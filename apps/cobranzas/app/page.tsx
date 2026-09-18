@@ -161,11 +161,16 @@ export default async function PantallaModulos() {
                   href={m.ruta}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-4 inline-flex min-h-12 items-center justify-center gap-1.5 rounded-lg px-4 font-medium text-white"
+                  /* Mismas clases exactas que el botón interno: para quien
+                     entra, Pedidos es un módulo más y no tiene por qué verse
+                     distinto. Lo único que cambia es invisible — se abre en
+                     otra pestaña, y eso se anuncia solo a un lector de
+                     pantalla. */
+                  className="mt-4 inline-flex min-h-12 items-center justify-center rounded-lg px-4 font-medium text-white"
                   style={{ backgroundColor: '#4BB168' }}
                 >
-                  Abrir <span aria-hidden>↗</span>
-                  <span className="sr-only">(se abre en otra pestaña)</span>
+                  Entrar
+                  <span className="sr-only"> (se abre en otra pestaña)</span>
                 </a>
               ) : m.disponible ? (
                 <Link
