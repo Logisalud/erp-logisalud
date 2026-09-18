@@ -23,6 +23,8 @@ import { BotonCorregirFechaPago } from './corregir-fecha-pago'
 import { etiquetaReemplazo, puedeReemplazarConstancia } from '@/domain/reemplazo-constancia'
 import { etiquetaCorreccion, puedeCorregirFechaDePago } from '@/domain/correccion-fecha-pago'
 import { NotasCredito } from './notas-credito'
+import { NotaCreditoDeRecepcion } from './nota-credito-recepcion'
+import { puedeRegistrarNotaCreditoDeRecepcion } from '@/domain/nota-credito-recepcion'
 import { VerVoucher } from './ver-voucher'
 import { verLegajoPagoDirectoAction } from './actions'
 
@@ -37,8 +39,17 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   // área (Fase 1.7) — Beatriz (contabilidad, operativo) sigue viendo y
   // registrando obligaciones, pero este botón específico no le aparece.
   const califica = perfil?.area === 'admin' || (perfil?.area === 'contabilidad' && perfil?.rol === 'admin')
+  // Caso A de la recepción de tres columnas: llegó menos de lo facturado.
+  // Hasta que esté la nota de crédito del proveedor, esta obligación no entra
+  // a ninguna propuesta de pago (services/propuestas.ts) — y es lo ÚNICO que
+  // hay que decidir acá, así que el resto de las acciones esperan.
+  const esperaNotaCredito = obligacion.espera_nota_credito
+  const puedeRegistrarNc =
+    puedeRegistrarNotaCreditoDeRecepcion(perfil) && !!obligacion.proveedor_id
   const puedeDarConformidad =
-    califica && (obligacion.estado === 'registrada' || obligacion.estado === 'observada')
+    califica &&
+    !esperaNotaCredito &&
+    (obligacion.estado === 'registrada' || obligacion.estado === 'observada')
   // Pieza E: sin factura real no hay nada que conformar ni pagar — lo único
   // que se puede hacer es completar el comprobante que faltaba.
   const pendienteDeFactura = obligacion.estado === 'pendiente_factura'
@@ -98,6 +109,29 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <Encabezado titulo={obligacion.codigo} atras={{ href: '/cuentas-por-pagar', texto: 'Cuentas por Pagar' }} />
+
+      {/* Arriba de todo y antes de los datos: es el único motivo por el que
+          esta obligación está detenida, y quien la abre necesita verlo sin
+          buscarlo. */}
+      {esperaNotaCredito ? (
+        puedeRegistrarNc ? (
+          <div className="mb-4">
+            <NotaCreditoDeRecepcion
+              obligacionId={obligacion.id}
+              codigo={obligacion.codigo}
+              total={obligacion.total}
+              moneda={obligacion.moneda}
+              observaciones={obligacion.observaciones}
+            />
+          </div>
+        ) : (
+          <p className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+            En la recepción llegó menos mercadería de la que dice la factura. Esta obligación no
+            entra a propuesta de pago hasta que Contabilidad registre la nota de crédito del
+            proveedor.
+          </p>
+        )
+      ) : null}
 
       <section className="card">
         <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
@@ -288,10 +322,15 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
 
       <section className="card mt-4">
         <h2 className="font-heading text-lg">Notas de crédito</h2>
+        {/* Mientras la obligación espera la NC de la recepción, el alta
+            genérica queda fuera: registrar una por ahí NO levanta el freno
+            (solo lo hace registrarNotaCreditoDeRecepcion), y quedaría una
+            obligación con su NC cargada y todavía detenida sin explicación. */}
         <NotasCredito
           obligacionId={obligacion.id}
           moneda={obligacion.moneda}
           notasCredito={obligacion.notasCredito}
+          permitirRegistrar={!esperaNotaCredito}
         />
       </section>
     </main>

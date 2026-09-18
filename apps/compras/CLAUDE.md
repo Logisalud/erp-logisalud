@@ -37,8 +37,16 @@ Estado (ver sección 9 del documento, "Alcance por Pull Request"):
 
 1. ✅ Migración SQL de los 8 schemas + RLS + Storage.
 2. ✅ Compras + Órdenes de Compra (proveedores, productos, OC con líneas).
-3. ✅ Almacén + Discrepancias (recepción contra OC, clasificación
-   automática, resolución del responsable de Almacén).
+3. ✅ Almacén — **recepción de TRES COLUMNAS** (rediseñada 2026-09-18): por
+   línea, Cantidad OC (fija) → Cantidad Factura (vs OC) → Cantidad Física
+   (vs Factura), más observaciones. Almacén sube guía y factura juntas y la
+   obligación **nace sola** con base/IGV/total calculados. La discrepancia
+   que importa es físico vs factura: si llegó menos, la obligación queda
+   esperando nota de crédito y fuera de propuesta de pago —Contabilidad la
+   registra desde la ficha de la obligación, y es lo único que levanta ese
+   freno—; si llegó más, se paga igual y el excedente queda marcado. La
+   matriz de discrepancias y el control de lote/vencimiento quedaron FUERA
+   (ver CONTEXTO.md y el aviso al inicio de docs/recepcion-mercaderia.md).
 4. ✅ Cuentas por Pagar core (obligaciones desde una recepción conforme,
    conciliación de 3 vías, conformidad, propuestas de pago, aprobación de
    Gerencia, pago). Soporta origen `compra`, `gasto_directo`, `reembolso`

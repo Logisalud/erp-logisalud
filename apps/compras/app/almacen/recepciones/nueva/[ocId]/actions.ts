@@ -1,71 +1,51 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { registrarRecepcion } from '@/services/recepciones'
-import { validarRecepcion, type BorradorRecepcion } from '@/domain/recepcion'
+import {
+  registrarRecepcionTresColumnas, subirDocumentoRecepcion,
+} from '@/services/recepciones'
 
-export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
+export type EstadoFormulario = { error: string } | null
+
+/** Sube un documento SOLO. Ver el comentario del servicio: va en su propio
+ *  request para no chocar con el límite de body de la Server Action. */
+export async function subirDocumentoAction(
+  ocCodigo: string,
+  cual: 'guia' | 'factura',
+  form: FormData
+): Promise<{ path: string } | { error: string }> {
+  const archivo = form.get('archivo')
+  if (!(archivo instanceof File)) return { error: 'No llegó ningún archivo.' }
+  return subirDocumentoRecepcion(ocCodigo, cual, archivo)
+}
 
 /**
- * Registra la recepción. Valida en el servidor con `validarRecepcion` aunque
- * el formulario ya valide en el navegador — mismo criterio que
- * ordenes-compra/nueva/actions.ts.
+ * Registra la recepción y, con ella, la obligación.
+ *
+ * Las cantidades llegan del formulario pero los PRECIOS no: el servicio los
+ * lee de la OC. Almacén declara qué llegó, nunca cuánto vale.
  */
 export async function registrarRecepcionAction(
   ocId: string,
   _previo: EstadoFormulario,
   form: FormData
 ): Promise<EstadoFormulario> {
-  const borrador: BorradorRecepcion = {
-    ocId,
-    fechaRecepcion: String(form.get('fechaRecepcion') ?? ''),
-    guiaRemision: textoONull(form.get('guiaRemision')),
-    lineas: leerLineas(form),
-  }
-
-  const errores = validarRecepcion(borrador)
-  if (errores.length > 0) return { errores }
-
-  let recepcion: { id: string }
+  let resultado: { recepcionId: string }
   try {
-    recepcion = await registrarRecepcion(borrador)
+    resultado = await registrarRecepcionTresColumnas({
+      ocId,
+      fechaRecepcion: String(form.get('fechaRecepcion') ?? ''),
+      numerosGuia: String(form.get('numerosGuia') ?? '')
+        .split(',')
+        .map((g) => g.trim())
+        .filter(Boolean),
+      numeroFactura: String(form.get('numeroFactura') ?? ''),
+      storagePathGuia: String(form.get('pathGuia') ?? '') || null,
+      storagePathFactura: String(form.get('pathFactura') ?? '') || null,
+      lineas: JSON.parse(String(form.get('lineas') ?? '[]')),
+    })
   } catch (e) {
-    return { errores: [{ campo: 'general', mensaje: (e as Error).message }] }
+    return { error: e instanceof Error ? e.message : 'No se pudo registrar la recepción.' }
   }
-
-  redirect(`/almacen/recepciones/${recepcion.id}`)
-}
-
-function leerLineas(form: FormData) {
-  const ocItemIds = form.getAll('linea_ocItemId').map(String)
-  const cantidadesFisicas = form.getAll('linea_cantidadFisica').map(String)
-  const cantidadesGuia = form.getAll('linea_cantidadGuia').map(String)
-  const lotes = form.getAll('linea_lote').map(String)
-  const fechasVencimiento = form.getAll('linea_fechaVencimiento').map(String)
-  const danados = form.getAll('linea_danado').map(String)
-  const productosErroneos = form.getAll('linea_productoErroneo').map(String)
-  const controlaLotes = form.getAll('linea_controlaLote').map(String)
-  const controlaVencimientos = form.getAll('linea_controlaVencimiento').map(String)
-
-  return ocItemIds.map((ocItemId, i) => ({
-    ocItemId,
-    cantidadFisica: Number(cantidadesFisicas[i] ?? 0),
-    cantidadGuia: numeroONull(cantidadesGuia[i]),
-    lote: textoONull(lotes[i]),
-    fechaVencimiento: textoONull(fechasVencimiento[i]),
-    danado: danados[i] === 'true',
-    productoErroneo: productosErroneos[i] === 'true',
-    controlaLote: controlaLotes[i] === 'true',
-    controlaVencimiento: controlaVencimientos[i] === 'true',
-  }))
-}
-
-function textoONull(v: FormDataEntryValue | null | string): string | null {
-  const s = v == null ? '' : String(v).trim()
-  return s === '' ? null : s
-}
-
-function numeroONull(v: FormDataEntryValue | null | string): number | null {
-  const s = textoONull(v)
-  return s == null ? null : Number(s)
+  redirect(`/almacen/recepciones/${resultado.recepcionId}`)
 }

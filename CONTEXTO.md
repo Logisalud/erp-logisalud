@@ -337,6 +337,103 @@ es el desglose tributario.
 
 ---
 
+## Recepción de mercadería: el modelo de tres columnas (2026-09-18)
+
+Rediseño completo. `docs/recepcion-mercaderia.md` quedó como histórico con un
+aviso al principio; la fuente de verdad es `domain/recepcion-tres-columnas.ts`.
+
+**Los dos ejes, que NO son lo mismo** — confundirlos es el error caro de esta
+pantalla:
+
+| eje | qué significa | consecuencia |
+|---|---|---|
+| factura vs **OC pedida** | entrega parcial | informativo (azul). No bloquea nada |
+| físico vs **factura** | el proveedor cobra distinto de lo que entregó | plata (ámbar). Decide si se puede pagar |
+
+**La obligación se calcula SIEMPRE sobre lo facturado**, nunca sobre lo
+físico: la factura dice 100 y eso es lo que se debe hasta que exista una NC.
+Lo físico decide si esa obligación se puede pagar.
+
+**Los dos casos, y por qué son asimétricos:**
+
+- **Caso A, físico < factura** → obligación `observada` +
+  `espera_nota_credito = true`. **Excluida de propuesta de pago** hasta que
+  Contabilidad suba la NC en esa misma orden. Pagarla sería pagar de más.
+- **Caso B, físico > factura** → obligación `registrada`, **SÍ se paga**. Lo
+  facturado es correcto; retenerlo castigaría al proveedor por un error a
+  nuestro favor. El excedente queda anotado por línea.
+
+**El freno vive en `services/propuestas.ts::listarObligacionesConformes`**,
+que ahora filtra por dos condiciones: `estado = 'conforme'` **y**
+`espera_nota_credito = false`. Está en el servicio y no solo en la pantalla
+porque esa función es la puerta al desembolso.
+
+**Dónde se levanta el freno: la ficha de la obligación**
+(`/cuentas-por-pagar/[id]`), arriba de todo y antes de los datos — es el
+único motivo por el que ese registro está detenido. Solo Contabilidad rol
+admin (o admin) ve el formulario; el resto ve la explicación. Pide N° de NC,
+fecha de emisión, monto, motivo y el archivo, y muestra en vivo cuánto queda
+por pagar. `registrarNotaCreditoDeRecepcion` es lo ÚNICO que baja
+`espera_nota_credito`: reusa `registrarNotaCredito` + `aplicarNotaCredito` y
+lee el total, la moneda y el proveedor **de la base, no del formulario** (si
+viajaran en el FormData se podría declarar un total inflado para colar una NC
+mayor que la deuda). Sin transacción, como todo el módulo: la NC primero y el
+flag después, así un fallo a mitad deja la obligación todavía frenada —
+recuperable y del lado seguro. Mientras espera esa NC, el alta genérica de
+notas de crédito y el botón "Dar conformidad" quedan fuera de la ficha: una
+NC registrada por la vía genérica no levanta el freno, y dejaría la
+obligación detenida sin que se entienda por qué.
+
+**El listado lo marca por fila** (pedido de Mariela, 2026-09-18): chip
+`⏸ Esperando NC` **junto** al estado, no en su lugar — `observada` sigue
+siendo el estado real, el que filtran los chips y tabula el Excel; lo que
+faltaba era decir por qué está detenida, porque `observada` sola no
+distingue "hay que revisar la conciliación" de "esto no se mueve hasta que
+el proveedor emita la NC", y eso obligaba a entrar a cada fila. Va en
+`components/tabla-obligaciones.tsx`, así que la tabla de "Nueva propuesta de
+pago" lo hereda. El Excel lo baja en **columna propia** ("Esperando NC"),
+no dentro de `Estado`, para no romper el texto que se filtra del otro lado.
+El dashboard, en el loop de observadas, ahora dice el trabajo que toca en
+cada caso en vez de asumir que toda observada es una conciliación que no
+cuadró.
+
+**La conformidad de Contabilidad NO se eliminó**, se automatizó el caso
+feliz: sin discrepancia la obligación nace `registrada` con todo
+precalculado y Mariela aprueba con un clic; con discrepancia nace `observada`
+y tiene que intervenir. El valor del paso nunca fue recalcular —eso lo hace
+el sistema— sino que haya un segundo par de ojos antes de que nazca una
+deuda. Con `acceso_abierto_temporal` todavía en `true`, quitar el control
+humano habría dejado el sistema sin ninguno de los dos.
+
+**El cierre de la OC se decide DESPUÉS de recibir**, nunca antes. Después de
+registrar, la orden queda en uno de tres lugares y la pantalla lo dice:
+
+- se recibió todo → cerrable;
+- quedó saldo → *"Pendiente de cerrar: quedan N unidades en M productos"*, y
+  Charlie puede cerrarla igual (el proveedor no siempre completa) viendo el
+  desglose exacto y con motivo obligatorio;
+- falta la NC → *"Pendiente de cerrar: falta que Contabilidad suba la nota de
+  crédito"*, y **no se puede cerrar**: la NC tiene precedencia sobre el
+  saldo, porque cerrar ahí dejaría la obligación colgada.
+
+**`/facturas/nueva` sobrevive filtrada a `tipo=servicio`.** Casi la eliminé
+entera: atiende Órdenes de Compra **y de Servicio**, y Servicios no tiene
+recepción de mercadería —no hay nada que contar ni nadie que suba la
+factura— así que ahí Contabilidad la sigue registrando. Eliminarla habría
+dejado Servicios sin forma de facturar. Se borraron solo
+`/facturas/nueva/por-oc` y `/facturas/nueva/registrar/[ocId]`.
+
+**`intentarConciliarPendientes` se eliminó de verdad**, no comentado, tras
+verificar 0 filas en `facturas_pendientes`. Era el acoplamiento que hacía que
+registrar una recepción disparara la conciliación de facturas encoladas.
+`/facturas-pendientes` queda viva de solo lectura, como histórico.
+
+**Riesgo de datos del rediseño: ninguno.** `almacen.recepciones_items` tenía
+**0 filas** — nunca se registró una recepción en producción. Fue greenfield,
+no migración.
+
+---
+
 ## Deuda técnica conocida (menor, revisar aparte)
 
 - **Impuestos — estado `en_propuesta` muerto**: las filas de impuestos pueden

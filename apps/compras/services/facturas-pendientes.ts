@@ -301,34 +301,6 @@ async function procesarFacturaPendiente(facturaPendienteId: string, ocYaCargada?
     : { estado: 'conciliada', facturaPendienteId, obligacionId }
 }
 
-/**
- * Llamada desde services/recepciones.ts al final de registrar una
- * recepción: revisa si alguna factura "esperando mercadería" de esta OC ya
- * puede conciliar con lo que Almacén acaba de recibir. Best-effort: si una
- * fila individual falla, no aborta las demás ni la recepción que la
- * disparó — solo la deja como estaba, para que Contabilidad la vea igual en
- * la cola.
- */
-export async function intentarConciliarPendientes(ocId: string): Promise<void> {
-  const supabase = crearClienteServidor()
-  const { data: pendientes, error } = await supabase
-    .schema('cuentas_x_pagar')
-    .from('facturas_pendientes')
-    .select('id')
-    .eq('oc_id', ocId)
-    .eq('estado', 'esperando_mercaderia')
-    .order('created_at', { ascending: true })
-  if (error || !pendientes || pendientes.length === 0) return
-
-  for (const p of pendientes) {
-    try {
-      await procesarFacturaPendiente(p.id)
-    } catch {
-      // Best-effort — no bloquea la recepción que disparó el intento.
-    }
-  }
-}
-
 export type OCParaFacturarDirecto = {
   id: string
   codigo: string

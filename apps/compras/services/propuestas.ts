@@ -38,7 +38,21 @@ export type ObligacionConforme = {
   concepto: string | null
 }
 
-/** Lo que Tesorería puede meter a una propuesta nueva. */
+/**
+ * Lo que Tesorería puede meter a una propuesta nueva.
+ *
+ * Dos condiciones, no una:
+ *
+ *   · estado 'conforme' — Contabilidad ya la revisó.
+ *   · `espera_nota_credito = false` — llegó todo lo que el proveedor
+ *     facturó. Si llegó MENOS (Caso A de la recepción de tres columnas), la
+ *     obligación existe por el monto facturado pero pagarla sería pagar de
+ *     más: se espera la NC, que baja el neto. El filtro va acá y no solo en
+ *     la pantalla porque esto es la puerta al desembolso.
+ *
+ * Caso B (llegó MÁS de lo facturado) NO usa este freno: lo facturado es
+ * correcto y retenerlo castigaría al proveedor por un error a nuestro favor.
+ */
 export async function listarObligacionesConformes(): Promise<ObligacionConforme[]> {
   const supabase = crearClienteServidor()
   const { data, error } = await supabase
@@ -46,6 +60,7 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
     .from('obligaciones')
     .select('id, codigo, origen, estado, numero_factura, moneda, neto_a_pagar, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones, categoria_pago_directo_id')
     .eq('estado', 'conforme')
+    .eq('espera_nota_credito', false)
     .order('fecha_vencimiento_real')
 
   if (error) throw new Error(`No se pudieron listar las obligaciones conformes: ${error.message}`)

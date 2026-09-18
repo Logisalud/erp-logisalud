@@ -33,14 +33,19 @@ export default async function NuevaRecepcion({ params }: { params: { ocId: strin
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8">
+    <main className="mx-auto max-w-6xl px-4 py-8">
       <Encabezado titulo={oc.codigo} atras={{ href: '/almacen/recepciones/nueva', texto: 'Elegir otra orden' }} />
       <p className="mb-4 text-sm text-gray-600">
-        {oc.proveedor?.razon_social ?? 'proveedor no legible'} — carga lo que llegó
-        físicamente línea por línea. El sistema clasifica automáticamente si hay alguna
-        discrepancia contra lo pedido.
+        {oc.proveedor?.razon_social ?? 'proveedor no legible'} — subí la guía y la factura, y
+        revisá por línea lo que declara la factura y lo que llegó de verdad. El sistema calcula
+        el total y genera la obligación sola.
       </p>
-      <FormularioRecepcion ocId={oc.id} items={oc.items} />
+      <FormularioRecepcion
+        ocId={oc.id}
+        ocCodigo={oc.codigo}
+        moneda={oc.moneda}
+        items={oc.items}
+      />
     </main>
   )
 }

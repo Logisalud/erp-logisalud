@@ -7,9 +7,21 @@ import { Money } from '@/components/money'
 
 type NotaCredito = { id: string; numero_nc: string | null; monto: number; motivo: string; aplicada: boolean }
 
+/**
+ * `permitirRegistrar = false` deja solo la lista: es lo que pasa mientras la
+ * obligación espera la nota de crédito de una recepción del Caso A. Esa NC
+ * tiene su propio formulario (nota-credito-recepcion.tsx) porque es la única
+ * que levanta el freno de `espera_nota_credito`; una registrada desde acá
+ * dejaría la obligación detenida igual, sin que se entienda por qué.
+ */
 export function NotasCredito({
-  obligacionId, moneda, notasCredito,
-}: { obligacionId: string; moneda: string; notasCredito: NotaCredito[] }) {
+  obligacionId, moneda, notasCredito, permitirRegistrar = true,
+}: {
+  obligacionId: string
+  moneda: string
+  notasCredito: NotaCredito[]
+  permitirRegistrar?: boolean
+}) {
   const accionConObligacion = registrarNotaCreditoAction.bind(null, obligacionId)
   const [estado, accion] = useFormState<EstadoAccion, FormData>(accionConObligacion, null)
 
@@ -37,6 +49,7 @@ export function NotasCredito({
         </ul>
       )}
 
+      {permitirRegistrar ? (
       <form action={accion} className="rounded-md border border-gray-200 p-3">
         {estado?.error ? <p className="mb-2 text-sm text-red-700">{estado.error}</p> : null}
         <p className="mb-2 text-sm font-medium text-gray-800">Registrar nueva nota de crédito</p>
@@ -56,6 +69,7 @@ export function NotasCredito({
         </div>
         <BotonRegistrar />
       </form>
+      ) : null}
     </div>
   )
 }
