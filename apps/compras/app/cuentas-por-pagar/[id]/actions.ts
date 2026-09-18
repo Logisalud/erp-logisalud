@@ -15,8 +15,33 @@ import {
   corregirFechaDePago, reemplazarConstanciaPago, registrarPagoHistorico, subirVoucherHistorico,
 } from '@/services/pago-historico'
 import { esArchivoReemplazable } from '@/domain/reemplazo-constancia'
+import { obtenerUrlComprobante } from '@/services/solicitudes-gasto'
 
 export type EstadoAccion = { error: string } | null
+
+/**
+ * Revalida la ficha Y todas las listas donde esa obligación aparece.
+ *
+ * Antes cada acción revalidaba solo `/cuentas-por-pagar/[id]`, así que
+ * después de dar conformidad el listado y la bandeja seguían sirviendo el
+ * estado anterior desde caché. Eso es lo que hizo que 6 reembolsos de Sebas
+ * (C-0063 a C-0068) parecieran haber VUELTO a "Esperando conformidad" el
+ * 2026-09-18: el historial de estados demuestra que nunca retrocedieron
+ * —dos filas por obligación, `registrada → conforme` y nada más—, pero la
+ * pantalla que Mariela tenía abierta se había renderizado antes de
+ * aprobarlas y nadie la invalidó.
+ *
+ * Un susto de pérdida de datos que era caché. Por eso la lista de rutas vive
+ * en un solo lugar: agregar una acción nueva y olvidarse de una ruta es
+ * exactamente cómo volvería a pasar.
+ */
+function revalidarObligacion(obligacionId: string) {
+  revalidarObligacion(obligacionId)
+  revalidatePath('/cuentas-por-pagar')
+  revalidatePath('/pendientes-aprobar')
+  revalidatePath('/mis-operaciones')
+  revalidatePath('/dashboard')
+}
 
 export async function darConformidadAction(obligacionId: string): Promise<EstadoAccion> {
   try {
@@ -24,7 +49,7 @@ export async function darConformidadAction(obligacionId: string): Promise<Estado
   } catch (e) {
     return { error: (e as Error).message }
   }
-  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  revalidarObligacion(obligacionId)
   return null
 }
 
@@ -39,7 +64,7 @@ export async function anularPagoDirectoAction(
   } catch (e) {
     return { error: (e as Error).message }
   }
-  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  revalidarObligacion(obligacionId)
   return null
 }
 
@@ -54,7 +79,7 @@ export async function rechazarPagoDirectoAction(
   } catch (e) {
     return { error: (e as Error).message }
   }
-  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  revalidarObligacion(obligacionId)
   return null
 }
 
@@ -82,7 +107,7 @@ export async function registrarNotaCreditoAction(
   } catch (e) {
     return { error: (e as Error).message }
   }
-  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  revalidarObligacion(obligacionId)
   return null
 }
 
@@ -92,7 +117,7 @@ export async function aplicarNotaCreditoAction(obligacionId: string, notaCredito
   } catch (e) {
     return { error: (e as Error).message }
   }
-  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  revalidarObligacion(obligacionId)
   return null
 }
 
@@ -134,7 +159,7 @@ export async function registrarPagoHistoricoAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'No se pudo registrar el pago.' }
   }
-  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  revalidarObligacion(obligacionId)
   redirect(`/cuentas-por-pagar/${obligacionId}`)
 }
 
@@ -179,7 +204,7 @@ export async function reemplazarConstanciaAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'No se pudo reemplazar la constancia.' }
   }
-  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  revalidarObligacion(obligacionId)
   redirect(`/cuentas-por-pagar/${obligacionId}`)
 }
 
@@ -204,7 +229,7 @@ export async function corregirFechaPagoAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'No se pudo corregir la fecha del pago.' }
   }
-  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  revalidarObligacion(obligacionId)
   redirect(`/cuentas-por-pagar/${obligacionId}`)
 }
 
@@ -234,7 +259,7 @@ export async function registrarNotaCreditoDeRecepcionAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'No se pudo registrar la nota de crédito.' }
   }
-  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  revalidarObligacion(obligacionId)
   redirect(`/cuentas-por-pagar/${obligacionId}`)
 }
 
@@ -249,5 +274,17 @@ export async function subirArchivoNotaCreditoAction(
     return await subirNotaCreditoDeRecepcion(codigoObligacion, archivo)
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'No se pudo subir la nota de crédito.' }
+  }
+}
+
+/** El comprobante de un gasto/reembolso vive en `legajos-gastos`, no en el
+ *  bucket de compras — de ahí que necesite su propia firma. */
+export async function verComprobanteGastoAction(
+  storagePath: string
+): Promise<{ url: string } | { error: string }> {
+  try {
+    return { url: await obtenerUrlComprobante(storagePath) }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo abrir el comprobante.' }
   }
 }

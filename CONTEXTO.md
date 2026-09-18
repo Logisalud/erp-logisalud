@@ -452,6 +452,85 @@ no migración.
 
 ---
 
+## El susto que era caché, y tres piezas más (2026-09-18)
+
+### NO hubo reversión de estado ni pérdida de adjuntos
+
+Se reportó que 6 reembolsos de Sebas (C-0063 a C-0068) habían vuelto de
+"Conforme" a "Esperando conformidad" y que sus facturas habían desaparecido.
+**Las dos cosas eran falsas, y el historial lo prueba.**
+
+`cuentas_x_pagar.historial_estados` tiene **dos filas por obligación** en las
+siete: `null → registrada` y `registrada → conforme`. **Ninguna transición
+`conforme → registrada` existe.** `editado_por` es null en las 7 obligaciones
+y las 7 solicitudes. Lo que sí muestra es el horario: C-0069 pasó a conforme a
+las **15:39:01** y las otras seis entre **15:55:36 y 15:56:12**, una cada 7-8
+segundos. Una pantalla renderizada entre 15:39 y 15:55 muestra exactamente lo
+reportado.
+
+**La causa real: `revalidatePath`.** Cada acción de la ficha revalidaba solo
+`/cuentas-por-pagar/[id]`, nunca el listado ni la bandeja, así que estas
+seguían sirviendo el estado anterior desde caché. Ahora hay un helper
+`revalidarObligacion()` con todas las rutas en un solo lugar — agregar una
+acción y olvidarse de una ruta es exactamente cómo volvería a pasar.
+
+**Los adjuntos nunca se perdieron:** las 7 filas intactas en
+`gastos.solicitud_comprobantes` y los 7 archivos en `legajos-gastos` con peso
+real (712 KB a 2,8 MB). No era ninguna de las dos hipótesis —ni archivo
+borrado ni referencia perdida— sino una tercera: **están y no se mostraban**.
+`solicitud_comprobantes` lo leía solo la ficha de la solicitud; la de la
+obligación miraba `factura_storage_path`, que en un reembolso es null. Ahora
+la ficha muestra una sección con los comprobantes de la solicitud que la
+originó.
+
+**Auditoría global:** solo 3 transiciones hacia atrás en todo el sistema
+(C-0044, C-0053, C-0059: `en_propuesta → conforme`, las tres en el mismo
+instante), causadas por el rechazo de PP-2026-0014. Es el camino legítimo.
+
+### Tesorería no veía a quién le pagaba (migración 0066)
+
+Milagritos veía "Beneficiario: —" donde Mariela veía el nombre. La policy
+`perfiles_lectura` dejaba leer perfiles solo a `es_admin()` y `contabilidad`.
+**Tesorería es quien ejecuta el pago** y estaba viendo un guion en lugar del
+nombre de la persona a la que transfiere. Se abrió a cualquiera con perfil
+(`mi_area() is not null`), mismo criterio que el resto de las policies de
+lectura. `public.perfiles` tiene solo `id, nombre, area, rol` — ningún dato
+bancario, así que no amplía el acceso a nada sensible.
+
+### Las cuotas se generan AL CANJEAR, no después
+
+`canjearPorLetras` **ya era genérico**: recibe un `obligacionId` y nunca mira
+el `origen` — lo único que ramifica es de qué catálogo sale el proveedor. Así
+que un solo cambio cubre compra, servicio y gasto_directo, como se pidió.
+
+Ahora, al confirmar el canje, se genera la obligación de **cada cuota de
+inmediato**, con su fecha real de vencimiento y en estado **`conforme`**: la
+obligación original ya tenía la conformidad —si no, no se habría podido
+canjear— y partirla en cuotas no crea una deuda nueva. Pedirle conformidad
+otra vez a cada cuota sería aprobar dos veces la misma plata, y las dejaría
+fuera de Propuestas de pago, que es donde tienen que aparecer.
+
+`generarObligacionDeLetra()` es idempotente y la usan los dos caminos (el
+canje y la bandeja), así que un solo lugar decide con qué estado y qué
+vencimiento nace una cuota. **Los préstamos no cambian**: siguen diferidos,
+son otra tabla y otro mecanismo.
+
+**Backfill de los casos atascados:** 5 letras sin obligación, de C-0023 (2) y
+C-0061 (3), S/ 10.214,08. Se generaron C-0071 a C-0075, enlazadas 1 a 1.
+
+### Caja Chica: "Todos los fondos" y reporte descargable
+
+`listarMisFondos` filtra por custodio, así que Mariela no veía **ninguno** de
+los fondos que ella misma abre para otros. Se agregó "Todos los fondos",
+separada de "Mis fondos" y solo para contabilidad/admin — son dos preguntas
+distintas: qué manejo yo y qué hay. Más `/caja-chica/descargar`, Excel con
+fondo, custodio, fecha, categoría, descripción, comprobante, moneda, monto y
+reposición; el monto va como número para poder sumar la columna. Trae los
+movimientos repuestos y sin reponer: un gasto no deja de haber existido
+porque ya se repuso.
+
+---
+
 ## Una sola puerta al pago, cuotas visibles, y "Suministros" (2026-09-18)
 
 ### El formulario de pago vive SOLO en "Pagos por ejecutar"

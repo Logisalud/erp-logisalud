@@ -280,6 +280,92 @@ export async function canjearPorLetras(obligacionId: string, letras: readonly Bo
     .update({ estado: 'canjeada_por_letra' })
     .eq('id', obligacionId)
   if (errUpd) throw new Error(`Las cuotas se crearon pero no se pudo actualizar la obligación original: ${errUpd.message}`)
+
+  // ── Las obligaciones de cada cuota, DE INMEDIATO ──────────────────────
+  //
+  // Antes esto quedaba diferido: había que entrar a "Vencimientos próximos"
+  // y generarlas a mano, una por una, y solo las que caían en la ventana de
+  // días. Resultado: la obligación original salía de Cuentas por Pagar (pasa
+  // a `canjeada_por_letra`) y las cuotas todavía no entraban, así que la
+  // plata desaparecía de las tres pantallas — Cuentas por Pagar, reportes y
+  // Propuestas de pago. C-0061 quedó así.
+  //
+  // Vale igual para los tres orígenes (compra, servicio, gasto_directo)
+  // porque esta función nunca miró el `origen`: lo único que ramifica es de
+  // qué catálogo sale el proveedor.
+  //
+  // Sin transacción, como todo el módulo. Si falla a mitad quedan cuotas sin
+  // obligación, que es exactamente el estado del que veníamos y que la
+  // bandeja todavía sabe destrabar — no se pierde nada.
+  const { data: creadas } = await supabase
+    .schema('financiamiento')
+    .from('letras_por_pagar')
+    .select('id')
+    .eq('obligacion_origen_id', obligacionId)
+    .is('obligacion_id', null)
+
+  for (const l of creadas ?? []) {
+    await generarObligacionDeLetra(l.id)
+  }
+}
+
+/**
+ * Convierte UNA letra en su obligación, con su fecha real de vencimiento.
+ *
+ * Se llama desde dos lugares y hace lo mismo en los dos: al canjear (todas
+ * de una, ver `canjearPorLetras`) y desde la bandeja de vencimientos, que
+ * sigue existiendo para las cuotas de PRÉSTAMOS.
+ *
+ * Nace `conforme` y no `registrada`: la obligación original ya tenía la
+ * conformidad de Contabilidad —si no, no se habría podido canjear— y
+ * partirla en cuotas no crea una deuda nueva, reparte la misma. Pedirle
+ * conformidad otra vez a cada cuota sería aprobar dos veces la misma plata, y
+ * además las dejaría fuera de Propuestas de pago, que es justo donde tienen
+ * que aparecer.
+ */
+export async function generarObligacionDeLetra(letraId: string): Promise<string | null> {
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  const { data: letra } = await supabase
+    .schema('financiamiento')
+    .from('letras_por_pagar')
+    .select('id, proveedor_id, proveedor_servicio_id, moneda, monto, fecha_vencimiento, numero_letra, obligacion_id')
+    .eq('id', letraId)
+    .maybeSingle()
+  if (!letra) return null
+  // Idempotente: si ya tiene obligación no se crea otra. Importa porque el
+  // canje y la bandeja pueden tocar la misma letra.
+  if (letra.obligacion_id) return letra.obligacion_id
+
+  const { data: obligacion, error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .insert({
+      origen: 'letra_por_pagar',
+      proveedor_id: letra.proveedor_id,
+      proveedor_servicio_id: letra.proveedor_servicio_id,
+      moneda: letra.moneda,
+      base_imponible: letra.monto,
+      igv: 0,
+      // La fecha REAL de la cuota, no la de hoy: es lo que ordena Proyección
+      // de pagos y lo que decide en qué lote entra.
+      fecha_vencimiento_real: letra.fecha_vencimiento,
+      estado: 'conforme',
+      observaciones: `Cuota${letra.numero_letra ? ` ${letra.numero_letra}` : ''} de un pago en cuotas`,
+      created_by: usuario.id,
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(`No se pudo generar la obligación de la cuota: ${error.message}`)
+
+  await supabase
+    .schema('financiamiento')
+    .from('letras_por_pagar')
+    .update({ obligacion_id: obligacion.id, estado: 'en_propuesta' })
+    .eq('id', letra.id)
+
+  return obligacion.id
 }
 
 export type LetraListada = {
@@ -499,31 +585,9 @@ export async function generarObligacionesVencimientos(items: readonly { tipo: Ti
     }
 
     if (item.tipo === 'letra') {
-      const { data: letra } = await supabase
-        .schema('financiamiento')
-        .from('letras_por_pagar')
-        .select('id, proveedor_id, proveedor_servicio_id, moneda, monto')
-        .eq('id', item.id)
-        .maybeSingle()
-      if (!letra) continue
-
-      const { data: obligacion, error } = await supabase
-        .schema('cuentas_x_pagar')
-        .from('obligaciones')
-        .insert({
-          origen: 'letra_por_pagar',
-          // Desde 0044 una cuota puede ser de un proveedor de servicio —
-          // la obligación que genera tiene que apuntar al mismo catálogo,
-          // si no Tesorería no sabe a quién le paga.
-          proveedor_id: letra.proveedor_id,
-          proveedor_servicio_id: letra.proveedor_servicio_id,
-          moneda: letra.moneda,
-          base_imponible: letra.monto, igv: 0, estado: 'registrada', created_by: usuario.id,
-        })
-        .select('id')
-        .single()
-      if (error) throw new Error(`No se pudo generar la obligación de la letra: ${error.message}`)
-      await supabase.schema('financiamiento').from('letras_por_pagar').update({ obligacion_id: obligacion.id, estado: 'en_propuesta' }).eq('id', letra.id)
+      // Reusa la misma función que el canje: un solo lugar decide con qué
+      // estado y qué vencimiento nace la obligación de una cuota.
+      await generarObligacionDeLetra(item.id)
     }
   }
 }
