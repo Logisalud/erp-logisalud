@@ -138,6 +138,24 @@ Sebas").
 
 ---
 
+## Las migraciones del proyecto consolidado se aplican A MANO
+
+No hay integración de Supabase con GitHub para `erp-cobranzas`
+(`qpkigzniatidsvnxikox`): mergear a `main` **no** aplica nada. Todas las
+migraciones de `apps/compras/supabase/migrations/` se aplican con
+`apply_migration` por MCP, una por una, y conviene verificar con
+`list_migrations` después.
+
+Ojo con no confundirlo con `apps/pedidos`, cuyo CLAUDE.md dice que las suyas
+**sí** se aplican al mergear — es otro proyecto de Supabase
+(`Logisalud_pedidos`) y otra configuración.
+
+Ya costó un viaje de ida y vuelta: la 0063 (botón de Pedidos) se mergeó el
+2026-09-18 y la pantalla siguió mostrando "Próximamente" porque la fila de
+`public.modulos` nunca se actualizó. El código estaba bien; faltaba aplicar.
+
+---
+
 ## Al crear un schema nuevo: dos pasos, ninguno automático
 
 Aprendido en producción el 2026-09-15, con `/planilla` caída dos días. Un
@@ -431,6 +449,103 @@ registrar una recepción disparara la conciliación de facturas encoladas.
 **Riesgo de datos del rediseño: ninguno.** `almacen.recepciones_items` tenía
 **0 filas** — nunca se registró una recepción en producción. Fue greenfield,
 no migración.
+
+---
+
+## Una sola puerta al pago, cuotas visibles, y "Suministros" (2026-09-18)
+
+### El formulario de pago vive SOLO en "Pagos por ejecutar"
+
+Se llegaba al mismo formulario desde **Propuestas de pago** y desde **Pagos
+por ejecutar** — dos caminos al mismo lugar sin que quedara claro cuál era el
+bueno. Ahora son dos pantallas y cada una hace una cosa:
+
+| Pantalla | Para qué | Formulario de pago |
+|---|---|---|
+| `/cuentas-por-pagar/propuestas/[id]` | mirar y **aprobar** el lote | **no** |
+| `/pagos-por-ejecutar/[id]` | **desembolsar** | sí, y es la única |
+
+La tabla del lote se extrajo a `TablaLote` (prop `conPago`) para que las dos
+la compartan y no divergan. La pantalla de la propuesta, cuando el lote está
+aprobado y falta desembolsar, lleva con un botón a la de Tesorería.
+
+`/pagos-por-ejecutar/[id]` **se niega entera** si el lote no está aprobado: no
+alcanza con esconder el formulario, pagar sin aprobación sería saltarse la
+regla de oro del módulo.
+
+Trampa que casi se escapa: `ejecutarPagoAction` revalidaba solo
+`/cuentas-por-pagar/propuestas/[id]`. Al mudar el formulario, la pantalla
+donde se acababa de pagar quedaba mostrando el estado anterior. Ahora
+revalida las dos rutas más la bandeja.
+
+### Las cuotas de una factura pactada en partes ya aparecen
+
+Al canjear una factura por letras, la obligación original pasa a
+`canjeada_por_letra` —que no es un estado abierto— y sale del reporte, con
+razón: ya no se paga ella. Pero las cuotas que la reemplazan solo existen en
+`financiamiento` hasta que alguien las convierte en obligación, así que esa
+plata **no aparecía en ninguna pantalla**. Verificado en producción: 2
+obligaciones canjeadas, 5 letras pendientes, **0** obligaciones de letra.
+
+Proyección de pagos ahora suma `listarCuotasPendientesSinObligacion()` —sin
+ventana de días— y cada fila lleva su propio `href`: una obligación a su
+ficha, una cuota a la bandeja donde se genera, porque mandarla a una ficha que
+no existe sería una promesa falsa. Con un chip que dice *"cuota — falta
+generarla para poder pagarla"*.
+
+**La ventana de la bandeja pasó de 7 a 30 días.** Con 7, una cuota que vence
+en 13 no se podía generar ni queriendo, así que no había forma de ponerla en
+una propuesta de pago. 30 días es el horizonte con el que se arman los lotes.
+Los totales del reporte ya no dicen "obligación(es)" sino "pago(s)": no todas
+las filas son obligaciones.
+
+### Categoría "Suministros" (migración 0065)
+
+Una llanta no tenía dónde ir: caía en "Mantenimiento de flota" (que es el
+servicio, no el repuesto) o en "Otros gastos autorizados" (el cajón de
+sastre). Son 13 categorías activas ahora. `where not exists` y no
+`on conflict (nombre)` — esa tabla no tiene índice único sobre `nombre`, ya
+falló así en la 0061.
+
+---
+
+## Varias guías de remisión, cada una con su archivo (2026-09-18)
+
+La 0062 dejó una asimetría que Sebas encontró usando la pantalla:
+`numeros_guia text[]` aceptaba varios números, pero
+`storage_path_guia_recibida text` guardaba **un solo archivo**. Almacén podía
+escribir "G-001, G-002" y subir una sola foto — el legajo quedaba incompleto y
+nada avisaba.
+
+**Migración 0064: tabla hija `almacen.recepciones_guias`** (número +
+storage_path + FK con `on delete cascade`, único por `(recepcion_id, numero)`).
+**No un segundo array**: una guía es un PAR, y dos arrays alineados por índice
+se desincronizan el día que alguien deja 3 números y 2 archivos — ahí ya no se
+sabe qué archivo es de qué guía y la base no lo impide. Acá cada fila es una
+guía completa o no existe.
+
+`numeros_guia` y `storage_path_guia_recibida` quedaron **sin uso** (con
+`comment` que lo dice). Borrarlas es una migración aparte: es lo único de esto
+que no se revierte con un deploy.
+
+**Validación por fila, no en bloque.** Una fila con número y sin archivo NO se
+ignora en silencio: se reclama nombrando la guía ("Falta subir el archivo de la
+guía G-002"). Y al revés también — un archivo subido sin número se reclama. La
+razón: quien escribió algo ahí lo escribió por algo, y descartarlo callado le
+pierde el dato.
+
+**UI:** filas repetibles con "+ Agregar otra guía" y "Quitar", cada una con su
+input de archivo. Arranca con una sola, que es el caso normal. Cada archivo
+sigue viajando en su propio request (el límite de body de las Server Actions no
+cambió). El botón de registrar se habilita con **al menos una guía completa**,
+el mismo criterio que valida el servidor.
+
+**Lectura:** `RecepcionDetalle.guias` sale de un embed directo
+`recepciones_guias(...)` — las dos tablas viven en el schema `almacen`, así que
+PostgREST sí las une; el límite es solo entre schemas distintos. La ficha de la
+recepción muestra cada número con su enlace "ver" al archivo.
+
+Riesgo de datos: ninguno. `almacen.recepciones` sigue en 0 filas.
 
 ---
 

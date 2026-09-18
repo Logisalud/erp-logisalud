@@ -39,7 +39,7 @@ export async function listarPagosPorEjecutar(): Promise<LotePorEjecutar[]> {
         // en los lotes aprobados antes de la 0050, que no tienen esa fecha.
         esperaDesde: p.fecha_aprobacion ? 'aprobacion' : 'creacion',
         diasEsperando: diasEsperando(p.fecha_aprobacion ?? p.created_at, ahora),
-        href: `/cuentas-por-pagar/propuestas/${p.id}`,
+        href: `/pagos-por-ejecutar/${p.id}`,
       }
     })
     .filter((l): l is LotePorEjecutar => l !== null)

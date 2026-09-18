@@ -157,11 +157,21 @@ export type ErrorValidacion = { campo: string; mensaje: string }
  * factura↔físico. En una entrega parcial no se pide: que la factura cubra
  * menos que la OC no es un problema que haya que explicar.
  */
+/**
+ * Una guía de remisión: su número Y su archivo. Es un par indivisible — un
+ * número sin archivo deja el legajo incompleto, y un archivo sin número no
+ * se puede buscar. Por eso no son dos listas paralelas: alineadas por índice
+ * se desincronizan y nada lo impide (ver migración 0064).
+ */
+export type GuiaRecibida = {
+  numero: string
+  storagePath: string | null
+}
+
 export function validarRecepcionTresColumnas(input: {
   fechaRecepcion: string
-  numerosGuia: readonly string[]
+  guias: readonly GuiaRecibida[]
   numeroFactura: string
-  storagePathGuia: string | null
   storagePathFactura: string | null
   lineas: readonly LineaTresColumnas[]
 }): ErrorValidacion[] {
@@ -171,21 +181,35 @@ export function validarRecepcionTresColumnas(input: {
     errores.push({ campo: 'fechaRecepcion', mensaje: 'Pon la fecha en que llegó la mercadería.' })
   }
 
-  const guias = input.numerosGuia.map((g) => g.trim()).filter(Boolean)
-  if (guias.length === 0) {
-    errores.push({ campo: 'numerosGuia', mensaje: 'Pon el número de la guía de remisión.' })
+  // Una guía cuenta solo si tiene las DOS cosas. Una fila a medio llenar no
+  // se ignora en silencio: se reclama la parte que falta, porque el vendedor
+  // ya escribió algo ahí y borrarlo sin avisar sería perderle el dato.
+  const guias = input.guias.map((g) => ({ ...g, numero: g.numero.trim() }))
+  const completas = guias.filter((g) => g.numero && g.storagePath)
+  if (completas.length === 0) {
+    errores.push({ campo: 'guias', mensaje: 'Registra al menos una guía de remisión, con su número y su archivo.' })
   }
+  guias.forEach((g, i) => {
+    if (g.numero && !g.storagePath) {
+      errores.push({ campo: `guia-${i}-archivo`, mensaje: `Falta subir el archivo de la guía ${g.numero}.` })
+    }
+    if (!g.numero && g.storagePath) {
+      errores.push({ campo: `guia-${i}-numero`, mensaje: 'Falta el número de una de las guías que subiste.' })
+    }
+  })
+  const numeros = completas.map((g) => g.numero)
+  if (new Set(numeros).size !== numeros.length) {
+    errores.push({ campo: 'guias', mensaje: 'Hay dos guías con el mismo número — revisa si te repetiste.' })
+  }
+
   if (!input.numeroFactura.trim()) {
     errores.push({ campo: 'numeroFactura', mensaje: 'Pon el número de la factura.' })
   }
 
-  // Los dos archivos, siempre juntos: la regla nueva es que factura y guía
-  // llegan a la vez. Sin esto la obligación nacería sin respaldo y
-  // Contabilidad tendría que volver a pedirlo — regla 6 de la Carta de
-  // Simplicidad, "una sola fuente de verdad por dato".
-  if (!input.storagePathGuia) {
-    errores.push({ campo: 'archivoGuia', mensaje: 'Sube la foto o el PDF de la guía de remisión.' })
-  }
+  // La factura, siempre: la regla es que factura y guías llegan juntas. Sin
+  // esto la obligación nacería sin respaldo y Contabilidad tendría que
+  // volver a pedirlo — regla 6 de la Carta de Simplicidad, "una sola fuente
+  // de verdad por dato". El archivo de cada guía se exige arriba, por fila.
   if (!input.storagePathFactura) {
     errores.push({ campo: 'archivoFactura', mensaje: 'Sube la foto o el PDF de la factura.' })
   }

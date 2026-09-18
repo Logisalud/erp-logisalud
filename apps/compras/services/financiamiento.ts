@@ -306,7 +306,15 @@ export async function listarLetrasDeObligacion(obligacionOrigenId: string): Prom
   return data ?? []
 }
 
-const DIAS_VENTANA_VENCIMIENTOS = 7
+const DIAS_VENTANA_VENCIMIENTOS = 30
+
+/**
+ * Sin ventana: TODO lo pendiente, para el reporte de Proyección de pagos.
+ * La bandeja usa una ventana porque generar hoy la obligación de una cuota
+ * que vence en dos meses la deja ocupando Cuentas por Pagar sin motivo; el
+ * reporte, en cambio, existe justamente para ver lejos.
+ */
+const SIN_VENTANA = null
 
 /**
  * Regla 6 dice que la obligación se genera por "proceso programado" cuando
@@ -316,38 +324,50 @@ const DIAS_VENTANA_VENCIMIENTOS = 7
  * pronto y confirmando en lote — mismo criterio que Gerencia aprobando una
  * propuesta de pago entera de una vez, no obligación por obligación.
  */
-export async function listarVencimientosProximos(): Promise<VencimientoProximo[]> {
+export async function listarVencimientosProximos(
+  diasVentana: number | null = DIAS_VENTANA_VENCIMIENTOS
+): Promise<VencimientoProximo[]> {
   const supabase = crearClienteServidor()
   const hoy = hoyLima()
   // Se suma sobre el día de Lima y no sobre Date.now(): si no, la ventana
   // arranca en `hoy` (Lima) pero termina un día más allá esas 5 horas, y
   // la lista de vencimientos próximos cambiaba de largo según la hora.
-  const finVentana = new Date(`${hoy}T12:00:00Z`)
-  finVentana.setUTCDate(finVentana.getUTCDate() + DIAS_VENTANA_VENCIMIENTOS)
-  const limite = finVentana.toISOString().slice(0, 10)
+  let limite: string | null = null
+  if (diasVentana !== null) {
+    const finVentana = new Date(`${hoy}T12:00:00Z`)
+    finVentana.setUTCDate(finVentana.getUTCDate() + diasVentana)
+    limite = finVentana.toISOString().slice(0, 10)
+  }
+  // `lte` solo si hay ventana. PostgREST no acepta un filtro con undefined,
+  // así que la consulta se arma en dos pasos en vez de encadenar siempre.
+  const acotar = <T extends { lte: (col: string, v: string) => T }>(q: T): T =>
+    limite ? q.lte('fecha_vencimiento', limite) : q
 
   const [{ data: cuotasPrestamo }, { data: cuotasFraccionamiento }, { data: letras }] = await Promise.all([
-    supabase
-      .schema('financiamiento')
-      .from('prestamos_cuotas')
-      .select('id, prestamo_id, fecha_vencimiento, monto_cuota')
-      .eq('estado', 'pendiente')
-      .is('obligacion_id', null)
-      .lte('fecha_vencimiento', limite),
-    supabase
-      .schema('financiamiento')
-      .from('fraccionamientos_sunat_cuotas')
-      .select('id, fraccionamiento_id, fecha_vencimiento, monto_cuota')
-      .eq('estado', 'pendiente')
-      .is('obligacion_id', null)
-      .lte('fecha_vencimiento', limite),
-    supabase
-      .schema('financiamiento')
-      .from('letras_por_pagar')
-      .select('id, numero_letra, proveedor_id, moneda, fecha_vencimiento, monto')
-      .eq('estado', 'pendiente')
-      .is('obligacion_id', null)
-      .lte('fecha_vencimiento', limite),
+    acotar(
+      supabase
+        .schema('financiamiento')
+        .from('prestamos_cuotas')
+        .select('id, prestamo_id, fecha_vencimiento, monto_cuota')
+        .eq('estado', 'pendiente')
+        .is('obligacion_id', null)
+    ),
+    acotar(
+      supabase
+        .schema('financiamiento')
+        .from('fraccionamientos_sunat_cuotas')
+        .select('id, fraccionamiento_id, fecha_vencimiento, monto_cuota')
+        .eq('estado', 'pendiente')
+        .is('obligacion_id', null)
+    ),
+    acotar(
+      supabase
+        .schema('financiamiento')
+        .from('letras_por_pagar')
+        .select('id, numero_letra, proveedor_id, moneda, fecha_vencimiento, monto')
+        .eq('estado', 'pendiente')
+        .is('obligacion_id', null)
+    ),
   ])
 
   const prestamoIds = [...new Set((cuotasPrestamo ?? []).map((c) => c.prestamo_id))]
@@ -522,3 +542,20 @@ export async function marcarVencimientoPagado(obligacionId: string): Promise<voi
 }
 
 export { estaVencida }
+
+/**
+ * TODAS las cuotas y letras pendientes que todavía no son obligación, para
+ * que el reporte de Proyección de pagos las muestre.
+ *
+ * Por qué hace falta: al canjear una factura por letras, la obligación
+ * original pasa a `canjeada_por_letra` —que no es un estado "abierto"— y
+ * desaparece del reporte, con razón: ya no se paga ella. Pero las cuotas que
+ * la reemplazan solo existen en `financiamiento` hasta que alguien las
+ * convierte en obligación desde la bandeja. En el medio, esa plata no
+ * aparecía en NINGUNA pantalla: ni en Proyección ni en propuesta de pago.
+ * Verificado en producción el 2026-09-18: 2 obligaciones canjeadas, 5 letras
+ * pendientes, 0 obligaciones de letra.
+ */
+export async function listarCuotasPendientesSinObligacion(): Promise<VencimientoProximo[]> {
+  return listarVencimientosProximos(SIN_VENTANA)
+}

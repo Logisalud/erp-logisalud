@@ -54,34 +54,46 @@ export function FormularioRecepcion({
       return [i.id, { factura: pendiente, fisica: pendiente, obs: '' }]
     }))
   )
-  const [pathGuia, setPathGuia] = useState<string | null>(null)
+  /**
+   * Una fila por guía: su número y su archivo juntos. Arranca con una sola
+   * —el caso normal es una guía— y se agregan las que hagan falta.
+   */
+  const [guias, setGuias] = useState<FilaGuia[]>([{ numero: '', path: null, nombre: null }])
   const [pathFactura, setPathFactura] = useState<string | null>(null)
-  const [nombreGuia, setNombreGuia] = useState<string | null>(null)
   const [nombreFactura, setNombreFactura] = useState<string | null>(null)
-  const [subiendo, setSubiendo] = useState<'guia' | 'factura' | null>(null)
+  const [subiendo, setSubiendo] = useState<string | null>(null)
   const [errorArchivo, setErrorArchivo] = useState<string | null>(null)
+
+  const setGuia = (i: number, cambios: Partial<FilaGuia>) =>
+    setGuias((prev) => prev.map((g, j) => (j === i ? { ...g, ...cambios } : g)))
 
   const set = (id: string, cambios: Partial<{ factura: string; fisica: string; obs: string }>) =>
     setValores((prev) => ({ ...prev, [id]: { ...prev[id], ...cambios } }))
 
-  const subir = async (cual: 'guia' | 'factura', archivo: File | undefined) => {
+  /**
+   * Cada archivo viaja en su propio request, como antes. `clave` identifica
+   * qué campo se está subiendo para mostrar el "Subiendo…" en el lugar
+   * correcto: con varias guías ya no alcanza con 'guia' | 'factura'.
+   */
+  const subir = async (
+    clave: string,
+    cual: 'guia' | 'factura',
+    archivo: File | undefined,
+    alSubir: (path: string, nombre: string) => void
+  ) => {
     if (!archivo) return
     if (excedeTamanoMaximo(archivo.size)) {
       setErrorArchivo(mensajeArchivoDemasiadoGrande(archivo.name, archivo.size))
       return
     }
     setErrorArchivo(null)
-    setSubiendo(cual)
+    setSubiendo(clave)
     const datos = new FormData()
     datos.append('archivo', archivo)
     const r = await subirDocumentoAction(ocCodigo, cual, datos)
     setSubiendo(null)
-    if ('path' in r) {
-      if (cual === 'guia') { setPathGuia(r.path); setNombreGuia(archivo.name) }
-      else { setPathFactura(r.path); setNombreFactura(archivo.name) }
-    } else {
-      setErrorArchivo(r.error)
-    }
+    if ('path' in r) alSubir(r.path, archivo.name)
+    else setErrorArchivo(r.error)
   }
 
   // Las líneas en la forma del dominio, para calcular en vivo con la MISMA
@@ -102,7 +114,10 @@ export function FormularioRecepcion({
 
   return (
     <form action={accion} className="space-y-4">
-      <input type="hidden" name="pathGuia" value={pathGuia ?? ''} />
+      <input
+        type="hidden" name="guias"
+        value={JSON.stringify(guias.map((g) => ({ numero: g.numero, storagePath: g.path })))}
+      />
       <input type="hidden" name="pathFactura" value={pathFactura ?? ''} />
       <input type="hidden" name="lineas" value={JSON.stringify(lineas.map((l) => ({
         ocItemId: l.ocItemId,
@@ -121,23 +136,13 @@ export function FormularioRecepcion({
           guía llegan juntas, así que se piden juntas. */}
       <section className="card space-y-3">
         <h2 className="font-heading text-base">Los papeles que vinieron</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm">
             <span className="text-gray-600">Fecha de llegada</span>
             <input
               type="date" name="fechaRecepcion" required defaultValue={hoyLima()} max={hoyLima()}
               className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
             />
-          </label>
-          <label className="block text-sm">
-            <span className="text-gray-600">N° de guía</span>
-            <input
-              type="text" name="numerosGuia" required placeholder="G-001 o G-001, G-002"
-              className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
-            />
-            <span className="mt-1 block text-xs text-gray-500">
-              Si vinieron varias guías con la misma factura, separalas con coma.
-            </span>
           </label>
           <label className="block text-sm">
             <span className="text-gray-600">N° de factura</span>
@@ -148,14 +153,61 @@ export function FormularioRecepcion({
           </label>
         </div>
 
+        {/* Las guías, una fila por guía. Cuando el proveedor entrega en dos
+            viajes con la misma factura, cada guía trae su número Y su
+            papel — pedir los números separados por coma con un solo archivo
+            dejaba el legajo incompleto sin que nada avisara. */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-800">
+            Guías de remisión <span className="font-normal text-gray-500">— una por cada guía que llegó</span>
+          </p>
+          {guias.map((g, i) => (
+            <div key={i} className="grid gap-2 rounded-md border border-gray-200 p-3 sm:grid-cols-[1fr_2fr_auto] sm:items-start">
+              <label className="block text-sm">
+                <span className="text-gray-600">N° de guía {guias.length > 1 ? i + 1 : ''}</span>
+                <input
+                  type="text" value={g.numero} placeholder="G-001"
+                  onChange={(e) => setGuia(i, { numero: e.target.value })}
+                  className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
+                />
+              </label>
+              <CampoDocumento
+                etiqueta="📎 Su archivo" cual="guia"
+                nombre={g.nombre} subiendo={subiendo === `guia-${i}`}
+                onElegir={(cual, archivo) =>
+                  subir(`guia-${i}`, cual, archivo, (path, nombre) => setGuia(i, { path, nombre }))
+                }
+              />
+              {guias.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setGuias((prev) => prev.filter((_, j) => j !== i))}
+                  className="mt-1 self-center text-sm text-red-700 underline sm:mt-6"
+                >
+                  Quitar
+                </button>
+              ) : null}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setGuias((prev) => [...prev, { numero: '', path: null, nombre: null }])}
+            className="btn-secondary"
+          >
+            + Agregar otra guía
+          </button>
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2">
           <CampoDocumento
-            etiqueta="📎 Guía de remisión" cual="guia"
-            nombre={nombreGuia} subiendo={subiendo === 'guia'} onElegir={subir}
-          />
-          <CampoDocumento
             etiqueta="📎 Factura" cual="factura"
-            nombre={nombreFactura} subiendo={subiendo === 'factura'} onElegir={subir}
+            nombre={nombreFactura} subiendo={subiendo === 'factura'}
+            onElegir={(cual, archivo) =>
+              subir('factura', cual, archivo, (path, nombre) => {
+                setPathFactura(path)
+                setNombreFactura(nombre)
+              })
+            }
           />
         </div>
         {errorArchivo ? (
@@ -282,11 +334,23 @@ export function FormularioRecepcion({
             no se decide acá: se decide cuando ya se sabe qué llegó. */}
         <p className="text-xs text-gray-600">{mensajePendienteDeCierre(cierre)}</p>
 
-        <BotonRegistrar bloqueado={subiendo !== null || !pathGuia || !pathFactura} />
+        {/* Al menos una guía COMPLETA (número + archivo). El mismo criterio
+            que valida el servidor, para no dejar apretar algo que va a
+            volver con error. */}
+        <BotonRegistrar
+          bloqueado={
+            subiendo !== null ||
+            !pathFactura ||
+            !guias.some((g) => g.numero.trim() && g.path)
+          }
+        />
       </section>
     </form>
   )
 }
+
+/** Una fila del formulario de guías: número, y el archivo ya subido. */
+type FilaGuia = { numero: string; path: string | null; nombre: string | null }
 
 function CampoDocumento({
   etiqueta, cual, nombre, subiendo, onElegir,

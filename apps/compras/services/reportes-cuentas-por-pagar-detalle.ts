@@ -13,6 +13,7 @@ import {
 import type { EstadoObligacion } from '@/domain/obligacion'
 import { hoyLima } from '@/domain/fecha'
 import type { FilaProyeccion, VentanaProyeccion } from '@/domain/proyeccion-pagos'
+import { listarCuotasPendientesSinObligacion } from '@/services/financiamiento'
 
 /**
  * Los 4 reportes financieros de Cuentas por Pagar (Contabilidad/Tesorería) +
@@ -268,7 +269,14 @@ export type ReporteProyeccionPagos = {
 
 /** Reusa el detalle de abiertas (misma data, otra presentación) — evita duplicar la query. */
 export async function obtenerProyeccionPagos(): Promise<ReporteProyeccionPagos> {
-  const filas = await obtenerObligacionesAbiertas({})
+  const [filas, cuotas] = await Promise.all([
+    obtenerObligacionesAbiertas({}),
+    // Las cuotas/letras que todavía no son obligación. Sin esto, canjear una
+    // factura por letras la hacía desaparecer del reporte: la original sale
+    // (pasa a `canjeada_por_letra`, que no es un estado abierto) y las cuotas
+    // que la reemplazan no habían entrado todavía.
+    listarCuotasPendientesSinObligacion(),
+  ])
   // Los cortes de la proyección se anclan en el día de LIMA, no en el del
   // lambda: entre las 19:00 y la medianoche de Lima el servidor (UTC) ya
   // está en el día siguiente, y con él se corrían la semana y el mes de
@@ -290,20 +298,39 @@ export async function obtenerProyeccionPagos(): Promise<ReporteProyeccionPagos> 
     return 'despues'
   }
 
-  return {
-    filas: filas.map((f) => ({
-      id: f.id,
-      codigo: f.codigo,
-      origen: f.origen,
-      quien: f.quien,
-      numeroFactura: f.numeroFactura,
-      fechaVencimiento: f.fechaVencimiento,
-      diasVencido: f.diasVencido,
-      moneda: f.moneda,
-      netoAPagar: f.netoAPagar,
-      ventana: ventanaDe(f.fechaVencimiento),
-    })),
-  }
+  const deObligaciones: FilaProyeccion[] = filas.map((f) => ({
+    id: f.id,
+    codigo: f.codigo,
+    origen: f.origen,
+    quien: f.quien,
+    numeroFactura: f.numeroFactura,
+    fechaVencimiento: f.fechaVencimiento,
+    diasVencido: f.diasVencido,
+    moneda: f.moneda,
+    netoAPagar: f.netoAPagar,
+    ventana: ventanaDe(f.fechaVencimiento),
+    href: `/cuentas-por-pagar/${f.id}`,
+  }))
+
+  const hoyStr = hoyLima()
+  const deCuotas: FilaProyeccion[] = cuotas.map((c) => ({
+    id: `cuota-${c.tipo}-${c.id}`,
+    codigo: c.etiqueta,
+    origen: c.tipo === 'letra' ? 'letra_por_pagar' : c.tipo === 'prestamo' ? 'prestamo' : 'fraccionamiento_sunat',
+    quien: c.etiqueta,
+    numeroFactura: null,
+    fechaVencimiento: c.fechaVencimiento,
+    diasVencido: diasVencido(c.fechaVencimiento, hoyStr),
+    moneda: c.moneda,
+    netoAPagar: c.monto,
+    ventana: ventanaDe(c.fechaVencimiento),
+    // A la bandeja, que es donde se convierte en obligación: mandarla a una
+    // ficha de obligación que todavía no existe sería una promesa falsa.
+    href: '/financiamiento/vencimientos',
+    sinObligacion: true,
+  }))
+
+  return { filas: [...deObligaciones, ...deCuotas] }
 }
 
 // ---------------------------------------------------------------------------

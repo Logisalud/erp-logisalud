@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { obtenerRecepcion } from '@/services/recepciones'
 import { obtenerSaldoPendienteOC } from '@/services/ordenes-compra'
+import { VerVoucher } from '@/app/cuentas-por-pagar/[id]/ver-voucher'
+import { verArchivoGuiaAction } from './actions'
 import { BotonCerrarOCDesdeRecepcion } from './cerrar-oc'
 
 export const dynamic = 'force-dynamic'
@@ -41,10 +43,31 @@ export default async function DetalleRecepcion({ params }: { params: { id: strin
         <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
           <Dato termino="Proveedor" valor={recepcion.oc?.proveedor?.razon_social ?? null} />
           <Dato termino="Llegó el" valor={recepcion.fecha_recepcion} />
-          <Dato
-            termino={(recepcion.numeros_guia?.length ?? 0) > 1 ? 'Guías de remisión' : 'Guía de remisión'}
-            valor={recepcion.numeros_guia?.join(', ') ?? recepcion.guia_remision}
-          />
+          {/* Cada guía con su archivo al lado: es la única forma de ver de
+              un vistazo si el legajo está completo. Antes eran números
+              separados por coma y un solo adjunto, así que faltar un papel
+              no se notaba. */}
+          <div className="flex gap-2 sm:col-span-2">
+            <dt className="text-gray-500">
+              {recepcion.guias.length === 1 ? 'Guía de remisión' : 'Guías de remisión'}:
+            </dt>
+            <dd className="flex flex-wrap gap-x-4 gap-y-1">
+              {recepcion.guias.length === 0 ? (
+                recepcion.guia_remision || '—'
+              ) : (
+                recepcion.guias.map((g) => (
+                  <span key={g.id} className="flex items-center gap-1.5">
+                    <span>{g.numero}</span>
+                    <VerVoucher
+                      storagePath={g.storage_path}
+                      etiqueta="ver"
+                      accion={verArchivoGuiaAction}
+                    />
+                  </span>
+                ))
+              )}
+            </dd>
+          </div>
           <Dato termino="Factura" valor={recepcion.numero_factura} />
           <Dato termino="Estado" valor={ETIQUETA_ESTADO_RECEPCION[recepcion.estado] ?? recepcion.estado} />
         </dl>

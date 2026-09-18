@@ -75,6 +75,18 @@ export type FilaProyeccion = {
   moneda: string
   netoAPagar: number
   ventana: VentanaProyeccion
+  /**
+   * A dónde lleva la fila. Una obligación va a su ficha; una cuota que
+   * todavía no es obligación va a la bandeja donde se genera — llevarla a
+   * una ficha que no existe sería una promesa falsa.
+   */
+  href: string
+  /**
+   * Cuota o letra pendiente que TODAVÍA no es obligación. Se muestra igual
+   * —la plata se debe— pero no se puede poner en una propuesta de pago hasta
+   * generarla, y la fila tiene que decirlo.
+   */
+  sinObligacion?: boolean
 }
 
 /**
