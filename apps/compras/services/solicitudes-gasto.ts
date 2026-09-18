@@ -753,3 +753,44 @@ export async function anularSolicitud(id: string, motivo: string): Promise<void>
     })
   }
 }
+
+export type ComprobanteDeObligacion = {
+  id: string
+  fase: string
+  tipo_comprobante: string | null
+  numero: string | null
+  monto: number
+  storage_path: string | null
+}
+
+/**
+ * Los comprobantes de la solicitud de gasto que originó una obligación.
+ *
+ * Existe porque los adjuntos eran INVISIBLES desde Cuentas por Pagar: viven
+ * en `gastos.solicitud_comprobantes`, y la ficha de la obligación solo mira
+ * `factura_storage_path`/`cotizacion_storage_path`, que en un reembolso están
+ * en null. El 2026-09-18 eso se reportó como "las facturas ya no están" — y
+ * estaban: las 7 filas y los 7 archivos intactos en el bucket. Nadie las
+ * había perdido, simplemente no se mostraban donde se las buscaba.
+ *
+ * Devuelve lista vacía si la obligación no nació de una solicitud.
+ */
+export async function comprobantesDeObligacion(obligacionId: string): Promise<ComprobanteDeObligacion[]> {
+  const supabase = crearClienteServidor()
+  const { data: solicitud } = await supabase
+    .schema('gastos')
+    .from('solicitudes_gasto')
+    .select('id, codigo, solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, storage_path)')
+    .eq('obligacion_id', obligacionId)
+    .maybeSingle()
+  if (!solicitud) return []
+
+  return (((solicitud as any).solicitud_comprobantes ?? []) as any[]).map((c) => ({
+    id: c.id,
+    fase: c.fase,
+    tipo_comprobante: c.tipo_comprobante,
+    numero: c.numero,
+    monto: Number(c.monto),
+    storage_path: c.storage_path,
+  }))
+}

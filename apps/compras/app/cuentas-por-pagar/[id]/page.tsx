@@ -5,6 +5,7 @@ import { Money } from '@/components/money'
 import Link from 'next/link'
 import { perfilActual } from '@logisalud/auth/server'
 import { obtenerObligacion } from '@/services/obligaciones'
+import { comprobantesDeObligacion } from '@/services/solicitudes-gasto'
 import { ETIQUETA_ORIGEN, type OrigenObligacion } from '@/domain/reportes'
 import { listarLetrasDeObligacion } from '@/services/financiamiento'
 import {
@@ -26,7 +27,7 @@ import { NotasCredito } from './notas-credito'
 import { NotaCreditoDeRecepcion } from './nota-credito-recepcion'
 import { puedeRegistrarNotaCreditoDeRecepcion } from '@/domain/nota-credito-recepcion'
 import { VerVoucher } from './ver-voucher'
-import { verLegajoPagoDirectoAction } from './actions'
+import { verComprobanteGastoAction, verLegajoPagoDirectoAction } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,10 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   if (!obligacion) notFound()
 
   const perfil = await perfilActual()
+  // Los comprobantes de la solicitud que originó esta obligación. Están en
+  // otro Bounded Context (gastos) y por eso no venían en `obtenerObligacion`
+  // — pero quien mira la obligación necesita ver el papel que la sustenta.
+  const comprobantes = await comprobantesDeObligacion(params.id)
   // "Dar conformidad" es de Contabilidad rol admin, no de cualquiera en el
   // área (Fase 1.7) — Beatriz (contabilidad, operativo) sigue viendo y
   // registrando obligaciones, pero este botón específico no le aparece.
@@ -319,6 +324,42 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           <Total termino="Neto a pagar" valor={obligacion.neto_a_pagar} moneda={obligacion.moneda} destacado />
         </dl>
       </section>
+
+      {comprobantes.length > 0 ? (
+        <section className="card mt-4">
+          <h2 className="font-heading text-lg">
+            {comprobantes.length === 1 ? 'Comprobante que sustenta el gasto' : 'Comprobantes que sustentan el gasto'}
+          </h2>
+          {/* Vive en gastos.solicitud_comprobantes, no en la obligación. Sin
+              esta sección los adjuntos existían pero no se veían desde acá, y
+              se reportaron como perdidos (2026-09-18). */}
+          <ul className="mt-2 space-y-2">
+            {comprobantes.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-gray-100 pb-2 text-sm last:border-0 last:pb-0">
+                <span>
+                  {c.tipo_comprobante ? `${c.tipo_comprobante} ` : ''}
+                  <span className="font-medium">{c.numero ?? 'sin número'}</span>
+                  {c.fase === 'rendicion' ? (
+                    <span className="ml-2 text-xs text-gray-500">(de la rendición)</span>
+                  ) : null}
+                </span>
+                <span className="flex items-center gap-3">
+                  <Money valor={c.monto} moneda={obligacion.moneda} />
+                  {c.storage_path ? (
+                    <VerVoucher
+                      storagePath={c.storage_path}
+                      etiqueta="Ver"
+                      accion={verComprobanteGastoAction}
+                    />
+                  ) : (
+                    <span className="text-xs text-amber-700">sin archivo</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="card mt-4">
         <h2 className="font-heading text-lg">Notas de crédito</h2>

@@ -543,3 +543,119 @@ export async function subirExcelRendicion(
   }
   return { path }
 }
+
+export type FondoConCustodio = Fondo & { custodio: string | null }
+
+/**
+ * TODOS los fondos activos, con el nombre de su custodio.
+ *
+ * `listarMisFondos` filtra por `custodio_id = yo`, que es correcto para quien
+ * maneja un fondo pero deja fuera a Contabilidad: Mariela ABRE los fondos de
+ * otros (el de Roberto, por ejemplo) y no podía ver ninguno, ni siquiera los
+ * que ella misma creó.
+ *
+ * El gate es de pantalla, no de esta función: quién puede llamarla se decide
+ * arriba, igual que en el resto del módulo mientras siga abierto el hueco de
+ * RLS anotado en CONTEXTO.md.
+ */
+export async function listarTodosLosFondos(): Promise<FondoConCustodio[]> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .schema('caja_chica')
+    .from('fondos')
+    .select('id, custodio_id, area, descripcion, monto_fijo, moneda, estado')
+    .eq('estado', 'activo')
+    .order('created_at')
+  if (error) throw new Error(`No se pudieron listar los fondos: ${error.message}`)
+  const fondos = data ?? []
+  if (fondos.length === 0) return []
+
+  // Cross-schema: los perfiles viven en `public`, así que no se embeben.
+  const { data: perfiles } = await supabase
+    .from('perfiles')
+    .select('id, nombre')
+    .in('id', [...new Set(fondos.map((f) => f.custodio_id))])
+  const nombre = new Map((perfiles ?? []).map((p: any) => [p.id, p.nombre as string]))
+
+  return fondos.map((f) => ({ ...f, custodio: nombre.get(f.custodio_id) ?? null }))
+}
+
+export type FilaReporteCajaChica = {
+  fondo: string
+  custodio: string | null
+  fecha: string
+  categoria: string
+  descripcion: string
+  monto: number
+  moneda: string
+  comprobante: string
+  tieneArchivo: boolean
+  reposicion: string | null
+}
+
+/**
+ * El detalle de gastos de Caja Chica para exportar, por fondo y por periodo.
+ *
+ * Trae TODOS los movimientos, repuestos y sin reponer — el reporte sirve para
+ * rendir ante Contabilidad, y un gasto no deja de haber existido porque ya se
+ * repuso. La columna "Reposición" dice en cuál entró, o queda vacía si
+ * todavía no entró en ninguna.
+ */
+export async function listarMovimientosParaReporte(filtros: {
+  fondoId?: string
+  desde?: string
+  hasta?: string
+}): Promise<FilaReporteCajaChica[]> {
+  const supabase = crearClienteServidor()
+  let q = supabase
+    .schema('caja_chica')
+    .from('movimientos')
+    .select('id, fondo_id, fecha, categoria_id, monto, tipo_comprobante, numero, descripcion, storage_path, reposicion_id')
+    .order('fecha')
+    .limit(2000)
+  if (filtros.fondoId) q = q.eq('fondo_id', filtros.fondoId)
+  if (filtros.desde) q = q.gte('fecha', filtros.desde)
+  if (filtros.hasta) q = q.lte('fecha', filtros.hasta)
+
+  const { data, error } = await q
+  if (error) throw new Error(`No se pudo armar el reporte de Caja Chica: ${error.message}`)
+  const movimientos = data ?? []
+  if (movimientos.length === 0) return []
+
+  const [fondos, categorias, reposiciones] = await Promise.all([
+    listarTodosLosFondos(),
+    mapaCategoriasDeGasto([...new Set(movimientos.map((m: any) => m.categoria_id).filter(Boolean))] as string[]),
+    mapaCodigosReposicion([...new Set(movimientos.map((m: any) => m.reposicion_id).filter(Boolean))] as string[]),
+  ])
+  const porFondo = new Map(fondos.map((f) => [f.id, f]))
+
+  return movimientos.map((m: any) => {
+    const fondo = porFondo.get(m.fondo_id)
+    return {
+      fondo: fondo?.descripcion ?? 'Fondo fijo',
+      custodio: fondo?.custodio ?? null,
+      fecha: m.fecha,
+      categoria: categorias.get(m.categoria_id) ?? 'sin categoría',
+      descripcion: m.descripcion ?? '',
+      monto: Number(m.monto),
+      moneda: fondo?.moneda ?? 'PEN',
+      comprobante: [m.tipo_comprobante, m.numero].filter(Boolean).join(' ') || 'sin comprobante',
+      tieneArchivo: !!m.storage_path,
+      reposicion: m.reposicion_id ? reposiciones.get(m.reposicion_id) ?? null : null,
+    }
+  })
+}
+
+async function mapaCategoriasDeGasto(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map()
+  const supabase = crearClienteServidor()
+  const { data } = await supabase.schema('gastos').from('categorias_gasto').select('id, nombre').in('id', ids)
+  return new Map((data ?? []).map((c: any) => [c.id, c.nombre as string]))
+}
+
+async function mapaCodigosReposicion(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map()
+  const supabase = crearClienteServidor()
+  const { data } = await supabase.schema('caja_chica').from('reposiciones').select('id, codigo').in('id', ids)
+  return new Map((data ?? []).map((r: any) => [r.id, r.codigo as string]))
+}
