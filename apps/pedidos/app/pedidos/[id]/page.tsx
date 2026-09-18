@@ -54,7 +54,12 @@ export default async function OrderDetailPage({
   // por esta misma condición.
   const activeProducts = products
     .filter(esOfrecibleEnPedido)
-    .map((p) => ({ id: p.id, descripcion: p.descripcion, codigo_interno: p.codigo_interno }));
+    .map((p) => ({
+      id: p.id,
+      descripcion: p.descripcion,
+      codigo_interno: p.codigo_interno,
+      presentacion: p.presentacion,
+    }));
 
   // Los que existen y están activos pero todavía no se pueden pedir. No van
   // al buscador —no se pueden valorizar— pero sí hacen falta para explicar

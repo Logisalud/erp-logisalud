@@ -82,6 +82,17 @@ export async function requireUserId(): Promise<string> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error("No autenticado");
+  if (!user) throw new Error(MENSAJE_SESION_VENCIDA);
   return user.id;
 }
+
+/**
+ * Lo que ve alguien cuya sesión caducó con la pantalla abierta.
+ *
+ * Sin sesión, las consultas salen como `anon` y la RLS no le deja ver
+ * NADA: el error que llegaba era "El producto no existe o no es visible",
+ * que manda a buscar el problema al lado equivocado. Pasó el 2026-09-18
+ * con una vendedora que tenía el pedido abierto desde antes.
+ */
+export const MENSAJE_SESION_VENCIDA =
+  "Tu sesión venció. Volvé a entrar y reintentá: el pedido que estabas armando quedó guardado.";

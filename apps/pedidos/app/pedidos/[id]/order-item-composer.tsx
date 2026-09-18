@@ -21,10 +21,15 @@ import {
   quitarProducto,
   solicitarDescuento,
 } from "./actions";
-import { displayNombreProducto } from "@/domain/products";
+import { displayNombreProducto, displayProductoConPresentacion } from "@/domain/products";
 import { ObservationForm } from "./observation-form";
 
-type Product = { id: string; descripcion: string; codigo_interno: string };
+type Product = {
+  id: string;
+  descripcion: string;
+  codigo_interno: string;
+  presentacion?: string | null;
+};
 type OrderItem = {
   id: string;
   product_id: string;
@@ -125,9 +130,11 @@ export function OrderItemComposer({
 
   const opciones: ComboboxOption[] = products.map((p) => ({
     id: p.id,
-    // La bonificación se marca acá: su par regular trae la MISMA descripción
-    // y en el buscador se verían idénticos.
-    label: displayNombreProducto(p.descripcion, p.codigo_interno),
+    // Con la presentación, porque 72 de los 240 productos ofrecibles
+    // comparten nombre con otro: "DIPHADIC LONG" son la caja de cápsulas y
+    // la ampolla, y en el buscador se veían idénticos. La bonificación se
+    // marca por el mismo motivo: su par regular trae la MISMA descripción.
+    label: displayProductoConPresentacion(p.descripcion, p.codigo_interno, p.presentacion),
     description: p.codigo_interno,
   }));
 
@@ -171,35 +178,26 @@ export function OrderItemComposer({
     }
 
     startTransition(async () => {
-      try {
-        const fd = new FormData();
-        fd.set("productId", productoElegido.id);
-        fd.set("cantidad", String(n));
-        await agregarProducto(orderId, customerId, fd);
-        setUltimaAgregada(productoElegido.id);
-        // Listo para el siguiente: el vendedor casi nunca carga uno solo.
-        setProductoElegido(null);
-        setCantidad("");
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudo agregar el producto.",
-        );
+      const fd = new FormData();
+      fd.set("productId", productoElegido.id);
+      fd.set("cantidad", String(n));
+      const resultado = await agregarProducto(orderId, customerId, fd);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
+        return;
       }
+      setUltimaAgregada(productoElegido.id);
+      // Listo para el siguiente: el vendedor casi nunca carga uno solo.
+      setProductoElegido(null);
+      setCantidad("");
     });
   }
 
   function quitar(itemId: string) {
     setError(null);
     startTransition(async () => {
-      try {
-        await quitarProducto(orderId, itemId);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "No se pudo quitar el producto.",
-        );
-      }
+      const resultado = await quitarProducto(orderId, itemId);
+      if (!resultado.ok) setError(resultado.mensaje);
     });
   }
 
@@ -208,20 +206,16 @@ export function OrderItemComposer({
     if (!Number.isInteger(n) || n < 1) return;
     setError(null);
     startTransition(async () => {
-      try {
-        await cambiarCantidad(orderId, itemId, n);
-        setCantidadGuardada(itemId);
-        setTimeout(
-          () => setCantidadGuardada((id) => (id === itemId ? null : id)),
-          2200,
-        );
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudo cambiar la cantidad.",
-        );
+      const resultado = await cambiarCantidad(orderId, itemId, n);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
+        return;
       }
+      setCantidadGuardada(itemId);
+      setTimeout(
+        () => setCantidadGuardada((id) => (id === itemId ? null : id)),
+        2200,
+      );
     });
   }
 
@@ -285,16 +279,12 @@ export function OrderItemComposer({
   function quitarBonif(itemId: string) {
     setError(null);
     startTransition(async () => {
-      try {
-        await quitarBonificacion(orderId, itemId);
-        router.refresh();
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudo quitar la bonificación.",
-        );
+      const resultado = await quitarBonificacion(orderId, itemId);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
+        return;
       }
+      router.refresh();
     });
   }
 

@@ -819,6 +819,33 @@ Un pedido **sin** ubigeo (los viejos, anteriores al selector) o con un
 código que no está en el catálogo no muestra esas filas: se omiten en vez de
 inventar un distrito.
 
+### El buscador de productos muestra la presentación
+
+El nombre solo no alcanza para elegir: **72 de los 240 productos ofrecibles
+comparten descripción con otro** (36 nombres repetidos). "DIPHADIC LONG" son
+dos productos distintos —la caja de 100 cápsulas (`DHP026`) y la ampolla
+(`DHP017`)— y en el buscador se veían idénticos, con el código como única
+diferencia. El vendedor no tiene por qué saberse los códigos.
+
+Ahora la opción muestra `nombre — presentación`
+("DIPHADIC LONG — 100MG CAJA x 100 CÁPS. LIB. PROL."). La presentación no se
+agrega cuando la descripción ya la dice, que es el caso de muchos productos
+("… CJA X 50 AMP"): repetirla sólo alarga la línea en un celular.
+
+Arreglar los nombres en el maestro sería lo de fondo, pero son datos del
+proveedor y no se tocan desde acá.
+
+### Sesión vencida con el pedido abierto
+
+Sin sesión, las consultas salen como `anon` y la RLS no deja ver **nada**.
+El error que llegaba era *"El producto no existe o no es visible"*, que manda
+a buscar el problema al lado equivocado: el producto estaba perfecto.
+
+Las acciones del pedido exigen la sesión **antes** de tocar nada y devuelven
+*"Tu sesión venció. Volvé a entrar y reintentá: el pedido que estabas
+armando quedó guardado."* — que además es cierto, porque las líneas ya
+cargadas están grabadas.
+
 ### Un producto sin precio no se puede pedir, pero se dice
 
 El buscador de productos del pedido ofrece sólo los activos **con precio
