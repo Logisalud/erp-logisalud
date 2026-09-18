@@ -452,6 +452,63 @@ no migración.
 
 ---
 
+## Una sola puerta al pago, cuotas visibles, y "Suministros" (2026-09-18)
+
+### El formulario de pago vive SOLO en "Pagos por ejecutar"
+
+Se llegaba al mismo formulario desde **Propuestas de pago** y desde **Pagos
+por ejecutar** — dos caminos al mismo lugar sin que quedara claro cuál era el
+bueno. Ahora son dos pantallas y cada una hace una cosa:
+
+| Pantalla | Para qué | Formulario de pago |
+|---|---|---|
+| `/cuentas-por-pagar/propuestas/[id]` | mirar y **aprobar** el lote | **no** |
+| `/pagos-por-ejecutar/[id]` | **desembolsar** | sí, y es la única |
+
+La tabla del lote se extrajo a `TablaLote` (prop `conPago`) para que las dos
+la compartan y no divergan. La pantalla de la propuesta, cuando el lote está
+aprobado y falta desembolsar, lleva con un botón a la de Tesorería.
+
+`/pagos-por-ejecutar/[id]` **se niega entera** si el lote no está aprobado: no
+alcanza con esconder el formulario, pagar sin aprobación sería saltarse la
+regla de oro del módulo.
+
+Trampa que casi se escapa: `ejecutarPagoAction` revalidaba solo
+`/cuentas-por-pagar/propuestas/[id]`. Al mudar el formulario, la pantalla
+donde se acababa de pagar quedaba mostrando el estado anterior. Ahora
+revalida las dos rutas más la bandeja.
+
+### Las cuotas de una factura pactada en partes ya aparecen
+
+Al canjear una factura por letras, la obligación original pasa a
+`canjeada_por_letra` —que no es un estado abierto— y sale del reporte, con
+razón: ya no se paga ella. Pero las cuotas que la reemplazan solo existen en
+`financiamiento` hasta que alguien las convierte en obligación, así que esa
+plata **no aparecía en ninguna pantalla**. Verificado en producción: 2
+obligaciones canjeadas, 5 letras pendientes, **0** obligaciones de letra.
+
+Proyección de pagos ahora suma `listarCuotasPendientesSinObligacion()` —sin
+ventana de días— y cada fila lleva su propio `href`: una obligación a su
+ficha, una cuota a la bandeja donde se genera, porque mandarla a una ficha que
+no existe sería una promesa falsa. Con un chip que dice *"cuota — falta
+generarla para poder pagarla"*.
+
+**La ventana de la bandeja pasó de 7 a 30 días.** Con 7, una cuota que vence
+en 13 no se podía generar ni queriendo, así que no había forma de ponerla en
+una propuesta de pago. 30 días es el horizonte con el que se arman los lotes.
+Los totales del reporte ya no dicen "obligación(es)" sino "pago(s)": no todas
+las filas son obligaciones.
+
+### Categoría "Suministros" (migración 0065)
+
+Una llanta no tenía dónde ir: caía en "Mantenimiento de flota" (que es el
+servicio, no el repuesto) o en "Otros gastos autorizados" (el cajón de
+sastre). Son 13 categorías activas ahora. `where not exists` y no
+`on conflict (nombre)` — esa tabla no tiene índice único sobre `nombre`, ya
+falló así en la 0061.
+
+---
+
 ## Varias guías de remisión, cada una con su archivo (2026-09-18)
 
 La 0062 dejó una asimetría que Sebas encontró usando la pantalla:

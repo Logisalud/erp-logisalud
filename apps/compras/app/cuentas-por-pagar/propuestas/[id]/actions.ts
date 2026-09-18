@@ -12,7 +12,14 @@ async function ejecutar(propuestaId: string, fn: () => Promise<void>): Promise<E
   } catch (e) {
     return { error: (e as Error).message }
   }
+  // Las DOS pantallas del lote: la de la propuesta (aprobar) y la de
+  // Tesorería (pagar). Registrar un pago cambia lo que muestran las dos, y
+  // desde 2026-09-18 el formulario vive en la segunda — revalidar solo la
+  // primera dejaba la pantalla donde se acababa de pagar mostrando el estado
+  // anterior.
   revalidatePath(`/cuentas-por-pagar/propuestas/${propuestaId}`)
+  revalidatePath(`/pagos-por-ejecutar/${propuestaId}`)
+  revalidatePath('/pagos-por-ejecutar')
   return null
 }
 

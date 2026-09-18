@@ -15,6 +15,7 @@ const base: FilaProyeccion = {
   moneda: 'PEN',
   netoAPagar: 100,
   ventana: 'esta_semana',
+  href: '/cuentas-por-pagar/1',
 }
 const fila = (p: Partial<FilaProyeccion>): FilaProyeccion => ({ ...base, ...p })
 
@@ -158,5 +159,30 @@ describe('resumenPorVentana', () => {
       { moneda: 'USD', total: 20 },
     ])
     expect(r.find((x) => x.ventana === 'proximo_mes')!.totales).toEqual([{ moneda: 'PEN', total: 7 }])
+  })
+})
+
+describe('cuotas que todavía no son obligación', () => {
+  it('ordenan y suman igual que el resto: la plata se debe lo mismo', () => {
+    const cuota = fila({
+      id: 'cuota-letra-abc',
+      codigo: 'Letra 2 — Diphasac',
+      origen: 'letra_por_pagar',
+      fechaVencimiento: '2026-10-09',
+      netoAPagar: 1622.08,
+      href: '/financiamiento/vencimientos',
+      sinObligacion: true,
+    })
+    const obligacion = fila({ id: 'ob-1', fechaVencimiento: '2026-09-20', netoAPagar: 100 })
+
+    expect(ordenarProyeccion([cuota, obligacion], 'vencimiento', 'asc').map((f) => f.id))
+      .toEqual(['ob-1', 'cuota-letra-abc'])
+    expect(totalesPorMoneda([cuota, obligacion])).toEqual([{ moneda: 'PEN', total: 1722.08 }])
+  })
+
+  it('llevan a la bandeja y no a una ficha que no existe', () => {
+    const cuota = fila({ href: '/financiamiento/vencimientos', sinObligacion: true })
+    expect(cuota.href).toBe('/financiamiento/vencimientos')
+    expect(cuota.sinObligacion).toBe(true)
   })
 })

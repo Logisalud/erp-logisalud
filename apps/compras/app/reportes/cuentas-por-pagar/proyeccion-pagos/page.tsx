@@ -96,7 +96,7 @@ export default async function ReporteProyeccionPagos({ searchParams }: { searchP
                 )}
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                {r.cantidad} obligación(es){activo ? ' · filtrando' : ''}
+                {r.cantidad} pago(s){activo ? ' · filtrando' : ''}
               </p>
             </Link>
           )
@@ -130,10 +130,19 @@ export default async function ReporteProyeccionPagos({ searchParams }: { searchP
             <tbody>
               {visibles.map((f) => (
                 <tr key={f.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <Link href={`/cuentas-por-pagar/${f.id}`} className="font-medium text-logisalud-teal underline">
+                  <td className="px-3 py-2">
+                    <Link href={f.href} className="font-medium text-logisalud-teal underline">
                       {f.codigo}
                     </Link>
+                    {/* Una cuota pendiente se debe igual que una obligación,
+                        pero todavía no se puede poner en una propuesta de
+                        pago. La fila lo dice en vez de dejar que alguien la
+                        busque ahí y no la encuentre. */}
+                    {f.sinObligacion ? (
+                      <span className="mt-1 block w-fit rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
+                        cuota — falta generarla para poder pagarla
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-gray-600">
                     {ETIQUETA_ORIGEN[f.origen as OrigenObligacion] ?? f.origen}
@@ -156,7 +165,7 @@ export default async function ReporteProyeccionPagos({ searchParams }: { searchP
             <tfoot>
               <tr className="border-t-2 border-gray-200 bg-gray-50 font-medium">
                 <td className="px-3 py-2" colSpan={6}>
-                  Total de lo que estás viendo ({visibles.length} obligación(es))
+                  Total de lo que estás viendo ({visibles.length} pago(s))
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {totalVisible.map((t) => (
