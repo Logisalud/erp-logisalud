@@ -4,21 +4,20 @@
  *
  * Carta de Simplicidad UX, regla 5: "Todo proceso debe llegar a un estado
  * final visible. El dashboard general prioriza visualmente los 'loops
- * abiertos' (discrepancias sin resolver, viáticos sin rendir, facturas de
- * servicio sin conformidad) por encima de métricas bonitas." Este módulo
+ * abiertos' (viáticos sin rendir, facturas de servicio sin conformidad, y
+ * lo que traba un pago) por encima de métricas bonitas." Este módulo
  * define qué cuenta como un loop abierto en cada Bounded Context — las
  * queries en services/dashboard.ts solo traen los datos crudos, la
  * decisión de qué es "abierto" vive acá.
  */
 
-/**
- * Una línea de recepción con discrepancia queda "abierta" hasta que el
- * responsable de Almacén decide una acción (almacen.resoluciones_discrepancia)
- * — ver regla 2 del documento maestro.
+/*
+ * `discrepanciaAbierta` se retiró el 2026-09-18 junto con el loop del
+ * dashboard que la usaba: el flujo de recepción de tres columnas no escribe
+ * `tipo_discrepancia` ni `resoluciones_discrepancia`, así que nunca podía
+ * dar true. La discrepancia que hoy traba un pago es físico vs factura, y se
+ * ve en el loop de obligaciones observadas.
  */
-export function discrepanciaAbierta(tipoDiscrepancia: string | null, tieneResolucion: boolean): boolean {
-  return !!tipoDiscrepancia && tipoDiscrepancia !== 'ninguna' && !tieneResolucion
-}
 
 /**
  * Una Orden de Servicio ya facturada queda "abierta" hasta que el área

@@ -35,7 +35,6 @@ export async function obtenerResumenContabilidad(): Promise<ResumenContabilidad>
   const totalPendientes =
     loops.fraccionamientosVencidos.length +
     loops.obligacionesObservadas.length +
-    loops.discrepancias.length +
     loops.anticiposSinRendir.length +
     loops.serviciosSinConformidad.length
   return { totalPendientes, loops }

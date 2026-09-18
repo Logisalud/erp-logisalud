@@ -81,10 +81,12 @@ Estado (ver sección 9 del documento, "Alcance por Pull Request"):
    obligación).
 9. ✅ Dashboard general (Carta de Simplicidad UX, regla 5: prioriza
    visualmente los "loops abiertos" — cuotas de fraccionamiento SUNAT
-   vencidas, obligaciones observadas, discrepancias de Almacén sin
-   resolver, anticipos sin rendir, facturas de servicio sin conformidad —
-   nunca métricas totales; cada loop lleva directo a la pantalla donde se
-   resuelve).
+   vencidas, obligaciones observadas, anticipos sin rendir, facturas de
+   servicio sin conformidad, OC parciales estancadas — nunca métricas
+   totales; cada loop lleva directo a la pantalla donde se resuelve). El
+   loop "Discrepancias de Almacén sin resolver" **se retiró** el
+   2026-09-18: leía columnas que la recepción de tres columnas ya no
+   escribe, así que no podía tener una fila nunca (ver CONTEXTO.md).
 
 ## Entorno
 

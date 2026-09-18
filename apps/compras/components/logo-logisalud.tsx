@@ -18,6 +18,11 @@ import Image from 'next/image'
  * `NEXT_PUBLIC_BASE_PATH` es la misma variable que ya usan los combobox para
  * sus `fetch` (ver components/buscador-producto.tsx) — mismo problema, misma
  * solución, un solo lugar donde vive el prefijo.
+ *
+ * ⚠️ SI ALGUIEN SACA `unoptimized` de next.config.js, este prefijo manual
+ * pasa a estar DE MÁS: con el loader activo next/image agrega el basePath
+ * solo y la ruta quedaría duplicada (/compras/compras/brand/...). Los dos
+ * ajustes se mueven juntos; el comentario largo está en next.config.js.
  */
 const RUTA_LOGO = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/brand/logisalud-color-horizontal.png`
 

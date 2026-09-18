@@ -58,7 +58,6 @@ export default async function Dashboard() {
     kpis.listaVenceProximos7Dias.length +
     loops.fraccionamientosVencidos.length +
     loops.obligacionesObservadas.length +
-    loops.discrepancias.length +
     loops.anticiposSinRendir.length +
     loops.serviciosSinConformidad.length +
     loops.ocsParcialesSobreUmbral.length
@@ -160,19 +159,6 @@ export default async function Dashboard() {
                     {o.espera_nota_credito
                       ? ' llegó menos mercadería de la que dice la factura — registra la nota de crédito del proveedor para desbloquear el pago.'
                       : ' la conciliación de 3 vías no cuadró — revisala antes de darle conformidad.'}
-                  </p>
-                </Item>
-              ))}
-            </Seccion>
-          ) : null}
-
-          {loops.discrepancias.length > 0 ? (
-            <Seccion titulo="Discrepancias de Almacén sin resolver">
-              {loops.discrepancias.map((d) => (
-                <Item key={d.recepcionId} href={`/almacen/recepciones/${d.recepcionId}`}>
-                  <Fila titulo={d.ocCodigo} monto={`${d.cantidadLineas} línea(s)`} />
-                  <p className="mt-0.5 text-sm text-gray-600">
-                    Resuelve la acción de cada línea antes de que Contabilidad registre la obligación.
                   </p>
                 </Item>
               ))}

@@ -1,7 +1,6 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import {
-  discrepanciaAbierta,
   servicioSinConformidad,
   agruparPorMoneda,
   venceEnProximosDias,
@@ -18,47 +17,18 @@ import { buscarOrdenesFacturables } from '@/services/facturas-elegibles'
 import { diasVencido } from '@/domain/reportes'
 import { hoyLima, mesActualLima } from '@/domain/fecha'
 
-export type LoopDiscrepancia = { recepcionId: string; ocCodigo: string; cantidadLineas: number }
-
-/** Regla 2 + Carta de Simplicidad regla 5: líneas de recepción con discrepancia que Almacén todavía no decidió. */
-export async function listarDiscrepanciasSinResolver(): Promise<LoopDiscrepancia[]> {
-  const supabase = crearClienteServidor()
-  const { data: items, error } = await supabase
-    .schema('almacen')
-    .from('recepciones_items')
-    .select('id, recepcion_id, tipo_discrepancia')
-    .not('tipo_discrepancia', 'is', null)
-    .neq('tipo_discrepancia', 'ninguna')
-  if (error) throw new Error(`No se pudieron leer las discrepancias: ${error.message}`)
-  if (!items || items.length === 0) return []
-
-  const { data: resoluciones, error: errRes } = await supabase
-    .schema('almacen')
-    .from('resoluciones_discrepancia')
-    .select('recepcion_item_id')
-    .in('recepcion_item_id', items.map((i) => i.id))
-  if (errRes) throw new Error(`No se pudieron leer las resoluciones: ${errRes.message}`)
-  const resueltos = new Set((resoluciones ?? []).map((r) => r.recepcion_item_id))
-
-  const abiertas = items.filter((i) => discrepanciaAbierta(i.tipo_discrepancia, resueltos.has(i.id)))
-  if (abiertas.length === 0) return []
-
-  const porRecepcion = new Map<string, number>()
-  for (const i of abiertas) porRecepcion.set(i.recepcion_id, (porRecepcion.get(i.recepcion_id) ?? 0) + 1)
-  const recepcionIds = [...porRecepcion.keys()]
-
-  const { data: recepciones } = await supabase.schema('almacen').from('recepciones').select('id, oc_id').in('id', recepcionIds)
-  const ocIdPorRecepcion = new Map((recepciones ?? []).map((r) => [r.id, r.oc_id]))
-  const ocIds = [...new Set(ocIdPorRecepcion.values())]
-  const { data: ocs } = await supabase.schema('compras').from('ordenes_compra').select('id, codigo').in('id', ocIds)
-  const codigoPorOc = new Map((ocs ?? []).map((o) => [o.id, o.codigo]))
-
-  return recepcionIds.map((recepcionId) => ({
-    recepcionId,
-    ocCodigo: codigoPorOc.get(ocIdPorRecepcion.get(recepcionId) ?? '') ?? '—',
-    cantidadLineas: porRecepcion.get(recepcionId)!,
-  }))
-}
+/*
+ * `LoopDiscrepancia` y `listarDiscrepanciasSinResolver` se retiraron el
+ * 2026-09-18. Leían `recepciones_items.tipo_discrepancia` cruzado con
+ * `resoluciones_discrepancia`, y el flujo de recepción de tres columnas NO
+ * ESCRIBE ninguna de las dos cosas: la sección no podía tener una fila
+ * nunca. Peor que vacía, llevaba a `/almacen/recepciones/[id]` a "resolver
+ * la acción de cada línea", que es una pantalla que ya no existe.
+ *
+ * Lo que la reemplaza: la discrepancia que sí importa ahora (físico vs
+ * factura) frena la obligación con `espera_nota_credito`, y eso el dashboard
+ * ya lo muestra en el loop de observadas.
+ */
 
 export type LoopAnticipo = { id: string; codigo: string; monto: number; moneda: string; solicitanteNombre: string | null; diasSinRendir: number | null }
 
@@ -230,7 +200,6 @@ export async function listarOCsParcialesSobreUmbral(): Promise<LoopOCParcial[]> 
 export type LoopsAbiertos = {
   fraccionamientosVencidos: LoopFraccionamientoVencido[]
   obligacionesObservadas: ObligacionListada[]
-  discrepancias: LoopDiscrepancia[]
   anticiposSinRendir: LoopAnticipo[]
   serviciosSinConformidad: LoopServicio[]
   ocsParcialesSobreUmbral: LoopOCParcial[]
@@ -241,7 +210,7 @@ export type LoopsAbiertos = {
  * en pantalla (Carta de Simplicidad regla 5).
  * Orden fijo por urgencia financiera: primero lo que tiene un riesgo con
  * fecha (perder el beneficio del fraccionamiento), después lo que bloquea
- * un pago (obligación observada, discrepancia sin resolver), por último lo
+ * un pago (obligación observada), por último lo
  * que es dinero ya entregado pendiente de sustento o una entrega que se
  * está demorando.
  */
@@ -249,20 +218,18 @@ export async function obtenerLoopsAbiertos(): Promise<LoopsAbiertos> {
   const [
     fraccionamientosVencidos,
     obligacionesObservadas,
-    discrepancias,
     anticiposSinRendir,
     serviciosSinConformidad,
     ocsParcialesSobreUmbral,
   ] = await Promise.all([
     listarCuotasFraccionamientoVencidas(),
     listarObligaciones('observada'),
-    listarDiscrepanciasSinResolver(),
     listarAnticiposSinRendir(),
     listarServiciosSinConformidad(),
     listarOCsParcialesSobreUmbral(),
   ])
 
-  return { fraccionamientosVencidos, obligacionesObservadas, discrepancias, anticiposSinRendir, serviciosSinConformidad, ocsParcialesSobreUmbral }
+  return { fraccionamientosVencidos, obligacionesObservadas, anticiposSinRendir, serviciosSinConformidad, ocsParcialesSobreUmbral }
 }
 
 // ---------------------------------------------------------------------------
