@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="es-PE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual paso a paso — Compras y Pagos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --verde:#4BB168; --teal:#4ABCC2;
+    --tinta:#111827; --gris:#6b7280; --borde:#e5e7eb; --fondo:#f9fafb;
+    --amarillo:#fffbeb; --amarillo-borde:#fcd34d;
+    --rojo:#fef2f2; --rojo-borde:#fecaca; --rojo-texto:#991b1b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--fondo); color:var(--tinta);
+    font-family:'Poppins',system-ui,sans-serif; font-size:16px; line-height:1.65;
+  }
+  .hoja{max-width:820px; margin:0 auto; padding:24px 16px 80px}
+  h1,h2,h3,h4{font-family:'Oswald',system-ui,sans-serif; font-weight:500; line-height:1.2; margin:0}
+  h1{font-size:2.1rem}
+  h2{font-size:1.6rem; margin:48px 0 8px; padding-top:16px; border-top:3px solid var(--verde)}
+  h3{font-size:1.25rem; margin:32px 0 8px}
+  h4{font-size:1.05rem; margin:20px 0 6px; color:#374151}
+  p{margin:10px 0}
+  a{color:#0f8f95}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.85em; background:#eef2f5; padding:1px 5px; border-radius:4px}
+
+  header.tapa{background:#fff; border:1px solid var(--borde); border-radius:12px; padding:28px 24px; margin-bottom:8px}
+  header.tapa .marca{display:flex; align-items:center; gap:10px; margin-bottom:14px}
+  header.tapa .punto{width:14px; height:14px; border-radius:50%}
+  header.tapa p.bajada{color:var(--gris); margin:6px 0 0}
+
+  .card{background:#fff; border:1px solid var(--borde); border-radius:10px; padding:16px 18px; margin:16px 0}
+  .card-ojo{background:var(--amarillo); border:1px solid var(--amarillo-borde)}
+  .card-alto{background:var(--rojo); border:1px solid var(--rojo-borde); color:var(--rojo-texto)}
+  .card-clave{border:2px solid var(--verde)}
+  .card h4:first-child{margin-top:0}
+
+  ol.pasos{counter-reset:paso; list-style:none; padding:0; margin:18px 0}
+  ol.pasos > li{
+    counter-increment:paso; position:relative; padding:0 0 4px 46px; margin:0 0 26px;
+  }
+  ol.pasos > li::before{
+    content:counter(paso); position:absolute; left:0; top:0;
+    width:32px; height:32px; border-radius:50%; background:var(--verde); color:#fff;
+    font-family:'Oswald',sans-serif; font-size:1rem; display:flex; align-items:center; justify-content:center;
+  }
+  ol.pasos > li > strong:first-child{display:block; font-weight:600; padding-top:3px}
+  ul.simple{margin:8px 0; padding-left:20px}
+  ul.simple li{margin:4px 0}
+
+  figure.shot{margin:14px 0 0; padding:0}
+  figure.shot img{width:100%; display:block; border:1px solid var(--borde); border-radius:8px; background:#fff}
+  figure.shot figcaption{font-size:.8rem; color:var(--gris); margin-top:6px}
+  .falta{
+    border:2px dashed #cbd5e1; border-radius:8px; background:#fff; padding:22px 16px; text-align:center;
+  }
+  .falta .rot{font-family:'Oswald',sans-serif; font-size:1.1rem; color:#475569}
+  .falta .det{font-size:.85rem; color:var(--gris); margin-top:6px}
+  .falta .det code{background:#f1f5f9}
+
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:.92rem; background:#fff}
+  th,td{border:1px solid var(--borde); padding:8px 10px; text-align:left; vertical-align:top}
+  th{background:#f3f4f6; font-weight:600}
+
+  .chip{display:inline-block; font-size:.78rem; padding:2px 9px; border-radius:999px; border:1px solid var(--borde); background:#fff; margin-right:4px}
+  .chip-rol{background:#ecfdf5; border-color:#a7f3d0; color:#065f46}
+
+  nav.indice{background:#fff; border:1px solid var(--borde); border-radius:10px; padding:16px 18px; margin:20px 0 8px}
+  nav.indice ol{margin:8px 0 0; padding-left:22px}
+  nav.indice li{margin:3px 0}
+
+  @media print{
+    body{background:#fff; font-size:11pt}
+    .hoja{max-width:none; padding:0}
+    h2{page-break-before:always; break-before:page}
+    h2:first-of-type{page-break-before:auto; break-before:auto}
+    ol.pasos > li, .card, figure.shot{page-break-inside:avoid; break-inside:avoid}
+    nav.indice{page-break-after:always}
+  }
+</style>
+</head>
+<body>
+<div class="hoja">
+
+<header class="tapa">
+  <div class="marca">
+    <span class="punto" style="background:var(--verde)"></span>
+    <span class="punto" style="background:var(--teal)"></span>
+    <strong style="font-family:'Oswald',sans-serif; letter-spacing:.08em">LOGISALUD</strong>
+  </div>
+  <h1>Compras y Pagos — manual paso a paso</h1>
+  <p class="bajada">Cómo se usa el sistema, pantalla por pantalla. Está escrito para leerse sin saber nada de sistemas: cada tarea es una lista numerada y cada paso tiene su foto.</p>
+</header>
+
+<div class="card card-clave">
+  <h4>Antes de empezar, dos cosas</h4>
+  <p><strong>La dirección es</strong> <code>erp.logisalud.com/compras</code>. Entras con tu correo de Logisalud, el mismo con el que entras a Cobranzas.</p>
+  <p><strong>Cada quien ve lo suyo.</strong> Si una opción de este manual no te aparece en el menú, no está rota: es que ese paso lo hace otra área. Al costado de cada tarea dice quién la hace.</p>
+</div>
+
+<nav class="indice">
+  <strong style="font-family:'Oswald',sans-serif">Qué hay adentro</strong>
+  <ol>
+    <li><a href="#entrar">Entrar al sistema</a></li>
+    <li><a href="#embudo">La idea de fondo: toda la plata sale por el mismo embudo</a></li>
+    <li><a href="#quien">Quién hace qué</a></li>
+    <li><a href="#oc">Comprar mercadería (Orden de Compra)</a></li>
+    <li><a href="#almacen">Recibir la mercadería en Almacén</a></li>
+    <li><a href="#cxp">Cuentas por Pagar: revisar, agrupar, aprobar y pagar</a></li>
+    <li><a href="#servicio">Contratar un servicio (Orden de Servicio)</a></li>
+    <li><a href="#gastos">Pedir un pago, anticipos y reembolsos</a></li>
+    <li><a href="#caja">Caja chica</a></li>
+    <li><a href="#financiamiento">Letras, préstamos y fraccionamiento SUNAT</a></li>
+    <li><a href="#impuestos">Impuestos y planilla</a></li>
+    <li><a href="#reportes">Reportes</a></li>
+    <li><a href="#proveedores">Proveedores y tus datos</a></li>
+    <li><a href="#errores">Cómo corregir un error</a></li>
+    <li><a href="#faq">Preguntas frecuentes</a></li>
+  </ol>
+</nav>
+
+<h2 id="entrar">1 · Entrar al sistema</h2>
+
+<ol class="pasos">
+  <li><strong>Abre <code>erp.logisalud.com/compras</code> en el navegador.</strong>
+    Si nunca entraste, te va a pedir tu correo y tu clave. Es el mismo usuario de Cobranzas: no hay una clave aparte para Compras.
+    <figure class="shot" data-url="/compras/login" data-rol="cualquiera">
+      <img src="capturas/01-login.png" alt="Pantalla de ingreso al ERP">
+      <figcaption>Foto 01 — Pantalla de ingreso</figcaption>
+    </figure>
+  </li>
+  <li><strong>Si entraste por la portada, elige el módulo.</strong>
+    La portada muestra las tarjetas de cada módulo del ERP. Toca <em>Entrar</em> en <strong>Compras y Pagos</strong>.
+    <figure class="shot" data-url="/ (la portada de erp.logisalud.com)" data-rol="cualquiera">
+      <img src="capturas/02-modulos.png" alt="Portada con las tarjetas de los módulos">
+      <figcaption>Foto 02 — Portada de módulos</figcaption>
+    </figure>
+  </li>
+  <li><strong>Ya estás en el menú de Compras y Pagos.</strong>
+    El menú está partido en tres bloques y ese orden importa:
+    <ul class="simple">
+      <li><strong>Para hacer</strong> — lo que está esperando algo tuyo <em>ahora</em>.</li>
+      <li><strong>Para consultar</strong> — mirar sin tocar: cuentas por pagar, tus operaciones, dashboard, reportes.</li>
+      <li><strong>Otras gestiones</strong> — proveedores, caja chica, impuestos, planilla.</li>
+    </ul>
+    Cuando hay algo pendiente tuyo, el menú lo dice con un número entre paréntesis, por ejemplo <em>Pagos por ejecutar (3)</em>.
+    <figure class="shot" data-url="/compras" data-rol="Mariela (contabilidad)">
+      <img src="capturas/03-inicio-contabilidad.png" alt="Menú principal de Compras y Pagos visto por Contabilidad">
+      <figcaption>Foto 03 — Menú principal, visto por Contabilidad</figcaption>
+    </figure>
+    <figure class="shot" data-url="/compras" data-rol="Milagritos (tesorería)">
+      <img src="capturas/04-inicio-tesoreria.png" alt="Menú principal visto por Tesorería">
+      <figcaption>Foto 04 — El mismo menú, visto por Tesorería: son menos opciones, y está bien</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<div class="card card-ojo">
+  <h4>Si te falta una opción</h4>
+  <p>No la pidas por WhatsApp a quien sí la tiene para que lo haga por ti. Avisa a Mariela o a Sebastián: el sistema guarda quién hizo cada cosa, y si alguien registra algo con su usuario en lugar del tuyo, el historial queda mintiendo.</p>
+</div>
+
+<h2 id="embudo">2 · La idea de fondo: toda la plata sale por el mismo embudo</h2>
+
+<p>Da igual si es una compra de mercadería, un servicio, un reembolso de taxi, la reposición de caja chica o una letra: <strong>todo termina siendo una “obligación” en Cuentas por Pagar</strong>, y de ahí sale en un lote de pago. No hay atajos ni una puerta lateral para pagar rápido.</p>
+
+<p>La vida de cualquier obligación es siempre la misma:</p>
+
+<table>
+  <tr><th>Estado</th><th>Qué significa en criollo</th><th>Quién la mueve de ahí</th></tr>
+  <tr><td><span class="chip">registrada</span></td><td>Nació. Todavía nadie la revisó.</td><td>Contabilidad</td></tr>
+  <tr><td><span class="chip">conforme</span></td><td>Revisada: el documento, el monto y el proveedor cuadran. Ya se puede poner en un lote.</td><td>Contabilidad</td></tr>
+  <tr><td><span class="chip">observada</span></td><td>Algo no cuadra. Está frenada a propósito y no entra a ningún lote.</td><td>Contabilidad</td></tr>
+  <tr><td><span class="chip">en_propuesta</span></td><td>Está dentro de un lote de pago esperando aprobación.</td><td>Quien aprueba el lote</td></tr>
+  <tr><td><span class="chip">pagada</span></td><td>Se desembolsó y tiene su voucher cargado.</td><td>— (fin del camino)</td></tr>
+</table>
+
+<div class="card card-clave">
+  <h4>La regla de oro</h4>
+  <p><strong>Nada se paga sin un lote aprobado.</strong> Y el voucher es lo que cierra el ciclo: mientras no esté cargado el comprobante del banco, para el sistema esa plata no salió.</p>
+</div>
+
+<h2 id="quien">3 · Quién hace qué</h2>
+
+<table>
+  <tr><th>Área</th><th>Su parte del trabajo</th></tr>
+  <tr><td><span class="chip chip-rol">Compras</span></td><td>Emite la Orden de Compra y la Orden de Servicio. Elige proveedor y condición de pago.</td></tr>
+  <tr><td><span class="chip chip-rol">Almacén</span></td><td>Recibe la mercadería, cuenta lo que llegó y sube la guía y la factura.</td></tr>
+  <tr><td><span class="chip chip-rol">Área usuaria</span></td><td>Da la conformidad de un servicio: confirma que el trabajo se hizo.</td></tr>
+  <tr><td><span class="chip chip-rol">Contabilidad</span></td><td>Revisa cada obligación, arma los lotes de pago y los aprueba.</td></tr>
+  <tr><td><span class="chip chip-rol">Tesorería</span></td><td>Ejecuta el pago del lote ya aprobado y sube el voucher.</td></tr>
+  <tr><td><span class="chip chip-rol">Gerencia</span></td><td>Aprueba lo que supera su tope y mira los reportes.</td></tr>
+</table>
+
+<h2 id="oc">4 · Comprar mercadería (Orden de Compra)</h2>
+<p><span class="chip chip-rol">Compras</span> Se usa cuando le vas a comprar un producto a un proveedor. Si es un trabajo o un servicio, no es esto: anda a la sección 7.</p>
+
+<ol class="pasos">
+  <li><strong>Menú → Órdenes de compra y servicio.</strong>
+    Es la lista de todas las órdenes. Arriba tienes los filtros: buscador, <em>Tipo</em> (mercadería, bien, servicio), <em>Estado</em>, proveedor y rango de fechas. Se pueden combinar.
+    <figure class="shot" data-url="/compras/ordenes" data-rol="Compras o Contabilidad">
+      <img src="capturas/10-ordenes.png" alt="Listado de órdenes de compra y servicio con filtros">
+      <figcaption>Foto 10 — Listado de órdenes con los filtros arriba</figcaption>
+    </figure>
+  </li>
+  <li><strong>Botón <em>Nueva orden de compra</em> y elige a quién le compras.</strong>
+    El campo de proveedor es un buscador: escribe tres letras del nombre o el RUC y espera a que aparezca la lista. No es una lista desplegable con todos los proveedores cargados — son demasiados para eso.
+    <figure class="shot" data-url="/compras/ordenes-compra/nueva" data-rol="Compras">
+      <img src="capturas/11-oc-nueva.png" alt="Formulario de nueva orden de compra, cabecera">
+      <figcaption>Foto 11 — Cabecera de la orden: proveedor, moneda, condición de pago</figcaption>
+    </figure>
+  </li>
+  <li><strong>Carga las líneas: qué producto y cuánto.</strong>
+    El producto también se busca escribiendo. Al elegirlo, si ya le compraste antes a ese proveedor, el precio se autocompleta con el último que pagaste — revísalo igual, es una ayuda, no una verdad.
+    <figure class="shot" data-url="/compras/ordenes-compra/nueva (con dos o tres líneas ya cargadas)" data-rol="Compras">
+      <img src="capturas/12-oc-lineas.png" alt="Líneas de producto de la orden de compra con totales">
+      <figcaption>Foto 12 — Las líneas y el total que se va calculando abajo</figcaption>
+    </figure>
+  </li>
+  <li><strong>Elige la condición de pago.</strong>
+    <em>Contado</em> o <em>crédito a X días</em>. Esto no es un detalle: de acá sale la fecha de vencimiento de la factura, y esa fecha es la que después manda en la proyección de pagos y en el reporte de vencidos.
+  </li>
+  <li><strong>Guarda y revisa la ficha.</strong>
+    La ficha de la orden muestra arriba en qué paso está (emitida → recibida → facturada), las líneas, y los botones de lo que se puede hacer ahora. Si algo quedó mal, mientras nadie la recibió todavía se puede editar.
+    <figure class="shot" data-url="/compras/ordenes-compra/[id] — abre cualquier OC de la lista" data-rol="Compras">
+      <img src="capturas/13-oc-ficha.png" alt="Ficha de una orden de compra con su barra de pasos">
+      <figcaption>Foto 13 — Ficha de la orden: el estado, las líneas y los botones</figcaption>
+    </figure>
+  </li>
+  <li><strong>Mándasela al proveedor.</strong>
+    Con <em>Imprimir / Descargar</em> sale la orden en formato documento, con el logo, lista para mandar por correo o imprimir.
+    <figure class="shot" data-url="/compras/ordenes-compra/[id]/imprimir" data-rol="Compras">
+      <img src="capturas/14-oc-imprimir.png" alt="Orden de compra en formato documento con logo">
+      <figcaption>Foto 14 — La orden lista para enviar</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h2 id="almacen">5 · Recibir la mercadería en Almacén</h2>
+<p><span class="chip chip-rol">Almacén</span> Este es el paso donde nace la deuda con el proveedor. Hasta que Almacén no registre la recepción, no hay nada que pagar.</p>
+
+<ol class="pasos">
+  <li><strong>Menú → Almacén → Registrar recepción.</strong>
+    Te muestra las órdenes de compra que están esperando mercadería. Elige la que llegó.
+    <figure class="shot" data-url="/compras/almacen" data-rol="Charlie o Roberto (almacén)">
+      <img src="capturas/20-almacen.png" alt="Pantalla de almacén con las órdenes esperando recepción">
+      <figcaption>Foto 20 — Órdenes esperando que llegue la mercadería</figcaption>
+    </figure>
+  </li>
+  <li><strong>Cuenta lo que llegó, línea por línea: son tres columnas.</strong>
+    Esta es la parte importante del sistema y conviene entenderla bien:
+    <ul class="simple">
+      <li><strong>Cantidad OC</strong> — lo que se pidió. No se toca, está ahí de referencia.</li>
+      <li><strong>Cantidad Factura</strong> — lo que el proveedor te está <em>cobrando</em> en su factura.</li>
+      <li><strong>Cantidad Física</strong> — lo que <em>de verdad</em> contaste en el almacén.</li>
+    </ul>
+    Lo que decide todo es la comparación entre las dos últimas: factura contra físico.
+    <figure class="shot" data-url="/compras/almacen/recepciones/nueva/[ocId]" data-rol="Almacén">
+      <img src="capturas/21-recepcion-tres-columnas.png" alt="Formulario de recepción con las tres columnas por línea">
+      <figcaption>Foto 21 — Las tres columnas por cada producto</figcaption>
+    </figure>
+  </li>
+  <li><strong>Sube la guía y la factura.</strong>
+    Si el proveedor mandó <strong>más de una guía</strong> para la misma orden, no pongas los números separados por coma: usa <em>Agregar otra guía</em> y sube cada archivo con su número. Cada guía necesita su número y su archivo — uno sin el otro no deja guardar.
+    <figure class="shot" data-url="/compras/almacen/recepciones/nueva/[ocId] (abajo, con dos guías cargadas)" data-rol="Almacén">
+      <img src="capturas/22-recepcion-guias.png" alt="Bloque de guías de recepción con dos guías cargadas">
+      <figcaption>Foto 22 — Dos guías para la misma orden, cada una con su archivo</figcaption>
+    </figure>
+  </li>
+  <li><strong>Guarda. La deuda nace sola.</strong>
+    No tienes que ir a Cuentas por Pagar a crear nada: con la factura cargada, la obligación se crea automáticamente con su base, su IGV y su total.
+    <figure class="shot" data-url="/compras/almacen/recepciones/[id]" data-rol="Almacén">
+      <img src="capturas/23-recepcion-ficha.png" alt="Ficha de la recepción guardada">
+      <figcaption>Foto 23 — La recepción guardada, con sus archivos</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<div class="card card-ojo">
+  <h4>Qué pasa si lo que llegó no coincide con la factura</h4>
+  <p><strong>Llegó menos de lo facturado:</strong> el sistema frena esa obligación y la marca <em>esperando nota de crédito</em>. No va a entrar a ningún lote de pago hasta que Contabilidad cargue la nota de crédito del proveedor. Es a propósito: no se paga mercadería que no llegó.</p>
+  <p><strong>Llegó más de lo facturado:</strong> se paga igual lo que dice la factura, y el excedente queda marcado para que Compras lo resuelva con el proveedor.</p>
+</div>
+
+<h2 id="cxp">6 · Cuentas por Pagar: revisar, agrupar, aprobar y pagar</h2>
+<p>Acá cae <em>todo</em>, venga de donde venga. Son cuatro momentos y conviene no confundirlos.</p>
+
+<h3>6.1 · Ver qué se debe</h3>
+<p><span class="chip chip-rol">Contabilidad</span> <span class="chip chip-rol">Tesorería</span> <span class="chip chip-rol">Gerencia</span></p>
+<ol class="pasos">
+  <li><strong>Menú → Cuentas por pagar.</strong>
+    La lista de todo lo que se debe, con su estado, su vencimiento y su monto. Los chips de arriba filtran por estado.
+    <figure class="shot" data-url="/compras/cuentas-por-pagar" data-rol="Mariela (contabilidad)">
+      <img src="capturas/30-cuentas-por-pagar.png" alt="Listado de cuentas por pagar con los chips de filtro">
+      <figcaption>Foto 30 — Listado de obligaciones</figcaption>
+    </figure>
+  </li>
+  <li><strong>Mira los chips de la fila, no solo el estado.</strong>
+    Una obligación <em>observada</em> genérica y una que espera nota de crédito son cosas distintas: la segunda lleva un chip <strong>“Esperando NC”</strong>, para que sepas de un vistazo cuáles están frenadas por eso sin entrar a cada una.
+  </li>
+</ol>
+
+<h3>6.2 · Revisar una obligación (darle conformidad)</h3>
+<p><span class="chip chip-rol">Contabilidad</span></p>
+<ol class="pasos">
+  <li><strong>Entra a la obligación desde el listado.</strong>
+    La ficha muestra de dónde vino (una recepción, un servicio, un gasto…), el documento, el monto, el vencimiento, los archivos adjuntos y el historial de todo lo que le pasó.
+    <figure class="shot" data-url="/compras/cuentas-por-pagar/[id] — entra a una que esté 'registrada'" data-rol="Mariela">
+      <img src="capturas/31-obligacion.png" alt="Ficha de una obligación">
+      <figcaption>Foto 31 — Ficha de una obligación</figcaption>
+    </figure>
+  </li>
+  <li><strong>Compara tres cosas: la orden, lo que llegó y la factura.</strong>
+    Si cuadran, <em>Dar conformidad</em>. Queda <span class="chip">conforme</span> y recién ahí puede entrar a un lote de pago.
+  </li>
+  <li><strong>Si algo no cuadra, obsérvala y escribe por qué.</strong>
+    Queda frenada y fuera de todo lote. El motivo que escribas es lo que va a leer el que la agarre después: no pongas “revisar”, pon qué está mal.
+  </li>
+  <li><strong>Si dice “Esperando NC”, lo único que la libera es la nota de crédito.</strong>
+    En la misma ficha hay el botón para cargar la nota de crédito del proveedor: número, monto y el archivo. Al cargarla se levanta el freno y la obligación sigue su camino normal.
+    <figure class="shot" data-url="/compras/cuentas-por-pagar/[id] — una que esté esperando NC" data-rol="Mariela">
+      <img src="capturas/32-nota-credito.png" alt="Formulario para cargar la nota de crédito">
+      <figcaption>Foto 32 — Cargar la nota de crédito</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h3>6.3 · Armar y aprobar el lote de pago</h3>
+<p><span class="chip chip-rol">Contabilidad</span></p>
+<ol class="pasos">
+  <li><strong>Menú → Cuentas por pagar → Propuestas de pago → Nueva.</strong>
+    Elige el periodo y marca las obligaciones que quieres pagar en esta corrida. Solo aparecen las que están <span class="chip">conforme</span>: las observadas y las que esperan nota de crédito no están, y ese es justamente el punto.
+    <figure class="shot" data-url="/compras/cuentas-por-pagar/propuestas/nueva" data-rol="Mariela">
+      <img src="capturas/33-propuesta-nueva.png" alt="Armado de una nueva propuesta de pago">
+      <figcaption>Foto 33 — Armando el lote</figcaption>
+    </figure>
+  </li>
+  <li><strong>Guarda: queda un lote con su código y su total por moneda.</strong>
+    Soles y dólares nunca se suman juntos, ni acá ni en ningún reporte.
+    <figure class="shot" data-url="/compras/cuentas-por-pagar/propuestas/[id]" data-rol="Mariela">
+      <img src="capturas/34-propuesta.png" alt="Ficha de una propuesta de pago con su detalle">
+      <figcaption>Foto 34 — El lote armado, esperando aprobación</figcaption>
+    </figure>
+  </li>
+  <li><strong>Quien aprueba lo ve en “Pendientes de aprobar”.</strong>
+    Esa bandeja junta <em>todo</em> lo que espera una decisión tuya: lotes de pago, pagos directos, solicitudes de gasto, reposiciones de caja chica, órdenes de servicio, planilla e impuestos. Si no te toca decidir algo, no te aparece.
+    <figure class="shot" data-url="/compras/pendientes-aprobar" data-rol="Mariela">
+      <img src="capturas/35-pendientes-aprobar.png" alt="Bandeja de pendientes de aprobar">
+      <figcaption>Foto 35 — Todo lo que espera tu decisión, en un solo lugar</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h3>6.4 · Pagar</h3>
+<p><span class="chip chip-rol">Tesorería</span></p>
+<ol class="pasos">
+  <li><strong>Menú → Pagos por ejecutar.</strong>
+    Están solo los lotes <strong>ya aprobados</strong>. Si un lote no está acá, no está aprobado: no lo busques por otro lado.
+    <figure class="shot" data-url="/compras/pagos-por-ejecutar" data-rol="Milagritos (tesorería)">
+      <img src="capturas/36-pagos-por-ejecutar.png" alt="Bandeja de pagos por ejecutar">
+      <figcaption>Foto 36 — Lotes aprobados, listos para desembolsar</figcaption>
+    </figure>
+  </li>
+  <li><strong>Entra al lote y registra cada pago.</strong>
+    Por cada fila cargas la fecha del pago, el número de operación y el voucher del banco. Si hubo detracción, también va ahí.
+    <figure class="shot" data-url="/compras/pagos-por-ejecutar/[id]" data-rol="Milagritos">
+      <img src="capturas/37-registrar-pago.png" alt="Pantalla de registro de pagos de un lote aprobado">
+      <figcaption>Foto 37 — La única pantalla donde se registra un pago</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<div class="card card-clave">
+  <h4>Dos puertas, dos trabajos distintos</h4>
+  <p><strong>Propuestas de pago</strong> es donde se <em>arma y se aprueba</em> el lote.<br>
+  <strong>Pagos por ejecutar</strong> es donde se <em>desembolsa</em>.</p>
+  <p>Antes se llegaba al formulario de pago desde los dos lados y nadie sabía cuál era el bueno. Ahora el formulario de pago vive en un solo sitio: <em>Pagos por ejecutar</em>.</p>
+</div>
+
+<h2 id="servicio">7 · Contratar un servicio (Orden de Servicio)</h2>
+<p><span class="chip chip-rol">Compras</span> <span class="chip chip-rol">Área usuaria</span> <span class="chip chip-rol">Contabilidad</span></p>
+<p>Un servicio no se “recibe” en almacén: no hay nada que contar. Lo que reemplaza a la recepción es la <strong>conformidad del área que pidió el servicio</strong>.</p>
+
+<ol class="pasos">
+  <li><strong>Menú → Órdenes de compra y servicio → Nueva orden de servicio.</strong>
+    Proveedor, descripción del trabajo, monto, moneda y condición de pago. Si el proveedor de servicio no existe todavía, se crea desde ahí mismo.
+    <figure class="shot" data-url="/compras/servicios/nueva" data-rol="Compras">
+      <img src="capturas/40-os-nueva.png" alt="Formulario de nueva orden de servicio">
+      <figcaption>Foto 40 — Nueva orden de servicio</figcaption>
+    </figure>
+  </li>
+  <li><strong>El área usuaria da la conformidad.</strong>
+    Le aparece en <em>Pendientes de aprobar</em>. Confirmar acá quiere decir “el trabajo se hizo y está bien”.
+  </li>
+  <li><strong>Cuando llega la factura del proveedor, se registra.</strong>
+    Menú → <em>Registrar factura de servicio</em>. Eliges la orden de servicio que corresponde y cargas número de factura, fecha, monto y el archivo.
+    <figure class="shot" data-url="/compras/facturas/nueva" data-rol="Contabilidad">
+      <img src="capturas/41-factura-servicio.png" alt="Registro de factura de un servicio">
+      <figcaption>Foto 41 — Registrar la factura del servicio</figcaption>
+    </figure>
+  </li>
+  <li><strong>De ahí en adelante es el mismo embudo.</strong>
+    Nace la obligación y sigue exactamente los pasos de la sección 6: conformidad, lote, aprobación, pago.
+    <figure class="shot" data-url="/compras/servicios/[id]" data-rol="Contabilidad">
+      <img src="capturas/42-os-ficha.png" alt="Ficha de una orden de servicio">
+      <figcaption>Foto 42 — Ficha de la orden de servicio</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h2 id="gastos">8 · Pedir un pago, anticipos y reembolsos</h2>
+<p><span class="chip chip-rol">Cualquiera</span> Esto es para lo que no pasa por una orden de compra: un taxi, un trámite, un viaje, un servicio chico.</p>
+
+<ol class="pasos">
+  <li><strong>Menú → Pedir un pago.</strong>
+    El sistema te pregunta primero <em>qué tipo</em> es, porque de eso depende todo lo demás:
+    <ul class="simple">
+      <li><strong>Reembolso</strong> — ya gastaste de tu bolsillo y quieres que te devuelvan. Va con comprobante desde el inicio.</li>
+      <li><strong>Anticipo</strong> — todavía no gastaste y necesitas la plata antes. Después hay que rendirlo.</li>
+      <li><strong>Pago directo</strong> — le pagas a un tercero sin orden de compra (las categorías de excepción).</li>
+    </ul>
+    <figure class="shot" data-url="/compras/pedir-pago" data-rol="cualquier usuario">
+      <img src="capturas/50-pedir-pago.png" alt="Pantalla de elegir qué tipo de pago pedir">
+      <figcaption>Foto 50 — Elegir el tipo de pedido</figcaption>
+    </figure>
+  </li>
+  <li><strong>Llena la solicitud y sube el comprobante.</strong>
+    Monto, moneda, categoría, para cuándo lo necesitas y el archivo. En un reembolso la base y el IGV salen del comprobante real: no los inventes ni los calcules a ojo.
+    <figure class="shot" data-url="/compras/gastos/nueva" data-rol="cualquier usuario">
+      <img src="capturas/51-gasto-nueva.png" alt="Formulario de solicitud de gasto">
+      <figcaption>Foto 51 — La solicitud</figcaption>
+    </figure>
+  </li>
+  <li><strong>Tu jefe de área aprueba.</strong>
+    Le aparece en <em>Pendientes de aprobar</em>. Mientras tanto vos la ves en <em>Mis operaciones</em>, con su estado.
+  </li>
+  <li><strong>Contabilidad genera la obligación y sigue el embudo.</strong>
+    A partir de acá es igual que todo lo demás: lote, aprobación, pago y voucher.
+    <figure class="shot" data-url="/compras/gastos/[id]" data-rol="Contabilidad">
+      <img src="capturas/52-gasto-ficha.png" alt="Ficha de una solicitud de gasto aprobada">
+      <figcaption>Foto 52 — Ficha de la solicitud</figcaption>
+    </figure>
+  </li>
+  <li><strong>Si era un anticipo, después hay que rendirlo.</strong>
+    Cuando te pagan, el anticipo queda <em>pendiente de rendir</em> y sale en el Dashboard hasta que lo cierres. Rendirlo es subir los comprobantes de lo que gastaste: si gastaste menos, devuelves la diferencia; si gastaste de más, se genera un reembolso adicional.
+    <figure class="shot" data-url="/compras/gastos/[id] — un anticipo ya pagado, en rendición" data-rol="quien pidió el anticipo">
+      <img src="capturas/53-rendicion.png" alt="Rendición de un anticipo con sus comprobantes">
+      <figcaption>Foto 53 — Rendir el anticipo</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h2 id="caja">9 · Caja chica</h2>
+<p><span class="chip chip-rol">Custodio del fondo</span> <span class="chip chip-rol">Contabilidad</span></p>
+
+<ol class="pasos">
+  <li><strong>Menú → Caja chica.</strong>
+    Ves tu fondo, cuánto te queda y los movimientos. Si eres de Contabilidad o admin, además tienes la vista <strong>Todos los fondos</strong>: todos los fondos activos con su custodio y su saldo, sin tener que entrar de a uno.
+    <figure class="shot" data-url="/compras/caja-chica" data-rol="Contabilidad (para que se vea 'Todos los fondos')">
+      <img src="capturas/60-caja-chica.png" alt="Pantalla de caja chica con los fondos">
+      <figcaption>Foto 60 — Caja chica: el fondo y su saldo</figcaption>
+    </figure>
+  </li>
+  <li><strong>Registra cada gasto apenas ocurre.</strong>
+    Fecha, categoría, descripción, monto y el comprobante. La base y el IGV salen del comprobante real, igual que en Gastos.
+    <figure class="shot" data-url="/compras/caja-chica/fondos/[id]/movimientos/nuevo" data-rol="custodio del fondo">
+      <img src="capturas/61-movimiento-nuevo.png" alt="Formulario de nuevo movimiento de caja chica">
+      <figcaption>Foto 61 — Cargar un gasto del fondo</figcaption>
+    </figure>
+  </li>
+  <li><strong>Cuando el fondo baja, pide la reposición.</strong>
+    La reposición junta automáticamente todos los movimientos que todavía no se repusieron. La aprueba el jefe del área, Contabilidad genera la obligación sumando la base y el IGV real de cada movimiento, y sigue el embudo normal.
+    <figure class="shot" data-url="/compras/caja-chica/reposiciones" data-rol="Contabilidad">
+      <img src="capturas/62-reposiciones.png" alt="Listado de reposiciones de caja chica">
+      <figcaption>Foto 62 — Reposiciones</figcaption>
+    </figure>
+  </li>
+  <li><strong>Cuando se paga la reposición, el fondo vuelve a su monto y listo.</strong>
+    A diferencia de un anticipo, acá no hay rendición posterior: los comprobantes ya estaban cargados antes de pedir la plata.
+  </li>
+  <li><strong>Para revisar todo junto, descarga el Excel.</strong>
+    Desde Caja chica, el botón de descarga trae todos los movimientos en una hoja: fondo, custodio, fecha, categoría, descripción, comprobante, moneda, monto y a qué reposición entró.
+    <figure class="shot" data-url="/compras/caja-chica — el botón de descarga" data-rol="Contabilidad">
+      <img src="capturas/63-descarga-excel.png" alt="Botón de descarga del reporte de caja chica">
+      <figcaption>Foto 63 — Descargar el reporte de caja chica</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h2 id="financiamiento">10 · Letras, préstamos y fraccionamiento SUNAT</h2>
+<p><span class="chip chip-rol">Contabilidad</span></p>
+
+<div class="card card-ojo">
+  <h4>El sistema nunca calcula una amortización</h4>
+  <p>Los cronogramas se transcriben a mano, tal cual los mandó el banco o SUNAT. Es a propósito: si el sistema calculara la cuota por su cuenta y le errara al último centavo, tendrías dos verdades distintas para la misma deuda.</p>
+</div>
+
+<ol class="pasos">
+  <li><strong>Menú → Financiamiento.</strong>
+    Desde acá entras a préstamos, fraccionamientos y a la bandeja de vencimientos.
+    <figure class="shot" data-url="/compras/financiamiento" data-rol="Contabilidad">
+      <img src="capturas/70-financiamiento.png" alt="Menú de financiamiento">
+      <figcaption>Foto 70 — Financiamiento</figcaption>
+    </figure>
+  </li>
+  <li><strong>Préstamo: cargas el cronograma cuota por cuota.</strong>
+    Banco, monto, moneda y después cada cuota con su fecha y su importe.
+    <figure class="shot" data-url="/compras/financiamiento/prestamos/nueva" data-rol="Contabilidad">
+      <img src="capturas/71-prestamo-nuevo.png" alt="Alta de un préstamo con su cronograma">
+      <figcaption>Foto 71 — Cargar un préstamo</figcaption>
+    </figure>
+  </li>
+  <li><strong>Fraccionamiento SUNAT: igual, y con una alerta propia.</strong>
+    Si una cuota de fraccionamiento se vence, sale en rojo en el Dashboard: ahí no es solo un atraso, es el riesgo de perder el beneficio.
+    <figure class="shot" data-url="/compras/financiamiento/fraccionamientos" data-rol="Contabilidad">
+      <img src="capturas/72-fraccionamiento.png" alt="Listado de fraccionamientos SUNAT">
+      <figcaption>Foto 72 — Fraccionamientos</figcaption>
+    </figure>
+  </li>
+  <li><strong>Canjear una factura por letras.</strong>
+    Desde la ficha de la obligación en Cuentas por Pagar: cargas las letras con su número y su vencimiento. La obligación original queda <em>canjeada por letra</em> y <strong>cada letra nace de una vez como su propia obligación</strong>, así que aparece enseguida en la proyección de pagos y se puede meter en un lote sin ningún paso extra.
+    <figure class="shot" data-url="/compras/financiamiento/letras/canjear/[id]" data-rol="Contabilidad">
+      <img src="capturas/73-canje-letras.png" alt="Pantalla de canje de una obligación por letras">
+      <figcaption>Foto 73 — Canjear por letras</figcaption>
+    </figure>
+  </li>
+  <li><strong>Bandeja de vencimientos próximos.</strong>
+    Las cuotas de préstamo que están por vencer se convierten en obligación desde acá, en lote. Es el paso que hace que una cuota deje de ser un número en un cronograma y pase a ser algo pagable.
+    <figure class="shot" data-url="/compras/financiamiento/vencimientos" data-rol="Contabilidad">
+      <img src="capturas/74-vencimientos.png" alt="Bandeja de vencimientos próximos">
+      <figcaption>Foto 74 — Vencimientos próximos</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h2 id="impuestos">11 · Impuestos y planilla</h2>
+
+<ol class="pasos">
+  <li><strong>Impuestos: Menú → Registrar un impuesto.</strong>
+    <span class="chip chip-rol">Contabilidad</span> Tipo de impuesto, periodo, monto y beneficiario. Nace la obligación y entra al embudo como cualquier otra.
+    <figure class="shot" data-url="/compras/impuestos/nueva" data-rol="Contabilidad">
+      <img src="capturas/80-impuesto-nuevo.png" alt="Formulario de registro de un impuesto">
+      <figcaption>Foto 80 — Registrar un impuesto</figcaption>
+    </figure>
+  </li>
+  <li><strong>Planilla: Menú → Pago de Planilla.</strong>
+    <span class="chip chip-rol">Gestión Humana</span> Carga la planilla como sale de BUK. Contabilidad la confirma y recién ahí se genera la obligación.
+    <figure class="shot" data-url="/compras/planilla" data-rol="Gestión Humana o Contabilidad">
+      <img src="capturas/81-planilla.png" alt="Pantalla de pago de planilla">
+      <figcaption>Foto 81 — Planilla</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h2 id="reportes">12 · Reportes</h2>
+<p><span class="chip chip-rol">Contabilidad</span> <span class="chip chip-rol">Gerencia</span></p>
+
+<ol class="pasos">
+  <li><strong>Menú → Reportes.</strong>
+    <figure class="shot" data-url="/compras/reportes" data-rol="Contabilidad">
+      <img src="capturas/90-reportes.png" alt="Menú de reportes">
+      <figcaption>Foto 90 — Los reportes disponibles</figcaption>
+    </figure>
+  </li>
+  <li><strong>Proyección de pagos — el que más se usa.</strong>
+    Una sola tabla con todo lo que hay que pagar: código, origen, a quién, N° de factura, vencimiento, cuántos días faltan (o hace cuántos venció, en rojo), monto y periodo.
+    <ul class="simple">
+      <li>Arriba hay cuatro tarjetas: esta semana, este mes, próximo mes y más adelante. Cada una muestra su total <em>y además sirve de filtro</em>: tócala y la tabla se queda solo con ese periodo.</li>
+      <li>Cualquier columna ordena: toca su título. Por defecto ordena por vencimiento, lo que vence primero arriba.</li>
+      <li>Soles y dólares nunca se mezclan, ni en las tarjetas ni en el total del pie.</li>
+      <li>Las cuotas que todavía no se convirtieron en obligación también salen, con un chip que lo advierte, y te llevan a la bandeja de vencimientos para generarlas.</li>
+    </ul>
+    <figure class="shot" data-url="/compras/reportes/cuentas-por-pagar/proyeccion-pagos" data-rol="Contabilidad">
+      <img src="capturas/91-proyeccion.png" alt="Reporte de proyección de pagos">
+      <figcaption>Foto 91 — Proyección de pagos</figcaption>
+    </figure>
+  </li>
+  <li><strong>Antigüedad de deuda.</strong>
+    Lo vencido agrupado por tramos. Es el reporte para la pregunta “¿cuánto tenemos atrasado y desde cuándo?”.
+    <figure class="shot" data-url="/compras/reportes/cuentas-por-pagar/antiguedad" data-rol="Contabilidad">
+      <img src="capturas/92-antiguedad.png" alt="Reporte de antigüedad de deuda">
+      <figcaption>Foto 92 — Antigüedad</figcaption>
+    </figure>
+  </li>
+  <li><strong>Historial de pagos y sábana maestra.</strong>
+    El primero es lo que ya se pagó, con su voucher. La sábana es el detalle completo de todo, para bajarlo y trabajarlo en Excel.
+    <figure class="shot" data-url="/compras/reportes/cuentas-por-pagar/historial-pagos" data-rol="Contabilidad">
+      <img src="capturas/93-historial-pagos.png" alt="Reporte de historial de pagos">
+      <figcaption>Foto 93 — Historial de pagos</figcaption>
+    </figure>
+    <figure class="shot" data-url="/compras/reportes/sabana-maestra" data-rol="Contabilidad">
+      <img src="capturas/94-sabana.png" alt="Sábana maestra">
+      <figcaption>Foto 94 — Sábana maestra</figcaption>
+    </figure>
+  </li>
+  <li><strong>El Dashboard no es un reporte más.</strong>
+    Arriba están los números grandes, y abajo <strong>lo que está trabado</strong>: vencidas, observadas, anticipos sin rendir, servicios sin conformidad, cuotas SUNAT vencidas, órdenes recibidas a medias hace mucho. Cada línea te lleva directo a la pantalla donde se destraba. Si el Dashboard está vacío abajo, no hay nada pendiente — y eso es la idea.
+    <figure class="shot" data-url="/compras/dashboard" data-rol="Contabilidad">
+      <img src="capturas/95-dashboard.png" alt="Dashboard con los loops abiertos">
+      <figcaption>Foto 95 — Dashboard</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h2 id="proveedores">13 · Proveedores y tus datos</h2>
+
+<ol class="pasos">
+  <li><strong>Menú → Proveedores.</strong>
+    Buscas por nombre o RUC. Desde acá se da de alta uno nuevo y se le carga su cuenta bancaria. Un proveedor sin cuenta bancaria lleva una marca: no se le puede pagar por transferencia hasta que la tenga.
+    <figure class="shot" data-url="/compras/proveedores" data-rol="Compras o Contabilidad">
+      <img src="capturas/96-proveedores.png" alt="Listado de proveedores">
+      <figcaption>Foto 96 — Proveedores</figcaption>
+    </figure>
+  </li>
+  <li><strong>Menú → Mi cuenta bancaria.</strong>
+    Acá cargas <em>tu</em> cuenta, la que se usa cuando la empresa te reembolsa algo o te da un anticipo. Si no la tienes cargada, tu reembolso se va a quedar esperando en Tesorería.
+    <figure class="shot" data-url="/compras/mi-cuenta-bancaria" data-rol="cualquier usuario">
+      <img src="capturas/97-mi-cuenta-bancaria.png" alt="Pantalla de mi cuenta bancaria">
+      <figcaption>Foto 97 — Tu cuenta bancaria</figcaption>
+    </figure>
+  </li>
+  <li><strong>Menú → Mis operaciones.</strong>
+    Todo lo que <em>vos</em> pediste o registraste, con su estado actual. Es la pantalla para responderte “¿en qué quedó lo que mandé la semana pasada?” sin preguntarle a nadie.
+    <figure class="shot" data-url="/compras/mis-operaciones" data-rol="cualquier usuario">
+      <img src="capturas/98-mis-operaciones.png" alt="Pantalla de mis operaciones">
+      <figcaption>Foto 98 — Mis operaciones</figcaption>
+    </figure>
+  </li>
+</ol>
+
+<h2 id="errores">14 · Cómo corregir un error</h2>
+
+<p>La regla es simple: <strong>mientras nadie tomó una decisión sobre el documento, se edita; después, no se borra — se anula o se corrige con un documento nuevo.</strong></p>
+
+<table>
+  <tr><th>Qué pasó</th><th>Qué hacer</th></tr>
+  <tr><td>Te equivocaste en una OC que nadie recibió todavía</td><td>Entra a la ficha y edítala.</td></tr>
+  <tr><td>La OC ya se recibió</td><td>No la toques. Corrige la recepción o la obligación, según dónde esté el error.</td></tr>
+  <tr><td>Cargaste mal el número o la fecha de una factura</td><td>Desde la ficha de la obligación se puede editar mientras no esté pagada.</td></tr>
+  <tr><td>Subiste el archivo equivocado</td><td>Vuelve a subirlo: reemplaza al anterior y queda en el historial.</td></tr>
+  <tr><td>Metiste una obligación en un lote por error</td><td>Rechaza el lote y arma uno nuevo. Las obligaciones vuelven a quedar <span class="chip">conforme</span>.</td></tr>
+  <tr><td>Pagaste y el voucher está mal</td><td>Reemplaza el voucher desde la obligación. El pago no se borra.</td></tr>
+  <tr><td>Una orden ya no va</td><td>Anúlala. Queda registrada como anulada, con quién y cuándo — no desaparece.</td></tr>
+</table>
+
+<div class="card card-alto">
+  <h4>Nunca</h4>
+  <p>No registres algo con el usuario de otra persona “porque a ella sí le sale el botón”. El historial guarda quién hizo cada cosa y es lo primero que se mira cuando algo no cuadra. Si te falta un permiso, pídelo.</p>
+</div>
+
+<h2 id="faq">15 · Preguntas frecuentes</h2>
+
+<h4>Registré la factura y no aparece en la propuesta de pago. ¿Por qué?</h4>
+<p>Casi siempre por una de tres: todavía está <span class="chip">registrada</span> y nadie le dio conformidad; está <span class="chip">observada</span>; o dice <strong>Esperando NC</strong> y falta la nota de crédito. Entra a la ficha: el motivo está escrito ahí.</p>
+
+<h4>¿Por qué tengo que aprobar tantas veces?</h4>
+<p>No es la misma pregunta tres veces. La primera es “¿este gasto va?” (tu jefe). La segunda es “¿el documento está bien?” (Contabilidad, la conformidad). La tercera es “¿pagamos esto ahora y con esta plata?” (la aprobación del lote). Son tres decisiones distintas sobre la misma factura.</p>
+
+<h4>Mariela ve una cosa y yo veo otra en la misma operación.</h4>
+<p>Primero recarga la página: el navegador guarda la versión vieja un rato. Si después de recargar sigue distinto, no lo dejes pasar — avisa, porque eso sí es un problema de verdad.</p>
+
+<h4>¿Puedo pagar algo urgente sin pasar por el lote?</h4>
+<p>No. Y no es un tema de permisos: no existe la pantalla. Lo urgente se resuelve armando un lote chiquito y aprobándolo rápido.</p>
+
+<h4>Subí el archivo pero no se ve.</h4>
+<p>Fíjate el tamaño: arriba de unos 4 MB el archivo no sube. Escanea en blanco y negro o baja la resolución y vuelve a intentar.</p>
+
+<h4>El sistema me pide una cuenta bancaria del proveedor y no la tengo.</h4>
+<p>Pídesela al proveedor y cárgala en su ficha. Sin cuenta no hay transferencia, y el lote se queda esperando.</p>
+
+<hr style="margin:56px 0 20px; border:none; border-top:1px solid var(--borde)">
+<p style="color:var(--gris); font-size:.85rem">
+  Manual del módulo <strong>Compras y Pagos</strong> del ERP Logisalud.
+  Si algo de acá no coincide con lo que ves en pantalla, gana la pantalla — y avisa para corregir el manual.
+</p>
+
+</div>
+
+<script>
+// Si la captura todavía no está en la carpeta, en vez de un icono roto se
+// muestra un recuadro que dice qué foto falta, en qué URL sacarla y con qué
+// usuario. Así el manual se puede leer y repartir desde el día uno, y las
+// fotos se van completando de a poco sin tocar el texto.
+document.querySelectorAll('figure.shot').forEach(function (fig) {
+  var img = fig.querySelector('img');
+  if (!img) return;
+  img.addEventListener('error', function () {
+    var cap = fig.querySelector('figcaption');
+    var caja = document.createElement('div');
+    caja.className = 'falta';
+    caja.innerHTML =
+      '<div class="rot">' + (cap ? cap.textContent : 'Falta esta captura') + '</div>' +
+      '<div class="det">Archivo: <code>' + img.getAttribute('src') + '</code></div>' +
+      '<div class="det">Pantalla: <code>' + (fig.dataset.url || '') + '</code>' +
+      (fig.dataset.rol ? ' &nbsp;·&nbsp; Usuario: <strong>' + fig.dataset.rol + '</strong>' : '') +
+      '</div>';
+    img.replaceWith(caja);
+    if (cap) cap.remove();
+  });
+  // Fuerza el chequeo también cuando la imagen ya falló antes del listener.
+  if (img.complete && img.naturalWidth === 0) img.dispatchEvent(new Event('error'));
+});
+</script>
+</body>
+</html>
