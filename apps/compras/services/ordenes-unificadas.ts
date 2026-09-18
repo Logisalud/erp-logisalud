@@ -1,8 +1,8 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import {
+  aplicarFiltrosOrdenes,
   etiquetaEstado,
-  ordenPendiente,
   siguientePasoOC,
   siguientePasoOS,
   type TipoOrdenUnificada,
@@ -26,6 +26,8 @@ export type FilaOrdenUnificada = {
   codigo: string
   fecha: string
   proveedor: string
+  /** El id crudo, para que el filtro de proveedor compare ids y no nombres. */
+  proveedorId: string | null
   ruc: string | null
   resumen: string
   total: number
@@ -52,14 +54,6 @@ const TAMANO_PAGINA = 25
 // filtro/búsqueda a SQL en vez de acá. Ver conversación de diseño del
 // módulo de Reportes (mismo criterio, mismo trade-off documentado).
 const TECHO_POR_TABLA = 500
-
-function normalizar(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .trim()
-}
 
 export async function obtenerOrdenesUnificadas(
   filtros: FiltrosOrdenes,
@@ -107,6 +101,7 @@ export async function obtenerOrdenesUnificadas(
       codigo: o.codigo,
       fecha: o.fecha_emision,
       proveedor: prov?.razon_social ?? 'proveedor no legible',
+      proveedorId: o.proveedor_id ?? null,
       ruc: prov?.ruc ?? null,
       resumen: `${items.length} línea(s)`,
       total: Math.round(total * 100) / 100,
@@ -126,6 +121,7 @@ export async function obtenerOrdenesUnificadas(
       codigo: o.codigo,
       fecha: o.fecha_solicitud,
       proveedor: prov?.razon_social ?? 'proveedor no legible',
+      proveedorId: o.proveedor_servicio_id ?? null,
       ruc: prov?.ruc ?? null,
       resumen: o.descripcion_servicio,
       total: Number(o.monto_estimado),
@@ -137,24 +133,10 @@ export async function obtenerOrdenesUnificadas(
     }
   })
 
-  let filas = [...filasOC, ...filasOS]
-
-  if (filtros.busqueda?.trim()) {
-    const q = normalizar(filtros.busqueda)
-    filas = filas.filter(
-      (f) => normalizar(f.codigo).includes(q) || normalizar(f.proveedor).includes(q) || (f.ruc ? normalizar(f.ruc).includes(q) : false)
-    )
-  }
-  if (filtros.estado) filas = filas.filter((f) => f.estado === filtros.estado)
-  if (filtros.proveedorId) {
-    // proveedorId puede ser de compras.proveedores o de servicios.proveedores_servicio —
-    // se resuelve comparando contra los ids ya usados para armar los mapas de arriba.
-    const prov = proveedores.get(filtros.proveedorId) ?? proveedoresServicio.get(filtros.proveedorId)
-    if (prov) filas = filas.filter((f) => f.proveedor === prov.razon_social)
-  }
-  if (filtros.fechaDesde) filas = filas.filter((f) => f.fecha >= filtros.fechaDesde!)
-  if (filtros.fechaHasta) filas = filas.filter((f) => f.fecha <= filtros.fechaHasta!)
-  if (filtros.soloPendientes) filas = filas.filter((f) => ordenPendiente(f.estado as EstadoOC | EstadoOS))
+  // Todos los filtros en una sola función pura y testeada — ver
+  // aplicarFiltrosOrdenes en domain/ordenes-unificadas.ts. Antes eran seis
+  // `filter` sueltos acá, y al de Tipo simplemente le faltaba el suyo.
+  const filas = aplicarFiltrosOrdenes([...filasOC, ...filasOS], filtros)
 
   filas.sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? '') || b.codigo.localeCompare(a.codigo))
 

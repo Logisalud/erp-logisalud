@@ -135,3 +135,78 @@ export function etiquetaEstado(tipo: TipoOrdenUnificada, estado: string): string
 export function colorEstadoFila(tipo: TipoOrdenUnificada, estado: string): ColorEstado {
   return tipo === 'servicio' ? colorEstadoOS(estado as EstadoOS) : colorEstadoOC(estado as EstadoOC)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILTRADO DEL VISOR
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Lo mínimo que una fila necesita tener para poder filtrarse. Deliberadamente
+ * no es `FilaOrdenUnificada` entera: así esta función vive en `domain/` sin
+ * saber nada de Supabase ni de cómo se arma la fila.
+ */
+export type FilaFiltrable = {
+  tipo: TipoOrdenUnificada
+  codigo: string
+  proveedor: string
+  proveedorId: string | null
+  ruc: string | null
+  estado: string
+  fecha: string | null
+}
+
+export type FiltrosVisorOrdenes = {
+  busqueda?: string
+  tipo?: TipoOrdenUnificada
+  estado?: string
+  proveedorId?: string
+  fechaDesde?: string
+  fechaHasta?: string
+  soloPendientes?: boolean
+}
+
+function normalizarTexto(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+/**
+ * Aplica TODOS los filtros del visor de órdenes.
+ *
+ * Está acá y no en el servicio porque es la pieza que se rompió sin que nada
+ * avisara: el filtro de Tipo se aplicaba eligiendo qué tabla consultar, lo
+ * cual alcanza para 'servicio' pero no para 'mercaderia' vs 'bien' —las dos
+ * viven en `compras.ordenes_compra`—, así que "Tipo: Mercadería" mostraba
+ * también las de tipo Bien. Un filtro que devuelve MÁS filas de las que
+ * corresponde no se nota mirando la pantalla; un test sí lo nota.
+ */
+export function aplicarFiltrosOrdenes<T extends FilaFiltrable>(
+  filas: readonly T[],
+  filtros: FiltrosVisorOrdenes
+): T[] {
+  let r = [...filas]
+
+  if (filtros.busqueda?.trim()) {
+    const q = normalizarTexto(filtros.busqueda)
+    r = r.filter(
+      (f) =>
+        normalizarTexto(f.codigo).includes(q) ||
+        normalizarTexto(f.proveedor).includes(q) ||
+        (f.ruc ? normalizarTexto(f.ruc).includes(q) : false)
+    )
+  }
+  if (filtros.tipo) r = r.filter((f) => f.tipo === filtros.tipo)
+  if (filtros.estado) r = r.filter((f) => f.estado === filtros.estado)
+  // Por ID y no por razón social: comparar nombres dejaba pasar a dos
+  // proveedores homónimos de las dos tablas, y —peor— si el id no se podía
+  // resolver el filtro se salteaba entero y devolvía TODO.
+  if (filtros.proveedorId) r = r.filter((f) => f.proveedorId === filtros.proveedorId)
+  if (filtros.fechaDesde) r = r.filter((f) => !!f.fecha && f.fecha >= filtros.fechaDesde!)
+  if (filtros.fechaHasta) r = r.filter((f) => !!f.fecha && f.fecha <= filtros.fechaHasta!)
+  if (filtros.soloPendientes) r = r.filter((f) => ordenPendiente(f.estado as EstadoOC | EstadoOS))
+
+  return r
+}

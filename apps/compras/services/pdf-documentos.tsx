@@ -60,9 +60,13 @@ export type DatosPdfOrden = {
   notas: string | null
 }
 
-/** Ruta del logo en `public/` — mismo archivo para el header de la vista
- * `window.print()` de OC y de este PDF (sesión 2026-09-09, ver PR #50 para
- * el bug de basePath que ya se resolvió del lado de next/image). */
+/**
+ * El logo INCRUSTADO en base64, no leído de `public/` ni pedido por URL.
+ *
+ * Es la razón por la que el PDF que sale por correo siempre tuvo logo
+ * mientras la vista de impresión lo perdía: acá no hay ninguna petición que
+ * pueda resolver mal el basePath (ver components/logo-logisalud.tsx).
+ */
 function bufferLogo(): Buffer {
   return Buffer.from(LOGO_LOGISALUD_BASE64, 'base64')
 }

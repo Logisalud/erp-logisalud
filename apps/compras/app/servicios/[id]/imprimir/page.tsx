@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { crearClienteServidor } from '@logisalud/auth/server'
+import { LogoLogisalud } from '@/components/logo-logisalud'
 import { obtenerOS } from '@/services/servicios'
 import { BotonImprimir } from '@/app/ordenes-compra/[id]/imprimir/boton-imprimir'
 
@@ -41,14 +41,7 @@ export default async function ImprimirOS({ params }: { params: { id: string } })
 
       <header className="flex items-start justify-between border-b-2 border-logisalud-green pb-4">
         <div>
-          <Image
-            src="/brand/logisalud-color-horizontal.png"
-            alt="Logisalud"
-            width={1798}
-            height={358}
-            style={{ height: '32px', width: 'auto' }}
-            priority
-          />
+          <LogoLogisalud />
           <p className="mt-1 text-xs text-gray-600">Orden de servicio</p>
         </div>
         <div className="text-right">
