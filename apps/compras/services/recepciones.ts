@@ -1,6 +1,6 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
-import { recepcionQuedaConforme, type TipoDiscrepancia } from '@/domain/recepcion'
+import type { TipoDiscrepancia } from '@/domain/recepcion'
 import { estadoTrasRecepcion, puedeRecibirse, ETIQUETA_ESTADO, type EstadoOC } from '@/domain/orden-compra'
 import {
   clasificarTresColumnas, totalizarRecepcion, validarRecepcionTresColumnas,
@@ -291,135 +291,24 @@ async function mapaProductosPorOCItem(ocItemIds: string[]) {
   return resultado
 }
 
-async function mapaMatrizDiscrepancias() {
-  const supabase = crearClienteServidor()
-  const { data } = await supabase
-    .schema('almacen')
-    .from('matriz_resolucion_discrepancias')
-    .select('tipo_discrepancia, accion_estandar')
-  return new Map((data ?? []).map((m: any) => [m.tipo_discrepancia, m.accion_estandar]))
-}
-
-async function mapaResolucionesPorItem(recepcionItemIds: string[]) {
-  const supabase = crearClienteServidor()
-  if (recepcionItemIds.length === 0) return new Map()
-  const { data } = await supabase
-    .schema('almacen')
-    .from('resoluciones_discrepancia')
-    .select('recepcion_item_id, accion_tomada, comentario, decidido_por, fecha_decision')
-    .in('recepcion_item_id', recepcionItemIds)
-    // Si algún día se permitiera más de una resolución por línea, la última manda.
-    .order('fecha_decision', { ascending: false })
-
-  const mapa = new Map()
-  for (const r of data ?? []) {
-    if (!mapa.has(r.recepcion_item_id)) mapa.set(r.recepcion_item_id, r)
-  }
-  return mapa
-}
-
-export type ResolucionInput = {
-  recepcionItemId: string
-  accionTomada:
-    | 'aceptado_segun_sugerencia'
-    | 'aceptado_con_ajuste'
-    | 'rechazado'
-    | 'nota_credito_solicitada'
-    | 'reposicion_solicitada'
-  cantidadAceptadaAjustada?: number | null
-  comentario?: string | null
-}
-
-/**
- * El responsable de Almacén confirma o ajusta la sugerencia de una línea con
- * discrepancia. Si cambia la cantidad aceptada, propaga el delta a la OC y
- * revisa si la recepción entera ya puede cerrarse como conforme.
+/*
+ * Acá vivían `mapaMatrizDiscrepancias`, `mapaResolucionesPorItem`,
+ * `ResolucionInput` y `resolverDiscrepancia` — el mecanismo con el que el
+ * responsable de Almacén confirmaba o ajustaba la sugerencia de cada línea
+ * con discrepancia. Se retiraron el 2026-09-18, cerrando lo que el rediseño
+ * de tres columnas había dejado inalcanzable: su pantalla (`resolucion.tsx`)
+ * se borró con el rediseño, y el último lector indirecto —la columna
+ * "Discrepancias abiertas" de /reportes/ordenes-compra— se fue en el mismo
+ * commit que este comentario.
+ *
+ * Las tablas `almacen.resoluciones_discrepancia` y
+ * `almacen.matriz_resolucion_discrepancias` siguen en la base, vacías y sin
+ * ningún lector. Retirarlas es una migración aparte.
+ *
+ * Lo que hace su trabajo hoy: la discrepancia físico vs factura frena la
+ * obligación con `espera_nota_credito`, y se levanta registrando la nota de
+ * crédito del proveedor — ver services/notas-credito.ts.
  */
-export async function resolverDiscrepancia(input: ResolucionInput): Promise<{ conforme: boolean }> {
-  const usuario = await exigirUsuario()
-  const supabase = crearClienteServidor()
-
-  const { data: item, error } = await supabase
-    .schema('almacen')
-    .from('recepciones_items')
-    .select('id, recepcion_id, oc_item_id, tipo_discrepancia, cantidad_aceptada, cantidad_fisica')
-    .eq('id', input.recepcionItemId)
-    .maybeSingle()
-
-  if (error || !item) throw new Error('No se encontró la línea de recepción.')
-  if (item.tipo_discrepancia === 'ninguna') throw new Error('Esta línea no tiene discrepancia que resolver.')
-
-  const nuevaAceptada =
-    input.accionTomada === 'aceptado_con_ajuste'
-      ? input.cantidadAceptadaAjustada ?? Number(item.cantidad_aceptada)
-      : input.accionTomada === 'rechazado'
-        ? 0
-        : Number(item.cantidad_aceptada)
-
-  const delta = nuevaAceptada - Number(item.cantidad_aceptada)
-
-  const { error: errRes } = await supabase.schema('almacen').from('resoluciones_discrepancia').insert({
-    recepcion_item_id: item.id,
-    tipo_discrepancia: item.tipo_discrepancia,
-    accion_tomada: input.accionTomada,
-    comentario: input.comentario ?? null,
-    decidido_por: usuario.id,
-  })
-  if (errRes) throw new Error(`No se pudo registrar la resolución: ${errRes.message}`)
-
-  if (delta !== 0) {
-    await supabase
-      .schema('almacen')
-      .from('recepciones_items')
-      .update({
-        cantidad_aceptada: nuevaAceptada,
-        cantidad_rechazada: Number(item.cantidad_fisica) - nuevaAceptada,
-      })
-      .eq('id', item.id)
-
-    const { data: ocItem } = await supabase
-      .schema('compras')
-      .from('ordenes_compra_items')
-      .select('id, oc_id, cantidad_recibida')
-      .eq('id', item.oc_item_id)
-      .maybeSingle()
-
-    if (ocItem) {
-      await supabase
-        .schema('compras')
-        .from('ordenes_compra_items')
-        .update({ cantidad_recibida: Number(ocItem.cantidad_recibida) + delta })
-        .eq('id', ocItem.id)
-
-      await actualizarEstadoOC(ocItem.oc_id)
-    }
-  }
-
-  const { data: itemsRecepcion } = await supabase
-    .schema('almacen')
-    .from('recepciones_items')
-    .select('id, tipo_discrepancia')
-    .eq('recepcion_id', item.recepcion_id)
-
-  const resoluciones = await mapaResolucionesPorItem((itemsRecepcion ?? []).map((i) => i.id))
-
-  const conforme = recepcionQuedaConforme(
-    (itemsRecepcion ?? []).map((i) => ({
-      tipoDiscrepancia: i.tipo_discrepancia as TipoDiscrepancia,
-      resuelta: resoluciones.has(i.id),
-    }))
-  )
-
-  if (conforme) {
-    await supabase
-      .schema('almacen')
-      .from('recepciones')
-      .update({ estado: 'conforme', conforme: true, fecha_conformidad: new Date().toISOString() })
-      .eq('id', item.recepcion_id)
-  }
-
-  return { conforme }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RECEPCIÓN DE TRES COLUMNAS (rediseño 2026-09-18)

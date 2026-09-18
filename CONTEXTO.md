@@ -531,9 +531,10 @@ Auditados todos los lectores de esas columnas:
 |---|---|
 | Loop "Discrepancias de Almacén sin resolver" (dashboard) | **retirado** |
 | `listarDiscrepanciasSinResolver` + `discrepanciaAbierta` | **retirados** |
-| Columna "Discrepancias abiertas" en `/reportes/ordenes-compra` | **mismo problema, pendiente de decisión** |
+| Columna "Discrepancias abiertas" en `/reportes/ordenes-compra` | **retirada** (2026-09-18) |
 | `/facturas-pendientes` | vacío pero **a propósito** (histórico de solo lectura) |
-| `resolverDiscrepancia` (servicio) | inalcanzable; vive solo porque el reporte de arriba todavía no se decidió |
+| `resolverDiscrepancia` + `mapaResolucionesPorItem` + `mapaMatrizDiscrepancias` | **retirados** con esa columna, su último lector indirecto |
+| `recepcionQuedaConforme` (domain) | **retirado**: al irse `resolverDiscrepancia` quedó con el import y ningún uso |
 
 El loop del dashboard era peor que vacío: llevaba a
 `/almacen/recepciones/[id]` a "resolver la acción de cada línea", que es una
@@ -547,16 +548,69 @@ cola de Contabilidad. Lo encontró el type-check, no la lectura del código.
 
 ---
 
+## apps/pedidos: qué es y qué está roto (investigado 2026-09-18)
+
+La pregunta era si `apps/pedidos` es el código real que usa Andrés o un
+borrador abandonado. **Es el código real, y la hipótesis estaba al revés.**
+
+| | `apps/pedidos` (monorepo) | `ElanHT/erp-logisalud-pedidos` (repo aparte) |
+|---|---|---|
+| Commits | 55, el último **2026-09-18** | el último **2026-08-25** |
+| Migraciones | hasta `1035` | hasta `0052` |
+| Estado | **activo** | **congelado ~3 semanas** |
+
+El CLAUDE.md de la copia del monorepo también describe un estado más
+avanzado: dice que el motor de promociones existe desde la migración `1017`,
+mientras el del repo aparte dice que todavía no hay motor de promociones.
+
+**Datos: tiene su PROPIO proyecto Supabase, y está en uso real.**
+`Logisalud_pedidos` (`dfqhxwkdflnkcjnysbwu`, creado 2026-08-02): 45 tablas en
+el schema `pedidos`, **263 productos, 3.418 clientes y 56 pedidos reales, el
+último del 2026-09-17**. No usa el consolidado: `lib/supabase/*` fija
+`db: { schema: 'pedidos' }` contra ese proyecto. El consolidado tiene un
+schema `pedidos` con **13 tablas y sin `customers`** — es el arranque de la
+consolidación (de ahí el nombre de la rama de trabajo), no la base viva.
+`catalogo.productos` del consolidado tiene 216 productos, otro número.
+
+**🔴 Lo que está roto: el proyecto de Vercel `erp-logisalud-pedidos` no tiene
+NINGUNA variable de entorno.** Deploya desde este monorepo, rama `main` —
+o sea **cada merge a main lo redeploya**— y responde **HTTP 500
+`MIDDLEWARE_INVOCATION_FAILED`** en el alias que sí existe
+(`erp-logisalud-pedidos-logisalud.vercel.app`). Sin `NEXT_PUBLIC_SUPABASE_URL`
+ni la anon key, el middleware no puede armar el cliente de Supabase y se cae
+antes de renderizar.
+
+**Y los aliases de ese proyecto NO incluyen `erp-logisalud-pedidos.vercel.app`**
+(la URL que Sebas pasó para el botón). Los que tiene son
+`-alpha.vercel.app`, `-logisalud.vercel.app` y
+`-git-main-logisalud.vercel.app`. Que el subdominio simple esté tomado apunta
+a que hay **otro deployment, en otra cuenta de Vercel**, y eso encaja con que
+existan 56 pedidos reales mientras este deployment está caído: la app que la
+gente usa no es la que sale de este proyecto.
+
+No se pudo verificar `erp-logisalud-pedidos.vercel.app` desde el contenedor —
+el proxy de egreso bloquea ese dominio.
+
+**Preguntas abiertas para Andrés, en este orden:**
+
+1. ¿Qué deployment usa el equipo hoy, y desde qué repo/cuenta sale?
+2. Si es el monorepo: hay que cargarle las env vars al proyecto de Vercel,
+   porque hoy está en 500.
+3. Si NO es el monorepo: entonces hay **dos** copias divergiendo y una base
+   de datos con pedidos reales — decidir cuál es la fuente de verdad antes de
+   que sigan separándose.
+
+---
+
 ## Deuda técnica conocida (menor, revisar aparte)
 
-- **`apps/pedidos` (305 MB) — candidato a limpieza, NO TOCAR todavía.**
-  Andrés construyó el módulo de Pedidos por su lado, y lo único que Sebas le
-  pidió es el link para poner un botón desde Compras. Si se confirma que la
-  copia del monorepo es **obsoleta**, se puede retirar y con eso se van
-  también su CLAUDE.md del contexto de cada sesión y ~305 MB del repo. **Es
-  trabajo de otra persona: no se borra sin que Andrés lo sepa primero**
-  (2026-09-18). Ojo con dos cosas al hacerlo: es un workspace de npm (toca el
-  `package-lock.json` de la raíz) y tiene su propio workflow de CI.
+- **`apps/pedidos` NO es un esqueleto abandonado — es el código vivo.**
+  Investigado el 2026-09-18 y el resultado dio vuelta la hipótesis: la copia
+  del monorepo es la ACTIVA (55 commits, el último ese mismo día, migraciones
+  hasta `1035`), y el repo aparte `ElanHT/erp-logisalud-pedidos` es el que
+  está **congelado desde el 2026-08-25** (migraciones hasta `0052`).
+  **No borrar `apps/pedidos`.** El detalle completo está más abajo, en
+  "apps/pedidos: qué es y qué está roto".
 
 - **Impuestos — estado `en_propuesta` muerto**: las filas de impuestos pueden
   quedar en un estado que ningún flujo alcanza de verdad.
