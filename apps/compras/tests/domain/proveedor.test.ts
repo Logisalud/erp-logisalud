@@ -6,6 +6,8 @@ import {
   validarProveedor,
   validarCuentaBancaria,
   puedeDesactivarseSinAviso,
+  validarEdicionProveedor,
+  type DatosEditablesProveedor,
 } from '@/domain/proveedor'
 
 describe('validarRUC', () => {
@@ -56,4 +58,52 @@ describe('validarCuentaBancaria', () => {
 describe('puedeDesactivarseSinAviso', () => {
   it('sin movimientos: se puede desactivar sin aviso', () => expect(puedeDesactivarseSinAviso(false)).toBe(true))
   it('con movimientos: hay que avisar antes', () => expect(puedeDesactivarseSinAviso(true)).toBe(false))
+})
+
+describe('validarEdicionProveedor', () => {
+  const base: DatosEditablesProveedor = {
+    ruc: '20512345678',
+    razonSocial: 'AB IMPRESIONES Y ACABADOS SAC',
+    nombreComercial: null,
+    contactoNombre: null,
+    contactoEmail: null,
+    contactoTelefono: null,
+    condicionPagoDias: 30,
+    direccionFiscal: null,
+    observaciones: null,
+  }
+
+  it('acepta una corrección válida', () => {
+    expect(validarEdicionProveedor(base)).toEqual([])
+  })
+
+  it('un RUC corregido a medias no pasa', () => {
+    expect(validarEdicionProveedor({ ...base, ruc: '2051234' }).map((e) => e.campo)).toEqual(['ruc'])
+  })
+
+  it('no deja borrar la razón social', () => {
+    expect(validarEdicionProveedor({ ...base, razonSocial: '   ' }).map((e) => e.campo)).toEqual(['razonSocial'])
+  })
+
+  it('contado (0 días) es válido; negativo no', () => {
+    expect(validarEdicionProveedor({ ...base, condicionPagoDias: 0 })).toEqual([])
+    expect(validarEdicionProveedor({ ...base, condicionPagoDias: -1 }).map((e) => e.campo))
+      .toEqual(['condicionPagoDias'])
+  })
+
+  it('un campo numérico vacío llega como NaN y no se guarda como 0 silencioso', () => {
+    expect(validarEdicionProveedor({ ...base, condicionPagoDias: NaN }).map((e) => e.campo))
+      .toEqual(['condicionPagoDias'])
+  })
+
+  it('el correo vacío es válido, uno mal escrito no', () => {
+    expect(validarEdicionProveedor({ ...base, contactoEmail: null })).toEqual([])
+    expect(validarEdicionProveedor({ ...base, contactoEmail: 'ventas@' }).map((e) => e.campo))
+      .toEqual(['contactoEmail'])
+    expect(validarEdicionProveedor({ ...base, contactoEmail: 'ventas@ab.com' })).toEqual([])
+  })
+
+  it('junta todos los errores, no corta en el primero', () => {
+    expect(validarEdicionProveedor({ ...base, ruc: 'x', razonSocial: '' })).toHaveLength(2)
+  })
 })

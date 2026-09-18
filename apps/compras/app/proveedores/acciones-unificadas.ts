@@ -3,13 +3,17 @@
 import { revalidatePath } from 'next/cache'
 import {
   cambiarActivoProveedor,
-  actualizarDatosProveedor,
+  editarDatosProveedor,
   tieneMovimientos,
   crearCuentaBancariaUnificada,
   eliminarCuentaBancariaUnificada,
   type BorradorCuentaBancariaUnificada,
 } from '@/services/proveedores-unificado'
-import type { FuenteProveedor } from '@/domain/proveedor'
+import {
+  validarEdicionProveedor,
+  type DatosEditablesProveedor,
+  type FuenteProveedor,
+} from '@/domain/proveedor'
 
 export type EstadoAccion = { error: string } | null
 
@@ -47,20 +51,41 @@ export async function cambiarActivoAction(
   return null
 }
 
+/**
+ * Corregir un proveedor ya creado. SIN gate de permiso a propósito: hoy lo
+ * puede hacer cualquiera con sesión (pedido de Sebas, 2026-09-18), porque el
+ * problema real era que un RUC o una razón social mal tipeados no los podía
+ * arreglar NADIE y la salida era duplicar el proveedor. Cuando se cierre el
+ * acceso abierto temporal (ver CONTEXTO.md) hay que decidir a quién se le
+ * deja — la policy `proveedores_escritura` ya dice `compras`/`admin`.
+ */
 export async function guardarDatosProveedorAction(
   fuente: FuenteProveedor,
   id: string,
   _previo: EstadoAccion,
   form: FormData
 ): Promise<EstadoAccion> {
-  const direccionFiscal = String(form.get('direccionFiscal') ?? '').trim() || null
-  const observaciones = String(form.get('observaciones') ?? '').trim() || null
+  const texto = (campo: string) => String(form.get(campo) ?? '').trim() || null
+  const datos: DatosEditablesProveedor = {
+    ruc: String(form.get('ruc') ?? '').trim(),
+    razonSocial: String(form.get('razonSocial') ?? '').trim(),
+    nombreComercial: texto('nombreComercial'),
+    contactoNombre: texto('contactoNombre'),
+    contactoEmail: texto('contactoEmail'),
+    contactoTelefono: texto('contactoTelefono'),
+    condicionPagoDias: Number(form.get('condicionPagoDias') ?? 0),
+    direccionFiscal: texto('direccionFiscal'),
+    observaciones: texto('observaciones'),
+  }
+  const errores = validarEdicionProveedor(datos)
+  if (errores.length > 0) return { error: errores.map((e) => e.mensaje).join(' ') }
   try {
-    await actualizarDatosProveedor(fuente, id, { direccionFiscal, observaciones })
+    await editarDatosProveedor(fuente, id, datos)
   } catch (e) {
     return { error: (e as Error).message }
   }
   revalidatePath(ruta(fuente, id))
+  revalidatePath('/proveedores')
   return null
 }
 

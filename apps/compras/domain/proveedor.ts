@@ -132,3 +132,55 @@ export const ETIQUETA_FUENTE_PROVEEDOR: Record<FuenteProveedor, string> = {
 export function puedeDesactivarseSinAviso(tieneMovimientos: boolean): boolean {
   return !tieneMovimientos
 }
+
+/**
+ * Los datos de un proveedor YA CREADO que se pueden corregir.
+ *
+ * Hasta ahora la ficha solo dejaba editar dirección fiscal y observaciones:
+ * razón social, RUC, contacto y condición de pago se escribían una vez en el
+ * alta y después no los podía arreglar NADIE — ni admin. Un RUC mal tipeado o
+ * una razón social a medias quedaban ahí para siempre, y la salida era crear
+ * un proveedor duplicado, que es justo lo que no queremos.
+ *
+ * `tipo` y `moneda principal` quedan afuera a propósito: `tipo` decide en qué
+ * tabla vive el proveedor (compras.proveedores vs servicios.proveedores_servicio)
+ * y cambiarlo sería mudarlo de schema, no editarlo; la moneda principal es solo
+ * el valor por defecto de la OC y ya se elige en cada orden.
+ */
+export type DatosEditablesProveedor = {
+  ruc: string
+  razonSocial: string
+  nombreComercial: string | null
+  contactoNombre: string | null
+  contactoEmail: string | null
+  contactoTelefono: string | null
+  condicionPagoDias: number
+  direccionFiscal: string | null
+  observaciones: string | null
+}
+
+/**
+ * Mismas reglas que el alta para los campos que comparten — se validan otra
+ * vez acá y no se reusa `validarProveedor` porque aquel exige `tipo`, que en
+ * una edición no se toca.
+ */
+export function validarEdicionProveedor(d: DatosEditablesProveedor): ErrorValidacionProveedor[] {
+  const errores: ErrorValidacionProveedor[] = []
+  if (!validarRUC(d.ruc)) errores.push({ campo: 'ruc', mensaje: 'El RUC tiene que tener 11 dígitos.' })
+  if (!d.razonSocial.trim()) errores.push({ campo: 'razonSocial', mensaje: 'Escribe la razón social.' })
+  if (!Number.isFinite(d.condicionPagoDias) || d.condicionPagoDias < 0) {
+    errores.push({ campo: 'condicionPagoDias', mensaje: 'Los días de condición de pago tienen que ser 0 o más.' })
+  }
+  if (d.contactoEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.contactoEmail)) {
+    errores.push({ campo: 'contactoEmail', mensaje: 'Ese correo no tiene forma de correo.' })
+  }
+  return errores
+}
+
+/**
+ * El RUC es único por tabla, así que corregirlo puede chocar con un proveedor
+ * que ya existe. El mensaje dice qué hacer, no solo que falló: el camino bueno
+ * es usar el proveedor que ya está, no insistir con este.
+ */
+export const ERROR_RUC_DUPLICADO =
+  'Ya hay otro proveedor con ese RUC. Búscalo en la lista y usa ese en vez de duplicarlo.'
