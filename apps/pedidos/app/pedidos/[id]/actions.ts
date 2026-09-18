@@ -23,31 +23,53 @@ import { addOrderObservation, getOrderEstado } from "@/services/order-exceptions
 import { notifyObservationAdded } from "@/services/order-notifications";
 import { listPaymentTerms } from "@/services/catalog";
 import { validarCondicionDePago } from "@/domain/payment-terms";
+import { falloDe, type ResultadoAccion } from "@/domain/acciones";
 
-export async function agregarProducto(orderId: string, customerId: string, formData: FormData) {
-  const productId = String(formData.get("productId") ?? "");
-  const cantidad = Number(formData.get("cantidad"));
-  if (!productId) throw new Error("Selecciona un producto.");
-  if (!cantidad || cantidad <= 0) throw new Error("Ingresa una cantidad válida.");
+export async function agregarProducto(
+  orderId: string,
+  customerId: string,
+  formData: FormData,
+): Promise<ResultadoAccion> {
+  try {
+    // La sesión se exige ANTES de tocar nada: sin ella las consultas salen
+    // como `anon`, la RLS no deja ver ni el producto, y el error que llegaba
+    // era "El producto no existe o no es visible" — que manda a buscar el
+    // problema al lado equivocado. Pasó el 2026-09-18.
+    await requireUserId();
 
-  const result = await addOrderItem({ orderId, customerId, productId, cantidad });
-  if (!result.ok) {
-    const messages: Record<string, string> = {
-      NO_PRICE: "Este producto no tiene precio vigente para el canal del cliente.",
-      NO_TAX_PROFILE: "Este producto no tiene perfil tributario vigente.",
-      NO_CHANNEL: "El cliente no tiene canal de venta asignado.",
-      PRODUCTO_INACTIVO:
-        "Ese producto está inactivo y no se puede facturar, así que no se puede agregar al pedido.",
-    };
-    throw new Error(messages[result.reason]);
+    const productId = String(formData.get("productId") ?? "");
+    const cantidad = Number(formData.get("cantidad"));
+    if (!productId) throw new Error("Selecciona un producto.");
+    if (!cantidad || cantidad <= 0) throw new Error("Ingresa una cantidad válida.");
+
+    const result = await addOrderItem({ orderId, customerId, productId, cantidad });
+    if (!result.ok) {
+      const messages: Record<string, string> = {
+        NO_PRICE: "Este producto no tiene precio vigente para el canal del cliente.",
+        NO_TAX_PROFILE: "Este producto no tiene perfil tributario vigente.",
+        NO_CHANNEL: "El cliente no tiene canal de venta asignado.",
+        PRODUCTO_INACTIVO:
+          "Ese producto está inactivo y no se puede facturar, así que no se puede agregar al pedido.",
+      };
+      throw new Error(messages[result.reason]);
+    }
+
+    revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo agregar el producto.");
   }
-
-  revalidatePath(`/pedidos/${orderId}`);
 }
 
-export async function quitarProducto(orderId: string, itemId: string) {
-  await removeOrderItem(itemId);
-  revalidatePath(`/pedidos/${orderId}`);
+export async function quitarProducto(orderId: string, itemId: string): Promise<ResultadoAccion> {
+  try {
+    await requireUserId();
+    await removeOrderItem(itemId);
+    revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo quitar el producto.");
+  }
 }
 
 export async function actualizarCondicionPago(orderId: string, formData: FormData) {
@@ -163,10 +185,18 @@ export async function marcarComoBonificacion(
   return resultado;
 }
 
-export async function quitarBonificacion(orderId: string, itemId: string) {
-  const userId = await requireUserId();
-  await quitarBonificacionManual({ itemId, actor: userId });
-  revalidatePath(`/pedidos/${orderId}`);
+export async function quitarBonificacion(
+  orderId: string,
+  itemId: string,
+): Promise<ResultadoAccion> {
+  try {
+    const userId = await requireUserId();
+    await quitarBonificacionManual({ itemId, actor: userId });
+    revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo quitar la bonificación.");
+  }
 }
 
 export async function solicitarDescuento(orderId: string, itemId: string, formData: FormData) {
@@ -249,10 +279,19 @@ export async function cambiarCliente(
 }
 
 /** Corregir la cantidad de una línea sin tener que buscar el producto otra vez. */
-export async function cambiarCantidad(orderId: string, itemId: string, cantidad: number) {
-  const userId = await requireUserId();
-  await updateOrderItemQuantity({ orderId, itemId, cantidad, actor: userId });
-  revalidatePath(`/pedidos/${orderId}`);
+export async function cambiarCantidad(
+  orderId: string,
+  itemId: string,
+  cantidad: number,
+): Promise<ResultadoAccion> {
+  try {
+    const userId = await requireUserId();
+    await updateOrderItemQuantity({ orderId, itemId, cantidad, actor: userId });
+    revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo cambiar la cantidad.");
+  }
 }
 
 /**

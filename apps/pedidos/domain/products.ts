@@ -69,6 +69,42 @@ export function displayNombreProducto(descripcion: string, codigoInterno: string
 }
 
 /**
+ * El nombre con su presentación, para poder ELEGIR entre productos que se
+ * llaman igual.
+ *
+ * La descripción sola no alcanza: hoy **72 de los 240 productos ofrecibles
+ * comparten nombre con otro** (36 nombres repetidos). "DIPHADIC LONG" son
+ * dos productos distintos —la caja de 100 cápsulas y la ampolla— y en el
+ * buscador se veían idénticos, con el código como única diferencia. El
+ * vendedor no tiene por qué saberse los códigos.
+ *
+ * La presentación no se agrega si la descripción ya la dice: varios
+ * productos traen todo en el nombre ("... CJA X 50 AMP") y repetirlo sólo
+ * alarga la línea.
+ */
+export function displayProductoConPresentacion(
+  descripcion: string,
+  codigoInterno: string,
+  presentacion?: string | null,
+): string {
+  const nombre = displayNombreProducto(descripcion, codigoInterno);
+  const detalle = presentacion?.trim();
+  if (!detalle) return nombre;
+
+  // Comparación tolerante: los mismos datos escritos distinto ("CJA X 50" y
+  // "CAJA x 50") no cuentan como repetición, pero un calce literal sí.
+  const normalizar = (t: string) =>
+    t
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  if (normalizar(nombre).includes(normalizar(detalle))) return nombre;
+
+  return `${nombre} — ${detalle}`;
+}
+
+/**
  * ¿Este producto se le puede ofrecer al vendedor al armar un pedido?
  *
  * - **Activo.** Un producto inactivo no se puede facturar. Desde `0052` eso
