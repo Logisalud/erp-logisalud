@@ -33,6 +33,17 @@ export default async function OrdenesUnificadas({ searchParams }: { searchParams
   const pagina = Math.max(1, Number(searchParams.pagina) || 1)
   const soloPendientes = searchParams.pendientes === '1'
 
+  // Los desplegables de OC y de OS comparten tres estados con el mismo valor
+  // ('facturada', 'cerrada', 'anulada'), así que con "Tipo: Todas" el select
+  // los ofrecía DUPLICADOS. Se deduplica por valor, que es lo que viaja en la
+  // querystring y lo que compara el filtro.
+  const opcionesEstado = [
+    ...(tipo !== 'servicio' ? ESTADOS_OC.map((e) => ({ valor: e as string, etiqueta: ETIQUETA_ESTADO[e] })) : []),
+    ...(tipo !== 'mercaderia' && tipo !== 'bien'
+      ? ESTADOS_OS.map((e) => ({ valor: e as string, etiqueta: ETIQUETA_ESTADO_OS[e] }))
+      : []),
+  ].filter((o, i, todas) => todas.findIndex((x) => x.valor === o.valor) === i)
+
   const filtros = {
     busqueda: searchParams.q,
     tipo,
@@ -82,8 +93,7 @@ export default async function OrdenesUnificadas({ searchParams }: { searchParams
           <span className="text-gray-600">Estado</span>
           <select name="estado" defaultValue={searchParams.estado ?? ''} className="mt-1 min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
             <option value="">Todos</option>
-            {tipo !== 'servicio' ? ESTADOS_OC.map((e) => <option key={e} value={e}>{ETIQUETA_ESTADO[e]}</option>) : null}
-            {tipo !== 'mercaderia' && tipo !== 'bien' ? ESTADOS_OS.map((e) => <option key={e} value={e}>{ETIQUETA_ESTADO_OS[e]}</option>) : null}
+            {opcionesEstado.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
           </select>
         </label>
         <label className="block text-sm">
