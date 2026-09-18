@@ -77,7 +77,7 @@ export default async function Dashboard() {
         <TileKPI titulo="Vence en 7 días" filas={kpis.venceProximos7Dias} href="/reportes/cuentas-por-pagar/antiguedad" />
         <TileKPI titulo="Pendientes de revisión" filas={kpis.facturasPendientesRevision} href="/cuentas-por-pagar?estado=registrada" />
         <TileKPI
-          titulo="Aprobadas sin factura"
+          titulo="Servicios sin factura"
           filas={[{ moneda: '', monto: 0, cantidad: kpis.ordenesAprobadasSinFactura.cantidad }]}
           href="/facturas/nueva"
           soloCantidad

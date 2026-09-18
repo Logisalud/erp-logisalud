@@ -91,8 +91,8 @@ export default async function Inicio() {
         {veRegistrarFactura ? (
           <MenuItem
             href="/facturas/nueva" emoji="🧾"
-            titulo="Registrar una factura"
-            descripcion="Vincúlala con una orden aprobada para continuar hacia el pago."
+            titulo="Registrar factura de servicio"
+            descripcion="Vincúlala con una Orden de Servicio aprobada para continuar hacia el pago."
           />
         ) : null}
         <MenuItem
@@ -131,7 +131,13 @@ export default async function Inicio() {
           que el ítem solo repetía trabajo ya visible en otro lado.
           /facturas-pendientes SIGUE VIVA a propósito — hay links hacia ella
           desde otras pantallas y sirve como entrada directa; lo que se quitó
-          es la navegación, no la pantalla. */}
+          es la navegación, no la pantalla.
+
+          2026-09-18: además quedó como HISTÓRICO puro. El rediseño de
+          recepción eliminó el flujo que la alimentaba (Almacén sube la
+          factura junto con la guía, así que no existe más "la factura llegó
+          antes"), y con 0 filas en la tabla no hay nada que conciliar. Se
+          conserva de solo lectura. */}
 
       <Grupo titulo="Otras gestiones">
         <MenuItem

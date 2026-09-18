@@ -1,7 +1,38 @@
-# Recepción de mercadería en Almacén — descripción del flujo implementado
+# Recepción de mercadería en Almacén
 
-**Fase 1.10 del plan de Compras y Pagos: describir, no tocar.** Todo lo
-de abajo es lo que ya existe en el código hoy; no se proponen cambios acá.
+> ## ⚠️ ESTE DOCUMENTO DESCRIBE EL FLUJO VIEJO — REEMPLAZADO EL 2026-09-18
+>
+> El rediseño de **tres columnas** reemplazó casi todo lo de abajo. Se
+> conserva porque explica de dónde viene el modelo actual y qué quedó en la
+> base sin uso, pero **no describe cómo funciona el sistema hoy**.
+>
+> **Lo que cambió, en corto:**
+>
+> | antes | ahora |
+> |---|---|
+> | físico vs **OC pedida** → `faltante`/`sobrante` | dos ejes: factura vs OC (informativo) y **físico vs factura** (la que cuesta plata) |
+> | matriz de 7 tipos de discrepancia + resolución del jefe de Almacén | texto libre en observaciones; la discrepancia se resuelve con **nota de crédito** |
+> | lote, vencimiento, vida útil mínima | **fuera de alcance** — van a un módulo de inventario y trazabilidad aparte |
+> | Contabilidad transcribía la factura en `/facturas/nueva` | Almacén sube guía + factura y la **obligación nace sola**, calculada |
+> | la factura podía llegar antes que la mercadería (cola `facturas_pendientes`) | factura y guía **llegan siempre juntas**; la cola quedó como histórico |
+> | cerrar la OC era una acción suelta en su ficha | se ofrece **después de recibir**, con el desglose de lo que queda |
+>
+> **La fuente de verdad del modelo actual** es
+> `domain/recepcion-tres-columnas.ts` (puro y testeado) más
+> `services/recepciones.ts::registrarRecepcionTresColumnas`.
+>
+> **Lo que quedó en la base sin uso, a propósito:**
+> `almacen.matriz_resolucion_discrepancias`,
+> `almacen.resoluciones_discrepancia`, y en `recepciones_items` las columnas
+> `lote`, `fecha_vencimiento`, `estado_calidad` y `tipo_discrepancia`. Todas
+> con 0 filas. Lote y vencimiento vuelven cuando exista el módulo de
+> inventario.
+
+---
+
+## Historia: el flujo original (Fase 1.10, "describir, no tocar")
+
+Todo lo de abajo describe el flujo tal como estaba antes del rediseño.
 Módulo `apps/compras`, Bounded Context **Almacén**.
 
 ## 1. Pantallas (en el orden en que las recorre el usuario)

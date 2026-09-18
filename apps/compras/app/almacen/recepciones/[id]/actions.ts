@@ -1,38 +1,30 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { resolverDiscrepancia, type ResolucionInput } from '@/services/recepciones'
+import { cerrarOCConSaldoPendiente } from '@/services/ordenes-compra'
 
-export type EstadoResolucion = { error: string } | null
+export type EstadoCierre = { error: string } | null
 
-export async function resolverDiscrepanciaAction(
-  recepcionId: string,
-  _previo: EstadoResolucion,
+/**
+ * Cierra la OC con saldo pendiente desde la ficha de la recepción.
+ *
+ * Reusa `cerrarOCConSaldoPendiente` (migración 0030), que ya deja
+ * `cierre_tipo = 'saldo_no_entregado'` y el motivo — no reimplementa el
+ * cierre. Lo único nuevo es el punto de entrada: antes solo se podía desde
+ * la ficha de la OC, y Charlie tenía que navegar hasta allá.
+ */
+export async function cerrarOCDesdeRecepcionAction(
+  ocId: string,
+  _previo: EstadoCierre,
   form: FormData
-): Promise<EstadoResolucion> {
-  const accionTomada = String(form.get('accionTomada') ?? '') as ResolucionInput['accionTomada']
-  const recepcionItemId = String(form.get('recepcionItemId') ?? '')
-  const cantidadAjustadaRaw = form.get('cantidadAceptadaAjustada')
-  const comentario = String(form.get('comentario') ?? '').trim() || null
-
-  if (!recepcionItemId || !accionTomada) return { error: 'Faltan datos de la línea.' }
-
+): Promise<EstadoCierre> {
+  const motivo = String(form.get('motivo') ?? '').trim()
+  if (!motivo) return { error: 'Contá por qué se cierra la orden.' }
   try {
-    await resolverDiscrepancia({
-      recepcionItemId,
-      accionTomada,
-      cantidadAceptadaAjustada:
-        accionTomada === 'aceptado_con_ajuste' && cantidadAjustadaRaw
-          ? Number(cantidadAjustadaRaw)
-          : null,
-      comentario,
-    })
+    await cerrarOCConSaldoPendiente(ocId, motivo)
   } catch (e) {
-    return { error: (e as Error).message }
+    return { error: e instanceof Error ? e.message : 'No se pudo cerrar la orden.' }
   }
-
-  // La misma pantalla se re-renderiza con la resolución ya guardada, y si
-  // era la última línea pendiente, con la recepción marcada conforme.
-  revalidatePath(`/almacen/recepciones/${recepcionId}`)
+  revalidatePath(`/ordenes-compra/${ocId}`)
   return null
 }

@@ -6,7 +6,10 @@ import {
   darConformidad, anularPagoDirecto, rechazarPagoDirecto,
   obtenerObligacion, obtenerUrlLegajoPagoDirecto,
 } from '@/services/obligaciones'
-import { registrarNotaCredito, aplicarNotaCredito } from '@/services/notas-credito'
+import {
+  registrarNotaCredito, aplicarNotaCredito, registrarNotaCreditoDeRecepcion,
+  subirNotaCreditoDeRecepcion,
+} from '@/services/notas-credito'
 import { obtenerUrlLegajoPago } from '@/services/pagos'
 import {
   corregirFechaDePago, reemplazarConstanciaPago, registrarPagoHistorico, subirVoucherHistorico,
@@ -203,4 +206,48 @@ export async function corregirFechaPagoAction(
   }
   revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
   redirect(`/cuentas-por-pagar/${obligacionId}`)
+}
+
+/**
+ * La nota de crédito que libera una obligación del Caso A (llegó menos de lo
+ * facturado). El archivo ya viajó en su propio request — acá solo llega su
+ * ruta.
+ *
+ * Nada de lo que decide si la NC es válida viene de este formulario: el
+ * total contra el que se compara el monto, la moneda y el proveedor los lee
+ * el servicio de la base. Ver services/notas-credito.ts.
+ */
+export async function registrarNotaCreditoDeRecepcionAction(
+  obligacionId: string,
+  _previo: EstadoAccion,
+  form: FormData
+): Promise<EstadoAccion> {
+  try {
+    await registrarNotaCreditoDeRecepcion({
+      obligacionId,
+      monto: Number(form.get('monto') ?? 0),
+      motivo: String(form.get('motivo') ?? ''),
+      numeroNc: String(form.get('numeroNc') ?? ''),
+      fechaEmision: String(form.get('fechaEmision') ?? ''),
+      storagePath: textoONullPH(form.get('archivoPath')),
+    })
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo registrar la nota de crédito.' }
+  }
+  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
+  redirect(`/cuentas-por-pagar/${obligacionId}`)
+}
+
+/** El archivo de la NC viaja en su propio request — ver el servicio. */
+export async function subirArchivoNotaCreditoAction(
+  codigoObligacion: string,
+  form: FormData
+): Promise<{ path: string } | { error: string }> {
+  const archivo = form.get('archivo')
+  if (!(archivo instanceof File)) return { error: 'No llegó ningún archivo.' }
+  try {
+    return await subirNotaCreditoDeRecepcion(codigoObligacion, archivo)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo subir la nota de crédito.' }
+  }
 }

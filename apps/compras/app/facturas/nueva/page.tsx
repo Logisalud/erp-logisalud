@@ -6,18 +6,23 @@ import { buscarOrdenesFacturables } from '@/services/facturas-elegibles'
 export const dynamic = 'force-dynamic'
 
 /**
- * Registrar una factura — paso 1: buscar y elegir la orden aprobada.
+ * Registrar factura de SERVICIO — paso 1: elegir la Orden de Servicio.
  *
- * Al elegir una fila, el paso 2 es la pantalla real que YA registra la
- * factura de ese tipo de orden con sus reglas de negocio reales (conciliación
- * de 3 vías para compra, la ficha de servicio para OS) — no un formulario
- * paralelo que reinvente esa lógica. Cada fila ya muestra el resumen de la
- * orden (proveedor, moneda, saldo) antes de entrar.
+ * Desde el rediseño de recepción (2026-09-18) esta pantalla atiende SOLO
+ * servicios. En compras la factura ya no la registra Contabilidad: Almacén
+ * la sube junto con la guía, en la misma recepción, y de ahí nace la
+ * obligación con todo calculado.
+ *
+ * Servicios no tiene recepción de mercadería —no hay nada que contar ni
+ * ningún Charlie que suba nada— así que ahí la factura la sigue registrando
+ * Contabilidad, necesariamente. Por eso la pantalla no se eliminó: se
+ * filtró. Eliminarla habría dejado a Servicios sin forma de facturar.
  */
 export default async function RegistrarFacturaBuscar({
   searchParams,
 }: { searchParams: { q?: string; tipo?: string } }) {
-  const tipo = searchParams.tipo === 'compra' || searchParams.tipo === 'servicio' ? searchParams.tipo : undefined
+  // Forzado: ya no hay rama de compra que elegir.
+  const tipo = 'servicio' as const
 
   let filas: Awaited<ReturnType<typeof buscarOrdenesFacturables>> = []
   let error: string | null = null
@@ -29,18 +34,12 @@ export default async function RegistrarFacturaBuscar({
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
-      <Encabezado titulo="Registrar una factura" atras={{ href: '/', texto: 'Compras y Pagos' }} />
+      <Encabezado titulo="Registrar factura de servicio" atras={{ href: '/', texto: 'Compras y Pagos' }} />
       <p className="-mt-4 mb-4 text-sm text-gray-600">
-        Busca la orden de compra o de servicio ya aprobada y vincúlala con su factura.
-      </p>
-      <p className="-mt-2 mb-4 text-sm">
-        ¿La factura llegó antes que la mercadería, o cubre varias recepciones de la misma orden?{' '}
-        <Link href="/facturas/nueva/por-oc" className="text-logisalud-teal underline">
-          Regístrala contra la orden de compra directamente.
-        </Link>
+        Busca la Orden de Servicio ya aprobada y vincúlala con su factura.
       </p>
 
-      <form className="card mb-4 grid gap-3 sm:grid-cols-4" method="get">
+      <form className="card mb-4 grid gap-3 sm:grid-cols-3" method="get">
         <div className="sm:col-span-2">
           <input
             type="search" name="q" defaultValue={searchParams.q ?? ''}
@@ -48,11 +47,6 @@ export default async function RegistrarFacturaBuscar({
             className="min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
         </div>
-        <select name="tipo" defaultValue={searchParams.tipo ?? ''} className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
-          <option value="">Todas</option>
-          <option value="compra">Órdenes de compra</option>
-          <option value="servicio">Órdenes de servicio</option>
-        </select>
         <button type="submit" className="btn-secondary">Buscar</button>
       </form>
 
@@ -71,7 +65,6 @@ export default async function RegistrarFacturaBuscar({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
-                <th className="px-3 py-2 font-medium">Tipo</th>
                 <th className="px-3 py-2 font-medium">N° de orden</th>
                 <th className="px-3 py-2 font-medium">Fecha</th>
                 <th className="px-3 py-2 font-medium">Proveedor</th>
@@ -87,7 +80,6 @@ export default async function RegistrarFacturaBuscar({
             <tbody>
               {filas.map((f) => (
                 <tr key={`${f.tipo}-${f.id}`} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                  <td className="px-3 py-2">{f.tipo === 'compra' ? 'OC' : 'OS'}</td>
                   <td className="px-3 py-2 font-medium">{f.ordenCodigo}</td>
                   <td className="px-3 py-2">{f.fecha}</td>
                   <td className="px-3 py-2">{f.proveedor}</td>

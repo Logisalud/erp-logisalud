@@ -678,6 +678,19 @@ export type ObligacionDetalle = ObligacionListada & {
   monto_detraccion: number
   fecha_factura: string | null
   observaciones: string | null
+  /**
+   * Caso A de la recepción de tres columnas: llegó menos de lo facturado, y
+   * la obligación queda fuera de propuesta de pago hasta que Contabilidad
+   * registre la nota de crédito del proveedor (migración 0062). Es el único
+   * freno de este tipo, y la ficha es donde se levanta.
+   */
+  espera_nota_credito: boolean
+  /**
+   * Crudo, aparte de `proveedor`: ese resuelve el nombre mirando las DOS
+   * tablas de proveedores, y la nota de crédito exige uno de
+   * `compras.proveedores` (la FK de compras.notas_credito.proveedor_id).
+   */
+  proveedor_id: string | null
   recepcion: {
     id: string
     storage_path_guia_recibida: string | null
@@ -730,7 +743,8 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .schema('cuentas_x_pagar')
     .from('obligaciones')
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, igv,
-             monto_detraccion, estado, fecha_vencimiento_real, observaciones, proveedor_id, proveedor_servicio_id, beneficiario_persona,
+             monto_detraccion, estado, fecha_vencimiento_real, observaciones, espera_nota_credito,
+             proveedor_id, proveedor_servicio_id, beneficiario_persona,
              oc_id, recepcion_id, categoria_pago_directo_id, cotizacion_storage_path, factura_storage_path,
              anulada_en, anulada_motivo, rechazada_en, rechazo_motivo, editado_por, editado_en,
              obligaciones_items(id, oc_item_id, cantidad_facturada, precio_facturado)`)
@@ -775,6 +789,8 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     estado: data.estado,
     fecha_vencimiento_real: data.fecha_vencimiento_real,
     observaciones: data.observaciones,
+    espera_nota_credito: (data as any).espera_nota_credito ?? false,
+    proveedor_id: data.proveedor_id ?? null,
     proveedor: proveedores.get(data.proveedor_id ?? data.proveedor_servicio_id ?? '') ?? null,
     beneficiario: data.beneficiario_persona ? beneficiarios.get(data.beneficiario_persona) ?? null : null,
     oc,

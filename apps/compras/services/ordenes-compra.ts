@@ -451,3 +451,83 @@ export async function anularOC(id: string, motivo: string): Promise<void> {
     creadorCorreo: oc.creador_correo ?? null,
   })
 }
+
+export type SaldoPendienteOC = {
+  /** En lenguaje de negocio, ya resuelto: qué falta y quién lo tiene que hacer. */
+  mensaje: string
+  /** false cuando falta la NC de Contabilidad: cerrar ahí dejaría la
+   *  obligación colgada sin nadie mirándola. */
+  puedeCerrarse: boolean
+  /** Para la confirmación: el desglose exacto de lo que se está dejando sin recibir. */
+  detalle: { producto: string; porRecibir: number }[]
+}
+
+/**
+ * Qué falta para cerrar una OC, DESPUÉS de haber recibido.
+ *
+ * El cierre se decide acá y no antes de recibir (2026-09-18): cuando ya se
+ * sabe qué llegó, no como una apuesta previa. Devuelve null cuando la orden
+ * ya está cerrada o no admite cierre.
+ *
+ * La precedencia de la nota de crédito sobre el saldo es deliberada y es la
+ * misma que en domain/recepcion-tres-columnas.ts::pendienteDeCierre: primero
+ * se resuelve la plata, después el saldo de mercadería.
+ */
+export async function obtenerSaldoPendienteOC(ocId: string): Promise<SaldoPendienteOC | null> {
+  const supabase = crearClienteServidor()
+
+  const { data: oc } = await supabase
+    .schema('compras')
+    .from('ordenes_compra')
+    .select('id, estado, ordenes_compra_items(id, producto_id, cantidad_pedida, cantidad_recibida)')
+    .eq('id', ocId)
+    .maybeSingle()
+  if (!oc) return null
+  if (!puedeCerrarseParcial(oc.estado as EstadoOC)) return null
+
+  // ¿Hay alguna obligación de esta OC esperando nota de crédito? Eso manda
+  // sobre el saldo: es plata, no mercadería.
+  const { data: obligaciones } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('obligaciones')
+    .select('id, recepcion_id, espera_nota_credito')
+    .eq('espera_nota_credito', true)
+
+  const { data: recepciones } = await supabase
+    .schema('almacen')
+    .from('recepciones')
+    .select('id')
+    .eq('oc_id', ocId)
+  const idsRecepcion = new Set((recepciones ?? []).map((r: any) => r.id))
+  const esperaNC = (obligaciones ?? []).some((o: any) => idsRecepcion.has(o.recepcion_id))
+
+  if (esperaNC) {
+    return {
+      mensaje:
+        'Pendiente de cerrar: falta que Contabilidad suba la nota de crédito del proveedor. ' +
+        'Hasta entonces la obligación no se puede pagar y la orden no se cierra.',
+      puedeCerrarse: false,
+      detalle: [],
+    }
+  }
+
+  const items = ((oc as any).ordenes_compra_items ?? []) as any[]
+  const conSaldo = items.filter((i) => Number(i.cantidad_recibida) < Number(i.cantidad_pedida))
+  if (conSaldo.length === 0) return null
+
+  const productos = await mapaProductos(conSaldo.map((i) => i.producto_id))
+  const detalle = conSaldo.map((i) => ({
+    producto: productos.get(i.producto_id)?.descripcion ?? 'producto no legible',
+    porRecibir: Number(i.cantidad_pedida) - Number(i.cantidad_recibida),
+  }))
+  const totalUnidades = detalle.reduce((a, d) => a + d.porRecibir, 0)
+
+  return {
+    mensaje:
+      `Pendiente de cerrar: quedan ${totalUnidades} unidades sin recibir en ` +
+      `${detalle.length} ${detalle.length === 1 ? 'producto' : 'productos'}. ` +
+      'Podés esperar la próxima guía, o cerrar la orden si ya no va a llegar.',
+    puedeCerrarse: true,
+    detalle,
+  }
+}
