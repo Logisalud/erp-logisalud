@@ -12,6 +12,16 @@ type Modulo = {
   disponible: boolean
 }
 
+/**
+ * Una `ruta` de `public.modulos` puede ser un path de este host o la URL de
+ * otra app del ERP — Pedidos se construyó por fuera (migración 0063 de
+ * compras). Se decide por el valor y no por el id del módulo: si mañana otro
+ * módulo se va a su propio deploy, la tarjeta ya sabe qué hacer.
+ */
+function esRutaExterna(ruta: string): boolean {
+  return /^https?:\/\//i.test(ruta)
+}
+
 const EMOJI_MODULO: Record<string, string> = {
   cobranzas: '💰',
   pedidos: '📦',
@@ -140,7 +150,24 @@ export default async function PantallaModulos() {
               </h2>
               <p className="mt-1 grow text-sm text-gray-600">{m.descripcion}</p>
 
-              {m.disponible ? (
+              {m.disponible && esRutaExterna(m.ruta) ? (
+                /* Pedidos vive en una app aparte (la de Andrés), así que su
+                   `ruta` es una URL absoluta y no un path de este host. Va
+                   con <a> y no con next/link —que es para navegación
+                   interna— y se abre en otra pestaña, avisando que sale del
+                   ERP: la sesión de allá es otra, y perder esta de un clic
+                   sin querer sería peor que un clic extra. */
+                <a
+                  href={m.ruta}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex min-h-12 items-center justify-center gap-1.5 rounded-lg px-4 font-medium text-white"
+                  style={{ backgroundColor: '#4BB168' }}
+                >
+                  Abrir <span aria-hidden>↗</span>
+                  <span className="sr-only">(se abre en otra pestaña)</span>
+                </a>
+              ) : m.disponible ? (
                 <Link
                   href={m.ruta}
                   className="mt-4 inline-flex min-h-12 items-center justify-center rounded-lg px-4 font-medium text-white"

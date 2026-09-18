@@ -27,7 +27,6 @@ export type FilaReporteOC = {
   moneda: string
   total: number
   porcentajeRecibido: number
-  discrepanciasAbiertas: number
 }
 
 /**
@@ -57,10 +56,7 @@ export async function obtenerReporteOrdenesCompra(filtros: FiltrosReporteOC): Pr
   if (error) throw new Error(`No se pudo armar el reporte de órdenes de compra: ${error.message}`)
   const filas = data ?? []
 
-  const [proveedores, discrepancias] = await Promise.all([
-    mapaProveedores([...new Set(filas.map((f: any) => f.proveedor_id))]),
-    mapaDiscrepanciasAbiertasPorOC(filas.map((f: any) => f.id)),
-  ])
+  const proveedores = await mapaProveedores([...new Set(filas.map((f: any) => f.proveedor_id))])
 
   return filas.map((f: any) => {
     const items = (f.ordenes_compra_items ?? []) as { cantidad_pedida: number; precio_unitario: number; cantidad_recibida: number }[]
@@ -79,7 +75,6 @@ export async function obtenerReporteOrdenesCompra(filtros: FiltrosReporteOC): Pr
       porcentajeRecibido: porcentajeRecibidoOC(
         items.map((i) => ({ cantidadPedida: Number(i.cantidad_pedida), cantidadRecibida: Number(i.cantidad_recibida) }))
       ),
-      discrepanciasAbiertas: discrepancias.get(f.id) ?? 0,
     }
   })
 }
@@ -91,46 +86,14 @@ async function mapaProveedores(ids: string[]) {
   return new Map((data ?? []).map((p: any) => [p.id, p.razon_social as string]))
 }
 
-/**
- * Discrepancia "abierta" = un ítem de recepción con `tipo_discrepancia`
- * distinto de 'ninguna'/null que todavía no tiene una fila en
- * `resoluciones_discrepancia` — nadie la resolvió todavía.
+/*
+ * `mapaDiscrepanciasAbiertasPorOC` y la columna "Discrepancias abiertas" se
+ * retiraron el 2026-09-18. Contaban ítems con `tipo_discrepancia` sin fila en
+ * `resoluciones_discrepancia`, y la recepción de tres columnas no escribe
+ * ninguna de las dos cosas: la columna mostraba 0 en todas las filas, siempre.
+ * Una columna que estructuralmente no puede decir otra cosa que "0" no
+ * informa, tranquiliza.
  */
-async function mapaDiscrepanciasAbiertasPorOC(ocIds: string[]) {
-  const supabase = crearClienteServidor()
-  const resultado = new Map<string, number>()
-  if (ocIds.length === 0) return resultado
-
-  const { data: recepciones } = await supabase.schema('almacen').from('recepciones').select('id, oc_id').in('oc_id', ocIds)
-  const ocPorRecepcion = new Map((recepciones ?? []).map((r: any) => [r.id, r.oc_id]))
-  const recepcionIds = [...ocPorRecepcion.keys()]
-  if (recepcionIds.length === 0) return resultado
-
-  const { data: items } = await supabase
-    .schema('almacen')
-    .from('recepciones_items')
-    .select('id, recepcion_id, tipo_discrepancia')
-    .in('recepcion_id', recepcionIds)
-    .not('tipo_discrepancia', 'is', null)
-    .neq('tipo_discrepancia', 'ninguna')
-  const itemsConDiscrepancia = items ?? []
-  if (itemsConDiscrepancia.length === 0) return resultado
-
-  const { data: resueltos } = await supabase
-    .schema('almacen')
-    .from('resoluciones_discrepancia')
-    .select('recepcion_item_id')
-    .in('recepcion_item_id', itemsConDiscrepancia.map((i: any) => i.id))
-  const idsResueltos = new Set((resueltos ?? []).map((r: any) => r.recepcion_item_id))
-
-  for (const item of itemsConDiscrepancia as any[]) {
-    if (idsResueltos.has(item.id)) continue
-    const ocId = ocPorRecepcion.get(item.recepcion_id)
-    if (!ocId) continue
-    resultado.set(ocId, (resultado.get(ocId) ?? 0) + 1)
-  }
-  return resultado
-}
 
 function redondear(n: number): number {
   return Number(`${Math.round(Number(`${n}e2`))}e-2`)

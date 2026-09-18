@@ -78,7 +78,6 @@ export default async function ReporteOrdenesCompra({
                 <Th>Estado</Th>
                 <Th className="text-right">Total</Th>
                 <Th className="text-right">% recibido</Th>
-                <Th className="text-right">Discrepancias</Th>
               </tr>
             </thead>
             <tbody>
@@ -100,9 +99,6 @@ export default async function ReporteOrdenesCompra({
                   </Td>
                   <Td className="text-right tabular-nums"><Money valor={f.total} moneda={f.moneda} /></Td>
                   <Td className="text-right tabular-nums">{f.porcentajeRecibido}%</Td>
-                  <Td className={`text-right tabular-nums ${f.discrepanciasAbiertas > 0 ? 'font-semibold text-amber-700' : ''}`}>
-                    {f.discrepanciasAbiertas}
-                  </Td>
                 </tr>
               ))}
             </tbody>
