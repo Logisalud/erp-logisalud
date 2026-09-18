@@ -452,6 +452,46 @@ no migración.
 
 ---
 
+## La obligación de un gasto nacía sin N° de factura, fecha ni vencimiento (2026-09-18)
+
+Sebas lo encontró comparando las dos fichas de la MISMA operación: la
+solicitud G-2026-0021 decía "factura F002-00000634 · fecha 2026-08-25 ·
+necesita el dinero para el 2026-09-18", y su obligación C-0065 mostraba
+**tres guiones**. La factura estaba incluso en la misma pantalla de la
+obligación, en la sección de comprobantes.
+
+`aprobarPorContabilidad` copiaba `moneda`, `base_imponible` e `igv` a la
+obligación, y **no copiaba** `numero_factura`, `fecha_factura` ni
+`fecha_vencimiento_real`. Pasaba en TODOS los reembolsos y anticipos, no en
+algunos.
+
+**No era cosmético:**
+
+- sin `fecha_vencimiento_real`, la obligación cae en "Más adelante" en
+  Proyección de pagos, se ordena al final, y `estaVencida` nunca da true — un
+  reembolso **no podía verse vencido ni estándolo**;
+- sin `numero_factura`, el Excel y los reportes muestran un guion justo donde
+  Contabilidad necesita el comprobante para declarar.
+
+De dónde sale cada uno: el número, del comprobante de **fase `inicial`** (los
+de fase `rendicion` son de un anticipo ya pagado y rendido después, no
+sustentan esa obligación); la fecha, de `solicitudes_gasto.fecha_factura`; y
+el vencimiento, de `fecha_requerida` — lo que la persona declaró al pedirlo.
+No hay condición de pago que calcular: no se le pacta plazo a un reembolso a
+un empleado.
+
+Escribir `numero_factura` en un reembolso no puede chocar con los índices
+únicos de factura: los dos exigen `proveedor_id` o `proveedor_servicio_id`, y
+un reembolso no tiene ninguno.
+
+**Backfill:** C-0063 a C-0070 quedaron completas. Se excluyeron a propósito
+las ya **pagadas** (C-0029, C-0030, C-0039) — no se reescribe la historia de
+un desembolso hecho. C-0040 y C-0062 son anticipos y siguen sin
+`numero_factura`, que es correcto: un anticipo se pide ANTES de gastar, no
+tiene comprobante todavía.
+
+---
+
 ## El susto que era caché, y tres piezas más (2026-09-18)
 
 ### NO hubo reversión de estado ni pérdida de adjuntos

@@ -1,6 +1,6 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
-import { TASA_IGV } from '@/domain/obligacion'
+import { normalizarNumeroFactura, TASA_IGV } from '@/domain/obligacion'
 import {
   calcularLiquidacion,
   estadoTrasPago,
@@ -459,7 +459,9 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
   const { data: solicitud, error } = await supabase
     .schema('gastos')
     .from('solicitudes_gasto')
-    .select('id, tipo, solicitante_id, asignado_a, moneda, monto_solicitado, base_imponible, igv, estado')
+    .select(`id, tipo, solicitante_id, asignado_a, moneda, monto_solicitado, base_imponible, igv, estado,
+             fecha_factura, fecha_requerida,
+             solicitud_comprobantes(fase, numero)`)
     .eq('id', id)
     .maybeSingle()
   if (error || !solicitud) throw new Error('No se encontró la solicitud.')
@@ -478,6 +480,31 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
       ? reversarBaseEIgv(Number(solicitud.monto_solicitado))
       : { baseImponible: Number(solicitud.base_imponible), igv: Number(solicitud.igv) }
 
+  // El N° y la fecha del comprobante, y el vencimiento del pago.
+  //
+  // Antes no se copiaban, y el resultado era que la MISMA operación se veía
+  // distinta en dos pantallas: la solicitud mostraba "factura F002-00000634,
+  // fecha 2026-08-25, necesita el dinero para el 2026-09-18" y su obligación
+  // mostraba tres guiones. Detectado el 2026-09-18 comparando las dos fichas
+  // del mismo reembolso; pasaba en TODOS los reembolsos y anticipos.
+  //
+  // No es cosmético:
+  //  · sin `fecha_vencimiento_real` la obligación cae en "Más adelante" en
+  //    Proyección de pagos, se ordena al final y `estaVencida` nunca da true
+  //    — un reembolso no podía verse urgente ni estando vencido;
+  //  · sin `numero_factura` el Excel y los reportes muestran un guion donde
+  //    Contabilidad necesita el comprobante para declarar.
+  //
+  // `fecha_requerida` es el vencimiento porque es lo que la persona declaró
+  // al pedirlo: "necesito el dinero para tal día". No hay condición de pago
+  // que calcular — no se le pacta plazo a un reembolso a un empleado.
+  //
+  // El número sale del comprobante de la fase INICIAL. Los de la fase
+  // 'rendicion' son de un anticipo ya pagado y rendido después: esos no
+  // sustentan ESTA obligación.
+  const comprobanteInicial = ((solicitud as any).solicitud_comprobantes ?? [])
+    .find((c: any) => c.fase === 'inicial' && c.numero)
+
   const { data: obligacion, error: errOb } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -488,6 +515,12 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
       moneda: solicitud.moneda,
       base_imponible: baseImponible,
       igv,
+      // Un reembolso no tiene proveedor, así que los índices únicos de
+      // factura (que exigen proveedor_id o proveedor_servicio_id) no aplican
+      // y esto no puede chocar con otra obligación.
+      numero_factura: comprobanteInicial ? normalizarNumeroFactura(comprobanteInicial.numero) : null,
+      fecha_factura: (solicitud as any).fecha_factura ?? null,
+      fecha_vencimiento_real: (solicitud as any).fecha_requerida ?? null,
       estado: 'registrada',
       created_by: usuario.id,
     })
