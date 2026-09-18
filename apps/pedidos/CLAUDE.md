@@ -121,13 +121,22 @@ El contenedor trae `postgresql-16`: se puede correr la cadena completa
 contra una base local stubbeando lo que da Supabase — ver "Migraciones"
 en [docs/architecture.md](docs/architecture.md).
 
-Dos trampas concretas, ambas encontradas en producción:
+Tres trampas concretas, las tres encontradas en producción:
 
 - Un `CHECK` nuevo **se valida contra la tabla entera** al crearse. Si
   puede haber filas que no cumplan, hay que normalizarlas en la misma
   migración *antes* de agregar el constraint.
 - Escribir cada migración **re-ejecutable** (`if not exists`, `drop
   policy if exists`): un reintento tras un fallo es lo normal.
+- Al crear una cuenta con un `insert` directo en `auth.users`, **poner en
+  cadena vacía** `confirmation_token`, `recovery_token`, `email_change`,
+  `email_change_token_new`, `email_change_token_current`, `phone_change`,
+  `phone_change_token` y `reauthentication_token`. El default de la tabla
+  es NULL, pero GoTrue las lee como texto no nullable y un NULL hace
+  fallar el login entero con **"Database error querying schema"** — un
+  mensaje que no menciona ni la columna ni al usuario. La cuenta queda
+  creada, con la contraseña correcta y el correo confirmado, y aun así no
+  deja entrar. Ver la migración `1035`.
 
 ## Antes de implementar lógica de negocio de pedidos
 

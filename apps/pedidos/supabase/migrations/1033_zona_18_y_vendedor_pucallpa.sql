@@ -26,6 +26,11 @@ begin
 
   -- La cuenta se arma con el mismo criterio que las otras 16 de vendedor:
   -- correo confirmado, bcrypt, e identidad de tipo email.
+  --
+  -- Los cuatro tokens vacíos NO son decorativos: GoTrue los lee como texto
+  -- y un NULL lo hace fallar con "Database error querying schema" al
+  -- intentar ingresar. La cuenta queda creada y la contraseña correcta,
+  -- pero el login rebota. Pasó con esta misma migración el 2026-09-17.
   select id into v_user_id from auth.users where email = 'bpalomino@logisaludventas.com';
   if v_user_id is null then
     v_user_id := gen_random_uuid();
@@ -38,6 +43,11 @@ begin
       '{"provider":"email","providers":["email"]}'::jsonb,
       '{"full_name":"BRYAN PALOMINO"}'::jsonb, now(), now()
     );
+    update auth.users
+       set confirmation_token = '', recovery_token = '', email_change = '',
+           email_change_token_new = '', email_change_token_current = '',
+           phone_change = '', phone_change_token = '', reauthentication_token = ''
+     where id = v_user_id;
     insert into auth.identities (
       id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
     ) values (
