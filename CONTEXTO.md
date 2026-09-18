@@ -518,16 +518,45 @@ de atrás.
 `recepcionQuedaConforme` y `TipoDiscrepancia` siguen teniendo consumidores
 vivos en `services/recepciones.ts`. El archivo quedó en 39 líneas.
 
-**Hallazgo colateral, sin tocar:** `resolverDiscrepancia` quedó
-**inalcanzable** —su única UI (`resolucion.tsx`) se borró en el rediseño— y el
-loop "Discrepancias de Almacén sin resolver" del dashboard lee columnas que el
-flujo nuevo nunca escribe, así que no puede tener filas nunca. Inofensivo (una
-sección vacía no se renderiza), pero es una pantalla que no lleva a ninguna
-parte. Decidir aparte si se retira.
+### Pantallas que leían columnas que el flujo nuevo ya no escribe
+
+El flujo de tres columnas escribe `cantidad_factura`, `cantidad_fisica`,
+`cantidad_aceptada`, `excedente_sin_facturar` y `observaciones`. **No escribe**
+`tipo_discrepancia`, `estado_calidad`, `cantidad_guia`, `lote` ni
+`fecha_vencimiento`, y nunca toca `almacen.resoluciones_discrepancia`,
+`almacen.matriz_discrepancias` ni `cuentas_x_pagar.facturas_pendientes`.
+Auditados todos los lectores de esas columnas:
+
+| Lector | Estado |
+|---|---|
+| Loop "Discrepancias de Almacén sin resolver" (dashboard) | **retirado** |
+| `listarDiscrepanciasSinResolver` + `discrepanciaAbierta` | **retirados** |
+| Columna "Discrepancias abiertas" en `/reportes/ordenes-compra` | **mismo problema, pendiente de decisión** |
+| `/facturas-pendientes` | vacío pero **a propósito** (histórico de solo lectura) |
+| `resolverDiscrepancia` (servicio) | inalcanzable; vive solo porque el reporte de arriba todavía no se decidió |
+
+El loop del dashboard era peor que vacío: llevaba a
+`/almacen/recepciones/[id]` a "resolver la acción de cada línea", que es una
+pantalla que **ya no existe**. Lo reemplaza el loop de observadas, donde la
+discrepancia que sí traba un pago (físico vs factura) aparece con su chip
+`⏸ Esperando NC`.
+
+Retirarlo destapó un **tercer consumidor** que el grep no había mostrado:
+`services/inicio.ts` sumaba `loops.discrepancias.length` en el contador de la
+cola de Contabilidad. Lo encontró el type-check, no la lectura del código.
 
 ---
 
 ## Deuda técnica conocida (menor, revisar aparte)
+
+- **`apps/pedidos` (305 MB) — candidato a limpieza, NO TOCAR todavía.**
+  Andrés construyó el módulo de Pedidos por su lado, y lo único que Sebas le
+  pidió es el link para poner un botón desde Compras. Si se confirma que la
+  copia del monorepo es **obsoleta**, se puede retirar y con eso se van
+  también su CLAUDE.md del contexto de cada sesión y ~305 MB del repo. **Es
+  trabajo de otra persona: no se borra sin que Andrés lo sepa primero**
+  (2026-09-18). Ojo con dos cosas al hacerlo: es un workspace de npm (toca el
+  `package-lock.json` de la raíz) y tiene su propio workflow de CI.
 
 - **Impuestos — estado `en_propuesta` muerto**: las filas de impuestos pueden
   quedar en un estado que ningún flujo alcanza de verdad.

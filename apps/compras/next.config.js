@@ -11,16 +11,39 @@ const nextConfig = {
   // cobranzas), no /compras/api/... Sin esto, cualquier combobox con
   // búsqueda en el servidor (ver components/buscador-producto.tsx) pega
   // contra una ruta que no existe y responde vacío, no un error.
+  //
+  // TAMBIÉN la usan los assets de public/ servidos con next/image, por el
+  // problema de `unoptimized` que está documentado abajo — ver
+  // components/logo-logisalud.tsx.
   env: {
     NEXT_PUBLIC_BASE_PATH: '/compras',
   },
-  // El proxy /_next/image (optimizador de Vercel) devuelve 404 para el logo
-  // aunque el path y el basePath están bien — confirmado con fetch directo a
-  // producción: la URL exacta que genera next/image 404, pero el archivo
-  // crudo equivalente (/compras/brand/...png) responde 200. Todo indica que
-  // el optimizador no funciona a través del rewrite entre proyectos Vercel
-  // (cobranzas → compras). unoptimized hace que next/image pida el archivo
-  // crudo directo, sin pasar por ese proxy.
+  // ⚠️ `unoptimized` Y `basePath` SE AFECTAN ENTRE SÍ. Si tocás uno, leé esto
+  // y revisá components/logo-logisalud.tsx antes de dar por hecho que el otro
+  // sigue funcionando. Ya rompimos el logo dos veces por este par.
+  //
+  // Por qué está: el proxy /_next/image (optimizador de Vercel) devuelve 404
+  // para el logo aunque el path y el basePath estén bien — confirmado con
+  // fetch directo a producción: la URL exacta que genera next/image da 404,
+  // pero el archivo crudo equivalente (/compras/brand/...png) responde 200. El
+  // optimizador no funciona a través del rewrite entre proyectos de Vercel
+  // (cobranzas → compras). `unoptimized` hace que next/image pida el archivo
+  // crudo, sin pasar por ese proxy.
+  //
+  // LO QUE ROMPE A CAMBIO: con `unoptimized`, `generateImgAttrs` de Next 14
+  // devuelve el `src` TAL CUAL — sin loader y, por lo tanto, SIN el basePath.
+  // El prefijo de `/compras` lo aplicaba el loader por defecto, no el
+  // componente. Así que un `src="/brand/x.png"` deja de pedir
+  // /compras/brand/x.png y pasa a pedir la raíz del host, que acá es
+  // COBRANZAS (el dominio es suyo y /compras llega por rewrite) — y cobranzas
+  // no tiene public/brand/. Resultado: 404 e imagen en blanco, sin ningún
+  // error en el build ni en los logs.
+  //
+  // Por eso todo asset servido desde public/ lleva el prefijo A MANO, desde
+  // NEXT_PUBLIC_BASE_PATH (arriba). Si algún día se puede volver a
+  // `unoptimized: false`, esos prefijos manuales hay que revisarlos: con el
+  // loader activo, next/image agregaría el basePath de nuevo y quedaría
+  // duplicado (/compras/compras/brand/...).
   images: {
     unoptimized: true,
   },

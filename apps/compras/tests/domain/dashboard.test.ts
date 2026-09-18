@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { anticipoSinRendirSuperaUmbral, diasEnEstado, discrepanciaAbierta, ocParcialSuperaUmbral, servicioSinConformidad } from '@/domain/dashboard'
+import { anticipoSinRendirSuperaUmbral, diasEnEstado, ocParcialSuperaUmbral, servicioSinConformidad } from '@/domain/dashboard'
 
 describe('diasEnEstado / ocParcialSuperaUmbral', () => {
   it('cuenta días corridos entre dos fechas', () => {
@@ -9,24 +9,6 @@ describe('diasEnEstado / ocParcialSuperaUmbral', () => {
     expect(ocParcialSuperaUmbral(31, 30)).toBe(true)
     expect(ocParcialSuperaUmbral(30, 30)).toBe(false)
     expect(ocParcialSuperaUmbral(29, 30)).toBe(false)
-  })
-})
-
-describe('discrepanciaAbierta', () => {
-  it('una discrepancia real sin resolución está abierta', () => {
-    expect(discrepanciaAbierta('faltante', false)).toBe(true)
-  })
-
-  it('ya resuelta: no está abierta', () => {
-    expect(discrepanciaAbierta('faltante', true)).toBe(false)
-  })
-
-  it('sin discrepancia (null): no está abierta', () => {
-    expect(discrepanciaAbierta(null, false)).toBe(false)
-  })
-
-  it("tipo 'ninguna': no está abierta aunque no tenga resolución", () => {
-    expect(discrepanciaAbierta('ninguna', false)).toBe(false)
   })
 })
 
