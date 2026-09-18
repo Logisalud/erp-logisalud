@@ -6,6 +6,9 @@ import { ETIQUETA_ESTADO, type EstadoObligacion } from '@/domain/obligacion'
 import { ETIQUETA_ESTADO_PROPUESTA, type EstadoPropuesta } from '@/domain/propuesta'
 import { ETIQUETA_ORIGEN, type OrigenObligacion } from '@/domain/reportes'
 import { categoriaDeEstado, estaVencida, type CategoriaEstado } from '@/domain/categorias-estado-obligacion'
+import {
+  ETIQUETA_ESPERA_NOTA_CREDITO, EXPLICACION_ESPERA_NOTA_CREDITO,
+} from '@/domain/nota-credito-recepcion'
 
 /**
  * La tabla de obligaciones, una sola vez para todo el módulo.
@@ -35,6 +38,13 @@ export type FilaObligacion = {
   beneficiario: { nombre: string | null } | null
   propuesta?: { id: string; codigo: string; estado: string } | null
   yaPagada?: boolean
+  /**
+   * Frenada esperando la nota de crédito de una recepción (Caso A). Lleva su
+   * propio chip al lado del estado: `observada` sola no distingue "hay que
+   * revisar esto" de "esto no se puede mover hasta que llegue la NC", y
+   * mandaba a entrar a cada fila para averiguar cuál era cuál.
+   */
+  espera_nota_credito?: boolean
   /** Nota al pie de la fila (ej. "tiene una nota de crédito sin aplicar").
    * Es un string y no un nodo a propósito: así la fila sigue siendo data
    * serializable y la puede armar un componente de servidor. */
@@ -119,6 +129,17 @@ export function TablaObligaciones({
                   fila no pierde precisión. */}
               <td className="px-3 py-2 whitespace-nowrap">
                 <EstadoChip estado={o.estado} />
+                {/* Junto al estado y no en su lugar: `observada` sigue siendo
+                    el estado real, el que usan los filtros y el Excel. Lo que
+                    faltaba era decir POR QUÉ está detenida. */}
+                {o.espera_nota_credito ? (
+                  <span
+                    title={EXPLICACION_ESPERA_NOTA_CREDITO}
+                    className="mt-1 block w-fit rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900"
+                  >
+                    ⏸ {ETIQUETA_ESPERA_NOTA_CREDITO}
+                  </span>
+                ) : null}
               </td>
               <td className="px-3 py-2 text-right tabular-nums">
                 <Money valor={o.neto_a_pagar} moneda={o.moneda} />

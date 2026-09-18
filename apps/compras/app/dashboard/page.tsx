@@ -152,9 +152,14 @@ export default async function Dashboard() {
                     titulo={`${o.codigo}${o.numero_factura ? ` · ${o.numero_factura}` : ''}`}
                     monto={<Money valor={o.neto_a_pagar} moneda={o.moneda} />}
                   />
+                  {/* Dos motivos distintos para estar "observada", y el
+                      trabajo que piden no es el mismo: una hay que revisarla,
+                      la otra está esperando un documento del proveedor. */}
                   <p className="mt-0.5 text-sm text-gray-600">
                     {o.proveedor?.razon_social ?? o.beneficiario?.nombre ?? o.observaciones ?? 'sin proveedor ni beneficiario'} ·
-                    la conciliación de 3 vías no cuadró — revisala antes de darle conformidad.
+                    {o.espera_nota_credito
+                      ? ' llegó menos mercadería de la que dice la factura — registra la nota de crédito del proveedor para desbloquear el pago.'
+                      : ' la conciliación de 3 vías no cuadró — revisala antes de darle conformidad.'}
                   </p>
                 </Item>
               ))}

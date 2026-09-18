@@ -15,6 +15,15 @@ import { hoyLima } from './fecha'
 
 export type ErrorValidacion = { campo: string; mensaje: string }
 
+/**
+ * Cómo se llama este freno en las pantallas. Corto porque vive en una celda
+ * de tabla al lado del estado, y "NC" es como se le dice acá adentro; la
+ * frase completa va en el `title` y en la ficha, donde hay lugar.
+ */
+export const ETIQUETA_ESPERA_NOTA_CREDITO = 'Esperando NC'
+export const EXPLICACION_ESPERA_NOTA_CREDITO =
+  'Llegó menos mercadería de la que dice la factura: no entra a propuesta de pago hasta que Contabilidad registre la nota de crédito del proveedor.'
+
 export function puedeRegistrarNotaCreditoDeRecepcion(
   perfil: { area: string | null; rol: string | null } | null
 ): boolean {

@@ -484,6 +484,14 @@ export type ObligacionListada = {
   propuesta?: { id: string; codigo: string; estado: string } | null
   /** Ya tiene un pago aplicado — con `propuesta.estado === 'aprobada'` es lo que define "lista para pagar". */
   yaPagada?: boolean
+  /**
+   * Frenada esperando la nota de crédito de una recepción del Caso A
+   * (migración 0062). Va en el listado y no solo en la ficha porque
+   * `observada` sola no distingue "Contabilidad tiene que revisar esto" de
+   * "esto está bloqueado hasta que el proveedor emita la NC", y son dos
+   * trabajos distintos.
+   */
+  espera_nota_credito?: boolean
   /** De qué se trata, para no entrar a la ficha. Categoría de Pago Directo
    * más `observaciones`; para el resto de los orígenes, `observaciones`
    * sola, que es donde cada servicio deja su etiqueta legible. */
@@ -511,7 +519,7 @@ export async function listarObligaciones(
   let q = supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones, categoria_pago_directo_id')
+    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones, categoria_pago_directo_id, espera_nota_credito')
     .order('created_at', { ascending: false })
     .limit(200)
 

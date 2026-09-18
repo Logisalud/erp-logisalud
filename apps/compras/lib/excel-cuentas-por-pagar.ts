@@ -4,8 +4,12 @@ import { ETIQUETA_ORIGEN, type OrigenObligacion } from '@/domain/reportes'
 import type { ObligacionListada } from '@/services/obligaciones'
 
 /**
- * El Excel de /cuentas-por-pagar: las MISMAS ocho columnas que la pantalla,
- * en el mismo orden.
+ * El Excel de /cuentas-por-pagar: las MISMAS columnas que la pantalla, en el
+ * mismo orden.
+ *
+ * "Esperando NC" va en su propia columna en vez de dentro de `Estado`: ahí el
+ * texto tiene que seguir siendo el estado exacto, porque es lo que se filtra
+ * y se tabula del otro lado.
  *
  * No reusa `generarSabanaExcel` a propósito: la sábana maestra es otro
  * recorte (18 columnas, todos los orígenes, sin filtro de estado) y mezclar
@@ -15,7 +19,8 @@ import type { ObligacionListada } from '@/services/obligaciones'
  */
 const ENCABEZADOS = [
   'Código', 'N° factura', 'Proveedor / Beneficiario', 'Origen', 'Estado',
-  'Moneda', 'Monto', 'Vencimiento', 'Lote', 'Estado del lote', 'Concepto',
+  'Esperando NC', 'Moneda', 'Monto', 'Vencimiento', 'Lote', 'Estado del lote',
+  'Concepto',
 ] as const
 
 export function generarExcelCuentasPorPagar(
@@ -28,6 +33,7 @@ export function generarExcelCuentasPorPagar(
     o.proveedor?.razon_social ?? o.beneficiario?.nombre ?? '',
     ETIQUETA_ORIGEN[o.origen as OrigenObligacion] ?? o.origen,
     ETIQUETA_ESTADO[o.estado],
+    o.espera_nota_credito ? 'Sí' : '',
     o.moneda,
     // Número, no texto: el punto del Excel es poder sumar la columna.
     Number(o.neto_a_pagar),

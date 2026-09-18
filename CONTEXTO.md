@@ -384,6 +384,19 @@ notas de crédito y el botón "Dar conformidad" quedan fuera de la ficha: una
 NC registrada por la vía genérica no levanta el freno, y dejaría la
 obligación detenida sin que se entienda por qué.
 
+**El listado lo marca por fila** (pedido de Mariela, 2026-09-18): chip
+`⏸ Esperando NC` **junto** al estado, no en su lugar — `observada` sigue
+siendo el estado real, el que filtran los chips y tabula el Excel; lo que
+faltaba era decir por qué está detenida, porque `observada` sola no
+distingue "hay que revisar la conciliación" de "esto no se mueve hasta que
+el proveedor emita la NC", y eso obligaba a entrar a cada fila. Va en
+`components/tabla-obligaciones.tsx`, así que la tabla de "Nueva propuesta de
+pago" lo hereda. El Excel lo baja en **columna propia** ("Esperando NC"),
+no dentro de `Estado`, para no romper el texto que se filtra del otro lado.
+El dashboard, en el loop de observadas, ahora dice el trabajo que toca en
+cada caso en vez de asumir que toda observada es una conciliación que no
+cuadró.
+
 **La conformidad de Contabilidad NO se eliminó**, se automatizó el caso
 feliz: sin discrepancia la obligación nace `registrada` con todo
 precalculado y Mariela aprueba con un clic; con discrepancia nace `observada`
