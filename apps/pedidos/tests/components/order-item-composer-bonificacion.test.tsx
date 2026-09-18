@@ -58,6 +58,41 @@ describe("la línea bonificada en la pantalla del pedido", () => {
     expect(html).toContain('id="cant-60e1d156-547b-4e2d-8612-fd32e1abc038"');
     expect(html).not.toContain('id="cant-d809b2b1-69cc-456b-aadc-5f0d9a2033f1"');
   });
+
+  it("dice CUÁNTAS unidades van regaladas", () => {
+    // Sin campo editable, la cantidad no se veía en ninguna parte de la
+    // línea gratis — y es justo lo que hay que revisar antes de enviar.
+    const html = renderToStaticMarkup(
+      <OrderItemComposer
+        orderId="73982bd9-bc6f-431c-aae8-0bed45a2c929"
+        customerId="d0eef330-9812-4ccc-bace-291f0e290a5f"
+        items={items}
+        products={[]}
+        sinPrecio={[]}
+        observaciones={[]}
+        esAdmin={false}
+      />,
+    );
+
+    expect(html).toContain("2 unidades");
+  });
+
+  it("dice «1 unidad», no «1 unidades»", () => {
+    const html = renderToStaticMarkup(
+      <OrderItemComposer
+        orderId="73982bd9-bc6f-431c-aae8-0bed45a2c929"
+        customerId="d0eef330-9812-4ccc-bace-291f0e290a5f"
+        items={[{ ...items[1], cantidad: 1 }]}
+        products={[]}
+        sinPrecio={[]}
+        observaciones={[]}
+        esAdmin={false}
+      />,
+    );
+
+    expect(html).toContain("1 unidad ");
+    expect(html).not.toContain("1 unidades");
+  });
 });
 
 /**

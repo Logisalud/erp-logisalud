@@ -503,8 +503,18 @@ export function OrderItemComposer({
                         {formatSoles(item.total)}
                       </p>
                     </div>
+                    {/*
+                      En una línea normal la cantidad se ve en su campo
+                      editable, abajo. La bonificación no tiene campo —no se
+                      edita a mano— así que sin esto no se veía CUÁNTAS
+                      unidades van regaladas, que es justo lo que hay que
+                      revisar antes de enviar el pedido.
+                    */}
                     <p className="cifra mt-0.5 text-sm text-slate-600">
                       {item.product?.codigo_interno ?? "—"} ·{" "}
+                      {item.es_linea_gratis
+                        ? `${item.cantidad} ${item.cantidad === 1 ? "unidad" : "unidades"} · `
+                        : ""}
                       {formatSoles(item.precio_unitario)} c/u
                     </p>
                     {item.es_linea_gratis &&
