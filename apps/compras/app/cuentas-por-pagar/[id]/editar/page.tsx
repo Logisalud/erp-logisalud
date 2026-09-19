@@ -30,10 +30,12 @@ export default async function EditarPagoDirecto({ params }: { params: { id: stri
         atras={{ href: `/cuentas-por-pagar/${params.id}`, texto: fila.codigo }}
       />
 
+      {/* Decía "editar acá no toca ningún archivo ya subido". Desde
+          2026-09-19 eso es falso: se puede reemplazar el comprobante. */}
       <p className="card mb-4 text-sm text-gray-600">
         Corrige lo que esté mal antes de que Contabilidad le dé conformidad. Si cambias el monto,
-        se manda un aviso con el monto anterior y el nuevo. Los adjuntos se administran desde la
-        ficha — editar acá no toca ningún archivo ya subido.
+        se manda un aviso con el monto anterior y el nuevo. También puedes reemplazar el
+        comprobante adjunto: el que estaba no se borra, solo deja de ser el que vale.
       </p>
 
       <FormularioPagoDirecto
