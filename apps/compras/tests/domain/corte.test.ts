@@ -45,14 +45,26 @@ describe('CORTE_POR_TIPO', () => {
     expect(guardaElMotivo('os', 'rechazar')).toBe(false)
     expect(guardaElMotivo('propuesta', 'rechazar')).toBe(false)
     expect(guardaElMotivo('caja_chica', 'rechazar')).toBe(false)
-    // Sin salida: un impuesto confirmado no tiene vuelta atrás.
-    expect(admiteCorte('impuesto', 'rechazar')).toBe(false)
-    expect(admiteCorte('impuesto', 'anular')).toBe(false)
-    // Una reposición se rechaza, no se anula.
-    expect(admiteCorte('caja_chica', 'anular')).toBe(false)
-    // Una planilla se anula, no se rechaza.
-    expect(admiteCorte('planilla', 'rechazar')).toBe(false)
-    expect(admiteCorte('planilla', 'anular')).toBe(true)
+  })
+
+  it('los tres huecos de cobertura quedaron tapados (migración 0069)', () => {
+    // Un impuesto confirmado no tenía NINGUNA vuelta atrás: era el peor.
+    expect(admiteCorte('impuesto', 'rechazar')).toBe(true)
+    expect(admiteCorte('impuesto', 'anular')).toBe(true)
+    // Caja Chica se rechazaba pero no se anulaba.
+    expect(admiteCorte('caja_chica', 'anular')).toBe(true)
+    // Planilla se anulaba pero no se rechazaba.
+    expect(admiteCorte('planilla', 'rechazar')).toBe(true)
+    // Y los cuatro guardan su motivo: nacieron con la columna.
+    expect(guardaElMotivo('impuesto', 'rechazar')).toBe(true)
+    expect(guardaElMotivo('impuesto', 'anular')).toBe(true)
+    expect(guardaElMotivo('caja_chica', 'anular')).toBe(true)
+    expect(guardaElMotivo('planilla', 'rechazar')).toBe(true)
+  })
+
+  it('un LOTE no se anula: antes se descarta, después se rechaza', () => {
+    expect(admiteCorte('propuesta', 'rechazar')).toBe(true)
+    expect(admiteCorte('propuesta', 'anular')).toBe(false)
   })
 })
 
@@ -89,8 +101,7 @@ describe('avisoMotivoSinRastro', () => {
   })
 
   it('tampoco avisa donde la acción ni siquiera existe: eso se dice de otra forma', () => {
-    expect(avisoMotivoSinRastro('impuesto', 'anular')).toBeNull()
-    expect(avisoMotivoSinRastro('planilla', 'rechazar')).toBeNull()
+    expect(avisoMotivoSinRastro('propuesta', 'anular')).toBeNull()
   })
 })
 

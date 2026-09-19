@@ -6,6 +6,7 @@ import {
   type EncabezadoCarga, type LineaCarga, type ErrorValidacion,
 } from '@/domain/impuestos'
 import { esContabilidadDecisora, type PerfilAprobador } from '@/domain/pendientes-aprobar'
+import { ERROR_ANULAR_AJENO, puedeAnular } from '@/domain/auto-aprobacion'
 
 export type TipoImpuesto = { id: string; nombre: string }
 
@@ -225,4 +226,74 @@ export async function cargarObligacionesTributarias(
   }
 
   return { insertadas: lineas.length }
+}
+
+/**
+ * Las dos salidas hacia atrás de una carga tributaria (Sebas, 2026-09-19).
+ *
+ * Era el hueco más serio de los tres: una carga con el periodo o el monto
+ * mal se quedaba ahí para siempre, o se confirmaba y generaba una deuda
+ * falsa. No había ninguna vuelta atrás.
+ *
+ *   RECHAZAR  Contabilidad revisó la carga y decide que no procede.
+ *   ANULAR    quien la cargó (Arlette) corrige su propio error, antes de
+ *             que Contabilidad decida.
+ *
+ * Las dos solo desde `pendiente_contabilidad`. Una vez confirmada ya existe
+ * la obligación, y deshacer eso es anular la obligación desde su ficha —
+ * que es su propio camino, con su propio aviso.
+ */
+async function cortarObligacionTributaria(
+  id: string,
+  motivo: string,
+  accion: 'rechazar' | 'anular'
+): Promise<void> {
+  if (!motivo.trim()) {
+    throw new Error(`El motivo ${accion === 'anular' ? 'de la anulación' : 'del rechazo'} es obligatorio.`)
+  }
+  const usuario = await exigirUsuario()
+  const perfil = (await perfilActual()) as PerfilAprobador
+  const supabase = crearClienteServidor()
+
+  const { data: ot, error } = await supabase
+    .schema('impuestos')
+    .from('obligaciones_tributarias')
+    .select('id, estado, cargado_por')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !ot) throw new Error('No se encontró la obligación tributaria.')
+  if (ot.estado !== 'pendiente_contabilidad') {
+    throw new Error(`Esta carga está en "${ot.estado}" — ya no se puede ${accion} desde aquí.`)
+  }
+
+  if (accion === 'rechazar') {
+    // Mismo gate que confirmar: si podés decir que sí, podés decir que no.
+    if (!esContabilidadDecisora(perfil)) {
+      throw new Error('Solo Contabilidad o Administración pueden rechazar una carga tributaria.')
+    }
+  } else if (
+    !puedeAnular(esContabilidadDecisora(perfil), usuario.id, (ot as any).cargado_por ?? null, false)
+  ) {
+    throw new Error(ERROR_ANULAR_AJENO)
+  }
+
+  const ahora = new Date().toISOString()
+  const campos = accion === 'rechazar'
+    ? { estado: 'rechazada', rechazado_por: usuario.id, rechazado_en: ahora, rechazo_motivo: motivo.trim() }
+    : { estado: 'anulada', anulado_por: usuario.id, anulado_en: ahora, anulado_motivo: motivo.trim() }
+
+  const { error: errUpd } = await supabase
+    .schema('impuestos')
+    .from('obligaciones_tributarias')
+    .update(campos)
+    .eq('id', id)
+  if (errUpd) throw new Error(`No se pudo ${accion} la carga: ${errUpd.message}`)
+}
+
+export async function rechazarObligacionTributaria(id: string, motivo: string): Promise<void> {
+  await cortarObligacionTributaria(id, motivo, 'rechazar')
+}
+
+export async function anularObligacionTributaria(id: string, motivo: string): Promise<void> {
+  await cortarObligacionTributaria(id, motivo, 'anular')
 }

@@ -4,12 +4,16 @@ import {
   anularSolicitud, rechazarPorContabilidad as rechazarGasto,
 } from '@/services/solicitudes-gasto'
 import {
+  anularReposicion,
   rechazarPorContabilidad as rechazarReposicionContabilidad,
   rechazarPorJefe as rechazarReposicionJefe,
 } from '@/services/caja-chica'
 import { anularOS, rechazarOS } from '@/services/servicios'
+import {
+  anularObligacionTributaria, rechazarObligacionTributaria,
+} from '@/services/impuestos'
 import { rechazarPropuesta } from '@/services/propuestas'
-import { anularPagoPlanilla } from '@/services/planilla'
+import { anularPagoPlanilla, rechazarPagoPlanilla } from '@/services/planilla'
 import { admiteCorte, motivoSinLugar, validarMotivo, type AccionCorte } from '@/domain/corte'
 import { quienDecideCajaChica, type TipoPendiente } from '@/domain/pendientes-aprobar'
 import { listarPendientesDeAprobar } from '@/services/pendientes-aprobar'
@@ -75,6 +79,10 @@ async function ejecutar(
         return rechazarOS(id)
       case 'propuesta':
         return rechazarPropuesta(id)
+      case 'planilla':
+        return rechazarPagoPlanilla(id, motivo)
+      case 'impuesto':
+        return rechazarObligacionTributaria(id, motivo)
       case 'caja_chica': {
         // Dos decisores distintos según el paso — mismo criterio que usa la
         // bandeja para la columna "Decide".
@@ -98,6 +106,10 @@ async function ejecutar(
       return anularOS(id, motivo)
     case 'planilla':
       return anularPagoPlanilla(id, motivo)
+    case 'caja_chica':
+      return anularReposicion(id, motivo)
+    case 'impuesto':
+      return anularObligacionTributaria(id, motivo)
     default:
       throw new Error('este tipo no se anula desde la bandeja')
   }

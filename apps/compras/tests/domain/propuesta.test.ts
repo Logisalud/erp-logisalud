@@ -17,8 +17,12 @@ describe('transicionPermitida', () => {
     expect(transicionPermitida('pendiente_aprobacion', 'rechazada')).toBe(true)
   })
 
-  it('una rechazada puede volver a armarse como borrador', () => {
-    expect(transicionPermitida('rechazada', 'borrador')).toBe(true)
+  it('una rechazada NO vuelve a borrador: se arma un lote nuevo', () => {
+    // La transición estuvo declarada desde el principio y ninguna función la
+    // usó nunca — una promesa que nada cumplía. Se quitó el 2026-09-19.
+    // Rechazar ya libera las obligaciones a `conforme`, así que rearmar es
+    // crear otro lote, no revivir este con su rechazo colgando.
+    expect(transicionPermitida('rechazada', 'borrador')).toBe(false)
   })
 
   it('aprobada es un estado final', () => {

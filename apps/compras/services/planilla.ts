@@ -183,6 +183,52 @@ export async function editarPagoPlanilla(
   }
 }
 
+/**
+ * Contabilidad devuelve una carga de planilla. (Sebas, 2026-09-19.)
+ *
+ * Distinto de anular, aunque las dos dejen el registro muerto:
+ *
+ *   ANULAR    Gestión Humana se equivocó al cargar y lo retira. El gate es
+ *             `puedeCargarPlanilla` — quien carga corrige lo suyo.
+ *   RECHAZAR  Contabilidad revisó el total y decide que no procede. El gate
+ *             es el mismo que dar conformidad: si podés decir que sí,
+ *             podés decir que no.
+ *
+ * Misma ventana que la conformidad: solo `pendiente_contabilidad`. Después
+ * ya hay una obligación en camino a pagarse y eso se anula desde su ficha.
+ */
+export async function rechazarPagoPlanilla(id: string, motivo: string): Promise<void> {
+  if (!puedeDarConformidadPlanilla(await perfilActual())) {
+    throw new Error('No tienes permiso para rechazar una carga de planilla.')
+  }
+  if (!motivo.trim()) throw new Error('El motivo del rechazo es obligatorio.')
+  const usuario = await exigirUsuario()
+  const supabase = crearClienteServidor()
+
+  const { data: actual } = await supabase
+    .schema('planilla')
+    .from('pagos_planilla')
+    .select('id, estado')
+    .eq('id', id)
+    .maybeSingle()
+  if (!actual) throw new Error('No se encontró el pago de planilla.')
+  if (!puedeCorregirse(actual.estado as EstadoPagoPlanilla)) {
+    throw new Error('Este pago ya generó su obligación — rechazarlo ahora no la deshace.')
+  }
+
+  const { error } = await supabase
+    .schema('planilla')
+    .from('pagos_planilla')
+    .update({
+      estado: 'rechazada',
+      rechazado_por: usuario.id,
+      rechazado_en: new Date().toISOString(),
+      rechazo_motivo: motivo.trim(),
+    })
+    .eq('id', id)
+  if (error) throw new Error(`No se pudo rechazar la carga: ${error.message}`)
+}
+
 /** Anular libera el par (periodo, secuencia) — el índice único es parcial a
  * propósito, para que un error de tipeo no bloquee el periodo para siempre. */
 export async function anularPagoPlanilla(id: string, motivo: string): Promise<void> {

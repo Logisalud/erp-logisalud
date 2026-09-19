@@ -97,22 +97,27 @@ export const CORTE_POR_TIPO: Record<TipoPendiente, Record<AccionCorte, Capacidad
   },
   caja_chica: {
     rechazar: { admite: true, guardaMotivo: false },
-    // Una reposición no se anula: se rechaza y los movimientos vuelven al
-    // fondo. No hay `anularReposicion` y no se inventa una acá.
-    anular: { admite: false, guardaMotivo: false },
+    // Anular llegó con la migración 0069. Lo que la hace segura no es el
+    // estado sino que devuelve los movimientos al fondo — ver
+    // `anularReposicion` en services/caja-chica.ts.
+    anular: { admite: true, guardaMotivo: true },
   },
   propuesta: {
     rechazar: { admite: true, guardaMotivo: false },
+    // Un lote NO se anula. Antes de enviarlo a aprobación se DESCARTA (sin
+    // motivo, no le debe una explicación a nadie); después ya es una
+    // decisión y la salida es rechazarlo. Ver
+    // `descartarBorradorPropuesta`, que vive en la pantalla del lote y no
+    // en esta bandeja — acá solo llegan los que esperan aprobación.
     anular: { admite: false, guardaMotivo: false },
   },
   planilla: {
-    rechazar: { admite: false, guardaMotivo: false },
+    rechazar: { admite: true, guardaMotivo: true },
     anular: { admite: true, guardaMotivo: true },
   },
-  // Confirmar un impuesto no tiene vuelta atrás hoy: ni rechazo ni anulación.
   impuesto: {
-    rechazar: { admite: false, guardaMotivo: false },
-    anular: { admite: false, guardaMotivo: false },
+    rechazar: { admite: true, guardaMotivo: true },
+    anular: { admite: true, guardaMotivo: true },
   },
 }
 
