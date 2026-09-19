@@ -448,6 +448,13 @@ export type CustomerDetail = {
   canal_id: number | null;
   zona_id: number | null;
   condicion_pago_habitual_id: number | null;
+  /**
+   * Promedio de compra histórico del archivo de cartera. NO es un límite
+   * de crédito aprobado: ninguna regla lo valida y `submit_order` no lo
+   * mira. Se muestra con la etiqueta completa para que no se lea como una
+   * autorización. Ver la migración 1036.
+   */
+  limite_credito: number | null;
   estado: string;
   es_agente_retencion: boolean;
   departamento: string | null;
@@ -479,7 +486,7 @@ export async function getCustomerByRuc(ruc: string): Promise<CustomerDetail | nu
     .from("customers")
     .select(
       `id, ruc_o_documento, razon_social, nombre_comercial, tipo_comprobante_permitido,
-       canal_id, zona_id, condicion_pago_habitual_id, estado, es_agente_retencion,
+       canal_id, zona_id, condicion_pago_habitual_id, limite_credito, estado, es_agente_retencion,
        departamento, provincia, distrito, whatsapp, direccion_fiscal, created_at,
        canal:sales_channels(nombre), zona:zones(nombre),
        condicion_pago:payment_terms(nombre),

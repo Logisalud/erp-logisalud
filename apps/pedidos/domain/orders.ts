@@ -81,11 +81,25 @@ export function resolveOrderSellerFilter(input: {
  * comparar: cualquier condición que elija el vendedor se acepta sin
  * excepción administrativa. Es el caso de la cartera real migrada, que
  * entró sin ese dato a propósito (ver docs/business-rules.md).
+ *
+ * **Contado tampoco se compara nunca.** La excepción existe para frenar
+ * cuando se da MÁS crédito o MÁS plazo del aprobado; pagar contra entrega
+ * es la opción de menor riesgo que hay, así que un pedido de contado pasa
+ * derecho aunque el cliente compre habitualmente a 30 días. Sigue pasando
+ * por el control comercial: un descuento pedido sobre un pedido de
+ * contado igual necesita aprobación.
  */
 export function computeAutomaticValidationOutcome(input: {
   customerEstado: CustomerEstado;
   orderPaymentTermsId: number;
   customerCondicionPagoHabitualId: number | null;
+  /**
+   * Si la condición elegida en el pedido es Contado. Se recibe resuelto y
+   * no como un id fijo porque el id de Contado es un dato del catálogo
+   * (`payment_terms`), no parte de la regla — igual que en SQL, donde lo
+   * resuelve `pedidos.es_contado()` por nombre.
+   */
+  esContado?: boolean;
   /**
    * Días de crédito escritos a mano (condición de entrada libre). No hay
    * condición habitual con la cual puedan coincidir —por definición no es
@@ -101,6 +115,7 @@ export function computeAutomaticValidationOutcome(input: {
     return "ADMINISTRATIVE_EXCEPTION";
   }
   if (
+    !input.esContado &&
     input.customerCondicionPagoHabitualId !== null &&
     input.orderPaymentTermsId !== input.customerCondicionPagoHabitualId
   ) {

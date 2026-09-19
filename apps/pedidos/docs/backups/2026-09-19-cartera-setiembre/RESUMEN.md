@@ -10,6 +10,7 @@ tomada antes de tocar un solo registro.
 | `customers-antes.csv` | Las 3.419 filas: `ruc_o_documento,condicion_pago_habitual_id,limite_credito`. |
 | `customers-antes.json` | Lo mismo en JSON, para scripts. |
 | `revertir.sql` | Script de vuelta atrás, generado desde el JSON. |
+| `cargado.json` | Lo que se ESCRIBIÓ: `[ruc, condicion_pago_habitual_id, limite_credito]` de los 3.249 clientes tocados. |
 
 `limite_credito` va vacío en todas las filas porque **la columna todavía no
 existía** al momento del snapshot: se crea como parte de esta misma carga. Su
@@ -58,3 +59,21 @@ El paso 1 del script les pondría la condición en NULL, y el default nuevo
 (Crédito 30 días / S/ 1.500) es justamente lo que deberían tener. Si hay que
 revertir con clientes nuevos de por medio, acotar los `update` del paso 1 con
 `where created_at < '2026-09-19'`.
+
+
+## Lo que se publicó encima de este snapshot
+
+3.249 clientes recibieron condición de pago habitual y `limite_credito`
+(2.691 a Crédito 30, 468 a Crédito 60, 90 a Crédito 90). El detalle exacto
+está en `cargado.json`, y su huella —md5 de `ruc:condicion:limite`
+ordenado— es:
+
+    4898b8e2dba6dd8374c744f9ddab411f
+
+Tres clientes pasaron de Contado a Crédito 30 (`20613715496`,
+`10459886988`, `10207022042`): eran los únicos con una condición previa
+distinta de la del archivo. Con la regla de contado de la migración 1036,
+sus pedidos al contado siguen pasando derecho igual.
+
+Queda registrado además en `pedidos.audit_logs`, acción
+`carga_cartera_setiembre_2026`.

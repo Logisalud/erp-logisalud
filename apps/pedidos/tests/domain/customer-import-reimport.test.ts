@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   pisaTrabajoManual,
+  CONDICION_PAGO_POR_DEFECTO_ID,
   resolverCamposDeCartera,
   type ClienteExistente,
 } from "@/domain/customer-import";
@@ -16,14 +17,22 @@ import {
 const CANAL_DEFECTO = 3; // "Horizontal", el que pone el importador.
 
 describe("resolverCamposDeCartera", () => {
-  it("un cliente NUEVO entra con el canal por defecto, sin condición habitual y con el estado del archivo", () => {
+  it("un cliente NUEVO entra con el canal y la condición por defecto, y con el estado del archivo", () => {
+    // Desde 1036 la condición habitual ya no entra en null: un cliente
+    // nuevo nace en Crédito 30 días, igual que el default de la columna.
+    // El importador la escribe explícitamente, así que tiene que poner el
+    // mismo número — un null explícito le ganaría al default de la tabla.
     expect(
       resolverCamposDeCartera({
         existente: null,
         canalPorDefectoId: CANAL_DEFECTO,
         estadoDelArchivo: "ACTIVO",
       }),
-    ).toEqual({ canalId: CANAL_DEFECTO, condicionPagoHabitualId: null, estado: "ACTIVO" });
+    ).toEqual({
+      canalId: CANAL_DEFECTO,
+      condicionPagoHabitualId: CONDICION_PAGO_POR_DEFECTO_ID,
+      estado: "ACTIVO",
+    });
   });
 
   it("no le pisa el canal a un cliente que ya tiene otro", () => {

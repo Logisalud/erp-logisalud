@@ -30,6 +30,7 @@ const CLIENTE: CustomerDetail = {
   canal_id: 1,
   zona_id: 2,
   condicion_pago_habitual_id: null,
+  limite_credito: null,
   estado: "ACTIVO",
   es_agente_retencion: false,
   departamento: "JUNIN",
@@ -56,14 +57,14 @@ const CLIENTE: CustomerDetail = {
   ],
 };
 
-function montar(puedeEditar: boolean) {
+function montar(puedeEditar: boolean, cliente = CLIENTE) {
   const contenedor = document.createElement("div");
   document.body.appendChild(contenedor);
   const root = createRoot(contenedor);
   act(() =>
     root.render(
       <CustomerDetailForm
-        cliente={CLIENTE}
+        cliente={cliente}
         canales={[{ id: 1, nombre: "FARMACIAS" }]}
         zonas={[{ id: 2, nombre: "ZONA 5" }]}
         condicionesPago={[{ id: 3, nombre: "CONTADO" }]}
@@ -147,5 +148,21 @@ describe("CustomerDetailForm", () => {
     await elegir("distrito", "EL TAMBO");
 
     expect((boton("Guardar dirección") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("el promedio de compra se muestra con la etiqueta completa, nunca como \"límite de crédito\"", () => {
+    // La etiqueta es el control: el número viene del archivo de cartera y
+    // nadie lo confirmó como un tope autorizado. Si alguna vez se acorta a
+    // "Límite de crédito", la ficha estaría afirmando una autorización que
+    // no existe — por eso está clavada en un test.
+    const { contenedor } = montar(true, { ...CLIENTE, limite_credito: 1500 });
+    const texto = contenedor.textContent ?? "";
+    expect(texto).toContain("Promedio de compra (no confirmado como límite de crédito)");
+    expect(texto).toContain("1,500.00");
+  });
+
+  it("un cliente sin promedio de compra cargado dice \"Sin dato\", no S/ 0.00", () => {
+    const { contenedor } = montar(true, { ...CLIENTE, limite_credito: null });
+    expect(contenedor.textContent ?? "").toContain("Sin dato");
   });
 });

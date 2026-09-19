@@ -31,6 +31,77 @@ describe("computeAutomaticValidationOutcome / calculateLineItem — feliz camino
   });
 });
 
+describe("computeAutomaticValidationOutcome — contado nunca es excepción administrativa", () => {
+  // La excepción administrativa frena cuando se da MÁS crédito o MÁS
+  // plazo del aprobado. Contado es lo contrario: el cliente paga contra
+  // entrega. Espejo de 1036 en SQL (pedidos.es_contado).
+  it("contado pasa derecho aunque el cliente esté aprobado a 30, 60 o 90 días", () => {
+    for (const habitual of [2, 4, 5]) {
+      expect(
+        computeAutomaticValidationOutcome({
+          customerEstado: "ACTIVO",
+          orderPaymentTermsId: 1,
+          customerCondicionPagoHabitualId: habitual,
+          esContado: true,
+          hasPendingApprovalRequest: false,
+        }),
+      ).toBe("READY_FOR_OPERATIONS");
+    }
+  });
+
+  it("contado igual pasa por el control comercial si hay un descuento pendiente", () => {
+    expect(
+      computeAutomaticValidationOutcome({
+        customerEstado: "ACTIVO",
+        orderPaymentTermsId: 1,
+        customerCondicionPagoHabitualId: 2,
+        esContado: true,
+        hasPendingApprovalRequest: true,
+      }),
+    ).toBe("COMMERCIAL_EXCEPTION");
+  });
+
+  it("un cliente pendiente de validación sigue teniendo precedencia sobre contado", () => {
+    expect(
+      computeAutomaticValidationOutcome({
+        customerEstado: "PENDIENTE_DE_VALIDACION",
+        orderPaymentTermsId: 1,
+        customerCondicionPagoHabitualId: 2,
+        esContado: true,
+        hasPendingApprovalRequest: false,
+      }),
+    ).toBe("NEW_CUSTOMER_VALIDATION");
+  });
+
+  it("pedir MÁS plazo del habitual sigue cayendo en excepción administrativa", () => {
+    expect(
+      computeAutomaticValidationOutcome({
+        customerEstado: "ACTIVO",
+        orderPaymentTermsId: 4,
+        customerCondicionPagoHabitualId: 2,
+        esContado: false,
+        hasPendingApprovalRequest: false,
+      }),
+    ).toBe("ADMINISTRATIVE_EXCEPTION");
+  });
+
+  it("los días de crédito escritos a mano no se salvan por marcar contado", () => {
+    // Una condición de entrada libre es, por definición, un pedido de
+    // plazo: que llegue marcada como contado sería un dato contradictorio
+    // y Administración tiene que verlo igual.
+    expect(
+      computeAutomaticValidationOutcome({
+        customerEstado: "ACTIVO",
+        orderPaymentTermsId: 1,
+        customerCondicionPagoHabitualId: 2,
+        esContado: true,
+        diasCreditoSolicitados: 15,
+        hasPendingApprovalRequest: false,
+      }),
+    ).toBe("ADMINISTRATIVE_EXCEPTION");
+  });
+});
+
 describe("computeAutomaticValidationOutcome — cliente sin condición de pago habitual", () => {
   // La cartera real migrada entra con condicion_pago_habitual_id en null
   // a propósito. Sin habitual no hay contra qué comparar, así que

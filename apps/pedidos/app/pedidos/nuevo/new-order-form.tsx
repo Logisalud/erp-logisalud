@@ -119,6 +119,20 @@ export function NewOrderForm({
     direccionFiscal: "",
   });
 
+  /**
+   * Con qué condición arranca el formulario de cliente nuevo. Es el mismo
+   * default que la columna tiene en la base (migración 1036): un alta
+   * hecha por un vendedor es casi siempre una farmacia, y la costumbre de
+   * la casa es Crédito 30 días. Queda preseleccionado, no fijo: el
+   * vendedor lo puede cambiar antes de guardar.
+   *
+   * Se busca por nombre y no por id para no clavar un número del catálogo
+   * en la UI. Si no estuviera, el select queda en blanco como antes.
+   */
+  const condicionPorDefecto = String(
+    paymentTerms.find((p) => p.nombre === "Crédito 30 días")?.id ?? "",
+  );
+
   function updateNewCustomer(field: keyof typeof newCustomer, value: string) {
     setNewCustomer((prev) => ({ ...prev, [field]: value }));
   }
@@ -194,7 +208,11 @@ export function NewOrderForm({
         rucODocumento: newCustomer.rucODocumento,
         canalId: Number(newCustomer.canalId),
         sellerId: sellerId || null,
-        condicionPagoHabitualId: Number(newCustomer.condicionPagoHabitualId),
+        // El mismo fallback que muestra el select: si el vendedor no lo
+        // tocó, se guarda lo que está viendo, no un vacío.
+        condicionPagoHabitualId: Number(
+          newCustomer.condicionPagoHabitualId || condicionPorDefecto,
+        ),
         direccion: newCustomer.direccion,
         celular: newCustomer.celular,
         direccionFiscal: newCustomer.direccionFiscal,
@@ -222,7 +240,7 @@ export function NewOrderForm({
         razonSocial: "",
         rucODocumento: "",
         canalId: "",
-        condicionPagoHabitualId: "",
+        condicionPagoHabitualId: condicionPorDefecto,
         direccion: "",
         celular: "",
         direccionFiscal: "",
@@ -384,7 +402,7 @@ export function NewOrderForm({
             </select>
             <select
               className="campo"
-              value={newCustomer.condicionPagoHabitualId}
+              value={newCustomer.condicionPagoHabitualId || condicionPorDefecto}
               onChange={(e) => updateNewCustomer("condicionPagoHabitualId", e.target.value)}
             >
               <option value="">Condición de pago habitual</option>

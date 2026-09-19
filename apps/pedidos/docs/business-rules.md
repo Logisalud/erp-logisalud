@@ -449,7 +449,8 @@ Máquina de estados completa, diagrama y tabla de transiciones en
   cuando se registren vendedores reales.
 - **Trigger de `ADMINISTRATIVE_EXCEPTION` (confirmado con el usuario,
   no es un supuesto abierto): la condición de pago elegida en el pedido
-  es distinta de `customers.condicion_pago_habitual_id`.** No hay PRD
+  es distinta de `customers.condicion_pago_habitual_id` **y no es
+  Contado** (ver "Contado nunca es excepción administrativa").** No hay PRD
   accesible en el repo con el texto exacto de esta regla; se infirió de
   que ese campo existe justo para esta comparación y de que el cambio
   de condición de pago post-envío requiere una "approval_request de
@@ -548,29 +549,116 @@ Cómo se hace cumplir, en dos niveles:
 
 Regla de dominio: `puedeTomarPedido` en `domain/customers.ts`.
 
-### Condición de pago: sin habitual definida
+### Condición de pago habitual
 
-Los 3.399 clientes migrados entran **sin condición de pago habitual**
-(`condicion_pago_habitual_id = null`). El archivo de origen no trae el
-dato y no se inventa uno por cliente: el vendedor elige la condición al
-armar cada pedido, igual que ya funciona para clientes nuevos.
+**Desde el 2026-09-19 la cartera SÍ tiene condición habitual.** La carga
+de la Nueva Cartera Setiembre 2026 le puso condición a **3.249** de los
+3.419 clientes, tomada de la columna `Plazo` del archivo:
 
-Consecuencia que hubo que resolver: la bifurcación automática manda a
-`ADMINISTRATIVE_EXCEPTION` cuando la condición del pedido difiere de la
-habitual del cliente. **Sin habitual definida no hay nada con qué
-comparar, así que cualquier condición que elija el vendedor se acepta sin
-excepción.** Implementado en `0043` (SQL, la autoridad) y en
-`computeAutomaticValidationOutcome` (`domain/orders.ts`, el espejo que
-alimenta la UI) — ver `docs/data-model.md` para por qué las dos
-implementaciones no coincidían antes de este cambio.
+| Plazo del archivo | Condición | Clientes |
+| --- | --- | --- |
+| 30 días | Crédito 30 días | 2.691 |
+| 60 días | Crédito 60 días | 468 |
+| 90 días | Crédito 90 días | 90 |
+
+El archivo no trae ningún cliente a 45 ni a 120 días, y ninguno al
+contado. Los 170 clientes que no estaban en el archivo quedaron como
+estaban (16 de ellos ya tenían condición cargada a mano; el resto sigue
+en `null`).
+
+Hasta esa carga, los 3.399 clientes migrados entraban **sin condición
+habitual**, y por eso la regla de excepción administrativa no se disparó
+ni una vez en la primera semana de uso: no había contra qué comparar.
+
+Esa regla sigue igual: sin habitual definida, cualquier condición que
+elija el vendedor se acepta. Implementado en `0043` (SQL, la autoridad) y
+en `computeAutomaticValidationOutcome` (`domain/orders.ts`, el espejo que
+alimenta la UI).
 
 El catálogo de condiciones de pago se completó en `0042`: además de
 `Contado`, ahora existen `Crédito 30 / 45 / 60 / 90 / 120 días`.
 
-**Pendiente:** asignar la condición habitual real cliente por cliente,
-cuando el negocio la defina. Mientras no exista, el flujo funciona — pero
-el sistema no puede detectar que un vendedor pidió una condición inusual
-para ese cliente, porque no sabe cuál es la usual.
+#### Contado nunca es excepción administrativa
+
+La excepción administrativa existe para frenar cuando se da **más**
+crédito o **más** plazo del aprobado. Contado es lo contrario: el cliente
+paga contra entrega, que es la situación de menor riesgo que hay. Desde
+`1036`, **un pedido al contado pasa derecho sin comparar contra la
+condición habitual del cliente**, aunque ese cliente compre normalmente a
+30 días.
+
+Lo que NO cambia:
+
+- Contado sigue pasando por el control comercial. Un descuento pedido
+  sobre un pedido de contado necesita aprobación igual.
+- Pedir más plazo del habitual (Crédito 60 a un cliente aprobado a 30)
+  sigue cayendo en excepción.
+- Los días de crédito escritos a mano siguen cayendo en excepción
+  siempre, aunque la condición venga marcada como contado.
+
+Contado se reconoce por nombre, con `pedidos.es_contado()`, y no por id
+fijo: que hoy sea el id 1 es un dato del catálogo, no parte de la regla.
+
+Medido sobre los 69 pedidos reales cargados hasta el 2026-09-19, con la
+cartera ya publicada: **37 pedidos caerían en excepción administrativa
+sin esta regla, y 15 con ella.** Los 22 que se salvan son todos de
+contado.
+
+#### Default de los clientes nuevos
+
+Desde `1036` un cliente nuevo nace con **Crédito 30 días** y
+**S/ 1.500** de referencia. El 1.500 es el **tope** de la categoría
+"Farmacias y Boticas", no el piso: un alta hecha por un vendedor en la
+calle es casi siempre una farmacia, y arrancar en el piso obligaba a
+corregir a mano casi todos los casos.
+
+El default vive en la columna (`alter column ... set default`) para que
+valga también para los insert que no pasan por la pantalla de alta. Dos
+lugares lo repiten a propósito y tienen que moverse juntos:
+`CONDICION_PAGO_POR_DEFECTO_ID` en `domain/customer-import.ts` (el
+importador escribe la columna explícitamente, y un null explícito le gana
+al default de la tabla) y la preselección del formulario de cliente
+nuevo, que lo resuelve por nombre.
+
+**Pendiente:** los 170 clientes que el archivo no trae siguen sin
+condición, y la clasificación por categoría (farmacia, minicadena,
+institución) todavía no existe como dato en el sistema.
+
+### `limite_credito`: un número informativo, y con el nombre equivocado
+
+`customers.limite_credito` (migración `1036`) guarda un número por
+cliente que **no es un límite de crédito aprobado**. Ninguna regla lo
+valida: no hay check, no hay trigger, y `submit_order` no lo mira. Un
+pedido que se pase de ese monto entra igual.
+
+En pantalla se muestra con la etiqueta completa **"Promedio de compra
+(no confirmado como límite de crédito)"**, y hay un test que la clava
+(`tests/components/customer-detail-form.test.tsx`) justamente para que
+nadie la acorte a "Límite de crédito" y termine afirmando una
+autorización que no existe.
+
+**Ojo con qué número es exactamente.** La hoja "Cartera Créditos" trae
+dos columnas distintas:
+
+| Columna del archivo | Qué es |
+| --- | --- |
+| `Prom mar-ago` | El promedio de compra real de marzo a agosto. |
+| `Linea Crédito` | Ese promedio recargado ~15% y redondeado hacia arriba al múltiplo de 10 más cercano. |
+
+Lo que se cargó en `limite_credito` es **`Linea Crédito`**, no
+`Prom mar-ago`. Se comprobó sobre las 3.588 filas comparables: la mediana
+de `Linea Crédito / Prom mar-ago` es **1,150** (p10 1,09 — p90 1,22),
+sólo 29 filas coinciden exactamente, y las 6.630 líneas del archivo son
+múltiplos de 10.
+
+O sea que la etiqueta dice "promedio de compra" y el número está ~15%
+por encima del promedio. Se dejó así porque la decisión del nombre visible
+fue explícita y porque el punto de la etiqueta es negar que sea un tope
+autorizado, que es lo que importa. Pero si alguna vez se usa este número
+para algo más que mirarlo, hay que decidir primero cuál de las dos
+columnas se quiere.
+
+Rango cargado: de S/ 0 a S/ 84.200, sobre 3.249 clientes.
 
 ### Canal de venta: `Horizontal` como supuesto temporal
 
