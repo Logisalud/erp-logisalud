@@ -1,6 +1,9 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
-import { validarCuentaBancaria, validarProveedor, type BorradorProveedorUnificado, type FuenteProveedor } from '@/domain/proveedor'
+import {
+  validarCuentaBancaria, validarProveedor, ERROR_RUC_DUPLICADO,
+  type BorradorProveedorUnificado, type DatosEditablesProveedor, type FuenteProveedor,
+} from '@/domain/proveedor'
 import { crearProveedor } from '@/services/proveedores'
 import { crearProveedorServicio } from '@/services/servicios'
 
@@ -421,4 +424,43 @@ export async function actualizarDatosProveedor(
     .update({ direccion_fiscal: datos.direccionFiscal, observaciones: datos.observaciones })
     .eq('id', id)
   if (error) throw new Error(`No se pudo guardar: ${error.message}`)
+}
+
+/**
+ * Corrige los datos de un proveedor ya creado (ver
+ * domain/proveedor.ts::DatosEditablesProveedor).
+ *
+ * Aparte de `actualizarDatosProveedor`, que sigue existiendo porque el alta
+ * rápida lo usa para guardar la dirección del borrador recién creado. Este
+ * toca la identidad del proveedor —RUC y razón social incluidos— y por eso
+ * traduce el choque de RUC único a un mensaje que dice qué hacer, en vez de
+ * escupir el error de Postgres.
+ */
+export async function editarDatosProveedor(
+  fuente: FuenteProveedor,
+  id: string,
+  datos: DatosEditablesProveedor
+): Promise<void> {
+  const supabase = crearClienteServidor()
+  const schema = fuente === 'compra' ? 'compras' : 'servicios'
+  const tabla = fuente === 'compra' ? 'proveedores' : 'proveedores_servicio'
+  const { error } = await supabase
+    .schema(schema)
+    .from(tabla)
+    .update({
+      ruc: datos.ruc.trim(),
+      razon_social: datos.razonSocial.trim(),
+      nombre_comercial: datos.nombreComercial,
+      contacto_nombre: datos.contactoNombre,
+      contacto_email: datos.contactoEmail,
+      contacto_telefono: datos.contactoTelefono,
+      condicion_pago_dias: datos.condicionPagoDias,
+      direccion_fiscal: datos.direccionFiscal,
+      observaciones: datos.observaciones,
+    })
+    .eq('id', id)
+  if (error) {
+    if (error.code === '23505') throw new Error(ERROR_RUC_DUPLICADO)
+    throw new Error(`No se pudo guardar: ${error.message}`)
+  }
 }

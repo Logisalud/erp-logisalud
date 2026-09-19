@@ -67,13 +67,14 @@ describe('permisos', () => {
     expect(puedeCargarPlanilla({ area: 'tesoreria', rol: 'operativo' })).toBe(false)
   })
 
-  it('conformidad: Milagritos, Mariela y admin — Beatriz NO', () => {
+  it('conformidad: Tesorería, Contabilidad entera y admin', () => {
     expect(puedeDarConformidadPlanilla({ area: 'tesoreria', rol: 'operativo' })).toBe(true)
     expect(puedeDarConformidadPlanilla({ area: 'contabilidad', rol: 'admin' })).toBe(true)
     expect(puedeDarConformidadPlanilla({ area: 'admin', rol: 'admin' })).toBe(true)
-    // Beatriz es contabilidad/operativo: mismo criterio que ya la deja
-    // afuera de Pago Directo y de las propuestas, sin excepción.
-    expect(puedeDarConformidadPlanilla({ area: 'contabilidad', rol: 'operativo' })).toBe(false)
+    // Beatriz (contabilidad/operativo) entró el 2026-09-19, junto con el
+    // resto de las conformidades. La única que siguió pidiendo rol admin es
+    // aprobar un lote de pago — ver esContabilidadQueApruebaLotes.
+    expect(puedeDarConformidadPlanilla({ area: 'contabilidad', rol: 'operativo' })).toBe(true)
     // Arlette carga pero no conforma.
     expect(puedeDarConformidadPlanilla({ area: 'gestion_humana', rol: 'control_pedidos' })).toBe(false)
   })

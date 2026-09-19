@@ -36,7 +36,7 @@ export type EstadoAccion = { error: string } | null
  * exactamente cómo volvería a pasar.
  */
 function revalidarObligacion(obligacionId: string) {
-  revalidarObligacion(obligacionId)
+  revalidatePath(`/cuentas-por-pagar/${obligacionId}`)
   revalidatePath('/cuentas-por-pagar')
   revalidatePath('/pendientes-aprobar')
   revalidatePath('/mis-operaciones')

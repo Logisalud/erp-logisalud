@@ -13,8 +13,15 @@ import {
   exigeTotalDestacado, MAXIMO_POR_LOTE, resumenDeLaSeleccion,
   type ResumenSeleccion,
 } from '@/domain/aprobacion-en-lote'
+import {
+  etiquetaBotonCorte, ETIQUETA_ACCION, filasQueNoAdmiten, filasSinRastroDelMotivo,
+  validarMotivo, type AccionCorte,
+} from '@/domain/corte-en-lote'
 import { ChipFiltro } from '@/components/chip-filtro'
-import { aprobarEnLoteAction, type EstadoLote } from './actions'
+import { decidirEnLoteAction, type EstadoLote } from './actions'
+
+/** Las tres decisiones que la bandeja puede tomar sobre una selección. */
+type Modo = 'aprobar' | AccionCorte
 
 /**
  * La bandeja, con selección múltiple para aprobar varios juntos (pedido de
@@ -35,9 +42,13 @@ import { aprobarEnLoteAction, type EstadoLote } from './actions'
  * DESPUÉS de tildar.
  */
 export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
-  const [estado, accion] = useFormState<EstadoLote, FormData>(aprobarEnLoteAction, null)
+  const [estado, accion] = useFormState<EstadoLote, FormData>(decidirEnLoteAction, null)
   const [elegidas, setElegidas] = useState<Set<string>>(new Set())
-  const [confirmando, setConfirmando] = useState(false)
+  // `null` = todavía no se eligió qué hacer. Reemplaza al viejo booleano
+  // `confirmando`: ahora hay tres salidas y el panel de confirmación cambia
+  // según cuál sea.
+  const [modo, setModo] = useState<Modo | null>(null)
+  const [motivo, setMotivo] = useState('')
   // Filtro por tipo, en el cliente: las filas ya están todas cargadas, así
   // que filtrar no necesita ir al servidor.
   const [filtro, setFiltro] = useState<TipoPendiente | null>(null)
@@ -48,7 +59,7 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
 
   const cambiarFiltro = (nuevo: TipoPendiente | null) => {
     setFiltro(nuevo)
-    setConfirmando(false)
+    setModo(null)
     // La selección SOBREVIVE al cambio de filtro, y eso es a propósito: es
     // la forma de armar un lote mezclado (filtrar a Pagos Directos, tildar
     // tres, pasar a Propuestas, tildar una). Antes se limpiaba, porque con
@@ -75,6 +86,27 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+
+  const cerrarPanel = () => {
+    setModo(null)
+    setMotivo('')
+  }
+
+  const abrirCorte = (accion: AccionCorte) => {
+    setModo(accion)
+    setMotivo('')
+  }
+
+  /**
+   * El atajo por fila. No abre un segundo mecanismo: deja esa fila como la
+   * única seleccionada y abre el MISMO panel del lote. Así hay un solo camino
+   * que mantener, un solo lugar donde vive la confirmación, y rechazar una
+   * sola cosa valida exactamente igual que rechazar seis.
+   */
+  const cortarSoloEsta = (id: string, accion: AccionCorte) => {
+    setElegidas(new Set([id]))
+    abrirCorte(accion)
+  }
 
   const seleccionadas = filas.filter((f) => elegidas.has(f.id))
   // Por MONEDA de cada fila, no por su columna Monto: una propuesta puede
@@ -204,6 +236,13 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
                     <Link href={f.href} className="text-logisalud-teal underline">
                       Revisar y decidir
                     </Link>
+                    {/* Los atajos: solo aparecen si ESE tipo admite esa
+                        salida (ver CORTE_POR_TIPO). Un link que lleva a un
+                        "no se puede" es peor que no tenerlo. */}
+                    <span className="ml-2 inline-flex gap-2">
+                      <AtajoCorte fila={f} accion="rechazar" onElegir={cortarSoloEsta} />
+                      <AtajoCorte fila={f} accion="anular" onElegir={cortarSoloEsta} />
+                    </span>
                   </td>
                 </tr>
               )
@@ -250,26 +289,38 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
             )}
           </div>
 
-          {confirmando ? (
+          {modo === null ? (
+            // Las tres salidas, juntas y con el mismo peso visual que su
+            // consecuencia: aprobar es el botón primario, rechazar y anular
+            // son secundarios en rojo. Ninguna ejecuta nada todavía.
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button" onClick={() => setModo('aprobar')}
+                className="btn-primary w-full sm:w-auto"
+              >
+                {etiquetaBotonLote(seleccionadas)}
+              </button>
+              <BotonAbrirCorte accion="rechazar" filas={seleccionadas} onElegir={abrirCorte} />
+              <BotonAbrirCorte accion="anular" filas={seleccionadas} onElegir={abrirCorte} />
+            </div>
+          ) : modo === 'aprobar' ? (
             <>
               <ResumenDeConfirmacion resumen={resumen} />
               <div className="flex flex-wrap gap-2">
-                <BotonConfirmar texto={etiquetaBotonLote(seleccionadas)} />
-                <button
-                  type="button" onClick={() => setConfirmando(false)}
-                  className="btn-secondary"
-                >
+                <BotonConfirmar accion="aprobar" texto={etiquetaBotonLote(seleccionadas)} />
+                <button type="button" onClick={cerrarPanel} className="btn-secondary">
                   Cancelar
                 </button>
               </div>
             </>
           ) : (
-            <button
-              type="button" onClick={() => setConfirmando(true)}
-              className="btn-primary w-full sm:w-auto"
-            >
-              {etiquetaBotonLote(seleccionadas)}
-            </button>
+            <PanelCorte
+              accion={modo}
+              filas={seleccionadas}
+              motivo={motivo}
+              onMotivo={setMotivo}
+              onCancelar={cerrarPanel}
+            />
           )}
         </div>
       ) : null}
@@ -287,12 +338,149 @@ function contarPorTipo(
   return [...mapa.entries()].map(([tipo, cantidad]) => ({ tipo, cantidad }))
 }
 
-function BotonConfirmar({ texto }: { texto: string }) {
+/**
+ * El botón que de verdad envía. Lleva `name="accion"`, así que el servidor
+ * sabe cuál de las tres decisiones se apretó sin que haya tres formularios
+ * ni tres Server Actions.
+ */
+function BotonConfirmar({
+  accion, texto, deshabilitado,
+}: {
+  accion: Modo
+  texto: string
+  deshabilitado?: boolean
+}) {
   const { pending } = useFormStatus()
+  const enCurso = accion === 'aprobar' ? 'Aprobando…' : `${ETIQUETA_ACCION[accion].verbo}…`
   return (
-    <button type="submit" disabled={pending} className="btn-primary">
-      {pending ? 'Aprobando…' : `Sí, ${texto.toLowerCase()}`}
+    <button
+      type="submit" name="accion" value={accion}
+      disabled={pending || deshabilitado}
+      className={accion === 'aprobar' ? 'btn-primary' : 'btn-peligro'}
+    >
+      {pending ? enCurso : `Sí, ${texto.toLowerCase()}`}
     </button>
+  )
+}
+
+/** Abre el panel de rechazo o anulación. Se apaga si NINGUNA de las filas
+ *  seleccionadas admite esa salida — con el motivo a la vista. */
+function BotonAbrirCorte({
+  accion, filas, onElegir,
+}: {
+  accion: AccionCorte
+  filas: readonly FilaPendiente[]
+  onElegir: (accion: AccionCorte) => void
+}) {
+  const ninguna = filasQueNoAdmiten(filas, accion).length === filas.length
+  const motivo = `Ninguno de los tipos seleccionados se puede ${accion} desde la bandeja.`
+  return (
+    <button
+      type="button"
+      onClick={() => onElegir(accion)}
+      disabled={ninguna}
+      title={ninguna ? motivo : undefined}
+      className="btn-peligro disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {etiquetaBotonCorte(filas, accion)}
+    </button>
+  )
+}
+
+/** El atajo de una fila. No se renderiza si ese tipo no admite la acción. */
+function AtajoCorte({
+  fila, accion, onElegir,
+}: {
+  fila: FilaPendiente
+  accion: AccionCorte
+  onElegir: (id: string, accion: AccionCorte) => void
+}) {
+  if (filasQueNoAdmiten([fila], accion).length > 0) return null
+  return (
+    <button
+      type="button"
+      onClick={() => onElegir(fila.id, accion)}
+      className="text-red-700 underline"
+    >
+      {ETIQUETA_ACCION[accion].verbo}
+    </button>
+  )
+}
+
+/**
+ * El panel de rechazo / anulación.
+ *
+ * Dice tres cosas ANTES de ejecutar, y las tres son incómodas a propósito:
+ * cuántas filas NO admiten esta salida y van a quedar afuera, en cuántas el
+ * motivo no se va a guardar, y que el motivo es el mismo para todas.
+ * Enterarse de eso en el resumen, después, es enterarse tarde.
+ */
+function PanelCorte({
+  accion, filas, motivo, onMotivo, onCancelar,
+}: {
+  accion: AccionCorte
+  filas: readonly FilaPendiente[]
+  motivo: string
+  onMotivo: (v: string) => void
+  onCancelar: () => void
+}) {
+  const fuera = filasQueNoAdmiten(filas, accion)
+  // Por id y no por identidad de objeto: `filas` se recalcula en cada render
+  // y comparar referencias acá es el tipo de cosa que funciona hasta que
+  // alguien mete un `.map()` en el medio.
+  const idsFuera = new Set(fuera.map((f) => f.id))
+  const aplican = filas.filter((f) => !idsFuera.has(f.id))
+  const sinRastro = filasSinRastroDelMotivo(filas, accion)
+  const problema = validarMotivo(motivo, accion)
+  const { elSustantivo, verbo } = ETIQUETA_ACCION[accion]
+
+  return (
+    <div className="rounded-md border-2 border-red-300 bg-red-50 px-4 py-3 space-y-3">
+      <p className="font-heading text-lg text-red-900">
+        {verbo} {aplican.length} {aplican.length === 1 ? 'registro' : 'registros'}
+      </p>
+
+      {fuera.length > 0 ? (
+        <p className="text-sm text-red-900">
+          {fuera.length === 1 ? 'Queda afuera' : `Quedan afuera ${fuera.length}`}:{' '}
+          {fuera.map((f) => `${f.codigo} (${ETIQUETA_TIPO_PENDIENTE[f.tipo]})`).join(', ')} — ese
+          tipo no se {accion} desde acá.
+        </p>
+      ) : null}
+
+      <label className="block text-sm">
+        <span className="font-medium text-red-900">Motivo {accion === 'anular' ? 'de la anulación' : 'del rechazo'}</span>
+        <textarea
+          name="motivo" rows={2} value={motivo} onChange={(e) => onMotivo(e.target.value)}
+          placeholder="Qué está mal, con suficiente detalle para que quien lo reciba entienda."
+          className="mt-1 w-full rounded-md border border-red-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      <p className="text-sm text-red-900">
+        Ese motivo se aplica <strong>igual a las {aplican.length}</strong> — no hay uno por fila.
+        {sinRastro.length > 0 ? (
+          <>
+            {' '}Y en {sinRastro.length}{' '}
+            ({sinRastro.map((f) => ETIQUETA_TIPO_PENDIENTE[f.tipo]).filter((v, i, a) => a.indexOf(v) === i).join(', ')}
+            ) {elSustantivo} se registra pero el motivo <strong>no queda guardado</strong>.
+          </>
+        ) : null}
+      </p>
+
+      {problema ? <p className="text-sm font-medium text-red-900">{problema}</p> : null}
+
+      <div className="flex flex-wrap gap-2">
+        <BotonConfirmar
+          accion={accion}
+          texto={etiquetaBotonCorte(aplican, accion)}
+          deshabilitado={!!problema || aplican.length === 0}
+        />
+        <button type="button" onClick={onCancelar} className="btn-secondary">
+          Cancelar
+        </button>
+      </div>
+    </div>
   )
 }
 

@@ -99,13 +99,37 @@ export function esAdmin(perfil: PerfilAprobador): boolean {
 
 /**
  * Quién decide por Contabilidad. Uniforme para Pago Directo, Anticipo/
- * Reembolso y Caja Chica: `contabilidad` con rol `admin`.
+ * Reembolso, Caja Chica e Impuestos: **cualquiera del área `contabilidad`**,
+ * sin exigir rol `admin`.
  *
- * Hasta ahora solo Pago Directo lo exigía (Fase 1.7); en Gastos y Caja Chica
- * no había ningún gate y el botón le salía a cualquiera. Se unifica acá
- * porque esa ausencia era un descuido, no una decisión.
+ * Hasta el 2026-09-19 pedía `contabilidad` + rol `admin`, o sea solo Mariela.
+ * Beatriz —contabilidad, rol operativo— registra y revisa documentos todo el
+ * día y no podía conformar ninguno: ni siquiera veía la tarjeta de
+ * "Pendientes de aprobar". El resultado práctico fue peor que el riesgo que
+ * el gate evitaba: como el trabajo no se podía frenar, lo terminaba
+ * aprobando quien tuviera el botón a mano (el 18/09 Milagritos, de
+ * Tesorería, aprobó "por Contabilidad" el anticipo G-2026-0028).
+ *
+ * Lo que NO se amplió: aprobar un lote de pago, que sigue en
+ * `esContabilidadQueApruebaLotes`. Y esto no toca `esAutoridadFinal` a
+ * propósito: Beatriz decide sobre lo ajeno, pero la regla "nadie aprueba lo
+ * suyo" le sigue aplicando — de la que están exentos solo admin y Mariela,
+ * porque arriba de ellos no hay a quién pedirle.
  */
 export function esContabilidadDecisora(perfil: PerfilAprobador): boolean {
+  return esAdmin(perfil) || perfil?.area === 'contabilidad'
+}
+
+/**
+ * La excepción: aprobar un LOTE de pago sigue pidiendo `contabilidad` con rol
+ * `admin`.
+ *
+ * Las otras decisiones de Contabilidad miran un documento de a uno ("¿esta
+ * factura está bien?"). Aprobar un lote es soltar la plata de golpe, y esa
+ * firma se quedó en Mariela por decisión de Sebas (2026-09-19) cuando se
+ * amplió todo lo demás a Beatriz.
+ */
+export function esContabilidadQueApruebaLotes(perfil: PerfilAprobador): boolean {
   return esAdmin(perfil) || (perfil?.area === 'contabilidad' && perfil?.rol === 'admin')
 }
 
@@ -128,8 +152,10 @@ export function fuentesQueMeTocan(perfil: PerfilAprobador, misAreas: readonly st
   // La OS la aprueba el jefe del área usuaria. Contabilidad no decide acá.
   if (esAdmin(perfil) || jefe) fuentes.push('os')
   // Mismo gate que la pantalla de propuestas — se reusa `puedeAprobarPropuesta`
-  // en el servicio en vez de repetir el criterio acá.
-  if (contabilidad) fuentes.push('propuesta')
+  // en el servicio en vez de repetir el criterio acá. OJO: este es el gate
+  // ANGOSTO (rol admin), no el de Contabilidad ampliado: mostrarle a Beatriz
+  // lotes que después no puede firmar sería peor que no mostrárselos.
+  if (esContabilidadQueApruebaLotes(perfil)) fuentes.push('propuesta')
   // Planilla: gate propio, MÁS ANCHO que el de Contabilidad — incluye a
   // Tesorería. Se reusa la misma función que usa la pantalla de Planilla
   // (domain/planilla.ts) en vez de repetir el criterio, para que no puedan
