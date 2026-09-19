@@ -4,7 +4,10 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { validarPagoDirecto } from '@/domain/obligacion'
-import { editarPagoDirecto, mapaCategoriasPagoDirecto } from '@/services/obligaciones'
+import {
+  editarPagoDirecto, mapaCategoriasPagoDirecto,
+  subirCotizacionPagoDirecto, subirFacturaPagoDirecto,
+} from '@/services/obligaciones'
 import { avisarCreacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
 import { cambioExigeAviso } from '@/domain/edicion'
@@ -62,6 +65,31 @@ export async function editarPagoDirectoAction(
   } catch (e) {
     return {
       errores: [{ campo: 'general', mensaje: e instanceof Error ? e.message : 'No se pudo guardar la edición.' }],
+    }
+  }
+
+  // Reemplazar el archivo que sustenta el registro, si vino uno nuevo.
+  //
+  // Se sube DESPUÉS de guardar los datos y es best-effort, igual que en el
+  // alta: si la subida falla, la corrección de los datos igual quedó hecha y
+  // el archivo se puede volver a intentar. Al revés —perder la edición
+  // porque el PDF pesaba de más— sería peor.
+  //
+  // No borra el anterior. El path lleva timestamp, así que el archivo viejo
+  // sigue en `legajos-compras` y solo deja de estar apuntado. Un reemplazo
+  // que borra el original es irreversible por accidente y guardarlo no
+  // cuesta nada.
+  //
+  // Esto NO es "Reemplazar constancia" (el voucher, después de pagado, solo
+  // admin, con motivo obligatorio y su propio rastro). Acá todavía no
+  // decidió nadie: el rastro es el `editado_por`/`editado_en` que
+  // `editarPagoDirecto` ya escribe.
+  const archivoNuevo = pendienteFactura ? form.get('cotizacion') : form.get('factura')
+  if (archivoNuevo instanceof File && archivoNuevo.size > 0) {
+    if (pendienteFactura) {
+      await subirCotizacionPagoDirecto(obligacionId, resultado.codigo, archivoNuevo)
+    } else {
+      await subirFacturaPagoDirecto(obligacionId, resultado.codigo, archivoNuevo)
     }
   }
 

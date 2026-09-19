@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   esArchivoReemplazable, etiquetaReemplazo, puedeReemplazarConstancia, validarReemplazo,
 } from '@/domain/reemplazo-constancia'
+import { puedeEditarseObligacion } from '@/domain/edicion'
 
 describe('quién puede reemplazar una constancia', () => {
   it('solo admin+admin: Sebastián y Andrés', () => {
@@ -69,5 +70,42 @@ describe('el rastro visible', () => {
   it('no inventa un nombre si no lo tiene', () => {
     expect(etiquetaReemplazo('voucher', null, '2026-09-15T14:30:00Z', 'm'))
       .toContain('alguien del ERP')
+  })
+})
+
+describe('no confundir con reemplazar el comprobante al EDITAR (2026-09-19)', () => {
+  /**
+   * Son DOS mecanismos distintos y conviene que este test lo diga, porque el
+   * nombre se parece y mezclarlos sería grave en las dos direcciones.
+   *
+   *  - Reemplazar constancia: el VOUCHER, DESPUÉS de pagado. Solo admin,
+   *    motivo obligatorio, rastro propio. Es evidencia de que la plata salió.
+   *  - Reemplazar el comprobante al editar: la factura o la cotización, ANTES
+   *    de que Contabilidad dé conformidad. CUALQUIERA con sesión, sin motivo.
+   *    Nadie decidió nada todavía, así que no hay nada que justificar.
+   *
+   * Acá solo se fija el gate del primero. El del segundo no es una función:
+   * `editarPagoDirecto` solo llama a `exigirUsuario()` y valida el estado con
+   * `puedeEditarseObligacion`, sin mirar área ni rol. Si algún día aparece un
+   * `puedeReemplazarComprobante`, este bloque es el lugar donde comparar.
+   */
+  it('reemplazar la constancia sigue siendo SOLO admin', () => {
+    expect(puedeReemplazarConstancia({ area: 'admin', rol: 'admin' })).toBe(true)
+    // Contabilidad NO, aunque desde 2026-09-19 pueda conformar y rechazar.
+    expect(puedeReemplazarConstancia({ area: 'contabilidad', rol: 'admin' })).toBe(false)
+    expect(puedeReemplazarConstancia({ area: 'contabilidad', rol: 'operativo' })).toBe(false)
+    // Milagritos tampoco: ella SÍ puede reemplazar el comprobante al editar,
+    // que es el otro mecanismo, no este.
+    expect(puedeReemplazarConstancia({ area: 'tesoreria', rol: 'operativo' })).toBe(false)
+  })
+
+  it('la ventana de edición NO mira el perfil: depende solo del estado', () => {
+    // Antes de la conformidad se edita (y por lo tanto se reemplaza el
+    // archivo); después, no edita nadie — tampoco un admin.
+    expect(puedeEditarseObligacion('pendiente_factura')).toBe(true)
+    expect(puedeEditarseObligacion('registrada')).toBe(true)
+    expect(puedeEditarseObligacion('conforme')).toBe(false)
+    expect(puedeEditarseObligacion('pagada')).toBe(false)
+    expect(puedeEditarseObligacion('anulada')).toBe(false)
   })
 })
