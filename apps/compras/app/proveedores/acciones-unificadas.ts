@@ -17,6 +17,13 @@ import {
 
 export type EstadoAccion = { error: string } | null
 
+/**
+ * El formulario de datos necesita saber si GUARDÓ, no solo si falló: la
+ * ficha vuelve a modo lectura recién cuando el guardado salió bien. Un
+ * `null` no alcanza porque también es el estado inicial.
+ */
+export type EstadoGuardado = { error: string } | { ok: true } | null
+
 function ruta(fuente: FuenteProveedor, id: string) {
   return fuente === 'compra' ? `/proveedores/${id}` : `/proveedores/servicio/${id}`
 }
@@ -62,9 +69,9 @@ export async function cambiarActivoAction(
 export async function guardarDatosProveedorAction(
   fuente: FuenteProveedor,
   id: string,
-  _previo: EstadoAccion,
+  _previo: EstadoGuardado,
   form: FormData
-): Promise<EstadoAccion> {
+): Promise<EstadoGuardado> {
   const texto = (campo: string) => String(form.get(campo) ?? '').trim() || null
   const datos: DatosEditablesProveedor = {
     ruc: String(form.get('ruc') ?? '').trim(),
@@ -86,7 +93,7 @@ export async function guardarDatosProveedorAction(
   }
   revalidatePath(ruta(fuente, id))
   revalidatePath('/proveedores')
-  return null
+  return { ok: true }
 }
 
 export type EstadoFormularioCuenta = { error: string } | null

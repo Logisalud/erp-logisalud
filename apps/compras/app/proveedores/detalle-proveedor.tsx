@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import {
   cambiarActivoAction,
@@ -9,6 +9,7 @@ import {
   eliminarCuentaBancariaAction,
   type EstadoAccion,
   type EstadoFormularioCuenta,
+  type EstadoGuardado,
 } from './acciones-unificadas'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { enmascararCuenta, faltaCuentaBancaria, ETIQUETA_FUENTE_PROVEEDOR, type FuenteProveedor } from '@/domain/proveedor'
@@ -61,32 +62,83 @@ function CampoTexto({
 }
 
 /**
- * Los datos del proveedor, editables.
+ * Los datos del proveedor: SE MIRAN, y recién al tocar "Editar" se pueden
+ * cambiar.
  *
- * Antes esta tarjeta era una lista de solo lectura y el único formulario de
- * la ficha guardaba dirección y observaciones: un RUC o una razón social mal
- * escritos en el alta no los podía corregir nadie, y la salida práctica era
- * crear el proveedor de nuevo. Ahora es UN formulario con todo lo corregible
- * junto — un botón primario por pantalla, como manda la Carta de Simplicidad.
+ * Al principio la ficha abría siempre en modo edición, porque lo urgente era
+ * que se pudiera corregir algo —antes no se podía, ni siendo admin—. Pero
+ * entrar a consultar un RUC y entrar a cambiarlo no son la misma intención,
+ * y con todos los campos abiertos alcanza un roce en el celular para pisar
+ * la razón social sin enterarse (pedido de Sebas, 2026-09-20).
  *
- * Tipo y moneda principal siguen siendo de solo lectura: el tipo decide en
- * qué tabla vive el proveedor y cambiarlo sería mudarlo de schema, y la
- * moneda es solo el valor por defecto de cada OC.
+ * "Cancelar" desmonta el formulario en vez de limpiarlo campo por campo:
+ * al volver a abrirlo, los `defaultValue` se releen de lo que hay guardado,
+ * así que descartar es realmente descartar y no queda ningún valor a medio
+ * editar dando vueltas.
  */
 function FormularioDatos({ proveedor }: { proveedor: DetalleProveedorUnificado }) {
   const accion = guardarDatosProveedorAction.bind(null, proveedor.fuente, proveedor.id)
-  const [estado, ejecutar] = useFormState<EstadoAccion, FormData>(accion, null)
+  const [estado, ejecutar] = useFormState<EstadoGuardado, FormData>(accion, null)
+  const [editando, setEditando] = useState(false)
   const sucio = useMarcarSucioAlEditar(estado)
+
+  // Guardó bien -> de vuelta a modo lectura. Se mira `ok` y no `estado ===
+  // null` porque null es también el estado inicial, y ahí no guardó nada.
+  const guardo = !!estado && 'ok' in estado
+  useEffect(() => {
+    if (guardo) setEditando(false)
+  }, [guardo])
+
+  const encabezado = (
+    <div className="flex items-baseline justify-between gap-3">
+      <h2 className="font-heading text-lg">Datos del proveedor</h2>
+      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+        {ETIQUETA_FUENTE_PROVEEDOR[proveedor.fuente]}
+      </span>
+    </div>
+  )
+
+  if (!editando) {
+    return (
+      <section className="card space-y-3">
+        {encabezado}
+        {guardo ? (
+          <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-900">
+            Datos guardados.
+          </p>
+        ) : null}
+
+        <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
+          <Dato termino="Razón social" valor={proveedor.razonSocial} />
+          <Dato termino="RUC" valor={proveedor.ruc} />
+          <Dato termino="Nombre comercial" valor={proveedor.nombreComercial} />
+          <Dato termino="Contacto" valor={proveedor.contactoNombre} />
+          <Dato termino="Correo" valor={proveedor.contactoEmail} />
+          <Dato termino="Teléfono" valor={proveedor.contactoTelefono} />
+          <Dato termino="Condición de pago" valor={`${proveedor.condicionPagoDias} días`} />
+          <Dato termino="Moneda" valor={proveedor.monedaPrincipal} />
+          <Dato termino="Dirección fiscal" valor={proveedor.direccionFiscal} />
+          <Dato termino="Estado" valor={proveedor.activo ? 'Activo' : 'Inactivo'} />
+        </dl>
+
+        {proveedor.observaciones ? (
+          <div className="text-sm">
+            <p className="text-gray-500">Observaciones:</p>
+            <p className="whitespace-pre-line">{proveedor.observaciones}</p>
+          </div>
+        ) : null}
+
+        <button type="button" onClick={() => setEditando(true)} className="btn-secondary">
+          Editar datos
+        </button>
+      </section>
+    )
+  }
 
   return (
     <form action={ejecutar} onChange={sucio.onChange} onSubmit={sucio.onSubmit} className="card space-y-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="font-heading text-lg">Datos del proveedor</h2>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-          {ETIQUETA_FUENTE_PROVEEDOR[proveedor.fuente]}
-        </span>
-      </div>
-      {estado?.error ? (
+      {encabezado}
+      {estado && 'error' in estado ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">{estado.error}</p>
       ) : null}
 
@@ -113,13 +165,26 @@ function FormularioDatos({ proveedor }: { proveedor: DetalleProveedorUnificado }
       </label>
 
       <p className="text-xs text-gray-500">
-        Moneda principal: {proveedor.monedaPrincipal} · Estado:{' '}
-        {proveedor.activo ? 'activo' : 'inactivo'}. La moneda se elige en cada orden y el estado se
-        cambia más abajo.
+        Moneda principal: {proveedor.monedaPrincipal}. Se elige en cada orden, y el estado del
+        proveedor se cambia más abajo.
       </p>
 
-      <BotonPequeno texto="Guardar cambios" textoPending="Guardando…" />
+      <div className="flex flex-wrap gap-2">
+        <BotonPequeno texto="Guardar cambios" textoPending="Guardando…" />
+        <button type="button" onClick={() => setEditando(false)} className="btn-secondary">
+          Cancelar
+        </button>
+      </div>
     </form>
+  )
+}
+
+function Dato({ termino, valor }: { termino: string; valor: string | null }) {
+  return (
+    <div className="flex gap-2">
+      <dt className="text-gray-500">{termino}:</dt>
+      <dd>{valor || '—'}</dd>
+    </div>
   )
 }
 
