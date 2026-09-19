@@ -190,15 +190,28 @@ export function FormularioPagoDirecto({
           </label>
         )}
 
+        {/* Al EDITAR el campo ya no se esconde: desde 2026-09-19 se puede
+            reemplazar el archivo mientras Contabilidad no haya dado
+            conformidad (pedido de Sebas). Subir uno nuevo apunta la
+            obligación al nuevo y deja el anterior en el storage — no se
+            borra nada. Dejarlo vacío conserva el que ya está.
+
+            OJO: esto NO es "Reemplazar constancia". Aquello es el voucher
+            DESPUÉS de pagado, solo admin y con motivo obligatorio. Esto es
+            antes de que nadie decidiera nada, así que no pide motivo ni
+            restringe por rol. Son dos mecanismos distintos a propósito. */}
         {pendienteFactura ? (
-          editando ? null : (
-            <Campo etiqueta="📎 Cotización que sustenta el monto">
-              <CampoArchivo
-                nombre="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
-                className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
-              />
-            </Campo>
-          )
+          <Campo etiqueta={editando ? '📎 Reemplazar la cotización' : '📎 Cotización que sustenta el monto'}>
+            <CampoArchivo
+              nombre="cotizacion" accept="application/pdf,image/jpeg,image/png,image/webp"
+              className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+            />
+            {editando ? (
+              <span className="mt-1 block text-xs text-gray-500">
+                Déjalo vacío para conservar la que ya está. La anterior no se borra.
+              </span>
+            ) : null}
+          </Campo>
         ) : (
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -213,14 +226,17 @@ export function FormularioPagoDirecto({
                 />
               </Campo>
             </div>
-            {editando ? null : (
-              <Campo etiqueta="📎 Factura escaneada (opcional)">
-                <CampoArchivo
-                  nombre="factura" accept="application/pdf,image/jpeg,image/png,image/webp"
-                  className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
-                />
-              </Campo>
-            )}
+            <Campo etiqueta={editando ? '📎 Reemplazar la factura escaneada' : '📎 Factura escaneada (opcional)'}>
+              <CampoArchivo
+                nombre="factura" accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
+              />
+              {editando ? (
+                <span className="mt-1 block text-xs text-gray-500">
+                  Déjalo vacío para conservar la que ya está. La anterior no se borra.
+                </span>
+              ) : null}
+            </Campo>
           </div>
         )}
       </section>
