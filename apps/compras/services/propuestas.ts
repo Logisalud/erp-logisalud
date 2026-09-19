@@ -280,6 +280,72 @@ export async function rechazarPropuesta(propuestaId: string): Promise<void> {
   }
 }
 
+/**
+ * Descartar un lote mal armado, antes de mandarlo a aprobación. (Sebas,
+ * 2026-09-19.)
+ *
+ * Hasta ahora NO había forma de corregir un borrador: `crearPropuesta`
+ * insertaba el lote y dejaba sus obligaciones en `en_propuesta`, y no
+ * existía función para quitar una ni para borrar el borrador. La única
+ * salida era mandarlo a aprobación y rechazárselo uno mismo — pedir
+ * autorización de algo que sabés que está mal, para poder deshacerlo.
+ *
+ * No es un "anular" y por eso no tiene estado propio, ni motivo, ni
+ * migración: un borrador que nadie vio todavía no le debe una explicación a
+ * nadie. Se borra y las obligaciones vuelven a `conforme`, libres para
+ * entrar en otro lote.
+ *
+ * Solo desde `borrador`. Una vez enviado a aprobación, la salida es
+ * `rechazarPropuesta`, que es una decisión y sí deja rastro.
+ */
+export async function descartarBorradorPropuesta(propuestaId: string): Promise<void> {
+  if (!puedeAprobarPropuesta(await perfilActual())) {
+    throw new Error('Solo Contabilidad (rol admin) o un administrador pueden descartar un lote.')
+  }
+  const supabase = crearClienteServidor()
+
+  const { data: propuesta, error } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('propuestas_pago')
+    .select('id, estado')
+    .eq('id', propuestaId)
+    .maybeSingle()
+  if (error || !propuesta) throw new Error('No se encontró la propuesta.')
+  if (propuesta.estado !== 'borrador') {
+    throw new Error(
+      `Este lote está en "${propuesta.estado}" y ya no es un borrador. Si hay que frenarlo, se rechaza.`
+    )
+  }
+
+  // Las obligaciones PRIMERO. Sin transacción, el orden decide qué queda a
+  // medias: si se borra el lote y después falla el update, quedan
+  // obligaciones en `en_propuesta` apuntando a un lote que no existe, y eso
+  // las congela para siempre. Al revés no: quedan `conforme` con un
+  // borrador huérfano, que se vuelve a descartar.
+  const { data: detalle } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('propuesta_detalle')
+    .select('obligacion_id')
+    .eq('propuesta_id', propuestaId)
+  const obligacionIds = (detalle ?? []).map((d) => d.obligacion_id)
+  if (obligacionIds.length > 0) {
+    const { error: errOb } = await supabase
+      .schema('cuentas_x_pagar')
+      .from('obligaciones')
+      .update({ estado: 'conforme' })
+      .in('id', obligacionIds)
+    if (errOb) throw new Error(`No se pudieron liberar las obligaciones: ${errOb.message}`)
+  }
+
+  await supabase.schema('cuentas_x_pagar').from('propuesta_detalle').delete().eq('propuesta_id', propuestaId)
+  const { error: errDel } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('propuestas_pago')
+    .delete()
+    .eq('id', propuestaId)
+  if (errDel) throw new Error(`Las obligaciones quedaron libres pero el lote no se pudo borrar: ${errDel.message}`)
+}
+
 export type PropuestaListada = {
   /** Cuándo se aprobó el lote (migración 0050). Null si nunca se aprobó, o
    * si se aprobó antes de esa migración. */

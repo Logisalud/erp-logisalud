@@ -1,7 +1,13 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
-import { baseEIgvMovimiento, type BorradorMovimiento, type EstadoReposicion } from '@/domain/caja-chica'
-import { ERROR_AUTO_APROBACION, puedeDecidirSobre } from '@/domain/auto-aprobacion'
+import {
+  baseEIgvMovimiento, ETIQUETA_ESTADO_REPOSICION,
+  type BorradorMovimiento, type EstadoReposicion,
+} from '@/domain/caja-chica'
+import {
+  ERROR_ANULAR_AJENO, ERROR_AUTO_APROBACION, puedeAnular, puedeDecidirSobre,
+} from '@/domain/auto-aprobacion'
+import { esContabilidadDecisora } from '@/domain/pendientes-aprobar'
 import { anioMesStorageLima } from '@/domain/fecha'
 
 export type Fondo = {
@@ -187,6 +193,9 @@ export type ReposicionListada = {
  * de aprobación que un gasto (jefe de área -> Contabilidad).
  */
 export async function crearReposicion(fondoId: string): Promise<{ id: string }> {
+  // Quién la pide se guarda desde la migración 0069: sin eso, "nadie anula
+  // lo que no cargó" no se puede chequear — ver `anularReposicion`.
+  const usuario = await exigirUsuario()
   const supabase = crearClienteServidor()
 
   const { data: movimientos, error: errMov } = await supabase
@@ -205,7 +214,7 @@ export async function crearReposicion(fondoId: string): Promise<{ id: string }> 
   const { data: reposicion, error: errRep } = await supabase
     .schema('caja_chica')
     .from('reposiciones')
-    .insert({ fondo_id: fondoId, monto_solicitado: montoSolicitado })
+    .insert({ fondo_id: fondoId, monto_solicitado: montoSolicitado, creado_por: usuario.id })
     .select('id')
     .single()
   if (errRep) throw new Error(`No se pudo crear la reposición: ${errRep.message}`)
@@ -339,6 +348,68 @@ export async function rechazarPorContabilidad(id: string): Promise<void> {
   await cambiarEstado(id, ['pendiente_contabilidad'], 'rechazada_contabilidad', {
     aprobado_contabilidad_por: usuario.id, aprobado_contabilidad_fecha: new Date().toISOString(),
   })
+  await desenlazarMovimientos(id)
+}
+
+/**
+ * Anular una reposición: el custodio corrige SU error, antes de que nadie
+ * la haya revisado. (Sebas, 2026-09-19.)
+ *
+ * Es la contraparte de rechazar, no un sinónimo:
+ *
+ *   RECHAZAR  el jefe o Contabilidad la revisaron y deciden que no va.
+ *   ANULAR    quien la pidió se equivocó y la retira antes de la decisión.
+ *
+ * Lo que hace que esto sea seguro no es el cambio de estado sino
+ * `desenlazarMovimientos`: al crear la reposición, los movimientos del
+ * fondo quedan enganchados a ella. Si se anula sin soltarlos, el custodio
+ * pierde plata que ya gastó — quedan atados a una reposición muerta y no
+ * entran en la siguiente. Por eso se reusa la MISMA función que usa el
+ * rechazo, y no se escribe un update nuevo acá.
+ *
+ * `puedeAnular` (domain/auto-aprobacion.ts) decide quién: quien la creó
+ * mientras la autoridad no haya decidido, o la autoridad siempre. En las
+ * reposiciones anteriores a la migración 0069 `creado_por` es null, y esa
+ * función trata null como "no sabemos quién fue" — la autoridad puede
+ * igual, que es lo correcto para datos viejos.
+ */
+export async function anularReposicion(id: string, motivo: string): Promise<void> {
+  if (!motivo.trim()) throw new Error('El motivo de la anulación es obligatorio.')
+  const usuario = await exigirUsuario()
+  const perfil = await perfilActual()
+  const supabase = crearClienteServidor()
+
+  const { data: reposicion, error } = await supabase
+    .schema('caja_chica')
+    .from('reposiciones')
+    .select('id, estado, creado_por')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !reposicion) throw new Error('No se encontró la reposición.')
+
+  const estado = (reposicion as any).estado as EstadoReposicion
+  // Solo antes de que exista obligación. Después hay una deuda formal en
+  // camino a pagarse, y eso se anula desde la ficha de la obligación.
+  if (estado !== 'pendiente_jefe' && estado !== 'pendiente_contabilidad') {
+    throw new Error(`Ya no se puede anular: la reposición está en "${ETIQUETA_ESTADO_REPOSICION[estado]}".`)
+  }
+  if (!puedeAnular(esContabilidadDecisora(perfil), usuario.id, (reposicion as any).creado_por ?? null, false)) {
+    throw new Error(ERROR_ANULAR_AJENO)
+  }
+
+  const { error: errUpd } = await supabase
+    .schema('caja_chica')
+    .from('reposiciones')
+    .update({
+      estado: 'anulada',
+      anulado_por: usuario.id,
+      anulado_en: new Date().toISOString(),
+      anulado_motivo: motivo.trim(),
+    })
+    .eq('id', id)
+  if (errUpd) throw new Error(`No se pudo anular la reposición: ${errUpd.message}`)
+
+  // Lo que de verdad importa: los movimientos vuelven al fondo.
   await desenlazarMovimientos(id)
 }
 

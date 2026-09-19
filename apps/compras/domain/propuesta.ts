@@ -21,7 +21,14 @@ const TRANSICIONES: Record<EstadoPropuesta, readonly EstadoPropuesta[]> = {
   borrador: ['pendiente_aprobacion'],
   pendiente_aprobacion: ['aprobada', 'rechazada'],
   aprobada: [],
-  rechazada: ['borrador'],
+  // `rechazada -> borrador` (reabrir un lote rechazado) estuvo declarado acá
+  // desde el principio y NINGUNA función lo usó nunca: era una promesa que
+  // nada cumplía. Se quita el 2026-09-19. Un lote rechazado libera sus
+  // obligaciones a `conforme`, así que rearmarlo es crear uno nuevo con las
+  // que correspondan — que además es más honesto que revivir el anterior con
+  // su rechazo colgando. Si alguna vez hace falta de verdad, va con su
+  // función y su pantalla, no como una transición suelta.
+  rechazada: [],
 }
 
 export function transicionPermitida(desde: EstadoPropuesta, hacia: EstadoPropuesta): boolean {
