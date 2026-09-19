@@ -6,18 +6,24 @@ export const dynamic = 'force-dynamic'
 
 /**
  * La contraparte de "Mis operaciones": lo que espera una decisión MÍA, de
- * las cuatro fuentes con gate de aprobación real (Pago Directo, Anticipo/
- * Reembolso, Reposición de Caja Chica y Orden de Servicio).
+ * las siete fuentes con gate de aprobación real.
  *
- * Prioriza (lo más viejo arriba) y desde 2026-09-14 también deja APROBAR
- * VARIOS JUNTOS, del mismo tipo. Rechazar sigue viviendo solo en el detalle
- * de cada registro: exige motivo y no es una decisión que se tome en lote.
- * El lote llama a la misma función de aprobar que el botón individual, así
- * que respeta exactamente las mismas reglas — ver
- * services/aprobar-en-lote.ts.
+ * Desde 2026-09-19 va partida en DOS SECCIONES, porque son dos preguntas
+ * distintas y mezclarlas hacía que una propuesta de S/ 41,900 se leyera
+ * igual que un reembolso de taxi:
  *
- * Las propuestas de pago SÍ entran (quinta fuente): desde la Pieza I las
- * aprueba Contabilidad (rol admin) o Administración, no Gerencia.
+ *  1. Documentos por aprobar — "¿este documento está bien?". Quién ve cada
+ *     fila depende de la fila, no de un rol fijo: Contabilidad ve lo suyo,
+ *     el jefe de área lo suyo. Caja Chica aparece una sola vez, en la
+ *     sección, y le toca a quien corresponda según su fase.
+ *  2. Lotes de pago por aprobar — "¿autorizo que salga esta plata?". Acá sí
+ *     hay candado duro: Contabilidad rol admin y Administración.
+ *
+ * APROBAR puede ser en lote en las dos secciones, llamando a la misma
+ * función que el botón individual (ver services/aprobar-en-lote.ts).
+ * RECHAZAR y ANULAR son SIEMPRE de a uno — el porqué está en
+ * domain/corte.ts y se resume en que un motivo compartido deja de ser un
+ * motivo.
  */
 export default async function PendientesDeAprobar() {
   const filas = await listarPendientesDeAprobar()
