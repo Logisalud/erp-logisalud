@@ -10,64 +10,114 @@ import {
 } from '@/domain/pendientes-aprobar'
 import {
   cuantasEntranAlLote, estadoDelCheckbox, estadoDelSeleccionarTodos, etiquetaBotonLote,
-  exigeTotalDestacado, MAXIMO_POR_LOTE, resumenDeLaSeleccion,
-  type ResumenSeleccion,
+  MAXIMO_POR_LOTE, resumenDeLaSeleccion, type ResumenSeleccion,
 } from '@/domain/aprobacion-en-lote'
 import {
-  etiquetaBotonCorte, ETIQUETA_ACCION, filasQueNoAdmiten, filasSinRastroDelMotivo,
-  validarMotivo, type AccionCorte,
-} from '@/domain/corte-en-lote'
+  admiteCorte, avisoMotivoSinRastro, AYUDA_ACCION, BAJADA_SECCION, ETIQUETA_ACCION,
+  filasDeSeccion, SECCIONES_BANDEJA, TITULO_SECCION, validarMotivo,
+  type AccionCorte, type SeccionBandeja,
+} from '@/domain/corte'
 import { ChipFiltro } from '@/components/chip-filtro'
-import { decidirEnLoteAction, type EstadoLote } from './actions'
-
-/** Las tres decisiones que la bandeja puede tomar sobre una selección. */
-type Modo = 'aprobar' | AccionCorte
+import {
+  aprobarEnLoteAction, cortarUnoAction, type EstadoCorte, type EstadoLote,
+} from './actions'
 
 /**
- * La bandeja, con selección múltiple para aprobar varios juntos (pedido de
- * Mariela: entrar de a uno a seis pagos directos es el dolor real).
+ * La bandeja, partida en DOS SECCIONES (Sebas, 2026-09-19).
  *
- * Desde 2026-09-15 la selección PUEDE mezclar tipos. Lo que sostiene eso no
- * es la pantalla sino tres cosas del servidor —el orden de ejecución con las
- * propuestas al final, reusar la función individual de cada tipo, y el
- * resumen parcial honesto— explicadas en domain/aprobacion-en-lote.ts.
+ * Antes era una sola tabla donde una propuesta de S/ 41,900 se leía igual
+ * que un reembolso de taxi de S/ 20, y el total en ámbar aparecía y
+ * desaparecía según lo que estuviera tildado. Ahora son dos preguntas
+ * distintas en dos lugares distintos — ver SECCION_POR_TIPO en
+ * domain/corte.ts:
  *
- * Lo que sí aporta la pantalla es el resumen ANTES de confirmar: con tipos
- * mezclados, un total solo no deja ver que casi toda la plata son dos
- * propuestas y el resto son firmas chicas. De ahí el desglose por tipo más
- * el corte específico de Propuestas de pago.
+ *  1. Documentos por aprobar — "¿este documento está bien?"
+ *  2. Lotes de pago por aprobar — "¿autorizo que salga esta plata?"
  *
- * Nunca se llega a una selección inválida: los checkbox que no corresponden
- * se deshabilitan con el motivo a la vista, así no hay un error que explicar
- * DESPUÉS de tildar.
+ * APROBAR puede ser en lote, en las dos secciones. RECHAZAR y ANULAR son
+ * SIEMPRE de a uno: el motivo viaja por correo a quien cargó el registro, y
+ * en un lote deja de ser un motivo. Existió en lote unas horas el mismo día
+ * y se revirtió — el razonamiento completo está en domain/corte.ts.
+ *
+ * Cada sección tiene su propia selección y su propio estado: tildar cinco
+ * documentos no debería arrastrar un lote de pago, ni al revés.
  */
 export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
-  const [estado, accion] = useFormState<EstadoLote, FormData>(decidirEnLoteAction, null)
+  // Un solo aviso de resultado arriba de todo, compartido por las dos
+  // secciones y por las dos acciones: después de decidir, la pantalla se
+  // recarga entera y dos avisos en lugares distintos sería peor.
+  const [estadoCorte, ejecutarCorte] = useFormState<EstadoCorte, FormData>(cortarUnoAction, null)
+  const [corte, setCorte] = useState<{ fila: FilaPendiente; accion: AccionCorte } | null>(null)
+
+  return (
+    <>
+      {estadoCorte ? <Aviso ok={estadoCorte.ok} texto={estadoCorte.ok ? estadoCorte.resumen : estadoCorte.error} /> : null}
+
+      {SECCIONES_BANDEJA.map((seccion) => {
+        const suyas = filasDeSeccion(filas, seccion)
+        if (suyas.length === 0) return null
+        return (
+          <Seccion
+            key={seccion}
+            seccion={seccion}
+            filas={suyas}
+            corte={corte}
+            onAbrirCorte={(fila, accion) => setCorte({ fila, accion })}
+            onCerrarCorte={() => setCorte(null)}
+            ejecutarCorte={ejecutarCorte}
+          />
+        )
+      })}
+    </>
+  )
+}
+
+function Aviso({ ok, texto }: { ok: boolean; texto: string }) {
+  return (
+    <div
+      role="status"
+      className={`mb-4 rounded-md border px-3 py-2.5 text-sm ${
+        ok ? 'border-green-200 bg-green-50 text-green-900' : 'border-red-200 bg-red-50 text-red-900'
+      }`}
+    >
+      {texto}
+    </div>
+  )
+}
+
+function Seccion({
+  seccion, filas, corte, onAbrirCorte, onCerrarCorte, ejecutarCorte,
+}: {
+  seccion: SeccionBandeja
+  filas: FilaPendiente[]
+  corte: { fila: FilaPendiente; accion: AccionCorte } | null
+  onAbrirCorte: (fila: FilaPendiente, accion: AccionCorte) => void
+  onCerrarCorte: () => void
+  ejecutarCorte: (form: FormData) => void
+}) {
+  const [estadoLote, aprobar] = useFormState<EstadoLote, FormData>(aprobarEnLoteAction, null)
   const [elegidas, setElegidas] = useState<Set<string>>(new Set())
-  // `null` = todavía no se eligió qué hacer. Reemplaza al viejo booleano
-  // `confirmando`: ahora hay tres salidas y el panel de confirmación cambia
-  // según cuál sea.
-  const [modo, setModo] = useState<Modo | null>(null)
-  const [motivo, setMotivo] = useState('')
-  // Filtro por tipo, en el cliente: las filas ya están todas cargadas, así
-  // que filtrar no necesita ir al servidor.
+  const [confirmando, setConfirmando] = useState(false)
   const [filtro, setFiltro] = useState<TipoPendiente | null>(null)
 
   const visibles = filtro ? filas.filter((f) => f.tipo === filtro) : filas
   const conteos = contarPorTipo(filas)
   const seleccionarTodos = estadoDelSeleccionarTodos(visibles.length)
+  const seleccionadas = filas.filter((f) => elegidas.has(f.id))
+  const resumen = resumenDeLaSeleccion(seleccionadas)
+
+  // El total en ámbar es fijo por sección, no depende de lo tildado: en
+  // "Lotes de pago" SIEMPRE se muestra en grande, porque cada fila libera el
+  // desembolso de un lote entero. Antes aparecía solo si la selección
+  // contenía una propuesta, y esa condición desapareció al separar.
+  const totalEnGrande = seccion === 'lote'
+  // El panel de corte pertenece a la fila abierta, no a la sección: se
+  // renderiza en la sección donde vive esa fila.
+  const corteAca = corte && filas.some((f) => f.id === corte.fila.id) ? corte : null
 
   const cambiarFiltro = (nuevo: TipoPendiente | null) => {
     setFiltro(nuevo)
-    setModo(null)
-    // La selección SOBREVIVE al cambio de filtro, y eso es a propósito: es
-    // la forma de armar un lote mezclado (filtrar a Pagos Directos, tildar
-    // tres, pasar a Propuestas, tildar una). Antes se limpiaba, porque con
-    // un tipo por selección cambiar de filtro solo podía ser un error.
-    //
-    // El riesgo que eso abre —tener tildado algo que no está en pantalla—
-    // lo cubre el resumen de la confirmación, que lista TODO lo
-    // seleccionado por tipo, visible o no.
+    setConfirmando(false)
   }
 
   const tildarTodosLosVisibles = () => {
@@ -75,7 +125,6 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
     setElegidas((prev) => {
       const todosTildados = visibles.length > 0 && visibles.every((f) => prev.has(f.id))
       if (todosTildados) return new Set()
-      // El tope manda: con 25 filas visibles entran las primeras 20.
       return new Set(visibles.slice(0, cuantasEntranAlLote(visibles.length)).map((f) => f.id))
     })
   }
@@ -87,303 +136,196 @@ export function TablaPendientes({ filas }: { filas: FilaPendiente[] }) {
       return next
     })
 
-  const cerrarPanel = () => {
-    setModo(null)
-    setMotivo('')
-  }
-
-  const abrirCorte = (accion: AccionCorte) => {
-    setModo(accion)
-    setMotivo('')
-  }
-
-  /**
-   * El atajo por fila. No abre un segundo mecanismo: deja esa fila como la
-   * única seleccionada y abre el MISMO panel del lote. Así hay un solo camino
-   * que mantener, un solo lugar donde vive la confirmación, y rechazar una
-   * sola cosa valida exactamente igual que rechazar seis.
-   */
-  const cortarSoloEsta = (id: string, accion: AccionCorte) => {
-    setElegidas(new Set([id]))
-    abrirCorte(accion)
-  }
-
-  const seleccionadas = filas.filter((f) => elegidas.has(f.id))
-  // Por MONEDA de cada fila, no por su columna Monto: una propuesta puede
-  // mezclar PEN y USD adentro y la columna solo muestra una.
-  const resumen = resumenDeLaSeleccion(seleccionadas)
-  const totales = resumen.total
-  const totalEnGrande = exigeTotalDestacado(seleccionadas)
-
   return (
-    // Ya no se manda ningún `tipo`: el servidor lo saca de su propia
-    // relectura de la bandeja. Un id manipulado no puede ni afirmar de qué
-    // tipo es.
-    <form action={accion}>
+    <section className="mb-10">
+      <header className="mb-3">
+        <h2 className="font-heading text-xl">
+          {TITULO_SECCION[seccion]} <span className="text-gray-400">({filas.length})</span>
+        </h2>
+        <p className="text-sm text-gray-600">
+          {BAJADA_SECCION[seccion]}
+          {seccion === 'lote' ? (
+            <span className="ml-1 text-gray-500">Solo Contabilidad (rol admin) y Administración.</span>
+          ) : null}
+        </p>
+      </header>
 
-      {estado ? (
-        <div
-          role="status"
-          className={`mb-3 rounded-md border px-3 py-2.5 text-sm ${
-            estado.ok
-              ? 'border-green-200 bg-green-50 text-green-900'
-              : 'border-red-200 bg-red-50 text-red-900'
-          }`}
-        >
-          {estado.ok ? estado.resumen : estado.error}
+      {estadoLote ? (
+        <Aviso ok={estadoLote.ok} texto={estadoLote.ok ? estadoLote.resumen : estadoLote.error} />
+      ) : null}
+
+      {/* Los chips solo tienen sentido con más de un tipo — en "Lotes de
+          pago" siempre hay uno solo, así que no se dibujan. */}
+      {conteos.length > 1 ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <ChipFiltro etiqueta="Todos" activo={filtro === null} onClick={() => cambiarFiltro(null)} />
+          {conteos.map(({ tipo, cantidad }) => (
+            <ChipFiltro
+              key={tipo}
+              etiqueta={`${ETIQUETA_TIPO_PENDIENTE[tipo]} (${cantidad})`}
+              activo={filtro === tipo}
+              onClick={() => cambiarFiltro(tipo)}
+            />
+          ))}
         </div>
       ) : null}
 
-      {/* Mismo chip que Cuentas por Pagar (components/chip-filtro.tsx). */}
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-        <ChipFiltro etiqueta="Todos" activo={filtro === null} onClick={() => cambiarFiltro(null)} />
-        {conteos.map(({ tipo, cantidad }) => (
-          <ChipFiltro
-            key={tipo}
-            etiqueta={`${ETIQUETA_TIPO_PENDIENTE[tipo]} (${cantidad})`}
-            activo={filtro === tipo}
-            onClick={() => cambiarFiltro(tipo)}
-          />
-        ))}
-      </div>
+      <form action={aprobar}>
+        <div className="mb-3">
+          <button
+            type="button"
+            onClick={tildarTodosLosVisibles}
+            disabled={!seleccionarTodos.habilitado}
+            className="text-sm text-logisalud-teal underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+          >
+            {visibles.length > cuantasEntranAlLote(visibles.length)
+              ? `Seleccionar los primeros ${MAXIMO_POR_LOTE} visibles`
+              : 'Seleccionar todos los visibles'}
+          </button>
+        </div>
 
-      <div className="mb-3">
-        <button
-          type="button"
-          onClick={tildarTodosLosVisibles}
-          disabled={!seleccionarTodos.habilitado}
-          title={seleccionarTodos.habilitado ? undefined : seleccionarTodos.motivo}
-          className="text-sm text-logisalud-teal underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
-        >
-          {visibles.length > cuantasEntranAlLote(visibles.length)
-            ? `Seleccionar los primeros ${MAXIMO_POR_LOTE} visibles`
-            : 'Seleccionar todos los visibles'}
-        </button>
-        {/* El motivo también a la vista, no solo en el title: un botón
-            apagado sin explicación hace dudar del sistema, y acá la salida
-            está a un clic en los chips de arriba. */}
-        {!seleccionarTodos.habilitado ? (
-          <span className="ml-2 text-xs text-gray-500">{seleccionarTodos.motivo}</span>
-        ) : null}
-      </div>
+        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
+                <th className="px-3 py-2 font-medium" />
+                <th className="px-3 py-2 font-medium">Tipo</th>
+                <th className="px-3 py-2 font-medium">Código</th>
+                <th className="px-3 py-2 font-medium">Concepto</th>
+                <th className="px-3 py-2 font-medium">Quién lo creó</th>
+                <th className="px-3 py-2 font-medium">Fecha</th>
+                <th className="px-3 py-2 text-right font-medium">Monto</th>
+                <th className="px-3 py-2 font-medium">Esperando hace</th>
+                <th className="px-3 py-2 font-medium">Decide</th>
+                <th className="px-3 py-2 font-medium">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibles.map((f) => {
+                const check = estadoDelCheckbox(f, { elegidas })
+                return (
+                  <tr key={f.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox" name="pendienteId" value={f.id}
+                        checked={elegidas.has(f.id)}
+                        onChange={() => alternar(f.id)}
+                        disabled={!check.habilitado}
+                        title={check.habilitado ? `Incluir ${f.codigo}` : check.motivo}
+                        aria-label={check.habilitado ? `Incluir ${f.codigo}` : check.motivo}
+                        className="h-5 w-5 disabled:opacity-30"
+                      />
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {ETIQUETA_TIPO_PENDIENTE[f.tipo]}
+                      {f.tipo === 'propuesta' ? (
+                        <span className="block text-xs text-gray-500">libera el pago de su lote</span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Link href={f.href} className="font-medium text-logisalud-teal underline">
+                        {f.codigo}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2 max-w-[260px] truncate" title={f.concepto ?? undefined}>
+                      {f.concepto ?? '—'}
+                    </td>
+                    <td className="px-3 py-2 max-w-[200px] truncate">{f.quienLoCreo ?? '—'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{f.esperandoDesde.slice(0, 10)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      <Money valor={f.monto} moneda={f.moneda} />
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <Espera dias={f.diasEsperando} />
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-600">{f.quienDecide}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <Link href={f.href} className="text-logisalud-teal underline">
+                        Revisar
+                      </Link>
+                      {/* Los atajos de UNA fila. Solo aparecen si ESE tipo
+                          admite esa salida (ver CORTE_POR_TIPO): un link que
+                          lleva a un "no se puede" es peor que no tenerlo. */}
+                      <span className="ml-2 inline-flex gap-2">
+                        <AtajoCorte fila={f} accion="rechazar" onElegir={onAbrirCorte} />
+                        <AtajoCorte fila={f} accion="anular" onElegir={onAbrirCorte} />
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
-              <th className="px-3 py-2 font-medium" />
-              <th className="px-3 py-2 font-medium">Tipo</th>
-              <th className="px-3 py-2 font-medium">Código</th>
-              <th className="px-3 py-2 font-medium">Concepto</th>
-              <th className="px-3 py-2 font-medium">Quién lo creó</th>
-              <th className="px-3 py-2 font-medium">Fecha</th>
-              <th className="px-3 py-2 text-right font-medium">Monto</th>
-              <th className="px-3 py-2 font-medium">Esperando hace</th>
-              <th className="px-3 py-2 font-medium">Fecha requerida</th>
-              <th className="px-3 py-2 font-medium">Decide</th>
-              <th className="px-3 py-2 font-medium">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibles.map((f) => {
-              const check = estadoDelCheckbox(f, { elegidas })
-              return (
-                <tr
-                  key={`${f.tipo}-${f.id}`}
-                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50"
-                >
-                  <td className="px-3 py-2">
-                    <input
-                      type="checkbox" name="pendienteId" value={f.id}
-                      checked={elegidas.has(f.id)}
-                      onChange={() => alternar(f.id)}
-                      disabled={!check.habilitado}
-                      // El motivo va en el title Y debajo de la fila que lo
-                      // necesita: un checkbox apagado sin explicación es de
-                      // las cosas que más hacen dudar de un sistema.
-                      title={check.habilitado ? `Incluir ${f.codigo}` : check.motivo}
-                      aria-label={check.habilitado ? `Incluir ${f.codigo}` : check.motivo}
-                      className="h-5 w-5 disabled:opacity-30"
-                    />
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {ETIQUETA_TIPO_PENDIENTE[f.tipo]}
-                    {f.tipo === 'propuesta' ? (
-                      <span className="block text-xs text-gray-500">libera el pago de su lote</span>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2">
-                    <Link href={f.href} className="font-medium text-logisalud-teal underline">
-                      {f.codigo}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2 max-w-[260px] truncate" title={f.concepto ?? undefined}>
-                    {f.concepto ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 max-w-[200px] truncate">{f.quienLoCreo ?? '—'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{f.esperandoDesde.slice(0, 10)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    <Money valor={f.monto} moneda={f.moneda} />
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <Espera dias={f.diasEsperando} />
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-600">
-                    {f.fechaRequerida ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-600">{f.quienDecide}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <Link href={f.href} className="text-logisalud-teal underline">
-                      Revisar y decidir
-                    </Link>
-                    {/* Los atajos: solo aparecen si ESE tipo admite esa
-                        salida (ver CORTE_POR_TIPO). Un link que lleva a un
-                        "no se puede" es peor que no tenerlo. */}
-                    <span className="ml-2 inline-flex gap-2">
-                      <AtajoCorte fila={f} accion="rechazar" onElegir={cortarSoloEsta} />
-                      <AtajoCorte fila={f} accion="anular" onElegir={cortarSoloEsta} />
+        {elegidas.size > 0 ? (
+          <div className="card mt-4 space-y-3">
+            {totalEnGrande ? (
+              <div className="rounded-md border-2 border-amber-300 bg-amber-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                  Total que se libera al aprobar
+                </p>
+                <p className="font-heading mt-1 flex flex-wrap gap-x-6 text-2xl text-amber-900">
+                  {resumen.total.map((t) => (
+                    <span key={t.moneda} className="tabular-nums">
+                      <Money valor={t.monto} moneda={t.moneda} />
                     </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+                  ))}
+                </p>
+                <p className="mt-1 text-xs text-amber-900">
+                  {elegidas.size === 1
+                    ? 'Es el total del lote seleccionado, con todas sus obligaciones.'
+                    : `Es la suma de los ${elegidas.size} lotes seleccionados, con todas sus obligaciones.`}
+                </p>
+              </div>
+            ) : null}
 
-      {elegidas.size > 0 ? (
-        <div className="card mt-4 space-y-3">
-          {/* Con propuestas el total deja de ser un dato al pie: cada una
-              libera el desembolso de un lote entero, así que tres pueden
-              ser cien obligaciones. Se lee ANTES de decidir, no después. */}
-          {totalEnGrande ? (
-            <div className="rounded-md border-2 border-amber-300 bg-amber-50 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
-                Total que se libera al aprobar
-              </p>
-              <p className="font-heading mt-1 flex flex-wrap gap-x-6 text-2xl text-amber-900">
-                {totales.map((t) => (
-                  <span key={t.moneda} className="tabular-nums">
-                    <Money valor={t.monto} moneda={t.moneda} />
-                  </span>
-                ))}
-              </p>
-              <p className="mt-1 text-xs text-amber-900">
-                {elegidas.size === 1
-                  ? 'Es el total de la propuesta seleccionada, con todas sus obligaciones.'
-                  : `Es la suma de las ${elegidas.size} propuestas seleccionadas, con todas sus obligaciones.`}
-              </p>
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <span className="text-sm text-gray-600">
-              {elegidas.size} de {MAXIMO_POR_LOTE} como máximo por lote
-            </span>
-            {totalEnGrande ? null : (
-              <span className="flex flex-wrap gap-x-4 font-semibold tabular-nums">
-                {totales.map((t) => (
-                  <Money key={t.moneda} valor={t.monto} moneda={t.moneda} />
-                ))}
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <span className="text-sm text-gray-600">
+                {elegidas.size} de {MAXIMO_POR_LOTE} como máximo por lote
               </span>
-            )}
-          </div>
+              {totalEnGrande ? null : (
+                <span className="flex flex-wrap gap-x-4 font-semibold tabular-nums">
+                  {resumen.total.map((t) => (
+                    <Money key={t.moneda} valor={t.monto} moneda={t.moneda} />
+                  ))}
+                </span>
+              )}
+            </div>
 
-          {modo === null ? (
-            // Las tres salidas, juntas y con el mismo peso visual que su
-            // consecuencia: aprobar es el botón primario, rechazar y anular
-            // son secundarios en rojo. Ninguna ejecuta nada todavía.
-            <div className="flex flex-wrap gap-2">
+            {confirmando ? (
+              <>
+                <ResumenDeConfirmacion resumen={resumen} />
+                <div className="flex flex-wrap gap-2">
+                  <BotonAprobar texto={etiquetaBotonLote(seleccionadas)} />
+                  <button type="button" onClick={() => setConfirmando(false)} className="btn-secondary">
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
               <button
-                type="button" onClick={() => setModo('aprobar')}
+                type="button" onClick={() => setConfirmando(true)}
                 className="btn-primary w-full sm:w-auto"
               >
                 {etiquetaBotonLote(seleccionadas)}
               </button>
-              <BotonAbrirCorte accion="rechazar" filas={seleccionadas} onElegir={abrirCorte} />
-              <BotonAbrirCorte accion="anular" filas={seleccionadas} onElegir={abrirCorte} />
-            </div>
-          ) : modo === 'aprobar' ? (
-            <>
-              <ResumenDeConfirmacion resumen={resumen} />
-              <div className="flex flex-wrap gap-2">
-                <BotonConfirmar accion="aprobar" texto={etiquetaBotonLote(seleccionadas)} />
-                <button type="button" onClick={cerrarPanel} className="btn-secondary">
-                  Cancelar
-                </button>
-              </div>
-            </>
-          ) : (
-            <PanelCorte
-              accion={modo}
-              filas={seleccionadas}
-              motivo={motivo}
-              onMotivo={setMotivo}
-              onCancelar={cerrarPanel}
-            />
-          )}
-        </div>
+            )}
+          </div>
+        ) : null}
+      </form>
+
+      {/* FUERA del formulario de aprobar: los formularios no se anidan, y
+          además son dos decisiones que no comparten nada. */}
+      {corteAca ? (
+        <PanelCorte
+          fila={corteAca.fila}
+          accion={corteAca.accion}
+          ejecutar={ejecutarCorte}
+          onCancelar={onCerrarCorte}
+        />
       ) : null}
-    </form>
-  )
-}
-
-/** Los tipos que hay hoy en la bandeja, con cuántas filas tiene cada uno —
- * en el orden de la tabla, que es por antigüedad. */
-function contarPorTipo(
-  filas: readonly FilaPendiente[]
-): { tipo: TipoPendiente; cantidad: number }[] {
-  const mapa = new Map<TipoPendiente, number>()
-  for (const f of filas) mapa.set(f.tipo, (mapa.get(f.tipo) ?? 0) + 1)
-  return [...mapa.entries()].map(([tipo, cantidad]) => ({ tipo, cantidad }))
-}
-
-/**
- * El botón que de verdad envía. Lleva `name="accion"`, así que el servidor
- * sabe cuál de las tres decisiones se apretó sin que haya tres formularios
- * ni tres Server Actions.
- */
-function BotonConfirmar({
-  accion, texto, deshabilitado,
-}: {
-  accion: Modo
-  texto: string
-  deshabilitado?: boolean
-}) {
-  const { pending } = useFormStatus()
-  const enCurso = accion === 'aprobar' ? 'Aprobando…' : `${ETIQUETA_ACCION[accion].verbo}…`
-  return (
-    <button
-      type="submit" name="accion" value={accion}
-      disabled={pending || deshabilitado}
-      className={accion === 'aprobar' ? 'btn-primary' : 'btn-peligro'}
-    >
-      {pending ? enCurso : `Sí, ${texto.toLowerCase()}`}
-    </button>
-  )
-}
-
-/** Abre el panel de rechazo o anulación. Se apaga si NINGUNA de las filas
- *  seleccionadas admite esa salida — con el motivo a la vista. */
-function BotonAbrirCorte({
-  accion, filas, onElegir,
-}: {
-  accion: AccionCorte
-  filas: readonly FilaPendiente[]
-  onElegir: (accion: AccionCorte) => void
-}) {
-  const ninguna = filasQueNoAdmiten(filas, accion).length === filas.length
-  const motivo = `Ninguno de los tipos seleccionados se puede ${accion} desde la bandeja.`
-  return (
-    <button
-      type="button"
-      onClick={() => onElegir(accion)}
-      disabled={ninguna}
-      title={ninguna ? motivo : undefined}
-      className="btn-peligro disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      {etiquetaBotonCorte(filas, accion)}
-    </button>
+    </section>
   )
 }
 
@@ -393,13 +335,13 @@ function AtajoCorte({
 }: {
   fila: FilaPendiente
   accion: AccionCorte
-  onElegir: (id: string, accion: AccionCorte) => void
+  onElegir: (fila: FilaPendiente, accion: AccionCorte) => void
 }) {
-  if (filasQueNoAdmiten([fila], accion).length > 0) return null
+  if (!admiteCorte(fila.tipo, accion)) return null
   return (
     <button
       type="button"
-      onClick={() => onElegir(fila.id, accion)}
+      onClick={() => onElegir(fila, accion)}
       className="text-red-700 underline"
     >
       {ETIQUETA_ACCION[accion].verbo}
@@ -408,82 +350,100 @@ function AtajoCorte({
 }
 
 /**
- * El panel de rechazo / anulación.
+ * Rechazar o anular UNA fila, con su motivo.
  *
- * Dice tres cosas ANTES de ejecutar, y las tres son incómodas a propósito:
- * cuántas filas NO admiten esta salida y van a quedar afuera, en cuántas el
- * motivo no se va a guardar, y que el motivo es el mismo para todas.
- * Enterarse de eso en el resumen, después, es enterarse tarde.
+ * El texto que separa las dos salidas va ACÁ DENTRO y no en un tooltip: es
+ * justo el momento en que alguien duda entre rechazar y anular. Y si el
+ * tipo no guarda el motivo, lo dice antes de enviar — prometer un rastro
+ * que no va a existir es peor que no ofrecer el campo.
  */
 function PanelCorte({
-  accion, filas, motivo, onMotivo, onCancelar,
+  fila, accion, ejecutar, onCancelar,
 }: {
+  fila: FilaPendiente
   accion: AccionCorte
-  filas: readonly FilaPendiente[]
-  motivo: string
-  onMotivo: (v: string) => void
+  ejecutar: (form: FormData) => void
   onCancelar: () => void
 }) {
-  const fuera = filasQueNoAdmiten(filas, accion)
-  // Por id y no por identidad de objeto: `filas` se recalcula en cada render
-  // y comparar referencias acá es el tipo de cosa que funciona hasta que
-  // alguien mete un `.map()` en el medio.
-  const idsFuera = new Set(fuera.map((f) => f.id))
-  const aplican = filas.filter((f) => !idsFuera.has(f.id))
-  const sinRastro = filasSinRastroDelMotivo(filas, accion)
+  const [motivo, setMotivo] = useState('')
   const problema = validarMotivo(motivo, accion)
-  const { elSustantivo, verbo } = ETIQUETA_ACCION[accion]
+  const sinRastro = avisoMotivoSinRastro(fila.tipo, accion)
+  const { verbo } = ETIQUETA_ACCION[accion]
 
   return (
-    <div className="rounded-md border-2 border-red-300 bg-red-50 px-4 py-3 space-y-3">
+    <form action={ejecutar} className="mt-4 space-y-3 rounded-md border-2 border-red-300 bg-red-50 px-4 py-3">
+      <input type="hidden" name="pendienteId" value={fila.id} />
+      <input type="hidden" name="accion" value={accion} />
+
       <p className="font-heading text-lg text-red-900">
-        {verbo} {aplican.length} {aplican.length === 1 ? 'registro' : 'registros'}
+        {verbo} {fila.codigo} — {ETIQUETA_TIPO_PENDIENTE[fila.tipo]} de {fila.quienLoCreo ?? 'alguien'}
       </p>
 
-      {fuera.length > 0 ? (
-        <p className="text-sm text-red-900">
-          {fuera.length === 1 ? 'Queda afuera' : `Quedan afuera ${fuera.length}`}:{' '}
-          {fuera.map((f) => `${f.codigo} (${ETIQUETA_TIPO_PENDIENTE[f.tipo]})`).join(', ')} — ese
-          tipo no se {accion} desde acá.
-        </p>
-      ) : null}
+      <p className="text-sm text-red-900">{AYUDA_ACCION[accion]}</p>
 
       <label className="block text-sm">
-        <span className="font-medium text-red-900">Motivo {accion === 'anular' ? 'de la anulación' : 'del rechazo'}</span>
+        <span className="font-medium text-red-900">
+          Motivo {accion === 'anular' ? 'de la anulación' : 'del rechazo'}
+        </span>
         <textarea
-          name="motivo" rows={2} value={motivo} onChange={(e) => onMotivo(e.target.value)}
+          name="motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)}
           placeholder="Qué está mal, con suficiente detalle para que quien lo reciba entienda."
           className="mt-1 w-full rounded-md border border-red-300 px-3 py-2 text-sm"
         />
       </label>
 
-      <p className="text-sm text-red-900">
-        Ese motivo se aplica <strong>igual a las {aplican.length}</strong> — no hay uno por fila.
-        {sinRastro.length > 0 ? (
-          <>
-            {' '}Y en {sinRastro.length}{' '}
-            ({sinRastro.map((f) => ETIQUETA_TIPO_PENDIENTE[f.tipo]).filter((v, i, a) => a.indexOf(v) === i).join(', ')}
-            ) {elSustantivo} se registra pero el motivo <strong>no queda guardado</strong>.
-          </>
-        ) : null}
-      </p>
-
-      {problema ? <p className="text-sm font-medium text-red-900">{problema}</p> : null}
+      {sinRastro ? <p className="text-sm font-medium text-red-900">{sinRastro}</p> : null}
+      {problema && motivo.length > 0 ? (
+        <p className="text-sm font-medium text-red-900">{problema}</p>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
-        <BotonConfirmar
-          accion={accion}
-          texto={etiquetaBotonCorte(aplican, accion)}
-          deshabilitado={!!problema || aplican.length === 0}
-        />
+        <BotonCortar accion={accion} codigo={fila.codigo} deshabilitado={!!problema} />
         <button type="button" onClick={onCancelar} className="btn-secondary">
           Cancelar
         </button>
       </div>
-    </div>
+    </form>
   )
 }
 
+function BotonAprobar({ texto }: { texto: string }) {
+  const { pending } = useFormStatus()
+  return (
+    <button type="submit" disabled={pending} className="btn-primary">
+      {pending ? 'Aprobando…' : `Sí, ${texto.toLowerCase()}`}
+    </button>
+  )
+}
+
+function BotonCortar({
+  accion, codigo, deshabilitado,
+}: {
+  accion: AccionCorte
+  codigo: string
+  deshabilitado?: boolean
+}) {
+  const { pending } = useFormStatus()
+  const { verbo } = ETIQUETA_ACCION[accion]
+  return (
+    <button
+      type="submit" disabled={pending || deshabilitado}
+      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {pending ? `${verbo}…` : `${verbo} ${codigo}`}
+    </button>
+  )
+}
+
+/** Los tipos que hay en esta sección, con cuántas filas tiene cada uno —
+ * en el orden de la tabla, que es por antigüedad. */
+function contarPorTipo(
+  filas: readonly FilaPendiente[]
+): { tipo: TipoPendiente; cantidad: number }[] {
+  const mapa = new Map<TipoPendiente, number>()
+  for (const f of filas) mapa.set(f.tipo, (mapa.get(f.tipo) ?? 0) + 1)
+  return [...mapa.entries()].map(([tipo, cantidad]) => ({ tipo, cantidad }))
+}
 /** Tres tonos según cuánto lleva esperando — no es adorno: la bandeja
  * existe para atacar primero lo más viejo. */
 function Espera({ dias }: { dias: number }) {
