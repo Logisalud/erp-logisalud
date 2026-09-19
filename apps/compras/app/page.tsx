@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { BotonCerrarSesion } from '@logisalud/auth/componentes'
 import { perfilActual, usuarioActual } from '@logisalud/auth/server'
 import { BrandMark } from '@logisalud/design-system/componentes'
@@ -21,6 +22,19 @@ export const dynamic = 'force-dynamic'
  */
 export default async function Inicio() {
   const usuario = await usuarioActual()
+  // Sin sesión, al login — NUNCA seguir de largo.
+  //
+  // El middleware ya manda a /login a quien no tiene sesión, pero no siempre
+  // llega: si el token se vence o se rota entre el chequeo del middleware y
+  // el render de esta página, `usuarioActual()` devuelve null y los tres
+  // servicios de abajo llaman a `exigirUsuario()`, que TIRA. El resultado es
+  // un 500 con la pantalla blanca de "Application error" (digest 567487731,
+  // 8 veces entre el 11 y el 18 de septiembre) en vez del login.
+  //
+  // Roberto reportó "no me deja pedir un pago" y era exactamente esto: no es
+  // un permiso que le falte, es que la portada del módulo se caía antes de
+  // mostrarle el menú.
+  if (!usuario) redirect('/login?volver_a=/')
   const perfil = await perfilActual()
   const vista = determinarVistaEntrada(perfil?.area)
   // Solo aparece para quien decide de verdad sobre alguna de las cuatro
@@ -194,10 +208,13 @@ export default async function Inicio() {
         </div>
       </section>
 
-      {usuario && !perfil ? (
+      {/* Le pasó a Renato el 2026-09-18: entró bien pero nadie le había
+          cargado el área, y el aviso que leía hablaba de `public.perfiles` y
+          de correr un script. Eso es para nosotros, no para quien lo lee. */}
+      {!perfil ? (
         <p className="card mt-4 border-amber-200 bg-amber-50 text-sm text-amber-900">
-          Tu cuenta existe pero no tiene fila en <code>public.perfiles</code>, así que las
-          políticas RLS te van a negar todo. Corre <code>scripts/seed-usuarios.ts</code>.
+          Entraste bien, pero todavía nadie te asignó un área, así que el sistema no te
+          va a dejar hacer nada. Escríbele a Sebastián para que te la cargue.
         </p>
       ) : null}
 

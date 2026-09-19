@@ -20,6 +20,7 @@ import {
 } from '@/domain/obligacion'
 import { puedeMarcarseFacturada } from '@/domain/orden-compra'
 import { ERROR_AUTO_APROBACION, esAutoridadFinal, puedeAnular, puedeDecidirSobre, autoridadYaDecidioPagoDirecto, ERROR_ANULAR_TARDE, ERROR_ANULAR_AJENO } from '@/domain/auto-aprobacion'
+import { esContabilidadDecisora } from '@/domain/pendientes-aprobar'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
 import type { FiltroCuentasPorPagar } from '@/domain/filtros-cuentas-por-pagar'
 import { ERROR_EDITAR_TARDE, puedeEditarseObligacion } from '@/domain/edicion'
@@ -1444,8 +1445,12 @@ async function cortarPagoDirecto(id: string, motivo: string, accion: 'anular' | 
   // toma. Anular lo puede hacer también quien lo creó, pero únicamente
   // mientras Contabilidad no le haya dado conformidad todavía.
   if (accion === 'rechazar') {
-    if (!esAutoridadFinal(perfil)) {
-      throw new Error(`Solo Contabilidad (rol admin) puede rechazar ${nombreRegistro}.`)
+    // Contabilidad entera, no solo rol admin (2026-09-19, mismo cambio que
+    // abrió la conformidad a Beatriz). El chequeo de auto-aprobación de
+    // abajo NO se relaja: sigue apoyado en `esAutoridadFinal`, así que
+    // Beatriz puede rechazar lo ajeno pero no lo suyo.
+    if (!esContabilidadDecisora(perfil)) {
+      throw new Error(`Solo Contabilidad puede rechazar ${nombreRegistro}.`)
     }
     if (!puedeDecidirSobre(perfil, usuario.id, (obligacion as any).created_by ?? null)) {
       throw new Error(ERROR_AUTO_APROBACION)

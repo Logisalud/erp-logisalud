@@ -13,6 +13,7 @@ import {
   puedeRechazarseObligacion, puedeRegistrarsePagoHistorico, siguientePasoPagoDirecto,
   UMBRAL_DETRACCION_PEN,
 } from '@/domain/obligacion'
+import { esContabilidadDecisora } from '@/domain/pendientes-aprobar'
 import { etiquetaEdicion, puedeEditarseObligacion } from '@/domain/edicion'
 import type { Moneda } from '@/domain/servicio'
 import { ETIQUETA_ESTADO_VENCIMIENTO, puedePagarseEnCuotas } from '@/domain/financiamiento'
@@ -40,10 +41,11 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
   // otro Bounded Context (gastos) y por eso no venían en `obtenerObligacion`
   // — pero quien mira la obligación necesita ver el papel que la sustenta.
   const comprobantes = await comprobantesDeObligacion(params.id)
-  // "Dar conformidad" es de Contabilidad rol admin, no de cualquiera en el
-  // área (Fase 1.7) — Beatriz (contabilidad, operativo) sigue viendo y
-  // registrando obligaciones, pero este botón específico no le aparece.
-  const califica = perfil?.area === 'admin' || (perfil?.area === 'contabilidad' && perfil?.rol === 'admin')
+  // "Dar conformidad" es de Contabilidad — de TODA el área desde el
+  // 2026-09-19, no solo del rol admin. Se reusa el mismo gate que la bandeja
+  // de "Pendientes de aprobar" en vez de repetir el criterio acá: cuando
+  // divergían, la bandeja no mostraba la fila o mostraba una sin botón.
+  const califica = esContabilidadDecisora(perfil)
   // Caso A de la recepción de tres columnas: llegó menos de lo facturado.
   // Hasta que esté la nota de crédito del proveedor, esta obligación no entra
   // a ninguna propuesta de pago (services/propuestas.ts) — y es lo ÚNICO que

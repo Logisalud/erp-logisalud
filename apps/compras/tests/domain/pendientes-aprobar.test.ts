@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  diasEsperando, esAdmin, esContabilidadDecisora, etiquetaEspera,
+  diasEsperando, esAdmin, esContabilidadDecisora, esContabilidadQueApruebaLotes, etiquetaEspera,
   fuentesQueMeTocan, meTocaEstaOS, meTocaEstaReposicion,
   ordenarPorAntiguedad, quienDecideCajaChica,
   ESTADOS_QUE_ESPERAN_DECISION, FUENTES_APROBACION,
@@ -13,9 +13,16 @@ const admin = { area: 'admin', rol: 'admin' }
 const vendedor = { area: 'ventas', rol: 'operativo' }
 
 describe('quién decide', () => {
-  it('Contabilidad decide solo con rol admin', () => {
+  it('decide TODA el área de Contabilidad, no solo el rol admin (2026-09-19)', () => {
     expect(esContabilidadDecisora(mariela)).toBe(true)
-    expect(esContabilidadDecisora(beatriz)).toBe(false)
+    expect(esContabilidadDecisora(beatriz)).toBe(true)
+  })
+
+  it('pero aprobar un LOTE sigue siendo de rol admin: es soltar la plata', () => {
+    expect(esContabilidadQueApruebaLotes(mariela)).toBe(true)
+    expect(esContabilidadQueApruebaLotes(beatriz)).toBe(false)
+    expect(esContabilidadQueApruebaLotes(admin)).toBe(true)
+    expect(esContabilidadQueApruebaLotes(null)).toBe(false)
   })
 
   it('admin decide siempre, y un perfil nulo nunca', () => {
@@ -46,9 +53,16 @@ describe('fuentesQueMeTocan', () => {
   })
 
   it('quien no decide nada no dispara ninguna consulta', () => {
-    expect(fuentesQueMeTocan(beatriz, [])).toEqual([])
     expect(fuentesQueMeTocan(vendedor, [])).toEqual([])
     expect(fuentesQueMeTocan(null, [])).toEqual([])
+  })
+
+  it('Beatriz ve lo que decide, MENOS las propuestas que no puede firmar', () => {
+    const suyas = fuentesQueMeTocan(beatriz, []).sort()
+    expect(suyas).toEqual(['caja_chica', 'gasto', 'impuesto', 'pago_directo', 'planilla'])
+    // Lo importante del caso: si la bandeja le mostrara lotes, se toparía
+    // con una fila sin botón. Mejor no mostrarla.
+    expect(suyas).not.toContain('propuesta')
   })
 
   it('un jefe de área que además es Contabilidad ve las siete', () => {
@@ -88,9 +102,10 @@ describe('Planilla e Impuestos en la bandeja (el bug de 2026-09-16)', () => {
     expect(fuentesQueMeTocan(milagritos, [])).not.toContain('impuesto')
   })
 
-  it('Beatriz (contabilidad operativo) sigue sin ver nada: no decide', () => {
-    // El gate de planilla exige rol admin dentro de contabilidad.
-    expect(fuentesQueMeTocan(beatriz, [])).toEqual([])
+  it('Beatriz sí ve planilla e impuestos: son decisiones de Contabilidad', () => {
+    const suyas = fuentesQueMeTocan(beatriz, [])
+    expect(suyas).toContain('planilla')
+    expect(suyas).toContain('impuesto')
   })
 
   it('un vendedor no ve ninguno de los dos', () => {

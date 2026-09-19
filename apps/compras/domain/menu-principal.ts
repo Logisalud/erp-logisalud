@@ -21,6 +21,20 @@ export const ITEMS_OCULTABLES = [
 export type ItemOcultable = (typeof ITEMS_OCULTABLES)[number]
 
 /**
+ * Lo que el recorte NO le saca a cada área, aunque la tenga recortada.
+ *
+ * "Órdenes de compra y servicio" volvió para Tesorería el 2026-09-19 por
+ * pedido de Sebas: Milagritos sí trabaja con órdenes —las ve, las crea y las
+ * edita, igual que Compras—, así que esconderle el ítem la obligaba a llegar
+ * por URL. El recorte original partía de que no las tocaba nunca; resultó
+ * falso. Aprobar y registrar facturas de servicio siguen fuera: eso sí no lo
+ * hace.
+ */
+const EXCEPCIONES_AL_RECORTE: Record<string, readonly ItemOcultable[]> = {
+  tesoreria: ['ordenes'],
+}
+
+/**
  * Áreas con el menú recortado. Hoy solo Tesorería.
  *
  * No se incluye `contabilidad`: Mariela y Beatriz sí registran facturas y sí
@@ -33,5 +47,6 @@ export function tieneMenuRecortado(area: string | null | undefined): boolean {
 }
 
 export function veItemDeMenu(item: ItemOcultable, area: string | null | undefined): boolean {
-  return !tieneMenuRecortado(area)
+  if (!tieneMenuRecortado(area)) return true
+  return (EXCEPCIONES_AL_RECORTE[area as string] ?? []).includes(item)
 }

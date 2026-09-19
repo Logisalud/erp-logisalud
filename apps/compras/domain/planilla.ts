@@ -119,10 +119,13 @@ export function puedeCargarPlanilla(perfil: PerfilPlanilla): boolean {
  * Pago Directo y de las propuestas, sin excepción.
  */
 export function puedeDarConformidadPlanilla(perfil: PerfilPlanilla): boolean {
+  // Contabilidad entera desde el 2026-09-19, igual que el resto de las
+  // conformidades (ver esContabilidadDecisora): la única decisión que se
+  // quedó en rol admin es aprobar un lote de pago.
   return (
     perfil?.area === 'tesoreria' ||
     perfil?.area === 'admin' ||
-    (perfil?.area === 'contabilidad' && perfil?.rol === 'admin')
+    perfil?.area === 'contabilidad'
   )
 }
 
