@@ -30,4 +30,10 @@
   .btn-secondary {
     @apply inline-flex min-h-12 items-center justify-center rounded-full border border-gray-300 bg-white px-5 font-medium text-gray-800 transition duration-fast ease-standard hover:border-gray-400 hover:shadow-sm active:scale-[0.98];
   }
+  /* Las salidas hacia atrás: rechazar, anular. Tienen el mismo peso que un
+     secundario —nunca compiten con el botón primario de la pantalla— pero en
+     rojo, porque lo que hacen no se deshace. */
+  .btn-peligro {
+    @apply inline-flex min-h-12 items-center justify-center rounded-full border border-red-300 bg-white px-5 font-medium text-red-700 transition duration-fast ease-standard hover:border-red-400 hover:bg-red-50 hover:shadow-sm active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+  }
 }
