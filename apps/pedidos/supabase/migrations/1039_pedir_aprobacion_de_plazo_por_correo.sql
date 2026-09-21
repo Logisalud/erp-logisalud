@@ -1,99 +1,33 @@
--- La excepción administrativa se dispara sólo si se pide MÁS plazo.
+-- Un pedido frenado por plazo tiene que PEDIR la aprobación por correo.
 --
--- Hasta acá la regla comparaba por igualdad: cualquier condición distinta
--- de la habitual frenaba el pedido. Eso frenaba también al vendedor que
--- pedía MENOS plazo del aprobado —Crédito 30 a un cliente habilitado a
--- 60—, que es una concesión a favor de la empresa y no algo que haya que
--- autorizar. Dos de esos casos (pedidos #68 y #72) fueron los que
--- destaparon además el bug de la bandeja que arregló 1037.
+-- Hasta acá, un pedido que caía en excepción administrativa mandaba el
+-- correo genérico de "pedido enviado": el estado aparecía en letra chica
+-- ("Estado: Excepción administrativa") y nada decía que había algo que
+-- decidir. Los otros dos frenos sí avisan bien —el cliente nuevo saca un
+-- recuadro ámbar "hay que revisarlo y aprobarlo", y el descuento saca
+-- "Descuento por aprobar"—, así que Administración era la única que tenía
+-- que darse cuenta sola mirando la bandeja.
 --
--- La regla queda: **excepción sólo si los días de plazo del pedido son
--- MÁS que los de la condición habitual del cliente.** Menos o iguales,
--- pasa derecho.
+-- Acá va la mitad de base: `submit_order` devuelve el motivo que calculó,
+-- para que el correo pueda decir los números concretos ("pide 60 días y el
+-- cliente tiene 30 aprobados") en vez de que la aplicación vuelva a
+-- calcular la regla por su cuenta y las dos se desincronicen.
 --
--- Medido sobre los 80 pedidos reales del 2026-09-21: con la regla vieja
--- 17 caían en excepción, con esta 9. Los 8 que se liberan piden todos
--- menos plazo del aprobado; no aparece ninguna excepción nueva.
---
--- La regla de contado de 1036 desaparece como caso especial, y el código
--- queda más corto: contado son 0 días, y 0 nunca es mayor que nada. La
--- función `pedidos.es_contado()` se deja creada porque está documentada y
--- con tests, pero las dos funciones de estado ya no la usan.
+-- La otra mitad es el correo nuevo, en services/order-notifications.ts.
 
 begin;
 
--- ---------------------------------------------------------------------
--- 1. Cuántos días es cada condición
--- ---------------------------------------------------------------------
---
--- Para comparar "más que" hace falta un número, y hasta ahora los días
--- sólo existían dentro del nombre ("Crédito 30 días"). Deducirlos con una
--- expresión regular sobre el nombre se rompe el día que alguien renombre
--- una fila del catálogo, así que van en su propia columna.
---
---   Contado ................................  0 días
---   Crédito 30 / 45 / 60 / 90 / 120 días ...  30 / 45 / 60 / 90 / 120
---   Crédito (otro número de días) ..........  NULL (lo trae el pedido)
---
--- La última es NULL a propósito: no tiene un plazo fijo, el número lo
--- escribe el vendedor en `orders.dias_credito_solicitados`.
+-- El pedido de aprobación de plazo es un tipo de notificación nuevo.
+alter table pedidos.notification_logs drop constraint if exists notification_logs_tipo_check;
+alter table pedidos.notification_logs add constraint notification_logs_tipo_check
+  check (tipo = any (array[
+    'pedido_enviado', 'descuento_solicitado', 'descuento_resuelto',
+    'observacion_agregada', 'cliente_aprobado', 'cliente_rechazado',
+    'excepcion_administrativa_resuelta', 'aprobacion_plazo_solicitada'
+  ]));
 
-alter table pedidos.payment_terms
-  add column if not exists dias_equivalentes smallint;
-
-update pedidos.payment_terms set dias_equivalentes = 0
- where nombre = 'Contado' and dias_equivalentes is distinct from 0;
-
-update pedidos.payment_terms
-   set dias_equivalentes = (regexp_match(nombre, '(\d+)'))[1]::smallint
- where nombre ~ '\d' and not permite_dias_libres
-   and dias_equivalentes is distinct from (regexp_match(nombre, '(\d+)'))[1]::smallint;
-
-comment on column pedidos.payment_terms.dias_equivalentes is
-  'Días de plazo de la condición, para poder compararlas entre sí. Contado = 0. NULL en la condición de días libres: ese número lo trae cada pedido en orders.dias_credito_solicitados.';
-
--- ---------------------------------------------------------------------
--- 2. Los días que pide un pedido
--- ---------------------------------------------------------------------
---
--- El número escrito a mano GANA sobre el del catálogo cuando está
--- presente: es la expresión más específica de lo que se pidió. Hoy la UI
--- sólo lo ofrece junto con la condición de días libres (que no tiene días
--- propios), así que en la práctica no compiten; la precedencia está
--- definida para que un dato contradictorio no se resuelva por accidente.
---
--- Decisión explícita del usuario (opción A, 2026-09-21): los días
--- escritos a mano **se comparan por número** como cualquier otra
--- condición. "Crédito 15 a mano" a un cliente de 30 días pasa derecho.
--- Antes, cualquier número a mano caía en excepción sin comparar.
-
-create or replace function pedidos.dias_de_condicion(
-  p_payment_terms_id smallint, p_dias_a_mano smallint)
-returns int
-language sql
-stable
-security definer
-set search_path = pedidos, public
-as $fn$
-  select coalesce(
-    p_dias_a_mano::int,
-    (select dias_equivalentes::int from pedidos.payment_terms where id = p_payment_terms_id)
-  );
-$fn$;
-
-comment on function pedidos.dias_de_condicion(smallint, smallint) is
-  'Días de plazo de una condición de pago, con el número escrito a mano ganando sobre el del catálogo.';
-
-grant execute on function pedidos.dias_de_condicion(smallint, smallint) to authenticated;
-
--- ---------------------------------------------------------------------
--- 3. Las dos funciones de estado
--- ---------------------------------------------------------------------
---
--- Igual que en 1036 y 1037: cuerpo copiado de produccion, verificado por
--- md5 antes de tocarlo. Cambia el bloque de decision y el motivo, que
--- ahora dice cuantos dias se pidieron contra cuantos hay aprobados en vez
--- de un generico 'Validacion automatica'.
+-- El cuerpo se copio de produccion y se verifico por md5 (9c4e5f62...)
+-- antes de tocarlo. Lo unico que cambia es el jsonb de retorno.
 
 create or replace function pedidos.submit_order(p_order_id uuid, p_motivo text)
 returns jsonb
@@ -292,71 +226,12 @@ begin
 
   perform pedidos.apply_order_transition(p_order_id, v_estado_resultado, v_motivo);
 
-  return jsonb_build_object('estadoResultado', v_estado_resultado, 'priceDrift', v_drift);
-end;
-$fn$;
-
-create or replace function pedidos.reevaluate_order(p_order_id uuid, p_motivo text)
-returns text
-language plpgsql
-security definer
-set search_path = pedidos, public
-as $fn$
-declare
-  v_order record;
-  v_customer record;
-  v_estado_resultado text;
-  v_dias_pedido int;
-  v_dias_habitual int;
-  v_motivo text := 'Validacion automatica';
-begin
-  if not (pedidos.is_admin() or pedidos.has_role('control_pedidos') or pedidos.has_role('aprobador_comercial')) then
-    raise exception 'No autorizado para reevaluar pedidos';
-  end if;
-
-  select * into v_order from pedidos.orders where id = p_order_id for update;
-  if v_order is null then
-    raise exception 'Pedido % no existe', p_order_id;
-  end if;
-  select * into v_customer from pedidos.customers where id = v_order.customer_id;
-
-  -- Dias de plazo, para poder comparar "mas" y no solo "distinto".
-  v_dias_pedido := pedidos.dias_de_condicion(
-    v_order.payment_terms_id, v_order.dias_credito_solicitados);
-  v_dias_habitual := pedidos.dias_de_condicion(
-    v_customer.condicion_pago_habitual_id, null);
-
-  if v_customer.estado = 'PENDIENTE_DE_VALIDACION' then
-    v_estado_resultado := 'NEW_CUSTOMER_VALIDATION';
-  -- Excepcion administrativa SOLO si se pide MAS plazo del aprobado.
-  -- Pedir menos -o contado, que son 0 dias- nunca frena un pedido: es una
-  -- concesion a favor de la empresa. Ver docs/business-rules.md.
-  elsif v_order.excepcion_administrativa_aprobada_por is null
-        and v_dias_habitual is not null
-        and v_dias_pedido is not null
-        and v_dias_pedido > v_dias_habitual then
-    v_estado_resultado := 'ADMINISTRATIVE_EXCEPTION';
-    v_motivo := format('Pide %s días de plazo y el cliente tiene %s aprobados',
-                       v_dias_pedido, v_dias_habitual);
-  -- Una condicion sin dias conocidos no se puede verificar: la mira una
-  -- persona en vez de pasar por no poder compararla.
-  elsif v_order.excepcion_administrativa_aprobada_por is null
-        and v_dias_habitual is not null and v_dias_pedido is null then
-    v_estado_resultado := 'ADMINISTRATIVE_EXCEPTION';
-    v_motivo := 'No se pudo determinar cuántos días de plazo pide el pedido';
-  elsif exists (
-    select 1 from pedidos.approval_requests ar
-    join pedidos.order_items oi on oi.id = ar.order_item_id
-    where oi.order_id = p_order_id and ar.estado = 'PENDIENTE'
-  ) then
-    v_estado_resultado := 'COMMERCIAL_EXCEPTION';
-    v_motivo := 'Queda un descuento por aprobar';
-  else
-    v_estado_resultado := 'READY_FOR_OPERATIONS';
-  end if;
-
-  perform pedidos.apply_order_transition(p_order_id, v_estado_resultado, coalesce(p_motivo, v_motivo));
-  return v_estado_resultado;
+  -- El motivo sale en la respuesta para que el correo pueda decir POR QUE
+  -- se freno el pedido con los numeros concretos, en vez de repetir la
+  -- regla desde la aplicacion y arriesgarse a que se desincronicen.
+  return jsonb_build_object('estadoResultado', v_estado_resultado,
+                            'motivo', v_motivo,
+                            'priceDrift', v_drift);
 end;
 $fn$;
 

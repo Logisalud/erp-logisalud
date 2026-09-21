@@ -639,6 +639,29 @@ pueden determinar (una condición sin días en el catálogo y sin número a
 mano), el pedido cae en excepción en vez de pasar por no poder
 compararlo.
 
+##### Cada freno pide su aprobación por correo
+
+Los tres estados que frenan un pedido avisan distinto, con su propio
+asunto, porque los lee gente distinta y cada uno tiene que decir qué hay
+que decidir:
+
+| Estado al enviar | Correo | Asunto |
+| --- | --- | --- |
+| `COMMERCIAL_EXCEPTION` | `descuento_solicitado` | Descuento por aprobar — pedido #N |
+| `ADMINISTRATIVE_EXCEPTION` | `aprobacion_plazo_solicitada` | Plazo por aprobar — pedido #N |
+| `NEW_CUSTOMER_VALIDATION` | `pedido_enviado` | (el de siempre, con el recuadro "CLIENTE NUEVO — hay que revisarlo y aprobarlo") |
+
+El de plazo se agregó el 2026-09-21: hasta entonces un pedido frenado por
+condición de pago mandaba el correo genérico de "pedido enviado", con el
+estado en letra chica, y Administración era la única de las tres que tenía
+que darse cuenta sola mirando la bandeja.
+
+El cuerpo del aviso lleva el motivo **que calculó `submit_order`**, que
+viaja en su jsonb de retorno: "Pide 60 días de plazo y el cliente tiene 30
+aprobados". La aplicación no vuelve a aplicar la regla para armar el
+texto — si lo hiciera, tarde o temprano diría algo distinto de lo que la
+base decidió.
+
 ##### El motivo dice cuál fue la causa
 
 `order_status_history.motivo` deja de decir `Validacion automatica` y pasa
