@@ -604,6 +604,41 @@ cartera ya publicada: **37 pedidos caerían en excepción administrativa
 sin esta regla, y 15 con ella.** Los 22 que se salvan son todos de
 contado.
 
+#### Aprobar una excepción administrativa es decidir, no volver a evaluar
+
+Cuando alguien aprueba un pedido en la bandeja de excepciones
+administrativas, la decisión queda escrita en el pedido
+(`orders.excepcion_administrativa_aprobada_por` / `..._en`) y
+`reevaluate_order` **deja de comparar la condición de pago** para ese
+pedido. Aprobar le gana a la regla automática.
+
+Hace falta decirlo porque lo contrario fue un error real. Hasta el
+2026-09-21 el botón "Aprobar" llamaba directamente a `reevaluate_order`,
+que recalcula el estado con la misma regla que frenó el pedido: como
+aprobar no cambia ni la condición del pedido ni la habitual del cliente,
+la regla volvía a dar `ADMINISTRATIVE_EXCEPTION` y el pedido regresaba a
+la bandeja. El pedido #68 acumuló **tres** aprobaciones en
+`order_status_history` sin que ninguna surtiera efecto, y como nunca llegó
+a `READY_FOR_OPERATIONS`, Operaciones tampoco recibió el correo.
+
+Tres cosas que se mantienen:
+
+- **Aprobar el plazo no aprueba nada más.** Después de marcar la
+  aprobación se recalcula igual, así que el pedido puede caer en
+  `COMMERCIAL_EXCEPTION` (quedaba un descuento sin resolver) o en
+  `NEW_CUSTOMER_VALIDATION` (el cliente sigue sin validar). El correo lo
+  dice con todas las letras.
+- **Un pedido devuelto a borrador y reenviado se juzga desde cero.**
+  `submit_order` limpia la aprobación: era una decisión sobre el pedido
+  anterior.
+- **Si la aprobación no libera el pedido de la excepción administrativa,
+  la función falla ruidosamente** en vez de devolverlo callada a la
+  bandeja. Ese silencio era el bug.
+
+Al liberarse sale el aviso `excepcion_administrativa_resuelta`. Es un
+correo aparte del de "pedido enviado" a propósito: ese ya había salido al
+enviar el pedido, en el momento en que justamente NO pasaba a operaciones.
+
 #### Default de los clientes nuevos
 
 Desde `1036` un cliente nuevo nace con **Crédito 30 días** y

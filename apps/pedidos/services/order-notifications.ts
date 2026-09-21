@@ -603,6 +603,46 @@ export async function notifyDiscountRequested(
 }
 
 /**
+ * Avisa que Administración liberó un pedido que estaba en excepción
+ * administrativa.
+ *
+ * Hace falta porque el correo de "pedido enviado" salió al enviarlo, en el
+ * momento en que el pedido justamente NO pasaba a operaciones. Sin este
+ * aviso, un pedido aprobado en la bandeja llegaba a operaciones sin que
+ * nadie se enterara por correo.
+ *
+ * Si la aprobación lo dejó en otra cola —quedaba un descuento sin resolver,
+ * o el cliente sigue sin validar— el cuerpo lo dice, para que nadie lea
+ * este correo como "ya está listo para despachar".
+ */
+export async function notifyAdministrativeExceptionResolved(
+  orderId: string,
+  estadoResultado: string,
+  actor: string,
+): Promise<NotifyResult> {
+  const liberado = estadoResultado === "READY_FOR_OPERATIONS";
+  return notificarPedido({
+    orderId,
+    estadoResultado,
+    actor,
+    tipo: "excepcion_administrativa_resuelta",
+    evento: {
+      asunto: liberado
+        ? "Pedido aprobado por Administración"
+        : "Excepción administrativa aprobada — el pedido sigue frenado",
+      titulo: liberado
+        ? "Pedido aprobado por Administración — pedido #__NUMERO__"
+        : "Excepción administrativa aprobada — pedido #__NUMERO__",
+      lead: liberado
+        ? "Administración aprobó la condición de pago y el pedido pasa a operaciones."
+        : "Administración aprobó la condición de pago, pero el pedido todavía no " +
+          "pasa a operaciones: le queda otra cosa pendiente (un descuento por " +
+          "resolver o la validación del cliente).",
+    },
+  });
+}
+
+/**
  * Avisa cómo se resolvió la excepción comercial, para que el ciclo quede
  * trazado por correo y no sólo en la pantalla del aprobador.
  */
@@ -792,7 +832,12 @@ async function notificarPedido({
   orderId: string;
   estadoResultado: string;
   actor: string;
-  tipo: "pedido_enviado" | "descuento_solicitado" | "descuento_resuelto" | "observacion_agregada";
+  tipo:
+    | "pedido_enviado"
+    | "descuento_solicitado"
+    | "descuento_resuelto"
+    | "observacion_agregada"
+    | "excepcion_administrativa_resuelta";
   evento?: EventoPlantilla;
 }): Promise<NotifyResult> {
   const admin = createAdminClient();
