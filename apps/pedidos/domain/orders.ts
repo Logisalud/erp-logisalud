@@ -72,54 +72,44 @@ export function resolveOrderSellerFilter(input: {
 /**
  * Bifurcación de la validación automática (DRAFT->SUBMITTED->?).
  * Precedencia: cliente nuevo > excepción administrativa > excepción
- * comercial > listo para operaciones. Confirmado con el usuario: la
- * excepción administrativa se dispara cuando la condición de pago del
- * pedido difiere de la condición de pago habitual del cliente.
+ * comercial > listo para operaciones.
  *
- * Si el cliente NO tiene condición habitual definida
- * (customerCondicionPagoHabitualId === null) no hay nada con qué
- * comparar: cualquier condición que elija el vendedor se acepta sin
- * excepción administrativa. Es el caso de la cartera real migrada, que
- * entró sin ese dato a propósito (ver docs/business-rules.md).
+ * Si el cliente NO tiene condición habitual definida (`diasHabitual ===
+ * null`) no hay nada con qué comparar: cualquier condición que elija el
+ * vendedor se acepta sin excepción administrativa.
  *
- * **Contado tampoco se compara nunca.** La excepción existe para frenar
- * cuando se da MÁS crédito o MÁS plazo del aprobado; pagar contra entrega
- * es la opción de menor riesgo que hay, así que un pedido de contado pasa
- * derecho aunque el cliente compre habitualmente a 30 días. Sigue pasando
- * por el control comercial: un descuento pedido sobre un pedido de
- * contado igual necesita aprobación.
+ * **Sólo se frena pedir MÁS plazo.** La comparación no es "¿es distinta
+ * de la habitual?" sino "¿son más días que los aprobados?". Pedir menos
+ * plazo —o contado, que son 0 días— es una concesión a favor de la
+ * empresa y pasa derecho. Los días de cada condición salen de
+ * `payment_terms.dias_equivalentes`; el número escrito a mano de la
+ * condición de días libres gana sobre el del catálogo.
  */
 export function computeAutomaticValidationOutcome(input: {
   customerEstado: CustomerEstado;
-  orderPaymentTermsId: number;
-  customerCondicionPagoHabitualId: number | null;
   /**
-   * Si la condición elegida en el pedido es Contado. Se recibe resuelto y
-   * no como un id fijo porque el id de Contado es un dato del catálogo
-   * (`payment_terms`), no parte de la regla — igual que en SQL, donde lo
-   * resuelve `pedidos.es_contado()` por nombre.
+   * Días de plazo de la condición elegida en el pedido. Se recibe resuelto
+   * y no como un id porque los días son un dato del catálogo
+   * (`payment_terms.dias_equivalentes`), no parte de la regla. `null`
+   * significa "no se pudo determinar", que se revisa a mano.
    */
-  esContado?: boolean;
+  diasPedido: number | null;
+  /** Días de plazo de la condición habitual del cliente. */
+  diasHabitual: number | null;
   /**
-   * Días de crédito escritos a mano (condición de entrada libre). No hay
-   * condición habitual con la cual puedan coincidir —por definición no es
-   * una condición estándar—, así que Administración los revisa siempre.
+   * Si una persona ya aprobó la excepción administrativa de este pedido.
+   * Aprobar es decidir: la condición de pago no se vuelve a comparar.
    */
-  diasCreditoSolicitados?: number | null;
+  excepcionAdministrativaAprobada?: boolean;
   hasPendingApprovalRequest: boolean;
 }): Exclude<OrderEstado, "DRAFT" | "SUBMITTED"> {
   if (input.customerEstado === "PENDIENTE_DE_VALIDACION") {
     return "NEW_CUSTOMER_VALIDATION";
   }
-  if (input.diasCreditoSolicitados != null) {
-    return "ADMINISTRATIVE_EXCEPTION";
-  }
-  if (
-    !input.esContado &&
-    input.customerCondicionPagoHabitualId !== null &&
-    input.orderPaymentTermsId !== input.customerCondicionPagoHabitualId
-  ) {
-    return "ADMINISTRATIVE_EXCEPTION";
+  if (!input.excepcionAdministrativaAprobada && input.diasHabitual !== null) {
+    // Sin días conocidos no se puede verificar nada: lo mira una persona.
+    if (input.diasPedido === null) return "ADMINISTRATIVE_EXCEPTION";
+    if (input.diasPedido > input.diasHabitual) return "ADMINISTRATIVE_EXCEPTION";
   }
   if (input.hasPendingApprovalRequest) {
     return "COMMERCIAL_EXCEPTION";

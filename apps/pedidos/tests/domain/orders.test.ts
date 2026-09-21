@@ -23,82 +23,111 @@ describe("computeAutomaticValidationOutcome / calculateLineItem — feliz camino
 
     const outcome = computeAutomaticValidationOutcome({
       customerEstado: "ACTIVO",
-      orderPaymentTermsId: 1,
-      customerCondicionPagoHabitualId: 1,
+      diasPedido: 0,
+      diasHabitual: 0,
       hasPendingApprovalRequest: false,
     });
     expect(outcome).toBe("READY_FOR_OPERATIONS");
   });
 });
 
-describe("computeAutomaticValidationOutcome — contado nunca es excepción administrativa", () => {
-  // La excepción administrativa frena cuando se da MÁS crédito o MÁS
-  // plazo del aprobado. Contado es lo contrario: el cliente paga contra
-  // entrega. Espejo de 1036 en SQL (pedidos.es_contado).
+describe("computeAutomaticValidationOutcome — sólo se frena pedir MÁS plazo", () => {
+  // La excepción administrativa frena cuando se da MÁS plazo del aprobado.
+  // Pedir menos —o contado, que son 0 días— es una concesión a favor de la
+  // empresa. Espejo de 1038 en SQL.
   it("contado pasa derecho aunque el cliente esté aprobado a 30, 60 o 90 días", () => {
-    for (const habitual of [2, 4, 5]) {
+    for (const diasHabitual of [30, 60, 90]) {
       expect(
         computeAutomaticValidationOutcome({
           customerEstado: "ACTIVO",
-          orderPaymentTermsId: 1,
-          customerCondicionPagoHabitualId: habitual,
-          esContado: true,
+          diasPedido: 0,
+          diasHabitual,
           hasPendingApprovalRequest: false,
         }),
       ).toBe("READY_FOR_OPERATIONS");
     }
   });
 
-  it("contado igual pasa por el control comercial si hay un descuento pendiente", () => {
+  it("pedir MENOS plazo del habitual pasa derecho", () => {
+    // Los pedidos #12, #58, #68 y #72 eran exactamente esto: Crédito 30 a
+    // clientes aprobados a 60, y quedaban frenados sin motivo.
     expect(
       computeAutomaticValidationOutcome({
         customerEstado: "ACTIVO",
-        orderPaymentTermsId: 1,
-        customerCondicionPagoHabitualId: 2,
-        esContado: true,
+        diasPedido: 30,
+        diasHabitual: 60,
+        hasPendingApprovalRequest: false,
+      }),
+    ).toBe("READY_FOR_OPERATIONS");
+  });
+
+  it("pedir EXACTAMENTE el plazo habitual pasa derecho", () => {
+    expect(
+      computeAutomaticValidationOutcome({
+        customerEstado: "ACTIVO",
+        diasPedido: 30,
+        diasHabitual: 30,
+        hasPendingApprovalRequest: false,
+      }),
+    ).toBe("READY_FOR_OPERATIONS");
+  });
+
+  it("pedir MÁS plazo del habitual cae en excepción administrativa", () => {
+    expect(
+      computeAutomaticValidationOutcome({
+        customerEstado: "ACTIVO",
+        diasPedido: 60,
+        diasHabitual: 30,
+        hasPendingApprovalRequest: false,
+      }),
+    ).toBe("ADMINISTRATIVE_EXCEPTION");
+  });
+
+  it("un plazo que no se puede determinar lo revisa una persona", () => {
+    expect(
+      computeAutomaticValidationOutcome({
+        customerEstado: "ACTIVO",
+        diasPedido: null,
+        diasHabitual: 30,
+        hasPendingApprovalRequest: false,
+      }),
+    ).toBe("ADMINISTRATIVE_EXCEPTION");
+  });
+
+  it("si una persona ya aprobó la excepción, no se vuelve a comparar", () => {
+    // Regresión del bucle de la bandeja: aprobar es decidir. Ver 1037.
+    expect(
+      computeAutomaticValidationOutcome({
+        customerEstado: "ACTIVO",
+        diasPedido: 90,
+        diasHabitual: 30,
+        excepcionAdministrativaAprobada: true,
+        hasPendingApprovalRequest: false,
+      }),
+    ).toBe("READY_FOR_OPERATIONS");
+  });
+
+  it("aprobar el plazo no aprueba un descuento pendiente", () => {
+    expect(
+      computeAutomaticValidationOutcome({
+        customerEstado: "ACTIVO",
+        diasPedido: 90,
+        diasHabitual: 30,
+        excepcionAdministrativaAprobada: true,
         hasPendingApprovalRequest: true,
       }),
     ).toBe("COMMERCIAL_EXCEPTION");
   });
 
-  it("un cliente pendiente de validación sigue teniendo precedencia sobre contado", () => {
+  it("un cliente pendiente de validación tiene precedencia sobre todo", () => {
     expect(
       computeAutomaticValidationOutcome({
         customerEstado: "PENDIENTE_DE_VALIDACION",
-        orderPaymentTermsId: 1,
-        customerCondicionPagoHabitualId: 2,
-        esContado: true,
+        diasPedido: 0,
+        diasHabitual: 30,
         hasPendingApprovalRequest: false,
       }),
     ).toBe("NEW_CUSTOMER_VALIDATION");
-  });
-
-  it("pedir MÁS plazo del habitual sigue cayendo en excepción administrativa", () => {
-    expect(
-      computeAutomaticValidationOutcome({
-        customerEstado: "ACTIVO",
-        orderPaymentTermsId: 4,
-        customerCondicionPagoHabitualId: 2,
-        esContado: false,
-        hasPendingApprovalRequest: false,
-      }),
-    ).toBe("ADMINISTRATIVE_EXCEPTION");
-  });
-
-  it("los días de crédito escritos a mano no se salvan por marcar contado", () => {
-    // Una condición de entrada libre es, por definición, un pedido de
-    // plazo: que llegue marcada como contado sería un dato contradictorio
-    // y Administración tiene que verlo igual.
-    expect(
-      computeAutomaticValidationOutcome({
-        customerEstado: "ACTIVO",
-        orderPaymentTermsId: 1,
-        customerCondicionPagoHabitualId: 2,
-        esContado: true,
-        diasCreditoSolicitados: 15,
-        hasPendingApprovalRequest: false,
-      }),
-    ).toBe("ADMINISTRATIVE_EXCEPTION");
   });
 });
 
@@ -108,12 +137,12 @@ describe("computeAutomaticValidationOutcome — cliente sin condición de pago h
   // cualquier condición que elija el vendedor debe pasar sin excepción
   // administrativa. Espejo de 0043 en SQL.
   it("cualquier condición de pago se acepta sin excepción administrativa", () => {
-    for (const orderPaymentTermsId of [1, 2, 99]) {
+    for (const diasPedido of [0, 30, 120, null]) {
       expect(
         computeAutomaticValidationOutcome({
           customerEstado: "ACTIVO",
-          orderPaymentTermsId,
-          customerCondicionPagoHabitualId: null,
+          diasPedido,
+          diasHabitual: null,
           hasPendingApprovalRequest: false,
         }),
       ).toBe("READY_FOR_OPERATIONS");
@@ -124,8 +153,8 @@ describe("computeAutomaticValidationOutcome — cliente sin condición de pago h
     expect(
       computeAutomaticValidationOutcome({
         customerEstado: "ACTIVO",
-        orderPaymentTermsId: 3,
-        customerCondicionPagoHabitualId: null,
+        diasPedido: 45,
+        diasHabitual: null,
         hasPendingApprovalRequest: true,
       }),
     ).toBe("COMMERCIAL_EXCEPTION");
@@ -135,19 +164,19 @@ describe("computeAutomaticValidationOutcome — cliente sin condición de pago h
     expect(
       computeAutomaticValidationOutcome({
         customerEstado: "PENDIENTE_DE_VALIDACION",
-        orderPaymentTermsId: 3,
-        customerCondicionPagoHabitualId: null,
+        diasPedido: 45,
+        diasHabitual: null,
         hasPendingApprovalRequest: false,
       }),
     ).toBe("NEW_CUSTOMER_VALIDATION");
   });
 
-  it("con habitual definida y distinta, sí dispara excepción administrativa", () => {
+  it("con habitual definida y MÁS plazo pedido, sí dispara excepción administrativa", () => {
     expect(
       computeAutomaticValidationOutcome({
         customerEstado: "ACTIVO",
-        orderPaymentTermsId: 2,
-        customerCondicionPagoHabitualId: 1,
+        diasPedido: 30,
+        diasHabitual: 0,
         hasPendingApprovalRequest: false,
       }),
     ).toBe("ADMINISTRATIVE_EXCEPTION");
@@ -194,8 +223,8 @@ describe("computeAutomaticValidationOutcome — cliente nuevo no pasa de SUBMITT
     expect(
       computeAutomaticValidationOutcome({
         customerEstado: "PENDIENTE_DE_VALIDACION",
-        orderPaymentTermsId: 1,
-        customerCondicionPagoHabitualId: 1,
+        diasPedido: 0,
+        diasHabitual: 0,
         hasPendingApprovalRequest: false,
       }),
     ).toBe("NEW_CUSTOMER_VALIDATION");
@@ -205,21 +234,21 @@ describe("computeAutomaticValidationOutcome — cliente nuevo no pasa de SUBMITT
     expect(
       computeAutomaticValidationOutcome({
         customerEstado: "PENDIENTE_DE_VALIDACION",
-        orderPaymentTermsId: 2,
-        customerCondicionPagoHabitualId: 1,
+        diasPedido: 30,
+        diasHabitual: 0,
         hasPendingApprovalRequest: true,
       }),
     ).toBe("NEW_CUSTOMER_VALIDATION");
   });
 });
 
-describe("computeAutomaticValidationOutcome — excepción administrativa (condición de pago distinta)", () => {
-  it("condición de pago del pedido distinta de la habitual del cliente activo da ADMINISTRATIVE_EXCEPTION", () => {
+describe("computeAutomaticValidationOutcome — excepción administrativa (más plazo del aprobado)", () => {
+  it("un cliente de contado al que se le pide Crédito 30 da ADMINISTRATIVE_EXCEPTION", () => {
     expect(
       computeAutomaticValidationOutcome({
         customerEstado: "ACTIVO",
-        orderPaymentTermsId: 2,
-        customerCondicionPagoHabitualId: 1,
+        diasPedido: 30,
+        diasHabitual: 0,
         hasPendingApprovalRequest: false,
       }),
     ).toBe("ADMINISTRATIVE_EXCEPTION");
@@ -231,8 +260,8 @@ describe("computeAutomaticValidationOutcome — solicitud de descuento bloquea e
     expect(
       computeAutomaticValidationOutcome({
         customerEstado: "ACTIVO",
-        orderPaymentTermsId: 1,
-        customerCondicionPagoHabitualId: 1,
+        diasPedido: 0,
+        diasHabitual: 0,
         hasPendingApprovalRequest: true,
       }),
     ).toBe("COMMERCIAL_EXCEPTION");
@@ -359,27 +388,32 @@ describe("valorUnitarioSinIgv", () => {
 });
 
 describe("computeAutomaticValidationOutcome con días de crédito a mano", () => {
+  // Decisión explícita del usuario (opción A, 2026-09-21): un número
+  // escrito a mano se compara como cualquier otra condición, no cae en
+  // excepción por el solo hecho de estar escrito a mano. Quien resuelve los
+  // días es `pedidos.dias_de_condicion`, que hace ganar al número a mano
+  // sobre el del catálogo; acá llegan ya resueltos en `diasPedido`.
   const base = {
     customerEstado: "ACTIVO" as const,
-    orderPaymentTermsId: 7,
-    customerCondicionPagoHabitualId: null,
     hasPendingApprovalRequest: false,
   };
 
-  it("los días escritos a mano caen SIEMPRE en excepción administrativa", () => {
-    // Ni siquiera hace falta que el cliente tenga condición habitual: es el
-    // caso de los 3.399 clientes migrados, y sin esta regla el pedido salía
-    // derecho a Operaciones con un plazo que nadie aprobó.
-    expect(computeAutomaticValidationOutcome({ ...base, diasCreditoSolicitados: 15 })).toBe(
+  it("Crédito 15 a mano a un cliente de 30 días pasa derecho", () => {
+    expect(computeAutomaticValidationOutcome({ ...base, diasPedido: 15, diasHabitual: 30 })).toBe(
+      "READY_FOR_OPERATIONS",
+    );
+  });
+
+  it("Crédito 45 a mano a un cliente de 30 días cae en excepción", () => {
+    expect(computeAutomaticValidationOutcome({ ...base, diasPedido: 45, diasHabitual: 30 })).toBe(
       "ADMINISTRATIVE_EXCEPTION",
     );
   });
 
-  it("sin días a mano, el mismo pedido no es excepción", () => {
-    expect(computeAutomaticValidationOutcome({ ...base, diasCreditoSolicitados: null })).toBe(
+  it("sin condición habitual, cualquier número a mano pasa derecho", () => {
+    expect(computeAutomaticValidationOutcome({ ...base, diasPedido: 15, diasHabitual: null })).toBe(
       "READY_FOR_OPERATIONS",
     );
-    expect(computeAutomaticValidationOutcome(base)).toBe("READY_FOR_OPERATIONS");
   });
 
   it("un cliente pendiente de validación sigue mandando sobre todo lo demás", () => {
@@ -387,7 +421,8 @@ describe("computeAutomaticValidationOutcome con días de crédito a mano", () =>
       computeAutomaticValidationOutcome({
         ...base,
         customerEstado: "PENDIENTE_DE_VALIDACION",
-        diasCreditoSolicitados: 15,
+        diasPedido: 120,
+        diasHabitual: 30,
       }),
     ).toBe("NEW_CUSTOMER_VALIDATION");
   });

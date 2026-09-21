@@ -578,31 +578,75 @@ alimenta la UI).
 El catálogo de condiciones de pago se completó en `0042`: además de
 `Contado`, ahora existen `Crédito 30 / 45 / 60 / 90 / 120 días`.
 
-#### Contado nunca es excepción administrativa
+#### Sólo se frena pedir MÁS plazo del aprobado
 
-La excepción administrativa existe para frenar cuando se da **más**
-crédito o **más** plazo del aprobado. Contado es lo contrario: el cliente
-paga contra entrega, que es la situación de menor riesgo que hay. Desde
-`1036`, **un pedido al contado pasa derecho sin comparar contra la
-condición habitual del cliente**, aunque ese cliente compre normalmente a
-30 días.
+La regla es **una comparación de días, no de igualdad**: un pedido cae en
+excepción administrativa sólo si los días de plazo que pide son **más**
+que los de la condición habitual del cliente. Menos o iguales, pasa
+derecho.
 
-Lo que NO cambia:
+    excepción  ⇔  días del pedido > días de la condición habitual
 
-- Contado sigue pasando por el control comercial. Un descuento pedido
-  sobre un pedido de contado necesita aprobación igual.
-- Pedir más plazo del habitual (Crédito 60 a un cliente aprobado a 30)
-  sigue cayendo en excepción.
-- Los días de crédito escritos a mano siguen cayendo en excepción
-  siempre, aunque la condición venga marcada como contado.
+Pedir menos plazo es una concesión a favor de la empresa, y frenarla era
+hacer cola por algo que nadie necesita autorizar. Contado deja de ser un
+caso especial: son 0 días, y 0 nunca es mayor que nada.
 
-Contado se reconoce por nombre, con `pedidos.es_contado()`, y no por id
-fijo: que hoy sea el id 1 es un dato del catálogo, no parte de la regla.
+Medido sobre los 80 pedidos reales del 2026-09-21: con la regla de
+igualdad, 17 caían en excepción; con ésta, **9**. Los 8 que se liberan
+piden todos menos plazo del aprobado (Crédito 30 a clientes habilitados a
+60 o 90), y no aparece ninguna excepción nueva.
 
-Medido sobre los 69 pedidos reales cargados hasta el 2026-09-19, con la
-cartera ya publicada: **37 pedidos caerían en excepción administrativa
-sin esta regla, y 15 con ella.** Los 22 que se salvan son todos de
-contado.
+##### Tabla de equivalencia en días
+
+`payment_terms.dias_equivalentes`, poblada en `1038`:
+
+| Condición | Días |
+| --- | --- |
+| Contado | **0** |
+| Crédito 30 días | 30 |
+| Crédito 45 días | 45 |
+| Crédito 60 días | 60 |
+| Crédito 90 días | 90 |
+| Crédito 120 días | 120 |
+| Crédito (otro número de días) | **NULL** — lo trae cada pedido |
+
+Los días viven en una columna y no se deducen del nombre a propósito:
+leer "Crédito **30** días" con una expresión regular se rompe el día que
+alguien renombre una fila del catálogo.
+
+La última fila es NULL porque no tiene plazo fijo: el número lo escribe el
+vendedor en `orders.dias_credito_solicitados`.
+`pedidos.dias_de_condicion()` resuelve los días de un pedido haciendo
+**ganar al número escrito a mano** sobre el del catálogo. Hoy la UI sólo
+ofrece ese campo junto con la condición de días libres, así que en la
+práctica no compiten; la precedencia está definida para que un dato
+contradictorio no se resuelva por accidente.
+
+##### Los días escritos a mano se comparan como cualquier otro plazo
+
+Decisión explícita del usuario (opción A, 2026-09-21). Antes, **cualquier**
+número escrito a mano caía en excepción sin comparar nada. Ahora "Crédito
+15 a mano" a un cliente de 30 días pasa derecho, y "Crédito 45 a mano" al
+mismo cliente cae en excepción. Es coherente con el resto de la regla: lo
+que importa es el plazo, no cómo se escribió.
+
+No se pudo medir el impacto: **ningún pedido de los 80 usa esa
+condición**, así que la simulación da 9 con cualquiera de las dos
+interpretaciones.
+
+Lo que no se puede verificar, se revisa: si los días del pedido no se
+pueden determinar (una condición sin días en el catálogo y sin número a
+mano), el pedido cae en excepción en vez de pasar por no poder
+compararlo.
+
+##### El motivo dice cuál fue la causa
+
+`order_status_history.motivo` deja de decir `Validacion automatica` y pasa
+a decir qué disparó la excepción, con los números concretos:
+
+- `Pide 60 dias de plazo y el cliente tiene 30 aprobados`
+- `No se pudo determinar cuantos dias de plazo pide el pedido`
+- `Queda un descuento por aprobar`
 
 #### Aprobar una excepción administrativa es decidir, no volver a evaluar
 
