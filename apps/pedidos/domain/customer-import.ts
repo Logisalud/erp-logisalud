@@ -384,6 +384,19 @@ export type ClienteExistente = {
   estado: CustomerEstado;
 };
 
+/**
+ * Con qué condición de pago nace un cliente que el archivo trae por
+ * primera vez. Es el mismo default que la columna tiene en la base desde
+ * la migración 1036 (Crédito 30 días), repetido acá porque el importador
+ * escribe la columna explícitamente y un null explícito le gana al
+ * default del `create table`.
+ *
+ * Si el catálogo de condiciones cambiara de ids, esto y el default de la
+ * columna se mueven juntos: son el mismo número escrito en dos lugares, y
+ * hay un test que lo recuerda.
+ */
+export const CONDICION_PAGO_POR_DEFECTO_ID = 2;
+
 export type CamposDeCartera = {
   canalId: number;
   condicionPagoHabitualId: number | null;
@@ -395,7 +408,8 @@ export type CamposDeCartera = {
  * reimportar la cartera.
  *
  * Estos tres campos NO vienen del archivo: el canal lo pone el importador
- * por defecto, la condición habitual entra en null, y el estado se deriva
+ * por defecto, la condición habitual entra con el default de alta
+ * (Crédito 30 días — antes entraba en null), y el estado se deriva
  * del documento. Los tres, en cambio, sí se corrigen a mano después — el
  * canal decide el precio de lista, la condición habitual decide si el
  * pedido cae en excepción administrativa, y el estado es el resultado de
@@ -422,7 +436,7 @@ export function resolverCamposDeCartera(input: {
   if (!existente) {
     return {
       canalId: canalPorDefectoId,
-      condicionPagoHabitualId: null,
+      condicionPagoHabitualId: CONDICION_PAGO_POR_DEFECTO_ID,
       estado: estadoDelArchivo,
     };
   }

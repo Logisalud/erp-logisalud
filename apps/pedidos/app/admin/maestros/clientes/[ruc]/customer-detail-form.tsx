@@ -10,6 +10,7 @@ import {
   type UbigeoSeleccion,
 } from "@/components/ubigeo-picker";
 import { buscarDistritos, buscarProvincias, guardarDatosDelCliente, guardarDireccion } from "../actions";
+import { formatSoles } from "@/domain/order-email";
 import type { CustomerAddressDetail, CustomerDetail } from "@/services/customers";
 
 type CatalogOption = { id: number; nombre: string };
@@ -293,7 +294,20 @@ export function CustomerDetailForm({
                 ))}
               </select>
               <p className="text-xs text-slate-600">
-                Un pedido con otra condición cae en excepción administrativa.
+                Un pedido con otra condición cae en excepción administrativa, salvo que
+                sea al contado: pagar contra entrega nunca frena un pedido.
+              </p>
+            </div>
+            <div>
+              <p className="etiqueta">Promedio de compra (no confirmado como límite de crédito)</p>
+              <p className="campo bg-slate-50 text-slate-900" aria-readonly="true">
+                {cliente.limite_credito === null
+                  ? "Sin dato"
+                  : formatSoles(cliente.limite_credito)}
+              </p>
+              <p className="text-xs text-slate-600">
+                Viene del archivo de cartera y es solo informativo: nadie lo confirmó como
+                un tope autorizado, y ningún pedido se frena por pasarse de este monto.
               </p>
             </div>
           </div>

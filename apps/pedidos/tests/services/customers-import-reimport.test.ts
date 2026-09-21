@@ -1,3 +1,4 @@
+import { CONDICION_PAGO_POR_DEFECTO_ID } from "@/domain/customer-import";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -169,11 +170,12 @@ describe("reimportar la cartera", () => {
     expect(porRuc("20609238756").estado).toBe("ACTIVO");
   });
 
-  it("un cliente nuevo entra con el canal por defecto y sin condición habitual", async () => {
+  it("un cliente nuevo entra con el canal y la condición por defecto", async () => {
+    // Ver 1036: los clientes nuevos nacen en Crédito 30 días.
     await publishCustomerImport(input, "actor-1");
     const nuevo = porRuc("20614846276");
     expect(nuevo.canal_id).toBe(CANAL_HORIZONTAL);
-    expect(nuevo.condicion_pago_habitual_id).toBeNull();
+    expect(nuevo.condicion_pago_habitual_id).toBe(CONDICION_PAGO_POR_DEFECTO_ID);
     expect(nuevo.estado).toBe("ACTIVO");
   });
 
