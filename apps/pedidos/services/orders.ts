@@ -1,7 +1,12 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "./audit-log";
-import { notifyDiscountRequested, notifyOrderSubmitted, type NotifyResult } from "./order-notifications";
+import {
+  notifyDiscountRequested,
+  notifyOrderSubmitted,
+  notifyPaymentTermsApprovalRequested,
+  type NotifyResult,
+} from "./order-notifications";
 import { calculateLineItem, canEditPaymentTerms } from "@/domain/orders";
 import { admitePrecioCero } from "@/domain/products";
 import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
@@ -615,6 +620,13 @@ export async function updatePaymentTerms(
 
 export type SubmitOrderResult = {
   estadoResultado: string;
+  /**
+   * Por qué quedó en ese estado, tal como lo calculó `submit_order`: es la
+   * misma frase que queda en `order_status_history.motivo` y la que viaja
+   * al correo. Se toma de ahí y no se recalcula acá para que la regla viva
+   * en un solo lugar.
+   */
+  motivo: string | null;
   priceDrift: Array<{ orderItemId: string; precioAnterior: number; precioNuevo: number }>;
   /** Desenlace de la notificación por correo. Informativo: nunca bloquea el envío. */
   notificacion: NotifyResult;
@@ -639,17 +651,32 @@ export async function submitOrder(orderId: string, actor: string): Promise<Submi
   // al vendedor. El desenlace queda en pedidos.notification_logs para
   // reintentar a mano.
   //
-  // Las solicitudes de descuento se piden en borrador, así que el pedido
-  // "entra a excepción comercial" exactamente acá: en ese caso el aviso es
-  // el de descuento por aprobar, no el de pedido enviado, para que el
-  // aprobador no tenga que deducirlo del cuerpo.
+  // Cada freno pide su propia aprobación, con su propio asunto: quien lo
+  // recibe no tiene que deducir del cuerpo que hay algo que decidir.
+  //
+  // - Excepción comercial: se pide en borrador, así que el pedido "entra"
+  //   exactamente acá y el aviso es el de descuento por aprobar.
+  // - Excepción administrativa: el aviso pide aprobar el plazo, con el
+  //   motivo que calculó `submit_order` (cuántos días se pidieron contra
+  //   cuántos hay aprobados).
+  // - Cliente sin validar: el correo de pedido enviado ya saca su propio
+  //   recuadro "CLIENTE NUEVO — hay que revisarlo y aprobarlo", así que no
+  //   hace falta un aviso aparte.
   const notificacion =
     data.estadoResultado === "COMMERCIAL_EXCEPTION"
       ? await notifyDiscountRequested(orderId, data.estadoResultado, actor)
-      : await notifyOrderSubmitted(orderId, data.estadoResultado, actor);
+      : data.estadoResultado === "ADMINISTRATIVE_EXCEPTION"
+        ? await notifyPaymentTermsApprovalRequested(
+            orderId,
+            data.estadoResultado,
+            actor,
+            data.motivo ?? null,
+          )
+        : await notifyOrderSubmitted(orderId, data.estadoResultado, actor);
 
   return {
     estadoResultado: data.estadoResultado,
+    motivo: data.motivo ?? null,
     priceDrift: data.priceDrift ?? [],
     notificacion,
   };

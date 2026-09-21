@@ -576,6 +576,43 @@ export async function notifyOrderSubmitted(
 }
 
 /**
+ * Pide por correo que Administración apruebe el plazo de un pedido.
+ *
+ * Es el equivalente, para la excepción administrativa, de lo que
+ * `notifyDiscountRequested` hace con la comercial y del recuadro "CLIENTE
+ * NUEVO — hay que revisarlo y aprobarlo" que sale cuando el cliente no
+ * está validado. Sin esto, un pedido frenado por plazo mandaba el correo
+ * genérico de "pedido enviado" con el estado en letra chica, y
+ * Administración tenía que darse cuenta sola mirando la bandeja.
+ *
+ * El `motivo` viene de `submit_order`, que es quien aplicó la regla, así
+ * que el correo dice los números concretos —"pide 60 días de plazo y el
+ * cliente tiene 30 aprobados"— sin que esta capa vuelva a calcular nada.
+ */
+export async function notifyPaymentTermsApprovalRequested(
+  orderId: string,
+  estadoResultado: string,
+  actor: string,
+  motivo?: string | null,
+): Promise<NotifyResult> {
+  const detalle = motivo?.trim();
+  return notificarPedido({
+    orderId,
+    estadoResultado,
+    actor,
+    tipo: "aprobacion_plazo_solicitada",
+    evento: {
+      asunto: "Plazo por aprobar — pedido",
+      titulo: "Plazo por aprobar — pedido #__NUMERO__",
+      lead:
+        (detalle ? `${detalle}. ` : "") +
+        "El pedido no avanza hasta que Administración apruebe la condición " +
+        "de pago en Validación de clientes.",
+    },
+  });
+}
+
+/**
  * Avisa que el pedido cayó en excepción comercial y espera decisión.
  *
  * Sin esto, el aprobador tenía que acordarse de mirar la bandeja: el pedido
@@ -837,7 +874,8 @@ async function notificarPedido({
     | "descuento_solicitado"
     | "descuento_resuelto"
     | "observacion_agregada"
-    | "excepcion_administrativa_resuelta";
+    | "excepcion_administrativa_resuelta"
+    | "aprobacion_plazo_solicitada";
   evento?: EventoPlantilla;
 }): Promise<NotifyResult> {
   const admin = createAdminClient();
