@@ -24,18 +24,25 @@ export function esArchivoReemplazable(valor: string): valor is ArchivoConstancia
 }
 
 /**
- * Solo admin: Sebastián y Andrés.
+ * Admin (Sebastián, Andrés) y Tesorería (Milagritos).
  *
- * NO se incluye a Tesorería aunque la RLS de `pagos` se lo permitiría:
- * Milagritos ejecuta los pagos, y dejarla reemplazar el respaldo de un pago
- * que ella misma hizo borraría la separación entre quien paga y quien
- * custodia la evidencia. Si algún día lo necesita, se amplía — empezar
- * angosto es más fácil que recortar después.
+ * Hasta el 2026-09-21 era solo admin: la idea era separar a quien paga de
+ * quien custodia la evidencia, para que Milagritos no pudiera cambiar el
+ * respaldo de un pago que ella misma hizo. En la práctica la que tiene el
+ * voucher en la mano es ella —es quien lo sube la primera vez—, así que
+ * cuando salía ilegible el arreglo pasaba por pedírselo a un admin, y
+ * mientras tanto la obligación quedaba con un respaldo que no se leía.
+ *
+ * La separación se pierde, y se acepta a sabiendas (pedido de Sebas,
+ * 2026-09-21): lo que la sostiene ahora es el RASTRO, no el permiso — cada
+ * reemplazo guarda quién, cuándo y por qué, y `etiquetaReemplazo` lo muestra
+ * en la ficha del pago para siempre. Un cambio visible con nombre y motivo
+ * es mejor control que un candado que obliga a rodearlo.
  */
 export function puedeReemplazarConstancia(
   perfil: { area: string | null; rol: string | null } | null
 ): boolean {
-  return perfil?.area === 'admin' && perfil?.rol === 'admin'
+  return (perfil?.area === 'admin' && perfil?.rol === 'admin') || perfil?.area === 'tesoreria'
 }
 
 export type ErrorValidacion = { campo: string; mensaje: string }

@@ -149,8 +149,9 @@ export function fuentesQueMeTocan(perfil: PerfilAprobador, misAreas: readonly st
   // La reposición pasa por el jefe del área del fondo y después por
   // Contabilidad, así que le toca a los dos.
   if (contabilidad || jefe) fuentes.push('caja_chica')
-  // La OS la aprueba el jefe del área usuaria. Contabilidad no decide acá.
-  if (esAdmin(perfil) || jefe) fuentes.push('os')
+  // La OS la aprueba el jefe del área usuaria — o Contabilidad, que entra
+  // como suplente universal del paso de jefe (ver `puedeCubrirAlJefe`).
+  if (contabilidad || jefe) fuentes.push('os')
   // Mismo gate que la pantalla de propuestas — se reusa `puedeAprobarPropuesta`
   // en el servicio en vez de repetir el criterio acá. OJO: este es el gate
   // ANGOSTO (rol admin), no el de Contabilidad ampliado: mostrarle a Beatriz
@@ -170,6 +171,32 @@ export function fuentesQueMeTocan(perfil: PerfilAprobador, misAreas: readonly st
   return fuentes
 }
 
+/**
+ * Contabilidad (y admin) como SUPLENTE del jefe de área.
+ *
+ * El paso "pendiente_jefe" —de una reposición de Caja Chica o de una OS—
+ * nominalmente lo decide el jefe del área, que sale de
+ * `public.area_responsables`. El problema es a quién apunta esa tabla hoy:
+ * Almacén apunta a Sebas, así que toda reposición de Charlie o Roberto lo
+ * esperaba a él; `gerencia`/`otro`/`ventas` apuntan a Juan Gonzales, que no
+ * entra al sistema, así que las OS de Milka y Renato esperaban a alguien que
+ * nunca las iba a ver. Un aprobador que no entra no es un control: es un
+ * trámite trabado que termina resolviéndose por fuera.
+ *
+ * Decisión de Sebas (2026-09-21): "prefiero que la caja chica no me espere a
+ * mí, y que Juan Gonzales no apruebe nada porque no va a entrar. Mejor que
+ * lo de Milka y Roberto lo apruebe contabilidad también o yo mismo
+ * (cualquiera)". El jefe real sigue pudiendo decidir —no se le saca nada—;
+ * Contabilidad se suma para que nada quede esperando a quien no está.
+ *
+ * Lo que NO cambia: "nadie aprueba lo suyo" sigue valiendo, y la validación
+ * está en los servicios (`exigirQueNoSeaSuPropiaReposicion`,
+ * `puedeDecidirSobre`), no acá.
+ */
+export function puedeCubrirAlJefe(perfil: PerfilAprobador): boolean {
+  return esContabilidadDecisora(perfil)
+}
+
 /** Quién tiene que decidir sobre una reposición, según en qué paso está. */
 export function quienDecideCajaChica(estado: string): 'jefe' | 'contabilidad' | null {
   if (estado === 'pendiente_jefe') return 'jefe'
@@ -187,7 +214,8 @@ export function meTocaEstaReposicion(
   if (!decide) return false
   if (esAdmin(perfil)) return true
   if (decide === 'contabilidad') return esContabilidadDecisora(perfil)
-  return !!areaDelFondo && misAreas.includes(areaDelFondo)
+  // Paso del jefe: el jefe del área del fondo, o Contabilidad cubriéndolo.
+  return puedeCubrirAlJefe(perfil) || (!!areaDelFondo && misAreas.includes(areaDelFondo))
 }
 
 export function meTocaEstaOS(
@@ -198,7 +226,7 @@ export function meTocaEstaOS(
 ): boolean {
   if (estado !== 'pendiente_jefe') return false
   if (esAdmin(perfil)) return true
-  return !!areaSolicitante && misAreas.includes(areaSolicitante)
+  return puedeCubrirAlJefe(perfil) || (!!areaSolicitante && misAreas.includes(areaSolicitante))
 }
 
 /**
