@@ -9,12 +9,14 @@ describe('quién puede reemplazar una constancia', () => {
     expect(puedeReemplazarConstancia({ area: 'admin', rol: 'admin' })).toBe(true)
   })
 
-  it('Tesorería NO, aunque la RLS de pagos se lo permitiría', () => {
-    // Milagritos ejecuta los pagos: dejarla reemplazar el respaldo de un
-    // pago que ella misma hizo borraría la separación entre quien paga y
-    // quien custodia la evidencia.
-    expect(puedeReemplazarConstancia({ area: 'tesoreria', rol: 'operativo' })).toBe(false)
-    expect(puedeReemplazarConstancia({ area: 'tesoreria', rol: 'admin' })).toBe(false)
+  it('Tesorería SÍ, desde el 2026-09-21', () => {
+    // Hasta esa fecha no podía, para separar a quien paga de quien custodia
+    // la evidencia. Pero la que tiene el voucher en la mano es Milagritos —
+    // es quien lo sube la primera vez—, así que un voucher ilegible se
+    // quedaba ilegible hasta que apareciera un admin. Lo que sostiene el
+    // control ahora es el rastro (quién, cuándo, por qué), no el candado.
+    expect(puedeReemplazarConstancia({ area: 'tesoreria', rol: 'operativo' })).toBe(true)
+    expect(puedeReemplazarConstancia({ area: 'tesoreria', rol: 'admin' })).toBe(true)
   })
 
   it('Contabilidad tampoco, ni siquiera rol admin', () => {
@@ -89,14 +91,15 @@ describe('no confundir con reemplazar el comprobante al EDITAR (2026-09-19)', ()
    * `puedeEditarseObligacion`, sin mirar área ni rol. Si algún día aparece un
    * `puedeReemplazarComprobante`, este bloque es el lugar donde comparar.
    */
-  it('reemplazar la constancia sigue siendo SOLO admin', () => {
+  it('reemplazar la constancia es de admin y de Tesorería, no de Contabilidad', () => {
     expect(puedeReemplazarConstancia({ area: 'admin', rol: 'admin' })).toBe(true)
+    // Milagritos: es quien sube el voucher, así que es quien lo corrige.
+    expect(puedeReemplazarConstancia({ area: 'tesoreria', rol: 'operativo' })).toBe(true)
     // Contabilidad NO, aunque desde 2026-09-19 pueda conformar y rechazar.
+    // No es quien maneja el voucher; conformar un documento y cambiar el
+    // respaldo de un desembolso ya hecho no son la misma decisión.
     expect(puedeReemplazarConstancia({ area: 'contabilidad', rol: 'admin' })).toBe(false)
     expect(puedeReemplazarConstancia({ area: 'contabilidad', rol: 'operativo' })).toBe(false)
-    // Milagritos tampoco: ella SÍ puede reemplazar el comprobante al editar,
-    // que es el otro mecanismo, no este.
-    expect(puedeReemplazarConstancia({ area: 'tesoreria', rol: 'operativo' })).toBe(false)
   })
 
   it('la ventana de edición NO mira el perfil: depende solo del estado', () => {

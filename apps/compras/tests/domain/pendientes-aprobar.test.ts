@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   diasEsperando, esAdmin, esContabilidadDecisora, esContabilidadQueApruebaLotes, etiquetaEspera,
-  fuentesQueMeTocan, meTocaEstaOS, meTocaEstaReposicion,
+  fuentesQueMeTocan, meTocaEstaOS, meTocaEstaReposicion, puedeCubrirAlJefe,
   ordenarPorAntiguedad, quienDecideCajaChica,
   ESTADOS_QUE_ESPERAN_DECISION, FUENTES_APROBACION,
   type FilaPendiente,
@@ -33,10 +33,29 @@ describe('quién decide', () => {
   })
 })
 
+describe('Contabilidad como suplente del jefe de área (2026-09-21)', () => {
+  /**
+   * El paso "pendiente_jefe" sale de `public.area_responsables`, y esa tabla
+   * apunta a gente que en la práctica no decide: Almacén → Sebas (que no
+   * quiere que la caja chica lo espere), `gerencia`/`otro`/`ventas` → Juan
+   * Gonzales (que no entra al sistema). Un aprobador que no entra no es un
+   * control: es un trámite trabado. Contabilidad se suma SIN sacarle nada al
+   * jefe real.
+   */
+  it('Contabilidad y admin cubren el paso del jefe; nadie más', () => {
+    expect(puedeCubrirAlJefe(mariela)).toBe(true)
+    expect(puedeCubrirAlJefe(beatriz)).toBe(true)
+    expect(puedeCubrirAlJefe(admin)).toBe(true)
+    expect(puedeCubrirAlJefe(vendedor)).toBe(false)
+    expect(puedeCubrirAlJefe({ area: 'tesoreria', rol: 'operativo' })).toBe(false)
+    expect(puedeCubrirAlJefe(null)).toBe(false)
+  })
+})
+
 describe('fuentesQueMeTocan', () => {
-  it('Contabilidad ve las suyas —propuestas, planilla e impuestos incluidos— pero NO las OS', () => {
+  it('Contabilidad ve las siete, OS incluidas (2026-09-21): cubre al jefe', () => {
     expect(fuentesQueMeTocan(mariela, []).sort()).toEqual([
-      'caja_chica', 'gasto', 'impuesto', 'pago_directo', 'planilla', 'propuesta',
+      'caja_chica', 'gasto', 'impuesto', 'os', 'pago_directo', 'planilla', 'propuesta',
     ])
   })
 
@@ -59,7 +78,7 @@ describe('fuentesQueMeTocan', () => {
 
   it('Beatriz ve lo que decide, MENOS las propuestas que no puede firmar', () => {
     const suyas = fuentesQueMeTocan(beatriz, []).sort()
-    expect(suyas).toEqual(['caja_chica', 'gasto', 'impuesto', 'pago_directo', 'planilla'])
+    expect(suyas).toEqual(['caja_chica', 'gasto', 'impuesto', 'os', 'pago_directo', 'planilla'])
     // Lo importante del caso: si la bandeja le mostrara lotes, se toparía
     // con una fila sin botón. Mejor no mostrarla.
     expect(suyas).not.toContain('propuesta')
@@ -121,8 +140,16 @@ describe('filtro por fila de Caja Chica', () => {
     expect(meTocaEstaReposicion('pendiente_jefe', 'almacen', vendedor, ['ventas'])).toBe(false)
   })
 
-  it('en pendiente_jefe Contabilidad no decide — todavía no es su turno', () => {
-    expect(meTocaEstaReposicion('pendiente_jefe', 'almacen', mariela, [])).toBe(false)
+  it('en pendiente_jefe Contabilidad TAMBIÉN decide: cubre al jefe (2026-09-21)', () => {
+    // El jefe de Almacén es Sebas, así que toda reposición de Charlie o
+    // Roberto lo esperaba a él y se trababa si no entraba. Ahora Contabilidad
+    // puede destrabarla; el jefe real no pierde nada.
+    expect(meTocaEstaReposicion('pendiente_jefe', 'almacen', mariela, [])).toBe(true)
+    expect(meTocaEstaReposicion('pendiente_jefe', 'almacen', beatriz, [])).toBe(true)
+  })
+
+  it('pero quien no es ni jefe ni Contabilidad sigue sin verla', () => {
+    expect(meTocaEstaReposicion('pendiente_jefe', 'almacen', vendedor, ['ventas'])).toBe(false)
   })
 
   it('en pendiente_contabilidad decide Contabilidad y ya no el jefe', () => {
@@ -138,6 +165,11 @@ describe('filtro por fila de Caja Chica', () => {
   it('un fondo sin área no se le asigna a un jefe por descarte', () => {
     expect(meTocaEstaReposicion('pendiente_jefe', null, vendedor, ['ventas'])).toBe(false)
   })
+
+  it('...pero Contabilidad sí lo ve: su permiso no depende del área del fondo', () => {
+    // Justamente para que una reposición mal configurada no quede huérfana.
+    expect(meTocaEstaReposicion('pendiente_jefe', null, mariela, [])).toBe(true)
+  })
 })
 
 describe('filtro por fila de OS', () => {
@@ -152,6 +184,16 @@ describe('filtro por fila de OS', () => {
 
   it('admin ve todas', () => {
     expect(meTocaEstaOS('pendiente_jefe', 'legal', admin, [])).toBe(true)
+  })
+
+  it('Contabilidad también, desde el 2026-09-21: cubre al jefe que no entra', () => {
+    // `gerencia`/`otro`/`ventas` apuntan a Juan Gonzales, que no usa el
+    // sistema: las OS de Milka y Renato esperaban a alguien que nunca las
+    // iba a ver.
+    expect(meTocaEstaOS('pendiente_jefe', 'otro', mariela, [])).toBe(true)
+    expect(meTocaEstaOS('pendiente_jefe', 'ventas', beatriz, [])).toBe(true)
+    // El estado sigue mandando: una OS ya decidida no vuelve para nadie.
+    expect(meTocaEstaOS('aprobada', 'ventas', mariela, [])).toBe(false)
   })
 })
 

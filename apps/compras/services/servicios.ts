@@ -11,6 +11,7 @@ import {
   ERROR_AUTO_APROBACION, ERROR_ANULAR_AJENO, ERROR_ANULAR_TARDE,
   autoridadYaDecidioOS, esAutoridadFinal, puedeAnular, puedeDecidirSobre,
 } from '@/domain/auto-aprobacion'
+import { puedeCubrirAlJefe } from '@/domain/pendientes-aprobar'
 import { formatoMonto } from '@/domain/aviso-email'
 import { ERROR_EDITAR_TARDE, puedeEditarseOS } from '@/domain/edicion'
 import { anioMesStorageLima } from '@/domain/fecha'
@@ -555,11 +556,19 @@ export async function anularOS(id: string, motivo: string): Promise<void> {
   // Pieza G: quien la creó puede anularla SOLO mientras el jefe de área no
   // haya decidido. Después, anular queda para la autoridad — antes esto
   // dejaba al creador anular una OS ya aprobada o en ejecución.
-  // La autoridad de una OS es el JEFE DEL ÁREA SOLICITANTE, no Contabilidad
-  // — por eso no alcanza `esAutoridadFinal` acá. Se resuelve igual que
-  // `es_jefe_de()` en las policies: mirando `public.area_responsables`.
+  // La autoridad de una OS es el JEFE DEL ÁREA SOLICITANTE — por eso no
+  // alcanza `esAutoridadFinal` acá. Se resuelve igual que `es_jefe_de()` en
+  // las policies: mirando `public.area_responsables`.
+  //
+  // Contabilidad entra como SUPLENTE del jefe (`puedeCubrirAlJefe`, ver
+  // domain/pendientes-aprobar.ts): desde el 2026-09-21 la bandeja le muestra
+  // estas OS porque hay áreas cuyo jefe no entra al sistema. Si se le
+  // muestra la fila con el botón de anular, la acción tiene que aceptarla —
+  // si no, el botón existe solo para tirar "solo quien lo creó puede".
   const esAutoridadDeEstaOS =
-    esAutoridadFinal(perfil) || (await esJefeDelArea(usuario.id, (os as any).area_solicitante ?? null))
+    esAutoridadFinal(perfil) ||
+    puedeCubrirAlJefe(perfil) ||
+    (await esJefeDelArea(usuario.id, (os as any).area_solicitante ?? null))
   if (
     !puedeAnular(
       esAutoridadDeEstaOS,
