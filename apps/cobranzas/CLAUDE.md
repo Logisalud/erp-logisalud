@@ -35,6 +35,12 @@ role key, bypassa RLS).
   `linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)`, `LOGISALUD` +
   subtítulo, link "&larr; Menú" a `/`. Tiles de resumen en
   `grid grid-cols-N gap-2.5` con tarjetas blancas bordeadas.
+- `components/` guarda lo poco que se comparte entre pantallas. Hoy hay uno
+  solo, `DetalleLetras`, y está ahí por una razón concreta: el desglose de
+  letras de una factura se ve igual en el panel de admin y en el link del
+  vendedor, y tienen que seguir siendo el mismo — cuando el vendedor llama a
+  Administración por una letra, los dos están mirando la misma tabla. Si
+  aparece una tercera pantalla con letras, usa ese componente.
 - Flujos de importación pesada (Nubefact, cartera) siguen el patrón
   preview→confirm: `lib/<algo>-parser.ts` (usa `xlsx`, detecta fila de
   headers, matching difuso de columnas) + `app/api/<algo>/preview` +

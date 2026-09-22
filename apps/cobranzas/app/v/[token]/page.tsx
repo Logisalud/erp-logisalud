@@ -7,6 +7,7 @@ import { cobranzaDelMes } from '@/lib/cobranzaDelMes';
 import BotonImprimir from './BotonImprimir';
 import RegistrarAcceso from './RegistrarAcceso';
 import VistaVendedorClient, { FacturaVista, LetraVista } from './VistaVendedorClient';
+import { LetraDetalle } from '@/components/DetalleLetras';
 
 // Filtro SOLO de presentación en la vista del vendedor: se ocultan facturas
 // con saldo pendiente insignificante (céntimos por redondeo). No toca datos ni
@@ -26,6 +27,10 @@ interface FacturaPendiente {
   saldo_pendiente: number;
   d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
   tiene_letras: boolean;
+}
+
+interface LetraConDocumento extends LetraDetalle {
+  documento_id: string;
 }
 
 const fmt = (n: number) =>
@@ -127,17 +132,43 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   // próxima) y (b) el desglose completo en la pestaña "Letras": una factura
   // canjeada por letras puede tener varias cuotas con fechas muy distintas
   // al vencimiento original, y eso no se veía en ningún lado antes.
+  //
+  // Se traen TODAS las letras de esas facturas, pagadas incluidas: el
+  // desglose que el vendedor abre desde su tarjeta (c) tiene que mostrar el
+  // plan de pago completo, no solo lo que falta ("de las 5 cuotas ya pagó
+  // 4"). Los cálculos de mora y de próxima letra siguen mirando únicamente
+  // las pendientes, así que ninguno de los números cambia.
+  //
+  // El filtro de permisos es este `in(...)`: idsConLetras sale de
+  // facturasVisibles, que ya viene acotado a `vendedor_id = <el del token>`.
+  // Nunca se consulta la tabla `letras` por otro criterio.
   const idsConLetras = facturasVisibles.filter(f => f.tiene_letras).map(f => f.id);
   const proximaLetra = new Map<string, string>();
   const letrasPorDoc = new Map<string, { numero_letra: string; importe: number; fecha_vencimiento: string; estado: string }[]>();
+  const letrasDetallePorDoc: Record<string, LetraDetalle[]> = {};
   if (idsConLetras.length > 0) {
-    const { data: letras } = await db
-      .from('letras')
-      .select('documento_id, numero_letra, importe, fecha_vencimiento, estado')
-      .in('documento_id', idsConLetras)
-      .neq('estado', 'pagada')
-      .order('fecha_vencimiento');
-    for (const l of letras ?? []) {
+    const letrasTodas: LetraConDocumento[] = [];
+    for (let i = 0; i < idsConLetras.length; i += 500) {
+      const { data } = await db
+        .from('letras')
+        .select('documento_id, numero_letra, importe, fecha_giro, fecha_vencimiento, banco, estado')
+        .in('documento_id', idsConLetras.slice(i, i + 500))
+        .order('fecha_vencimiento');
+      letrasTodas.push(...(data ?? []));
+    }
+    for (const l of letrasTodas) {
+      const detalle = letrasDetallePorDoc[l.documento_id] ?? [];
+      detalle.push({
+        numero_letra: l.numero_letra,
+        importe: Number(l.importe) || 0,
+        fecha_giro: l.fecha_giro,
+        fecha_vencimiento: l.fecha_vencimiento,
+        banco: l.banco,
+        estado: l.estado,
+      });
+      letrasDetallePorDoc[l.documento_id] = detalle;
+
+      if (l.estado === 'pagada') continue;
       if (!proximaLetra.has(l.documento_id)) proximaLetra.set(l.documento_id, l.fecha_vencimiento);
       const arr = letrasPorDoc.get(l.documento_id) ?? [];
       arr.push({ numero_letra: l.numero_letra, importe: Number(l.importe) || 0, fecha_vencimiento: l.fecha_vencimiento, estado: l.estado });
@@ -287,6 +318,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
           contado={contado}
           contadoTotal={contadoTotal}
           letras={letrasVista}
+          letrasDetalle={letrasDetallePorDoc}
           cobranzaMes={cobranzaMes}
           token={token}
           mostrarWhatsapp={vendedor.piloto_whatsapp}
