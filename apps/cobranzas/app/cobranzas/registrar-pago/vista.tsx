@@ -40,6 +40,7 @@ interface Letra {
    */
   monto_aplicado?: number;
   fecha_vencimiento: string;
+  fecha_pago?: string | null;
   estado: string;
   banco: string | null;
   voucher_path: string | null;
@@ -690,7 +691,9 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
               contadoPendiente={factura.contado_pendiente}
               fechaEmision={factura.fecha_emision}
               tieneLetras={factura.tiene_letras}
-              letrasPagadas={letras.filter(l => l.estado === 'pagada').length}
+              letrasPagadas={letras
+                .filter(l => l.estado === 'pagada')
+                .map(l => ({ numero_letra: l.numero_letra, fecha_pago: l.fecha_pago ?? null }))}
               letrasTotal={letras.length}
             />
 
