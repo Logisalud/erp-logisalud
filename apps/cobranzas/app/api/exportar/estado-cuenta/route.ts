@@ -91,6 +91,72 @@ export async function GET(req: NextRequest) {
       return ps.map(p => `${fmtFechaCorta(p.fecha_pago)}: ${estadoEfectivoLabel(p)}`).join('; ');
     };
 
+    // Letras de las facturas del resultado. Una factura canjeada por letras
+    // no tiene NINGUNA fila en `pagos`: se cancela marcando cada letra como
+    // pagada. Sin esto, "Total Pagado" y "Pagos Registrados" salían vacías en
+    // una factura efectivamente cobrada — FFF1-831 figuraba con S/ 26,247.03
+    // de importe, la NC, y ni rastro de los S/ 25,025.60 de la letra L00023.
+    interface LetraRow {
+      documento_id: string; monto_aplicado: number;
+      numero_letra: string; fecha_giro: string | null; fecha_vencimiento: string;
+      fecha_pago: string | null; estado: string; banco: string | null;
+    }
+    // Dos consultas planas en vez de un embed de PostgREST, igual que
+    // /api/letras: la tabla puente y después las letras por id.
+    const letrasPorDoc = new Map<string, LetraRow[]>();
+    const vinculos: Array<{ documento_id: string; letra_id: string; monto_aplicado: number }> = [];
+    for (let i = 0; i < ids.length; i += 500) {
+      const { data: lds } = await db
+        .from('letra_documento')
+        .select('documento_id, letra_id, monto_aplicado')
+        .in('documento_id', ids.slice(i, i + 500));
+      vinculos.push(...((lds ?? []) as typeof vinculos));
+    }
+    if (vinculos.length > 0) {
+      const letraIds = [...new Set(vinculos.map(v => v.letra_id))];
+      const letrasPorId = new Map<string, Record<string, unknown>>();
+      for (let i = 0; i < letraIds.length; i += 500) {
+        const { data: ls } = await db
+          .from('letras')
+          .select('id, numero_letra, fecha_giro, fecha_vencimiento, fecha_pago, estado, banco')
+          .in('id', letraIds.slice(i, i + 500));
+        for (const l of ls ?? []) letrasPorId.set(l.id as string, l);
+      }
+      for (const v of vinculos) {
+        const l = letrasPorId.get(v.letra_id);
+        if (!l) continue;
+        const arr = letrasPorDoc.get(v.documento_id) ?? [];
+        arr.push({
+          documento_id: v.documento_id,
+          monto_aplicado: Number(v.monto_aplicado) || 0,
+          numero_letra: l.numero_letra as string,
+          fecha_giro: (l.fecha_giro as string) ?? null,
+          fecha_vencimiento: l.fecha_vencimiento as string,
+          fecha_pago: (l.fecha_pago as string) ?? null,
+          estado: l.estado as string,
+          banco: (l.banco as string) ?? null,
+        });
+        letrasPorDoc.set(v.documento_id, arr);
+      }
+    }
+    for (const arr of letrasPorDoc.values()) {
+      arr.sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento));
+    }
+
+    const letrasPagadasDe = (documentoId: string) =>
+      (letrasPorDoc.get(documentoId) ?? []).filter(l => l.estado === 'pagada');
+    const totalLetrasPagadas = (documentoId: string) =>
+      letrasPagadasDe(documentoId).reduce((s, l) => s + l.monto_aplicado, 0);
+    // Mismo formato que "Pagos Registrados": un ítem de texto por letra, en la
+    // misma fila del documento.
+    const letrasPagadasLabel = (documentoId: string) => {
+      const ls = letrasPagadasDe(documentoId);
+      if (ls.length === 0) return '';
+      return ls.map(l =>
+        `${l.numero_letra} - ${l.fecha_pago ? fmtFechaCorta(l.fecha_pago) : 'sin fecha'} - S/ ${l.monto_aplicado.toFixed(2)}`
+      ).join('; ');
+    };
+
     // NC (tipo '07') aplicadas a cada factura del resultado — mismo criterio:
     // detalle en texto dentro de la fila, sin filas nuevas. El monto ya se
     // resta en "Total NC" (columna existente, sin cambios); esto es solo el
@@ -135,10 +201,13 @@ export async function GET(req: NextRequest) {
       const importe  = Number(row.importe_total)   || 0;
       const vencido  = (Number(row.d0_7) || 0) + (Number(row.d8_15) || 0) + (Number(row.d16_30) || 0)
                      + (Number(row.d31_60) || 0) + (Number(row.d61_mas) || 0);
-      const estadoPago = saldo === 0 && importe > 0 ? 'Pagado'
-                       : pagado > 0 && saldo > 0    ? 'Parcial'
-                       :                              'Pendiente';
       const id = row.id as string;
+      // "Parcial" tiene que contar también las letras ya cobradas: una
+      // factura canjeada con 4 de 5 letras pagadas no está "Pendiente".
+      const cobrado = pagado + totalLetrasPagadas(id);
+      const estadoPago = saldo === 0 && importe > 0 ? 'Pagado'
+                       : cobrado > 0 && saldo > 0   ? 'Parcial'
+                       :                              'Pendiente';
       return {
         'Comprobante':        row.comprobante,
         'RUC':                row.cliente_ruc,
@@ -157,6 +226,9 @@ export async function GET(req: NextRequest) {
         'Total ND':           Number(row.total_nd) || 0,
         'Total Pagado':       pagado,
         'Pagos Registrados':  pagosRegistradosLabel(id),
+        'Total Letras Pagadas': totalLetrasPagadas(id),
+        'Letras Pagadas':     letrasPagadasLabel(id),
+        'Total Cobrado':      cobrado,
         'Estado Efectivo':    estadoEfectivoDetalle(id),
         'Saldo Pendiente':    saldo,
         'Estado Pago':        estadoPago,
@@ -180,7 +252,7 @@ export async function GET(req: NextRequest) {
       { wch: 14 }, { wch: 13 }, { wch: 35 }, { wch: 10 }, { wch: 22 }, { wch: 18 },
       { wch: 13 }, { wch: 16 }, { wch: 10 }, { wch: 7  },
       { wch: 13 }, { wch: 10 }, { wch: 24 }, { wch: 20 }, { wch: 10 },
-      { wch: 12 }, { wch: 45 }, { wch: 30 },
+      { wch: 12 }, { wch: 45 }, { wch: 20 }, { wch: 45 }, { wch: 14 }, { wch: 30 },
       { wch: 14 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 13 }, { wch: 11 }, { wch: 12 }, { wch: 15 }, { wch: 11 },
