@@ -51,6 +51,39 @@ export function siguienteCodigoPropuesta(anio: number, ultimoCodigoDelAnio: stri
   return `PP-${anio}-${String(correlativo).padStart(4, '0')}`
 }
 
+/**
+ * De todas las propuestas en las que aparece una obligación, cuál es la que
+ * manda hoy.
+ *
+ * ── Por qué una obligación puede estar en varias ─────────────────────────
+ * Rechazar un lote libera sus obligaciones a `conforme` pero NO borra sus
+ * filas de `propuesta_detalle`, y eso está bien: el lote rechazado tiene que
+ * seguir mostrando qué contenía. Cuando esa obligación entra a un lote nuevo
+ * se le agrega una segunda fila, así que "la propuesta de esta obligación"
+ * dejó de ser una sola.
+ *
+ * El código no lo contemplaba y se rompió en producción el 2026-09-22:
+ * C-0044 estuvo en PP-2026-0014 (rechazada) y después en PP-2026-0016
+ * (aprobada), y Tesorería no podía registrar el voucher — `ejecutarPago`
+ * pedía la fila con `.maybeSingle()`, que tolera cero filas pero falla con
+ * dos, y el error se traducía a "Esta obligación no tiene una propuesta
+ * asociada": exactamente lo contrario de lo que pasaba.
+ *
+ * La regla: una obligación puede haber pasado por muchos lotes, pero solo
+ * uno está vivo — el que no fue rechazado. Si hubiera más de uno vivo (no
+ * debería: `crearPropuesta` solo toma obligaciones `conforme`, y una en
+ * `en_propuesta` no entra a otro lote), gana el más reciente, que es el que
+ * refleja la última decisión.
+ */
+export function propuestaVigente<T extends { estado: string; createdAt?: string | null }>(
+  propuestas: readonly T[]
+): T | null {
+  const vivas = propuestas.filter((p) => p.estado !== 'rechazada')
+  if (vivas.length === 0) return null
+  if (vivas.length === 1) return vivas[0]
+  return [...vivas].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0]
+}
+
 export type ErrorValidacionPropuesta = { campo: string; mensaje: string }
 
 /** Una propuesta vacía no tiene sentido: Gerencia aprobaría un lote sin nada adentro. */
