@@ -3,6 +3,7 @@
 import { Fragment, useState } from 'react';
 import { diasEntre } from '@/lib/fechas';
 import { mensajeDescuento, mensajeVencimiento, linkWhatsApp } from '@/lib/whatsapp';
+import DetalleLetras, { LetraDetalle } from '@/components/DetalleLetras';
 
 export interface FacturaVista {
   id: string;
@@ -224,7 +225,7 @@ function agruparPorZona(facturas: FacturaVista[]): GrupoZona[] {
 }
 
 export default function VistaVendedorClient({
-  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, letras, cobranzaMes, token, mostrarWhatsapp,
+  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, letras, letrasDetalle, cobranzaMes, token, mostrarWhatsapp,
 }: {
   facturas: FacturaVista[];
   hoyISO: string;
@@ -235,11 +236,22 @@ export default function VistaVendedorClient({
   contado: ContadoVista[];
   contadoTotal: number;
   letras: LetraVista[];
+  /** Todas las letras de cada factura (pagadas incluidas), por documento_id. */
+  letrasDetalle: Record<string, LetraDetalle[]>;
   cobranzaMes: ItemMesVista[];
   token: string;
   mostrarWhatsapp: boolean;
 }) {
   const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes' | 'zona'>('tarjetas');
+  // Qué tarjetas tienen el detalle de letras abierto. Arranca vacío: la
+  // tarjeta tiene que seguir cabiendo en una pantalla de celular.
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
+  const toggleExpandir = (id: string) =>
+    setExpandidas(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
 
   const grupos = facturas.length ? agrupar(facturas) : [];
   const totalVencido = facturas.reduce((s, f) => s + f.vencido, 0);
@@ -296,6 +308,7 @@ export default function VistaVendedorClient({
         <div className="max-w-2xl mx-auto mt-3 space-y-2">
           {facturas.map(f => {
             const dias = diasParaVencer(f.fecha_venc, hoyISO);
+            const abierta = expandidas.has(f.id);
             return (
               <div key={f.id} className="bg-white rounded-xl border border-gray-200 px-3.5 py-2.5 print:border-gray-300 print:break-inside-avoid">
                 <div className="flex items-baseline justify-between gap-3">
@@ -309,7 +322,15 @@ export default function VistaVendedorClient({
                 <div className="flex items-baseline justify-between gap-3 mt-0.5">
                   <p className="text-gray-400 text-xs font-mono shrink-0">{f.comprobante}</p>
                   {f.tiene_letras ? (
-                    <p className="text-xs text-right">
+                    // El resumen de letras es el botón: es lo que el vendedor
+                    // quiere abrir, y así el área táctil es toda la línea y no
+                    // una flechita de 12px.
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandir(f.id)}
+                      aria-expanded={abierta}
+                      className="text-xs text-right flex items-baseline gap-1.5 print:hidden"
+                    >
                       {f.letras_vencidas > 0 ? (
                         <span className="text-red-600 font-semibold">
                           ⚠ {f.letras_vencidas} {f.letras_vencidas === 1 ? 'letra vencida' : 'letras vencidas'}
@@ -317,7 +338,8 @@ export default function VistaVendedorClient({
                       ) : (
                         <span style={{ color: '#4ABCC2' }}>Próxima letra: {fmtFecha(f.fecha_venc)}</span>
                       )}
-                    </p>
+                      <span className="font-bold shrink-0" style={{ color: '#4ABCC2' }}>{abierta ? '▼' : '▶'}</span>
+                    </button>
                   ) : (
                     <p className="text-xs text-right">
                       <span className="text-gray-400">Vence {fmtFecha(f.fecha_venc)}</span>
@@ -325,7 +347,24 @@ export default function VistaVendedorClient({
                       <Plazo dias={dias} />
                     </p>
                   )}
+                  {/* En papel no hay nada que desplegar: el resumen se imprime igual. */}
+                  {f.tiene_letras && (
+                    <p className="text-xs text-right hidden print:block">
+                      {f.letras_vencidas > 0
+                        ? `${f.letras_vencidas} ${f.letras_vencidas === 1 ? 'letra vencida' : 'letras vencidas'}`
+                        : `Próxima letra: ${fmtFecha(f.fecha_venc)}`}
+                    </p>
+                  )}
                 </div>
+                {abierta && (
+                  <div className="mt-2 -mx-3.5 px-3.5 pt-2.5 pb-1 bg-teal-50/40 border-t border-teal-100">
+                    <DetalleLetras
+                      letras={letrasDetalle[f.id] ?? []}
+                      comprobante={f.comprobante}
+                      hoyISO={hoyISO}
+                    />
+                  </div>
+                )}
                 <BotonesWhatsApp f={f} hoyISO={hoyISO} token={token} mostrarWhatsapp={mostrarWhatsapp} />
               </div>
             );

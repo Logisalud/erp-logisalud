@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import DetalleLetras from '@/components/DetalleLetras';
 
 // ---- Tipos ----------------------------------------------------------------
 
@@ -545,39 +546,7 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
                           <tr key={`${f.id}-letras`}>
                             <td colSpan={COLS} className="px-0 py-0 bg-teal-50/30 border-t border-teal-100">
                               <div className="px-8 py-3">
-                                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#4ABCC2' }}>
-                                  Letras de cambio — {f.comprobante}
-                                </p>
-                                {letras.length === 0 ? (
-                                  <p className="text-xs text-gray-400">Sin letras registradas</p>
-                                ) : (
-                                  <table className="w-full text-xs">
-                                    <thead>
-                                      <tr className="text-gray-400 uppercase tracking-wide">
-                                        <th className="py-1 pr-4 text-left font-semibold">Nº Letra</th>
-                                        <th className="py-1 pr-4 text-right font-semibold">Importe</th>
-                                        <th className="py-1 pr-4 text-left font-semibold">F. Giro</th>
-                                        <th className="py-1 pr-4 text-left font-semibold">F. Vencimiento</th>
-                                        <th className="py-1 pr-4 text-left font-semibold">Banco</th>
-                                        <th className="py-1 text-left font-semibold">Estado</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-teal-100">
-                                      {letras.map(l => (
-                                        <tr key={l.id} className="hover:bg-white/60">
-                                          <td className="py-1.5 pr-4 font-mono">{l.numero_letra}</td>
-                                          <td className="py-1.5 pr-4 text-right font-medium">{fmt(Number(l.importe))}</td>
-                                          <td className="py-1.5 pr-4 text-gray-500">{fmtFecha(l.fecha_giro)}</td>
-                                          <td className={`py-1.5 pr-4 font-medium ${
-                                            l.estado !== 'pagada' && l.fecha_vencimiento < hoy ? 'text-red-600' : 'text-gray-700'
-                                          }`}>{fmtFecha(l.fecha_vencimiento)}</td>
-                                          <td className="py-1.5 pr-4 text-gray-400">{l.banco ?? '—'}</td>
-                                          <td className="py-1.5"><EstadoBadge estado={l.estado} /></td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                )}
+                                <DetalleLetras letras={letras} comprobante={f.comprobante} hoyISO={hoy} />
                               </div>
                             </td>
                           </tr>
@@ -732,26 +701,6 @@ function EstadoPagoBadge({ f }: { f: FacturaRow }) {
   if (pagado > 0 && saldo > 0)
     return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Parcial</span>;
   return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">Pendiente</span>;
-}
-
-function EstadoBadge({ estado }: { estado: string }) {
-  const estilos: Record<string, string> = {
-    'en_cartera': 'bg-gray-100 text-gray-600',
-    'en_banco':   'bg-teal-100 text-teal-700',
-    'pagada':     'bg-green-100 text-green-700',
-    'protestada': 'bg-red-100 text-red-700',
-  };
-  const labels: Record<string, string> = {
-    'en_cartera': 'En cartera',
-    'en_banco':   'En banco',
-    'pagada':     'Pagada',
-    'protestada': 'Protestada',
-  };
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${estilos[estado] ?? 'bg-gray-100 text-gray-500'}`}>
-      {labels[estado] ?? estado}
-    </span>
-  );
 }
 
 function ExportMenu({
