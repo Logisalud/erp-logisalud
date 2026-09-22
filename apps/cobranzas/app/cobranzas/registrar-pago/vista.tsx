@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import DesgloseDelSaldo from '@/components/DesgloseDelSaldo';
 
 interface FacturaBuscar {
   id: string;
@@ -33,6 +34,11 @@ interface Letra {
   id: string;
   numero_letra: string;
   importe: number;
+  /**
+   * Cuánto de esta letra cubre ESTA factura. Es el número que usa v_cobros
+   * para el saldo, no `importe`: una letra puede cubrir varias facturas.
+   */
+  monto_aplicado?: number;
   fecha_vencimiento: string;
   estado: string;
   banco: string | null;
@@ -477,6 +483,15 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
   const totalRetencion   = pagos.filter(p => p.tipo === 'retencion').reduce((s, p) => s + Number(p.monto), 0);
   const totalPagoReal    = pagos.filter(p => p.tipo !== 'retencion').reduce((s, p) => s + Number(p.monto), 0);
 
+  // Una factura canjeada por letras no se cancela con pagos: se cancela
+  // marcando cada letra como pagada. v_cobros lo sabe (para esas facturas el
+  // saldo es la suma de las letras que siguen pendientes) pero el desglose no,
+  // y por eso mostraba "importe − notas de crédito = 0.00" sin decir a dónde
+  // se había ido el resto.
+  const totalLetrasPagadas = letras
+    .filter(l => l.estado === 'pagada')
+    .reduce((s, l) => s + Number(l.monto_aplicado ?? l.importe), 0);
+
   return (
     <div className="min-h-screen bg-gray-50 font-poppins">
 
@@ -663,49 +678,21 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
             </div>
 
             {/* ── Desglose del saldo ──────────────────────────────────────── */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60">
-                <h3 className="font-oswald text-sm text-gray-600 tracking-wide uppercase">Desglose del saldo</h3>
-              </div>
-              <div className="px-5 py-4 space-y-2 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Importe de la factura</span>
-                  <span className="font-medium text-gray-800 tabular-nums">{fmt(Number(factura.importe_total))}</span>
-                </div>
-                {Number(factura.total_nc) > 0 && (
-                  <div className="flex justify-between items-center text-purple-700">
-                    <span>(−) Notas de crédito aplicadas</span>
-                    <span className="font-medium tabular-nums">− {fmt(Number(factura.total_nc))}</span>
-                  </div>
-                )}
-                {Number(factura.total_nd) > 0 && (
-                  <div className="flex justify-between items-center text-blue-700">
-                    <span>(+) Notas de débito aplicadas</span>
-                    <span className="font-medium tabular-nums">+ {fmt(Number(factura.total_nd))}</span>
-                  </div>
-                )}
-                {totalPagoReal > 0 && (
-                  <div className="flex justify-between items-center text-green-700">
-                    <span>(−) Pagos registrados</span>
-                    <span className="font-medium tabular-nums">− {fmt(totalPagoReal)}</span>
-                  </div>
-                )}
-                {totalRetencion > 0 && (
-                  <div className="flex justify-between items-center" style={{ color: '#4ABCC2' }}>
-                    <span>(−) Retención IGV</span>
-                    <span className="font-medium tabular-nums">− {fmt(totalRetencion)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                  <span className="font-semibold text-gray-700">(=) Saldo pendiente</span>
-                  <span className={`font-bold tabular-nums text-base ${
-                    Number(factura.saldo_pendiente) > 0 ? 'text-orange-600' : 'text-green-600'
-                  }`}>
-                    {fmt(Number(factura.saldo_pendiente))}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <DesgloseDelSaldo
+              importeTotal={Number(factura.importe_total)}
+              totalNc={Number(factura.total_nc)}
+              totalNd={Number(factura.total_nd)}
+              totalPagos={totalPagoReal}
+              totalRetencion={totalRetencion}
+              totalLetrasPagadas={totalLetrasPagadas}
+              saldoPendiente={Number(factura.saldo_pendiente)}
+              formaPago={factura.forma_pago}
+              contadoPendiente={factura.contado_pendiente}
+              fechaEmision={factura.fecha_emision}
+              tieneLetras={factura.tiene_letras}
+              letrasPagadas={letras.filter(l => l.estado === 'pagada').length}
+              letrasTotal={letras.length}
+            />
 
             {/* ── Lista de NC / ND ────────────────────────────────────────── */}
             {!cargando && ncnds.length > 0 && (
