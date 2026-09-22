@@ -95,6 +95,14 @@ role key, bypassa RLS).
   como literal* en `v_cobros`/`v_saldos` (no es `CURRENT_DATE`, a propósito:
   si fuera dinámica el corte se movería todos los días). Ver
   `supabase/migrations/20260811_pagos_estado_verificacion_bancaria.sql`.
+- **Tolerancia de céntimos** (sep-2026): una factura con saldo de hasta
+  **S/ 0.09** se trata como pagada — no suma al saldo, no suma al vencido
+  y no sale en ninguna lista de deuda. Son redondeos del vuelto o de la
+  retención, no cobranza real: había clientes figurando con 100% de
+  morosidad por 6 céntimos. Vive en `v_cobros` (el `case ... saldada`),
+  así que vale para toda la app de una sola vez. **No aplica a letras**:
+  el importe de una letra es su valor girado, no un residuo. Ver
+  `supabase/migrations/20260922_tolerancia_centimos_morosidad.sql`.
 - **Verificación bancaria de pagos** (mismo cambio, ago-2026): un pago con
   voucher entra como `pendiente_confirmar`; pasa a `confirmado` solo cuando
   la conciliación bancaria (auto o manual) lo matchea contra el extracto
