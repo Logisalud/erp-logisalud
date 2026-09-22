@@ -11,20 +11,39 @@ import { calcularDesglose, type EntradaDesglose } from '@/lib/desglose';
 const fmt = (n: number) =>
   'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
+const fmtFecha = (s: string | null) => {
+  if (!s) return 'sin fecha';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+};
+
+/** Una letra ya cobrada, para poder nombrarla en el desglose. */
+export interface LetraPagada {
+  numero_letra: string;
+  fecha_pago: string | null;
+}
+
 export interface PropsDesglose extends EntradaDesglose {
-  /** Para el "(3 de 5)" al lado de las letras pagadas. */
-  letrasPagadas?: number;
+  /**
+   * Las letras que componen el descuento, con su número y su fecha de cobro.
+   * Sin esto la línea dice cuánto se descontó pero no por qué documento —
+   * que es justamente lo que las notas de crédito sí muestran.
+   */
+  letrasPagadas?: LetraPagada[];
+  /** Cuántas letras tiene la factura en total, pagadas o no. */
   letrasTotal?: number;
 }
 
-function Fila({ etiqueta, monto, signo, clase, nota }: {
-  etiqueta: React.ReactNode; monto: number; signo: '+' | '−'; clase: string; nota?: string;
+function Fila({ etiqueta, monto, signo, clase, nota, detalle }: {
+  etiqueta: React.ReactNode; monto: number; signo: '+' | '−'; clase: string;
+  nota?: string; detalle?: React.ReactNode;
 }) {
   return (
-    <div className={`flex justify-between items-center ${clase}`}>
+    <div className={`flex justify-between items-start gap-3 ${clase}`}>
       <span>
         ({signo}) {etiqueta}
         {nota && <span className="block text-xs text-amber-600/80 mt-0.5">{nota}</span>}
+        {detalle}
       </span>
       <span className="font-medium tabular-nums shrink-0">{signo} {fmt(monto)}</span>
     </div>
@@ -67,10 +86,22 @@ export default function DesgloseDelSaldo(p: PropsDesglose) {
               <>
                 Letras pagadas{' '}
                 {p.letrasTotal ? (
-                  <span className="text-gray-400 text-xs">({p.letrasPagadas} de {p.letrasTotal})</span>
+                  <span className="text-gray-400 text-xs">
+                    ({p.letrasPagadas?.length ?? 0} de {p.letrasTotal})
+                  </span>
                 ) : null}
               </>
             }
+            detalle={p.letrasPagadas?.length ? (
+              <span className="block text-xs text-gray-400 mt-0.5 space-y-0.5">
+                {p.letrasPagadas.map(l => (
+                  <span key={l.numero_letra} className="block">
+                    <span className="font-mono text-gray-500">{l.numero_letra}</span>
+                    {' · '}pagada {fmtFecha(l.fecha_pago)}
+                  </span>
+                ))}
+              </span>
+            ) : undefined}
             monto={p.totalLetrasPagadas}
             signo="−"
             clase="text-teal-700"
