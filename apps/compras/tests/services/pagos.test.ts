@@ -72,7 +72,7 @@ describe('ejecutarPago — guard server-side de elegibilidad de pago', () => {
     const { cliente } = crearSupabaseMock([
       { data: { id: 'ob-1', codigo: 'C-0001', estado: 'en_propuesta', moneda: 'PEN', neto_a_pagar: 100 }, error: null },
       {
-        data: { propuesta_id: 'pp-1', monto_a_pagar: 100, propuestas_pago: { estado: 'pendiente_aprobacion' } },
+        data: [{ propuesta_id: 'pp-1', monto_a_pagar: 100, propuestas_pago: { estado: 'pendiente_aprobacion', created_at: '2026-08-01T00:00:00Z' } }],
         error: null,
       },
     ])
@@ -84,7 +84,7 @@ describe('ejecutarPago — guard server-side de elegibilidad de pago', () => {
   it('rechaza si la obligación ya no tiene una propuesta asociada (huérfana)', async () => {
     const { cliente } = crearSupabaseMock([
       { data: { id: 'ob-1', codigo: 'C-0001', estado: 'en_propuesta', moneda: 'PEN', neto_a_pagar: 100 }, error: null },
-      { data: null, error: null },
+      { data: [], error: null },
     ])
     vi.mocked(crearClienteServidor).mockReturnValue(cliente)
 
@@ -94,7 +94,7 @@ describe('ejecutarPago — guard server-side de elegibilidad de pago', () => {
   it('permite pagar una obligación en_propuesta cuya propuesta ya está aprobada — factura conforme + propuesta aprobada = pagable', async () => {
     const { cliente } = crearSupabaseMock([
       { data: { id: 'ob-1', codigo: 'C-0001', estado: 'en_propuesta', moneda: 'PEN', neto_a_pagar: 100 }, error: null },
-      { data: { propuesta_id: 'pp-1', monto_a_pagar: 100, propuestas_pago: { estado: 'aprobada' } }, error: null },
+      { data: [{ propuesta_id: 'pp-1', monto_a_pagar: 100, propuestas_pago: { estado: 'aprobada', created_at: '2026-08-01T00:00:00Z' } }], error: null },
       { data: { id: 'pago-1' }, error: null }, // insert pagos
       { data: null, error: null }, // insert pago_aplicacion
       { data: null, error: null }, // update obligaciones -> pagada
@@ -115,5 +115,71 @@ describe('ejecutarPago — guard server-side de elegibilidad de pago', () => {
     // Solo se llegó a leer la obligación — ninguna tabla de escritura (pagos,
     // pago_aplicacion) fue tocada.
     expect(llamadas.map((l) => l.from)).toEqual(['obligaciones'])
+  })
+})
+
+describe('ejecutarPago — una obligación que estuvo en un lote rechazado (C-0044)', () => {
+  /**
+   * El bug de producción del 2026-09-22. C-0044 estuvo en PP-2026-0014, se lo
+   * rechazaron, entró a PP-2026-0016 y ese se aprobó — dos filas en
+   * `propuesta_detalle`. La consulta pedía la fila con `.maybeSingle()`, que
+   * tolera cero filas pero FALLA con dos, y como el código trataba cualquier
+   * error como "no hay fila", Tesorería veía "Esta obligación no tiene una
+   * propuesta asociada" y no podía cerrar el lote de pagos.
+   *
+   * OJO con el alcance de estos tests: el mock de Supabase es a propósito
+   * "tonto" y su `.maybeSingle()` devuelve lo que se le ponga en la cola, así
+   * que NO reproduce el error de PostgREST ante dos filas — con el código
+   * viejo estos tests habrían pasado igual. Lo que fijan es el
+   * comportamiento nuevo: que se elija el lote vigente y que el monto salga
+   * de ese. La regla en sí se prueba en tests/domain/propuesta.test.ts, y el
+   * caso real quedó verificado contra los datos de producción.
+   */
+  const dosLotes = [
+    { propuesta_id: 'pp-14', monto_a_pagar: 1505.68, propuestas_pago: { estado: 'rechazada', created_at: '2026-09-18T01:11:07Z' } },
+    { propuesta_id: 'pp-16', monto_a_pagar: 1505.68, propuestas_pago: { estado: 'aprobada', created_at: '2026-09-18T16:21:13Z' } },
+  ]
+
+  it('paga usando el lote aprobado y NO se cae por el rechazado', async () => {
+    const { cliente } = crearSupabaseMock([
+      { data: { id: 'ob-1', codigo: 'C-0044', estado: 'en_propuesta', moneda: 'PEN', neto_a_pagar: 1505.68 }, error: null },
+      { data: dosLotes, error: null },
+      { data: { id: 'pago-1' }, error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+    ])
+    vi.mocked(crearClienteServidor).mockReturnValue(cliente)
+
+    await expect(ejecutarPago(borrador())).resolves.toEqual({ id: 'pago-1' })
+  })
+
+  it('el monto sale del lote VIGENTE, no del rechazado', async () => {
+    // Si el lote rechazado tenía otro monto (una nota de crédito posterior
+    // cambia el neto), pagar por él sería pagar de más o de menos.
+    const { cliente, llamadas } = crearSupabaseMock([
+      { data: { id: 'ob-1', codigo: 'C-0044', estado: 'en_propuesta', moneda: 'PEN', neto_a_pagar: 900 }, error: null },
+      { data: [
+        { propuesta_id: 'pp-14', monto_a_pagar: 1505.68, propuestas_pago: { estado: 'rechazada', created_at: '2026-09-18T01:11:07Z' } },
+        { propuesta_id: 'pp-16', monto_a_pagar: 900, propuestas_pago: { estado: 'aprobada', created_at: '2026-09-18T16:21:13Z' } },
+      ], error: null },
+      { data: { id: 'pago-1' }, error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+    ])
+    vi.mocked(crearClienteServidor).mockReturnValue(cliente)
+
+    await ejecutarPago(borrador())
+    const insertPago = llamadas.find((l) => l.from === 'pagos')
+    expect((insertPago as any)?.payload?.monto_total).toBe(900)
+  })
+
+  it('si el ÚNICO lote fue rechazado, no paga y lo dice con todas las letras', async () => {
+    const { cliente } = crearSupabaseMock([
+      { data: { id: 'ob-1', codigo: 'C-0044', estado: 'en_propuesta', moneda: 'PEN', neto_a_pagar: 1505.68 }, error: null },
+      { data: [dosLotes[0]], error: null },
+    ])
+    vi.mocked(crearClienteServidor).mockReturnValue(cliente)
+
+    await expect(ejecutarPago(borrador())).rejects.toThrow(/lote nuevo antes de pagarla/i)
   })
 })

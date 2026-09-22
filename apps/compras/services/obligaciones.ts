@@ -27,6 +27,7 @@ import { ERROR_EDITAR_TARDE, puedeEditarseObligacion } from '@/domain/edicion'
 import type { ProveedorDeFormulario } from '@/domain/valores-pago-directo'
 import { formatoMonto } from '@/domain/aviso-email'
 import { anioMesStorageLima } from '@/domain/fecha'
+import { propuestaVigente } from '@/domain/propuesta'
 
 export type ItemParaObligar = {
   ocItemId: string
@@ -600,13 +601,32 @@ async function mapaPropuestaDeObligacion(
   const { data: propuestas } = await supabase
     .schema('cuentas_x_pagar')
     .from('propuestas_pago')
-    .select('id, codigo, estado')
+    .select('id, codigo, estado, created_at')
     .in('id', [...new Set(filas.map((f) => f.propuesta_id))])
   const porId = new Map((propuestas ?? []).map((p: any) => [p.id, p]))
 
+  // Una obligación puede figurar en VARIOS lotes: rechazar uno libera la
+  // obligación pero le deja su fila de detalle (ver `propuestaVigente`).
+  // Antes este bucle pisaba el mapa fila por fila, así que "la propuesta"
+  // terminaba siendo la última que devolviera Postgres — sin orden
+  // garantizado. Con eso, una obligación ya aprobada podía mostrarse con el
+  // lote RECHAZADO y desaparecer del filtro `estado === 'aprobada'` de
+  // `listarPagosPorEjecutar`, o aparecer y desaparecer entre dos recargas.
+  const porObligacion = new Map<string, any[]>()
   for (const fila of filas) {
     const propuesta = porId.get(fila.propuesta_id)
-    if (propuesta) mapa.set(fila.obligacion_id, propuesta as any)
+    if (!propuesta) continue
+    porObligacion.set(fila.obligacion_id, [...(porObligacion.get(fila.obligacion_id) ?? []), propuesta])
+  }
+  for (const [obligacionId, candidatas] of porObligacion) {
+    const vigente = propuestaVigente(
+      candidatas.map((p) => ({ ...p, createdAt: p.created_at as string | null }))
+    )
+    // Si TODAS fueron rechazadas no hay lote vivo, pero igual se muestra la
+    // más reciente: la obligación volvió a `conforme` y la pantalla tiene
+    // que poder decir de dónde viene.
+    const elegida = vigente ?? [...candidatas].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]
+    if (elegida) mapa.set(obligacionId, { id: elegida.id, codigo: elegida.codigo, estado: elegida.estado })
   }
   return mapa
 }

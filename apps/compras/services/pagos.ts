@@ -6,6 +6,7 @@ import { marcarVencimientoPagado } from '@/services/financiamiento'
 import { marcarImpuestoPagado } from '@/services/impuestos'
 import { marcarServicioPagado } from '@/services/servicios'
 import { anioMesStorageLima } from '@/domain/fecha'
+import { propuestaVigente } from '@/domain/propuesta'
 
 export type BorradorPago = {
   obligacionId: string
@@ -47,18 +48,31 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
     throw new Error('Solo se puede pagar una obligación que está en una propuesta.')
   }
 
-  const { data: detalle, error: errDet } = await supabase
+  // OJO: se traen TODAS las filas, no `.maybeSingle()`. Una obligación que
+  // estuvo en un lote rechazado y después entró a otro tiene dos filas acá,
+  // y `maybeSingle()` —que tolera cero pero falla con dos— hacía que el pago
+  // muriera con "no tiene una propuesta asociada" justo cuando tenía dos.
+  // Pasó en producción con C-0044 el 2026-09-22. Ver `propuestaVigente`.
+  const { data: detalles, error: errDet } = await supabase
     .schema('cuentas_x_pagar')
     .from('propuesta_detalle')
-    .select('propuesta_id, monto_a_pagar, propuestas_pago:propuesta_id(estado)')
+    .select('propuesta_id, monto_a_pagar, propuestas_pago:propuesta_id(estado, created_at)')
     .eq('obligacion_id', borrador.obligacionId)
-    .maybeSingle()
-  if (errDet || !detalle) throw new Error('Esta obligación no tiene una propuesta asociada.')
+  if (errDet) throw new Error(`No se pudo leer la propuesta de esta obligación: ${errDet.message}`)
 
-  const propuesta = Array.isArray((detalle as any).propuestas_pago)
-    ? (detalle as any).propuestas_pago[0]
-    : (detalle as any).propuestas_pago
-  if (propuesta?.estado !== 'aprobada') {
+  const candidatos = (detalles ?? []).map((d: any) => {
+    const p = Array.isArray(d.propuestas_pago) ? d.propuestas_pago[0] : d.propuestas_pago
+    return { estado: p?.estado ?? '', createdAt: p?.created_at ?? null, montoAPagar: d.monto_a_pagar }
+  })
+  if (candidatos.length === 0) throw new Error('Esta obligación no tiene una propuesta asociada.')
+
+  const detalle = propuestaVigente(candidatos)
+  if (!detalle) {
+    throw new Error(
+      'El único lote de esta obligación fue rechazado. Hay que armarle un lote nuevo antes de pagarla.'
+    )
+  }
+  if (detalle.estado !== 'aprobada') {
     throw new Error('La propuesta de esta obligación todavía no está aprobada por Gerencia.')
   }
 
@@ -75,7 +89,7 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
     .insert({
       fecha_pago: borrador.fechaPago,
       moneda: obligacion.moneda,
-      monto_total: detalle.monto_a_pagar,
+      monto_total: detalle.montoAPagar,
       cuenta_bancaria_proveedor_id: borrador.cuentaBancariaProveedorId,
       cuenta_bancaria_proveedor_servicio_id: borrador.cuentaBancariaProveedorServicioId,
       cuenta_bancaria_empleado_id: borrador.cuentaBancariaEmpleadoId,
@@ -91,7 +105,7 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
   const { error: errAplic } = await supabase
     .schema('cuentas_x_pagar')
     .from('pago_aplicacion')
-    .insert({ pago_id: pago.id, obligacion_id: borrador.obligacionId, monto_aplicado: detalle.monto_a_pagar })
+    .insert({ pago_id: pago.id, obligacion_id: borrador.obligacionId, monto_aplicado: detalle.montoAPagar })
   if (errAplic) {
     await supabase.schema('cuentas_x_pagar').from('pagos').delete().eq('id', pago.id)
     throw new Error(`No se pudo aplicar el pago a la obligación: ${errAplic.message}`)

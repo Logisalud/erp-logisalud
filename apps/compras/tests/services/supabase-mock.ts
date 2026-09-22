@@ -8,11 +8,16 @@
  * (select/eq/in/order/limit/insert/update/delete) — todos devuelven el
  * mismo builder — y resuelve al awaitear, ya sea directo o a través de
  * `.maybeSingle()` / `.single()`.
+ *
+ * `llamadas` registra además el payload de cada `insert`/`update`, para poder
+ * afirmar QUÉ se escribió y no solo que se escribió — un pago que se registra
+ * por el monto equivocado pasaría un test que solo mira que se registró.
  */
 export type ResultadoMock = { data: any; error: any }
+export type LlamadaMock = { schema?: string; from?: string; payload?: any }
 
 export function crearSupabaseMock(cola: ResultadoMock[]) {
-  const llamadas: { schema?: string; from?: string }[] = []
+  const llamadas: LlamadaMock[] = []
   let i = 0
 
   function siguienteResultado(): ResultadoMock {
@@ -22,7 +27,7 @@ export function crearSupabaseMock(cola: ResultadoMock[]) {
     return cola[i++]
   }
 
-  function builder(ctx: { schema?: string; from?: string }) {
+  function builder(ctx: LlamadaMock) {
     const resultado = () => siguienteResultado()
     const thenable: any = {
       select: () => thenable,
@@ -31,8 +36,14 @@ export function crearSupabaseMock(cola: ResultadoMock[]) {
       order: () => thenable,
       limit: () => thenable,
       like: () => thenable,
-      insert: () => thenable,
-      update: () => thenable,
+      insert: (payload: any) => {
+        ctx.payload = payload
+        return thenable
+      },
+      update: (payload: any) => {
+        ctx.payload = payload
+        return thenable
+      },
       delete: () => thenable,
       maybeSingle: () => Promise.resolve(resultado()),
       single: () => Promise.resolve(resultado()),
@@ -45,13 +56,15 @@ export function crearSupabaseMock(cola: ResultadoMock[]) {
   const cliente: any = {
     schema: (schema: string) => ({
       from: (from: string) => {
-        llamadas.push({ schema, from })
-        return builder({ schema, from })
+        const ctx: LlamadaMock = { schema, from }
+        llamadas.push(ctx)
+        return builder(ctx)
       },
     }),
     from: (from: string) => {
-      llamadas.push({ from })
-      return builder({ from })
+      const ctx: LlamadaMock = { from }
+      llamadas.push(ctx)
+      return builder(ctx)
     },
     storage: {
       from: () => ({
