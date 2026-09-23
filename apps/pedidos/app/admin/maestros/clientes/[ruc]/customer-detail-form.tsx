@@ -159,12 +159,16 @@ export function CustomerDetailForm({
                 id="celular"
                 name="celular"
                 inputMode="tel"
+                placeholder="987654321"
                 defaultValue={cliente.whatsapp ?? ""}
                 disabled={!puedeEditar || isPending}
                 className="campo"
               />
               <p className="text-xs text-slate-600">
-                El número con el que se lo contacta. Opcional.
+                Por donde Operaciones coordina la entrega y Cobranzas llega al cliente. Sin
+                un celular válido —9 dígitos que empiecen en 9— sus pedidos no se pueden
+                enviar. Se puede dejar vacío, pero un número de prueba o mal tipeado se
+                rechaza al guardar.
               </p>
             </div>
             <div>

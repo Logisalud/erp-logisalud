@@ -959,6 +959,19 @@ El celular también sale ahora en el correo y en el Excel del pedido, en el
 bloque CLIENTE, para que quien despacha no tenga que entrar al sistema a
 buscarlo.
 
+**En el maestro de clientes se valida igual.** La ficha
+(`/admin/maestros/clientes/<ruc>`) siempre dejó editar el celular, pero
+guardaba lo que hubiera escrito: un número de prueba cargado probando —o un
+dígito de menos— quedaba en la base y el pedido de ese cliente se frenaba
+después, lejos de donde se había tipeado. Ahora la acción valida y normaliza
+con el mismo `domain/celular.ts` que usa el pedido. **Vacío se sigue
+aceptando**: 2.949 de los 3.424 clientes no tienen número y bloquear la ficha
+entera impediría corregirles la zona o la dirección.
+
+El buscador de clientes muestra el celular de cada resultado (o "Sin celular"
+en ámbar), para poder revisar cuál quedó con un número de prueba sin abrir
+ficha por ficha.
+
 ## Notificación por correo al enviar un pedido
 
 Al pasar de `DRAFT` a `SUBMITTED` se manda un correo con el detalle del

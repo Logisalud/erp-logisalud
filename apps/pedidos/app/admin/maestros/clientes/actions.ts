@@ -6,6 +6,7 @@ import {
   MENSAJE_UBIGEO_NO_RESUELTO,
   MENSAJE_UBIGEO_REQUERIDO,
 } from "@/domain/customers";
+import { errorDeCelular, normalizarCelular } from "@/domain/celular";
 import {
   addCustomerAddress,
   searchCustomersAnyState,
@@ -97,6 +98,18 @@ export async function guardarDatosDelCliente(
   const razonSocial = String(formData.get("razonSocial") ?? "").trim();
   if (!razonSocial) throw new Error("La razón social es requerida.");
 
+  // El celular se valida acá igual que en el pedido: sin esto, el maestro
+  // es la puerta por la que entra un número de prueba o mal tipeado, y el
+  // pedido de ese cliente después no sale y nadie sabe por qué. Vacío sí se
+  // acepta: hay 2.949 clientes sin número y bloquear la ficha entera por eso
+  // impediría corregirles la zona o la dirección.
+  const celularCrudo = String(formData.get("celular") ?? "").trim();
+  if (celularCrudo) {
+    const problema = errorDeCelular(celularCrudo);
+    if (problema) throw new Error(problema);
+  }
+  const celular = celularCrudo ? normalizarCelular(celularCrudo) : null;
+
   const numeroONull = (campo: string) => {
     const valor = String(formData.get(campo) ?? "").trim();
     return valor === "" ? null : Number(valor);
@@ -111,7 +124,7 @@ export async function guardarDatosDelCliente(
     zonaId: numeroONull("zonaId"),
     condicionPagoHabitualId: numeroONull("condicionPagoHabitualId"),
     estado: String(formData.get("estado") ?? "").trim(),
-    celular: String(formData.get("celular") ?? "").trim() || null,
+    celular,
     // Vacío se guarda como null y no como "": null dice "no lo tenemos",
     // que es la pregunta que se le va a hacer a esta columna cuando haya
     // que emitir el comprobante.
