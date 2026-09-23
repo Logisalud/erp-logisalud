@@ -29,6 +29,23 @@ export default async function ClientesPage() {
       </section>
 
       <section>
+        <h3 className="font-heading text-lg">Contactos</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          Los clientes que tienen celular cargado, con su canal, zona y vendedor asignado —
+          ordenados por zona y vendedor, para repartir una campaña o un envío de WhatsApp. Los
+          clientes sin celular no entran: no sirven para eso y obligan a filtrar a mano.
+        </p>
+        <div className="mt-3">
+          <a
+            href="/admin/maestros/clientes/exportar-contactos"
+            className="btn-secondary inline-flex items-center justify-center"
+          >
+            Exportar contactos (Excel)
+          </a>
+        </div>
+      </section>
+
+      <section>
         <h3 className="font-heading text-lg">Estado actual de la cartera</h3>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="card p-4">
