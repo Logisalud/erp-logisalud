@@ -9,6 +9,7 @@ import {
   soloDigitos,
 } from "@/domain/customer-search";
 import { resolveTipoComprobantePermitido } from "@/domain/customers";
+import { errorDeCelular, normalizarCelular } from "@/domain/celular";
 
 export type PendingCustomer = {
   id: string;
@@ -833,4 +834,30 @@ export async function listMisClientesNuevos(userId: string): Promise<MiClienteNu
       if (ea !== eb) return ea - eb;
       return (b.fechaSolicitud ?? "").localeCompare(a.fechaSolicitud ?? "");
     });
+}
+
+/**
+ * Carga o corrige el celular de un cliente desde la pantalla del pedido.
+ *
+ * Existe porque el celular pasó a ser obligatorio para enviar: sin poder
+ * cargarlo acá, un vendedor en la calle con un cliente que no lo tiene queda
+ * trabado y el pedido se pierde. El número se guarda normalizado (solo
+ * dígitos) — es lo que espera `submit_order` y lo que se usa para WhatsApp.
+ */
+export async function guardarCelularDeCliente(
+  customerId: string,
+  celular: string,
+): Promise<{ ok: true; celular: string } | { ok: false; error: string }> {
+  const error = errorDeCelular(celular);
+  if (error) return { ok: false, error };
+
+  const normalizado = normalizarCelular(celular);
+  const supabase = createClient();
+  const { error: dbError } = await supabase
+    .from("customers")
+    .update({ whatsapp: normalizado })
+    .eq("id", customerId);
+
+  if (dbError) return { ok: false, error: dbError.message };
+  return { ok: true, celular: normalizado };
 }

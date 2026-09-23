@@ -11,6 +11,7 @@ function data(overrides: Partial<OrderEmailData> = {}): OrderEmailData {
     cliente: {
       razonSocial: "CLINICA EJEMPLO S.A.C.",
       rucODocumento: "20100000001",
+      celular: "987654321",
       direccionEntrega: "Av. Ejemplo 123, Surco",
       ubigeo: {
         codigo: "150140",
@@ -127,6 +128,7 @@ describe("buildOrderExcel", () => {
           cliente: {
             razonSocial: "SIN DATOS",
             rucODocumento: "20100000001",
+            celular: "987654321",
             direccionEntrega: null,
             ubigeo: null,
             canal: null,
@@ -304,6 +306,7 @@ describe("cliente nuevo en el Excel", () => {
           cliente: {
             razonSocial: "BOTICA RECIEN ABIERTA E.I.R.L.",
             rucODocumento: "20600000001",
+            celular: "987654321",
             direccionEntrega: "Av. Nueva 1",
             ubigeo: null,
             canal: "Horizontal",

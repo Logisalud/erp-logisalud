@@ -21,6 +21,7 @@ const BASE: OrderEmailData = {
   cliente: {
     razonSocial: "WANKAFARMA PLUS E.I.R.L.",
     rucODocumento: "20611975121",
+    celular: "987654321",
     direccionEntrega: "CAL. MAXIMO ABRIL N° 397 CIUDAD DE DIOS",
     ubigeo: {
       codigo: "150133",

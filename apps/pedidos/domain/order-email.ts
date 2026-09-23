@@ -221,6 +221,13 @@ export type OrderEmailData = {
   cliente: {
     razonSocial: string;
     rucODocumento: string;
+    /**
+     * Por dónde se llega al cliente. Obligatorio para enviar el pedido desde
+     * el 2026-09-23, así que acá siempre hay número — sale en el correo
+     * porque quien despacha necesita coordinar la entrega sin tener que
+     * entrar al sistema a buscarlo.
+     */
+    celular: string | null;
     direccionEntrega: string | null;
     /**
      * De dónde es la dirección de entrega, resuelto contra el catálogo INEI.
@@ -442,6 +449,7 @@ export function renderOrderEmailHtml(data: OrderEmailData): string {
                       : ""),
                 )}
                 ${datoRow("RUC / documento", escapeHtml(data.cliente.rucODocumento))}
+                ${datoRow("Celular", dash(data.cliente.celular))}
                 ${datoRow("Dirección de entrega", dash(data.cliente.direccionEntrega))}
                 ${
                   data.cliente.ubigeo
@@ -569,6 +577,7 @@ export function renderOrderEmailText(data: OrderEmailData): string {
     "CLIENTE",
     `  Razón social: ${data.cliente.razonSocial}${data.cliente.esClienteNuevo ? "  [CLIENTE NUEVO]" : ""}`,
     `  RUC / documento: ${data.cliente.rucODocumento}`,
+    `  Celular: ${data.cliente.celular ?? "—"}`,
     `  Dirección de entrega: ${data.cliente.direccionEntrega ?? "—"}`,
     ...(data.cliente.ubigeo
       ? [

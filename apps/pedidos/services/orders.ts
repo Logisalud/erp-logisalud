@@ -75,6 +75,8 @@ export type OrderDetail = OrderSummary & {
     condicion_pago_habitual_id: number | null;
     /** `PENDIENTE_DE_VALIDACION` = cliente nuevo, todavía sin validar. */
     estado: string;
+    /** Obligatorio para enviar el pedido (ver domain/celular.ts). */
+    whatsapp: string | null;
   } | null;
   address: { direccion: string } | null;
   /**
@@ -183,7 +185,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail | nul
       `id, numero, estado, fecha_creacion, fecha_envio, seller_id, customer_id, customer_address_id, payment_terms_id,
       dias_credito_solicitados, ubigeo_snapshot,
       seller:sellers(nombre_completo),
-      customer:customers(razon_social, ruc_o_documento, canal_id, condicion_pago_habitual_id, estado),
+      customer:customers(razon_social, ruc_o_documento, canal_id, condicion_pago_habitual_id, estado, whatsapp),
       address:customer_addresses(direccion, ubigeo),
       payment_terms:payment_terms(nombre, permite_dias_libres)`,
     )

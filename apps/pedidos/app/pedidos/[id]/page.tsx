@@ -7,7 +7,9 @@ import { listProducts } from "@/services/products";
 import { listPaymentTerms } from "@/services/catalog";
 import { formatSoles } from "@/domain/order-email";
 import { displayRazonSocial } from "@/domain/customer-search";
+import { esCelularValido } from "@/domain/celular";
 import { OrderItemComposer } from "./order-item-composer";
+import { CelularDelCliente } from "./celular-cliente";
 import { OrderHeader } from "./order-header";
 import { ObservationForm } from "./observation-form";
 import { DeleteDraftButton } from "./delete-draft-button";
@@ -69,6 +71,9 @@ export default async function OrderDetailPage({
     .map((p) => ({ descripcion: p.descripcion, codigo_interno: p.codigo_interno }));
 
   const total = order.items.reduce((acc, item) => acc + item.total, 0);
+  // Sin celular el pedido no sale (lo frena submit_order). Se calcula acá
+  // para poder avisarlo ANTES de que el vendedor toque "Enviar pedido".
+  const celularOk = esCelularValido(order.customer?.whatsapp);
 
   return (
     // En borrador la barra de "Total del pedido / Enviar pedido" va fija al
@@ -96,6 +101,15 @@ export default async function OrderDetailPage({
             tieneLineas={order.items.length > 0}
           />
 
+          {!celularOk && (
+            <CelularDelCliente
+              orderId={order.id}
+              customerId={order.customer_id}
+              razonSocial={order.customer?.razon_social ?? "El cliente"}
+              celularActual={order.customer?.whatsapp ?? null}
+            />
+          )}
+
           <OrderItemComposer
             orderId={order.id}
             customerId={order.customer_id}
@@ -104,6 +118,7 @@ export default async function OrderDetailPage({
             sinPrecio={sinPrecio}
             observaciones={order.observations}
             esAdmin={currentUser?.roles.includes("administrador") ?? false}
+            celularOk={celularOk}
           />
 
           {/*

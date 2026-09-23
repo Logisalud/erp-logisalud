@@ -5,6 +5,7 @@ import { Combobox, type ComboboxOption } from "@/components/combobox";
 import { PaymentTermsPicker, type PaymentTermOption } from "@/components/payment-terms-picker";
 import { validarCondicionDePago } from "@/domain/payment-terms";
 import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
+import { errorDeCelular } from "@/domain/celular";
 import { MIN_SEARCH_LENGTH, displayRazonSocial } from "@/domain/customer-search";
 import { IconAlert, IconError, IconPlus, IconSpinner } from "@/components/icons";
 import {
@@ -202,6 +203,14 @@ export function NewOrderForm({
   function handleCreateCustomer() {
     setNewCustomerError(null);
     setClienteExistente(null);
+    // Desde el 2026-09-23 el pedido no sale sin celular, así que un cliente
+    // nuevo sin número nace trabado. Mejor decirlo acá que dejar que lo
+    // descubra al tocar "Enviar pedido" con el cliente adelante.
+    const errorCelular = errorDeCelular(newCustomer.celular);
+    if (errorCelular) {
+      setNewCustomerError(errorCelular);
+      return;
+    }
     startTransition(async () => {
       const resultado = await crearClienteNuevo({
         razonSocial: newCustomer.razonSocial,
@@ -422,7 +431,7 @@ export function NewOrderForm({
             <input
               className="campo"
               inputMode="tel"
-              placeholder="Celular (opcional)"
+              placeholder="Celular (obligatorio)"
               value={newCustomer.celular}
               onChange={(e) => updateNewCustomer("celular", e.target.value)}
             />

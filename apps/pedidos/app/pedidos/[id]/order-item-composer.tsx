@@ -71,6 +71,7 @@ export function OrderItemComposer({
   sinPrecio,
   observaciones,
   esAdmin,
+  celularOk,
 }: {
   orderId: string;
   customerId: string;
@@ -95,6 +96,8 @@ export function OrderItemComposer({
    * esto solo decide qué formulario se muestra.
    */
   esAdmin: boolean;
+  /** El cliente tiene un celular válido cargado. Sin eso el pedido no sale. */
+  celularOk: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -840,7 +843,7 @@ export function OrderItemComposer({
             type="button"
             onClick={enviar}
             className="btn-primary min-w-[9rem]"
-            disabled={isPending || items.length === 0}
+            disabled={isPending || items.length === 0 || !celularOk}
           >
             {isPending ? <IconSpinner className="h-5 w-5" /> : null}
             Enviar pedido
@@ -849,6 +852,11 @@ export function OrderItemComposer({
         {items.length === 0 && (
           <p className="mx-auto max-w-4xl px-4 pt-1.5 text-sm text-slate-600 sm:px-6">
             Agrega al menos un producto para poder enviarlo.
+          </p>
+        )}
+        {items.length > 0 && !celularOk && (
+          <p className="mx-auto max-w-4xl px-4 pt-1.5 text-sm text-amber-800 sm:px-6">
+            Falta el celular del cliente — cárgalo más arriba para poder enviar el pedido.
           </p>
         )}
       </div>
