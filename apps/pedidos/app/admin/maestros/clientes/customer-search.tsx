@@ -91,6 +91,19 @@ export function CustomerSearch() {
                     ? "sin dirección"
                     : `${c.direcciones} ${c.direcciones === 1 ? "dirección" : "direcciones"}`}
                 </span>
+                {/*
+                  El celular va en el listado para poder revisarlo de un
+                  vistazo: es el dato que hoy frena pedidos, y buscarlo ficha
+                  por ficha para descubrir cuál quedó con un número de prueba
+                  no es revisión, es suerte.
+                */}
+                <span className="cifra text-sm text-slate-600">
+                  {c.whatsapp ? (
+                    <>Celular {c.whatsapp}</>
+                  ) : (
+                    <span className="text-amber-800">Sin celular</span>
+                  )}
+                </span>
               </Link>
             </li>
           ))}

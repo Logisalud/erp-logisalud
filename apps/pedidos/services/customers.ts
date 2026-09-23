@@ -364,6 +364,7 @@ export type CustomerSearchHit = {
   razon_social: string;
   nombre_comercial: string | null;
   estado: string;
+  whatsapp: string | null;
   canal: { nombre: string } | null;
   zona: { nombre: string } | null;
   direcciones: number;
@@ -401,7 +402,7 @@ export async function searchCustomersAnyState(
   const { data, error } = await supabase
     .from("customers")
     .select(
-      `id, ruc_o_documento, razon_social, nombre_comercial, estado,
+      `id, ruc_o_documento, razon_social, nombre_comercial, estado, whatsapp,
        canal:sales_channels(nombre), zona:zones(nombre),
        customer_addresses(id)`,
     )
@@ -421,6 +422,7 @@ export async function searchCustomersAnyState(
     razon_social: f.razon_social,
     nombre_comercial: f.nombre_comercial,
     estado: f.estado,
+    whatsapp: f.whatsapp,
     canal: f.canal,
     zona: f.zona,
     direcciones: (f.customer_addresses ?? []).length,
