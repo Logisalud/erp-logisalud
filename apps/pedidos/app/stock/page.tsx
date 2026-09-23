@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { getCurrentUser } from "@/lib/auth/session";
 import { displayNombreProducto } from "@/domain/products";
@@ -24,13 +25,23 @@ export default async function StockPage({
   // nombra un producto. El orden por vencimiento sigue a un clic.
   const orden: StockOrden = searchParams.orden === "vencimiento" ? "vencimiento" : "producto";
 
-  const [user, resumen, page] = await Promise.all([
-    getCurrentUser(),
+  // La sesión se comprueba ANTES de consultar, y no en paralelo: el layout
+  // también manda a /login sin sesión, pero en el App Router el layout y la
+  // página se renderizan a la vez, así que su redirect no frena estas
+  // consultas. Sin sesión salían como `anon`, y `anon` no tiene permiso
+  // sobre la vista `stock_levels`: eso no es una fila menos, es un error que
+  // le ganaba al redirect y dejaba la pantalla de "No se pudo cargar" en vez
+  // de mandar a iniciar sesión otra vez. Le pasaba a un vendedor cuya sesión
+  // se vencía estando adentro.
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const [resumen, page] = await Promise.all([
     getStockResumen(),
     listStockLotes({ busqueda, pagina, orden }),
   ]);
 
-  const esAdmin = user?.roles.includes("administrador") ?? false;
+  const esAdmin = user.roles.includes("administrador");
   const href = (cambios: { pagina?: number; orden?: StockOrden }) => {
     const params = new URLSearchParams();
     if (busqueda) params.set("q", busqueda);
