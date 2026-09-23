@@ -76,6 +76,37 @@ Dos consecuencias que conviene tener presentes mientras dure:
   quedaba invisible; sin filtro, ese motivo desaparece, y varios vendedores
   no tienen zona con la cual registrarlo.
 
+## PENDIENTE: dos listas de precios, Lima y provincia
+
+Pedido del 2026-09-23. Prades (y probablemente otros proveedores) maneja
+**dos listas de precios**: una para Lima y otra para provincia. Hoy el
+precio se resuelve solo por **producto × canal**
+(`price_list_items.sales_channel_id`, ver `submit_order`), sin ninguna
+dimensión geográfica, así que las dos listas no se pueden representar.
+
+**Los datos ya alcanzan para hacerlo.** El ubigeo está cargado: los 86
+pedidos enviados tienen `ubigeo_snapshot` y 899 de 912 direcciones de
+entrega tienen ubigeo. No hace falta una limpieza previa.
+
+**Forma propuesta** (no implementada, falta definir el criterio):
+
+- Una columna `ambito` en `price_list_items`: `'LIMA'`, `'PROVINCIA'` o
+  NULL = vale para los dos. Aditivo: las filas de hoy quedan en NULL y nada
+  cambia hasta que se carguen las listas separadas.
+- `submit_order` elige según el ubigeo de la **dirección de entrega del
+  pedido**, que es a dónde va la mercadería y que el pedido ya guarda en
+  `ubigeo_snapshot`.
+
+Se descartó duplicar los canales (`Horizontal Lima` / `Horizontal
+Provincia`): el canal es un concepto comercial, no geográfico, y obligaría a
+reasignar clientes.
+
+**Lo que falta definir antes de construirlo:** qué cuenta como "Lima".
+Con los pedidos de hoy, Lima Metropolitana + Callao da 62 pedidos Lima y 24
+provincia; todo el departamento de Lima da 65 y 21. Los 3 de diferencia son
+Huaral, Cañete y similares. Hay que confirmarlo con Prades, o pedirles la
+lista exacta de distritos de cada lista.
+
 ## Supuestos pendientes de validar (Fase 6)
 
 Estos tres puntos están anotados aquí para que no se pierdan entre
