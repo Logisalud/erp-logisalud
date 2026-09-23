@@ -959,6 +959,27 @@ El celular también sale ahora en el correo y en el Excel del pedido, en el
 bloque CLIENTE, para que quien despacha no tenga que entrar al sistema a
 buscarlo.
 
+**El vendedor no podía cargarlo (`1042`).** Del 2026-09-23 al 2026-09-23,
+tocar "Guardar celular" no hacía nada **si quien lo tocaba era un vendedor**.
+La única policy de UPDATE sobre `customers` es
+`customers_update_control_o_admin`: un vendedor no puede escribir esa tabla.
+Y como **RLS esconde la fila en vez de rechazar la escritura**, el update no
+daba error — afectaba cero filas y `error` venía en null. La pantalla daba
+por guardado un número que nunca se escribió, el pedido seguía trabado y no
+había nada que leer para entender por qué. Al administrador sí le
+funcionaba, que es por lo que no se vio al probarlo.
+
+Ahora el número se guarda con la RPC `pedidos.set_customer_whatsapp`, que es
+`SECURITY DEFINER`, valida el formato del lado de la base, **toca una sola
+columna** y sólo deja hacerlo sobre un cliente que quien llama ya puede ver
+(la misma regla que la policy `customers_select`). Abrir `customers` al
+UPDATE para vendedores habría sido mucho más de lo necesario: podrían
+cambiar la razón social, el canal —que decide el precio— o el estado.
+
+La lección general, que vale para cualquier escritura de esta app: **un
+update que RLS esconde no falla, devuelve cero filas.** Dar por bueno un
+`error === null` no alcanza para decir que algo se guardó.
+
 **En el maestro de clientes se valida igual.** La ficha
 (`/admin/maestros/clientes/<ruc>`) siempre dejó editar el celular, pero
 guardaba lo que hubiera escrito: un número de prueba cargado probando —o un
