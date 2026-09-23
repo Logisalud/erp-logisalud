@@ -101,14 +101,13 @@ export default async function OrderDetailPage({
             tieneLineas={order.items.length > 0}
           />
 
-          {!celularOk && (
-            <CelularDelCliente
-              orderId={order.id}
-              customerId={order.customer_id}
-              razonSocial={order.customer?.razon_social ?? "El cliente"}
-              celularActual={order.customer?.whatsapp ?? null}
-            />
-          )}
+          <CelularDelCliente
+            orderId={order.id}
+            customerId={order.customer_id}
+            razonSocial={order.customer?.razon_social ?? "El cliente"}
+            celularActual={order.customer?.whatsapp ?? null}
+            celularOk={celularOk}
+          />
 
           <OrderItemComposer
             orderId={order.id}
