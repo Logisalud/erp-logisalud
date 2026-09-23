@@ -993,6 +993,32 @@ El buscador de clientes muestra el celular de cada resultado (o "Sin celular"
 en ámbar), para poder revisar cuál quedó con un número de prueba sin abrir
 ficha por ficha.
 
+## Una sesión vencida no puede dejar una pantalla rota
+
+`/stock` tiraba `permission denied for view stock_levels` desde el
+2026-09-10. No era un permiso mal puesto: `authenticated` tiene select sobre
+la vista y `anon` no, que es lo correcto. Lo que pasaba es que **las
+consultas salían como `anon`**, porque la sesión del vendedor se vencía
+estando adentro.
+
+El layout de `/stock` ya manda a `/login` sin sesión. Pero **en el App
+Router el layout y la página se renderizan en paralelo**, así que ese
+`redirect` no frena las consultas de la página: `page.tsx` las lanzaba en el
+mismo `Promise.all` que `getCurrentUser()`. Sin sesión, la consulta tiraba
+antes de que el redirect llegara a nada, y el error le ganaba: el vendedor
+veía "No se pudo cargar esta pantalla" en vez de la pantalla de iniciar
+sesión.
+
+Por qué sólo se rompía acá: en el resto de las pantallas lo que protege el
+dato es RLS sobre tablas, y **RLS esconde, no rechaza** — devuelve cero
+filas, no lanza, y entonces el redirect del layout sí alcanza a ganar.
+`stock_levels` es una **vista**, y una vista sin grant para `anon` da un
+error de verdad.
+
+La regla, entonces: **en una página que consulta, la sesión se comprueba
+antes de consultar, no en paralelo.** Confiar en el guard del layout alcanza
+sólo mientras ninguna consulta lance.
+
 ## Notificación por correo al enviar un pedido
 
 Al pasar de `DRAFT` a `SUBMITTED` se manda un correo con el detalle del
