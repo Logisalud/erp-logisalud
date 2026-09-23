@@ -76,6 +76,37 @@ Dos consecuencias que conviene tener presentes mientras dure:
   quedaba invisible; sin filtro, ese motivo desaparece, y varios vendedores
   no tienen zona con la cual registrarlo.
 
+## PENDIENTE: dos listas de precios, Lima y provincia
+
+Pedido del 2026-09-23. Prades (y probablemente otros proveedores) maneja
+**dos listas de precios**: una para Lima y otra para provincia. Hoy el
+precio se resuelve solo por **producto × canal**
+(`price_list_items.sales_channel_id`, ver `submit_order`), sin ninguna
+dimensión geográfica, así que las dos listas no se pueden representar.
+
+**Los datos ya alcanzan para hacerlo.** El ubigeo está cargado: los 86
+pedidos enviados tienen `ubigeo_snapshot` y 899 de 912 direcciones de
+entrega tienen ubigeo. No hace falta una limpieza previa.
+
+**Forma propuesta** (no implementada, falta definir el criterio):
+
+- Una columna `ambito` en `price_list_items`: `'LIMA'`, `'PROVINCIA'` o
+  NULL = vale para los dos. Aditivo: las filas de hoy quedan en NULL y nada
+  cambia hasta que se carguen las listas separadas.
+- `submit_order` elige según el ubigeo de la **dirección de entrega del
+  pedido**, que es a dónde va la mercadería y que el pedido ya guarda en
+  `ubigeo_snapshot`.
+
+Se descartó duplicar los canales (`Horizontal Lima` / `Horizontal
+Provincia`): el canal es un concepto comercial, no geográfico, y obligaría a
+reasignar clientes.
+
+**Lo que falta definir antes de construirlo:** qué cuenta como "Lima".
+Con los pedidos de hoy, Lima Metropolitana + Callao da 62 pedidos Lima y 24
+provincia; todo el departamento de Lima da 65 y 21. Los 3 de diferencia son
+Huaral, Cañete y similares. Hay que confirmarlo con Prades, o pedirles la
+lista exacta de distritos de cada lista.
+
 ## Supuestos pendientes de validar (Fase 6)
 
 Estos tres puntos están anotados aquí para que no se pierdan entre
@@ -850,6 +881,34 @@ RUC exacto de uno ajeno— y un administrador busca sobre todos.
 `0050` agrega índices GIN de `pg_trgm` sobre las tres columnas: un
 `ilike '%...%'` no puede usar un btree, y sin ellos cada tecleada era un
 seq scan de la cartera completa.
+
+## Decidir un descuento de un pedido que sigue en DRAFT (`1041`)
+
+Un vendedor puede pedir precio especial **mientras arma el borrador**: la
+solicitud nace con el pedido todavía en `DRAFT` y recién después él toca
+"Enviar pedido". Esa ventana siempre existió, pero duraba segundos.
+
+Desde `1040` (celular obligatorio) un borrador puede quedar parado
+indefinidamente con su solicitud pendiente, y ahí el aprobador se la
+encuentra. Al aprobarla, `decide_approval_request` llamaba a
+`reevaluate_order`, que mueve el pedido a `READY_FOR_OPERATIONS`; al
+rechazarla lo mandaba a `DRAFT`. Las dos transiciones parten de que el pedido
+**ya se envió**, y sobre un borrador `apply_order_transition` las rechaza:
+
+```
+Transición DRAFT -> READY_FOR_OPERATIONS no permitida para este usuario/estado
+```
+
+**Regla:** si el pedido sigue en `DRAFT`, la decisión se aplica sobre la línea
+(precio, decisión registrada, solicitud resuelta) y el pedido **no se mueve**.
+Todavía no se envió; cuando el vendedor lo mande, `submit_order` lo evalúa
+entero de cero. Para un pedido ya enviado no cambia nada.
+
+**Y la pantalla ya no se cae con él.** `decidirSolicitud` devuelve el fallo en
+vez de lanzarlo: cuando lanzaba, el error llegaba al error boundary y
+reemplazaba `/aprobador-comercial` entera, dejando sin ver también las otras
+solicitudes pendientes. Es lo que ya decía la convención de
+`domain/acciones.ts` y esta pantalla no la seguía.
 
 ## El celular del cliente es obligatorio para enviar (`1040`)
 
