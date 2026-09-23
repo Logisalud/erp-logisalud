@@ -851,6 +851,46 @@ RUC exacto de uno ajeno— y un administrador busca sobre todos.
 `ilike '%...%'` no puede usar un btree, y sin ellos cada tecleada era un
 seq scan de la cartera completa.
 
+## El celular del cliente es obligatorio para enviar (`1040`)
+
+Desde el **2026-09-23**, `submit_order` rechaza el pedido si el cliente no
+tiene un celular válido:
+
+```
+El cliente no tiene celular registrado. Agregalo en el pedido para poder enviarlo.
+```
+
+**Qué se considera válido:** 9 dígitos que empiezan en 9. Se valida el
+formato y no solo que haya algo escrito — un `123` anotado para salir del
+paso es tan inútil como el vacío. De los 473 clientes que ya tenían número,
+472 cumplen; el que no es un `5555555555` evidentemente inventado, que va a
+quedar bloqueado hasta que lo corrijan.
+
+**Por qué importa el número:** es por donde Operaciones coordina la entrega y
+Cobranzas llega al cliente. Antes solo se pedía al dar de alta un cliente
+nuevo, y como opcional: de 3.424 clientes, 473 lo tenían.
+
+**El impacto es grande y por eso hay una salida.** De los 86 pedidos ya
+enviados, 26 (30%) se habrían frenado. Si la única forma de cargar el
+celular fuera pedírselo a Administración, un tercio de los pedidos quedaría
+trabado con el cliente adelante. Por eso la pantalla del pedido muestra un
+recuadro para cargarlo ahí mismo (`app/pedidos/[id]/celular-cliente.tsx`) y
+el botón "Enviar pedido" queda deshabilitado hasta que esté.
+
+**Dónde vive cada cosa:**
+
+- `pedidos.submit_order` — la autoridad. Es `SECURITY DEFINER` y es lo único
+  que decide si un pedido sale.
+- `domain/celular.ts` — el formato, normalización incluida: la gente escribe
+  `987 654 321`, `+51 987654321` y `987-654-321`, y las tres son el mismo
+  número.
+- El alta de cliente nuevo ya no dice "Celular (opcional)" y valida antes de
+  crear: un cliente nuevo sin número nacería trabado.
+
+El celular también sale ahora en el correo y en el Excel del pedido, en el
+bloque CLIENTE, para que quien despacha no tenga que entrar al sistema a
+buscarlo.
+
 ## Notificación por correo al enviar un pedido
 
 Al pasar de `DRAFT` a `SUBMITTED` se manda un correo con el detalle del

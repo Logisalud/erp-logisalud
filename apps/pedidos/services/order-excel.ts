@@ -89,6 +89,7 @@ export async function buildOrderExcel(data: OrderEmailData): Promise<Buffer> {
     data.cliente.razonSocial + (data.cliente.esClienteNuevo ? "  [CLIENTE NUEVO]" : ""),
   );
   dato("RUC / documento", data.cliente.rucODocumento);
+  dato("Celular", data.cliente.celular);
   dato("Dirección de entrega", data.cliente.direccionEntrega);
   // Mismas filas que el correo: quien arma la guía de remisión trabaja con
   // el Excel, y con la calle sola no le alcanza.

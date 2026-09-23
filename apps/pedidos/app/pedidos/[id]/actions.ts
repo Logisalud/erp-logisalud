@@ -16,7 +16,11 @@ import {
   updateOrderItemQuantity,
   updatePaymentTerms,
 } from "@/services/orders";
-import { listCustomerAddresses, searchActiveCustomers } from "@/services/customers";
+import {
+  guardarCelularDeCliente,
+  listCustomerAddresses,
+  searchActiveCustomers,
+} from "@/services/customers";
 import { mensajeCambioBloqueado } from "@/domain/order-header";
 import { createApprovalRequest } from "@/services/approvals";
 import { addOrderObservation, getOrderEstado } from "@/services/order-exceptions";
@@ -318,4 +322,30 @@ export async function borrarBorrador(orderId: string) {
   // El pedido ya no existe: quedarse en /pedidos/[id] sería un 404.
   revalidatePath("/pedidos");
   redirect("/pedidos");
+}
+
+/**
+ * Carga el celular del cliente sin salir del pedido.
+ *
+ * Desde el 2026-09-23 el pedido no se envía sin celular, y la mayoría de los
+ * clientes de la cartera no lo tienen cargado. Sin esta acción el vendedor
+ * tendría que pedirle a Administración que lo cargue y volver después — con
+ * el cliente adelante y el pedido a medio hacer.
+ */
+export async function guardarCelular(
+  orderId: string,
+  customerId: string,
+  formData: FormData,
+): Promise<ResultadoAccion> {
+  try {
+    await requireUserId();
+    const celular = String(formData.get("celular") ?? "");
+    const resultado = await guardarCelularDeCliente(customerId, celular);
+    if (!resultado.ok) throw new Error(resultado.error);
+
+    revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo guardar el celular.");
+  }
 }

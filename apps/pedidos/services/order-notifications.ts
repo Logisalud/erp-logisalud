@@ -154,7 +154,12 @@ type OrderRow = {
   zona_snapshot: string | null;
   vendedor_snapshot: string | null;
   dias_credito_solicitados: number | null;
-  customer: { razon_social: string; ruc_o_documento: string; estado: string } | null;
+  customer: {
+    razon_social: string;
+    ruc_o_documento: string;
+    estado: string;
+    whatsapp: string | null;
+  } | null;
   /**
    * El vendedor VIVO, no el snapshot: los códigos son identificadores
    * estables de la empresa, y si alguno se corrige, el correo siguiente del
@@ -285,7 +290,7 @@ export async function loadOrderEmailData(
       .select(
         `numero, fecha_envio, created_at, dias_credito_solicitados,
          razon_social_snapshot, direccion_snapshot, ubigeo_snapshot, canal_snapshot, zona_snapshot, vendedor_snapshot,
-         customer:customers(razon_social, ruc_o_documento, estado),
+         customer:customers(razon_social, ruc_o_documento, estado, whatsapp),
          seller:sellers(codigo_representante, zona:zones(codigo_zona)),
          payment_terms:payment_terms(nombre)`,
       )
@@ -412,6 +417,7 @@ export async function loadOrderEmailData(
       // El snapshot manda: es lo que el pedido tenía al enviarse.
       razonSocial: order.razon_social_snapshot ?? order.customer?.razon_social ?? "—",
       rucODocumento: order.customer?.ruc_o_documento ?? "—",
+      celular: order.customer?.whatsapp ?? null,
       direccionEntrega: order.direccion_snapshot,
       ubigeo: await resolverUbigeoDelPedido(admin, order.ubigeo_snapshot),
       canal: order.canal_snapshot,

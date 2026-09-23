@@ -22,6 +22,7 @@ function buildData(overrides: Partial<OrderEmailData> = {}): OrderEmailData {
     cliente: {
       razonSocial: "CLINICA EJEMPLO S.A.C.",
       rucODocumento: "20100000001",
+      celular: "987654321",
       direccionEntrega: "Av. Ejemplo 123, Surco",
       ubigeo: {
         codigo: "150140",
@@ -140,6 +141,7 @@ describe("renderOrderEmailHtml", () => {
         cliente: {
           razonSocial: '<img src=x onerror="alert(1)">',
           rucODocumento: "20100000001",
+          celular: "987654321",
           direccionEntrega: null,
           ubigeo: null,
           canal: null,
@@ -157,6 +159,7 @@ describe("renderOrderEmailHtml", () => {
         cliente: {
           razonSocial: "CLIENTE SIN DATOS",
           rucODocumento: "20100000001",
+          celular: "987654321",
           direccionEntrega: null,
           ubigeo: null,
           canal: null,
@@ -502,6 +505,7 @@ describe("cliente nuevo", () => {
       cliente: {
         razonSocial: "BOTICA RECIEN ABIERTA E.I.R.L.",
         rucODocumento: "20600000001",
+        celular: "987654321",
         direccionEntrega: "Av. Nueva 1",
         ubigeo: null,
         canal: "Horizontal",
@@ -542,3 +546,23 @@ describe("cliente nuevo", () => {
   });
 });
 
+
+describe("el celular del cliente sale en el correo", () => {
+  // Lo pidió Operaciones el 2026-09-23, junto con hacerlo obligatorio para
+  // enviar: quien despacha tiene que poder coordinar la entrega sin entrar
+  // al sistema a buscar el número.
+  it("aparece en el HTML y en la versión de texto", () => {
+    const data = buildData();
+
+    expect(renderOrderEmailHtml(data)).toContain("987654321");
+    expect(renderOrderEmailText(data)).toContain("Celular: 987654321");
+  });
+
+  it("sin número no rompe el correo: dice —", () => {
+    // No debería pasar más (submit_order lo frena), pero los pedidos viejos
+    // siguen teniendo correos que se pueden volver a generar.
+    const data = buildData();
+    data.cliente.celular = null;
+    expect(renderOrderEmailText(data)).toContain("Celular: —");
+  });
+});
