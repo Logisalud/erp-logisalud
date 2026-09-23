@@ -853,13 +853,17 @@ export async function guardarCelularDeCliente(
   const error = errorDeCelular(celular);
   if (error) return { ok: false, error };
 
-  const normalizado = normalizarCelular(celular);
+  // Va por RPC y no por un update directo (migración 1042). La única policy
+  // de UPDATE sobre `customers` es para admin y control_pedidos: el update
+  // de un vendedor no fallaba, simplemente no afectaba ninguna fila —RLS
+  // esconde, no rechaza— y la pantalla decía que había guardado. La función
+  // es SECURITY DEFINER, toca sólo esta columna y verifica quién llama.
   const supabase = createClient();
-  const { error: dbError } = await supabase
-    .from("customers")
-    .update({ whatsapp: normalizado })
-    .eq("id", customerId);
+  const { data, error: dbError } = await supabase.rpc("set_customer_whatsapp", {
+    p_customer_id: customerId,
+    p_celular: celular,
+  });
 
   if (dbError) return { ok: false, error: dbError.message };
-  return { ok: true, celular: normalizado };
+  return { ok: true, celular: String(data ?? normalizarCelular(celular)) };
 }
