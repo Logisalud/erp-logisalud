@@ -37,6 +37,12 @@ const SECTIONS = [
     description: "Catálogo de condiciones de pago.",
   },
   {
+    href: "/admin/reportes/pedidos",
+    title: "Reporte de pedidos enviados",
+    description:
+      "Excel con una fila por línea de producto: precio de lista, precio cobrado y en qué quedó cada descuento.",
+  },
+  {
     href: "/control-pedidos/validacion-clientes",
     title: "Validación de clientes",
     description: "Aprobar o rechazar clientes nuevos solicitados por vendedores.",
