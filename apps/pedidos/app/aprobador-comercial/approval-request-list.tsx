@@ -7,6 +7,7 @@ import { decidirSolicitud } from "./actions";
 
 export function ApprovalRequestList({ requests }: { requests: ApprovalRequestWithOrder[] }) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const [openForm, setOpenForm] = useState<{ id: string; decision: "APROBAR_OTRO_PRECIO" | "SOLICITAR_INFO" } | null>(null);
   const [precio, setPrecio] = useState("");
   const [comentario, setComentario] = useState("");
@@ -16,8 +17,18 @@ export function ApprovalRequestList({ requests }: { requests: ApprovalRequestWit
   }
 
   function decidir(id: string, decision: "APROBAR" | "RECHAZAR" | "APROBAR_OTRO_PRECIO" | "SOLICITAR_INFO") {
+    setError(null);
     startTransition(async () => {
-      await decidirSolicitud(id, decision, precio ? Number(precio) : undefined, comentario || undefined);
+      const r = await decidirSolicitud(
+        id,
+        decision,
+        precio ? Number(precio) : undefined,
+        comentario || undefined,
+      );
+      if (!r.ok) {
+        setError(r.mensaje);
+        return;
+      }
       setOpenForm(null);
       setPrecio("");
       setComentario("");
@@ -25,7 +36,13 @@ export function ApprovalRequestList({ requests }: { requests: ApprovalRequestWit
   }
 
   return (
-    <ul className="flex flex-col gap-4">
+    <>
+      {error && (
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
+      <ul className="flex flex-col gap-4">
       {requests.map((r) => (
         <li key={r.id} className="card-highlight p-5">
           <p className="font-semibold">{r.order?.customer?.razon_social ?? "Cliente sin nombre"}</p>
@@ -98,6 +115,7 @@ export function ApprovalRequestList({ requests }: { requests: ApprovalRequestWit
           )}
         </li>
       ))}
-    </ul>
+      </ul>
+    </>
   );
 }

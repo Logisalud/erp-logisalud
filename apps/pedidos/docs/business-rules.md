@@ -851,6 +851,34 @@ RUC exacto de uno ajeno— y un administrador busca sobre todos.
 `ilike '%...%'` no puede usar un btree, y sin ellos cada tecleada era un
 seq scan de la cartera completa.
 
+## Decidir un descuento de un pedido que sigue en DRAFT (`1041`)
+
+Un vendedor puede pedir precio especial **mientras arma el borrador**: la
+solicitud nace con el pedido todavía en `DRAFT` y recién después él toca
+"Enviar pedido". Esa ventana siempre existió, pero duraba segundos.
+
+Desde `1040` (celular obligatorio) un borrador puede quedar parado
+indefinidamente con su solicitud pendiente, y ahí el aprobador se la
+encuentra. Al aprobarla, `decide_approval_request` llamaba a
+`reevaluate_order`, que mueve el pedido a `READY_FOR_OPERATIONS`; al
+rechazarla lo mandaba a `DRAFT`. Las dos transiciones parten de que el pedido
+**ya se envió**, y sobre un borrador `apply_order_transition` las rechaza:
+
+```
+Transición DRAFT -> READY_FOR_OPERATIONS no permitida para este usuario/estado
+```
+
+**Regla:** si el pedido sigue en `DRAFT`, la decisión se aplica sobre la línea
+(precio, decisión registrada, solicitud resuelta) y el pedido **no se mueve**.
+Todavía no se envió; cuando el vendedor lo mande, `submit_order` lo evalúa
+entero de cero. Para un pedido ya enviado no cambia nada.
+
+**Y la pantalla ya no se cae con él.** `decidirSolicitud` devuelve el fallo en
+vez de lanzarlo: cuando lanzaba, el error llegaba al error boundary y
+reemplazaba `/aprobador-comercial` entera, dejando sin ver también las otras
+solicitudes pendientes. Es lo que ya decía la convención de
+`domain/acciones.ts` y esta pantalla no la seguía.
+
 ## El celular del cliente es obligatorio para enviar (`1040`)
 
 Desde el **2026-09-23**, `submit_order` rechaza el pedido si el cliente no
