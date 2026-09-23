@@ -936,6 +936,15 @@ trabado con el cliente adelante. Por eso la pantalla del pedido muestra un
 recuadro para cargarlo ahí mismo (`app/pedidos/[id]/celular-cliente.tsx`) y
 el botón "Enviar pedido" queda deshabilitado hasta que esté.
 
+**El recuadro está siempre, tenga o no número** (desde el 2026-09-23, tarde).
+Al principio aparecía solo cuando faltaba, y el resultado era que en la
+mayoría de los pedidos el celular no se veía por ningún lado: el vendedor no
+podía comprobar si el que estaba guardado seguía siendo el bueno. Ahora el
+panel se muestra siempre — neutro con el número cargado y en ámbar cuando
+falta o no es válido — y el botón dice "Actualizar celular" en vez de
+"Guardar celular". Un número viejo hace el mismo daño que uno ausente: el
+pedido sale y Operaciones igual no llega al cliente.
+
 **Dónde vive cada cosa:**
 
 - `pedidos.submit_order` — la autoridad. Es `SECURITY DEFINER` y es lo único
