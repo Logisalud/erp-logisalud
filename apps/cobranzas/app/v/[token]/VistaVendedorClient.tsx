@@ -10,6 +10,7 @@ export interface FacturaVista {
   comprobante: string;
   cliente_ruc: string;
   razon_social: string;
+  direccion: string | null;
   distrito: string | null;
   celular: string | null;
   zona: string | null;
@@ -176,6 +177,7 @@ interface GrupoCliente {
   razon_social: string;
   distrito: string | null;
   facturas: FacturaVista[];
+  direccion: string | null;
   saldo: number;
   vencido: number;
   morosidad: number;
@@ -188,7 +190,7 @@ function agrupar(facturas: FacturaVista[]): GrupoCliente[] {
   for (const f of facturas) {
     let g = map.get(f.cliente_ruc);
     if (!g) {
-      g = { ruc: f.cliente_ruc, razon_social: f.razon_social, distrito: f.distrito, facturas: [], saldo: 0, vencido: 0, morosidad: 0 };
+      g = { ruc: f.cliente_ruc, razon_social: f.razon_social, distrito: f.distrito, direccion: f.direccion, facturas: [], saldo: 0, vencido: 0, morosidad: 0 };
       map.set(f.cliente_ruc, g);
     }
     g.facturas.push(f);
@@ -319,6 +321,14 @@ export default function VistaVendedorClient({
                   RUC {f.cliente_ruc}
                   {f.distrito && <span className="text-gray-500"> · {f.distrito}</span>}
                 </p>
+                {/*
+                  La dirección va en su propia línea y sin truncar: el
+                  vendedor la usa para ir a cobrar, y una dirección cortada a
+                  la mitad ("AV. LOS PROCERES N° 4…") no lleva a ningún lado.
+                */}
+                {f.direccion && (
+                  <p className="text-gray-500 text-[11px] mt-0.5 leading-snug">{f.direccion}</p>
+                )}
                 <div className="flex items-baseline justify-between gap-3 mt-0.5">
                   <p className="text-gray-400 text-xs font-mono shrink-0">{f.comprobante}</p>
                   {f.tiene_letras ? (
@@ -401,6 +411,10 @@ export default function VistaVendedorClient({
                             <span className="text-gray-400 text-[11px] ml-2">
                               RUC {g.ruc}{g.distrito && <> · {g.distrito}</>}
                             </span>
+                            {/* La dirección entera, en su propia línea: es a dónde hay que ir a cobrar. */}
+                            {g.direccion && (
+                              <p className="text-gray-500 text-[11px] mt-0.5 leading-snug">{g.direccion}</p>
+                            )}
                           </div>
                           <span className={`text-[11px] font-semibold shrink-0 ${g.morosidad >= 30 ? 'text-red-600' : 'text-gray-500'}`}>
                             Morosidad {g.morosidad}% · saldo {fmt(g.saldo)}

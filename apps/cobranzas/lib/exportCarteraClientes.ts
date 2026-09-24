@@ -14,10 +14,10 @@ import { fetchAll } from './fetchAll';
 export async function carteraClientesXlsx(db: SupabaseClient, vendedorId: string): Promise<{ buf: ArrayBuffer; filename: string } | null> {
   const [vendedor, clientes] = await Promise.all([
     db.from('vendedores').select('nombres, apellidos, codigo').eq('id', vendedorId).single(),
-    fetchAll<{ ruc: string; razon_social: string; distrito: string | null; codigo_zona: string | null; celular: string | null }>(
+    fetchAll<{ ruc: string; razon_social: string; direccion: string | null; distrito: string | null; codigo_zona: string | null; celular: string | null }>(
       (from, to) =>
         db.from('clientes')
-          .select('ruc, razon_social, distrito, codigo_zona, celular')
+          .select('ruc, razon_social, direccion, distrito, codigo_zona, celular')
           .eq('vendedor_actual_id', vendedorId)
           .order('razon_social')
           .range(from, to)
@@ -29,6 +29,7 @@ export async function carteraClientesXlsx(db: SupabaseClient, vendedorId: string
   const rows = clientes.map(c => ({
     'RUC':          c.ruc,
     'Razón Social': c.razon_social,
+    'Dirección':    c.direccion ?? '',
     'Distrito':     c.distrito ?? '',
     'Zona':         c.codigo_zona ?? '',
     'Celular':      c.celular ?? '',
@@ -36,7 +37,7 @@ export async function carteraClientesXlsx(db: SupabaseClient, vendedorId: string
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{ wch: 13 }, { wch: 40 }, { wch: 22 }, { wch: 10 }, { wch: 13 }];
+  ws['!cols'] = [{ wch: 13 }, { wch: 40 }, { wch: 50 }, { wch: 22 }, { wch: 10 }, { wch: 13 }];
   const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
   ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
   XLSX.utils.book_append_sheet(wb, ws, 'Cartera de Clientes');
