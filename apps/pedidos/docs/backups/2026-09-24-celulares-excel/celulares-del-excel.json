@@ -1,0 +1,366 @@
+[
+ {
+  "razon": "ISIDRO BALBIN SUELIMA MELIZA",
+  "ruc": "10462678113",
+  "celular": "991469913",
+  "zona": "HYOM01",
+  "vendedor": "JESSICA MENDOZA"
+ },
+ {
+  "razon": "BOTICA VIDANGIE EIRL",
+  "ruc": "20609460505",
+  "celular": "971390793",
+  "zona": "CHIM01",
+  "vendedor": "MILAGROS SOTO"
+ },
+ {
+  "razon": "SOLMEDICA SOLU. MED.ODONTL.INTEG. AREQUIPA EIRL",
+  "ruc": "20606494638",
+  "celular": "941042886",
+  "zona": "AREM01",
+  "vendedor": "MALENA GAONA"
+ },
+ {
+  "razon": "EGRA CORPORATION SOCIEDAD ANONIMA CERRADA",
+  "ruc": "20610353496",
+  "celular": "943747742",
+  "zona": "LIMH01",
+  "vendedor": "SUSANA RAMOS"
+ },
+ {
+  "razon": "FARMACIAS UNIDAS DEL PERU S.A.C. - FARMAPERU S.A.C.",
+  "ruc": "20602526641",
+  "celular": "992075851",
+  "zona": "LIMH07",
+  "vendedor": "KARINA BENDEZÚ"
+ },
+ {
+  "razon": "BATA BLANCA SOCIEDAD ANONIMA CERRADA",
+  "ruc": "20601633184",
+  "celular": "961533729",
+  "zona": "HYOM01",
+  "vendedor": "JESSICA MENDOZA"
+ },
+ {
+  "razon": "ARROYO CLEMENTE ROSARIO YURICO",
+  "ruc": "10450954182",
+  "celular": "992004327",
+  "zona": "HYOM02",
+  "vendedor": "FABIOLA SAMANIEGO"
+ },
+ {
+  "razon": "ESPINOZA CANDUELAS JAQUELINA",
+  "ruc": "10443028957",
+  "celular": "963951890",
+  "zona": "HYOM02",
+  "vendedor": "FABIOLA SAMANIEGO"
+ },
+ {
+  "razon": "VARGAS ANTEZANA LILIA",
+  "ruc": "10453227311",
+  "celular": "954374047",
+  "zona": "HYOM02",
+  "vendedor": "FABIOLA SAMANIEGO"
+ },
+ {
+  "razon": "BOTICA TUMI FARMA SALUD S.A.C.",
+  "ruc": "20524687284",
+  "celular": "959702934",
+  "zona": "LIMH04",
+  "vendedor": "LUPE CASTRO"
+ },
+ {
+  "razon": "ALZAMORA AGUIRRE MARCO ANTONIO",
+  "ruc": "10401106231",
+  "celular": "997478210",
+  "zona": "LIMH04",
+  "vendedor": "LUPE CASTRO"
+ },
+ {
+  "razon": "SALCEDO HIDALGO VICTOR TEODORO",
+  "ruc": "10076842391",
+  "celular": "916764506",
+  "zona": "LIMH05",
+  "vendedor": "CRISTIAN BARREDA"
+ },
+ {
+  "razon": "OSORES CUEVA FELIPE ADAN",
+  "ruc": "10100053352",
+  "celular": "998270376",
+  "zona": "LIMH07",
+  "vendedor": "KARINA BENDEZÚ"
+ },
+ {
+  "razon": "MEGAFARMACIA E.I.RL.",
+  "ruc": "20508873752",
+  "celular": "993599624",
+  "zona": "LIMH06",
+  "vendedor": "CINTHYA VILCHEZ"
+ },
+ {
+  "razon": "VILLAZANA SALVADOR SUSAN SUSI",
+  "ruc": "10470623620",
+  "celular": "930740165",
+  "zona": "LIMH06",
+  "vendedor": "CINTHYA VILCHEZ"
+ },
+ {
+  "razon": "GUEVARA LEIVA DANY ALICIA",
+  "ruc": "10062856322",
+  "celular": "990186668",
+  "zona": "LIMH07",
+  "vendedor": "KARINA BENDEZÚ"
+ },
+ {
+  "razon": "FLORES GAMARRA MARICRUZ",
+  "ruc": "10472535957",
+  "celular": "997817525",
+  "zona": "LIMH08",
+  "vendedor": "ROMINA CHAMOCHUMBI"
+ },
+ {
+  "razon": "GRUPO BARIZAL S.A.C.",
+  "ruc": "20614276071",
+  "celular": "948448029",
+  "zona": "LIMV02",
+  "vendedor": "MARYSABEL PERALTA"
+ },
+ {
+  "razon": "BOTICA AYLLU FARMA S.A.C.",
+  "ruc": "20566262712",
+  "celular": "993013167",
+  "zona": "LIMH08",
+  "vendedor": "ROMINA CHAMOCHUMBI"
+ },
+ {
+  "razon": "TORRES GABRIEL STEFANY JERALDINE",
+  "ruc": "10464810353",
+  "celular": "977197299",
+  "zona": "LIMH08",
+  "vendedor": "ROMINA CHAMOCHUMBI"
+ },
+ {
+  "razon": "VARGAS RETES DIANA MILAGROS IVONNE",
+  "ruc": "10466907834",
+  "celular": "975111199",
+  "zona": "LIMH08",
+  "vendedor": "ROMINA CHAMOCHUMBI"
+ },
+ {
+  "razon": "AMEC PHARMACEUTICAL S.A.C.",
+  "ruc": "20601435277",
+  "celular": "955053610",
+  "zona": "CHIM01",
+  "vendedor": "MILAGROS SOTO"
+ },
+ {
+  "razon": "ORDOÑEZ VARGAS MARIA BALVINA",
+  "ruc": "10082206448",
+  "celular": "933784976",
+  "zona": "LIMH06",
+  "vendedor": "CINTHYA VILCHEZ"
+ },
+ {
+  "razon": "INVERSIONES VALERIA & SOFIA",
+  "ruc": "20609920298",
+  "celular": "935329792",
+  "zona": "LIMV02",
+  "vendedor": "MARYSABEL PERALTA"
+ },
+ {
+  "razon": "ESCALANTE BUSTINZA KARINA YANETT",
+  "ruc": "10455096834",
+  "celular": "946880442",
+  "zona": "LIMH01",
+  "vendedor": "SUSANA RAMOS"
+ },
+ {
+  "razon": "GRUPO CORPORATIVO GM & L E.I.R.L.",
+  "ruc": "20609756731",
+  "celular": "972707069",
+  "zona": "TRUM03",
+  "vendedor": "OMAR QUEVEDO"
+ },
+ {
+  "razon": "ROSALES LUIS JIMMY",
+  "ruc": "10426499997",
+  "celular": "947114769",
+  "zona": "HYOM02",
+  "vendedor": "FABIOLA SAMANIEGO"
+ },
+ {
+  "razon": "EVAGELISTA RAMIREZ ROCIO PILAR",
+  "ruc": "10440341654",
+  "celular": "952945143",
+  "zona": "HYOM01",
+  "vendedor": "JESSICA MENDOZA"
+ },
+ {
+  "razon": "SEGUIL CRSIPIN JEANPIER GIMY",
+  "ruc": "10764378534",
+  "celular": "998721474",
+  "zona": "HYOM01",
+  "vendedor": "JESSICA MENDOZA"
+ },
+ {
+  "razon": "HUAMANI FERNANDEZ ANA MARIA",
+  "ruc": "10406343851",
+  "celular": "971826133",
+  "zona": "HYOM01",
+  "vendedor": "JESSICA MENDOZA"
+ },
+ {
+  "razon": "LOZANO HUALPARUCA DE PORTA MARTHA",
+  "ruc": "10200658227",
+  "celular": "930481821",
+  "zona": "HYOM02",
+  "vendedor": "FABIOLA SAMANIEGO"
+ },
+ {
+  "razon": "DISTRIBUIDORA REYAL",
+  "ruc": "20608105591",
+  "celular": "941727060",
+  "zona": "LIMV01",
+  "vendedor": "TITO MINGUILLO"
+ },
+ {
+  "razon": "INVERSIONES E IMPORTACIONES CTOVAR EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
+  "ruc": "20612366757",
+  "celular": "998064088",
+  "zona": "HYOM02",
+  "vendedor": "FABIOLA SAMANIEGO"
+ },
+ {
+  "razon": "INKAPERU FARMA S.A.C.",
+  "ruc": "20613717731",
+  "celular": "906278362",
+  "zona": "TRUM03",
+  "vendedor": "OMAR QUEVEDO"
+ },
+ {
+  "razon": "DISTRIBUCIONES MB HNOS S.A.C.",
+  "ruc": "20602253962",
+  "celular": "984769631",
+  "zona": "CUZM02",
+  "vendedor": "JENIFER MADRID"
+ },
+ {
+  "razon": "DROGUERIA BARTEL PERU S.A.C.",
+  "ruc": "20604795622",
+  "celular": "962251664",
+  "zona": "LIMV03",
+  "vendedor": "TERESA SAMANEZ"
+ },
+ {
+  "razon": "GARCIA FERNANDEZ JENNY AGRACELI",
+  "ruc": "10410309217",
+  "celular": "992544303",
+  "zona": "LIMH01",
+  "vendedor": "SUSANA RAMOS"
+ },
+ {
+  "razon": "DISTRIBUIDORA IVETTE J& M E.I.R.L.",
+  "ruc": "20600921089",
+  "celular": "960150755",
+  "zona": "LIMV01",
+  "vendedor": "TITO MINGUILLO"
+ },
+ {
+  "razon": "CORPORACION JARED S.A.C.",
+  "ruc": "20603876327",
+  "celular": "983453816",
+  "zona": "LIMH02",
+  "vendedor": "LUIS VARGAS"
+ },
+ {
+  "razon": "PHARMACEUTICAL A & A S.A.C.",
+  "ruc": "20612207233",
+  "celular": "951369366",
+  "zona": "LIMH07",
+  "vendedor": "KARINA BENDEZÚ"
+ },
+ {
+  "razon": "BOTICAS FARMA LOG E.I.R.L.",
+  "ruc": "20607411965",
+  "celular": "912345678",
+  "zona": "LIMH08",
+  "vendedor": "ROMINA CHAMOCHUMBI"
+ },
+ {
+  "razon": "SUELDO CARRASCO ROSA LINDA",
+  "ruc": "10428852813",
+  "celular": "934758168",
+  "zona": "HYOM01",
+  "vendedor": "JESSICA MENDOZA"
+ },
+ {
+  "razon": "CARHUANCHO CALDERON DANIELA YERIMAR",
+  "ruc": "10734698984",
+  "celular": "916030742",
+  "zona": "HYOM01",
+  "vendedor": "JESSICA MENDOZA"
+ },
+ {
+  "razon": "BELITO TAIPE VILMA",
+  "ruc": "10427921749",
+  "celular": "949832712",
+  "zona": "HYOM01",
+  "vendedor": "JESSICA MENDOZA"
+ },
+ {
+  "razon": "BOTICAS B&C PROFESIONALES A SU SERVICIO SAC",
+  "ruc": "20516617021",
+  "celular": "942942080",
+  "zona": "LIMH04",
+  "vendedor": "LUPE CASTRO"
+ },
+ {
+  "razon": "MEDINA ROJAS DORIS YANETH",
+  "ruc": "10420935655",
+  "celular": "921300803",
+  "zona": "CHIM01",
+  "vendedor": "MILAGROS SOTO"
+ },
+ {
+  "razon": "ROJAS LLANTOY ANTONIA",
+  "ruc": "10436960251",
+  "celular": "920503588",
+  "zona": "HYOM01",
+  "vendedor": "JESSICA MENDOZA"
+ },
+ {
+  "razon": "FARMASKINCARE E.I.R.L",
+  "ruc": "20616090128",
+  "celular": "902328562",
+  "zona": "CHIM01",
+  "vendedor": "MILAGROS SOTO"
+ },
+ {
+  "razon": "BOTICA NEWFARMA E.I.R.L",
+  "ruc": "20478198494",
+  "celular": "956407399",
+  "zona": "LIMH07",
+  "vendedor": "KARINA BENDEZÚ"
+ },
+ {
+  "razon": "CORPORACION GAMACEL E.I.R.L.",
+  "ruc": "20614078929",
+  "celular": "986808410",
+  "zona": "LIMH02",
+  "vendedor": "LUIS VARGAS"
+ },
+ {
+  "razon": "INVERSIONES MAYPER S.A.C.",
+  "ruc": "20606645202",
+  "celular": "939258330",
+  "zona": "LIMH05",
+  "vendedor": "CRISTIAN BARREDA"
+ },
+ {
+  "razon": "BK PHARMA SAC",
+  "ruc": "20613645323",
+  "celular": "967181755",
+  "zona": "LIMV03",
+  "vendedor": "TERESA SAMANEZ"
+ }
+]
