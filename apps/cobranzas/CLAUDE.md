@@ -48,6 +48,21 @@ role key, bypassa RLS).
   pantalla que muestre "de dónde sale el saldo" tiene que conocer las
   cuatro: `lib/desglose.ts` las tiene, y lo que no encaja en ninguna lo
   devuelve como diferencia a revisar en vez de tragárselo.
+- **Y hay una quinta regla que no es una rama, es un recorte:** `v_cobros`
+  envuelve el saldo en `greatest(0, …)`. Una factura **nunca baja de cero**
+  por más notas de crédito o pagos que se le apliquen. Son 189 facturas con
+  S/ 14.628 aplicados de más. Cualquier cálculo acumulado por cliente —un
+  estado de cuenta, un libro mayor— tiene que sumar ese sobrante de vuelta o
+  cierra por debajo del saldo real: le pasó a `lib/estado-cuenta.ts` la
+  primera vez que se probó (daba S/ 3.905,20 en vez de S/ 6.006,85 para
+  CORPORACION PIONERO). El saldo POR FACTURA se recorta; el saldo POR
+  CLIENTE es la suma de los recortados, no el recorte de la suma.
+- `lib/estado-cuenta.ts` arma el historial completo de un cliente como
+  extracto con saldo acumulado. No recalcula el saldo: toma el de `v_saldos`
+  como verdad y, cuando los movimientos reales no lo explican, emite una fila
+  de **ajuste con su motivo** (CONTADO al despacho, redondeo, canje en
+  letras, pagado de más, o "sin explicar"). Al 2026-09-25 las 2.497 facturas
+  caen en uno de los cinco motivos y ninguna en "sin explicar".
 - Flujos de importación pesada (Nubefact, cartera) siguen el patrón
   preview→confirm: `lib/<algo>-parser.ts` (usa `xlsx`, detecta fila de
   headers, matching difuso de columnas) + `app/api/<algo>/preview` +

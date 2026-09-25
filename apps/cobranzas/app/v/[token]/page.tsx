@@ -100,16 +100,18 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   const rucs = Array.from(new Set(facturasVisibles.map(f => f.cliente_ruc)));
   const distritoPorRuc = new Map<string, string>();
   const direccionPorRuc = new Map<string, string>();
+  const provinciaPorRuc = new Map<string, string>();
   const celularPorRuc = new Map<string, string>();
   const zonaPorRuc = new Map<string, string>();
   for (let i = 0; i < rucs.length; i += 500) {
     const { data: cls } = await db
       .from('clientes')
-      .select('ruc, direccion, distrito, celular, codigo_zona')
+      .select('ruc, direccion, distrito, provincia, celular, codigo_zona')
       .in('ruc', rucs.slice(i, i + 500));
     for (const c of cls ?? []) {
       if (c.distrito) distritoPorRuc.set(c.ruc, c.distrito);
       if (c.direccion?.trim()) direccionPorRuc.set(c.ruc, c.direccion.trim());
+      if (c.provincia?.trim()) provinciaPorRuc.set(c.ruc, c.provincia.trim());
       if (c.celular) celularPorRuc.set(c.ruc, c.celular);
       if (c.codigo_zona) zonaPorRuc.set(c.ruc, c.codigo_zona);
     }
@@ -238,6 +240,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
       razon_social: f.razon_social,
       direccion: direccionPorRuc.get(f.cliente_ruc) ?? null,
       distrito: distritoPorRuc.get(f.cliente_ruc) ?? null,
+      provincia: provinciaPorRuc.get(f.cliente_ruc) ?? null,
       celular: celularPorRuc.get(f.cliente_ruc) ?? null,
       zona: zonaPorRuc.get(f.cliente_ruc) ?? null,
       fecha_emision: f.fecha_emision,

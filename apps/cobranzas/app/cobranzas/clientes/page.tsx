@@ -318,7 +318,17 @@ export default function ClientesPage() {
                     <td className="px-3 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{c.ruc}</td>
 
                     <td className="px-3 py-3 font-medium max-w-[220px]">
-                      <span title={c.razon_social} className="line-clamp-2">{c.razon_social}</span>
+                      {/* La razón social es el acceso a su estado de cuenta: es
+                          el lugar donde uno va a buscar "¿qué pasó con este
+                          cliente?", y desde acá ya se tiene el RUC. */}
+                      <a
+                        href={`/cobranzas/clientes/${c.ruc}/estado-cuenta`}
+                        title={`${c.razon_social} — ver estado de cuenta`}
+                        className="line-clamp-2 hover:underline"
+                        style={{ color: '#276b3b' }}
+                      >
+                        {c.razon_social}
+                      </a>
                     </td>
 
                     <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">

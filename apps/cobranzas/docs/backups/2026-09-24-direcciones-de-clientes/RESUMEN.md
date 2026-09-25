@@ -66,3 +66,27 @@ Nada más dependía de ella.
   lado.
 - `lib/exportCarteraClientes.ts` — nueva columna "Dirección" en el Excel de
   "Mi cartera de clientes".
+
+
+## Segunda pasada: los distritos que faltaban (mismo día)
+
+La dirección sola no alcanzaba: `IMPORT GROUP E.I.R.L.` (RUC 20611789956)
+mostraba "Av. Los Virreyes Mza B Lote 16..." sin decir de qué distrito era.
+Le pasaba a **49 de los 371 clientes con cartera**: tenían dirección cargada
+y `distrito` en null, así que la pantalla no mostraba nada al lado del RUC.
+
+Se completaron **108 distritos** (con su provincia y departamento) desde
+Pedidos, que sí guarda el **ubigeo** de cada dirección y lo resuelve contra
+`pedidos.ubigeos`. Igual que antes, sólo se escribió donde estaba vacío.
+
+Resultado sobre la cartera con saldo: **0 clientes con dirección pero sin
+distrito** (antes 49). En total, 3.042 de 3.594 clientes tienen distrito.
+
+### Y se cambió dónde se muestra
+
+El distrito estaba al lado del RUC. Ahora va **pegado a la dirección**, que
+es donde se lee como parte de ella. Además se agrega la **provincia cuando no
+se llama igual que el distrito**: "BELLAVISTA" solo no dice si es el del
+Callao, y "BELLAVISTA · CALLAO" sí; en cambio "HUANCAYO · HUANCAYO" no agrega
+nada y se omite (helper `lugarDe`). Si el cliente no tiene dirección cargada,
+el distrito sube a la línea del RUC para no perderse.
