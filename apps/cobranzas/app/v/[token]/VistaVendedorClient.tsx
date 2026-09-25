@@ -51,6 +51,17 @@ export interface LetraVista {
   estado: 'en_cartera' | 'en_banco' | 'protestada';
 }
 
+export interface NotaCreditoVista {
+  id: string;
+  comprobante: string;
+  cliente_ruc: string;
+  razon_social: string;
+  distrito: string | null;
+  fecha_emision: string;
+  importe: number;
+  factura_comprobante: string | null; // comprobante de la factura a la que se aplicó, si se conoce
+}
+
 export interface ItemMesVista {
   id: string;
   comprobante: string;
@@ -227,7 +238,7 @@ function agruparPorZona(facturas: FacturaVista[]): GrupoZona[] {
 }
 
 export default function VistaVendedorClient({
-  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, letras, letrasDetalle, cobranzaMes, token, mostrarWhatsapp,
+  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, letras, letrasDetalle, cobranzaMes, notasCredito, notasCreditoTotal, token, mostrarWhatsapp,
 }: {
   facturas: FacturaVista[];
   hoyISO: string;
@@ -241,10 +252,12 @@ export default function VistaVendedorClient({
   /** Todas las letras de cada factura (pagadas incluidas), por documento_id. */
   letrasDetalle: Record<string, LetraDetalle[]>;
   cobranzaMes: ItemMesVista[];
+  notasCredito: NotaCreditoVista[];
+  notasCreditoTotal: number;
   token: string;
   mostrarWhatsapp: boolean;
 }) {
-  const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes' | 'zona'>('tarjetas');
+  const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes' | 'zona' | 'nc'>('tarjetas');
   // Qué tarjetas tienen el detalle de letras abierto. Arranca vacío: la
   // tarjeta tiene que seguir cabiendo en una pantalla de celular.
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
@@ -270,12 +283,13 @@ export default function VistaVendedorClient({
     </div>
   );
 
-  const opciones: { key: 'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes' | 'zona'; label: string }[] = [
+  const opciones: { key: 'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes' | 'zona' | 'nc'; label: string }[] = [
     { key: 'tarjetas', label: 'Tarjetas' },
     { key: 'tabla', label: 'Tabla' },
     { key: 'contado', label: `Contado${contado.length ? ` (${contado.length})` : ''}` },
     { key: 'letras', label: `Letras${letras.length ? ` (${letras.length})` : ''}` },
     { key: 'mes', label: `Este mes${cobranzaMes.length ? ` (${cobranzaMes.length})` : ''}` },
+    { key: 'nc', label: `Notas de Crédito${notasCredito.length ? ` (${notasCredito.length})` : ''}` },
     ...(hayVariasZonas ? [{ key: 'zona' as const, label: 'Por Zona' }] : []),
   ];
 
@@ -601,6 +615,48 @@ export default function VistaVendedorClient({
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {vista === 'nc' && (
+        <div className="max-w-2xl mx-auto mt-3">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wider" style={{ color: '#4ABCC2' }}>Notas de crédito · informativo</p>
+              <p className="text-gray-500 text-xs mt-0.5">Ya están descontadas del saldo pendiente de sus facturas.</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="font-oswald text-xl text-green-600">{fmt(notasCreditoTotal)}</p>
+              <p className="text-[11px] text-gray-400">{notasCredito.length} {notasCredito.length === 1 ? 'nota' : 'notas'}</p>
+            </div>
+          </div>
+
+          {notasCredito.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 mt-2 text-center">
+              <p className="text-gray-500 text-sm">Sin notas de crédito registradas.</p>
+            </div>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {notasCredito.map(n => (
+                <div key={n.id} className="bg-white rounded-xl border border-gray-200 px-3.5 py-2.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-gray-800 text-sm font-semibold truncate">{n.razon_social}</p>
+                    <p className="font-oswald text-base text-green-600 shrink-0">{fmt(n.importe)}</p>
+                  </div>
+                  <p className="text-gray-400 text-[11px] mt-0.5">
+                    RUC {n.cliente_ruc}{n.distrito && <span className="text-gray-500"> · {n.distrito}</span>}
+                  </p>
+                  <div className="flex items-baseline justify-between gap-3 mt-0.5">
+                    <p className="text-gray-400 text-xs font-mono">
+                      {n.comprobante}
+                      {n.factura_comprobante && <span className="text-gray-400"> · aplicada a {n.factura_comprobante}</span>}
+                    </p>
+                    <p className="text-xs text-gray-400">{fmtFecha(n.fecha_emision)}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
