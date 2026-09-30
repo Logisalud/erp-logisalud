@@ -4,7 +4,7 @@ import { Encabezado } from '@/components/nav'
 import { Money } from '@/components/money'
 import { listarPagosPlanilla } from '@/services/planilla'
 import {
-  ETIQUETA_ESTADO_PLANILLA, etiquetaPeriodo, etiquetaSecuencia, puedeCargarPlanilla,
+  ETIQUETA_ESTADO_PLANILLA, etiquetaPeriodo, etiquetaPagoPlanilla, puedeCargarPlanilla,
   puedeCorregirse, puedeDarConformidadPlanilla, puedeDarseConformidad, puedeVerPlanilla,
 } from '@/domain/planilla'
 import { ETIQUETA_ESTADO } from '@/domain/obligacion'
@@ -78,7 +78,7 @@ export default async function Planilla() {
                 <tr key={p.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
                   <td className="px-3 py-2 whitespace-nowrap font-medium">{p.codigo}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{etiquetaPeriodo(p.periodo)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{etiquetaSecuencia(p.secuencia)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{etiquetaPagoPlanilla(p)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     <Money valor={p.monto} moneda={p.moneda} />
                   </td>
@@ -105,7 +105,7 @@ export default async function Planilla() {
                       {puedeConformar && puedeDarseConformidad(p.estado) ? (
                         <BotonConformidadPlanilla
                           pagoId={p.id}
-                          resumen={`${etiquetaPeriodo(p.periodo)} · ${etiquetaSecuencia(p.secuencia)} · ${p.moneda} ${p.monto.toFixed(2)}`}
+                          resumen={`${etiquetaPeriodo(p.periodo)} · ${etiquetaPagoPlanilla(p)} · ${p.moneda} ${p.monto.toFixed(2)}`}
                         />
                       ) : null}
                       {puedeCargar && puedeCorregirse(p.estado) ? (

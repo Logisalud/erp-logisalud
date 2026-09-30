@@ -8,6 +8,7 @@ import {
 } from '@/domain/pendientes-aprobar'
 import { totalesDeLote } from '@/domain/propuesta-permisos'
 import { puedeDecidirSobre } from '@/domain/auto-aprobacion'
+import { etiquetaPagoPlanilla, etiquetaPeriodo } from '@/domain/planilla'
 
 /**
  * "Pendientes de aprobar": todo lo que espera una decisión de la persona que
@@ -86,7 +87,7 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
       ? supabase
           .schema('planilla')
           .from('pagos_planilla')
-          .select('id, codigo, estado, periodo, secuencia, monto, moneda, fecha_pago, created_at, cargado_por')
+          .select('id, codigo, estado, concepto, periodo, secuencia, trabajador, monto, moneda, fecha_pago, created_at, cargado_por')
           .in('estado', ESTADOS_QUE_ESPERAN_DECISION.planilla)
       : null,
     corre('impuesto')
@@ -157,7 +158,9 @@ export async function listarPendientesDeAprobar(): Promise<FilaPendiente[]> {
     // (ver la migración 0055): entra como fecha requerida para que una
     // planilla del 15 sin aprobar el 14 salga en rojo.
     fechaRequerida: pl.fecha_pago ?? null,
-    concepto: `Planilla ${pl.periodo} · pago ${pl.secuencia}`,
+    // Una LBS se nombra por la persona: "pago null" no le dice a Contabilidad
+    // qué está conformando, y dos LBS del mismo mes se verían iguales.
+    concepto: `${etiquetaPeriodo(pl.periodo)} · ${etiquetaPagoPlanilla(pl)}`,
     href: `/planilla/${pl.id}`,
   }))
 
