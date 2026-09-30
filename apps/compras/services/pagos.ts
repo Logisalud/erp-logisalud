@@ -7,6 +7,7 @@ import { marcarImpuestoPagado } from '@/services/impuestos'
 import { marcarServicioPagado } from '@/services/servicios'
 import { anioMesStorageLima } from '@/domain/fecha'
 import { propuestaVigente } from '@/domain/propuesta'
+import { exigirCuentaEmpresaActiva } from '@/services/cuentas-empresa'
 
 export type BorradorPago = {
   obligacionId: string
@@ -19,6 +20,9 @@ export type BorradorPago = {
    * (Pieza 4) — mostrarla y no guardarla habría sido peor que no mostrarla. */
   cuentaBancariaProveedorServicioId: string | null
   cuentaBancariaEmpleadoId: string | null
+  /** De cuál cuenta PROPIA salió la plata (migración 0075). Obligatoria acá:
+   * es el camino normal de Tesorería y el formulario ya la trae elegida. */
+  cuentaEmpresaId: string | null
   numeroVoucher: string | null
   archivoVoucher: File | null
   archivoDetraccion: File | null
@@ -36,6 +40,13 @@ export type BorradorPago = {
 export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string }> {
   const usuario = await exigirUsuario()
   const supabase = crearClienteServidor()
+
+  // Sin cuenta de origen no se cuadra el extracto, que es el motivo por el
+  // que existe el campo. Que venga vacía se ve sin ir a la base; que siga
+  // ACTIVA se chequea más abajo, después de validar la obligación.
+  if (!borrador.cuentaEmpresaId) {
+    throw new Error('Elige de qué cuenta de la empresa salió el pago.')
+  }
 
   const { data: obligacion, error: errOb } = await supabase
     .schema('cuentas_x_pagar')
@@ -76,6 +87,8 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
     throw new Error('La propuesta de esta obligación todavía no está aprobada por Gerencia.')
   }
 
+  await exigirCuentaEmpresaActiva(borrador.cuentaEmpresaId)
+
   // "El voucher cierra el ciclo" (Fase 1.9): el comprobante real del banco,
   // no solo el número a mano — sube best-effort, igual que
   // solicitudes-gasto.subirComprobante: si el upload falla (red, tamaño), el
@@ -93,6 +106,7 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
       cuenta_bancaria_proveedor_id: borrador.cuentaBancariaProveedorId,
       cuenta_bancaria_proveedor_servicio_id: borrador.cuentaBancariaProveedorServicioId,
       cuenta_bancaria_empleado_id: borrador.cuentaBancariaEmpleadoId,
+      cuenta_empresa_id: borrador.cuentaEmpresaId,
       numero_voucher: borrador.numeroVoucher,
       storage_path_voucher: storagePathVoucher,
       storage_path_detraccion: storagePathDetraccion,

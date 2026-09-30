@@ -155,6 +155,7 @@ export async function registrarPagoHistoricoAction(
       fechaPago: String(form.get('fechaPago') ?? ''),
       numeroOperacion: textoONullPH(form.get('numeroOperacion')),
       storagePathVoucher: textoONullPH(form.get('voucherPath')),
+      cuentaEmpresaId: textoONullPH(form.get('cuentaEmpresaId')),
     })
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'No se pudo registrar el pago.' }

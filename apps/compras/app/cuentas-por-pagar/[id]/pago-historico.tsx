@@ -6,6 +6,8 @@ import { excedeTamanoMaximo, mensajeArchivoDemasiadoGrande } from '@/domain/arch
 import {
   registrarPagoHistoricoAction, subirVoucherHistoricoAction, type EstadoAccion,
 } from './actions'
+import { CampoCuentaEmpresa } from '@/components/campo-cuenta-empresa'
+import type { CuentaEmpresa } from '@/domain/cuenta-empresa'
 
 /**
  * "Registrar pago ya realizado" — solo para el backlog anterior al ERP.
@@ -20,8 +22,13 @@ import {
  * del límite de body y el envío se rechazaría sin dejar error que mostrar.
  */
 export function BotonPagoHistorico({
-  obligacionId, codigo,
-}: { obligacionId: string; codigo: string }) {
+  obligacionId, codigo, cuentasEmpresa, moneda,
+}: {
+  obligacionId: string
+  codigo: string
+  cuentasEmpresa: CuentaEmpresa[]
+  moneda: string
+}) {
   const conId = registrarPagoHistoricoAction.bind(null, obligacionId)
   const [estado, dispatch] = useFormState<EstadoAccion, FormData>(conId, null)
   const [abierto, setAbierto] = useState(false)
@@ -100,6 +107,11 @@ export function BotonPagoHistorico({
           />
         </label>
       </div>
+
+      {/* Opcional: un pago de hace meses puede no tener ya quién sepa de qué
+          cuenta salió, y viene en "No sé" en vez de en la 79 — ver el
+          componente. */}
+      <CampoCuentaEmpresa cuentas={cuentasEmpresa} moneda={moneda} opcional />
 
       <label className="block text-sm">
         <span className="font-medium text-gray-800">📎 Constancia del pago</span>

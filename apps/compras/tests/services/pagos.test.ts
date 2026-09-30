@@ -29,6 +29,7 @@ function borrador(overrides: Partial<BorradorPago> = {}): BorradorPago {
     cuentaBancariaProveedorId: 'cta-1',
     cuentaBancariaProveedorServicioId: null,
     cuentaBancariaEmpleadoId: null,
+    cuentaEmpresaId: 'cta-emp-1',
     numeroVoucher: 'V-001',
     archivoVoucher: null,
     archivoDetraccion: null,
@@ -95,6 +96,7 @@ describe('ejecutarPago — guard server-side de elegibilidad de pago', () => {
     const { cliente } = crearSupabaseMock([
       { data: { id: 'ob-1', codigo: 'C-0001', estado: 'en_propuesta', moneda: 'PEN', neto_a_pagar: 100 }, error: null },
       { data: [{ propuesta_id: 'pp-1', monto_a_pagar: 100, propuestas_pago: { estado: 'aprobada', created_at: '2026-08-01T00:00:00Z' } }], error: null },
+      { data: { id: 'cta-emp-1', activo: true }, error: null }, // cuenta de origen activa
       { data: { id: 'pago-1' }, error: null }, // insert pagos
       { data: null, error: null }, // insert pago_aplicacion
       { data: null, error: null }, // update obligaciones -> pagada
@@ -144,6 +146,7 @@ describe('ejecutarPago — una obligación que estuvo en un lote rechazado (C-00
     const { cliente } = crearSupabaseMock([
       { data: { id: 'ob-1', codigo: 'C-0044', estado: 'en_propuesta', moneda: 'PEN', neto_a_pagar: 1505.68 }, error: null },
       { data: dosLotes, error: null },
+      { data: { id: 'cta-emp-1', activo: true }, error: null }, // cuenta de origen activa
       { data: { id: 'pago-1' }, error: null },
       { data: null, error: null },
       { data: null, error: null },
@@ -162,6 +165,7 @@ describe('ejecutarPago — una obligación que estuvo en un lote rechazado (C-00
         { propuesta_id: 'pp-14', monto_a_pagar: 1505.68, propuestas_pago: { estado: 'rechazada', created_at: '2026-09-18T01:11:07Z' } },
         { propuesta_id: 'pp-16', monto_a_pagar: 900, propuestas_pago: { estado: 'aprobada', created_at: '2026-09-18T16:21:13Z' } },
       ], error: null },
+      { data: { id: 'cta-emp-1', activo: true }, error: null }, // cuenta de origen activa
       { data: { id: 'pago-1' }, error: null },
       { data: null, error: null },
       { data: null, error: null },
@@ -181,5 +185,54 @@ describe('ejecutarPago — una obligación que estuvo en un lote rechazado (C-00
     vi.mocked(crearClienteServidor).mockReturnValue(cliente)
 
     await expect(ejecutarPago(borrador())).rejects.toThrow(/lote nuevo antes de pagarla/i)
+  })
+})
+
+describe('ejecutarPago — cuenta de origen (migración 0075)', () => {
+  /**
+   * Mariela necesita saber de cuál de las cuatro cuentas propias salió cada
+   * pago para cuadrar el extracto sin preguntarle a Tesorería uno por uno.
+   * En este camino —el normal, el del lote— es obligatoria: la cuenta se
+   * sabe en el momento de pagar y el formulario ya la trae elegida.
+   */
+  const aprobado = [{ propuesta_id: 'pp-1', monto_a_pagar: 100, propuestas_pago: { estado: 'aprobada', created_at: '2026-08-01T00:00:00Z' } }]
+  const obligacion = { data: { id: 'ob-1', codigo: 'C-0001', estado: 'en_propuesta', moneda: 'PEN', neto_a_pagar: 100 }, error: null }
+
+  it('sin cuenta de origen no paga, y lo dice ANTES de tocar la base', async () => {
+    const { cliente, llamadas } = crearSupabaseMock([])
+    vi.mocked(crearClienteServidor).mockReturnValue(cliente)
+
+    await expect(ejecutarPago(borrador({ cuentaEmpresaId: null }))).rejects.toThrow(/de qué cuenta de la empresa salió/i)
+    expect(llamadas).toEqual([])
+  })
+
+  it('una cuenta dada de baja no sirve, aunque el id exista', async () => {
+    // Un formulario abierto desde antes de dar de baja la cuenta podría
+    // mandar su id: la FK lo aceptaría, este chequeo no.
+    const { cliente, llamadas } = crearSupabaseMock([
+      obligacion,
+      { data: aprobado, error: null },
+      { data: { id: 'cta-emp-1', activo: false }, error: null },
+    ])
+    vi.mocked(crearClienteServidor).mockReturnValue(cliente)
+
+    await expect(ejecutarPago(borrador())).rejects.toThrow(/ya no está activa/i)
+    expect(llamadas.some((l) => l.from === 'pagos')).toBe(false)
+  })
+
+  it('el pago queda registrado CON la cuenta de la que salió', async () => {
+    const { cliente, llamadas } = crearSupabaseMock([
+      obligacion,
+      { data: aprobado, error: null },
+      { data: { id: 'cta-emp-1', activo: true }, error: null },
+      { data: { id: 'pago-1' }, error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+    ])
+    vi.mocked(crearClienteServidor).mockReturnValue(cliente)
+
+    await ejecutarPago(borrador({ cuentaEmpresaId: 'cta-emp-1' }))
+    const insertPago = llamadas.find((l) => l.from === 'pagos')
+    expect(insertPago?.payload?.cuenta_empresa_id).toBe('cta-emp-1')
   })
 })

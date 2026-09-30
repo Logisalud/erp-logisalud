@@ -107,6 +107,7 @@ export async function registrarPagoDirectoAction(_previo: EstadoFormulario, form
         fechaPago: String(form.get('fechaPagoHistorico') ?? ''),
         numeroOperacion: textoONullPD(form.get('numeroOperacionHistorico')),
         storagePathVoucher: textoONullPD(form.get('voucherHistoricoPath')),
+        cuentaEmpresaId: textoONullPD(form.get('cuentaEmpresaHistorico')),
       })
     } catch (e) {
       // El registro YA está creado: tumbarlo acá dejaría todo a medias. Se

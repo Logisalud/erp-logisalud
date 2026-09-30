@@ -758,6 +758,9 @@ export type ObligacionDetalle = ObligacionListada & {
     fecha_pago_corregida_en: string | null
     fecha_pago_corregida_motivo: string | null
     corregidaPor: string | null
+    /** De cuál cuenta propia salió (migración 0075). Null en los pagos
+     *  anteriores a esa migración y en el backlog marcado "No sé". */
+    cuentaEmpresa: { nombre: string; numeroCuenta: string } | null
   } | null
   /** Solo Pago Directo — ver anularPagoDirecto/rechazarPagoDirecto. */
   anulada_en: string | null
@@ -871,7 +874,7 @@ async function obtenerPagoDeObligacion(obligacionId: string) {
     .select(`numero_voucher, storage_path_voucher, storage_path_detraccion,
              voucher_reemplazado_cual, voucher_reemplazado_en, voucher_reemplazado_motivo,
              voucher_reemplazado_por,
-             fecha_pago, moneda,
+             fecha_pago, moneda, cuenta_empresa_id,
              fecha_pago_corregida_de, fecha_pago_corregida_en,
              fecha_pago_corregida_motivo, fecha_pago_corregida_por`)
     .eq('id', aplicacion.pago_id)
@@ -882,18 +885,38 @@ async function obtenerPagoDeObligacion(obligacionId: string) {
   // que van en consultas aparte (mismo patrón del resto del módulo).
   const reemplazadoPorId = (pago as any).voucher_reemplazado_por as string | null
   const corregidaPorId = (pago as any).fecha_pago_corregida_por as string | null
-  const [nombre, nombreCorrige] = await Promise.all([
+  const cuentaEmpresaId = (pago as any).cuenta_empresa_id as string | null
+  const [nombre, nombreCorrige, cuentaEmpresa] = await Promise.all([
     reemplazadoPorId ? nombreDePerfil(reemplazadoPorId) : Promise.resolve(null),
     corregidaPorId ? nombreDePerfil(corregidaPorId) : Promise.resolve(null),
+    cuentaEmpresaId ? cuentaEmpresaDePago(cuentaEmpresaId) : Promise.resolve(null),
   ])
   return {
     ...(pago as any),
     reemplazadoPor: nombre,
     corregidaPor: nombreCorrige,
+    cuentaEmpresa,
     // El monto que importa para la advertencia de cambio de mes es el
     // APLICADO a esta obligación, no el total del pago: uno puede cubrir varias.
     monto_aplicado: Number((aplicacion as any).monto_aplicado ?? 0),
   }
+}
+
+/**
+ * La cuenta propia de un pago, en consulta aparte y no como embed de
+ * `pagos`: si el caché de esquema de PostgREST no viera todavía la FK de la
+ * migración 0075, un embed haría fallar la consulta ENTERA del pago y la
+ * ficha dejaría de mostrarlo. Así, lo peor que pasa es que falte este dato.
+ */
+async function cuentaEmpresaDePago(id: string): Promise<{ nombre: string; numeroCuenta: string } | null> {
+  const supabase = crearClienteServidor()
+  const { data } = await supabase
+    .schema('cuentas_x_pagar')
+    .from('cuentas_bancarias_empresa')
+    .select('nombre, numero_cuenta')
+    .eq('id', id)
+    .maybeSingle()
+  return data ? { nombre: (data as any).nombre, numeroCuenta: (data as any).numero_cuenta } : null
 }
 
 async function obtenerOCBasica(ocId: string) {

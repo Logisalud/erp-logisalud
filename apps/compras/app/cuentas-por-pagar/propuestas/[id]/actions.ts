@@ -49,6 +49,7 @@ export async function ejecutarPagoAction(
     cuentaBancariaProveedorId: textoONull(form.get('cuentaBancariaProveedorId')),
     cuentaBancariaProveedorServicioId: textoONull(form.get('cuentaBancariaProveedorServicioId')),
     cuentaBancariaEmpleadoId: textoONull(form.get('cuentaBancariaEmpleadoId')),
+    cuentaEmpresaId: textoONull(form.get('cuentaEmpresaId')),
     numeroVoucher: textoONull(form.get('numeroVoucher')),
     archivoVoucher: archivoVoucher instanceof File ? archivoVoucher : null,
     archivoDetraccion: archivoDetraccion instanceof File ? archivoDetraccion : null,

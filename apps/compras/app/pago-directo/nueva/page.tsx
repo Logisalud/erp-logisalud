@@ -1,6 +1,7 @@
 import { Encabezado } from '@/components/nav'
 import { listarCategoriasPagoDirecto } from '@/services/obligaciones'
 import { FormularioPagoDirecto } from './formulario'
+import { listarCuentasEmpresa } from '@/services/cuentas-empresa'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,10 @@ export const dynamic = 'force-dynamic'
  * puede pedir que la empresa pague directo, Contabilidad revisa y da
  * conformidad después. */
 export default async function NuevoPagoDirecto() {
-  const categorias = await listarCategoriasPagoDirecto()
+  const [categorias, cuentasEmpresa] = await Promise.all([
+    listarCategoriasPagoDirecto(),
+    listarCuentasEmpresa(),
+  ])
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -22,7 +26,7 @@ export default async function NuevoPagoDirecto() {
         factura real; Contabilidad revisa y da conformidad antes de que entre a una propuesta
         de pago.
       </p>
-      <FormularioPagoDirecto categorias={categorias} />
+      <FormularioPagoDirecto categorias={categorias} cuentasEmpresa={cuentasEmpresa} />
     </main>
   )
 }

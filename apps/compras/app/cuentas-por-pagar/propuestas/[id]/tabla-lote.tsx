@@ -5,6 +5,7 @@ import { totalesDeLote } from '@/domain/propuesta-permisos'
 import { FormularioPago, type TipoCuentas } from './pago'
 import { BadgeFaltaCuenta } from '@/components/badge-falta-cuenta'
 import type { PropuestaDetalle } from '@/services/propuestas'
+import type { CuentaEmpresa } from '@/domain/cuenta-empresa'
 
 /**
  * El lote: sus totales y su detalle línea por línea. Lo comparten DOS
@@ -21,10 +22,13 @@ import type { PropuestaDetalle } from '@/services/propuestas'
  * el orden en que pasan.
  */
 export function TablaLote({
-  propuesta, conPago,
+  propuesta, conPago, cuentasEmpresa = [],
 }: {
   propuesta: PropuestaDetalle
   conPago: boolean
+  /** Solo hace falta con `conPago`: son las cuentas propias de las que puede
+   * salir cada pago. La pantalla de aprobar no las pide. */
+  cuentasEmpresa?: CuentaEmpresa[]
 }) {
   const aprobada = propuesta.estado === 'aprobada'
   const totales = totalesDeLote(
@@ -161,6 +165,8 @@ export function TablaLote({
                             obligacionId={d.obligacionId}
                             cuentas={d.cuentas}
                             tipoCuentas={tipoCuentas}
+                            cuentasEmpresa={cuentasEmpresa}
+                            moneda={d.moneda}
                           />
                         </div>
                       </td>
