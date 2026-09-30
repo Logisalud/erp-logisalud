@@ -6,7 +6,7 @@ import { calcularDescuento } from '@/lib/descuento';
 import { cobranzaDelMes } from '@/lib/cobranzaDelMes';
 import BotonImprimir from './BotonImprimir';
 import RegistrarAcceso from './RegistrarAcceso';
-import VistaVendedorClient, { FacturaVista, LetraVista } from './VistaVendedorClient';
+import VistaVendedorClient, { FacturaVista, LetraVista, NotaCreditoVista } from './VistaVendedorClient';
 import { LetraDetalle } from '@/components/DetalleLetras';
 
 // Filtro SOLO de presentación en la vista del vendedor: se ocultan facturas
@@ -181,6 +181,57 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   const hoyISO = hoyISOLima();
   const cobranzaMes = await cobranzaDelMes(db, vendedor.id, hoyISO);
 
+  // Notas de crédito (tipo '07') de TODA la cartera del vendedor, no solo de
+  // las facturas con saldo pendiente: una NC puede haber saldado por completo
+  // una factura que ya no aparece en facturasVisibles, y sigue siendo relevante
+  // para el vendedor verla en su historial.
+  const clientesVendedor = await fetchAll<{ ruc: string; razon_social: string; distrito: string | null }>((from, to) =>
+    db.from('clientes')
+      .select('ruc, razon_social, distrito')
+      .eq('vendedor_actual_id', vendedor!.id)
+      .range(from, to)
+  );
+  const clientePorRuc = new Map(clientesVendedor.map(c => [c.ruc, c]));
+  const rucsVendedor = clientesVendedor.map(c => c.ruc);
+
+  const notasCreditoRaw: { id: string; serie: string; numero: number; cliente_ruc: string; fecha_emision: string; importe_total: number; documento_relacionado_id: string | null }[] = [];
+  for (let i = 0; i < rucsVendedor.length; i += 500) {
+    const chunk = rucsVendedor.slice(i, i + 500);
+    const rows = await fetchAll<{ id: string; serie: string; numero: number; cliente_ruc: string; fecha_emision: string; importe_total: number; documento_relacionado_id: string | null }>((from, to) =>
+      db.from('documentos')
+        .select('id, serie, numero, cliente_ruc, fecha_emision, importe_total, documento_relacionado_id')
+        .eq('tipo', '07')
+        .eq('anulado', false)
+        .in('cliente_ruc', chunk)
+        .range(from, to)
+    );
+    notasCreditoRaw.push(...rows);
+  }
+
+  const idsFacturaRelacionada = Array.from(new Set(notasCreditoRaw.map(n => n.documento_relacionado_id).filter((x): x is string => !!x)));
+  const facturaComprobantePorId = new Map<string, string>();
+  for (let i = 0; i < idsFacturaRelacionada.length; i += 500) {
+    const { data } = await db.from('documentos').select('id, serie, numero').in('id', idsFacturaRelacionada.slice(i, i + 500));
+    for (const d of data ?? []) facturaComprobantePorId.set(d.id, `${d.serie}-${d.numero}`);
+  }
+
+  const notasCredito: NotaCreditoVista[] = notasCreditoRaw
+    .map(n => {
+      const cliente = clientePorRuc.get(n.cliente_ruc);
+      return {
+        id: n.id,
+        comprobante: `${n.serie}-${n.numero}`,
+        cliente_ruc: n.cliente_ruc,
+        razon_social: cliente?.razon_social ?? n.cliente_ruc,
+        distrito: cliente?.distrito ?? null,
+        fecha_emision: n.fecha_emision,
+        importe: Number(n.importe_total) || 0,
+        factura_comprobante: n.documento_relacionado_id ? (facturaComprobantePorId.get(n.documento_relacionado_id) ?? null) : null,
+      };
+    })
+    .sort((a, b) => (b.fecha_emision ?? '').localeCompare(a.fecha_emision ?? ''));
+  const notasCreditoTotal = notasCredito.reduce((s, n) => s + n.importe, 0);
+
   const facturaPorId = new Map(facturasVisibles.map(f => [f.id, f]));
   const letrasVista: LetraVista[] = [];
   for (const [documentoId, letrasDoc] of letrasPorDoc.entries()) {
@@ -323,6 +374,8 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
           letras={letrasVista}
           letrasDetalle={letrasDetallePorDoc}
           cobranzaMes={cobranzaMes}
+          notasCredito={notasCredito}
+          notasCreditoTotal={notasCreditoTotal}
           token={token}
           mostrarWhatsapp={vendedor.piloto_whatsapp}
         />
