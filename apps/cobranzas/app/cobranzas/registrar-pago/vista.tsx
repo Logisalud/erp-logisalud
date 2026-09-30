@@ -55,9 +55,16 @@ interface Pago {
   tipo?: 'pago' | 'retencion';
   registrado_por?: string | null;
   medio_cobro?: 'transferencia' | 'efectivo';
+  cuenta_bancaria_codigo?: string | null;
   estado_efectivo?: 'cobrado_por_depositar' | 'depositado' | null;
   fecha_deposito?: string | null;
   voucher_deposito_path?: string | null;
+}
+
+interface CuentaBancaria {
+  codigo_interno: string;
+  banco: string;
+  numero_cuenta: string;
 }
 
 interface PagoBuscar {
@@ -141,6 +148,8 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
   const [referencia, setReferencia]     = useState('');
   const [registradoPor, setRegistradoPor] = useState('');
   const [medioCobro, setMedioCobro]     = useState<'transferencia' | 'efectivo'>('transferencia');
+  const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([]);
+  const [cuentaBancaria, setCuentaBancaria] = useState('');
   const [archivo, setArchivo]           = useState<File | null>(null);
   const [voucherPath, setVoucherPath]   = useState<string | null>(null);
   const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
@@ -170,6 +179,13 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
   useEffect(() => {
     const guardado = localStorage.getItem('registrado_por');
     if (guardado) setRegistradoPor(guardado);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/cuentas-bancarias', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setCuentasBancarias(d.cuentas ?? []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -225,7 +241,7 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
     setErrMsg(''); setExitoMsg('');
     setLetraSelId(null); setMonto(''); setFechaPago(hoy()); setReferencia('');
     setArchivo(null); setVoucherPath(null); setPreviewUrl(null);
-    setEditandoId(null); setTogContado(false); setMedioCobro('transferencia');
+    setEditandoId(null); setTogContado(false); setMedioCobro('transferencia'); setCuentaBancaria('');
     // Fetch fresco para no mostrar el saldo cacheado del buscador
     const res = await fetch(`/api/facturas/${f.id}`, { cache: 'no-store' });
     const d   = await res.json();
@@ -298,7 +314,7 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
     setLetraSelId(null);
     setConRetencion(false); setRetencion('');
     setModoSoloRet(false); setSoloRetMonto('');
-    setMedioCobro('transferencia');
+    setMedioCobro('transferencia'); setCuentaBancaria('');
   };
 
   // Al activar la retención: precarga el 3% del importe total y sugiere el
@@ -333,6 +349,9 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
     if (!monto || Number(monto) <= 0)  { setErrMsg('El monto debe ser mayor a 0.');        return; }
     if (conRetencion && Number(retencion) <= 0) { setErrMsg('La retención debe ser mayor a 0.'); return; }
     if (!registradoPor.trim()) { setErrMsg('Indica quién registra este pago.'); return; }
+    if (medioCobro === 'transferencia' && cuentasBancarias.length > 0 && !cuentaBancaria) {
+      setErrMsg('Indica a qué cuenta llegó el pago.'); return;
+    }
     localStorage.setItem('registrado_por', registradoPor.trim());
     enviandoRef.current = true;
     setGuardando(true); setErrMsg(''); setExitoMsg('');
@@ -349,6 +368,7 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
           medio_cobro: medioCobro,
           ...(voucherPath ? { voucher_path: voucherPath } : {}),
           ...(conRetencion && Number(retencion) > 0 ? { retencion: Number(retencion) } : {}),
+          ...(medioCobro === 'transferencia' && cuentaBancaria ? { cuenta_bancaria_codigo: cuentaBancaria } : {}),
         }),
       });
       const d = await res.json();
@@ -859,6 +879,23 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
                       </p>
                     )}
                   </div>
+                  {medioCobro === 'transferencia' && cuentasBancarias.length > 0 && (
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">¿A qué cuenta llegó el pago? *</label>
+                      <select
+                        value={cuentaBancaria}
+                        onChange={e => setCuentaBancaria(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                      >
+                        <option value="">Selecciona una cuenta…</option>
+                        {cuentasBancarias.map(c => (
+                          <option key={c.codigo_interno} value={c.codigo_interno}>
+                            {c.banco === 'Interbank Soles' ? `Yape / Plin — ${c.banco}` : c.banco} (cuenta ···{c.numero_cuenta.slice(-2)})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Monto *</label>
@@ -1128,6 +1165,11 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
                             <p className="text-xs text-gray-400">
                               {fmtFecha(p.fecha_pago)}
                               {p.referencia && <> · <span className="text-gray-500">{p.referencia}</span></>}
+                              {p.cuenta_bancaria_codigo && (
+                                <> · <span className="text-gray-500">
+                                  {cuentasBancarias.find(c => c.codigo_interno === p.cuenta_bancaria_codigo)?.banco ?? p.cuenta_bancaria_codigo}
+                                </span></>
+                              )}
                               {p.registrado_por && <> · registrado por <span className="text-gray-500">{p.registrado_por}</span></>}
                             </p>
                             {p.medio_cobro === 'efectivo' && (
