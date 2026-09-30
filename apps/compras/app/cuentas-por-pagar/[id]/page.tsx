@@ -20,6 +20,8 @@ import { ETIQUETA_ESTADO_VENCIMIENTO, puedePagarseEnCuotas } from '@/domain/fina
 import { BotonConformidad } from './conformidad'
 import { BotonAnularPagoDirecto, BotonRechazarPagoDirecto } from './acciones-pago-directo'
 import { BotonPagoHistorico } from './pago-historico'
+import { listarCuentasEmpresa } from '@/services/cuentas-empresa'
+import { etiquetaCuentaEmpresa } from '@/domain/cuenta-empresa'
 import { BotonReemplazarConstancia } from './reemplazar-constancia'
 import { BotonCorregirFechaPago } from './corregir-fecha-pago'
 import { etiquetaReemplazo, puedeReemplazarConstancia } from '@/domain/reemplazo-constancia'
@@ -108,6 +110,9 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
     obligacion.estado,
     obligacion.categoriaPagoDirecto?.nombre ?? null
   )
+  // Solo se piden si el botón va a aparecer: la inmensa mayoría de las fichas
+  // no lo muestran y no tiene sentido una consulta más por cada una.
+  const cuentasEmpresa = puedePagoHistorico ? await listarCuentasEmpresa() : []
   const puedeAnular = origenCortable && puedeAnularseObligacion(obligacion.estado)
   // "Rechazar" es la contraparte de "Dar conformidad", así que lo ve quien
   // puede conformar: Contabilidad rol admin (mismo criterio de la Fase 1.7).
@@ -162,7 +167,12 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           </Link>
         ) : null}
         {puedePagoHistorico ? (
-          <BotonPagoHistorico obligacionId={obligacion.id} codigo={obligacion.codigo} />
+          <BotonPagoHistorico
+            obligacionId={obligacion.id}
+            codigo={obligacion.codigo}
+            cuentasEmpresa={cuentasEmpresa}
+            moneda={obligacion.moneda}
+          />
         ) : null}
         {obligacion.estado === 'registrada' && !puedePagoHistorico ? (
           <p className="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-900">
@@ -221,6 +231,19 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
             <span className="text-gray-600">
               {obligacion.pago.numero_voucher ? `Voucher N° ${obligacion.pago.numero_voucher}` : 'Pagada'}
+            </span>
+            {/* De dónde salió. "sin registrar" en vez de esconderlo: los
+                pagos anteriores a la migración 0075 no lo tienen, y que no
+                aparezca nada se confundiría con un error de pantalla. */}
+            <span className="text-gray-600">
+              Pagado desde{' '}
+              {obligacion.pago.cuentaEmpresa ? (
+                <strong className="font-medium text-gray-800">
+                  {etiquetaCuentaEmpresa(obligacion.pago.cuentaEmpresa)}
+                </strong>
+              ) : (
+                <span className="text-gray-400">sin registrar</span>
+              )}
             </span>
             {obligacion.pago.storage_path_voucher ? (
               <VerVoucher storagePath={obligacion.pago.storage_path_voucher} etiqueta="Ver voucher" />

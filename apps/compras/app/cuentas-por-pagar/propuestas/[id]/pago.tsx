@@ -4,6 +4,8 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { ejecutarPagoAction, type EstadoAccion } from './actions'
 import { CampoArchivo } from '@/components/campo-archivo'
 import { hoyLima } from '@/domain/fecha'
+import { CampoCuentaEmpresa } from '@/components/campo-cuenta-empresa'
+import type { CuentaEmpresa } from '@/domain/cuenta-empresa'
 
 type CuentaBancaria = { id: string; banco: string; numero_cuenta: string; moneda: string; es_principal: boolean }
 
@@ -16,11 +18,15 @@ const CAMPO_POR_TIPO: Record<TipoCuentas, string> = {
 }
 
 export function FormularioPago({
-  propuestaId, obligacionId, cuentas, tipoCuentas,
+  propuestaId, obligacionId, cuentas, tipoCuentas, cuentasEmpresa, moneda,
 }: {
   propuestaId: string
   obligacionId: string
   cuentas: CuentaBancaria[]
+  /** Las cuentas PROPIAS de las que puede salir el pago (migración 0075). */
+  cuentasEmpresa: CuentaEmpresa[]
+  /** Moneda de la obligación — decide qué cuenta de origen viene elegida. */
+  moneda: string
   /** A quién pertenecen `cuentas` — decide qué columna de cuentas_x_pagar.pagos
    * se llena (las tres son excluyentes entre sí). */
   tipoCuentas: TipoCuentas
@@ -34,7 +40,9 @@ export function FormularioPago({
       <input type="hidden" name="obligacionId" value={obligacionId} />
       {estado?.error ? <p className="text-sm text-red-700">{estado.error}</p> : null}
 
-      <div className="grid gap-2 sm:grid-cols-3">
+      {/* Dos filas: arriba el cuándo y el número; abajo el DE DÓNDE y el A
+          DÓNDE, uno al lado del otro, que es como se lee un pago. */}
+      <div className="grid gap-2 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="text-gray-600">Fecha de pago</span>
           <input
@@ -43,6 +51,14 @@ export function FormularioPago({
             className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
         </label>
+        <label className="block text-sm">
+          {/* Lenguaje Ubicuo: Tesorería lo llama "N° de operación". El
+              campo y la columna siguen siendo `numeroVoucher` /
+              `numero_voucher` — esto es solo la etiqueta. */}
+          <span className="text-gray-600">N° de operación</span>
+          <input type="text" name="numeroVoucher" className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3" />
+        </label>
+        <CampoCuentaEmpresa cuentas={cuentasEmpresa} moneda={moneda} />
         {cuentas.length > 0 ? (
           <label className="block text-sm">
             <span className="text-gray-600">Cuenta destino</span>
@@ -57,17 +73,10 @@ export function FormularioPago({
             </select>
           </label>
         ) : tipoCuentas === 'empleado' ? (
-          <p className="text-xs text-amber-700 sm:col-span-2">
+          <p className="self-end text-xs text-amber-700">
             {'El beneficiario todavía no cargó su cuenta bancaria en "Mi cuenta bancaria".'}
           </p>
         ) : null}
-        <label className="block text-sm">
-          {/* Lenguaje Ubicuo: Tesorería lo llama "N° de operación". El
-              campo y la columna siguen siendo `numeroVoucher` /
-              `numero_voucher` — esto es solo la etiqueta. */}
-          <span className="text-gray-600">N° de operación</span>
-          <input type="text" name="numeroVoucher" className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3" />
-        </label>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">

@@ -4,6 +4,7 @@ import { obtenerPropuesta } from '@/services/propuestas'
 import { puedeVerPagosPorEjecutar } from '@/services/pagos-por-ejecutar'
 import { ETIQUETA_ESTADO_PROPUESTA } from '@/domain/propuesta'
 import { TablaLote } from '@/app/cuentas-por-pagar/propuestas/[id]/tabla-lote'
+import { listarCuentasEmpresa } from '@/services/cuentas-empresa'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,10 @@ export default async function RegistrarPagosDelLote({ params }: { params: { id: 
     )
   }
 
-  const propuesta = await obtenerPropuesta(params.id)
+  const [propuesta, cuentasEmpresa] = await Promise.all([
+    obtenerPropuesta(params.id),
+    listarCuentasEmpresa(),
+  ])
   if (!propuesta) notFound()
 
   const atras = { href: '/pagos-por-ejecutar', texto: 'Pagos por ejecutar' }
@@ -62,7 +66,7 @@ export default async function RegistrarPagosDelLote({ params }: { params: { id: 
         <span className="text-sm font-medium">{ETIQUETA_ESTADO_PROPUESTA[propuesta.estado]}</span>
       </div>
 
-      <TablaLote propuesta={propuesta} conPago />
+      <TablaLote propuesta={propuesta} conPago cuentasEmpresa={cuentasEmpresa} />
     </main>
   )
 }

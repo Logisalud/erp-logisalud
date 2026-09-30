@@ -18,6 +18,8 @@ import { excedeTamanoMaximo, mensajeArchivoDemasiadoGrande } from '@/domain/arch
 import { advertenciasPagoDirecto, esCategoriaDeBacklog } from '@/domain/obligacion'
 import { subirVoucherAltaAction } from './actions'
 import { hoyLima } from '@/domain/fecha'
+import { CampoCuentaEmpresa } from '@/components/campo-cuenta-empresa'
+import type { CuentaEmpresa } from '@/domain/cuenta-empresa'
 
 type CategoriaOpcion = { id: string; nombre: string }
 
@@ -29,8 +31,12 @@ export function FormularioPagoDirecto({
   accionServidor = registrarPagoDirectoAction,
   textoBoton,
   textoEnviando,
+  cuentasEmpresa = [],
 }: {
   categorias: CategoriaOpcion[]
+  /** Solo en el alta del backlog ("Ya se pagó"): de cuál cuenta propia salió
+   * el pago. Opcional — ver CampoCuentaEmpresa. */
+  cuentasEmpresa?: CuentaEmpresa[]
   /** Valores guardados, al editar. Sin esto arranca vacío y es el de alta —
    * es el MISMO componente en los dos modos, para que una regla nueva entre
    * en los dos caminos a la vez. */
@@ -391,6 +397,9 @@ export function FormularioPagoDirecto({
                   />
                 </Campo>
               </div>
+              <CampoCuentaEmpresa
+                cuentas={cuentasEmpresa} moneda={moneda} opcional nombre="cuentaEmpresaHistorico"
+              />
               <Campo etiqueta="📎 Constancia del pago">
                 {/* Se sube al elegirla, en su propio request: en este mismo
                     formulario ya puede viajar una cotización o una factura, y

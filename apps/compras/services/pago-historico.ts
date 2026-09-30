@@ -12,6 +12,7 @@ import {
   puedeCorregirFechaDePago, validarCorreccionFecha,
 } from '@/domain/correccion-fecha-pago'
 import { anioMesStorageLima } from '@/domain/fecha'
+import { exigirCuentaEmpresaActiva } from '@/services/cuentas-empresa'
 
 /**
  * Registrar un pago que YA OCURRIÓ — solo para el backlog anterior al ERP.
@@ -45,6 +46,11 @@ export type BorradorPagoHistorico = {
   numeroOperacion: string | null
   /** Ya subido en su propio request — acá llega la ruta, no el archivo. */
   storagePathVoucher: string | null
+  /** De cuál cuenta propia salió (migración 0075). OPCIONAL acá, a
+   * diferencia de `ejecutarPago`: son pagos del backlog, de hace meses, y
+   * puede que nadie sepa ya de cuál salieron. Un null honesto es mejor que
+   * obligar a elegir una cuenta al azar para poder guardar. */
+  cuentaEmpresaId?: string | null
 }
 
 export async function registrarPagoHistorico(
@@ -74,6 +80,9 @@ export async function registrarPagoHistorico(
     throw new Error(ERROR_PAGO_HISTORICO_FUERA_DE_ALCANCE)
   }
 
+  const cuentaEmpresaId = borrador.cuentaEmpresaId || null
+  if (cuentaEmpresaId) await exigirCuentaEmpresaActiva(cuentaEmpresaId)
+
   const { data: pago, error: errPago } = await supabase
     .schema('cuentas_x_pagar')
     .from('pagos')
@@ -81,6 +90,7 @@ export async function registrarPagoHistorico(
       fecha_pago: borrador.fechaPago,
       moneda: obligacion.moneda,
       monto_total: obligacion.neto_a_pagar,
+      cuenta_empresa_id: cuentaEmpresaId,
       numero_voucher: borrador.numeroOperacion,
       storage_path_voucher: borrador.storagePathVoucher,
       ejecutado_por: usuario.id,
