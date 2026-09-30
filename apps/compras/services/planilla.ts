@@ -3,7 +3,7 @@ import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/au
 import {
   descripcionDeObligacion, puedeCargarPlanilla, puedeCorregirse,
   puedeDarConformidadPlanilla, puedeDarseConformidad, validarPagoPlanilla,
-  type BorradorPagoPlanilla, type EstadoPagoPlanilla,
+  type BorradorPagoPlanilla, type ConceptoPlanilla, type EstadoPagoPlanilla,
 } from '@/domain/planilla'
 
 /**
@@ -19,8 +19,12 @@ import {
 export type PagoPlanillaListado = {
   id: string
   codigo: string
+  concepto: ConceptoPlanilla
   periodo: string
-  secuencia: number
+  /** Null en una LBS. */
+  secuencia: number | null
+  /** Solo LBS. */
+  trabajador: string | null
   monto: number
   moneda: string
   fecha_pago: string
@@ -37,6 +41,28 @@ export type PagoPlanillaListado = {
   estadoObligacion: string | null
 }
 
+/**
+ * Las columnas que se escriben, igual al crear y al corregir. Cada concepto
+ * lleva su dato y deja el del otro en null — si se cambia una planilla a
+ * LBS al corregirla, la secuencia vieja no puede quedar colgando (el CHECK
+ * `pagos_planilla_forma_check` de la base lo rechazaría igual).
+ */
+function columnasDe(b: BorradorPagoPlanilla) {
+  const esLbs = b.concepto === 'lbs'
+  return {
+    concepto: b.concepto,
+    periodo: b.periodo,
+    secuencia: esLbs ? null : b.secuencia,
+    trabajador: esLbs ? b.trabajador?.trim() ?? null : null,
+    monto: b.monto,
+    moneda: b.moneda,
+    fecha_pago: b.fechaPago,
+  }
+}
+
+const ERROR_DUPLICADO =
+  'Ya hay un pago cargado para ese periodo y esa quincena. Si el anterior está mal, anúlalo primero.'
+
 export async function crearPagoPlanilla(
   borrador: BorradorPagoPlanilla
 ): Promise<{ id: string; codigo: string }> {
@@ -52,26 +78,16 @@ export async function crearPagoPlanilla(
   const { data, error } = await supabase
     .schema('planilla')
     .from('pagos_planilla')
-    .insert({
-      periodo: borrador.periodo,
-      secuencia: borrador.secuencia,
-      monto: borrador.monto,
-      moneda: borrador.moneda,
-      fecha_pago: borrador.fechaPago,
-      cargado_por: usuario.id,
-    })
+    .insert({ ...columnasDe(borrador), cargado_por: usuario.id })
     .select('id, codigo')
     .single()
 
   if (error) {
     // El índice único parcial (periodo, secuencia) es la única defensa real
     // contra cargar dos veces la misma quincena — un chequeo previo pierde
-    // contra dos pestañas abiertas. Acá solo se traduce a algo legible.
-    if (error.code === '23505') {
-      throw new Error(
-        'Ya hay un pago cargado para ese periodo y esa quincena. Si el anterior está mal, anúlalo primero.'
-      )
-    }
+    // contra dos pestañas abiertas. Acá solo se traduce a algo legible. Solo
+    // aplica a la planilla: una LBS no tiene secuencia y no choca nunca.
+    if (error.code === '23505') throw new Error(ERROR_DUPLICADO)
     throw new Error(`No se pudo cargar el pago de planilla: ${error.message}`)
   }
   return data
@@ -100,7 +116,7 @@ export async function darConformidadPlanilla(id: string): Promise<void> {
   const { data: pago, error } = await supabase
     .schema('planilla')
     .from('pagos_planilla')
-    .select('id, periodo, secuencia, monto, moneda, fecha_pago, estado')
+    .select('id, concepto, periodo, secuencia, trabajador, monto, moneda, fecha_pago, estado')
     .eq('id', id)
     .maybeSingle()
   if (error || !pago) throw new Error('No se encontró el pago de planilla.')
@@ -119,7 +135,7 @@ export async function darConformidadPlanilla(id: string): Promise<void> {
       igv: 0,
       estado: 'registrada',
       fecha_vencimiento_real: pago.fecha_pago,
-      observaciones: descripcionDeObligacion(pago.periodo, pago.secuencia),
+      observaciones: descripcionDeObligacion(pago as any),
       created_by: usuario.id,
       creador_correo: usuario.email ?? null,
     })
@@ -167,18 +183,10 @@ export async function editarPagoPlanilla(
   const { error } = await supabase
     .schema('planilla')
     .from('pagos_planilla')
-    .update({
-      periodo: borrador.periodo,
-      secuencia: borrador.secuencia,
-      monto: borrador.monto,
-      moneda: borrador.moneda,
-      fecha_pago: borrador.fechaPago,
-    })
+    .update(columnasDe(borrador))
     .eq('id', id)
   if (error) {
-    if (error.code === '23505') {
-      throw new Error('Ya hay otro pago cargado para ese periodo y esa quincena.')
-    }
+    if (error.code === '23505') throw new Error(ERROR_DUPLICADO)
     throw new Error(`No se pudo guardar: ${error.message}`)
   }
 }
@@ -230,7 +238,9 @@ export async function rechazarPagoPlanilla(id: string, motivo: string): Promise<
 }
 
 /** Anular libera el par (periodo, secuencia) — el índice único es parcial a
- * propósito, para que un error de tipeo no bloquee el periodo para siempre. */
+ * propósito, para que un error de tipeo no bloquee el periodo para siempre.
+ * Rechazar también lo libera desde la 0076; antes no, y una quincena
+ * rechazada no se podía volver a cargar corregida. */
 export async function anularPagoPlanilla(id: string, motivo: string): Promise<void> {
   if (!puedeCargarPlanilla(await perfilActual())) {
     throw new Error('No tienes permiso para anular una carga de planilla.')
@@ -270,10 +280,12 @@ export async function listarPagosPlanilla(): Promise<PagoPlanillaListado[]> {
   const { data, error } = await supabase
     .schema('planilla')
     .from('pagos_planilla')
-    .select(`id, codigo, periodo, secuencia, monto, moneda, fecha_pago, estado,
+    .select(`id, codigo, concepto, periodo, secuencia, trabajador, monto, moneda, fecha_pago, estado,
              cargado_por, obligacion_id, anulado_en, anulado_motivo`)
     .order('periodo', { ascending: false })
-    .order('secuencia', { ascending: false })
+    // `nullsFirst: false` deja las LBS (secuencia null) debajo de las
+    // planillas del mismo mes: primero lo que se le paga a todos.
+    .order('secuencia', { ascending: false, nullsFirst: false })
     .limit(200)
   if (error) throw new Error(`No se pudieron listar los pagos de planilla: ${error.message}`)
 
@@ -303,8 +315,10 @@ export async function listarPagosPlanilla(): Promise<PagoPlanillaListado[]> {
   return filas.map((f: any) => ({
     id: f.id,
     codigo: f.codigo,
+    concepto: (f.concepto ?? 'planilla') as ConceptoPlanilla,
     periodo: f.periodo,
-    secuencia: f.secuencia,
+    secuencia: f.secuencia ?? null,
+    trabajador: f.trabajador ?? null,
     monto: Number(f.monto),
     moneda: f.moneda,
     fecha_pago: f.fecha_pago,

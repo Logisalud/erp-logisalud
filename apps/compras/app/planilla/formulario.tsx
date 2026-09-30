@@ -1,13 +1,17 @@
 'use client'
 
+import { useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { AvisoErrores, useScrollAlPrimerError } from '@/components/errores-formulario'
 import { crearPagoPlanillaAction, type EstadoFormulario } from './actions'
 import { mesActualLima } from '@/domain/fecha'
+import { CONCEPTOS_PLANILLA, ETIQUETA_CONCEPTO_PLANILLA, type ConceptoPlanilla } from '@/domain/planilla'
 
 export type ValoresPlanilla = {
+  concepto: ConceptoPlanilla
   periodo: string
   secuencia: string
+  trabajador: string
   monto: string
   moneda: string
   fechaPago: string
@@ -16,9 +20,14 @@ export type ValoresPlanilla = {
 const ID_AVISO_ERRORES = 'errores-planilla'
 
 /**
- * Carga del pago de planilla. Cuatro datos y nada más: BUK le da el total a
+ * Carga del pago de planilla. Pocos datos y nada más: BUK le da el total a
  * Arlette y ella lo transcribe — el sistema nunca lo calcula, y por eso no
  * hay líneas ni desglose por trabajador que llenar.
+ *
+ * Dos conceptos (migración 0076): la PLANILLA de todos, que se identifica por
+ * cuál pago del mes es, y la LBS de una persona que se va, que se identifica
+ * por a quién. Cada uno pide solo su dato — preguntarle "¿cuál quincena?" a
+ * una LBS sería pedir algo que no existe.
  */
 export function FormularioPlanilla({
   inicial,
@@ -36,39 +45,81 @@ export function FormularioPlanilla({
   useScrollAlPrimerError(estado, ID_AVISO_ERRORES)
 
   const mesActual = mesActualLima()
+  const [concepto, setConcepto] = useState<ConceptoPlanilla>(inicial?.concepto ?? 'planilla')
+  const esLbs = concepto === 'lbs'
 
   return (
     <form action={accion} className="space-y-4">
       <AvisoErrores errores={estado?.errores} />
 
       <section className="card space-y-3">
+        {/* Botones y no un desplegable: son dos opciones y cambian qué se
+            pregunta debajo, así que tienen que verse las dos de una vez. */}
+        <div className="block text-sm">
+          <span className="font-medium text-gray-800">¿Qué se paga? *</span>
+          <input type="hidden" name="concepto" value={concepto} />
+          <div className="mt-1 grid gap-2 sm:grid-cols-2">
+            {CONCEPTOS_PLANILLA.map((c) => (
+              <button
+                key={c} type="button" aria-pressed={concepto === c}
+                onClick={() => setConcepto(c)}
+                className={`min-h-12 rounded-md border px-3 text-left ${
+                  concepto === c
+                    ? 'border-2 border-logisalud-green bg-green-50 font-medium text-gray-900'
+                    : 'border-gray-300 bg-white text-gray-700'
+                }`}
+              >
+                {ETIQUETA_CONCEPTO_PLANILLA[c]}
+              </button>
+            ))}
+          </div>
+          {errorDe('concepto') ? <p className="mt-1 text-red-700">{errorDe('concepto')}</p> : null}
+        </div>
+
         <Campo etiqueta="Periodo *" error={errorDe('periodo')}>
           <input
             type="month" name="periodo" required
             defaultValue={inicial?.periodo ?? mesActual}
             className="min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
-          <p className="mt-1 text-xs text-gray-500">El mes que cubre esta planilla.</p>
-        </Campo>
-
-        <Campo etiqueta="¿Cuál pago del mes? *" error={errorDe('secuencia')}>
-          <select
-            name="secuencia" required defaultValue={inicial?.secuencia ?? '1'}
-            className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
-          >
-            <option value="1">1ra quincena</option>
-            <option value="2">Fin de mes</option>
-            {/* Los extra existen (gratificación, CTS, un reintegro) y no
-                tienen nombre fijo — por eso se numeran en vez de inventarles
-                una etiqueta que después no coincida con lo que pasó. */}
-            <option value="3">Pago 3 del mes</option>
-            <option value="4">Pago 4 del mes</option>
-          </select>
           <p className="mt-1 text-xs text-gray-500">
-            No se puede cargar dos veces el mismo pago del mismo mes — si el anterior está mal,
-            anúlalo primero.
+            {esLbs ? 'El mes en que se liquida.' : 'El mes que cubre esta planilla.'}
           </p>
         </Campo>
+
+        {esLbs ? (
+          <Campo etiqueta="Trabajador *" error={errorDe('trabajador')}>
+            <input
+              type="text" name="trabajador" required
+              defaultValue={inicial?.trabajador}
+              placeholder="Nombre completo de la persona que se va"
+              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Es lo que ve Tesorería para saber a quién pagarle: una LBS no va en la
+              transferencia masiva de la planilla.
+            </p>
+          </Campo>
+        ) : (
+          <Campo etiqueta="¿Cuál pago del mes? *" error={errorDe('secuencia')}>
+            <select
+              name="secuencia" required defaultValue={inicial?.secuencia ?? '1'}
+              className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
+            >
+              <option value="1">1ra quincena</option>
+              <option value="2">Fin de mes</option>
+              {/* Los extra existen (gratificación, CTS, un reintegro) y no
+                  tienen nombre fijo — por eso se numeran en vez de inventarles
+                  una etiqueta que después no coincida con lo que pasó. */}
+              <option value="3">Pago 3 del mes</option>
+              <option value="4">Pago 4 del mes</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              No se puede cargar dos veces el mismo pago del mismo mes — si el anterior está mal,
+              anúlalo primero.
+            </p>
+          </Campo>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo etiqueta="Moneda *" error={errorDe('moneda')}>
@@ -87,7 +138,9 @@ export function FormularioPlanilla({
               className="min-h-12 w-full rounded-md border border-gray-300 px-3"
             />
             <p className="mt-1 text-xs text-gray-500">
-              El total que arroja BUK, tal cual. No lo calcules aquí.
+              {esLbs
+                ? 'El neto a pagar de la liquidación, tal cual. No lo calcules aquí.'
+                : 'El total que arroja BUK, tal cual. No lo calcules aquí.'}
             </p>
           </Campo>
         </div>

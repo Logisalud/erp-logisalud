@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
-  descripcionDeObligacion, etiquetaPeriodo, etiquetaSecuencia, puedeCargarPlanilla,
-  puedeCorregirse, puedeDarConformidadPlanilla, puedeVerPlanilla, validarPagoPlanilla,
+  descripcionDeObligacion, ETIQUETA_ESTADO_PLANILLA, etiquetaPagoPlanilla, etiquetaPeriodo,
+  etiquetaSecuencia, puedeCargarPlanilla, puedeCorregirse, puedeDarConformidadPlanilla,
+  puedeVerPlanilla, validarPagoPlanilla,
   type BorradorPagoPlanilla,
 } from '@/domain/planilla'
 
 const base: BorradorPagoPlanilla = {
+  concepto: 'planilla',
   periodo: '2026-09',
   secuencia: 2,
+  trabajador: null,
   monto: 184250.4,
   moneda: 'PEN',
   fechaPago: '2026-09-30',
@@ -52,7 +55,7 @@ describe('etiquetas', () => {
   })
 
   it('la descripción de la obligación lleva el beneficiario genérico', () => {
-    const d = descripcionDeObligacion('2026-09', 2)
+    const d = descripcionDeObligacion({ concepto: 'planilla', periodo: '2026-09', secuencia: 2, trabajador: null })
     expect(d).toContain('transferencia masiva a trabajadores')
     expect(d).toContain('setiembre 2026')
     expect(d).toContain('Fin de mes')
@@ -93,5 +96,69 @@ describe('ventana de corrección', () => {
     expect(puedeCorregirse('pendiente_contabilidad')).toBe(true)
     expect(puedeCorregirse('conforme')).toBe(false)
     expect(puedeCorregirse('anulada')).toBe(false)
+    expect(puedeCorregirse('rechazada')).toBe(false)
+  })
+
+  it('una carga rechazada tiene cómo mostrarse — antes salía en blanco', () => {
+    // `rechazada` existía en la base desde la 0069 pero no en este mapa, así
+    // que la columna Estado de la tabla quedaba vacía para esas filas.
+    expect(ETIQUETA_ESTADO_PLANILLA.rechazada).toBeTruthy()
+  })
+})
+
+describe('LBS — liquidación de beneficios sociales (migración 0076)', () => {
+  /**
+   * Pedido de Arlette. Una LBS no es la transferencia masiva: se le paga a
+   * UNA persona, la que se va, y en un mismo mes puede haber varias. Por eso
+   * se identifica por `trabajador` y no por `secuencia`.
+   */
+  const lbs: BorradorPagoPlanilla = {
+    concepto: 'lbs',
+    periodo: '2026-09',
+    secuencia: null,
+    trabajador: 'Juan Pérez Quispe',
+    monto: 3200,
+    moneda: 'PEN',
+    fechaPago: '2026-09-30',
+  }
+
+  it('acepta una LBS con el nombre de la persona y SIN secuencia', () => {
+    expect(validarPagoPlanilla(lbs)).toEqual([])
+  })
+
+  it('una LBS sin trabajador no pasa — Tesorería no sabría a quién pagarle', () => {
+    expect(validarPagoPlanilla({ ...lbs, trabajador: null }).map((e) => e.campo)).toContain('trabajador')
+    expect(validarPagoPlanilla({ ...lbs, trabajador: '   ' }).map((e) => e.campo)).toContain('trabajador')
+  })
+
+  it('a una LBS no se le pide secuencia — no significa nada ahí', () => {
+    expect(validarPagoPlanilla(lbs).map((e) => e.campo)).not.toContain('secuencia')
+  })
+
+  it('y a la planilla no se le pide trabajador', () => {
+    expect(validarPagoPlanilla(base).map((e) => e.campo)).not.toContain('trabajador')
+  })
+
+  it('la planilla sigue exigiendo secuencia', () => {
+    expect(validarPagoPlanilla({ ...base, secuencia: null }).map((e) => e.campo)).toContain('secuencia')
+  })
+
+  it('un concepto inventado se rechaza en vez de caer en planilla', () => {
+    expect(validarPagoPlanilla({ ...base, concepto: 'cts' as any }).map((e) => e.campo)).toContain('concepto')
+  })
+
+  it('se nombra por la persona, que es lo que distingue dos LBS del mismo mes', () => {
+    expect(etiquetaPagoPlanilla(lbs)).toBe('LBS — Juan Pérez Quispe')
+    expect(etiquetaPagoPlanilla({ ...lbs, trabajador: 'Ana Ruiz' })).toBe('LBS — Ana Ruiz')
+    // La planilla sigue nombrándose por su pago del mes.
+    expect(etiquetaPagoPlanilla(base)).toBe('Fin de mes')
+  })
+
+  it('la obligación de una LBS NO dice "transferencia masiva" — no está en el archivo de BUK', () => {
+    const d = descripcionDeObligacion(lbs)
+    expect(d).not.toContain('transferencia masiva')
+    expect(d).toContain('Liquidación de beneficios sociales')
+    expect(d).toContain('Juan Pérez Quispe')
+    expect(d).toContain('setiembre 2026')
   })
 })

@@ -27,8 +27,10 @@ export default async function EditarPagoPlanilla({ params }: { params: { id: str
 
       <FormularioPlanilla
         inicial={{
+          concepto: pago.concepto,
           periodo: pago.periodo,
-          secuencia: String(pago.secuencia),
+          secuencia: pago.secuencia === null ? '1' : String(pago.secuencia),
+          trabajador: pago.trabajador ?? '',
           monto: String(pago.monto),
           moneda: pago.moneda,
           fechaPago: pago.fecha_pago,
