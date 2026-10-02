@@ -5,6 +5,7 @@ import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 import { fetchAll } from '@/lib/fetchAll';
 import {
+  agruparPorFactura,
   construirEstadoCuenta,
   type FacturaCruda,
   type LetraCruda,
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest, { params }: { params: { ruc: string 
     const facturas = (await fetchAll<FacturaCruda>((from, to) =>
       db
         .from('v_saldos')
-        .select('id, tipo, comprobante, fecha_emision, importe_total, saldo_pendiente, forma_pago, contado_pendiente')
+        .select('id, tipo, comprobante, fecha_emision, fecha_vencimiento, importe_total, saldo_pendiente, forma_pago, contado_pendiente')
         .eq('cliente_ruc', ruc)
         .order('fecha_emision')
         .range(from, to),
@@ -114,26 +115,41 @@ export async function GET(req: NextRequest, { params }: { params: { ruc: string 
       }
     }
 
+    const notasLimpias = notas.map((n) => ({
+      id: n.id,
+      tipo: n.tipo,
+      comprobante: `${String(n.serie).trim()}-${n.numero}`,
+      fecha_emision: n.fecha_emision,
+      importe_total: Number(n.importe_total) || 0,
+      documento_relacionado_id: n.documento_relacionado_id,
+    }));
+
     const { movimientos, resumen } = construirEstadoCuenta({
       facturas,
-      notas: notas.map((n) => ({
-        id: n.id,
-        tipo: n.tipo,
-        comprobante: `${String(n.serie).trim()}-${n.numero}`,
-        fecha_emision: n.fecha_emision,
-        importe_total: Number(n.importe_total) || 0,
-        documento_relacionado_id: n.documento_relacionado_id,
-      })),
+      notas: notasLimpias,
       pagos,
       letras,
       desde,
       hasta,
     });
 
+    // El agrupado por factura se arma SIEMPRE con el historial entero, aunque
+    // haya filtro de fechas: el saldo de una factura es el que es y no
+    // depende del rango que se esté mirando. Si se filtrara, una factura
+    // pagada en enero aparecería como pendiente por mirar sólo marzo.
+    const completo =
+      desde || hasta
+        ? construirEstadoCuenta({ facturas, notas: notasLimpias, pagos, letras }).movimientos
+        : movimientos;
+
+    const hoyISO = new Date().toISOString().slice(0, 10);
+    const porFactura = agruparPorFactura(completo, facturas, hoyISO);
+
     return NextResponse.json(
       {
         cliente: cliente.data ?? { ruc, razon_social: ruc },
         movimientos,
+        porFactura,
         resumen,
         rango: { desde, hasta },
       },
