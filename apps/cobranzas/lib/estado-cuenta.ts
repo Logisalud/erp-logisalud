@@ -61,6 +61,15 @@ export interface Movimiento {
   etiqueta: string;
   /** El comprobante al que pertenece la fila (FFF1-831). */
   documento: string;
+  /**
+   * La factura a la que esta fila pertenece, por id.
+   *
+   * Agrupar por el comprobante de texto parece equivalente y no lo es: una
+   * nota de crédito tiene su propio comprobante (FC01-45) y pertenece a la
+   * factura que corrige. El id es lo único que lo dice sin ambigüedad.
+   * Es null sólo si la fila no cuelga de ninguna factura.
+   */
+  facturaId: string | null;
   /** Referencia, número de letra, motivo del ajuste. Puede faltar. */
   detalle: string | null;
   debe: number;
@@ -92,6 +101,7 @@ export interface FacturaCruda {
   comprobante: string;
   fecha_emision: string;
   importe_total: number;
+  fecha_vencimiento?: string | null;
   /** El saldo que reporta `v_saldos`. Es la fuente de verdad. */
   saldo_pendiente: number;
   forma_pago: string | null;
@@ -204,6 +214,7 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
       tipo,
       etiqueta,
       documento: f.comprobante,
+      facturaId: f.id,
       detalle: f.forma_pago ?? null,
       debe: aCentimos(f.importe_total),
       haber: 0,
@@ -226,6 +237,7 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
       tipo,
       etiqueta,
       documento: n.comprobante,
+      facturaId: facturaId ?? null,
       detalle: ref ? `aplica a ${ref}` : null,
       debe: esCredito ? 0 : importe,
       haber: esCredito ? importe : 0,
@@ -246,6 +258,7 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
       tipo: esRetencion ? 'RETENCION' : 'PAGO',
       etiqueta: esRetencion ? 'Retención IGV' : 'Pago',
       documento: comprobantePorId.get(p.documento_id) ?? '—',
+      facturaId: p.documento_id,
       detalle: p.referencia?.trim() || null,
       debe: 0,
       haber: monto,
@@ -266,6 +279,7 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
       tipo: 'LETRA',
       etiqueta: 'Letra pagada',
       documento: comprobantePorId.get(l.documento_id) ?? '—',
+      facturaId: l.documento_id,
       detalle: l.numero_letra ? `letra ${l.numero_letra}` : null,
       debe: 0,
       haber: monto,
@@ -320,6 +334,7 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
       tipo: 'AJUSTE',
       etiqueta: 'Ajuste',
       documento: f.comprobante,
+      facturaId: f.id,
       detalle: motivo,
       debe: ajuste > 0 ? ajuste : 0,
       haber: ajuste < 0 ? -ajuste : 0,
@@ -415,6 +430,7 @@ function recortarPorFecha(
       tipo: 'AJUSTE',
       etiqueta: 'Saldo anterior',
       documento: '—',
+      facturaId: null,
       detalle: `${previos.length} movimiento${previos.length === 1 ? '' : 's'} antes del ${desde}`,
       debe: 0,
       haber: 0,
@@ -422,4 +438,142 @@ function recortarPorFecha(
     },
     ...dentro,
   ];
+}
+
+// ---- La misma verdad, contada por factura --------------------------------
+
+export type EstadoFactura = 'PAGADA' | 'PARCIAL' | 'PENDIENTE';
+
+export interface NotaAplicada {
+  comprobante: string;
+  fecha: string;
+  importe: number;
+}
+
+export interface FacturaResumen {
+  id: string;
+  comprobante: string;
+  etiqueta: string;
+  fechaEmision: string;
+  fechaVencimiento: string | null;
+  importe: number;
+  /** Notas de crédito vigentes sobre esta factura (las anuladas no llegan). */
+  notasCredito: NotaAplicada[];
+  notasDebito: NotaAplicada[];
+  totalNotasCredito: number;
+  totalNotasDebito: number;
+  /** Pagos + retenciones + letras pagadas: todo lo que efectivamente la bajó. */
+  totalCobrado: number;
+  cantidadPagos: number;
+  /** Ajustes del sistema (CONTADO al despacho, redondeo, canje, pago de más). */
+  ajuste: number;
+  motivoAjuste: string | null;
+  saldo: number;
+  estado: EstadoFactura;
+  /** Días de atraso si está vencida y debe. Negativo o 0 si todavía no vence. */
+  diasVencida: number | null;
+  /** Sus propias filas, en orden, para poder desplegarlas. */
+  movimientos: Movimiento[];
+}
+
+/**
+ * Reagrupa el extracto por factura: cuánto se facturó, cuánto se cobró, qué
+ * notas de crédito siguen vigentes y qué saldo queda.
+ *
+ * **No recalcula nada.** Parte de los movimientos que ya produjo
+ * `construirEstadoCuenta` y los reparte por `facturaId`. Es a propósito: si
+ * esta vista hiciera sus propias cuentas, tarde o temprano diría algo
+ * distinto de la cronológica sobre el mismo cliente, y entonces habría dos
+ * saldos y ninguna forma de saber cuál creer.
+ *
+ * Por eso recibe los movimientos SIN recortar por fecha: el saldo de una
+ * factura es el que es, no depende del rango que se esté mirando.
+ */
+export function agruparPorFactura(
+  movimientos: Movimiento[],
+  facturas: FacturaCruda[],
+  hoyISO: string,
+): FacturaResumen[] {
+  const porFactura = new Map<string, Movimiento[]>();
+  for (const m of movimientos) {
+    if (!m.facturaId) continue;
+    const lista = porFactura.get(m.facturaId);
+    if (lista) lista.push(m);
+    else porFactura.set(m.facturaId, [m]);
+  }
+
+  const resumenes: FacturaResumen[] = facturas.map((f) => {
+    const movs = porFactura.get(f.id) ?? [];
+    const { etiqueta } = etiquetaDocumento(f.tipo);
+
+    const notasCredito: NotaAplicada[] = [];
+    const notasDebito: NotaAplicada[] = [];
+    let totalCobrado = 0;
+    let cantidadPagos = 0;
+    let ajuste = 0;
+    let motivoAjuste: string | null = null;
+
+    for (const m of movs) {
+      switch (m.tipo) {
+        case 'NOTA_CREDITO':
+          notasCredito.push({ comprobante: m.documento, fecha: m.fecha, importe: m.haber });
+          break;
+        case 'NOTA_DEBITO':
+          notasDebito.push({ comprobante: m.documento, fecha: m.fecha, importe: m.debe });
+          break;
+        case 'PAGO':
+        case 'RETENCION':
+        case 'LETRA':
+          totalCobrado = aCentimos(totalCobrado + m.haber);
+          cantidadPagos += 1;
+          break;
+        case 'AJUSTE':
+          ajuste = aCentimos(ajuste + m.debe - m.haber);
+          motivoAjuste = m.detalle;
+          break;
+        default:
+          break;
+      }
+    }
+
+    const saldo = aCentimos(f.saldo_pendiente);
+    const estado: EstadoFactura =
+      saldo <= 0.005 ? 'PAGADA' : totalCobrado > 0 || notasCredito.length > 0 ? 'PARCIAL' : 'PENDIENTE';
+
+    // Sólo tiene sentido hablar de atraso si todavía debe algo.
+    const venc = f.fecha_vencimiento ?? null;
+    const diasVencida =
+      saldo > 0.005 && venc ? Math.round((Date.parse(hoyISO) - Date.parse(venc)) / 86400000) : null;
+
+    return {
+      id: f.id,
+      comprobante: f.comprobante,
+      etiqueta,
+      fechaEmision: f.fecha_emision,
+      fechaVencimiento: venc,
+      importe: aCentimos(f.importe_total),
+      notasCredito,
+      notasDebito,
+      totalNotasCredito: aCentimos(notasCredito.reduce((s, n) => s + n.importe, 0)),
+      totalNotasDebito: aCentimos(notasDebito.reduce((s, n) => s + n.importe, 0)),
+      totalCobrado,
+      cantidadPagos,
+      ajuste,
+      motivoAjuste,
+      saldo,
+      estado,
+      diasVencida,
+      movimientos: movs,
+    };
+  });
+
+  // Las que deben primero y, dentro de ellas, las más atrasadas: es el orden
+  // en que uno sale a cobrar. Las saldadas quedan abajo, por fecha.
+  return resumenes.sort((a, b) => {
+    const aDebe = a.saldo > 0.005;
+    const bDebe = b.saldo > 0.005;
+    if (aDebe !== bDebe) return aDebe ? -1 : 1;
+    if (aDebe && bDebe) return (b.diasVencida ?? -99999) - (a.diasVencida ?? -99999);
+    return a.fechaEmision.localeCompare(b.fechaEmision);
+  });
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Movimiento, Resumen } from '@/lib/estado-cuenta';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FacturaResumen, Movimiento, Resumen } from '@/lib/estado-cuenta';
 
 interface ClienteInfo {
   ruc: string;
@@ -41,6 +41,9 @@ function colorDe(m: Movimiento): string {
 export default function EstadoCuentaClientePage({ params }: { params: { ruc: string } }) {
   const [cliente, setCliente] = useState<ClienteInfo | null>(null);
   const [movs, setMovs] = useState<Movimiento[]>([]);
+  const [porFactura, setPorFactura] = useState<FacturaResumen[]>([]);
+  const [vista, setVista] = useState<'factura' | 'cronologico'>('factura');
+  const [abierta, setAbierta] = useState<string | null>(null);
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -67,6 +70,7 @@ export default function EstadoCuentaClientePage({ params }: { params: { ruc: str
       if (!r.ok) throw new Error(j.error ?? 'No se pudo cargar el estado de cuenta.');
       setCliente(j.cliente);
       setMovs(j.movimientos);
+      setPorFactura(j.porFactura ?? []);
       setResumen(j.resumen);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -182,6 +186,24 @@ export default function EstadoCuentaClientePage({ params }: { params: { ruc: str
           </p>
         )}
 
+        {/* Dos lecturas del mismo saldo: por factura (en qué va cada una) y
+            cronológica (qué pasó, en orden). Salen de los mismos movimientos,
+            así que no pueden discrepar. */}
+        <div className="mb-4 flex gap-1 print:hidden">
+          {([['factura', 'Por factura'], ['cronologico', 'Cronológico']] as const).map(([k, t]) => (
+            <button
+              key={k}
+              onClick={() => setVista(k)}
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition ${
+                vista === k ? 'text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+              }`}
+              style={vista === k ? { background: '#276b3b' } : undefined}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
         {/* Filtro de fechas y exportación. */}
         <div className="mb-4 flex flex-wrap items-end gap-3 print:hidden">
           <label className="text-sm">
@@ -216,7 +238,11 @@ export default function EstadoCuentaClientePage({ params }: { params: { ruc: str
         )}
         {cargando && <p className="text-sm text-gray-500">Cargando…</p>}
 
-        {!cargando && !error && (
+        {!cargando && !error && vista === 'factura' && (
+          <TablaPorFactura filas={porFactura} abierta={abierta} alAbrir={setAbierta} />
+        )}
+
+        {!cargando && !error && vista === 'cronologico' && (
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">
@@ -255,6 +281,9 @@ export default function EstadoCuentaClientePage({ params }: { params: { ruc: str
         )}
 
         <p className="mt-4 text-xs text-gray-400">
+          {vista === 'factura'
+            ? 'Cada fila es una factura: tocala para ver sus movimientos. El importe menos las notas de crédito, menos lo cobrado y más o menos el ajuste da el saldo. '
+            : ''}
           Las filas en ámbar son ajustes: reglas del sistema que mueven el saldo sin ser un
           documento (un CONTADO cobrado al despacho, un redondeo de céntimos, un canje en
           letras o un pago de más). Están a la vista para que el saldo final cuadre exacto
@@ -271,6 +300,170 @@ function Tile({ titulo, valor, color, nota }: { titulo: string; valor: string; c
       <p className="text-[11px] uppercase tracking-wide text-gray-400">{titulo}</p>
       <p className="font-oswald text-xl" style={{ color: color ?? '#374151' }}>S/ {valor}</p>
       {nota && <p className="text-[11px] text-gray-400">{nota}</p>}
+    </div>
+  );
+}
+
+/** Cómo se ve el estado de una factura de un vistazo. */
+function BadgeEstado({ f }: { f: FacturaResumen }) {
+  const vencida = f.saldo > 0.005 && (f.diasVencida ?? -1) > 0;
+  const estilo = vencida
+    ? 'bg-red-50 text-red-700 border-red-200'
+    : f.estado === 'PAGADA'
+      ? 'bg-emerald-50 text-[#276b3b] border-emerald-200'
+      : f.estado === 'PARCIAL'
+        ? 'bg-amber-50 text-amber-800 border-amber-200'
+        : 'bg-gray-50 text-gray-600 border-gray-200';
+  const texto = vencida
+    ? `Vencida ${f.diasVencida} d`
+    : f.estado === 'PAGADA'
+      ? 'Pagada'
+      : f.estado === 'PARCIAL'
+        ? 'Parcial'
+        : 'Pendiente';
+  return (
+    <span className={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${estilo}`}>{texto}</span>
+  );
+}
+
+/**
+ * Una fila por factura: en qué va cada una.
+ *
+ * El orden es el de cobranza —primero las que deben, y dentro de ellas las
+ * más atrasadas—, no el cronológico: esta vista se usa para salir a cobrar,
+ * no para reconstruir la historia. Las saldadas quedan abajo.
+ */
+function TablaPorFactura({
+  filas,
+  abierta,
+  alAbrir,
+}: {
+  filas: FacturaResumen[];
+  abierta: string | null;
+  alAbrir: (id: string | null) => void;
+}) {
+  if (filas.length === 0) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white px-3 py-6 text-center text-sm text-gray-500">
+        Este cliente no tiene facturas registradas.
+      </div>
+    );
+  }
+
+  const tot = filas.reduce(
+    (a, f) => ({
+      importe: a.importe + f.importe,
+      nc: a.nc + f.totalNotasCredito,
+      cobrado: a.cobrado + f.totalCobrado,
+      saldo: a.saldo + f.saldo,
+    }),
+    { importe: 0, nc: 0, cobrado: 0, saldo: 0 },
+  );
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 text-gray-600">
+          <tr>
+            <th className="px-3 py-2 text-left font-medium">Factura</th>
+            <th className="px-3 py-2 text-left font-medium">Emisión</th>
+            <th className="px-3 py-2 text-left font-medium">Vence</th>
+            <th className="px-3 py-2 text-right font-medium">Importe</th>
+            <th className="px-3 py-2 text-right font-medium">Notas de crédito</th>
+            <th className="px-3 py-2 text-right font-medium">Cobrado</th>
+            <th className="px-3 py-2 text-right font-medium">Saldo</th>
+            <th className="px-3 py-2 text-left font-medium">Estado</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {filas.map((f) => {
+            const abiertaEsta = abierta === f.id;
+            return (
+              <Fragment key={f.id}>
+                <tr
+                  onClick={() => alAbrir(abiertaEsta ? null : f.id)}
+                  className={`cursor-pointer hover:bg-gray-50 ${abiertaEsta ? 'bg-gray-50' : ''}`}
+                >
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-gray-700">
+                    <span className="mr-1 text-gray-400">{abiertaEsta ? '▾' : '▸'}</span>
+                    {f.comprobante}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-gray-500">{fmtFecha(f.fechaEmision)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-gray-500">
+                    {f.fechaVencimiento ? fmtFecha(f.fechaVencimiento) : '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{fmtSaldo(f.importe)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#276b3b]">
+                    {f.totalNotasCredito ? fmtSaldo(f.totalNotasCredito) : ''}
+                    {f.totalNotasDebito ? (
+                      <span className="text-gray-900"> +{fmtSaldo(f.totalNotasDebito)}</span>
+                    ) : null}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#276b3b]">
+                    {f.totalCobrado ? fmtSaldo(f.totalCobrado) : ''}
+                    {f.cantidadPagos > 1 && (
+                      <span className="ml-1 text-[11px] text-gray-400">({f.cantidadPagos})</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
+                    {fmtSaldo(f.saldo)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2"><BadgeEstado f={f} /></td>
+                </tr>
+
+                {abiertaEsta && (
+                  <tr className="bg-gray-50/70">
+                    <td colSpan={8} className="px-3 pb-3 pt-1">
+                      {/* Las notas de crédito vigentes, nombradas: saber que hay
+                          S/ 2.836,52 en notas no sirve tanto como saber cuáles. */}
+                      {f.notasCredito.length > 0 && (
+                        <p className="mb-2 text-xs text-gray-600">
+                          <span className="font-medium">Notas de crédito vigentes:</span>{' '}
+                          {f.notasCredito
+                            .map((n) => `${n.comprobante} (${fmtFecha(n.fecha)}) S/ ${fmtSaldo(n.importe)}`)
+                            .join(' · ')}
+                        </p>
+                      )}
+                      {f.motivoAjuste && (
+                        <p className="mb-2 text-xs text-amber-700">
+                          <span className="font-medium">Ajuste del sistema:</span> {f.motivoAjuste}{' '}
+                          (S/ {fmtSaldo(f.ajuste)})
+                        </p>
+                      )}
+                      <table className="w-full text-xs">
+                        <tbody className="divide-y divide-gray-200">
+                          {f.movimientos.map((m, i) => (
+                            <tr key={i}>
+                              <td className="whitespace-nowrap py-1 pr-3 text-gray-500">{fmtFecha(m.fecha)}</td>
+                              <td className={`whitespace-nowrap py-1 pr-3 ${colorDe(m)}`}>{m.etiqueta}</td>
+                              <td className="whitespace-nowrap py-1 pr-3 font-mono text-gray-500">{m.documento}</td>
+                              <td className="whitespace-nowrap py-1 pr-3 text-right tabular-nums">{fmt(m.debe)}</td>
+                              <td className="whitespace-nowrap py-1 pr-3 text-right tabular-nums text-[#276b3b]">
+                                {fmt(m.haber)}
+                              </td>
+                              <td className="py-1 text-gray-500">{m.detalle}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+        <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+          <tr>
+            <td className="px-3 py-2" colSpan={3}>Totales</td>
+            <td className="px-3 py-2 text-right tabular-nums">{fmtSaldo(tot.importe)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-[#276b3b]">{fmtSaldo(tot.nc)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-[#276b3b]">{fmtSaldo(tot.cobrado)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{fmtSaldo(tot.saldo)}</td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }

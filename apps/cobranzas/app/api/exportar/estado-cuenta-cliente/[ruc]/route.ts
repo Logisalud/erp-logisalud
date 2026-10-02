@@ -6,6 +6,7 @@ import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 import { fetchAll } from '@/lib/fetchAll';
 import {
+  agruparPorFactura,
   construirEstadoCuenta,
   type FacturaCruda,
   type LetraCruda,
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: { ruc: string 
     const facturas = (await fetchAll<FacturaCruda>((from, to) =>
       db
         .from('v_saldos')
-        .select('id, tipo, comprobante, fecha_emision, importe_total, saldo_pendiente, forma_pago, contado_pendiente')
+        .select('id, tipo, comprobante, fecha_emision, fecha_vencimiento, importe_total, saldo_pendiente, forma_pago, contado_pendiente')
         .eq('cliente_ruc', ruc)
         .order('fecha_emision')
         .range(from, to),
@@ -111,21 +112,35 @@ export async function GET(req: NextRequest, { params }: { params: { ruc: string 
       }
     }
 
+    const notasLimpias = notasRaw.map((n) => ({
+      id: n.id,
+      tipo: n.tipo,
+      comprobante: `${String(n.serie).trim()}-${n.numero}`,
+      fecha_emision: n.fecha_emision,
+      importe_total: Number(n.importe_total) || 0,
+      documento_relacionado_id: n.documento_relacionado_id,
+    }));
+
     const { movimientos, resumen } = construirEstadoCuenta({
       facturas,
-      notas: notasRaw.map((n) => ({
-        id: n.id,
-        tipo: n.tipo,
-        comprobante: `${String(n.serie).trim()}-${n.numero}`,
-        fecha_emision: n.fecha_emision,
-        importe_total: Number(n.importe_total) || 0,
-        documento_relacionado_id: n.documento_relacionado_id,
-      })),
+      notas: notasLimpias,
       pagos,
       letras,
       desde,
       hasta,
     });
+
+    // Igual que en la pantalla: el agrupado por factura se arma con el
+    // historial entero, porque el saldo de una factura no depende del rango.
+    const completo =
+      desde || hasta
+        ? construirEstadoCuenta({ facturas, notas: notasLimpias, pagos, letras }).movimientos
+        : movimientos;
+    const porFactura = agruparPorFactura(
+      completo,
+      facturas,
+      new Date().toISOString().slice(0, 10),
+    );
 
     const c = cliente.data;
     const rango =
@@ -161,7 +176,40 @@ export async function GET(req: NextRequest, { params }: { params: { ruc: string 
       { wch: 13 }, { wch: 13 }, { wch: 14 }, { wch: 42 },
     ];
 
+    // Segunda hoja: la misma verdad por factura. Van las dos porque responden
+    // preguntas distintas — "qué pasó" y "en qué va cada factura".
+    const aoaF: (string | number)[][] = [
+      ['POR FACTURA'],
+      [c?.razon_social ?? ruc],
+      [`RUC ${ruc}`],
+      [],
+      ['Factura', 'Emisión', 'Vence', 'Importe', 'Notas de crédito', 'Notas de débito', 'Cobrado', 'Ajuste', 'Motivo del ajuste', 'Saldo', 'Estado', 'Días vencida', 'NC vigentes'],
+    ];
+    for (const f of porFactura) {
+      aoaF.push([
+        f.comprobante,
+        fecha(f.fechaEmision),
+        f.fechaVencimiento ? fecha(f.fechaVencimiento) : '',
+        f.importe,
+        f.totalNotasCredito || '',
+        f.totalNotasDebito || '',
+        f.totalCobrado || '',
+        f.ajuste || '',
+        f.motivoAjuste ?? '',
+        f.saldo,
+        f.estado,
+        f.saldo > 0.005 && (f.diasVencida ?? 0) > 0 ? (f.diasVencida as number) : '',
+        f.notasCredito.map((n) => `${n.comprobante} (${fecha(n.fecha)}) ${n.importe.toFixed(2)}`).join(' · '),
+      ]);
+    }
+    const wsF = XLSX.utils.aoa_to_sheet(aoaF);
+    wsF['!cols'] = [
+      { wch: 14 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 17 }, { wch: 16 },
+      { wch: 13 }, { wch: 12 }, { wch: 34 }, { wch: 13 }, { wch: 11 }, { wch: 13 }, { wch: 46 },
+    ];
+
     const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsF, 'Por factura');
     XLSX.utils.book_append_sheet(wb, ws, 'Estado de cuenta');
     const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
 
