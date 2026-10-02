@@ -17,6 +17,10 @@ export default async function Home() {
           <h2 className="text-lg font-semibold mb-1" style={{ color: '#4BB168' }}>📊 Estado de Cuenta</h2>
           <p className="text-gray-500 text-sm">Cartera por vendedor, cliente y factura con aging de vencimientos.</p>
         </Link>
+        <Link href="/cobranzas/estado-cuenta-cliente" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#4BB168' }}>
+          <h2 className="text-lg font-semibold mb-1" style={{ color: '#4BB168' }}>📜 Estado de Cuenta por Cliente</h2>
+          <p className="text-gray-500 text-sm">Historial completo tipo extracto bancario: cada movimiento con su saldo acumulado.</p>
+        </Link>
         <Link href="/cobranzas/registrar-pago" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#4BB168' }}>
           <h2 className="text-lg font-semibold mb-1" style={{ color: '#4BB168' }}>💳 Registrar Pago</h2>
           <p className="text-gray-500 text-sm">Registra pagos de facturas o letras adjuntando el voucher del cliente.</p>

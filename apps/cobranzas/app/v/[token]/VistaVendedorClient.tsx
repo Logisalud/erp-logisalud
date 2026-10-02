@@ -12,6 +12,7 @@ export interface FacturaVista {
   razon_social: string;
   direccion: string | null;
   distrito: string | null;
+  provincia: string | null;
   celular: string | null;
   zona: string | null;
   fecha_emision: string;
@@ -178,9 +179,26 @@ interface GrupoCliente {
   distrito: string | null;
   facturas: FacturaVista[];
   direccion: string | null;
+  provincia: string | null;
   saldo: number;
   vencido: number;
   morosidad: number;
+}
+
+/**
+ * Dónde queda el cliente, para leerlo pegado a la dirección.
+ *
+ * Se agrega la provincia sólo cuando NO se llama igual que el distrito: para
+ * un vendedor de Lima, "BELLAVISTA" solo no dice si es el Bellavista del
+ * Callao o el de otra provincia, y "BELLAVISTA · CALLAO" sí. Repetir
+ * "HUANCAYO · HUANCAYO" no agrega nada, así que se omite.
+ */
+function lugarDe(distrito: string | null, provincia: string | null): string | null {
+  const d = distrito?.trim();
+  const p = provincia?.trim();
+  if (!d) return p || null;
+  if (!p || p.toUpperCase() === d.toUpperCase()) return d;
+  return `${d} · ${p}`;
 }
 
 function agrupar(facturas: FacturaVista[]): GrupoCliente[] {
@@ -190,7 +208,7 @@ function agrupar(facturas: FacturaVista[]): GrupoCliente[] {
   for (const f of facturas) {
     let g = map.get(f.cliente_ruc);
     if (!g) {
-      g = { ruc: f.cliente_ruc, razon_social: f.razon_social, distrito: f.distrito, direccion: f.direccion, facturas: [], saldo: 0, vencido: 0, morosidad: 0 };
+      g = { ruc: f.cliente_ruc, razon_social: f.razon_social, distrito: f.distrito, direccion: f.direccion, provincia: f.provincia, facturas: [], saldo: 0, vencido: 0, morosidad: 0 };
       map.set(f.cliente_ruc, g);
     }
     g.facturas.push(f);
@@ -319,15 +337,26 @@ export default function VistaVendedorClient({
                 </div>
                 <p className="text-gray-400 text-[11px] mt-0.5">
                   RUC {f.cliente_ruc}
-                  {f.distrito && <span className="text-gray-500"> · {f.distrito}</span>}
+                  {!f.direccion && lugarDe(f.distrito, f.provincia) && (
+                    <span className="text-gray-500"> · {lugarDe(f.distrito, f.provincia)}</span>
+                  )}
                 </p>
                 {/*
-                  La dirección va en su propia línea y sin truncar: el
-                  vendedor la usa para ir a cobrar, y una dirección cortada a
-                  la mitad ("AV. LOS PROCERES N° 4…") no lleva a ningún lado.
+                  Dirección y distrito juntos, en su propia línea y sin
+                  truncar: el vendedor los usa para ir a cobrar, y una
+                  dirección cortada a la mitad ("AV. LOS PROCERES N° 4…") no
+                  lleva a ningún lado. El distrito va acá y no al lado del RUC
+                  porque es parte de la dirección: "Av. Los Virreyes Mza B" sin
+                  distrito no dice si es Jesús María o el Callao. Cuando no hay
+                  dirección, el distrito sube a la línea del RUC para no perderse.
                 */}
                 {f.direccion && (
-                  <p className="text-gray-500 text-[11px] mt-0.5 leading-snug">{f.direccion}</p>
+                  <p className="text-gray-500 text-[11px] mt-0.5 leading-snug">
+                    {f.direccion}
+                    {lugarDe(f.distrito, f.provincia) && (
+                      <span className="text-gray-400"> · {lugarDe(f.distrito, f.provincia)}</span>
+                    )}
+                  </p>
                 )}
                 <div className="flex items-baseline justify-between gap-3 mt-0.5">
                   <p className="text-gray-400 text-xs font-mono shrink-0">{f.comprobante}</p>
@@ -409,11 +438,19 @@ export default function VistaVendedorClient({
                           <div className="min-w-0">
                             <span className="font-semibold text-gray-800">{g.razon_social}</span>
                             <span className="text-gray-400 text-[11px] ml-2">
-                              RUC {g.ruc}{g.distrito && <> · {g.distrito}</>}
+                              RUC {g.ruc}
+                              {!g.direccion && lugarDe(g.distrito, g.provincia) && (
+                                <> · {lugarDe(g.distrito, g.provincia)}</>
+                              )}
                             </span>
-                            {/* La dirección entera, en su propia línea: es a dónde hay que ir a cobrar. */}
+                            {/* Dirección y distrito juntos: es a dónde hay que ir a cobrar. */}
                             {g.direccion && (
-                              <p className="text-gray-500 text-[11px] mt-0.5 leading-snug">{g.direccion}</p>
+                              <p className="text-gray-500 text-[11px] mt-0.5 leading-snug">
+                                {g.direccion}
+                                {lugarDe(g.distrito, g.provincia) && (
+                                  <span className="text-gray-400"> · {lugarDe(g.distrito, g.provincia)}</span>
+                                )}
+                              </p>
                             )}
                           </div>
                           <span className={`text-[11px] font-semibold shrink-0 ${g.morosidad >= 30 ? 'text-red-600' : 'text-gray-500'}`}>
