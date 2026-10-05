@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { crearClienteServidor } from '@logisalud/auth/server';
+import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
@@ -8,13 +8,18 @@ import { AREAS_LECTURA } from '@/lib/autorizacion';
 // Ranking de uso de los dos botones de WhatsApp del link del vendedor
 // (ver BotonesWhatsApp en app/v/[token]/VistaVendedorClient.tsx):
 // 'descuento' = recordatorio de pronto pago, 'vencimiento' = recordatorio
-// de vencimiento/morosidad. Mismo patrón que /api/accesos-vendedor, con el
-// total de accesos al lado para ver si el que no usa el botón al menos entra.
+// de vencimiento/morosidad. Con el total de accesos al lado para ver si el
+// que no usa el botón al menos entra.
+//
+// supabaseAdmin(), no crearClienteServidor(): a diferencia de vendedores/
+// accesos_vendedor (tienen policy "cartera_lectura_staff"), la tabla
+// whatsapp_mensajes_enviados tiene RLS activado SIN ninguna policy — con el
+// cliente de sesión esta pantalla mostraba 0 recordatorios para todos.
 export async function GET() {
   const auth = await exigirArea(AREAS_LECTURA);
   if (!auth.ok) return auth.respuesta;
 
-  const db = crearClienteServidor();
+  const db = supabaseAdmin();
 
   const [vendedores, accesos, mensajes] = await Promise.all([
     fetchAll<{ id: string; nombres: string; apellidos: string | null; codigo: string | null; activo: boolean; piloto_whatsapp: boolean }>((from, to) =>
