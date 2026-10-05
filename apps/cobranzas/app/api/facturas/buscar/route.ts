@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     const [resFacturas, resPagos] = await Promise.all([
       db.from('v_saldos')
         .select('id, comprobante, cliente_ruc, razon_social, fecha_emision, fecha_vencimiento, ' +
-                'importe_total, total_pagado, saldo_pendiente, rango_vencimiento, tiene_letras, forma_pago, contado_pendiente')
+                'importe_total, total_pagado, saldo_pendiente, rango_vencimiento, tiene_letras, forma_pago, contado_pendiente, factorizado')
         .or(`and(importe_total.gte.${monto - tolerancia},importe_total.lte.${monto + tolerancia}),and(saldo_pendiente.gte.${monto - tolerancia},saldo_pendiente.lte.${monto + tolerancia})`)
         .order('fecha_emision', { ascending: false })
         .limit(20),
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     .from('v_saldos')
     .select(
       'id, comprobante, cliente_ruc, razon_social, fecha_emision, fecha_vencimiento, ' +
-      'importe_total, total_pagado, saldo_pendiente, rango_vencimiento, tiene_letras, forma_pago, contado_pendiente'
+      'importe_total, total_pagado, saldo_pendiente, rango_vencimiento, tiene_letras, forma_pago, contado_pendiente, factorizado'
     )
     .or(orClause)
     .order('fecha_emision', { ascending: false })

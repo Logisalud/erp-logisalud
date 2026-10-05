@@ -17,7 +17,8 @@ export async function GET(
     .select(
       'id, comprobante, cliente_ruc, razon_social, fecha_emision, fecha_vencimiento, ' +
       'importe_total, total_nc, total_nd, total_pagado, saldo_pendiente, ' +
-      'rango_vencimiento, tiene_letras, forma_pago, contado_pendiente'
+      'rango_vencimiento, tiene_letras, forma_pago, contado_pendiente, ' +
+      'factorizado, factoring_entidad'
     )
     .eq('id', params.id)
     .single();

@@ -17,8 +17,11 @@
  *  3. CONTADO anterior al 2026-08-11: se asume cobrado al despacho, sin pago
  *     registrado.
  *  4. Saldo de hasta S/ 0.09: se da por pagado (tolerancia de redondeo).
+ *  5. Factorizada: la factura entera se vendió a una empresa de factoring
+ *     (ver `factoring_operaciones`/`factoring_facturas`); el saldo baja a 0
+ *     sin que exista un pago real del cliente.
  *
- * Lo que no cae en ninguna de las cuatro se devuelve como diferencia sin
+ * Lo que no cae en ninguna de las cinco se devuelve como diferencia sin
  * explicar, con `esProblema: true`. Eso es a propósito: antes esas
  * diferencias se las tragaba la pantalla y una factura podía mostrar
  * "26,247.03 − 1,221.43 = 0.00" sin que nada chirriara.
@@ -40,6 +43,10 @@ export interface EntradaDesglose {
   contadoPendiente: boolean;
   fechaEmision: string;
   tieneLetras: boolean;
+  /** true si la factura entera se vendió a una empresa de factoring. */
+  factorizado?: boolean;
+  /** Para mostrar a quién se le vendió, si se conoce. */
+  factoringEntidad?: string | null;
 }
 
 export interface Desglose {
@@ -97,6 +104,13 @@ export function calcularDesglose(e: EntradaDesglose): Desglose {
     return {
       sinExplicar,
       etiqueta: 'Cobrado al despacho (contado anterior al 11/08/2026)',
+      esProblema: false,
+    };
+  }
+  if (e.factorizado) {
+    return {
+      sinExplicar,
+      etiqueta: e.factoringEntidad ? `Factorizada — ${e.factoringEntidad}` : 'Factorizada',
       esProblema: false,
     };
   }

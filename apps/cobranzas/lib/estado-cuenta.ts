@@ -23,6 +23,9 @@
  *   daban por cobradas contra entrega y nunca tuvieron un pago registrado.
  * - `Redondeo` — saldo de hasta S/ 0.09, que la app trata como saldado.
  * - `Canje en letras` — las letras giradas no cubren el total de la factura.
+ * - `Factorizada` — la factura entera se vendió a una empresa de factoring
+ *   (`factoring_operaciones`/`factoring_facturas`); el saldo baja a 0 sin
+ *   pago real del cliente.
  * - `Diferencia sin explicar` — no debería pasar. Al 2026-09-25 no le pasa a
  *   ninguna de las 2.497 facturas. Existe igual: si mañana aparece un caso
  *   nuevo, se ve en pantalla en vez de desaparecer dentro de un total. Es la
@@ -106,6 +109,9 @@ export interface FacturaCruda {
   saldo_pendiente: number;
   forma_pago: string | null;
   contado_pendiente: boolean | null;
+  /** true si la factura entera se vendió a una empresa de factoring. */
+  factorizado?: boolean | null;
+  factoring_entidad?: string | null;
 }
 
 export interface NotaCruda {
@@ -320,7 +326,9 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
     } else if (natural > 0 && natural <= TOLERANCIA_CENTIMOS) {
       motivo = 'Redondeo (hasta S/ 0.09)';
     } else if (tieneLetras) motivo = 'Canje en letras';
-    else {
+    else if (f.factorizado) {
+      motivo = f.factoring_entidad ? `Factorizada — ${f.factoring_entidad}` : 'Factorizada';
+    } else {
       motivo = 'Diferencia sin explicar — revisar';
       totalSinExplicar = aCentimos(totalSinExplicar + Math.abs(ajuste));
     }

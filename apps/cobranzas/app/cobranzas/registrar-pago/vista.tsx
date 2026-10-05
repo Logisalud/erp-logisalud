@@ -19,6 +19,8 @@ interface FacturaBuscar {
   tiene_letras: boolean;
   forma_pago: string | null;
   contado_pendiente: boolean;
+  factorizado?: boolean;
+  factoring_entidad?: string | null;
 }
 
 interface NcNd {
@@ -711,6 +713,8 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
               contadoPendiente={factura.contado_pendiente}
               fechaEmision={factura.fecha_emision}
               tieneLetras={factura.tiene_letras}
+              factorizado={factura.factorizado}
+              factoringEntidad={factura.factoring_entidad}
               letrasPagadas={letras
                 .filter(l => l.estado === 'pagada')
                 .map(l => ({ numero_letra: l.numero_letra, fecha_pago: l.fecha_pago ?? null }))}
