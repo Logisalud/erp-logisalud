@@ -37,7 +37,15 @@ export default function WhatsappRankingPage() {
             <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
             <p className="text-white/70 text-sm">Uso de los botones de WhatsApp</p>
           </div>
-          <a href="/cobranzas" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+          <div className="flex items-center gap-3">
+            <a
+              href="/api/exportar/whatsapp-ranking"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white/20 text-white hover:bg-white/30 transition"
+            >
+              📥 Descargar Excel
+            </a>
+            <a href="/cobranzas" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+          </div>
         </div>
       </header>
 
