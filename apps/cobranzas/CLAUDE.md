@@ -57,6 +57,19 @@ role key, bypassa RLS).
   primera vez que se probó (daba S/ 3.905,20 en vez de S/ 6.006,85 para
   CORPORACION PIONERO). El saldo POR FACTURA se recorta; el saldo POR
   CLIENTE es la suma de los recortados, no el recorte de la suma.
+- El estado de cuenta por cliente lo comparten dos pisos con permisos
+  distintos: el staff entra con sesión a
+  `/cobranzas/clientes/[ruc]/estado-cuenta` y el vendedor entra sin login
+  desde su link a `/v/[token]/estado-cuenta`. La pantalla es **un solo
+  componente** (`components/EstadoCuentaCliente.tsx`) y la cuenta la hace
+  **una sola función** (`lib/estado-cuenta-datos.ts` →
+  `cargarEstadoCuenta`), que usan también las dos rutas de Excel. Es a
+  propósito: si el vendedor y Contabilidad vieran saldos distintos del
+  mismo cliente, la pantalla haría más daño que no existir. Lo único que
+  cambia es el permiso — `exigirArea(AREAS_LECTURA)` de un lado,
+  `vendedorPorToken()` + `clienteEsDelVendedor()` del otro, y ahí el
+  vendedor ve SOLO sus clientes (el buscador filtra por `vendedor_id` y la
+  API responde 403 si le escriben otro RUC en la URL).
 - `lib/estado-cuenta.ts` arma el historial completo de un cliente como
   extracto con saldo acumulado. No recalcula el saldo: toma el de `v_saldos`
   como verdad y, cuando los movimientos reales no lo explican, emite una fila

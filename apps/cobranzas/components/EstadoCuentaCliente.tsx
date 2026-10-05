@@ -1,0 +1,504 @@
+'use client';
+
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FacturaResumen, Movimiento, Resumen } from '@/lib/estado-cuenta';
+
+/**
+ * El estado de cuenta de un cliente, para staff y para vendedores.
+ *
+ * La misma pantalla la usan dos pisos con permisos distintos: Contabilidad
+ * entra con sesión a `/cobranzas/clientes/[ruc]/estado-cuenta`, y el vendedor
+ * entra sin login desde su link `/v/[token]/estado-cuenta`, donde el permiso
+ * lo da el token y sólo alcanza a SUS clientes. Lo único que cambia entre las
+ * dos son las URLs que recibe por props — los números los calcula el servidor
+ * con el mismo `cargarEstadoCuenta`, así que un vendedor y Contabilidad no
+ * pueden ver saldos distintos del mismo cliente.
+ */
+interface Props {
+  ruc: string;
+  /** API del historial. Se le agregan `desde`/`hasta`; puede ya traer `?token=`. */
+  apiHistorial: string;
+  /** API del buscador de clientes. Se le agrega `q`. */
+  apiBuscar: string;
+  /** API del Excel. Se le agregan `desde`/`hasta`. */
+  apiExcel: string;
+  /** Link al extracto de otro cliente, desde el buscador. */
+  hrefCliente: (ruc: string) => string;
+  /** A dónde vuelve el link de arriba a la derecha. */
+  volverHref: string;
+  volverTexto: string;
+  subtitulo: string;
+}
+
+/** Agrega parámetros a una URL que puede ya tener querystring (el token). */
+function conParams(base: string, extra: Record<string, string>): string {
+  const [ruta, qs] = base.split('?');
+  const p = new URLSearchParams(qs ?? '');
+  for (const [k, v] of Object.entries(extra)) if (v) p.set(k, v);
+  const s = p.toString();
+  return s ? `${ruta}?${s}` : ruta;
+}
+
+interface ClienteInfo {
+  ruc: string;
+  razon_social: string;
+  direccion?: string | null;
+  distrito?: string | null;
+  provincia?: string | null;
+}
+
+interface ClienteHit {
+  cliente_ruc: string;
+  razon_social: string;
+  saldo_total: number;
+}
+
+const fmt = (n: number) =>
+  n === 0 ? '' : n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtSaldo = (n: number) =>
+  n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtFecha = (f: string) => {
+  if (!f) return '';
+  const [a, m, d] = f.split('-');
+  return `${d}/${m}/${a}`;
+};
+
+/** Cada tipo de fila se lee distinto: el color hace el trabajo del ojo. */
+function colorDe(m: Movimiento): string {
+  if (m.tipo === 'AJUSTE') {
+    return m.detalle?.startsWith('Diferencia sin explicar') ? 'text-red-700' : 'text-amber-700';
+  }
+  if (m.debe > 0) return 'text-gray-900';
+  return 'text-[#276b3b]';
+}
+
+export default function EstadoCuentaCliente({
+  ruc,
+  apiHistorial,
+  apiBuscar,
+  apiExcel,
+  hrefCliente,
+  volverHref,
+  volverTexto,
+  subtitulo,
+}: Props) {
+  const [cliente, setCliente] = useState<ClienteInfo | null>(null);
+  const [movs, setMovs] = useState<Movimiento[]>([]);
+  const [porFactura, setPorFactura] = useState<FacturaResumen[]>([]);
+  const [vista, setVista] = useState<'factura' | 'cronologico'>('factura');
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const [resumen, setResumen] = useState<Resumen | null>(null);
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Buscador para saltar a otro cliente sin volver al menú.
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<ClienteHit[]>([]);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError(null);
+    try {
+      const r = await fetch(conParams(apiHistorial, { desde, hasta }), { cache: 'no-store' });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? 'No se pudo cargar el estado de cuenta.');
+      setCliente(j.cliente);
+      setMovs(j.movimientos);
+      setPorFactura(j.porFactura ?? []);
+      setResumen(j.resumen);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCargando(false);
+    }
+  }, [apiHistorial, desde, hasta]);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  useEffect(() => {
+    if (debounce.current) clearTimeout(debounce.current);
+    if (q.trim().length < 2) {
+      setHits([]);
+      return;
+    }
+    debounce.current = setTimeout(async () => {
+      const r = await fetch(conParams(apiBuscar, { q: q.trim() }), { cache: 'no-store' });
+      const j = await r.json();
+      setHits(j.clientes ?? []);
+    }, 250);
+  }, [q, apiBuscar]);
+
+  const urlExcel = useMemo(
+    () => conParams(apiExcel, { desde, hasta }),
+    [apiExcel, desde, hasta],
+  );
+
+  const lugar = [cliente?.distrito, cliente?.provincia].filter(Boolean).join(' · ');
+
+  return (
+    <div className="min-h-screen bg-gray-50 font-poppins">
+      <header className="px-6 py-4 print:hidden" style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}>
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
+            <p className="text-white/70 text-sm">{subtitulo}</p>
+          </div>
+          <a href={volverHref} className="text-white/80 hover:text-white text-sm">&larr; {volverTexto}</a>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        {/* Buscador: permite saltar a otro cliente sin salir de la pantalla. */}
+        <div className="relative mb-4 print:hidden">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar otro cliente por RUC o razón social…"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
+          {hits.length > 0 && (
+            <ul className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+              {hits.map((h) => (
+                <li key={h.cliente_ruc}>
+                  <a
+                    href={hrefCliente(h.cliente_ruc)}
+                    className="flex justify-between gap-3 px-3 py-2 text-sm hover:bg-gray-50"
+                  >
+                    <span className="truncate">
+                      {h.razon_social} <span className="text-gray-400">· {h.cliente_ruc}</span>
+                    </span>
+                    <span className="shrink-0 text-gray-500">S/ {fmtSaldo(h.saldo_total)}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="mb-4">
+          <h2 className="font-oswald text-xl text-gray-800">
+            {cliente?.razon_social ?? ruc}
+          </h2>
+          <p className="text-sm text-gray-500">
+            RUC {ruc}
+            {cliente?.direccion ? <> · {cliente.direccion}</> : null}
+            {lugar ? <> · {lugar}</> : null}
+          </p>
+        </div>
+
+        {/* Resumen antes de la tabla. */}
+        {resumen && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-5">
+            <Tile
+              titulo={resumen.saldoActual < 0 ? 'Saldo a favor del cliente' : 'Saldo actual'}
+              valor={fmtSaldo(Math.abs(resumen.saldoActual))}
+              color={resumen.saldoActual < 0 ? '#276b3b' : resumen.saldoActual > 0 ? '#b91c1c' : '#374151'}
+              nota={
+                resumen.saldoActual < 0
+                  ? 'Nosotros le debemos'
+                  : resumen.saldoActual === 0
+                    ? 'Sin deuda'
+                    : 'En contra del cliente'
+              }
+            />
+            <Tile titulo="Total facturado" valor={fmtSaldo(resumen.totalFacturado)} />
+            <Tile titulo="Total pagado" valor={fmtSaldo(resumen.totalPagado)} nota="Incluye letras pagadas y retención" />
+            <Tile titulo="Notas de crédito" valor={fmtSaldo(resumen.totalNotasCredito)} />
+          </div>
+        )}
+
+        {resumen && resumen.totalSinExplicar > 0 && (
+          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            Hay S/ {fmtSaldo(resumen.totalSinExplicar)} en diferencias que no encajan en ninguna
+            regla conocida. Están marcadas en rojo en la tabla — conviene revisarlas.
+          </p>
+        )}
+
+        {/* Dos lecturas del mismo saldo: por factura (en qué va cada una) y
+            cronológica (qué pasó, en orden). Salen de los mismos movimientos,
+            así que no pueden discrepar. */}
+        <div className="mb-4 flex gap-1 print:hidden">
+          {([['factura', 'Por factura'], ['cronologico', 'Cronológico']] as const).map(([k, t]) => (
+            <button
+              key={k}
+              onClick={() => setVista(k)}
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition ${
+                vista === k ? 'text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+              }`}
+              style={vista === k ? { background: '#276b3b' } : undefined}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {/* Filtro de fechas y exportación. */}
+        <div className="mb-4 flex flex-wrap items-end gap-3 print:hidden">
+          <label className="text-sm">
+            <span className="block text-gray-600">Desde</span>
+            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)}
+              className="rounded-lg border border-gray-300 px-2 py-1.5" />
+          </label>
+          <label className="text-sm">
+            <span className="block text-gray-600">Hasta</span>
+            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)}
+              className="rounded-lg border border-gray-300 px-2 py-1.5" />
+          </label>
+          {(desde || hasta) && (
+            <button onClick={() => { setDesde(''); setHasta(''); }}
+              className="text-sm text-gray-500 underline pb-2">Ver todo</button>
+          )}
+          <div className="ml-auto flex gap-2">
+            <button onClick={() => window.print()}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50">
+              🖨 Imprimir
+            </button>
+            <a href={urlExcel}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-white"
+              style={{ background: '#276b3b' }}>
+              ⬇ Exportar a Excel
+            </a>
+          </div>
+        </div>
+
+        {error && (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+        )}
+        {cargando && <p className="text-sm text-gray-500">Cargando…</p>}
+
+        {!cargando && !error && vista === 'factura' && (
+          <TablaPorFactura filas={porFactura} abierta={abierta} alAbrir={setAbierta} />
+        )}
+
+        {!cargando && !error && vista === 'cronologico' && (
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Fecha</th>
+                  <th className="px-3 py-2 text-left font-medium">Tipo</th>
+                  <th className="px-3 py-2 text-left font-medium">Documento</th>
+                  <th className="px-3 py-2 text-right font-medium">Debe</th>
+                  <th className="px-3 py-2 text-right font-medium">Haber</th>
+                  <th className="px-3 py-2 text-right font-medium">Saldo</th>
+                  <th className="px-3 py-2 text-left font-medium">Detalle</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {movs.map((m, i) => (
+                  <tr key={i} className={m.tipo === 'AJUSTE' ? 'bg-amber-50/50' : undefined}>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-gray-600">{fmtFecha(m.fecha)}</td>
+                    <td className={`whitespace-nowrap px-3 py-1.5 ${colorDe(m)}`}>{m.etiqueta}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 font-mono text-gray-500">{m.documento}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">{fmt(m.debe)}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-[#276b3b]">{fmt(m.haber)}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right font-semibold tabular-nums">{fmtSaldo(m.saldo)}</td>
+                    <td className="px-3 py-1.5 text-gray-500">{m.detalle}</td>
+                  </tr>
+                ))}
+                {movs.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
+                      Este cliente no tiene movimientos {desde || hasta ? 'en el rango elegido' : 'registrados'}.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <p className="mt-4 text-xs text-gray-400">
+          {vista === 'factura'
+            ? 'Cada fila es una factura: tocala para ver sus movimientos. El importe menos las notas de crédito, menos lo cobrado y más o menos el ajuste da el saldo. '
+            : ''}
+          Las filas en ámbar son ajustes: reglas del sistema que mueven el saldo sin ser un
+          documento (un CONTADO cobrado al despacho, un redondeo de céntimos, un canje en
+          letras o un pago de más). Están a la vista para que el saldo final cuadre exacto
+          con lo que reporta cada factura.
+        </p>
+      </main>
+    </div>
+  );
+}
+
+function Tile({ titulo, valor, color, nota }: { titulo: string; valor: string; color?: string; nota?: string }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-3.5 py-3">
+      <p className="text-[11px] uppercase tracking-wide text-gray-400">{titulo}</p>
+      <p className="font-oswald text-xl" style={{ color: color ?? '#374151' }}>S/ {valor}</p>
+      {nota && <p className="text-[11px] text-gray-400">{nota}</p>}
+    </div>
+  );
+}
+
+/** Cómo se ve el estado de una factura de un vistazo. */
+function BadgeEstado({ f }: { f: FacturaResumen }) {
+  const vencida = f.saldo > 0.005 && (f.diasVencida ?? -1) > 0;
+  const estilo = vencida
+    ? 'bg-red-50 text-red-700 border-red-200'
+    : f.estado === 'PAGADA'
+      ? 'bg-emerald-50 text-[#276b3b] border-emerald-200'
+      : f.estado === 'PARCIAL'
+        ? 'bg-amber-50 text-amber-800 border-amber-200'
+        : 'bg-gray-50 text-gray-600 border-gray-200';
+  const texto = vencida
+    ? `Vencida ${f.diasVencida} d`
+    : f.estado === 'PAGADA'
+      ? 'Pagada'
+      : f.estado === 'PARCIAL'
+        ? 'Parcial'
+        : 'Pendiente';
+  return (
+    <span className={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${estilo}`}>{texto}</span>
+  );
+}
+
+/**
+ * Una fila por factura: en qué va cada una.
+ *
+ * El orden es el de cobranza —primero las que deben, y dentro de ellas las
+ * más atrasadas—, no el cronológico: esta vista se usa para salir a cobrar,
+ * no para reconstruir la historia. Las saldadas quedan abajo.
+ */
+function TablaPorFactura({
+  filas,
+  abierta,
+  alAbrir,
+}: {
+  filas: FacturaResumen[];
+  abierta: string | null;
+  alAbrir: (id: string | null) => void;
+}) {
+  if (filas.length === 0) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white px-3 py-6 text-center text-sm text-gray-500">
+        Este cliente no tiene facturas registradas.
+      </div>
+    );
+  }
+
+  const tot = filas.reduce(
+    (a, f) => ({
+      importe: a.importe + f.importe,
+      nc: a.nc + f.totalNotasCredito,
+      cobrado: a.cobrado + f.totalCobrado,
+      saldo: a.saldo + f.saldo,
+    }),
+    { importe: 0, nc: 0, cobrado: 0, saldo: 0 },
+  );
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 text-gray-600">
+          <tr>
+            <th className="px-3 py-2 text-left font-medium">Factura</th>
+            <th className="px-3 py-2 text-left font-medium">Emisión</th>
+            <th className="px-3 py-2 text-left font-medium">Vence</th>
+            <th className="px-3 py-2 text-right font-medium">Importe</th>
+            <th className="px-3 py-2 text-right font-medium">Notas de crédito</th>
+            <th className="px-3 py-2 text-right font-medium">Cobrado</th>
+            <th className="px-3 py-2 text-right font-medium">Saldo</th>
+            <th className="px-3 py-2 text-left font-medium">Estado</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {filas.map((f) => {
+            const abiertaEsta = abierta === f.id;
+            return (
+              <Fragment key={f.id}>
+                <tr
+                  onClick={() => alAbrir(abiertaEsta ? null : f.id)}
+                  className={`cursor-pointer hover:bg-gray-50 ${abiertaEsta ? 'bg-gray-50' : ''}`}
+                >
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-gray-700">
+                    <span className="mr-1 text-gray-400">{abiertaEsta ? '▾' : '▸'}</span>
+                    {f.comprobante}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-gray-500">{fmtFecha(f.fechaEmision)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-gray-500">
+                    {f.fechaVencimiento ? fmtFecha(f.fechaVencimiento) : '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{fmtSaldo(f.importe)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#276b3b]">
+                    {f.totalNotasCredito ? fmtSaldo(f.totalNotasCredito) : ''}
+                    {f.totalNotasDebito ? (
+                      <span className="text-gray-900"> +{fmtSaldo(f.totalNotasDebito)}</span>
+                    ) : null}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#276b3b]">
+                    {f.totalCobrado ? fmtSaldo(f.totalCobrado) : ''}
+                    {f.cantidadPagos > 1 && (
+                      <span className="ml-1 text-[11px] text-gray-400">({f.cantidadPagos})</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
+                    {fmtSaldo(f.saldo)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2"><BadgeEstado f={f} /></td>
+                </tr>
+
+                {abiertaEsta && (
+                  <tr className="bg-gray-50/70">
+                    <td colSpan={8} className="px-3 pb-3 pt-1">
+                      {/* Las notas de crédito vigentes, nombradas: saber que hay
+                          S/ 2.836,52 en notas no sirve tanto como saber cuáles. */}
+                      {f.notasCredito.length > 0 && (
+                        <p className="mb-2 text-xs text-gray-600">
+                          <span className="font-medium">Notas de crédito vigentes:</span>{' '}
+                          {f.notasCredito
+                            .map((n) => `${n.comprobante} (${fmtFecha(n.fecha)}) S/ ${fmtSaldo(n.importe)}`)
+                            .join(' · ')}
+                        </p>
+                      )}
+                      {f.motivoAjuste && (
+                        <p className="mb-2 text-xs text-amber-700">
+                          <span className="font-medium">Ajuste del sistema:</span> {f.motivoAjuste}{' '}
+                          (S/ {fmtSaldo(f.ajuste)})
+                        </p>
+                      )}
+                      <table className="w-full text-xs">
+                        <tbody className="divide-y divide-gray-200">
+                          {f.movimientos.map((m, i) => (
+                            <tr key={i}>
+                              <td className="whitespace-nowrap py-1 pr-3 text-gray-500">{fmtFecha(m.fecha)}</td>
+                              <td className={`whitespace-nowrap py-1 pr-3 ${colorDe(m)}`}>{m.etiqueta}</td>
+                              <td className="whitespace-nowrap py-1 pr-3 font-mono text-gray-500">{m.documento}</td>
+                              <td className="whitespace-nowrap py-1 pr-3 text-right tabular-nums">{fmt(m.debe)}</td>
+                              <td className="whitespace-nowrap py-1 pr-3 text-right tabular-nums text-[#276b3b]">
+                                {fmt(m.haber)}
+                              </td>
+                              <td className="py-1 text-gray-500">{m.detalle}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+        <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+          <tr>
+            <td className="px-3 py-2" colSpan={3}>Totales</td>
+            <td className="px-3 py-2 text-right tabular-nums">{fmtSaldo(tot.importe)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-[#276b3b]">{fmtSaldo(tot.nc)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-[#276b3b]">{fmtSaldo(tot.cobrado)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{fmtSaldo(tot.saldo)}</td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}

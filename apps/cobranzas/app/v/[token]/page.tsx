@@ -286,7 +286,14 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
               {zonas && <>{zonas} · </>}{hoyStr}
             </p>
           </div>
-          <div className="flex items-center gap-2 print:hidden shrink-0">
+          <div className="flex flex-wrap items-center justify-end gap-2 print:hidden shrink-0">
+            <a
+              href={`/v/${token}/estado-cuenta`}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white/20 text-white hover:bg-white/30 transition"
+              title="Buscar un cliente y ver su historial completo: facturas, notas de crédito, pagos y letras"
+            >
+              📄 Estado de cuenta
+            </a>
             <a
               href={`/api/v/exportar-clientes?token=${token}`}
               className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white/20 text-white hover:bg-white/30 transition"
