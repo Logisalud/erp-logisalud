@@ -57,6 +57,10 @@ export default async function Home() {
           <h2 className="text-lg font-semibold mb-1">📊 Accesos de vendedores</h2>
           <p className="text-gray-500 text-sm">Quién entra a ver su cobranza y quién no — para detectar a los que no lo usan.</p>
         </Link>
+        <Link href="/cobranzas/whatsapp-ranking" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">📱 Ranking de WhatsApp</h2>
+          <p className="text-gray-500 text-sm">Recordatorios de pronto pago y de vencimiento enviados por cada vendedor.</p>
+        </Link>
         <Link href="/cobranzas/cobranza" className="block p-6 bg-white rounded-xl border-2 hover:shadow-md transition" style={{ borderColor: '#4ABCC2' }}>
           <h2 className="text-lg font-semibold mb-1">💰 Cobranza del período</h2>
           <p className="text-gray-500 text-sm">Cuánto se cobró (total y de lo vencido) por vendedor, en el rango que elijas.</p>
