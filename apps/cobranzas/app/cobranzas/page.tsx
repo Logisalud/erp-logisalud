@@ -81,6 +81,10 @@ export default async function Home() {
           <h2 className="text-lg font-semibold mb-1" style={{ color: '#c07d1e' }}>💵 Efectivo por depositar</h2>
           <p className="text-gray-500 text-sm">Pagos en efectivo cobrados y aún no llevados al banco.</p>
         </Link>
+        <Link href="/cobranzas/factoring" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">🏷️ Factoring de facturas</h2>
+          <p className="text-gray-500 text-sm">Registra qué facturas se vendieron a una empresa de factoring.</p>
+        </Link>
       </div>
     </main>
   );

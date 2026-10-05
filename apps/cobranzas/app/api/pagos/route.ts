@@ -65,13 +65,19 @@ export async function POST(req: NextRequest) {
 
   const { data: saldoRow } = await db
     .from('v_saldos')
-    .select('tiene_letras')
+    .select('tiene_letras, factorizado, factoring_entidad')
     .eq('id', documento_id)
     .single();
 
   if (saldoRow?.tiene_letras)
     return NextResponse.json(
       { error: 'Esta factura tiene letras. Paga marcando la letra correspondiente.' },
+      { status: 400 }
+    );
+
+  if (saldoRow?.factorizado)
+    return NextResponse.json(
+      { error: `Esta factura ya fue factorizada${saldoRow.factoring_entidad ? ` (${saldoRow.factoring_entidad})` : ''}. No registres un pago del cliente acá — el cobro le corresponde a la empresa de factoring.` },
       { status: 400 }
     );
 
