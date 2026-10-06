@@ -26,6 +26,10 @@ export const RUTAS_AUTH = ['/login', '/auth/callback'] as const
  *   /api/acceso                registra el acceso        (token en el body)
  *   /api/whatsapp-enviado      registra un envío         (token en el body)
  *   /api/v/exportar-clientes   exporta su cartera        (token en el query)
+ *   /v/[token]/estado-cuenta   el extracto de un cliente suyo (token en la ruta)
+ *   /api/v/clientes/buscar     busca en SU cartera       (token en el query)
+ *   /api/v/estado-cuenta       el extracto, solo clientes suyos (token en el query)
+ *   /api/v/exportar-estado-cuenta  ese extracto en Excel (token en el query)
  *   /api/base-url              da la URL de producción con la que se arman
  *                              los links de vendedor
  *
