@@ -119,3 +119,17 @@ values
   ('BOJAM402', 'DEPULOX 60MG CAJA X 30 CAPSULAS', 'Caja x 30 Capsulas', 'DULOXETINA 60MG', 'CAPSULA'),
   ('BOJAM403', 'DONESTA 10MG CAJA X 30 TABLETAS', 'Caja x 30 tabletas', 'DONEPEZILO 10MG', 'TABLETAS RECUB.')
 on conflict (codigo) do nothing;
+
+-- ── El proveedor, y el vínculo ───────────────────────────────────────────
+-- RUC pasado por Sebas el 2026-10-06. `condicion_pago_dias` queda en el
+-- default (30) porque la lista de precios no dice el plazo pactado: hay que
+-- confirmarlo con JAM y corregirlo desde la ficha del proveedor.
+insert into compras.proveedores (ruc, razon_social, tipo)
+select '20604137510', 'JAM PHARMACEUTICAL SAC', 'mercaderia'
+where not exists (select 1 from compras.proveedores where ruc = '20604137510');
+
+update catalogo.productos
+   set proveedor_id = (select id from compras.proveedores where ruc = '20604137510'),
+       updated_at = now()
+ where (codigo like 'JAM%' or codigo like 'BOJAM%')
+   and proveedor_id is null;
