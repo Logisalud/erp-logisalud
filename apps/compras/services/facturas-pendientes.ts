@@ -5,6 +5,7 @@ import { hayRecepcionConSaldoSinFacturar } from '@/domain/facturas-pendientes'
 import { calcularFechaVencimientoMultiRecepcion } from '@/domain/vencimiento-obligacion'
 import { crearObligacionCompraMultiRecepcion, type LineaFacturacionCompra } from '@/services/obligaciones'
 import { hoyLima, anioMesStorageLima } from '@/domain/fecha'
+import { separarPorIgv } from '@/domain/orden-compra'
 
 /**
  * Orquesta el flujo NUEVO de registro de factura de compra (Pieza 1 + 2):
@@ -56,6 +57,8 @@ type ItemOC = {
   cantidad_recibida: number
   cantidad_facturada: number
   precio_unitario: number
+  /** De la línea de la OC (migración 0078). */
+  exonerado_igv: boolean
 }
 
 type OCParaFactura = {
@@ -74,7 +77,8 @@ async function obtenerOCParaFactura(ocId: string): Promise<OCParaFactura | null>
     .from('ordenes_compra')
     .select(
       `id, codigo, moneda, proveedor_id, condiciones_pago_dias,
-       ordenes_compra_items(id, cantidad_pedida, cantidad_recibida, cantidad_facturada, precio_unitario)`
+       ordenes_compra_items(id, cantidad_pedida, cantidad_recibida, cantidad_facturada, precio_unitario,
+                            exonerado_igv)`
     )
     .eq('id', ocId)
     .maybeSingle()
@@ -92,6 +96,7 @@ async function obtenerOCParaFactura(ocId: string): Promise<OCParaFactura | null>
       cantidad_recibida: Number(i.cantidad_recibida),
       cantidad_facturada: Number(i.cantidad_facturada),
       precio_unitario: Number(i.precio_unitario),
+      exonerado_igv: !!i.exonerado_igv,
     })),
   }
 }
@@ -284,7 +289,9 @@ async function procesarFacturaPendiente(facturaPendienteId: string, ocYaCargada?
     lineas: lineasFacturacion,
     recepcionIds,
     fechaVencimientoReal,
-    baseImponible: conciliacion.montoTotalConciliado,
+    // El monto VERIFICADO de cada línea (regla de negocio 5), separado por
+    // régimen de IGV con la misma regla que la OC y la recepción.
+    ...montosDeObligacion(conciliacion.lineas, itemsMap),
     conforme: !conciliacion.tieneExcepciones,
     observaciones,
   })
@@ -538,4 +545,19 @@ export async function obtenerUrlDocumentoFacturaPendiente(storagePath: string): 
   const { data, error } = await supabase.storage.from('legajos-compras').createSignedUrl(storagePath, 60)
   if (error || !data) throw new Error(`No se pudo generar el enlace del documento: ${error?.message ?? ''}`)
   return data.signedUrl
+}
+
+/**
+ * Base gravada, exonerado e IGV de la obligación, a partir de lo conciliado
+ * por línea. `conciliacion.montoTotalConciliado` es la suma de todo junto y no
+ * sirve sola: no sabe qué parte lleva IGV (migración 0078).
+ */
+function montosDeObligacion(
+  lineas: readonly { ocItemId: string; montoConciliado: number }[],
+  itemsMap: Map<string, ItemOC>
+): { baseImponible: number; montoExonerado: number; igv: number } {
+  const { gravado, exonerado, igv } = separarPorIgv(
+    lineas.map((l) => ({ monto: l.montoConciliado, exoneradoIgv: itemsMap.get(l.ocItemId)?.exonerado_igv }))
+  )
+  return { baseImponible: gravado, montoExonerado: exonerado, igv }
 }

@@ -39,7 +39,7 @@ describe('puedeCerrarseParcial', () => {
 describe('calcularTotales', () => {
   it('suma, aplica IGV y redondea a 2 decimales', () => {
     expect(calcularTotales([{ cantidadPedida: 10, precioUnitario: 2.5 }])).toEqual({
-      subtotal: 25, igv: 4.5, total: 29.5,
+      subtotal: 25, gravado: 25, exonerado: 0, igv: 4.5, total: 29.5,
     })
   })
 
@@ -54,7 +54,40 @@ describe('calcularTotales', () => {
   })
 
   it('una OC sin líneas da todo en cero', () => {
-    expect(calcularTotales([])).toEqual({ subtotal: 0, igv: 0, total: 0 })
+    expect(calcularTotales([])).toEqual({ subtotal: 0, gravado: 0, exonerado: 0, igv: 0, total: 0 })
+  })
+})
+
+describe('calcularTotales — líneas exoneradas de IGV (migración 0078)', () => {
+  /**
+   * El caso de JAM Pharma: EMPALIZ 10MG a 81.12 está exonerado. Antes, la OC
+   * le sumaba 18% a todo y lo mostraba a 95.72 — lo que el proveedor no va a
+   * cobrar nunca.
+   */
+  it('una línea exonerada no lleva IGV', () => {
+    const t = calcularTotales([{ cantidadPedida: 1, precioUnitario: 81.12, exoneradoIgv: true }])
+    expect(t).toEqual({ subtotal: 81.12, gravado: 0, exonerado: 81.12, igv: 0, total: 81.12 })
+  })
+
+  it('una OC mixta cobra IGV solo sobre lo gravado', () => {
+    // ORIFLOW 0.4MG (gravado, 51.5593 sin IGV → 60.84 con IGV en la lista de
+    // JAM) + EMPALIZ 10MG (exonerado, 81.12).
+    const t = calcularTotales([
+      { cantidadPedida: 1, precioUnitario: 51.5593 },
+      { cantidadPedida: 1, precioUnitario: 81.12, exoneradoIgv: true },
+    ])
+    expect(t.gravado).toBe(51.56)
+    expect(t.exonerado).toBe(81.12)
+    expect(t.igv).toBe(9.28)
+    expect(t.total).toBe(141.96) // 60.84 + 81.12, lo mismo que suma la lista de JAM
+    expect(t.subtotal).toBe(132.68)
+  })
+
+  it('sin la marca, una línea es gravada — como toda OC de antes de la 0078', () => {
+    const conMarcaFalsa = calcularTotales([{ cantidadPedida: 2, precioUnitario: 10, exoneradoIgv: false }])
+    const sinMarca = calcularTotales([{ cantidadPedida: 2, precioUnitario: 10 }])
+    expect(conMarcaFalsa).toEqual(sinMarca)
+    expect(sinMarca.igv).toBe(3.6)
   })
 })
 

@@ -9,6 +9,7 @@ import {
   puedeCerrarseParcial,
   puedeAnularse,
   ETIQUETA_ESTADO,
+  calcularTotales,
   type BorradorOC,
   type EstadoOC,
 } from '@/domain/orden-compra'
@@ -50,6 +51,8 @@ export type OCDetalle = {
     precio_unitario: number
     cantidad_recibida: number
     cantidad_facturada: number
+    /** La foto del producto al armar la OC (migración 0078). */
+    exonerado_igv: boolean
     producto: { codigo: string; descripcion: string; unidad_medida: string } | null
   }[]
 }
@@ -96,7 +99,8 @@ export async function obtenerOC(id: string): Promise<OCDetalle | null> {
              condiciones_pago_dias, notas, proveedor_id, cuenta_bancaria_id,
              cierre_tipo, cierre_motivo, cotizacion_storage_path, anulado_motivo,
              ordenes_compra_items(id, producto_id, descripcion_libre, cantidad_pedida,
-                                  precio_unitario, cantidad_recibida, cantidad_facturada)`)
+                                  precio_unitario, cantidad_recibida, cantidad_facturada,
+                                  exonerado_igv)`)
     .eq('id', id)
     .maybeSingle()
 
@@ -140,7 +144,7 @@ export async function buscarProductos(termino: string) {
   const { data, error } = await supabase
     .schema('catalogo')
     .from('productos')
-    .select('id, codigo, descripcion, unidad_medida, precio_compra')
+    .select('id, codigo, descripcion, unidad_medida, precio_compra, exonerado_igv')
     .eq('estado', 'activo')
     .or(`codigo.ilike.%${t}%,descripcion.ilike.%${t}%`)
     .order('descripcion')
@@ -148,6 +152,40 @@ export async function buscarProductos(termino: string) {
 
   if (error) throw new Error(`No se pudieron buscar productos: ${error.message}`)
   return data ?? []
+}
+
+/**
+ * Si cada producto de la OC es exonerado de IGV, leído DE LA BASE.
+ *
+ * Nunca se toma del formulario: el régimen tributario no es algo que quien
+ * arma la OC declare — lo decide Contabilidad en el catálogo. Una línea sin
+ * producto (OC de bienes) es gravada.
+ */
+async function exoneracionDe(lineas: BorradorOC['lineas']): Promise<Map<string, boolean>> {
+  const ids = [...new Set(lineas.flatMap((l) => ('productoId' in l && l.productoId ? [l.productoId] : [])))]
+  if (ids.length === 0) return new Map()
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .schema('catalogo')
+    .from('productos')
+    .select('id, exonerado_igv')
+    .in('id', ids)
+  if (error) throw new Error(`No se pudo leer el régimen de IGV de los productos: ${error.message}`)
+  return new Map((data ?? []).map((p: any) => [p.id as string, !!p.exonerado_igv]))
+}
+
+function filaDeLinea(ocId: string, l: BorradorOC['lineas'][number], exonerados: Map<string, boolean>) {
+  const productoId = 'productoId' in l ? l.productoId : null
+  return {
+    oc_id: ocId,
+    producto_id: productoId,
+    descripcion_libre: 'descripcionLibre' in l ? l.descripcionLibre : null,
+    cantidad_pedida: l.cantidadPedida,
+    precio_unitario: l.precioUnitario,
+    // La foto del régimen al momento de pactar: si mañana Contabilidad
+    // corrige el producto, esta OC no cambia de total sola.
+    exonerado_igv: productoId ? exonerados.get(productoId) ?? false : false,
+  }
 }
 
 /**
@@ -205,14 +243,9 @@ export async function crearOC(
     throw new Error(`No se pudo crear la orden: ${error.message}`)
   }
 
+  const exonerados = await exoneracionDe(borrador.lineas)
   const { error: errorItems } = await supabase.schema('compras').from('ordenes_compra_items').insert(
-    borrador.lineas.map((l) => ({
-      oc_id: oc.id,
-      producto_id: 'productoId' in l ? l.productoId : null,
-      descripcion_libre: 'descripcionLibre' in l ? l.descripcionLibre : null,
-      cantidad_pedida: l.cantidadPedida,
-      precio_unitario: l.precioUnitario,
-    }))
+    borrador.lineas.map((l) => filaDeLinea(oc.id, l, exonerados))
   )
 
   if (errorItems) {
@@ -222,7 +255,20 @@ export async function crearOC(
     throw new Error(`No se pudieron guardar las líneas: ${errorItems.message}`)
   }
 
-  return oc
+  // Los totales con el régimen REAL de cada producto, leído de la base: el
+  // aviso a Contabilidad no puede calcularlo con las líneas del formulario,
+  // que no saben cuáles son exoneradas.
+  const totales = calcularTotales(
+    borrador.lineas.map((l) => {
+      const productoId = 'productoId' in l ? l.productoId : null
+      return {
+        cantidadPedida: l.cantidadPedida,
+        precioUnitario: l.precioUnitario,
+        exoneradoIgv: productoId ? exonerados.get(productoId) ?? false : false,
+      }
+    })
+  )
+  return { ...oc, totales }
 }
 
 /**
@@ -275,14 +321,9 @@ export async function actualizarOC(
     .eq('oc_id', id)
   if (errorBorrado) throw new Error(`No se pudieron actualizar las líneas: ${errorBorrado.message}`)
 
+  const exonerados = await exoneracionDe(borrador.lineas)
   const { error: errorItems } = await supabase.schema('compras').from('ordenes_compra_items').insert(
-    borrador.lineas.map((l) => ({
-      oc_id: id,
-      producto_id: 'productoId' in l ? l.productoId : null,
-      descripcion_libre: 'descripcionLibre' in l ? l.descripcionLibre : null,
-      cantidad_pedida: l.cantidadPedida,
-      precio_unitario: l.precioUnitario,
-    }))
+    borrador.lineas.map((l) => filaDeLinea(id, l, exonerados))
   )
   if (errorItems) throw new Error(`No se pudieron guardar las líneas: ${errorItems.message}`)
 }

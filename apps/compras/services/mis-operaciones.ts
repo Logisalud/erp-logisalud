@@ -34,7 +34,7 @@ export async function listarMisOperaciones(): Promise<FilaOperacion[]> {
     supabase
       .schema('compras')
       .from('ordenes_compra')
-      .select('id, codigo, tipo, estado, moneda, created_at, anulado_motivo, proveedor_id, ordenes_compra_items(cantidad_pedida, precio_unitario)')
+      .select('id, codigo, tipo, estado, moneda, created_at, anulado_motivo, proveedor_id, ordenes_compra_items(cantidad_pedida, precio_unitario, exonerado_igv)')
       .eq('creado_por', usuario.id)
       .order('created_at', { ascending: false }),
     supabase
@@ -101,6 +101,7 @@ export async function listarMisOperaciones(): Promise<FilaOperacion[]> {
       (oc.ordenes_compra_items ?? []).map((i: any) => ({
         cantidadPedida: Number(i.cantidad_pedida),
         precioUnitario: Number(i.precio_unitario),
+        exoneradoIgv: !!i.exonerado_igv,
       }))
     )
     const href = `/ordenes-compra/${oc.id}`

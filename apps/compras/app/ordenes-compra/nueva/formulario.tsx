@@ -31,6 +31,7 @@ export function FormularioOC() {
     lineas.map((l) => ({
       cantidadPedida: Number(l.cantidad) || 0,
       precioUnitario: Number(l.precio) || 0,
+      exoneradoIgv: !!l.producto?.exonerado_igv,
     }))
   )
 
@@ -168,7 +169,10 @@ export function FormularioOC() {
 
         <dl className="mt-4 ml-auto max-w-xs space-y-1 text-sm">
           <Fila termino="Subtotal" valor={totales.subtotal} />
-          <Fila termino="IGV 18%" valor={totales.igv} />
+          {totales.exonerado > 0 ? (
+            <Fila termino="Exonerado de IGV" valor={totales.exonerado} />
+          ) : null}
+          <Fila termino={totales.exonerado > 0 ? 'IGV 18% (sobre lo gravado)' : 'IGV 18%'} valor={totales.igv} />
           <Fila termino="Total" valor={totales.total} destacado />
         </dl>
       </section>

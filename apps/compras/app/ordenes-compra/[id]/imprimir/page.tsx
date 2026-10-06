@@ -31,6 +31,7 @@ export default async function ImprimirOC({ params }: { params: { id: string } })
     oc.items.map((i) => ({
       cantidadPedida: Number(i.cantidad_pedida),
       precioUnitario: Number(i.precio_unitario),
+      exoneradoIgv: !!i.exonerado_igv,
     }))
   )
   const simbolo = oc.moneda === 'USD' ? '$' : 'S/'
@@ -127,7 +128,10 @@ export default async function ImprimirOC({ params }: { params: { id: string } })
 
       <div className="mt-4 ml-auto w-56 text-sm">
         <div className="flex justify-between"><span className="text-gray-600">Subtotal</span><span className="tabular-nums">{importe(totales.subtotal)}</span></div>
-        <div className="flex justify-between"><span className="text-gray-600">IGV 18%</span><span className="tabular-nums">{importe(totales.igv)}</span></div>
+        {totales.exonerado > 0 ? (
+          <div className="flex justify-between"><span className="text-gray-600">Exonerado de IGV</span><span className="tabular-nums">{importe(totales.exonerado)}</span></div>
+        ) : null}
+        <div className="flex justify-between"><span className="text-gray-600">{totales.exonerado > 0 ? 'IGV 18% (sobre lo gravado)' : 'IGV 18%'}</span><span className="tabular-nums">{importe(totales.igv)}</span></div>
         <div className="mt-1 flex justify-between border-t border-gray-300 pt-1 font-semibold"><span>Total</span><span className="tabular-nums">{importe(totales.total)}</span></div>
       </div>
 

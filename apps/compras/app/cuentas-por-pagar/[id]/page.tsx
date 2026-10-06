@@ -344,6 +344,11 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
 
         <dl className="mt-4 ml-auto max-w-xs space-y-1 text-sm">
           <Total termino="Base imponible" valor={obligacion.base_imponible} moneda={obligacion.moneda} />
+          {/* Sin esta fila, una obligación con productos exonerados mostraría
+              base + IGV que no suman el neto, y parecería un error. */}
+          {Number(obligacion.monto_exonerado) > 0 ? (
+            <Total termino="Exonerado de IGV" valor={obligacion.monto_exonerado} moneda={obligacion.moneda} />
+          ) : null}
           <Total termino="IGV" valor={obligacion.igv} moneda={obligacion.moneda} />
           <Total termino="Detracción" valor={-obligacion.monto_detraccion} moneda={obligacion.moneda} />
           <Total termino="Neto a pagar" valor={obligacion.neto_a_pagar} moneda={obligacion.moneda} destacado />
