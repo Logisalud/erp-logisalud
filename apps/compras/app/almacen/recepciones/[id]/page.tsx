@@ -136,7 +136,7 @@ export default async function DetalleRecepcion({ params }: { params: { id: strin
       ) : (
         <p className="card mt-4 text-sm text-amber-900">
           La recepción se guardó pero la obligación no se pudo generar automáticamente.
-          Avisá a Contabilidad para que la registre.
+          Avisa a Contabilidad para que la registre.
         </p>
       )}
     </main>

@@ -558,7 +558,13 @@ async function crearObligacionDesdeRecepcionTresColumnas(input: {
       estado: input.totales.lineasConDiscrepancia > 0 ? 'observada' : 'registrada',
       espera_nota_credito: input.totales.esperaNotaCredito,
       fecha_vencimiento_real: fechaVencimiento,
-      storage_path_factura: input.storagePathFactura,
+      // `factura_storage_path`, no `storage_path_factura`: con el nombre al
+      // revés este insert fallaba en TODAS las recepciones desde el rediseño
+      // de tres columnas, y como el paso es best-effort el error se tragaba —
+      // la recepción quedaba guardada y la deuda nunca llegaba a Cuentas por
+      // Pagar (detectado el 2026-10-06 con 11 recepciones sin obligación).
+      // tests/services/columnas-obligaciones.test.ts vigila esto ahora.
+      factura_storage_path: input.storagePathFactura,
       created_by: input.usuarioId,
       observaciones: observacionesDeTotales(input.totales),
     })
