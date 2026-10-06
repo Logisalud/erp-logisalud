@@ -7,7 +7,6 @@ import {
   igvSegun,
   normalizarNumeroFactura,
   redondear,
-  TASA_IGV,
   validarNoSobrefacturar,
   esOrigenAnulable,
   puedeAnularseObligacion,
@@ -18,7 +17,7 @@ import {
   type BorradorPagoDirecto,
   type LineaFacturacion,
 } from '@/domain/obligacion'
-import { puedeMarcarseFacturada } from '@/domain/orden-compra'
+import { puedeMarcarseFacturada, separarPorIgv } from '@/domain/orden-compra'
 import { ERROR_AUTO_APROBACION, esAutoridadFinal, puedeAnular, puedeDecidirSobre, autoridadYaDecidioPagoDirecto, ERROR_ANULAR_TARDE, ERROR_ANULAR_AJENO } from '@/domain/auto-aprobacion'
 import { esContabilidadDecisora } from '@/domain/pendientes-aprobar'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
@@ -169,7 +168,7 @@ export async function registrarObligacionDesdeRecepcion(
   const { data: oc, error: errOc } = await supabase
     .schema('compras')
     .from('ordenes_compra')
-    .select('id, moneda, proveedor_id, condiciones_pago_dias, ordenes_compra_items(id, cantidad_pedida, cantidad_recibida, cantidad_facturada, precio_unitario)')
+    .select('id, moneda, proveedor_id, condiciones_pago_dias, ordenes_compra_items(id, cantidad_pedida, cantidad_recibida, cantidad_facturada, precio_unitario, exonerado_igv)')
     .eq('id', recepcion.oc_id)
     .maybeSingle()
   if (errOc || !oc) throw new Error('No se encontró la orden de compra de esta recepción.')
@@ -218,9 +217,14 @@ export async function registrarObligacionDesdeRecepcion(
   }
 
   const conciliacion = conciliarLineas(lineasConciliacion)
-  const baseImponible = redondear(
-    borrador.lineas.reduce((acc, l) => acc + redondear(l.cantidadFacturada * l.precioFacturado), 0)
-  )
+  // Mismo cálculo que la OC y la recepción (`separarPorIgv`): IGV solo sobre
+  // lo gravado, y lo exonerado aparte. El régimen de cada línea sale de la
+  // línea de la OC — lo pactado —, no de lo que Contabilidad tipee.
+  const montosPorLinea = borrador.lineas.map((l) => ({
+    monto: redondear(l.cantidadFacturada * l.precioFacturado),
+    exoneradoIgv: !!(itemsMap.get(l.ocItemId) as any)?.exonerado_igv,
+  }))
+  const { gravado: baseImponible, exonerado: montoExonerado, igv } = separarPorIgv(montosPorLinea)
 
   const estadoInicial: EstadoObligacion = conciliacion.conforme ? 'registrada' : 'observada'
 
@@ -253,15 +257,15 @@ export async function registrarObligacionDesdeRecepcion(
       fecha_factura: borrador.fechaFactura,
       moneda: oc.moneda,
       tipo_cambio: borrador.tipoCambio,
+      // Base GRAVADA (lo exonerado va aparte, migración 0078). Las compras
+      // de mercadería llevan IGV real de un comprobante formal — a
+      // diferencia de gasto_directo/reembolso (ver
+      // services/solicitudes-gasto.ts), acá se asume 18% sobre lo gravado
+      // en vez de pedírselo a Contabilidad campo por campo.
       base_imponible: baseImponible,
-      // Las compras de mercadería sí llevan IGV real de un comprobante
-      // formal — a diferencia de gasto_directo/reembolso (ver
-      // services/solicitudes-gasto.ts), acá se sigue asumiendo 18% en vez
-      // de pedírselo a Contabilidad campo por campo. Si en el futuro
-      // aparece un proveedor de compras con boleta sin discriminar IGV,
-      // este es el lugar para pedirlo explícito igual que se hizo con
-      // gastos.
-      igv: redondear(baseImponible * TASA_IGV),
+      monto_exonerado: montoExonerado,
+      igv,
+      sin_igv: baseImponible === 0 && montoExonerado > 0,
       tasa_detraccion_id: borrador.tasaDetraccionId,
       monto_detraccion: borrador.montoDetraccion ?? 0,
       estado: estadoInicial,
@@ -338,9 +342,15 @@ export type InputObligacionMultiRecepcion = {
   /** Ya calculada por domain/vencimiento-obligacion.ts desde la fecha de
    * conformidad MÁS TARDÍA de `recepcionIds`. */
   fechaVencimientoReal: string
-  /** = montoTotalConciliado de domain/conciliacion.ts — el monto VERIFICADO,
-   * no necesariamente lo que dice la factura (regla de negocio 5). */
+  /** La parte GRAVADA del monto VERIFICADO (montoConciliado por línea de
+   * domain/conciliacion.ts), no necesariamente lo que dice la factura (regla
+   * de negocio 5). Lo exonerado va aparte (migración 0078). */
   baseImponible: number
+  montoExonerado: number
+  /** 18% sobre `baseImponible`, ya calculado por el llamador con
+   * `separarPorIgv`. Antes este camino no lo mandaba y la columna caía en su
+   * default 0: toda obligación creada por aquí habría salido sin IGV. */
+  igv: number
   /** = !conciliacion.tieneExcepciones */
   conforme: boolean
   observaciones: string | null
@@ -391,6 +401,9 @@ export async function crearObligacionCompraMultiRecepcion(
       moneda: input.moneda,
       tipo_cambio: input.tipoCambio,
       base_imponible: input.baseImponible,
+      monto_exonerado: input.montoExonerado,
+      igv: input.igv,
+      sin_igv: input.baseImponible === 0 && input.montoExonerado > 0,
       estado: input.conforme ? 'registrada' : 'observada',
       fecha_vencimiento_real: input.fechaVencimientoReal,
       created_by: usuario.id,
@@ -703,6 +716,8 @@ export type ObligacionDetalle = ObligacionListada & {
   editadoPor: string | null
   editadoEn: string | null
   base_imponible: number
+  /** Lo exonerado de IGV (migración 0078). NO es parte de base_imponible. */
+  monto_exonerado: number
   igv: number
   monto_detraccion: number
   fecha_factura: string | null
@@ -774,7 +789,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
   const { data, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, igv,
+    .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, monto_exonerado, igv,
              monto_detraccion, estado, fecha_vencimiento_real, observaciones, espera_nota_credito,
              proveedor_id, proveedor_servicio_id, beneficiario_persona,
              oc_id, recepcion_id, categoria_pago_directo_id, cotizacion_storage_path, factura_storage_path,
@@ -816,6 +831,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     total: Number(data.total),
     neto_a_pagar: Number(data.neto_a_pagar),
     base_imponible: Number(data.base_imponible),
+    monto_exonerado: Number((data as any).monto_exonerado ?? 0),
     igv: Number(data.igv),
     monto_detraccion: Number(data.monto_detraccion),
     estado: data.estado,

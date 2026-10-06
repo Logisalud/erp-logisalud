@@ -30,7 +30,8 @@
  * en la base sin uso, igual que `matriz_resolucion_discrepancias`.
  */
 
-import { redondear, TASA_IGV } from './obligacion'
+import { redondear } from './obligacion'
+import { separarPorIgv } from './orden-compra'
 
 /** Lo que Charlie llena por cada línea de la OC. */
 export type LineaTresColumnas = {
@@ -46,6 +47,9 @@ export type LineaTresColumnas = {
   /** Lo que llegó de verdad. Por default = cantidadFactura ("conforme"). */
   cantidadFisica: number
   observaciones: string | null
+  /** Viene de la línea de la OC (la foto que se tomó al armarla), no del
+   *  producto en vivo: lo que se cobra es lo que se pactó. Migración 0078. */
+  exoneradoIgv?: boolean
 }
 
 /**
@@ -110,7 +114,10 @@ export function clasificarTresColumnas(l: LineaTresColumnas): ClasificacionTresC
 }
 
 export type TotalesRecepcion = {
+  /** La base GRAVADA — la que va a `obligaciones.base_imponible`. */
   base: number
+  /** Lo exonerado de IGV — va a `obligaciones.monto_exonerado`. */
+  exonerado: number
   igv: number
   total: number
   /** Cuántas líneas tienen diferencia factura↔físico. El número que la
@@ -125,22 +132,28 @@ export type TotalesRecepcion = {
 }
 
 /**
- * Los totales de la recepción entera. El IGV es 18% automático y no hay
- * detracción: esto es mercadería, no servicio (la detracción vive en
- * domain/obligacion.ts y aplica a facturas de servicio).
+ * Los totales de la recepción entera. El IGV es 18% sobre lo GRAVADO — las
+ * líneas exoneradas no lo llevan (migración 0078) — y no hay detracción: esto
+ * es mercadería, no servicio (la detracción vive en domain/obligacion.ts y
+ * aplica a facturas de servicio).
+ *
+ * El cálculo es el mismo que el de la OC (`separarPorIgv`): si fueran dos
+ * cuentas distintas, la OC diría un total y la deuda otro.
  */
 export function totalizarRecepcion(
   lineas: readonly LineaTresColumnas[]
 ): TotalesRecepcion {
   const clasificadas = lineas.map(clasificarTresColumnas)
 
-  const base = redondear(clasificadas.reduce((a, c) => a + c.baseLinea, 0))
-  const igv = redondear(base * TASA_IGV)
+  const { gravado, exonerado, igv, total } = separarPorIgv(
+    clasificadas.map((c, i) => ({ monto: c.baseLinea, exoneradoIgv: lineas[i].exoneradoIgv }))
+  )
 
   return {
-    base,
+    base: gravado,
+    exonerado,
     igv,
-    total: redondear(base + igv),
+    total,
     lineasConDiscrepancia: clasificadas.filter((c) => c.hayDiscrepanciaFacturaFisico).length,
     lineasConEntregaParcial: clasificadas.filter((c) => c.caso === 'entrega_parcial').length,
     esperaNotaCredito: clasificadas.some((c) => c.caso === 'caso_a'),

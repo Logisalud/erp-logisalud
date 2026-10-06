@@ -55,6 +55,9 @@ export type DatosPdfOrden = {
   cuenta: { banco: string; moneda: string; cci: string } | null
   filas: FilaPdfOrden[]
   subtotal: number
+  /** Lo exonerado de IGV (migración 0078). Cero en casi todas las OC, y
+   * entonces la fila ni aparece: el proveedor ve el PDF de siempre. */
+  exonerado: number
   igv: number
   total: number
   notas: string | null
@@ -87,6 +90,7 @@ export async function obtenerDatosPdfOC(ocId: string): Promise<DatosPdfOrden | n
     oc.items.map((i) => ({
       cantidadPedida: Number(i.cantidad_pedida),
       precioUnitario: Number(i.precio_unitario),
+      exoneradoIgv: !!i.exonerado_igv,
     }))
   )
 
@@ -113,6 +117,7 @@ export async function obtenerDatosPdfOC(ocId: string): Promise<DatosPdfOrden | n
       importe: redondear(Number(i.cantidad_pedida) * Number(i.precio_unitario)),
     })),
     subtotal: totales.subtotal,
+    exonerado: totales.exonerado,
     igv: totales.igv,
     total: totales.total,
     notas: oc.notas,
@@ -170,6 +175,9 @@ export async function obtenerDatosPdfOS(osId: string): Promise<DatosPdfOrden | n
       },
     ],
     subtotal: base,
+    // Una OS no tiene líneas de catálogo: su régimen de IGV va por
+    // `monto_incluye_igv` / `sin_igv`, no por producto.
+    exonerado: 0,
     igv,
     total,
     notas: null,
@@ -292,8 +300,14 @@ function DocumentoOrdenPdf({ datos, logo }: { datos: DatosPdfOrden; logo: Buffer
             <Text>Subtotal</Text>
             <Text>{importe(datos.subtotal)}</Text>
           </View>
+          {datos.exonerado > 0 ? (
+            <View style={estilos.filaTotal}>
+              <Text>Exonerado de IGV</Text>
+              <Text>{importe(datos.exonerado)}</Text>
+            </View>
+          ) : null}
           <View style={estilos.filaTotal}>
-            <Text>IGV 18%</Text>
+            <Text>{datos.exonerado > 0 ? 'IGV 18% (sobre lo gravado)' : 'IGV 18%'}</Text>
             <Text>{importe(datos.igv)}</Text>
           </View>
           <View style={estilos.filaTotalFinal}>

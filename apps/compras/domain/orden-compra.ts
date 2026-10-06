@@ -103,12 +103,40 @@ export function puedeEditarse(estado: EstadoOC): boolean {
 export type LineaOC = {
   cantidadPedida: number
   precioUnitario: number
+  /** El producto no lleva IGV (migración 0078). Ausente = gravado, que es el
+   *  caso de casi todo el catálogo y de toda OC de bienes. */
+  exoneradoIgv?: boolean
 }
 
 export type TotalesOC = {
+  /** Valor de todas las líneas, sin IGV: gravado + exonerado. */
   subtotal: number
+  /** La parte sobre la que corre el 18%. */
+  gravado: number
+  /** La parte que NO lleva IGV. Cero en casi todas las OC. */
+  exonerado: number
   igv: number
   total: number
+}
+
+/**
+ * Separa un conjunto de montos en gravado y exonerado, y calcula el IGV solo
+ * sobre lo gravado. Es LA regla: la usan la OC, la recepción que genera la
+ * deuda y los dos caminos que registran una factura de compra a mano — si
+ * cada uno hiciera su propia cuenta, tarde o temprano la OC diría un total y
+ * la obligación otro.
+ *
+ * Cada monto ya viene redondeado por línea (es lo que hace la factura del
+ * proveedor); acá se suman y se redondea el IGV una sola vez sobre el total
+ * gravado, igual que en el comprobante.
+ */
+export function separarPorIgv(
+  montos: readonly { monto: number; exoneradoIgv?: boolean }[]
+): { gravado: number; exonerado: number; igv: number; total: number } {
+  const gravado = redondear(montos.filter((m) => !m.exoneradoIgv).reduce((a, m) => a + m.monto, 0))
+  const exonerado = redondear(montos.filter((m) => m.exoneradoIgv).reduce((a, m) => a + m.monto, 0))
+  const igv = redondear(gravado * TASA_IGV)
+  return { gravado, exonerado, igv, total: redondear(gravado + exonerado + igv) }
 }
 
 /** IGV peruano. Vive acá y no hardcodeado en la vista. */
@@ -123,11 +151,10 @@ export const TASA_IGV = 0.18
  * (las listas de precios los traen), así que la diferencia es real.
  */
 export function calcularTotales(lineas: readonly LineaOC[]): TotalesOC {
-  const subtotal = redondear(
-    lineas.reduce((acc, l) => acc + redondear(l.cantidadPedida * l.precioUnitario), 0)
+  const { gravado, exonerado, igv, total } = separarPorIgv(
+    lineas.map((l) => ({ monto: redondear(l.cantidadPedida * l.precioUnitario), exoneradoIgv: l.exoneradoIgv }))
   )
-  const igv = redondear(subtotal * TASA_IGV)
-  return { subtotal, igv, total: redondear(subtotal + igv) }
+  return { subtotal: redondear(gravado + exonerado), gravado, exonerado, igv, total }
 }
 
 export function redondear(n: number): number {

@@ -18,6 +18,7 @@ type ItemOC = {
   cantidad_pedida: number
   cantidad_recibida: number
   precio_unitario: number
+  exonerado_igv?: boolean
   producto: { codigo: string; descripcion: string; unidad_medida: string } | null
 }
 
@@ -105,6 +106,7 @@ export function FormularioRecepcion({
     cantidadFactura: Number(valores[i.id]?.factura) || 0,
     cantidadFisica: Number(valores[i.id]?.fisica) || 0,
     observaciones: valores[i.id]?.obs || null,
+    exoneradoIgv: !!i.exonerado_igv,
   }))
 
   const totales = totalizarRecepcion(lineas)
@@ -310,8 +312,14 @@ export function FormularioRecepcion({
           <span className="text-gray-600">Base imponible</span>
           <span className="tabular-nums">{fmt(totales.base)}</span>
         </div>
+        {totales.exonerado > 0 ? (
+          <div className="flex flex-wrap items-baseline justify-between gap-3 text-sm">
+            <span className="text-gray-600">Exonerado de IGV</span>
+            <span className="tabular-nums">{fmt(totales.exonerado)}</span>
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-baseline justify-between gap-3 text-sm">
-          <span className="text-gray-600">IGV (18%)</span>
+          <span className="text-gray-600">{totales.exonerado > 0 ? 'IGV (18%, sobre lo gravado)' : 'IGV (18%)'}</span>
           <span className="tabular-nums">{fmt(totales.igv)}</span>
         </div>
         <div className="flex flex-wrap items-baseline justify-between gap-3 border-t border-gray-200 pt-2 font-semibold">

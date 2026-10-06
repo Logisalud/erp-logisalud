@@ -34,6 +34,7 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
     oc.items.map((i) => ({
       cantidadPedida: Number(i.cantidad_pedida),
       precioUnitario: Number(i.precio_unitario),
+      exoneradoIgv: !!i.exonerado_igv,
     }))
   )
   const [obligaciones, recepciones, historial, umbralDias] = await Promise.all([
@@ -177,7 +178,13 @@ export default async function DetalleOC({ params }: { params: { id: string } }) 
 
         <dl className="mt-4 ml-auto max-w-xs space-y-1 text-sm">
           <Total termino="Subtotal" valor={totales.subtotal} moneda={oc.moneda} />
-          <Total termino="IGV 18%" valor={totales.igv} moneda={oc.moneda} />
+          {totales.exonerado > 0 ? (
+            <Total termino="Exonerado de IGV" valor={totales.exonerado} moneda={oc.moneda} />
+          ) : null}
+          <Total
+            termino={totales.exonerado > 0 ? 'IGV 18% (sobre lo gravado)' : 'IGV 18%'}
+            valor={totales.igv} moneda={oc.moneda}
+          />
           <Total termino="Total" valor={totales.total} moneda={oc.moneda} destacado />
         </dl>
       </section>

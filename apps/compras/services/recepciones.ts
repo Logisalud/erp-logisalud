@@ -24,6 +24,8 @@ export type OCParaRecibir = {
     /** De la OC. La factura no re-declara precio: si el proveedor lo cambió,
      *  eso es una conversación de Compras, no algo que se arregle recibiendo. */
     precio_unitario: number
+    /** De la OC, igual que el precio (migración 0078). */
+    exonerado_igv: boolean
     producto: {
       codigo: string; descripcion: string; unidad_medida: string
       controla_lote: boolean; controla_vencimiento: boolean
@@ -69,7 +71,8 @@ export async function obtenerOCParaRecibir(id: string): Promise<OCParaRecibir | 
     .select(`id, codigo, estado,
              proveedor:proveedores(razon_social),
              moneda,
-             ordenes_compra_items(id, producto_id, cantidad_pedida, cantidad_recibida, precio_unitario)`)
+             ordenes_compra_items(id, producto_id, cantidad_pedida, cantidad_recibida, precio_unitario,
+                                  exonerado_igv)`)
     .eq('id', id)
     .maybeSingle()
 
@@ -377,7 +380,8 @@ export async function registrarRecepcionTresColumnas(
     .schema('compras')
     .from('ordenes_compra')
     .select(`id, estado, moneda, proveedor_id, condiciones_pago_dias,
-             ordenes_compra_items(id, producto_id, cantidad_pedida, cantidad_recibida, precio_unitario)`)
+             ordenes_compra_items(id, producto_id, cantidad_pedida, cantidad_recibida, precio_unitario,
+                                  exonerado_igv)`)
     .eq('id', borrador.ocId)
     .maybeSingle()
   if (errOc || !oc) throw new Error('No se pudo leer la orden de compra.')
@@ -399,6 +403,9 @@ export async function registrarRecepcionTresColumnas(
       cantidadFactura: l.cantidadFactura,
       cantidadFisica: l.cantidadFisica,
       observaciones: l.observaciones,
+      // De la línea de la OC, igual que el precio: lo que se cobra es lo que
+      // se pactó, no lo que diga hoy el catálogo.
+      exoneradoIgv: !!item.exonerado_igv,
     }
   })
 
@@ -551,8 +558,13 @@ async function crearObligacionDesdeRecepcionTresColumnas(input: {
       recepcion_id: input.recepcionId,
       numero_factura: normalizarNumeroFactura(input.numeroFactura),
       moneda: input.oc.moneda,
+      // Base GRAVADA, exonerado aparte, IGV solo sobre lo gravado (0078).
       base_imponible: input.totales.base,
+      monto_exonerado: input.totales.exonerado,
       igv: input.totales.igv,
+      // Una factura entera de productos exonerados no lleva IGV: se declara,
+      // para que un IGV en 0 no se confunda con uno que se olvidó cargar.
+      sin_igv: input.totales.base === 0 && input.totales.exonerado > 0,
       // Con discrepancia nace 'observada': Contabilidad TIENE que mirarla.
       // Sin discrepancia nace 'registrada' y solo espera el visto bueno.
       estado: input.totales.lineasConDiscrepancia > 0 ? 'observada' : 'registrada',

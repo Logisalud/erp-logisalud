@@ -30,6 +30,7 @@ export function FormularioEditarOC({
       descripcion_libre: string | null
       cantidad_pedida: number
       precio_unitario: number
+      exonerado_igv: boolean
     }[]
   }
   proveedorActual: ProveedorElegido
@@ -45,7 +46,9 @@ export function FormularioEditarOC({
       : oc.items.map((i) => ({
           // precio_compra: null — esta línea ya trae su propio precio_unitario
           // pactado (abajo), el precio de compra del catálogo no aplica acá.
-          producto: i.producto && i.producto_id ? { id: i.producto_id, ...i.producto, precio_compra: null } : null,
+          producto: i.producto && i.producto_id
+            ? { id: i.producto_id, ...i.producto, precio_compra: null, exonerado_igv: i.exonerado_igv }
+            : null,
           cantidad: String(i.cantidad_pedida),
           precio: String(i.precio_unitario),
         }))
@@ -61,10 +64,13 @@ export function FormularioEditarOC({
   )
 
   const totales = calcularTotales(
-    (esBien ? lineasBien : lineasMercaderia).map((l) => ({
-      cantidadPedida: Number(l.cantidad) || 0,
-      precioUnitario: Number(l.precio) || 0,
-    }))
+    esBien
+      ? lineasBien.map((l) => ({ cantidadPedida: Number(l.cantidad) || 0, precioUnitario: Number(l.precio) || 0 }))
+      : lineasMercaderia.map((l) => ({
+          cantidadPedida: Number(l.cantidad) || 0,
+          precioUnitario: Number(l.precio) || 0,
+          exoneradoIgv: !!l.producto?.exonerado_igv,
+        }))
   )
 
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
@@ -236,7 +242,10 @@ export function FormularioEditarOC({
 
         <dl className="mt-4 ml-auto max-w-xs space-y-1 text-sm">
           <Fila termino="Subtotal" valor={totales.subtotal} />
-          <Fila termino="IGV 18%" valor={totales.igv} />
+          {totales.exonerado > 0 ? (
+            <Fila termino="Exonerado de IGV" valor={totales.exonerado} />
+          ) : null}
+          <Fila termino={totales.exonerado > 0 ? 'IGV 18% (sobre lo gravado)' : 'IGV 18%'} valor={totales.igv} />
           <Fila termino="Total" valor={totales.total} destacado />
         </dl>
       </section>

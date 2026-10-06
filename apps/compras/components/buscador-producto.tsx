@@ -11,6 +11,10 @@ export type ProductoElegido = {
    * — null si todavía no se cargó para este producto. Sirve para
    * autocompletar el precio unitario de la línea, nunca para forzarlo. */
   precio_compra: number | null
+  /** El producto no lleva IGV (migración 0078). Solo para que el total que se
+   * ve mientras se arma la OC sea el real: el servidor vuelve a leerlo de la
+   * base al guardar y no confía en este valor. */
+  exonerado_igv?: boolean
 }
 
 /**
@@ -63,7 +67,14 @@ export function BuscadorProducto({
         <div className="text-sm">
           <span className="font-mono text-xs text-gray-500">{valor.codigo}</span>
           <p>{valor.descripcion}</p>
-          <p className="text-xs text-gray-500">{valor.unidad_medida}</p>
+          <p className="text-xs text-gray-500">
+            {valor.unidad_medida}
+            {valor.exonerado_igv ? (
+              <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800">
+                Exonerado de IGV
+              </span>
+            ) : null}
+          </p>
         </div>
         <button
           type="button"

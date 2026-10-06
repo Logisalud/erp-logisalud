@@ -5,7 +5,7 @@ import { exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { crearOC } from '@/services/ordenes-compra'
 import { avisarCreacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
-import { calcularTotales, validarOC, type BorradorOC } from '@/domain/orden-compra'
+import { validarOC, type BorradorOC } from '@/domain/orden-compra'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 
@@ -36,7 +36,7 @@ export async function crearOrdenCompra(
   const errores = validarOC(borrador)
   if (errores.length > 0) return { errores }
 
-  let oc: { id: string; codigo: string }
+  let oc: Awaited<ReturnType<typeof crearOC>>
   try {
     oc = await crearOC(borrador)
   } catch (e) {
@@ -44,7 +44,9 @@ export async function crearOrdenCompra(
   }
 
   // Pieza K: aviso a Contabilidad al crear la orden.
-  const totales = calcularTotales(lineas)
+  // Los totales los calcula `crearOC` con el régimen de IGV de cada producto
+  // leído de la base: las líneas del formulario no saben cuáles son exoneradas.
+  const totales = oc.totales
   const [usuario, perfil] = await Promise.all([exigirUsuario(), perfilActual()])
   const proveedorNombre = String(form.get('proveedorNombre') ?? '').trim()
   await avisarCreacionSinRomper({
