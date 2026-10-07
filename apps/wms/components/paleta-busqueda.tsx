@@ -135,7 +135,7 @@ export function PaletaBusqueda({ onCerrar }: { onCerrar: () => void }) {
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-600" aria-live="polite">
-          <span>{pendiente ? 'Buscando…' : resultados && resultados.length > 0 ? `${resultados.length} resultados${totalUnidades ? ` · ${totalUnidades} unidades en productos` : ''}` : 'Ctrl K para abrir · Esc para cerrar'}</span>
+          <span>{pendiente ? 'Buscando…' : resultados && resultados.length > 0 ? `${resultados.length} ${resultados.length === 1 ? 'resultado' : 'resultados'}${totalUnidades ? ` · ${totalUnidades.toLocaleString('es-PE')} unidades en productos` : ''}` : 'Ctrl K para abrir · Esc para cerrar'}</span>
           <span className="hidden md:inline">↑ ↓ para moverte · Enter para abrir</span>
         </div>
       </div>

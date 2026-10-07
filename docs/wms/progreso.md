@@ -1,39 +1,66 @@
 # WMS — Progreso
 
-Para que otra sesión retome sin contexto. Última actualización: 2026-10-07.
+Para que otra sesión retome sin contexto. Última actualización: 2026-10-08 (cierre del Batch 1).
 
 ## Estado
-- **Gate 0: entregado y actualizado con las respuestas del usuario (2026-10-07); esperando confirmación para el Batch 1.** No se ha escrito código del WMS
-  (más allá de la config de Playwright). Ver `docs/wms/gate-0.md`.
-- Rama de trabajo: `feat/wms-batch-1` (código del WMS). Los documentos de `docs/wms/` viven en `main`;
-  se traen con `git merge origin/main`. Último merge: 2026-10-07 (sin conflictos).
-- **PR y merge a main nunca sin aprobación. Nada en producción** (ni migraciones, ni deploy, ni variables).
+- **Batch 1 (fundación, almacén y maestros): construido, verificado y detenido. Esperando tu aprobación.**
+  No se abrió ningún PR hacia `main` (la regla es "PR y merge nunca sin aprobación"): el Preview sale de la rama.
+- Rama de trabajo: `feat/wms-batch-1`. Los documentos de `docs/wms/` viven en `main` (último merge: ver `git log`).
+- **Nada en producción:** ninguna migración aplicada, ningún deploy a producción, ninguna variable de producción.
+  Lecturas a producción: solo esquemas y, con tu autorización (D-24), el área y el rol de `public.perfiles`.
 
-## Hecho
-- Entorno: `@playwright/test` 1.63 instalado (raíz); `apps/wms/playwright.config.ts` lee
-  `PLAYWRIGHT_CHROMIUM_PATH`; smoke test a 390×844 en verde con
-  `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
-- Impeccable instalado en `.claude/skills/impeccable`. MCP de Playwright declarado en `.mcp.json`
-  pero **no cargado** (pasos en gate-0.md §G).
-- Auditoría completa (Gate 0): repo, documentos, formatos, planos, Excel de Odoo, esquemas de producción (solo lectura).
+## Qué hay en el Batch 1
+- `apps/wms` (Next 14.2.29, basePath `/wms`, `@logisalud/auth`, preset de `@logisalud/design-system`).
+- **Migraciones** (no aplicadas): `0001` schema, roles, topología, propietarios, asignaciones con vigencia, auditoría; `0002` lotes,
+  ledger append-only, saldos derivados, concurrencia, reversas, kardex; `0003` alta y validación de productos. Seed de topología generado.
+- **Dominio** puro y probado: estados, zonas, propietario y vigencia, permisos, registro sanitario, vencimientos, búsqueda, mapa.
+- **Pantallas:** login, Inicio por rol, Almacén (mapa SVG con capas Propietario/Estado/Ocupación, zoom/pan/ajustar, búsqueda que ilumina,
+  rack de frente, drawer, subracks), búsqueda universal Ctrl/Cmd+K (producto, lote, ubicación), Productos (lista, detalle, alta por Sandra,
+  validación por Katia), Propietarios, Auditoría, estados vacío/cargando/error/éxito.
+- **Modo demostración** (D-27): datos de prueba en memoria, banner DEMO, sin base real; solo Preview/local, imposible en producción.
 
-## Decisiones tomadas
-- Base de pruebas: **Postgres local** (verificado: 16.15 corre; spike de RLS/auth.uid()/exclusión/locks OK). Sin servicios con costo.
-- Vercel `erp-logisalud-wms`: **no creado** — hay consumo de build facturable (D-21).
-- Rack A hasta A-27 (topologia.md corregida); cargo "Jefe de Almacén"; cada recepción de Compras = un ingreso; Katia registra Aprobado/Bajas al firmar; vencimiento = fecha completa del producto físico.
-- Next 14.2.29 exacto (igual que cobranzas/compras); React 18; `@supabase/ssr ^0.5.2`; Tailwind ^3.3.
-- `exceljs` 4.4.0 para XLSX; `@react-pdf/renderer` para actas.
-- Vulnerabilidades de dependencias: deuda técnica registrada, sin acción.
+## Verificación (todo corrido sobre el código final)
+| Qué | Resultado |
+|---|---|
+| Dominio y componentes (Vitest) | **82 pruebas, 13 archivos, en verde** |
+| Base de datos (Vitest + Postgres 16 local, `auth.uid()` simulado) | **60 pruebas, 3 archivos, en verde** (RLS, ledger inmutable, estados, zonas, propietario, vigencia, concurrencia, reversas, kardex, auditoría, productos) |
+| E2E Playwright en 4 viewports (modo demostración) | **114 pasan, 0 fallan**, 10 omitidas a propósito (mapa completo no va en teléfono) |
+| `tsc --noEmit`, `next build` | OK |
+| Regresión: compras (883 pruebas), pedidos (570 pruebas + lint), builds de compras, cobranzas y pedidos | **OK**; no se tocó ningún archivo de esas apps ni de `packages/` |
+| Detector de Impeccable | 4 avisos "gris sobre color": falsos positivos (clases condicionales); sin cambios |
+| Capturas | 101 en `docs/wms/screenshots/` (30 pantallas × viewports aplicables; índice en su README) |
 
-## Siguiente (tras la confirmación del Gate 0)
-Batch 1 — ver plan de commits en gate-0.md §H. Primero: contexto de diseño con Impeccable
-(`PRODUCT.md`/`DESIGN.md`) y ADR-001..004, antes de la primera pantalla.
+Tests del prompt cubiertos en la base de datos y el dominio: 7 (RS vencido), 8, 9, 10, 11, 12, 13 (movimiento, verificador ≠ ejecutor, reversa),
+14 (concurrencia), 17 (asignación vencida), 18 (RLS), 19 (kardex), 20 (auditoría). Los de Batch 2 (1–6, 15–16 completos) llegan con sus pantallas;
+el 16 (búsqueda resalta posiciones y el drawer muestra producto/lote/propietario/estado) ya está cubierto por E2E.
+
+## Hallazgos y decisiones del Batch (detalle en `docs/wms/adr/` y `gate-0.md` § "Ajustes durante el Batch 1")
+- **Bug real hallado por las pruebas:** `INSERT … ON CONFLICT` validaba el CHECK de saldos antes del conflicto y rechazaba toda salida. Corregido en 0002.
+- **Bug real hallado por la revisión visual:** el mapa se reiniciaba al abrir el panel (re-render por URL). Corregido (`history.replaceState`).
+- **D-28 nueva:** el cambio de estado ocurre en el lugar → aparece "Aprobado · por trasladar" (ADR-006). Necesita tu visto bueno y el de Katia/Charlie.
+- **D-24:** 15 perfiles; `direccion_tecnica` tiene 2 y `almacen` 3. Falta cargar los roles en `wms.usuario_roles`.
+- **Vercel:** proyecto `erp-logisalud-wms` creado (Preview, filtro de build por `apps/wms` y paquetes compartidos). Ver "Vercel" abajo.
+- **Roll de estructura de Impeccable:** corrió degradado (sin retadores; el servicio externo no respondió); se construyó la estructura asignada ("capas primero").
+  PRODUCT.md se infirió del brief y de `docs/wms/` (confirmado por ti en el Gate 0), sin entrevista adicional.
+
+## Qué NO está verificado
+- El adaptador de Supabase (`services/supabase`) **no se ejecutó contra una base real** (no hay base de pruebas): PostgREST, GoTrue, Storage y la RLS real de Compras quedan sin cubrir (ver `gate-0.md` §G.1).
+- El MCP de Playwright sigue sin cargar en esta sesión; se verificó con Playwright directo.
+- El login real (magic link) y los permisos por rol contra Supabase.
+
+## Vercel
+Ver el estado actualizado en la entrega del Batch (URL de Preview y verificación de la configuración).
+
+## Siguiente (tras tu aprobación)
+Batch 2 — Entradas y calidad (ingresos de compra local/devolución/cliente, actas, firma, alertas, cola de Dirección Técnica, expediente).
+Antes: decidir D-28, D-11, D-12, D-13 y confirmar que Sandra/Katia/Charlie existan en `perfiles` con sus roles WMS.
 
 ## Bloqueado / pendiente
-Ver `docs/wms/decisiones-pendientes.md` (D-01..D-27). Ninguna impide empezar el Batch 1; D-21 y D-27 antes de cerrarlo.
+Ver `docs/wms/decisiones-pendientes.md` (D-01..D-28). Ninguna bloquea la aprobación del Batch 1.
 
 ## Para retomar
 1. `git checkout feat/wms-batch-1 && git fetch && git merge origin/main`.
 2. `npm install` en la raíz (workspaces; no instalar dentro de `apps/*`).
 3. `export PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium` en este contenedor.
-4. Leer `apps/wms/CLAUDE.md` (obligaciones) y gate-0.md.
+4. `npm run test:wms`, `npm run test:db:wms`, `npm run build:wms` y `apps/wms/scripts/e2e-por-viewport.sh`.
+5. Leer `apps/wms/CLAUDE.md`, `gate-0.md` y `decisiones-pendientes.md`.

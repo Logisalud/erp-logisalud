@@ -181,7 +181,7 @@ export interface ResultadoBusqueda {
   href: string
 }
 
-const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`
+const plural = (n: number, uno: string, varios: string) => `${n.toLocaleString('es-PE')} ${n === 1 ? uno : varios}`
 
 /** Búsqueda universal: producto, lote y ubicación. (OC y actas llegan con las entradas.) */
 export function buscar(p: Panorama, consulta: string, limite = 24): ResultadoBusqueda[] {

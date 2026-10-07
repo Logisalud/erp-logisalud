@@ -84,7 +84,7 @@ export function Shell({
             <p className="text-sm font-medium text-gray-900">{nombre}</p>
             <p className="text-xs text-gray-600">{rol}</p>
           </div>
-          <div className="flex justify-center text-sm text-gray-700 xl:mt-3 xl:block [&_.txt]:hidden xl:[&_.txt]:inline [&_button]:inline-flex [&_button]:min-h-10 [&_button]:items-center [&_button]:gap-2 [&_button]:rounded-md [&_button]:px-2 [&_button]:hover:bg-gray-100">
+          <div className="flex justify-center text-sm text-gray-700 xl:mt-3 xl:block [&_.txt]:sr-only xl:[&_.txt]:not-sr-only [&_button]:inline-flex [&_button]:min-h-10 [&_button]:items-center [&_button]:gap-2 [&_button]:rounded-md [&_button]:px-2 [&_button]:hover:bg-gray-100">
             {salir}
           </div>
         </div>

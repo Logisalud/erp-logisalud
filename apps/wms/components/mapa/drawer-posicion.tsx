@@ -119,7 +119,7 @@ export function DrawerPosicion({ celda, consulta, onCerrar }: { celda: CeldaVist
   return (
     <div className="fixed inset-0 z-50 md:pointer-events-none" role="dialog" aria-modal="false" aria-label={`Ubicación ${celda.clave}`} data-testid="drawer-posicion">
       <button type="button" className="absolute inset-0 bg-gray-900/40 md:hidden" aria-label="Cerrar" onClick={onCerrar} />
-      <aside className="hoja-entra md:panel-entra pointer-events-auto absolute inset-x-0 bottom-0 flex max-h-[90vh] flex-col rounded-t-xl border-gray-200 bg-white shadow-xl md:inset-y-0 md:left-auto md:right-0 md:max-h-none md:w-[440px] md:rounded-none md:border-l">
+      <aside className="hoja-entra md:panel-entra pointer-events-auto absolute inset-x-0 bottom-0 flex max-h-[90vh] flex-col rounded-t-xl border-gray-200 bg-white shadow-xl md:bottom-0 md:left-auto md:right-0 md:top-[var(--alto-banner)] md:max-h-none md:w-[440px] md:rounded-none md:border-l">
         <header className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-gray-600"><MapPin className="h-3.5 w-3.5" aria-hidden />{esRack ? 'Rack · vista frontal' : 'Ubicación'}</p>
