@@ -1,6 +1,6 @@
 # WMS Logisalud — Gate 0 (auditoría y propuesta)
 
-Fecha: 2026-10-07 · Rama: `feat/wms-batch-1` · Estado: **detenido, esperando confirmación**.
+Fecha: 2026-10-07 · Rama: `feat/wms-batch-1` · Estado: **actualizado con las respuestas del usuario; detenido, esperando confirmación para el Batch 1**.
 Nada de lo descrito aquí está aplicado en ninguna base de datos ni desplegado.
 
 Fuentes auditadas: `docs/wms/*` (reglas, topología, experiencia, visión), `procesos/*.xlsx`
@@ -22,6 +22,13 @@ experiencia > visión > planos/CONTEXTO. Donde se contradicen, gana el mayor y s
 | PDF de actas | **`@react-pdf/renderer` ^4.9** (ya lo usa `apps/compras`; consistente y sin Chromium en serverless). |
 | Seguridad de dependencias | No es prioridad ahora. Deuda técnica registrada abajo, **sin acción**. |
 | Playwright | `@playwright/test` 1.63 instalado; ruta del Chromium por `PLAYWRIGHT_CHROMIUM_PATH` (ver G). |
+| Base de pruebas | **Postgres local** (16.15, verificado que corre). Nada con costo: ni branch de Supabase ni servicios pagos (§G). |
+| Vercel | Aprobado solo si no genera costo. **Verificado: sí genera consumo de build → NO creado** (E.5, D-21). |
+| Rack A | Llega a **A-27** (planos 2026, tabla de Diphasac, Odoo). `topologia.md` corregida en la rama; llega a `main` con el PR del Batch 1. |
+| Cargo | **"Jefe de Almacén"** en la interfaz y en el acta (reglas-negocio.md corregido). |
+| Recepciones | Una OC puede tener varias; **cada recepción de Compras es un ingreso distinto** en el WMS. |
+| Quién aprueba | **Katia** registra Aprobado o Bajas/Rechazados al firmar el acta organoléptica; Charlie no ejecuta ese cambio. |
+| Vencimiento | Fecha **completa** del producto físico; solo si el producto muestra mes y año → último día del mes. |
 
 ---
 
@@ -89,22 +96,22 @@ Formato: **qué choca → quién gana → qué hago**.
 
 | # | Conflicto | Resolución |
 |---|---|---|
-| B1 | **Rack A.** topologia.md dice que los planos 2026 dibujan hasta A-21 y que el "plano AJR 2023" llega a A-27. Verificado en los 4 PDFs 2026: **sí dibujan A-10 a A-27** (texto vectorial; DIPHASAC .pdf lo asigna "A-14.1 al A-27.1, A-10.2 al A-27.2…"). El plano AJR 2023 no está en el repo y, según el usuario, está desactualizado. | La evidencia de A-27 es la tabla de Diphasac, el Excel de Odoo **y los planos 2026**. topologia.md (línea 25) está desfasado: **propongo corregirla en `main`** (no la edito yo, vive en main). A-22..A-27 se cargan marcadas "por verificar" hasta que Charlie confirme en sitio. |
+| B1 | **Rack A.** topologia.md decía que los planos 2026 dibujan hasta A-21. Verificado en los 4 PDFs 2026: **sí dibujan A-10 a A-27** (DIPHASAC .pdf lo asigna "A-14.1 al A-27.1, A-10.2 al A-27.2…"). El plano AJR 2023 citado no está en el repo y está desactualizado. | **RESUELTO por el usuario:** el rack A llega a A-27. `topologia.md` ya está corregida en la rama; A-22..A-27 se cargan como posiciones normales (no "por verificar"). |
 | B2 | **E-9.1 y E-10.1** no figuran en la tabla de Logissa. Los planos las dibujan; Odoo las tiene; el total de Logissa (123 pallets rack = 221.40 m³) solo cuadra si se cuentan. | Se crean a nombre de Logissa, **"por verificar"**. |
 | B3 | **Posiciones sin propietario** pero dibujadas y presentes en Odoo (en Stock): **I-8.1..I-8.4** y **J-12.4**. | Se crean **libres** (sin asignación) y "por verificar". Si Odoo trae stock ahí, la carga inicial lo reporta como anomalía (F). |
 | B4 | **Posiciones que topologia.md pone en un área distinta de donde Odoo las trae** (Odoo: bajo `Stock`): A-13.1 (Devoluciones de MPL), J-11.1 (Contramuestra de MPL), J-11.3 (Bajas de MPL), J-13.4 (Contramuestra de Diphasac). | topologia.md manda para el **área**; qué estado sanitario tiene el stock que hoy hay ahí es decisión sanitaria → `decisiones-pendientes.md` D-08. |
 | B5 | **Odoo no tiene subracks** (`E-8.1` e `I-1.1` son una sola ubicación); topología pide `E-8.1.1..4` e `I-1.1.1..4`. Odoo tampoco trae A-1..A-9, A-M1, K-1..K-7, K-M2 ni la posición de "Calidad" como código. | Se crean en WMS desde topología. Carga inicial: `E-8.1`/`I-1.1` → exige instrucción de a qué subrack va cada unidad (F). "Calidad" no se migra. |
 | B6 | **26 posiciones esperadas por topología no existen en Odoo** (Logissa G-1.1, G-1.3, G-1.4, G-3.1, G-4.1, G-5.1, G-6.1, E-8.1.1-4; AJR G-7.1..G-10.1, J-13.1, J-13.3, A-11.1; Diphasac A-12.1, J-13.2, y J-12.1/J-12.2 que están bajo Bajas; Triamed I-1.1.1-4). | Normal: son posiciones nuevas o contratos recientes. Se crean en WMS; Odoo no las valida. |
 | B7 | **Adenda AJR**: topología la registra vigente desde 01/05/2026 y coincide posición por posición (G-7..G-10 niv. 1-4, J-13.3, J-13.1, A-11.1). Pero en la imagen **solo se ve la firma de Logissa**; el recuadro de AJR Labs está vacío aunque el archivo se llama "FIRMADO". El punto SEGUNDO habla de cambios "desde 01/04/2025" sin listar contenido. Los 4 planos de agosto 2026 no muestran a AJR (posiciones sin asignar). | La asignación se registra con vigencia 01/05/2026 y el PDF como sustento, **marcada "por confirmar firma"**. D-10. |
-| B8 | **Quién registra "Aprobado"**: mapeos INV-03/REC-01 dicen que Charlie registra Aprobado tras la decisión de Katia; reglas dice que Katia decide y firma en el WMS. | Gana reglas. El cambio a Aprobado lo ejecuta el rol Dirección Técnica (Katia) con acta organoléptica firmada. Charlie **no** cambia estados sanitarios. D-02 para confirmar. |
+| B8 | **Quién registra "Aprobado"**: mapeos INV-03/REC-01 dicen que Charlie registra Aprobado tras la decisión de Katia; reglas dice que Katia decide y firma en el WMS. | **RESUELTO:** Katia registra Aprobado o Bajas/Rechazados al firmar el acta organoléptica en el WMS. Charlie **no** ejecuta ese cambio. (reglas-negocio.md actualizado). |
 | B9 | **INV-02 "no revisa la decisión de DT"** vs reglas "el sistema bloquea salir de Cuarentena sin Aprobado + acta firmada + mismo propietario". | Gana reglas: el bloqueo es del sistema (dominio y BD). |
-| B10 | **Vencimiento solo mes/año**: la práctica usa fecha completa; reglas fija último día del mes. | Gana reglas. Se guarda la fecha completa **y** el texto original mes/año. |
+| B10 | **Vencimiento solo mes/año**: la práctica usa fecha completa; reglas fija último día del mes. | **RESUELTO:** se registra la fecha completa del producto físico; solo si el producto muestra mes y año se usa el último día del mes (se conserva el texto original). reglas-negocio.md actualizado. |
 | B11 | **Transportista**: mapeo AS-IS dice que no firma; reglas lo hace firmar en pantalla con nombre, DNI y placa. El formato LS-FR.03.05 **no tiene campo DNI** (sí NOMBRE, FIRMA, FECHA, HORA) y la placa va en otro bloque. | Gana reglas. El PDF agrega DNI → es un cambio a un formato controlado: D-12. |
 | B12 | **Tipos de ingreso en formatos**: LS-FR.03.05 tiene IMPORTACIÓN / COMPRA LOCAL / DEVOLUCIÓN / OTROS (sin "Ingreso de cliente"); LS-FR.05.05 agrega TRASLADO INTERNO. Reglas: compra local, devolución, ingreso de cliente (importación y traslado fuera de alcance). | Gana reglas. "Ingreso de cliente" se imprime en el casillero OTROS con texto; importación/traslado quedan en el modelo como valores deshabilitados (punto de extensión). D-12. |
 | B13 | **Rechazados**: mapeos AS-IS devuelven observados al proveedor; reglas: "lo rechazado en Cuarentena nunca vuelve al proveedor" (destino pendiente de Katia). Una devolución al proveedor además es una salida. | Gana reglas. No se modela salida a proveedor. |
 | B14 | **Muestreo**: mapeo REC-01 "criterio definido por DT" y revisión del 100% de cajas (AS-IS); reglas fija techo(√n)+1 (pendiente #6 de Katia). | Se implementa techo(√n)+1 **parametrizado** (una función con constante configurable) hasta que Katia confirme. |
 | B15 | **Temperatura**: mapeos piden medirla sin rango; reglas: 15–25 °C, se recibe y se alerta. | Gana reglas. Rango en configuración. |
-| B16 | **Roles/nombres**: reglas usa "Responsable de Almacén" (roles) y "Jefe de Almacén" (firma del acta; también el formato). Mapeos solo nombran a Charlie como autorizador de movimientos (Roberto/Jasury no aparecen). Mapeo INV-05 nombra a Mariela Casiano para ajustes; reglas solo a Katia. | Rol técnico `jefe_almacen`; en la UI "Responsable de Almacén" y en el acta "Jefe de Almacén" (nombre del formato). Ajustes: solo Katia (reglas). D-14, D-22. |
+| B16 | **Roles/nombres**: reglas usa "Responsable de Almacén" (roles) y "Jefe de Almacén" (firma del acta; también el formato). Mapeos solo nombran a Charlie como autorizador de movimientos (Roberto/Jasury no aparecen). Mapeo INV-05 nombra a Mariela Casiano para ajustes; reglas solo a Katia. | **RESUELTO (cargo):** "Jefe de Almacén" en la interfaz y en el acta; rol técnico `jefe_almacen`. Ajustes: solo Katia (reglas); D-18 sigue abierta. |
 | B17 | **Mapeos de devolución e ingreso de cliente no existen**; REC-02/03 solo cubren compra local. Visión dice "no definir todavía el flujo de devoluciones"; reglas ya lo definen. | Gana reglas. Se implementa lo que dicen reglas; lo no mapeado (p. ej. checklist específico de devolución) se registra como pendiente. |
 | B18 | **Visión** pide el WMS completo (picking, despacho, holds, VERDE/ÁMBAR, stock vendible); **alcance del prompt** lo excluye. Visión no incluye la transición Cuarentena → Bajas/Rechazados que reglas sí tiene. | Gana alcance + reglas. Puntos de extensión en D. |
 | B19 | **INV-01 (stock para Comercial)** y publicación a Pedidos: fuera de alcance, y Pedidos está en otro proyecto Supabase. | Fuera. Punto de extensión documentado (E.8). |
@@ -171,7 +178,7 @@ deje de aceptar ingreso/movimiento del propietario anterior, lo ya guardado se q
 ### C.6 Referencia de ingreso por tipo
 | Tipo | Cantidad de referencia | Referencia obligatoria | Origen del dato |
 |---|---|---|---|
-| Compra local | `cantidad_fisica` de la recepción en Compras (agregada por producto) | `almacen.recepciones.id` (+ OC, guías, factura) | Compras (se guarda copia) |
+| Compra local | `cantidad_fisica` de **esa recepción** de Compras (agregada por producto). Una OC con varias recepciones genera **un ingreso por recepción** | `almacen.recepciones.id` (+ OC, guías, factura); `compra_recepcion_id` único | Compras (se guarda copia) |
 | Devolución | Guía + formulario de devolución del transportista | **Factura o boleta original** (bloquea si falta) | WMS |
 | Ingreso de cliente | Guía del cliente | Guía; propietario = el cliente | WMS |
 Invariante: `SUM(cantidad por lote) = cantidad de referencia` por producto; se valida al confirmar
@@ -211,7 +218,7 @@ catálogos (`motivos_movimiento`, `causas_diferencia`, `tipos_pendiente`, `tipos
 `tipos_movimiento` ← **tabla, no enum**: se agregan SALIDA/PICKING… después sin migrar tipos).
 
 **Personas y permisos:** `usuario_roles` (user_id → `auth.users`, rol, desde, hasta). Roles:
-`direccion_tecnica` (Katia), `asistente_dt` (Sandra), `jefe_almacen` (Charlie),
+`direccion_tecnica` (Katia: decide y firma estados), `asistente_dt` (Sandra), `jefe_almacen` (Charlie, "Jefe de Almacén"),
 `reemplazo_jefe` (Roberto, Jasury), `auxiliar`, `auditoria_lectura`, `admin_wms`. Helper
 `wms.tiene_rol(...)` (security definer, `search_path` fijo) usado por todas las policies.
 `wms.permisos_rol` (rol → acciones: ver, ejecutar, verificar, aprobar, ajustar, configurar, exportar, auditar).
@@ -290,7 +297,7 @@ apps/wms/
   design-system y `content` que incluya `packages/auth/src`.
 - Roles en servidor **y** en BD; la UI solo oculta. Inicio por rol.
 - Mensajes para personas como valor de retorno (`ResultadoAccion`), español peruano con tuteo
-  (nota: el código existente de compras usa voseo; el WMS **no**).
+  (nota: el código existente de compras usa voseo; el WMS **no**). El cargo de Charlie se muestra siempre como "Jefe de Almacén".
 
 ### E.2 Visual Warehouse — ADR-002 (propuesto): **SVG**
 ~330 posiciones (Odoo 314 + áreas) y unos cientos de nodos como máximo: SVG renderiza esto con
@@ -318,12 +325,21 @@ códigos de los formatos** (cabecera con Cod. POE/Formato y vigencia, tablas, 3 
 pie "no podrá ser reproducido…"). Se genera desde el contenido firmado y se verifica contra el hash.
 El nombre/versión del formato vigente va en `parametros`, no en código.
 
-### E.5 Proyecto Vercel `erp-logisalud-wms` (propuesta; **no se crea sin tu aprobación**)
-1. Proyecto Vercel `erp-logisalud-wms`, repo `Logisalud/erp-logisalud`, Root Directory `apps/wms`, framework Next.js, Node 22.
-2. Variables **solo en Preview**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (las de **la base de pruebas/branch**, no producción). Sin service role.
-3. Sin Production Branch asignada hasta que lo decidas.
-4. Cobranzas es la raíz de `erp.logisalud.com`: sumar `/wms` requiere cambios allí (rewrite con `WMS_APP_URL`, `'/wms'` en `rutasPublicas` del middleware, fila en `public.modulos`) — **no se toca ahora**; la zona se prueba primero directo en la URL de Preview.
-5. Aviso: los `*.vercel.app` están protegidos en cobranzas ("all except custom domains"); un rewrite hacia un Preview protegido puede fallar. Se valida con la URL directa.
+### E.5 Proyecto Vercel `erp-logisalud-wms` — **NO CREADO (hay costo)**
+Condición del usuario: crearlo solo si no genera costo adicional. Se verificó con la facturación del equipo
+`logisalud` (solo lectura): el equipo tiene **facturación por consumo** (un día de muestra: USD 0.40 facturados,
+USD 1.07 de costo efectivo; **"Build CPU Minutes" USD 0.308**, el renglón más caro; existe además "Additional
+Team Seats"; no pude leer el nombre del plan). Un proyecto nuevo enlazado a Git construye en cada push de
+la rama y cada build consume minutos de build, así que **sí agrega costo** (pequeño, no cuantificable con
+precisión). Por la condición, **no lo creé**. Detalle y opciones en `decisiones-pendientes.md` (D-21).
+
+Si decides crearlo, la configuración prevista es:
+1. Proyecto `erp-logisalud-wms`, repo `Logisalud/erp-logisalud`, Root Directory `apps/wms`, Next.js, Node 22.
+2. **Solo Preview**; sin Production Branch; **Ignored Build Step** para construir solo cuando cambie `apps/wms`.
+3. Variables solo Preview: ninguna de producción. Sin service role. El Preview usará el modo demostración (D-27).
+4. Cobranzas (raíz de `erp.logisalud.com`) **no se toca**: rewrite `/wms`, `rutasPublicas` y `public.modulos` quedan para después (D-23).
+5. Los `*.vercel.app` están protegidos en cobranzas; el rewrite hacia un Preview protegido puede fallar → se valida con la URL directa.
+6. Tras crearlo: **recargar y verificar que la configuración quedó guardada** (Root Directory, Ignored Build Step, ramas, variables) y reportarlo.
 
 ### E.6 Roles y permisos — ADR-003: tabla propia `wms.usuario_roles`
 Ver A.4.6. Evita migrar CHECKs de `perfiles` y mantiene el cambio aditivo.
@@ -368,30 +384,42 @@ una copia de la exportación en una base de prueba (Preview/branch) y revisar el
 
 ## G. Cómo corren los E2E en este entorno
 
+Decisión: **Postgres local**, sin ningún servicio con costo (ni branch de Supabase).
+
 Hechos verificados:
 - Playwright 1.63 instalado; el navegador por defecto de 1.63 **no está descargado**, pero hay Chromium
   en `/opt/pw-browsers/chromium` → `PLAYWRIGHT_CHROMIUM_PATH` (ver `apps/wms/CLAUDE.md`). El smoke test pasa a 390×844.
-- Hay `postgresql-16` (clúster `16/main`, detenido) y el CLI de Docker (el *daemon* no responde). npm responde.
-  La descarga desde GitHub Releases devolvió 403, así que **no puedo bajar binarios de PostgREST ni del CLI de Supabase**.
-- No hay Supabase local ni stubs en el repo.
-- MCP de Playwright: **pendiente técnico** (abajo).
+- **Postgres 16.15 local arranca y funciona** (`pg_ctlcluster 16 main start`; extensiones `btree_gist`, `pgcrypto`,
+  `pg_trgm`, `uuid-ossp` disponibles; **`pgtap` no**, así que los tests de BD van con Vitest + `pg`).
+- **Spike de la simulación (ya probado y descartado, base borrada):** schema `auth` con `auth.users` y
+  `auth.uid()` leyendo `request.jwt.claim.sub`; roles `anon`/`authenticated`/`service_role`; una policy RLS por
+  `auth.uid()` con `set role authenticated` mostró a cada usuario solo sus filas; la `exclusion constraint`
+  (`btree_gist`) rechazó una asignación solapada; y una segunda sesión **no** obtuvo el `pg_advisory_xact_lock`
+  tomado por la primera. Es decir: RLS, vigencias sin solape y concurrencia se pueden probar en local.
+- Docker: el CLI existe pero el *daemon* no responde (no lo uso). GitHub Releases devolvió 403, así que no puedo
+  bajar PostgREST ni el CLI de Supabase. npm sí responde.
+- No hay Supabase local ni stubs en el repo: los creo yo (script versionado) en el Batch 1.
 
-**Estrategia propuesta (tres capas):**
+**Estrategia (tres capas, sin costo):**
 1. **Dominio (Vitest):** reglas puras: muestreo, invariante, estados, zonas, propietario, verificador.
-2. **Base de datos (Vitest + `pg` contra Postgres 16 local):** se crean los stubs documentados
-   (`auth.users`, `auth.uid()`, roles `anon`/`authenticated`/`service_role`, `storage`) en un script
-   versionado y se corre la cadena de migraciones del WMS + tests de triggers, RLS, ledger inmutable,
-   concurrencia (dos conexiones) y reconstrucción de kardex. Aquí viven los tests 9-15, 17-20.
-3. **E2E (Playwright, 4 viewports):** la app corre en `next dev` con un **adaptador de datos de prueba**
-   (los `services/` consumen un puerto; en E2E el puerto usa `pg` contra el mismo Postgres local con las
-   mismas migraciones) y un login de prueba **solo con `WMS_E2E=1`** (excluido del build de producción
-   por una prueba de CI que lo verifica). Esto evita depender de PostgREST/GoTrue. Los E2E contra
-   Supabase real (Preview + branch) quedan para la verificación final del batch, con tu aprobación
-   (crear un branch de Supabase puede tener costo).
+2. **Base de datos (Vitest + `pg` contra Postgres 16 local):** script de stubs versionado
+   (`auth.users`, `auth.uid()`, roles, `storage`) + la cadena de migraciones del WMS + tests de triggers, RLS,
+   ledger inmutable, concurrencia (dos conexiones), kardex. Aquí viven los tests 9-15, 17-20.
+3. **E2E (Playwright, 4 viewports):** `next dev` con un **adaptador de datos de prueba** (los `services/` consumen
+   un puerto; en E2E el puerto usa `pg` contra el mismo Postgres local y las mismas migraciones) y login de
+   prueba **solo con `WMS_E2E=1`** (excluido del build de producción por una prueba de CI).
 
-**Riesgo:** el adaptador de E2E no ejercita PostgREST/RLS vía HTTP. Mitigación: la capa 2 prueba
-RLS en SQL puro y, antes de cada PR, un smoke contra el Preview. **Alternativa** si prefieres cero
-adaptador: un **branch de Supabase** dedicado para pruebas (más fiel, requiere tu aprobación y puede costar).
+### G.1 Qué NO cubre la simulación (documentado, no escondido)
+| No cubierto | Por qué importa | Cómo se mitiga |
+|---|---|---|
+| **PostgREST / API HTTP**: serialización, `Prefer`, filtros, embebido, errores 406/403 de schema no expuesto | Un fallo de exposición o de grants solo aparece contra Supabase real | Grants explícitos en migración y prueba SQL de `has_schema_privilege`/`has_table_privilege` para `authenticated`; lista de verificación manual para Sebas (D-22) |
+| **GoTrue / sesión real**: JWT firmado, expiración, cookies, magic link, `@supabase/ssr` | El login real no se ejercita | Contrato de la sesión aislado en un módulo; login de prueba solo con `WMS_E2E=1`; verificación manual del login en el primer despliegue real |
+| **Claims reales del JWT** (`role`, `aud`, `app_metadata`) | Mi `auth.uid()` solo lee `sub` | Las policies solo usan `auth.uid()`; se prohíbe usar otros claims |
+| **Storage** (buckets, policies de `storage.objects`, URLs firmadas) | Firmas del transportista y PDF | Stub mínimo de `storage`; el acceso a archivos se prueba aparte en la primera prueba real |
+| **Realtime, Edge Functions, cron, extensiones propias de Supabase** | No se usan en el alcance | N/A |
+| **Diferencias de versión de Postgres** (local 16.15 vs Supabase 17.6) | Cambios de comportamiento menores | Solo SQL estándar; sin features de 17 |
+| **Datos y RLS reales de Compras** (`almacen.*`, `compras.*`, `catalogo.*`, `perfiles`, flag `acceso_abierto_temporal`) | La vista `wms.v_recepciones_compra` lee tablas de otro módulo | En local se crean réplicas mínimas con la **misma estructura** (copiada de los esquemas de producción leídos); el comportamiento real de RLS de Compras queda sin verificar hasta una prueba real |
+| **Rendimiento con volumen real** | Mapa y reportes | Seed con volumen realista (≈330 posiciones, miles de partidas) y medición local; no equivale a producción |
 
 **MCP de Playwright — pasos exactos para activarlo (pendiente técnico):**
 1. Reiniciar la sesión de Claude Code en la raíz del repo (los servidores de `.mcp.json` solo cargan al arrancar).
@@ -426,11 +454,11 @@ Batch 2 (entradas y calidad) y Batch 3 (inventario en operación, kardex, report
 Ver `docs/wms/decisiones-pendientes.md`. **Bloquean solo su pieza**; el resto sigue.
 
 ### Qué necesito de ti para arrancar el Batch 1
-1. Confirmar este Gate (o corregir lo que no te cuadre).
-2. **Base de pruebas:** ¿Postgres local (propuesto) o branch de Supabase (costo)?
-3. Autorizar (o no) la creación del proyecto Vercel `erp-logisalud-wms` solo Preview.
-4. Que Sebas exponga el schema `wms` en Data API **cuando haya una base donde probarlo** (no antes).
-5. Corregir `topologia.md` en `main` (B1) o indicarme que lo deje.
+1. Confirmar este Gate actualizado.
+2. Decidir D-21 (Vercel: crear aceptando el costo de builds, crear con Ignored Build Step, o esperar al cierre).
+3. Decidir D-27 (Preview sin base de pruebas: modo demostración propuesto).
+4. (Opcional) Confirmar el área de Sandra en `perfiles` (D-24); si me autorizas, lo leo solo-lectura (solo `area` y `rol`).
+Nada de lo abierto impide empezar el Batch 1 (ver `decisiones-pendientes.md`).
 
 ---
 

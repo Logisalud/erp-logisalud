@@ -21,7 +21,9 @@ Nomenclatura:
 Las posiciones no asignadas quedan libres.
 Cada asignación se registra con vigencia y referencia al documento que la sustenta.
 
+## Rack A
+El rack A llega hasta **A-27** (planos 2026, tabla de Diphasac y exportación de Odoo coinciden). El plano AJR de 2023 que se citaba antes está desactualizado y no forma parte del repo; la evidencia de A-27 es la tabla de Diphasac, el Excel de Odoo y los planos 2026.
+
 ## Conflictos por verificar en físico (no inventar)
-1. Rack A: los planos 2026 dibujan hasta A-21; el plano AJR 2023, la tabla de Diphasac y Odoo llegan a A-27. Charlie verifica en sitio.
-2. E-9.1 y E-10.1 no figuran en la tabla de Logissa 2026.
+1. E-9.1 y E-10.1 no figuran en la tabla de Logissa 2026 (los planos las dibujan, Odoo las tiene y el total de pallets de Logissa solo cuadra si se cuentan).
 Todo esto debe ser configurable, no fijo en código. Los planos no tienen escala exacta: usar un layout aproximado marcado como tal, con herramienta de calibración.

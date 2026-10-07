@@ -14,7 +14,7 @@ Solo entradas y movimientos internos. Las salidas (preparación, despacho, trans
 |---|---|
 | Katia Zapata | Dirección Técnica: decide estados, valida productos, aprueba ajustes |
 | Sandra López | Asistente DT: evaluación organoléptica, alta de productos, cierre documental |
-| Charlie Chancco | Responsable de Almacén |
+| Charlie Chancco | Jefe de Almacén (así se llama el cargo en la interfaz y en el acta, como en LS-FR.03.05) |
 | Roberto, Jasury | Reemplazos de Charlie (autorizan movimientos) |
 | Christians, Jose Carlos, Alberto, Milka | Auxiliares de almacén |
 El equipo usa teléfonos personales.
@@ -48,12 +48,13 @@ El equipo usa teléfonos personales.
 | Devolución | Guía + formulario de devolución del transportista | Referencia obligatoria a factura o boleta original |
 | Ingreso de cliente | Guía del cliente | Guía |
 - Importación y traslado: fuera de alcance (aún no se importa).
+- Una OC puede tener varias recepciones en Compras; **cada recepción de Compras es un ingreso distinto en el WMS** (la referencia de cantidad es la de esa recepción, no la de la OC).
 - Invariante: SUM(cantidad por lote) = cantidad de referencia.
 - Unidad: la misma de Compras (unidades). Las cajas master no se cuentan.
 
 ## Recepción (REC-01, REC-02)
 1. Recepción es un proceso, no un estado. Recepción (A-1 a A-5, A-M1) es tránsito: al confirmar, el inventario nace en Cuarentena en una posición A-6 a A-9.
-2. Vencimiento con solo mes y año → último día del mes.
+2. Vencimiento: se registra la **fecha completa** que muestra el producto físico. Solo si el producto mismo muestra únicamente mes y año, se usa el último día del mes (y se conserva el texto original).
 3. Temperatura (rango 15–25 °C) en el Acta de Recepción. Fuera de rango: se recibe y se alerta a Katia.
 4. Registro sanitario vencido: alerta inmediata a Katia; el lote no puede aprobarse hasta que ella resuelva.
 5. Solicitud de Ingreso (LS-FR.05.05): editable, con historial; el sistema la prellena.
@@ -72,6 +73,7 @@ El equipo usa teléfonos personales.
 
 ## Estado sanitario (INV-03)
 - Estados: Cuarentena, Aprobado, Bajas/Rechazados.
+- **Quién registra el cambio:** Katia, al firmar el Acta de Evaluación Organoléptica en el WMS, registra Aprobado o Bajas/Rechazados. Charlie (Jefe de Almacén) no ejecuta ese cambio; solo mueve físicamente (movimientos internos) cuando corresponde.
 - Permitido:
   - Cuarentena → Aprobado
   - Cuarentena → Bajas/Rechazados
@@ -96,7 +98,7 @@ Cada posición tiene tipo de área y propietario. El sistema bloquea combinacion
 
 ## Movimientos internos (INV-02)
 - Flujo: preparar → mover → verificar (persona distinta del ejecutor) → confirmar.
-- Autoriza Charlie, o Roberto/Jasury en su ausencia.
+- Autoriza Charlie (Jefe de Almacén), o Roberto/Jasury en su ausencia.
 - Con diferencia, el movimiento queda abierto.
 - Se guarda: origen, destino, producto, lote, propietario, cantidad, motivo, ejecutor y verificador.
 - Corrección = movimiento inverso vinculado al original.
