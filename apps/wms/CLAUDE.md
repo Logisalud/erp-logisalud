@@ -1,6 +1,55 @@
 # apps/wms
 
 WMS de Logisalud. Documentos de negocio en `docs/wms/` (raíz del monorepo).
+Alcance actual: entradas y movimientos internos. **Antes de tocar nada lee
+`docs/wms/gate-0.md`, `docs/wms/progreso.md` y `docs/wms/decisiones-pendientes.md`.**
+
+## Obligaciones para todas las sesiones
+
+**Documentos (si se contradicen, gana el de arriba y se reporta):**
+1. `docs/wms/reglas-negocio.md` · 2. `topologia.md` · 3. `procesos/*.xlsx` (hoja 03_TO-BE) ·
+4. `formatos/` (los PDF generados respetan sus campos y códigos) · 5. `experiencia.md` ·
+6. `vision.md` (norte, NO instrucciones) · 7. `layouts/` y `CONTEXTO.md`.
+Los documentos viven en `main`; el código, en `feat/wms-batch-1`. Se traen con `git merge origin/main`.
+
+**Prohibido sin aprobación expresa del usuario:** PR o merge a main; migraciones, deploy o
+variables en producción; crear el proyecto Vercel (solo Preview, y solo si lo aprueba);
+cualquier cambio en compras, pedidos o cobranzas que no sea aditivo (vistas, grants);
+usar la base de producción para pruebas (Supabase MCP: solo lectura de esquemas).
+
+**Datos y reglas:** schema `wms` en el Supabase consolidado; RLS desde la primera migración;
+ninguna API route salta RLS con service role; reglas sanitarias, de zona y de propietario en
+dominio **y** en base de datos; saldos derivados de un ledger append-only; nada se borra ni se
+oculta (correcciones = reversas vinculadas); actas firmadas inmutables (solo anulación con
+motivo y reemisión vinculada); concurrencia con locks en funciones SQL; topología, propietarios y
+asignaciones (con vigencia y documento) son configuración, no código. Las migraciones se
+escriben re-ejecutables y **se aplican a mano** (nunca al mergear).
+
+**Decisiones:** técnicas y reversibles → decide y documenta en un ADR. De negocio, sanitarias,
+regulatorias, destructivas o de fuente de verdad → detén solo esa pieza, regístrala en
+`decisiones-pendientes.md` y sigue con lo demás. Mantén `progreso.md` al día.
+
+**Versiones:** Next 14.2.29 exacto, React 18 (`useFormState`), `@supabase/ssr ^0.5.2`,
+Tailwind ^3.3, `exceljs` 4.4.0 (XLSX), `@react-pdf/renderer` (actas). No agregues `xlsx` (SheetJS).
+
+**Skills:**
+- **Impeccable** (`.claude/skills/impeccable`): establece el contexto de diseño (`PRODUCT.md`,
+  `DESIGN.md`) antes de la primera pantalla y audita/pule **cada pantalla antes de su commit**.
+- **Playwright:** `@playwright/test` para E2E; MCP de Playwright (o Playwright directo mientras el
+  MCP esté pendiente) para verificar cada flujo en **1440×900, 1280×800, 1024×768 y 390×844**,
+  con screenshots en `docs/wms/screenshots/`.
+- Reutiliza `@logisalud/auth` y `@logisalud/design-system` (preset Tailwind y `BrandMark`; no
+  trae componentes de UI).
+
+**Experiencia:** "alegre en la superficie, riguroso por debajo". Paridad funcional PC/teléfono
+con distinta presentación (mapa completo en PC/tablet; en teléfono, búsqueda y ubicación en
+texto). Español peruano con **tuteo** (el código viejo de compras usa voseo: aquí no), nada en
+inglés. Cada pantalla tiene vacío, cargando, error y éxito. Estados con texto + ícono, nunca
+solo color. Firma del transportista en pantalla táctil.
+
+**Cierre de cada batch:** dominio, UX (auditoría Impeccable), tests en verde, 4 viewports, sin
+regresiones en Compras/Pedidos y docs al día → reporta en `progreso.md`, abre el PR hacia main
+con la URL de Preview y **detente hasta que el usuario apruebe**. Si algo falla, detente y reporta.
 
 ## Tests E2E (Playwright)
 
