@@ -83,7 +83,7 @@ export default async function Home() {
         </Link>
         <Link href="/cobranzas/factoring" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
           <h2 className="text-lg font-semibold mb-1">🏷️ Factoring de facturas</h2>
-          <p className="text-gray-500 text-sm">Registra qué facturas se vendieron a una empresa de factoring.</p>
+          <p className="text-gray-500 text-sm">Canjea facturas a factoring, registra el ingreso al banco y consulta el reporte.</p>
         </Link>
       </div>
     </main>
