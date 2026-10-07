@@ -12,6 +12,7 @@ interface Fila {
   importe: number;
   estado: 'en_cartera' | 'en_banco' | 'pagada' | 'protestada';
   banco: string | null;
+  fecha_pago: string | null;
 }
 
 interface ClienteBuscado {
@@ -38,6 +39,7 @@ const fmt = (n: number) =>
   'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
 const fmtFecha = (s: string) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+const fmtFechaOpcional = (s: string | null) => s ? fmtFecha(s) : '—';
 
 export default function ReporteLetrasPage() {
   const [filas, setFilas] = useState<Fila[]>([]);
@@ -190,7 +192,7 @@ export default function ReporteLetrasPage() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm min-w-[860px]">
+            <table className="w-full text-sm min-w-[960px]">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="px-3 py-2.5 text-left">N° Letra</th>
@@ -200,6 +202,7 @@ export default function ReporteLetrasPage() {
                   <th className="px-3 py-2.5 text-right">Monto</th>
                   <th className="px-3 py-2.5 text-left">Estado</th>
                   <th className="px-3 py-2.5 text-left">Banco</th>
+                  <th className="px-3 py-2.5 text-left">F. Pago</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -219,6 +222,7 @@ export default function ReporteLetrasPage() {
                       </span>
                     </td>
                     <td className="px-3 py-2 text-gray-500">{f.banco ?? '—'}</td>
+                    <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{fmtFechaOpcional(f.fecha_pago)}</td>
                   </tr>
                 ))}
               </tbody>

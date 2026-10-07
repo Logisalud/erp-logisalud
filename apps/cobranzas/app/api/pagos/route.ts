@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_ESCRITURA, AREAS_LECTURA } from '@/lib/autorizacion';
-import { documentosEnFactoringActivo } from '@/lib/factoring';
+import { documentosPendientesDeIngreso } from '@/lib/factoring';
 
 export async function GET(req: NextRequest) {
   const auth = await exigirArea(AREAS_LECTURA);
@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
 
-  const enFactoring = await documentosEnFactoringActivo(db, [documento_id]);
-  if (enFactoring.has(documento_id))
+  const pendienteDeIngreso = await documentosPendientesDeIngreso(db, [documento_id]);
+  if (pendienteDeIngreso.has(documento_id))
     return NextResponse.json(
       { error: 'Esta factura está en factoring (canjeada, pendiente del ingreso al banco). Regístrala desde Factoring → Ingreso al banco, no acá.' },
       { status: 400 }

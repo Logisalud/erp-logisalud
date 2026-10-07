@@ -11,6 +11,7 @@ export interface FilaReporteLetras {
   importe: number;
   estado: 'en_cartera' | 'en_banco' | 'pagada' | 'protestada';
   banco: string | null;
+  fecha_pago: string | null;
 }
 
 export interface FiltrosReporteLetras {
@@ -33,7 +34,7 @@ export interface FiltrosReporteLetras {
 export async function construirReporteLetras(db: SupabaseClient, filtros: FiltrosReporteLetras): Promise<FilaReporteLetras[]> {
   let query = db
     .from('letras')
-    .select('id, numero_letra, fecha_vencimiento, importe, estado, banco');
+    .select('id, numero_letra, fecha_vencimiento, importe, estado, banco, fecha_pago');
 
   if (filtros.estado && filtros.estado !== 'todos') query = query.eq('estado', filtros.estado);
   if (filtros.desde) query = query.gte('fecha_vencimiento', filtros.desde);
@@ -42,6 +43,7 @@ export async function construirReporteLetras(db: SupabaseClient, filtros: Filtro
   const letras = await fetchAll<{
     id: string; numero_letra: string; fecha_vencimiento: string; importe: number;
     estado: 'en_cartera' | 'en_banco' | 'pagada' | 'protestada'; banco: string | null;
+    fecha_pago: string | null;
   }>((from, to) => query.order('fecha_vencimiento').range(from, to));
 
   if (letras.length === 0) return [];
@@ -90,6 +92,7 @@ export async function construirReporteLetras(db: SupabaseClient, filtros: Filtro
       importe: Number(l.importe) || 0,
       estado: l.estado,
       banco: l.banco,
+      fecha_pago: l.fecha_pago,
     };
   });
 
