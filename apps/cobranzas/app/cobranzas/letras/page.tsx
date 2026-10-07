@@ -552,7 +552,22 @@ export default function LetrasPage() {
                             <td className="px-4 py-3 text-center text-xs text-green-600">
                               {l.fecha_pago ? fmtFecha(l.fecha_pago) : '—'}
                             </td>
-                            <td className="px-4 py-3 text-center">
+                            <td className="px-4 py-3 text-center whitespace-nowrap">
+                              {l.fecha_giro ? (
+                                <a
+                                  href={`/api/letras/${l.id}/plantilla`}
+                                  className="text-logisalud-teal hover:text-logisalud-green text-xs hover:underline mr-3"
+                                >
+                                  📄 Plantilla
+                                </a>
+                              ) : (
+                                <span
+                                  className="text-gray-300 text-xs mr-3 cursor-not-allowed"
+                                  title="Falta la fecha de giro para generar la plantilla"
+                                >
+                                  📄 Plantilla
+                                </span>
+                              )}
                               <button
                                 onClick={() => eliminarLetra(l.id)}
                                 className="text-red-400 hover:text-red-600 text-xs hover:underline"
