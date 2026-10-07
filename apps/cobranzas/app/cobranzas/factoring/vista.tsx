@@ -13,10 +13,12 @@ interface FacturaCliente {
   fecha_vencimiento: string | null;
   saldo_pendiente: number;
   tiene_letras: boolean;
+  en_canje_activo: boolean;
   en_factoring: boolean;
+  monto_canje: number | null;
 }
 
-interface CanjeFactura { documento_id: string; comprobante: string; estado: 'en_factoring' | 'ingresada' | 'anulada'; }
+interface CanjeFactura { documento_id: string; comprobante: string; monto_canje: number; estado: 'en_factoring' | 'ingresada' | 'anulada'; }
 interface Canje {
   id: string; cliente_ruc: string; razon_social: string; fecha_canje: string;
   observaciones: string | null; registrado_por: string | null;
@@ -99,30 +101,44 @@ export default function FactoringVista({ puedeAnular }: { puedeAnular: boolean }
             <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
             <p className="text-white/70 text-sm">Factoring de facturas</p>
           </div>
-          <a href="/cobranzas" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setTab('reporte')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${tab === 'reporte' ? 'bg-white text-logisalud-green' : 'bg-white/20 text-white hover:bg-white/30'}`}
+            >
+              📊 Ver reporte
+            </button>
+            <a href="/cobranzas" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+          </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto mt-6 px-4 pb-16">
-        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-sm mb-5">
-          {([
-            { key: 'canjear', label: '1. Canjear facturas' },
-            { key: 'ingreso', label: '2. Ingreso al banco' },
-            { key: 'reporte', label: '3. Reporte' },
-          ] as const).map(o => (
-            <button
-              key={o.key} onClick={() => setTab(o.key)}
-              className={`px-4 py-1.5 rounded-md font-medium transition ${tab === o.key ? 'text-white' : 'text-gray-500 hover:text-gray-700'}`}
-              style={tab === o.key ? { background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' } : undefined}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
+        {tab !== 'reporte' && (
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-sm mb-5">
+            {([
+              { key: 'canjear', label: 'Canjear facturas' },
+              { key: 'ingreso', label: 'Ingreso al banco' },
+            ] as const).map(o => (
+              <button
+                key={o.key} onClick={() => setTab(o.key)}
+                className={`px-4 py-1.5 rounded-md font-medium transition ${tab === o.key ? 'text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                style={tab === o.key ? { background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' } : undefined}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {tab === 'canjear' && <TabCanjear puedeAnular={puedeAnular} />}
         {tab === 'ingreso' && <TabIngreso puedeAnular={puedeAnular} />}
-        {tab === 'reporte' && <TabReporte />}
+        {tab === 'reporte' && (
+          <>
+            <button onClick={() => setTab('canjear')} className="text-xs text-gray-400 hover:text-gray-600 mb-4">&larr; Volver a Factoring</button>
+            <TabReporte />
+          </>
+        )}
       </main>
     </div>
   );
@@ -134,6 +150,7 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
   const b = useBuscadorCliente();
   const [facturas, setFacturas] = useState<FacturaCliente[]>([]);
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
+  const [montosCanje, setMontosCanje] = useState<Record<string, string>>({});
   const [fechaCanje, setFechaCanje] = useState(hoy());
   const [observaciones, setObservaciones] = useState('');
   const [registradoPor, setRegistradoPor] = useState('');
@@ -167,19 +184,36 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
       const d = await res.json();
       setFacturas(d.facturas ?? []);
       setSeleccionadas(new Set());
+      setMontosCanje({});
     })();
   }, [b.seleccionado]);
 
-  const toggle = (id: string) => setSeleccionadas(prev => {
-    const s = new Set(prev);
-    if (s.has(id)) s.delete(id); else s.add(id);
-    return s;
-  });
+  // Al marcar una factura, el valor a factorizar arranca en su saldo
+  // pendiente completo pero queda editable — no siempre se factoriza el
+  // 100% (retención, % parcial acordado con el factor, etc.).
+  const toggle = (f: FacturaCliente) => {
+    setSeleccionadas(prev => {
+      const s = new Set(prev);
+      if (s.has(f.id)) s.delete(f.id); else s.add(f.id);
+      return s;
+    });
+    setMontosCanje(prev => {
+      if (prev[f.id] !== undefined) {
+        const { [f.id]: _omit, ...resto } = prev;
+        return resto;
+      }
+      return { ...prev, [f.id]: f.saldo_pendiente.toFixed(2) };
+    });
+  };
 
   const registrar = async () => {
     if (!b.seleccionado) { setErrMsg('Selecciona un cliente.'); return; }
     if (seleccionadas.size === 0) { setErrMsg('Selecciona al menos una factura.'); return; }
     if (!registradoPor.trim()) { setErrMsg('Indica quién registra el canje.'); return; }
+    for (const id of seleccionadas) {
+      const monto = Number(montosCanje[id]);
+      if (!monto || monto <= 0) { setErrMsg('Indica el valor a factorizar de cada factura seleccionada.'); return; }
+    }
     localStorage.setItem('registrado_por', registradoPor.trim());
     setGuardando(true); setErrMsg(''); setExitoMsg('');
     try {
@@ -189,7 +223,7 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
         body: JSON.stringify({
           cliente_ruc: b.seleccionado.cliente_ruc,
           fecha_canje: fechaCanje,
-          documento_ids: Array.from(seleccionadas),
+          facturas: Array.from(seleccionadas).map(id => ({ documento_id: id, monto_canje: Number(montosCanje[id]) })),
           observaciones: observaciones.trim() || undefined,
           registrado_por: registradoPor.trim(),
         }),
@@ -197,7 +231,7 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
       const d = await res.json();
       if (d.error) { setErrMsg(d.error); return; }
       setExitoMsg(`✓ ${seleccionadas.size} ${seleccionadas.size === 1 ? 'factura canjeada' : 'facturas canjeadas'} a factoring.`);
-      setSeleccionadas(new Set()); setObservaciones(''); b.limpiar();
+      setSeleccionadas(new Set()); setMontosCanje({}); setObservaciones(''); b.limpiar();
       await cargarHistorial();
     } finally { setGuardando(false); }
   };
@@ -232,28 +266,49 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
               {facturas.length === 0 ? (
                 <p className="text-sm text-gray-400 p-3">Este cliente no tiene facturas con saldo pendiente.</p>
               ) : facturas.map(f => {
-                const deshabilitada = f.tiene_letras || f.en_factoring;
+                const deshabilitada = f.tiene_letras || f.en_canje_activo;
+                const seleccionada = seleccionadas.has(f.id);
                 return (
-                  <label key={f.id} className={`flex items-center justify-between gap-3 px-3 py-2 ${deshabilitada ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50'}`}>
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div key={f.id} className={`flex items-center justify-between gap-3 px-3 py-2 ${deshabilitada ? 'opacity-50' : 'hover:bg-gray-50'}`}>
+                    <label className={`flex items-center gap-3 min-w-0 flex-1 ${deshabilitada ? '' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox" disabled={deshabilitada}
-                        checked={seleccionadas.has(f.id)}
-                        onChange={() => toggle(f.id)}
+                        checked={seleccionada}
+                        onChange={() => toggle(f)}
                       />
                       <div className="min-w-0">
                         <span className="font-mono text-sm text-gray-700">{f.comprobante}</span>
                         <p className="text-xs text-gray-400">
-                          Vence {fmtFecha(f.fecha_vencimiento)}
+                          Vence {fmtFecha(f.fecha_vencimiento)} · saldo {fmt(f.saldo_pendiente)}
                           {f.tiene_letras && <span className="text-red-500"> · tiene letras</span>}
-                          {f.en_factoring && <span className="text-amber-600"> · ya en factoring</span>}
+                          {f.en_canje_activo && <span className="text-amber-600"> · ya en factoring</span>}
                         </p>
                       </div>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-800 shrink-0">{fmt(f.saldo_pendiente)}</span>
-                  </label>
+                    </label>
+                    {seleccionada ? (
+                      <div className="shrink-0 text-right">
+                        <label className="block text-[10px] text-gray-400 mb-0.5">Valor a factorizar</label>
+                        <input
+                          type="number" min="0.01" max={f.saldo_pendiente} step="0.01"
+                          value={montosCanje[f.id] ?? ''}
+                          onChange={e => setMontosCanje(prev => ({ ...prev, [f.id]: e.target.value }))}
+                          className="w-28 px-2 py-1 border border-gray-200 rounded-lg text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-sm font-semibold text-gray-800 shrink-0">{fmt(f.saldo_pendiente)}</span>
+                    )}
+                  </div>
                 );
               })}
+              {seleccionadas.size > 0 && (
+                <div className="flex justify-between px-3 py-2 bg-gray-50 font-semibold text-sm">
+                  <span>Total a factorizar</span>
+                  <span style={{ color: '#4BB168' }}>
+                    {fmt(Array.from(seleccionadas).reduce((s, id) => s + (Number(montosCanje[id]) || 0), 0))}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -314,7 +369,7 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                     <span key={f.documento_id} className={`text-xs px-2 py-0.5 rounded-full font-mono ${
                       f.estado === 'ingresada' ? 'bg-green-100 text-green-700' : f.estado === 'anulada' ? 'bg-gray-100 text-gray-400' : 'bg-amber-100 text-amber-700'
                     }`}>
-                      {f.comprobante}
+                      {f.comprobante} · {fmt(f.monto_canje)}
                     </span>
                   ))}
                 </div>
@@ -401,7 +456,7 @@ function TabIngreso({ puedeAnular }: { puedeAnular: boolean }) {
     return s;
   });
 
-  const totalSeleccionado = facturas.filter(f => seleccionadas.has(f.id)).reduce((s, f) => s + f.saldo_pendiente, 0);
+  const totalSeleccionado = facturas.filter(f => seleccionadas.has(f.id)).reduce((s, f) => s + (f.monto_canje ?? f.saldo_pendiente), 0);
 
   const limpiarForm = () => {
     setSeleccionadas(new Set()); setEntidad(''); setFechaIngreso(hoy()); setMontoNeto('');
@@ -479,15 +534,20 @@ function TabIngreso({ puedeAnular }: { puedeAnular: boolean }) {
                     <input type="checkbox" checked={seleccionadas.has(f.id)} onChange={() => toggle(f.id)} />
                     <div className="min-w-0">
                       <span className="font-mono text-sm text-gray-700">{f.comprobante}</span>
-                      <p className="text-xs text-gray-400">Vence {fmtFecha(f.fecha_vencimiento)}</p>
+                      <p className="text-xs text-gray-400">
+                        Vence {fmtFecha(f.fecha_vencimiento)}
+                        {f.monto_canje != null && f.monto_canje < f.saldo_pendiente && (
+                          <span className="text-gray-400"> · saldo factura {fmt(f.saldo_pendiente)}</span>
+                        )}
+                      </p>
                     </div>
                   </div>
-                  <span className="text-sm font-semibold text-gray-800 shrink-0">{fmt(f.saldo_pendiente)}</span>
+                  <span className="text-sm font-semibold text-gray-800 shrink-0">{fmt(f.monto_canje ?? f.saldo_pendiente)}</span>
                 </label>
               ))}
               {seleccionadas.size > 0 && (
                 <div className="flex justify-between px-3 py-2 bg-gray-50 font-semibold text-sm">
-                  <span>Total facturado</span>
+                  <span>Total canjeado</span>
                   <span style={{ color: '#4BB168' }}>{fmt(totalSeleccionado)}</span>
                 </div>
               )}

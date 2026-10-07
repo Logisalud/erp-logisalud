@@ -3,12 +3,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
-import { documentosEnFactoringActivo } from '@/lib/factoring';
+import { documentosEnFactoringActivo, documentosPendientesDeIngreso } from '@/lib/factoring';
 
-// Facturas de un cliente con saldo pendiente, marcando cuáles ya están
-// "en_factoring" (canje activo). Sirve para los dos pickers de la pantalla:
-// Parte 1 (canjear) muestra las que NO están en_factoring, Parte 2
-// (ingreso al banco) muestra solo las que SÍ lo están.
+// Facturas de un cliente con saldo pendiente, con dos flags:
+// - en_canje_activo: tiene un canje a factoring activo (ingresado o no) —
+//   Parte 1 (canjear) oculta/deshabilita estas, no se puede canjear dos
+//   veces la misma factura.
+// - en_factoring: tiene un canje activo Y TODAVÍA no tuvo su ingreso al
+//   banco — Parte 2 (ingreso al banco) muestra solo estas, con
+//   monto_canje (el valor acordado a factorizar, no siempre el
+//   saldo_pendiente completo).
 export async function GET(req: NextRequest) {
   const auth = await exigirArea(AREAS_LECTURA);
   if (!auth.ok) return auth.respuesta;
@@ -26,7 +30,11 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const enFactoring = await documentosEnFactoringActivo(db, (data ?? []).map(f => f.id));
+  const ids = (data ?? []).map(f => f.id);
+  const [enCanjeActivo, pendientesDeIngreso] = await Promise.all([
+    documentosEnFactoringActivo(db, ids),
+    documentosPendientesDeIngreso(db, ids),
+  ]);
 
   const facturas = (data ?? []).map(f => ({
     id: f.id,
@@ -34,7 +42,9 @@ export async function GET(req: NextRequest) {
     fecha_vencimiento: f.fecha_vencimiento,
     saldo_pendiente: Number(f.saldo_pendiente) || 0,
     tiene_letras: f.tiene_letras,
-    en_factoring: enFactoring.has(f.id),
+    en_canje_activo: enCanjeActivo.has(f.id),
+    en_factoring: pendientesDeIngreso.has(f.id),
+    monto_canje: pendientesDeIngreso.get(f.id) ?? null,
   }));
 
   return NextResponse.json({ facturas }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } });

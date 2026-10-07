@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_ESCRITURA, AREAS_LECTURA } from '@/lib/autorizacion';
-import { documentosEnFactoringActivo } from '@/lib/factoring';
+import { documentosPendientesDeIngreso } from '@/lib/factoring';
 
 type GastoInput = {
   tipo: 'garantia' | 'comision' | 'otros';
@@ -62,10 +62,11 @@ export async function GET() {
   return NextResponse.json({ ingresos: resultado }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } });
 }
 
-// Registra el ingreso real al banco: crea un PAGO real por cada factura
-// (su saldo baja a 0, como cualquier pago normal) y los gastos financieros
-// asociados. Todas las facturas deben ser del MISMO cliente y estar
-// "en_factoring" (canje activo, sin ingreso previo).
+// Registra el ingreso real al banco: crea un PAGO real por cada factura,
+// por su monto_canje (el valor acordado al canjearla, no siempre el
+// saldo_pendiente completo — puede quedar un resto por retención o un %
+// no factorizado), y los gastos financieros asociados. Todas las facturas
+// deben ser del MISMO cliente y estar pendientes de ingreso.
 export async function POST(req: NextRequest) {
   const auth = await exigirArea(AREAS_ESCRITURA);
   if (!auth.ok) return auth.respuesta;
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
   if (errSaldos) return NextResponse.json({ error: errSaldos.message }, { status: 500 });
 
   const saldoPorId = new Map((saldos ?? []).map(s => [s.id, s]));
-  const enFactoring = await documentosEnFactoringActivo(db, documento_ids);
+  const pendientesDeIngreso = await documentosPendientesDeIngreso(db, documento_ids);
 
   const clientesDistintos = new Set((saldos ?? []).map(s => s.cliente_ruc));
   if (clientesDistintos.size > 1)
@@ -100,10 +101,13 @@ export async function POST(req: NextRequest) {
   for (const id of documento_ids) {
     const s = saldoPorId.get(id);
     if (!s) return NextResponse.json({ error: `Factura ${id} no encontrada` }, { status: 400 });
-    if (!enFactoring.has(id))
-      return NextResponse.json({ error: `${s.comprobante} no está en factoring (hay que canjearla primero).` }, { status: 400 });
+    if (!pendientesDeIngreso.has(id))
+      return NextResponse.json({ error: `${s.comprobante} no está en factoring pendiente de ingreso (hay que canjearla primero).` }, { status: 400 });
     if (Number(s.saldo_pendiente) <= 0)
       return NextResponse.json({ error: `${s.comprobante} ya no tiene saldo pendiente.` }, { status: 400 });
+    const montoCanje = pendientesDeIngreso.get(id)!;
+    if (montoCanje > Number(s.saldo_pendiente) + 0.005)
+      return NextResponse.json({ error: `${s.comprobante}: el valor canjeado (${montoCanje}) supera su saldo pendiente actual (${s.saldo_pendiente}) — revisar.` }, { status: 400 });
   }
 
   const { data: ingreso, error: errIngreso } = await db
@@ -126,7 +130,7 @@ export async function POST(req: NextRequest) {
   // factoring_ingreso_facturas.pago_id, no por un medio_cobro aparte.
   const pagosRows = documento_ids.map(id => ({
     documento_id: id,
-    monto: Number(saldoPorId.get(id)!.saldo_pendiente),
+    monto: pendientesDeIngreso.get(id)!,
     fecha_pago: fecha_ingreso,
     referencia: `Factoring: ${entidad.trim()}`,
     tipo: 'pago' as const,
@@ -144,7 +148,7 @@ export async function POST(req: NextRequest) {
   const ingresoFacturasRows = documento_ids.map(id => ({
     ingreso_id: ingreso.id,
     documento_id: id,
-    monto_factorizado: Number(saldoPorId.get(id)!.saldo_pendiente),
+    monto_factorizado: pendientesDeIngreso.get(id)!,
     pago_id: pagoPorDocumento.get(id) ?? null,
   }));
   const { error: errIF } = await db.from('factoring_ingreso_facturas').insert(ingresoFacturasRows);

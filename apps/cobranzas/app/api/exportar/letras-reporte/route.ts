@@ -14,6 +14,7 @@ const ESTADO_LABEL: Record<string, string> = {
 };
 
 const fmtFecha = (s: string) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+const fmtFechaOpcional = (s: string | null) => s ? fmtFecha(s) : '';
 
 export async function GET(req: NextRequest) {
   const auth = await exigirArea(AREAS_LECTURA);
@@ -39,12 +40,13 @@ export async function GET(req: NextRequest) {
       'Monto': f.importe,
       'Estado': ESTADO_LABEL[f.estado] ?? f.estado,
       'Banco': f.banco ?? '',
+      'Fecha de Pago': fmtFechaOpcional(f.fecha_pago),
     }));
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      { wch: 14 }, { wch: 13 }, { wch: 38 }, { wch: 24 }, { wch: 16 }, { wch: 13 }, { wch: 12 }, { wch: 16 },
+      { wch: 14 }, { wch: 13 }, { wch: 38 }, { wch: 24 }, { wch: 16 }, { wch: 13 }, { wch: 12 }, { wch: 16 }, { wch: 16 },
     ];
     const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
     ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };

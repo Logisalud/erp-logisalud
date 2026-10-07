@@ -4,11 +4,12 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { fetchAll } from '@/lib/fetchAll';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_ESCRITURA, AREAS_LECTURA } from '@/lib/autorizacion';
-import { documentosEnFactoringActivo } from '@/lib/factoring';
+import { documentosEnFactoringActivo, documentosYaIngresados } from '@/lib/factoring';
 
-// Historial de canjes (Parte 1), con sus facturas y el estado de cada una
-// hoy: 'ingresada' (ya se le registró el ingreso al banco — su saldo bajó a
-// 0 por un pago real), 'anulada' (el canje se anuló) o 'en_factoring'.
+// Historial de canjes (Parte 1), con sus facturas, su monto_canje y el
+// estado de cada una hoy: 'ingresada' (ya tiene un ingreso al banco activo
+// — no necesariamente saldo 0, un factoring parcial deja resto por cobrar),
+// 'anulada' (el canje se anuló) o 'en_factoring'.
 export async function GET() {
   const auth = await exigirArea(AREAS_LECTURA);
   if (!auth.ok) return auth.respuesta;
@@ -22,20 +23,21 @@ export async function GET() {
 
   const canjeIds = canjes.map(c => c.id);
   const canjeFacturas = canjeIds.length
-    ? await fetchAll<{ id: string; canje_id: string; documento_id: string }>((from, to) =>
-        db.from('factoring_canje_facturas').select('id, canje_id, documento_id').in('canje_id', canjeIds).range(from, to)
+    ? await fetchAll<{ id: string; canje_id: string; documento_id: string; monto_canje: number }>((from, to) =>
+        db.from('factoring_canje_facturas').select('id, canje_id, documento_id, monto_canje').in('canje_id', canjeIds).range(from, to)
       )
     : [];
 
   const documentoIds = Array.from(new Set(canjeFacturas.map(f => f.documento_id)));
-  const docsPorId = new Map<string, { comprobante: string; cliente_ruc: string; razon_social: string; saldo_pendiente: number }>();
+  const docsPorId = new Map<string, { comprobante: string; cliente_ruc: string; razon_social: string }>();
   for (let i = 0; i < documentoIds.length; i += 500) {
     const { data } = await db
       .from('v_saldos')
-      .select('id, comprobante, cliente_ruc, razon_social, saldo_pendiente')
+      .select('id, comprobante, cliente_ruc, razon_social')
       .in('id', documentoIds.slice(i, i + 500));
-    for (const d of data ?? []) docsPorId.set(d.id, { comprobante: d.comprobante, cliente_ruc: d.cliente_ruc, razon_social: d.razon_social, saldo_pendiente: Number(d.saldo_pendiente) || 0 });
+    for (const d of data ?? []) docsPorId.set(d.id, { comprobante: d.comprobante, cliente_ruc: d.cliente_ruc, razon_social: d.razon_social });
   }
+  const yaIngresados = await documentosYaIngresados(db, documentoIds);
 
   const clienteRucsCanje = Array.from(new Set(canjes.map(c => c.cliente_ruc)));
   const razonSocialPorRuc = new Map<string, string>();
@@ -56,10 +58,11 @@ export async function GET() {
     razon_social: razonSocialPorRuc.get(c.cliente_ruc) ?? c.cliente_ruc,
     facturas: (facturasPorCanje.get(c.id) ?? []).map(f => {
       const doc = docsPorId.get(f.documento_id);
-      const ingresada = (doc?.saldo_pendiente ?? 0) <= 0.005;
+      const ingresada = yaIngresados.has(f.documento_id);
       return {
         documento_id: f.documento_id,
         comprobante: doc?.comprobante ?? '—',
+        monto_canje: Number(f.monto_canje) || 0,
         estado: ingresada ? 'ingresada' : c.anulado ? 'anulada' : 'en_factoring',
       };
     }),
@@ -73,13 +76,17 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.respuesta;
 
   const body = await req.json();
-  const { cliente_ruc, fecha_canje, documento_ids, observaciones, registrado_por } = body as {
-    cliente_ruc?: string; fecha_canje?: string; documento_ids?: string[];
+  const { cliente_ruc, fecha_canje, facturas: facturasInput, observaciones, registrado_por } = body as {
+    cliente_ruc?: string; fecha_canje?: string;
+    facturas?: { documento_id: string; monto_canje: number }[];
     observaciones?: string; registrado_por?: string;
   };
 
-  if (!cliente_ruc || !fecha_canje || !Array.isArray(documento_ids) || documento_ids.length === 0)
+  if (!cliente_ruc || !fecha_canje || !Array.isArray(facturasInput) || facturasInput.length === 0)
     return NextResponse.json({ error: 'cliente_ruc, fecha_canje y al menos una factura son requeridos' }, { status: 400 });
+
+  const documento_ids = facturasInput.map(f => f.documento_id);
+  const montoCanjePorId = new Map(facturasInput.map(f => [f.documento_id, Number(f.monto_canje)]));
 
   const db = supabaseAdmin();
 
@@ -103,6 +110,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `${s.comprobante} no tiene saldo pendiente.` }, { status: 400 });
     if (enFactoring.has(id))
       return NextResponse.json({ error: `${s.comprobante} ya está en factoring.` }, { status: 400 });
+    const monto = montoCanjePorId.get(id);
+    if (!monto || monto <= 0)
+      return NextResponse.json({ error: `Indica el valor a factorizar de ${s.comprobante}.` }, { status: 400 });
+    if (monto > Number(s.saldo_pendiente) + 0.005)
+      return NextResponse.json({ error: `El valor a factorizar de ${s.comprobante} no puede superar su saldo pendiente (${s.saldo_pendiente}).` }, { status: 400 });
   }
 
   const { data: canje, error: errCanje } = await db
@@ -117,7 +129,7 @@ export async function POST(req: NextRequest) {
     .single();
   if (errCanje) return NextResponse.json({ error: errCanje.message }, { status: 500 });
 
-  const filas = documento_ids.map(id => ({ canje_id: canje.id, documento_id: id }));
+  const filas = documento_ids.map(id => ({ canje_id: canje.id, documento_id: id, monto_canje: montoCanjePorId.get(id) }));
   const { error: errFilas } = await db.from('factoring_canje_facturas').insert(filas);
   if (errFilas) {
     await db.from('factoring_canjes').update({ anulado: true, anulado_motivo: 'Error al insertar facturas — ver logs' }).eq('id', canje.id);
