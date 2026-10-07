@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_ESCRITURA, AREAS_LECTURA } from '@/lib/autorizacion';
+import { documentosPendientesDeIngreso } from '@/lib/factoring';
 
 export async function GET(req: NextRequest) {
   const auth = await exigirArea(AREAS_LECTURA);
@@ -78,6 +79,13 @@ export async function POST(req: NextRequest) {
   if (saldoRow?.factorizado)
     return NextResponse.json(
       { error: `Esta factura ya fue factorizada${saldoRow.factoring_entidad ? ` (${saldoRow.factoring_entidad})` : ''}. No registres un pago del cliente acá — el cobro le corresponde a la empresa de factoring.` },
+      { status: 400 }
+    );
+
+  const pendienteDeIngreso = await documentosPendientesDeIngreso(db, [documento_id]);
+  if (pendienteDeIngreso.has(documento_id))
+    return NextResponse.json(
+      { error: 'Esta factura está en factoring (canjeada, pendiente del ingreso al banco). Regístrala desde Factoring → Ingreso al banco, no acá.' },
       { status: 400 }
     );
 

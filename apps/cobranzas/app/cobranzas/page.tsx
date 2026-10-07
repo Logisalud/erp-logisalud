@@ -35,6 +35,10 @@ export default async function Home() {
           <h2 className="text-lg font-semibold mb-1">🏷️ Letras de Cambio</h2>
           <p className="text-gray-500 text-sm">Gira, gestiona y cambia el estado de letras vinculadas a facturas a crédito.</p>
         </Link>
+        <Link href="/cobranzas/reporte-letras" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">📅 Reporte de letras</h2>
+          <p className="text-gray-500 text-sm">Agenda plana de todas las letras, filtrable por estado, cliente y vencimiento.</p>
+        </Link>
         <Link href="/cobranzas/clientes" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
           <h2 className="text-lg font-semibold mb-1">🔍 Clientes</h2>
           <p className="text-gray-500 text-sm">Busca clientes, asigna o reasigna vendedores manualmente.</p>
@@ -83,7 +87,11 @@ export default async function Home() {
         </Link>
         <Link href="/cobranzas/factoring" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
           <h2 className="text-lg font-semibold mb-1">🏷️ Factoring de facturas</h2>
-          <p className="text-gray-500 text-sm">Registra qué facturas se vendieron a una empresa de factoring.</p>
+          <p className="text-gray-500 text-sm">Canjea facturas a factoring, registra el ingreso al banco y consulta el reporte.</p>
+        </Link>
+        <Link href="/cobranzas/exportar-nubecont" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">📤 Export a Nubecont</h2>
+          <p className="text-gray-500 text-sm">Descarga los ingresos de cobranza en el formato de importación de Nubecont.</p>
         </Link>
       </div>
     </main>
