@@ -26,6 +26,7 @@ El equipo usa teléfonos personales.
 - Todo saldo tiene propietario.
 - Posiciones de almacenamiento: un solo propietario fijo (ver topologia.md).
 - Áreas compartidas (Recepción, Cuarentena, Embalaje, Despacho): una posición puede tener varios propietarios a la vez.
+- La asignación de posiciones a un propietario tiene vigencia (desde/hasta) y referencia al contrato o adenda que la sustenta. Un cambio de asignación nunca mueve stock por sí solo.
 - Diphasac → Logissa: solo por conducto regular (recepción de Compras con movimiento físico). El inventario nuevo nace en Cuarentena (supuesto, pendiente de Katia).
 
 ## Maestro de productos
