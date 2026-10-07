@@ -146,6 +146,9 @@ Conflictos de **inconsistencia entre fuentes de verdad** detectados en producci�
 `wms.lotes`: `id`, `producto_id`, `codigo`, `vence` (date, **último día** del mes si el dato fue mes/año),
 `vence_texto_original` (p. ej. "02/2027"), `propietario_id`. Único `(producto_id, codigo, propietario_id)`.
 Un lote físico de dos propietarios son dos lotes (el propietario es parte de la identidad del saldo).
+**El lote es solo identidad (producto + código + vencimiento + propietario): no lleva estado sanitario.**
+Si llega otra entrega con el mismo producto, código y propietario se reutiliza el mismo lote, pero con
+el mismo vencimiento; con otro vencimiento la base lo rechaza ("mismo lote con otra fecha").
 
 ### C.3 Propietario (vs `inventory_source_id`)
 - `wms.propietarios`: `id`, `codigo` (`LOGISSA`…), `razon_social`, `ruc`, `es_dueno_del_almacen`
@@ -192,6 +195,23 @@ no `enum` de Postgres (permite extender). Transiciones permitidas en `wms.transi
 propietario y origen son columnas distintas. `condicion` (VERDE/ÁMBAR) existe **nullable**, con
 CHECK "solo si estado = APROBADO", sin UI.
 
+**¿Dónde vive el estado sanitario? En cada unidad contada, no en el lote.** El ledger y el saldo se
+identifican por **(posición, producto, lote, propietario, estado, `procedencia_id`)**; `procedencia_id`
+es el `ingreso_lote` que dio origen a esas unidades (la entrega concreta, con su acta). Caso: el lote ABC
+ya está Aprobado por una recepción anterior y llega otra entrega del mismo lote:
+1. La entrega nueva es **otro ingreso** (cada recepción de Compras lo es). Sus unidades **nacen** en
+   Cuarentena (A-6..A-9) con su propia procedencia. Nacer en Cuarentena es un ingreso, no una transición,
+   así que no choca con "Aprobado→Cuarentena prohibido".
+2. Las unidades antiguas siguen Aprobadas en su rack: nada las toca. Por eso **nunca vuelven a Cuarentena**.
+3. La nueva **no hereda** la aprobación: el pase a Aprobado es un `CAMBIO_ESTADO` que exige el acta
+   organoléptica firmada **de esa procedencia** (Batch 2) y solo puede mover hasta las unidades que esa
+   procedencia todavía tiene en Cuarentena. Aprobar la entrega 2 no aprueba la 3 aunque compartan lote.
+4. Resultado: el lote ABC tiene a la vez dos celdas de saldo (una Aprobada, otra en Cuarentena). Las
+   consultas "por lote" suman ambas, pero muestran el desglose por estado. La búsqueda y el mapa
+   siempre muestran el estado junto a la cantidad.
+Esto **ajusta el modelo**: se agrega `procedencia_id` a `partidas` y a `saldos` (antes solo estaba en el
+ingreso). En Batch 1 es una columna sin FK (los ingresos llegan en el Batch 2); el Batch 2 agrega la FK.
+
 ### C.8 Documentos firmados
 Ciclo: `BORRADOR` → `FIRMADA` → (`ANULADA` con motivo y `reemitida_como` vinculada). Trigger de BD:
 una fila `FIRMADA` no admite UPDATE salvo el paso a `ANULADA` (motivo, usuario, fecha obligatorios);
@@ -236,7 +256,7 @@ estado, `snapshot_compras jsonb`, `temperatura_c`, `alerta_temperatura`), `ingre
 - `movimientos` (cabecera: tipo → `tipos_movimiento`, flujo `PREPARADO`→`EN_VERIFICACION`→`CONFIRMADO` |
   `ABIERTO_CON_DIFERENCIA` | `REVERTIDO`, motivo, ejecutor, verificador, `reversa_de`, referencia de origen).
 - `partidas` (**el ledger**, append-only): `movimiento_id`, `posicion_id`, `producto_id`, `lote_id`,
-  `propietario_id`, `estado`, `condicion` (nullable), `origen_ingreso` (dimensión), `delta` (entero ≠ 0),
+  `propietario_id`, `estado`, `procedencia_id` (entrega que originó las unidades), `condicion` (nullable), `origen_ingreso` (dimensión), `delta` (entero ≠ 0),
   `fecha`. Un movimiento interno = dos partidas (−origen, +destino) en la misma transacción.
   Trigger: **prohíbe UPDATE y DELETE**. Reversa = movimiento nuevo con `reversa_de`.
 - `saldos`: **derivado**. Mantenido solo por un trigger de `partidas` y reconciliable
