@@ -1,74 +1,131 @@
 # Reglas de negocio WMS — CERRADAS
-Fuente: docs/wms/procesos/ (hoja 03_TO-BE). Si este archivo y un mapeo difieren, avisa; no elijas.
+Fuentes: docs/wms/procesos/ (hoja 03_TO-BE), docs/wms/formatos/, docs/wms/layouts/, docs/wms/topologia.md. Si algo difiere, avisa; no elijas.
+
+## Alcance actual
+Solo entradas y movimientos internos. Las salidas (preparación, despacho, transporte) se construyen después de su mapeo; el modelo debe admitirlas sin rehacerse.
+
+## Transición
+- El WMS opera en paralelo a Odoo hasta tener salidas; recién entonces lo reemplaza.
+- Carga inicial: exportación de Odoo tras el inventario general (dato real).
+- En Odoo, LWDIP = almacén DHP (Diphasac).
 
 ## Roles
-| Persona | Rol | Responsabilidad en WMS |
-|---|---|---|
-| Charlie Chancco | Responsable de Almacén | Cantidad física en Compras, lotes, registra Aprobado tras decisión DT, asigna VERDE/ÁMBAR, autoriza movimientos, programa conteos |
-| Katia | Dirección Técnica | Decide aprobación y bajas/rechazos; valida documentos técnicos |
-| Sandra López | Asistente DT | Aviso de llegada, evaluación organoléptica, cierre documental |
-| Auxiliares | Almacén | Preparan, ejecutan y verifican movimientos; cuentan |
+| Persona | Rol |
+|---|---|
+| Katia Zapata | Dirección Técnica: decide estados, valida productos, aprueba ajustes |
+| Sandra López | Asistente DT: evaluación organoléptica, alta de productos, cierre documental |
+| Charlie Chancco | Responsable de Almacén |
+| Roberto, Jasury | Reemplazos de Charlie (autorizan movimientos) |
+| Christians, Jose Carlos, Alberto, Milka | Auxiliares de almacén |
+El equipo usa teléfonos personales.
+
+## Propietarios del stock
+- Logissa: stock propio, comprado.
+- Diphasac, Triamed, Medic Pharma Lab, AJR Labs: clientes que guardan su mercadería; no la comercializamos.
+- Diphasac es también proveedor.
+- Todo saldo tiene propietario.
+- Posiciones de almacenamiento: un solo propietario fijo (ver topologia.md).
+- Áreas compartidas (Recepción, Cuarentena, Embalaje, Despacho): una posición puede tener varios propietarios a la vez.
+- Diphasac → Logissa: solo por conducto regular (recepción de Compras con movimiento físico). El inventario nuevo nace en Cuarentena (supuesto, pendiente de Katia).
+
+## Maestro de productos
+- Maestro único para todo propietario; incluye productos que no compramos.
+- Registro sanitario y su vencimiento son atributos del producto.
+- Sandra crea el producto; Katia lo valida.
+- No hay productos controlados.
 
 ## Fuentes de verdad — un dato se escribe una sola vez
-- Compras: OC, proveedor, factura, guías, cantidad física agregada.
-- WMS: lote, vencimiento, cantidad por lote, ubicación, estado sanitario, condición, movimientos, conteos.
-- Pedidos: pedido, cliente, reservas, disponible comercial, preferencias de lote.
-- DT: decisiones sanitarias.
+- Compras: OC, proveedor, factura, guías, cantidad física agregada (compra local).
+- WMS: todo lo físico y sanitario, y las entradas sin compra.
+- Dirección Técnica: decisiones sanitarias.
+- Pedidos: demanda.
 
-## Recepción (REC-01, REC-02, REC-03)
-1. Recepción es un proceso, no un estado.
-2. Todo inventario por compra nace en Cuarentena.
-3. Invariante: SUM(cantidad por lote) = cantidad_fisica de la recepción en Compras. Si no cuadra, no se confirma.
-4. Producto en varios lotes → una asignación por lote. Bonificados usan su propio código de producto.
-5. Lote y vencimiento no vuelven al módulo económico de Compras.
-6. La aprobación se sustenta con el Acta de Evaluación Organoléptica firmada. No existe Acta de Liberación.
-7. El inventario referencia la recepción de Compras; la OC es la referencia del expediente documental.
-8. WMS enlaza documentos de Compras; no los duplica.
+## Tipos de ingreso (todos nacen en Cuarentena)
+| Tipo | Cantidad de referencia | Documentos |
+|---|---|---|
+| Compra local | Recepción registrada en Compras | Guía y factura (ya en Compras) |
+| Devolución | Guía + formulario de devolución del transportista | Referencia obligatoria a factura o boleta original |
+| Ingreso de cliente | Guía del cliente | Guía |
+- Importación y traslado: fuera de alcance (aún no se importa).
+- Invariante: SUM(cantidad por lote) = cantidad de referencia.
+- Unidad: la misma de Compras (unidades). Las cajas master no se cuentan.
 
-## Estado sanitario y condición (INV-03)
-- Estado, condición y ubicación son dimensiones distintas.
-- Permitido: Cuarentena → Aprobado. Aprobado → Bajas/Rechazados (decisión DT + sustento).
-- PROHIBIDO SIEMPRE: Aprobado → Cuarentena. Validar en dominio y en base de datos.
-- Condición solo si estado = Aprobado: VERDE (listo para venta) o ÁMBAR (requiere acondicionamiento permitido). ÁMBAR → VERDE al terminar. Cualquier otro estado → condición NULL.
-- ÁMBAR no se usa para ocultar dudas de calidad: se escala a DT.
-- Cada cambio guarda producto, lote, cantidad, estado anterior y nuevo, motivo, sustento, usuario y fecha.
-- Cambiar estado no mueve; mover no cambia estado.
-- Devolución y Contramuestra no son estados sanitarios.
+## Recepción (REC-01, REC-02)
+1. Recepción es un proceso, no un estado. Recepción (A-1 a A-5, A-M1) es tránsito: al confirmar, el inventario nace en Cuarentena en una posición A-6 a A-9.
+2. Vencimiento con solo mes y año → último día del mes.
+3. Temperatura (rango 15–25 °C) en el Acta de Recepción. Fuera de rango: se recibe y se alerta a Katia.
+4. Registro sanitario vencido: alerta inmediata a Katia; el lote no puede aprobarse hasta que ella resuelva.
+5. Solicitud de Ingreso (LS-FR.05.05): editable, con historial; el sistema la prellena.
+6. Acta de Recepción (LS-FR.03.05):
+   - Numeración I-AAAAMM-correlativo.
+   - Se genera y firma en el sistema. Firman Jefe de Almacén, DT y responsable de conteo con su usuario logueado.
+   - El transportista firma en pantalla y se registran su nombre, DNI y placa.
+   - Firmada es inmutable: solo se anula con motivo y se emite otra vinculada.
+7. Datos del acta que no vienen de Compras: bultos, paletas, placa y marca del vehículo, temperatura, tipo de conteo, hora de inicio y fin, verificaciones del producto.
 
-## Movimientos (INV-02)
-- Preparar → ejecutar físicamente → verificar (persona distinta del ejecutor) → confirmar.
-- Con diferencia: queda abierto hasta que Charlie lo resuelva. Nunca ajustar para cuadrar.
-- Guarda origen, destino, producto, lote, cantidad, motivo, ejecutor y verificador.
-- Corrección = movimiento inverso. El original no se borra.
+## Evaluación organoléptica y aprobación
+- Acta de Evaluación Organoléptica (LS-FR.55.02): una por producto y lote, también en devoluciones. La llena Sandra; Katia decide y firma en el WMS.
+- Muestra = techo(√unidades del lote) + 1. Vuelve completa a su caja: no descuenta stock.
+- El acta firmada sustenta la decisión. No existe Acta de Liberación.
+- Lo rechazado en Cuarentena nunca vuelve al proveedor.
 
-## Conteos (INV-05)
-- Primer conteo ciego: ve producto, lote, vencimiento y ubicación, no la cantidad esperada.
-- Reconteo solo si hay diferencia, por otra persona, también ciego.
-- Ubicación en pausa durante el conteo.
-- Ajuste excepcional: autorizado, con motivo e historial.
+## Estado sanitario (INV-03)
+- Estados: Cuarentena, Aprobado, Bajas/Rechazados.
+- Permitido:
+  - Cuarentena → Aprobado
+  - Cuarentena → Bajas/Rechazados
+  - Aprobado → Bajas/Rechazados (Katia + sustento)
+- PROHIBIDO SIEMPRE: Aprobado → Cuarentena. Se valida en dominio y en base de datos.
+- Estado, condición, ubicación, propietario y origen son datos distintos.
+- VERDE/ÁMBAR: el modelo los soporta (solo con Aprobado); la interfaz se construye después.
+
+## Zonas BPA y compatibilidad
+Cada posición tiene tipo de área y propietario. El sistema bloquea combinaciones inválidas:
+| Tipo de área | Estados admitidos |
+|---|---|
+| Recepción | Ninguno (tránsito) |
+| Cuarentena (compartida) | Cuarentena |
+| Devoluciones (por propietario) | Cuarentena con origen devolución |
+| Aprobados (por propietario) | Aprobado |
+| Bajas/Rechazados (por propietario) | Bajas/Rechazados |
+| Contramuestra (por propietario) | Pendiente (solo importación) |
+| Embalaje, Despacho | Fuera de alcance |
+- Salir de Cuarentena hacia un rack: solo si está Aprobado con acta organoléptica firmada, y a una posición del mismo propietario.
+- Rechazado: solo hacia Bajas/Rechazados del mismo propietario.
+
+## Movimientos internos (INV-02)
+- Flujo: preparar → mover → verificar (persona distinta del ejecutor) → confirmar.
+- Autoriza Charlie, o Roberto/Jasury en su ausencia.
+- Con diferencia, el movimiento queda abierto.
+- Se guarda: origen, destino, producto, lote, propietario, cantidad, motivo, ejecutor y verificador.
+- Corrección = movimiento inverso vinculado al original.
+- Mover no cambia el estado.
+- Se puede mover parte de un lote; una posición puede tener varios lotes.
+
+## Inventarios cíclicos (INV-05)
+- 3 por semana, programados.
+- Primer conteo ciego.
+- Reconteo por otra persona solo si hay diferencia.
+- Posición en pausa durante el conteo.
+- Causa registrada.
+- Ajuste solo con aprobación de Katia, con antes, después, motivo y evidencia.
 
 ## Revisión diaria (INV-04)
-Registrar solo hallazgos no resueltos: qué pasó, responsable, estado.
+Recorrido con 4 focos: orden, limpieza, ubicaciones y situaciones anormales. Solo se registran pendientes, con responsable.
 
-## Stock vendible (INV-01)
-- physical_sellable = Aprobado + VERDE. No se publica Cuarentena, ÁMBAR, Contramuestra, Bajas/Rechazados ni Devolución.
-- Pedidos calcula commercial_available = physical_sellable − reservas.
-- Hoy: Odoo → archivo → importador de Pedidos. WMS convive en modo sombra hasta decisión explícita.
+## Expediente (REC-03)
+- La OC (o el N° de acta, si no hay compra) agrupa los documentos.
+- El WMS enlaza, no duplica.
+- Faltantes con responsable y estado. Sandra cierra.
 
-## Selección de lotes al despachar (futuro, no Batch 1)
-- Sin preferencia: lote vendible con vencimiento más próximo.
-- Con preferencia (vencimiento más lejano o lote específico): respetarla si el lote es Aprobado + VERDE, sin bloqueo y con cantidad suficiente. No es una "excepción FEFO".
-- Trazar criterio solicitado, criterio usado y lote despachado.
+## Integridad
+Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario, fecha, motivo).
 
-## Decisiones pendientes — no inventar
-1. Bloqueo temporal (hold) de un lote Aprobado sin usar Cuarentena.
-2. Flujo de Devoluciones.
-3. Naturaleza de Contramuestra.
-4. Documentos requeridos por tipo de Baja/Rechazo.
-5. ¿En el WMS aprueba Katia directamente o Charlie registra tras su decisión?
-6. ¿VERDE puede volver a ÁMBAR?
-7. Propietario del stock: el AS-IS trata distinto a Difasar, Darepharma y Biosana. ¿Son dueños del stock? ¿Sirve inventory_source_id?
-8. Temperatura de recepción: ¿se registra en Compras o en WMS?
-9. Preferencia de lote por línea de pedido: requiere cambio en Pedidos.
-10. Quién y cuándo apaga el importador Odoo y activa la proyección WMS.
-11. Mapeos de despacho y transporte: pendientes de subir.
+## Pendientes para Katia (no implementar hasta su respuesta)
+1. Compra a Diphasac de stock ya guardado: ¿nace en Cuarentena (supuesto actual) o conserva Aprobado?
+2. Destino físico y documental de lo rechazado en Cuarentena y de las devoluciones no conformes.
+3. Bloqueo temporal (hold) de un lote Aprobado.
+4. Documentos obligatorios por tipo de Baja/Rechazo.
+5. Naturaleza de Contramuestra (solo importaciones).
+6. Confirmar muestreo techo(√unidades) + 1.
+7. Acondicionamiento en la ubicación "Calidad" de Odoo: formalizarlo (ÁMBAR) o eliminarlo. No se migra.
