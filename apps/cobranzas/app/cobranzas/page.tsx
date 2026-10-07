@@ -85,6 +85,10 @@ export default async function Home() {
           <h2 className="text-lg font-semibold mb-1">🏷️ Factoring de facturas</h2>
           <p className="text-gray-500 text-sm">Registra qué facturas se vendieron a una empresa de factoring.</p>
         </Link>
+        <Link href="/cobranzas/exportar-nubecont" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">📤 Export a Nubecont</h2>
+          <p className="text-gray-500 text-sm">Descarga los ingresos de cobranza en el formato de importación de Nubecont.</p>
+        </Link>
       </div>
     </main>
   );
