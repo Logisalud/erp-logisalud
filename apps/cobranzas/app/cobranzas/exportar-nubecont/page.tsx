@@ -26,7 +26,9 @@ export default function ExportarNubecontPage() {
       <main className="max-w-2xl mx-auto mt-6 px-4 pb-16">
         <p className="text-gray-500 text-sm mb-4">
           Genera el Excel en el formato exacto de la plantilla de importación de ingresos/cobros de Nubecont,
-          una fila por factura cubierta por un pago, en el rango de fechas que elijas (sobre la fecha de pago).
+          una fila por factura cubierta por un pago, en el rango de fechas que elijas. El rango mira la fecha real
+          del movimiento de banco: fecha de pago para transferencias, fecha de depósito para efectivo — un efectivo
+          aún sin depositar no sale en el export, porque todavía no entró al banco.
         </p>
 
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">

@@ -14,7 +14,7 @@ import { fetchAll } from './fetchAll';
  * reales: el total ahí decía literalmente "TRAER VALOR SEGÚN # DE
  * OPERACIÓN" partido en dos filas).
  *
- * Agrupación de "TOTAL DEL MEDIO DE PAGO": por (cliente_ruc, fecha_pago,
+ * Agrupación de "TOTAL DEL MEDIO DE PAGO": por (cliente_ruc, fecha efectiva,
  * referencia) — NO por referencia sola. Verificado contra datos reales que
  * dos clientes distintos pueden compartir el mismo N° de operación por
  * coincidencia (un caso real: referencia "02357536" en 31 pagos de 26
@@ -22,6 +22,20 @@ import { fetchAll } from './fetchAll';
  * sumaría montos de clientes que no tienen nada que ver. Un pago sin
  * referencia (vacío/null) nunca se agrupa con otro — cada uno es su propio
  * grupo, porque no hay forma de saber si son el mismo depósito.
+ *
+ * Efectivo: el efectivo siempre se termina depositando en la cuenta CF010
+ * (confirmado — no hay selector de cuenta en la pantalla de depósito, es
+ * siempre la misma cuenta). Un pago en efectivo entra al export recién
+ * cuando está DEPOSITADO (`estado_efectivo = 'depositado'`): mientras está
+ * "cobrado, por depositar" todavía no es un movimiento de banco real, así
+ * que no tiene nada que reportarle a Nubecont. La "fecha efectiva" de un
+ * efectivo depositado es `fecha_deposito` (la fecha real del movimiento de
+ * banco), no `fecha_pago` (cuándo se cobró al cliente) — y el filtro de
+ * rango de fechas del export también mira esa fecha efectiva, no
+ * `fecha_pago`, para que el rango represente bien "qué entró al banco en
+ * este período". Su código de medio de pago es '001' (depósito en cuenta),
+ * no un código de "efectivo" — ya que para cuando aparece acá, el dinero ya
+ * está en el banco.
  */
 
 export const HEADERS_PLANTILLA = [
@@ -41,8 +55,8 @@ export const HEADERS_PLANTILLA = [
   'IMPORTE DEL COBRO REALIZADO\r\n (NO ES TOTAL DEL CPE RELACIONADO)',
 ] as const;
 
-/** CÓDIGO DE CUENTA FINANCIERA para efectivo (catálogo B, "CAJA / EFECTIVO SOLES"). */
-const CUENTA_EFECTIVO_SOLES = 'CF001';
+/** El efectivo siempre se deposita en esta cuenta (confirmado, no varía). */
+const CUENTA_EFECTIVO_DEPOSITADO = 'CF010';
 
 const fmtFecha = (s: string) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
 
@@ -54,28 +68,38 @@ interface PagoCrudo {
   referencia: string | null;
   medio_cobro: 'transferencia' | 'efectivo';
   cuenta_bancaria_codigo: string | null;
+  estado_efectivo: 'cobrado_por_depositar' | 'depositado' | null;
+  fecha_deposito: string | null;
   documentos: { tipo: string; serie: string; numero: number; cliente_ruc: string } | null;
 }
 
 export async function construirFilasNubecont(db: SupabaseClient, desde: string, hasta: string): Promise<(string | number)[][]> {
   const pagos = (await fetchAll<unknown>((from, to) =>
     db.from('pagos')
-      .select('id, documento_id, monto, fecha_pago, referencia, medio_cobro, cuenta_bancaria_codigo, documentos(tipo, serie, numero, cliente_ruc)')
+      .select('id, documento_id, monto, fecha_pago, referencia, medio_cobro, cuenta_bancaria_codigo, estado_efectivo, fecha_deposito, documentos(tipo, serie, numero, cliente_ruc)')
       .eq('tipo', 'pago')
-      .gte('fecha_pago', desde)
-      .lte('fecha_pago', hasta)
-      .order('fecha_pago')
       .range(from, to)
   )) as unknown as PagoCrudo[];
 
-  const pagosValidos = pagos.filter(p => p.documentos);
+  // Fecha efectiva: fecha_deposito para efectivo ya depositado (es cuando
+  // el dinero realmente entró al banco), fecha_pago para todo lo demás. Un
+  // efectivo sin depositar queda fuera — no es un movimiento de banco aún.
+  const fechaEfectiva = (p: PagoCrudo): string | null =>
+    p.medio_cobro === 'efectivo' ? p.fecha_deposito : p.fecha_pago;
+
+  const pagosValidos = pagos.filter(p => {
+    if (!p.documentos) return false;
+    if (p.medio_cobro === 'efectivo' && p.estado_efectivo !== 'depositado') return false;
+    const fecha = fechaEfectiva(p);
+    return !!fecha && fecha >= desde && fecha <= hasta;
+  });
 
   // Agrupar para el total por medio de pago
   const totalesPorGrupo = new Map<string, number>();
   const grupoDe = (p: PagoCrudo): string => {
     const ref = p.referencia?.trim();
     if (!ref) return `__single__${p.id}`;
-    return `${p.documentos!.cliente_ruc}::${p.fecha_pago}::${ref}`;
+    return `${p.documentos!.cliente_ruc}::${fechaEfectiva(p)}::${ref}`;
   };
   for (const p of pagosValidos) {
     const key = grupoDe(p);
@@ -86,8 +110,8 @@ export async function construirFilasNubecont(db: SupabaseClient, desde: string, 
   for (const p of pagosValidos) {
     const doc = p.documentos!;
     const esTransferencia = p.medio_cobro === 'transferencia';
-    const codigoCuenta = esTransferencia ? (p.cuenta_bancaria_codigo ?? '') : CUENTA_EFECTIVO_SOLES;
-    const codigoMedioPago = esTransferencia ? '003' : '008';
+    const codigoCuenta = esTransferencia ? (p.cuenta_bancaria_codigo ?? '') : CUENTA_EFECTIVO_DEPOSITADO;
+    const codigoMedioPago = esTransferencia ? '003' : '001';
     const total = totalesPorGrupo.get(grupoDe(p)) ?? (Number(p.monto) || 0);
 
     filas.push([
@@ -95,7 +119,7 @@ export async function construirFilasNubecont(db: SupabaseClient, desde: string, 
       codigoCuenta,
       codigoMedioPago,
       p.referencia ?? '',
-      fmtFecha(p.fecha_pago),
+      fmtFecha(fechaEfectiva(p)!),
       '',
       Number(total.toFixed(2)),
       `Cobranza Factura ${doc.serie}-${doc.numero}`,
