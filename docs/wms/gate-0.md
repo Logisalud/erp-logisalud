@@ -510,3 +510,18 @@ Fuera de las dependencias: **RLS desactivado** en 3 tablas de respaldo de promoc
 - Estado real de Vercel (proyectos, variables) y del flag `acceso_abierto_temporal` en producción: no consultados en vivo.
 - Si `public.clientes` contiene a Triamed, Medic Pharma Lab o AJR Labs: no leí datos de producción (solo esquemas).
 - Área de Sandra, Katia y el resto del equipo en `public.perfiles`: no leí filas.
+
+---
+
+## Ajustes durante el Batch 1 (lo que cambió respecto de este Gate)
+
+| Tema | Gate 0 | Lo construido | Por qué |
+|---|---|---|---|
+| E2E | Adaptador `pg` contra Postgres local | E2E sobre el repositorio **demo** en memoria; la RLS, el ledger y la concurrencia se prueban en SQL (`tests/db`, 60 pruebas) | Más simple y sin servicios; lo que no cubre está en §G.1. ADR-005 |
+| `condicion` (VERDE/ÁMBAR) | Columna nullable ya creada | **No se creó**: se agrega con una migración aditiva cuando se construya | Evitar una columna sin uso en el ledger |
+| Estado vs zona | Matriz validada en toda partida | La matriz se valida al **entrar** unidades; el cambio de estado ocurre en el lugar (Aprobado "por trasladar") | Las reglas lo exigen: ADR-006, D-28 |
+| `procedencia_id` | En `partidas` y `saldos`, sin FK | Igual; la FK llega con los ingresos (Batch 2) | ADR-001 |
+| Alta de producto | Insert desde la app | Funciones `wms.crear_producto` / `validar_producto` / `actualizar_regulatorio` (atómicas, con chequeo de rol) | Escribir en `catalogo.productos` requiere security definer |
+| Bug hallado | — | `INSERT … ON CONFLICT` validaba el CHECK de saldos antes del conflicto y rechazaba toda salida; corregido en 0002 | Lo detectaron las pruebas de movimientos |
+| Supabase | Adaptador de lectura/escritura | Escrito (`services/supabase`) pero **sin ejecutar contra una base real** | No hay base de pruebas; D-20/D-22 |
+

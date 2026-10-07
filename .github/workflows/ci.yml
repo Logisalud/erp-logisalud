@@ -70,3 +70,50 @@ jobs:
       - run: npm run test --workspace erp-logisalud-compras
 
       - run: npm run build --workspace erp-logisalud-compras
+
+  wms:
+    name: apps/wms — dominio, base de datos, build y E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Postgres 16 de servicio: los tests de base de datos corren las migraciones del
+    # WMS contra un Postgres con un schema `auth` simulado (ver apps/wms/tests/db/stubs.sql).
+    # No es Supabase: no cubre PostgREST, GoTrue ni Storage (docs/wms/gate-0.md §G.1).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: wms_test
+          POSTGRES_USER: wms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wms_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      WMS_TEST_DATABASE_URL: postgres://wms_test:wms_test@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run test --workspace erp-logisalud-wms
+
+      # En CI el Postgres ya está (servicio): se llama a vitest directo, sin db-local.sh.
+      - run: npx vitest run tests/db
+        working-directory: apps/wms
+
+      - run: npm run build --workspace erp-logisalud-wms
+
+      # E2E en los 4 viewports, en modo demostración (datos de prueba, sin base real).
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e --workspace erp-logisalud-wms
+        env:
+          WMS_DEMO_LOCAL: '1'

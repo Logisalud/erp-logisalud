@@ -74,3 +74,17 @@ con la URL de Preview y **detente hasta que el usuario apruebe**. Si algo falla,
 aprobar el servidor del proyecto (`/mcp`), reiniciar la sesión, y agregar a
 los `args` `"--executable-path", "/opt/pw-browsers/chromium"` en el contenedor.
 Mientras tanto, verificar con Playwright directo.
+
+## Comandos y pruebas
+
+- Desde la raíz: `npm run dev:wms`, `build:wms`, `test:wms` (dominio y componentes), `test:db:wms` (base de datos), `test:e2e:wms`.
+- **Modo demostración local:** `WMS_DEMO_LOCAL=1 npm run dev:wms` (datos de prueba en memoria, banner DEMO, sin base real).
+  En Vercel solo se activa en Preview con `WMS_DEMO=1`; en producción la app **se niega a arrancar** si hay una bandera puesta.
+- **Pruebas de base de datos:** `npm run test:db:wms` levanta el Postgres 16 local (`scripts/db-local.sh`) y corre las migraciones
+  contra un schema `auth` simulado. No cubre PostgREST, GoTrue ni Storage (docs/wms/gate-0.md §G.1).
+- **E2E en 4 viewports + capturas:** `npm run build:wms` y luego
+  `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium apps/wms/scripts/e2e-por-viewport.sh` (reinicia el servidor entre viewports).
+  Las capturas quedan en `docs/wms/screenshots/<pantalla>/<viewport>.png`.
+- Migraciones: `apps/wms/supabase/migrations/` (0001–0003), re-ejecutables, **se aplican a mano**; seed de topología generado con
+  `npm run seed:topologia --workspace erp-logisalud-wms`. Ver `docs/wms/aplicar-migraciones.md`.
+- Diseño: `PRODUCT.md` y `DESIGN.md` de esta carpeta; ADR en `docs/wms/adr/`.

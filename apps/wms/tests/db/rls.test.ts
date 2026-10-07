@@ -65,6 +65,31 @@ describe('(18) RLS: quien no tiene permiso no lee ni escribe', () => {
     }
   })
 
+  it('aunque un grant amplio (p. ej. aplicar_grants_del_modulo) concediera DML, la RLS y los triggers siguen bloqueando', async () => {
+    await base.admin.query('grant all on wms.partidas, wms.saldos, wms.movimientos, wms.audit_events to authenticated')
+    const antes = (await base.admin.query('select coalesce(sum(cantidad),0)::int n, count(*)::int f from wms.saldos')).rows[0]
+    // INSERT sin policy: error de RLS.
+    for (const sql of [
+      `insert into wms.saldos (posicion_id, producto_id, lote_id, propietario_id, estado, procedencia_id, cantidad)
+         values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'APROBADO', gen_random_uuid(), 5)`,
+      `insert into wms.audit_events (evento, entidad) values ('falso', 'x')`,
+    ]) {
+      const e = await falla(base.como(P().katia.id, (c) => c.query(sql)))
+      expect(e.message, sql).toMatch(/row-level security/i)
+    }
+    // UPDATE / DELETE sin policy: la RLS los vuelve invisibles (0 filas), no cambian nada.
+    for (const sql of ['update wms.saldos set cantidad = cantidad + 100', 'delete from wms.partidas', 'delete from wms.saldos']) {
+      const r = await base.como(P().katia.id, (c) => c.query(sql))
+      expect(r.rowCount, sql).toBe(0)
+    }
+    const despues = (await base.admin.query('select coalesce(sum(cantidad),0)::int n, count(*)::int f from wms.saldos')).rows[0]
+    expect(despues).toEqual(antes)
+    // y con RLS, un UPDATE sin policy no afecta ninguna fila
+    const r = await base.como(P().admin.id, (c) => c.query('update wms.saldos set cantidad = cantidad + 1'))
+    expect(r.rowCount).toBe(0)
+    await base.admin.query('revoke insert, update, delete on wms.partidas, wms.saldos, wms.movimientos, wms.audit_events from authenticated')
+  })
+
   it('la configuración solo la escribe admin_wms', async () => {
     const nuevo = `insert into wms.propietarios (codigo, razon_social) values ('NUEVO_CLIENTE', 'Nuevo Cliente')`
     expect((await falla(base.como(P().aux.id, (c) => c.query(nuevo)))).message).toMatch(/row-level security/i)

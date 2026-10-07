@@ -16,7 +16,12 @@
     "test:pedidos": "npm run test --workspace erp-logisalud-pedidos",
     "dev:compras": "npm run dev --workspace erp-logisalud-compras",
     "build:compras": "npm run build --workspace erp-logisalud-compras",
-    "lint:compras": "npm run lint --workspace erp-logisalud-compras"
+    "lint:compras": "npm run lint --workspace erp-logisalud-compras",
+    "dev:wms": "npm run dev --workspace erp-logisalud-wms",
+    "build:wms": "npm run build --workspace erp-logisalud-wms",
+    "test:wms": "npm run test --workspace erp-logisalud-wms",
+    "test:db:wms": "npm run test:db --workspace erp-logisalud-wms",
+    "test:e2e:wms": "npm run test:e2e --workspace erp-logisalud-wms"
   },
   "engines": {
     "node": ">=22"

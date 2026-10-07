@@ -23,6 +23,7 @@ Actualizado: 2026-10-07 (respuestas al Gate 0).
 | D-22 | O | Exponer el schema `wms` en Data API y registrarlo en `schemas_compras_y_pagos()` | Pruebas contra Supabase real | No (con Postgres local no hace falta) | Pendiente | Sebas |
 | D-23 | O | Fila en `public.modulos` y rewrite `/wms` en cobranzas | Acceso desde erp.logisalud.com | No | No se toca | Sebas |
 | D-26 | N | Exportación de Odoo con stock real (producto, lote, vencimiento, cantidad por ubicación): no está en el repo; el Excel de `layouts/` es solo el árbol de ubicaciones | Carga inicial en real (Batch 3) | No | Herramienta con datos de prueba | Sebas |
+| D-28 | S | **Nueva.** Aprobado "por trasladar": las reglas piden que lo que sale de Cuarentena esté Aprobado con acta firmada, así que hay un momento en que unidades Aprobadas siguen dentro de la zona de Cuarentena. El WMS lo permite (cambio de estado en el lugar) y lo muestra como "Aprobado · por trasladar" (ADR-006) | Movimiento de salida de Cuarentena (Batch 3) | No | El estado intermedio visible hasta mover a un rack del propietario | Katia / Charlie |
 
 ## Resueltas (2026-10-07)
 
@@ -39,7 +40,7 @@ Actualizado: 2026-10-07 (respuestas al Gate 0).
 | D-18 | Los ajustes los aprueba Katia. | gate-0.md D |
 | D-19 | Si Compras cambia la cantidad después de que el WMS confirmó el ingreso, el WMS no cambia solo: genera una **alerta de divergencia** para revisión. | gate-0.md (alertas, Batch 2) |
 | D-21 | Se crea el proyecto Vercel `erp-logisalud-wms`, solo Preview, con filtro para construir únicamente cuando cambie `apps/wms` o sus paquetes compartidos. Vercel Pro; costo de build aprobado. Tras configurarlo se recarga y verifica. | gate-0.md E.5; progreso.md |
-| D-24 | Autorizada la lectura en producción, solo lectura, **del área y el rol** de `public.perfiles` (nada más: sin nombres). | progreso.md |
+| D-24 | Autorizada la lectura en producción, solo lectura, **del área y el rol** de `public.perfiles` (nada más: sin nombres). **Resultado:** 15 perfiles; `direccion_tecnica` tiene 2 (1 admin y 1 operativo), `almacen` tiene 3 (operativos). Es compatible con Katia y Sandra en Dirección Técnica, pero **no puedo decir quién es quién** sin leer nombres. Hay solo 3 perfiles de almacén para unas 6 personas: el resto aún no tiene perfil (hay 34 en `usuarios_esperados`). Los roles WMS se asignan en `wms.usuario_roles`. | progreso.md |
 | D-25 | Del transportista se registran nombre, DNI y placa. | reglas-negocio.md; formato LS-FR.03.05 |
 | D-27 | Modo demostración con datos de prueba: **solo en Preview**, aviso visible "DEMO", sin conexión a ninguna base real, imposible de activar en producción. | gate-0.md §G; `apps/wms/lib/demo.ts` |
 | — | Estado sanitario por unidad (no por lote): el lote ABC aprobado + nueva entrega del mismo lote nace en Cuarentena con su propia acta; la aprobación no se hereda y la anterior no vuelve a Cuarentena. | gate-0.md C.7 (`procedencia_id`) |
