@@ -1,6 +1,6 @@
 # WMS — Progreso
 
-Para que otra sesión retome sin contexto. Última actualización: 2026-10-08 (cierre del Batch 1).
+Para que otra sesión retome sin contexto. Última actualización: 2026-10-08 (Batch 2 construido; en verificación final).
 
 ## Estado
 - **Batch 1 (fundación, almacén y maestros): construido, verificado y APROBADO (2026-10-08).** PR abierto hacia `main`; **no se hace merge hasta que lo apruebes en GitHub.**
@@ -66,11 +66,18 @@ el 16 (búsqueda resalta posiciones y el drawer muestra producto/lote/propietari
   Plan B si persiste: dejar el Root Directory vacío no es opción (rompe el build); lo correcto es el merge, o desconectar `main` como rama de producción en el proyecto.
 - Cobranzas **no se tocó**: el rewrite `/wms` y la fila de `public.modulos` siguen pendientes (D-23); por eso la zona se prueba por su URL directa.
 
-## Batch 2 — Entradas y calidad (en curso)
-Ingresos de compra local (desde Compras), devolución y cliente; Solicitud de Ingreso editable con historial; lotes con avance "4 de 6" e invariante
-SUM(lotes)=referencia; Acta de Recepción firmada (I-AAAAMM-NNNN); alertas a Katia (temperatura fuera de 15–25 °C, registro sanitario vencido que bloquea la aprobación);
-inventario nace en Cuarentena (A-6..A-9); cola "Pendientes de Dirección Técnica"; Acta Organoléptica por producto y lote (muestra = ceil(√unidades)+1);
-expediente por OC/acta con faltantes y cierre de Sandra; alerta de "por trasladar" vencido (D-28b) al Jefe de Almacén.
+## Batch 2 — Entradas y calidad (construido; ver verificación abajo)
+**Qué hay:** ingresos de compra local (desde la recepción de Compras), devolución e ingreso de cliente · Solicitud de Ingreso editable con historial de versiones ·
+lotes con avance "4 de 6", invariante SUM(lotes)=referencia y vencimiento mes/año → último día · Acta de Recepción (I-AAAAMM-NNNN) generada, firmada por Jefe de Almacén,
+Dirección Técnica, responsable de conteo (usuario logueado) y transportista (firma táctil, nombre, DNI, placa), inmutable, con anulación y reemisión vinculada ·
+confirmación: el inventario nace en Cuarentena (A-6..A-9) · alertas (temperatura fuera de 15–25 °C, RS vencido que bloquea la aprobación, divergencia con Compras,
+"Aprobado · por trasladar" vencido) · cola "Pendientes de Dirección Técnica" · Acta Organoléptica por producto y lote (checklist de LS-FR.55.02, muestra = techo(√n)+1,
+la llena Sandra, decide y firma Katia) · expediente por OC/acta con faltantes y cierre de Sandra · PDF de ambas actas · búsqueda por OC y acta.
+**Migración 0004** (no aplicada) + parámetros `plazo_por_trasladar_horas` (24), `muestreo_constante`, `kardex_codigo_formato`. ADR-008.
+**Modo demostración:** selector "Probar como" en el banner para firmar el acta con varias personas sin volver al login.
+**No verificado:** el adaptador de Supabase de entradas (misma limitación que el Batch 1); la vista `wms.v_recepciones_compra` contra las tablas reales de Compras
+(se probó con réplicas mínimas); la validez legal de las firmas (D-11); los PDF se revisaron como archivo, no impresos.
+**Decisiones que siguen abiertas y tocan este batch:** D-01, D-11, D-12, D-13, D-28b.
 
 ## Batch 3 — alcance ajustado (Kardex, 2026-10-08)
 Ejemplos en `formatos/` (un PDF por lote, un Excel por producto). Además de carga inicial, movimientos internos, conteos y ajustes:

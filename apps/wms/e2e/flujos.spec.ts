@@ -103,7 +103,7 @@ test.describe('búsqueda universal (Ctrl/Cmd+K)', () => {
     await caja.fill('dapaglifozina') // con un error de tipeo no encuentra…
     await expect(page.getByTestId('busqueda-vacia')).toBeVisible()
     await caja.fill('dapagliflozina')
-    const primero = page.getByRole('option').first()
+    const primero = page.getByRole('dialog', { name: 'Búsqueda' }).getByRole('option').first()
     await expect(primero).toContainText('Dapagliflozina')
     await expect(primero).toContainText(/unidades en \d+ ubicaciones/)
     await capturar(page, info, 'busqueda-universal')
@@ -119,7 +119,7 @@ test.describe('búsqueda universal (Ctrl/Cmd+K)', () => {
     else await page.keyboard.press('Control+k')
     await expect(page.getByText('Escribe lo que buscas')).toBeVisible()
     await capturar(page, info, 'busqueda-universal-vacia')
-    await page.getByRole('combobox').fill('zzzqq')
+    await page.getByRole('dialog', { name: 'Búsqueda' }).getByRole('combobox').fill('zzzqq')
     await expect(page.getByTestId('busqueda-vacia')).toContainText('No encontramos')
     await capturar(page, info, 'busqueda-universal-sin-resultados')
     await page.keyboard.press('Escape')
@@ -130,8 +130,8 @@ test.describe('búsqueda universal (Ctrl/Cmd+K)', () => {
     await entrarComo(page, 'jefe_almacen')
     if (esTelefono(info)) await page.getByTestId('abrir-busqueda').click()
     else await page.keyboard.press('Control+k')
-    await page.getByRole('combobox').fill('A-21.1')
-    await expect(page.getByRole('option').first()).toContainText('Ubicación A-21.1')
+    await page.getByRole('dialog', { name: 'Búsqueda' }).getByRole('combobox').fill('A-21.1')
+    await expect(page.getByRole('dialog', { name: 'Búsqueda' }).getByRole('option').first()).toContainText('Ubicación A-21.1')
   })
 })
 
