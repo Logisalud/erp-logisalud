@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useCallback, useState, useTransition } from 'react'
 import type { ResultadoAccion } from '@/services/repositorio'
 
 export interface Mensaje { tipo: 'ok' | 'error'; texto: string; errores?: Record<string, string> }
@@ -30,5 +30,6 @@ export function useAccion() {
       }
     })
   }
-  return { pendiente, mensaje, ejecutar, limpiar: () => setMensaje(null) }
+  const limpiar = useCallback(() => setMensaje(null), [])
+  return { pendiente, mensaje, ejecutar, limpiar }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Ban, CheckCircle2, ClipboardCheck, Download, FilePlus2, Fingerprint, PenLine, RotateCcw } from 'lucide-react'
 import {
   anularActaAccion, confirmarIngresoAccion, firmarActaAccion, generarActaAccion, reemitirActaAccion,
@@ -21,6 +21,8 @@ function PanelTransportista({ actaId, placaInicial, alFirmar }: { actaId: string
   const [placa, setPlaca] = useState(placaInicial ?? '')
   const [imagen, setImagen] = useState<string | null>(null)
   const e = mensaje?.errores ?? {}
+  // Estable: FirmaTactil se reinicia si cambia esta función.
+  const alCambiarFirma = useCallback((img: string | null) => { setImagen(img); if (img) limpiar() }, [limpiar])
   return (
     <div className="mt-3 space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4" data-testid="panel-transportista">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -28,7 +30,7 @@ function PanelTransportista({ actaId, placaInicial, alFirmar }: { actaId: string
         <div><label htmlFor="t-dni" className="etiqueta">DNI</label><input id="t-dni" className={`campo tabular ${e.dni ? '!border-red-500' : ''}`} inputMode="numeric" maxLength={8} value={dni} onChange={(ev) => setDni(ev.target.value.replace(/\D/g, ''))} autoComplete="off" />{e.dni && <p role="alert" className="mt-1 text-xs text-red-700">{e.dni}</p>}</div>
         <div><label htmlFor="t-placa" className="etiqueta">Placa</label><input id="t-placa" className={`campo uppercase ${e.placa ? '!border-red-500' : ''}`} value={placa} onChange={(ev) => setPlaca(ev.target.value)} autoComplete="off" />{e.placa && <p role="alert" className="mt-1 text-xs text-red-700">{e.placa}</p>}</div>
       </div>
-      <div><p className="etiqueta">Firma del transportista</p><FirmaTactil onCambio={(img) => { setImagen(img); if (img) limpiar() }} />{e.imagen && <p role="alert" className="mt-1 text-xs text-red-700">{e.imagen}</p>}</div>
+      <div><p className="etiqueta">Firma del transportista</p><FirmaTactil onCambio={alCambiarFirma} />{e.imagen && <p role="alert" className="mt-1 text-xs text-red-700">{e.imagen}</p>}</div>
       {mensaje?.tipo === 'error' && !Object.keys(e).length && <Aviso tipo="error">{mensaje.texto}</Aviso>}
       <button type="button" className="btn-primary btn-sm" disabled={pendiente} data-testid="firmar-transportista"
         onClick={() => ejecutar(() => firmarActaAccion(actaId, { rol: 'TRANSPORTISTA', nombre, dni, placa, imagen: imagen ?? '' }), { alExito: alFirmar })}>
