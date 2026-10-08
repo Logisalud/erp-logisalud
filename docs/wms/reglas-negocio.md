@@ -34,7 +34,12 @@ El equipo usa teléfonos personales.
 ## Maestro de productos
 - Maestro único para todo propietario; incluye productos que no compramos.
 - Registro sanitario y su vencimiento son atributos del producto.
-- Sandra crea el producto; Katia lo valida.
+- **Datos regulatorios (D-37, 2026-10-08):** solo Katia (Dirección Técnica) y Sandra (asistente) los crean y editan, con la **misma autoridad y sin validación adicional**:
+  registro sanitario, vencimiento del registro, forma farmacéutica, concentración, fabricante y condición de almacenamiento. Se aplica en la base de datos
+  (RLS + `wms.editar_regulatorio`/`crear_producto`; sin DML directo). Cada cambio guarda campo, valor anterior, valor nuevo, usuario, fecha y **motivo obligatorio**.
+  Un lote solo se aprueba si el producto tiene registro sanitario y vencimiento cargados y vigentes. Las actas firmadas conservan los datos como estaban al firmarse.
+  Presentación y principio activo viven en `catalogo.productos` (Compras): ver `regulatorio-duplicidad.md` (decisión pendiente).
+- *(Reemplazado por D-37: «Sandra crea el producto; Katia lo valida».)*
 - No hay productos controlados.
 
 ## Fuentes de verdad — un dato se escribe una sola vez
@@ -116,7 +121,8 @@ Cada posición tiene tipo de área y propietario. El sistema bloquea combinacion
 - Rechazado: solo hacia Bajas/Rechazados del mismo propietario.
 
 ## Movimientos internos (INV-02)
-- Flujo: preparar → mover → verificar (persona distinta del ejecutor) → confirmar.
+- Flujo: preparar → mover → verificar → confirmar.
+- **D-15 (2026-10-08):** quien hace un movimiento no lo valida: el verificador es distinto de quien lo **preparó** y de quien lo **ejecutó**. Se aplica en dominio (`puedeVerificar`) y en base de datos (restricciones de `wms.movimientos` y `validar_movimiento`), con test.
 - Autoriza Charlie (Jefe de Almacén), o Roberto/Jasury en su ausencia.
 - Con diferencia, el movimiento queda abierto.
 - Se guarda: origen, destino, producto, lote, propietario, cantidad, motivo, ejecutor y verificador.
@@ -140,11 +146,18 @@ Recorrido con 4 focos: orden, limpieza, ubicaciones y situaciones anormales. Sol
 - El WMS enlaza, no duplica.
 - Faltantes con responsable y estado. Sandra cierra.
 
+## Parámetros acordados (2026-10-08)
+- **D-29 Kardex:** el código del formato es el parámetro configurable `kardex_codigo_formato` = «LS-FR-KDX (provisional)»; el PDF lo muestra como provisional. Ya no bloquea el Batch 3.
+- **D-30 Vencimientos:** umbral de alerta de 90 días, configurable, y alerta también para un lote **ya vencido**. En el Batch 3 el reporte de vencimientos incluye vencidos y por vencer con tramos configurables.
+- **D-28b «Aprobado · por trasladar»:** plazo de 24 h configurable antes de alertar.
+- **D-11 / D-12 / D-13:** firma electrónica con el usuario registrado; el formato de recepción lleva DNI del transportista y «Ingreso de cliente»; la numeración organoléptica es O-AAAAMM-NNNN.
+- **D-36:** el dueño de la cantidad física es el WMS; la copia manual a Compras es temporal (`integracion-wms-compras.md`).
+
 ## Integridad
 Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario, fecha, motivo).
 
 ## Pendientes para Katia (no implementar hasta su respuesta)
-1. Compra a Diphasac de stock ya guardado: ¿nace en Cuarentena (supuesto actual) o conserva Aprobado?
+1. **(Prioridad)** Compra a Diphasac de stock ya guardado: ¿nace en Cuarentena (supuesto actual) o conserva Aprobado?
 2. Destino físico y documental de lo rechazado en Cuarentena y de las devoluciones no conformes.
 3. Bloqueo temporal (hold) de un lote Aprobado.
 4. Documentos obligatorios por tipo de Baja/Rechazo.

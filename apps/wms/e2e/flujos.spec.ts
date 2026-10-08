@@ -48,16 +48,16 @@ test.describe('inicio por rol', () => {
   test('Dirección Técnica ve lo que le toca decidir', async ({ page }, info) => {
     await entrarComo(page, 'direccion_tecnica')
     const atencion = page.getByTestId('atencion')
-    await expect(atencion).toContainText('Registros sanitarios esperando tu validación')
+    await expect(atencion).toContainText('Productos sin registro sanitario cargado')
     await expect(atencion).toContainText('Registros sanitarios vencidos')
     await expect(atencion).toContainText('Aprobados esperando su traslado')
     await sinDesborde(page)
     await capturar(page, info, 'inicio-direccion-tecnica', { completa: true })
   })
 
-  test('Sandra ve sus productos devueltos y puede dar de alta', async ({ page }, info) => {
+  test('Sandra ve los productos sin registro sanitario y puede dar de alta', async ({ page }, info) => {
     await entrarComo(page, 'asistente_dt')
-    await expect(page.getByTestId('atencion')).toContainText('Productos devueltos con observación')
+    await expect(page.getByTestId('atencion')).toContainText('Productos sin registro sanitario cargado')
     await expect(page.getByRole('link', { name: /Dar de alta un producto/ }).first()).toBeVisible()
     await capturar(page, info, 'inicio-asistente-dt', { completa: true })
   })
@@ -250,7 +250,7 @@ test.describe('mapa del almacén', () => {
 })
 
 test.describe('productos y registro sanitario', () => {
-  test('la lista muestra registro, vencimiento y validación', async ({ page }, info) => {
+  test('la lista muestra registro y vencimiento', async ({ page }, info) => {
     await entrarComo(page, 'jefe_almacen')
     await page.goto('/wms/productos')
     await expect(page.getByTestId('conteo-productos')).toContainText('productos')
@@ -260,9 +260,9 @@ test.describe('productos y registro sanitario', () => {
     await capturar(page, info, 'productos-lista', { completa: true })
   })
 
-  test('filtrar por "Por validar" y por texto; sin resultados se explica', async ({ page }, info) => {
+  test('filtrar por registro y por texto; sin resultados se explica', async ({ page }, info) => {
     await entrarComo(page, 'direccion_tecnica')
-    await page.goto('/wms/productos?validacion=PENDIENTE')
+    await page.goto('/wms/productos?rs=SIN_DATO')
     await expect(page.getByTestId('conteo-productos')).toContainText(/de \d+ productos/)
     await page.goto('/wms/productos?q=zzzqq')
     await expect(page.getByTestId('productos-vacio')).toContainText('Ningún producto coincide')
@@ -290,7 +290,7 @@ test.describe('productos y registro sanitario', () => {
     await capturar(page, info, 'producto-rs-vencido', { completa: true })
   })
 
-  test('Sandra da de alta un producto: queda por validar; un código repetido se explica', async ({ page }, info) => {
+  test('Sandra da de alta un producto: rige de inmediato y deja historial; un código repetido se explica', async ({ page }, info) => {
     await entrarComo(page, 'asistente_dt')
     await page.goto('/wms/productos/nuevo')
     await capturar(page, info, 'producto-alta-vacio', { completa: true })
@@ -306,7 +306,7 @@ test.describe('productos y registro sanitario', () => {
     await page.fill('#campo-rsVence', '06/2031') // solo mes y año → último día del mes
     await page.getByTestId('guardar-producto').click()
     await expect(page.getByTestId('producto-creado')).toContainText('Listo')
-    await expect(page.getByText('Por validar').first()).toBeVisible()
+    await expect(page.getByTestId('historial-regulatorio')).toContainText('Alta del producto')
     await expect(page.getByText('30 jun 2031')).toBeVisible()
     await capturar(page, info, 'producto-alta-exito', { completa: true })
 
@@ -328,24 +328,32 @@ test.describe('productos y registro sanitario', () => {
     await expect(page.locator('#campo-rsVence-error')).toContainText('No entiendo esa fecha')
   })
 
-  test('Katia valida (queda registrado) y observar exige decir qué pasa', async ({ page }, info) => {
+  test('Katia edita un dato regulatorio: el motivo es obligatorio y queda en el historial', async ({ page }, info) => {
     await entrarComo(page, 'direccion_tecnica')
-    await page.goto('/wms/productos?validacion=PENDIENTE')
+    await page.goto('/wms/productos?rs=SIN_DATO')
     await page.locator('main a[href*="/productos/prod"]:visible').first().click()
-    await expect(page.getByTestId('panel-validacion')).toBeVisible()
-    await capturar(page, info, 'producto-validar', { completa: true })
-    await page.getByTestId('observar-producto').click()
-    await expect(page.getByTestId('mensaje-error')).toContainText('decir qué falta')
-    await page.fill('#observacion', 'El vencimiento no coincide con el certificado.')
-    await page.getByTestId('observar-producto').click()
-    await expect(page.getByTestId('mensaje-ok')).toContainText('Devolvimos el producto')
+    await expect(page.getByTestId('panel-regulatorio')).toBeVisible()
+    await capturar(page, info, 'producto-editar-regulatorio', { completa: true })
+    await page.fill('#reg-registroSanitario', 'EG-55555')
+    await page.fill('#reg-rsVence', '12/2032')
+    await page.getByTestId('guardar-regulatorio').click()
+    await expect(page.getByRole('alert').filter({ hasText: 'motivo es obligatorio' })).toBeVisible()
+    await page.fill('#reg-motivo', 'Carga del registro ante DIGEMID.')
+    await page.getByTestId('guardar-regulatorio').click()
+    await expect(page.getByTestId('mensaje-ok')).toContainText('quedaron en el historial')
+    await expect(page.getByTestId('historial-regulatorio')).toContainText('Carga del registro ante DIGEMID.')
+    await expect(page.getByTestId('historial-regulatorio')).toContainText('EG-55555')
   })
 
-  test('Sandra no ve el panel de validación', async ({ page }) => {
+  test('Sandra tiene la misma autoridad; el Jefe de Almacén no ve el editor', async ({ page }) => {
     await entrarComo(page, 'asistente_dt')
-    await page.goto('/wms/productos?validacion=PENDIENTE')
+    await page.goto('/wms/productos')
     await page.locator('main a[href*="/productos/prod"]:visible').first().click()
-    await expect(page.getByTestId('panel-validacion')).toHaveCount(0)
+    await expect(page.getByTestId('panel-regulatorio')).toBeVisible()
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/productos')
+    await page.locator('main a[href*="/productos/prod"]:visible').first().click()
+    await expect(page.getByTestId('panel-regulatorio')).toHaveCount(0)
   })
 
   test('un producto inexistente muestra una pantalla amable', async ({ page }, info) => {

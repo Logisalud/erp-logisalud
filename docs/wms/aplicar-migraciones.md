@@ -3,7 +3,7 @@
 > **No se aplicó nada en ninguna base.** Este documento es la lista de pasos para cuando exista una base donde probarlas
 > y, después, para producción. Las migraciones están en `apps/wms/supabase/migrations/` y son re-ejecutables.
 
-Orden: `0001_wms_base.sql` → `0002_wms_ledger.sql` → `0003_wms_productos.sql` → `0004_wms_entradas.sql` → `0005_wms_flujo_ingreso.sql` → seed `supabase/seeds/0001_topologia.sql`
+Orden: `0001_wms_base.sql` → `0002_wms_ledger.sql` → `0003_wms_productos.sql` → `0004_wms_entradas.sql` → `0005_wms_flujo_ingreso.sql` → `0006_wms_regulatorio_y_verificacion.sql` → seed `supabase/seeds/0001_topologia.sql`
 (generado con `npm run seed:topologia --workspace erp-logisalud-wms`).
 
 **0005 reemplaza el flujo de 0004** (la solicitud pasa a ser primaria; retira `crear_ingreso`, `guardar_lotes`, `editar_solicitud`, la tabla `ingreso_lineas` y
@@ -11,6 +11,11 @@ Orden: `0001_wms_base.sql` → `0002_wms_ledger.sql` → `0003_wms_productos.sql
 `wms.v_oc_items` (solo lectura de Compras; se crea solo si existen `compras.ordenes_compra*`, `compras.proveedores` y `catalogo.productos`) y
 `wms.estado_registro_compras()` / `revisar_registro_compras()` (la integración con Compras es manual). Requiere en Compras las columnas
 `ordenes_compra.estado` y `ordenes_compra_items.cantidad_recibida`: **verifícalas contra la base real antes de aplicar** (en las pruebas locales son stubs).
+
+**0006** (D-37, D-15, D-29, D-31): retira `validar_producto`/`actualizar_regulatorio` y las policies de escritura sobre `producto_regulatorio`; agrega `concentracion` y
+`condicion_almacenamiento`, el historial inmutable `producto_regulatorio_cambios`, `editar_regulatorio` y el nuevo `crear_producto` (12 argumentos); `movimientos.preparador_id` con su
+restricción; el parámetro `kardex_codigo_formato`; y la vista `v_stock_por_origen`. **No usa `drop … if exists` sobre objetos que pueden no existir** (verifica antes con `pg_policies`/`pg_trigger`/`to_regprocedure`),
+porque la herramienta MCP de Supabase se colgó con ese patrón. El plan completo para producción está en `plan-aplicacion-produccion.md`.
 
 Antes de aplicar:
 1. Exponer el schema `wms` en Dashboard → Settings → Data API → Exposed schemas (si falta: HTTP 406 `Invalid schema`).

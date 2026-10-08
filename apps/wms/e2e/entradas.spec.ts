@@ -250,6 +250,32 @@ test.describe('entradas: la solicitud es lo primero', () => {
   })
 })
 
+test.describe('descargas', () => {
+  test('el acta organoléptica se descarga en PDF y en Excel', async ({ page }) => {
+    await entrarComo(page, 'direccion_tecnica')
+    await page.goto('/wms/calidad')
+    await page.getByTestId('fila-organoleptica').first().click()
+    const pdf = await page.request.get((await page.getByTestId('pdf-organoleptica').getAttribute('href'))!)
+    expect(pdf.status()).toBe(200)
+    expect((await pdf.body()).subarray(0, 4).toString()).toBe('%PDF')
+    const xlsx = await page.request.get((await page.getByTestId('xlsx-organoleptica').getAttribute('href'))!)
+    expect(xlsx.status()).toBe(200)
+    expect(xlsx.headers()['content-type']).toContain('spreadsheetml')
+    expect((await xlsx.body()).subarray(0, 2).toString()).toBe('PK')
+  })
+
+  test('la solicitud y el acta de recepción también se descargan en Excel', async ({ page }) => {
+    await entrarComo(page, 'jefe_almacen')
+    await abrirSolicitud(page, /OC-DEMO-0001/)
+    const r = await page.request.get((await page.getByTestId('xlsx-solicitud').getAttribute('href'))!)
+    expect(r.status()).toBe(200)
+    expect((await r.body()).subarray(0, 2).toString()).toBe('PK')
+    const a = await page.request.get((await page.getByTestId('xlsx-acta').getAttribute('href'))!)
+    expect(a.status()).toBe(200)
+    expect((await a.body()).subarray(0, 2).toString()).toBe('PK')
+  })
+})
+
 test.describe('calidad', () => {
   test('la cola de Dirección Técnica lista lo pendiente', async ({ page }, info) => {
     await entrarComo(page, 'direccion_tecnica')

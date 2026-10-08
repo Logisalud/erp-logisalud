@@ -90,12 +90,16 @@ Pruebas del prompt cubiertas: 1–9 y 18–20 (más 14, 17, 19 del Batch 1). Los
 5. Las alertas con lote (por trasladar, vencimientos) llevan un enlace "ver en el mapa".
 **Decisiones que siguen abiertas y tocan este batch:** D-01, D-11, D-12, D-13, D-28b, D-30.
 
-## Addendum de flujo de ingreso (2026-10-08) — construido, pendiente de tu revisión
-Docs corregidos (reglas, visión, gate-0, decisiones D-31..D-35, ADR-009), migración **0005 escrita y probada en Postgres local, sin aplicar**, dominio, modo demo y pantallas.
-- Solicitud primaria `SI-AAAA-NNNNN`; verificación por línea; historial campo a campo; "Cantidad física confirmada" con Copiar y estado ámbar/verde/rojo; estado `DEVOLUCIONES`.
-- Pruebas: unitarias/componentes 151, base de datos 104 (incluye ejemplos 20–23), E2E 53 por viewport en los 4 viewports, Compras 883 y Pedidos 570 sin cambios.
-- **No verificado:** adaptador Supabase contra base real; `v_oc_items` y columnas de Compras (`cantidad_recibida`, `estado`) solo contra stubs; estado del Preview por instancia.
-- Abiertas: D-11, D-12, D-13, D-28b, D-30; los `procesos/*.xlsx` (REC-01, REC-02) siguen con el flujo viejo (decides tú).
+## Addendum de flujo de ingreso (2026-10-08) — construido, pendiente de tu aprobación
+Docs corregidos (reglas, visión, gate-0, decisiones D-31..D-37, ADR-009), migraciones **0005 y 0006 escritas y probadas en Postgres local, sin aplicar**, dominio, modo demo y pantallas.
+- Solicitud primaria `SI-AAAA-NNNNN`; verificación por línea; historial campo a campo; «Cantidad física confirmada» con Copiar y estado ámbar/verde/rojo; estado `DEVOLUCIONES` (D-31 ratificada: sin Cuarentena; origen como dato aparte, `v_stock_por_origen`).
+- **D-37 (0006):** solo Katia y Sandra editan registro sanitario, vencimiento, forma farmacéutica, concentración, fabricante y condición de almacenamiento — misma autoridad, sin validación adicional, en base de datos (`editar_regulatorio`, sin DML directo), con historial (campo, antes, después, usuario, fecha, motivo obligatorio). Actas firmadas conservan los datos (test). Se retiró el flujo «por validar / observado». Presentación y principio activo viven en `catalogo.productos`: ver `regulatorio-duplicidad.md` (**decisión pendiente tuya**).
+- **D-15:** el verificador ≠ preparador ≠ ejecutor, en dominio (`puedeVerificar`) y en base de datos, con test. **D-29:** parámetro `kardex_codigo_formato` provisional. D-11/12/13/28b/30 aprobadas (ver `decisiones-pendientes.md`).
+- **Descargas:** Solicitud de Ingreso (PDF y Excel), Acta de Recepción (PDF y Excel), Acta Organoléptica (PDF y Excel, también en borrador, marcada como tal).
+- Documentos nuevos: `integracion-wms-compras.md` (D-36, opciones sin implementar), `regulatorio-duplicidad.md`, `cambios-a-procesos.md` + REC-01/REC-02 v1.2 **borrador** (originales intactos), `plan-aplicacion-produccion.md` (solo documento) y el script de reversa probado `supabase/rollback/wms_0001_a_0006_rollback.sql`.
+- Pruebas: ver la tabla «Verificación final» abajo.
+- **No verificado:** adaptador Supabase contra base real (nunca se corrió contra una); columnas de Compras solo contra stubs en las pruebas locales (se verificaron en solo lectura el 2026-10-08); el estado del Preview es por instancia.
+- Abiertas para Katia: **D-01 (prioridad)**, hold, documentos de baja, contramuestra, muestreo √n+1, práctica de «Calidad». Abierta: D-36 (integración con Compras).
 
 ## Batch 3 — alcance ajustado (Kardex, 2026-10-08)
 Ejemplos en `formatos/` (un PDF por lote, un Excel por producto). Además de carga inicial, movimientos internos, conteos y ajustes:

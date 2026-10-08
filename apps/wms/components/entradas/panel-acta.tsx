@@ -101,7 +101,7 @@ export function PanelActa({ solicitud, roles, motivoSinActa, base }: { solicitud
               <p className="tabular font-heading text-2xl font-semibold text-gray-900" data-testid="numero-acta">{vigente.numero}</p>
               <p className="flex items-center gap-1.5 text-xs text-gray-600"><Fingerprint className="h-3.5 w-3.5" aria-hidden />Huella <code className="tabular">{vigente.hash.slice(0, 12)}…</code>{vigente.reemplazaANumero && <> · reemplaza a {vigente.reemplazaANumero}</>}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2"><ChipActa estado={vigente.estado} /><a className="btn-secondary btn-sm" href={`${base}/acta/${vigente.id}/pdf`} target="_blank" rel="noopener" data-testid="pdf-acta"><Download className="h-4 w-4" aria-hidden />Ver el PDF</a></div>
+            <div className="flex flex-wrap items-center gap-2"><ChipActa estado={vigente.estado} /><a className="btn-secondary btn-sm" href={`${base}/acta/${vigente.id}/pdf`} target="_blank" rel="noopener" data-testid="pdf-acta"><Download className="h-4 w-4" aria-hidden />Ver el PDF</a><a className="btn-secondary btn-sm" href={`${base}/acta/${vigente.id}/xlsx`} download data-testid="xlsx-acta"><Download className="h-4 w-4" aria-hidden />Descargar Excel</a></div>
           </div>
           {vigente.estado === 'BORRADOR' && !ingreso.bloqueadoPorFirmas && <p className="text-sm text-gray-700">Puedes corregir lotes y datos hasta que alguien firme. Con la primera firma, el contenido queda fijo.</p>}
           {vigente.estado === 'BORRADOR' && ingreso.bloqueadoPorFirmas && <Aviso tipo="info">Ya hay firmas: el contenido del acta quedó fijo. Si hay un error, anúlala con motivo y emite otra.</Aviso>}
@@ -141,7 +141,7 @@ export function PanelActa({ solicitud, roles, motivoSinActa, base }: { solicitud
               <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                 <span><span className="tabular font-medium text-gray-900">{a.numero}</span> <ChipActa estado={a.estado} /></span>
                 <span className="text-gray-600">{a.motivoAnulacion ? `Motivo: ${a.motivoAnulacion}` : ''}{a.reemplazadaPorNumero ? ` · reemplazada por ${a.reemplazadaPorNumero}` : ''}</span>
-                <a className="text-sm text-gray-800 underline" href={`${base}/acta/${a.id}/pdf`} target="_blank" rel="noopener">PDF</a>
+                <a className="text-sm text-gray-800 underline" href={`${base}/acta/${a.id}/pdf`} target="_blank" rel="noopener">PDF</a>{' · '}<a className="text-sm text-gray-800 underline" href={`${base}/acta/${a.id}/xlsx`} download>Excel</a>
               </li>
             ))}
           </ul>

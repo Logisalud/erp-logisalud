@@ -166,10 +166,15 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
           <p className="mt-2 flex flex-wrap items-center gap-2 text-gray-900">Decisión: <ChipEstado estado={acta.decision} /> <span className="text-sm text-gray-600">{ETIQUETA_DECISION[acta.decision]} · {acta.decididoPor} · {formatoFechaHora(acta.decididoEn)}</span></p>
           {acta.observacionDt && <p className="mt-1 text-sm text-gray-700">Observación: {acta.observacionDt}</p>}
           <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-600"><Fingerprint className="h-3.5 w-3.5" aria-hidden />Huella <code className="tabular">{acta.hash?.slice(0, 12)}…</code></p>
-          <a className="btn-secondary btn-sm mt-3" href={`${base}/pdf`} target="_blank" rel="noopener" data-testid="pdf-organoleptica"><Download className="h-4 w-4" aria-hidden />Ver el PDF</a>
           <p className="mt-3 text-xs text-gray-600">Un acta firmada no se edita ni se anula: lo que decidió ya cambió el estado del lote. Si hace falta corregirlo, se hace un nuevo cambio de estado hacia Bajas/Rechazados con su sustento.</p>
         </section>
       )}
+
+      <section className="flex flex-wrap items-center gap-2" aria-label="Descargar el acta">
+        <a className="btn-secondary btn-sm" href={`${base}/pdf`} target="_blank" rel="noopener" data-testid="pdf-organoleptica"><Download className="h-4 w-4" aria-hidden />Ver el PDF</a>
+        <a className="btn-secondary btn-sm" href={`${base}/xlsx`} download data-testid="xlsx-organoleptica"><Download className="h-4 w-4" aria-hidden />Descargar Excel</a>
+        {!bloqueada && <span className="text-xs text-gray-600">Mientras no esté firmada, el documento sale marcado como borrador.</span>}
+      </section>
 
       {mensaje && <Aviso tipo={mensaje.tipo === 'ok' ? 'ok' : 'error'}>{mensaje.texto}</Aviso>}
     </div>
