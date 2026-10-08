@@ -1,4 +1,6 @@
 # Reglas de negocio WMS — CERRADAS
+
+> **Decisión D-31 (2026-10-08, ratificada por Sebas):** *«Devolución no es un estado»* queda **reemplazada**. Existe el estado sanitario `DEVOLUCIONES` («Devoluciones»): una devolución nace en el Área de Devoluciones en ese estado, nunca pasa por Cuarentena y su Acta Organoléptica la lleva a Aprobado o a Bajas/Rechazados. Lo que se conserva de la regla antigua: el **origen del ingreso es un dato separado del estado** (`partidas.origen`, `ingresos.tipo`) y los reportes pueden filtrar por origen. Cualquier texto que diga lo contrario es histórico.
 Fuentes: docs/wms/procesos/ (hoja 03_TO-BE), docs/wms/formatos/, docs/wms/layouts/, docs/wms/topologia.md. Si algo difiere, avisa; no elijas.
 
 ## Alcance actual

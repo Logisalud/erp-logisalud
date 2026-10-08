@@ -448,7 +448,9 @@ no bloqueado para venta.
 
 ## 6. DEVOLUCIONES
 
-DEVOLUCIÓN NO ES UN ESTADO.
+> **REEMPLAZADO por D-31 (2026-10-08).** Existe el estado sanitario `DEVOLUCIONES`; la devolución nace en él y nunca pasa por Cuarentena. Se conserva que el **origen es una dimensión separada del estado** (para filtrar reportes por origen). Lo que sigue es histórico.
+
+DEVOLUCIÓN NO ES UN ESTADO. *(histórico, reemplazado por D-31)*
 
 Es otro proceso/origen de ingreso.
 
@@ -2428,7 +2430,7 @@ una hoja de Excel con botones.
 
 APROBADO JAMÁS VUELVE A CUARENTENA.
 
-DEVOLUCIÓN NO ES ESTADO.
+DEVOLUCIÓN NO ES ESTADO. *(Reemplazada por D-31, 2026-10-08: existe el estado `DEVOLUCIONES`; el origen sigue siendo una dimensión separada.)*
 
 RECEPCIÓN NO ES ESTADO.
 

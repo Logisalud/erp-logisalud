@@ -387,6 +387,29 @@ describe('acta de recepción', () => {
     expect(f.find((r) => r.rol_firma === 'TRANSPORTISTA')).toMatchObject({ user_id: null, dni: '45678912', placa: 'ABC-123' })
   })
 
+  it('(D-37) un acta firmada conserva los datos regulatorios vigentes al firmar, aunque luego se editen', async () => {
+    const x = await compraConfirmada(base.productos.dapa, 3, 3)
+    const antes = (await base.admin.query('select contenido, hash_contenido from wms.actas_recepcion where id = $1', [x.acta])).rows[0]
+    await base.como(P().sandra.id, (c) => c.query(
+      `select wms.editar_regulatorio($1, '{"fabricante":"Fabricante nuevo","registro_sanitario":"EG-NUEVO","rs_vence":"2035-01-01"}'::jsonb, 'Prueba de acta inmutable')`, [base.productos.dapa]))
+    const despues = (await base.admin.query('select contenido, hash_contenido from wms.actas_recepcion where id = $1', [x.acta])).rows[0]
+    expect(despues.contenido).toEqual(antes.contenido)
+    expect(despues.hash_contenido).toBe(antes.hash_contenido)
+  })
+
+  it('(D-31) el origen del ingreso es un dato aparte del estado y el stock se filtra por él', async () => {
+    const x = await compraConfirmada(base.productos.dapa, 4, 4, 'L-ORIGEN')
+    const r = (await base.admin.query(`select estado, origen from wms.v_stock_por_origen where lote_id = (select id from wms.lotes where codigo = 'L-ORIGEN' limit 1)`)).rows
+    expect(r.length).toBeGreaterThan(0)
+    expect(r[0]).toMatchObject({ estado: 'CUARENTENA', origen: 'COMPRA_LOCAL' })
+    expect(x.id).toBeTruthy()
+  })
+
+  it('(D-29) el código del formato de Kardex es un parámetro configurable, provisional', async () => {
+    const r = (await base.admin.query(`select valor from wms.parametros where clave = 'kardex_codigo_formato'`)).rows[0]
+    expect(r.valor).toBe('LS-FR-KDX (provisional)')
+  })
+
   it('cada rol firma con su rol, y el transportista exige DNI, placa y firma', async () => {
     const x = await solicitudDeCompra(base.productos.dapa, 2, 2)
     const ing = await recibir(x.sol)

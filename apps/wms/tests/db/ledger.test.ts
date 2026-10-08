@@ -169,12 +169,33 @@ describe('cambio de estado sanitario', () => {
     expect((await falla(aprobar(x))).message).toMatch(/registro sanitario está vencido/i)
   })
 
-  it('un producto sin validar no se aprueba', async () => {
+  it('un producto sin registro sanitario ni vencimiento cargados no se aprueba', async () => {
     const nuevo = randomUUID()
     await base.admin.query(`insert into catalogo.productos (id, codigo, descripcion) values ($1, 'T-NUEVO', 'Producto nuevo (prueba)')`, [nuevo])
-    await base.admin.query(`insert into wms.producto_regulatorio (producto_id, registro_sanitario, rs_vence, creado_por) values ($1, 'EG-9', '2031-01-01', $2)`, [nuevo, P().sandra.id])
+    await base.admin.query(`insert into wms.producto_regulatorio (producto_id, creado_por) values ($1, $2)`, [nuevo, P().sandra.id])
     const x = await ingresarACuarentena('CE-5', nuevo)
-    expect((await falla(aprobar(x))).message).toMatch(/no tiene su registro sanitario validado/i)
+    expect((await falla(aprobar(x))).message).toMatch(/no tiene su registro sanitario y su vencimiento cargados/i)
+  })
+
+  it('al cargar el registro sanitario con Sandra el producto ya se aprueba (sin segunda validación)', async () => {
+    const nuevo = randomUUID()
+    await base.admin.query(`insert into catalogo.productos (id, codigo, descripcion) values ($1, 'T-NUEVO2', 'Producto nuevo 2 (prueba)')`, [nuevo])
+    await base.admin.query(`insert into wms.producto_regulatorio (producto_id, creado_por) values ($1, $2)`, [nuevo, P().sandra.id])
+    await base.como(P().sandra.id, (c) => c.query(`select wms.editar_regulatorio($1, '{"registro_sanitario":"EG-77","rs_vence":"2031-01-01"}'::jsonb, 'Carga inicial')`, [nuevo]))
+    const x = await ingresarACuarentena('CE-5B', nuevo)
+    await aprobar(x)
+  })
+
+  it('(D-15) el verificador no puede ser quien preparó ni quien ejecutó el movimiento (restricciones de la tabla)', async () => {
+    const e1 = await falla(base.admin.query(
+      `insert into wms.movimientos (tipo, ejecutor_id, preparador_id, verificador_id) values ('MOVIMIENTO', $1, $2, $2)`, [P().charlie.id, P().aux.id]))
+    expect(e1.message).toMatch(/movimientos_verificador_distinto_preparador/)
+    const e2 = await falla(base.admin.query(
+      `insert into wms.movimientos (tipo, ejecutor_id, preparador_id, verificador_id) values ('MOVIMIENTO', $1, $2, $1)`, [P().charlie.id, P().aux.id]))
+    expect(e2.message).toMatch(/check constraint/i)
+    // con tres personas distintas sí
+    await base.admin.query(
+      `insert into wms.movimientos (tipo, ejecutor_id, preparador_id, verificador_id) values ('MOVIMIENTO', $1, $2, $3)`, [P().charlie.id, P().aux.id, P().katia.id])
   })
 
   it('(9) Aprobado → Cuarentena se rechaza en la base de datos', async () => {

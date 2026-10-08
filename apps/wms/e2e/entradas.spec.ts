@@ -229,6 +229,16 @@ test.describe('entradas: la solicitud es lo primero', () => {
     await capturar(page, info, 'solicitud-devolucion', { completa: true })
   })
 
+  test('el PDF de la solicitud de ingreso se genera desde su pantalla', async ({ page }) => {
+    await entrarComo(page, 'jefe_almacen')
+    await abrirSolicitud(page, /OC-DEMO-0001/)
+    const href = await page.getByTestId('pdf-solicitud').getAttribute('href')
+    const r = await page.request.get(href!)
+    expect(r.status()).toBe(200)
+    expect(r.headers()['content-type']).toContain('application/pdf')
+    expect((await r.body()).subarray(0, 4).toString()).toBe('%PDF')
+  })
+
   test('el PDF del acta se genera y trae el número de la solicitud', async ({ page }) => {
     await entrarComo(page, 'jefe_almacen')
     await abrirSolicitud(page, /OC-DEMO-0001/)

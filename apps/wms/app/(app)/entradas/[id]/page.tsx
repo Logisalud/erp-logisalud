@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, ArrowRight, FolderOpen, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Download, FolderOpen, ShieldAlert } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { puede } from '@/domain/permisos'
@@ -60,6 +60,7 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
         <h1 className="tabular mt-2 font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900" data-testid="titulo-solicitud">{titulo}</h1>
         <p className="mt-1 text-gray-700">{ETIQUETA_TIPO_INGRESO[sol.tipo]} · propietario <strong>{sol.propietario}</strong>{referencia ? ` · ${referencia}` : ''}{sol.contraparteNombre ? ` · ${sol.contraparteNombre}` : ''}</p>
         <p className="text-sm text-gray-600">Preparada el {formatoFechaHora(sol.creadoEn)}{sol.creadoPor ? ` por ${sol.creadoPor}` : ''}{sol.guiaNumero && sol.tipo === 'COMPRA_LOCAL' ? ` · guía ${sol.guiaNumero}` : ''}{sol.fechaPrevista ? ` · llega el ${formatoFecha(sol.fechaPrevista)}` : ''}</p>
+        <a className="btn-secondary btn-sm mt-2" href={`/entradas/${sol.id}/pdf`} target="_blank" rel="noopener" data-testid="pdf-solicitud"><Download className="h-4 w-4" aria-hidden />Ver la solicitud en PDF</a>
         {sol.tipo === 'DEVOLUCION' && <p className="mt-1 text-sm text-gray-700">Se deja en el Área de Devoluciones y no pasa por Cuarentena: su acta organoléptica decide si va a Aprobado o a Bajas/Rechazados.</p>}
       </header>
 
