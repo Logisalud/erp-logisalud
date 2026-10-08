@@ -3,14 +3,14 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { Boxes, CornerDownLeft, Layers, MapPin, Search, SearchX, X } from 'lucide-react'
+import { Boxes, CornerDownLeft, FileText, Layers, MapPin, Search, SearchX, ShoppingCart, X } from 'lucide-react'
 import { buscarAccion } from '@/app/acciones'
 import type { ResultadoBusqueda, TipoResultado } from '@/domain/panorama'
 
-const ICONO: Record<TipoResultado, typeof Boxes> = { producto: Boxes, lote: Layers, posicion: MapPin }
-const TITULO_GRUPO: Record<TipoResultado, string> = { producto: 'Productos', lote: 'Lotes', posicion: 'Ubicaciones' }
+const ICONO: Record<TipoResultado, typeof Boxes> = { producto: Boxes, lote: Layers, posicion: MapPin, oc: ShoppingCart, acta: FileText }
+const TITULO_GRUPO: Record<TipoResultado, string> = { producto: 'Productos', lote: 'Lotes', posicion: 'Ubicaciones', oc: 'Órdenes de compra', acta: 'Actas' }
 
-/** Búsqueda universal (Ctrl/Cmd+K): producto, lote y ubicación. OC y actas llegan con las entradas. */
+/** Búsqueda universal (Ctrl/Cmd+K): producto, lote, ubicación, orden de compra y acta. */
 export function PaletaBusqueda({ onCerrar }: { onCerrar: () => void }) {
   const router = useRouter()
   const [q, setQ] = useState('')
@@ -53,7 +53,7 @@ export function PaletaBusqueda({ onCerrar }: { onCerrar: () => void }) {
     else if (e.key === 'Enter' && lista[sel]) { e.preventDefault(); ir(lista[sel]) }
   }
 
-  const grupos = (['producto', 'lote', 'posicion'] as const)
+  const grupos = (['producto', 'lote', 'posicion', 'oc', 'acta'] as const)
     .map((t) => ({ t, filas: lista.map((r, i) => ({ r, i })).filter(({ r }) => r.tipo === t) }))
     .filter((g) => g.filas.length > 0)
 

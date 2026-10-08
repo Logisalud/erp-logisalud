@@ -40,3 +40,20 @@ export function formatoFecha(iso: string | undefined | null): string {
   const [a, m, d] = iso.split('-').map(Number)
   return `${d} ${MESES[m - 1]} ${a}`
 }
+
+/** 2026-10-08T15:32:00Z → "8 oct 2026, 10:32" (hora de Lima). */
+export function formatoFechaHora(iso: string | undefined | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  const partes = new Intl.DateTimeFormat('es-PE', {
+    timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d)
+  const g = (t: string) => partes.find((p) => p.type === t)?.value ?? ''
+  return `${g('day')} ${g('month').replace('.', '')} ${g('year')}, ${g('hour')}:${g('minute')}`
+}
+
+/** Fecha de hoy en Lima, YYYY-MM-DD. */
+export function hoyEnLima(ahora: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(ahora)
+}

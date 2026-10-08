@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next'
 import { Oswald, Poppins } from 'next/font/google'
 import { modoDemoActivo } from '@/lib/demo'
+import { cookies } from 'next/headers'
 import { BannerDemo } from '@/components/banner-demo'
+import { COOKIE_ROL_DEMO, rolDemoDesdeCookie } from '@/lib/sesion-demo'
 import './globals.css'
 
 const oswald = Oswald({ subsets: ['latin'], variable: '--font-oswald', display: 'swap' })
@@ -29,11 +31,12 @@ const CONTRATO =
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const demo = modoDemoActivo()
+  const rolDemo = demo ? rolDemoDesdeCookie(cookies().get(COOKIE_ROL_DEMO)?.value) : null
   return (
     <html lang="es" className={`${oswald.variable} ${poppins.variable}`}>
       <body className={`min-h-screen bg-gray-50 font-body text-gray-900 ${demo ? 'con-banner' : ''}`}>
         <span hidden dangerouslySetInnerHTML={{ __html: CONTRATO }} />
-        {demo && <BannerDemo />}
+        {demo && <BannerDemo rolActual={rolDemo} />}
         {children}
       </body>
     </html>

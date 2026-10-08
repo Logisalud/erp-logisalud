@@ -1,45 +1,11 @@
 import type { EventoAuditoria } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
 import { autorizarAltaProducto, autorizarValidacion, validarEntradaProducto, type EntradaProducto } from '@/domain/productos'
-import { construirPanoramaDemo, sumarDias } from './datos'
+import { estado, registrar } from './estado'
+import { EntradasDemo } from './entradas-demo'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 
-interface EstadoDemo {
-  panorama: Panorama
-  auditoria: EventoAuditoria[]
-  contador: number
-}
-
-/** Estado en memoria, por instancia del servidor. En Vercel puede reiniciarse: es una DEMO. */
-const g = globalThis as unknown as { __wmsDemo?: EstadoDemo }
-
-function estado(): EstadoDemo {
-  const hoy = new Date().toISOString().slice(0, 10)
-  if (!g.__wmsDemo || g.__wmsDemo.panorama.hoy !== hoy) {
-    const panorama = construirPanoramaDemo(hoy)
-    const ts = (dias: number, h: string) => `${sumarDias(hoy, dias)}T${h}:00Z`
-    g.__wmsDemo = {
-      panorama,
-      contador: 6,
-      auditoria: [
-        { id: 6, ts: ts(0, '08:12'), actor: 'Dirección Técnica (demo)', evento: 'producto_validado', entidad: 'producto_regulatorio', entidadId: 'DEMO-019', detalle: 'Registro sanitario validado' },
-        { id: 5, ts: ts(0, '07:40'), actor: 'Asistente DT (demo)', evento: 'producto_creado', entidad: 'productos', entidadId: 'DEMO-020', detalle: 'Alta de producto' },
-        { id: 4, ts: ts(-1, '16:05'), actor: 'Administración (demo)', evento: 'update', entidad: 'asignaciones_posicion', entidadId: 'G-7.1', detalle: 'Asignación de AJR Labs registrada desde la adenda (por confirmar firma)' },
-        { id: 3, ts: ts(-1, '15:50'), actor: 'Administración (demo)', evento: 'insert', entidad: 'posiciones', entidadId: 'A-27.1', detalle: 'Posición creada: el rack A llega a A-27' },
-        { id: 2, ts: ts(-2, '11:20'), actor: 'Administración (demo)', evento: 'insert', entidad: 'propietarios', entidadId: 'AJR_LABS', detalle: 'Propietario creado' },
-        { id: 1, ts: ts(-2, '11:00'), actor: 'Administración (demo)', evento: 'insert', entidad: 'usuario_roles', entidadId: 'direccion_tecnica', detalle: 'Rol asignado' },
-      ],
-    }
-  }
-  return g.__wmsDemo
-}
-
-function registrar(e: EstadoDemo, actor: Actor, evento: string, entidad: string, entidadId: string, detalle: string, motivo?: string) {
-  e.contador += 1
-  e.auditoria.unshift({ id: e.contador, ts: new Date().toISOString(), actor: actor.nombre, evento, entidad, entidadId, detalle, motivo })
-}
-
-export class RepositorioDemo implements Repositorio {
+export class RepositorioDemo extends EntradasDemo implements Repositorio {
   async panorama(): Promise<Panorama> {
     return structuredClone(estado().panorama)
   }

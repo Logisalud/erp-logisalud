@@ -7,36 +7,8 @@ import type {
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
 import { validarEntradaProducto, type EntradaProducto } from '@/domain/productos'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
-
-// PostgREST no embebe entre schemas: cada tabla se lee por separado y se une acá
-// (mismo criterio que mapaProductos() en apps/compras). Las lecturas pasan por RLS
-// con la sesión de la persona; ningún cliente usa service role.
-
-const PAGINA = 1000
-
-type Fila = Record<string, unknown>
-
-async function traerTodo(
-  tabla: string,
-  schema: 'wms' | 'catalogo',
-  seleccion = '*',
-  orden?: string,
-): Promise<Fila[]> {
-  const supabase = crearClienteServidor()
-  const out: Fila[] = []
-  for (let desde = 0; ; desde += PAGINA) {
-    let q = supabase.schema(schema).from(tabla).select(seleccion)
-    if (orden) q = q.order(orden)
-    const { data, error } = await q.range(desde, desde + PAGINA - 1)
-    if (error) throw new Error(`No se pudo leer ${schema}.${tabla}: ${error.message}`)
-    out.push(...((data ?? []) as unknown as Fila[]))
-    if (!data || data.length < PAGINA) break
-  }
-  return out
-}
-
-const s = (v: unknown) => (v == null ? undefined : String(v))
-const n = (v: unknown) => (v == null ? null : Number(v))
+import { mensajeHumano, n, s, traerTodo, type Fila } from './util'
+import { EntradasSupabase } from './entradas-supabase'
 
 export function mapearPosicion(r: Fila): Posicion {
   return {
@@ -55,7 +27,7 @@ export function mapearRegulatorio(r: Fila): Regulatorio {
   }
 }
 
-export class RepositorioSupabase implements Repositorio {
+export class RepositorioSupabase extends EntradasSupabase implements Repositorio {
   async panorama(): Promise<Panorama> {
     const [props, poss, asigs, docs, prods, regs, lotes, saldos] = await Promise.all([
       traerTodo('propietarios', 'wms'),
@@ -136,11 +108,4 @@ export class RepositorioSupabase implements Repositorio {
     })
     return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
   }
-}
-
-/** Los mensajes de las funciones SQL ya están en español para personas; el resto, un texto genérico. */
-export function mensajeHumano(error: { code?: string; message: string }): string {
-  if (error.code === '42501') return error.message || 'No tienes permiso para hacer esto.'
-  if (error.code === '23505' || error.code === 'P0001' || error.code === 'P0002') return error.message
-  return 'No pudimos guardar el cambio. Intenta de nuevo; si sigue igual, avisa a quien administra el WMS.'
 }

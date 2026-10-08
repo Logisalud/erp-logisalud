@@ -167,7 +167,7 @@ export function alertasRegulatorias(p: Panorama): AlertasRegulatorias {
   return out
 }
 
-export type TipoResultado = 'producto' | 'lote' | 'posicion'
+export type TipoResultado = 'producto' | 'lote' | 'posicion' | 'oc' | 'acta'
 
 export interface ResultadoBusqueda {
   tipo: TipoResultado
@@ -183,7 +183,7 @@ export interface ResultadoBusqueda {
 
 const plural = (n: number, uno: string, varios: string) => `${n.toLocaleString('es-PE')} ${n === 1 ? uno : varios}`
 
-/** Búsqueda universal: producto, lote y ubicación. (OC y actas llegan con las entradas.) */
+/** Búsqueda universal: producto, lote y ubicación. (OC y actas las agrega el repositorio de entradas.) */
 export function buscar(p: Panorama, consulta: string, limite = 24): ResultadoBusqueda[] {
   const q = consulta.trim()
   if (q.length < 1) return []

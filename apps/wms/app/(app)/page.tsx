@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import {
-  ArrowRight, Boxes, CheckCircle2, Clock, FilePlus2, Hourglass, Map, MessageSquareWarning, ShieldAlert, ShieldCheck, TriangleAlert, type LucideIcon,
+  ArrowRight, Bell, Boxes, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Hourglass, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, type LucideIcon,
 } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
@@ -27,9 +27,37 @@ interface Aviso {
   tono: 'atencion' | 'info'
 }
 
-function avisosPara(roles: Rol[], p: Panorama): Aviso[] {
+interface DatosEntradas {
+  enProceso: number
+  porFirmar: number
+  organolepticasPendientes: number
+  organolepticasPorLlenar: number
+  expedientesConFaltantes: number
+  alertasMias: number
+}
+
+function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   const a = alertasRegulatorias(p)
   const avisos: Aviso[] = []
+  const opera = roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'asistente_dt'].includes(r))
+  if (e.alertasMias > 0) {
+    avisos.push({ clave: 'alertas', Icono: Bell, texto: 'Alertas abiertas para ti', detalle: 'Temperatura, registro sanitario, cambios de Compras o aprobados sin trasladar.', cantidad: e.alertasMias, unidad: pl(e.alertasMias, 'alerta', 'alertas'), href: '/alertas', tono: 'atencion' })
+  }
+  if (roles.includes('direccion_tecnica') && e.organolepticasPendientes > 0) {
+    avisos.push({ clave: 'organolepticas', Icono: ClipboardList, texto: 'Actas organolépticas esperando tu decisión', detalle: 'Decide Aprobado o Bajas/Rechazados.', cantidad: e.organolepticasPendientes, unidad: pl(e.organolepticasPendientes, 'acta', 'actas'), href: '/calidad', tono: 'atencion' })
+  }
+  if (roles.includes('asistente_dt') && e.organolepticasPorLlenar > 0) {
+    avisos.push({ clave: 'por-llenar', Icono: ClipboardList, texto: 'Actas organolépticas por llenar', detalle: 'Cuando las termines, se envían a Dirección Técnica.', cantidad: e.organolepticasPorLlenar, unidad: pl(e.organolepticasPorLlenar, 'acta', 'actas'), href: '/calidad', tono: 'atencion' })
+  }
+  if (roles.includes('asistente_dt') && e.expedientesConFaltantes > 0) {
+    avisos.push({ clave: 'expedientes', Icono: FolderOpen, texto: 'Expedientes con documentos faltantes', cantidad: e.expedientesConFaltantes, unidad: pl(e.expedientesConFaltantes, 'expediente', 'expedientes'), href: '/expedientes', tono: 'info' })
+  }
+  if (opera && e.porFirmar > 0) {
+    avisos.push({ clave: 'por-firmar', Icono: PenLine, texto: 'Ingresos por firmar o confirmar', detalle: 'El acta de recepción espera firmas o la confirmación.', cantidad: e.porFirmar, unidad: pl(e.porFirmar, 'ingreso', 'ingresos'), href: '/entradas?f=firmas', tono: 'atencion' })
+  }
+  if (opera && e.enProceso > 0) {
+    avisos.push({ clave: 'en-proceso', Icono: Inbox, texto: 'Ingresos en proceso', detalle: 'Faltan lotes, datos o el acta.', cantidad: e.enProceso, unidad: pl(e.enProceso, 'ingreso', 'ingresos'), href: '/entradas?f=proceso', tono: 'info' })
+  }
   const porVerificar = p.posiciones.filter((x) => x.porVerificar).length
   const trasladar = unidadesPorTrasladar(p)
   const docsPorConfirmar = p.documentos.filter((d) => d.estadoConfirmacion === 'POR_CONFIRMAR')
@@ -64,8 +92,16 @@ function avisosPara(roles: Rol[], p: Panorama): Aviso[] {
 export default async function Inicio() {
   const ctx = await exigirContexto()
   const repo = repositorio()
-  const p = await repo.panorama()
-  const avisos = avisosPara(ctx.roles, p)
+  const [p, ingresos, cola, expedientes, conteo] = await Promise.all([
+    repo.panorama(), repo.listarIngresos(), repo.colaDireccionTecnica(), repo.listarExpedientes(), repo.contarAlertasAbiertas(),
+  ])
+  const alertasMias = (ctx.roles.includes('direccion_tecnica') ? conteo.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe') ? conteo.jefe_almacen : 0)
+  const avisos = avisosPara(ctx.roles, p, {
+    enProceso: ingresos.filter((i) => i.paso === 'DATOS_Y_LOTES' || i.paso === 'ACTA').length,
+    porFirmar: ingresos.filter((i) => i.paso === 'FIRMAS' || i.paso === 'CONFIRMAR').length,
+    organolepticasPendientes: cola.organolepticas.length, organolepticasPorLlenar: cola.borradores.length,
+    expedientesConFaltantes: expedientes.filter((x) => x.estado === 'ABIERTO' && x.faltantesAbiertos > 0).length, alertasMias,
+  })
   const ocup = ocupacionPorPropietario(p).sort((a, b) => b.posiciones - a.posiciones)
   const eventos = puede(ctx.roles, 'auditar') ? (await repo.auditoria(5)) : []
   const u = {
@@ -176,6 +212,7 @@ export default async function Inicio() {
         <h2 id="atajos" className="sr-only">Atajos</h2>
         <div className="flex flex-wrap gap-3">
           <Link href="/almacen" className="btn-primary"><Map className="h-5 w-5" aria-hidden />Ver el almacén</Link>
+          {puede(ctx.roles, 'ejecutar') && <Link href="/entradas/nuevo" className="btn-secondary"><Inbox className="h-5 w-5" aria-hidden />Registrar una entrada</Link>}
           <Link href="/productos" className="btn-secondary"><Boxes className="h-5 w-5" aria-hidden />Productos</Link>
           {puedeCrearProducto(ctx.roles) && <Link href="/productos/nuevo" className="btn-secondary"><FilePlus2 className="h-5 w-5" aria-hidden />Dar de alta un producto</Link>}
         </div>

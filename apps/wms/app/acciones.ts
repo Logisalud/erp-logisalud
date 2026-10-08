@@ -26,8 +26,9 @@ export async function salirDemo() {
 export async function buscarAccion(consulta: string): Promise<ResultadoBusqueda[]> {
   await exigirContexto()
   if (consulta.trim().length < 1) return []
-  const panorama = await repositorio().panorama()
-  return buscar(panorama, consulta)
+  const repo = repositorio()
+  const [panorama, entradas] = await Promise.all([repo.panorama(), repo.buscarEntradas(consulta)])
+  return [...buscar(panorama, consulta), ...entradas]
 }
 
 export interface EstadoFormulario {

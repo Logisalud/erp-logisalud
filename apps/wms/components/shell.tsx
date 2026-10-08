@@ -3,17 +3,27 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Boxes, History, Home, Map, MoreHorizontal, Search, Users, X } from 'lucide-react'
+import { Bell, Boxes, FolderOpen, History, Home, Inbox, Map, MoreHorizontal, Search, ShieldCheck, Users, X } from 'lucide-react'
 import { Marca, MarcaIcono } from './marca'
 import { PaletaBusqueda } from './paleta-busqueda'
 
 export interface ItemNav {
   href: string
   etiqueta: string
-  icono: 'inicio' | 'almacen' | 'productos' | 'propietarios' | 'auditoria'
+  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria'
+  /** Cantidad que se muestra como insignia (alertas abiertas). */
+  insignia?: number
 }
 
-const ICONOS = { inicio: Home, almacen: Map, productos: Boxes, propietarios: Users, auditoria: History }
+const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History }
+
+const PRINCIPALES = ['inicio', 'almacen', 'entradas']
+
+/** Punto de aviso sobre el ícono (la cantidad exacta va en texto en la barra ancha y en el menú «Más»). */
+function Punto({ n }: { n?: number }) {
+  if (!n) return null
+  return <span aria-hidden className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-amber-500" />
+}
 
 const activo = (pathname: string, href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href))
 
@@ -44,8 +54,8 @@ export function Shell({
 
   useEffect(() => setMas(false), [pathname])
 
-  const principales = items.filter((i) => ['inicio', 'almacen', 'productos'].includes(i.icono))
-  const secundarios = items.filter((i) => !['inicio', 'almacen', 'productos'].includes(i.icono))
+  const principales = items.filter((i) => PRINCIPALES.includes(i.icono))
+  const secundarios = items.filter((i) => !PRINCIPALES.includes(i.icono))
 
   return (
     <div className="flex min-h-screen">
@@ -72,9 +82,11 @@ export function Shell({
                   on ? 'bg-green-50 text-green-800' : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <Icono className="h-5 w-5 shrink-0" aria-hidden />
+                <span className="relative shrink-0"><Icono className="h-5 w-5" aria-hidden /><Punto n={i.insignia} /></span>
                 <span className="hidden xl:inline">{i.etiqueta}</span>
                 <span className="sr-only xl:hidden">{i.etiqueta}</span>
+                {i.insignia ? <span className="ml-auto hidden rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 xl:inline">{i.insignia}</span> : null}
+                {i.insignia ? <span className="sr-only">, {i.insignia} abiertas</span> : null}
               </Link>
             )
           })}
@@ -172,8 +184,9 @@ export function Shell({
                 return (
                   <li key={i.href}>
                     <Link href={i.href} className="flex min-h-14 items-center gap-3 text-gray-900">
-                      <Icono className="h-5 w-5 text-gray-600" aria-hidden />
+                      <span className="relative"><Icono className="h-5 w-5 text-gray-600" aria-hidden /></span>
                       {i.etiqueta}
+                      {i.insignia ? <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{i.insignia} {i.insignia === 1 ? 'abierta' : 'abiertas'}</span> : null}
                     </Link>
                   </li>
                 )

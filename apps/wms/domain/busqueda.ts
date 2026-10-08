@@ -17,3 +17,6 @@ export function puntaje(consulta: string, texto: string): number {
   if (palabras.length > 1 && palabras.every((p) => t.includes(p))) return 30
   return 0
 }
+
+/** ¿Coincide la consulta con el texto? */
+export const buscarEnTexto = (consulta: string, texto: string) => puntaje(consulta, texto) > 0
