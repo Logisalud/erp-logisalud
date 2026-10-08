@@ -1,4 +1,4 @@
-// La reversa del WMS (0001–0006 + seed) deja la base exactamente como estaba antes: catalogo, compras y public intactos.
+// La reversa del WMS (0001–0007 + seed) deja la base exactamente como estaba antes: catalogo, compras y public intactos.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { SQL } from './helpers'
 
 const url = process.env.WMS_TEST_DATABASE_URL ?? 'postgres://wms_test:wms_test@127.0.0.1:5432/postgres'
-const rollback = readFileSync(resolve(__dirname, '../../supabase/rollback/wms_0001_a_0006_rollback.sql'), 'utf8')
+const rollback = readFileSync(resolve(__dirname, '../../supabase/rollback/wms_0001_a_0007_rollback.sql'), 'utf8')
 const nombre = `wms_rb_${randomUUID().slice(0, 8)}`
 let admin: Client
 
@@ -52,7 +52,7 @@ describe('reversa del WMS', () => {
   it('aplica la cadena completa y la reversa deja todo lo ajeno al WMS idéntico (y es re-ejecutable)', async () => {
     await admin.query(SQL.stubs())
     const antes = await foto()
-    for (const m of [SQL.m0001, SQL.m0002, SQL.m0003, SQL.m0004, SQL.m0005, SQL.m0006, SQL.seed]) await admin.query(m())
+    for (const m of [SQL.m0001, SQL.m0002, SQL.m0003, SQL.m0004, SQL.m0005, SQL.m0006, SQL.m0007, SQL.seed]) await admin.query(m())
     expect((await admin.query(`select count(*)::int n from pg_namespace where nspname = 'wms'`)).rows[0].n).toBe(1)
 
     await admin.query(rollback)
