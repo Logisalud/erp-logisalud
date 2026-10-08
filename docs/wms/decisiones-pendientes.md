@@ -2,7 +2,7 @@
 
 Cada decisión bloquea **solo su pieza**; el resto sigue. Tipo: N = negocio, S = sanitaria,
 R = regulatoria, D = datos, O = operativa/permiso.
-Actualizado: 2026-10-07 (respuestas al Gate 0).
+Actualizado: 2026-10-08 (aprobación del Batch 1; D-28 aceptada; D-29 nueva).
 
 **Ninguna decisión abierta impide el Batch 1.** El Gate 0 fue confirmado y el Batch 1 está en curso.
 
@@ -23,7 +23,8 @@ Actualizado: 2026-10-07 (respuestas al Gate 0).
 | D-22 | O | Exponer el schema `wms` en Data API y registrarlo en `schemas_compras_y_pagos()` | Pruebas contra Supabase real | No (con Postgres local no hace falta) | Pendiente | Sebas |
 | D-23 | O | Fila en `public.modulos` y rewrite `/wms` en cobranzas | Acceso desde erp.logisalud.com | No | No se toca | Sebas |
 | D-26 | N | Exportación de Odoo con stock real (producto, lote, vencimiento, cantidad por ubicación): no está en el repo; el Excel de `layouts/` es solo el árbol de ubicaciones | Carga inicial en real (Batch 3) | No | Herramienta con datos de prueba | Sebas |
-| D-28 | S | **Nueva.** Aprobado "por trasladar": las reglas piden que lo que sale de Cuarentena esté Aprobado con acta firmada, así que hay un momento en que unidades Aprobadas siguen dentro de la zona de Cuarentena. El WMS lo permite (cambio de estado en el lugar) y lo muestra como "Aprobado · por trasladar" (ADR-006) | Movimiento de salida de Cuarentena (Batch 3) | No | El estado intermedio visible hasta mover a un rack del propietario | Katia / Charlie |
+| D-28b | O | **Plazo máximo de "Aprobado · por trasladar"**: tras ese tiempo el Jefe de Almacén recibe una alerta. Parámetro `plazo_por_trasladar_horas` en `wms.parametros` (por defecto **24 h**) | Valor definitivo y destinatario de la alerta (la alerta se construye en el Batch 2 con el valor por defecto) | No | 24 horas | Katia / Charlie |
+| D-29 | D | **Código controlado del formato de Kardex de Logisalud.** El ejemplo de `formatos/` trae el código CF-FO-010, que parece de otra empresa. Hasta que se defina, el PDF del Kardex lleva un código provisorio configurable | PDF del Kardex (Batch 3) | No | Parámetro `kardex_codigo_formato`, vacío = "Código por asignar" | Katia (control documental) |
 
 ## Resueltas (2026-10-07)
 
@@ -42,6 +43,7 @@ Actualizado: 2026-10-07 (respuestas al Gate 0).
 | D-21 | Se crea el proyecto Vercel `erp-logisalud-wms`, solo Preview, con filtro para construir únicamente cuando cambie `apps/wms` o sus paquetes compartidos. Vercel Pro; costo de build aprobado. Tras configurarlo se recarga y verifica. | gate-0.md E.5; progreso.md |
 | D-24 | Autorizada la lectura en producción, solo lectura, **del área y el rol** de `public.perfiles` (nada más: sin nombres). **Resultado:** 15 perfiles; `direccion_tecnica` tiene 2 (1 admin y 1 operativo), `almacen` tiene 3 (operativos). Es compatible con Katia y Sandra en Dirección Técnica, pero **no puedo decir quién es quién** sin leer nombres. Hay solo 3 perfiles de almacén para unas 6 personas: el resto aún no tiene perfil (hay 34 en `usuarios_esperados`). Los roles WMS se asignan en `wms.usuario_roles`. | progreso.md |
 | D-25 | Del transportista se registran nombre, DNI y placa. | reglas-negocio.md; formato LS-FR.03.05 |
+| D-28 | **Aceptada** el 2026-10-08: el estado "Aprobado · por trasladar" existe (cambio de estado en el lugar, ADR-006) con un plazo máximo configurable. El plazo lo definen Katia y Charlie (ver D-28b); por defecto 24 horas. | ADR-006; `wms.parametros` |
 | D-27 | Modo demostración con datos de prueba: **solo en Preview**, aviso visible "DEMO", sin conexión a ninguna base real, imposible de activar en producción. | gate-0.md §G; `apps/wms/lib/demo.ts` |
 | — | Estado sanitario por unidad (no por lote): el lote ABC aprobado + nueva entrega del mismo lote nace en Cuarentena con su propia acta; la aprobación no se hereda y la anterior no vuelve a Cuarentena. | gate-0.md C.7 (`procedencia_id`) |
 | — | Vencimiento: se registra la fecha completa del producto físico; solo si el producto muestra mes y año se usa el último día del mes. | reglas-negocio.md (Recepción 2) |
