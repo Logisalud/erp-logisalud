@@ -32,19 +32,24 @@ Actualizado: 2026-10-08 (aprobación del Batch 1; D-28 aceptada; D-29 nueva).
 | ID | Resolución | Dónde quedó |
 |---|---|---|
 | D-02 | Quien registra Aprobado o Bajas/Rechazados es Katia, al firmar el acta organoléptica en el WMS. Charlie no ejecuta ese cambio. | reglas-negocio.md (Estado sanitario) |
-| D-03 | Una OC puede tener varias recepciones; cada recepción de Compras es un ingreso distinto en el WMS. | reglas-negocio.md (Tipos de ingreso); gate-0.md C.6 |
+| D-03 | *(Reemplazada por el addendum 2026-10-08)* Una OC puede tener varias **solicitudes**; cada solicitud es un ingreso distinto. | reglas-negocio.md (Tipos de ingreso); gate-0.md C.6 |
 | D-05 | El rack A llega a A-27 (los planos lo dibujan). Se corrige `topologia.md` en la rama; llega a `main` con el PR del Batch 1. | topologia.md |
 | D-14 | El cargo es "Jefe de Almacén" en la interfaz y en el acta. | reglas-negocio.md (Roles) |
 | D-20 | Base de pruebas: Postgres local, sin costo adicional (ni branch de Supabase ni servicios pagos). | gate-0.md §G |
-| D-04 | Lo rechazado en la puerta no entra al WMS: Compras registra solo lo aceptado y eso es lo que llega (cantidad de referencia). | gate-0.md C.6 |
+| D-04 | Lo rechazado en la puerta no entra al WMS: la **Solicitud final** es lo autorizado a ingresar (antes: lo que registraba Compras). | gate-0.md C.6 |
 | D-07 | Las posiciones sin propietario (I-8.1..I-8.4, J-12.4) quedan libres. | Seed de topología |
 | D-16 | Unidades enteras, las mismas de Compras. | gate-0.md C.6; CHECK de enteros en el ledger |
 | D-18 | Los ajustes los aprueba Katia. | gate-0.md D |
-| D-19 | Si Compras cambia la cantidad después de que el WMS confirmó el ingreso, el WMS no cambia solo: genera una **alerta de divergencia** para revisión. | gate-0.md (alertas, Batch 2) |
+| D-19 | *(Cambia de sentido con el addendum)* La cantidad física nace en el WMS; si lo que se copia a Compras no coincide, el WMS alerta (`POR_REGISTRAR_EN_COMPRAS` / `NO_COINCIDE_CON_COMPRAS`). Nunca cambia solo. | gate-0.md (alertas, Batch 2) |
 | D-21 | Se crea el proyecto Vercel `erp-logisalud-wms`, solo Preview, con filtro para construir únicamente cuando cambie `apps/wms` o sus paquetes compartidos. Vercel Pro; costo de build aprobado. Tras configurarlo se recarga y verifica. | gate-0.md E.5; progreso.md |
 | D-24 | Autorizada la lectura en producción, solo lectura, **del área y el rol** de `public.perfiles` (nada más: sin nombres). **Resultado:** 15 perfiles; `direccion_tecnica` tiene 2 (1 admin y 1 operativo), `almacen` tiene 3 (operativos). Es compatible con Katia y Sandra en Dirección Técnica, pero **no puedo decir quién es quién** sin leer nombres. Hay solo 3 perfiles de almacén para unas 6 personas: el resto aún no tiene perfil (hay 34 en `usuarios_esperados`). Los roles WMS se asignan en `wms.usuario_roles`. | progreso.md |
 | D-25 | Del transportista se registran nombre, DNI y placa. | reglas-negocio.md; formato LS-FR.03.05 |
 | D-28 | **Aceptada** el 2026-10-08: el estado "Aprobado · por trasladar" existe (cambio de estado en el lugar, ADR-006) con un plazo máximo configurable. El plazo lo definen Katia y Charlie (ver D-28b); por defecto 24 horas. | ADR-006; `wms.parametros` |
+| D-31 | Una devolución espera su evaluación en el estado nuevo **DEVOLUCIONES («Devoluciones»)**, un estado sanitario propio, en el Área de Devoluciones, y nunca pasa por Cuarentena. Pasa a Aprobado o Bajas/Rechazados previa su Acta Organoléptica (2026-10-08). | reglas-negocio.md; migración 0005; ADR-009 |
+| D-32 | Sandra y Katia autorizan las solicitudes; con el portal de clientes, el cliente la crea y ellos la autorizan (2026-10-08). | ADR-009 |
+| D-33 | Si llega más que el saldo de la OC: el WMS registra lo físico y alerta `EXCEDE_OC` a Katia y a Compras; no lo resuelve (2026-10-08). | ADR-009 |
+| D-34 | Solicitud con formato **SI-AAAA-NNNNN** (por año); toda diferencia entre solicitud inicial y final notifica a Sandra y a Katia (2026-10-08). | ADR-009 |
+| D-35 | Un lote declarado distinto del físico deja de ser rechazo automático: es un **ajuste explícito con motivo** y con historial (2026-10-08). | ADR-009 |
 | D-27 | Modo demostración con datos de prueba: **solo en Preview**, aviso visible "DEMO", sin conexión a ninguna base real, imposible de activar en producción. | gate-0.md §G; `apps/wms/lib/demo.ts` |
 | — | Estado sanitario por unidad (no por lote): el lote ABC aprobado + nueva entrega del mismo lote nace en Cuarentena con su propia acta; la aprobación no se hereda y la anterior no vuelve a Cuarentena. | gate-0.md C.7 (`procedencia_id`) |
 | — | Vencimiento: se registra la fecha completa del producto físico; solo si el producto muestra mes y año se usa el último día del mes. | reglas-negocio.md (Recepción 2) |

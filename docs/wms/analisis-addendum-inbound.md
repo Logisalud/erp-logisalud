@@ -1,5 +1,7 @@
 # Análisis del addendum "Flujo real de ingreso" (2026-10-08)
 
+> **Actualización 2026-10-08 (decisión de Sebas sobre D-31):** el estado sanitario de una devolución se llama **`DEVOLUCIONES`** («Devoluciones»), no `SIN_DECISION`. Es un estado sanitario propio (el addendum §26 pedía no crearlo; esa parte queda sustituida). Donde este documento dice `SIN_DECISION` / «En evaluación» léase `DEVOLUCIONES` / «Devoluciones».
+
 **Estado: solo análisis. Nada implementado.** El addendum gobierna sobre lo ya construido. Este documento responde A–G de la sección 37 del addendum
 y propone el mecanismo del bloque "Cantidad física confirmada" para el copiado manual a Compras. Revisado: `apps/compras` (`domain/recepcion-tres-columnas.ts`,
 `services/recepciones.ts`, `services/notas-credito.ts`, `services/ordenes-compra.ts`, `domain/orden-compra.ts`), los formatos LS-FR.05.05 y LS-FR.03.05,
@@ -150,7 +152,7 @@ El WMS **no copia ni reimplementa** la lógica OC vs Factura vs Físico. No se t
 - D-03/D-04: se reemplazan por la regla de solicitudes (una OC, varias solicitudes).
 
 **Decisión de modelo que necesito de ti (D-31): ¿qué estado sanitario tiene una devolución mientras espera evaluación?** El addendum pide no pasarla por Cuarentena y no inventar `sanitary_state = DEVOLUCION`.
-- **Opción A (recomendada):** agregar el estado `SIN_DECISION` ("En evaluación") usado solo por devoluciones; transiciones `SIN_DECISION → APROBADO` y `→ BAJAS_RECHAZADOS`; el origen sigue en `origen = DEVOLUCION`, la ubicación en `DEVOLUCIONES`, y "no vendible" se deriva de que el estado no es `APROBADO`. Es lo más literal y mantiene "Aprobado nunca vuelve a Cuarentena".
+- **Opción A (recomendada):** agregar el estado `DEVOLUCIONES` ("Devoluciones") usado solo por devoluciones; transiciones `DEVOLUCIONES → APROBADO` y `→ BAJAS_RECHAZADOS`; el origen sigue en `origen = DEVOLUCION`, la ubicación en `DEVOLUCIONES`, y "no vendible" se deriva de que el estado no es `APROBADO`. Es lo más literal y mantiene "Aprobado nunca vuelve a Cuarentena".
 - Opción B: conservar `CUARENTENA` como estado y solo cambiar la ubicación. Cambia menos código pero deja que la pantalla diga "Cuarentena" para una devolución, que es justo lo que el addendum prohíbe.
 
 ## H. Mecanismo del bloque "Cantidad física confirmada" (integración manual WMS → Compras)

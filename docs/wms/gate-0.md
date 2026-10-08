@@ -26,7 +26,7 @@ experiencia > visión > planos/CONTEXTO. Donde se contradicen, gana el mayor y s
 | Vercel | Aprobado solo si no genera costo. **Verificado: sí genera consumo de build → NO creado** (E.5, D-21). |
 | Rack A | Llega a **A-27** (planos 2026, tabla de Diphasac, Odoo). `topologia.md` corregida en la rama; llega a `main` con el PR del Batch 1. |
 | Cargo | **"Jefe de Almacén"** en la interfaz y en el acta (reglas-negocio.md corregido). |
-| Recepciones | Una OC puede tener varias; **cada recepción de Compras es un ingreso distinto** en el WMS. |
+| Recepciones | Una OC puede tener varias **solicitudes** de ingreso (entregas parciales); cada solicitud es un ingreso distinto en el WMS *(addendum 2026-10-08; antes: una recepción de Compras = un ingreso)*. |
 | Quién aprueba | **Katia** registra Aprobado o Bajas/Rechazados al firmar el acta organoléptica; Charlie no ejecuta ese cambio. |
 | Vencimiento | Fecha **completa** del producto físico; solo si el producto muestra mes y año → último día del mes. |
 
@@ -51,7 +51,7 @@ stock con Pedidos es cruce de proyectos y queda fuera de alcance.
 |---|---|---|
 | Maestro de productos | `catalogo.productos` (509 filas, RLS: lee cualquier perfil; escribe `compras`, `direccion_tecnica`, `admin`) | Se reutiliza **tal cual**. Tiene `controla_lote`, `controla_vencimiento`, `unidad_medida`, `marca`, `principio_activo`, `proveedor_id` nullable (sirve para productos de clientes que no compramos). **No tiene registro sanitario**: ver C.1 (se agrega en una tabla 1:1 de `wms`, sin tocar `catalogo`). |
 | Proveedores | `compras.proveedores` (22) | Solo lectura. Diphasac existe (RUC 20546207219, `tipo='ambos'`). Logissa, Triamed, Medic Pharma Lab y AJR Labs **no existen** en ninguna tabla. |
-| Recepción de Compras | `almacen.recepciones` (11) + `recepciones_items` (33) + `recepciones_guias` (11) + `compras.ordenes_compra(_items)` | Solo lectura vía vista `wms.v_recepciones_compra` (`security_invoker`). Es la **cantidad de referencia** de la compra local. |
+| Recepción de Compras | `almacen.recepciones` (11) + `recepciones_items` (33) + `recepciones_guias` (11) + `compras.ordenes_compra(_items)` | Solo lectura vía vistas `wms.v_oc_pendientes` (origen de la solicitud) y `wms.v_recepciones_compra` (solo para reconciliar lo que Charlie copia a Compras) (`security_invoker`). Es la **cantidad de referencia** de la compra local. |
 | Auth y sesión | `@logisalud/auth` (`middlewareSesion`, `crearClienteServidor`, `perfilActual`, `exigirArea`, login/callback) | Reutilizar sin cambios. Compras es el modelo. |
 | Marca / tokens | `@logisalud/design-system`: preset Tailwind, tokens CSS, `BrandMark` | Reutilizar el preset y el logo. **No hay componentes de UI** (botones, cards, inputs): el WMS los crea en `apps/wms/components`. |
 | Estructura de app | `apps/compras` (`app/`, `domain/`, `services/`, `components/`, `lib/`, `tests/`) | Replicar. Mensajes para el usuario como valor de retorno (`ResultadoAccion`), Server Actions para escrituras. |
@@ -159,7 +159,7 @@ el mismo vencimiento; con otro vencimiento la base lo rechaza ("mismo lote con o
   despachar* de Pedidos, no el dueño. Se deja un punto de extensión `wms.propietario_fuente_stock`
   (propietario ↔ fuente) para cuando se integre Pedidos; hoy no se crea nada.
 - "Diphasac → Logissa solo por conducto regular": una compra a Diphasac de stock ya guardado
-  genera un ingreso de compra local con propietario Logissa que nace en Cuarentena (supuesto
+  genera una solicitud de compra local con propietario Logissa cuyo inventario nace en Cuarentena (supuesto
   pendiente de Katia, D-01).
 
 ### C.4 Posición
@@ -178,19 +178,19 @@ Embalaje, Despacho; con `es_compartida` (Recepción, Cuarentena, Embalaje, Despa
 Regla: un cambio de asignación **no mueve stock**; una asignación vencida hace que la posición
 deje de aceptar ingreso/movimiento del propietario anterior, lo ya guardado se queda (test 17).
 
-### C.6 Referencia de ingreso por tipo
-| Tipo | Cantidad de referencia | Referencia obligatoria | Origen del dato |
+### C.6 Origen y cantidad de ingreso por tipo *(reescrito 2026-10-08 por el addendum de flujo de ingreso)*
+| Tipo | Se origina en | Referencia obligatoria | Nace en |
 |---|---|---|---|
-| Compra local | `cantidad_fisica` de **esa recepción** de Compras (agregada por producto). Una OC con varias recepciones genera **un ingreso por recepción** | `almacen.recepciones.id` (+ OC, guías, factura); `compra_recepcion_id` único | Compras (se guarda copia) |
-| Devolución | Guía + formulario de devolución del transportista | **Factura o boleta original** (bloquea si falta) | WMS |
-| Ingreso de cliente | Guía del cliente | Guía; propietario = el cliente | WMS |
-Invariante: `SUM(cantidad por lote) = cantidad de referencia` por producto; se valida al confirmar
-(dominio + función de BD). Unidades **enteras** (cajas master no se cuentan).
+| Compra local | **Solicitud de Ingreso** prellenada desde la OC (varias solicitudes por OC; varias líneas por línea de OC) | OC (+ guía; la factura vive en Compras) | Cuarentena (A-6..A-9) |
+| Devolución | Solicitud con guía de devolución | **Factura o boleta original** (bloquea si falta) | **Área de Devoluciones**, estado Devoluciones |
+| Ingreso de cliente | Solicitud con la guía del cliente; propietario = el cliente | Guía | Cuarentena (A-6..A-9) |
+Invariante de un ingreso cerrado: `solicitud final = cantidad aceptada = acta (recibida) = suma de lotes = inventario creado`. La cantidad física se
+captura **una sola vez, en el WMS**; Compras la consume (hoy, copiándola a mano). Unidades **enteras**. Detalle en `analisis-addendum-inbound.md`.
 
 ### C.7 Estado
-Tres valores en tabla de catálogo (`wms.estados_sanitarios`: `CUARENTENA`, `APROBADO`, `BAJAS_RECHAZADOS`),
+Cuatro valores en tabla de catálogo (`wms.estados_sanitarios`: `CUARENTENA`, `DEVOLUCIONES` («Devoluciones», solo devoluciones: espera su evaluación), `APROBADO`, `BAJAS_RECHAZADOS`),
 no `enum` de Postgres (permite extender). Transiciones permitidas en `wms.transiciones_estado`
-(datos): Cuarentena→Aprobado, Cuarentena→Bajas/Rechazados, Aprobado→Bajas/Rechazados (con sustento).
+(datos): Cuarentena→Aprobado, Cuarentena→Bajas/Rechazados, Devoluciones→Aprobado, Devoluciones→Bajas/Rechazados, Aprobado→Bajas/Rechazados (con sustento).
 **Aprobado→Cuarentena: prohibido** por trigger de BD **y** por dominio. Estado, condición, ubicación,
 propietario y origen son columnas distintas. `condicion` (VERDE/ÁMBAR) existe **nullable**, con
 CHECK "solo si estado = APROBADO", sin UI.
@@ -199,7 +199,7 @@ CHECK "solo si estado = APROBADO", sin UI.
 identifican por **(posición, producto, lote, propietario, estado, `procedencia_id`)**; `procedencia_id`
 es el `ingreso_lote` que dio origen a esas unidades (la entrega concreta, con su acta). Caso: el lote ABC
 ya está Aprobado por una recepción anterior y llega otra entrega del mismo lote:
-1. La entrega nueva es **otro ingreso** (cada recepción de Compras lo es). Sus unidades **nacen** en
+1. La entrega nueva es **otro ingreso** (cada solicitud lo es). Sus unidades **nacen** en
    Cuarentena (A-6..A-9) con su propia procedencia. Nacer en Cuarentena es un ingreso, no una transición,
    así que no choca con "Aprobado→Cuarentena prohibido".
 2. Las unidades antiguas siguen Aprobadas en su rack: nada las toca. Por eso **nunca vuelven a Cuarentena**.
@@ -525,3 +525,8 @@ Fuera de las dependencias: **RLS desactivado** en 3 tablas de respaldo de promoc
 | Bug hallado | — | `INSERT … ON CONFLICT` validaba el CHECK de saldos antes del conflicto y rechazaba toda salida; corregido en 0002 | Lo detectaron las pruebas de movimientos |
 | Supabase | Adaptador de lectura/escritura | Escrito (`services/supabase`) pero **sin ejecutar contra una base real** | No hay base de pruebas; D-20/D-22 |
 
+
+
+## Ajustes por el addendum de flujo de ingreso (2026-10-08)
+`analisis-addendum-inbound.md` (A–H) y las decisiones D-31 a D-35 gobiernan sobre las secciones A.2 (Recepción de Compras como referencia), C.6, C.7, D (entradas) y sobre
+cualquier mención de que "todo ingreso nace en Cuarentena". Implementación: migración `0005` (no aplicada) y ADR-009.

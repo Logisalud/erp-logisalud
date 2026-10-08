@@ -1,3 +1,5 @@
+> **Nota (2026-10-08):** el *Addendum — flujo real de ingreso* (ver `analisis-addendum-inbound.md` y `reglas-negocio.md`, «Flujo de ingreso») corrige este documento en lo que se refiere al ingreso: la recepción empieza con la Solicitud de Ingreso, la cantidad física se captura una sola vez en el WMS y las devoluciones no pasan por Cuarentena.
+
 # Visión del WMS de LOGISALUD
 
 > Norte de producto. NO son instrucciones de alcance: el alcance y el orden los define el prompt vigente y docs/wms/reglas-negocio.md.
@@ -638,15 +640,16 @@ válido.
 
 inválido.
 
-Mensaje humano:
+Mensaje humano (addendum 2026-10-08: se compara contra la Solicitud, no contra Compras):
 
-“No podemos confirmar todavía.
-Compras registró 6 unidades y aquí hemos identificado 7.
-Revisa las cantidades.”
+“Esperábamos 6 y encontramos 7.”
+
+Se actualiza la Solicitud con su historial y se continúa.
 
 Al confirmar:
 
-inventario nace en CUARENTENA.
+compra o ingreso de cliente → CUARENTENA.
+devolución → ÁREA DE DEVOLUCIONES (estado «Devoluciones»), nunca Cuarentena.
 
 ## 14. RECEPCIONES PARCIALES
 

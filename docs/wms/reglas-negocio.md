@@ -27,7 +27,7 @@ El equipo usa teléfonos personales.
 - Posiciones de almacenamiento: un solo propietario fijo (ver topologia.md).
 - Áreas compartidas (Recepción, Cuarentena, Embalaje, Despacho): una posición puede tener varios propietarios a la vez.
 - La asignación de posiciones a un propietario tiene vigencia (desde/hasta) y referencia al contrato o adenda que la sustenta. Un cambio de asignación nunca mueve stock por sí solo.
-- Diphasac → Logissa: solo por conducto regular (recepción de Compras con movimiento físico). El inventario nuevo nace en Cuarentena (supuesto, pendiente de Katia).
+- Diphasac → Logissa: solo por conducto regular (compra local con movimiento físico). El inventario nuevo nace en Cuarentena (supuesto, pendiente de Katia).
 
 ## Maestro de productos
 - Maestro único para todo propietario; incluye productos que no compramos.
@@ -36,34 +36,48 @@ El equipo usa teléfonos personales.
 - No hay productos controlados.
 
 ## Fuentes de verdad — un dato se escribe una sola vez
-- Compras: OC, proveedor, factura, guías, cantidad física agregada (compra local).
-- WMS: todo lo físico y sanitario, y las entradas sin compra.
-- Dirección Técnica: decisiones sanitarias.
-- Pedidos: demanda.
+- **Compras:** OC, proveedor, precio y condiciones, factura (número, archivo y cantidad facturada) y toda la consecuencia económica (entrega parcial, nota de crédito, excedente sin facturar, obligación, saldo y cierre de la OC). La lógica OC vs Factura vs Físico vive solo en Compras; el WMS no la copia.
+- **WMS:** la Solicitud de Ingreso (lote, vencimiento y cantidad que ingresará, con su historial), el Acta de Recepción, la **cantidad física confirmada (se captura una sola vez, aquí)**, la ubicación, el inventario, el estado sanitario, los movimientos y la trazabilidad.
+- **Dirección Técnica:** decisiones sanitarias.
+- **Pedidos:** demanda.
+- Hoy la cantidad física confirmada pasa a Compras **a mano** (el WMS la resalta para copiarla); la automatización llega después. El WMS nunca escribe en Compras.
 
-## Tipos de ingreso (todos nacen en Cuarentena)
-| Tipo | Cantidad de referencia | Documentos |
-|---|---|---|
-| Compra local | Recepción registrada en Compras | Guía y factura (ya en Compras) |
-| Devolución | Guía + formulario de devolución del transportista | Referencia obligatoria a factura o boleta original |
-| Ingreso de cliente | Guía del cliente | Guía |
+## Flujo de ingreso (addendum del 2026-10-08)
+La recepción no empieza cuando llega el camión: empieza con la **Solicitud de Ingreso** (LS-FR.05.05).
+1. **Solicitud de Ingreso** = mercadería **programada / esperada**: usuario o propietario, proveedor o cliente, tipo, fecha prevista, motivo, producto, registro sanitario, **lote, vencimiento, cantidad**, guía/DUA, observaciones. **No crea stock.** Se muestra como "Por llegar".
+   - Compra local: nace de la OC (el sistema prellena proveedor, producto, presentación, saldo, propietario Logissa). Una línea de OC puede dividirse en varias líneas de solicitud, una por lote.
+   - Mercadería de cliente: hoy la prepara Sandra o Katia con la guía del cliente; con el portal, el cliente la crea y Sandra o Katia la autorizan.
+   - Numeración **SI-AAAA-NNNNN** (por año). Mantiene su número toda su vida.
+2. **Llegada y verificación:** la recepción **verifica** lo declarado ("Esto es lo que esperamos. Confirma lo que encontramos"); no se vuelve a escribir lote y vencimiento. Si todo coincide: una confirmación. Si no coincide: se muestra la diferencia ("Esperábamos 50 y encontramos 45") y se **actualiza la Solicitud** antes de seguir.
+3. **La Solicitud es editable hasta el cierre del ingreso, siempre con historial** (campo, antes, después, quién, cuándo, motivo). Se conserva la **solicitud inicial** (lo anunciado) y la **final** (lo autorizado). Cambiar un lote declarado por otro es un ajuste explícito con motivo, no un rechazo. Toda diferencia entre inicial y final avisa a Sandra y a Katia.
+4. **Acta de Recepción** (LS-FR.03.05): se genera **prellenada desde la Solicitud final**. Agrega lo propio de la recepción: cantidad establecida y recibida, bultos, paletas, verificaciones, tipo de conteo, vehículo, temperatura, horarios, responsables y firmas. Si el conteo definitivo vuelve a diferir, no se cierra: se ajusta la Solicitud (con historial) y se regenera.
+5. **Invariante de un ingreso cerrado:** solicitud final = cantidad aceptada = acta (recibida) = suma de lotes = inventario creado. No es la cantidad de la OC ni la de la factura.
+6. **Seis cantidades que no se mezclan:** cantidad_oc, solicitud inicial, solicitud final, factura, física confirmada e inventario.
+7. **Qué ocurre después:** compra y cliente → Cuarentena → Evaluación Organoléptica → Aprobado o Bajas/Rechazados. **Devolución → Área de Devoluciones (estado «Devoluciones») → Evaluación Organoléptica → Aprobado o Bajas/Rechazados; nunca pasa por Cuarentena.**
+8. Si llegan más unidades que el saldo de la OC, el WMS registra lo físico y alerta (EXCEDE_OC) a Katia y a Compras; **no lo resuelve solo**.
+
+## Tipos de ingreso
+| Tipo | Se origina en | Documentos | Nace en |
+|---|---|---|---|
+| Compra local | Solicitud prellenada desde la OC | Guía y factura (la factura vive en Compras) | Cuarentena (A-6 a A-9) |
+| Devolución | Solicitud con la guía de devolución | **Factura o boleta original (obligatoria)** + formulario de devolución | **Área de Devoluciones**, estado «Devoluciones» |
+| Ingreso de cliente | Solicitud con la guía del cliente | Guía | Cuarentena (A-6 a A-9) |
 - Importación y traslado: fuera de alcance (aún no se importa).
-- Una OC puede tener varias recepciones en Compras; **cada recepción de Compras es un ingreso distinto en el WMS** (la referencia de cantidad es la de esa recepción, no la de la OC).
-- Invariante: SUM(cantidad por lote) = cantidad de referencia.
+- Una OC puede tener **varias solicitudes** (entregas parciales); cada solicitud es un ingreso distinto.
 - Unidad: la misma de Compras (unidades). Las cajas master no se cuentan.
 
 ## Recepción (REC-01, REC-02)
-1. Recepción es un proceso, no un estado. Recepción (A-1 a A-5, A-M1) es tránsito: al confirmar, el inventario nace en Cuarentena en una posición A-6 a A-9.
+1. Recepción es un proceso, no un estado. Recepción (A-1 a A-5, A-M1) es tránsito: al confirmar, el inventario nace en Cuarentena (A-6 a A-9) —o, si es devolución, en el Área de Devoluciones—.
 2. Vencimiento: se registra la **fecha completa** que muestra el producto físico. Solo si el producto mismo muestra únicamente mes y año, se usa el último día del mes (y se conserva el texto original).
 3. Temperatura (rango 15–25 °C) en el Acta de Recepción. Fuera de rango: se recibe y se alerta a Katia.
 4. Registro sanitario vencido: alerta inmediata a Katia; el lote no puede aprobarse hasta que ella resuelva.
-5. Solicitud de Ingreso (LS-FR.05.05): editable, con historial; el sistema la prellena.
+5. Solicitud de Ingreso: ver "Flujo de ingreso".
 6. Acta de Recepción (LS-FR.03.05):
    - Numeración I-AAAAMM-correlativo.
    - Se genera y firma en el sistema. Firman Jefe de Almacén, DT y responsable de conteo con su usuario logueado.
    - El transportista firma en pantalla y se registran su nombre, DNI y placa.
-   - Firmada es inmutable: solo se anula con motivo y se emite otra vinculada.
-7. Datos del acta que no vienen de Compras: bultos, paletas, placa y marca del vehículo, temperatura, tipo de conteo, hora de inicio y fin, verificaciones del producto.
+   - Firmada es inmutable: solo se anula con motivo y se emite otra vinculada (el número anulado no se reutiliza).
+7. Datos propios de la recepción física (no vienen de la Solicitud): bultos, paletas, placa y marca del vehículo, temperatura, tipo de conteo, hora de inicio y fin, verificaciones del producto.
 
 ## Evaluación organoléptica y aprobación
 - Acta de Evaluación Organoléptica (LS-FR.55.02): una por producto y lote, también en devoluciones. La llena Sandra; Katia decide y firma en el WMS.
@@ -72,13 +86,16 @@ El equipo usa teléfonos personales.
 - Lo rechazado en Cuarentena nunca vuelve al proveedor.
 
 ## Estado sanitario (INV-03)
-- Estados: Cuarentena, Aprobado, Bajas/Rechazados.
+- Estados: Cuarentena, **Devoluciones** (solo devoluciones: espera su evaluación), Aprobado, Bajas/Rechazados.
+- «Devoluciones» es el estado sanitario de lo devuelto mientras espera su evaluación (decisión de Sebas del 2026-10-08; el addendum pedía no crearlo y esa parte queda sustituida). Se mantienen separados origen, ubicación, flujo de calidad y estado sanitario; "no vendible" es todo lo que no está Aprobado.
 - **Quién registra el cambio:** Katia, al firmar el Acta de Evaluación Organoléptica en el WMS, registra Aprobado o Bajas/Rechazados. Charlie (Jefe de Almacén) no ejecuta ese cambio; solo mueve físicamente (movimientos internos) cuando corresponde.
 - Permitido:
   - Cuarentena → Aprobado
   - Cuarentena → Bajas/Rechazados
+  - Devoluciones → Aprobado
+  - Devoluciones → Bajas/Rechazados
   - Aprobado → Bajas/Rechazados (Katia + sustento)
-- PROHIBIDO SIEMPRE: Aprobado → Cuarentena. Se valida en dominio y en base de datos.
+- PROHIBIDO SIEMPRE: Aprobado → Cuarentena (y nada vuelve a Cuarentena ni a Devoluciones). Se valida en dominio y en base de datos.
 - Estado, condición, ubicación, propietario y origen son datos distintos.
 - VERDE/ÁMBAR: el modelo los soporta (solo con Aprobado); la interfaz se construye después.
 
@@ -88,7 +105,7 @@ Cada posición tiene tipo de área y propietario. El sistema bloquea combinacion
 |---|---|
 | Recepción | Ninguno (tránsito) |
 | Cuarentena (compartida) | Cuarentena |
-| Devoluciones (por propietario) | Cuarentena con origen devolución |
+| Devoluciones (por propietario) | Devoluciones, solo con origen devolución |
 | Aprobados (por propietario) | Aprobado |
 | Bajas/Rechazados (por propietario) | Bajas/Rechazados |
 | Contramuestra (por propietario) | Pendiente (solo importación) |
