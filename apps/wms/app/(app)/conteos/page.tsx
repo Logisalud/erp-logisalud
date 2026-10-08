@@ -8,6 +8,7 @@ import { ChipConteo } from '@/components/inventario/chips-inventario'
 import { FormProgramarConteo, type PosicionContable } from '@/components/inventario/form-programar-conteo'
 import { AjustesPorDecidir } from '@/components/inventario/ajustes-por-decidir'
 import { ETIQUETA_AREA } from '@/domain/zonas'
+import { CONTADOR_AMBAR } from '@/components/estilos-opcion'
 
 export const metadata = { title: 'Conteos — WMS LOGISALUD' }
 
@@ -31,7 +32,7 @@ export default async function Conteos() {
 
       {pendientes.length > 0 && (
         <section aria-labelledby="aj-pend">
-          <h2 id="aj-pend" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Ajustes por autorizar <span className="tabular rounded-full bg-amber-100 px-2 py-0.5 text-sm text-amber-900">{pendientes.length}</span></h2>
+          <h2 id="aj-pend" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Ajustes por autorizar <span className={`tabular rounded-full ${CONTADOR_AMBAR} px-2 py-0.5 text-sm`}>{pendientes.length}</span></h2>
           <div className="mt-3"><AjustesPorDecidir ajustes={pendientes} puedeDecidir={puedeDecidirAjuste(ctx.roles)} /></div>
         </section>
       )}

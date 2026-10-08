@@ -110,6 +110,15 @@ describe('movimientos internos (INV-02, D-15)', () => {
     expect((await falla(rpc(P().auditor.id, 'select wms.preparar_movimiento($1::jsonb, $2)', [JSON.stringify([await linea(s, 'A-16.1', 1)]), 'x']))).code).toBe('42501')
   })
 
+  it('solo el personal de almacén verifica: Dirección Técnica no confirma movimientos', async () => {
+    const aux1 = await persona('auxiliar')
+    const s = await stock('A-14.1', 'MI-7', 10)
+    const id = await preparar(aux1, s, 'A-16.1', 1)
+    await rpc(P().charlie.id, 'select wms.autorizar_movimiento($1)', [id])
+    await rpc(aux1, 'select wms.ejecutar_movimiento($1)', [id])
+    expect((await falla(rpc(P().katia.id, 'select wms.confirmar_movimiento($1)', [id]))).code).toBe('42501')
+  })
+
   it('con diferencia no se confirma ni se cuadra: queda abierta, avisa al Jefe y se reintenta o se anula', async () => {
     const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar')
     const s = await stock('A-15.1', 'MI-4', 10)

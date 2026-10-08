@@ -386,7 +386,9 @@ end $$;
 create or replace function wms._exigir_verificador(o wms.ordenes_movimiento) returns void
 language plpgsql stable security definer set search_path = wms, pg_temp as $$
 begin
-  if not wms.tiene_permiso('verificar') then raise exception 'No tienes permiso para verificar movimientos' using errcode = '42501'; end if;
+  if not wms.tiene_permiso('verificar') or not wms.tiene_rol('auxiliar', 'jefe_almacen', 'reemplazo_jefe') then
+    raise exception 'Solo el personal de almacén verifica movimientos' using errcode = '42501';
+  end if;
   if auth.uid() = o.preparador_id then raise exception 'El verificador no puede ser quien preparó el movimiento' using errcode = 'P0001'; end if;
   if auth.uid() = o.ejecutor_id then raise exception 'El verificador no puede ser quien ejecutó el movimiento' using errcode = 'P0001'; end if;
 end $$;

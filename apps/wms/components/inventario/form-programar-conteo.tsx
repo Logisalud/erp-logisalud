@@ -6,6 +6,7 @@ import { ClipboardCheck, Search } from 'lucide-react'
 import { programarConteoAccion } from '@/app/acciones-inventario'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
+import { PILDORA_ACTIVA, PILDORA_DESHABILITADA, PILDORA_INACTIVA } from '@/components/estilos-opcion'
 
 export interface PosicionContable { id: string; codigo: string; area: string; unidades: number; ocupada?: string }
 
@@ -32,7 +33,7 @@ export function FormProgramarConteo({ posiciones }: { posiciones: PosicionContab
       <ul className="grid max-h-64 gap-1.5 overflow-auto sm:grid-cols-2 lg:grid-cols-3" data-testid="conteo-posiciones">
         {visibles.map((p) => (
           <li key={p.id}>
-            <label className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 text-sm ${p.ocupada ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-500' : sel.has(p.id) ? 'border-green-300 bg-green-50 text-green-900' : 'border-gray-300 bg-white text-gray-800'}`}>
+            <label className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 text-sm ${p.ocupada ? PILDORA_DESHABILITADA : sel.has(p.id) ? PILDORA_ACTIVA : PILDORA_INACTIVA}`}>
               <input type="checkbox" className="h-4 w-4" checked={sel.has(p.id)} disabled={!!p.ocupada} onChange={() => alternar(p.id)} data-testid={`conteo-pos-${p.codigo}`} />
               <span className="tabular font-medium">{p.codigo}</span><span className="text-xs text-gray-600">{p.ocupada ?? `${p.unidades} u`}</span>
             </label>

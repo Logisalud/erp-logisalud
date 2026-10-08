@@ -217,7 +217,7 @@ export class InventarioDemo extends EntradasDemo {
 
   /** Mismo orden de mensajes que la base: permiso → preparó → ejecutó. */
   private puedeVerificarOrden(o: OrdenMovimiento, actor: Actor): string | null {
-    if (!actor.roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica'].includes(r))) return 'No tienes permiso para verificar movimientos'
+    if (!actor.roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe'].includes(r))) return 'Solo el personal de almacén verifica movimientos'
     const r = puedeVerificar(actor.id, { preparadorId: o.preparadorId, ejecutorId: o.ejecutorId })
     return r.puede ? null : r.mensaje
   }

@@ -7,6 +7,7 @@ import { parsearCargaInicial, type CargaInicialVista, type ErrorFilaCarga, type 
 import { formatoFechaHora } from '@/domain/fechas'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
+import { CHIP_NEUTRO, CHIP_OK } from '@/components/estilos-opcion'
 
 const EJEMPLO = 'producto;lote;vence;propietario;posicion;estado;cantidad\nDEMO-001;L2401;31/12/2028;LOGISSA;A-6;CUARENTENA;120'
 
@@ -102,7 +103,7 @@ export function CargaInicial({ decision, cargas, puedeCargar, puedeDecidir }: { 
             {cargas.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                 <span className="tabular font-heading text-lg font-semibold tracking-wide">{c.numero}</span>
-                <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${c.estado === 'CONFIRMADA' ? 'border-green-200 bg-green-50 text-green-800' : 'border-gray-300 bg-gray-100 text-gray-800'}`}>{c.estado === 'CONFIRMADA' ? 'Confirmada' : c.estado === 'BORRADOR' ? 'Borrador' : 'Anulada'}</span>
+                <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${c.estado === 'CONFIRMADA' ? CHIP_OK : CHIP_NEUTRO}`}>{c.estado === 'CONFIRMADA' ? 'Confirmada' : c.estado === 'BORRADOR' ? 'Borrador' : 'Anulada'}</span>
                 <span className="min-w-0 flex-1 text-sm text-gray-700">{c.filas} filas · {c.unidades.toLocaleString('es-PE')} unidades · {c.creadoPor} · {formatoFechaHora(c.creadoEn)}{c.nota ? ` · ${c.nota}` : ''}</span>
                 {c.estado === 'BORRADOR' && puedeCargar && <button type="button" className="btn-primary btn-sm" disabled={pendiente} onClick={() => ejecutar(() => confirmarCargaInicialAccion(c.id), { exito: 'Carga confirmada: el inventario ya existe y quedó en el Kardex.' })} data-testid="confirmar-carga">Confirmar la carga</button>}
               </li>

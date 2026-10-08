@@ -16,3 +16,8 @@ export const TAB_INACTIVA = 'text-gray-700 hover:bg-gray-100'
 
 export const NAV_ACTIVO = 'bg-green-50 text-green-800'
 export const NAV_INACTIVO = 'text-gray-700 hover:bg-gray-100'
+
+export const CHIP_OK = 'border-green-200 bg-green-50 text-green-800'
+export const CHIP_NEUTRO = 'border-gray-300 bg-gray-100 text-gray-800'
+export const CONTADOR_AMBAR = 'bg-amber-100 text-amber-900'
+export const PILDORA_DESHABILITADA = 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-500'
