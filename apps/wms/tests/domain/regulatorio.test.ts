@@ -3,7 +3,7 @@ import { puedeAprobarse, situacionRS } from '@/domain/regulatorio'
 import type { Regulatorio } from '@/domain/tipos'
 
 const reg = (over: Partial<Regulatorio> = {}): Regulatorio => ({
-  productoId: 'p', registroSanitario: 'EG-1234', rsVence: '2030-01-01', estadoValidacion: 'VALIDADO', ...over,
+  productoId: 'p', registroSanitario: 'EG-1234', rsVence: '2030-01-01', ...over,
 })
 
 describe('registro sanitario', () => {
@@ -19,14 +19,15 @@ describe('registro sanitario', () => {
     expect(r.puede).toBe(false)
     if (!r.puede) expect(r.motivo).toBe('RS_VENCIDO')
   })
-  it('un producto sin validar no se aprueba', () => {
-    const r = puedeAprobarse(reg({ estadoValidacion: 'PENDIENTE' }), '2026-10-07')
+  it('sin vencimiento del registro no se aprueba', () => {
+    const r = puedeAprobarse(reg({ rsVence: undefined }), '2026-10-07')
     expect(r.puede).toBe(false)
+    if (!r.puede) expect(r.motivo).toBe('SIN_REGISTRO')
   })
   it('un producto sin registro cargado no se aprueba', () => {
     expect(puedeAprobarse(reg({ registroSanitario: undefined }), '2026-10-07').puede).toBe(false)
   })
-  it('validado y vigente sí se aprueba', () => {
+  it('con registro y vencimiento cargados y vigente sí se aprueba, sin segunda validación', () => {
     expect(puedeAprobarse(reg(), '2026-10-07').puede).toBe(true)
   })
 })

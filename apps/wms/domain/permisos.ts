@@ -28,7 +28,8 @@ export function puede(roles: readonly Rol[], accion: Accion): boolean {
 /** Quién da de alta un producto y quién lo valida (Sandra crea, Katia valida). */
 export const puedeCrearProducto = (roles: readonly Rol[]) =>
   roles.includes('asistente_dt') || roles.includes('direccion_tecnica')
-export const puedeValidarProducto = (roles: readonly Rol[]) => roles.includes('direccion_tecnica')
+/** D-37: Katia (direccion_tecnica) y Sandra (asistente_dt) tienen la misma autoridad sobre los datos regulatorios. */
+export const puedeEditarRegulatorio = (roles: readonly Rol[]) => roles.includes('direccion_tecnica') || roles.includes('asistente_dt')
 
 export function rolesDesdeTexto(valor: string | undefined | null): Rol[] {
   if (!valor) return []

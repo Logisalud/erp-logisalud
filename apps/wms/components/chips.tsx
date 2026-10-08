@@ -1,5 +1,5 @@
 import { Ban, CheckCircle2, Undo2, CircleDashed, Clock, Hourglass, MessageSquareWarning, ShieldAlert, ShieldCheck, TriangleAlert } from 'lucide-react'
-import type { Estado, EstadoValidacion } from '@/domain/tipos'
+import type { Estado } from '@/domain/tipos'
 import type { SituacionRS } from '@/domain/regulatorio'
 import { ETIQUETA_ESTADO } from '@/domain/estados'
 
@@ -29,20 +29,6 @@ export function ChipRS({ situacion, className = '' }: { situacion: SituacionRS; 
     VENCIDO: { cls: 'border-red-200 bg-red-50 text-red-800', Icono: ShieldAlert, t: 'Registro vencido' },
     SIN_DATO: { cls: 'border-gray-200 bg-gray-100 text-gray-700', Icono: CircleDashed, t: 'Sin registro' },
   }[situacion]
-  return (
-    <span className={`${base} ${m.cls} ${className}`}>
-      <m.Icono className="h-3.5 w-3.5" aria-hidden />
-      {m.t}
-    </span>
-  )
-}
-
-export function ChipValidacion({ estado, className = '' }: { estado: EstadoValidacion; className?: string }) {
-  const m = {
-    VALIDADO: { cls: 'border-green-200 bg-green-50 text-green-800', Icono: CheckCircle2, t: 'Validado' },
-    PENDIENTE: { cls: 'border-gray-300 bg-gray-100 text-gray-800', Icono: Clock, t: 'Por validar' },
-    OBSERVADO: { cls: 'border-amber-300 bg-amber-50 text-amber-900', Icono: MessageSquareWarning, t: 'Con observación' },
-  }[estado]
   return (
     <span className={`${base} ${m.cls} ${className}`}>
       <m.Icono className="h-3.5 w-3.5" aria-hidden />

@@ -94,20 +94,40 @@ export interface Producto {
   estado: 'activo' | 'inactivo'
 }
 
-export type EstadoValidacion = 'PENDIENTE' | 'VALIDADO' | 'OBSERVADO'
-
+/** Datos regulatorios (D-37): los edita Dirección Técnica (Katia o Sandra) sin segunda validación; cada cambio queda en el historial. */
 export interface Regulatorio {
   productoId: string
   registroSanitario?: string
   rsVence?: string
-  fabricante?: string
   formaPresentacion?: string
-  estadoValidacion: EstadoValidacion
-  observacion?: string
+  concentracion?: string
+  fabricante?: string
+  condicionAlmacenamiento?: string
   creadoPor?: string
-  validadoPor?: string
-  validadoEn?: string
 }
+
+/** Un cambio de un dato regulatorio: campo, valor anterior y nuevo, quién, cuándo y por qué. */
+export interface CambioRegulatorio {
+  id: string
+  productoId: string
+  campo: CampoRegulatorio
+  antes?: string
+  despues?: string
+  usuario: string
+  ts: string
+  motivo: string
+}
+
+export type CampoRegulatorio = 'registro_sanitario' | 'rs_vence' | 'forma_presentacion' | 'concentracion' | 'fabricante' | 'condicion_almacenamiento'
+
+export const CAMPOS_REGULATORIOS: readonly { campo: CampoRegulatorio; clave: keyof Omit<Regulatorio, 'productoId' | 'creadoPor'>; etiqueta: string }[] = [
+  { campo: 'registro_sanitario', clave: 'registroSanitario', etiqueta: 'Registro sanitario' },
+  { campo: 'rs_vence', clave: 'rsVence', etiqueta: 'Vencimiento del registro' },
+  { campo: 'forma_presentacion', clave: 'formaPresentacion', etiqueta: 'Forma farmacéutica' },
+  { campo: 'concentracion', clave: 'concentracion', etiqueta: 'Concentración' },
+  { campo: 'fabricante', clave: 'fabricante', etiqueta: 'Fabricante' },
+  { campo: 'condicion_almacenamiento', clave: 'condicionAlmacenamiento', etiqueta: 'Condición de almacenamiento' },
+]
 
 export interface Lote {
   id: string

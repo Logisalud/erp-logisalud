@@ -1,4 +1,4 @@
-import type { EventoAuditoria } from '@/domain/tipos'
+import type { CambioRegulatorio, EventoAuditoria } from '@/domain/tipos'
 import type { Panorama } from '@/domain/panorama'
 import type {
   ActaRecepcionVista, AlertaVista, CambioVista, ExpedienteVista, FirmaVista, OcPendiente, OrganolepticaVista, VersionSolicitud,
@@ -92,6 +92,7 @@ export interface EstadoDemo {
   panorama: Panorama
   auditoria: EventoAuditoria[]
   contador: number
+  cambiosRegulatorios: CambioRegulatorio[]
   solicitudes: SolicitudDemo[]
   actas: ActaDemo[]
   organolepticas: OrganolepticaVista[]
@@ -122,10 +123,11 @@ export function estado(): EstadoDemo {
     g.__wmsDemo = {
       panorama,
       contador: 6,
+      cambiosRegulatorios: [],
       solicitudes: [], actas: [], organolepticas: [], alertas: [], expedientes: [], compras: [], correlativos: {},
       aprobadoEn: {}, plazoPorTrasladarHoras: 24, plazoRegistroComprasHoras: 24, diasAlertaVencimiento: 90,
       auditoria: [
-        { id: 6, ts: ts(0, '08:12'), actor: 'Dirección Técnica (demo)', evento: 'producto_validado', entidad: 'producto_regulatorio', entidadId: 'DEMO-019', detalle: 'Registro sanitario validado' },
+        { id: 6, ts: ts(0, '08:12'), actor: 'Dirección Técnica (demo)', evento: 'regulatorio_editado', entidad: 'producto_regulatorio', entidadId: 'DEMO-019', detalle: 'Registro sanitario actualizado', motivo: 'Renovación del registro' },
         { id: 5, ts: ts(0, '07:40'), actor: 'Asistente DT (demo)', evento: 'producto_creado', entidad: 'productos', entidadId: 'DEMO-020', detalle: 'Alta de producto' },
         { id: 4, ts: ts(-1, '16:05'), actor: 'Administración (demo)', evento: 'update', entidad: 'asignaciones_posicion', entidadId: 'G-7.1', detalle: 'Asignación de AJR Labs registrada desde la adenda (por confirmar firma)' },
         { id: 3, ts: ts(-1, '15:50'), actor: 'Administración (demo)', evento: 'insert', entidad: 'posiciones', entidadId: 'A-27.1', detalle: 'Posición creada: el rack A llega a A-27' },

@@ -1,6 +1,9 @@
-import type { EventoAuditoria } from '@/domain/tipos'
+import { CAMPOS_REGULATORIOS, type CambioRegulatorio, type EventoAuditoria, type Regulatorio } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
-import { autorizarAltaProducto, autorizarValidacion, validarEntradaProducto, type EntradaProducto } from '@/domain/productos'
+import {
+  autorizarAltaProducto, autorizarEdicionRegulatoria, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio,
+  type DatosRegulatorios, type EntradaProducto,
+} from '@/domain/productos'
 import { estado, registrar } from './estado'
 import { EntradasDemo } from './entradas-demo'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
@@ -32,32 +35,48 @@ export class RepositorioDemo extends EntradasDemo implements Repositorio {
       reg: {
         productoId: id, registroSanitario: entrada.registroSanitario?.trim() || undefined, rsVence: v.rsVence,
         fabricante: entrada.fabricante?.trim() || undefined, formaPresentacion: entrada.formaPresentacion?.trim() || undefined,
-        estadoValidacion: 'PENDIENTE', creadoPor: actor.id,
+        concentracion: entrada.concentracion?.trim() || undefined, condicionAlmacenamiento: entrada.condicionAlmacenamiento?.trim() || undefined,
+        creadoPor: actor.id,
       },
     }
     e.panorama.productos.push(prod)
-    registrar(e, actor, 'producto_creado', 'productos', codigo, 'Alta de producto (pendiente de validar)')
+    registrar(e, actor, 'producto_creado', 'productos', codigo, 'Alta de producto')
+    for (const c of CAMPOS_REGULATORIOS) {
+      const valor = prod.reg![c.clave]
+      if (valor) e.cambiosRegulatorios.unshift({ id: `${id}:${c.campo}:${e.cambiosRegulatorios.length}`, productoId: id, campo: c.campo, despues: valor, usuario: actor.nombre, ts: new Date().toISOString(), motivo: 'Alta del producto' })
+    }
     return { ok: true, id }
   }
 
-  async decidirProducto(id: string, decision: 'VALIDADO' | 'OBSERVADO', observacion: string | undefined, actor: Actor): Promise<ResultadoAccion> {
-    const permiso = autorizarValidacion(actor.roles)
+  async editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, actor: Actor): Promise<ResultadoAccion<{ cambios: number }>> {
+    const permiso = autorizarEdicionRegulatoria(actor.roles)
     if (permiso) return { ok: false, mensaje: permiso }
+    const errMotivo = validarMotivoRegulatorio(motivo)
+    if (errMotivo) return { ok: false, mensaje: errMotivo, errores: { motivo: errMotivo } }
     const e = estado()
     const prod = e.panorama.productos.find((p) => p.id === id)
-    if (!prod?.reg) return { ok: false, mensaje: 'El producto no tiene datos regulatorios cargados.' }
-    if (decision === 'VALIDADO' && (!prod.reg.registroSanitario || !prod.reg.rsVence)) {
-      return { ok: false, mensaje: 'Para validar hacen falta el registro sanitario y su vencimiento.' }
+    if (!prod) return { ok: false, mensaje: 'No encontramos ese producto.' }
+    const actual: Regulatorio = prod.reg ?? { productoId: id, creadoPor: actor.id }
+    const v = validarEdicionRegulatoria(datos, actual)
+    if (!v.ok) return { ok: false, mensaje: 'Revisa los campos marcados.', errores: v.errores as Record<string, string> }
+    const nuevo: Regulatorio = { ...actual }
+    const cambios: CambioRegulatorio[] = []
+    for (const c of CAMPOS_REGULATORIOS) {
+      const crudo = (v.datos as Record<string, string | undefined>)[c.clave]
+      if (crudo === undefined) continue
+      const despues = crudo.trim() || undefined
+      const antes = actual[c.clave]
+      if (antes === despues) continue
+      ;(nuevo as unknown as Record<string, string | undefined>)[c.clave] = despues
+      cambios.push({ id: `${id}:${c.campo}:${e.cambiosRegulatorios.length + cambios.length}`, productoId: id, campo: c.campo, antes, despues, usuario: actor.nombre, ts: new Date().toISOString(), motivo: motivo.trim() })
     }
-    if (decision === 'OBSERVADO' && !observacion?.trim()) {
-      return { ok: false, mensaje: 'Al observar un producto hay que decir qué falta o qué está mal.' }
-    }
-    prod.reg = {
-      ...prod.reg, estadoValidacion: decision, observacion: observacion?.trim() || undefined,
-      validadoPor: decision === 'VALIDADO' ? actor.id : undefined, validadoEn: decision === 'VALIDADO' ? new Date().toISOString() : undefined,
-    }
-    registrar(e, actor, `producto_${decision.toLowerCase()}`, 'producto_regulatorio', prod.codigo,
-      decision === 'VALIDADO' ? 'Registro sanitario validado' : 'Producto observado', observacion)
-    return { ok: true }
+    prod.reg = nuevo
+    e.cambiosRegulatorios.unshift(...cambios.reverse())
+    if (cambios.length) registrar(e, actor, 'regulatorio_editado', 'producto_regulatorio', prod.codigo, `Datos regulatorios actualizados (${cambios.length})`, motivo.trim())
+    return { ok: true, cambios: cambios.length }
+  }
+
+  async historialRegulatorio(id: string): Promise<CambioRegulatorio[]> {
+    return estado().cambiosRegulatorios.filter((c) => c.productoId === id)
   }
 }

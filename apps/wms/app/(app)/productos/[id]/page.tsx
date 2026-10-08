@@ -4,11 +4,12 @@ import { ArrowLeft, CheckCircle2, MapPin } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { filasDeStock } from '@/domain/panorama'
-import { puedeValidarProducto } from '@/domain/permisos'
+import { puedeEditarRegulatorio } from '@/domain/permisos'
+import { CAMPOS_REGULATORIOS } from '@/domain/tipos'
 import { diasHasta, situacionRS } from '@/domain/regulatorio'
-import { formatoFecha } from '@/domain/fechas'
-import { ChipEstado, ChipPorTrasladar, ChipRS, ChipValidacion } from '@/components/chips'
-import { PanelValidacion } from '@/components/panel-validacion'
+import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
+import { ChipEstado, ChipPorTrasladar, ChipRS } from '@/components/chips'
+import { FormRegulatorio } from '@/components/form-regulatorio'
 import { vistaPropietario } from '@/components/propietarios-color'
 
 export const metadata = { title: 'Producto — WMS LOGISALUD' }
@@ -23,7 +24,8 @@ export default async function DetalleProducto({ params, searchParams }: { params
   const sit = situacionRS(reg?.rsVence, p.hoy)
   const stock = filasDeStock(p).filter((f) => f.producto.id === prod.id)
   const total = stock.reduce((n, f) => n + f.saldo.cantidad, 0)
-  const puedeValidar = puedeValidarProducto(ctx.roles) && reg && reg.estadoValidacion !== 'VALIDADO'
+  const puedeEditar = puedeEditarRegulatorio(ctx.roles)
+  const historial = await repositorio().historialRegulatorio(prod.id)
 
   const dato = (k: string, v: string | undefined | null) => (
     <div className="flex flex-col gap-0.5 py-3 sm:flex-row sm:items-baseline sm:gap-6">
@@ -41,7 +43,7 @@ export default async function DetalleProducto({ params, searchParams }: { params
           <CheckCircle2 className="h-6 w-6 shrink-0" aria-hidden />
           <div>
             <p className="font-medium">Listo. El producto quedó dado de alta.</p>
-            <p className="text-sm">Ahora Dirección Técnica lo valida. Mientras tanto no se pueden aprobar lotes de este producto.</p>
+            <p className="text-sm">Sus datos regulatorios ya rigen. Cualquier cambio posterior queda en el historial con su motivo.</p>
           </div>
         </div>
       )}
@@ -50,15 +52,9 @@ export default async function DetalleProducto({ params, searchParams }: { params
         <p className="text-sm text-gray-600">{prod.codigo}</p>
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">{prod.descripcion}</h1>
         {prod.presentacion && <p className="mt-1 text-gray-700">{prod.presentacion}</p>}
-        {reg && <div className="mt-3 flex flex-wrap gap-2"><ChipValidacion estado={reg.estadoValidacion} /><ChipRS situacion={sit} /></div>}
+        {reg && <div className="mt-3 flex flex-wrap gap-2"><ChipRS situacion={sit} /></div>}
       </header>
 
-      {reg?.estadoValidacion === 'OBSERVADO' && reg.observacion && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="observacion">
-          <p className="font-medium">Dirección Técnica devolvió este producto</p>
-          <p className="mt-1">{reg.observacion}</p>
-        </div>
-      )}
       {sit === 'VENCIDO' && reg?.rsVence && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
           <p className="font-medium">El registro sanitario venció hace {Math.abs(diasHasta(reg.rsVence, p.hoy))} días</p>
@@ -67,13 +63,14 @@ export default async function DetalleProducto({ params, searchParams }: { params
       )}
 
       <section className="card" aria-labelledby="reg">
-        <h2 id="reg" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Registro sanitario</h2>
+        <h2 id="reg" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Datos regulatorios</h2>
         <dl className="mt-1 divide-y divide-gray-100">
-          {dato('Número', reg?.registroSanitario)}
+          {dato('Número de registro', reg?.registroSanitario)}
           {dato('Vence', reg?.rsVence ? `${formatoFecha(reg.rsVence)}${sit === 'POR_VENCER' ? ` (en ${diasHasta(reg.rsVence, p.hoy)} días)` : ''}` : undefined)}
-          {dato('Fabricante', reg?.fabricante)}
           {dato('Forma farmacéutica', reg?.formaPresentacion)}
-          {dato('Validado', reg?.estadoValidacion === 'VALIDADO' && reg.validadoEn ? `Dirección Técnica · ${formatoFecha(reg.validadoEn.slice(0, 10))}` : reg?.estadoValidacion === 'VALIDADO' ? 'Dirección Técnica' : 'Todavía no')}
+          {dato('Concentración', reg?.concentracion)}
+          {dato('Fabricante', reg?.fabricante)}
+          {dato('Condición de almacenamiento', reg?.condicionAlmacenamiento)}
         </dl>
       </section>
 
@@ -86,13 +83,29 @@ export default async function DetalleProducto({ params, searchParams }: { params
         </dl>
       </section>
 
-      {puedeValidar && (
-        <section className="card border-2 border-teal-400" aria-labelledby="validar" data-testid="panel-validacion">
-          <h2 id="validar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Tu decisión</h2>
-          <p className="mb-3 mt-1 text-sm text-gray-600">Al validar queda registrado que fuiste tú y cuándo. Si algo no cuadra, devuélvelo con una observación.</p>
-          <PanelValidacion productoId={prod.id} />
+      {puedeEditar && (
+        <section className="card border-2 border-teal-400" aria-labelledby="editar" data-testid="panel-regulatorio">
+          <h2 id="editar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Editar datos regulatorios</h2>
+          <p className="mb-3 mt-1 text-sm text-gray-600">Katia y Sandra tienen la misma autoridad. El cambio rige de inmediato y queda registrado con tu nombre, la fecha y el motivo.</p>
+          <FormRegulatorio productoId={prod.id} reg={reg} />
         </section>
       )}
+
+      <section className="card" aria-labelledby="historial" data-testid="historial-regulatorio">
+        <h2 id="historial" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Historial de cambios</h2>
+        {historial.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-600">Todavía no hay cambios registrados.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-gray-100">
+            {historial.map((c) => (
+              <li key={c.id} className="py-3 text-sm">
+                <p className="text-gray-900"><strong>{CAMPOS_REGULATORIOS.find((x) => x.campo === c.campo)?.etiqueta ?? c.campo}</strong>: {c.antes ?? '—'} → <strong>{c.despues ?? '—'}</strong></p>
+                <p className="text-gray-600">{c.usuario} · {formatoFechaHora(c.ts)} · {c.motivo}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section aria-labelledby="donde">
         <h2 id="donde" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Dónde está</h2>

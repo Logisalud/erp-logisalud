@@ -853,8 +853,6 @@ export class MotorEntradas {
       organolepticas: e.organolepticas.filter((o) => o.estado === 'PENDIENTE_DT').map((o) => structuredClone(o)),
       borradores: e.organolepticas.filter((o) => o.estado === 'BORRADOR').map((o) => structuredClone(o)),
       decididas: e.organolepticas.filter((o) => o.estado === 'FIRMADA').sort((a, b) => (b.decididoEn ?? '').localeCompare(a.decididoEn ?? '')).slice(0, 10).map((o) => structuredClone(o)),
-      productosPorValidar: e.panorama.productos.filter((p) => p.reg && p.reg.estadoValidacion !== 'VALIDADO')
-        .map((p) => ({ id: p.id, codigo: p.codigo, descripcion: p.descripcion, estado: p.reg!.estadoValidacion })),
       alertas: alertas.filter((a) => a.estado === 'ABIERTA' && a.destinatario === 'direccion_tecnica'),
     }
   }

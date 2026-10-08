@@ -6,35 +6,31 @@ import { puedeCrearProducto } from '@/domain/permisos'
 import { situacionRS, type SituacionRS } from '@/domain/regulatorio'
 import { puntaje } from '@/domain/busqueda'
 import { formatoFecha } from '@/domain/fechas'
-import { ChipRS, ChipValidacion } from '@/components/chips'
+import { ChipRS } from '@/components/chips'
 import { FiltrosProductos } from '@/components/filtros-productos'
-import type { EstadoValidacion } from '@/domain/tipos'
 
 export const metadata = { title: 'Productos — WMS LOGISALUD' }
 
-const VALIDACIONES: EstadoValidacion[] = ['PENDIENTE', 'OBSERVADO', 'VALIDADO']
 const RS: SituacionRS[] = ['VENCIDO', 'POR_VENCER', 'VIGENTE', 'SIN_DATO']
 
 export default async function PaginaProductos({
   searchParams,
-}: { searchParams: { q?: string; validacion?: string; rs?: string; creado?: string } }) {
+}: { searchParams: { q?: string; rs?: string; creado?: string } }) {
   const ctx = await exigirContexto()
   const p = await repositorio().panorama()
   const q = (searchParams.q ?? '').trim()
-  const validacion = VALIDACIONES.find((v) => v === searchParams.validacion)
   const rs = RS.find((v) => v === searchParams.rs)
 
   const filas = p.productos
     .map((prod) => ({ prod, sit: situacionRS(prod.reg?.rsVence, p.hoy) }))
     .filter(({ prod, sit }) => {
-      if (validacion && prod.reg?.estadoValidacion !== validacion) return false
       if (rs && sit !== rs) return false
       if (q && Math.max(puntaje(q, prod.descripcion), puntaje(q, prod.codigo), puntaje(q, prod.principioActivo ?? ''), puntaje(q, prod.reg?.registroSanitario ?? '')) === 0) return false
       return true
     })
     .sort((a, b) => a.prod.descripcion.localeCompare(b.prod.descripcion, 'es'))
 
-  const hayFiltros = !!(q || validacion || rs)
+  const hayFiltros = !!(q || rs)
 
   return (
     <div className="space-y-5">
@@ -48,7 +44,7 @@ export default async function PaginaProductos({
         )}
       </header>
 
-      <FiltrosProductos q={q} validacion={validacion} rs={rs} />
+      <FiltrosProductos q={q} rs={rs} />
 
       <p className="text-sm text-gray-600" aria-live="polite" data-testid="conteo-productos">
         {filas.length === p.productos.length ? `${filas.length} productos` : `${filas.length} de ${p.productos.length} productos`}
@@ -71,7 +67,6 @@ export default async function PaginaProductos({
                   <th className="px-4 py-3 font-semibold">Producto</th>
                   <th className="px-4 py-3 font-semibold">Registro sanitario</th>
                   <th className="px-4 py-3 font-semibold">Vence</th>
-                  <th className="px-4 py-3 font-semibold">Validación</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -86,7 +81,6 @@ export default async function PaginaProductos({
                       <span className="tabular mr-2 text-gray-800">{formatoFecha(prod.reg?.rsVence)}</span>
                       {prod.reg && <ChipRS situacion={sit} />}
                     </td>
-                    <td className="px-4 py-3">{prod.reg ? <ChipValidacion estado={prod.reg.estadoValidacion} /> : <span className="text-gray-500">Sin datos</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -102,7 +96,6 @@ export default async function PaginaProductos({
                   <p className="tabular mt-2 text-sm text-gray-800">RS {prod.reg?.registroSanitario ?? '—'} · vence {formatoFecha(prod.reg?.rsVence)}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {prod.reg && <ChipRS situacion={sit} />}
-                    {prod.reg && <ChipValidacion estado={prod.reg.estadoValidacion} />}
                   </div>
                 </Link>
               </li>

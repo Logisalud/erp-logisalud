@@ -7,7 +7,7 @@ import { repositorio } from '@/services/repositorio-actual'
 import {
   alertasRegulatorias, ocupacionPorPropietario, unidadesEnEstado, unidadesPorTrasladar, type Panorama,
 } from '@/domain/panorama'
-import { puede, puedeCrearProducto, puedeValidarProducto } from '@/domain/permisos'
+import { puede, puedeCrearProducto, puedeEditarRegulatorio } from '@/domain/permisos'
 import { puedePrepararSolicitud } from '@/domain/entradas'
 import type { Rol } from '@/domain/tipos'
 import { vistaPropietario } from '@/components/propietarios-color'
@@ -75,19 +75,13 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   const trasladar = unidadesPorTrasladar(p)
   const docsPorConfirmar = p.documentos.filter((d) => d.estadoConfirmacion === 'POR_CONFIRMAR')
 
-  if (puedeValidarProducto(roles) && a.pendientesDeValidar.length > 0) {
-    avisos.push({ clave: 'validar', Icono: Clock, texto: 'Registros sanitarios esperando tu validación', detalle: 'Sandra cargó o corrigió el registro de estos productos. Hasta que lo valides no se pueden aprobar sus lotes.', cantidad: a.pendientesDeValidar.length, unidad: pl(a.pendientesDeValidar.length, 'producto', 'productos'), href: '/productos?validacion=PENDIENTE', tono: 'atencion' })
-  }
-  if (puedeCrearProducto(roles) && !puedeValidarProducto(roles) && a.observados.length > 0) {
-    avisos.push({ clave: 'observados', Icono: MessageSquareWarning, texto: 'Productos devueltos con observación', detalle: 'Corrígelos para que Dirección Técnica los valide.', cantidad: a.observados.length, unidad: pl(a.observados.length, 'producto', 'productos'), href: '/productos?validacion=OBSERVADO', tono: 'atencion' })
-  }
-  if ((puedeCrearProducto(roles) || puedeValidarProducto(roles)) && a.vencidos.length > 0) {
+  if ((puedeEditarRegulatorio(roles)) && a.vencidos.length > 0) {
     avisos.push({ clave: 'rs-vencido', Icono: ShieldAlert, texto: 'Registros sanitarios vencidos', detalle: 'Sus lotes no se pueden aprobar hasta resolverlo.', cantidad: a.vencidos.length, unidad: pl(a.vencidos.length, 'producto', 'productos'), href: '/productos?rs=VENCIDO', tono: 'atencion' })
   }
-  if ((puedeCrearProducto(roles) || puedeValidarProducto(roles)) && a.porVencer.length > 0) {
+  if ((puedeEditarRegulatorio(roles)) && a.porVencer.length > 0) {
     avisos.push({ clave: 'rs-por-vencer', Icono: Clock, texto: 'Registros sanitarios por vencer (90 días)', cantidad: a.porVencer.length, unidad: pl(a.porVencer.length, 'producto', 'productos'), href: '/productos?rs=POR_VENCER', tono: 'info' })
   }
-  if (puedeCrearProducto(roles) && a.sinRegistro.length > 0) {
+  if (puedeEditarRegulatorio(roles) && a.sinRegistro.length > 0) {
     avisos.push({ clave: 'sin-registro', Icono: FilePlus2, texto: 'Productos sin registro sanitario cargado', cantidad: a.sinRegistro.length, unidad: pl(a.sinRegistro.length, 'producto', 'productos'), href: '/productos?rs=SIN_DATO', tono: 'atencion' })
   }
   if (roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'direccion_tecnica'].includes(r)) && trasladar > 0) {

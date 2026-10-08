@@ -3,11 +3,10 @@ import { ArrowRight, CheckCircle2, ClipboardList, ShieldAlert } from 'lucide-rea
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { formatoFecha } from '@/domain/fechas'
-import { ChipEstado, ChipValidacion } from '@/components/chips'
+import { ChipEstado } from '@/components/chips'
 import { Aviso } from '@/components/entradas/aviso'
 import { ChipActa, ChipAlerta } from '@/components/entradas/chips-entradas'
 import type { OrganolepticaVista } from '@/domain/entradas-vistas'
-import type { EstadoValidacion } from '@/domain/tipos'
 
 export const metadata = { title: 'Calidad — WMS LOGISALUD' }
 
@@ -68,18 +67,6 @@ export default async function Calidad() {
           ? <div className="card text-sm text-gray-700">No hay actas por llenar.</div>
           : <ul className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white">{cola.borradores.map((o) => <Fila key={o.id} o={o} hoy={panorama.hoy} />)}</ul>}
       </section>
-
-      {cola.productosPorValidar.length > 0 && esDT && (
-        <section aria-labelledby="validar">
-          <h2 id="validar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Registros sanitarios por validar</h2>
-          <p className="mt-1 text-sm text-gray-600">Productos cuyo registro sanitario (número, vencimiento, fabricante) cargó o corrigió Sandra. Hasta que lo valides, sus lotes no se pueden aprobar.</p>
-          <ul className="mt-3 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white">
-            {cola.productosPorValidar.map((p) => (
-              <li key={p.id}><Link href={`/productos/${p.id}`} className="flex min-h-14 items-center justify-between gap-3 px-4 py-2.5 hover:bg-gray-50"><span className="min-w-0 truncate"><span className="font-medium text-gray-900">{p.descripcion}</span> <span className="text-sm text-gray-600">{p.codigo}</span></span><ChipValidacion estado={p.estado as EstadoValidacion} /></Link></li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {cola.decididas.length > 0 && (
         <section aria-labelledby="decididas">

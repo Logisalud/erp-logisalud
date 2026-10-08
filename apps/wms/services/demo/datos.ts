@@ -82,15 +82,12 @@ export function construirPanoramaDemo(hoy: string): Panorama {
     const base: Regulatorio = {
       productoId: `prod:${n}`, registroSanitario: `EG-${String(10000 + n * 37)}`, rsVence: sumarDias(hoy, 365 + n * 40),
       fabricante: 'Laboratorio de demostración', formaPresentacion: x.um === 'TABLETA' ? 'Tableta' : x.um === 'AMPOLLA' ? 'Solución inyectable' : 'Según presentación',
-      estadoValidacion: 'VALIDADO', creadoPor: 'demo:sandra', validadoPor: 'demo:katia', validadoEn: `${sumarDias(hoy, -60 - n)}T10:00:00Z`,
+      concentracion: x.um === 'TABLETA' ? '500 mg' : undefined, condicionAlmacenamiento: 'Conservar a menos de 30 °C', creadoPor: 'demo:sandra',
     }
     if (n === 4) reg = { ...base, rsVence: sumarDias(hoy, 45) } // por vencer
     else if (n === 9) reg = { ...base, rsVence: sumarDias(hoy, 78) } // por vencer
     else if (n === 15) reg = { ...base, rsVence: sumarDias(hoy, -12) } // vencido
-    else if (n === 20) reg = { ...base, estadoValidacion: 'PENDIENTE', validadoPor: undefined, validadoEn: undefined }
-    else if (n === 21) reg = { ...base, estadoValidacion: 'PENDIENTE', validadoPor: undefined, validadoEn: undefined, rsVence: sumarDias(hoy, 700) }
-    else if (n === 22) reg = { ...base, estadoValidacion: 'OBSERVADO', validadoPor: undefined, validadoEn: undefined, observacion: 'El vencimiento del registro no coincide con el certificado. Revisa la fecha.' }
-    else if (n === 23) reg = { ...base, estadoValidacion: 'PENDIENTE', registroSanitario: undefined, rsVence: undefined, validadoPor: undefined, validadoEn: undefined }
+    else if (n === 23) reg = { ...base, registroSanitario: undefined, rsVence: undefined } // sin registro cargado (Dirección Técnica debe completarlo)
     else reg = base
     return {
       id: `prod:${n}`, codigo: `DEMO-${String(n).padStart(3, '0')}`, descripcion: x.desc, presentacion: x.pres,

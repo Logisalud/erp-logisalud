@@ -2,12 +2,13 @@
 
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { exigirContexto, obtenerContexto } from '@/lib/contexto'
 import { modoDemoActivo } from '@/lib/demo'
 import { COOKIE_ROL_DEMO, rolDemoDesdeCookie } from '@/lib/sesion-demo'
 import { repositorio } from '@/services/repositorio-actual'
 import { buscar, type ResultadoBusqueda } from '@/domain/panorama'
-import type { EntradaProducto } from '@/domain/productos'
+import type { DatosRegulatorios, EntradaProducto } from '@/domain/productos'
 import type { ResultadoAccion } from '@/services/repositorio'
 
 export async function entrarDemo(formData: FormData) {
@@ -46,7 +47,8 @@ export async function crearProductoAccion(_prev: EstadoFormulario, formData: For
     marca: campo(formData, 'marca'), principioActivo: campo(formData, 'principioActivo'),
     unidadMedida: campo(formData, 'unidadMedida'), registroSanitario: campo(formData, 'registroSanitario'),
     rsVence: campo(formData, 'rsVence'), fabricante: campo(formData, 'fabricante'),
-    formaPresentacion: campo(formData, 'formaPresentacion'),
+    formaPresentacion: campo(formData, 'formaPresentacion'), concentracion: campo(formData, 'concentracion'),
+    condicionAlmacenamiento: campo(formData, 'condicionAlmacenamiento'),
   }
   const r: ResultadoAccion<{ id: string }> = await repositorio().crearProducto(entrada, {
     id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles,
@@ -55,15 +57,19 @@ export async function crearProductoAccion(_prev: EstadoFormulario, formData: For
   redirect(`/productos/${r.id}?creado=1`)
 }
 
-export async function decidirProductoAccion(_prev: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
+export async function editarRegulatorioAccion(_prev: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
   const ctx = await exigirContexto()
   const id = campo(formData, 'id')
-  const decision = campo(formData, 'decision') === 'VALIDADO' ? 'VALIDADO' : 'OBSERVADO'
-  const r = await repositorio().decidirProducto(id, decision, campo(formData, 'observacion') || undefined, {
+  const datos: DatosRegulatorios = {}
+  for (const k of ['registroSanitario', 'rsVence', 'formaPresentacion', 'concentracion', 'fabricante', 'condicionAlmacenamiento'] as const) {
+    datos[k] = campo(formData, k)
+  }
+  const r = await repositorio().editarRegulatorio(id, datos, campo(formData, 'motivo'), {
     id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles,
   })
-  if (!r.ok) return { ok: false, mensaje: r.mensaje }
-  return { ok: true, mensaje: decision === 'VALIDADO' ? 'Listo. Producto validado.' : 'Listo. Devolvimos el producto con tu observación.' }
+  if (!r.ok) return { ok: false, mensaje: r.mensaje, errores: r.errores }
+  revalidatePath(`/productos/${id}`)
+  return { ok: true, mensaje: r.cambios === 0 ? 'No hubo nada que cambiar.' : `Listo. Guardamos ${r.cambios} ${r.cambios === 1 ? 'cambio' : 'cambios'} y quedaron en el historial.` }
 }
 
 /** Para pantallas que solo necesitan saber si hay sesión sin redirigir. */

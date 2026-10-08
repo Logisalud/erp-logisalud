@@ -71,8 +71,7 @@ describe('resúmenes para el mapa y el inicio', () => {
     const a = alertasRegulatorias(p)
     expect(a.vencidos.map((x) => x.codigo)).toEqual(['DEMO-015'])
     expect(a.porVencer.map((x) => x.codigo).sort()).toEqual(['DEMO-004', 'DEMO-009'])
-    expect(a.observados).toHaveLength(1)
-    expect(a.pendientesDeValidar.length).toBeGreaterThanOrEqual(3)
+    expect(a.sinRegistro.map((x) => x.codigo)).toEqual(['DEMO-023'])
   })
 
   it('el stock de una posición lista producto, lote y estado', () => {

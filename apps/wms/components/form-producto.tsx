@@ -59,12 +59,14 @@ export function FormProducto() {
 
       <fieldset className="space-y-4">
         <legend className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Registro sanitario</legend>
-        <p className="text-sm text-gray-600">Dirección Técnica lo valida después. Mientras tanto el producto queda “por validar” y sus lotes no se pueden aprobar.</p>
+        <p className="text-sm text-gray-600">Katia y Sandra los cargan y rigen de inmediato. Sin registro sanitario y vencimiento el producto no puede aprobar lotes.</p>
         <div className="grid gap-4 md:grid-cols-2">
           <Campo nombre="registroSanitario" etiqueta="Número de registro" placeholder="EG-12345" error={e.registroSanitario} />
           <Campo nombre="rsVence" etiqueta="Vencimiento del registro" placeholder="30/06/2030" ayuda="Puedes escribir 30/06/2030, 2030-06-30 o solo 06/2030." error={e.rsVence} />
           <Campo nombre="fabricante" etiqueta="Fabricante" error={e.fabricante} />
           <Campo nombre="formaPresentacion" etiqueta="Forma farmacéutica" placeholder="Tableta recubierta" error={e.formaPresentacion} />
+          <Campo nombre="concentracion" etiqueta="Concentración" placeholder="10 mg" error={e.concentracion} />
+          <Campo nombre="condicionAlmacenamiento" etiqueta="Condición de almacenamiento" placeholder="Menos de 30 °C" error={e.condicionAlmacenamiento} />
         </div>
       </fieldset>
 

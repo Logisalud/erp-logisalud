@@ -2,10 +2,10 @@ import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
 import type {
-  Asignacion, DocumentoSustento, EventoAuditoria, Lote, Posicion, Propietario, Regulatorio, Saldo,
+  Asignacion, CambioRegulatorio, CampoRegulatorio, DocumentoSustento, EventoAuditoria, Lote, Posicion, Propietario, Regulatorio, Saldo,
 } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
-import { validarEntradaProducto, type EntradaProducto } from '@/domain/productos'
+import { validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, n, s, traerTodo, type Fila } from './util'
 import { EntradasSupabase } from './entradas-supabase'
@@ -21,9 +21,8 @@ export function mapearPosicion(r: Fila): Posicion {
 export function mapearRegulatorio(r: Fila): Regulatorio {
   return {
     productoId: String(r.producto_id), registroSanitario: s(r.registro_sanitario), rsVence: s(r.rs_vence),
-    fabricante: s(r.fabricante), formaPresentacion: s(r.forma_presentacion),
-    estadoValidacion: r.estado_validacion as Regulatorio['estadoValidacion'], observacion: s(r.observacion),
-    creadoPor: s(r.creado_por), validadoPor: s(r.validado_por), validadoEn: s(r.validado_en),
+    formaPresentacion: s(r.forma_presentacion), concentracion: s(r.concentracion), fabricante: s(r.fabricante),
+    condicionAlmacenamiento: s(r.condicion_almacenamiento), creadoPor: s(r.creado_por),
   }
 }
 
@@ -93,19 +92,46 @@ export class RepositorioSupabase extends EntradasSupabase implements Repositorio
       p_marca: entrada.marca ?? null, p_principio_activo: entrada.principioActivo ?? null,
       p_unidad_medida: entrada.unidadMedida ?? 'UND', p_registro_sanitario: entrada.registroSanitario ?? null,
       p_rs_vence: v.rsVence ?? null, p_fabricante: entrada.fabricante ?? null,
-      p_forma_presentacion: entrada.formaPresentacion ?? null,
+      p_forma_presentacion: entrada.formaPresentacion ?? null, p_concentracion: entrada.concentracion ?? null,
+      p_condicion_almacenamiento: entrada.condicionAlmacenamiento ?? null,
     })
     if (error) return { ok: false, mensaje: mensajeHumano(error) }
     return { ok: true, id: String(data) }
   }
 
-  async decidirProducto(
-    id: string, decision: 'VALIDADO' | 'OBSERVADO', observacion: string | undefined, _actor: Actor,
-  ): Promise<ResultadoAccion> {
+  async editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, _actor: Actor): Promise<ResultadoAccion<{ cambios: number }>> {
+    const errMotivo = validarMotivoRegulatorio(motivo)
+    if (errMotivo) return { ok: false, mensaje: errMotivo, errores: { motivo: errMotivo } }
     const supabase = crearClienteServidor()
-    const { error } = await supabase.schema('wms').rpc('validar_producto', {
-      p_producto: id, p_decision: decision, p_observacion: observacion ?? null,
-    })
-    return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
+    const { data: act } = await supabase.schema('wms').from('producto_regulatorio').select('registro_sanitario, rs_vence').eq('producto_id', id).maybeSingle()
+    const v = validarEdicionRegulatoria(datos, act ? { registroSanitario: s(act.registro_sanitario), rsVence: s(act.rs_vence) } : undefined)
+    if (!v.ok) return { ok: false, mensaje: 'Revisa los campos marcados.', errores: v.errores as Record<string, string> }
+    const columnas: Record<keyof DatosRegulatorios, string> = {
+      registroSanitario: 'registro_sanitario', rsVence: 'rs_vence', formaPresentacion: 'forma_presentacion',
+      concentracion: 'concentracion', fabricante: 'fabricante', condicionAlmacenamiento: 'condicion_almacenamiento',
+    }
+    const json: Record<string, string> = {}
+    for (const [k, col] of Object.entries(columnas)) {
+      const x = v.datos[k as keyof DatosRegulatorios]
+      if (x !== undefined) json[col] = x
+    }
+    const { data, error } = await supabase.schema('wms').rpc('editar_regulatorio', { p_producto: id, p_datos: json, p_motivo: motivo })
+    return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true, cambios: Number(data ?? 0) }
+  }
+
+  async historialRegulatorio(id: string): Promise<CambioRegulatorio[]> {
+    const supabase = crearClienteServidor()
+    const { data, error } = await supabase.schema('wms').from('producto_regulatorio_cambios').select('*').eq('producto_id', id).order('id', { ascending: false })
+    if (error) throw new Error(`No se pudo leer el historial: ${error.message}`)
+    const ids = [...new Set((data ?? []).map((r: Fila) => String(r.usuario)))]
+    const nombres = new Map<string, string>()
+    if (ids.length) {
+      const { data: perfiles } = await supabase.from('perfiles').select('id, nombre').in('id', ids)
+      for (const r of (perfiles ?? []) as Fila[]) nombres.set(String(r.id), String(r.nombre ?? r.id))
+    }
+    return (data ?? []).map((r: Fila) => ({
+      id: String(r.id), productoId: String(r.producto_id), campo: r.campo as CampoRegulatorio, antes: s(r.antes), despues: s(r.despues),
+      usuario: nombres.get(String(r.usuario)) ?? 'Usuario', ts: String(r.ts), motivo: String(r.motivo),
+    }))
   }
 }

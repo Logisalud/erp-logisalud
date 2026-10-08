@@ -333,7 +333,6 @@ export interface ColaDT {
   borradores: OrganolepticaVista[]
   /** Ya decididas (las más recientes). */
   decididas: OrganolepticaVista[]
-  productosPorValidar: { id: string; codigo: string; descripcion: string; estado: string }[]
   alertas: AlertaVista[]
 }
 

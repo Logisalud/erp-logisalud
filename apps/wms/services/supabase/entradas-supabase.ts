@@ -449,17 +449,12 @@ export class EntradasSupabase {
   }
 
   async colaDireccionTecnica(): Promise<ColaDT> {
-    const [c, alertas, regs, prods] = await Promise.all([
-      cargar(), this.listarAlertas(), traerTodo('producto_regulatorio', 'wms', 'producto_id, estado_validacion'),
-      traerTodo('productos', 'catalogo', 'id, codigo, descripcion'),
-    ])
-    const pendientes = new Map(regs.filter((r) => r.estado_validacion !== 'VALIDADO').map((r) => [String(r.producto_id), String(r.estado_validacion)]))
+    const [c, alertas] = await Promise.all([cargar(), this.listarAlertas()])
     const todas = armarOrganolepticas(c)
     return {
       organolepticas: todas.filter((o) => o.estado === 'PENDIENTE_DT'),
       borradores: todas.filter((o) => o.estado === 'BORRADOR'),
       decididas: todas.filter((o) => o.estado === 'FIRMADA').sort((a, b) => (b.decididoEn ?? '').localeCompare(a.decididoEn ?? '')).slice(0, 10),
-      productosPorValidar: prods.filter((p) => pendientes.has(String(p.id))).map((p) => ({ id: String(p.id), codigo: String(p.codigo), descripcion: String(p.descripcion), estado: pendientes.get(String(p.id))! })),
       alertas: alertas.filter((a) => a.estado === 'ABIERTA' && a.destinatario === 'direccion_tecnica'),
     }
   }

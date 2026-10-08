@@ -148,20 +148,16 @@ export function unidadesEnEstado(p: Panorama, estado: Estado): number {
 export interface AlertasRegulatorias {
   vencidos: ProductoConReg[]
   porVencer: ProductoConReg[]
-  pendientesDeValidar: ProductoConReg[]
-  observados: ProductoConReg[]
   sinRegistro: ProductoConReg[]
 }
 
 export function alertasRegulatorias(p: Panorama): AlertasRegulatorias {
-  const out: AlertasRegulatorias = { vencidos: [], porVencer: [], pendientesDeValidar: [], observados: [], sinRegistro: [] }
+  const out: AlertasRegulatorias = { vencidos: [], porVencer: [], sinRegistro: [] }
   for (const prod of p.productos) {
     if (prod.estado !== 'activo' || !prod.reg) continue
     const s = situacionRS(prod.reg.rsVence, p.hoy)
     if (s === 'VENCIDO') out.vencidos.push(prod)
     else if (s === 'POR_VENCER') out.porVencer.push(prod)
-    if (prod.reg.estadoValidacion === 'PENDIENTE') out.pendientesDeValidar.push(prod)
-    if (prod.reg.estadoValidacion === 'OBSERVADO') out.observados.push(prod)
     if (!prod.reg.registroSanitario) out.sinRegistro.push(prod)
   }
   return out

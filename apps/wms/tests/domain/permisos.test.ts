@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { puede, puedeCrearProducto, puedeValidarProducto, rolesDesdeTexto } from '@/domain/permisos'
+import { puede, puedeCrearProducto, puedeEditarRegulatorio, rolesDesdeTexto } from '@/domain/permisos'
 
 describe('permisos por rol', () => {
   it('solo Dirección Técnica aprueba y ajusta', () => {
@@ -17,8 +17,11 @@ describe('permisos por rol', () => {
   })
   it('Sandra crea productos; Katia los valida; nadie más', () => {
     expect(puedeCrearProducto(['asistente_dt'])).toBe(true)
-    expect(puedeValidarProducto(['asistente_dt'])).toBe(false)
-    expect(puedeValidarProducto(['direccion_tecnica'])).toBe(true)
+    // D-37: Katia y Sandra tienen la misma autoridad sobre los datos regulatorios; nadie más.
+    expect(puedeEditarRegulatorio(['asistente_dt'])).toBe(true)
+    expect(puedeEditarRegulatorio(['direccion_tecnica'])).toBe(true)
+    expect(puedeEditarRegulatorio(['jefe_almacen'])).toBe(false)
+    expect(puedeEditarRegulatorio(['auxiliar'])).toBe(false)
     expect(puedeCrearProducto(['auxiliar'])).toBe(false)
   })
   it('auditoría solo lee', () => {

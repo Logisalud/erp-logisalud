@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }))
 vi.mock('@/app/acciones-entradas', () => ({ cambiarRolDemoAccion: async () => {} }))
-import { ChipEstado, ChipPorTrasladar, ChipPorVerificar, ChipRS, ChipValidacion } from '@/components/chips'
+import { ChipEstado, ChipPorTrasladar, ChipPorVerificar, ChipRS } from '@/components/chips'
 import { BannerDemo } from '@/components/banner-demo'
 
 describe('estados: texto + ícono, nunca solo color', () => {
@@ -23,10 +23,10 @@ describe('estados: texto + ícono, nunca solo color', () => {
     expect(container.querySelectorAll('svg')).toHaveLength(4)
   })
 
-  it('validación, por verificar y por trasladar también llevan texto e ícono', () => {
-    const { container } = render(<><ChipValidacion estado="PENDIENTE" /><ChipValidacion estado="OBSERVADO" /><ChipValidacion estado="VALIDADO" /><ChipPorVerificar /><ChipPorTrasladar /></>)
-    for (const t of ['Por validar', 'Con observación', 'Validado', 'Por verificar en sitio', 'Aprobado · por trasladar']) expect(screen.getByText(t)).toBeInTheDocument()
-    expect(container.querySelectorAll('svg')).toHaveLength(5)
+  it('por verificar y por trasladar también llevan texto e ícono', () => {
+    const { container } = render(<><ChipPorVerificar /><ChipPorTrasladar /></>)
+    for (const t of ['Por verificar en sitio', 'Aprobado · por trasladar']) expect(screen.getByText(t)).toBeInTheDocument()
+    expect(container.querySelectorAll('svg')).toHaveLength(2)
   })
 })
 

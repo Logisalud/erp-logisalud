@@ -1,6 +1,6 @@
-import type { EventoAuditoria, Rol } from '@/domain/tipos'
+import type { CambioRegulatorio, EventoAuditoria, Rol } from '@/domain/tipos'
 import type { Panorama } from '@/domain/panorama'
-import type { EntradaProducto } from '@/domain/productos'
+import type { DatosRegulatorios, EntradaProducto } from '@/domain/productos'
 import type { CambioEntrada, Decision, EntradaSolicitud, TipoIngreso } from '@/domain/entradas'
 import type {
   AlertaVista, ColaDT, DatosEdicionRecepcion, DatosOrganolepticaGuardar, DatosVerificacion, ExpedienteVista, FirmaEntrada,
@@ -27,12 +27,10 @@ export interface Repositorio {
   panorama(): Promise<Panorama>
   auditoria(limite?: number): Promise<EventoAuditoria[]>
   crearProducto(entrada: EntradaProducto, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
-  decidirProducto(
-    id: string,
-    decision: 'VALIDADO' | 'OBSERVADO',
-    observacion: string | undefined,
-    actor: Actor,
-  ): Promise<ResultadoAccion>
+  /** D-37: Katia o Sandra editan los datos regulatorios; rige de inmediato y cada cambio queda con su motivo. Devuelve cuántos campos cambiaron. */
+  editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, actor: Actor): Promise<ResultadoAccion<{ cambios: number }>>
+  /** Historial de cambios regulatorios de un producto, del más reciente al más antiguo. */
+  historialRegulatorio(id: string): Promise<CambioRegulatorio[]>
 
   // ── Entradas: la solicitud es la entidad primaria (su id es el de /entradas/[id]) ───────────────
   /** Órdenes de compra de Compras (solo lectura) con saldo por recibir, para preparar una solicitud. */
