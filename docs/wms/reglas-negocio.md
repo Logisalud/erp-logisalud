@@ -125,7 +125,8 @@ Cada posición tiene tipo de área y propietario. El sistema bloquea combinacion
 - Flujo: preparar → mover → verificar → confirmar.
 - **D-15 (2026-10-08):** quien hace un movimiento no lo valida: el verificador es distinto de quien lo **preparó** y de quien lo **ejecutó**. Se aplica en dominio (`puedeVerificar`) y en base de datos (restricciones de `wms.movimientos` y `validar_movimiento`), con test.
 - Autoriza Charlie (Jefe de Almacén), o Roberto/Jasury en su ausencia.
-- Con diferencia, el movimiento queda abierto.
+- Con diferencia, queda abierta solo la línea afectada; las demás líneas del movimiento se confirman en la misma revisión.
+- Un movimiento puede llevar varias líneas: todo lo que va del mismo origen al mismo destino es un solo movimiento, con una sola autorización y una sola revisión línea por línea.
 - Se guarda: origen, destino, producto, lote, propietario, cantidad, motivo, ejecutor y verificador.
 - Corrección = movimiento inverso vinculado al original.
 - Mover no cambia el estado.

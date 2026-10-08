@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { construirPanoramaDemo } from '@/services/demo/datos'
 import {
-  accionesDeOrden, clasificarReconteo, construirKardex, entraEnKardex, fechaEnLima, parsearCargaInicial, parsearTramos,
+  accionesDeOrden, buscarDestinos, buscarOrigenes, contenidoDeUbicacion, validarDestino, clasificarReconteo, construirKardex, entraEnKardex, fechaEnLima, parsearCargaInicial, parsearTramos,
   reporteVencimientos, totalesKardex, type LoteConStock, type OrdenMovimiento, type PartidaLedger,
 } from '@/domain/inventario'
 
@@ -89,5 +90,51 @@ describe('conteos y carga inicial', () => {
   it('avisa cuando faltan columnas o el archivo está vacío', () => {
     expect(parsearCargaInicial('producto,lote\nA,B').errores[0].error).toMatch(/Faltan las columnas: vence, propietario/)
     expect(parsearCargaInicial('  \n').errores[0].error).toMatch(/vacío/)
+  })
+})
+
+describe('Mover: buscar el origen y validar el destino', () => {
+  const pan = construirPanoramaDemo('2026-10-07')
+  const loteVence = pan.lotes.find((l) => l.codigo === 'L-VENCE-PRONTO')!
+  const origenId = pan.saldos.find((s) => s.loteId === loteVence.id)!.posicionId
+  const lineasOrigen = () => contenidoDeUbicacion(pan, origenId)
+  const aValidar = () => lineasOrigen().map((l) => ({ clave: l.clave, posicionId: l.posicionId, propietarioId: l.propietarioId, propietario: l.propietario, estado: l.estado }))
+
+  it('buscar por lote encuentra la ubicación que lo tiene, con todas sus líneas', () => {
+    const r = buscarOrigenes(pan, 'L-VENCE')
+    expect(r[0]).toMatchObject({ posicionId: origenId })
+    expect(r[0].lineas).toBeGreaterThanOrEqual(2)
+    expect(r[0].coincidencias.length).toBeGreaterThan(0)
+  })
+  it('buscar por código de ubicación y sin texto', () => {
+    const cod = pan.posiciones.find((x) => x.id === origenId)!.codigo
+    expect(buscarOrigenes(pan, cod).map((x) => x.posicionId)).toContain(origenId)
+    expect(buscarOrigenes(pan, '  ')).toEqual([])
+  })
+  it('una ubicación bloqueada se ofrece, pero marcada: no se puede mover desde ahí', () => {
+    const r = buscarOrigenes(pan, 'L-VENCE', { [origenId]: 'está en conteo' })
+    expect(r[0].bloqueada).toBe('está en conteo')
+  })
+  it('las unidades reservadas por otro movimiento no están disponibles', () => {
+    const l = lineasOrigen()[0]
+    const r = contenidoDeUbicacion(pan, origenId, new Map([[l.clave, l.cantidad]]))
+    expect(r.find((x) => x.clave === l.clave)!.disponible).toBe(0)
+  })
+  it('el destino se valida por línea, con un mensaje que se entiende', () => {
+    const cuarentena = pan.posiciones.find((x) => x.tipoArea === 'CUARENTENA')!
+    const v = validarDestino(pan, cuarentena.id, aValidar())!
+    expect(v.ok).toBe(false)
+    expect(v.invalidas).toBe(v.porLinea.length)
+    expect(v.porLinea[0].mensaje).toMatch(/no admite unidades en Aprobado/)
+  })
+  it('no se mueve a la misma ubicación, ni a una inactiva o bloqueada', () => {
+    expect(validarDestino(pan, origenId, aValidar())!.porLinea.every((x) => x.mensaje === 'Ya está en esa ubicación.')).toBe(true)
+    const otra = pan.posiciones.find((x) => x.id !== origenId && x.tipoArea === 'APROBADOS')!
+    expect(validarDestino(pan, otra.id, aValidar(), { [otra.id]: 'está en conteo' })!.general).toMatch(/está en conteo/)
+  })
+  it('los destinos que sirven para todas las líneas salen primero', () => {
+    const r = buscarDestinos(pan, 'A-', aValidar())
+    const primerMalo = r.findIndex((x) => x.invalidas > 0)
+    expect(primerMalo === -1 || r.slice(primerMalo).every((x) => x.invalidas > 0)).toBe(true)
   })
 })

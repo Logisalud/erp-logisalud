@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
-import { accionesDeOrden } from '@/domain/inventario'
+import { ETIQUETA_VERIFICACION_LINEA, accionesDeOrden } from '@/domain/inventario'
 import { ETIQUETA_ESTADO } from '@/domain/estados'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { ChipOrden } from '@/components/inventario/chips-inventario'
@@ -36,6 +36,7 @@ export default async function DetalleMovimiento({ params }: { params: { id: stri
               <span className="min-w-0 flex-1"><span className="block font-medium text-gray-900">{l.producto}</span><span className="tabular text-sm text-gray-600">Lote {l.lote} · vence {formatoFecha(l.vence)} · {l.propietario} · {ETIQUETA_ESTADO[l.estado]}</span></span>
               <span className="tabular flex items-center gap-2 font-heading text-lg font-semibold tracking-wide">{l.desde}<ArrowRight className="h-4 w-4 text-gray-500" aria-hidden />{l.hacia}</span>
               <span className="tabular font-medium">{l.cantidad} u</span>
+              {o.estado !== 'PREPARADO' && o.estado !== 'AUTORIZADO' && <span className="w-full text-sm text-gray-700" data-testid="estado-linea">{ETIQUETA_VERIFICACION_LINEA[l.verificacion]}</span>}
             </li>
           ))}
         </ul>

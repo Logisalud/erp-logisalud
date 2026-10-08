@@ -122,6 +122,13 @@ Rama `feat/wms-batch-3` (desde `main` con los Batches 1 y 2 y el addendum ya mer
 **No verificado:** el adaptador de Supabase contra una base real (ni las funciones nuevas por PostgREST); el rendimiento de `kardex_filas` con volumen real; el estado del Preview es por instancia (puede reiniciarse).
 **Después del Batch 3 y antes de la salida a producción (aprobado por Sebas):** integración WMS → Compras en dos fases (D-36) y, si se aprueba, la edición de presentación y principio activo con permisos en Compras (D-38).
 
+### Rediseño del flujo «Mover» (cambio de plan, sobre el mismo PR)
+- **Búsqueda en vez de desplegables** (nombre, código, lote o ubicación; resultados al escribir, con espera y descarte de respuestas viejas). **Se empieza por el origen:** eliges la ubicación, ves todo su contenido, marcas líneas (cantidad editable, por defecto el total) o «Mover todo», y eliges **un solo destino**, que se **valida al instante** (propietario, área y estado) con un mensaje por línea antes de enviar.
+- **Movimiento multilínea:** una autorización, una revisión línea por línea; si una línea tiene diferencia solo esa queda abierta, las demás se confirman (migración 0007 editada en sitio —aún sin aplicar en ninguna base— con `revisar_movimiento`, `resolver_movimiento` por línea y `posiciones_bloqueadas`).
+- **Teléfono:** buscador grande, acción principal fija sobre la barra de navegación, mínimo tipeo (motivos rápidos).
+- Pruebas nuevas: base de datos (multilínea, diferencia en una sola línea, revisión incompleta rechazada, validación por línea, solo Katia autoriza ajustes), dominio (buscar origen, validar destino) y E2E de los dos flujos en los 4 viewports (1440: 66 · 1280: 66 · 1024: 66 · 390: 60). Detector de Impeccable: 0 hallazgos.
+- **Autoridad de ajustes:** el marcador `[ELIGE …]` del pedido llegó sin elegir. Se dejó **como está en la base: solo Katia autoriza ajustes de inventario** (Sandra no), ahora con test. Si quieres que Sandra también pueda, es un cambio de una línea.
+
 ## Bloqueado / pendiente
 Ver `docs/wms/decisiones-pendientes.md` (D-01..D-29). Ninguna bloquea la aprobación del Batch 1.
 

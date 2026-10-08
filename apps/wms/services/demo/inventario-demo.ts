@@ -4,7 +4,7 @@ import {
   accionesDeOrden, clasificarReconteo, construirKardex, puedeDecidirAjuste, puedePrepararMovimiento, puedeProgramarConteo,
   type AjusteVista, type CargaInicialVista, type ConteoVista, type ErrorFilaCarga, type FilaCargaInicial, type FilaHistoriaLote,
   type FilaKardex, type FiltroKardex, type LineaConteoVista, type LineaOrdenMovimiento, type LineaPreparar, type OrdenMovimiento,
-  type ResultadoLinea,
+  type ResultadoLinea, type RevisionLinea,
 } from '@/domain/inventario'
 import { puedeVerificar } from '@/domain/verificacion'
 import { areaAdmite } from '@/domain/zonas'
@@ -15,7 +15,7 @@ import type { Estado, Origen, Rol, Saldo } from '@/domain/tipos'
 import { ESTADOS } from '@/domain/tipos'
 import { sumarDias } from './datos'
 import { EntradasDemo, alertar, estadoE, falla, ahora, nuevoId } from './entradas-demo'
-import { anotar, numeroDe, type ConteoDemo, type ConteoLineaDemo } from './libro'
+import { anotar, numeroDe, siguiente, type ConteoDemo, type ConteoLineaDemo } from './libro'
 import { registrar, type EstadoDemo } from './estado'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
@@ -83,7 +83,7 @@ function sembrarInventario(e: EstadoDemo) {
     return {
       id: `mi-linea-${i}-${h}`, productoId: s.productoId, producto: n.producto(s.productoId), loteId: s.loteId, lote: lote?.codigo ?? '', vence: lote?.vence,
       propietario: n.propietario(s.propietarioId), estado: s.estado, procedenciaId: s.procedenciaId, desdePosicionId: s.posicionId, desde: n.posicion(s.posicionId),
-      haciaPosicionId: d.id, hacia: d.codigo, cantidad,
+      haciaPosicionId: d.id, hacia: d.codigo, cantidad, verificacion: 'PENDIENTE',
     }
   }
   const base = { motivo: 'Acomodo de producto de alta rotación', preparadorId: 'demo:auxiliar', preparador: nombrePersona('demo:auxiliar')! }
@@ -141,7 +141,7 @@ export class InventarioDemo extends EntradasDemo {
       const lote = n.loteObj(l.loteId)
       if (!lote) return falla('No encontramos ese lote')
       const disp = e.panorama.saldos.filter((s) => mismaCelda(s, l.desdePosicionId, l.loteId, l.estado, l.procedenciaId)).reduce((t, s) => t + s.cantidad, 0)
-      const reservado = e.inv.ordenes.filter((o) => ACTIVA.has(o.estado)).flatMap((o) => o.lineas)
+      const reservado = e.inv.ordenes.filter((o) => ACTIVA.has(o.estado)).flatMap((o) => o.lineas).filter((x) => x.verificacion === 'PENDIENTE' || x.verificacion === 'CON_DIFERENCIA')
         .filter((x) => x.desdePosicionId === l.desdePosicionId && x.loteId === l.loteId && x.estado === l.estado && x.procedenciaId === l.procedenciaId).reduce((t, x) => t + x.cantidad, 0)
       const yaEnEstaOrden = nuevas.filter((x) => x.desdePosicionId === l.desdePosicionId && x.loteId === l.loteId).reduce((t, x) => t + x.cantidad, 0)
       if (l.cantidad > disp - reservado - yaEnEstaOrden) return falla(`No hay suficientes unidades en ese lugar (hay ${disp}, otros movimientos ya reservan ${reservado})`)
@@ -154,7 +154,7 @@ export class InventarioDemo extends EntradasDemo {
       nuevas.push({
         id: nuevoId(), productoId: lote.productoId, producto: n.producto(lote.productoId), loteId: lote.id, lote: lote.codigo, vence: lote.vence,
         propietario: n.propietario(lote.propietarioId), estado: l.estado, procedenciaId: l.procedenciaId, desdePosicionId: l.desdePosicionId,
-        desde: n.posicion(l.desdePosicionId), haciaPosicionId: l.haciaPosicionId, hacia: destino.codigo, cantidad: l.cantidad,
+        desde: n.posicion(l.desdePosicionId), haciaPosicionId: l.haciaPosicionId, hacia: destino.codigo, cantidad: l.cantidad, verificacion: 'PENDIENTE',
       })
     }
     const o: OrdenMovimiento = {
@@ -187,32 +187,10 @@ export class InventarioDemo extends EntradasDemo {
   }
 
   async confirmarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion> {
-    const o = this.orden(id); const e = estadoE()
+    const o = this.orden(id)
     if (!o) return falla('No encontramos ese movimiento')
-    if (o.estado !== 'EJECUTADO') return falla('El movimiento todavía no se movió o ya no está por verificar')
-    const v = this.puedeVerificarOrden(o, actor)
-    if (v) return falla(v)
-    if (ocupadaPorConteo(e, o.lineas.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId]))) return falla('Una de las ubicaciones está en conteo: no se mueve hasta cerrarlo')
-    // Se comprueba todo antes de tocar el stock (si algo falla no queda a medias).
-    for (const l of o.lineas) {
-      const s = e.panorama.saldos.find((x) => mismaCelda(x, l.desdePosicionId, l.loteId, l.estado, l.procedenciaId))
-      if (!s || s.cantidad < l.cantidad) return falla('Saldo insuficiente: alguien más ya movió esas unidades o no hay stock suficiente')
-    }
-    for (const l of o.lineas) {
-      const lote = nombres(e).loteObj(l.loteId)!
-      moverSaldo(e, { ...l, propietarioId: lote.propietarioId })
-    }
-    const movId = `mov-mi-${o.numero}`
-    anotar(e.inv, movId, 'MOVIMIENTO', ahora(), { motivo: o.motivo, ejecutorId: o.ejecutorId, preparadorId: o.preparadorId, verificadorId: actor.id, referenciaTipo: 'orden_movimiento', referenciaId: o.numero },
-      o.lineas.flatMap((l) => {
-        const lote = nombres(e).loteObj(l.loteId)!
-        const origen = origenDe(e, l.loteId, l.procedenciaId)
-        const base = { productoId: l.productoId, loteId: l.loteId, propietarioId: lote.propietarioId, estado: l.estado, origen, procedenciaId: l.procedenciaId }
-        return [{ ...base, posicionId: l.desdePosicionId, delta: -l.cantidad }, { ...base, posicionId: l.haciaPosicionId, delta: l.cantidad }]
-      }))
-    o.estado = 'CONFIRMADO'; o.verificadorId = actor.id; o.verificador = actor.nombre; o.verificadoEn = ahora(); o.movimientoId = movId
-    registrar(e, actor, 'movimiento_confirmado', 'ordenes_movimiento', o.numero, 'Movimiento verificado y confirmado')
-    return { ok: true }
+    const r = await this.revisarMovimiento(id, o.lineas.filter((l) => l.verificacion === 'PENDIENTE').map((l) => ({ lineaId: l.id, resultado: 'COINCIDE' as const })), actor)
+    return r.ok ? { ok: true } : r
   }
 
   /** Mismo orden de mensajes que la base: permiso → preparó → ejecutó. */
@@ -222,31 +200,81 @@ export class InventarioDemo extends EntradasDemo {
     return r.puede ? null : r.mensaje
   }
 
-  async registrarDiferenciaMovimiento(id: string, nota: string, actor: Actor): Promise<ResultadoAccion> {
+  async revisarMovimiento(id: string, revision: RevisionLinea[], actor: Actor): Promise<ResultadoAccion<{ confirmadas: number; conDiferencia: number }>> {
     const o = this.orden(id); const e = estadoE()
     if (!o) return falla('No encontramos ese movimiento')
-    if (o.estado !== 'EJECUTADO') return falla('Solo se registra una diferencia en un movimiento ya movido')
+    if (o.estado !== 'EJECUTADO') return falla('El movimiento todavía no se movió o ya no está por verificar')
     const v = this.puedeVerificarOrden(o, actor)
     if (v) return falla(v)
-    if (!nota?.trim()) return falla('Cuéntanos qué no coincide (producto, lote, cantidad o ubicación)', { nota: 'Cuéntanos qué no coincide.' })
-    o.estado = 'CON_DIFERENCIA'; o.verificadorId = actor.id; o.verificador = actor.nombre; o.verificadoEn = ahora(); o.notaDiferencia = nota.trim()
-    alertar(e, 'MOVIMIENTO_CON_DIFERENCIA', 'jefe_almacen', `El movimiento ${o.numero} no coincide con lo que dice el sistema: ${nota.trim()}. Sigue abierto hasta resolverlo; no cambies cantidades para que «cuadre».`, `mov-dif:${o.id}`, undefined, o.lineas[0]?.productoId, o.lineas[0]?.lote)
-    registrar(e, actor, 'movimiento_con_diferencia', 'ordenes_movimiento', o.numero, 'Diferencia registrada', nota.trim())
+    const pendientes = o.lineas.filter((l) => l.verificacion === 'PENDIENTE')
+    if (pendientes.length !== revision.length) return falla(`Revisa las ${pendientes.length} líneas por verificar: cada una necesita decir si coincide o qué no coincide`)
+    for (const r of revision) {
+      if (!pendientes.some((l) => l.id === r.lineaId)) return falla('Una de las líneas no está por verificar')
+      if (r.resultado === 'DIFERENCIA' && !r.nota?.trim()) return falla('Cuéntanos qué no coincide (producto, lote, cantidad o ubicación)', { nota: 'Cuéntanos qué no coincide.' })
+      if (r.resultado !== 'COINCIDE' && r.resultado !== 'DIFERENCIA') return falla('Cada línea coincide o tiene una diferencia')
+    }
+    const ok = pendientes.filter((l) => revision.find((r) => r.lineaId === l.id)!.resultado === 'COINCIDE')
+    if (ocupadaPorConteo(e, ok.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId]))) return falla('Una de las ubicaciones está en conteo: no se mueve hasta cerrarlo')
+    for (const l of ok) {
+      const s = e.panorama.saldos.find((x) => mismaCelda(x, l.desdePosicionId, l.loteId, l.estado, l.procedenciaId))
+      if (!s || s.cantidad < l.cantidad) return falla('Saldo insuficiente: alguien más ya movió esas unidades o no hay stock suficiente')
+    }
+    let movId: string | undefined
+    if (ok.length) {
+      for (const l of ok) moverSaldo(e, { ...l, propietarioId: nombres(e).loteObj(l.loteId)!.propietarioId })
+      movId = `mov-mi-${o.numero}-${siguiente(e.inv, `rev-${o.numero}`)}`
+      anotar(e.inv, movId, 'MOVIMIENTO', ahora(), { motivo: o.motivo, ejecutorId: o.ejecutorId, preparadorId: o.preparadorId, verificadorId: actor.id, referenciaTipo: 'orden_movimiento', referenciaId: o.numero },
+        ok.flatMap((l) => {
+          const lote = nombres(e).loteObj(l.loteId)!
+          const base = { productoId: l.productoId, loteId: l.loteId, propietarioId: lote.propietarioId, estado: l.estado, origen: origenDe(e, l.loteId, l.procedenciaId), procedenciaId: l.procedenciaId }
+          return [{ ...base, posicionId: l.desdePosicionId, delta: -l.cantidad }, { ...base, posicionId: l.haciaPosicionId, delta: l.cantidad }]
+        }))
+      for (const l of ok) { l.verificacion = 'CONFIRMADA'; l.movimientoId = movId }
+      o.movimientoId = movId
+    }
+    const conDif = revision.filter((r) => r.resultado === 'DIFERENCIA')
+    for (const r of conDif) {
+      const l = pendientes.find((x) => x.id === r.lineaId)!
+      l.verificacion = 'CON_DIFERENCIA'; l.notaDiferencia = r.nota!.trim()
+      alertar(e, 'MOVIMIENTO_CON_DIFERENCIA', 'jefe_almacen', `En el movimiento ${o.numero} la línea del lote ${l.lote} no coincide con lo que dice el sistema: ${l.notaDiferencia}. Esa línea sigue abierta; las demás ya se confirmaron. No cambies cantidades para que «cuadre».`, `mov-dif:${l.id}`, undefined, l.productoId, l.lote)
+    }
+    o.verificadorId = actor.id; o.verificador = actor.nombre; o.verificadoEn = ahora()
+    o.estado = conDif.length ? 'CON_DIFERENCIA' : 'CONFIRMADO'
+    o.notaDiferencia = conDif.length ? `Hay ${conDif.length} línea(s) con diferencia` : undefined
+    registrar(e, actor, 'movimiento_revisado', 'ordenes_movimiento', o.numero, `${ok.length} línea(s) confirmadas, ${conDif.length} con diferencia`)
+    return { ok: true, confirmadas: ok.length, conDiferencia: conDif.length }
+  }
+
+  async resolverMovimiento(lineaId: string, accion: 'REINTENTAR' | 'ANULAR', nota: string, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE(); sembrarInventario(e)
+    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén (o su reemplazo) hace esto')
+    const o = e.inv.ordenes.find((x) => x.lineas.some((l) => l.id === lineaId))
+    const l = o?.lineas.find((x) => x.id === lineaId)
+    if (!o || !l) return falla('No encontramos esa línea')
+    if (l.verificacion !== 'CON_DIFERENCIA') return falla('Esta línea no tiene una diferencia abierta')
+    if (!nota?.trim()) return falla('Cuéntanos qué se encontró y qué se decidió', { nota: 'Cuéntanos qué se decidió.' })
+    if (accion === 'REINTENTAR') { l.verificacion = 'PENDIENTE'; l.notaDiferencia = undefined } else { l.verificacion = 'ANULADA'; l.notaDiferencia = nota.trim() }
+    const al = e.alertas.find((a) => (a as { clave?: string }).clave === `mov-dif:${l.id}` && a.estado === 'ABIERTA')
+    if (al) { al.estado = 'ATENDIDA'; al.atendidaPor = actor.nombre; al.atendidaEn = ahora(); al.nota = nota.trim() }
+    if (o.lineas.some((x) => x.verificacion === 'CON_DIFERENCIA')) { /* quedan diferencias por resolver */ }
+    else if (o.lineas.some((x) => x.verificacion === 'PENDIENTE')) { o.estado = 'AUTORIZADO'; o.ejecutorId = undefined; o.ejecutor = undefined; o.ejecutadoEn = undefined; o.verificadorId = undefined; o.verificador = undefined; o.verificadoEn = undefined; o.notaDiferencia = undefined }
+    else if (o.lineas.some((x) => x.verificacion === 'CONFIRMADA')) { o.estado = 'CONFIRMADO'; o.notaDiferencia = undefined }
+    else { o.estado = 'ANULADO'; o.motivoAnulacion = nota.trim() }
+    registrar(e, actor, 'movimiento_diferencia_resuelta', 'ordenes_movimiento', o.numero, accion === 'REINTENTAR' ? 'La línea se vuelve a mover' : 'La línea se anula', nota.trim())
     return { ok: true }
   }
 
-  async resolverMovimiento(id: string, accion: 'REINTENTAR' | 'ANULAR', nota: string, actor: Actor): Promise<ResultadoAccion> {
-    const o = this.orden(id); const e = estadoE()
-    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén (o su reemplazo) hace esto')
-    if (!o) return falla('No encontramos ese movimiento')
-    if (o.estado !== 'CON_DIFERENCIA') return falla('Este movimiento no tiene una diferencia abierta')
-    if (!nota?.trim()) return falla('Cuéntanos qué se encontró y qué se decidió', { nota: 'Cuéntanos qué se decidió.' })
-    if (accion === 'REINTENTAR') { o.estado = 'AUTORIZADO'; o.ejecutorId = undefined; o.ejecutor = undefined; o.ejecutadoEn = undefined; o.verificadorId = undefined; o.verificador = undefined; o.verificadoEn = undefined }
-    else { o.estado = 'ANULADO'; o.motivoAnulacion = nota.trim() }
-    const al = e.alertas.find((a) => (a as { clave?: string }).clave === `mov-dif:${o.id}` && a.estado === 'ABIERTA')
-    if (al) { al.estado = 'ATENDIDA'; al.atendidaPor = actor.nombre; al.atendidaEn = ahora(); al.nota = nota.trim() }
-    registrar(e, actor, 'movimiento_diferencia_resuelta', 'ordenes_movimiento', o.numero, accion === 'REINTENTAR' ? 'Se vuelve a mover' : 'Anulado', nota.trim())
-    return { ok: true }
+  async posicionesBloqueadas(): Promise<Record<string, string>> {
+    const e = estadoE(); sembrarInventario(e)
+    const n = nombres(e)
+    const out: Record<string, string> = {}
+    for (const c of e.inv.conteos) if (c.estado !== 'CERRADO') for (const l of c.lineas) out[l.posicionId] = `está en conteo ${c.numero}`
+    for (const o of e.inv.ordenes) if (ACTIVA.has(o.estado)) for (const l of o.lineas) {
+      if (l.verificacion !== 'PENDIENTE' && l.verificacion !== 'CON_DIFERENCIA') continue
+      for (const pid of [l.desdePosicionId, l.haciaPosicionId]) out[pid] ??= `tiene el movimiento ${o.numero} abierto`
+    }
+    void n
+    return out
   }
 
   async anularMovimiento(id: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {
@@ -313,7 +341,7 @@ export class InventarioDemo extends EntradasDemo {
     const n = nombres(e)
     const ocupada = ocupadaPorConteo(e, posicionIds)
     if (ocupada) return falla(`La ubicación ${ocupada} ya está en otro conteo abierto`)
-    if (e.inv.ordenes.some((o) => ACTIVA.has(o.estado) && o.lineas.some((l) => posicionIds.includes(l.desdePosicionId) || posicionIds.includes(l.haciaPosicionId)))) return falla('Hay movimientos abiertos en esas ubicaciones: ciérralos antes de contar')
+    if (e.inv.ordenes.some((o) => ACTIVA.has(o.estado) && o.lineas.some((l) => (l.verificacion === 'PENDIENTE' || l.verificacion === 'CON_DIFERENCIA') && (posicionIds.includes(l.desdePosicionId) || posicionIds.includes(l.haciaPosicionId))))) return falla('Hay movimientos abiertos en esas ubicaciones: ciérralos antes de contar')
     const celdas = e.panorama.saldos.filter((s) => posicionIds.includes(s.posicionId) && s.cantidad > 0)
     if (!celdas.length) return falla('Esas ubicaciones no tienen unidades para contar')
     const c: ConteoDemo = {

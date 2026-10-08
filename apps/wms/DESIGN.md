@@ -34,6 +34,12 @@ Números alineados (`.tabular`). Cuerpo ≥ 14 px; los rótulos del mapa son SVG
 debounce y descarte de respuestas viejas); `MapaAlmacen` (SVG, pan/zoom/ajustar/tamaño real, teclado); `DrawerPosicion`; `Shell`; `BannerDemo`.
 Botones: píldora `btn-primary`/`btn-secondary` (≥ 48 px de alto), campos `campo` (48 px).
 
+## Flujos de tarea con muchas líneas (Mover, revisión)
+Se empieza por lo que la persona ya sabe (el origen) y se busca escribiendo, nunca en desplegables. Una sola acción principal, fija
+abajo en el teléfono (sobre la barra de navegación) y en línea en pantallas grandes, con un resumen vivo («3 líneas · 126 u · B-1 → B-2»)
+y, si falta algo, qué falta. Las líneas son filas marcables con casilla de 24 px y cantidad editable; el destino se valida al elegirlo
+y explica por línea por qué no sirve. La revisión es por línea («Coincide» / «No coincide», con nota obligatoria en el segundo caso).
+
 ## Estados de pantalla
 Vacío (con qué hacer), cargando (esqueleto con la forma de la pantalla), error (qué pasó y cómo seguir, con reintento), éxito
 (mensaje corto, sin celebración desmedida). Sin emoji: íconos Lucide en un solo trazo.

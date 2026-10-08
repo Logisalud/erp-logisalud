@@ -8,6 +8,13 @@ import { ChipOrden } from '@/components/inventario/chips-inventario'
 
 export const metadata = { title: 'Movimientos — WMS LOGISALUD' }
 
+/** «3 líneas: A-01.1 → B-02.1» cuando todas comparten origen y destino; si no, lista cada una. */
+function resumenLineas(o: OrdenMovimiento) {
+  const rutas = Array.from(new Set(o.lineas.map((l) => `${l.desde} → ${l.hacia}`)))
+  const n = o.lineas.length
+  return `${n} ${n === 1 ? 'línea' : 'líneas'}: ${rutas.join(' · ')}`
+}
+
 export default async function Movimientos() {
   const ctx = await exigirContexto()
   const ordenes = await repositorio().listarMovimientos()
@@ -19,7 +26,7 @@ export default async function Movimientos() {
       <Link href={`/movimientos/${o.id}`} className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 hover:bg-gray-50" data-testid="fila-movimiento">
         <span className="tabular font-heading text-lg font-semibold tracking-wide text-gray-900">{o.numero}</span>
         <ChipOrden estado={o.estado} />
-        <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{o.motivo} · {o.lineas.map((l) => `${l.lote}: ${l.desde} → ${l.hacia}`).join(' · ')}</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{o.motivo} · {resumenLineas(o)}</span>
         <span className="tabular text-sm text-gray-600">{formatoFechaHora(o.preparadoEn)}</span>
       </Link>
     </li>

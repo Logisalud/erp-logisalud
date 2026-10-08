@@ -1,6 +1,6 @@
 import type {
   AjusteVista, CargaInicialVista, ConteoVista, ErrorFilaCarga, FilaCargaInicial, FilaHistoriaLote, FilaKardex, FiltroKardex,
-  LineaConteoVista, LineaPreparar, OrdenMovimiento,
+  LineaConteoVista, LineaPreparar, OrdenMovimiento, RevisionLinea,
 } from '@/domain/inventario'
 import type { Actor, ResultadoAccion } from './repositorio'
 
@@ -17,9 +17,14 @@ export interface RepositorioInventario {
   prepararMovimiento(lineas: LineaPreparar[], motivo: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
   autorizarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion>
   ejecutarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion>
+  /** «Todo coincide»: equivale a revisar todas las líneas por verificar como conformes. */
   confirmarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion>
-  registrarDiferenciaMovimiento(id: string, nota: string, actor: Actor): Promise<ResultadoAccion>
-  resolverMovimiento(id: string, accion: 'REINTENTAR' | 'ANULAR', nota: string, actor: Actor): Promise<ResultadoAccion>
+  /** Revisión línea por línea: las que coinciden se confirman juntas; cada diferencia deja abierta solo su línea. */
+  revisarMovimiento(id: string, revision: RevisionLinea[], actor: Actor): Promise<ResultadoAccion<{ confirmadas: number; conDiferencia: number }>>
+  /** El Jefe resuelve UNA línea con diferencia: volver a moverla o anularla. */
+  resolverMovimiento(lineaId: string, accion: 'REINTENTAR' | 'ANULAR', nota: string, actor: Actor): Promise<ResultadoAccion>
+  /** Ubicaciones que hoy no se pueden usar: en conteo o con un movimiento abierto (posición → motivo). */
+  posicionesBloqueadas(): Promise<Record<string, string>>
   anularMovimiento(id: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
 
   // ── Conteos cíclicos y ajustes ──────────────────────────────────────────

@@ -3,7 +3,7 @@ import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import type {
   AjusteVista, CargaInicialVista, ConteoVista, ErrorFilaCarga, EstadoConteo, EstadoOrden, FilaCargaInicial, FilaHistoriaLote, FilaKardex,
-  FiltroKardex, LineaConteoVista, LineaOrdenMovimiento, LineaPreparar, OrdenMovimiento, ResultadoLinea, TipoMovimientoLedger,
+  FiltroKardex, LineaConteoVista, LineaOrdenMovimiento, LineaPreparar, OrdenMovimiento, ResultadoLinea, RevisionLinea, TipoMovimientoLedger,
 } from '@/domain/inventario'
 import { parsearTramos } from '@/domain/inventario'
 import type { Estado, Origen } from '@/domain/tipos'
@@ -87,7 +87,7 @@ export class InventarioSupabase extends EntradasSupabase {
         id: String(l.id), productoId: String(l.producto_id), producto: prd.get(String(l.producto_id)) ?? '—', loteId: String(l.lote_id), lote: String(lot.get(String(l.lote_id))?.codigo ?? '—'),
         vence: s(lot.get(String(l.lote_id))?.vence), propietario: pro.get(String(l.propietario_id)) ?? '—', estado: l.estado as Estado, procedenciaId: String(l.procedencia_id),
         desdePosicionId: String(l.desde_posicion_id), desde: pos.get(String(l.desde_posicion_id)) ?? '—', haciaPosicionId: String(l.hasta_posicion_id), hacia: pos.get(String(l.hasta_posicion_id)) ?? '—',
-        cantidad: Number(l.cantidad),
+        cantidad: Number(l.cantidad), verificacion: l.verificacion as LineaOrdenMovimiento['verificacion'], notaDiferencia: s(l.nota_diferencia), movimientoId: s(l.movimiento_id),
       })),
     }))
   }
@@ -107,8 +107,18 @@ export class InventarioSupabase extends EntradasSupabase {
   async autorizarMovimiento(id: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('autorizar_movimiento', { p_orden: id }); return error ? mal(error) : ok() }
   async ejecutarMovimiento(id: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('ejecutar_movimiento', { p_orden: id }); return error ? mal(error) : ok() }
   async confirmarMovimiento(id: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('confirmar_movimiento', { p_orden: id }); return error ? mal(error) : ok() }
-  async registrarDiferenciaMovimiento(id: string, nota: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('registrar_diferencia_movimiento', { p_orden: id, p_nota: nota }); return error ? mal(error) : ok() }
-  async resolverMovimiento(id: string, accion: 'REINTENTAR' | 'ANULAR', nota: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('resolver_movimiento', { p_orden: id, p_accion: accion, p_nota: nota }); return error ? mal(error) : ok() }
+  async revisarMovimiento(id: string, revision: RevisionLinea[], _a: Actor): Promise<ResultadoAccion<{ confirmadas: number; conDiferencia: number }>> {
+    const { error } = await rpc('revisar_movimiento', { p_orden: id, p_revision: revision.map((r) => ({ linea_id: r.lineaId, resultado: r.resultado, nota: r.nota ?? null })) })
+    return error ? mal(error) : ok({ confirmadas: revision.filter((r) => r.resultado === 'COINCIDE').length, conDiferencia: revision.filter((r) => r.resultado === 'DIFERENCIA').length })
+  }
+  async resolverMovimiento(lineaId: string, accion: 'REINTENTAR' | 'ANULAR', nota: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('resolver_movimiento', { p_linea: lineaId, p_accion: accion, p_nota: nota }); return error ? mal(error) : ok() }
+  async posicionesBloqueadas(): Promise<Record<string, string>> {
+    const { data, error } = await rpc('posiciones_bloqueadas', {})
+    if (error) throw new Error(`No se pudieron leer las ubicaciones bloqueadas: ${error.message}`)
+    const out: Record<string, string> = {}
+    for (const r of (data ?? []) as Fila[]) out[String(r.posicion_id)] ??= String(r.motivo)
+    return out
+  }
   async anularMovimiento(id: string, motivo: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('anular_movimiento', { p_orden: id, p_motivo: motivo }); return error ? mal(error) : ok() }
 
   // ── Conteos y ajustes ───────────────────────────────────────────────────

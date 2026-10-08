@@ -64,15 +64,36 @@ describe('movimientos internos (D-15)', () => {
     expect(await repo.ejecutarMovimiento(o.id, AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/autorizado/) })
     exito(await repo.autorizarMovimiento(o.id, JEFE))
   })
-  it('con diferencia queda abierto y avisa al Jefe; no se cuadra', async () => {
+  it('con diferencia queda abierta SOLO esa línea y avisa al Jefe; no se cuadra', async () => {
     const o = (await repo.listarMovimientos()).find((x) => x.estado === 'AUTORIZADO')!
     exito(await repo.ejecutarMovimiento(o.id, AUX))
-    expect(await repo.registrarDiferenciaMovimiento(o.id, '  ', REEMPLAZO)).toMatchObject({ ok: false })
-    exito(await repo.registrarDiferenciaMovimiento(o.id, 'Faltan 2 cajas', REEMPLAZO))
+    const l = o.lineas[0]
+    expect(await repo.revisarMovimiento(o.id, [{ lineaId: l.id, resultado: 'DIFERENCIA', nota: '  ' }], REEMPLAZO)).toMatchObject({ ok: false })
+    expect(await repo.revisarMovimiento(o.id, [], REEMPLAZO)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Revisa las 1 líneas/) })
+    exito(await repo.revisarMovimiento(o.id, [{ lineaId: l.id, resultado: 'DIFERENCIA', nota: 'Faltan 2 cajas' }], REEMPLAZO))
     expect((await repo.obtenerMovimiento(o.id))!.estado).toBe('CON_DIFERENCIA')
     expect((await repo.listarAlertas()).some((a) => a.tipo === 'MOVIMIENTO_CON_DIFERENCIA' && a.estado === 'ABIERTA')).toBe(true)
-    exito(await repo.resolverMovimiento(o.id, 'REINTENTAR', 'Se vuelve a mover', JEFE))
+    exito(await repo.resolverMovimiento(l.id, 'REINTENTAR', 'Se vuelve a mover', JEFE))
     expect((await repo.obtenerMovimiento(o.id))!.estado).toBe('AUTORIZADO')
+  })
+  it('un movimiento de varias líneas: una diferencia no frena a las demás', async () => {
+    const { p, s } = await stockLibre(1)
+    void s
+    const destinos = p.posiciones.filter((x) => x.tipoArea === 'APROBADOS' && x.activa && !p.saldos.some((q) => q.posicionId === x.id))
+    const usadas = new Set((await repo.listarMovimientos()).flatMap((o) => o.lineas.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId])))
+    const origen = p.posiciones.find((x) => x.tipoArea === 'APROBADOS' && !usadas.has(x.id) && p.saldos.filter((q) => q.posicionId === x.id && q.estado === 'APROBADO').length >= 1)!
+    const celdas = p.saldos.filter((q) => q.posicionId === origen.id && q.estado === 'APROBADO')
+    const destino = destinos.find((d) => p.asignaciones.some((a) => a.posicionId === d.id && a.propietarioId === celdas[0].propietarioId) && !usadas.has(d.id))!
+    const lineas = celdas.filter((c) => c.propietarioId === celdas[0].propietarioId).map((c) => ({ desdePosicionId: c.posicionId, haciaPosicionId: destino.id, loteId: c.loteId, estado: c.estado, procedenciaId: c.procedenciaId, cantidad: c.cantidad }))
+    const r = exito(await repo.prepararMovimiento(lineas, 'Mover todo', AUX))
+    exito(await repo.autorizarMovimiento(r.id, JEFE))
+    exito(await repo.ejecutarMovimiento(r.id, AUX))
+    const o = (await repo.obtenerMovimiento(r.id))!
+    const revision = o.lineas.map((l, i) => i === 0 && o.lineas.length > 1 ? { lineaId: l.id, resultado: 'DIFERENCIA' as const, nota: 'Falta una caja' } : { lineaId: l.id, resultado: 'COINCIDE' as const })
+    const res = exito(await repo.revisarMovimiento(r.id, revision, REEMPLAZO))
+    expect(res.confirmadas).toBe(o.lineas.length > 1 ? o.lineas.length - 1 : o.lineas.length)
+    const despues = await repo.obtenerMovimiento(r.id)
+    expect(despues!.estado).toBe(o.lineas.length > 1 ? 'CON_DIFERENCIA' : 'CONFIRMADO')
   })
   it('prepara un movimiento nuevo y rechaza reservar dos veces o ir a una zona que no corresponde', async () => {
     const { p, s } = await stockLibre(30)
