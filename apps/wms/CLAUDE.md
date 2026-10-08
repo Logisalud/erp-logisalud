@@ -25,6 +25,11 @@ motivo y reemisión vinculada); concurrencia con locks en funciones SQL; topolog
 asignaciones (con vigencia y documento) son configuración, no código. Las migraciones se
 escriben re-ejecutables y **se aplican a mano** (nunca al mergear).
 
+**Operaciones sobre una base real:** si una herramienta falla o se cuelga durante una operación sobre una base real
+(Supabase MCP u otra), **detente y avisa al usuario**. No cambies de método, no reintentes con otra herramienta ni modifiques el SQL
+(quitar líneas, partir en bloques, etc.) sin su aprobación expresa. Después de un fallo solo se hacen lecturas para reportar el estado.
+(Origen: 2026-10-08, `apply_migration` se colgó sobre erp-cobranzas y se siguió por otro camino sin avisar.)
+
 **Decisiones:** técnicas y reversibles → decide y documenta en un ADR. De negocio, sanitarias,
 regulatorias, destructivas o de fuente de verdad → detén solo esa pieza, regístrala en
 `decisiones-pendientes.md` y sigue con lo demás. Mantén `progreso.md` al día.
