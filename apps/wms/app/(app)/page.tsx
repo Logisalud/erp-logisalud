@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import {
-  ArrowRight, Bell, Boxes, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Hourglass, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, Undo2, type LucideIcon,
+  ArrowLeftRight, ArrowRight, Bell, Boxes, ClipboardCheck, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Hourglass, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, Undo2, type LucideIcon,
 } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
@@ -9,6 +9,7 @@ import {
 } from '@/domain/panorama'
 import { puede, puedeCrearProducto, puedeEditarRegulatorio } from '@/domain/permisos'
 import { puedePrepararSolicitud } from '@/domain/entradas'
+import { accionesDeOrden } from '@/domain/inventario'
 import type { Rol } from '@/domain/tipos'
 import { vistaPropietario } from '@/components/propietarios-color'
 import { formatoFecha } from '@/domain/fechas'
@@ -38,6 +39,9 @@ interface DatosEntradas {
   organolepticasPorLlenar: number
   expedientesConFaltantes: number
   alertasMias: number
+  movimientosParaMi: number
+  conteosAbiertos: number
+  ajustesPorAutorizar: number
 }
 
 function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
@@ -46,6 +50,15 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   const opera = roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'asistente_dt'].includes(r))
   if (e.alertasMias > 0) {
     avisos.push({ clave: 'alertas', Icono: Bell, texto: 'Alertas abiertas para ti', detalle: 'Temperatura, registro sanitario, cambios de una solicitud, diferencias con Compras o aprobados sin trasladar.', cantidad: e.alertasMias, unidad: pl(e.alertasMias, 'alerta', 'alertas'), href: '/alertas', tono: 'atencion' })
+  }
+  if (e.movimientosParaMi > 0) {
+    avisos.push({ clave: 'movimientos', Icono: ArrowLeftRight, texto: 'Movimientos internos que te tocan', detalle: 'Autorizar, mover o verificar: quien prepara o mueve no verifica.', cantidad: e.movimientosParaMi, unidad: pl(e.movimientosParaMi, 'movimiento', 'movimientos'), href: '/movimientos', tono: 'atencion' })
+  }
+  if (roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar'].includes(r)) && e.conteosAbiertos > 0) {
+    avisos.push({ clave: 'conteos', Icono: ClipboardCheck, texto: 'Conteos cíclicos abiertos', detalle: 'Cuenta a ciegas; sus ubicaciones no se mueven hasta cerrarlos.', cantidad: e.conteosAbiertos, unidad: pl(e.conteosAbiertos, 'conteo', 'conteos'), href: '/conteos', tono: 'info' })
+  }
+  if (roles.includes('direccion_tecnica') && e.ajustesPorAutorizar > 0) {
+    avisos.push({ clave: 'ajustes', Icono: ShieldAlert, texto: 'Ajustes de inventario esperando tu autorización', detalle: 'Un conteo confirmó una diferencia y el Jefe propone corregirla.', cantidad: e.ajustesPorAutorizar, unidad: pl(e.ajustesPorAutorizar, 'ajuste', 'ajustes'), href: '/conteos', tono: 'atencion' })
   }
   if (roles.includes('direccion_tecnica') && e.organolepticasPendientes > 0) {
     avisos.push({ clave: 'organolepticas', Icono: ClipboardList, texto: 'Actas organolépticas esperando tu decisión', detalle: 'Decide Aprobado o Bajas/Rechazados.', cantidad: e.organolepticasPendientes, unidad: pl(e.organolepticasPendientes, 'acta', 'actas'), href: '/calidad', tono: 'atencion' })
@@ -99,8 +112,9 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
 export default async function Inicio() {
   const ctx = await exigirContexto()
   const repo = repositorio()
-  const [p, ingresos, cola, expedientes, conteo] = await Promise.all([
+  const [p, ingresos, cola, expedientes, conteo, ordenes, conteos, ajustes] = await Promise.all([
     repo.panorama(), repo.listarSolicitudes(), repo.colaDireccionTecnica(), repo.listarExpedientes(), repo.contarAlertasAbiertas(),
+    repo.listarMovimientos(), repo.listarConteos(), repo.listarAjustes(),
   ])
   const alertasMias = (ctx.roles.includes('direccion_tecnica') ? conteo.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe') ? conteo.jefe_almacen : 0) + (ctx.roles.includes('asistente_dt') ? conteo.asistente_dt : 0)
   const avisos = avisosPara(ctx.roles, p, {
@@ -111,6 +125,9 @@ export default async function Inicio() {
     porRegistrarEnCompras: ingresos.filter((i) => i.registroCompras === 'FALTA' || i.registroCompras === 'NO_COINCIDE').length,
     organolepticasPendientes: cola.organolepticas.length, organolepticasPorLlenar: cola.borradores.length,
     expedientesConFaltantes: expedientes.filter((x) => x.estado === 'ABIERTO' && x.faltantesAbiertos > 0).length, alertasMias,
+    movimientosParaMi: ordenes.filter((o) => { const a = accionesDeOrden(o, ctx.usuario.id, ctx.roles); return a.autorizar || a.ejecutar || a.verificar || a.resolver }).length,
+    conteosAbiertos: conteos.filter((c) => c.estado !== 'CERRADO').length,
+    ajustesPorAutorizar: ajustes.filter((a) => a.estado === 'PROPUESTO').length,
   })
   const ocup = ocupacionPorPropietario(p).sort((a, b) => b.posiciones - a.posiciones)
   const eventos = puede(ctx.roles, 'auditar') ? (await repo.auditoria(5)) : []

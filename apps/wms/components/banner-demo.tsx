@@ -7,7 +7,7 @@ import { cambiarRolDemoAccion } from '@/app/acciones-entradas'
 import type { Rol } from '@/domain/tipos'
 import { ETIQUETA_ROL } from '@/domain/permisos'
 
-const ROLES: Rol[] = ['jefe_almacen', 'auxiliar', 'asistente_dt', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura']
+const ROLES: Rol[] = ['jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'asistente_dt', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura']
 
 /** Aviso visible en TODA pantalla mientras el modo demostración esté activo (fijo arriba, alto 2.25rem). */
 export function BannerDemo({ rolActual }: { rolActual?: Rol | null }) {

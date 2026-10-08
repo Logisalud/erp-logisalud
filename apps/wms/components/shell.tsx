@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Bell, Boxes, FolderOpen, History, Home, Inbox, Map, MoreHorizontal, Search, ShieldCheck, Users, X } from 'lucide-react'
+import { ArrowLeftRight, Bell, Boxes, CalendarClock, ClipboardCheck, FileSpreadsheet, FolderOpen, History, Home, Inbox, Map, MoreHorizontal, Search, ShieldCheck, Upload, Users, X } from 'lucide-react'
 import { Marca, MarcaIcono } from './marca'
 import { PaletaBusqueda } from './paleta-busqueda'
 import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
@@ -11,12 +11,12 @@ import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
 export interface ItemNav {
   href: string
   etiqueta: string
-  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria'
+  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos' | 'conteos' | 'kardex' | 'vencimientos' | 'carga'
   /** Cantidad que se muestra como insignia (alertas abiertas). */
   insignia?: number
 }
 
-const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History }
+const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload }
 
 const PRINCIPALES = ['inicio', 'almacen', 'entradas']
 
