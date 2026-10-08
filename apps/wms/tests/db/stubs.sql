@@ -32,10 +32,11 @@ create table if not exists compras.proveedores (
   id uuid primary key default gen_random_uuid(), ruc text not null unique, razon_social text not null);
 create table if not exists compras.ordenes_compra (
   id uuid primary key default gen_random_uuid(), codigo text not null unique,
-  proveedor_id uuid not null references compras.proveedores(id));
+  proveedor_id uuid not null references compras.proveedores(id), estado text not null default 'enviada');
 create table if not exists compras.ordenes_compra_items (
   id uuid primary key default gen_random_uuid(), oc_id uuid not null references compras.ordenes_compra(id),
-  producto_id uuid not null references catalogo.productos(id), cantidad_pedida numeric(14,3) not null);
+  producto_id uuid not null references catalogo.productos(id), cantidad_pedida numeric(14,3) not null,
+  cantidad_recibida numeric(14,3) not null default 0);
 create table if not exists almacen.recepciones (
   id uuid primary key default gen_random_uuid(), oc_id uuid not null references compras.ordenes_compra(id),
   fecha_recepcion timestamptz not null default now(), estado text not null default 'pendiente');

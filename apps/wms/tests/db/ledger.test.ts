@@ -56,15 +56,16 @@ describe('ingreso: todo nace en Cuarentena (zona y estado)', () => {
     expect(e.message).toMatch(/RECEPCION no admite/i)
   })
 
-  it('Devoluciones admite Cuarentena solo con origen devolución', async () => {
+  it('Devoluciones admite el estado Devoluciones solo con origen devolución; nunca Cuarentena', async () => {
     const diphasac = await idPropietario(base.admin, 'DIPHASAC')
     const lote = await crearLote(base.admin, base.productos.dapa, 'DEV-1', '2028-01-31', diphasac)
-    const mk = (origen: string) => base.como(P().charlie.id, async (c) => postear(c, 'INGRESO', [{
+    const mk = (origen: string, estado: string) => base.como(P().charlie.id, async (c) => postear(c, 'INGRESO', [{
       posicion_id: await idPosicion(c, 'A-10.1'), producto_id: base.productos.dapa, lote_id: lote,
-      propietario_id: diphasac, estado: 'CUARENTENA', origen, procedencia_id: randomUUID(), delta: 2,
+      propietario_id: diphasac, estado, origen, procedencia_id: randomUUID(), delta: 2,
     }]))
-    expect((await falla(mk('COMPRA_LOCAL'))).message).toMatch(/no admite/i)
-    await mk('DEVOLUCION')
+    expect((await falla(mk('COMPRA_LOCAL', 'DEVOLUCIONES'))).message).toMatch(/no admite|devoluci/i)
+    expect((await falla(mk('DEVOLUCION', 'CUARENTENA'))).message).toMatch(/devoluci/i)
+    await mk('DEVOLUCION', 'DEVOLUCIONES')
   })
 })
 

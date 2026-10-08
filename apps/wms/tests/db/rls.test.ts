@@ -9,10 +9,12 @@ const P = () => base.personas
 
 describe('migraciones y seed', () => {
   it('son re-ejecutables (un reintento tras un fallo es lo normal)', async () => {
+    // Cada migración se reintenta sola, en su lugar de la cadena (0004 ya no se corre sobre 0005: la reemplaza).
     await base.admin.query(SQL.m0001())
     await base.admin.query(SQL.m0002())
     await base.admin.query(SQL.m0003())
-    await base.admin.query(SQL.m0004())
+    await base.admin.query(SQL.m0005())
+    await base.admin.query(SQL.m0005())
     await base.admin.query(SQL.seed())
     const n = (await base.admin.query('select count(*)::int n from wms.posiciones')).rows[0].n
     expect(n).toBe(348)
