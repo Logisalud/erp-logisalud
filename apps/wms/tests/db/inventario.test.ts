@@ -119,21 +119,22 @@ describe('movimientos internos (INV-02, D-15)', () => {
     expect((await falla(rpc(P().katia.id, 'select wms.confirmar_movimiento($1)', [id]))).code).toBe('42501')
   })
 
-  it('con diferencia no se confirma ni se cuadra: queda abierta, avisa al Jefe y se reintenta o se anula', async () => {
+  it('con diferencia no se confirma ni se cuadra: la línea queda abierta, avisa al Jefe y se reintenta o se anula', async () => {
     const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar')
     const s = await stock('A-15.1', 'MI-4', 10)
     const id = await preparar(aux1, s, 'A-16.1', 3)
     await rpc(P().charlie.id, 'select wms.autorizar_movimiento($1)', [id])
     await rpc(aux1, 'select wms.ejecutar_movimiento($1)', [id])
-    expect((await falla(rpc(aux2, 'select wms.registrar_diferencia_movimiento($1, $2)', [id, '  ']))).message).toMatch(/qué no coincide/)
-    await rpc(aux2, 'select wms.registrar_diferencia_movimiento($1, $2)', [id, 'Faltan 2 cajas en el destino'])
+    const linea = (await base.admin.query('select id from wms.ordenes_movimiento_lineas where orden_id = $1', [id])).rows[0].id as string
+    expect((await falla(rpc(aux2, 'select wms.revisar_movimiento($1, $2::jsonb)', [id, JSON.stringify([{ linea_id: linea, resultado: 'DIFERENCIA', nota: '  ' }])]))).message).toMatch(/qué no coincide/)
+    await rpc(aux2, 'select wms.revisar_movimiento($1, $2::jsonb)', [id, JSON.stringify([{ linea_id: linea, resultado: 'DIFERENCIA', nota: 'Faltan 2 cajas en el destino' }])])
     expect((await orden(id)).estado).toBe('CON_DIFERENCIA')
-    expect((await base.admin.query(`select count(*)::int n from wms.alertas where tipo = 'MOVIMIENTO_CON_DIFERENCIA' and estado = 'ABIERTA' and clave = $1`, ['mov-dif:' + id])).rows[0].n).toBe(1)
+    expect((await base.admin.query(`select count(*)::int n from wms.alertas where tipo = 'MOVIMIENTO_CON_DIFERENCIA' and estado = 'ABIERTA' and clave = $1`, ['mov-dif:' + linea])).rows[0].n).toBe(1)
     expect((await base.admin.query(`select coalesce(sum(cantidad),0)::int n from wms.saldos where lote_id = $1 and posicion_id = $2`, [s.loteId, s.posicionId])).rows[0].n).toBe(10)
-    expect((await falla(rpc(aux1, 'select wms.resolver_movimiento($1, $2, $3)', [id, 'ANULAR', 'x']))).code).toBe('42501')
-    await rpc(P().charlie.id, 'select wms.resolver_movimiento($1, $2, $3)', [id, 'REINTENTAR', 'Se vuelve a mover'])
+    expect((await falla(rpc(aux1, 'select wms.resolver_movimiento($1, $2, $3)', [linea, 'ANULAR', 'x']))).code).toBe('42501')
+    await rpc(P().charlie.id, 'select wms.resolver_movimiento($1, $2, $3)', [linea, 'REINTENTAR', 'Se vuelve a mover'])
     expect((await orden(id)).estado).toBe('AUTORIZADO')
-    expect((await base.admin.query(`select estado from wms.alertas where clave = $1`, ['mov-dif:' + id])).rows[0].estado).toBe('ATENDIDA')
+    expect((await base.admin.query(`select estado from wms.alertas where clave = $1`, ['mov-dif:' + linea])).rows[0].estado).toBe('ATENDIDA')
   })
 
   it('no se reservan dos veces las mismas unidades ni se mueve a una zona que no corresponde', async () => {
@@ -155,6 +156,100 @@ describe('movimientos internos (INV-02, D-15)', () => {
       ])])
     }))
     expect(e.message).toMatch(/Contexto de movimiento interno inválido/)
+  })
+})
+
+describe('movimiento multilínea: un origen, un destino, una autorización y una revisión línea por línea', () => {
+  async function tresLotes(origen: string, tag: string) {
+    const out = []
+    for (const n of [1, 2, 3]) out.push(await stock(origen, `${tag}-${n}`, 10))
+    return out
+  }
+  const prepararVarias = async (quien: string, ss: Awaited<ReturnType<typeof stock>>[], hasta: string, cantidades: number[]) =>
+    (await rpc<{ id: string }>(quien, 'select wms.preparar_movimiento($1::jsonb, $2) as id', [JSON.stringify(await Promise.all(ss.map((x, i) => linea(x, hasta, cantidades[i])))), 'Mover todo el rack'])).at(0)!.id
+  const lineasDe = async (id: string) => (await base.admin.query('select * from wms.ordenes_movimiento_lineas where orden_id = $1 order by cantidad, id', [id])).rows
+  const enPos = async (loteId: string, posicionId: string) => (await base.admin.query(`select coalesce(sum(cantidad),0)::int n from wms.saldos where lote_id = $1 and posicion_id = $2`, [loteId, posicionId])).rows[0].n
+
+  it('todo coincide: una sola autorización, una sola revisión y UN movimiento del libro con las tres líneas', async () => {
+    const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar')
+    const ss = await tresLotes('A-18.1', 'ML')
+    const id = await prepararVarias(aux1, ss, 'A-19.1', [10, 7, 4])
+    expect(await lineasDe(id)).toHaveLength(3)
+    await rpc(P().charlie.id, 'select wms.autorizar_movimiento($1)', [id])
+    await rpc(aux1, 'select wms.ejecutar_movimiento($1)', [id])
+    const mov = (await rpc<{ id: string }>(aux2, 'select wms.confirmar_movimiento($1) as id', [id]))[0].id
+    expect((await orden(id)).estado).toBe('CONFIRMADO')
+    expect((await base.admin.query('select count(*)::int n from wms.partidas where movimiento_id = $1', [mov])).rows[0].n).toBe(6)
+    const m = (await base.admin.query('select * from wms.movimientos where id = $1', [mov])).rows[0]
+    expect(m).toMatchObject({ preparador_id: aux1, ejecutor_id: aux1, verificador_id: aux2 })
+    const destino = await idPosicion(base.admin, 'A-19.1')
+    expect([await enPos(ss[0].loteId, destino), await enPos(ss[1].loteId, destino), await enPos(ss[2].loteId, destino)]).toEqual([10, 7, 4])
+    expect((await lineasDe(id)).every((l) => l.verificacion === 'CONFIRMADA' && l.movimiento_id === mov)).toBe(true)
+  })
+
+  it('una diferencia en una sola línea: solo esa queda abierta; las otras dos se confirman y se mueven', async () => {
+    const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar'); const aux3 = await persona('auxiliar')
+    const ss = await tresLotes('A-19.1', 'MD')
+    const id = await prepararVarias(aux1, ss, 'A-18.1', [10, 10, 10])
+    await rpc(P().charlie.id, 'select wms.autorizar_movimiento($1)', [id])
+    await rpc(aux1, 'select wms.ejecutar_movimiento($1)', [id])
+    const ls = await lineasDe(id)
+    const lote = (idLote: string) => ls.find((l) => l.lote_id === idLote).id as string
+    await rpc(aux2, 'select wms.revisar_movimiento($1, $2::jsonb)', [id, JSON.stringify([
+      { linea_id: lote(ss[0].loteId), resultado: 'COINCIDE' },
+      { linea_id: lote(ss[1].loteId), resultado: 'DIFERENCIA', nota: 'Faltan 3 cajas' },
+      { linea_id: lote(ss[2].loteId), resultado: 'COINCIDE' },
+    ])])
+    expect((await orden(id)).estado).toBe('CON_DIFERENCIA')
+    const origen = await idPosicion(base.admin, 'A-19.1'); const destino = await idPosicion(base.admin, 'A-18.1')
+    expect([await enPos(ss[0].loteId, destino), await enPos(ss[1].loteId, destino), await enPos(ss[2].loteId, destino)]).toEqual([10, 0, 10])
+    expect(await enPos(ss[1].loteId, origen)).toBe(10)
+    const despues = await lineasDe(id)
+    expect(despues.map((l) => l.verificacion).sort()).toEqual(['CONFIRMADA', 'CONFIRMADA', 'CON_DIFERENCIA'])
+    expect(despues.find((l) => l.verificacion === 'CON_DIFERENCIA').nota_diferencia).toBe('Faltan 3 cajas')
+    // las confirmadas ya tienen su movimiento; la abierta, no
+    expect(despues.filter((l) => l.movimiento_id).length).toBe(2)
+    // solo la línea abierta se reintenta: otro la mueve y se verifica otra vez
+    await rpc(P().charlie.id, 'select wms.resolver_movimiento($1, $2, $3)', [lote(ss[1].loteId), 'REINTENTAR', 'Se encontraron las cajas'])
+    expect((await orden(id)).estado).toBe('AUTORIZADO')
+    await rpc(aux3, 'select wms.ejecutar_movimiento($1)', [id])
+    expect((await falla(rpc(aux3, 'select wms.confirmar_movimiento($1)', [id]))).message).toMatch(/no puede ser quien ejecutó/)
+    await rpc(aux2, 'select wms.confirmar_movimiento($1)', [id])
+    expect((await orden(id)).estado).toBe('CONFIRMADO')
+    expect(await enPos(ss[1].loteId, destino)).toBe(10)
+    expect(new Set((await lineasDe(id)).map((l) => l.movimiento_id)).size).toBe(2)   // dos movimientos del libro: la primera revisión y la segunda
+  })
+
+  it('la revisión debe cubrir todas las líneas por verificar y cada línea necesita su decisión', async () => {
+    const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar')
+    const ss = await tresLotes('A-18.1', 'MR')
+    const id = await prepararVarias(aux1, ss, 'A-19.1', [1, 1, 1])
+    await rpc(P().charlie.id, 'select wms.autorizar_movimiento($1)', [id])
+    await rpc(aux1, 'select wms.ejecutar_movimiento($1)', [id])
+    const ls = await lineasDe(id)
+    expect((await falla(rpc(aux2, 'select wms.revisar_movimiento($1, $2::jsonb)', [id, JSON.stringify([{ linea_id: ls[0].id, resultado: 'COINCIDE' }])]))).message).toMatch(/Revisa las 3 líneas/)
+    expect((await falla(rpc(aux2, 'select wms.revisar_movimiento($1, $2::jsonb)', [id, JSON.stringify(ls.map((l) => ({ linea_id: l.id, resultado: 'TAL VEZ' })))]))).message).toMatch(/coincide o tiene una diferencia/)
+    expect((await falla(rpc(aux1, 'select wms.confirmar_movimiento($1)', [id]))).message).toMatch(/no puede ser quien/)
+    expect((await orden(id)).estado).toBe('EJECUTADO')
+  })
+
+  it('la base valida CADA línea: una sola línea hacia una zona o propietario que no corresponde rechaza todo el movimiento', async () => {
+    const aux1 = await persona('auxiliar')
+    const ss = await tresLotes('A-18.1', 'MV')
+    const lineas = [await linea(ss[0], 'A-19.1', 1), await linea(ss[1], 'A-19.1', 1), await linea(ss[2], 'F-1.1', 1)]
+    const e = await falla(rpc(aux1, 'select wms.preparar_movimiento($1::jsonb, $2)', [JSON.stringify(lineas), 'x']))
+    expect(e.message).toMatch(/sin asignación vigente/)
+    expect((await base.admin.query(`select count(*)::int n from wms.ordenes_movimiento where motivo = 'x'`)).rows[0].n).toBe(0)
+  })
+
+  it('posiciones_bloqueadas dice qué ubicaciones tienen un movimiento abierto o un conteo', async () => {
+    const aux1 = await persona('auxiliar')
+    const s = await stock('A-17.1', 'MB-1', 5)
+    const id = await preparar(aux1, s, 'A-16.1', 1)
+    const filas = await rpc<{ posicion_id: string; motivo: string }>(aux1, 'select * from wms.posiciones_bloqueadas()')
+    expect(filas.find((f) => f.posicion_id === s.posicionId)?.motivo).toMatch(/movimiento MI-/)
+    await rpc(aux1, 'select wms.anular_movimiento($1, $2)', [id, 'Ya no hace falta'])
+    expect((await rpc<{ posicion_id: string }>(aux1, 'select * from wms.posiciones_bloqueadas()')).some((f) => f.posicion_id === s.posicionId)).toBe(false)
   })
 })
 
@@ -241,6 +336,20 @@ describe('conteos cíclicos y ajustes (INV-05)', () => {
     expect((await base.admin.query('select resultado from wms.conteos where id = $1', [conteo])).rows[0].resultado).toBe('ESCALADO')
     // cerrado, la ubicación se puede mover otra vez
     await preparar(aux1, s, 'A-24.1', 1)
+  })
+
+  it('solo Katia autoriza ajustes: Sandra (asistente), el Jefe y administración no', async () => {
+    const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar')
+    const { s, linea } = await conteoConDiferencia('A-20.2', 'CT-SANDRA')
+    void s
+    await rpc(aux1, 'select wms.registrar_conteo($1, 1)', [linea])
+    await rpc(aux2, 'select wms.registrar_conteo($1, 1)', [linea])
+    await rpc(P().charlie.id, 'select wms.registrar_causa_conteo($1, $2)', [linea, 'Causa de prueba'])
+    const aj = (await rpc<{ id: string }>(P().charlie.id, 'select wms.proponer_ajuste($1, $2) as id', [linea, 'Ajustar']))[0].id
+    for (const quien of [P().sandra.id, P().charlie.id, P().admin.id]) {
+      expect((await falla(rpc(quien, 'select wms.decidir_ajuste($1, $2)', [aj, 'AUTORIZAR']))).code).toBe('42501')
+    }
+    await rpc(P().katia.id, 'select wms.decidir_ajuste($1, $2, $3)', [aj, 'AUTORIZAR', 'Conforme'])
   })
 
   it('solo el Jefe programa conteos', async () => {

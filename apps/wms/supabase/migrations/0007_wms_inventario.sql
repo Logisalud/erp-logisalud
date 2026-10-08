@@ -148,7 +148,14 @@ create table if not exists wms.ordenes_movimiento_lineas (
   desde_posicion_id uuid not null references wms.posiciones(id),
   hasta_posicion_id uuid not null references wms.posiciones(id),
   cantidad integer not null check (cantidad > 0),
-  check (desde_posicion_id <> hasta_posicion_id)
+  -- Cada línea se verifica por separado: una diferencia deja abierta solo esa línea; las demás se confirman.
+  verificacion text not null default 'PENDIENTE' check (verificacion in ('PENDIENTE', 'CONFIRMADA', 'CON_DIFERENCIA', 'ANULADA')),
+  nota_diferencia text,
+  verificador_id uuid,
+  verificada_en timestamptz,
+  movimiento_id uuid references wms.movimientos(id),    -- el movimiento del libro que confirmó esta línea
+  check (desde_posicion_id <> hasta_posicion_id),
+  check (verificacion <> 'CON_DIFERENCIA' or nullif(trim(nota_diferencia), '') is not null)
 );
 alter table wms.ordenes_movimiento_lineas enable row level security;
 create index if not exists ordenes_mov_lineas_orden_idx on wms.ordenes_movimiento_lineas (orden_id);
@@ -331,6 +338,7 @@ begin
     select coalesce(sum(l.cantidad), 0) into v_reservado
       from wms.ordenes_movimiento_lineas l join wms.ordenes_movimiento o on o.id = l.orden_id
      where o.estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA') and o.id <> v_id
+       and l.verificacion in ('PENDIENTE', 'CON_DIFERENCIA')
        and l.desde_posicion_id = v_desde and l.lote_id = v_lote.id and l.estado = v_estado and l.procedencia_id = v_proc;
     if v_cant > v_disp - v_reservado then
       raise exception 'No hay suficientes unidades en ese lugar (hay %, otros movimientos ya reservan %)', v_disp, v_reservado using errcode = 'P0002';
@@ -393,76 +401,129 @@ begin
   if auth.uid() = o.ejecutor_id then raise exception 'El verificador no puede ser quien ejecutó el movimiento' using errcode = 'P0001'; end if;
 end $$;
 
-create or replace function wms.confirmar_movimiento(p_orden uuid)
+-- Revisión del verificador, línea por línea. p_revision = [{linea_id, resultado: 'COINCIDE' | 'DIFERENCIA', nota}].
+-- Las líneas que coinciden se confirman JUNTAS en un solo movimiento del libro; cada línea con diferencia queda abierta (con su nota y su alerta)
+-- y no frena a las demás. Nadie cuadra una cantidad: la línea con diferencia no mueve stock.
+create or replace function wms.revisar_movimiento(p_orden uuid, p_revision jsonb)
 returns uuid language plpgsql security definer set search_path = wms, pg_temp as $$
 declare
   o wms.ordenes_movimiento;
+  x jsonb;
+  l wms.ordenes_movimiento_lineas;
+  v_ok uuid[] := '{}';
+  v_dif integer := 0;
   v_mov uuid;
   v_partidas jsonb;
+  v_pend integer;
+  v_cod text;
 begin
   if auth.uid() is null then raise exception 'Sesión requerida' using errcode = '42501'; end if;
   select * into o from wms.ordenes_movimiento where id = p_orden for update;
   if not found then raise exception 'No encontramos ese movimiento' using errcode = 'P0001'; end if;
   if o.estado <> 'EJECUTADO' then raise exception 'El movimiento todavía no se movió o ya no está por verificar' using errcode = 'P0001'; end if;
   perform wms._exigir_verificador(o);
-  select jsonb_agg(p order by ord) into v_partidas from (
-    select 1 as ord, jsonb_build_object('posicion_id', desde_posicion_id, 'producto_id', producto_id, 'lote_id', lote_id,
-             'propietario_id', propietario_id, 'estado', estado, 'origen', origen, 'procedencia_id', procedencia_id, 'delta', -cantidad) as p
-      from wms.ordenes_movimiento_lineas where orden_id = p_orden
-    union all
-    select 2, jsonb_build_object('posicion_id', hasta_posicion_id, 'producto_id', producto_id, 'lote_id', lote_id,
-             'propietario_id', propietario_id, 'estado', estado, 'origen', origen, 'procedencia_id', procedencia_id, 'delta', cantidad)
-      from wms.ordenes_movimiento_lineas where orden_id = p_orden) t;
+  if p_revision is null or jsonb_typeof(p_revision) <> 'array' then raise exception 'Falta la revisión de las líneas' using errcode = 'P0001'; end if;
+  -- Todas las líneas por verificar necesitan una decisión (ni una de más, ni una de menos).
+  select count(*) into v_pend from wms.ordenes_movimiento_lineas where orden_id = p_orden and verificacion = 'PENDIENTE';
+  if v_pend <> jsonb_array_length(p_revision) then
+    raise exception 'Revisa las % líneas por verificar: cada una necesita decir si coincide o qué no coincide', v_pend using errcode = 'P0001';
+  end if;
+  for x in select * from jsonb_array_elements(p_revision) loop
+    select * into l from wms.ordenes_movimiento_lineas where id = (x->>'linea_id')::uuid and orden_id = p_orden for update;
+    if not found or l.verificacion <> 'PENDIENTE' then raise exception 'Una de las líneas no está por verificar' using errcode = 'P0001'; end if;
+    if x->>'resultado' = 'COINCIDE' then
+      v_ok := v_ok || l.id;
+    elsif x->>'resultado' = 'DIFERENCIA' then
+      if nullif(trim(x->>'nota'), '') is null then
+        raise exception 'Cuéntanos qué no coincide (producto, lote, cantidad o ubicación)' using errcode = 'P0001';
+      end if;
+    else
+      raise exception 'Cada línea coincide o tiene una diferencia' using errcode = 'P0001';
+    end if;
+  end loop;
+
   update wms.ordenes_movimiento set verificador_id = auth.uid(), verificado_en = now() where id = p_orden;
-  perform set_config('wms.orden_ctx', jsonb_build_object('orden', p_orden)::text, true);
-  v_mov := wms.postear_movimiento('MOVIMIENTO', o.motivo, v_partidas, 'orden_movimiento', o.numero);
-  perform set_config('wms.orden_ctx', '', true);
-  update wms.ordenes_movimiento set estado = 'CONFIRMADO', movimiento_id = v_mov where id = p_orden;
-  perform wms.registrar_audit('movimiento_confirmado', 'ordenes_movimiento', p_orden::text, null, null, null);
+
+  if cardinality(v_ok) > 0 then
+    select jsonb_agg(p order by ord, lid) into v_partidas from (
+      select 1 as ord, id as lid, jsonb_build_object('posicion_id', desde_posicion_id, 'producto_id', producto_id, 'lote_id', lote_id,
+               'propietario_id', propietario_id, 'estado', estado, 'origen', origen, 'procedencia_id', procedencia_id, 'delta', -cantidad) as p
+        from wms.ordenes_movimiento_lineas where id = any (v_ok)
+      union all
+      select 2, id, jsonb_build_object('posicion_id', hasta_posicion_id, 'producto_id', producto_id, 'lote_id', lote_id,
+               'propietario_id', propietario_id, 'estado', estado, 'origen', origen, 'procedencia_id', procedencia_id, 'delta', cantidad)
+        from wms.ordenes_movimiento_lineas where id = any (v_ok)) t;
+    perform set_config('wms.orden_ctx', jsonb_build_object('orden', p_orden)::text, true);
+    v_mov := wms.postear_movimiento('MOVIMIENTO', o.motivo, v_partidas, 'orden_movimiento', o.numero);
+    perform set_config('wms.orden_ctx', '', true);
+    update wms.ordenes_movimiento_lineas set verificacion = 'CONFIRMADA', verificador_id = auth.uid(), verificada_en = now(), movimiento_id = v_mov where id = any (v_ok);
+  end if;
+
+  for x in select * from jsonb_array_elements(p_revision) where value->>'resultado' = 'DIFERENCIA' loop
+    v_dif := v_dif + 1;
+    update wms.ordenes_movimiento_lineas set verificacion = 'CON_DIFERENCIA', nota_diferencia = trim(x->>'nota'), verificador_id = auth.uid(), verificada_en = now()
+     where id = (x->>'linea_id')::uuid returning * into l;
+    select lt.codigo into v_cod from wms.lotes lt where lt.id = l.lote_id;
+    perform wms._alertar('MOVIMIENTO_CON_DIFERENCIA', 'jefe_almacen', null, l.producto_id, 'mov-dif:' || l.id,
+      format('En el movimiento %s la línea del lote %s no coincide con lo que dice el sistema: %s. Esa línea sigue abierta; las demás ya se confirmaron. No cambies cantidades para que «cuadre».', o.numero, v_cod, trim(x->>'nota')), v_cod);
+  end loop;
+
+  update wms.ordenes_movimiento set estado = case when v_dif > 0 then 'CON_DIFERENCIA' else 'CONFIRMADO' end,
+         movimiento_id = coalesce(v_mov, movimiento_id), nota_diferencia = case when v_dif > 0 then 'Hay ' || v_dif || ' línea(s) con diferencia' end
+   where id = p_orden;
+  perform wms.registrar_audit('movimiento_revisado', 'ordenes_movimiento', p_orden::text, null,
+    jsonb_build_object('confirmadas', cardinality(v_ok), 'con_diferencia', v_dif), null);
   return v_mov;
 end $$;
 
-create or replace function wms.registrar_diferencia_movimiento(p_orden uuid, p_nota text)
-returns void language plpgsql security definer set search_path = wms, pg_temp as $$
-declare o wms.ordenes_movimiento; v_lote text; v_prod uuid;
+-- Atajo: «todo coincide» (equivale a revisar todas las líneas por verificar como conformes).
+create or replace function wms.confirmar_movimiento(p_orden uuid)
+returns uuid language plpgsql security definer set search_path = wms, pg_temp as $$
+declare v_rev jsonb;
 begin
-  if auth.uid() is null then raise exception 'Sesión requerida' using errcode = '42501'; end if;
-  select * into o from wms.ordenes_movimiento where id = p_orden for update;
-  if not found then raise exception 'No encontramos ese movimiento' using errcode = 'P0001'; end if;
-  if o.estado <> 'EJECUTADO' then raise exception 'Solo se registra una diferencia en un movimiento ya movido' using errcode = 'P0001'; end if;
-  perform wms._exigir_verificador(o);
-  if nullif(trim(p_nota), '') is null then
-    raise exception 'Cuéntanos qué no coincide (producto, lote, cantidad o ubicación)' using errcode = 'P0001';
-  end if;
-  update wms.ordenes_movimiento set estado = 'CON_DIFERENCIA', verificador_id = auth.uid(), verificado_en = now(), nota_diferencia = trim(p_nota)
-   where id = p_orden;
-  select l.codigo, l.producto_id into v_lote, v_prod from wms.ordenes_movimiento_lineas ml join wms.lotes l on l.id = ml.lote_id
-   where ml.orden_id = p_orden limit 1;
-  perform wms._alertar('MOVIMIENTO_CON_DIFERENCIA', 'jefe_almacen', null, v_prod, 'mov-dif:' || p_orden,
-    format('El movimiento %s no coincide con lo que dice el sistema: %s. Sigue abierto hasta resolverlo; no cambies cantidades para que «cuadre».', o.numero, trim(p_nota)), v_lote);
-  perform wms.registrar_audit('movimiento_con_diferencia', 'ordenes_movimiento', p_orden::text, null, null, p_nota);
+  select coalesce(jsonb_agg(jsonb_build_object('linea_id', id, 'resultado', 'COINCIDE')), '[]'::jsonb) into v_rev
+    from wms.ordenes_movimiento_lineas where orden_id = p_orden and verificacion = 'PENDIENTE';
+  return wms.revisar_movimiento(p_orden, v_rev);
 end $$;
 
-create or replace function wms.resolver_movimiento(p_orden uuid, p_accion text, p_nota text)
+-- El Jefe resuelve una LÍNEA con diferencia: se vuelve a mover (REINTENTAR) o se anula esa línea. El resto de la orden no se toca.
+create or replace function wms.resolver_movimiento(p_linea uuid, p_accion text, p_nota text)
 returns void language plpgsql security definer set search_path = wms, pg_temp as $$
-declare o wms.ordenes_movimiento;
+declare
+  l wms.ordenes_movimiento_lineas;
+  o wms.ordenes_movimiento;
+  v_hay_dif boolean; v_hay_pend boolean; v_hay_ok boolean;
 begin
   perform wms._exigir_jefe();
-  select * into o from wms.ordenes_movimiento where id = p_orden for update;
-  if not found then raise exception 'No encontramos ese movimiento' using errcode = 'P0001'; end if;
-  if o.estado <> 'CON_DIFERENCIA' then raise exception 'Este movimiento no tiene una diferencia abierta' using errcode = 'P0001'; end if;
+  select * into l from wms.ordenes_movimiento_lineas where id = p_linea for update;
+  if not found then raise exception 'No encontramos esa línea' using errcode = 'P0001'; end if;
+  select * into o from wms.ordenes_movimiento where id = l.orden_id for update;
+  if l.verificacion <> 'CON_DIFERENCIA' then raise exception 'Esta línea no tiene una diferencia abierta' using errcode = 'P0001'; end if;
   if nullif(trim(p_nota), '') is null then raise exception 'Cuéntanos qué se encontró y qué se decidió' using errcode = 'P0001'; end if;
   if p_accion = 'REINTENTAR' then
-    -- Vuelve a «autorizado»: se mueve de nuevo y lo verifica otra persona.
-    update wms.ordenes_movimiento set estado = 'AUTORIZADO', ejecutor_id = null, ejecutado_en = null, verificador_id = null, verificado_en = null where id = p_orden;
+    update wms.ordenes_movimiento_lineas set verificacion = 'PENDIENTE', nota_diferencia = null, verificador_id = null, verificada_en = null where id = p_linea;
   elsif p_accion = 'ANULAR' then
-    update wms.ordenes_movimiento set estado = 'ANULADO', anulado_por = auth.uid(), anulado_en = now(), motivo_anulacion = trim(p_nota) where id = p_orden;
+    update wms.ordenes_movimiento_lineas set verificacion = 'ANULADA', nota_diferencia = trim(p_nota) where id = p_linea;
   else
     raise exception 'Acción desconocida' using errcode = 'P0001';
   end if;
   update wms.alertas set estado = 'ATENDIDA', atendida_por = auth.uid(), atendida_en = now(), nota_atencion = trim(p_nota)
-   where clave = 'mov-dif:' || p_orden and estado = 'ABIERTA';
-  perform wms.registrar_audit('movimiento_diferencia_resuelta', 'ordenes_movimiento', p_orden::text, null, null, p_accion || ': ' || p_nota);
+   where clave = 'mov-dif:' || p_linea and estado = 'ABIERTA';
+  select exists (select 1 from wms.ordenes_movimiento_lineas where orden_id = o.id and verificacion = 'CON_DIFERENCIA'),
+         exists (select 1 from wms.ordenes_movimiento_lineas where orden_id = o.id and verificacion = 'PENDIENTE'),
+         exists (select 1 from wms.ordenes_movimiento_lineas where orden_id = o.id and verificacion = 'CONFIRMADA')
+    into v_hay_dif, v_hay_pend, v_hay_ok;
+  if v_hay_dif then
+    null;                                           -- quedan diferencias por resolver
+  elsif v_hay_pend then
+    -- Las líneas reintentadas se vuelven a mover y las verifica otra revisión; las confirmadas no se tocan.
+    update wms.ordenes_movimiento set estado = 'AUTORIZADO', ejecutor_id = null, ejecutado_en = null, verificador_id = null, verificado_en = null, nota_diferencia = null where id = o.id;
+  elsif v_hay_ok then
+    update wms.ordenes_movimiento set estado = 'CONFIRMADO', nota_diferencia = null where id = o.id;
+  else
+    update wms.ordenes_movimiento set estado = 'ANULADO', anulado_por = auth.uid(), anulado_en = now(), motivo_anulacion = trim(p_nota) where id = o.id;
+  end if;
+  perform wms.registrar_audit('movimiento_diferencia_resuelta', 'ordenes_movimiento', o.id::text, null, jsonb_build_object('linea', p_linea, 'accion', p_accion), p_nota);
 end $$;
 
 create or replace function wms.anular_movimiento(p_orden uuid, p_motivo text)
@@ -485,7 +546,7 @@ end $$;
 
 grant execute on function
   wms.preparar_movimiento(jsonb, text), wms.autorizar_movimiento(uuid), wms.ejecutar_movimiento(uuid), wms.confirmar_movimiento(uuid),
-  wms.registrar_diferencia_movimiento(uuid, text), wms.resolver_movimiento(uuid, text, text), wms.anular_movimiento(uuid, text) to authenticated;
+  wms.revisar_movimiento(uuid, jsonb), wms.resolver_movimiento(uuid, text, text), wms.anular_movimiento(uuid, text) to authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 3. Conteos cíclicos (INV-05) y ajustes autorizados
@@ -581,7 +642,7 @@ begin
    where l.posicion_id = any (p_posiciones) and c.estado <> 'CERRADO' limit 1;
   if v_pos is not null then raise exception 'La ubicación % ya está en otro conteo abierto', v_pos using errcode = 'P0001'; end if;
   if exists (select 1 from wms.ordenes_movimiento_lineas ml join wms.ordenes_movimiento o on o.id = ml.orden_id
-              where o.estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA')
+              where o.estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA') and ml.verificacion in ('PENDIENTE', 'CON_DIFERENCIA')
                 and (ml.desde_posicion_id = any (p_posiciones) or ml.hasta_posicion_id = any (p_posiciones))) then
     raise exception 'Hay movimientos abiertos en esas ubicaciones: ciérralos antes de contar' using errcode = 'P0001';
   end if;
@@ -919,3 +980,18 @@ end $$;
 
 grant execute on function
   wms.validar_carga_inicial(jsonb), wms.crear_carga_inicial(jsonb, text), wms.decidir_estado_carga_inicial(text), wms.confirmar_carga_inicial(uuid) to authenticated;
+
+-- Ubicaciones que hoy no se pueden usar como origen ni destino: en conteo o con un movimiento abierto.
+create or replace function wms.posiciones_bloqueadas()
+returns table (posicion_id uuid, motivo text)
+language sql stable security definer set search_path = wms, pg_temp as $$
+  select distinct l.posicion_id, 'está en conteo ' || c.numero
+    from wms.conteo_lineas l join wms.conteos c on c.id = l.conteo_id where c.estado <> 'CERRADO' and wms.es_usuario()
+  union
+  select x.pid, 'tiene el movimiento ' || x.numero || ' abierto'
+    from (select unnest(array[ml.desde_posicion_id, ml.hasta_posicion_id]) as pid, o.numero
+            from wms.ordenes_movimiento_lineas ml join wms.ordenes_movimiento o on o.id = ml.orden_id
+           where o.estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA') and ml.verificacion in ('PENDIENTE', 'CON_DIFERENCIA')) x
+   where wms.es_usuario()
+$$;
+grant execute on function wms.posiciones_bloqueadas() to authenticated;
