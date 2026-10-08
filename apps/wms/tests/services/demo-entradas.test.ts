@@ -227,9 +227,7 @@ describe('calidad', () => {
 
   it('no se aprueba lo no conforme, y el acta incompleta no llega a Katia', async () => {
     const cola = await repo.colaDireccionTecnica()
-    const borrador = (await repo.listarIngresos()).filter((i) => i.confirmado)
-    const d = (await repo.obtenerIngreso(borrador[0].id))!
-    const bor = d.organolepticas.find((o) => o.estado === 'BORRADOR')!
+    const bor = (await repo.colaDireccionTecnica()).borradores[0]
     expect(await repo.guardarOrganoleptica(bor.id, {}, true, SANDRA)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Para enviarla a Dirección Técnica/) })
     expect(await repo.guardarOrganoleptica(bor.id, {}, false, AUX)).toMatchObject({ ok: false })
     exito(await repo.guardarOrganoleptica(bor.id, { certAnalisis: false, checklist: { ...checklistConforme(), emb_limpio: 'NC' }, destinoSugerido: 'DEVOLUCION', conclusion: 'NO_CONFORME' }, true, SANDRA))

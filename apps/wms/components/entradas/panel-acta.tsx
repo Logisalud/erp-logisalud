@@ -15,7 +15,7 @@ import { ChipActa } from './chips-entradas'
 import { FirmaTactil } from './firma-tactil'
 
 function PanelTransportista({ actaId, placaInicial, alFirmar }: { actaId: string; placaInicial?: string; alFirmar: () => void }) {
-  const { pendiente, mensaje, ejecutar } = useAccion()
+  const { pendiente, mensaje, ejecutar, limpiar } = useAccion()
   const [nombre, setNombre] = useState('')
   const [dni, setDni] = useState('')
   const [placa, setPlaca] = useState(placaInicial ?? '')
@@ -28,7 +28,7 @@ function PanelTransportista({ actaId, placaInicial, alFirmar }: { actaId: string
         <div><label htmlFor="t-dni" className="etiqueta">DNI</label><input id="t-dni" className={`campo tabular ${e.dni ? '!border-red-500' : ''}`} inputMode="numeric" maxLength={8} value={dni} onChange={(ev) => setDni(ev.target.value.replace(/\D/g, ''))} autoComplete="off" />{e.dni && <p role="alert" className="mt-1 text-xs text-red-700">{e.dni}</p>}</div>
         <div><label htmlFor="t-placa" className="etiqueta">Placa</label><input id="t-placa" className={`campo uppercase ${e.placa ? '!border-red-500' : ''}`} value={placa} onChange={(ev) => setPlaca(ev.target.value)} autoComplete="off" />{e.placa && <p role="alert" className="mt-1 text-xs text-red-700">{e.placa}</p>}</div>
       </div>
-      <div><p className="etiqueta">Firma del transportista</p><FirmaTactil onCambio={setImagen} />{e.imagen && <p role="alert" className="mt-1 text-xs text-red-700">{e.imagen}</p>}</div>
+      <div><p className="etiqueta">Firma del transportista</p><FirmaTactil onCambio={(img) => { setImagen(img); if (img) limpiar() }} />{e.imagen && <p role="alert" className="mt-1 text-xs text-red-700">{e.imagen}</p>}</div>
       {mensaje?.tipo === 'error' && !Object.keys(e).length && <Aviso tipo="error">{mensaje.texto}</Aviso>}
       <button type="button" className="btn-primary btn-sm" disabled={pendiente} data-testid="firmar-transportista"
         onClick={() => ejecutar(() => firmarActaAccion(actaId, { rol: 'TRANSPORTISTA', nombre, dni, placa, imagen: imagen ?? '' }), { alExito: alFirmar })}>

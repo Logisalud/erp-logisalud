@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }))
+vi.mock('@/app/acciones-entradas', () => ({ cambiarRolDemoAccion: async () => {} }))
 import { ChipEstado, ChipPorTrasladar, ChipPorVerificar, ChipRS, ChipValidacion } from '@/components/chips'
 import { BannerDemo } from '@/components/banner-demo'
 
@@ -29,7 +32,7 @@ describe('estados: texto + ícono, nunca solo color', () => {
 
 describe('aviso DEMO', () => {
   it('dice que son datos de prueba y que no hay conexión a ninguna base real', () => {
-    render(<BannerDemo />)
+    render(<BannerDemo rolActual="jefe_almacen" />)
     const aviso = screen.getByRole('status')
     expect(aviso).toHaveTextContent('DEMO')
     expect(aviso).toHaveTextContent('sin conexión a ninguna base real')

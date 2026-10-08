@@ -52,7 +52,7 @@ export default async function DetalleIngreso({ params }: { params: { id: string 
 
       <ol className="grid grid-cols-4 gap-2" aria-label="Avance del ingreso">
         {PASOS.map((p, i) => (
-          <li key={p.id} aria-current={i === idxPaso ? 'step' : undefined} className={`rounded-md border-t-4 px-2 pb-1 pt-2 text-xs font-medium sm:text-sm ${i < idxPaso ? 'border-logisalud-green text-green-900' : i === idxPaso ? 'border-logisalud-teal text-gray-900' : 'border-gray-200 text-gray-500'}`}>
+          <li key={p.id} aria-current={i === idxPaso ? 'step' : undefined} className={`border-t-4 px-2 pb-1 pt-2 text-xs font-medium sm:text-sm ${i < idxPaso ? 'border-logisalud-green text-green-900' : i === idxPaso ? 'border-logisalud-teal text-gray-900' : 'border-gray-200 text-gray-500'}`}>
             <span className="tabular text-[11px] text-gray-500">{i + 1}</span> {p.t}
           </li>
         ))}
