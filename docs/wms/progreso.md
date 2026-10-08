@@ -129,6 +129,9 @@ Rama `feat/wms-batch-3` (desde `main` con los Batches 1 y 2 y el addendum ya mer
 - Pruebas nuevas: base de datos (multilínea, diferencia en una sola línea, revisión incompleta rechazada, validación por línea, solo Katia autoriza ajustes), dominio (buscar origen, validar destino) y E2E de los dos flujos en los 4 viewports (1440: 66 · 1280: 66 · 1024: 66 · 390: 60). Detector de Impeccable: 0 hallazgos.
 - **Autoridad de ajustes:** el marcador `[ELIGE …]` del pedido llegó sin elegir. Se dejó **como está en la base: solo Katia autoriza ajustes de inventario** (Sandra no), ahora con test. Si quieres que Sandra también pueda, es un cambio de una línea.
 
+### D-38 (presentación y principio activo): construido, sin aplicar
+Migración **0008** + reversa + 11 pruebas de base de datos (ver `propuesta-presentacion-principio-activo.md`). **Revisión previa de procesos automáticos** (solo lectura del repo): ninguno de los importadores, sincronizaciones o jobs de las apps actualiza esos campos hoy; solo hay cargas únicas por migración SQL (`0070`, `0077` de Compras; `1002` y similares de Pedidos) y el script manual `scripts/migrar-datos-pedidos.ts`, que corren como `postgres`/`service_role` y no se bloquean. Riesgo futuro: al consolidar Pedidos en este proyecto, su importador de listas de precios o su edición de productos deberán dejar de escribir estos dos campos o hacerlo como `service_role`. Pruebas: WMS base de datos **153** en verde; Compras **883**.
+
 ## Bloqueado / pendiente
 Ver `docs/wms/decisiones-pendientes.md` (D-01..D-29). Ninguna bloquea la aprobación del Batch 1.
 

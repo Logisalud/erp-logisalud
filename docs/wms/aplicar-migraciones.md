@@ -20,6 +20,8 @@ porque la herramienta MCP de Supabase se colgó con ese patrón. El plan complet
 **0007** (Batch 3): Kardex (`kardex_filas`) e historia del lote, movimientos internos (`ordenes_movimiento*` + funciones; **redefine `postear_movimiento`** para guardar a preparador y verificador), conteos y ajustes
 (`conteos`, `conteo_lineas`, `ajustes_inventario`; el saldo del sistema se lee solo por `conteo_lineas_para`), carga inicial y el trigger `pausa_por_conteo`. Amplía `alertas_tipo_check`. Todo dentro de `wms`.
 
+**0008** (D-38, después de 0007): trigger `proteger_presentacion_principio` en `catalogo.productos` (rechaza que una sesión de aplicación cambie presentación o principio activo; **no** bloquea INSERT, otras columnas, `postgres` ni `service_role`) y `wms.editar_regulatorio` con esos dos campos. **Toca un objeto de Compras (agrega un trigger)**: se aplica solo con la salida a producción, con snapshot de control antes y después. Reversa: `supabase/rollback/wms_0008_rollback.sql`.
+
 Antes de aplicar:
 1. Exponer el schema `wms` en Dashboard → Settings → Data API → Exposed schemas (si falta: HTTP 406 `Invalid schema`).
 2. Agregar `wms` a `public.schemas_compras_y_pagos()` y ejecutar `select public.aplicar_grants_del_modulo();` (si falta: HTTP 403).

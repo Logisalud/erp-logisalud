@@ -1,6 +1,12 @@
 # Propuesta (D-38): edición de presentación y principio activo — qué cambia en Compras
 
-**Estado: PROPUESTA. No se implementó ni se aplicó nada.** Hace falta tu aprobación del cambio de permisos en Compras.
+**Estado: IMPLEMENTADA como migración `0008_wms_presentacion_principio_activo.sql` y pruebas; NO aplicada en ninguna base.** Se aplica con el resto en la salida a producción.
+**Pendiente (no incluido):** el editor de la ficha del WMS (formulario, demo y adaptador) todavía no muestra estos dos campos; la base ya los acepta en `editar_regulatorio`.
+
+### Lo que quedó construido
+- Trigger `wms.trg_proteger_presentacion_principio` sobre `catalogo.productos` (`before update of presentacion, principio_activo`): rechaza (42501, «Presentación y principio activo los edita Dirección Técnica desde el WMS») cuando quien ejecuta es `authenticated`/`anon`. En lugar de una bandera de sesión se usa el rol efectivo: `wms.editar_regulatorio` es `security definer` y corre como su dueño, así que pasa; las migraciones y los importadores (`postgres`, `service_role`) tampoco se bloquean. Un efecto a tener presente: otra función `security definer` de Compras (dueño `postgres`) podría seguir cambiándolos.
+- `wms.editar_regulatorio` acepta `presentacion` y `principio_activo` con historial (campo, antes, después, usuario, fecha, motivo) en `producto_regulatorio_cambios`.
+- Pruebas (`tests/db/presentacion-principio.test.ts`, contra una réplica de la policy y los grants reales de Compras): Compras crea con ambos campos, actualiza las demás columnas, no cambia estos dos (mensaje claro, dato intacto); Katia y Sandra editan con historial; otros roles, sin motivo o producto inexistente se rechazan; `postgres` y `service_role` no se bloquean; la migración es re-ejecutable; la reversa (`supabase/rollback/wms_0008_rollback.sql`) quita el trigger y restaura la función. Compras: 883 pruebas en verde; builds de Compras, Cobranzas, Pedidos y WMS OK; sin cambios en esas apps.
 
 ## Lo que decidiste
 Presentación y principio activo viven **solo** en `catalogo.productos`. Compras puede llenarlos **al crear** un producto nuevo. Una vez creado, **solo Katia y Sandra** los editan, desde la ficha del WMS, con el mismo historial que los demás datos regulatorios (campo, antes, después, usuario, fecha, motivo obligatorio).

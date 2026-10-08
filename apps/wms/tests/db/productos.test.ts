@@ -91,10 +91,10 @@ describe('edición de datos regulatorios', () => {
     expect(rs.ts).toBeInstanceOf(Date)
   })
 
-  it('solo se editan los campos regulatorios (presentación y principio activo son de Compras)', async () => {
+  it('solo se editan los campos regulatorios y los dos del catálogo (D-38); cualquier otro se rechaza', async () => {
     const id = await alta(P().sandra.id, 'EDI-5')
-    expect((await falla(editar(P().sandra.id, id, { principio_activo: 'otro' }))).message).toMatch(/no se edita aquí/)
-    expect((await falla(editar(P().sandra.id, id, { presentacion: 'otra' }))).message).toMatch(/no se edita aquí/)
+    expect((await falla(editar(P().sandra.id, id, { marca: 'otra' }))).message).toMatch(/no se edita aquí/)
+    expect((await falla(editar(P().sandra.id, id, { precio_compra: 10 }))).message).toMatch(/no se edita aquí/)
   })
 
   it('no se puede quitar el vencimiento si queda un registro sanitario', async () => {
