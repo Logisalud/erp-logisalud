@@ -19,6 +19,7 @@ export const SQL = {
   m0001: () => leer('supabase/migrations/0001_wms_base.sql'),
   m0002: () => leer('supabase/migrations/0002_wms_ledger.sql'),
   m0003: () => leer('supabase/migrations/0003_wms_productos.sql'),
+  m0004: () => leer('supabase/migrations/0004_wms_entradas.sql'),
   seed: () => leer('supabase/seeds/0001_topologia.sql'),
 }
 
@@ -67,6 +68,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean } = {}): P
   await admin.query(SQL.m0001())
   await admin.query(SQL.m0002())
   await admin.query(SQL.m0003())
+  await admin.query(SQL.m0004())
   if (opciones.conSeed !== false) await admin.query(SQL.seed())
 
   const personas = {
@@ -111,6 +113,10 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean } = {}): P
     } catch (e) {
       await c.query('rollback').catch(() => {})
       throw e
+    } finally {
+      // Cada llamada abre su conexión: se cierra al terminar (Postgres limita los clientes simultáneos).
+      conexiones.splice(conexiones.indexOf(c), 1)
+      await c.end().catch(() => {})
     }
   }
 

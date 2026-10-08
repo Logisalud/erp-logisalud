@@ -12,6 +12,7 @@ describe('migraciones y seed', () => {
     await base.admin.query(SQL.m0001())
     await base.admin.query(SQL.m0002())
     await base.admin.query(SQL.m0003())
+    await base.admin.query(SQL.m0004())
     await base.admin.query(SQL.seed())
     const n = (await base.admin.query('select count(*)::int n from wms.posiciones')).rows[0].n
     expect(n).toBe(348)
