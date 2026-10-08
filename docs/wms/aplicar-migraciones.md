@@ -3,8 +3,14 @@
 > **No se aplicó nada en ninguna base.** Este documento es la lista de pasos para cuando exista una base donde probarlas
 > y, después, para producción. Las migraciones están en `apps/wms/supabase/migrations/` y son re-ejecutables.
 
-Orden: `0001_wms_base.sql` → `0002_wms_ledger.sql` → `0003_wms_productos.sql` → seed `supabase/seeds/0001_topologia.sql`
+Orden: `0001_wms_base.sql` → `0002_wms_ledger.sql` → `0003_wms_productos.sql` → `0004_wms_entradas.sql` → `0005_wms_flujo_ingreso.sql` → seed `supabase/seeds/0001_topologia.sql`
 (generado con `npm run seed:topologia --workspace erp-logisalud-wms`).
+
+**0005 reemplaza el flujo de 0004** (la solicitud pasa a ser primaria; retira `crear_ingreso`, `guardar_lotes`, `editar_solicitud`, la tabla `ingreso_lineas` y
+`v_recepciones_compra` queda sin uso). Se aplica **después** de 0004 y es re-ejecutable por sí sola. Agrega el estado sanitario `DEVOLUCIONES`,
+`wms.v_oc_items` (solo lectura de Compras; se crea solo si existen `compras.ordenes_compra*`, `compras.proveedores` y `catalogo.productos`) y
+`wms.estado_registro_compras()` / `revisar_registro_compras()` (la integración con Compras es manual). Requiere en Compras las columnas
+`ordenes_compra.estado` y `ordenes_compra_items.cantidad_recibida`: **verifícalas contra la base real antes de aplicar** (en las pruebas locales son stubs).
 
 Antes de aplicar:
 1. Exponer el schema `wms` en Dashboard → Settings → Data API → Exposed schemas (si falta: HTTP 406 `Invalid schema`).

@@ -90,6 +90,13 @@ Pruebas del prompt cubiertas: 1–9 y 18–20 (más 14, 17, 19 del Batch 1). Los
 5. Las alertas con lote (por trasladar, vencimientos) llevan un enlace "ver en el mapa".
 **Decisiones que siguen abiertas y tocan este batch:** D-01, D-11, D-12, D-13, D-28b, D-30.
 
+## Addendum de flujo de ingreso (2026-10-08) — construido, pendiente de tu revisión
+Docs corregidos (reglas, visión, gate-0, decisiones D-31..D-35, ADR-009), migración **0005 escrita y probada en Postgres local, sin aplicar**, dominio, modo demo y pantallas.
+- Solicitud primaria `SI-AAAA-NNNNN`; verificación por línea; historial campo a campo; "Cantidad física confirmada" con Copiar y estado ámbar/verde/rojo; estado `DEVOLUCIONES`.
+- Pruebas: unitarias/componentes 151, base de datos 104 (incluye ejemplos 20–23), E2E 53 por viewport en los 4 viewports, Compras 883 y Pedidos 570 sin cambios.
+- **No verificado:** adaptador Supabase contra base real; `v_oc_items` y columnas de Compras (`cantidad_recibida`, `estado`) solo contra stubs; estado del Preview por instancia.
+- Abiertas: D-11, D-12, D-13, D-28b, D-30; los `procesos/*.xlsx` (REC-01, REC-02) siguen con el flujo viejo (decides tú).
+
 ## Batch 3 — alcance ajustado (Kardex, 2026-10-08)
 Ejemplos en `formatos/` (un PDF por lote, un Excel por producto). Además de carga inicial, movimientos internos, conteos y ajustes:
 1. **Dos vistas.** (a) *Kardex / Tarjeta de Control de Existencias*: solo entradas y salidas, una fila por partida con saldo corrido; por producto (todos los lotes) o por lote;

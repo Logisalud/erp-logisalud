@@ -13,3 +13,4 @@ Decisiones técnicas **reversibles** tomadas durante la construcción (las de ne
 | [006](006-cambio-de-estado-en-el-lugar.md) | El cambio de estado ocurre en el lugar; Aprobado "por trasladar" |
 | [007](007-ux-estados-y-emoji.md) | UX: estados, vacíos, errores y uso de emoji |
 | [008](008-entradas-actas-firmas.md) | Entradas, actas y firmas: confirmar aparte, inmutabilidad, hash, alertas |
+| [009](009-solicitud-primaria-y-estado-devoluciones.md) | La Solicitud de Ingreso es primaria; recepción = verificación; estado Devoluciones; Compras manual |

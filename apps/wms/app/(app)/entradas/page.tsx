@@ -83,7 +83,7 @@ export default async function Entradas({ searchParams }: { searchParams: { f?: s
               <tbody className="divide-y divide-gray-100">
                 {lista.map((i) => (
                   <tr key={i.id} className="transition duration-fast hover:bg-gray-50">
-                    <td className="px-4 py-3"><Link href={`/entradas/${i.id}`} className="tabular font-medium text-gray-900 hover:underline">{i.numero}</Link><span className="block text-xs text-gray-600">{[i.referencia, i.contraparte].filter(Boolean).join(' · ')}</span></td>
+                    <td className="px-4 py-3"><Link href={`/entradas/${i.id}`} className="block hover:underline"><span className="tabular font-medium text-gray-900">{i.numero}</span><span className="block text-xs text-gray-600">{[i.referencia, i.contraparte].filter(Boolean).join(' · ')}</span></Link></td>
                     <td className="px-4 py-3"><ChipTipoIngreso tipo={i.tipo} /></td>
                     <td className="px-4 py-3 text-gray-800">{i.propietario}</td>
                     <td className="tabular px-4 py-3 text-right text-gray-900">{num(i.unidades)}<span className="block text-xs text-gray-600">{i.productos} {i.productos === 1 ? 'producto' : 'productos'}</span></td>

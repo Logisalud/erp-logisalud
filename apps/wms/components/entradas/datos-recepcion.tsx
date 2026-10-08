@@ -58,7 +58,7 @@ export function DatosRecepcion({ solicitud, editable, hoy }: { solicitud: Solici
         {dato('Bultos', ingreso.bultos)}{dato('Paletas', ingreso.paletas)}
         {dato('Vehículo', [ingreso.placa, ingreso.marcaVehiculo].filter(Boolean).join(' · '))}
         {dato('Conteo', ingreso.tipoConteo === 'TOTAL' ? 'Al 100 %' : ingreso.tipoConteo === 'MUESTREO' ? 'Por muestreo' : ingreso.tipoConteo === 'OTROS' ? 'Otros' : undefined)}
-        {dato('Horario', ingreso.horaInicio ? `${hora(ingreso.horaInicio)} a ${hora(ingreso.horaFin)}` : undefined)}
+        {dato('Horario', ingreso.horaInicio ? (ingreso.horaFin ? `${hora(ingreso.horaInicio)} a ${hora(ingreso.horaFin)}` : `desde las ${hora(ingreso.horaInicio)}`) : undefined)}
         {ingreso.tipo === 'COMPRA_LOCAL' && dato('Factura', ingreso.facturaNumero)}
         {dato('Observaciones', ingreso.observaciones)}
       </dl>
