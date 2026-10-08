@@ -75,6 +75,11 @@ confirmación: el inventario nace en Cuarentena (A-6..A-9) · alertas (temperatu
 la llena Sandra, decide y firma Katia) · expediente por OC/acta con faltantes y cierre de Sandra · PDF de ambas actas · búsqueda por OC y acta.
 **Migración 0004** (no aplicada) + parámetros `plazo_por_trasladar_horas` (24), `muestreo_constante`, `kardex_codigo_formato`. ADR-008.
 **Modo demostración:** selector "Probar como" en el banner para firmar el acta con varias personas sin volver al login.
+**Verificación del Batch 2 (sobre el código final):** dominio/componentes/servicios **123 pruebas** · base de datos (Postgres 16 local) **89 pruebas** (29 nuevas de entradas) ·
+E2E en los 4 viewports: **48/48** en 1440, 1280 y 1024 y **42/42** en 390 (las omitidas son del mapa completo) · `tsc` y `next build` OK · regresión: compras 883 pruebas, pedidos 570 pruebas,
+builds de compras, cobranzas y pedidos OK; no se tocó ningún archivo de esas apps. Detector de Impeccable: 1 hallazgo real (borde grueso en el avance) corregido; el resto son falsos positivos de clases condicionales.
+Pruebas del prompt cubiertas: 1–9 y 18–20 (más 14, 17, 19 del Batch 1). Los 10–13, 15 y 17 completos llegan con el Batch 3.
+**Bugs hallados por las pruebas en este batch:** el E2E expuso un servidor huérfano entre viewports (script corregido) y una regresión mía del lienzo de firma (callback inestable).
 **No verificado:** el adaptador de Supabase de entradas (misma limitación que el Batch 1); la vista `wms.v_recepciones_compra` contra las tablas reales de Compras
 (se probó con réplicas mínimas); la validez legal de las firmas (D-11); los PDF se revisaron como archivo, no impresos.
 **Decisiones que siguen abiertas y tocan este batch:** D-01, D-11, D-12, D-13, D-28b.
