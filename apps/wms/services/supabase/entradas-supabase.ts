@@ -31,7 +31,7 @@ const por = <T extends Fila>(filas: T[], clave: string) => {
   return m
 }
 
-async function nombresDe(ids: (string | undefined)[]): Promise<Map<string, string>> {
+export async function nombresDe(ids: (string | undefined)[]): Promise<Map<string, string>> {
   const unicos = [...new Set(ids.filter((x): x is string => !!x))]
   const m = new Map<string, string>()
   if (unicos.length === 0) return m

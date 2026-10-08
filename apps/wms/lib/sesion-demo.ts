@@ -8,7 +8,8 @@ export const ROLES_DEMO: { rol: Rol; descripcion: string }[] = [
   { rol: 'direccion_tecnica', descripcion: 'Valida productos y decide los estados sanitarios.' },
   { rol: 'asistente_dt', descripcion: 'Da de alta productos y carga su registro sanitario.' },
   { rol: 'jefe_almacen', descripcion: 'Ve el almacén, busca y organiza ubicaciones.' },
-  { rol: 'auxiliar', descripcion: 'Consulta ubicaciones y stock desde el celular.' },
+  { rol: 'reemplazo_jefe', descripcion: 'Reemplaza al Jefe de Almacén: autoriza, mueve y verifica.' },
+  { rol: 'auxiliar', descripcion: 'Prepara, mueve y cuenta; consulta ubicaciones y stock desde el celular.' },
   { rol: 'admin_wms', descripcion: 'Revisa propietarios, asignaciones y topología.' },
   { rol: 'auditoria_lectura', descripcion: 'Lee la auditoría: quién, qué, cuándo y por qué.' },
 ]

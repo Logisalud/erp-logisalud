@@ -26,6 +26,7 @@ import { puede } from '@/domain/permisos'
 import type { Lote, TipoArea } from '@/domain/tipos'
 import { estado, registrar, type ActaDemo, type EstadoDemo, type LineaSolicitudDemo, type LoteRecepcionDemo, type SolicitudDemo } from './estado'
 import { sumarDias } from './datos'
+import { anotar } from './libro'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
 const SOLO_MES_ANIO = /^\d{1,2}\/\d{4}$|^\d{4}-\d{2}$/
@@ -34,7 +35,7 @@ const SOLO_MES_ANIO = /^\d{1,2}\/\d{4}$|^\d{4}-\d{2}$/
 // con ids aleatorios, un enlace generado por una instancia daba "No encontramos eso" en otra.
 let sembrando = false
 let contadorSiembra = 0
-const nuevoId = () => (sembrando ? `00000000-0000-4000-8000-${String(++contadorSiembra).padStart(12, '0')}` : randomUUID())
+export const nuevoId = () => (sembrando ? `00000000-0000-4000-8000-${String(++contadorSiembra).padStart(12, '0')}` : randomUUID())
 
 /** Las alertas se crean al abrir la pantalla (no en la siembra): su id sale de su clave para ser igual en todas las instancias. */
 const idDeClave = (clave: string, n: number) => {
@@ -42,8 +43,8 @@ const idDeClave = (clave: string, n: number) => {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`
 }
 
-const ahora = () => new Date().toISOString()
-const falla = (mensaje: string, errores?: Record<string, string>): { ok: false; mensaje: string; errores?: Record<string, string> } => ({ ok: false, mensaje, errores })
+export const ahora = () => new Date().toISOString()
+export const falla = (mensaje: string, errores?: Record<string, string>): { ok: false; mensaje: string; errores?: Record<string, string> } => ({ ok: false, mensaje, errores })
 const horasAtras = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString()
 type ConClave = AlertaVista & { clave?: string }
 
@@ -78,7 +79,7 @@ function siguienteNumeroSolicitud(e: EstadoDemo): string {
   return `SI-${anio}-${String(e.correlativos[clave]).padStart(5, '0')}`
 }
 
-function alertar(e: EstadoDemo, tipo: TipoAlerta, destinatario: DestinatarioAlerta, mensaje: string, clave: string, solicitudId?: string, productoId?: string, loteCodigo?: string) {
+export function alertar(e: EstadoDemo, tipo: TipoAlerta, destinatario: DestinatarioAlerta, mensaje: string, clave: string, solicitudId?: string, productoId?: string, loteCodigo?: string) {
   if (e.alertas.some((a) => a.estado === 'ABIERTA' && (a as ConClave).clave === clave)) return
   e.alertas.unshift(Object.assign({
     id: idDeClave(clave, e.alertas.filter((a) => (a as ConClave).clave === clave).length), tipo, destinatario, mensaje, estado: 'ABIERTA' as const,
@@ -768,6 +769,18 @@ export class MotorEntradas {
         estado: estadoInicial, procedenciaId: x.id, cantidad: linea.cantidad,
       })
     }
+    const movIngreso = `mov-ingreso-${acta.numero}`
+    anotar(e.inv, movIngreso, 'INGRESO', ahora(), {
+      motivo: `Ingreso ${s.numero}`, ejecutorId: actor.id, referenciaTipo: 'acta_recepcion', referenciaId: acta.numero,
+      doc: {
+        tipoIngreso: s.tipo, contraparte: s.contraparteNombre, ruc: s.contraparteRuc,
+        tipoDoc: s.guiaNumero ? 'GUÍA DE REMISIÓN' : s.docOriginalTipo, numeroDoc: s.guiaNumero ?? s.docOriginalNumero,
+        actaNumero: acta.numero, actaFecha: acta.firmadaEn ?? acta.generadaEn,
+      },
+    }, lotes.map(({ lote, linea, x }) => ({
+      posicionId: x.posicionId!, productoId: linea.productoId, loteId: lote.id, propietarioId: s.propietarioId, estado: estadoInicial,
+      origen: s.tipo, procedenciaId: x.id, delta: linea.cantidad,
+    })))
     r.confirmado = true
     r.confirmadoEn = ahora()
     s.estado = 'CERRADA'
@@ -828,6 +841,12 @@ export class MotorEntradas {
     const desde = ESTADO_INICIAL[o.ingresoTipo]
     const saldos = e.panorama.saldos.filter((s) => s.procedenciaId === o.ingresoLoteId && s.estado === desde && s.cantidad > 0)
     if (saldos.length === 0) return falla('Estas unidades ya no están esperando decisión: no hay nada que decidir')
+    const movEstado = `mov-estado-${o.numero}`
+    anotar(e.inv, movEstado, 'CAMBIO_ESTADO', ahora(), { motivo: `Decisión del acta organoléptica ${o.numero}`, ejecutorId: actor.id, referenciaTipo: 'acta_organoleptica', referenciaId: o.numero, sustentoTipo: 'ACTA', sustentoId: o.numero },
+      saldos.flatMap((s) => [
+        { posicionId: s.posicionId, productoId: s.productoId, loteId: s.loteId, propietarioId: s.propietarioId, estado: desde, origen: o.ingresoTipo, procedenciaId: s.procedenciaId, delta: -s.cantidad },
+        { posicionId: s.posicionId, productoId: s.productoId, loteId: s.loteId, propietarioId: s.propietarioId, estado: decision, origen: o.ingresoTipo, procedenciaId: s.procedenciaId, delta: s.cantidad },
+      ]))
     for (const s of saldos) s.estado = decision
     o.estado = 'FIRMADA'
     o.decision = decision

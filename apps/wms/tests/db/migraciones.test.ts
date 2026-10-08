@@ -21,7 +21,7 @@ beforeAll(async () => {
   await raiz.end()
   const u = new URL(url); u.pathname = `/${nombre}`
   admin = new Client({ connectionString: u.toString() })
-  admin.on('notice', (n) => avisos.push(n.message))
+  admin.on('notice', (n) => avisos.push(n.message ?? ''))
   await admin.connect()
 }, 60_000)
 
