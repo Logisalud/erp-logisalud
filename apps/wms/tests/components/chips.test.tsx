@@ -9,7 +9,7 @@ import { BannerDemo } from '@/components/banner-demo'
 
 describe('estados: texto + ícono, nunca solo color', () => {
   it('cada estado sanitario lleva su texto y un ícono', () => {
-    for (const [estado, texto] of [['CUARENTENA', 'Cuarentena'], ['APROBADO', 'Aprobado'], ['BAJAS_RECHAZADOS', 'Bajas/Rechazados']] as const) {
+    for (const [estado, texto] of [['CUARENTENA', 'Cuarentena'], ['DEVOLUCIONES', 'Devoluciones'], ['APROBADO', 'Aprobado'], ['BAJAS_RECHAZADOS', 'Bajas/Rechazados']] as const) {
       const { container, unmount } = render(<ChipEstado estado={estado} />)
       expect(screen.getByText(texto)).toBeInTheDocument()
       expect(container.querySelector('svg')).not.toBeNull()

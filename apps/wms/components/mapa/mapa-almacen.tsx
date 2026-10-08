@@ -24,6 +24,7 @@ const CAPAS: { id: Capa; etiqueta: string; pregunta: string }[] = [
 
 const COLOR_ESTADO: Record<Estado, { fondo: string; borde: string; letra: string }> = {
   CUARENTENA: { fondo: '#E0E7FF', borde: '#4338CA', letra: 'C' },
+  DEVOLUCIONES: { fondo: '#FFEDD5', borde: '#C2410C', letra: 'D' },
   APROBADO: { fondo: '#D8F1DF', borde: '#2F7644', letra: 'A' },
   BAJAS_RECHAZADOS: { fondo: '#FEE2E2', borde: '#B91C1C', letra: 'B' },
 }
@@ -31,9 +32,10 @@ const COLOR_ESTADO: Record<Estado, { fondo: string; borde: string; letra: string
 const AREA_COMPARTIDA = new Set(['RECEPCION', 'CUARENTENA', 'EMBALAJE', 'DESPACHO'])
 const AREA_ETIQUETA_CORTA: Record<string, string> = { RECEPCION: 'Recep.', CUARENTENA: 'Cuar.', EMBALAJE: 'Emb.', DESPACHO: 'Desp.' }
 
-/** Estado que "gana" en una celda con varios: Cuarentena (pide acción) > Bajas > Aprobado. */
+/** Estado que "gana" en una celda con varios: Cuarentena y Devoluciones (piden acción) > Bajas > Aprobado. */
 function estadoDominante(c: CeldaVista): Estado | null {
   if (c.estados.includes('CUARENTENA')) return 'CUARENTENA'
+  if (c.estados.includes('DEVOLUCIONES')) return 'DEVOLUCIONES'
   if (c.estados.includes('BAJAS_RECHAZADOS')) return 'BAJAS_RECHAZADOS'
   if (c.estados.includes('APROBADO')) return 'APROBADO'
   return null
@@ -197,7 +199,7 @@ export function MapaAlmacen({
       })
     }
     if (capa === 'estado') {
-      return (['APROBADO', 'CUARENTENA', 'BAJAS_RECHAZADOS'] as Estado[]).map((e) => {
+      return (['APROBADO', 'CUARENTENA', 'DEVOLUCIONES', 'BAJAS_RECHAZADOS'] as Estado[]).map((e) => {
         let u = 0
         const cs = new Set<string>()
         for (const c of celdas) for (const p of c.posiciones) for (const s of p.stock) if (s.estado === e) { u += s.cantidad; cs.add(c.clave) }

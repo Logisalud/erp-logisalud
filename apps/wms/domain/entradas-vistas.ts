@@ -2,41 +2,94 @@
 // adaptadores (demo y Supabase); no tienen lógica.
 
 import type {
-  Checklist, DatosOrganoleptica, Decision, EstadoActa, PasoIngreso, RolFirma, TipoAlerta, TipoDocumentoExpediente, TipoIngreso,
+  CambioEntrada, Checklist, DatosOrganoleptica, DestinatarioAlerta, Decision, EstadoActa, EstadoLineaSolicitud, EstadoRegistroCompras,
+  EstadoSolicitud, PasoSolicitud, RolFirma, TipoAlerta, TipoDocumentoExpediente, TipoIngreso, VerificacionLinea,
 } from './entradas'
 import type { Estado } from './tipos'
 
-export interface RecepcionCompra {
-  recepcionId: string
-  ocCodigo: string
+/** Una orden de compra de Compras (solo lectura) con sus líneas, desde la que se prepara una solicitud. */
+export interface OcPendiente {
+  ocId: string
+  codigo: string
   proveedorNombre: string
   proveedorRuc: string
-  fecha: string
-  guias?: string
-  lineas: { productoId: string; codigo: string; descripcion: string; cantidad: number }[]
-  /** Si ya tiene su ingreso en el WMS. */
-  ingresoId?: string
+  estado?: string
+  items: { ocItemId: string; productoId: string; codigo: string; descripcion: string; pedida: number; recibida: number; saldo: number }[]
 }
 
-export interface LoteVista {
+export interface LineaSolicitudVista {
   id: string
-  codigo: string
-  vence: string
-  venceTexto?: string
-  cantidad: number
-  posicionId: string
-  posicionCodigo: string
-}
-
-export interface LineaVista {
-  id: string
+  ocItemId?: string
   productoId: string
   codigo: string
   descripcion: string
   registroSanitario?: string
   rsVence?: string
-  cantidadReferencia: number
-  lotes: LoteVista[]
+  lote: string
+  vence: string
+  venceTexto?: string
+  /** Lo que pedía la OC y su saldo cuando se preparó la solicitud. */
+  ocPedida?: number
+  ocSaldo?: number
+  /** Lo que Compras ya tenía recibido cuando se preparó la solicitud (base para la conciliación). */
+  comprasRecibidaAntes?: number
+  /** Lo anunciado al autorizar (inmutable). */
+  inicial?: number
+  /** Solicitud final (la vigente). 0 = ya no llega. */
+  cantidad: number
+  estadoLinea: EstadoLineaSolicitud
+  /** null mientras no hay recepción física. */
+  verificacion: VerificacionLinea | null
+  posicionId?: string
+  posicionCodigo?: string
+  /** Lo físico confirmado (solo con el ingreso confirmado). */
+  fisica?: number
+}
+
+export interface CambioVista {
+  id: string
+  lineaId?: string
+  version: number
+  campo: string
+  antes?: string
+  despues?: string
+  motivo?: string
+  usuario: string
+  ts: string
+  /** "Dapagliflozina 10 mg · lote L24071" para los cambios de línea. */
+  etiqueta?: string
+}
+
+/** "Cantidad física confirmada": lo que Contabilidad/Compras debe copiar a mano a la recepción de la OC. */
+export interface BloqueFisico {
+  ocItemId: string
+  productoId: string
+  descripcion: string
+  ocCodigo: string
+  fisica: number
+  /** Cuánto mostraba Compras antes y cuánto debería mostrar ahora. */
+  base: number
+  esperado: number
+  registrado?: number
+  estado: EstadoRegistroCompras
+}
+
+export interface RecepcionVista {
+  id: string
+  confirmado: boolean
+  confirmadoEn?: string
+  facturaNumero?: string
+  temperaturaC?: number
+  alertaTemperatura: boolean
+  bultos?: number
+  paletas?: number
+  placa?: string
+  marcaVehiculo?: string
+  tipoConteo?: 'MUESTREO' | 'TOTAL' | 'OTROS'
+  horaInicio?: string
+  horaFin?: string
+  verificaciones: Record<string, boolean>
+  observaciones?: string
 }
 
 export interface FirmaVista {
@@ -52,6 +105,7 @@ export interface FirmaVista {
 
 export interface ContenidoActaRecepcion {
   numero: string
+  solicitud?: { numero: string; version: number }
   ingreso: {
     tipo: TipoIngreso
     propietario: string
@@ -80,7 +134,7 @@ export interface ContenidoActaRecepcion {
     registroSanitario?: string
     cantidadEstablecida: number
     cantidadRecibida: number
-    lotes: { lote: string; vence: string; venceTexto?: string; cantidad: number; posicion: string }[]
+    lotes: { lote: string; vence: string; venceTexto?: string; cantidad: number; cantidadInicial?: number; posicion: string }[]
   }[]
 }
 
@@ -112,14 +166,15 @@ export interface VersionSolicitud {
 export interface AlertaVista {
   id: string
   tipo: TipoAlerta
-  destinatario: 'direccion_tecnica' | 'jefe_almacen'
+  destinatario: DestinatarioAlerta
   mensaje: string
   estado: 'ABIERTA' | 'ATENDIDA'
   creadaEn: string
   atendidaPor?: string
   atendidaEn?: string
   nota?: string
-  ingresoId?: string
+  /** La solicitud a la que se refiere (la pantalla /entradas/[id]). */
+  solicitudId?: string
   productoId?: string
   /** Para llevar al mapa (búsqueda por lote). */
   loteCodigo?: string
@@ -129,7 +184,8 @@ export interface OrganolepticaVista {
   id: string
   numero: string
   estado: 'BORRADOR' | 'PENDIENTE_DT' | 'FIRMADA'
-  ingresoId: string
+  solicitudId: string
+  solicitudNumero: string
   ingresoTipo: TipoIngreso
   ingresoLoteId: string
   productoId: string
@@ -183,7 +239,7 @@ export interface ExpedienteVista {
   cerradoEn?: string
   documentos: DocumentoExpediente[]
   faltantes: FaltanteExpediente[]
-  ingresos: { id: string; tipo: TipoIngreso; actaNumero?: string; unidades: number; confirmadoEn?: string }[]
+  ingresos: { id: string; numero: string; tipo: TipoIngreso; actaNumero?: string; unidades: number; confirmadoEn?: string }[]
 }
 
 export interface ResumenExpediente {
@@ -196,60 +252,67 @@ export interface ResumenExpediente {
   ingresos: number
 }
 
-export interface IngresoResumen {
+export interface SolicitudResumen {
   id: string
+  numero: string
   tipo: TipoIngreso
+  estado: EstadoSolicitud
+  paso: PasoSolicitud
   propietario: string
   contraparte?: string
   referencia?: string
-  paso: PasoIngreso
   actaNumero?: string
   unidades: number
   productos: number
+  fechaPrevista?: string
   creadoEn: string
   alertasAbiertas: number
-  confirmado: boolean
+  /** La solicitud final difiere de la inicial. */
+  conDiferencias: boolean
 }
 
-export interface IngresoDetalle {
+export interface SolicitudDetalle {
   id: string
+  numero: string
   tipo: TipoIngreso
+  estado: EstadoSolicitud
+  paso: PasoSolicitud
+  version: number
   propietarioId: string
   propietario: string
-  confirmado: boolean
-  confirmadoEn?: string
+  ocId?: string
   ocCodigo?: string
   contraparteNombre?: string
   contraparteRuc?: string
   guiaNumero?: string
-  facturaNumero?: string
   docOriginalTipo?: 'FACTURA' | 'BOLETA'
   docOriginalNumero?: string
   motivo?: string
-  temperaturaC?: number
-  alertaTemperatura: boolean
-  bultos?: number
-  paletas?: number
-  placa?: string
-  marcaVehiculo?: string
-  tipoConteo?: 'MUESTREO' | 'TOTAL' | 'OTROS'
-  horaInicio?: string
-  horaFin?: string
-  verificaciones: Record<string, boolean>
   observaciones?: string
+  fechaPrevista?: string
+  origenCreacion: 'INTERNO' | 'CLIENTE'
   creadoEn: string
   creadoPor?: string
-  paso: PasoIngreso
-  lineas: LineaVista[]
-  cuadra: boolean
-  solicitudVersion: number
+  autorizadoPor?: string
+  autorizadoEn?: string
+  cerradaEn?: string
+  lineas: LineaSolicitudVista[]
+  /** Datos propios de la recepción física (existe desde que empieza la recepción). */
+  recepcion?: RecepcionVista
+  /** Historial campo a campo, de lo más reciente a lo más antiguo. */
+  cambios: CambioVista[]
   versiones: VersionSolicitud[]
   actas: ActaRecepcionVista[]
   organolepticas: OrganolepticaVista[]
   alertas: AlertaVista[]
   expedienteId?: string
-  /** Hay firmas en el acta vigente: los datos y lotes ya no se editan. */
+  /** Hay firmas en el acta vigente: los datos y las cantidades ya no se editan. */
   bloqueadoPorFirmas: boolean
+  conDiferencias: boolean
+  /** Bloque "Cantidad física confirmada" (solo compras con ingreso confirmado). */
+  cantidadFisica: BloqueFisico[]
+  /** Estado de inventario con el que nacen las unidades de esta solicitud. */
+  estadoInicial: Estado
 }
 
 export interface PosicionDestino {
@@ -270,7 +333,8 @@ export interface ColaDT {
   alertas: AlertaVista[]
 }
 
-export interface DatosEdicionIngreso {
+/** Solo lo propio de la recepción física. La guía, el proveedor o el cliente y lo demás de la solicitud se cambian con un ajuste. */
+export interface DatosEdicionRecepcion {
   temperaturaC?: number | null
   bultos?: number | null
   paletas?: number | null
@@ -281,12 +345,22 @@ export interface DatosEdicionIngreso {
   horaFin?: string
   verificaciones?: Record<string, boolean>
   observaciones?: string
-  guiaNumero?: string
   facturaNumero?: string
-  contraparteNombre?: string
-  contraparteRuc?: string
-  motivo?: string
 }
+
+/** Qué encontró quien verifica una línea. */
+export interface DatosVerificacion {
+  coincide: boolean
+  /** Solo cuando hay una diferencia. */
+  cantidad?: number
+  lote?: string
+  vence?: string
+  venceTexto?: string
+  motivo?: string
+  posicionId?: string
+}
+
+export type { CambioEntrada }
 
 export interface DatosOrganolepticaGuardar {
   certAnalisis?: boolean | null
@@ -305,4 +379,4 @@ export interface FirmaEntrada {
   imagen?: string
 }
 
-export const ESTADO_UNIDADES: Estado[] = ['CUARENTENA', 'APROBADO', 'BAJAS_RECHAZADOS']
+export const ESTADO_UNIDADES: Estado[] = ['CUARENTENA', 'DEVOLUCIONES', 'APROBADO', 'BAJAS_RECHAZADOS']

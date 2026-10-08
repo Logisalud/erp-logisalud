@@ -1,12 +1,11 @@
 import type { EventoAuditoria, Rol } from '@/domain/tipos'
 import type { Panorama } from '@/domain/panorama'
 import type { EntradaProducto } from '@/domain/productos'
-import type { EntradaIngreso, EntradaLote } from '@/domain/entradas'
+import type { CambioEntrada, Decision, EntradaSolicitud, TipoIngreso } from '@/domain/entradas'
 import type {
-  AlertaVista, ColaDT, DatosEdicionIngreso, DatosOrganolepticaGuardar, ExpedienteVista, FirmaEntrada, IngresoDetalle,
-  IngresoResumen, OrganolepticaVista, PosicionDestino, RecepcionCompra, ResumenExpediente,
+  AlertaVista, ColaDT, DatosEdicionRecepcion, DatosOrganolepticaGuardar, DatosVerificacion, ExpedienteVista, FirmaEntrada,
+  OcPendiente, OrganolepticaVista, PosicionDestino, ResumenExpediente, SolicitudDetalle, SolicitudResumen,
 } from '@/domain/entradas-vistas'
-import type { Decision } from '@/domain/entradas'
 import type { ResultadoBusqueda } from '@/domain/panorama'
 
 export interface Actor {
@@ -35,21 +34,27 @@ export interface Repositorio {
     actor: Actor,
   ): Promise<ResultadoAccion>
 
-  // ── Entradas ────────────────────────────────────────────────────────────
-  /** Recepciones de Compras que aún no tienen su ingreso en el WMS (y las que ya lo tienen, marcadas). */
-  recepcionesDeCompra(): Promise<RecepcionCompra[]>
-  posicionesDeCuarentena(): Promise<PosicionDestino[]>
-  listarIngresos(): Promise<IngresoResumen[]>
-  obtenerIngreso(id: string): Promise<IngresoDetalle | null>
-  crearIngreso(entrada: EntradaIngreso, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
-  editarIngreso(id: string, datos: DatosEdicionIngreso, actor: Actor): Promise<ResultadoAccion>
-  guardarLotes(id: string, lineaId: string, lotes: EntradaLote[], actor: Actor): Promise<ResultadoAccion>
-  editarSolicitud(id: string, datos: Record<string, unknown>, motivo: string | undefined, actor: Actor): Promise<ResultadoAccion<{ version: number }>>
-  generarActa(id: string, actor: Actor): Promise<ResultadoAccion<{ actaId: string }>>
+  // ── Entradas: la solicitud es la entidad primaria (su id es el de /entradas/[id]) ───────────────
+  /** Órdenes de compra de Compras (solo lectura) con saldo por recibir, para preparar una solicitud. */
+  ocsPendientes(): Promise<OcPendiente[]>
+  /** Dónde se puede dejar lo que llega: Cuarentena (compras y clientes) o Devoluciones (devoluciones). */
+  posicionesDestino(tipo: TipoIngreso): Promise<PosicionDestino[]>
+  listarSolicitudes(): Promise<SolicitudResumen[]>
+  obtenerSolicitud(id: string): Promise<SolicitudDetalle | null>
+  crearSolicitud(entrada: EntradaSolicitud, autorizar: boolean, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
+  autorizarSolicitud(id: string, actor: Actor): Promise<ResultadoAccion>
+  /** Corrige la solicitud en el MISMO correlativo (sin límite de vueltas); después de autorizada exige motivo. */
+  ajustarSolicitud(id: string, cambios: CambioEntrada[], motivo: string | undefined, actor: Actor): Promise<ResultadoAccion<{ version: number }>>
+  anularSolicitud(id: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  iniciarRecepcion(id: string, actor: Actor): Promise<ResultadoAccion>
+  /** "Esto es lo que esperamos": coincide, o hay una diferencia que actualiza la solicitud con su motivo. */
+  verificarLinea(solicitudId: string, lineaId: string, datos: DatosVerificacion, actor: Actor): Promise<ResultadoAccion<{ verificadas: number; total: number }>>
+  editarRecepcion(solicitudId: string, datos: DatosEdicionRecepcion, actor: Actor): Promise<ResultadoAccion>
+  generarActa(solicitudId: string, actor: Actor): Promise<ResultadoAccion<{ actaId: string }>>
   firmarActa(actaId: string, firma: FirmaEntrada, actor: Actor): Promise<ResultadoAccion<{ completa: boolean }>>
   anularActa(actaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   reemitirActa(actaId: string, actor: Actor): Promise<ResultadoAccion<{ actaId: string }>>
-  confirmarIngreso(id: string, actor: Actor): Promise<ResultadoAccion>
+  confirmarIngreso(solicitudId: string, actor: Actor): Promise<ResultadoAccion>
 
   // ── Calidad ─────────────────────────────────────────────────────────────
   obtenerOrganoleptica(id: string): Promise<OrganolepticaVista | null>
@@ -58,10 +63,10 @@ export interface Repositorio {
   colaDireccionTecnica(): Promise<ColaDT>
 
   // ── Alertas ─────────────────────────────────────────────────────────────
-  /** Revisa divergencias con Compras y traslados vencidos, y devuelve las alertas. */
+  /** Revisa la conciliación con Compras, los traslados vencidos y los vencimientos, y devuelve las alertas. */
   listarAlertas(): Promise<AlertaVista[]>
   /** Cuántas alertas abiertas hay por destinatario (para la insignia del menú; no ejecuta las revisiones). */
-  contarAlertasAbiertas(): Promise<{ direccion_tecnica: number; jefe_almacen: number }>
+  contarAlertasAbiertas(): Promise<{ direccion_tecnica: number; jefe_almacen: number; asistente_dt: number }>
   atenderAlerta(id: string, nota: string | undefined, actor: Actor): Promise<ResultadoAccion>
 
   // ── Expediente ──────────────────────────────────────────────────────────

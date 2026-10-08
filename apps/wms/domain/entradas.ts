@@ -1,6 +1,10 @@
 // Entradas y calidad: reglas puras (sin Next ni Supabase). La base de datos repite estas
-// reglas (migración 0004); aquí se usan para dar mensajes claros antes de llegar a ella
+// reglas (migración 0005); aquí se usan para dar mensajes claros antes de llegar a ella
 // y para el modo demostración.
+//
+// Flujo (addendum del 2026-10-08): la SOLICITUD DE INGRESO es la entidad primaria (SI-AAAA-NNNNN, sin inventario);
+// la recepción física la VERIFICA (coincide / hay una diferencia → se ajusta la solicitud, con historial); el Acta de
+// Recepción sale prellenada de la solicitud final; al confirmarla recién nace el inventario.
 
 import type { Estado, Propietario, Rol } from './tipos'
 
@@ -16,82 +20,71 @@ export const ETIQUETA_TIPO_INGRESO: Record<TipoIngreso, string> = {
 }
 
 export const AYUDA_TIPO_INGRESO: Record<TipoIngreso, string> = {
-  COMPRA_LOCAL: 'Una recepción que ya registró Compras. La cantidad de referencia viene de ahí.',
-  DEVOLUCION: 'Mercadería que vuelve de un cliente. Necesita la factura o boleta original.',
+  COMPRA_LOCAL: 'Una orden de compra que va a llegar. Los productos y las cantidades salen de ella; tú indicas el lote y el vencimiento.',
+  DEVOLUCION: 'Mercadería que vuelve de un cliente. Necesita la factura o boleta original y se deja en el Área de Devoluciones.',
   INGRESO_CLIENTE: 'Mercadería que un cliente nos entrega para guardar. Se cuenta contra su guía.',
 }
 
-// ── Lotes y cuadre ──────────────────────────────────────────────────────────
-
-export interface LineaCuadre {
-  id: string
-  descripcion: string
-  cantidadReferencia: number
+/** Dónde nace el inventario de cada tipo (D-31): la devolución, en su propia área y estado; lo demás, en Cuarentena. */
+export const ESTADO_INICIAL: Record<TipoIngreso, Estado> = {
+  COMPRA_LOCAL: 'CUARENTENA',
+  INGRESO_CLIENTE: 'CUARENTENA',
+  DEVOLUCION: 'DEVOLUCIONES',
 }
-export interface LoteCuadre {
-  lineaId: string
-  codigo: string
-  cantidad: number
-}
-
-export interface ProgresoLinea {
-  referencia: number
-  registrado: number
-  /** Negativo cuando sobran. */
-  faltan: number
-  estado: 'VACIA' | 'FALTAN' | 'CUADRA' | 'SOBRAN'
+export const AREA_DESTINO: Record<TipoIngreso, 'CUARENTENA' | 'DEVOLUCIONES'> = {
+  COMPRA_LOCAL: 'CUARENTENA',
+  INGRESO_CLIENTE: 'CUARENTENA',
+  DEVOLUCION: 'DEVOLUCIONES',
 }
 
-/** "4 de 6": cuánto del total de la referencia ya está repartido en lotes. */
-export function progresoLinea(referencia: number, lotes: readonly { cantidad: number }[]): ProgresoLinea {
-  const registrado = lotes.reduce((n, l) => n + l.cantidad, 0)
-  const faltan = referencia - registrado
-  return {
-    referencia,
-    registrado,
-    faltan,
-    estado: registrado === 0 ? 'VACIA' : faltan === 0 ? 'CUADRA' : faltan > 0 ? 'FALTAN' : 'SOBRAN',
-  }
+// ── Quién prepara solicitudes (D-32) ────────────────────────────────────────
+
+/** Sandra (asistente de DT) y Katia (Dirección Técnica). Con el portal de clientes, el cliente crea y ellas autorizan. */
+export const puedePrepararSolicitud = (roles: readonly Rol[]) => roles.includes('asistente_dt') || roles.includes('direccion_tecnica')
+
+// ── Estados de la solicitud ─────────────────────────────────────────────────
+
+export type EstadoSolicitud = 'BORRADOR' | 'ENVIADA' | 'PROGRAMADA' | 'EN_RECEPCION' | 'CERRADA' | 'ANULADA'
+
+export const ETIQUETA_ESTADO_SOLICITUD: Record<EstadoSolicitud, string> = {
+  BORRADOR: 'Borrador',
+  ENVIADA: 'Por autorizar',
+  PROGRAMADA: 'Por llegar',
+  EN_RECEPCION: 'En recepción',
+  CERRADA: 'Cerrada',
+  ANULADA: 'Anulada',
 }
 
-export const textoProgreso = (p: ProgresoLinea) => `${p.registrado.toLocaleString('es-PE')} de ${p.referencia.toLocaleString('es-PE')}`
+export type EstadoLineaSolicitud = 'ESPERADA' | 'AJUSTADA' | 'RETIRADA'
+export type VerificacionLinea = 'PENDIENTE' | 'COINCIDE' | 'AJUSTADA'
 
-/** Mensaje humano de cada línea que no cuadra (invariante: SUM(lotes) = referencia). */
-export function mensajesDeCuadre(lineas: readonly LineaCuadre[], lotes: readonly LoteCuadre[]): string[] {
-  const out: string[] = []
-  for (const l of lineas) {
-    const p = progresoLinea(l.cantidadReferencia, lotes.filter((x) => x.lineaId === l.id))
-    if (p.estado === 'CUADRA') continue
-    out.push(
-      `Los lotes de ${l.descripcion} suman ${p.registrado} y la referencia es ${p.referencia}: ` +
-        (p.faltan > 0 ? `faltan ${p.faltan} por repartir.` : `sobran ${-p.faltan}; ajusta los lotes para que coincidan.`),
-    )
-  }
-  return out
-}
+// ── Líneas de la solicitud ──────────────────────────────────────────────────
 
-export interface EntradaLote {
-  codigo: string
-  cantidad: number | string
+export interface EntradaLineaSolicitud {
+  /** Compra local: la línea de la OC de la que sale (varias líneas de solicitud pueden salir de una misma de OC). */
+  ocItemId?: string
+  productoId?: string
+  lote: string
   /** Texto tal como lo escribe la persona (ver parsearVencimiento). */
   vence: string
-  posicionId: string
+  cantidad: number | string
 }
 
-export type ErroresLote = Partial<Record<'codigo' | 'cantidad' | 'vence' | 'posicionId', string>>
+export type ErroresLineaSolicitud = Partial<Record<'producto' | 'lote' | 'cantidad' | 'vence', string>>
 
-export function validarEntradaLote(
-  e: EntradaLote,
+export function validarLineaSolicitud(
+  e: EntradaLineaSolicitud,
+  tipo: TipoIngreso,
   parsear: (t: string) => { fecha: string; textoOriginal: string } | null,
-): { ok: true; cantidad: number; vence: string; venceTexto: string } | { ok: false; errores: ErroresLote } {
-  const errores: ErroresLote = {}
-  if (!e.codigo?.trim()) errores.codigo = 'Escribe el lote tal como está impreso.'
+): { ok: true; cantidad: number; vence: string; venceTexto: string } | { ok: false; errores: ErroresLineaSolicitud } {
+  const errores: ErroresLineaSolicitud = {}
+  if (tipo === 'COMPRA_LOCAL' ? !e.ocItemId : !e.productoId) errores.producto = 'Elige el producto.'
+  if (!e.lote?.trim()) errores.lote = 'Escribe el lote tal como está impreso.'
   const n = typeof e.cantidad === 'number' ? e.cantidad : Number(String(e.cantidad).replace(/\s/g, ''))
   if (!Number.isInteger(n) || n <= 0) errores.cantidad = 'La cantidad es un número entero mayor que cero.'
   const f = e.vence?.trim() ? parsear(e.vence) : null
   if (!e.vence?.trim()) errores.vence = 'Falta el vencimiento.'
   else if (!f) errores.vence = 'No entiendo esa fecha. Usa 30/06/2028 o, si el producto solo dice mes y año, 06/2028.'
-  if (!e.posicionId) errores.posicionId = 'Elige dónde se deja.'
   if (Object.keys(errores).length || !f) return { ok: false, errores }
   return { ok: true, cantidad: n, vence: f.fecha, venceTexto: f.textoOriginal }
 }
@@ -109,56 +102,99 @@ export function mensajeTemperatura(t: number, min = TEMPERATURA_MIN_C, max = TEM
   return `La mercadería llegó a ${t} °C, fuera del rango de ${min} a ${max} °C. Se recibió; revísala antes de aprobar.`
 }
 
-// ── Validación al crear un ingreso ──────────────────────────────────────────
+// ── Validación al crear una solicitud ───────────────────────────────────────
 
-export interface EntradaIngreso {
+export interface EntradaSolicitud {
   tipo: TipoIngreso
   propietarioId: string
-  /** Compra local: la recepción de Compras. */
-  compraRecepcionId?: string
+  /** Compra local: la orden de compra. */
+  ocId?: string
   contraparteNombre?: string
   contraparteRuc?: string
   guiaNumero?: string
   docOriginalTipo?: 'FACTURA' | 'BOLETA'
   docOriginalNumero?: string
   motivo?: string
-  lineas?: { productoId: string; cantidadReferencia: number | string }[]
+  observaciones?: string
+  fechaPrevista?: string
+  lineas: EntradaLineaSolicitud[]
 }
 
-export type ErroresIngreso = Partial<Record<
-  'tipo' | 'propietarioId' | 'compraRecepcionId' | 'contraparteRuc' | 'guiaNumero' | 'docOriginal' | 'lineas', string>>
+export type ErroresSolicitud = Partial<Record<
+  'tipo' | 'propietarioId' | 'ocId' | 'contraparteRuc' | 'guiaNumero' | 'docOriginal' | 'lineas', string>>
 
-export function validarEntradaIngreso(
-  e: EntradaIngreso,
+export function validarEntradaSolicitud(
+  e: EntradaSolicitud,
   propietario: Pick<Propietario, 'esDuenoAlmacen'> | undefined,
-): { ok: true } | { ok: false; errores: ErroresIngreso } {
-  const errores: ErroresIngreso = {}
+): { ok: true } | { ok: false; errores: ErroresSolicitud } {
+  const errores: ErroresSolicitud = {}
   if (!TIPOS_INGRESO.includes(e.tipo)) errores.tipo = 'Elige el tipo de ingreso.'
   if (!propietario) errores.propietarioId = 'Elige el propietario.'
   if (e.contraparteRuc?.trim() && !rucValido(e.contraparteRuc)) errores.contraparteRuc = 'El RUC tiene 11 dígitos.'
   if (e.tipo === 'COMPRA_LOCAL') {
-    if (!e.compraRecepcionId) errores.compraRecepcionId = 'Elige la recepción de Compras.'
+    if (!e.ocId) errores.ocId = 'Elige la orden de compra.'
     if (propietario && !propietario.esDuenoAlmacen) errores.propietarioId = 'Una compra local es stock propio: el propietario es Logissa.'
-  } else {
-    if (e.tipo === 'DEVOLUCION' && (!e.docOriginalTipo || !e.docOriginalNumero?.trim())) {
-      errores.docOriginal = 'Sin la factura o boleta original no se puede registrar la devolución.'
-    }
-    if (e.tipo === 'INGRESO_CLIENTE') {
-      if (!e.guiaNumero?.trim()) errores.guiaNumero = 'Escribe el número de la guía del cliente.'
-      if (propietario?.esDuenoAlmacen) errores.propietarioId = 'Un ingreso de cliente queda a nombre del cliente, no de Logissa.'
-    }
-    const lineas = e.lineas ?? []
-    if (lineas.length === 0) errores.lineas = 'Agrega al menos un producto con su cantidad de la guía.'
-    else if (lineas.some((l) => !l.productoId || !Number.isInteger(Number(l.cantidadReferencia)) || Number(l.cantidadReferencia) <= 0)) {
-      errores.lineas = 'Cada producto necesita una cantidad entera mayor que cero.'
-    }
-    if (new Set(lineas.map((l) => l.productoId)).size !== lineas.length) errores.lineas = 'Un producto aparece dos veces: junta sus cantidades.'
+  } else if (e.tipo === 'DEVOLUCION') {
+    if (!e.docOriginalTipo || !e.docOriginalNumero?.trim()) errores.docOriginal = 'Sin la factura o boleta original no se puede registrar la devolución.'
+  } else if (e.tipo === 'INGRESO_CLIENTE') {
+    if (!e.guiaNumero?.trim()) errores.guiaNumero = 'Escribe el número de la guía del cliente.'
+    if (propietario?.esDuenoAlmacen) errores.propietarioId = 'Un ingreso de cliente queda a nombre del cliente, no de Logissa.'
   }
+  if (e.lineas.length === 0) errores.lineas = 'Agrega al menos un producto con su lote, su vencimiento y su cantidad.'
   return Object.keys(errores).length ? { ok: false, errores } : { ok: true }
 }
 
 /** RUC peruano: siempre texto de 11 dígitos (nunca número: perdería ceros y se vería como 2.05E+10). */
 export const rucValido = (r: string) => /^\d{11}$/.test(r.trim())
+
+// ── Cambios a la solicitud (historial campo a campo) ────────────────────────
+
+export type CambioEntrada =
+  | { op: 'LINEA'; lineaId: string; campo: 'cantidad' | 'lote' | 'vence'; valor: string; venceTexto?: string }
+  | { op: 'AGREGAR_LINEA'; ocItemId?: string; productoId?: string; lote: string; vence: string; venceTexto?: string; cantidad: number }
+  | { op: 'ENCABEZADO'; campo: 'guia_numero' | 'contraparte_nombre' | 'contraparte_ruc' | 'motivo' | 'observaciones' | 'fecha_prevista' | 'doc_original_tipo' | 'doc_original_numero'; valor: string }
+
+export const ETIQUETA_CAMPO_CAMBIO: Record<string, string> = {
+  cantidad: 'cantidad', lote: 'lote', vence: 'vencimiento', guia_numero: 'guía', contraparte_nombre: 'proveedor o cliente',
+  contraparte_ruc: 'RUC', motivo: 'motivo', observaciones: 'observaciones', fecha_prevista: 'fecha prevista',
+  doc_original_tipo: 'tipo de documento original', doc_original_numero: 'documento original', 'línea agregada': 'línea agregada',
+}
+
+/** "Esperábamos 50 y encontramos 45": el texto que ve quien verifica antes de confirmar el ajuste. */
+export const textoDiferencia = (esperado: number, encontrado: number) =>
+  `Actualizaremos la Solicitud de ${esperado} → ${encontrado}. El cambio quedará registrado.`
+
+/** Varias personas leen la misma cifra de maneras distintas: la solicitud final es lo que el WMS espera y confirma. */
+export interface CantidadesLinea {
+  /** Lo que pedía la orden de compra (solo compras). */
+  ocPedida?: number
+  /** Lo anunciado al autorizar. Inmutable. */
+  inicial?: number
+  /** Solicitud final (la vigente). */
+  final: number
+  /** Lo confirmado físicamente al firmar el acta. */
+  fisica?: number
+  /** Lo que Compras muestra como recibido (se copia a mano). */
+  registradoEnCompras?: number
+}
+
+export type EstadoRegistroCompras = 'OK' | 'FALTA' | 'NO_COINCIDE'
+
+/**
+ * Lo que Compras debería mostrar como recibido = lo que mostraba antes + lo físico confirmado.
+ * FALTA = aún no lo registraron; NO_COINCIDE = lo registraron distinto; OK = coincide.
+ */
+export function estadoRegistroCompras(base: number, fisicaAcumulada: number, registrado: number): EstadoRegistroCompras {
+  const esperado = base + fisicaAcumulada
+  if (registrado === esperado) return 'OK'
+  return registrado <= base ? 'FALTA' : 'NO_COINCIDE'
+}
+
+export const ETIQUETA_REGISTRO_COMPRAS: Record<EstadoRegistroCompras, string> = {
+  OK: 'Compras ya lo tiene registrado',
+  FALTA: 'Falta registrarlo en Compras',
+  NO_COINCIDE: 'Compras tiene otra cantidad',
+}
 
 // ── Firmas del Acta de Recepción ────────────────────────────────────────────
 
@@ -368,41 +404,64 @@ export function validarDecision(
 
 export const ETIQUETA_DECISION: Record<Decision, string> = { APROBADO: 'Aprobado', BAJAS_RECHAZADOS: 'Bajas/Rechazados' }
 
-// ── Estado de un ingreso (para la lista y el paso a paso) ───────────────────
+// ── Estado de una solicitud (para la lista y el paso a paso) ────────────────
 
 export type EstadoActa = 'BORRADOR' | 'FIRMADA' | 'ANULADA'
 
-export type PasoIngreso = 'DATOS_Y_LOTES' | 'ACTA' | 'FIRMAS' | 'CONFIRMAR' | 'CONFIRMADO'
+export type PasoSolicitud = 'POR_AUTORIZAR' | 'POR_LLEGAR' | 'VERIFICANDO' | 'ACTA' | 'FIRMAS' | 'CONFIRMAR' | 'CERRADA' | 'ANULADA'
 
-export const ETIQUETA_PASO: Record<PasoIngreso, string> = {
-  DATOS_Y_LOTES: 'Registrando lotes',
+export const ETIQUETA_PASO: Record<PasoSolicitud, string> = {
+  POR_AUTORIZAR: 'Por autorizar',
+  POR_LLEGAR: 'Por llegar',
+  VERIFICANDO: 'Verificando lo que llegó',
   ACTA: 'Falta generar el acta',
   FIRMAS: 'Acta en firma',
   CONFIRMAR: 'Listo para confirmar',
-  CONFIRMADO: 'En Cuarentena',
+  CERRADA: 'Cerrada',
+  ANULADA: 'Anulada',
 }
 
-export function pasoDeIngreso(i: {
-  confirmado: boolean
-  cuadra: boolean
-  tieneTemperatura: boolean
+export function pasoDeSolicitud(s: {
+  estado: EstadoSolicitud
+  lineasPendientes: number
   acta?: { estado: EstadoActa; firmas: number }
-}): PasoIngreso {
-  if (i.confirmado) return 'CONFIRMADO'
-  if (!i.acta || i.acta.estado === 'ANULADA') return 'DATOS_Y_LOTES'
-  return i.acta.estado === 'FIRMADA' ? 'CONFIRMAR' : 'FIRMAS'
+}): PasoSolicitud {
+  switch (s.estado) {
+    case 'BORRADOR': case 'ENVIADA': return 'POR_AUTORIZAR'
+    case 'PROGRAMADA': return 'POR_LLEGAR'
+    case 'CERRADA': return 'CERRADA'
+    case 'ANULADA': return 'ANULADA'
+    case 'EN_RECEPCION':
+      if (!s.acta || s.acta.estado === 'ANULADA') return s.lineasPendientes > 0 ? 'VERIFICANDO' : 'ACTA'
+      return s.acta.estado === 'FIRMADA' ? 'CONFIRMAR' : 'FIRMAS'
+  }
 }
 
-export function puedeGenerarActa(i: { cuadra: boolean; tieneTemperatura: boolean; tipo: TipoIngreso; tieneDocOriginal: boolean }): string | null {
+/** Lo que falta para generar el acta, en el mismo orden y con los mismos mensajes de la base de datos. */
+export function puedeGenerarActa(i: {
+  tipo: TipoIngreso
+  tieneDocOriginal: boolean
+  lineas: { descripcion: string; lote: string; verificacion: VerificacionLinea | null; tienePosicion: boolean }[]
+  tieneTemperatura: boolean
+}): string | null {
   if (i.tipo === 'DEVOLUCION' && !i.tieneDocOriginal) return 'La devolución necesita la factura o boleta original.'
-  if (!i.cuadra) return 'Los lotes tienen que sumar exactamente la cantidad de referencia.'
+  if (i.lineas.length === 0) return 'No hay nada que recibir: la solicitud no tiene líneas con cantidad.'
+  for (const l of i.lineas) {
+    if (!l.verificacion || l.verificacion === 'PENDIENTE') return `Falta verificar ${l.descripcion} (lote ${l.lote}).`
+    if (!l.tienePosicion) return `Elige dónde se deja ${l.descripcion} (lote ${l.lote}).`
+  }
   if (!i.tieneTemperatura) return 'Falta la temperatura de recepción.'
   return null
 }
 
+
 // ── Alertas ─────────────────────────────────────────────────────────────────
 
-export type TipoAlerta = 'TEMPERATURA' | 'RS_VENCIDO' | 'DIVERGENCIA_COMPRAS' | 'POR_TRASLADAR_VENCIDO' | 'LOTE_POR_VENCER' | 'LOTE_VENCIDO'
+export type TipoAlerta =
+  | 'TEMPERATURA' | 'RS_VENCIDO' | 'DIVERGENCIA_COMPRAS' | 'POR_TRASLADAR_VENCIDO' | 'LOTE_POR_VENCER' | 'LOTE_VENCIDO'
+  | 'SOLICITUD_AJUSTADA' | 'EXCEDE_OC' | 'POR_REGISTRAR_EN_COMPRAS' | 'NO_COINCIDE_CON_COMPRAS'
+
+export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt'
 
 export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   TEMPERATURA: 'Temperatura fuera de rango',
@@ -411,9 +470,14 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   POR_TRASLADAR_VENCIDO: 'Aprobado sin trasladar',
   LOTE_POR_VENCER: 'Lote por vencer',
   LOTE_VENCIDO: 'Lote vencido en el inventario',
+  SOLICITUD_AJUSTADA: 'La solicitud cambió',
+  EXCEDE_OC: 'Llega más de lo que pedía la OC',
+  POR_REGISTRAR_EN_COMPRAS: 'Falta registrarlo en Compras',
+  NO_COINCIDE_CON_COMPRAS: 'Compras tiene otra cantidad',
 }
 
-export const DESTINATARIO_ALERTA: Record<TipoAlerta, 'direccion_tecnica' | 'jefe_almacen'> = {
+/** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
+export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   TEMPERATURA: 'direccion_tecnica',
   RS_VENCIDO: 'direccion_tecnica',
   DIVERGENCIA_COMPRAS: 'jefe_almacen',
@@ -421,13 +485,20 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, 'direccion_tecnica' | 'jefe
   // Por vencer: el Jefe de Almacén lo rota o lo saca primero. Vencido: Dirección Técnica decide su baja.
   LOTE_POR_VENCER: 'jefe_almacen',
   LOTE_VENCIDO: 'direccion_tecnica',
+  // D-34: toda diferencia entre lo anunciado y lo final avisa a Sandra y a Katia.
+  SOLICITUD_AJUSTADA: 'asistente_dt',
+  // D-33: EXCEDE_OC escala a Katia (y a Compras, fuera del WMS); el WMS registra lo físico y no lo resuelve.
+  EXCEDE_OC: 'direccion_tecnica',
+  POR_REGISTRAR_EN_COMPRAS: 'jefe_almacen',
+  NO_COINCIDE_CON_COMPRAS: 'jefe_almacen',
 }
 
-export function puedeAtenderAlerta(roles: readonly Rol[], tipo: TipoAlerta): boolean {
-  return roles.includes('direccion_tecnica') || roles.includes(DESTINATARIO_ALERTA[tipo])
+export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {
+  return roles.includes('direccion_tecnica') || roles.includes(destinatario)
 }
 
 export const PLAZO_POR_TRASLADAR_HORAS_DEFECTO = 24
+export const PLAZO_REGISTRO_COMPRAS_HORAS_DEFECTO = 24
 
 /** Días antes del vencimiento de un lote en que se avisa (parámetro `lote_dias_alerta_vencimiento`; D-30 por confirmar con Katia). */
 export const DIAS_ALERTA_VENCIMIENTO_LOTE_DEFECTO = 90
@@ -466,4 +537,5 @@ export const ETIQUETA_DOCUMENTO: Record<TipoDocumentoExpediente, string> = {
   OTRO: 'Otro documento',
 }
 
-export const ESTADO_PARA_LISTA: Record<Estado, string> = { CUARENTENA: 'Cuarentena', APROBADO: 'Aprobado', BAJAS_RECHAZADOS: 'Bajas/Rechazados' }
+export const ESTADO_PARA_LISTA: Record<Estado, string> = { CUARENTENA: 'Cuarentena', DEVOLUCIONES: 'Devoluciones', APROBADO: 'Aprobado', BAJAS_RECHAZADOS: 'Bajas/Rechazados' }
+

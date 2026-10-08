@@ -1,7 +1,7 @@
 // Tipos del dominio del WMS. Sin dependencias de Next ni de Supabase.
 
-export type Estado = 'CUARENTENA' | 'APROBADO' | 'BAJAS_RECHAZADOS'
-export const ESTADOS: readonly Estado[] = ['CUARENTENA', 'APROBADO', 'BAJAS_RECHAZADOS']
+export type Estado = 'CUARENTENA' | 'DEVOLUCIONES' | 'APROBADO' | 'BAJAS_RECHAZADOS'
+export const ESTADOS: readonly Estado[] = ['CUARENTENA', 'DEVOLUCIONES', 'APROBADO', 'BAJAS_RECHAZADOS']
 
 export type TipoArea =
   | 'RECEPCION'

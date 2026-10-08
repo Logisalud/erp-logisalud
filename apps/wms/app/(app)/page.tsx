@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import {
-  ArrowRight, Bell, Boxes, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Hourglass, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, type LucideIcon,
+  ArrowRight, Bell, Boxes, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Hourglass, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, Undo2, type LucideIcon,
 } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
@@ -105,7 +105,7 @@ export default async function Inicio() {
   const ocup = ocupacionPorPropietario(p).sort((a, b) => b.posiciones - a.posiciones)
   const eventos = puede(ctx.roles, 'auditar') ? (await repo.auditoria(5)) : []
   const u = {
-    aprobado: unidadesEnEstado(p, 'APROBADO'), cuarentena: unidadesEnEstado(p, 'CUARENTENA'), bajas: unidadesEnEstado(p, 'BAJAS_RECHAZADOS'),
+    aprobado: unidadesEnEstado(p, 'APROBADO'), cuarentena: unidadesEnEstado(p, 'CUARENTENA'), devoluciones: unidadesEnEstado(p, 'DEVOLUCIONES'), bajas: unidadesEnEstado(p, 'BAJAS_RECHAZADOS'),
   }
   const num = (n: number) => n.toLocaleString('es-PE')
 
@@ -159,6 +159,10 @@ export default async function Inicio() {
             <div className="flex min-h-14 items-center justify-between px-4">
               <dt className="flex items-center gap-2 text-sm text-gray-800"><Hourglass className="h-4 w-4 text-indigo-700" aria-hidden />Cuarentena</dt>
               <dd className="tabular font-medium">{num(u.cuarentena)}</dd>
+            </div>
+            <div className="flex min-h-14 items-center justify-between px-4" data-testid="unidades-devoluciones">
+              <dt className="flex items-center gap-2 text-sm text-gray-800"><Undo2 className="h-4 w-4 text-orange-700" aria-hidden />Devoluciones</dt>
+              <dd className="tabular font-medium">{num(u.devoluciones)}</dd>
             </div>
             <div className="flex min-h-14 items-center justify-between px-4">
               <dt className="flex items-center gap-2 text-sm text-gray-800"><span className="inline-block h-4 w-4 rounded-full border-2 border-red-700" aria-hidden />Bajas/Rechazados</dt>

@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, CircleDashed, Clock, Hourglass, MessageSquareWarning, ShieldAlert, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Ban, CheckCircle2, Undo2, CircleDashed, Clock, Hourglass, MessageSquareWarning, ShieldAlert, ShieldCheck, TriangleAlert } from 'lucide-react'
 import type { Estado, EstadoValidacion } from '@/domain/tipos'
 import type { SituacionRS } from '@/domain/regulatorio'
 import { ETIQUETA_ESTADO } from '@/domain/estados'
@@ -10,6 +10,7 @@ const base = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 t
 export function ChipEstado({ estado, className = '' }: { estado: Estado; className?: string }) {
   const m = {
     CUARENTENA: { cls: 'border-indigo-200 bg-indigo-50 text-indigo-800', Icono: Hourglass },
+    DEVOLUCIONES: { cls: 'border-orange-200 bg-orange-50 text-orange-900', Icono: Undo2 },
     APROBADO: { cls: 'border-green-200 bg-green-50 text-green-800', Icono: ShieldCheck },
     BAJAS_RECHAZADOS: { cls: 'border-red-200 bg-red-50 text-red-800', Icono: Ban },
   }[estado]

@@ -140,7 +140,7 @@ export function construirPanoramaDemo(hoy: string): Panorama {
       poner(p.codigo, l, 'BAJAS_RECHAZADOS', entre(2, 36), `entrega:${l.id}`)
     } else if (p.tipoArea === 'DEVOLUCIONES' && azar() < 0.65) {
       const l = nuevoLote(prod[entre(0, prod.length - 1)], p.propietario)
-      poner(p.codigo, l, 'CUARENTENA', entre(2, 40), `devolucion:${l.id}`)
+      poner(p.codigo, l, 'DEVOLUCIONES', entre(2, 40), `devolucion:${l.id}`)
     }
   }
 

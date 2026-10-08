@@ -28,7 +28,7 @@ interface ReglaArea {
 /** Matriz "Zonas BPA y compatibilidad" (reglas-negocio.md). */
 const MATRIZ: Partial<Record<TipoArea, ReglaArea[]>> = {
   CUARENTENA: [{ estado: 'CUARENTENA' }],
-  DEVOLUCIONES: [{ estado: 'CUARENTENA', origenRequerido: 'DEVOLUCION' }],
+  DEVOLUCIONES: [{ estado: 'DEVOLUCIONES', origenRequerido: 'DEVOLUCION' }],
   APROBADOS: [{ estado: 'APROBADO' }],
   BAJAS_RECHAZADOS: [{ estado: 'BAJAS_RECHAZADOS' }],
 }

@@ -6,6 +6,10 @@ describe('estados sanitarios', () => {
     expect(transicionPermitida('CUARENTENA', 'APROBADO')).toBe(true)
     expect(transicionPermitida('CUARENTENA', 'BAJAS_RECHAZADOS')).toBe(true)
     expect(transicionPermitida('APROBADO', 'BAJAS_RECHAZADOS')).toBe(true)
+    expect(transicionPermitida('DEVOLUCIONES', 'APROBADO')).toBe(true)
+    expect(transicionPermitida('DEVOLUCIONES', 'BAJAS_RECHAZADOS')).toBe(true)
+    expect(transicionPermitida('DEVOLUCIONES', 'CUARENTENA')).toBe(false)
+    expect(esRetrocesoProhibido('APROBADO', 'DEVOLUCIONES')).toBe(true)
   })
 
   it('prohíbe SIEMPRE Aprobado → Cuarentena, con un mensaje humano', () => {

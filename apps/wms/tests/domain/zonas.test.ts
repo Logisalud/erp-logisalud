@@ -18,8 +18,9 @@ describe('matriz de zonas BPA', () => {
     expect(areaAdmite('BAJAS_RECHAZADOS', 'APROBADO', 'AJUSTE')).toBe(false)
   })
   it('Devoluciones admite Cuarentena solo con origen devolución', () => {
-    expect(areaAdmite('DEVOLUCIONES', 'CUARENTENA', 'DEVOLUCION')).toBe(true)
-    expect(areaAdmite('DEVOLUCIONES', 'CUARENTENA', 'COMPRA_LOCAL')).toBe(false)
+    expect(areaAdmite('DEVOLUCIONES', 'DEVOLUCIONES', 'DEVOLUCION')).toBe(true)
+    expect(areaAdmite('DEVOLUCIONES', 'CUARENTENA', 'DEVOLUCION')).toBe(false) // D-31: nunca pasa por Cuarentena
+    expect(areaAdmite('DEVOLUCIONES', 'DEVOLUCIONES', 'COMPRA_LOCAL')).toBe(false)
   })
   it('Recepción, Contramuestra, Embalaje y Despacho no admiten ningún estado', () => {
     for (const a of ['RECEPCION', 'CONTRAMUESTRA', 'EMBALAJE', 'DESPACHO'] as const) {

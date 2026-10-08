@@ -171,7 +171,7 @@ export interface PartidaIn {
   producto_id: string
   lote_id: string
   propietario_id: string
-  estado: 'CUARENTENA' | 'APROBADO' | 'BAJAS_RECHAZADOS'
+  estado: 'CUARENTENA' | 'DEVOLUCIONES' | 'APROBADO' | 'BAJAS_RECHAZADOS'
   origen: string
   procedencia_id: string
   delta: number
