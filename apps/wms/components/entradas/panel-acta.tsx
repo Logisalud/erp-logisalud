@@ -5,8 +5,8 @@ import { Ban, CheckCircle2, ClipboardCheck, Download, FilePlus2, Fingerprint, Pe
 import {
   anularActaAccion, confirmarIngresoAccion, firmarActaAccion, generarActaAccion, reemitirActaAccion,
 } from '@/app/acciones-entradas'
-import { ETIQUETA_ROL_FIRMA, ROLES_FIRMA, puedeFirmarComo, type RolFirma } from '@/domain/entradas'
-import type { ActaRecepcionVista, IngresoDetalle } from '@/domain/entradas-vistas'
+import { ESTADO_INICIAL, ETIQUETA_ROL_FIRMA, ROLES_FIRMA, puedeFirmarComo, type RolFirma } from '@/domain/entradas'
+import type { ActaRecepcionVista, SolicitudDetalle } from '@/domain/entradas-vistas'
 import { formatoFechaHora } from '@/domain/fechas'
 import type { Rol } from '@/domain/tipos'
 import { useAccion } from '../usar-accion'
@@ -66,7 +66,9 @@ function FilaFirma({ acta, rol, roles, placa }: { acta: ActaRecepcionVista; rol:
   )
 }
 
-export function PanelActa({ ingreso, roles, motivoSinActa, base }: { ingreso: IngresoDetalle; roles: Rol[]; motivoSinActa: string | null; base: string }) {
+export function PanelActa({ solicitud, roles, motivoSinActa, base }: { solicitud: SolicitudDetalle; roles: Rol[]; motivoSinActa: string | null; base: string }) {
+  const ingreso = { ...solicitud, confirmado: !!solicitud.recepcion?.confirmado, confirmadoEn: solicitud.recepcion?.confirmadoEn, placa: solicitud.recepcion?.placa }
+  const destino = ESTADO_INICIAL[solicitud.tipo] === 'DEVOLUCIONES' ? 'Devoluciones' : 'Cuarentena'
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [anulando, setAnulando] = useState(false)
   const [motivo, setMotivo] = useState('')
@@ -79,7 +81,7 @@ export function PanelActa({ ingreso, roles, motivoSinActa, base }: { ingreso: In
     <div className="mt-3 space-y-4">
       {!vigente && !ultimaAnulada && (
         <div className="space-y-3">
-          <p className="text-sm text-gray-700">Cuando los lotes cuadren y tengas la temperatura, se genera el acta con su número (I-AAAAMM-correlativo) y pasa a firmas.</p>
+          <p className="text-sm text-gray-700">Cuando hayas verificado todas las líneas y tengas la temperatura, el acta sale prellenada desde la solicitud, con su número (I-AAAAMM-correlativo), y pasa a firmas.</p>
           {motivoSinActa && <Aviso tipo="info" testid="motivo-sin-acta">{motivoSinActa}</Aviso>}
           {puedeEjecutar && <button type="button" className="btn-primary" disabled={!!motivoSinActa || pendiente} onClick={() => ejecutar(() => generarActaAccion(ingreso.id), { exito: 'Acta generada. Ahora pasa a firmas.' })} data-testid="generar-acta"><FilePlus2 className="h-5 w-5" aria-hidden />{pendiente ? 'Generando…' : 'Generar el acta de recepción'}</button>}
         </div>
@@ -87,7 +89,7 @@ export function PanelActa({ ingreso, roles, motivoSinActa, base }: { ingreso: In
 
       {!vigente && ultimaAnulada && (
         <div className="space-y-3">
-          <Aviso tipo="atencion">El acta {ultimaAnulada.numero} está anulada. {puedeEjecutar ? 'Corrige lo que haga falta arriba y emite otra vinculada.' : 'Quien registra la entrada emite la nueva.'}</Aviso>
+          <Aviso tipo="atencion">El acta {ultimaAnulada.numero} está anulada. {puedeEjecutar ? 'Corrige lo que haga falta arriba y emite otra vinculada (el número anulado no se reutiliza).' : 'Quien registra la entrada emite la nueva.'}</Aviso>
           {puedeEjecutar && <button type="button" className="btn-primary" disabled={pendiente} onClick={() => ejecutar(() => reemitirActaAccion(ultimaAnulada.id), { exito: 'Acta reemitida. Hay que firmarla de nuevo.' })} data-testid="reemitir-acta"><RotateCcw className="h-5 w-5" aria-hidden />{pendiente ? 'Reemitiendo…' : 'Emitir el acta nueva'}</button>}
         </div>
       )}
@@ -109,11 +111,11 @@ export function PanelActa({ ingreso, roles, motivoSinActa, base }: { ingreso: In
 
           {vigente.estado === 'FIRMADA' && !ingreso.confirmado && (
             <div className="space-y-3 rounded-lg border border-teal-200 bg-teal-50 p-4">
-              <p className="text-sm text-teal-950"><strong>Acta firmada por las cuatro partes.</strong> Al confirmar, las unidades nacen en Cuarentena en las posiciones elegidas y quedan listas para la evaluación organoléptica.</p>
-              {puedeEjecutar && <button type="button" className="btn-primary" disabled={pendiente} onClick={() => ejecutar(() => confirmarIngresoAccion(ingreso.id), { exito: 'Ingreso confirmado. Las unidades están en Cuarentena.' })} data-testid="confirmar-ingreso"><ClipboardCheck className="h-5 w-5" aria-hidden />{pendiente ? 'Confirmando…' : 'Confirmar el ingreso'}</button>}
+              <p className="text-sm text-teal-950"><strong>Acta firmada por las cuatro partes.</strong> Al confirmar, las unidades nacen en {destino} en las posiciones elegidas y quedan esperando su evaluación organoléptica.</p>
+              {puedeEjecutar && <button type="button" className="btn-primary" disabled={pendiente} onClick={() => ejecutar(() => confirmarIngresoAccion(ingreso.id), { exito: `Ingreso confirmado. Las unidades están en ${destino}.` })} data-testid="confirmar-ingreso"><ClipboardCheck className="h-5 w-5" aria-hidden />{pendiente ? 'Confirmando…' : 'Confirmar el ingreso'}</button>}
             </div>
           )}
-          {ingreso.confirmado && <Aviso tipo="ok" testid="ingreso-confirmado">Ingreso confirmado el {formatoFechaHora(ingreso.confirmadoEn)}. Las unidades están en Cuarentena.</Aviso>}
+          {ingreso.confirmado && <Aviso tipo="ok" testid="ingreso-confirmado">Ingreso confirmado el {formatoFechaHora(ingreso.confirmadoEn)}. Las unidades están en {destino}.</Aviso>}
 
           {vigente.estado === 'FIRMADA' && puedeAnular && (
             <div>

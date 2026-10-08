@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { Save, Thermometer } from 'lucide-react'
-import { editarIngresoAccion } from '@/app/acciones-entradas'
+import { editarRecepcionAccion } from '@/app/acciones-entradas'
 import { TEMPERATURA_MAX_C, TEMPERATURA_MIN_C, temperaturaFueraDeRango } from '@/domain/entradas'
-import type { IngresoDetalle } from '@/domain/entradas-vistas'
+import type { SolicitudDetalle } from '@/domain/entradas-vistas'
 import { useAccion } from '../usar-accion'
 import { Aviso } from './aviso'
 
@@ -22,7 +22,8 @@ function aIso(hhmm: string, hoy: string): string | undefined {
   return new Date(`${hoy}T${hhmm}:00-05:00`).toISOString()
 }
 
-export function DatosRecepcion({ ingreso, editable, hoy }: { ingreso: IngresoDetalle; editable: boolean; hoy: string }) {
+export function DatosRecepcion({ solicitud, editable, hoy }: { solicitud: SolicitudDetalle; editable: boolean; hoy: string }) {
+  const ingreso = { ...solicitud.recepcion!, tipo: solicitud.tipo }
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [temp, setTemp] = useState(ingreso.temperaturaC != null ? String(ingreso.temperaturaC) : '')
   const [bultos, setBultos] = useState(ingreso.bultos != null ? String(ingreso.bultos) : '')
@@ -40,7 +41,7 @@ export function DatosRecepcion({ ingreso, editable, hoy }: { ingreso: IngresoDet
   const fuera = temperaturaFueraDeRango(t)
 
   function guardar() {
-    ejecutar(() => editarIngresoAccion(ingreso.id, {
+    ejecutar(() => editarRecepcionAccion(solicitud.id, {
       temperaturaC: t != null && Number.isFinite(t) ? t : null, bultos: bultos ? Number(bultos) : null, paletas: paletas ? Number(paletas) : null,
       placa, marcaVehiculo: marca, tipoConteo: conteo as 'MUESTREO' | 'TOTAL' | 'OTROS' | '', horaInicio: aIso(inicio, hoy) ?? '', horaFin: aIso(fin, hoy) ?? '',
       verificaciones: verif, observaciones: obs, ...(ingreso.tipo === 'COMPRA_LOCAL' ? { facturaNumero: factura } : {}),

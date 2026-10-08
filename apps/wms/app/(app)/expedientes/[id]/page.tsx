@@ -19,7 +19,7 @@ export default async function DetalleExpediente({ params }: { params: { id: stri
         <p className="text-sm text-gray-600">{exp.tipo === 'OC' ? 'Orden de compra' : 'Acta'}</p>
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900" data-testid="titulo-expediente">{exp.clave}</h1>
         <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-          {exp.ingresos.map((i) => <li key={i.id}><Link href={`/entradas/${i.id}`} className="inline-flex items-center gap-1 text-gray-800 underline">{ETIQUETA_TIPO_INGRESO[i.tipo]}{i.actaNumero ? ` · acta ${i.actaNumero}` : ''} · {i.unidades.toLocaleString('es-PE')} und.<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link></li>)}
+          {exp.ingresos.map((i) => <li key={i.id}><Link href={`/entradas/${i.id}`} className="inline-flex items-center gap-1 text-gray-800 underline">{i.numero} · {ETIQUETA_TIPO_INGRESO[i.tipo]}{i.actaNumero ? ` · acta ${i.actaNumero}` : ''} · {i.unidades.toLocaleString('es-PE')} und.<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link></li>)}
         </ul>
       </header>
       <PanelExpediente exp={exp} roles={ctx.roles} />

@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 export default async function LayoutApp({ children }: { children: ReactNode }) {
   const ctx = await exigirContexto()
   const alertas = await repositorio().contarAlertasAbiertas()
-  const misAlertas = (ctx.roles.includes('direccion_tecnica') ? alertas.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe') ? alertas.jefe_almacen : 0)
+  const misAlertas = (ctx.roles.includes('direccion_tecnica') ? alertas.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe') ? alertas.jefe_almacen : 0) + (ctx.roles.includes('asistente_dt') ? alertas.asistente_dt : 0)
   const items: ItemNav[] = [
     { href: '/', etiqueta: 'Inicio', icono: 'inicio' },
     { href: '/almacen', etiqueta: 'Almacén', icono: 'almacen' },

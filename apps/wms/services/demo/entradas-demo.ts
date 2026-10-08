@@ -12,7 +12,7 @@ import {
   diasParaVencer, estadoRegistroCompras, faltantesParaEnviar, mensajeTemperatura, muestraOrganoleptica, numeroDeActa,
   pasoDeSolicitud, porTrasladarVencido, puedeAtenderAlerta, puedeFirmarComo, puedeGenerarActa, puedePrepararSolicitud, ROLES_FIRMA,
   situacionLote, temperaturaFueraDeRango, validarDecision, validarEntradaSolicitud, validarLineaSolicitud, validarTransportista,
-  type CambioEntrada, type Checklist, type Decision, type DestinatarioAlerta, type EntradaSolicitud, type TipoAlerta,
+  type CambioEntrada, type Checklist, type Decision, type DestinatarioAlerta, type EntradaSolicitud, type EstadoRegistroCompras, type TipoAlerta,
 } from '@/domain/entradas'
 import type {
   ActaRecepcionVista, AlertaVista, BloqueFisico, CambioVista, ColaDT, ContenidoActaRecepcion, DatosEdicionRecepcion,
@@ -176,12 +176,16 @@ function referenciaDe(s: SolicitudDemo) {
     ? `${s.docOriginalTipo === 'BOLETA' ? 'Boleta' : 'Factura'} ${s.docOriginalNumero}` : s.guiaNumero ? `Guía ${s.guiaNumero}` : undefined
 }
 
+const peorRegistro = (estados: EstadoRegistroCompras[]): EstadoRegistroCompras | undefined =>
+  estados.length === 0 ? undefined : estados.includes('NO_COINCIDE') ? 'NO_COINCIDE' : estados.includes('FALTA') ? 'FALTA' : 'OK'
+
 function resumen(e: EstadoDemo, s: SolicitudDemo): SolicitudResumen {
   const d = detalle(e, s)
   return {
     id: s.id, numero: s.numero, tipo: s.tipo, estado: s.estado, paso: d.paso, propietario: d.propietario, contraparte: s.contraparteNombre,
     referencia: referenciaDe(s), actaNumero: actaVigente(e, s.id)?.numero, unidades: unidades(s), productos: new Set(s.lineas.filter((l) => l.cantidad > 0).map((l) => l.productoId)).size,
     fechaPrevista: s.fechaPrevista, creadoEn: s.creadoEn, alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias,
+    registroCompras: peorRegistro(d.cantidadFisica.map((b) => b.estado)),
   }
 }
 

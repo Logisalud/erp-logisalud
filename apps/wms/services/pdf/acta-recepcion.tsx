@@ -59,7 +59,7 @@ function ActaPdf({ acta }: { acta: ActaRecepcionVista }) {
         <View style={s.cab}>
           <View style={s.cabLogo}><Image src={LOGO_LOGISALUD} style={{ height: 26, objectFit: 'contain' }} /></View>
           <View style={s.cabTitulo}><Text style={s.titulo}>ACTA DE RECEPCIÓN DE PRODUCTOS</Text><Text style={{ color: TENUE, marginTop: 2 }}>LOGISALUD · Almacén Lurín</Text></View>
-          <View style={s.cabCod}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Cód. Formato: LS-FR.03.05</Text><Text>N° ACTA: <Text style={{ fontFamily: 'Helvetica-Bold', color: VERDE }}>{acta.numero}</Text></Text></View>
+          <View style={s.cabCod}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Cód. Formato: LS-FR.03.05</Text><Text>N° ACTA: <Text style={{ fontFamily: 'Helvetica-Bold', color: VERDE }}>{acta.numero}</Text></Text>{c.solicitud && <Text>SOLICITUD: {c.solicitud.numero} (v{c.solicitud.version})</Text>}</View>
         </View>
 
         {acta.estado === 'BORRADOR' && <Text style={{ color: '#B45309', fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>BORRADOR — faltan firmas: {acta.faltan.map((r) => ETIQUETA_ROL_FIRMA[r]).join(', ') || 'ninguna'}. Este documento todavía no tiene validez.</Text>}
@@ -90,7 +90,7 @@ function ActaPdf({ acta }: { acta: ActaRecepcionVista }) {
 
         <View style={s.caja}>
           <View style={s.fila}>
-            {[['N°', 18], ['DESCRIPCIÓN DEL PRODUCTO', 190], ['R.S.', 60], ['LOTE', 60], ['F. EXPIRA', 55], ['CANT. ESTABLECIDA', 55], ['CANT. RECIBIDA', 55], ['POSICIÓN', 45]].map(([t, w]) => <Text key={String(t)} style={[s.celda, s.th, { width: w as number }]}>{t}</Text>)}
+            {[['N°', 18], ['DESCRIPCIÓN DEL PRODUCTO', 190], ['R.S.', 60], ['LOTE', 60], ['F. EXPIRA', 55], ['CANT. SOLICITUD', 55], ['CANT. RECIBIDA', 55], ['POSICIÓN', 45]].map(([t, w]) => <Text key={String(t)} style={[s.celda, s.th, { width: w as number }]}>{t}</Text>)}
             <Text style={[s.celda, s.th, { flexGrow: 1, borderRight: 0 }]}>OBSERVACIONES</Text>
           </View>
           {filas.map(({ l, x, primera }, k) => (
@@ -103,7 +103,7 @@ function ActaPdf({ acta }: { acta: ActaRecepcionVista }) {
               <Text style={[s.celda, { width: 55, textAlign: 'right' }]}>{primera ? l.cantidadEstablecida : ''}</Text>
               <Text style={[s.celda, { width: 55, textAlign: 'right' }]}>{x?.cantidad ?? ''}</Text>
               <Text style={[s.celda, { width: 45 }]}>{x?.posicion ?? ''}</Text>
-              <Text style={[s.celda, { flexGrow: 1, borderRight: 0 }]}>{primera && k === 0 ? `Bultos: ${i.bultos ?? '—'} · Paletas: ${i.paletas ?? '—'}` : ''}</Text>
+              <Text style={[s.celda, { flexGrow: 1, borderRight: 0 }]}>{[primera && k === 0 ? `Bultos: ${i.bultos ?? '—'} · Paletas: ${i.paletas ?? '—'}` : '', x && x.cantidadInicial != null && x.cantidadInicial !== x.cantidad ? `Solicitud inicial: ${x.cantidadInicial}` : ''].filter(Boolean).join(' · ')}</Text>
             </View>
           ))}
         </View>

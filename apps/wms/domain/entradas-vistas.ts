@@ -269,6 +269,8 @@ export interface SolicitudResumen {
   alertasAbiertas: number
   /** La solicitud final difiere de la inicial. */
   conDiferencias: boolean
+  /** Solo compras cerradas: peor estado del registro en Compras entre sus líneas. */
+  registroCompras?: EstadoRegistroCompras
 }
 
 export interface SolicitudDetalle {

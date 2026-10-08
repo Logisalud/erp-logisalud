@@ -24,7 +24,7 @@ export default async function ActaOrganoleptica({ params }: { params: { id: stri
       <header>
         <div className="flex flex-wrap items-center gap-2">{acta.decision ? <ChipEstado estado={acta.decision} /> : <ChipActa estado={acta.estado === 'PENDIENTE_DT' ? 'PENDIENTE_DT' : 'BORRADOR'} />}<span className="tabular text-sm text-gray-600">{acta.numero}</span></div>
         <h1 className="mt-2 font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Evaluación organoléptica</h1>
-        <p className="mt-1 text-gray-700">{acta.producto} · lote <strong>{acta.lote}</strong> · <Link href={`/entradas/${acta.ingresoId}`} className="underline">ver el ingreso{acta.actaRecepcion ? ` (acta ${acta.actaRecepcion})` : ''}</Link></p>
+        <p className="mt-1 text-gray-700">{acta.producto} · lote <strong>{acta.lote}</strong> · <Link href={`/entradas/${acta.solicitudId}`} className="underline">ver la solicitud {acta.solicitudNumero}{acta.actaRecepcion ? ` (acta ${acta.actaRecepcion})` : ''}</Link></p>
       </header>
       <FormOrganoleptica key={`${acta.id}-${acta.estado}`} acta={acta} puedeEditar={puedeEditar} puedeDecidir={puedeDecidir} hoy={panorama.hoy} base={`${prefijo}/calidad/${acta.id}`} />
     </div>

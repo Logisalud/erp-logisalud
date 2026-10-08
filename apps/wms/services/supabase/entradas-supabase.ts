@@ -281,12 +281,20 @@ export class EntradasSupabase {
 
   async listarSolicitudes(): Promise<SolicitudResumen[]> {
     const c = await cargar()
-    return c.solicitudes.map((sol) => armarDetalle(c, sol, [])).sort((a, b) => b.creadoEn.localeCompare(a.creadoEn) || b.numero.localeCompare(a.numero)).map((d) => ({
+    const detalles = c.solicitudes.map((sol) => armarDetalle(c, sol, [])).sort((a, b) => b.creadoEn.localeCompare(a.creadoEn) || b.numero.localeCompare(a.numero))
+    // Conciliación con Compras de las compras cerradas recientes (una consulta por solicitud, acotada a los últimos 45 días).
+    const desde = Date.now() - 45 * 86_400_000
+    const registro = new Map<string, EstadoRegistroCompras>()
+    await Promise.all(detalles.filter((d) => d.estado === 'CERRADA' && d.tipo === 'COMPRA_LOCAL' && Date.parse(d.cerradaEn ?? d.creadoEn) > desde).map(async (d) => {
+      const b = await conciliacion(d.id, new Map(), d.ocCodigo ?? '')
+      if (b.length) registro.set(d.id, b.some((x) => x.estado === 'NO_COINCIDE') ? 'NO_COINCIDE' : b.some((x) => x.estado === 'FALTA') ? 'FALTA' : 'OK')
+    }))
+    return detalles.map((d) => ({
       id: d.id, numero: d.numero, tipo: d.tipo, estado: d.estado, paso: d.paso, propietario: d.propietario, contraparte: d.contraparteNombre,
       referencia: d.tipo === 'COMPRA_LOCAL' ? d.ocCodigo : d.tipo === 'DEVOLUCION' ? `${d.docOriginalTipo === 'BOLETA' ? 'Boleta' : 'Factura'} ${d.docOriginalNumero}` : d.guiaNumero ? `Guía ${d.guiaNumero}` : undefined,
       actaNumero: d.actas.find((a) => a.estado !== 'ANULADA')?.numero, unidades: d.lineas.reduce((n, l) => n + l.cantidad, 0),
       productos: new Set(d.lineas.filter((l) => l.cantidad > 0).map((l) => l.productoId)).size, fechaPrevista: d.fechaPrevista, creadoEn: d.creadoEn,
-      alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias,
+      alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias, registroCompras: registro.get(d.id),
     }))
   }
 

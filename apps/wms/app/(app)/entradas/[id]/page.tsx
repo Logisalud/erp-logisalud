@@ -4,50 +4,63 @@ import { ArrowLeft, ArrowRight, FolderOpen, ShieldAlert } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { puede } from '@/domain/permisos'
-import { ETIQUETA_TIPO_INGRESO, puedeGenerarActa } from '@/domain/entradas'
+import { ETIQUETA_TIPO_INGRESO, puedeGenerarActa, puedePrepararSolicitud } from '@/domain/entradas'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { ChipEstado } from '@/components/chips'
+import { AccionesSolicitud } from '@/components/entradas/acciones-solicitud'
 import { Aviso } from '@/components/entradas/aviso'
+import { BloqueCantidadFisica } from '@/components/entradas/bloque-fisico'
+import { TablaCantidades } from '@/components/entradas/cantidades'
 import { ChipActa, ChipAlerta, ChipPaso, ChipTipoIngreso } from '@/components/entradas/chips-entradas'
 import { DatosRecepcion } from '@/components/entradas/datos-recepcion'
-import { EditorLotes } from '@/components/entradas/editor-lotes'
+import { HistorialSolicitud } from '@/components/entradas/historial-solicitud'
+import { LineasSolicitud } from '@/components/entradas/lineas-solicitud'
 import { PanelActa } from '@/components/entradas/panel-acta'
-import { Solicitud } from '@/components/entradas/solicitud'
 
-export const metadata = { title: 'Ingreso — WMS LOGISALUD' }
+export const metadata = { title: 'Solicitud de ingreso — WMS LOGISALUD' }
 
 const PASOS = [
-  { id: 'DATOS_Y_LOTES', t: 'Lotes y datos' },
-  { id: 'FIRMAS', t: 'Acta y firmas' },
-  { id: 'CONFIRMAR', t: 'Confirmar' },
-  { id: 'CONFIRMADO', t: 'Calidad' },
+  { id: 'solicitud', t: 'Solicitud' },
+  { id: 'recepcion', t: 'Recepción' },
+  { id: 'firmas', t: 'Acta y firmas' },
+  { id: 'calidad', t: 'Calidad' },
 ] as const
 
-export default async function DetalleIngreso({ params }: { params: { id: string } }) {
+export default async function DetalleSolicitud({ params }: { params: { id: string } }) {
   const ctx = await exigirContexto()
   const repo = repositorio()
   const id = decodeURIComponent(params.id)
-  const [ing, posiciones, panorama] = await Promise.all([repo.obtenerIngreso(id), repo.posicionesDeCuarentena(), repo.panorama()])
-  if (!ing) notFound()
+  const sol = await repo.obtenerSolicitud(id)
+  if (!sol) notFound()
+  const [posiciones, panorama] = await Promise.all([repo.posicionesDestino(sol.tipo), repo.panorama()])
 
-  const puedeEjecutar = puede(ctx.roles, 'ejecutar')
-  const editable = !ing.confirmado && !ing.bloqueadoPorFirmas && puedeEjecutar
-  const motivoSinActa = puedeGenerarActa({ cuadra: ing.cuadra, tieneTemperatura: ing.temperaturaC != null, tipo: ing.tipo, tieneDocOriginal: !!ing.docOriginalNumero })
-  const titulo = ing.tipo === 'COMPRA_LOCAL' ? `${ing.ocCodigo}` : ing.tipo === 'DEVOLUCION' ? `Devolución · ${ing.propietario}` : `Ingreso de ${ing.propietario}`
+  const puedeRecibir = puede(ctx.roles, 'ejecutar')
+  const puedePreparar = puedePrepararSolicitud(ctx.roles)
+  const enRecepcion = sol.estado === 'EN_RECEPCION'
+  const editableRecepcion = enRecepcion && !sol.bloqueadoPorFirmas && puedeRecibir
+  // Ajustar: antes de autorizar lo prepara Dirección Técnica o Sandra; ya programada, también el almacén.
+  const puedeAjustar = sol.estado === 'BORRADOR' || sol.estado === 'ENVIADA' ? puedePreparar : puedePreparar || puedeRecibir
+  const motivoSinActa = enRecepcion ? puedeGenerarActa({
+    tipo: sol.tipo, tieneDocOriginal: !!sol.docOriginalNumero, tieneTemperatura: sol.recepcion?.temperaturaC != null,
+    lineas: sol.lineas.filter((l) => l.cantidad > 0).map((l) => ({ descripcion: l.descripcion, lote: l.lote, verificacion: l.verificacion, tienePosicion: !!l.posicionId })),
+  }) : null
+  const titulo = sol.numero
   const prefijo = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
-  const idxPaso = ing.paso === 'DATOS_Y_LOTES' || ing.paso === 'ACTA' ? 0 : ing.paso === 'FIRMAS' ? 1 : ing.paso === 'CONFIRMAR' ? 2 : 3
-  const alertasAbiertas = ing.alertas.filter((a) => a.estado === 'ABIERTA')
-  const referencia = ing.tipo === 'COMPRA_LOCAL' ? ing.contraparteNombre : ing.tipo === 'DEVOLUCION' ? `${ing.docOriginalTipo === 'BOLETA' ? 'Boleta' : 'Factura'} original ${ing.docOriginalNumero}` : `Guía ${ing.guiaNumero}`
+  const idxPaso = sol.estado === 'CERRADA' ? 3 : sol.paso === 'FIRMAS' || sol.paso === 'CONFIRMAR' ? 2 : enRecepcion ? 1 : 0
+  const alertasAbiertas = sol.alertas.filter((a) => a.estado === 'ABIERTA')
+  const referencia = sol.tipo === 'COMPRA_LOCAL' ? sol.ocCodigo : sol.tipo === 'DEVOLUCION' ? `${sol.docOriginalTipo === 'BOLETA' ? 'Boleta' : 'Factura'} original ${sol.docOriginalNumero}` : sol.guiaNumero ? `Guía ${sol.guiaNumero}` : undefined
+  const destino = sol.estadoInicial === 'DEVOLUCIONES' ? 'Devoluciones' : 'Cuarentena'
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <Link href="/entradas" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-gray-700 hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden />Entradas</Link>
 
       <header>
-        <div className="flex flex-wrap items-center gap-2"><ChipTipoIngreso tipo={ing.tipo} /><ChipPaso paso={ing.paso} /></div>
-        <h1 className="mt-2 font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900" data-testid="titulo-ingreso">{titulo}</h1>
-        <p className="mt-1 text-gray-700">{ETIQUETA_TIPO_INGRESO[ing.tipo]} · propietario <strong>{ing.propietario}</strong>{referencia ? ` · ${referencia}` : ''}</p>
-        <p className="text-sm text-gray-600">Registrado el {formatoFechaHora(ing.creadoEn)}{ing.creadoPor ? ` por ${ing.creadoPor}` : ''}{ing.guiaNumero && ing.tipo === 'COMPRA_LOCAL' ? ` · guía ${ing.guiaNumero}` : ''}</p>
+        <div className="flex flex-wrap items-center gap-2"><ChipTipoIngreso tipo={sol.tipo} /><ChipPaso paso={sol.paso} tipo={sol.tipo} /></div>
+        <h1 className="tabular mt-2 font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900" data-testid="titulo-solicitud">{titulo}</h1>
+        <p className="mt-1 text-gray-700">{ETIQUETA_TIPO_INGRESO[sol.tipo]} · propietario <strong>{sol.propietario}</strong>{referencia ? ` · ${referencia}` : ''}{sol.contraparteNombre ? ` · ${sol.contraparteNombre}` : ''}</p>
+        <p className="text-sm text-gray-600">Preparada el {formatoFechaHora(sol.creadoEn)}{sol.creadoPor ? ` por ${sol.creadoPor}` : ''}{sol.guiaNumero && sol.tipo === 'COMPRA_LOCAL' ? ` · guía ${sol.guiaNumero}` : ''}{sol.fechaPrevista ? ` · llega el ${formatoFecha(sol.fechaPrevista)}` : ''}</p>
+        {sol.tipo === 'DEVOLUCION' && <p className="mt-1 text-sm text-gray-700">Se deja en el Área de Devoluciones y no pasa por Cuarentena: su acta organoléptica decide si va a Aprobado o a Bajas/Rechazados.</p>}
       </header>
 
       <ol className="grid grid-cols-4 gap-2" aria-label="Avance del ingreso">
@@ -58,38 +71,47 @@ export default async function DetalleIngreso({ params }: { params: { id: string 
         ))}
       </ol>
 
+      {sol.estado === 'CERRADA' && sol.tipo === 'COMPRA_LOCAL' && <BloqueCantidadFisica bloques={sol.cantidadFisica} ocId={sol.ocId} ocCodigo={sol.ocCodigo} solicitudNumero={sol.numero} />}
+
       {alertasAbiertas.length > 0 && (
-        <section aria-label="Alertas de este ingreso" className="space-y-2" data-testid="alertas-ingreso">
+        <section aria-label="Alertas de esta solicitud" className="space-y-2" data-testid="alertas-ingreso">
           {alertasAbiertas.map((a) => <Aviso key={a.id} tipo="atencion"><span className="mb-1 flex"><ChipAlerta tipo={a.tipo} /></span>{a.mensaje}</Aviso>)}
           <Link href="/alertas" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-gray-800 underline">Ver todas las alertas <ArrowRight className="h-4 w-4" aria-hidden /></Link>
         </section>
       )}
 
-      <section aria-labelledby="lotes">
-        <h2 id="lotes" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Lotes</h2>
-        <p className="mb-3 text-sm text-gray-600">Reparte cada producto en los lotes que trae. La suma tiene que ser exactamente la cantidad de referencia.</p>
-        <div className="space-y-4">
-          {ing.lineas.map((l) => <EditorLotes key={l.id} ingresoId={ing.id} linea={l} posiciones={posiciones} editable={editable} hoy={panorama.hoy} />)}
-        </div>
+      <AccionesSolicitud solicitud={sol} puedePreparar={puedePreparar} puedeRecibir={puedeRecibir} />
+
+      <section aria-labelledby="lineas">
+        <h2 id="lineas" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">{enRecepcion ? 'Verifica lo que llegó' : 'Lo que se espera'}</h2>
+        <p className="mb-3 text-sm text-gray-600">
+          {enRecepcion ? 'La solicitud dice qué esperamos. Confirma cada línea: si coincide, sigue; si hay una diferencia, la solicitud se actualiza con su motivo y queda el historial.'
+            : sol.estado === 'CERRADA' ? 'Lo recibido, línea por línea.' : 'Producto, lote, vencimiento y cantidad anunciados. Sin inventario todavía.'}
+        </p>
+        <LineasSolicitud solicitud={sol} posiciones={posiciones} hoy={panorama.hoy} puedeRecibir={puedeRecibir} puedeAjustar={puedeAjustar} />
       </section>
 
-      <section className="card" aria-labelledby="datos">
-        <h2 id="datos" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Datos de la recepción</h2>
-        <p className="text-sm text-gray-600">Lo que Compras no sabe: temperatura, bultos, vehículo y verificaciones. Van en el acta.</p>
-        <DatosRecepcion ingreso={ing} editable={editable} hoy={panorama.hoy} />
-      </section>
+      {sol.recepcion && (
+        <section className="card" aria-labelledby="datos">
+          <h2 id="datos" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Datos de la recepción</h2>
+          <p className="text-sm text-gray-600">Lo que solo se sabe al recibir: temperatura, bultos, vehículo y verificaciones. Van en el acta.</p>
+          <DatosRecepcion solicitud={sol} editable={editableRecepcion} hoy={panorama.hoy} />
+        </section>
+      )}
 
-      <section className="card" aria-labelledby="acta">
-        <h2 id="acta" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Acta de Recepción</h2>
-        <PanelActa ingreso={ing} roles={ctx.roles} motivoSinActa={motivoSinActa} base={`${prefijo}/entradas/${ing.id}`} />
-      </section>
+      {sol.recepcion && (
+        <section className="card" aria-labelledby="acta">
+          <h2 id="acta" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Acta de Recepción</h2>
+          <PanelActa solicitud={sol} roles={ctx.roles} motivoSinActa={motivoSinActa} base={`${prefijo}/entradas/${sol.id}`} />
+        </section>
+      )}
 
-      {ing.confirmado && (
+      {sol.estado === 'CERRADA' && (
         <section className="card" aria-labelledby="calidad">
           <h2 id="calidad" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Evaluación organoléptica</h2>
-          <p className="text-sm text-gray-600">Una acta por producto y lote. La llena Sandra; Katia decide Aprobado o Bajas/Rechazados.</p>
+          <p className="text-sm text-gray-600">Una acta por producto y lote. La llena Sandra; Katia decide Aprobado o Bajas/Rechazados. Mientras tanto, las unidades esperan en {destino}.</p>
           <ul className="mt-3 divide-y divide-gray-100" data-testid="lista-organolepticas">
-            {ing.organolepticas.map((o) => (
+            {sol.organolepticas.map((o) => (
               <li key={o.id}>
                 <Link href={`/calidad/${o.id}`} className="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5 hover:bg-gray-50">
                   <span className="min-w-0"><span className="block truncate font-medium text-gray-900">{o.producto}</span><span className="block text-sm text-gray-600">Lote {o.lote} · vence {formatoFecha(o.vence)} · {o.cantidadLote.toLocaleString('es-PE')} und. · muestra de {o.cantidadMuestra}</span></span>
@@ -98,19 +120,24 @@ export default async function DetalleIngreso({ params }: { params: { id: string 
               </li>
             ))}
           </ul>
-          {ing.organolepticas.some((o) => (o.rsVence ?? '9999') < panorama.hoy && !o.decision) && (
+          {sol.organolepticas.some((o) => (o.rsVence ?? '9999') < panorama.hoy && !o.decision) && (
             <div className="mt-3"><Aviso tipo="atencion"><span className="flex items-center gap-1.5 font-medium"><ShieldAlert className="h-4 w-4" aria-hidden />Hay un registro sanitario vencido</span>Ese lote se puede rechazar, pero no aprobar, hasta que Dirección Técnica resuelva el registro.</Aviso></div>
           )}
         </section>
       )}
 
-      <section className="card" aria-labelledby="solicitud">
-        <h2 id="solicitud" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Solicitud de Ingreso</h2>
-        <Solicitud ingreso={ing} puedeEditar={puedeEjecutar} />
+      <section className="card" aria-labelledby="cantidades">
+        <h2 id="cantidades" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Las cantidades</h2>
+        <div className="mt-3"><TablaCantidades solicitud={sol} /></div>
       </section>
 
-      {ing.expedienteId && (
-        <Link href={`/expedientes/${ing.expedienteId}`} className="btn-secondary" data-testid="ver-expediente"><FolderOpen className="h-5 w-5" aria-hidden />Ver el expediente de {ing.ocCodigo ?? 'este ingreso'}</Link>
+      <section className="card" aria-labelledby="solicitud">
+        <h2 id="solicitud" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Historial de la solicitud</h2>
+        <HistorialSolicitud solicitud={sol} puedeEditar={puedeAjustar} />
+      </section>
+
+      {sol.expedienteId && (
+        <Link href={`/expedientes/${sol.expedienteId}`} className="btn-secondary" data-testid="ver-expediente"><FolderOpen className="h-5 w-5" aria-hidden />Ver el expediente de {sol.ocCodigo ?? sol.numero}</Link>
       )}
     </div>
   )

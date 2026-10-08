@@ -8,6 +8,7 @@ import {
   alertasRegulatorias, ocupacionPorPropietario, unidadesEnEstado, unidadesPorTrasladar, type Panorama,
 } from '@/domain/panorama'
 import { puede, puedeCrearProducto, puedeValidarProducto } from '@/domain/permisos'
+import { puedePrepararSolicitud } from '@/domain/entradas'
 import type { Rol } from '@/domain/tipos'
 import { vistaPropietario } from '@/components/propietarios-color'
 import { formatoFecha } from '@/domain/fechas'
@@ -28,8 +29,11 @@ interface Aviso {
 }
 
 interface DatosEntradas {
+  porAutorizar: number
+  porLlegar: number
   enProceso: number
   porFirmar: number
+  porRegistrarEnCompras: number
   organolepticasPendientes: number
   organolepticasPorLlenar: number
   expedientesConFaltantes: number
@@ -41,7 +45,7 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   const avisos: Aviso[] = []
   const opera = roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'asistente_dt'].includes(r))
   if (e.alertasMias > 0) {
-    avisos.push({ clave: 'alertas', Icono: Bell, texto: 'Alertas abiertas para ti', detalle: 'Temperatura, registro sanitario, cambios de Compras o aprobados sin trasladar.', cantidad: e.alertasMias, unidad: pl(e.alertasMias, 'alerta', 'alertas'), href: '/alertas', tono: 'atencion' })
+    avisos.push({ clave: 'alertas', Icono: Bell, texto: 'Alertas abiertas para ti', detalle: 'Temperatura, registro sanitario, cambios de una solicitud, diferencias con Compras o aprobados sin trasladar.', cantidad: e.alertasMias, unidad: pl(e.alertasMias, 'alerta', 'alertas'), href: '/alertas', tono: 'atencion' })
   }
   if (roles.includes('direccion_tecnica') && e.organolepticasPendientes > 0) {
     avisos.push({ clave: 'organolepticas', Icono: ClipboardList, texto: 'Actas organolépticas esperando tu decisión', detalle: 'Decide Aprobado o Bajas/Rechazados.', cantidad: e.organolepticasPendientes, unidad: pl(e.organolepticasPendientes, 'acta', 'actas'), href: '/calidad', tono: 'atencion' })
@@ -52,11 +56,20 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   if (roles.includes('asistente_dt') && e.expedientesConFaltantes > 0) {
     avisos.push({ clave: 'expedientes', Icono: FolderOpen, texto: 'Expedientes con documentos faltantes', cantidad: e.expedientesConFaltantes, unidad: pl(e.expedientesConFaltantes, 'expediente', 'expedientes'), href: '/expedientes', tono: 'info' })
   }
+  if (puedePrepararSolicitud(roles) && e.porAutorizar > 0) {
+    avisos.push({ clave: 'por-autorizar', Icono: FilePlus2, texto: 'Solicitudes de ingreso por autorizar', detalle: 'Autorízalas para que queden programadas ("por llegar").', cantidad: e.porAutorizar, unidad: pl(e.porAutorizar, 'solicitud', 'solicitudes'), href: '/entradas?f=autorizar', tono: 'atencion' })
+  }
+  if (e.porRegistrarEnCompras > 0 && roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'asistente_dt'].includes(r))) {
+    avisos.push({ clave: 'por-registrar-compras', Icono: ClipboardList, texto: 'Cantidades físicas por registrar en Compras', detalle: 'El WMS ya confirmó lo que llegó; Compras todavía no lo tiene igual. Copia la "Cantidad física confirmada" a la recepción de la OC.', cantidad: e.porRegistrarEnCompras, unidad: pl(e.porRegistrarEnCompras, 'solicitud', 'solicitudes'), href: '/entradas?f=compras', tono: 'atencion' })
+  }
+  if (opera && e.porLlegar > 0) {
+    avisos.push({ clave: 'por-llegar', Icono: Inbox, texto: 'Mercadería por llegar', detalle: 'Solicitudes autorizadas. Empieza la recepción cuando llegue el camión.', cantidad: e.porLlegar, unidad: pl(e.porLlegar, 'solicitud', 'solicitudes'), href: '/entradas?f=llegar', tono: 'info' })
+  }
   if (opera && e.porFirmar > 0) {
-    avisos.push({ clave: 'por-firmar', Icono: PenLine, texto: 'Ingresos por firmar o confirmar', detalle: 'El acta de recepción espera firmas o la confirmación.', cantidad: e.porFirmar, unidad: pl(e.porFirmar, 'ingreso', 'ingresos'), href: '/entradas?f=firmas', tono: 'atencion' })
+    avisos.push({ clave: 'por-firmar', Icono: PenLine, texto: 'Recepciones por firmar o confirmar', detalle: 'El acta de recepción espera firmas o la confirmación.', cantidad: e.porFirmar, unidad: pl(e.porFirmar, 'recepción', 'recepciones'), href: '/entradas?f=firmas', tono: 'atencion' })
   }
   if (opera && e.enProceso > 0) {
-    avisos.push({ clave: 'en-proceso', Icono: Inbox, texto: 'Ingresos en proceso', detalle: 'Faltan lotes, datos o el acta.', cantidad: e.enProceso, unidad: pl(e.enProceso, 'ingreso', 'ingresos'), href: '/entradas?f=proceso', tono: 'info' })
+    avisos.push({ clave: 'en-proceso', Icono: Inbox, texto: 'Recepciones en curso', detalle: 'Falta verificar lo que llegó, completar los datos o generar el acta.', cantidad: e.enProceso, unidad: pl(e.enProceso, 'recepción', 'recepciones'), href: '/entradas?f=proceso', tono: 'info' })
   }
   const porVerificar = p.posiciones.filter((x) => x.porVerificar).length
   const trasladar = unidadesPorTrasladar(p)
@@ -93,12 +106,15 @@ export default async function Inicio() {
   const ctx = await exigirContexto()
   const repo = repositorio()
   const [p, ingresos, cola, expedientes, conteo] = await Promise.all([
-    repo.panorama(), repo.listarIngresos(), repo.colaDireccionTecnica(), repo.listarExpedientes(), repo.contarAlertasAbiertas(),
+    repo.panorama(), repo.listarSolicitudes(), repo.colaDireccionTecnica(), repo.listarExpedientes(), repo.contarAlertasAbiertas(),
   ])
-  const alertasMias = (ctx.roles.includes('direccion_tecnica') ? conteo.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe') ? conteo.jefe_almacen : 0)
+  const alertasMias = (ctx.roles.includes('direccion_tecnica') ? conteo.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe') ? conteo.jefe_almacen : 0) + (ctx.roles.includes('asistente_dt') ? conteo.asistente_dt : 0)
   const avisos = avisosPara(ctx.roles, p, {
-    enProceso: ingresos.filter((i) => i.paso === 'DATOS_Y_LOTES' || i.paso === 'ACTA').length,
+    porAutorizar: ingresos.filter((i) => i.paso === 'POR_AUTORIZAR').length,
+    porLlegar: ingresos.filter((i) => i.paso === 'POR_LLEGAR').length,
+    enProceso: ingresos.filter((i) => i.paso === 'VERIFICANDO' || i.paso === 'ACTA').length,
     porFirmar: ingresos.filter((i) => i.paso === 'FIRMAS' || i.paso === 'CONFIRMAR').length,
+    porRegistrarEnCompras: ingresos.filter((i) => i.registroCompras === 'FALTA' || i.registroCompras === 'NO_COINCIDE').length,
     organolepticasPendientes: cola.organolepticas.length, organolepticasPorLlenar: cola.borradores.length,
     expedientesConFaltantes: expedientes.filter((x) => x.estado === 'ABIERTO' && x.faltantesAbiertos > 0).length, alertasMias,
   })

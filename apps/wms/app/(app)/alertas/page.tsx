@@ -14,7 +14,7 @@ export default async function Alertas() {
     <div className="mx-auto max-w-4xl space-y-8">
       <header>
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Alertas</h1>
-        <p className="mt-1 text-gray-700">Lo que pide una mirada: temperatura fuera de rango, registro sanitario vencido, cambios de Compras y aprobados sin trasladar.</p>
+        <p className="mt-1 text-gray-700">Lo que pide una mirada: temperatura fuera de rango, registro sanitario vencido, cambios de una solicitud, diferencias con Compras, lotes por vencer y aprobados sin trasladar.</p>
       </header>
       <section aria-labelledby="abiertas">
         <h2 id="abiertas" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Abiertas <span className="tabular rounded-full bg-gray-100 px-2 py-0.5 text-sm text-gray-700">{abiertas.length}</span></h2>

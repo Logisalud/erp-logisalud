@@ -6,8 +6,8 @@ import { modoDemoActivo } from '@/lib/demo'
 import { COOKIE_ROL_DEMO, rolDemoDesdeCookie } from '@/lib/sesion-demo'
 import { repositorio } from '@/services/repositorio-actual'
 import { buscar } from '@/domain/panorama'
-import type { Decision, EntradaIngreso, EntradaLote } from '@/domain/entradas'
-import type { DatosEdicionIngreso, DatosOrganolepticaGuardar, FirmaEntrada } from '@/domain/entradas-vistas'
+import type { CambioEntrada, Decision, EntradaSolicitud } from '@/domain/entradas'
+import type { DatosEdicionRecepcion, DatosOrganolepticaGuardar, DatosVerificacion, FirmaEntrada } from '@/domain/entradas-vistas'
 import type { Actor, ResultadoAccion } from '@/services/repositorio'
 
 async function quien(): Promise<Actor> {
@@ -15,22 +15,34 @@ async function quien(): Promise<Actor> {
   return { id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles }
 }
 
-// ── Ingresos ────────────────────────────────────────────────────────────────
+// ── Solicitudes de ingreso (la entidad primaria) ────────────────────────────
 
-export async function crearIngresoAccion(entrada: EntradaIngreso): Promise<ResultadoAccion<{ id: string }>> {
-  return repositorio().crearIngreso(entrada, await quien())
+export async function crearSolicitudAccion(entrada: EntradaSolicitud, autorizar: boolean): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+  return repositorio().crearSolicitud(entrada, autorizar, await quien())
 }
-export async function editarIngresoAccion(id: string, datos: DatosEdicionIngreso): Promise<ResultadoAccion> {
-  return repositorio().editarIngreso(id, datos, await quien())
+export async function autorizarSolicitudAccion(id: string): Promise<ResultadoAccion> {
+  return repositorio().autorizarSolicitud(id, await quien())
 }
-export async function guardarLotesAccion(id: string, lineaId: string, lotes: EntradaLote[]): Promise<ResultadoAccion> {
-  return repositorio().guardarLotes(id, lineaId, lotes, await quien())
+export async function ajustarSolicitudAccion(id: string, cambios: CambioEntrada[], motivo: string | undefined): Promise<ResultadoAccion<{ version: number }>> {
+  return repositorio().ajustarSolicitud(id, cambios, motivo, await quien())
 }
-export async function editarSolicitudAccion(id: string, datos: Record<string, unknown>, motivo: string | undefined): Promise<ResultadoAccion<{ version: number }>> {
-  return repositorio().editarSolicitud(id, datos, motivo, await quien())
+export async function anularSolicitudAccion(id: string, motivo: string): Promise<ResultadoAccion> {
+  return repositorio().anularSolicitud(id, motivo, await quien())
 }
-export async function generarActaAccion(id: string): Promise<ResultadoAccion<{ actaId: string }>> {
-  return repositorio().generarActa(id, await quien())
+
+// ── Recepción física ────────────────────────────────────────────────────────
+
+export async function iniciarRecepcionAccion(id: string): Promise<ResultadoAccion> {
+  return repositorio().iniciarRecepcion(id, await quien())
+}
+export async function verificarLineaAccion(solicitudId: string, lineaId: string, datos: DatosVerificacion): Promise<ResultadoAccion<{ verificadas: number; total: number }>> {
+  return repositorio().verificarLinea(solicitudId, lineaId, datos, await quien())
+}
+export async function editarRecepcionAccion(solicitudId: string, datos: DatosEdicionRecepcion): Promise<ResultadoAccion> {
+  return repositorio().editarRecepcion(solicitudId, datos, await quien())
+}
+export async function generarActaAccion(solicitudId: string): Promise<ResultadoAccion<{ actaId: string }>> {
+  return repositorio().generarActa(solicitudId, await quien())
 }
 export async function firmarActaAccion(actaId: string, firma: FirmaEntrada): Promise<ResultadoAccion<{ completa: boolean }>> {
   return repositorio().firmarActa(actaId, firma, await quien())
@@ -41,8 +53,8 @@ export async function anularActaAccion(actaId: string, motivo: string): Promise<
 export async function reemitirActaAccion(actaId: string): Promise<ResultadoAccion<{ actaId: string }>> {
   return repositorio().reemitirActa(actaId, await quien())
 }
-export async function confirmarIngresoAccion(id: string): Promise<ResultadoAccion> {
-  return repositorio().confirmarIngreso(id, await quien())
+export async function confirmarIngresoAccion(solicitudId: string): Promise<ResultadoAccion> {
+  return repositorio().confirmarIngreso(solicitudId, await quien())
 }
 
 // ── Calidad ─────────────────────────────────────────────────────────────────
