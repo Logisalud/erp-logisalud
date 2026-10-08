@@ -6,6 +6,7 @@ import { ETIQUETA_TIPO_INGRESO, puedePrepararSolicitud } from '@/domain/entradas
 import type { SolicitudResumen } from '@/domain/entradas-vistas'
 import { formatoFechaHora } from '@/domain/fechas'
 import { ChipPaso, ChipTipoIngreso } from '@/components/entradas/chips-entradas'
+import { PILDORA_ACTIVA, PILDORA_INACTIVA_HOVER } from '@/components/estilos-opcion'
 
 export const metadata = { title: 'Entradas — WMS LOGISALUD' }
 
@@ -42,7 +43,7 @@ export default async function Entradas({ searchParams }: { searchParams: { f?: s
           const n = f.cuando ? ingresos.filter(f.cuando).length : ingresos.length
           return (
             <Link key={f.clave} href={f.clave === 'todas' ? '/entradas' : `/entradas?f=${f.clave}`} aria-current={on ? 'true' : undefined}
-              className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition duration-fast ${on ? 'border-green-300 bg-green-50 text-green-900' : 'border-gray-300 bg-white text-gray-800 hover:border-gray-400'}`}>
+              className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition duration-fast ${on ? PILDORA_ACTIVA : PILDORA_INACTIVA_HOVER}`}>
               {f.etiqueta}<span className="tabular text-xs text-gray-600">{n}</span>
             </Link>
           )

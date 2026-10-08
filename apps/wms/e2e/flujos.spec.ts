@@ -130,8 +130,15 @@ test.describe('búsqueda universal (Ctrl/Cmd+K)', () => {
     await entrarComo(page, 'jefe_almacen')
     if (esTelefono(info)) await page.getByTestId('abrir-busqueda').click()
     else await page.keyboard.press('Control+k')
-    await page.getByRole('dialog', { name: 'Búsqueda' }).getByRole('combobox').fill('A-21.1')
-    await expect(page.getByRole('dialog', { name: 'Búsqueda' }).getByRole('option').first()).toContainText('Ubicación A-21.1')
+    const dialogo = page.getByRole('dialog', { name: 'Búsqueda' })
+    await expect(dialogo).toBeVisible()
+    const caja = dialogo.getByRole('combobox')
+    await expect(caja).toBeEditable()
+    // Con la máquina cargada (pruebas en paralelo) la hidratación puede tardar y borrar lo escrito: se reintenta hasta que el resultado aparezca.
+    await expect(async () => {
+      await caja.fill('A-21.1')
+      await expect(dialogo.getByRole('option').first()).toContainText('Ubicación A-21.1', { timeout: 3_000 })
+    }).toPass({ timeout: 30_000 })
   })
 })
 

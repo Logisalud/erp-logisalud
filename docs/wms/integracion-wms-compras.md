@@ -1,6 +1,11 @@
 # Integración WMS → Compras (D-36) — opciones, sin implementar
 
-**Estado:** abierta. **Nada de esto está implementado en Compras ni en el WMS.** Este documento solo plantea las opciones y lo que
+**Estado:** enfoque **aprobado en dos fases** por Sebas (2026-10-08); **nada está implementado en Compras ni en el WMS** y se hará **después del Batch 3 y antes de la salida a producción**, con aprobación previa del cambio concreto en Compras.
+
+> **Fase 1 — solo lectura:** Compras muestra, junto a su campo de cantidad recibida, la «cantidad confirmada en el WMS» (vista aditiva del WMS; equivale a la opción A de abajo, sin el botón de copiar).
+> **Fase 2 — automática:** Compras toma la cantidad del WMS y se elimina la copia manual (opción B/C, a definir con Compras cuando llegue el momento).
+
+**Estado anterior:** abierta. Este documento solo plantea las opciones y lo que
 cada una le exige a Compras, para que Sebas decida con quien lleve Compras.
 
 ## Punto de partida (decidido)

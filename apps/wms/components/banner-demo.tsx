@@ -20,7 +20,7 @@ export function BannerDemo({ rolActual }: { rolActual?: Rol | null }) {
       className="sticky top-0 z-[70] flex h-9 items-center justify-center gap-2 bg-gray-900 px-3 text-xs font-medium text-white"
     >
       <FlaskConical className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
-      <span className="rounded bg-teal-300 px-1.5 py-0.5 font-bold tracking-wide text-gray-900">DEMO</span>
+      <span className="rounded bg-teal-300 px-1.5 py-0.5 font-bold tracking-wide text-teal-950">DEMO</span>
       <span className="truncate sm:hidden">Datos de prueba</span>
       <span className="hidden truncate sm:inline lg:hidden">Datos de prueba, sin base real</span>
       <span className="hidden truncate lg:inline">Datos de prueba, sin conexión a ninguna base real. Lo que hagas aquí no se guarda.</span>

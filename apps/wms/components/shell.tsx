@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Bell, Boxes, FolderOpen, History, Home, Inbox, Map, MoreHorizontal, Search, ShieldCheck, Users, X } from 'lucide-react'
 import { Marca, MarcaIcono } from './marca'
 import { PaletaBusqueda } from './paleta-busqueda'
+import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
 
 export interface ItemNav {
   href: string
@@ -79,7 +80,7 @@ export function Shell({
                 aria-current={on ? 'page' : undefined}
                 title={i.etiqueta}
                 className={`flex min-h-11 items-center justify-center gap-3 rounded-md px-3 text-sm font-medium transition duration-fast xl:justify-start ${
-                  on ? 'bg-green-50 text-green-800' : 'text-gray-700 hover:bg-gray-100'
+                  on ? NAV_ACTIVO : NAV_INACTIVO
                 }`}
               >
                 <span className="relative shrink-0"><Icono className="h-5 w-5" aria-hidden /><Punto n={i.insignia} /></span>

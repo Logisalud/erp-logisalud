@@ -2,7 +2,7 @@
 
 Cada decisión bloquea **solo su pieza**; el resto sigue. Tipo: N = negocio, S = sanitaria,
 R = regulatoria, D = datos, O = operativa/permiso.
-Actualizado: 2026-10-08 (Batch 1 aprobado; addendum de ingreso D-31..D-35; decisiones de Sebas D-11/12/13/15/28b/29/30 resueltas; D-36 y D-37 nuevas).
+Actualizado: 2026-10-08 (Batch 1 aprobado; addendum de ingreso D-31..D-35; decisiones de Sebas D-11/12/13/15/28b/29/30 resueltas; D-36 en dos fases y D-37 nuevas; D-38 propuesta).
 
 **Ninguna decisión abierta impide el Batch 1.** El Gate 0 fue confirmado y el Batch 1 está en curso.
 
@@ -11,7 +11,8 @@ Actualizado: 2026-10-08 (Batch 1 aprobado; addendum de ingreso D-31..D-35; decis
 | ID | Tipo | Tema | Pieza que bloquea | ¿Bloquea Batch 1? | Propuesta mientras tanto | Decide |
 |---|---|---|---|---|---|---|
 | D-01 | S | **Preguntar a Katia — prioridad.** Compra a Diphasac de stock ya guardado: ¿nace en Cuarentena o conserva Aprobado? | Ingreso de compra a Diphasac | No | **Se mantiene el supuesto: nace en Cuarentena** | Katia |
-| D-36 | O | **El dueño de la cantidad física es el WMS.** La copia manual a Compras (bloque «Cantidad física confirmada») es una solución temporal. Falta definir la integración para que Compras **lea** la cantidad del WMS y desaparezca el doble registro. Opciones con sus implicancias para Compras en `integracion-wms-compras.md` | Eliminar el doble registro WMS → Compras | No | Copia manual + conciliación (OK / FALTA / NO COINCIDE) y alertas | Sebas (con quien lleve Compras) |
+| D-36 | O | **Aprobado en dos fases (2026-10-08).** El dueño de la cantidad física es el WMS. **Fase 1:** Compras muestra, junto a su campo de recepción, la cantidad confirmada en el WMS (**solo lectura**, vista aditiva del WMS). **Fase 2:** Compras toma la cantidad del WMS automáticamente y se **elimina la copia manual**. **Se implementan después del Batch 3 y antes de la salida a producción.** Nada de esto está implementado; entre tanto sigue la copia manual con conciliación (OK / FALTA / NO COINCIDE). Detalle y qué cambia para Compras en `integracion-wms-compras.md` | Integración WMS → Compras | No | Copia manual + conciliación y alertas | Sebas (aprobó el enfoque); implementar tras el Batch 3 con aprobación del cambio en Compras |
+| D-38 | O | **Presentación y principio activo** siguen viviendo **solo** en `catalogo.productos` (sin duplicar). Compras los puede llenar **al crear** un producto; después de creado, **solo Katia y Sandra** los editan, desde la ficha del WMS, con el mismo historial (campo, antes, después, usuario, fecha, motivo obligatorio). **Aprobado el enfoque; NO implementado:** antes hay que aprobar los cambios de permisos en Compras (ver `propuesta-presentacion-principio-activo.md`) | Edición de presentación y principio activo en el WMS | No | Se muestran en solo lectura | Sebas (aprobar la propuesta de permisos) |
 | D-06 | D | E-9.1 y E-10.1 de Logissa | Carga de posiciones | No | Se crean de Logissa, "por verificar" | Charlie |
 | D-08 | S | A-13.1, J-11.1, J-11.3, J-13.4: Odoo las trae en Stock; topología las pone en otra área | Carga inicial (Batch 3) | No | Área de topología; stock existente sin confirmar | Katia |
 | D-09 | S | Estado sanitario del stock inicial de Odoo (supuesto: Aprobado) | Carga inicial en real (Batch 3) | No | La herramienta no confirma sin decisión | Katia |
