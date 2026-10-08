@@ -48,8 +48,18 @@ el 16 (búsqueda resalta posiciones y el drawer muestra producto/lote/propietari
 - El MCP de Playwright sigue sin cargar en esta sesión; se verificó con Playwright directo.
 - El login real (magic link) y los permisos por rol contra Supabase.
 
-## Vercel
-Ver el estado actualizado en la entrega del Batch (URL de Preview y verificación de la configuración).
+## Vercel (D-21: aprobado, costo de build aceptado)
+- Proyecto **`erp-logisalud-wms`** (`prj_9mp6V9jAX0IE29eRFL4qSSIp8ADT`), repo `Logisalud/erp-logisalud`, Root Directory `apps/wms`, Next.js, Node 22.x.
+- **Solo Preview.** Filtro de build (Ignored Build Step): se salta todo despliegue de producción y solo construye si cambió `apps/wms`, `packages/auth`,
+  `packages/design-system`, `package.json` o `package-lock.json`. Variable `WMS_DEMO=1` solo en el entorno Preview. Protección de Vercel (SSO) activa.
+- **Recarga y verificación (hecha):** se volvió a leer el proyecto y sus variables y quedaron guardados el framework, Node 22.x, `WMS_DEMO` solo en Preview y la protección.
+  El filtro quedó demostrado por los hechos: el primer despliegue (que Vercel marcó como "production" por ser el primero del proyecto) quedó **CANCELED** por el filtro,
+  sin construir; el siguiente, de Preview, construyó `apps/wms` desde su Root Directory y llegó a **READY**. El valor literal del filtro y del Root Directory no se
+  pudo leer por la API disponible (solo se verificó por su efecto): conviene que lo mires una vez en Settings → Git y General.
+- **URL de Preview** (rama `feat/wms-batch-1`): https://erp-logisalud-wms-git-feat-wms-batch-1-logisalud.vercel.app/wms/login
+  (despliegue: https://erp-logisalud-mpzwehb05-logisalud.vercel.app/wms/login). Requiere iniciar sesión en Vercel (protección). Verifiqué con un enlace de acceso temporal que
+  responde 200 con el banner DEMO y los 6 roles de prueba.
+- Cobranzas **no se tocó**: el rewrite `/wms` y la fila de `public.modulos` siguen pendientes (D-23); por eso la zona se prueba por su URL directa.
 
 ## Siguiente (tras tu aprobación)
 Batch 2 — Entradas y calidad (ingresos de compra local/devolución/cliente, actas, firma, alertas, cola de Dirección Técnica, expediente).
