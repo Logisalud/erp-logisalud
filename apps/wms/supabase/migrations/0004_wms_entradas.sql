@@ -24,7 +24,8 @@
 insert into wms.parametros (clave, valor, nota) values
   ('plazo_por_trasladar_horas', '24', 'D-28b: horas máximas de "Aprobado · por trasladar"; pasado el plazo se alerta al Jefe de Almacén. Valor definitivo: Katia y Charlie.'),
   ('muestreo_constante', '1', 'Muestra organoléptica = techo(raíz(unidades)) + esta constante (reglas-negocio.md; D-17 pendiente 6)'),
-  ('kardex_codigo_formato', '', 'D-29: código controlado del formato de Kardex de Logisalud (vacío = por asignar)')
+  ('kardex_codigo_formato', '', 'D-29: código controlado del formato de Kardex de Logisalud (vacío = por asignar)'),
+  ('lote_dias_alerta_vencimiento', '90', 'D-30: días antes del vencimiento de un lote en que se alerta (valor definitivo: Katia)')
 on conflict (clave) do nothing;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -308,10 +309,11 @@ create trigger acta_org_guardia before update or delete on wms.actas_organolepti
 
 create table if not exists wms.alertas (
   id uuid primary key default gen_random_uuid(),
-  tipo text not null check (tipo in ('TEMPERATURA', 'RS_VENCIDO', 'DIVERGENCIA_COMPRAS', 'POR_TRASLADAR_VENCIDO')),
+  tipo text not null check (tipo in ('TEMPERATURA', 'RS_VENCIDO', 'DIVERGENCIA_COMPRAS', 'POR_TRASLADAR_VENCIDO', 'LOTE_POR_VENCER', 'LOTE_VENCIDO')),
   destinatario_rol text not null check (destinatario_rol in ('direccion_tecnica', 'jefe_almacen')),
   ingreso_id uuid references wms.ingresos(id),
   producto_id uuid,
+  lote_codigo text,                               -- para llevar al mapa (búsqueda por lote)
   mensaje text not null,
   clave text not null,                            -- evita duplicar la misma alerta abierta
   estado text not null default 'ABIERTA' check (estado in ('ABIERTA', 'ATENDIDA')),
@@ -321,6 +323,11 @@ create table if not exists wms.alertas (
   nota_atencion text
 );
 alter table wms.alertas enable row level security;
+-- (re-ejecutable: si la tabla ya existía con la lista corta de tipos, se amplía)
+alter table wms.alertas add column if not exists lote_codigo text;
+alter table wms.alertas drop constraint if exists alertas_tipo_check;
+alter table wms.alertas add constraint alertas_tipo_check
+  check (tipo in ('TEMPERATURA', 'RS_VENCIDO', 'DIVERGENCIA_COMPRAS', 'POR_TRASLADAR_VENCIDO', 'LOTE_POR_VENCER', 'LOTE_VENCIDO'));
 create unique index if not exists alertas_clave_abierta on wms.alertas (clave) where estado = 'ABIERTA';
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -418,11 +425,11 @@ begin
 end $$;
 
 -- Alerta idempotente: la misma alerta abierta no se duplica.
-create or replace function wms._alertar(p_tipo text, p_rol text, p_ingreso uuid, p_producto uuid, p_clave text, p_mensaje text)
+create or replace function wms._alertar(p_tipo text, p_rol text, p_ingreso uuid, p_producto uuid, p_clave text, p_mensaje text, p_lote text default null)
 returns void language plpgsql security definer set search_path = wms, pg_temp as $$
 begin
-  insert into wms.alertas (tipo, destinatario_rol, ingreso_id, producto_id, clave, mensaje)
-  values (p_tipo, p_rol, p_ingreso, p_producto, p_clave, p_mensaje)
+  insert into wms.alertas (tipo, destinatario_rol, ingreso_id, producto_id, clave, mensaje, lote_codigo)
+  values (p_tipo, p_rol, p_ingreso, p_producto, p_clave, p_mensaje, p_lote)
   on conflict (clave) where estado = 'ABIERTA' do nothing;
 end $$;
 
@@ -879,6 +886,10 @@ begin
   insert into wms.actas_recepcion (ingreso_id, numero, contenido, hash_contenido, reemplaza_a, generada_por)
   values (a.ingreso_id, v_num, v_cont, wms._hash(v_cont), p_acta_anulada, auth.uid())
   returning id into v_id;
+  -- La acta nueva también entra al expediente (la anulada se conserva ahí, con su motivo en el acta).
+  perform wms._agregar_doc((select expediente_id from wms.ingresos where id = a.ingreso_id), 'ACTA_RECEPCION',
+                           'Acta de Recepción ' || v_num || ' (reemplaza a ' || a.numero || ')', 'acta_recepcion', v_id::text)
+   where (select expediente_id from wms.ingresos where id = a.ingreso_id) is not null;
   perform wms.registrar_audit('acta_recepcion_reemitida', 'actas_recepcion', v_id::text, null,
     jsonb_build_object('reemplaza_a', p_acta_anulada, 'numero', v_num));
   return v_id;
@@ -1180,7 +1191,48 @@ begin
     perform wms._alertar('POR_TRASLADAR_VENCIDO', 'jefe_almacen', null, null,
       'traslado:' || r.posicion_id || ':' || r.lote_id || ':' || r.procedencia_id,
       format('%s (lote %s, %s unidades) está aprobado desde hace más de %s horas y sigue en %s. Hay que trasladarlo a su rack.',
-             r.producto, r.lote, r.cantidad, trim(to_char(v_horas, 'FM999990.##')), r.posicion));
+             r.producto, r.lote, r.cantidad, trim(to_char(v_horas, 'FM999990.##')), r.posicion), r.lote);
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
+-- Lotes por vencer o vencidos que SIGUEN en el inventario (todo estado salvo Bajas/Rechazados, que ya está fuera de circulación).
+-- Por vencer → Jefe de Almacén (rotar / sacar primero). Vencido → Dirección Técnica (decide su baja). Una alerta por lote;
+-- al vencerse, la de "por vencer" de ese lote se cierra sola. Una sola alerta por lote y tipo: atendida, no vuelve a abrirse.
+create or replace function wms.revisar_vencimientos() returns integer
+language plpgsql security definer set search_path = wms, pg_temp as $$
+declare
+  r record; v_n int := 0;
+  v_dias int := coalesce((select valor::int from wms.parametros where clave = 'lote_dias_alerta_vencimiento'), 90);
+begin
+  if not wms.es_usuario() then raise exception 'Sin permiso' using errcode = '42501'; end if;
+  for r in
+    select l.id as lote_id, l.codigo as lote, l.vence, l.producto_id, p.descripcion as producto,
+           sum(s.cantidad)::int as unidades,
+           string_agg(distinct ps.codigo, ', ' order by ps.codigo) as posiciones,
+           (l.vence - current_date) as dias
+      from wms.saldos s
+      join wms.lotes l on l.id = s.lote_id
+      join catalogo.productos p on p.id = l.producto_id
+      join wms.posiciones ps on ps.id = s.posicion_id
+     where s.cantidad > 0 and s.estado <> 'BAJAS_RECHAZADOS' and l.vence is not null
+       and l.vence <= current_date + v_dias
+     group by l.id, l.codigo, l.vence, l.producto_id, p.descripcion
+  loop
+    if r.dias < 0 then
+      update wms.alertas set estado = 'ATENDIDA', atendida_en = now(), nota_atencion = 'El lote venció'
+       where clave = 'lote-por-vencer:' || r.lote_id and estado = 'ABIERTA';
+      if not exists (select 1 from wms.alertas where clave = 'lote-vencido:' || r.lote_id) then
+      perform wms._alertar('LOTE_VENCIDO', 'direccion_tecnica', null, r.producto_id, 'lote-vencido:' || r.lote_id,
+        format('El lote %s de %s venció el %s (hace %s días) y sigue en el inventario: %s unidades en %s. Hay que separarlo y decidir su baja.',
+               r.lote, r.producto, to_char(r.vence, 'DD/MM/YYYY'), -r.dias, r.unidades, r.posiciones), r.lote);
+      end if;
+    elsif not exists (select 1 from wms.alertas where clave = 'lote-por-vencer:' || r.lote_id) then
+      perform wms._alertar('LOTE_POR_VENCER', 'jefe_almacen', null, r.producto_id, 'lote-por-vencer:' || r.lote_id,
+        format('El lote %s de %s vence el %s (en %s días): %s unidades en %s. Sácalo primero o rótalo.',
+               r.lote, r.producto, to_char(r.vence, 'DD/MM/YYYY'), r.dias, r.unidades, r.posiciones), r.lote);
+    end if;
     v_n := v_n + 1;
   end loop;
   return v_n;
@@ -1278,6 +1330,7 @@ grant execute on function
   wms.atender_alerta(uuid, text),
   wms.revisar_divergencias(),
   wms.revisar_por_trasladar(),
+  wms.revisar_vencimientos(),
   wms.agregar_documento_expediente(uuid, text, text, text, text),
   wms.agregar_faltante(uuid, text, text, text),
   wms.resolver_faltante(uuid, text),

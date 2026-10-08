@@ -63,7 +63,7 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   const docsPorConfirmar = p.documentos.filter((d) => d.estadoConfirmacion === 'POR_CONFIRMAR')
 
   if (puedeValidarProducto(roles) && a.pendientesDeValidar.length > 0) {
-    avisos.push({ clave: 'validar', Icono: Clock, texto: 'Productos esperando tu validación', detalle: 'Sandra ya cargó su registro sanitario.', cantidad: a.pendientesDeValidar.length, unidad: pl(a.pendientesDeValidar.length, 'producto', 'productos'), href: '/productos?validacion=PENDIENTE', tono: 'atencion' })
+    avisos.push({ clave: 'validar', Icono: Clock, texto: 'Registros sanitarios esperando tu validación', detalle: 'Sandra cargó o corrigió el registro de estos productos. Hasta que lo valides no se pueden aprobar sus lotes.', cantidad: a.pendientesDeValidar.length, unidad: pl(a.pendientesDeValidar.length, 'producto', 'productos'), href: '/productos?validacion=PENDIENTE', tono: 'atencion' })
   }
   if (puedeCrearProducto(roles) && !puedeValidarProducto(roles) && a.observados.length > 0) {
     avisos.push({ clave: 'observados', Icono: MessageSquareWarning, texto: 'Productos devueltos con observación', detalle: 'Corrígelos para que Dirección Técnica los valide.', cantidad: a.observados.length, unidad: pl(a.observados.length, 'producto', 'productos'), href: '/productos?validacion=OBSERVADO', tono: 'atencion' })

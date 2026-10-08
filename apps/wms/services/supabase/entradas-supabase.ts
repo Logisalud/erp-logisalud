@@ -78,7 +78,7 @@ function mapearAlerta(r: Fila, nombres: Map<string, string>): AlertaVista {
     id: String(r.id), tipo: r.tipo as AlertaVista['tipo'], destinatario: r.destinatario_rol as AlertaVista['destinatario'],
     mensaje: String(r.mensaje), estado: r.estado as AlertaVista['estado'], creadaEn: String(r.creada_en),
     atendidaPor: r.atendida_por ? nombres.get(String(r.atendida_por)) ?? 'Usuario' : undefined, atendidaEn: s(r.atendida_en),
-    nota: s(r.nota_atencion), ingresoId: s(r.ingreso_id), productoId: s(r.producto_id),
+    nota: s(r.nota_atencion), ingresoId: s(r.ingreso_id), productoId: s(r.producto_id), loteCodigo: s(r.lote_codigo),
   }
 }
 
@@ -333,7 +333,7 @@ export class EntradasSupabase {
 
   async listarAlertas(): Promise<AlertaVista[]> {
     // Las revisiones son idempotentes: crean la alerta una sola vez mientras siga abierta.
-    await Promise.all([rpc('revisar_divergencias', {}), rpc('revisar_por_trasladar', {})])
+    await Promise.all([rpc('revisar_divergencias', {}), rpc('revisar_por_trasladar', {}), rpc('revisar_vencimientos', {})])
     const filas = await traerTodo('alertas', 'wms', '*', 'creada_en')
     const nombres = await nombresDe(filas.map((r) => s(r.atendida_por)))
     return filas.map((r) => mapearAlerta(r, nombres)).reverse()

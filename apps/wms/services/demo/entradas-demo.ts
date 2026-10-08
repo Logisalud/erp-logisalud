@@ -1,13 +1,13 @@
 // Motor de ENTRADAS Y CALIDAD en memoria (modo demostración). Aplica las mismas reglas que
 // la migración 0004 —y con los mismos mensajes— sobre datos de prueba. Nada sale de aquí.
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { hashDe } from '@/lib/hash'
 import {
   CHECKLIST_ORGANOLEPTICO, ETIQUETA_DECISION, ETIQUETA_TIPO_INGRESO, faltantesParaEnviar, mensajeTemperatura, mensajesDeCuadre,
   muestraOrganoleptica, numeroDeActa, pasoDeIngreso, porTrasladarVencido, progresoLinea, puedeAtenderAlerta, puedeFirmarComo,
   puedeGenerarActa, ROLES_FIRMA, temperaturaFueraDeRango, validarDecision, validarEntradaIngreso, validarEntradaLote,
-  validarTransportista, ETIQUETA_ROL_FIRMA, type Checklist, type Decision, type EntradaIngreso, type EntradaLote, type RolFirma,
+  validarTransportista, ETIQUETA_ROL_FIRMA, diasParaVencer, situacionLote, type Checklist, type Decision, type EntradaIngreso, type EntradaLote, type RolFirma,
   type TipoAlerta,
 } from '@/domain/entradas'
 import type {
@@ -25,6 +25,19 @@ import { sumarDias } from './datos'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
 const SOLO_MES_ANIO = /^\d{1,2}\/\d{4}$|^\d{4}-\d{2}$/
+// Identificadores: durante la siembra son DETERMINISTAS (el mismo dato tiene el mismo id en cada instancia del servidor).
+// En Vercel cada petición puede caer en una instancia distinta y cada una arma su propia copia de los datos de prueba;
+// con ids aleatorios, un enlace generado por una instancia daba "No encontramos eso" en otra.
+let sembrando = false
+let contadorSiembra = 0
+const nuevoId = () => (sembrando ? `00000000-0000-4000-8000-${String(++contadorSiembra).padStart(12, '0')}` : randomUUID())
+
+/** Las alertas se crean al abrir la pantalla (no en la siembra): su id sale de su clave para ser igual en todas las instancias. */
+const idDeClave = (clave: string, n: number) => {
+  const h = createHash('sha1').update(`${clave}#${n}`).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
 const ahora = () => new Date().toISOString()
 const falla = (mensaje: string, errores?: Record<string, string>): { ok: false; mensaje: string; errores?: Record<string, string> } => ({ ok: false, mensaje, errores })
 const horasAtras = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString()
@@ -35,7 +48,9 @@ export function estadoE(): EstadoDemo {
   const e = estado()
   if (!e.sembrado) {
     e.sembrado = true
-    sembrar(e)
+    sembrando = true
+    contadorSiembra = 0
+    try { sembrar(e) } finally { sembrando = false }
   }
   return e
 }
@@ -49,10 +64,10 @@ function siguienteCorrelativo(e: EstadoDemo, prefijo: 'I' | 'O'): string {
   return numeroDeActa(prefijo, d, e.correlativos[clave])
 }
 
-function alertar(e: EstadoDemo, tipo: TipoAlerta, destinatario: AlertaVista['destinatario'], mensaje: string, clave: string, ingresoId?: string, productoId?: string) {
+function alertar(e: EstadoDemo, tipo: TipoAlerta, destinatario: AlertaVista['destinatario'], mensaje: string, clave: string, ingresoId?: string, productoId?: string, loteCodigo?: string) {
   if (e.alertas.some((a) => a.estado === 'ABIERTA' && a.mensaje && (a as AlertaVista & { clave?: string }).clave === clave)) return
   e.alertas.unshift(Object.assign({
-    id: randomUUID(), tipo, destinatario, mensaje, estado: 'ABIERTA' as const, creadaEn: ahora(), ingresoId, productoId,
+    id: idDeClave(clave, e.alertas.filter((a) => (a as AlertaVista & { clave?: string }).clave === clave).length), tipo, destinatario, mensaje, estado: 'ABIERTA' as const, creadaEn: ahora(), ingresoId, productoId, loteCodigo,
   }, { clave }))
 }
 
@@ -151,7 +166,7 @@ function generarExpedienteDemo(e: EstadoDemo, i: IngresoDemo, acta: ActaDemo, ac
   const clave = i.ocCodigo ?? acta.numero
   let exp = e.expedientes.find((x) => x.clave === clave)
   if (!exp) {
-    exp = { id: randomUUID(), clave, tipo: i.ocCodigo ? 'OC' : 'ACTA', estado: 'ABIERTO', documentos: [], faltantes: [] }
+    exp = { id: nuevoId(), clave, tipo: i.ocCodigo ? 'OC' : 'ACTA', estado: 'ABIERTO', documentos: [], faltantes: [] }
     e.expedientes.push(exp)
   }
   exp.estado = 'ABIERTO'
@@ -159,11 +174,11 @@ function generarExpedienteDemo(e: EstadoDemo, i: IngresoDemo, acta: ActaDemo, ac
   i.expedienteId = exp.id
   const doc = (tipo: string, descripcion: string, ref: string) => {
     if (exp!.documentos.some((d) => d.referenciaId === ref)) return
-    exp!.documentos.push({ id: randomUUID(), tipo, descripcion, agregadoEn: ahora(), referenciaTipo: tipo.toLowerCase(), referenciaId: ref })
+    exp!.documentos.push({ id: nuevoId(), tipo, descripcion, agregadoEn: ahora(), referenciaTipo: tipo.toLowerCase(), referenciaId: ref })
     for (const f of exp!.faltantes) if (f.estado === 'ABIERTO' && f.tipo === tipo) { f.estado = 'RESUELTO'; f.resueltoEn = ahora(); f.nota = 'Documento enlazado' }
   }
   const falta = (tipo: string, documento: string, responsable: string) =>
-    exp!.faltantes.push({ id: randomUUID(), tipo, documento, responsable, estado: 'ABIERTO' })
+    exp!.faltantes.push({ id: nuevoId(), tipo, documento, responsable, estado: 'ABIERTO' })
   doc('ACTA_RECEPCION', `Acta de Recepción ${acta.numero}`, acta.id)
   doc('SOLICITUD_INGRESO', 'Solicitud de Ingreso (LS-FR.05.05)', i.id)
   if (i.guiaNumero?.trim()) doc('GUIA_REMISION', `Guía ${i.guiaNumero}`, `${i.id}:${i.guiaNumero}`)
@@ -228,7 +243,7 @@ function validarParaActa(e: EstadoDemo, i: IngresoDemo): string | null {
 function organolepticaDe(e: EstadoDemo, i: IngresoDemo, lote: IngresoDemo['lotes'][number], numero: string): OrganolepticaVista {
   const p = producto(e, lote.lineaId ? i.lineas.find((l) => l.id === lote.lineaId)!.productoId : '')!
   return {
-    id: randomUUID(), numero, estado: 'BORRADOR', ingresoId: i.id, ingresoTipo: i.tipo, ingresoLoteId: lote.id, productoId: p.id,
+    id: nuevoId(), numero, estado: 'BORRADOR', ingresoId: i.id, ingresoTipo: i.tipo, ingresoLoteId: lote.id, productoId: p.id,
     productoCodigo: p.codigo, producto: p.descripcion, principioActivo: p.principioActivo, registroSanitario: p.reg?.registroSanitario,
     rsVence: p.reg?.rsVence, fabricante: p.reg?.fabricante, formaPresentacion: p.reg?.formaPresentacion ?? p.presentacion,
     lote: lote.codigo, vence: lote.vence, propietario: nombrePropietario(e, i.propietarioId), cantidadLote: lote.cantidad,
@@ -274,7 +289,7 @@ export class MotorEntradas {
     if (!v.ok) return falla(Object.values(v.errores)[0] ?? 'Revisa los campos marcados.', v.errores as Record<string, string>)
 
     const base: IngresoDemo = {
-      id: randomUUID(), tipo: entrada.tipo, propietarioId: entrada.propietarioId, confirmado: false,
+      id: nuevoId(), tipo: entrada.tipo, propietarioId: entrada.propietarioId, confirmado: false,
       contraparteNombre: entrada.contraparteNombre?.trim() || undefined, contraparteRuc: entrada.contraparteRuc?.trim() || undefined,
       guiaNumero: entrada.guiaNumero?.trim() || undefined, docOriginalTipo: entrada.docOriginalTipo,
       docOriginalNumero: entrada.docOriginalNumero?.trim() || undefined, motivo: entrada.motivo?.trim() || undefined,
@@ -289,10 +304,10 @@ export class MotorEntradas {
       base.contraparteNombre = rec.proveedorNombre
       base.contraparteRuc = rec.proveedorRuc
       base.guiaNumero = rec.guias
-      base.lineas = rec.lineas.map((l) => ({ id: randomUUID(), productoId: l.productoId, cantidadReferencia: l.cantidad }))
+      base.lineas = rec.lineas.map((l) => ({ id: nuevoId(), productoId: l.productoId, cantidadReferencia: l.cantidad }))
       base.copiaCompras = Object.fromEntries(rec.lineas.map((l) => [l.productoId, l.cantidad]))
     } else {
-      base.lineas = (entrada.lineas ?? []).map((l) => ({ id: randomUUID(), productoId: l.productoId, cantidadReferencia: Number(l.cantidadReferencia) }))
+      base.lineas = (entrada.lineas ?? []).map((l) => ({ id: nuevoId(), productoId: l.productoId, cantidadReferencia: Number(l.cantidadReferencia) }))
     }
     e.ingresos.push(base)
     revisarRS(e, base)
@@ -357,7 +372,7 @@ export class MotorEntradas {
       if (!pos || pos.tipoArea !== 'CUARENTENA') return falla('El inventario nuevo nace en Cuarentena: elige una posición de Cuarentena (A-6 a A-9)')
       const lote = asegurarLote(e, linea.productoId, codigo, r.vence, i.propietarioId)
       if ('error' in lote) return falla(lote.error)
-      nuevos.push({ id: randomUUID(), lineaId, loteId: lote.id, codigo, vence: r.vence, venceTexto: SOLO_MES_ANIO.test(r.venceTexto) ? r.venceTexto : undefined, cantidad: r.cantidad, posicionId: x.posicionId })
+      nuevos.push({ id: nuevoId(), lineaId, loteId: lote.id, codigo, vence: r.vence, venceTexto: SOLO_MES_ANIO.test(r.venceTexto) ? r.venceTexto : undefined, cantidad: r.cantidad, posicionId: x.posicionId })
     }
     i.lotes = [...i.lotes.filter((l) => l.lineaId !== lineaId), ...nuevos]
     registrar(e, actor, 'ingreso_lotes_guardados', 'ingreso_lineas', producto(e, linea.productoId)?.codigo ?? '', `${nuevos.length} lote(s) registrados`)
@@ -400,7 +415,7 @@ export class MotorEntradas {
     }
     const numero = siguienteCorrelativo(e, 'I')
     const contenido = contenidoActa(e, i, numero)
-    const acta: ActaDemo = { id: randomUUID(), ingresoId: id, numero, estado: 'BORRADOR', hash: hashDe(contenido), generadaEn: ahora(), contenido, firmas: [] }
+    const acta: ActaDemo = { id: nuevoId(), ingresoId: id, numero, estado: 'BORRADOR', hash: hashDe(contenido), generadaEn: ahora(), contenido, firmas: [] }
     e.actas.push(acta)
     registrar(e, actor, 'acta_recepcion_generada', 'actas_recepcion', numero, 'Acta de Recepción generada')
     return { ok: true, actaId: acta.id }
@@ -459,8 +474,10 @@ export class MotorEntradas {
     const i = e.ingresos.find((x) => x.id === a.ingresoId)!
     const numero = siguienteCorrelativo(e, 'I')
     const contenido = contenidoActa(e, i, numero)
-    const nueva: ActaDemo = { id: randomUUID(), ingresoId: i.id, numero, estado: 'BORRADOR', hash: hashDe(contenido), generadaEn: ahora(), contenido, firmas: [], reemplazaA: a.id }
+    const nueva: ActaDemo = { id: nuevoId(), ingresoId: i.id, numero, estado: 'BORRADOR', hash: hashDe(contenido), generadaEn: ahora(), contenido, firmas: [], reemplazaA: a.id }
     e.actas.push(nueva)
+    const exp = e.expedientes.find((x) => x.id === i.expedienteId)
+    if (exp) exp.documentos.push({ id: nuevoId(), tipo: 'ACTA_RECEPCION', descripcion: `Acta de Recepción ${numero} (reemplaza a ${a.numero})`, agregadoEn: ahora(), referenciaTipo: 'acta_recepcion', referenciaId: nueva.id })
     registrar(e, actor, 'acta_recepcion_reemitida', 'actas_recepcion', numero, `Reemplaza al acta ${a.numero}`)
     return { ok: true, actaId: nueva.id }
   }
@@ -493,7 +510,7 @@ export class MotorEntradas {
       const o = organolepticaDe(e, i, x, numero)
       o.actaRecepcion = acta.numero
       e.organolepticas.push(o)
-      exp.faltantes.push({ id: randomUUID(), tipo: 'ACTA_ORGANOLEPTICA', documento: `Acta organoléptica ${numero} · ${o.producto} · lote ${o.lote}`, responsable: 'Dirección Técnica', estado: 'ABIERTO' })
+      exp.faltantes.push({ id: nuevoId(), tipo: 'ACTA_ORGANOLEPTICA', documento: `Acta organoléptica ${numero} · ${o.producto} · lote ${o.lote}`, responsable: 'Dirección Técnica', estado: 'ABIERTO' })
     }
     revisarRS(e, i)
     registrar(e, actor, 'ingreso_confirmado', 'ingresos', acta.numero, 'El inventario nació en Cuarentena')
@@ -551,7 +568,7 @@ export class MotorEntradas {
     const i = e.ingresos.find((x) => x.id === o.ingresoId)
     const exp = e.expedientes.find((x) => x.id === i?.expedienteId)
     if (exp) {
-      exp.documentos.push({ id: randomUUID(), tipo: 'ACTA_ORGANOLEPTICA', descripcion: `Acta organoléptica ${o.numero}`, agregadoEn: ahora(), referenciaTipo: 'acta_organoleptica', referenciaId: o.id })
+      exp.documentos.push({ id: nuevoId(), tipo: 'ACTA_ORGANOLEPTICA', descripcion: `Acta organoléptica ${o.numero}`, agregadoEn: ahora(), referenciaTipo: 'acta_organoleptica', referenciaId: o.id })
       for (const f of exp.faltantes) if (f.estado === 'ABIERTO' && f.tipo === 'ACTA_ORGANOLEPTICA' && f.documento.startsWith(`Acta organoléptica ${o.numero}`)) { f.estado = 'RESUELTO'; f.resueltoEn = ahora(); f.nota = 'Acta firmada' }
     }
     registrar(e, actor, 'acta_organoleptica_firmada', 'actas_organolepticas', o.numero, `Decisión: ${ETIQUETA_DECISION[decision]}`, observacion)
@@ -577,6 +594,7 @@ export class MotorEntradas {
     const e = estadoE()
     revisarDivergencias(e)
     revisarPorTrasladar(e)
+    revisarVencimientos(e)
     return structuredClone(e.alertas).map((a) => { delete (a as { clave?: string }).clave; return a })
   }
 
@@ -629,7 +647,7 @@ export class MotorEntradas {
     if (!descripcion.trim()) return falla('Describe el documento')
     const x = e.expedientes.find((y) => y.id === expedienteId)
     if (!x) return falla('Expediente inexistente')
-    x.documentos.push({ id: randomUUID(), tipo: tipo || 'OTRO', descripcion: descripcion.trim(), agregadoEn: ahora() })
+    x.documentos.push({ id: nuevoId(), tipo: tipo || 'OTRO', descripcion: descripcion.trim(), agregadoEn: ahora() })
     for (const f of x.faltantes) if (f.estado === 'ABIERTO' && f.tipo === tipo) { f.estado = 'RESUELTO'; f.resueltoEn = ahora(); f.nota = 'Documento enlazado' }
     registrar(e, actor, 'expediente_documento_agregado', 'expedientes', x.clave, descripcion)
     return { ok: true }
@@ -641,7 +659,7 @@ export class MotorEntradas {
     if (!documento.trim() || !responsable.trim()) return falla('Un faltante necesita el documento y su responsable')
     const x = e.expedientes.find((y) => y.id === expedienteId)
     if (!x) return falla('Expediente inexistente')
-    x.faltantes.push({ id: randomUUID(), tipo: 'OTRO', documento: documento.trim(), responsable: responsable.trim(), estado: 'ABIERTO' })
+    x.faltantes.push({ id: nuevoId(), tipo: 'OTRO', documento: documento.trim(), responsable: responsable.trim(), estado: 'ABIERTO' })
     x.estado = 'ABIERTO'
     x.cerradoEn = undefined
     registrar(e, actor, 'expediente_faltante_agregado', 'expedientes', x.clave, documento)
@@ -717,6 +735,40 @@ function revisarDivergencias(e: EstadoDemo) {
   }
 }
 
+/** Lotes por vencer o vencidos que siguen en el inventario (todo estado salvo Bajas/Rechazados). Espejo de wms.revisar_vencimientos(). */
+function revisarVencimientos(e: EstadoDemo) {
+  const porLote = new Map<string, { unidades: number; posiciones: Set<string> }>()
+  for (const s of e.panorama.saldos) {
+    if (s.cantidad <= 0 || s.estado === 'BAJAS_RECHAZADOS') continue
+    const g = porLote.get(s.loteId) ?? { unidades: 0, posiciones: new Set<string>() }
+    g.unidades += s.cantidad
+    g.posiciones.add(e.panorama.posiciones.find((p) => p.id === s.posicionId)?.codigo ?? '')
+    porLote.set(s.loteId, g)
+  }
+  for (const [loteId, g] of porLote) {
+    const lote = e.panorama.lotes.find((l) => l.id === loteId)
+    if (!lote?.vence) continue
+    const sit = situacionLote(lote.vence, e.panorama.hoy, e.diasAlertaVencimiento)
+    if (sit !== 'POR_VENCER' && sit !== 'VENCIDO') continue
+    const dias = diasParaVencer(lote.vence, e.panorama.hoy)
+    const prod = producto(e, lote.productoId)
+    const fecha = lote.vence.split('-').reverse().join('/')
+    const donde = [...g.posiciones].sort().join(', ')
+    // Una sola alerta por lote y tipo: si ya se atendió, no vuelve a molestar cada vez que se abre la pantalla.
+    const yaTuvo = (clave: string) => e.alertas.some((a) => (a as AlertaVista & { clave?: string }).clave === clave)
+    if (sit === 'VENCIDO') {
+      for (const a of e.alertas) if (a.estado === 'ABIERTA' && (a as AlertaVista & { clave?: string }).clave === `lote-por-vencer:${loteId}`) { a.estado = 'ATENDIDA'; a.atendidaEn = ahora(); a.nota = 'El lote venció' }
+      if (!yaTuvo(`lote-vencido:${loteId}`)) alertar(e, 'LOTE_VENCIDO', 'direccion_tecnica',
+        `El lote ${lote.codigo} de ${prod?.descripcion} venció el ${fecha} (hace ${-dias} días) y sigue en el inventario: ${g.unidades} unidades en ${donde}. Hay que separarlo y decidir su baja.`,
+        `lote-vencido:${loteId}`, undefined, lote.productoId, lote.codigo)
+    } else {
+      if (!yaTuvo(`lote-por-vencer:${loteId}`)) alertar(e, 'LOTE_POR_VENCER', 'jefe_almacen',
+        `El lote ${lote.codigo} de ${prod?.descripcion} vence el ${fecha} (en ${dias} días): ${g.unidades} unidades en ${donde}. Sácalo primero o rótalo.`,
+        `lote-por-vencer:${loteId}`, undefined, lote.productoId, lote.codigo)
+    }
+  }
+}
+
 function revisarPorTrasladar(e: EstadoDemo) {
   const ahoraIso = ahora()
   for (const s of e.panorama.saldos) {
@@ -729,7 +781,7 @@ function revisarPorTrasladar(e: EstadoDemo) {
     const lote = e.panorama.lotes.find((l) => l.id === s.loteId)
     alertar(e, 'POR_TRASLADAR_VENCIDO', 'jefe_almacen',
       `${prod?.descripcion} (lote ${lote?.codigo}, ${s.cantidad} unidades) está aprobado desde hace más de ${e.plazoPorTrasladarHoras} horas y sigue en ${pos.codigo}. Hay que trasladarlo a su rack.`,
-      `traslado:${s.posicionId}:${s.loteId}:${s.procedenciaId}`)
+      `traslado:${s.posicionId}:${s.loteId}:${s.procedenciaId}`, undefined, s.productoId, lote?.codigo)
   }
 }
 

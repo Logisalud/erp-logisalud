@@ -4,7 +4,7 @@ import {
   CHECKLIST_ORGANOLEPTICO, faltantesParaEnviar, itemsPendientes, mensajesDeCuadre, muestraOrganoleptica, numeroDeActa,
   pasoDeIngreso, porTrasladarVencido, progresoLinea, puedeAtenderAlerta, puedeFirmarComo, puedeGenerarActa, rucValido,
   sugerirConclusion, temperaturaFueraDeRango, textoProgreso, validarDecision, validarEntradaIngreso, validarEntradaLote,
-  validarTransportista, type Checklist,
+  validarTransportista, situacionLote, diasParaVencer, type Checklist,
 } from '@/domain/entradas'
 
 const logissa = { esDuenoAlmacen: true }
@@ -203,5 +203,19 @@ describe('alertas', () => {
     expect(porTrasladarVencido(desde, '2026-10-08T09:59:00Z')).toBe(false)
     expect(porTrasladarVencido(desde, '2026-10-08T10:01:00Z')).toBe(true)
     expect(porTrasladarVencido(desde, '2026-10-07T13:00:00Z', 2)).toBe(true)
+  })
+})
+
+describe('vencimiento de lotes (D-30)', () => {
+  it('vencido solo cuando su fecha ya pasó; por vencer dentro del umbral (90 días por defecto)', () => {
+    const hoy = '2026-10-08'
+    expect(situacionLote('2026-10-07', hoy)).toBe('VENCIDO')
+    expect(situacionLote('2026-10-08', hoy)).toBe('POR_VENCER')
+    expect(situacionLote('2027-01-06', hoy)).toBe('POR_VENCER')
+    expect(situacionLote('2027-01-07', hoy)).toBe('VIGENTE')
+    expect(situacionLote(undefined, hoy)).toBe('SIN_FECHA')
+    expect(situacionLote('2027-01-07', hoy, 120)).toBe('POR_VENCER')
+    expect(diasParaVencer('2026-10-18', hoy)).toBe(10)
+    expect(diasParaVencer('2026-10-03', hoy)).toBe(-5)
   })
 })

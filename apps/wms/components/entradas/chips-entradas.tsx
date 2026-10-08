@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, CircleDashed, Clock, FileSignature, Hourglass, PenLine, ShieldAlert, Thermometer, TriangleAlert } from 'lucide-react'
+import { Ban, CalendarClock, CheckCircle2, CircleDashed, Clock, FileSignature, Hourglass, PenLine, ShieldAlert, Thermometer, TriangleAlert } from 'lucide-react'
 import { ETIQUETA_ALERTA, ETIQUETA_PASO, ETIQUETA_TIPO_INGRESO, type EstadoActa, type PasoIngreso, type TipoAlerta, type TipoIngreso } from '@/domain/entradas'
 
 const base = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap'
@@ -29,6 +29,6 @@ export function ChipActa({ estado }: { estado: EstadoActa | 'PENDIENTE_DT' }) {
 }
 
 export function ChipAlerta({ tipo }: { tipo: TipoAlerta }) {
-  const Icono = tipo === 'TEMPERATURA' ? Thermometer : tipo === 'RS_VENCIDO' ? ShieldAlert : TriangleAlert
+  const Icono = tipo === 'TEMPERATURA' ? Thermometer : tipo === 'RS_VENCIDO' ? ShieldAlert : tipo === 'LOTE_POR_VENCER' || tipo === 'LOTE_VENCIDO' ? CalendarClock : TriangleAlert
   return <span className={`${base} border-amber-300 bg-amber-50 text-amber-900`}><Icono className="h-3.5 w-3.5" aria-hidden />{ETIQUETA_ALERTA[tipo]}</span>
 }

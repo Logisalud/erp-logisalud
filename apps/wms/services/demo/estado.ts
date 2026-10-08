@@ -58,6 +58,8 @@ export interface EstadoDemo {
   /** Desde cuándo está Aprobado cada entrega (para el plazo de "por trasladar"). */
   aprobadoEn: Record<string, string>
   plazoPorTrasladarHoras: number
+  /** Días antes del vencimiento de un lote en que se alerta (D-30). */
+  diasAlertaVencimiento: number
   sembrado?: boolean
 }
 
@@ -75,7 +77,7 @@ export function estado(): EstadoDemo {
       panorama,
       contador: 6,
       ingresos: [], actas: [], organolepticas: [], alertas: [], expedientes: [], compras: [], correlativos: {},
-      aprobadoEn: {}, plazoPorTrasladarHoras: 24,
+      aprobadoEn: {}, plazoPorTrasladarHoras: 24, diasAlertaVencimiento: 90,
       auditoria: [
         { id: 6, ts: ts(0, '08:12'), actor: 'Dirección Técnica (demo)', evento: 'producto_validado', entidad: 'producto_regulatorio', entidadId: 'DEMO-019', detalle: 'Registro sanitario validado' },
         { id: 5, ts: ts(0, '07:40'), actor: 'Asistente DT (demo)', evento: 'producto_creado', entidad: 'productos', entidadId: 'DEMO-020', detalle: 'Alta de producto' },

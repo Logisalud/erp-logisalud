@@ -82,7 +82,13 @@ Pruebas del prompt cubiertas: 1–9 y 18–20 (más 14, 17, 19 del Batch 1). Los
 **Bugs hallados por las pruebas en este batch:** el E2E expuso un servidor huérfano entre viewports (script corregido) y una regresión mía del lienzo de firma (callback inestable).
 **No verificado:** el adaptador de Supabase de entradas (misma limitación que el Batch 1); la vista `wms.v_recepciones_compra` contra las tablas reales de Compras
 (se probó con réplicas mínimas); la validez legal de las firmas (D-11); los PDF se revisaron como archivo, no impresos.
-**Decisiones que siguen abiertas y tocan este batch:** D-01, D-11, D-12, D-13, D-28b.
+**Ajustes tras la revisión de Sebas (2026-10-08):**
+1. *"No encontramos eso" al entrar a una entrada desde el Preview:* causa más probable — en Vercel cada petición puede caer en una instancia distinta y cada una armaba su propia copia de los datos de prueba con ids aleatorios; el enlace de una instancia no existía en otra. En local se recorrieron 125 enlaces como 4 roles sin ninguno roto. Corrección: ids de la siembra deterministas (los de las alertas salen de su clave) + prueba que arma dos instancias y compara. **Limitación que sigue:** lo que alguien crea o firma en el Preview vive solo en esa instancia; no se pudo reproducir en el Preview (el contenedor no alcanza vercel.app).
+2. *Alerta de vencimiento de lotes (D-30):* `LOTE_POR_VENCER` (Jefe de Almacén) y `LOTE_VENCIDO` (Dirección Técnica) sobre lo que sigue en el inventario salvo Bajas/Rechazados; umbral `lote_dias_alerta_vencimiento` (90); una alerta por lote y tipo; enlaza al mapa filtrado por lote. `wms.revisar_vencimientos()`.
+3. Etiqueta "Productos esperando tu validación" → "Registros sanitarios esperando tu validación" (con la explicación).
+4. La acta reemitida entra al expediente (antes solo estaba la original).
+5. Las alertas con lote (por trasladar, vencimientos) llevan un enlace "ver en el mapa".
+**Decisiones que siguen abiertas y tocan este batch:** D-01, D-11, D-12, D-13, D-28b, D-30.
 
 ## Batch 3 — alcance ajustado (Kardex, 2026-10-08)
 Ejemplos en `formatos/` (un PDF por lote, un Excel por producto). Además de carga inicial, movimientos internos, conteos y ajustes:

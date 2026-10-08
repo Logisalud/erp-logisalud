@@ -48,7 +48,7 @@ test.describe('inicio por rol', () => {
   test('Dirección Técnica ve lo que le toca decidir', async ({ page }, info) => {
     await entrarComo(page, 'direccion_tecnica')
     const atencion = page.getByTestId('atencion')
-    await expect(atencion).toContainText('Productos esperando tu validación')
+    await expect(atencion).toContainText('Registros sanitarios esperando tu validación')
     await expect(atencion).toContainText('Registros sanitarios vencidos')
     await expect(atencion).toContainText('Aprobados esperando su traslado')
     await sinDesborde(page)

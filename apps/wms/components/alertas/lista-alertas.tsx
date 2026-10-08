@@ -20,7 +20,7 @@ function Tarjeta({ a, roles }: { a: AlertaVista; roles: Rol[] }) {
     <li className="card" data-testid="alerta">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2"><ChipAlerta tipo={a.tipo} /><p className="text-gray-900">{a.mensaje}</p>
-          <p className="text-xs text-gray-600">{formatoFechaHora(a.creadaEn)} · para {a.destinatario === 'direccion_tecnica' ? 'Dirección Técnica' : 'el Jefe de Almacén'}{a.ingresoId && <> · <Link href={`/entradas/${a.ingresoId}`} className="underline">ver el ingreso</Link></>}</p></div>
+          <p className="text-xs text-gray-600">{formatoFechaHora(a.creadaEn)} · para {a.destinatario === 'direccion_tecnica' ? 'Dirección Técnica' : 'el Jefe de Almacén'}{a.ingresoId && <> · <Link href={`/entradas/${a.ingresoId}`} className="underline">ver el ingreso</Link></>}{a.loteCodigo && <> · <Link href={`/almacen?capa=estado&buscar=${encodeURIComponent(a.loteCodigo)}`} className="underline" data-testid="alerta-ver-mapa">ver en el mapa</Link></>}{a.productoId && !a.ingresoId && <> · <Link href={`/productos/${a.productoId}`} className="underline">ver el producto</Link></>}</p></div>
         {a.estado === 'ATENDIDA' && <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-800"><CheckCircle2 className="h-4 w-4" aria-hidden />Atendida</span>}
       </div>
       {a.estado === 'ATENDIDA' && <p className="mt-2 text-sm text-gray-600">{a.atendidaPor}, {formatoFechaHora(a.atendidaEn)}{a.nota ? ` · ${a.nota}` : ''}</p>}

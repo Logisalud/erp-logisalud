@@ -43,6 +43,19 @@ describe('datos de prueba de entradas', () => {
   })
 })
 
+describe('estabilidad de los datos de prueba entre instancias', () => {
+  it('dos instancias del servidor arman los mismos ids: un enlace generado en una funciona en la otra', async () => {
+    const ids = async () => (await repo.listarIngresos()).map((i) => `${i.referencia}:${i.id}`).sort()
+    const primera = await ids()
+    ;(globalThis as { __wmsDemo?: unknown }).__wmsDemo = undefined
+    const segunda = await new RepositorioDemo().listarIngresos().then((l) => l.map((i) => `${i.referencia}:${i.id}`).sort())
+    expect(segunda).toEqual(primera)
+    const alertas = (await repo.listarAlertas()).map((a) => a.id).sort()
+    ;(globalThis as { __wmsDemo?: unknown }).__wmsDemo = undefined
+    expect((await new RepositorioDemo().listarAlertas()).map((a) => a.id).sort()).toEqual(alertas)
+  })
+})
+
 describe('compra local', () => {
   async function nuevaCompra(recepcion: string) {
     const r = exito(await repo.crearIngreso({ tipo: 'COMPRA_LOCAL', propietarioId: await propietario('LOGISSA'), compraRecepcionId: recepcion }, CHARLIE))
@@ -253,6 +266,22 @@ describe('alertas', () => {
     const div = (await repo.listarAlertas()).find((a) => a.tipo === 'DIVERGENCIA_COMPRAS')!
     expect(div.mensaje).toMatch(/recibió 120 y Compras ahora dice 118/)
     expect(div.destinatario).toBe('jefe_almacen')
+  })
+})
+
+describe('vencimiento de lotes en el inventario (D-30)', () => {
+  it('alerta de lote por vencer (Jefe de Almacén) y de lote vencido (Dirección Técnica)', async () => {
+    const abiertas = (await repo.listarAlertas()).filter((a) => a.estado === 'ABIERTA')
+    const pronto = abiertas.find((a) => a.tipo === 'LOTE_POR_VENCER')!
+    expect(pronto).toMatchObject({ destinatario: 'jefe_almacen' })
+    expect(pronto.mensaje).toMatch(/L-VENCE-PRONTO.*en 38 días.*90 unidades/)
+    const vencido = abiertas.find((a) => a.tipo === 'LOTE_VENCIDO')!
+    expect(vencido).toMatchObject({ destinatario: 'direccion_tecnica' })
+    expect(vencido.mensaje).toMatch(/L-VENCIDO.*hace 12 días.*sigue en el inventario/)
+    expect(await repo.atenderAlerta(vencido.id, 'Se separó', AUX)).toMatchObject({ ok: false })
+    exito(await repo.atenderAlerta(vencido.id, 'Se separó y se pasa a baja', KATIA))
+    // No reaparece mientras siga atendida.
+    expect((await repo.listarAlertas()).filter((a) => a.tipo === 'LOTE_VENCIDO' && a.estado === 'ABIERTA')).toHaveLength(0)
   })
 })
 

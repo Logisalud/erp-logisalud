@@ -71,7 +71,8 @@ export default async function Calidad() {
 
       {cola.productosPorValidar.length > 0 && esDT && (
         <section aria-labelledby="validar">
-          <h2 id="validar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Productos por validar</h2>
+          <h2 id="validar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Registros sanitarios por validar</h2>
+          <p className="mt-1 text-sm text-gray-600">Productos cuyo registro sanitario (número, vencimiento, fabricante) cargó o corrigió Sandra. Hasta que lo valides, sus lotes no se pueden aprobar.</p>
           <ul className="mt-3 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white">
             {cola.productosPorValidar.map((p) => (
               <li key={p.id}><Link href={`/productos/${p.id}`} className="flex min-h-14 items-center justify-between gap-3 px-4 py-2.5 hover:bg-gray-50"><span className="min-w-0 truncate"><span className="font-medium text-gray-900">{p.descripcion}</span> <span className="text-sm text-gray-600">{p.codigo}</span></span><ChipValidacion estado={p.estado as EstadoValidacion} /></Link></li>

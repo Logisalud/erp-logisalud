@@ -121,6 +121,8 @@ export interface AlertaVista {
   nota?: string
   ingresoId?: string
   productoId?: string
+  /** Para llevar al mapa (búsqueda por lote). */
+  loteCodigo?: string
 }
 
 export interface OrganolepticaVista {

@@ -1,7 +1,7 @@
 // Flujos del Batch 2 (entradas y calidad) en los 4 viewports. Modo demostración, en serie:
 // cada prueba parte de lo que dejó la anterior (el servidor se reinicia por viewport).
 import { expect, test, type Page } from '@playwright/test'
-import { capturar, entrarComo, sinDesborde, type RolDemo } from './ayudas'
+import { capturar, entrarComo, esTelefono, sinDesborde, type RolDemo } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -242,12 +242,33 @@ test.describe('alertas y expedientes', () => {
     await expect(page.getByText('Registro sanitario vencido').first()).toBeVisible()
     await expect(page.getByText('Aprobado sin trasladar').first()).toBeVisible()
     await expect(page.getByText('Compras cambió la cantidad').first()).toBeVisible()
+    await expect(page.getByText('Lote por vencer').first()).toBeVisible()
+    await expect(page.getByText('Lote vencido en el inventario').first()).toBeVisible()
     await sinDesborde(page)
     await capturar(page, info, 'alertas', { completa: true })
     const antes = await page.getByTestId('alerta').count()
     await page.getByTestId('atender-alerta').first().click()
     await expect(page.getByText('Atendida', { exact: true }).first()).toBeVisible()
     expect(antes).toBeGreaterThan(0)
+  })
+
+  test('la alerta de un aprobado sin trasladar (o de un lote por vencer) lleva al mapa, filtrado por ese lote', async ({ page }, info) => {
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/alertas')
+    await page.getByTestId('alerta').filter({ hasText: 'L-TRASLADO' }).getByTestId('alerta-ver-mapa').click()
+    await expect(page).toHaveURL(/\/wms\/almacen\?.*buscar=L-TRASLADO/)
+    if (!esTelefono(info)) await expect(page.getByTestId('mapa')).toBeVisible()
+  })
+
+  test('los enlaces de las entradas (lista, alertas, búsqueda) no dan "No encontramos eso"', async ({ page }) => {
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/entradas')
+    const hrefs = await page.$$eval('a[href^="/wms/entradas/"]', (as) => [...new Set(as.map((a) => a.getAttribute('href')!))].filter((h) => !h.endsWith('/nuevo')))
+    expect(hrefs.length).toBeGreaterThan(2)
+    for (const h of hrefs) {
+      await page.goto(h)
+      await expect(page.getByTestId('titulo-ingreso')).toBeVisible()
+    }
   })
 
   test('Sandra resuelve los faltantes y cierra el expediente', async ({ page }, info) => {

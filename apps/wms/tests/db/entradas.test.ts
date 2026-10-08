@@ -2,7 +2,7 @@
 // confirmación en Cuarentena, acta organoléptica, alertas y expediente.
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { type BaseDePrueba, crearBaseDePrueba, falla, idPosicion, idPropietario } from './helpers'
+import { type BaseDePrueba, crearBaseDePrueba, falla, idPosicion, idPropietario, sembrarStock } from './helpers'
 
 let base: BaseDePrueba
 beforeAll(async () => { base = await crearBaseDePrueba() }, 60_000)
@@ -253,6 +253,10 @@ describe('acta de recepción', () => {
     expect(r[0]).toMatchObject({ id: x.acta, estado: 'ANULADA', placa: 'ABC-123' })
     expect(r[1]).toMatchObject({ id: nueva, estado: 'BORRADOR', reemplaza_a: x.acta, placa: 'XYZ-999' })
     expect(r[1].numero).not.toBe(r[0].numero)
+    // La acta nueva entra al expediente (la anulada sigue ahí).
+    const docs = (await base.admin.query(`select descripcion from wms.expediente_documentos d join wms.ingresos i on i.expediente_id = d.expediente_id where i.id = $1 and d.tipo = 'ACTA_RECEPCION'`, [x.id])).rows.map((r) => r.descripcion)
+    expect(docs.some((d) => d.includes(r[1].numero) && d.includes(`reemplaza a ${r[0].numero}`))).toBe(true)
+    expect(docs.some((d) => d === `Acta de Recepción ${r[0].numero}`)).toBe(true)
     // El inventario ya confirmado no se re-publica.
     expect((await saldos(x.id)).map((s) => s.cantidad)).toEqual([2])
     // Una acta anulada solo se reemite una vez.
@@ -420,6 +424,52 @@ describe('"por trasladar" y divergencias', () => {
     expect(a).toHaveLength(1)
     expect(a[0].mensaje).toMatch(/recibió 6 y Compras ahora dice 5/)
     expect((await saldos(x.id))[0].cantidad).toBe(6)
+  })
+})
+
+describe('vencimiento de lotes en el inventario (D-30)', () => {
+  const abiertas = (lote: string) => base.admin.query(
+    `select tipo, destinatario_rol, estado, mensaje from wms.alertas where clave like $1 order by creada_en`, [`%${lote}`]).then((r) => r.rows)
+  async function lote(codigo: string, diasHastaVencer: number, estado: 'APROBADO' | 'BAJAS_RECHAZADOS' = 'APROBADO', posicion = 'A-14.1') {
+    const x = await sembrarStock(base, { posicion, producto: base.productos.dapa, lote: codigo, propietario: 'DIPHASAC', cantidad: 10, estado })
+    await base.admin.query(`update wms.lotes set vence = current_date + $1::int where id = $2`, [diasHastaVencer, x.loteId])
+    return x.loteId
+  }
+  const revisar = () => base.como(P().charlie.id, async (c) => (await c.query('select wms.revisar_vencimientos() n')).rows[0].n as number)
+
+  it('por vencer → Jefe de Almacén; vencido → Dirección Técnica; sin duplicar; la de "por vencer" se cierra sola', async () => {
+    const id = await lote('V-PRONTO', 40)
+    await lote('V-LEJOS', 400, 'APROBADO', 'A-15.1')
+    await revisar()
+    expect(await abiertas('V-LEJOS')).toHaveLength(0)
+    const a = await abiertas(id)
+    expect(a).toEqual([expect.objectContaining({ tipo: 'LOTE_POR_VENCER', destinatario_rol: 'jefe_almacen', estado: 'ABIERTA' })])
+    expect(a[0].mensaje).toMatch(/vence el .* \(en 40 días\): 10 unidades en A-14\.1/)
+    await revisar()
+    expect(await abiertas(id)).toHaveLength(1)
+    // El lote se vence: la alerta cambia de destinatario y la anterior se cierra.
+    await base.admin.query(`update wms.lotes set vence = current_date - 3 where id = $1`, [id])
+    await revisar()
+    const b = await abiertas(id)
+    expect(b.map((x) => [x.tipo, x.estado])).toEqual([['LOTE_POR_VENCER', 'ATENDIDA'], ['LOTE_VENCIDO', 'ABIERTA']])
+    expect(b[1]).toMatchObject({ destinatario_rol: 'direccion_tecnica' })
+    expect(b[1].mensaje).toMatch(/venció el .* \(hace 3 días\) y sigue en el inventario/)
+  })
+
+  it('lo que ya está en Bajas/Rechazados no alerta; el umbral es un parámetro', async () => {
+    const baja = await lote('V-BAJA', -5, 'BAJAS_RECHAZADOS', 'J-12.1')
+    const margen = await lote('V-100', 100, 'APROBADO', 'A-18.1')
+    await revisar()
+    expect(await abiertas(baja)).toHaveLength(0)
+    expect(await abiertas(margen)).toHaveLength(0)
+    await base.admin.query(`update wms.parametros set valor = '120' where clave = 'lote_dias_alerta_vencimiento'`)
+    await revisar()
+    expect(await abiertas(margen)).toHaveLength(1)
+    await base.admin.query(`update wms.parametros set valor = '90' where clave = 'lote_dias_alerta_vencimiento'`)
+  })
+
+  it('sin rol no se puede disparar la revisión', async () => {
+    expect((await falla(base.como(P().sinRol.id, (c) => c.query('select wms.revisar_vencimientos()')))).message).toMatch(/Sin permiso/)
   })
 })
 

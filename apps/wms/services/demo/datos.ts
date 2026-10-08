@@ -157,6 +157,13 @@ export function construirPanoramaDemo(hoy: string): Panorama {
   const porTrasladar = nuevoLote(1, 'LOGISSA', 'L-TRASLADO')
   poner('A-9', porTrasladar, 'APROBADO', 60, `entrega:${porTrasladar.id}`)
 
+  // Vencimientos (D-30): un lote que vence pronto y uno que ya venció siguen en el inventario.
+  const rackLogissa = cfg.find((p) => p.propietario === 'LOGISSA' && p.tipoArea === 'APROBADOS')!.codigo
+  const porVencer = nuevoLote(3, 'LOGISSA', 'L-VENCE-PRONTO', sumarDias(hoy, 38))
+  poner(rackLogissa, porVencer, 'APROBADO', 90, `entrega:${porVencer.id}`)
+  const yaVencido = nuevoLote(5, 'LOGISSA', 'L-VENCIDO', sumarDias(hoy, -12))
+  poner(rackLogissa, yaVencido, 'APROBADO', 36, `entrega:${yaVencido.id}`)
+
   // El lote ABC: una entrega ya Aprobada y otra nueva en Cuarentena (cada una con su procedencia).
   const abc = nuevoLote(1, 'DIPHASAC', 'ABC', sumarDias(hoy, 420))
   poner('A-21.1', abc, 'APROBADO', 120, 'entrega:ABC-1')

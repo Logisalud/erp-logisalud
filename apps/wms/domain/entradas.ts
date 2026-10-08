@@ -402,13 +402,15 @@ export function puedeGenerarActa(i: { cuadra: boolean; tieneTemperatura: boolean
 
 // ── Alertas ─────────────────────────────────────────────────────────────────
 
-export type TipoAlerta = 'TEMPERATURA' | 'RS_VENCIDO' | 'DIVERGENCIA_COMPRAS' | 'POR_TRASLADAR_VENCIDO'
+export type TipoAlerta = 'TEMPERATURA' | 'RS_VENCIDO' | 'DIVERGENCIA_COMPRAS' | 'POR_TRASLADAR_VENCIDO' | 'LOTE_POR_VENCER' | 'LOTE_VENCIDO'
 
 export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   TEMPERATURA: 'Temperatura fuera de rango',
   RS_VENCIDO: 'Registro sanitario vencido',
   DIVERGENCIA_COMPRAS: 'Compras cambió la cantidad',
   POR_TRASLADAR_VENCIDO: 'Aprobado sin trasladar',
+  LOTE_POR_VENCER: 'Lote por vencer',
+  LOTE_VENCIDO: 'Lote vencido en el inventario',
 }
 
 export const DESTINATARIO_ALERTA: Record<TipoAlerta, 'direccion_tecnica' | 'jefe_almacen'> = {
@@ -416,6 +418,9 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, 'direccion_tecnica' | 'jefe
   RS_VENCIDO: 'direccion_tecnica',
   DIVERGENCIA_COMPRAS: 'jefe_almacen',
   POR_TRASLADAR_VENCIDO: 'jefe_almacen',
+  // Por vencer: el Jefe de Almacén lo rota o lo saca primero. Vencido: Dirección Técnica decide su baja.
+  LOTE_POR_VENCER: 'jefe_almacen',
+  LOTE_VENCIDO: 'direccion_tecnica',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], tipo: TipoAlerta): boolean {
@@ -423,6 +428,21 @@ export function puedeAtenderAlerta(roles: readonly Rol[], tipo: TipoAlerta): boo
 }
 
 export const PLAZO_POR_TRASLADAR_HORAS_DEFECTO = 24
+
+/** Días antes del vencimiento de un lote en que se avisa (parámetro `lote_dias_alerta_vencimiento`; D-30 por confirmar con Katia). */
+export const DIAS_ALERTA_VENCIMIENTO_LOTE_DEFECTO = 90
+
+export type SituacionLote = 'VIGENTE' | 'POR_VENCER' | 'VENCIDO' | 'SIN_FECHA'
+
+/** Vencido = su fecha ya pasó (el último día aún sirve). Por vencer = vence dentro del umbral. */
+export function situacionLote(vence: string | undefined | null, hoy: string, umbralDias = DIAS_ALERTA_VENCIMIENTO_LOTE_DEFECTO): SituacionLote {
+  if (!vence) return 'SIN_FECHA'
+  const d = Math.round((Date.parse(`${vence}T00:00:00Z`) - Date.parse(`${hoy}T00:00:00Z`)) / 86_400_000)
+  return d < 0 ? 'VENCIDO' : d <= umbralDias ? 'POR_VENCER' : 'VIGENTE'
+}
+
+export const diasParaVencer = (vence: string, hoy: string) =>
+  Math.round((Date.parse(`${vence}T00:00:00Z`) - Date.parse(`${hoy}T00:00:00Z`)) / 86_400_000)
 
 /** D-28: ¿lleva "Aprobado · por trasladar" más tiempo del permitido? */
 export function porTrasladarVencido(desdeIso: string, ahoraIso: string, plazoHoras = PLAZO_POR_TRASLADAR_HORAS_DEFECTO): boolean {
