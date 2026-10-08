@@ -1,0 +1,45 @@
+{
+  "name": "erp-logisalud-wms",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run --exclude \"tests/db/**\"",
+    "test:e2e": "playwright test",
+    "seed:topologia": "tsx scripts/generar-seed-topologia.ts",
+    "test:db": "./scripts/db-local.sh && vitest run tests/db"
+  },
+  "dependencies": {
+    "@logisalud/auth": "*",
+    "@logisalud/design-system": "*",
+    "@react-pdf/renderer": "^4.9.0",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.43.4",
+    "exceljs": "4.4.0",
+    "lucide-react": "^0.468.0",
+    "next": "14.2.29",
+    "react": "^18",
+    "react-dom": "^18",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/node": "^20",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.0.1",
+    "jsdom": "^30.0.1",
+    "pg": "^8.13.1",
+    "postcss": "^8",
+    "tailwindcss": "^3.3.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  }
+}

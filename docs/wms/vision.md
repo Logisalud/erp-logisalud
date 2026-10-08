@@ -1,3 +1,5 @@
+> **Nota (2026-10-08):** el *Addendum — flujo real de ingreso* (ver `analisis-addendum-inbound.md` y `reglas-negocio.md`, «Flujo de ingreso») corrige este documento en lo que se refiere al ingreso: la recepción empieza con la Solicitud de Ingreso, la cantidad física se captura una sola vez en el WMS y las devoluciones no pasan por Cuarentena.
+
 # Visión del WMS de LOGISALUD
 
 > Norte de producto. NO son instrucciones de alcance: el alcance y el orden los define el prompt vigente y docs/wms/reglas-negocio.md.
@@ -446,7 +448,9 @@ no bloqueado para venta.
 
 ## 6. DEVOLUCIONES
 
-DEVOLUCIÓN NO ES UN ESTADO.
+> **REEMPLAZADO por D-31 (2026-10-08).** Existe el estado sanitario `DEVOLUCIONES`; la devolución nace en él y nunca pasa por Cuarentena. Se conserva que el **origen es una dimensión separada del estado** (para filtrar reportes por origen). Lo que sigue es histórico.
+
+DEVOLUCIÓN NO ES UN ESTADO. *(histórico, reemplazado por D-31)*
 
 Es otro proceso/origen de ingreso.
 
@@ -638,15 +642,16 @@ válido.
 
 inválido.
 
-Mensaje humano:
+Mensaje humano (addendum 2026-10-08: se compara contra la Solicitud, no contra Compras):
 
-“No podemos confirmar todavía.
-Compras registró 6 unidades y aquí hemos identificado 7.
-Revisa las cantidades.”
+“Esperábamos 6 y encontramos 7.”
+
+Se actualiza la Solicitud con su historial y se continúa.
 
 Al confirmar:
 
-inventario nace en CUARENTENA.
+compra o ingreso de cliente → CUARENTENA.
+devolución → ÁREA DE DEVOLUCIONES (estado «Devoluciones»), nunca Cuarentena.
 
 ## 14. RECEPCIONES PARCIALES
 
@@ -2425,7 +2430,7 @@ una hoja de Excel con botones.
 
 APROBADO JAMÁS VUELVE A CUARENTENA.
 
-DEVOLUCIÓN NO ES ESTADO.
+DEVOLUCIÓN NO ES ESTADO. *(Reemplazada por D-31, 2026-10-08: existe el estado `DEVOLUCIONES`; el origen sigue siendo una dimensión separada.)*
 
 RECEPCIÓN NO ES ESTADO.
 
