@@ -343,18 +343,25 @@ do $$ begin
   if to_regclass('compras.ordenes_compra') is not null and to_regclass('compras.ordenes_compra_items') is not null
      and to_regclass('compras.proveedores') is not null and to_regclass('catalogo.productos') is not null then
     execute $v$
-      create or replace view wms.v_oc_items with (security_invoker = true) as
+      -- Todas las líneas de OC (cualquier estado): para conciliar y mostrar lo facturado aunque la OC ya se haya cerrado en Compras.
+      create or replace view wms.v_oc_lineas with (security_invoker = true) as
       select oc.id as oc_id, oc.codigo as oc_codigo, oc.estado as estado_oc, pv.id as proveedor_id,
              pv.razon_social as proveedor_nombre, pv.ruc as proveedor_ruc,
              oi.id as oc_item_id, oi.producto_id, p.codigo as producto_codigo, p.descripcion as producto_descripcion,
              oi.cantidad_pedida, coalesce(oi.cantidad_recibida, 0) as cantidad_recibida,
-             oi.cantidad_pedida - coalesce(oi.cantidad_recibida, 0) as saldo
+             oi.cantidad_pedida - coalesce(oi.cantidad_recibida, 0) as saldo,
+             coalesce(oi.cantidad_facturada, 0) as cantidad_facturada
         from compras.ordenes_compra oc
         join compras.proveedores pv on pv.id = oc.proveedor_id
         join compras.ordenes_compra_items oi on oi.oc_id = oc.id
         join catalogo.productos p on p.id = oi.producto_id
     $v$;
-    execute 'grant select on wms.v_oc_items to authenticated';
+    -- Lo que se puede anunciar: solo OC que aún pueden recibir mercadería.
+    execute $v$
+      create or replace view wms.v_oc_items with (security_invoker = true) as
+      select * from wms.v_oc_lineas where estado_oc in ('enviada', 'confirmada', 'parcialmente_recibida')
+    $v$;
+    execute 'grant select on wms.v_oc_lineas, wms.v_oc_items to authenticated';
   end if;
 end $$;
 
@@ -648,7 +655,7 @@ begin
       v_prod := nullif(op->>'producto_id', '')::uuid;
       v_item := null;
       if s.tipo = 'COMPRA_LOCAL' and nullif(op->>'oc_item_id', '') is not null then
-        execute 'select producto_id, cantidad_pedida, cantidad_recibida, saldo from wms.v_oc_items where oc_item_id = $1 and oc_id = $2'
+        execute 'select producto_id, cantidad_pedida, cantidad_recibida, saldo from wms.v_oc_lineas where oc_item_id = $1 and oc_id = $2'
           into v_item using (op->>'oc_item_id')::uuid, s.oc_id;
         if v_item.producto_id is null then raise exception 'Esa línea no pertenece a la orden de compra' using errcode = 'P0001'; end if;
         v_prod := v_item.producto_id;
@@ -1205,7 +1212,7 @@ create or replace function wms.estado_registro_compras(p_solicitud uuid)
 returns table (oc_item_id uuid, producto_id uuid, fisica numeric, base numeric, esperado numeric, registrado numeric, estado text)
 language plpgsql stable security definer set search_path = wms, pg_temp as $$
 begin
-  if to_regclass('wms.v_oc_items') is null then return; end if;
+  if to_regclass('wms.v_oc_lineas') is null then return; end if;
   return query execute $q$
     with mias as (
       select sl.oc_item_id, sl.producto_id, sum(il.cantidad)::numeric as fisica
@@ -1227,7 +1234,7 @@ begin
                 when v.cantidad_recibida <= coalesce(t.base, 0) then 'FALTA'
                 else 'NO_COINCIDE' end
       from mias m join todas t on t.oc_item_id = m.oc_item_id
-      join wms.v_oc_items v on v.oc_item_id = m.oc_item_id
+      join wms.v_oc_lineas v on v.oc_item_id = m.oc_item_id
   $q$ using p_solicitud;
 end $$;
 
@@ -1238,7 +1245,7 @@ declare
   v_horas numeric := coalesce((select valor::numeric from wms.parametros where clave = 'plazo_registro_compras_horas'), 24);
   v_ing uuid; v_desc text;
 begin
-  if to_regclass('wms.v_oc_items') is null then return 0; end if;
+  if to_regclass('wms.v_oc_lineas') is null then return 0; end if;
   for s in select * from wms.solicitudes_ingreso where estado = 'CERRADA' and tipo = 'COMPRA_LOCAL' and oc_id is not null loop
     select id into v_ing from wms.ingresos where solicitud_id = s.id;
     for e in select * from wms.estado_registro_compras(s.id) loop

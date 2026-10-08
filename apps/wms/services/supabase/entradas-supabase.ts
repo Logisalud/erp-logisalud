@@ -146,7 +146,7 @@ async function conciliacion(solicitudId: string, descripciones: Map<string, stri
   }))
 }
 
-function armarDetalle(c: Carga, sol: Fila, bloque: BloqueFisico[]): SolicitudDetalle {
+function armarDetalle(c: Carga, sol: Fila, bloque: BloqueFisico[], facturadas: Map<string, number> = new Map()): SolicitudDetalle {
   const id = String(sol.id)
   const prod = new Map(c.productos.map((r) => [String(r.id), r]))
   const reg = new Map(c.regulatorio.map((r) => [String(r.producto_id), r]))
@@ -162,6 +162,7 @@ function armarDetalle(c: Carga, sol: Fila, bloque: BloqueFisico[]): SolicitudDet
       id: String(l.id), ocItemId: s(l.oc_item_id), productoId: String(l.producto_id), codigo: String(p?.codigo ?? ''), descripcion: String(p?.descripcion ?? '—'),
       registroSanitario: s(rg?.registro_sanitario) ?? s(l.registro_sanitario), rsVence: s(rg?.rs_vence), lote: String(l.lote), vence: String(l.vence),
       venceTexto: s(l.vence_texto_original), ocPedida: num(l.cantidad_oc_pedida), ocSaldo: num(l.cantidad_oc_saldo),
+      ocFacturada: l.oc_item_id ? facturadas.get(String(l.oc_item_id)) : undefined,
       comprasRecibidaAntes: num(l.compras_recibida_antes), inicial: num(l.cantidad_inicial), cantidad: Number(l.cantidad),
       estadoLinea: l.estado_linea as LineaSolicitudVista['estadoLinea'], verificacion: (x?.verificacion ?? null) as LineaSolicitudVista['verificacion'],
       posicionId: s(x?.posicion_id), posicionCodigo: x?.posicion_id ? s(pos.get(String(x.posicion_id))?.codigo) : undefined,
@@ -265,7 +266,7 @@ export class EntradasSupabase {
       ocId, codigo: String(ls[0].oc_codigo), proveedorNombre: String(ls[0].proveedor_nombre), proveedorRuc: String(ls[0].proveedor_ruc), estado: s(ls[0].estado_oc),
       items: ls.map((l) => ({
         ocItemId: String(l.oc_item_id), productoId: String(l.producto_id), codigo: String(l.producto_codigo), descripcion: String(l.producto_descripcion),
-        pedida: Number(l.cantidad_pedida), recibida: Number(l.cantidad_recibida), saldo: Number(l.saldo),
+        pedida: Number(l.cantidad_pedida), recibida: Number(l.cantidad_recibida), saldo: Number(l.saldo), facturada: Number(l.cantidad_facturada ?? 0),
       })),
     })).filter((oc) => oc.items.some((i) => i.saldo > 0))
   }
@@ -304,7 +305,12 @@ export class EntradasSupabase {
     if (!sol) return null
     const desc = new Map(c.productos.map((p) => [String(p.id), String(p.descripcion)]))
     const bloque = sol.estado === 'CERRADA' && sol.tipo === 'COMPRA_LOCAL' ? await conciliacion(id, desc, String(sol.oc_codigo ?? '')) : []
-    return armarDetalle(c, sol, bloque)
+    // La factura es de Compras: se lee de la vista de integración (solo lectura) y no se guarda en el WMS.
+    const facturadas = new Map<string, number>()
+    if (sol.tipo === 'COMPRA_LOCAL') {
+      for (const r of await leerOpcional('v_oc_lineas')) if (String(r.oc_id) === String(sol.oc_id)) facturadas.set(String(r.oc_item_id), Number(r.cantidad_facturada ?? 0))
+    }
+    return armarDetalle(c, sol, bloque, facturadas)
   }
 
   async crearSolicitud(entrada: EntradaSolicitud, autorizar: boolean, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {

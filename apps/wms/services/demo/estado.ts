@@ -85,7 +85,7 @@ export interface ActaDemo extends Omit<ActaRecepcionVista, 'faltan' | 'reemplaza
 
 /** Una OC de Compras (solo lectura en el WMS). `recibida` = lo que Compras tiene registrado hoy; se copia a mano. */
 export interface OcDemo extends Omit<OcPendiente, 'items'> {
-  items: { ocItemId: string; productoId: string; pedida: number; recibida: number }[]
+  items: { ocItemId: string; productoId: string; pedida: number; recibida: number; facturada: number }[]
 }
 
 export interface EstadoDemo {

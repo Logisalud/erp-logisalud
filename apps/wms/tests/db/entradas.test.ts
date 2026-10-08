@@ -157,6 +157,20 @@ describe('flujo real: solicitud → verificación → acta → Cuarentena', () =
   })
 })
 
+describe('integración de solo lectura con Compras', () => {
+  it('v_oc_items muestra solo OC que pueden recibir y trae lo facturado', async () => {
+    const prov = (await base.admin.query(`insert into compras.proveedores (ruc, razon_social) values ('20111111111', 'P') returning id`)).rows[0].id
+    const mk = async (estado: string) => {
+      const oc = (await base.admin.query(`insert into compras.ordenes_compra (codigo, proveedor_id, estado) values ($1, $2, $3) returning id`, ['OC-V-' + estado, prov, estado])).rows[0].id
+      await base.admin.query(`insert into compras.ordenes_compra_items (oc_id, producto_id, cantidad_pedida, cantidad_facturada) values ($1, $2, 10, 7)`, [oc, base.productos.dapa])
+    }
+    for (const e of ['borrador', 'enviada', 'confirmada', 'parcialmente_recibida', 'recibida_completa', 'anulada']) await mk(e)
+    const r = (await base.admin.query(`select oc_codigo, cantidad_facturada::int f from wms.v_oc_items where oc_codigo like 'OC-V-%' order by 1`)).rows
+    expect(r.map((x) => x.oc_codigo)).toEqual(['OC-V-confirmada', 'OC-V-enviada', 'OC-V-parcialmente_recibida'])
+    expect(r.every((x) => x.f === 7)).toBe(true)
+  })
+})
+
 describe('ejemplos 20–23 del addendum: cuatro cantidades, cada dueño con la suya', () => {
   it('(20) OC 50 · factura 45 · física 45: la solicitud pasa de 50 a 45 y Compras debe registrar 45', async () => {
     const x = await solicitudDeCompra(base.productos.dapa, 50, 50, 'L-E20')
@@ -171,6 +185,10 @@ describe('ejemplos 20–23 del addendum: cuatro cantidades, cada dueño con la s
     // Compras todavía no lo tiene: FALTA. Cuando lo copian a mano: OK.
     expect(await estadoCompras(x.sol)).toEqual([expect.objectContaining({ fisica: '45', estado: 'FALTA' })])
     await base.admin.query('update compras.ordenes_compra_items set cantidad_recibida = 45 where id = $1', [x.oi])
+    expect((await estadoCompras(x.sol))[0].estado).toBe('OK')
+    // Aunque Compras cierre la OC (sale de la lista de "por recibir"), la conciliación sigue viéndola.
+    await base.admin.query(`update compras.ordenes_compra set estado = 'recibida_completa' where id = $1`, [x.oc])
+    expect((await base.admin.query('select 1 from wms.v_oc_items where oc_id = $1', [x.oc])).rows).toHaveLength(0)
     expect((await estadoCompras(x.sol))[0].estado).toBe('OK')
   })
 

@@ -111,7 +111,7 @@ function lineaVista(e: EstadoDemo, s: SolicitudDemo, l: LineaSolicitudDemo): Lin
   return {
     id: l.id, ocItemId: l.ocItemId, productoId: l.productoId, codigo: p?.codigo ?? '', descripcion: p?.descripcion ?? '—',
     registroSanitario: p?.reg?.registroSanitario, rsVence: p?.reg?.rsVence, lote: l.lote, vence: l.vence, venceTexto: l.venceTexto,
-    ocPedida: l.ocPedida, ocSaldo: l.ocSaldo, comprasRecibidaAntes: l.comprasRecibidaAntes, inicial: l.inicial, cantidad: l.cantidad,
+    ocPedida: l.ocPedida, ocSaldo: l.ocSaldo, ocFacturada: e.compras.find((c) => c.ocId === s.ocId)?.items.find((i) => i.ocItemId === l.ocItemId)?.facturada, comprasRecibidaAntes: l.comprasRecibidaAntes, inicial: l.inicial, cantidad: l.cantidad,
     estadoLinea: l.estadoLinea, verificacion: lote?.verificacion ?? null, posicionId: lote?.posicionId, posicionCodigo: posicion(e, lote?.posicionId)?.codigo,
     fisica: s.recepcion?.confirmado && lote ? l.cantidad : undefined,
   }
@@ -452,7 +452,7 @@ export class MotorEntradas {
       ocId: c.ocId, codigo: c.codigo, proveedorNombre: c.proveedorNombre, proveedorRuc: c.proveedorRuc, estado: c.estado,
       items: c.items.map((i) => ({
         ocItemId: i.ocItemId, productoId: i.productoId, codigo: producto(e, i.productoId)?.codigo ?? '', descripcion: producto(e, i.productoId)?.descripcion ?? '',
-        pedida: i.pedida, recibida: i.recibida, saldo: i.pedida - i.recibida,
+        pedida: i.pedida, recibida: i.recibida, saldo: i.pedida - i.recibida, facturada: i.facturada,
       })),
     })).filter((c) => c.items.some((i) => i.saldo > 0))
   }
@@ -1089,10 +1089,12 @@ function sembrar(e: EstadoDemo) {
   const eng = new MotorEntradas()
   const hoy = e.panorama.hoy
   const idProd = (n: number) => `prod:${n}`
+  // Lo facturado por Compras (solo lectura): OC-0001 y OC-0006 facturadas completas; OC-0003, la mitad.
+  const facturadas: Record<number, number> = { 1: 120, 3: 25, 6: 200 }
   const oc = (n: number, codigo: string, proveedor: string, ruc: string, items: [number, number][]) => {
     e.compras.push({
       ocId: `compras-oc:${n}`, codigo, proveedorNombre: proveedor, proveedorRuc: ruc, estado: 'enviada',
-      items: items.map(([p, c], k) => ({ ocItemId: `compras-oc:${n}:item:${k + 1}`, productoId: idProd(p), pedida: c, recibida: 0 })),
+      items: items.map(([p, c], k) => ({ ocItemId: `compras-oc:${n}:item:${k + 1}`, productoId: idProd(p), pedida: c, recibida: 0, facturada: facturadas[n] ?? 0 })),
     })
     void sumarDias(hoy, -n)
   }

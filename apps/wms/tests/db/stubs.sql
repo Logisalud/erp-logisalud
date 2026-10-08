@@ -36,7 +36,7 @@ create table if not exists compras.ordenes_compra (
 create table if not exists compras.ordenes_compra_items (
   id uuid primary key default gen_random_uuid(), oc_id uuid not null references compras.ordenes_compra(id),
   producto_id uuid not null references catalogo.productos(id), cantidad_pedida numeric(14,3) not null,
-  cantidad_recibida numeric(14,3) not null default 0);
+  cantidad_recibida numeric(14,3) not null default 0, cantidad_facturada numeric(14,3) not null default 0);
 create table if not exists almacen.recepciones (
   id uuid primary key default gen_random_uuid(), oc_id uuid not null references compras.ordenes_compra(id),
   fecha_recepcion timestamptz not null default now(), estado text not null default 'pendiente');

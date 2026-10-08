@@ -14,7 +14,7 @@ export interface OcPendiente {
   proveedorNombre: string
   proveedorRuc: string
   estado?: string
-  items: { ocItemId: string; productoId: string; codigo: string; descripcion: string; pedida: number; recibida: number; saldo: number }[]
+  items: { ocItemId: string; productoId: string; codigo: string; descripcion: string; pedida: number; recibida: number; saldo: number; facturada: number }[]
 }
 
 export interface LineaSolicitudVista {
@@ -31,6 +31,8 @@ export interface LineaSolicitudVista {
   /** Lo que pedía la OC y su saldo cuando se preparó la solicitud. */
   ocPedida?: number
   ocSaldo?: number
+  /** Lo que Compras tiene facturado hoy de esta línea de OC (solo lectura). */
+  ocFacturada?: number
   /** Lo que Compras ya tenía recibido cuando se preparó la solicitud (base para la conciliación). */
   comprasRecibidaAntes?: number
   /** Lo anunciado al autorizar (inmutable). */
