@@ -2,7 +2,7 @@
 -- asignaciones con vigencia, maestro regulatorio y auditoría.
 --
 -- NO SE APLICA SOLA: en la base consolidada las migraciones se aplican a mano.
--- Re-ejecutable (if not exists / drop policy if exists / on conflict). RLS activo
+-- Re-ejecutable (if not exists / verificación previa de políticas y triggers / on conflict). RLS activo
 -- desde el `create table`. Nada se concede a `anon`.
 --
 -- Requisitos del entorno (Supabase): función auth.uid(), roles authenticated y
@@ -52,7 +52,7 @@ begin
   end if;
   return new;
 end $$;
-drop trigger if exists prohibir_aprobado_a_cuarentena on wms.transiciones_estado;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'prohibir_aprobado_a_cuarentena' and tgrelid = to_regclass('wms.transiciones_estado') and not tgisinternal) then drop trigger prohibir_aprobado_a_cuarentena on wms.transiciones_estado; end if; end $$;
 create trigger prohibir_aprobado_a_cuarentena
   before insert or update on wms.transiciones_estado
   for each row execute function wms.trg_prohibir_aprobado_a_cuarentena();
@@ -281,7 +281,7 @@ begin
   where p.id = new.posicion_id;
   return new;
 end $$;
-drop trigger if exists asignacion_exclusiva on wms.asignaciones_posicion;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'asignacion_exclusiva' and tgrelid = to_regclass('wms.asignaciones_posicion') and not tgisinternal) then drop trigger asignacion_exclusiva on wms.asignaciones_posicion; end if; end $$;
 create trigger asignacion_exclusiva
   before insert or update on wms.asignaciones_posicion
   for each row execute function wms.trg_asignacion_exclusiva();
@@ -363,10 +363,10 @@ begin
     using errcode = 'P0001';
 end $$;
 
-drop trigger if exists audit_inmutable on wms.audit_events;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'audit_inmutable' and tgrelid = to_regclass('wms.audit_events') and not tgisinternal) then drop trigger audit_inmutable on wms.audit_events; end if; end $$;
 create trigger audit_inmutable before update or delete on wms.audit_events
   for each row execute function wms.trg_inmutable();
-drop trigger if exists audit_inmutable_truncate on wms.audit_events;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'audit_inmutable_truncate' and tgrelid = to_regclass('wms.audit_events') and not tgisinternal) then drop trigger audit_inmutable_truncate on wms.audit_events; end if; end $$;
 create trigger audit_inmutable_truncate before truncate on wms.audit_events
   for each statement execute function wms.trg_inmutable();
 
@@ -396,7 +396,7 @@ end $$;
 do $$ declare t text; begin
   foreach t in array array['propietarios', 'posiciones', 'asignaciones_posicion',
                            'documentos_sustento', 'usuario_roles', 'producto_regulatorio'] loop
-    execute format('drop trigger if exists audit_respaldo on wms.%I', t);
+    if exists (select 1 from pg_trigger where tgname = 'audit_respaldo' and tgrelid = to_regclass(format('wms.%I', t)) and not tgisinternal) then execute format('drop trigger audit_respaldo on wms.%I', t); end if;
     execute format('create trigger audit_respaldo after insert or update or delete on wms.%I
                     for each row execute function wms.trg_audit()', t);
   end loop;
@@ -411,42 +411,42 @@ do $$ declare t text; begin
   foreach t in array array['estados_sanitarios', 'transiciones_estado', 'tipos_area', 'origenes',
       'area_estado_admitido', 'parametros', 'permisos_rol', 'propietarios', 'posiciones',
       'posicion_geometria', 'documentos_sustento', 'asignaciones_posicion', 'producto_regulatorio'] loop
-    execute format('drop policy if exists lectura on wms.%I', t);
+    if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = t and policyname = 'lectura') then execute format('drop policy lectura on wms.%I', t); end if;
     execute format('create policy lectura on wms.%I for select to authenticated using (wms.es_usuario())', t);
   end loop;
   -- Configuración: solo admin_wms escribe.
   foreach t in array array['estados_sanitarios', 'transiciones_estado', 'tipos_area', 'origenes',
       'area_estado_admitido', 'parametros', 'permisos_rol', 'propietarios', 'posiciones',
       'posicion_geometria', 'documentos_sustento', 'asignaciones_posicion'] loop
-    execute format('drop policy if exists escritura on wms.%I', t);
+    if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = t and policyname = 'escritura') then execute format('drop policy escritura on wms.%I', t); end if;
     execute format('create policy escritura on wms.%I for all to authenticated
                     using (wms.tiene_rol(''admin_wms'')) with check (wms.tiene_rol(''admin_wms''))', t);
   end loop;
 end $$;
 
 -- Maestro regulatorio: Sandra (asistente_dt) crea y edita lo no validado; Katia valida.
-drop policy if exists alta_sandra on wms.producto_regulatorio;
+do $$ begin if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = 'producto_regulatorio' and policyname = 'alta_sandra') then drop policy alta_sandra on wms.producto_regulatorio; end if; end $$;
 create policy alta_sandra on wms.producto_regulatorio for insert to authenticated
   with check (wms.tiene_rol('asistente_dt', 'direccion_tecnica') and estado_validacion = 'PENDIENTE'
               and creado_por = auth.uid());
-drop policy if exists edita_sandra on wms.producto_regulatorio;
+do $$ begin if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = 'producto_regulatorio' and policyname = 'edita_sandra') then drop policy edita_sandra on wms.producto_regulatorio; end if; end $$;
 create policy edita_sandra on wms.producto_regulatorio for update to authenticated
   using (wms.tiene_rol('asistente_dt') and estado_validacion <> 'VALIDADO')
   with check (wms.tiene_rol('asistente_dt') and estado_validacion <> 'VALIDADO');
-drop policy if exists valida_katia on wms.producto_regulatorio;
+do $$ begin if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = 'producto_regulatorio' and policyname = 'valida_katia') then drop policy valida_katia on wms.producto_regulatorio; end if; end $$;
 create policy valida_katia on wms.producto_regulatorio for update to authenticated
   using (wms.tiene_rol('direccion_tecnica')) with check (wms.tiene_rol('direccion_tecnica'));
 
 -- Roles: cada quien ve los suyos; admin_wms los administra.
-drop policy if exists lectura_propia on wms.usuario_roles;
+do $$ begin if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = 'usuario_roles' and policyname = 'lectura_propia') then drop policy lectura_propia on wms.usuario_roles; end if; end $$;
 create policy lectura_propia on wms.usuario_roles for select to authenticated
   using (user_id = auth.uid() or wms.tiene_rol('admin_wms', 'direccion_tecnica', 'auditoria_lectura'));
-drop policy if exists admin on wms.usuario_roles;
+do $$ begin if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = 'usuario_roles' and policyname = 'admin') then drop policy admin on wms.usuario_roles; end if; end $$;
 create policy admin on wms.usuario_roles for all to authenticated
   using (wms.tiene_rol('admin_wms')) with check (wms.tiene_rol('admin_wms'));
 
 -- Auditoría: la lee quien tiene permiso 'auditar'; no se escribe directo.
-drop policy if exists lectura on wms.audit_events;
+do $$ begin if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = 'audit_events' and policyname = 'lectura') then drop policy lectura on wms.audit_events; end if; end $$;
 create policy lectura on wms.audit_events for select to authenticated
   using (wms.tiene_permiso('auditar'));
 

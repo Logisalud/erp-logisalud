@@ -44,7 +44,7 @@ Cada uno es un **cambio aparte** y se anota. Recién ahí puede decidirse el dep
 
 ## 4. Herramienta y reglas de ejecución
 - **Herramienta que deje historial** (migraciones de Supabase o el panel SQL con registro). Cada migración se registra con su nombre y hora.
-- Antes de cada ejecución: `set lock_timeout = '5s'; set statement_timeout = '60s';` (las migraciones ya no usan `drop … if exists` sobre objetos que pueden no existir, patrón que **colgó** la herramienta MCP el 2026-10-08).
+- Antes de cada ejecución: `set lock_timeout = '5s'; set statement_timeout = '60s';` (**0001–0006 ya no usan `drop … if exists`**: verifican con `pg_trigger`/`pg_policies`/`pg_constraint`/`to_regprocedure` antes de borrar. Ese patrón sobre objetos inexistentes **colgó** la herramienta MCP el 2026-10-08; hasta el 2026-10-08 (Batch 3) las migraciones 0001, 0002, 0004 y 0005 todavía lo usaban —el plan lo daba por corregido y no lo estaba—, y ahora lo comprueba la prueba `tests/db/migraciones.test.ts`: sin ese patrón y sin avisos «does not exist, skipping» al aplicar la cadena en una base nueva).
 - Sin `drop` ni `alter` sobre tablas de otros módulos; si una migración intentara hacerlo, se detiene.
 - **Si algo falla o se cuelga: detenerse.** Solo lecturas para reportar el estado. No cambiar de herramienta, no partir el SQL, no reintentar con otro método sin la aprobación de Sebas.
 

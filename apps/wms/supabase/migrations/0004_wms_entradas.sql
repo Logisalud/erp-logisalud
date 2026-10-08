@@ -144,10 +144,10 @@ begin
   end if;
   return coalesce(new, old);
 end $$;
-drop trigger if exists ingreso_lotes_congelado on wms.ingreso_lotes;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'ingreso_lotes_congelado' and tgrelid = to_regclass('wms.ingreso_lotes') and not tgisinternal) then drop trigger ingreso_lotes_congelado on wms.ingreso_lotes; end if; end $$;
 create trigger ingreso_lotes_congelado before update or delete on wms.ingreso_lotes
   for each row execute function wms.trg_ingreso_confirmado_inmutable();
-drop trigger if exists ingreso_lineas_congelado on wms.ingreso_lineas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'ingreso_lineas_congelado' and tgrelid = to_regclass('wms.ingreso_lineas') and not tgisinternal) then drop trigger ingreso_lineas_congelado on wms.ingreso_lineas; end if; end $$;
 create trigger ingreso_lineas_congelado before update or delete on wms.ingreso_lineas
   for each row execute function wms.trg_ingreso_confirmado_inmutable();
 
@@ -174,10 +174,10 @@ create table if not exists wms.solicitud_ingreso_versiones (
   unique (solicitud_id, version)
 );
 alter table wms.solicitud_ingreso_versiones enable row level security;
-drop trigger if exists solicitud_versiones_inmutable on wms.solicitud_ingreso_versiones;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'solicitud_versiones_inmutable' and tgrelid = to_regclass('wms.solicitud_ingreso_versiones') and not tgisinternal) then drop trigger solicitud_versiones_inmutable on wms.solicitud_ingreso_versiones; end if; end $$;
 create trigger solicitud_versiones_inmutable before update or delete on wms.solicitud_ingreso_versiones
   for each row execute function wms.trg_inmutable();
-drop trigger if exists solicitud_versiones_inmutable_tr on wms.solicitud_ingreso_versiones;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'solicitud_versiones_inmutable_tr' and tgrelid = to_regclass('wms.solicitud_ingreso_versiones') and not tgisinternal) then drop trigger solicitud_versiones_inmutable_tr on wms.solicitud_ingreso_versiones; end if; end $$;
 create trigger solicitud_versiones_inmutable_tr before truncate on wms.solicitud_ingreso_versiones
   for each statement execute function wms.trg_inmutable();
 
@@ -230,7 +230,7 @@ begin
   end if;
   return new;
 end $$;
-drop trigger if exists acta_recepcion_guardia on wms.actas_recepcion;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'acta_recepcion_guardia' and tgrelid = to_regclass('wms.actas_recepcion') and not tgisinternal) then drop trigger acta_recepcion_guardia on wms.actas_recepcion; end if; end $$;
 create trigger acta_recepcion_guardia before update or delete on wms.actas_recepcion
   for each row execute function wms.trg_acta_recepcion_guardia();
 
@@ -254,10 +254,10 @@ create table if not exists wms.acta_firmas (
   check (rol_firma = 'TRANSPORTISTA' or user_id is not null)
 );
 alter table wms.acta_firmas enable row level security;
-drop trigger if exists acta_firmas_inmutable on wms.acta_firmas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'acta_firmas_inmutable' and tgrelid = to_regclass('wms.acta_firmas') and not tgisinternal) then drop trigger acta_firmas_inmutable on wms.acta_firmas; end if; end $$;
 create trigger acta_firmas_inmutable before update or delete on wms.acta_firmas
   for each row execute function wms.trg_inmutable();
-drop trigger if exists acta_firmas_inmutable_tr on wms.acta_firmas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'acta_firmas_inmutable_tr' and tgrelid = to_regclass('wms.acta_firmas') and not tgisinternal) then drop trigger acta_firmas_inmutable_tr on wms.acta_firmas; end if; end $$;
 create trigger acta_firmas_inmutable_tr before truncate on wms.acta_firmas
   for each statement execute function wms.trg_inmutable();
 
@@ -299,7 +299,7 @@ begin
   end if;
   return new;
 end $$;
-drop trigger if exists acta_org_guardia on wms.actas_organolepticas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'acta_org_guardia' and tgrelid = to_regclass('wms.actas_organolepticas') and not tgisinternal) then drop trigger acta_org_guardia on wms.actas_organolepticas; end if; end $$;
 create trigger acta_org_guardia before update or delete on wms.actas_organolepticas
   for each row execute function wms.trg_acta_org_guardia();
 
@@ -324,8 +324,7 @@ create table if not exists wms.alertas (
 );
 alter table wms.alertas enable row level security;
 -- (re-ejecutable: si la tabla ya existía con la lista corta de tipos, se amplía)
-alter table wms.alertas add column if not exists lote_codigo text;
-alter table wms.alertas drop constraint if exists alertas_tipo_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'alertas_tipo_check' and conrelid = to_regclass('wms.alertas')) then alter table wms.alertas drop constraint alertas_tipo_check; end if; end $$;
 alter table wms.alertas add constraint alertas_tipo_check
   check (tipo in ('TEMPERATURA', 'RS_VENCIDO', 'DIVERGENCIA_COMPRAS', 'POR_TRASLADAR_VENCIDO', 'LOTE_POR_VENCER', 'LOTE_VENCIDO'));
 create unique index if not exists alertas_clave_abierta on wms.alertas (clave) where estado = 'ABIERTA';
@@ -1308,7 +1307,7 @@ do $$ declare t text; begin
   foreach t in array array['ingresos', 'ingreso_lineas', 'ingreso_lotes', 'solicitudes_ingreso',
       'solicitud_ingreso_versiones', 'actas_recepcion', 'acta_firmas', 'actas_organolepticas', 'alertas',
       'expedientes', 'expediente_documentos', 'expediente_faltantes'] loop
-    execute format('drop policy if exists lectura on wms.%I', t);
+    if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = t and policyname = 'lectura') then execute format('drop policy lectura on wms.%I', t); end if;
     execute format('create policy lectura on wms.%I for select to authenticated using (wms.es_usuario())', t);
   end loop;
 end $$;
