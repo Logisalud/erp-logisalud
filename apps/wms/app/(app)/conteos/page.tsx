@@ -16,7 +16,7 @@ export default async function Conteos() {
   const ctx = await exigirContexto()
   const repo = repositorio()
   const [conteos, ajustes, p, ordenes] = await Promise.all([repo.listarConteos(), repo.listarAjustes(), repo.panorama(), repo.listarMovimientos()])
-  const enMovimiento = new Set(ordenes.filter((o) => ['PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA'].includes(o.estado)).flatMap((o) => o.lineas.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId])))
+  const enMovimiento = new Set(ordenes.filter((o) => ['EJECUTADO', 'CON_DIFERENCIA'].includes(o.estado)).flatMap((o) => o.lineas.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId])))
   const puedeProgramar = puedeProgramarConteo(ctx.roles)
   const pendientes = ajustes.filter((a) => a.estado === 'PROPUESTO')
   const porPosicion = new Map<string, number>()

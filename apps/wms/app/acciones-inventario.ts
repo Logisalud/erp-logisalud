@@ -2,7 +2,7 @@
 
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
-import type { FilaCargaInicial, ErrorFilaCarga, LineaPreparar, RevisionLinea } from '@/domain/inventario'
+import type { FilaCargaInicial, ErrorFilaCarga, LineaEjecutar, ReporteVista, RevisionLinea, VistaGuardada } from '@/domain/inventario'
 import type { Actor, ResultadoAccion } from '@/services/repositorio'
 
 async function quien(): Promise<Actor> {
@@ -11,11 +11,9 @@ async function quien(): Promise<Actor> {
 }
 
 // ── Movimientos internos ────────────────────────────────────────────────────
-export async function prepararMovimientoAccion(lineas: LineaPreparar[], motivo: string): Promise<ResultadoAccion<{ id: string; numero: string }>> {
-  return repositorio().prepararMovimiento(lineas, motivo, await quien())
+export async function ejecutarMovimientoAccion(lineas: LineaEjecutar[], motivo: string): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+  return repositorio().ejecutarMovimiento(lineas, motivo, await quien())
 }
-export async function autorizarMovimientoAccion(id: string): Promise<ResultadoAccion> { return repositorio().autorizarMovimiento(id, await quien()) }
-export async function ejecutarMovimientoAccion(id: string): Promise<ResultadoAccion> { return repositorio().ejecutarMovimiento(id, await quien()) }
 export async function confirmarMovimientoAccion(id: string): Promise<ResultadoAccion> { return repositorio().confirmarMovimiento(id, await quien()) }
 export async function revisarMovimientoAccion(id: string, revision: RevisionLinea[]): Promise<ResultadoAccion<{ confirmadas: number; conDiferencia: number }>> { return repositorio().revisarMovimiento(id, revision, await quien()) }
 export async function resolverMovimientoAccion(lineaId: string, accion: 'REINTENTAR' | 'ANULAR', nota: string): Promise<ResultadoAccion> { return repositorio().resolverMovimiento(lineaId, accion, nota, await quien()) }
@@ -99,3 +97,8 @@ export async function validarDestinoAccion(posicionId: string, lineas: LineaMin[
   const [p, bloqueadas] = await Promise.all([repo.panorama(), repo.posicionesBloqueadas()])
   return validarDestino(p, posicionId, lineas, bloqueadas)
 }
+
+// ── Vistas guardadas de las listas ──────────────────────────────────────────
+export async function listarVistasAccion(reporte: ReporteVista): Promise<VistaGuardada[]> { return repositorio().listarVistas(reporte, await quien()) }
+export async function guardarVistaAccion(reporte: ReporteVista, nombre: string, filtros: Record<string, string>): Promise<ResultadoAccion<{ id: string }>> { return repositorio().guardarVista(reporte, nombre, filtros, await quien()) }
+export async function borrarVistaAccion(id: string): Promise<ResultadoAccion> { return repositorio().borrarVista(id, await quien()) }

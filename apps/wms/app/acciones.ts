@@ -8,6 +8,7 @@ import { modoDemoActivo } from '@/lib/demo'
 import { COOKIE_ROL_DEMO, rolDemoDesdeCookie } from '@/lib/sesion-demo'
 import { repositorio } from '@/services/repositorio-actual'
 import { buscar, type ResultadoBusqueda } from '@/domain/panorama'
+import { buscarMovimientos } from '@/domain/movimientos-lista'
 import type { DatosRegulatorios, EntradaProducto } from '@/domain/productos'
 import type { ResultadoAccion } from '@/services/repositorio'
 
@@ -28,8 +29,8 @@ export async function buscarAccion(consulta: string): Promise<ResultadoBusqueda[
   await exigirContexto()
   if (consulta.trim().length < 1) return []
   const repo = repositorio()
-  const [panorama, entradas] = await Promise.all([repo.panorama(), repo.buscarEntradas(consulta)])
-  return [...buscar(panorama, consulta), ...entradas]
+  const [panorama, entradas, ordenes] = await Promise.all([repo.panorama(), repo.buscarEntradas(consulta), repo.listarMovimientos()])
+  return [...buscar(panorama, consulta), ...buscarMovimientos(ordenes, consulta), ...entradas]
 }
 
 export interface EstadoFormulario {

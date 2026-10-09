@@ -121,17 +121,19 @@ Cada posición tiene tipo de área y propietario. El sistema bloquea combinacion
 - Rechazado: solo hacia Bajas/Rechazados del mismo propietario.
 
 ## Movimientos internos (INV-02)
-- **Implementado (Batch 3, 0007):** preparar (personal de almacén) → autorizar (Jefe o reemplazo) → mover (personal de almacén) → verificar y confirmar (otra persona del almacén). Solo al confirmar cambia el stock. Con diferencia, el movimiento queda abierto y se avisa al Jefe; no se «cuadra» una cantidad. Las unidades de un movimiento abierto no se reservan dos veces. Verifican solo auxiliares, Jefe y reemplazo (no Dirección Técnica).
-- Flujo: preparar → mover → verificar → confirmar.
-- **D-15 (2026-10-08):** quien hace un movimiento no lo valida: el verificador es distinto de quien lo **preparó** y de quien lo **ejecutó**. Se aplica en dominio (`puedeVerificar`) y en base de datos (restricciones de `wms.movimientos` y `validar_movimiento`), con test.
-- Autoriza Charlie (Jefe de Almacén), o Roberto/Jasury en su ausencia.
-- Con diferencia, queda abierta solo la línea afectada; las demás líneas del movimiento se confirman en la misma revisión.
-- Un movimiento puede llevar varias líneas con **orígenes y destinos distintos** (productos distintos, cada uno desde donde esté), con una sola autorización y una sola revisión línea por línea. El destino de la cabecera lo heredan las líneas; una línea puede tener el suyo.
-- **Disponible para mover** = saldo menos lo reservado por movimientos abiertos (incluida la misma orden). Un movimiento abierto reserva sus unidades pero no bloquea la ubicación; solo un conteo la bloquea.
+**Ajuste de Sebas (2026-10-09), reemplaza lo anterior: solo DOS personas y sin autorización en el sistema.**
+- **Ejecutado por:** quien crea el movimiento en el sistema y mueve físicamente la mercadería. Es **la misma persona**.
+- **Verificado por:** otro auxiliar, el Jefe de Almacén o su reemplazo. **Nunca quien ejecutó** (D-15, en dominio, funciones y restricciones de la base; la regla es por persona, no por rol: ni siendo el Jefe verifica lo suyo).
+- **Se elimina la autorización previa del Jefe:** la indicación es verbal y no se registra en el sistema. El flujo es **ejecutar → verificar**.
+- **Verificación línea por línea.** Las líneas conformes se confirman (en un solo movimiento del libro); una línea con diferencia queda abierta y la resuelve el Jefe o su reemplazo, **por separado**. No se «cuadra» una cantidad.
+- **El stock cambia solo al verificar cada línea.** Desde que se ejecuta, las unidades quedan **reservadas** para que nadie más las mueva. Un movimiento abierto reserva sus unidades pero **no bloquea la ubicación**; solo un conteo la bloquea.
+- **Disponible para mover** = saldo − unidades reservadas por movimientos abiertos (incluidas las líneas de la misma operación). **Nunca stock negativo:** no se puede mover más que lo disponible.
+- **Una operación, varias líneas;** cada línea con su producto, lote, propietario, origen, destino y cantidad. Origen y destino **por defecto** (opcionales) en la cabecera para el caso común; cualquier línea puede cambiarse a cualquier origen o destino. Al elegir el lote se autocompletan vencimiento, propietario y estado.
+- **Destinos permitidos:** solo posiciones del propietario de esa línea, más las áreas compartidas, y compatibles con su estado sanitario. Se valida al elegir (con mensaje humano) y otra vez en la base de datos, por línea.
+- **Referencia:** cada movimiento tiene un correlativo **MI-AAAA-NNNNN** que se reinicia cada año; se ve en la lista, el detalle, la búsqueda universal y la historia del lote (el Kardex del formato Farmacil lleva solo entradas y salidas, no movimientos internos).
+- Anula el movimiento quien lo ejecutó o el Jefe, solo mientras nadie verificó ninguna línea.
 - Se guarda: origen, destino, producto, lote, propietario, cantidad, motivo, ejecutor y verificador.
-- Corrección = movimiento inverso vinculado al original.
-- Mover no cambia el estado.
-- Se puede mover parte de un lote; una posición puede tener varios lotes.
+- Corrección = movimiento inverso vinculado al original. Mover no cambia el estado sanitario.
 
 ## Inventarios cíclicos (INV-05)
 - **Implementado (Batch 3, 0007):** el Jefe programa conteos por ubicación (3 por semana, parámetro `conteos_por_semana`). El contador **no ve** el saldo del sistema (ni lo puede leer por la API). Una ubicación en conteo **no se mueve** hasta cerrarlo. Si hay diferencia, la **segunda persona** cuenta, también a ciegas; si dos conteos coinciden entre sí, se registra la **causa** y el Jefe **propone** un ajuste que **autoriza Dirección Técnica** (distinta de quien propone) y deja su sustento y su fila en el Kardex; sin explicación, se **escala** con evidencia. El conteo se cierra con fecha, alcance, quién contó, diferencia, causa y acción.

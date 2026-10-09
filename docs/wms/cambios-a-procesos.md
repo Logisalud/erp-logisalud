@@ -30,3 +30,17 @@ D-36: integración WMS → Compras (`integracion-wms-compras.md`). D-37: present
 
 ## Siguiente paso
 Revisión de Dirección Técnica y Almacén. Si se aprueban, se renombran como versión vigente (sin sobrescribir el historial) y se actualizan las referencias.
+
+
+## INV-02 Movimientos entre ubicaciones — ajuste del 2026-10-09 (Sebas)
+**El original `procesos/INV-02_Movimientos-entre-ubicaciones_TO-BE_v1.0.xlsx` no se tocó.** Lo que cambia en el WMS respecto de su hoja `03_TO-BE`:
+
+| Tema | Antes (TO-BE v1.0 y Batch 3) | Ahora |
+|---|---|---|
+| Autorización | El Jefe autorizaba cada movimiento antes de moverlo | **Se elimina el paso de autorización**: la indicación es verbal y no se registra en el sistema |
+| Personas | Preparó, autorizó, movió y verificó | **Solo dos:** *Ejecutado por* (quien crea el movimiento en el sistema y mueve la mercadería: la misma persona) y *Verificado por* (otro auxiliar, el Jefe o su reemplazo; nunca quien ejecutó) |
+| Flujo | preparar → autorizar → mover → verificar | **ejecutar → verificar** |
+| Líneas | Un origen y un destino por orden | Varios productos en una operación, **cada línea con su origen y su destino** (con origen y destino por defecto opcionales) |
+| Stock | Cambia al confirmar | Cambia **al verificar cada línea**; desde que se ejecuta, las unidades quedan **reservadas** |
+| Diferencia | Dejaba abierto el movimiento | Deja abierta **solo la línea** con diferencia; el Jefe o su reemplazo la resuelve por separado |
+| Referencia | MI-AAAA-NNNNN | Igual, visible en la lista (tabla), el detalle, la búsqueda universal y la historia del lote |

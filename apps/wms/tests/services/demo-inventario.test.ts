@@ -32,9 +32,8 @@ describe('Kardex e historia', () => {
   })
   it('un movimiento interno no entra al Kardex pero sí a la historia del lote', async () => {
     const [orden] = await repo.listarMovimientos()
-    const o = (await repo.listarMovimientos()).find((x) => x.estado === 'AUTORIZADO')!
+    const o = (await repo.listarMovimientos()).find((x) => x.ejecutorId === 'demo:jefe_almacen')!
     expect(orden).toBeTruthy()
-    exito(await repo.ejecutarMovimiento(o.id, AUX))
     exito(await repo.confirmarMovimiento(o.id, REEMPLAZO))
     const lote = o.lineas[0].loteId
     const p = await repo.panorama()
@@ -43,30 +42,40 @@ describe('Kardex e historia', () => {
     expect(kardex.map((f) => f.tipoDocumento)).toEqual(['Carga inicial'])
     const h = await repo.historiaLote(lote)
     expect(h.map((x) => x.tipo)).toEqual(['CARGA_INICIAL', 'MOVIMIENTO', 'MOVIMIENTO'])
-    expect(h[1]).toMatchObject({ preparador: 'Auxiliar de almacén (demo)', verificador: 'Reemplazo del Jefe de Almacén (demo)' })
+    expect(h[1]).toMatchObject({ ejecutor: 'Jefe de Almacén (demo)', verificador: 'Reemplazo del Jefe de Almacén (demo)', referencia: o.numero })
   })
 })
 
-describe('movimientos internos (D-15)', () => {
-  it('quien preparó o movió no verifica; otra persona sí, y el stock se mueve recién al confirmar', async () => {
-    const o = (await repo.listarMovimientos()).find((x) => x.estado === 'AUTORIZADO')!
-    const antes = (await repo.panorama()).saldos.filter((s) => s.loteId === o.lineas[0].loteId && s.posicionId === o.lineas[0].desdePosicionId).reduce((n, s) => n + s.cantidad, 0)
-    exito(await repo.ejecutarMovimiento(o.id, JEFE))
-    expect(await repo.confirmarMovimiento(o.id, JEFE)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/ejecutó/) })
-    expect(await repo.confirmarMovimiento(o.id, AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/preparó/) })
-    expect((await repo.panorama()).saldos.filter((s) => s.loteId === o.lineas[0].loteId && s.posicionId === o.lineas[0].desdePosicionId).reduce((n, s) => n + s.cantidad, 0)).toBe(antes)
-    exito(await repo.confirmarMovimiento(o.id, REEMPLAZO))
-    expect((await repo.panorama()).saldos.filter((s) => s.loteId === o.lineas[0].loteId && s.posicionId === o.lineas[0].desdePosicionId).reduce((n, s) => n + s.cantidad, 0)).toBe(antes - o.lineas[0].cantidad)
+describe('movimientos internos: ejecutar → verificar, dos personas (D-15)', () => {
+  const del = async (rol: string) => (await repo.listarMovimientos()).find((x) => x.ejecutorId === `demo:${rol}`)!
+  const enOrigen = async (o: { lineas: { loteId: string; desdePosicionId: string }[] }) =>
+    (await repo.panorama()).saldos.filter((s) => s.loteId === o.lineas[0].loteId && s.posicionId === o.lineas[0].desdePosicionId).reduce((n, s) => n + s.cantidad, 0)
+
+  it('el ejecutor no verifica su propio movimiento; otra persona sí, y el stock se mueve recién al verificar', async () => {
+    const o = await del('jefe_almacen')
+    const antes = await enOrigen(o)
+    expect(await repo.confirmarMovimiento(o.id, JEFE)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/no puede ser quien ejecutó/) })
+    expect(await enOrigen(o)).toBe(antes)                                   // ejecutado, pero el stock no cambia todavía
+    exito(await repo.confirmarMovimiento(o.id, AUX))                        // otro auxiliar
+    expect(await enOrigen(o)).toBe(antes - o.lineas[0].cantidad)
   })
-  it('solo el Jefe autoriza y sin autorizar no se mueve', async () => {
-    const o = (await repo.listarMovimientos()).find((x) => x.estado === 'PREPARADO')!
-    expect(await repo.autorizarMovimiento(o.id, AUX)).toMatchObject({ ok: false })
-    expect(await repo.ejecutarMovimiento(o.id, AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/autorizado/) })
-    exito(await repo.autorizarMovimiento(o.id, JEFE))
+  it('el Jefe y su reemplazo también verifican (si no ejecutaron); Dirección Técnica y auditoría no', async () => {
+    const o = await del('auxiliar')
+    expect(await repo.confirmarMovimiento(o.id, KATIA)).toMatchObject({ ok: false })
+    expect(await repo.confirmarMovimiento(o.id, AUDITOR)).toMatchObject({ ok: false })
+    exito(await repo.confirmarMovimiento(o.id, JEFE))
+  })
+  it('no hay autorización: el movimiento nace ejecutado y sus unidades quedan reservadas desde ahí', async () => {
+    const { p, s } = await stockLibre(30)
+    const libre = p.posiciones.find((x) => x.tipoArea === 'APROBADOS' && x.activa && !p.saldos.some((q) => q.posicionId === x.id) && p.asignaciones.some((a) => a.posicionId === x.id && a.propietarioId === s.propietarioId))!
+    const r = exito(await repo.ejecutarMovimiento([{ desdePosicionId: s.posicionId, haciaPosicionId: libre.id, loteId: s.loteId, estado: s.estado, procedenciaId: s.procedenciaId, cantidad: 5 }], 'Acomodo', AUX))
+    const o = (await repo.obtenerMovimiento(r.id))!
+    expect(o).toMatchObject({ estado: 'EJECUTADO', ejecutorId: 'demo:auxiliar' })
+    expect(o.verificadorId).toBeUndefined()
+    expect((repo as unknown as Record<string, unknown>).autorizarMovimiento).toBeUndefined()
   })
   it('con diferencia queda abierta SOLO esa línea y avisa al Jefe; no se cuadra', async () => {
-    const o = (await repo.listarMovimientos()).find((x) => x.estado === 'AUTORIZADO')!
-    exito(await repo.ejecutarMovimiento(o.id, AUX))
+    const o = await del('auxiliar')
     const l = o.lineas[0]
     expect(await repo.revisarMovimiento(o.id, [{ lineaId: l.id, resultado: 'DIFERENCIA', nota: '  ' }], REEMPLAZO)).toMatchObject({ ok: false })
     expect(await repo.revisarMovimiento(o.id, [], REEMPLAZO)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Revisa las 1 líneas/) })
@@ -74,7 +83,7 @@ describe('movimientos internos (D-15)', () => {
     expect((await repo.obtenerMovimiento(o.id))!.estado).toBe('CON_DIFERENCIA')
     expect((await repo.listarAlertas()).some((a) => a.tipo === 'MOVIMIENTO_CON_DIFERENCIA' && a.estado === 'ABIERTA')).toBe(true)
     exito(await repo.resolverMovimiento(l.id, 'REINTENTAR', 'Se vuelve a mover', JEFE))
-    expect((await repo.obtenerMovimiento(o.id))!.estado).toBe('AUTORIZADO')
+    expect((await repo.obtenerMovimiento(o.id))!.estado).toBe('EJECUTADO')
   })
   it('un movimiento de varias líneas: una diferencia no frena a las demás', async () => {
     const { p, s } = await stockLibre(1)
@@ -85,9 +94,7 @@ describe('movimientos internos (D-15)', () => {
     const celdas = p.saldos.filter((q) => q.posicionId === origen.id && q.estado === 'APROBADO')
     const destino = destinos.find((d) => p.asignaciones.some((a) => a.posicionId === d.id && a.propietarioId === celdas[0].propietarioId) && !usadas.has(d.id))!
     const lineas = celdas.filter((c) => c.propietarioId === celdas[0].propietarioId).map((c) => ({ desdePosicionId: c.posicionId, haciaPosicionId: destino.id, loteId: c.loteId, estado: c.estado, procedenciaId: c.procedenciaId, cantidad: c.cantidad }))
-    const r = exito(await repo.prepararMovimiento(lineas, 'Mover todo', AUX))
-    exito(await repo.autorizarMovimiento(r.id, JEFE))
-    exito(await repo.ejecutarMovimiento(r.id, AUX))
+    const r = exito(await repo.ejecutarMovimiento(lineas, 'Mover todo', AUX))
     const o = (await repo.obtenerMovimiento(r.id))!
     const revision = o.lineas.map((l, i) => i === 0 && o.lineas.length > 1 ? { lineaId: l.id, resultado: 'DIFERENCIA' as const, nota: 'Falta una caja' } : { lineaId: l.id, resultado: 'COINCIDE' as const })
     const res = exito(await repo.revisarMovimiento(r.id, revision, REEMPLAZO))
@@ -95,19 +102,19 @@ describe('movimientos internos (D-15)', () => {
     const despues = await repo.obtenerMovimiento(r.id)
     expect(despues!.estado).toBe(o.lineas.length > 1 ? 'CON_DIFERENCIA' : 'CONFIRMADO')
   })
-  it('prepara un movimiento nuevo y rechaza reservar dos veces o ir a una zona que no corresponde', async () => {
+  it('registra un movimiento nuevo y rechaza reservar dos veces o ir a una zona que no corresponde', async () => {
     const { p, s } = await stockLibre(30)
     const libre = p.posiciones.find((x) => x.tipoArea === 'APROBADOS' && x.activa && !p.saldos.some((q) => q.posicionId === x.id) && p.asignaciones.some((a) => a.posicionId === x.id && a.propietarioId === s.propietarioId))
     const cuarentena = p.posiciones.find((x) => x.tipoArea === 'CUARENTENA')!
     const linea = (hacia: string, cantidad: number) => ({ desdePosicionId: s.posicionId, haciaPosicionId: hacia, loteId: s.loteId, estado: s.estado, procedenciaId: s.procedenciaId, cantidad })
     if (libre) {
-      const r = exito(await repo.prepararMovimiento([linea(libre.id, 5)], 'Acomodo', AUX))
+      const r = exito(await repo.ejecutarMovimiento([linea(libre.id, 5)], 'Acomodo', AUX))
       expect(r.numero).toMatch(/^MI-\d{4}-\d{5}$/)
-      expect(await repo.prepararMovimiento([linea(libre.id, s.cantidad)], 'Acomodo', AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/No hay suficientes unidades/) })
+      expect(await repo.ejecutarMovimiento([linea(libre.id, s.cantidad)], 'Acomodo', AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/No hay suficientes unidades/) })
     }
-    expect(await repo.prepararMovimiento([linea(cuarentena.id, 1)], 'Acomodo', AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/no admite/) })
-    expect(await repo.prepararMovimiento([linea(cuarentena.id, 1)], '', AUX)).toMatchObject({ ok: false })
-    expect(await repo.prepararMovimiento([linea(cuarentena.id, 1)], 'x', AUDITOR)).toMatchObject({ ok: false })
+    expect(await repo.ejecutarMovimiento([linea(cuarentena.id, 1)], 'Acomodo', AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/no admite/) })
+    expect(await repo.ejecutarMovimiento([linea(cuarentena.id, 1)], '', AUX)).toMatchObject({ ok: false })
+    expect(await repo.ejecutarMovimiento([linea(cuarentena.id, 1)], 'x', AUDITOR)).toMatchObject({ ok: false })
   })
 })
 
@@ -152,7 +159,7 @@ describe('conteos y ajustes (INV-05)', () => {
     const p = await repo.panorama()
     const libre = p.posiciones.find((x) => x.tipoArea === 'APROBADOS' && x.activa && !p.saldos.some((q) => q.posicionId === x.id) && p.asignaciones.some((a) => a.posicionId === x.id && a.propietarioId === s.propietarioId))
     if (!libre) return
-    expect(await repo.prepararMovimiento([{ desdePosicionId: s.posicionId, haciaPosicionId: libre.id, loteId: s.loteId, estado: s.estado, procedenciaId: s.procedenciaId, cantidad: 1 }], 'x', AUX))
+    expect(await repo.ejecutarMovimiento([{ desdePosicionId: s.posicionId, haciaPosicionId: libre.id, loteId: s.loteId, estado: s.estado, procedenciaId: s.procedenciaId, cantidad: 1 }], 'x', AUX))
       .toMatchObject({ ok: false, mensaje: expect.stringMatching(/está en conteo/) })
   })
 })
@@ -200,14 +207,12 @@ describe('un movimiento con productos de distintos orígenes (el demo aplica lo 
   it('una orden con orígenes distintos y un destino cambiado en una línea; una autorización y una revisión; solo la línea con diferencia queda abierta', async () => {
     const { celdas, destinos } = await armar()
     const [a, b, c] = celdas
-    const r = exito(await repo.prepararMovimiento([
+    const r = exito(await repo.ejecutarMovimiento([
       lineaDe(a as never, destinos[0].id, 5), lineaDe(b as never, destinos[0].id, 4), lineaDe(c as never, destinos[1].id, 3), // la tercera, a otro destino
     ], 'Reubicar varios productos', AUX))
     const o = (await repo.obtenerMovimiento(r.id))!
     expect(o.lineas.map((l) => l.hacia)).toEqual([destinos[0].codigo, destinos[0].codigo, destinos[1].codigo])
     expect(new Set(o.lineas.map((l) => l.desde)).size).toBe(3)
-    exito(await repo.autorizarMovimiento(r.id, JEFE))
-    exito(await repo.ejecutarMovimiento(r.id, AUX))
     exito(await repo.revisarMovimiento(r.id, o.lineas.map((l, i) => (i === 1 ? { lineaId: l.id, resultado: 'DIFERENCIA' as const, nota: 'Faltan 2 en el destino' } : { lineaId: l.id, resultado: 'COINCIDE' as const })), REEMPLAZO))
     const d = (await repo.obtenerMovimiento(r.id))!
     expect(d.estado).toBe('CON_DIFERENCIA')
@@ -224,20 +229,20 @@ describe('un movimiento con productos de distintos orígenes (el demo aplica lo 
   it('las unidades de una orden preparada quedan reservadas para otra persona; el resto sigue libre; anular las libera', async () => {
     const { celdas, destinos } = await armar()
     const [a] = celdas
-    const r = exito(await repo.prepararMovimiento([lineaDe(a as never, destinos[0].id, a.cantidad - 2)], 'Reservar', AUX))
-    const otra = await repo.prepararMovimiento([lineaDe(a as never, destinos[1].id, 3)], 'Mismas unidades', REEMPLAZO)
+    const r = exito(await repo.ejecutarMovimiento([lineaDe(a as never, destinos[0].id, a.cantidad - 2)], 'Reservar', AUX))
+    const otra = await repo.ejecutarMovimiento([lineaDe(a as never, destinos[1].id, 3)], 'Mismas unidades', REEMPLAZO)
     expect(otra).toMatchObject({ ok: false, mensaje: expect.stringMatching(/otros movimientos ya reservan/) })
-    exito(await repo.prepararMovimiento([lineaDe(a as never, destinos[1].id, 2)], 'Lo que quedaba', REEMPLAZO))
+    exito(await repo.ejecutarMovimiento([lineaDe(a as never, destinos[1].id, 2)], 'Lo que quedaba', REEMPLAZO))
     exito(await repo.anularMovimiento(r.id, 'Ya no hace falta', AUX))
-    exito(await repo.prepararMovimiento([lineaDe(a as never, destinos[2].id, a.cantidad - 2)], 'Ya libre', REEMPLAZO))
+    exito(await repo.ejecutarMovimiento([lineaDe(a as never, destinos[2].id, a.cantidad - 2)], 'Ya libre', REEMPLAZO))
   })
 
   it('dos líneas de la misma celda en una orden no pasan de lo que hay, y un movimiento abierto no bloquea la ubicación', async () => {
     const { celdas, destinos } = await armar()
     const [a] = celdas
-    const e = await repo.prepararMovimiento([lineaDe(a as never, destinos[0].id, a.cantidad - 1), lineaDe(a as never, destinos[1].id, 2)], 'x', AUX)
+    const e = await repo.ejecutarMovimiento([lineaDe(a as never, destinos[0].id, a.cantidad - 1), lineaDe(a as never, destinos[1].id, 2)], 'x', AUX)
     expect(e.ok).toBe(false)
-    exito(await repo.prepararMovimiento([lineaDe(a as never, destinos[0].id, 1)], 'Una', AUX))
+    exito(await repo.ejecutarMovimiento([lineaDe(a as never, destinos[0].id, 1)], 'Una', AUX))
     expect(Object.keys(await repo.posicionesBloqueadas()).includes(a.posicionId)).toBe(false)
   })
 })

@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { ArrowRight, CheckCircle2, Trash2, TriangleAlert } from 'lucide-react'
-import type { LineaContenido, ValidacionLineaMov } from '@/domain/inventario'
+import type { CeldaDeProducto, LineaContenido, ValidacionLineaMov } from '@/domain/inventario'
 import { formatoFecha } from '@/domain/fechas'
 import { BuscarDestino, type DestinoElegido } from './destino'
+import { CambiarOrigenLinea } from './origen'
 import { ChipEstado, ChipPropietario } from './piezas'
 
 export interface LineaCarrito { celda: LineaContenido; cantidad: string; destino?: DestinoElegido }
@@ -17,11 +18,14 @@ export const errorDeCantidad = (l: LineaCarrito): string | undefined => {
 }
 
 /** Las líneas del movimiento, una tarjeta por línea: se edita la cantidad, se cambia el destino de esa línea o se quita. */
-export function ListaLineas({ lineas, destinoDefecto, validacion, validando, alCambiar, alQuitar }: {
+export function ListaLineas({ lineas, destinoDefecto, validacion, validando, alCambiar, alQuitar, alCambiarOrigen }: {
   lineas: LineaCarrito[]; destinoDefecto: DestinoElegido | null; validacion: Map<string, ValidacionLineaMov>; validando: boolean
   alCambiar: (clave: string, cambios: Partial<Pick<LineaCarrito, 'cantidad' | 'destino'>>) => void; alQuitar: (clave: string) => void
+  alCambiarOrigen: (clave: string, nueva: CeldaDeProducto) => void
 }) {
   const [cambiando, setCambiando] = useState<string | null>(null)
+  const [cambiandoOrigen, setCambiandoOrigen] = useState<string | null>(null)
+  const enMovimiento = new Set(lineas.map((l) => l.celda.clave))
   return (
     <ul className="space-y-3" data-testid="mover-lista">
       {lineas.map((l) => {
@@ -60,9 +64,11 @@ export function ListaLineas({ lineas, destinoDefecto, validacion, validando, alC
             {efectivo && !v && validando && !err && <p className="mt-2 text-sm text-gray-600">Validando…</p>}
 
             <div className="mt-3 flex flex-wrap gap-2">
+              {cambiandoOrigen !== c.clave && <button type="button" className="btn-secondary btn-sm" onClick={() => setCambiandoOrigen(c.clave)} data-testid="linea-cambiar-origen">Otro origen</button>}
               {cambiando !== c.clave && <button type="button" className="btn-secondary btn-sm" onClick={() => setCambiando(c.clave)} data-testid="linea-cambiar-destino">{l.destino ? 'Cambiar su destino' : 'Otro destino para esta línea'}</button>}
               {l.destino && <button type="button" className="btn-secondary btn-sm" onClick={() => { alCambiar(c.clave, { destino: undefined }); setCambiando(null) }} data-testid="linea-usar-del-movimiento">Usar el del movimiento</button>}
             </div>
+            {cambiandoOrigen === c.clave && <CambiarOrigenLinea productoId={c.productoId} claveActual={c.clave} enMovimiento={enMovimiento} alCancelar={() => setCambiandoOrigen(null)} alElegir={(n) => { alCambiarOrigen(c.clave, n); setCambiandoOrigen(null) }} />}
             {cambiando === c.clave && (
               <div className="mt-3 space-y-2 border-t border-gray-200 pt-3" data-testid="linea-buscar-destino">
                 <BuscarDestino id={`ld-${c.clave}`} etiqueta="Destino de esta línea" lineas={[{ clave: c.clave, posicionId: c.posicionId, propietarioId: c.propietarioId, propietario: c.propietario, estado: c.estado }]} testid={`linea-q-destino`} autoFoco

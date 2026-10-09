@@ -125,7 +125,7 @@ export default async function Inicio() {
     porRegistrarEnCompras: ingresos.filter((i) => i.registroCompras === 'FALTA' || i.registroCompras === 'NO_COINCIDE').length,
     organolepticasPendientes: cola.organolepticas.length, organolepticasPorLlenar: cola.borradores.length,
     expedientesConFaltantes: expedientes.filter((x) => x.estado === 'ABIERTO' && x.faltantesAbiertos > 0).length, alertasMias,
-    movimientosParaMi: ordenes.filter((o) => { const a = accionesDeOrden(o, ctx.usuario.id, ctx.roles); return a.autorizar || a.ejecutar || a.verificar || a.resolver }).length,
+    movimientosParaMi: ordenes.filter((o) => { const a = accionesDeOrden(o, ctx.usuario.id, ctx.roles); return a.verificar || a.resolver }).length,
     conteosAbiertos: conteos.filter((c) => c.estado !== 'CERRADO').length,
     ajustesPorAutorizar: ajustes.filter((a) => a.estado === 'PROPUESTO').length,
   })

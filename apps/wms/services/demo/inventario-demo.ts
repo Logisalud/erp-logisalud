@@ -1,9 +1,9 @@
 // Motor del inventario en el modo demostración (Batch 3). Aplica las mismas reglas que la migración 0007:
 // Kardex, movimientos internos con D-15, conteos ciegos, ajustes autorizados por Dirección Técnica y carga inicial con D-09.
 import {
-  accionesDeOrden, clasificarReconteo, construirKardex, puedeDecidirAjuste, puedePrepararMovimiento, puedeProgramarConteo,
+  clasificarReconteo, construirKardex, puedeDecidirAjuste, puedeEjecutarMovimiento, puedeProgramarConteo,
   type AjusteVista, type CargaInicialVista, type ConteoVista, type ErrorFilaCarga, type FilaCargaInicial, type FilaHistoriaLote,
-  type FilaKardex, type FiltroKardex, type LineaConteoVista, type LineaOrdenMovimiento, type LineaPreparar, type OrdenMovimiento,
+  type FilaKardex, type FiltroKardex, type LineaConteoVista, type LineaEjecutar, type LineaOrdenMovimiento, type OrdenMovimiento, type ReporteVista, type VistaGuardada,
   type ResultadoLinea, type RevisionLinea,
 } from '@/domain/inventario'
 import { puedeVerificar } from '@/domain/verificacion'
@@ -26,7 +26,7 @@ const nombrePersona = (id?: string): string | undefined => {
   return id
 }
 const esJefe = (r: readonly Rol[]) => r.includes('jefe_almacen') || r.includes('reemplazo_jefe')
-const ACTIVA = new Set(['PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA'])
+const ACTIVA = new Set(['EJECUTADO', 'CON_DIFERENCIA'])
 const mismaCelda = (s: Saldo, posicionId: string, loteId: string, estado: Estado, proc: string) =>
   s.posicionId === posicionId && s.loteId === loteId && s.estado === estado && s.procedenciaId === proc
 
@@ -86,11 +86,11 @@ function sembrarInventario(e: EstadoDemo) {
       haciaPosicionId: d.id, hacia: d.codigo, cantidad, verificacion: 'PENDIENTE',
     }
   }
-  const base = { motivo: 'Acomodo de producto de alta rotación', preparadorId: 'demo:auxiliar', preparador: nombrePersona('demo:auxiliar')! }
+  // Un movimiento ya ejecutado por el auxiliar que espera su verificación, y otro más antiguo del Jefe (para probar la regla de las dos personas).
   const l1 = linea(0, 0, 6); const l2 = linea(1, 1, 4)
   let k = 0
-  if (l1) inv.ordenes.push({ id: 'mi-demo-1', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'PREPARADO', preparadoEn: new Date(Date.now() - 3 * 3_600_000).toISOString(), ...base, lineas: [l1] })
-  if (l2) inv.ordenes.push({ id: 'mi-demo-2', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'AUTORIZADO', preparadoEn: new Date(Date.now() - 5 * 3_600_000).toISOString(), ...base, motivo: 'Acercar al despacho', autorizadoPor: nombrePersona('demo:jefe_almacen'), autorizadoEn: new Date(Date.now() - 4 * 3_600_000).toISOString(), lineas: [l2] })
+  if (l1) inv.ordenes.push({ id: 'mi-demo-1', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Acomodo de producto de alta rotación', ejecutorId: 'demo:auxiliar', ejecutor: nombrePersona('demo:auxiliar')!, ejecutadoEn: new Date(Date.now() - 3 * 3_600_000).toISOString(), lineas: [l1] })
+  if (l2) inv.ordenes.push({ id: 'mi-demo-2', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Acercar al despacho', ejecutorId: 'demo:jefe_almacen', ejecutor: nombrePersona('demo:jefe_almacen')!, ejecutadoEn: new Date(Date.now() - 5 * 3_600_000).toISOString(), lineas: [l2] })
   inv.contadores[`MI-${anioDe(e)}`] = k
   void posDe
 }
@@ -111,7 +111,7 @@ export class InventarioDemo extends EntradasDemo {
       saldo += p.delta
       return {
         partidaId: p.id, fecha: p.ts, tipo: p.tipo, motivo: p.motivo, posicion: n.posicion(p.posicionId), estado: p.estado, origen: p.origen, delta: p.delta,
-        ejecutor: nombrePersona(p.ejecutorId), preparador: nombrePersona(p.preparadorId), verificador: nombrePersona(p.verificadorId), movimientoId: p.movimientoId,
+        ejecutor: nombrePersona(p.ejecutorId), verificador: nombrePersona(p.verificadorId), movimientoId: p.movimientoId,
         reversaDe: p.reversaDe, referencia: p.referenciaId, sustento: p.sustentoId, saldoLote: saldo,
       }
     })
@@ -128,9 +128,9 @@ export class InventarioDemo extends EntradasDemo {
   async listarMovimientos() { return structuredClone([...this.ordenes()].reverse()) }
   async obtenerMovimiento(id: string) { const o = this.orden(id); return o ? structuredClone(o) : null }
 
-  async prepararMovimiento(lineas: LineaPreparar[], motivo: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+  async ejecutarMovimiento(lineas: LineaEjecutar[], motivo: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
     const e = estadoE(); sembrarInventario(e)
-    if (!puedePrepararMovimiento(actor.roles)) return falla('No tienes permiso para preparar movimientos')
+    if (!puedeEjecutarMovimiento(actor.roles)) return falla('No tienes permiso para registrar movimientos')
     if (!motivo?.trim()) return falla('Cuéntanos por qué se mueve: el motivo es obligatorio', { motivo: 'Cuéntanos por qué se mueve.' })
     if (!lineas.length) return falla('El movimiento no tiene líneas')
     const n = nombres(e)
@@ -158,32 +158,12 @@ export class InventarioDemo extends EntradasDemo {
       })
     }
     const o: OrdenMovimiento = {
-      id: nuevoId(), numero: numeroDe(e.inv, 'MI', anioDe(e)), estado: 'PREPARADO', motivo: motivo.trim(), preparadorId: actor.id, preparador: actor.nombre,
-      preparadoEn: ahora(), lineas: nuevas,
+      id: nuevoId(), numero: numeroDe(e.inv, 'MI', anioDe(e)), estado: 'EJECUTADO', motivo: motivo.trim(), ejecutorId: actor.id, ejecutor: actor.nombre,
+      ejecutadoEn: ahora(), lineas: nuevas,
     }
     e.inv.ordenes.push(o)
-    registrar(e, actor, 'movimiento_preparado', 'ordenes_movimiento', o.numero, `Movimiento preparado (${nuevas.length} ${nuevas.length === 1 ? 'línea' : 'líneas'})`, o.motivo)
+    registrar(e, actor, 'movimiento_ejecutado', 'ordenes_movimiento', o.numero, `Movimiento ejecutado: espera su verificación (${nuevas.length} ${nuevas.length === 1 ? 'línea' : 'líneas'})`, o.motivo)
     return { ok: true, id: o.id, numero: o.numero }
-  }
-
-  async autorizarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion> {
-    const o = this.orden(id); const e = estadoE()
-    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén (o su reemplazo) hace esto')
-    if (!o) return falla('No encontramos ese movimiento')
-    if (o.estado !== 'PREPARADO') return falla('Este movimiento ya no está por autorizar')
-    o.estado = 'AUTORIZADO'; o.autorizadoPor = actor.nombre; o.autorizadoEn = ahora()
-    registrar(e, actor, 'movimiento_autorizado', 'ordenes_movimiento', o.numero, 'Movimiento autorizado')
-    return { ok: true }
-  }
-
-  async ejecutarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion> {
-    const o = this.orden(id); const e = estadoE()
-    if (!accionesDeOrden({ ...(o ?? ({} as OrdenMovimiento)), estado: 'AUTORIZADO' } as OrdenMovimiento, actor.id, actor.roles).ejecutar) return falla('No tienes permiso para mover mercadería')
-    if (!o) return falla('No encontramos ese movimiento')
-    if (o.estado !== 'AUTORIZADO') return falla('El movimiento debe estar autorizado antes de moverlo')
-    o.estado = 'EJECUTADO'; o.ejecutorId = actor.id; o.ejecutor = actor.nombre; o.ejecutadoEn = ahora()
-    registrar(e, actor, 'movimiento_ejecutado', 'ordenes_movimiento', o.numero, 'Movimiento ejecutado: espera verificación')
-    return { ok: true }
   }
 
   async confirmarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion> {
@@ -193,10 +173,10 @@ export class InventarioDemo extends EntradasDemo {
     return r.ok ? { ok: true } : r
   }
 
-  /** Mismo orden de mensajes que la base: permiso → preparó → ejecutó. */
+  /** Mismo orden de mensajes que la base: permiso → ejecutó. */
   private puedeVerificarOrden(o: OrdenMovimiento, actor: Actor): string | null {
     if (!actor.roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe'].includes(r))) return 'Solo el personal de almacén verifica movimientos'
-    const r = puedeVerificar(actor.id, { preparadorId: o.preparadorId, ejecutorId: o.ejecutorId })
+    const r = puedeVerificar(actor.id, { ejecutorId: o.ejecutorId })
     return r.puede ? null : r.mensaje
   }
 
@@ -223,7 +203,7 @@ export class InventarioDemo extends EntradasDemo {
     if (ok.length) {
       for (const l of ok) moverSaldo(e, { ...l, propietarioId: nombres(e).loteObj(l.loteId)!.propietarioId })
       movId = `mov-mi-${o.numero}-${siguiente(e.inv, `rev-${o.numero}`)}`
-      anotar(e.inv, movId, 'MOVIMIENTO', ahora(), { motivo: o.motivo, ejecutorId: o.ejecutorId, preparadorId: o.preparadorId, verificadorId: actor.id, referenciaTipo: 'orden_movimiento', referenciaId: o.numero },
+      anotar(e.inv, movId, 'MOVIMIENTO', ahora(), { motivo: o.motivo, ejecutorId: o.ejecutorId, preparadorId: o.ejecutorId, verificadorId: actor.id, referenciaTipo: 'orden_movimiento', referenciaId: o.numero },
         ok.flatMap((l) => {
           const lote = nombres(e).loteObj(l.loteId)!
           const base = { productoId: l.productoId, loteId: l.loteId, propietarioId: lote.propietarioId, estado: l.estado, origen: origenDe(e, l.loteId, l.procedenciaId), procedenciaId: l.procedenciaId }
@@ -257,7 +237,7 @@ export class InventarioDemo extends EntradasDemo {
     const al = e.alertas.find((a) => (a as { clave?: string }).clave === `mov-dif:${l.id}` && a.estado === 'ABIERTA')
     if (al) { al.estado = 'ATENDIDA'; al.atendidaPor = actor.nombre; al.atendidaEn = ahora(); al.nota = nota.trim() }
     if (o.lineas.some((x) => x.verificacion === 'CON_DIFERENCIA')) { /* quedan diferencias por resolver */ }
-    else if (o.lineas.some((x) => x.verificacion === 'PENDIENTE')) { o.estado = 'AUTORIZADO'; o.ejecutorId = undefined; o.ejecutor = undefined; o.ejecutadoEn = undefined; o.verificadorId = undefined; o.verificador = undefined; o.verificadoEn = undefined; o.notaDiferencia = undefined }
+    else if (o.lineas.some((x) => x.verificacion === 'PENDIENTE')) { o.estado = 'EJECUTADO'; o.verificadorId = undefined; o.verificador = undefined; o.verificadoEn = undefined; o.notaDiferencia = undefined }
     else if (o.lineas.some((x) => x.verificacion === 'CONFIRMADA')) { o.estado = 'CONFIRMADO'; o.notaDiferencia = undefined }
     else { o.estado = 'ANULADO'; o.motivoAnulacion = nota.trim() }
     registrar(e, actor, 'movimiento_diferencia_resuelta', 'ordenes_movimiento', o.numero, accion === 'REINTENTAR' ? 'La línea se vuelve a mover' : 'La línea se anula', nota.trim())
@@ -276,11 +256,31 @@ export class InventarioDemo extends EntradasDemo {
   async anularMovimiento(id: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {
     const o = this.orden(id); const e = estadoE()
     if (!o) return falla('No encontramos ese movimiento')
-    if (o.estado !== 'PREPARADO' && o.estado !== 'AUTORIZADO') return falla('Solo se anula un movimiento que todavía no se movió')
-    if (actor.id !== o.preparadorId && !esJefe(actor.roles)) return falla('Solo quien lo preparó o el Jefe de Almacén lo anula')
+    if (o.estado !== 'EJECUTADO' || o.lineas.some((l) => l.verificacion !== 'PENDIENTE')) return falla('Solo se anula un movimiento que todavía no se verificó')
+    if (actor.id !== o.ejecutorId && !esJefe(actor.roles)) return falla('Solo quien lo ejecutó o el Jefe de Almacén lo anula')
     if (!motivo?.trim()) return falla('Cuéntanos por qué se anula', { motivo: 'Cuéntanos por qué se anula.' })
     o.estado = 'ANULADO'; o.motivoAnulacion = motivo.trim()
     registrar(e, actor, 'movimiento_anulado', 'ordenes_movimiento', o.numero, 'Movimiento anulado', motivo.trim())
+    return { ok: true }
+  }
+
+  // ── Vistas guardadas (por persona) ──────────────────────────────────────
+  async listarVistas(reporte: ReporteVista, actor: Actor): Promise<VistaGuardada[]> {
+    return structuredClone((estadoE().inv.vistas[actor.id] ?? []).filter((v) => v.reporte === reporte).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+  }
+  async guardarVista(reporte: ReporteVista, nombre: string, filtros: Record<string, string>, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+    const e = estadoE()
+    if (!nombre.trim()) return falla('Ponle un nombre a la vista.')
+    const mias = (e.inv.vistas[actor.id] ??= [])
+    if (mias.some((v) => v.reporte === reporte && v.nombre.toLowerCase() === nombre.trim().toLowerCase())) return falla('Ya tienes una vista con ese nombre.')
+    const v: VistaGuardada = { id: nuevoId(), reporte, nombre: nombre.trim(), filtros }
+    mias.push(v)
+    return { ok: true, id: v.id }
+  }
+  async borrarVista(id: string, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE()
+    const mias = e.inv.vistas[actor.id] ?? []
+    e.inv.vistas[actor.id] = mias.filter((v) => v.id !== id)
     return { ok: true }
   }
 

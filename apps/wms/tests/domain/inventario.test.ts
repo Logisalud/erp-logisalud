@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { construirPanoramaDemo } from '@/services/demo/datos'
+import { FILTROS_VACIOS, ORDEN_INICIAL, filaDeOrden, filtrarMovimientos, hayFiltros, leerVista, ordenarMovimientos, serializarVista, type FiltrosMovimientos, type OrdenColumna } from '@/domain/movimientos-lista'
 import {
-  accionesDeOrden, buscarDestinos, buscarOrigenes, buscarProductosConStock, contenidoDeUbicacion, ubicacionesDeProducto, validarDestino, validarLineasMovimiento, clasificarReconteo, construirKardex, entraEnKardex, fechaEnLima, parsearCargaInicial, parsearTramos,
+  accionesDeOrden, puedeEjecutarMovimiento, buscarDestinos, buscarOrigenes, buscarProductosConStock, contenidoDeUbicacion, ubicacionesDeProducto, validarDestino, validarLineasMovimiento, clasificarReconteo, construirKardex, entraEnKardex, fechaEnLima, parsearCargaInicial, parsearTramos,
   reporteVencimientos, totalesKardex, type LoteConStock, type OrdenMovimiento, type PartidaLedger,
 } from '@/domain/inventario'
 
@@ -54,25 +55,41 @@ describe('vencimientos (D-30)', () => {
   })
 })
 
-describe('movimientos internos (D-15)', () => {
+describe('movimientos internos: dos personas, ejecutar → verificar (D-15)', () => {
   const orden = (estado: OrdenMovimiento['estado'], extra: Partial<OrdenMovimiento> = {}): OrdenMovimiento => ({
-    id: 'o', numero: 'MI-2026-00001', estado, motivo: 'm', preparadorId: 'ana', preparador: 'Ana', preparadoEn: '', lineas: [], ...extra,
+    id: 'o', numero: 'MI-2026-00001', estado, motivo: 'm', ejecutorId: 'ana', ejecutor: 'Ana', ejecutadoEn: '2026-10-07T15:00:00Z', lineas: [], ...extra,
   })
-  it('cada paso lo hace quien corresponde', () => {
-    expect(accionesDeOrden(orden('PREPARADO'), 'x', ['jefe_almacen']).autorizar).toBe(true)
-    expect(accionesDeOrden(orden('PREPARADO'), 'x', ['auxiliar']).autorizar).toBe(false)
-    expect(accionesDeOrden(orden('AUTORIZADO'), 'x', ['auxiliar']).ejecutar).toBe(true)
-    expect(accionesDeOrden(orden('AUTORIZADO'), 'x', ['auditoria_lectura']).ejecutar).toBe(false)
-    expect(accionesDeOrden(orden('PREPARADO'), 'ana', ['auxiliar']).anular).toBe(true)
-    expect(accionesDeOrden(orden('PREPARADO'), 'otra', ['auxiliar']).anular).toBe(false)
+  const l = (verificacion: 'PENDIENTE' | 'CONFIRMADA' | 'CON_DIFERENCIA'): OrdenMovimiento['lineas'][number] => ({
+    id: verificacion, productoId: 'p', producto: 'P', loteId: 'l', lote: 'L', propietario: 'LOGISSA', estado: 'APROBADO', procedenciaId: 'x', desdePosicionId: 'a', desde: 'A-1', haciaPosicionId: 'b', hacia: 'B-1', cantidad: 1, verificacion,
+  })
+  it('no hay autorización ni paso intermedio: el Jefe solo resuelve diferencias y anula', () => {
+    expect(Object.keys(accionesDeOrden(orden('EJECUTADO'), 'x', ['jefe_almacen'])).sort()).toEqual(['anular', 'motivoNoVerifica', 'resolver', 'verificar'])
     expect(accionesDeOrden(orden('CON_DIFERENCIA'), 'x', ['jefe_almacen']).resolver).toBe(true)
+    expect(accionesDeOrden(orden('CON_DIFERENCIA'), 'x', ['auxiliar']).resolver).toBe(false)
+    expect(accionesDeOrden(orden('CON_DIFERENCIA'), 'x', ['reemplazo_jefe']).resolver).toBe(true)
   })
-  it('el verificador no es quien preparó ni quien ejecutó', () => {
-    const o = orden('EJECUTADO', { ejecutorId: 'beto' })
-    expect(accionesDeOrden(o, 'ana', ['auxiliar'])).toMatchObject({ verificar: false, motivoNoVerifica: expect.stringMatching(/preparó/) })
-    expect(accionesDeOrden(o, 'beto', ['auxiliar'])).toMatchObject({ verificar: false, motivoNoVerifica: expect.stringMatching(/ejecutó/) })
+  it('lo anula quien lo ejecutó (o el Jefe), solo mientras nadie verificó ninguna línea', () => {
+    const o = orden('EJECUTADO', { lineas: [l('PENDIENTE')] })
+    expect(accionesDeOrden(o, 'ana', ['auxiliar']).anular).toBe(true)
+    expect(accionesDeOrden(o, 'otra', ['auxiliar']).anular).toBe(false)
+    expect(accionesDeOrden(o, 'otra', ['jefe_almacen']).anular).toBe(true)
+    expect(accionesDeOrden(orden('EJECUTADO', { lineas: [l('PENDIENTE'), l('CONFIRMADA')] }), 'ana', ['auxiliar']).anular).toBe(false)
+    expect(accionesDeOrden(orden('CONFIRMADO', { lineas: [l('CONFIRMADA')] }), 'ana', ['jefe_almacen']).anular).toBe(false)
+  })
+  it('el EJECUTOR no verifica su propio movimiento; otro auxiliar, el Jefe o su reemplazo sí; Dirección Técnica no', () => {
+    const o = orden('EJECUTADO', { lineas: [l('PENDIENTE')] })
+    expect(accionesDeOrden(o, 'ana', ['auxiliar'])).toMatchObject({ verificar: false, motivoNoVerifica: expect.stringMatching(/ejecutó/) })
+    expect(accionesDeOrden(o, 'ana', ['jefe_almacen']).verificar).toBe(false)            // ni siendo el Jefe: la regla es por persona
     expect(accionesDeOrden(o, 'carla', ['auxiliar']).verificar).toBe(true)
+    expect(accionesDeOrden(o, 'carla', ['jefe_almacen']).verificar).toBe(true)
+    expect(accionesDeOrden(o, 'carla', ['reemplazo_jefe']).verificar).toBe(true)
     expect(accionesDeOrden(o, 'carla', ['direccion_tecnica']).verificar).toBe(false)
+    expect(accionesDeOrden(o, 'carla', ['auditoria_lectura']).verificar).toBe(false)
+  })
+  it('quienes mueven mercadería registran movimientos; Dirección Técnica y auditoría no', () => {
+    expect(['auxiliar', 'jefe_almacen', 'reemplazo_jefe'].every((r) => puedeEjecutarMovimiento([r as never]))).toBe(true)
+    expect(puedeEjecutarMovimiento(['direccion_tecnica'])).toBe(false)
+    expect(puedeEjecutarMovimiento(['auditoria_lectura'])).toBe(false)
   })
 })
 
@@ -191,5 +208,55 @@ describe('Mover con varios orígenes: buscar por producto y validar cada línea 
     const otro = pan.posiciones.find((x) => x.id !== c.posicionId && x.tipoArea === 'APROBADOS')!
     const r = validarLineasMovimiento(pan, [{ ...min, haciaPosicionId: otro.id }], { [c.posicionId]: 'está en conteo CT-1' })
     expect(r[0].mensaje).toMatch(/está en conteo CT-1: no se mueve desde ahí/)
+  })
+})
+
+describe('lista de movimientos: filas, filtros, orden y vistas guardadas', () => {
+  const linea = (id: string, desde: string, hacia: string, propietario: string, cantidad: number, producto = 'DEMO-001 · Dapagliflozina'): OrdenMovimiento['lineas'][number] => ({
+    id, productoId: 'p', producto, loteId: 'l', lote: 'L2401', propietario, estado: 'APROBADO', procedenciaId: 'x', desdePosicionId: desde, desde, haciaPosicionId: hacia, hacia, cantidad, verificacion: 'PENDIENTE',
+  })
+  const orden = (id: string, numero: string, ejecutadoEn: string, lineas: OrdenMovimiento['lineas'], extra: Partial<OrdenMovimiento> = {}): OrdenMovimiento => ({
+    id, numero, estado: 'EJECUTADO', motivo: 'Acomodo', ejecutorId: 'u1', ejecutor: 'Milka', ejecutadoEn, lineas, ...extra,
+  })
+  const filas = [
+    filaDeOrden(orden('1', 'MI-2026-00001', '2026-10-05T15:00:00Z', [linea('a', 'A-10.2', 'B-2', 'Logissa', 5)])),
+    filaDeOrden(orden('2', 'MI-2026-00002', '2026-10-06T15:00:00Z', [linea('b', 'A-10.2', 'B-2', 'Logissa', 4), linea('c', 'A-12.1', 'B-3', 'Diphasac', 6, 'DEMO-003 · Losartán')], { ejecutor: 'Jose Carlos', ejecutorId: 'u2', estado: 'CON_DIFERENCIA', verificador: 'Charlie' })),
+    filaDeOrden(orden('3', 'MI-2026-00010', '2026-10-07T15:00:00Z', [linea('d', 'A-9', 'A-21.1', 'Diphasac', 20)], { estado: 'CONFIRMADO', verificador: 'Milka', ejecutor: 'Alberto', ejecutorId: 'u3' })),
+  ]
+
+  it('una fila por movimiento: «Varios» cuando hay más de un origen, destino o propietario; líneas y unidades', () => {
+    expect(filas[0]).toMatchObject({ desde: 'A-10.2', hacia: 'B-2', propietario: 'Logissa', lineas: 1, unidades: 5, dia: '2026-10-05' })
+    expect(filas[1]).toMatchObject({ desde: 'Varios', hacia: 'Varios', propietario: 'Varios', lineas: 2, unidades: 10, ejecutor: 'Jose Carlos', verificador: 'Charlie' })
+    expect(filas[1].propietarios.sort()).toEqual(['Diphasac', 'Logissa'])
+  })
+  it('busca por referencia, producto, lote, ubicación o persona; los filtros se combinan', () => {
+    const f = (c: Partial<FiltrosMovimientos>) => filtrarMovimientos(filas, { ...FILTROS_VACIOS, ...c }).map((x) => x.numero)
+    expect(f({ q: 'losartan' })).toEqual(['MI-2026-00002'])
+    expect(f({ q: 'mi-2026-00010' })).toEqual(['MI-2026-00010'])
+    expect(f({ q: 'l2401' })).toHaveLength(3)
+    expect(f({ q: 'jose' })).toEqual(['MI-2026-00002'])
+    expect(f({ estado: 'CONFIRMADO' })).toEqual(['MI-2026-00010'])
+    expect(f({ propietario: 'Diphasac' })).toEqual(['MI-2026-00002', 'MI-2026-00010'])
+    expect(f({ ejecutor: 'Milka' })).toEqual(['MI-2026-00001'])
+    expect(f({ ubicacion: 'a-12' })).toEqual(['MI-2026-00002'])
+    expect(f({ desde: '2026-10-06', hasta: '2026-10-06' })).toEqual(['MI-2026-00002'])
+    expect(f({ propietario: 'Logissa', estado: 'CON_DIFERENCIA' })).toEqual(['MI-2026-00002'])
+    expect(filtrarMovimientos(filas, { ...FILTROS_VACIOS, mios: true }, new Set(['3'])).map((x) => x.id)).toEqual(['3'])
+  })
+  it('ordena por columna: números como números, códigos en orden natural, fecha por defecto la más reciente', () => {
+    const o = (col: OrdenColumna['col'], dir: OrdenColumna['dir']) => ordenarMovimientos(filas, { col, dir }).map((x) => x.numero)
+    expect(o('fecha', 'desc')).toEqual(['MI-2026-00010', 'MI-2026-00002', 'MI-2026-00001'])
+    expect(o('unidades', 'desc')).toEqual(['MI-2026-00010', 'MI-2026-00002', 'MI-2026-00001'])
+    expect(o('lineas', 'asc')[2]).toBe('MI-2026-00002')
+    expect(o('desde', 'asc')).toEqual(['MI-2026-00010', 'MI-2026-00001', 'MI-2026-00002'])   // A-9 < A-10.2 < Varios
+    expect(o('numero', 'asc')).toEqual(['MI-2026-00001', 'MI-2026-00002', 'MI-2026-00010'])
+  })
+  it('una vista guardada recupera exactamente los filtros y el orden; lo inválido vuelve a lo básico', () => {
+    const f: FiltrosMovimientos = { ...FILTROS_VACIOS, estado: 'CON_DIFERENCIA', propietario: 'Diphasac', mios: true }
+    const v = serializarVista(f, { col: 'unidades', dir: 'asc' })
+    expect(v).toEqual({ orden: 'unidades:asc', estado: 'CON_DIFERENCIA', propietario: 'Diphasac', mios: '1' })
+    expect(leerVista(v)).toEqual({ filtros: f, orden: { col: 'unidades', dir: 'asc' } })
+    expect(leerVista({ orden: 'x:y', estado: 'OTRO' })).toEqual({ filtros: FILTROS_VACIOS, orden: ORDEN_INICIAL })
+    expect(hayFiltros(FILTROS_VACIOS)).toBe(false)
   })
 })

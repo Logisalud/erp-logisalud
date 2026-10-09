@@ -163,7 +163,7 @@ export function alertasRegulatorias(p: Panorama): AlertasRegulatorias {
   return out
 }
 
-export type TipoResultado = 'producto' | 'lote' | 'posicion' | 'oc' | 'acta'
+export type TipoResultado = 'producto' | 'lote' | 'posicion' | 'oc' | 'acta' | 'movimiento'
 
 export interface ResultadoBusqueda {
   tipo: TipoResultado

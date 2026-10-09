@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, Ban, Check, CheckCircle2, Hand, PackageCheck, RotateCcw, TriangleAlert, UserCheck } from 'lucide-react'
+import { ArrowRight, Ban, Check, CheckCircle2, PackageCheck, RotateCcw, TriangleAlert } from 'lucide-react'
 import {
-  anularMovimientoAccion, autorizarMovimientoAccion, ejecutarMovimientoAccion, resolverMovimientoAccion, revisarMovimientoAccion,
+  anularMovimientoAccion, resolverMovimientoAccion, revisarMovimientoAccion,
 } from '@/app/acciones-inventario'
 import type { AccionesOrden, LineaOrdenMovimiento, OrdenMovimiento, RevisionLinea } from '@/domain/inventario'
 import { useAccion } from '../usar-accion'
@@ -40,20 +40,8 @@ export function AccionesMovimiento({ orden, acciones }: { orden: OrdenMovimiento
 
   return (
     <div className="space-y-3" data-testid="acciones-movimiento">
-      {acciones.autorizar && (
-        <div className="space-y-2">
-          <p className="text-sm text-gray-700">Revisa lo que se va a mover y de dónde a dónde. Al autorizar, el personal de almacén puede moverlo.</p>
-          <button type="button" className="btn-primary" disabled={pendiente} onClick={() => ejecutar(() => autorizarMovimientoAccion(orden.id), { exito: 'Movimiento autorizado.' })} data-testid="mov-autorizar"><UserCheck className="h-5 w-5" aria-hidden />Autorizar el movimiento</button>
-        </div>
-      )}
-      {acciones.ejecutar && (
-        <div className="space-y-2">
-          <p className="text-sm text-gray-700">Mueve exactamente los lotes y las cantidades indicados. Cuando termines, marca que ya lo moviste: otra persona lo verifica.</p>
-          <button type="button" className="btn-primary" disabled={pendiente} onClick={() => ejecutar(() => ejecutarMovimientoAccion(orden.id), { exito: 'Listo: ahora lo verifica otra persona.' })} data-testid="mov-ejecutar"><Hand className="h-5 w-5" aria-hidden />Ya lo moví</button>
-        </div>
-      )}
       {orden.estado === 'EJECUTADO' && !acciones.verificar && (
-        <Aviso tipo="info" testid="mov-espera-verificador">Espera a otra persona. {acciones.motivoNoVerifica ?? 'Solo el personal de almacén verifica.'} Quien prepara o mueve no verifica su propio movimiento.</Aviso>
+        <Aviso tipo="info" testid="mov-espera-verificador">Espera a otra persona. {acciones.motivoNoVerifica ?? 'Solo el personal de almacén verifica.'} Quien ejecuta un movimiento no lo verifica: lo hace otro auxiliar, el Jefe o su reemplazo.</Aviso>
       )}
 
       {acciones.verificar && (

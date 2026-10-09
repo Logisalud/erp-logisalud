@@ -107,22 +107,20 @@ $$;
 grant execute on function wms.kardex_filas(uuid, uuid, uuid, date, date), wms.historia_lote(uuid) to authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 2. Movimientos internos (INV-02): preparar → autorizar → ejecutar → verificar y confirmar
---    El ledger solo se escribe al confirmar; con diferencia, la orden queda abierta (nunca se «cuadra» una cantidad).
+-- 2. Movimientos internos (INV-02): ejecutar → verificar. Solo DOS personas: quien lo CREA y mueve (ejecutor, la misma persona) y
+--    quien lo verifica (otro auxiliar, el Jefe o su reemplazo; nunca el ejecutor). No hay autorización previa en el sistema (la indicación es verbal).
+--    Desde que se ejecuta, sus unidades quedan reservadas. El ledger solo se escribe al verificar cada línea; con diferencia, esa línea queda
+--    abierta (nunca se «cuadra» una cantidad) y la resuelve el Jefe.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 create table if not exists wms.ordenes_movimiento (
   id uuid primary key default gen_random_uuid(),
-  numero text not null unique,                    -- MI-AAAA-NNNNN
-  estado text not null default 'PREPARADO'
-    check (estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CONFIRMADO', 'CON_DIFERENCIA', 'ANULADO')),
+  numero text not null unique,                    -- MI-AAAA-NNNNN (el correlativo se reinicia cada año)
+  estado text not null default 'EJECUTADO'
+    check (estado in ('EJECUTADO', 'CONFIRMADO', 'CON_DIFERENCIA', 'ANULADO')),
   motivo text not null check (nullif(trim(motivo), '') is not null),
-  preparador_id uuid not null,
-  preparado_en timestamptz not null default now(),
-  autorizado_por uuid,
-  autorizado_en timestamptz,
-  ejecutor_id uuid,
-  ejecutado_en timestamptz,
+  ejecutor_id uuid not null,                      -- quien lo crea en el sistema y mueve la mercadería: la misma persona
+  ejecutado_en timestamptz not null default now(),
   verificador_id uuid,
   verificado_en timestamptz,
   nota_diferencia text,
@@ -130,8 +128,8 @@ create table if not exists wms.ordenes_movimiento (
   anulado_por uuid,
   anulado_en timestamptz,
   motivo_anulacion text,
-  -- D-15: quien hace un movimiento no lo valida.
-  check (verificador_id is null or (verificador_id <> preparador_id and verificador_id is distinct from ejecutor_id)),
+  -- D-15: quien hace un movimiento no lo verifica.
+  check (verificador_id is null or verificador_id <> ejecutor_id),
   check (estado <> 'ANULADO' or nullif(trim(motivo_anulacion), '') is not null)
 );
 alter table wms.ordenes_movimiento enable row level security;
@@ -170,7 +168,7 @@ do $$ begin
 end $$;
 grant select on wms.ordenes_movimiento, wms.ordenes_movimiento_lineas to authenticated;
 
--- postear_movimiento con el contexto de una orden confirmada (ejecutor, preparador y verificador explícitos)
+-- postear_movimiento con el contexto de una orden verificada (ejecutor y verificador explícitos)
 create or replace function wms.postear_movimiento(
   p_tipo text,
   p_motivo text,
@@ -188,7 +186,6 @@ declare
   r record;
   v_ctx jsonb := nullif(current_setting('wms.orden_ctx', true), '')::jsonb;
   v_ejecutor uuid;
-  v_preparador uuid;
   v_verificador uuid;
 begin
   if v_actor is null then
@@ -199,10 +196,10 @@ begin
   end if;
 
   v_ejecutor := v_actor;
-  -- Movimiento interno confirmado por su verificador (INV-02): el ledger guarda a las tres personas (D-15).
+  -- Movimiento interno confirmado por su verificador (INV-02): el ledger guarda a las dos personas (D-15).
   -- Solo lo fija wms.confirmar_movimiento, dentro de su transacción; aquí se vuelve a comprobar contra la orden.
   if v_ctx is not null then
-    select o.preparador_id, o.ejecutor_id, o.verificador_id into v_preparador, v_ejecutor, v_verificador
+    select o.ejecutor_id, o.verificador_id into v_ejecutor, v_verificador
       from wms.ordenes_movimiento o
      where o.id = (v_ctx->>'orden')::uuid and o.verificador_id = v_actor and o.estado = 'EJECUTADO';
     if not found or p_tipo <> 'MOVIMIENTO' then
@@ -238,7 +235,7 @@ begin
   insert into wms.movimientos (id, tipo, motivo, referencia_tipo, referencia_id, sustento_tipo, sustento_id,
                                ejecutor_id, preparador_id, verificador_id, reversa_de)
   values (v_id, p_tipo, p_motivo, p_referencia_tipo, p_referencia_id, p_sustento_tipo, p_sustento_id,
-          v_ejecutor, v_preparador, v_verificador, p_reversa_de);
+          v_ejecutor, v_ejecutor, v_verificador, p_reversa_de);
 
   insert into wms.partidas (movimiento_id, posicion_id, producto_id, lote_id, propietario_id, estado,
                             origen, procedencia_id, delta)
@@ -289,7 +286,8 @@ begin
   end if;
 end $$;
 
-create or replace function wms.preparar_movimiento(p_lineas jsonb, p_motivo text)
+-- Crea el movimiento: quien lo registra es quien lo mueve. Queda EJECUTADO y reserva sus unidades hasta que otra persona lo verifique.
+create or replace function wms.ejecutar_movimiento(p_lineas jsonb, p_motivo text)
 returns uuid language plpgsql security definer set search_path = wms, pg_temp as $$
 declare
   v_id uuid := gen_random_uuid();
@@ -308,7 +306,7 @@ declare
 begin
   if auth.uid() is null then raise exception 'Sesión requerida' using errcode = '42501'; end if;
   if not wms.tiene_permiso('ejecutar') then
-    raise exception 'No tienes permiso para preparar movimientos' using errcode = '42501';
+    raise exception 'No tienes permiso para registrar movimientos' using errcode = '42501';
   end if;
   if nullif(trim(p_motivo), '') is null then
     raise exception 'Cuéntanos por qué se mueve: el motivo es obligatorio' using errcode = 'P0001';
@@ -317,7 +315,7 @@ begin
     raise exception 'El movimiento no tiene líneas' using errcode = 'P0001';
   end if;
 
-  insert into wms.ordenes_movimiento (id, numero, motivo, preparador_id)
+  insert into wms.ordenes_movimiento (id, numero, motivo, ejecutor_id)
   values (v_id, 'MI-' || v_anio || '-' || lpad(wms.siguiente_correlativo('MI-' || v_anio)::text, 5, '0'), trim(p_motivo), auth.uid());
 
   for x in select * from jsonb_array_elements(p_lineas) loop
@@ -337,7 +335,7 @@ begin
      where posicion_id = v_desde and lote_id = v_lote.id and estado = v_estado and procedencia_id = v_proc;
     select coalesce(sum(l.cantidad), 0) into v_reservado
       from wms.ordenes_movimiento_lineas l join wms.ordenes_movimiento o on o.id = l.orden_id
-     where o.estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA')   -- incluye las líneas ya cargadas de ESTA orden
+     where o.estado in ('EJECUTADO', 'CON_DIFERENCIA')   -- incluye las líneas ya cargadas de ESTA orden
        and l.verificacion in ('PENDIENTE', 'CON_DIFERENCIA')
        and l.desde_posicion_id = v_desde and l.lote_id = v_lote.id and l.estado = v_estado and l.procedencia_id = v_proc;
     if v_cant > v_disp - v_reservado then
@@ -361,43 +359,17 @@ begin
                                                desde_posicion_id, hasta_posicion_id, cantidad)
     values (v_id, v_lote.producto_id, v_lote.id, v_lote.propietario_id, v_estado, v_origen, v_proc, v_desde, v_hasta, v_cant);
   end loop;
-  perform wms.registrar_audit('movimiento_preparado', 'ordenes_movimiento', v_id::text, null, p_lineas, p_motivo);
+  perform wms.registrar_audit('movimiento_ejecutado', 'ordenes_movimiento', v_id::text, null, p_lineas, p_motivo);
   return v_id;
 end $$;
 
-create or replace function wms.autorizar_movimiento(p_orden uuid)
-returns void language plpgsql security definer set search_path = wms, pg_temp as $$
-declare o wms.ordenes_movimiento;
-begin
-  perform wms._exigir_jefe();
-  select * into o from wms.ordenes_movimiento where id = p_orden for update;
-  if not found then raise exception 'No encontramos ese movimiento' using errcode = 'P0001'; end if;
-  if o.estado <> 'PREPARADO' then raise exception 'Este movimiento ya no está por autorizar' using errcode = 'P0001'; end if;
-  update wms.ordenes_movimiento set estado = 'AUTORIZADO', autorizado_por = auth.uid(), autorizado_en = now() where id = p_orden;
-  perform wms.registrar_audit('movimiento_autorizado', 'ordenes_movimiento', p_orden::text, null, null, null);
-end $$;
-
-create or replace function wms.ejecutar_movimiento(p_orden uuid)
-returns void language plpgsql security definer set search_path = wms, pg_temp as $$
-declare o wms.ordenes_movimiento;
-begin
-  if auth.uid() is null then raise exception 'Sesión requerida' using errcode = '42501'; end if;
-  if not wms.tiene_permiso('ejecutar') then raise exception 'No tienes permiso para mover mercadería' using errcode = '42501'; end if;
-  select * into o from wms.ordenes_movimiento where id = p_orden for update;
-  if not found then raise exception 'No encontramos ese movimiento' using errcode = 'P0001'; end if;
-  if o.estado <> 'AUTORIZADO' then raise exception 'El movimiento debe estar autorizado antes de moverlo' using errcode = 'P0001'; end if;
-  update wms.ordenes_movimiento set estado = 'EJECUTADO', ejecutor_id = auth.uid(), ejecutado_en = now() where id = p_orden;
-  perform wms.registrar_audit('movimiento_ejecutado', 'ordenes_movimiento', p_orden::text, null, null, null);
-end $$;
-
--- Quien verifica es otra persona: ni quien preparó ni quien movió (D-15).
+-- Quien verifica es otra persona: nunca quien ejecutó (D-15).
 create or replace function wms._exigir_verificador(o wms.ordenes_movimiento) returns void
 language plpgsql stable security definer set search_path = wms, pg_temp as $$
 begin
   if not wms.tiene_permiso('verificar') or not wms.tiene_rol('auxiliar', 'jefe_almacen', 'reemplazo_jefe') then
     raise exception 'Solo el personal de almacén verifica movimientos' using errcode = '42501';
   end if;
-  if auth.uid() = o.preparador_id then raise exception 'El verificador no puede ser quien preparó el movimiento' using errcode = 'P0001'; end if;
   if auth.uid() = o.ejecutor_id then raise exception 'El verificador no puede ser quien ejecutó el movimiento' using errcode = 'P0001'; end if;
 end $$;
 
@@ -516,8 +488,8 @@ begin
   if v_hay_dif then
     null;                                           -- quedan diferencias por resolver
   elsif v_hay_pend then
-    -- Las líneas reintentadas se vuelven a mover y las verifica otra revisión; las confirmadas no se tocan.
-    update wms.ordenes_movimiento set estado = 'AUTORIZADO', ejecutor_id = null, ejecutado_en = null, verificador_id = null, verificado_en = null, nota_diferencia = null where id = o.id;
+    -- Las líneas reintentadas se vuelven a mover y las verifica otra revisión (distinta del ejecutor); las confirmadas no se tocan.
+    update wms.ordenes_movimiento set estado = 'EJECUTADO', verificador_id = null, verificado_en = null, nota_diferencia = null where id = o.id;
   elsif v_hay_ok then
     update wms.ordenes_movimiento set estado = 'CONFIRMADO', nota_diferencia = null where id = o.id;
   else
@@ -533,11 +505,11 @@ begin
   if auth.uid() is null then raise exception 'Sesión requerida' using errcode = '42501'; end if;
   select * into o from wms.ordenes_movimiento where id = p_orden for update;
   if not found then raise exception 'No encontramos ese movimiento' using errcode = 'P0001'; end if;
-  if o.estado not in ('PREPARADO', 'AUTORIZADO') then
-    raise exception 'Solo se anula un movimiento que todavía no se movió' using errcode = 'P0001';
+  if o.estado <> 'EJECUTADO' or exists (select 1 from wms.ordenes_movimiento_lineas where orden_id = p_orden and verificacion <> 'PENDIENTE') then
+    raise exception 'Solo se anula un movimiento que todavía no se verificó' using errcode = 'P0001';
   end if;
-  if auth.uid() <> o.preparador_id and not wms.tiene_rol('jefe_almacen', 'reemplazo_jefe') then
-    raise exception 'Solo quien lo preparó o el Jefe de Almacén lo anula' using errcode = '42501';
+  if auth.uid() <> o.ejecutor_id and not wms.tiene_rol('jefe_almacen', 'reemplazo_jefe') then
+    raise exception 'Solo quien lo ejecutó o el Jefe de Almacén lo anula' using errcode = '42501';
   end if;
   if nullif(trim(p_motivo), '') is null then raise exception 'Cuéntanos por qué se anula' using errcode = 'P0001'; end if;
   update wms.ordenes_movimiento set estado = 'ANULADO', anulado_por = auth.uid(), anulado_en = now(), motivo_anulacion = trim(p_motivo) where id = p_orden;
@@ -545,7 +517,7 @@ begin
 end $$;
 
 grant execute on function
-  wms.preparar_movimiento(jsonb, text), wms.autorizar_movimiento(uuid), wms.ejecutar_movimiento(uuid), wms.confirmar_movimiento(uuid),
+  wms.ejecutar_movimiento(jsonb, text), wms.confirmar_movimiento(uuid),
   wms.revisar_movimiento(uuid, jsonb), wms.resolver_movimiento(uuid, text, text), wms.anular_movimiento(uuid, text) to authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -642,7 +614,7 @@ begin
    where l.posicion_id = any (p_posiciones) and c.estado <> 'CERRADO' limit 1;
   if v_pos is not null then raise exception 'La ubicación % ya está en otro conteo abierto', v_pos using errcode = 'P0001'; end if;
   if exists (select 1 from wms.ordenes_movimiento_lineas ml join wms.ordenes_movimiento o on o.id = ml.orden_id
-              where o.estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA') and ml.verificacion in ('PENDIENTE', 'CON_DIFERENCIA')
+              where o.estado in ('EJECUTADO', 'CON_DIFERENCIA') and ml.verificacion in ('PENDIENTE', 'CON_DIFERENCIA')
                 and (ml.desde_posicion_id = any (p_posiciones) or ml.hasta_posicion_id = any (p_posiciones))) then
     raise exception 'Hay movimientos abiertos en esas ubicaciones: ciérralos antes de contar' using errcode = 'P0001';
   end if;

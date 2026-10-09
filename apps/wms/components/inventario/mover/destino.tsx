@@ -25,10 +25,10 @@ export function BuscarDestino({ id, etiqueta, ayuda, lineas, alElegir, testid, a
       <ul className="space-y-2" data-testid={`${testid}-resultados`}>
         {(r.resultados ?? []).map((d) => (
           <li key={d.posicionId}>
-            <button type="button" onClick={() => alElegir({ posicionId: d.posicionId, codigo: d.codigo, area: d.area })}
-              className="flex min-h-14 w-full items-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-left hover:border-gray-400 active:bg-gray-50" data-testid="mover-destino">
+            <button type="button" disabled={!!d.motivo} onClick={() => alElegir({ posicionId: d.posicionId, codigo: d.codigo, area: d.area })}
+              className={`flex min-h-14 w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-left ${d.motivo ? 'cursor-not-allowed border-gray-200 bg-gray-50' : 'border-gray-300 bg-white hover:border-gray-400 active:bg-gray-50'}`} data-testid="mover-destino" data-sirve={d.motivo ? 'no' : 'si'}>
               <span className="tabular font-heading text-lg font-semibold tracking-wide text-gray-900">{d.codigo}</span>
-              <span className="min-w-0 flex-1 text-sm text-gray-600">{d.area}{d.ocupadas ? ` · ${d.ocupadas} u` : ' · libre'}</span>
+              <span className="min-w-0 flex-1 text-sm text-gray-600">{d.motivo ? <span className="text-gray-700" data-testid="mover-destino-motivo">{d.motivo}</span> : <>{d.area}{d.ocupadas ? ` · ${d.ocupadas} u` : ' · libre'}</>}</span>
               {lineas.length === 0 ? null : d.invalidas === 0 ? <span className="inline-flex items-center gap-1 text-sm text-green-800"><CheckCircle2 className="h-4 w-4" aria-hidden />Sirve</span>
                 : <span className="inline-flex items-center gap-1 text-sm text-amber-900"><TriangleAlert className="h-4 w-4" aria-hidden />{d.general ? 'No disponible' : lineas.length === 1 ? 'No sirve' : `No sirve para ${d.invalidas} de ${lineas.length}`}</span>}
             </button>

@@ -42,8 +42,8 @@ export default async function HistoriaLote({ params }: { params: { id: string } 
                 <span className="tabular ml-auto text-sm"><strong className={f.delta > 0 ? 'text-green-800' : 'text-red-800'}>{f.delta > 0 ? `+${f.delta}` : `−${Math.abs(f.delta)}`}</strong> en <strong>{f.posicion}</strong> · saldo del lote {f.saldoLote}</span>
               </div>
               <p className="mt-1 text-sm text-gray-700">
-                {f.motivo ? `${f.motivo} · ` : ''}{f.referencia ? `ref. ${f.referencia} · ` : ''}{f.sustento ? `sustento ${f.sustento} · ` : ''}
-                {f.preparador ? `preparó ${f.preparador} · ` : ''}{f.ejecutor ? `${f.preparador ? 'movió' : 'registró'} ${f.ejecutor}` : ''}{f.verificador ? ` · verificó ${f.verificador}` : ''}
+                {f.motivo ? `${f.motivo} · ` : ''}{f.referencia ? (/^MI-\d{4}-\d{5}$/.test(f.referencia) ? <><Link href={`/movimientos?q=${encodeURIComponent(f.referencia)}`} className="underline" data-testid="ref-movimiento">{f.referencia}</Link> · </> : `ref. ${f.referencia} · `) : ''}{f.sustento ? `sustento ${f.sustento} · ` : ''}
+                {f.ejecutor ? `${f.tipo === 'MOVIMIENTO' ? 'movió' : 'registró'} ${f.ejecutor}` : ''}{f.verificador ? ` · verificó ${f.verificador}` : ''}
               </p>
             </li>
           ))}

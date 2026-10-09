@@ -84,7 +84,6 @@ export interface FilaHistoriaLote {
   origen: Origen
   delta: number
   ejecutor?: string
-  preparador?: string
   verificador?: string
   movimientoId: string
   reversaDe?: string
@@ -232,11 +231,10 @@ export function reporteVencimientos(lotes: LoteConStock[], hoy: string, tramos: 
 
 // ── Movimientos internos (INV-02) ───────────────────────────────────────────
 
-export type EstadoOrden = 'PREPARADO' | 'AUTORIZADO' | 'EJECUTADO' | 'CONFIRMADO' | 'CON_DIFERENCIA' | 'ANULADO'
+export type EstadoOrden = 'EJECUTADO' | 'CONFIRMADO' | 'CON_DIFERENCIA' | 'ANULADO'
 
 export const ETIQUETA_ESTADO_ORDEN: Record<EstadoOrden, string> = {
-  PREPARADO: 'Por autorizar', AUTORIZADO: 'Por mover', EJECUTADO: 'Por verificar', CONFIRMADO: 'Confirmado',
-  CON_DIFERENCIA: 'Con diferencia', ANULADO: 'Anulado',
+  EJECUTADO: 'Por verificar', CONFIRMADO: 'Confirmado', CON_DIFERENCIA: 'Con diferencia', ANULADO: 'Anulado',
 }
 
 export interface LineaOrdenMovimiento {
@@ -273,14 +271,10 @@ export interface OrdenMovimiento {
   numero: string
   estado: EstadoOrden
   motivo: string
-  preparadorId: string
-  preparador: string
-  preparadoEn: string
-  autorizadoPor?: string
-  autorizadoEn?: string
-  ejecutorId?: string
-  ejecutor?: string
-  ejecutadoEn?: string
+  /** Quien lo creó en el sistema y movió la mercadería (la misma persona). */
+  ejecutorId: string
+  ejecutor: string
+  ejecutadoEn: string
   verificadorId?: string
   verificador?: string
   verificadoEn?: string
@@ -290,8 +284,8 @@ export interface OrdenMovimiento {
   lineas: LineaOrdenMovimiento[]
 }
 
-/** Lo que se pide al preparar: de dónde a dónde, qué y cuánto. */
-export interface LineaPreparar {
+/** Lo que se registra al ejecutar: de dónde a dónde, qué y cuánto (vencimiento, propietario y estado salen del lote). */
+export interface LineaEjecutar {
   desdePosicionId: string
   haciaPosicionId: string
   loteId: string
@@ -304,13 +298,11 @@ const esJefe = (roles: readonly Rol[]) => roles.includes('jefe_almacen') || role
 const puedeEjecutarAlgo = (roles: readonly Rol[]) => roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe', 'asistente_dt'].includes(r))
 const puedeVerificarAlgo = (roles: readonly Rol[]) => roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe'].includes(r))
 
-export const puedePrepararMovimiento = puedeEjecutarAlgo
-export const puedeAutorizarMovimiento = esJefe
+/** Quien mueve mercadería registra el movimiento (y lo ejecuta). No hay autorización previa en el sistema: la indicación es verbal. */
+export const puedeEjecutarMovimiento = puedeEjecutarAlgo
 export const puedeProgramarConteo = esJefe
 
 export interface AccionesOrden {
-  autorizar: boolean
-  ejecutar: boolean
   verificar: boolean
   /** Por qué no puede verificar quien lo intenta (D-15). */
   motivoNoVerifica?: string
@@ -321,16 +313,20 @@ export interface AccionesOrden {
 /** Qué puede hacer esta persona con esta orden ahora (la base de datos vuelve a comprobarlo). */
 export function accionesDeOrden(o: OrdenMovimiento, actorId: string, roles: readonly Rol[]): AccionesOrden {
   const verif = o.estado === 'EJECUTADO' && puedeVerificarAlgo(roles)
-  const r = verif ? puedeVerificar(actorId, { preparadorId: o.preparadorId, ejecutorId: o.ejecutorId }) : { puede: false as const, mensaje: undefined }
+  const r = verif ? puedeVerificar(actorId, { ejecutorId: o.ejecutorId }) : { puede: false as const, mensaje: undefined }
   return {
-    autorizar: o.estado === 'PREPARADO' && esJefe(roles),
-    ejecutar: o.estado === 'AUTORIZADO' && puedeEjecutarAlgo(roles),
     verificar: verif && r.puede,
     motivoNoVerifica: verif && !r.puede ? r.mensaje : undefined,
     resolver: o.estado === 'CON_DIFERENCIA' && esJefe(roles),
-    anular: (o.estado === 'PREPARADO' || o.estado === 'AUTORIZADO') && (actorId === o.preparadorId || esJefe(roles)),
+    // Solo mientras nadie verificó ninguna línea: lo anula quien lo ejecutó o el Jefe.
+    anular: o.estado === 'EJECUTADO' && o.lineas.every((l) => l.verificacion === 'PENDIENTE') && (actorId === o.ejecutorId || esJefe(roles)),
   }
 }
+
+// ── Vistas guardadas (listas y reportes): filtros con nombre, por persona ─────────────────────────
+
+export type ReporteVista = 'INVENTARIO' | 'OCUPACION' | 'RECEPCIONES' | 'CALIDAD' | 'MOVIMIENTOS' | 'EXACTITUD' | 'AUDITORIA'
+export interface VistaGuardada { id: string; reporte: ReporteVista; nombre: string; filtros: Record<string, string> }
 
 // ── Conteos cíclicos (INV-05) y ajustes ─────────────────────────────────────
 
@@ -516,7 +512,7 @@ export const claveCelda = (posicionId: string, loteId: string, estado: string, p
 export function reservadoPorCelda(ordenes: OrdenMovimiento[]): Map<string, number> {
   const m = new Map<string, number>()
   for (const o of ordenes) {
-    if (!['PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA'].includes(o.estado)) continue
+    if (!['EJECUTADO', 'CON_DIFERENCIA'].includes(o.estado)) continue
     for (const l of o.lineas) {
       if (l.verificacion !== 'PENDIENTE' && l.verificacion !== 'CON_DIFERENCIA') continue
       const k = claveCelda(l.desdePosicionId, l.loteId, l.estado, l.procedenciaId)
@@ -690,7 +686,11 @@ export function validarDestino(p: Panorama, destinoId: string, lineas: LineaPara
   return { posicionId: d.id, codigo: d.codigo, area: ETIQUETA_AREA[d.tipoArea], general, porLinea, validas, invalidas: porLinea.length - validas, ok: porLinea.length > 0 && validas === porLinea.length }
 }
 
-export interface ResultadoDestino { posicionId: string; codigo: string; area: string; validas: number; invalidas: number; general?: string; ocupadas: number }
+export interface ResultadoDestino {
+  posicionId: string; codigo: string; area: string; validas: number; invalidas: number; general?: string; ocupadas: number
+  /** Con UNA sola línea: por qué esa ubicación no la recibe (mensaje humano). */
+  motivo?: string
+}
 
 /** Busca ubicaciones de DESTINO por código; primero las que sirven para todas las líneas marcadas. */
 export function buscarDestinos(p: Panorama, consulta: string, lineas: LineaParaValidar[], bloqueadas: Record<string, string> = {}, limite = 10): ResultadoDestino[] {
@@ -703,7 +703,7 @@ export function buscarDestinos(p: Panorama, consulta: string, lineas: LineaParaV
     const score = puntaje(q, pos.codigo)
     if (score === 0 && !normalizar(ETIQUETA_AREA[pos.tipoArea]).includes(normalizar(q))) continue
     const v = validarDestino(p, pos.id, lineas, bloqueadas)!
-    out.push({ posicionId: pos.id, codigo: pos.codigo, area: v.area, validas: v.validas, invalidas: v.invalidas, general: v.general, ocupadas: unidades.get(pos.id) ?? 0, score })
+    out.push({ posicionId: pos.id, codigo: pos.codigo, area: v.area, validas: v.validas, invalidas: v.invalidas, general: v.general, ocupadas: unidades.get(pos.id) ?? 0, motivo: lineas.length === 1 && !v.ok ? (v.general ?? v.porLinea[0]?.mensaje) : undefined, score })
   }
   return out.sort((a, b) => Number(a.invalidas > 0) - Number(b.invalidas > 0) || b.score - a.score || a.codigo.localeCompare(b.codigo, 'es', { numeric: true }))
     .slice(0, limite).map(({ score: _s, ...r }) => { void _s; return r })

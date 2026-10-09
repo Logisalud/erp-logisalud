@@ -53,3 +53,7 @@ resultados de búsqueda anunciados con `aria-live`. El mapa nunca es el único c
 
 ## Pendiente (no construido)
 Herramienta de calibración del plano, capas de vencimiento/diferencias, acciones del drawer (mover, contar, historial), estados de Contramuestra.
+
+
+## Listas en tabla
+Las listas de registros con muchos atributos (movimientos) son una **tabla** en PC y tablet —columnas ordenables con `aria-sort`, fila entera clicable con un enlace real en la primera celda— y **filas compactas** de una sola columna en el teléfono, sin desplazamiento horizontal. Búsqueda arriba, filtros que en el teléfono se abren en un panel, y vistas guardadas con nombre por persona.

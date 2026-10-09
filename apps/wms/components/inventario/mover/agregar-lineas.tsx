@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { MapPin, Package, SearchX, X } from 'lucide-react'
 import { buscarOrigenAccion, buscarProductoAccion, contenidoOrigenAccion, ubicacionesProductoAccion, type ContenidoOrigen } from '@/app/acciones-inventario'
 import type { CeldaDeProducto, ResultadoOrigen, ResultadoProducto } from '@/domain/inventario'
@@ -12,7 +12,7 @@ import { Buscador, nLineas, nUnidades } from './piezas'
 type Modo = 'producto' | 'ubicacion'
 
 /** Dos maneras de agregar líneas: buscando el PRODUCTO (y viendo dónde está) o partiendo de una UBICACIÓN (y viendo qué hay). */
-export function AgregarLineas({ enMovimiento, alAgregar }: { enMovimiento: Set<string>; alAgregar: (e: CeldaElegida[]) => void }) {
+export function AgregarLineas({ enMovimiento, alAgregar, origenDefecto }: { enMovimiento: Set<string>; alAgregar: (e: CeldaElegida[]) => void; origenDefecto: { posicionId: string; codigo: string } | null }) {
   const [modo, setModo] = useState<Modo>('producto')
   return (
     <div className="space-y-4" data-testid="mover-agregar-lineas">
@@ -24,17 +24,20 @@ export function AgregarLineas({ enMovimiento, alAgregar }: { enMovimiento: Set<s
           </button>
         ))}
       </div>
-      {modo === 'producto' ? <PorProducto enMovimiento={enMovimiento} alAgregar={alAgregar} /> : <PorUbicacion enMovimiento={enMovimiento} alAgregar={alAgregar} />}
+      {modo === 'producto' ? <PorProducto enMovimiento={enMovimiento} alAgregar={alAgregar} origenDefecto={origenDefecto} /> : <PorUbicacion enMovimiento={enMovimiento} alAgregar={alAgregar} origenDefecto={origenDefecto} />}
     </div>
   )
 }
 
-function PorProducto({ enMovimiento, alAgregar }: { enMovimiento: Set<string>; alAgregar: (e: CeldaElegida[]) => void }) {
+function PorProducto({ enMovimiento, alAgregar, origenDefecto }: { enMovimiento: Set<string>; alAgregar: (e: CeldaElegida[]) => void; origenDefecto: { posicionId: string; codigo: string } | null }) {
   const [q, setQ] = useState('')
   const [elegido, setElegido] = useState<ResultadoProducto | null>(null)
   const [celdas, setCeldas] = useState<CeldaDeProducto[] | null>(null)
   const [cargando, setCargando] = useState(false)
+  const [verTodas, setVerTodas] = useState(false)
   const r = useBusqueda<ResultadoProducto>(q, buscarProductoAccion, !elegido)
+  const soloOrigen = !!origenDefecto && !verTodas
+  const visibles = celdas && soloOrigen ? celdas.filter((c) => c.posicionId === origenDefecto!.posicionId) : celdas
 
   async function elegir(p: ResultadoProducto) {
     setCargando(true)
@@ -42,7 +45,7 @@ function PorProducto({ enMovimiento, alAgregar }: { enMovimiento: Set<string>; a
     setCargando(false)
     setElegido(p); setCeldas(c)
   }
-  const volver = () => { setElegido(null); setCeldas(null); setQ('') }
+  const volver = () => { setElegido(null); setCeldas(null); setQ(''); setVerTodas(false) }
 
   if (elegido) {
     return (
@@ -52,8 +55,11 @@ function PorProducto({ enMovimiento, alAgregar }: { enMovimiento: Set<string>; a
           <span className="min-w-0 flex-1"><span className="block font-medium text-gray-900">{elegido.descripcion}</span><span className="tabular block text-sm text-gray-600">{elegido.codigo} · está en {elegido.ubicaciones} {elegido.ubicaciones === 1 ? 'ubicación' : 'ubicaciones'}</span></span>
           <button type="button" className="btn-secondary btn-sm" onClick={volver} data-testid="mover-cambiar-producto"><X className="h-4 w-4" aria-hidden />Otro producto</button>
         </div>
-        <p className="text-sm text-gray-700">Marca de dónde sacar y cuánto. Primero lo que vence antes.</p>
-        {celdas && <PanelCeldas celdas={celdas} enMovimiento={enMovimiento} mostrarUbicacion testid="panel-producto" alAgregar={(e) => { alAgregar(e); volver() }} />}
+        {soloOrigen
+          ? <p className="text-sm text-gray-700" data-testid="mover-solo-origen">Mostrando solo lo que hay en <strong>{origenDefecto!.codigo}</strong> (tu origen por defecto). <button type="button" className="underline" onClick={() => setVerTodas(true)} data-testid="mover-ver-todas">Ver todas las ubicaciones</button></p>
+          : <p className="text-sm text-gray-700">Marca de dónde sacar y cuánto. Primero lo que vence antes.{origenDefecto && <> <button type="button" className="underline" onClick={() => setVerTodas(false)}>Solo {origenDefecto.codigo}</button></>}</p>}
+        {visibles && visibles.length === 0 && <p className="rounded-lg border border-dashed border-gray-300 bg-white px-4 py-5 text-sm text-gray-700" data-testid="mover-nada-en-origen">Este producto no está en {origenDefecto?.codigo}.</p>}
+        {visibles && visibles.length > 0 && <PanelCeldas celdas={visibles} enMovimiento={enMovimiento} mostrarUbicacion testid="panel-producto" alAgregar={(e) => { alAgregar(e); volver() }} />}
       </div>
     )
   }
@@ -82,11 +88,19 @@ function PorProducto({ enMovimiento, alAgregar }: { enMovimiento: Set<string>; a
   )
 }
 
-function PorUbicacion({ enMovimiento, alAgregar }: { enMovimiento: Set<string>; alAgregar: (e: CeldaElegida[]) => void }) {
+function PorUbicacion({ enMovimiento, alAgregar, origenDefecto }: { enMovimiento: Set<string>; alAgregar: (e: CeldaElegida[]) => void; origenDefecto: { posicionId: string; codigo: string } | null }) {
   const [q, setQ] = useState('')
   const [origen, setOrigen] = useState<ContenidoOrigen | null>(null)
   const [cargando, setCargando] = useState(false)
   const r = useBusqueda<ResultadoOrigen>(q, buscarOrigenAccion, !origen)
+  const [yaQuiso, setYaQuiso] = useState(false)
+  // Con un origen por defecto, «Por ubicación» abre directo su contenido.
+  useEffect(() => {
+    if (!origenDefecto || origen || yaQuiso) return
+    let vivo = true
+    void contenidoOrigenAccion(origenDefecto.posicionId).then((c) => { if (vivo && c) setOrigen(c) })
+    return () => { vivo = false }
+  }, [origenDefecto, origen, yaQuiso])
 
   async function elegir(o: ResultadoOrigen) {
     setCargando(true)
@@ -94,7 +108,7 @@ function PorUbicacion({ enMovimiento, alAgregar }: { enMovimiento: Set<string>; 
     setCargando(false)
     if (c) setOrigen(c)
   }
-  const volver = () => { setOrigen(null); setQ('') }
+  const volver = () => { setOrigen(null); setQ(''); setYaQuiso(true) }
 
   if (origen) {
     return (

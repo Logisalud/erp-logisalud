@@ -3,7 +3,7 @@ import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import type {
   AjusteVista, CargaInicialVista, ConteoVista, ErrorFilaCarga, EstadoConteo, EstadoOrden, FilaCargaInicial, FilaHistoriaLote, FilaKardex,
-  FiltroKardex, LineaConteoVista, LineaOrdenMovimiento, LineaPreparar, OrdenMovimiento, ResultadoLinea, RevisionLinea, TipoMovimientoLedger,
+  FiltroKardex, LineaConteoVista, LineaEjecutar, LineaOrdenMovimiento, OrdenMovimiento, ReporteVista, VistaGuardada, ResultadoLinea, RevisionLinea, TipoMovimientoLedger,
 } from '@/domain/inventario'
 import { parsearTramos } from '@/domain/inventario'
 import type { Estado, Origen } from '@/domain/tipos'
@@ -39,11 +39,11 @@ export class InventarioSupabase extends EntradasSupabase {
     const { data, error } = await rpc('historia_lote', { p_lote: loteId })
     if (error) throw new Error(`No se pudo leer la historia del lote: ${error.message}`)
     const filas = (data ?? []) as Fila[]
-    const nombres = await nombresDe(filas.flatMap((r) => [s(r.ejecutor_id), s(r.preparador_id), s(r.verificador_id)]))
+    const nombres = await nombresDe(filas.flatMap((r) => [s(r.ejecutor_id), s(r.verificador_id)]))
     const nom = (v: unknown) => (v ? nombres.get(String(v)) ?? 'Usuario' : undefined)
     return filas.map((r) => ({
       partidaId: Number(r.partida_id), fecha: String(r.fecha), tipo: r.tipo as TipoMovimientoLedger, motivo: s(r.motivo), posicion: String(r.posicion), estado: r.estado as Estado,
-      origen: r.origen as Origen, delta: Number(r.delta), ejecutor: nom(r.ejecutor_id), preparador: nom(r.preparador_id), verificador: nom(r.verificador_id),
+      origen: r.origen as Origen, delta: Number(r.delta), ejecutor: nom(r.ejecutor_id), verificador: nom(r.verificador_id),
       movimientoId: String(r.movimiento_id), reversaDe: s(r.reversa_de), referencia: s(r.referencia_id), sustento: s(r.sustento_id), saldoLote: Number(r.saldo_lote),
     }))
   }
@@ -57,7 +57,7 @@ export class InventarioSupabase extends EntradasSupabase {
   // ── Movimientos internos ────────────────────────────────────────────────
   private async cargarOrdenes(id?: string): Promise<OrdenMovimiento[]> {
     const supabase = crearClienteServidor()
-    let q = supabase.schema('wms').from('ordenes_movimiento').select('*').order('preparado_en', { ascending: false })
+    let q = supabase.schema('wms').from('ordenes_movimiento').select('*').order('ejecutado_en', { ascending: false })
     if (id) q = q.eq('id', id)
     const { data, error } = await q
     if (error) throw new Error(`No se pudieron leer los movimientos: ${error.message}`)
@@ -70,7 +70,7 @@ export class InventarioSupabase extends EntradasSupabase {
     const [posiciones, lotes, propietarios, productos, nombres] = await Promise.all([
       traerTodo('posiciones', 'wms', 'id, codigo'), traerTodo('lotes', 'wms', 'id, codigo, vence'), traerTodo('propietarios', 'wms', 'id, codigo'),
       traerTodo('productos', 'catalogo', 'id, codigo, descripcion'),
-      nombresDe(ordenes.flatMap((o) => [s(o.preparador_id), s(o.autorizado_por), s(o.ejecutor_id), s(o.verificador_id)])),
+      nombresDe(ordenes.flatMap((o) => [s(o.ejecutor_id), s(o.verificador_id)])),
     ])
     const pos = new Map(posiciones.map((p) => [String(p.id), String(p.codigo)]))
     const lot = new Map(lotes.map((l) => [String(l.id), l]))
@@ -79,9 +79,8 @@ export class InventarioSupabase extends EntradasSupabase {
     const nom = (v: unknown) => (v ? nombres.get(String(v)) ?? 'Usuario' : undefined)
     const porOrden = por(lineas, 'orden_id')
     return ordenes.map((o) => ({
-      id: String(o.id), numero: String(o.numero), estado: o.estado as EstadoOrden, motivo: String(o.motivo), preparadorId: String(o.preparador_id), preparador: nom(o.preparador_id) ?? 'Usuario',
-      preparadoEn: String(o.preparado_en), autorizadoPor: nom(o.autorizado_por), autorizadoEn: s(o.autorizado_en), ejecutorId: s(o.ejecutor_id), ejecutor: nom(o.ejecutor_id),
-      ejecutadoEn: s(o.ejecutado_en), verificadorId: s(o.verificador_id), verificador: nom(o.verificador_id), verificadoEn: s(o.verificado_en), notaDiferencia: s(o.nota_diferencia),
+      id: String(o.id), numero: String(o.numero), estado: o.estado as EstadoOrden, motivo: String(o.motivo), ejecutorId: String(o.ejecutor_id), ejecutor: nom(o.ejecutor_id) ?? 'Usuario',
+      ejecutadoEn: String(o.ejecutado_en), verificadorId: s(o.verificador_id), verificador: nom(o.verificador_id), verificadoEn: s(o.verificado_en), notaDiferencia: s(o.nota_diferencia),
       motivoAnulacion: s(o.motivo_anulacion), movimientoId: s(o.movimiento_id),
       lineas: (porOrden.get(String(o.id)) ?? []).map((l): LineaOrdenMovimiento => ({
         id: String(l.id), productoId: String(l.producto_id), producto: prd.get(String(l.producto_id)) ?? '—', loteId: String(l.lote_id), lote: String(lot.get(String(l.lote_id))?.codigo ?? '—'),
@@ -95,8 +94,8 @@ export class InventarioSupabase extends EntradasSupabase {
   async listarMovimientos() { return this.cargarOrdenes() }
   async obtenerMovimiento(id: string) { return (await this.cargarOrdenes(id))[0] ?? null }
 
-  async prepararMovimiento(lineas: LineaPreparar[], motivo: string, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
-    const { data, error } = await rpc('preparar_movimiento', {
+  async ejecutarMovimiento(lineas: LineaEjecutar[], motivo: string, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+    const { data, error } = await rpc('ejecutar_movimiento', {
       p_lineas: lineas.map((l) => ({ desde_posicion_id: l.desdePosicionId, hasta_posicion_id: l.haciaPosicionId, lote_id: l.loteId, estado: l.estado, procedencia_id: l.procedenciaId, cantidad: l.cantidad })),
       p_motivo: motivo,
     })
@@ -104,8 +103,6 @@ export class InventarioSupabase extends EntradasSupabase {
     const o = await this.obtenerMovimiento(String(data))
     return ok({ id: String(data), numero: o?.numero ?? '' })
   }
-  async autorizarMovimiento(id: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('autorizar_movimiento', { p_orden: id }); return error ? mal(error) : ok() }
-  async ejecutarMovimiento(id: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('ejecutar_movimiento', { p_orden: id }); return error ? mal(error) : ok() }
   async confirmarMovimiento(id: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('confirmar_movimiento', { p_orden: id }); return error ? mal(error) : ok() }
   async revisarMovimiento(id: string, revision: RevisionLinea[], _a: Actor): Promise<ResultadoAccion<{ confirmadas: number; conDiferencia: number }>> {
     const { error } = await rpc('revisar_movimiento', { p_orden: id, p_revision: revision.map((r) => ({ linea_id: r.lineaId, resultado: r.resultado, nota: r.nota ?? null })) })
@@ -120,6 +117,23 @@ export class InventarioSupabase extends EntradasSupabase {
     return out
   }
   async anularMovimiento(id: string, motivo: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('anular_movimiento', { p_orden: id, p_motivo: motivo }); return error ? mal(error) : ok() }
+
+  // ── Vistas guardadas (cada persona ve y borra solo las suyas: lo aplica la base con RLS) ─────────────
+  async listarVistas(reporte: ReporteVista, _a: Actor): Promise<VistaGuardada[]> {
+    const { data, error } = await crearClienteServidor().schema('wms').from('vistas_guardadas').select('id, reporte, nombre, filtros').eq('reporte', reporte).order('nombre')
+    if (error) throw new Error(`No se pudieron leer las vistas guardadas: ${error.message}`)
+    return ((data ?? []) as Fila[]).map((r) => ({ id: String(r.id), reporte: r.reporte as ReporteVista, nombre: String(r.nombre), filtros: (r.filtros ?? {}) as Record<string, string> }))
+  }
+  async guardarVista(reporte: ReporteVista, nombre: string, filtros: Record<string, string>, _a: Actor): Promise<ResultadoAccion<{ id: string }>> {
+    if (!nombre.trim()) return { ok: false, mensaje: 'Ponle un nombre a la vista.' }
+    const { data, error } = await crearClienteServidor().schema('wms').from('vistas_guardadas').insert({ reporte, nombre: nombre.trim(), filtros }).select('id').single()
+    if (error) return error.code === '23505' ? { ok: false, mensaje: 'Ya tienes una vista con ese nombre.' } : mal(error)
+    return ok({ id: String((data as Fila).id) })
+  }
+  async borrarVista(id: string, _a: Actor): Promise<ResultadoAccion> {
+    const { error } = await crearClienteServidor().schema('wms').from('vistas_guardadas').delete().eq('id', id)
+    return error ? mal(error) : ok()
+  }
 
   // ── Conteos y ajustes ───────────────────────────────────────────────────
   private vistaConteo(c: Fila, lineas: Fila[], nombres: Map<string, string>): ConteoVista {
