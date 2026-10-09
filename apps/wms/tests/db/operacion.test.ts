@@ -248,7 +248,7 @@ describe('exactitud del inventario', () => {
     await rpc(P().charlie.id, 'select wms.cerrar_conteo($1, $2, $3)', [conteo, 'Despacho sin registrar', 'Escalado a Dirección Técnica'])
     const r = await exact()
     expect(r).toHaveLength(1)
-    expect(r[0]).toMatchObject({ cantidad_sistema: 10, cantidad_contada: 8, diferencia: -2, resultado: 'ESCALADA' })
+    expect(r[0]).toMatchObject({ cantidad_sistema: 10, cantidad_contada: 8, primer_conteo: 8, diferencia: -2, resultado: 'ESCALADA' })
     expect((await falla(rpc(aux1, 'select * from wms.exactitud_conteos()'))).code).toBe('42501')
     expect(await rpc(P().auditor.id, `select * from wms.exactitud_conteos(current_date + 1)`)).toEqual([])
   })
@@ -261,5 +261,19 @@ describe('las tablas nuevas no admiten escritura directa', () => {
       expect(e.code, t).toBe('42501')
     }
     void idPosicion
+  })
+})
+
+describe('indicadores: el stock en una fecha', () => {
+  it('suma el libro mayor hasta ese día; no hay stock antes de existir; el contador no lo ve', async () => {
+    const aux = await persona('auxiliar')
+    const s = await sembrarStock(base, { posicion: 'A-25.3', producto: base.productos.dapa, lote: 'SA-1', propietario: 'DIPHASAC', cantidad: 12 })
+    const hoy = (await base.admin.query(`select (now() at time zone 'America/Lima')::date::text as d`)).rows[0].d as string
+    const ayer = (await base.admin.query(`select ((now() at time zone 'America/Lima')::date - 1)::text as d`)).rows[0].d as string
+    const alHoy = await rpc<{ posicion_id: string; cantidad: string }>(P().auditor.id, 'select * from wms.saldos_al($1::date) where posicion_id = $2', [hoy, s.posicionId])
+    expect(alHoy).toHaveLength(1)
+    expect(Number(alHoy[0].cantidad)).toBe(12)
+    expect(await rpc(P().auditor.id, 'select * from wms.saldos_al($1::date) where posicion_id = $2', [ayer, s.posicionId])).toEqual([])
+    expect((await falla(rpc(aux, 'select * from wms.saldos_al($1::date)', [hoy]))).code).toBe('42501')
   })
 })

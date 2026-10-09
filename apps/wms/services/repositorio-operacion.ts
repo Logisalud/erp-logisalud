@@ -1,6 +1,7 @@
 import type {
   Cobertura, EntradaPendiente, FilaExactitud, FocoRevision, PendienteVista, PersonaEquipo, ProgramacionVista, ResultadoFoco, RevisionDiaria,
 } from '@/domain/operacion'
+import type { Saldo } from '@/domain/tipos'
 import type { Actor, ResultadoAccion } from './repositorio'
 
 /** Batch 3b: revisión diaria del almacén (INV-04), programación de los inventarios cíclicos (INV-05) y exactitud del inventario. */
@@ -29,6 +30,8 @@ export interface RepositorioOperacion {
   cancelarProgramacion(id: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   generarConteoProgramado(id: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
 
-  // ── Reportes ────────────────────────────────────────────────────────────
+  // ── Reportes e indicadores ──────────────────────────────────────────────
+  /** Cómo era el stock al final de un día (AAAA-MM-DD, hora de Lima), sumando el libro mayor. Solo quien gestiona el inventario. */
+  saldosAl(fecha: string, actor: Actor): Promise<Saldo[]>
   exactitudConteos(desde: string | undefined, hasta: string | undefined, actor: Actor): Promise<FilaExactitud[]>
 }

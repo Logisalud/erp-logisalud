@@ -383,7 +383,7 @@ grant select, insert, delete on wms.vistas_guardadas to authenticated;
 create or replace function wms.exactitud_conteos(p_desde date default null, p_hasta date default null)
 returns table (
   conteo text, cerrado_en timestamptz, posicion text, producto text, lote text, propietario text, estado text,
-  cantidad_sistema integer, cantidad_contada integer, diferencia integer, resultado text, causa text)
+  cantidad_sistema integer, cantidad_contada integer, diferencia integer, resultado text, causa text, primer_conteo integer)
 language plpgsql stable security definer set search_path = wms, pg_temp as $$
 begin
   if not wms.tiene_rol('jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura') then
@@ -391,7 +391,7 @@ begin
   end if;
   return query
   select c.numero, c.cerrado_en, ps.codigo, pr.codigo || ' · ' || pr.descripcion, lt.codigo, o.codigo, l.estado,
-         l.cantidad_sistema, coalesce(l.conteo2, l.conteo1), coalesce(l.conteo2, l.conteo1) - l.cantidad_sistema, l.resultado, l.causa
+         l.cantidad_sistema, coalesce(l.conteo2, l.conteo1), coalesce(l.conteo2, l.conteo1) - l.cantidad_sistema, l.resultado, l.causa, l.conteo1
     from wms.conteo_lineas l
     join wms.conteos c on c.id = l.conteo_id
     join wms.posiciones ps on ps.id = l.posicion_id
@@ -404,3 +404,23 @@ begin
    order by c.cerrado_en desc, ps.codigo;
 end $$;
 grant execute on function wms.exactitud_conteos(date, date) to authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 4. Indicadores: cómo era el stock en una fecha (para comparar contra el periodo anterior)
+--    Suma del libro mayor hasta el final de ese día (hora de Lima). Solo quien gestiona: el contador no ve saldos (conteo a ciegas).
+-- ─────────────────────────────────────────────────────────────────────────────
+create or replace function wms.saldos_al(p_fecha date)
+returns table (posicion_id uuid, producto_id uuid, lote_id uuid, propietario_id uuid, estado text, procedencia_id uuid, cantidad bigint)
+language plpgsql stable security definer set search_path = wms, pg_temp as $$
+begin
+  if not wms.tiene_rol('jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'asistente_dt', 'admin_wms', 'auditoria_lectura') then
+    raise exception 'Solo quien gestiona el inventario ve los indicadores' using errcode = '42501';
+  end if;
+  return query
+  select p.posicion_id, p.producto_id, p.lote_id, p.propietario_id, p.estado, p.procedencia_id, sum(p.delta)::bigint
+    from wms.partidas p
+   where (p.ts at time zone 'America/Lima')::date <= p_fecha
+   group by p.posicion_id, p.producto_id, p.lote_id, p.propietario_id, p.estado, p.procedencia_id
+  having sum(p.delta) > 0;
+end $$;
+grant execute on function wms.saldos_al(date) to authenticated;

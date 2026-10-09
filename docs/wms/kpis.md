@@ -3,17 +3,19 @@
 Cada indicador tiene **nombre, definición, fórmula, fuente, frecuencia y responsable**. «Dónde se ve hoy» dice si ya sale de un reporte del WMS o si todavía se calcula a mano.
 Los responsables son **roles** (no personas): quien ocupe el rol responde por el indicador. Las metas son propuestas para confirmar con Dirección Técnica; **no hay metas ni semáforos**: por decisión de Sebas (D-42) los KPI se miden **un mes con operación real** y después se fijan las metas con Katia y Charlie.
 
-Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Excel (`/reportes`).
+Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Excel (`/reportes`). **Todos los indicadores** están en **Reportes → Indicadores** (agrupados por tema, con periodo —últimos 7, 30 y 90 días o un rango— y filtro por propietario); los 4 de **Inicio → «Inventario y almacén»** (exactitud, por vencer y vencidos, ocupación y recepciones con diferencia) aparecen allí marcados «En Inicio». Cada tarjeta muestra el valor, la variación frente al periodo anterior (flecha y cambio, **sin semáforos**), «¿Cómo se calcula?» y un clic al reporte. Lo ven quienes gestionan el inventario (el contador no lee saldos).
+
+**Cómo se compara con el periodo anterior:** los indicadores de periodo se comparan con el periodo anterior del mismo largo; los de «foto» (ocupación, vencimientos, Cuarentena, movimientos sin verificar, alertas) con cómo estaban al comienzo del periodo, reconstruido desde el libro mayor (`wms.saldos_al`) y las fechas de cada registro. Los que no tienen historial (cobertura, pendientes de la revisión) lo dicen y no muestran variación.
 
 ## Exactitud y control del inventario
 
 ### 1. Exactitud del inventario
 - **Definición:** qué tan bien coincide lo que dice el sistema con lo que se cuenta.
-- **Fórmula:** líneas contadas sin diferencia ÷ líneas contadas, en conteos **cerrados** del periodo (× 100). La cantidad contada es la del reconteo si lo hubo; si no, la del primer conteo.
+- **Fórmula:** líneas contadas (ubicación + lote) cuyo **primer conteo coincidió** con lo que decía el sistema ÷ líneas contadas, en conteos **cerrados** del periodo (× 100). Lo que se cuenta «a la primera» no depende del reconteo ni del ajuste posterior.
 - **Fuente:** `wms.exactitud_conteos()` (conteos cerrados y sus líneas).
 - **Frecuencia:** semanal.
 - **Responsable:** Jefe de Almacén (la revisa Dirección Técnica).
-- **Dónde se ve hoy:** reporte **Exactitud del inventario** (muestra el porcentaje sobre las filas filtradas).
+- **Dónde se ve hoy:** **Inicio → Inventario y almacén** (últimos 30 días contra los 30 anteriores), **Reportes → Indicadores** y reporte **Exactitud del inventario** (columna «Primer conteo»; muestra el porcentaje sobre las filas filtradas).
 
 ### 2. Cumplimiento de los conteos cíclicos de la semana
 - **Definición:** cuántos de los 3 conteos semanales se programaron y se hicieron.
@@ -81,7 +83,7 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Fuente:** `wms.lotes` y `wms.saldos`.
 - **Frecuencia:** diaria.
 - **Responsable:** Jefe de Almacén; Dirección Técnica decide el destino de lo vencido.
-- **Dónde se ve hoy:** reporte **Vencimientos** (el primero de Reportes; tramos de 3, 6 y 12 meses con su total de lotes y unidades) y reporte **Calidad**.
+- **Dónde se ve hoy:** **Inicio → Inventario y almacén** (lotes y unidades con vencimiento en 90 días o menos, más los vencidos; un clic abre el reporte filtrado), reporte **Vencimientos** (el primero de Reportes; tramos de 3, 6 y 12 meses con su total de lotes y unidades) y reporte **Calidad**.
 
 ### 10. Ciclo de recepción
 - **Definición:** cuánto tarda una solicitud de ingreso en cerrarse.
@@ -99,7 +101,7 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Fuente:** `wms.asignaciones_posicion` y `wms.saldos`.
 - **Frecuencia:** semanal.
 - **Responsable:** Jefe de Almacén (Dirección Técnica negocia las asignaciones).
-- **Dónde se ve hoy:** reporte **Ocupación por propietario**.
+- **Dónde se ve hoy:** **Inicio → Inventario y almacén** (% de ubicaciones ocupadas, con detalle por propietario), **Reportes → Indicadores** y reporte **Ocupación por propietario**.
 
 ### 12. Cumplimiento de la revisión diaria
 - **Definición:** en cuántos días de trabajo se hizo y cerró el recorrido de 4 focos.
@@ -116,6 +118,22 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Frecuencia:** diaria.
 - **Responsable:** cada pendiente tiene su responsable; el Jefe de Almacén verifica.
 - **Dónde se ve hoy:** pantalla **Revisión diaria → Pendientes por resolver** (con el filtro «Solo los importantes»).
+
+### 16. Recepciones con diferencia
+- **Definición:** qué parte de las recepciones cerradas llegó con una cantidad física distinta de la Solicitud de Ingreso o de la OC.
+- **Fórmula:** recepciones **cerradas** del periodo con diferencia ÷ recepciones cerradas del periodo (× 100). Detalle por proveedor (diferencias de cada uno). El periodo se cuenta por la **fecha de creación de la solicitud**.
+- **Fuente:** `wms.solicitudes_ingreso` (`con diferencias`: una línea con estado distinto de *esperada* o con cantidad final distinta de la inicial).
+- **Frecuencia:** mensual (se mira cada semana en Inicio).
+- **Responsable:** Jefe de Almacén; Compras sigue a los proveedores con más diferencias.
+- **Dónde se ve hoy:** **Inicio → Inventario y almacén**, **Reportes → Indicadores** y reporte **Recepciones** (filtro «Con diferencia»).
+
+### 17. Tiempo en Cuarentena
+- **Definición:** cuánto espera un lote en Cuarentena hasta que Dirección Técnica lo aprueba.
+- **Fórmula:** promedio de (aprobación de Dirección Técnica − confirmación del ingreso), en días, de los ingresos aprobados en el periodo. Aparte, cuántos lotes están en Cuarentena ahora.
+- **Fuente:** `wms.solicitudes_ingreso` (cierre) y `wms.actas_organolepticas` (decisión *Aprobado*).
+- **Frecuencia:** mensual.
+- **Responsable:** Dirección Técnica decide; el Jefe de Almacén lleva las muestras y el acta.
+- **Dónde se ve hoy:** **Reportes → Indicadores** (tema Calidad) y reporte **Calidad**. **No va en Inicio.**
 
 ## Trazabilidad
 
@@ -134,6 +152,29 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Frecuencia:** diaria.
 - **Responsable:** el destinatario de cada alerta (Dirección Técnica, Jefe de Almacén, Asistente de Dirección Técnica).
 - **Dónde se ve hoy:** pantalla **Alertas** (insignia en el menú).
+
+## Despacho (previstos: se agregan cuando existan las salidas)
+Segundo grupo de 4 indicadores, ya con su lugar en Inicio y en Indicadores (se muestran como «previstos», sin valor). Ningún dato se inventa mientras no haya despachos.
+
+### D1. OTIF (On Time In Full)
+- **Definición:** pedidos entregados a tiempo y completos.
+- **Fórmula:** pedidos despachados en la fecha comprometida y con todas sus unidades ÷ pedidos despachados.
+- **Fuente:** salidas / pedidos (Batch de despacho). **Frecuencia:** semanal. **Responsable:** Jefe de Almacén.
+
+### D2. Nivel de servicio
+- **Definición:** qué parte de lo pedido se despacha.
+- **Fórmula:** unidades despachadas ÷ unidades pedidas.
+- **Fuente:** salidas / pedidos. **Frecuencia:** semanal. **Responsable:** Jefe de Almacén.
+
+### D3. Exactitud de despacho
+- **Definición:** pedidos despachados sin errores de producto, lote o cantidad.
+- **Fórmula:** pedidos sin errores de producto, lote o cantidad ÷ pedidos despachados.
+- **Fuente:** salidas y su verificación. **Frecuencia:** semanal. **Responsable:** Jefe de Almacén.
+
+### D4. Tiempo de preparación
+- **Definición:** cuánto tarda un pedido desde que se recibe hasta que se despacha.
+- **Fórmula:** promedio de (despacho − recepción del pedido), en horas.
+- **Fuente:** salidas / pedidos. **Frecuencia:** semanal. **Responsable:** Jefe de Almacén.
 
 ## Lo que falta para cerrar los indicadores
 - Medir un mes con operación real y fijar metas y semáforos con Katia y Charlie (D-42).

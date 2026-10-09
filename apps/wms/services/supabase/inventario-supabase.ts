@@ -51,7 +51,7 @@ export class InventarioSupabase extends EntradasSupabase {
   async parametrosInventario() {
     const filas = await traerTodo('parametros', 'wms')
     const v = (clave: string) => s(filas.find((f) => f.clave === clave)?.valor)
-    return { tramosVencimiento: parsearTramos(v('vencimiento_tramos_dias')), kardexCodigoFormato: v('kardex_codigo_formato') || 'LS-FR-KDX (provisional)' }
+    return { tramosVencimiento: parsearTramos(v('vencimiento_tramos_dias')), kardexCodigoFormato: v('kardex_codigo_formato') || 'LS-FR-KDX (provisional)', movimientoSinVerificarHoras: Number(v('movimiento_sin_verificar_horas')) || 24, diasAlertaVencimiento: Number(v('lote_dias_alerta_vencimiento')) || 90 }
   }
 
   // ── Movimientos internos ────────────────────────────────────────────────

@@ -121,7 +121,8 @@ export class InventarioDemo extends EntradasDemo {
   }
 
   async parametrosInventario() {
-    return { tramosVencimiento: TRAMOS_POR_DEFECTO, kardexCodigoFormato: 'LS-FR-KDX (provisional)' }
+    const e = estadoE()
+    return { tramosVencimiento: TRAMOS_POR_DEFECTO, kardexCodigoFormato: 'LS-FR-KDX (provisional)', movimientoSinVerificarHoras: e.plazoMovSinVerificarHoras, diasAlertaVencimiento: e.diasAlertaVencimiento }
   }
 
   // ── Movimientos internos ────────────────────────────────────────────────

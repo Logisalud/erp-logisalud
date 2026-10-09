@@ -9,7 +9,7 @@ export interface RepositorioInventario {
   kardex(filtro: FiltroKardex): Promise<FilaKardex[]>
   historiaLote(loteId: string): Promise<FilaHistoriaLote[]>
   /** Parámetros que el reporte y el PDF necesitan: tramos de vencimiento (D-30) y código provisional del formato (D-29). */
-  parametrosInventario(): Promise<{ tramosVencimiento: number[]; kardexCodigoFormato: string }>
+  parametrosInventario(): Promise<{ tramosVencimiento: number[]; kardexCodigoFormato: string; movimientoSinVerificarHoras: number; diasAlertaVencimiento: number }>
 
   // ── Movimientos internos ────────────────────────────────────────────────
   listarMovimientos(): Promise<OrdenMovimiento[]>

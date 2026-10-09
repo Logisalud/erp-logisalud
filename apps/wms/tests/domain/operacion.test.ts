@@ -62,8 +62,8 @@ describe('inventarios cíclicos (INV-05)', () => {
     expect(validarProgramacion({ orden: 1, posiciones: ['a'], yaEnSemana: new Set(['a']) })).toMatch(/otro conteo de esa semana/)
     expect(validarProgramacion({ orden: 2, posiciones: ['a'], yaEnSemana: new Set(['b']) })).toBeNull()
   })
-  it('exactitud = líneas sin diferencia ÷ líneas contadas', () => {
-    expect(exactitudDeFilas([{ diferencia: 0 }, { diferencia: 0 }, { diferencia: -2 }, { diferencia: 0 }])).toEqual({ lineas: 4, exactas: 3, porcentaje: 75 })
+  it('exactitud = líneas cuyo primer conteo coincidió ÷ líneas contadas', () => {
+    expect(exactitudDeFilas([{ primerConteo: 5, cantidadSistema: 5 }, { primerConteo: 5, cantidadSistema: 5 }, { primerConteo: 3, cantidadSistema: 5 }, { primerConteo: 7, cantidadSistema: 7 }])).toEqual({ lineas: 4, exactas: 3, porcentaje: 75 })
     expect(exactitudDeFilas([]).porcentaje).toBeNull()
   })
 })

@@ -5,7 +5,7 @@ import {
   type Cobertura, type EntradaPendiente, type EstadoPendiente, type FilaExactitud, type FocoRevision, type PendienteVista, type PersonaEquipo, type ProgramacionVista, type ResultadoFoco, type RevisionDiaria,
 } from '@/domain/operacion'
 import { ETIQUETA_ROL } from '@/domain/permisos'
-import type { Rol } from '@/domain/tipos'
+import type { Rol, Saldo } from '@/domain/tipos'
 import { InventarioDemo } from './inventario-demo'
 import { alertar, estadoE, falla, nuevoId } from './entradas-demo'
 import { registrar, type EstadoDemo } from './estado'
@@ -201,6 +201,20 @@ export class OperacionDemo extends InventarioDemo implements RepositorioOperacio
     return r
   }
 
+  // ── Indicadores: el stock en una fecha, desde el libro mayor ────────────
+  async saldosAl(fecha: string, actor: Actor): Promise<Saldo[]> {
+    if (!actor.roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'asistente_dt', 'admin_wms', 'auditoria_lectura'].includes(r))) return []
+    const e = estadoE()
+    const m = new Map<string, Saldo>()
+    for (const x of e.inv.ledger) {
+      if (new Date(x.ts).toLocaleDateString('en-CA', { timeZone: 'America/Lima' }) > fecha) continue
+      const k = [x.posicionId, x.productoId, x.loteId, x.propietarioId, x.estado, x.procedenciaId].join('|')
+      const s = m.get(k) ?? { posicionId: x.posicionId, productoId: x.productoId, loteId: x.loteId, propietarioId: x.propietarioId, estado: x.estado, procedenciaId: x.procedenciaId, cantidad: 0 }
+      s.cantidad += x.delta; m.set(k, s)
+    }
+    return [...m.values()].filter((s) => s.cantidad > 0)
+  }
+
   // ── Exactitud ───────────────────────────────────────────────────────────
   async exactitudConteos(desde: string | undefined, hasta: string | undefined, actor: Actor): Promise<FilaExactitud[]> {
     if (!actor.roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))) return []
@@ -217,7 +231,7 @@ export class OperacionDemo extends InventarioDemo implements RepositorioOperacio
         out.push({
           conteo: c.numero, cerradoEn: c.cerradoEn, posicion: p.posiciones.find((x) => x.id === l.posicionId)?.codigo ?? l.posicionId, producto: `${prod?.codigo ?? ''} · ${prod?.descripcion ?? ''}`,
           lote: p.lotes.find((x) => x.id === l.loteId)?.codigo ?? l.loteId, propietario: p.propietarios.find((x) => x.id === l.propietarioId)?.codigo ?? l.propietarioId, estado: l.estado,
-          cantidadSistema: l.cantidadSistema, cantidadContada: contada, diferencia: contada - l.cantidadSistema, resultado: l.resultado ?? '', causa: l.causa,
+          cantidadSistema: l.cantidadSistema, cantidadContada: contada, primerConteo: l.conteo1 ?? contada, diferencia: contada - l.cantidadSistema, resultado: l.resultado ?? '', causa: l.causa,
         })
       }
     }

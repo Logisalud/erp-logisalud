@@ -295,7 +295,8 @@ export class EntradasSupabase {
       referencia: d.tipo === 'COMPRA_LOCAL' ? d.ocCodigo : d.tipo === 'DEVOLUCION' ? `${d.docOriginalTipo === 'BOLETA' ? 'Boleta' : 'Factura'} ${d.docOriginalNumero}` : d.guiaNumero ? `Guía ${d.guiaNumero}` : undefined,
       actaNumero: d.actas.find((a) => a.estado !== 'ANULADA')?.numero, unidades: d.lineas.reduce((n, l) => n + l.cantidad, 0),
       productos: new Set(d.lineas.filter((l) => l.cantidad > 0).map((l) => l.productoId)).size, fechaPrevista: d.fechaPrevista, creadoEn: d.creadoEn,
-      alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias, registroCompras: registro.get(d.id),
+      alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias, registroCompras: registro.get(d.id), cerradaEn: d.cerradaEn,
+      aprobadaEn: d.organolepticas.filter((o) => o.decision === 'APROBADO' && o.decididoEn).map((o) => o.decididoEn!).sort().pop(),
     }))
   }
 

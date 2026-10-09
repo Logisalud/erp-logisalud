@@ -71,7 +71,7 @@ export function ReporteTabla({ id, filas, vistas, opciones, filtrosIniciales, or
                     <option value="">Todos</option>
                     {(opciones[d.clave] ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
-                ) : <input id={`f-${d.clave}`} type="date" className="campo" value={f[d.clave] ?? ''} onChange={(e) => poner(d.clave, e.target.value)} data-testid={`filtro-${d.clave}`} />}
+                ) : d.tipo === 'maximo' ? <input id={`f-${d.clave}`} type="number" inputMode="numeric" min={0} className="campo" value={f[d.clave] ?? ''} onChange={(e) => poner(d.clave, e.target.value)} data-testid={`filtro-${d.clave}`} /> : <input id={`f-${d.clave}`} type="date" className="campo" value={f[d.clave] ?? ''} onChange={(e) => poner(d.clave, e.target.value)} data-testid={`filtro-${d.clave}`} />}
             </div>
           ))}
         </div>

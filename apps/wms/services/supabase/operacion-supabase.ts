@@ -4,7 +4,7 @@ import { crearClienteServidor } from '@logisalud/auth/server'
 import type {
   Cobertura, EntradaPendiente, EstadoPendiente, FilaExactitud, FocoRevision, PendienteVista, PersonaEquipo, ProgramacionVista, ResultadoFoco, RevisionDiaria,
 } from '@/domain/operacion'
-import type { Rol } from '@/domain/tipos'
+import type { Rol, Saldo } from '@/domain/tipos'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioOperacion } from '../repositorio-operacion'
 import { nombresDe } from './entradas-supabase'
@@ -149,13 +149,23 @@ export class OperacionSupabase extends InventarioSupabase implements Repositorio
     return ok({ id: String(data), numero: String((c as Fila | null)?.numero ?? '') })
   }
 
+  // ── Indicadores: el stock en una fecha ──────────────────────────────────
+  async saldosAl(fecha: string, _a: Actor): Promise<Saldo[]> {
+    const { data, error } = await rpc('saldos_al', { p_fecha: fecha })
+    if (error) throw new Error(`No se pudo leer el stock al ${fecha}: ${error.message}`)
+    return ((data ?? []) as Fila[]).map((r) => ({
+      posicionId: String(r.posicion_id), productoId: String(r.producto_id), loteId: String(r.lote_id), propietarioId: String(r.propietario_id),
+      estado: r.estado as Saldo['estado'], procedenciaId: String(r.procedencia_id), cantidad: Number(r.cantidad),
+    }))
+  }
+
   // ── Exactitud ───────────────────────────────────────────────────────────
   async exactitudConteos(desde: string | undefined, hasta: string | undefined, _a: Actor): Promise<FilaExactitud[]> {
     const { data, error } = await rpc('exactitud_conteos', { p_desde: desde ?? null, p_hasta: hasta ?? null })
     if (error) throw new Error(`No se pudo leer la exactitud: ${error.message}`)
     return ((data ?? []) as Fila[]).map((r) => ({
       conteo: String(r.conteo), cerradoEn: String(r.cerrado_en), posicion: String(r.posicion), producto: String(r.producto), lote: String(r.lote), propietario: String(r.propietario), estado: String(r.estado),
-      cantidadSistema: Number(r.cantidad_sistema), cantidadContada: Number(r.cantidad_contada), diferencia: Number(r.diferencia), resultado: String(r.resultado ?? ''), causa: s(r.causa),
+      cantidadSistema: Number(r.cantidad_sistema), cantidadContada: Number(r.cantidad_contada), primerConteo: Number(r.primer_conteo ?? r.cantidad_contada), diferencia: Number(r.diferencia), resultado: String(r.resultado ?? ''), causa: s(r.causa),
     }))
   }
 }

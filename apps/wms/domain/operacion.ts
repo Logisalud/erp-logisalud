@@ -164,13 +164,15 @@ export interface FilaExactitud {
   estado: string
   cantidadSistema: number
   cantidadContada: number
+  /** Lo que se contó la primera vez (antes de cualquier reconteo). */
+  primerConteo: number
   diferencia: number
   resultado: string
   causa?: string
 }
 
-/** Exactitud = líneas contadas que coinciden con el sistema ÷ líneas contadas. */
-export function exactitudDeFilas(filas: Pick<FilaExactitud, 'diferencia'>[]): { lineas: number; exactas: number; porcentaje: number | null } {
-  const exactas = filas.filter((f) => f.diferencia === 0).length
+/** Exactitud = líneas cuyo PRIMER conteo coincidió con el sistema ÷ líneas contadas (en conteos cerrados). */
+export function exactitudDeFilas(filas: Pick<FilaExactitud, 'primerConteo' | 'cantidadSistema'>[]): { lineas: number; exactas: number; porcentaje: number | null } {
+  const exactas = filas.filter((f) => f.primerConteo === f.cantidadSistema).length
   return { lineas: filas.length, exactas, porcentaje: filas.length ? Math.round((exactas / filas.length) * 1000) / 10 : null }
 }

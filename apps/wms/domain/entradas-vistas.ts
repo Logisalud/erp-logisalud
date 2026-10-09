@@ -271,6 +271,9 @@ export interface SolicitudResumen {
   alertasAbiertas: number
   /** La solicitud final difiere de la inicial. */
   conDiferencias: boolean
+  cerradaEn?: string
+  /** Cuándo Dirección Técnica aprobó (acta organoléptica firmada con decisión Aprobado): fin de la Cuarentena. */
+  aprobadaEn?: string
   /** Solo compras cerradas: peor estado del registro en Compras entre sus líneas. */
   registroCompras?: EstadoRegistroCompras
 }

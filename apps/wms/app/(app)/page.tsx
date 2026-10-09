@@ -1,18 +1,21 @@
 import Link from 'next/link'
 import {
-  ArrowLeftRight, ArrowRight, Bell, Boxes, CalendarClock, ClipboardCheck, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Hourglass, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, Undo2, type LucideIcon,
+  ArrowLeftRight, ArrowRight, BarChart3, Bell, Boxes, CalendarClock, ClipboardCheck, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, type LucideIcon,
 } from 'lucide-react'
 import { TRAMO_VENCIDO, filasVencimientos } from '@/domain/reportes'
 import { exigirContexto } from '@/lib/contexto'
+import { cargarIndicadores, puedeVerIndicadores } from '@/lib/indicadores-datos'
+import { CLAVES_INICIO, periodoDe, type Indicador } from '@/domain/indicadores'
+import { GrupoIndicadores } from '@/components/indicadores/tarjeta-indicador'
+import type { Actor } from '@/services/repositorio'
 import { repositorio } from '@/services/repositorio-actual'
 import {
-  alertasRegulatorias, ocupacionPorPropietario, unidadesEnEstado, unidadesPorTrasladar, type Panorama,
+  alertasRegulatorias, unidadesPorTrasladar, type Panorama,
 } from '@/domain/panorama'
 import { puede, puedeCrearProducto, puedeEditarRegulatorio } from '@/domain/permisos'
 import { puedePrepararSolicitud } from '@/domain/entradas'
 import { accionesDeOrden } from '@/domain/inventario'
 import type { Rol } from '@/domain/tipos'
-import { vistaPropietario } from '@/components/propietarios-color'
 import { formatoFecha } from '@/domain/fechas'
 
 export const metadata = { title: 'Inicio — WMS LOGISALUD' }
@@ -121,6 +124,12 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   return avisos
 }
 
+/** Los 4 indicadores del grupo «Inventario y almacén», en su orden (últimos 30 días contra los 30 anteriores). */
+async function cargarKpisInicio(actor: Actor, hoy: string): Promise<Indicador[]> {
+  const { indicadores } = await cargarIndicadores(actor, periodoDe(hoy, 30))
+  return CLAVES_INICIO.map((c) => indicadores.find((i) => i.clave === c)!).filter(Boolean)
+}
+
 export default async function Inicio() {
   const ctx = await exigirContexto()
   const repo = repositorio()
@@ -141,11 +150,8 @@ export default async function Inicio() {
     conteosAbiertos: conteos.filter((c) => c.estado !== 'CERRADO').length,
     ajustesPorAutorizar: ajustes.filter((a) => a.estado === 'PROPUESTO').length,
   })
-  const ocup = ocupacionPorPropietario(p).sort((a, b) => b.posiciones - a.posiciones)
+  const kpis = puedeVerIndicadores(ctx.roles) ? await cargarKpisInicio({ id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles }, p.hoy) : null
   const eventos = puede(ctx.roles, 'auditar') ? (await repo.auditoria(5)) : []
-  const u = {
-    aprobado: unidadesEnEstado(p, 'APROBADO'), cuarentena: unidadesEnEstado(p, 'CUARENTENA'), devoluciones: unidadesEnEstado(p, 'DEVOLUCIONES'), bajas: unidadesEnEstado(p, 'BAJAS_RECHAZADOS'),
-  }
   const num = (n: number) => n.toLocaleString('es-PE')
 
   return (
@@ -154,6 +160,14 @@ export default async function Inicio() {
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Inicio</h1>
         <p className="mt-1 text-gray-600">{formatoFecha(p.hoy)}</p>
       </header>
+
+      {kpis && (
+        <div data-testid="kpis-inicio">
+          <GrupoIndicadores id="g-inventario" titulo="Inventario y almacén" compacta indicadores={kpis} descripcion="Últimos 30 días frente a los 30 anteriores. Sin metas todavía: se miden un mes antes de fijarlas." />
+          <p className="mt-3"><Link href="/reportes/indicadores" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-teal-800 underline underline-offset-2" data-testid="ver-todos-indicadores"><BarChart3 className="h-4 w-4" aria-hidden />Ver todos los indicadores</Link></p>
+          {/* Segundo grupo, «Despacho»: se agrega aquí cuando existan las salidas (ver DESPACHO_PREVISTO), sin rehacer Inicio. */}
+        </div>
+      )}
 
       <section aria-labelledby="atencion" data-testid="atencion">
         <h2 id="atencion" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Qué necesita atención</h2>
@@ -185,55 +199,6 @@ export default async function Inicio() {
             ))}
           </ul>
         )}
-      </section>
-
-      <section aria-labelledby="almacen-hoy" className="grid gap-8 lg:grid-cols-2">
-        <div>
-          <h2 id="almacen-hoy" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Unidades por estado</h2>
-          <dl className="mt-3 divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
-            <div className="flex min-h-14 items-center justify-between px-4">
-              <dt className="flex items-center gap-2 text-sm text-gray-800"><ShieldCheck className="h-4 w-4 text-green-700" aria-hidden />Aprobado</dt>
-              <dd className="tabular font-medium">{num(u.aprobado)}</dd>
-            </div>
-            <div className="flex min-h-14 items-center justify-between px-4">
-              <dt className="flex items-center gap-2 text-sm text-gray-800"><Hourglass className="h-4 w-4 text-indigo-700" aria-hidden />Cuarentena</dt>
-              <dd className="tabular font-medium">{num(u.cuarentena)}</dd>
-            </div>
-            <div className="flex min-h-14 items-center justify-between px-4" data-testid="unidades-devoluciones">
-              <dt className="flex items-center gap-2 text-sm text-gray-800"><Undo2 className="h-4 w-4 text-orange-700" aria-hidden />Devoluciones</dt>
-              <dd className="tabular font-medium">{num(u.devoluciones)}</dd>
-            </div>
-            <div className="flex min-h-14 items-center justify-between px-4">
-              <dt className="flex items-center gap-2 text-sm text-gray-800"><span className="inline-block h-4 w-4 rounded-full border-2 border-red-700" aria-hidden />Bajas/Rechazados</dt>
-              <dd className="tabular font-medium">{num(u.bajas)}</dd>
-            </div>
-          </dl>
-          <p className="mt-2 text-xs text-gray-600">Cada estado se cuenta por unidad, no por lote: un mismo lote puede tener unidades en dos estados.</p>
-        </div>
-
-        <div>
-          <h2 className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Ubicaciones usadas por propietario</h2>
-          <ul className="mt-3 space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-            {ocup.map((o) => {
-              const v = vistaPropietario(o.propietario.codigo)
-              const pct = o.posiciones ? Math.round((o.conStock / o.posiciones) * 100) : 0
-              return (
-                <li key={o.propietario.id}>
-                  <div className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="flex items-center gap-2 font-medium text-gray-900">
-                      <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded text-xs font-bold text-white" style={{ background: v.color }}>{v.letra}</span>
-                      {v.corto}
-                    </span>
-                    <span className="tabular text-gray-600">{o.conStock} de {o.posiciones} con stock</span>
-                  </div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-gray-100" role="img" aria-label={`${pct}% de sus ubicaciones tienen stock`}>
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: v.color }} />
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
       </section>
 
       {eventos.length > 0 && (

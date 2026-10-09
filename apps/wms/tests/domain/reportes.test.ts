@@ -49,10 +49,10 @@ describe('reportes: filas', () => {
   })
   it('exactitud: el porcentaje sale de las filas filtradas', () => {
     const f = filasExactitud([
-      { conteo: 'CT-1', cerradoEn: '2026-10-08T20:00:00Z', posicion: 'A-1', producto: 'P', lote: 'L', propietario: 'X', estado: 'APROBADO', cantidadSistema: 10, cantidadContada: 10, diferencia: 0, resultado: 'COINCIDE' },
-      { conteo: 'CT-1', cerradoEn: '2026-10-08T20:00:00Z', posicion: 'A-2', producto: 'P', lote: 'L', propietario: 'X', estado: 'APROBADO', cantidadSistema: 10, cantidadContada: 8, diferencia: -2, resultado: 'AJUSTADA', causa: 'Conteo previo' },
+      { conteo: 'CT-1', cerradoEn: '2026-10-08T20:00:00Z', posicion: 'A-1', producto: 'P', lote: 'L', propietario: 'X', estado: 'APROBADO', cantidadSistema: 10, cantidadContada: 10, primerConteo: 10, diferencia: 0, resultado: 'COINCIDE' },
+      { conteo: 'CT-1', cerradoEn: '2026-10-08T20:00:00Z', posicion: 'A-2', producto: 'P', lote: 'L', propietario: 'X', estado: 'APROBADO', cantidadSistema: 10, cantidadContada: 8, primerConteo: 8, diferencia: -2, resultado: 'AJUSTADA', causa: 'Conteo previo' },
     ])
-    expect(resumenDe(REPORTES.EXACTITUD, f).extra).toBe('Exactitud: 50 % (1 de 2 líneas contadas sin diferencia)')
+    expect(resumenDe(REPORTES.EXACTITUD, f).extra).toBe('Exactitud: 50 % (1 de 2 líneas coincidieron en el primer conteo)')
     expect(resumenDe(REPORTES.EXACTITUD, aplicarFiltros(REPORTES.EXACTITUD, f, { diferencia: 'Sin diferencia' })).extra).toContain('100 %')
   })
   it('auditoría separa fecha y hora de Lima', () => {
@@ -91,7 +91,7 @@ describe('reportes: filtros, exportación y búsqueda', () => {
     const [num, fec, pct] = [REPORTES.INVENTARIO.columnas[7], REPORTES.INVENTARIO.columnas[2], REPORTES.OCUPACION.columnas[4]]
     expect(valorTexto(num, 12)).toBe('12')
     expect(valorTexto(fec, '2027-01-02')).toBe('02/01/2027')
-    expect(valorTexto(pct, 66.7)).toBe('66,7 %')
+    expect(valorTexto(pct, 66.7)).toBe('66.7 %')
     expect(valorTexto(num, null)).toBe('—')
   })
 })
