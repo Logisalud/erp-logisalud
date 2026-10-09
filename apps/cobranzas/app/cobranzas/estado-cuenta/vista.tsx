@@ -385,6 +385,7 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
               vendedorId={vendedorSel ? (vendedorSel.vendedor_id ?? 'sin-asignar') : null}
               clienteRuc={clienteSel?.cliente_ruc ?? null}
               vista={vista}
+              soloDeuda={soloDeuda}
             />
             <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
               <div onClick={toggleSoloDeuda}
@@ -704,11 +705,13 @@ function EstadoPagoBadge({ f }: { f: FacturaRow }) {
 }
 
 function ExportMenu({
-  vendedorId, clienteRuc, vista,
+  vendedorId, clienteRuc, vista, soloDeuda,
 }: {
   vendedorId: string | null;
   clienteRuc: string | null;
   vista: Vista;
+  /** El mismo filtro que está mirando la pantalla, para que el Excel no diga otra cosa. */
+  soloDeuda: boolean;
 }) {
   const [open, setOpen]       = useState(false);
   const [activo, setActivo]   = useState<string | null>(null);
@@ -806,13 +809,15 @@ function ExportMenu({
           </button>
 
           <button
-            onMouseDown={e => { e.preventDefault(); descargar('/api/exportar/resumen-vendedor', `resumen-vendedor-${fecha}.xlsx`); }}
+            onMouseDown={e => { e.preventDefault(); descargar(`/api/exportar/resumen-vendedor?solo_deuda=${soloDeuda}`, `resumen-vendedor-${fecha}.xlsx`); }}
             className="w-full text-left px-4 py-2.5 text-sm hover:bg-teal-50 flex items-center gap-2 border-b border-gray-100"
           >
             <span className="text-lg" style={{ color: '#4ABCC2' }}>↓</span>
             <span>
               <span className="font-medium">Resumen por vendedor</span>
-              <span className="block text-xs text-gray-400">Aging y morosidad por vendedor</span>
+              <span className="block text-xs text-gray-400">
+                {soloDeuda ? 'Solo cartera pendiente' : 'Incluyendo pagados / contado'} — lo mismo que ves en pantalla
+              </span>
             </span>
           </button>
 

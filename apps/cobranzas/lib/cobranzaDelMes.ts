@@ -37,7 +37,7 @@ export async function cobranzaDelMes(db: SupabaseClient, vendedorId: string, hoy
       .select('id, comprobante, cliente_ruc, razon_social, fecha_vencimiento, saldo_pendiente, tiene_letras')
       .eq('vendedor_id', vendedorId)
       .gt('saldo_pendiente', 0.005)
-      .range(from, to)
+      .order('id').range(from, to)
   );
 
   const idsConLetras = facturas.filter(f => f.tiene_letras).map(f => f.id);

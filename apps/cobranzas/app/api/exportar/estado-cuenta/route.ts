@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         q = q.eq('vendedor_id', vendedorId);
       }
 
-      return q.range(from, to);
+      return q.order('id').range(from, to);
     });
 
     // Pagos de las facturas del resultado — se consolidan en columnas de

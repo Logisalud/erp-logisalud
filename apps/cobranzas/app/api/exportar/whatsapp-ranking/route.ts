@@ -18,13 +18,13 @@ export async function GET() {
 
     const [vendedores, accesos, mensajes] = await Promise.all([
       fetchAll<{ id: string; nombres: string; apellidos: string | null; codigo: string | null; activo: boolean; piloto_whatsapp: boolean }>((from, to) =>
-        db.from('vendedores').select('id, nombres, apellidos, codigo, activo, piloto_whatsapp').range(from, to)
+        db.from('vendedores').select('id, nombres, apellidos, codigo, activo, piloto_whatsapp').order('id').range(from, to)
       ),
       fetchAll<{ vendedor_id: string }>((from, to) =>
-        db.from('accesos_vendedor').select('vendedor_id').range(from, to)
+        db.from('accesos_vendedor').select('vendedor_id').order('id').range(from, to)
       ),
       fetchAll<{ vendedor_id: string; tipo_mensaje: 'descuento' | 'vencimiento' }>((from, to) =>
-        db.from('whatsapp_mensajes_enviados').select('vendedor_id, tipo_mensaje').range(from, to)
+        db.from('whatsapp_mensajes_enviados').select('vendedor_id, tipo_mensaje').order('id').range(from, to)
       ),
     ]);
 

@@ -7,21 +7,44 @@ import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_req: NextRequest) {
+/**
+ * El resumen por vendedor en Excel — el mismo que muestra la pantalla.
+ *
+ * "El mismo" es literal y costó un reclamo de cobranzas: antes esta ruta
+ * agrupaba sólo por vendedor y no aplicaba el filtro "Solo cartera
+ * pendiente", así que el Excel traía otras cifras que la pantalla de al
+ * lado. Ahora comparte las tres reglas con `/api/estado-cuenta/resumen`:
+ *
+ * 1. El filtro de cartera pendiente viaja desde la pantalla (`solo_deuda`),
+ *    así que el archivo dice lo que estabas mirando al descargarlo.
+ * 2. Agrupa por vendedor **y zona**: una persona que cubre dos zonas son dos
+ *    filas, igual que en pantalla, y no una suma que no cuadra con ninguna.
+ * 3. Pagina con un orden estable (`.order('id')`). Sin eso, un `range()`
+ *    sobre 2.500 facturas repite filas y pierde otras —y el total sale mal
+ *    por decenas de miles de soles, distinto en cada descarga.
+ */
+export async function GET(req: NextRequest) {
   const auth = await exigirArea(AREAS_LECTURA);
   if (!auth.ok) return auth.respuesta;
 
   try {
+    const soloDeuda = new URL(req.url).searchParams.get('solo_deuda') !== 'false';
     const db = crearClienteServidor();
 
-    const data = await fetchAll((from, to) =>
-      db.from('v_saldos')
-        .select('vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, cliente_ruc, saldo_pendiente, vigente, d0_7, d8_15, d16_30, d31_60, d61_mas')
-        .range(from, to)
-    );
+    const data = await fetchAll<{
+      vendedor_id: string | null; vendedor_codigo: string | null;
+      vendedor_nombre: string | null; zona_nombre: string | null;
+      cliente_ruc: string; saldo_pendiente: number; vigente: number;
+      d0_7: number; d8_15: number; d16_30: number; d31_60: number; d61_mas: number;
+    }>((from, to) => {
+      let q = db.from('v_saldos')
+        .select('vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, cliente_ruc, saldo_pendiente, vigente, d0_7, d8_15, d16_30, d31_60, d61_mas');
+      if (soloDeuda) q = q.gt('saldo_pendiente', 0);
+      return q.order('id').range(from, to);
+    });
 
     type Grupo = {
-      vendedor_id: string | null; vendedor_codigo: string | null;
+      vendedor_codigo: string | null;
       vendedor_nombre: string | null; zona_nombre: string | null;
       clientes: Set<string>;
       saldo_total: number; vigente: number; d0_7: number; d8_15: number; d16_30: number;
@@ -30,10 +53,11 @@ export async function GET(_req: NextRequest) {
 
     const map = new Map<string, Grupo>();
     for (const row of data) {
-      const key = row.vendedor_id ?? '__sin__';
+      // Misma clave que la pantalla: vendedor + zona.
+      const key = `${row.vendedor_id ?? '__sin_asignar__'}::${row.zona_nombre ?? '__sin_zona__'}`;
       if (!map.has(key)) {
         map.set(key, {
-          vendedor_id: row.vendedor_id, vendedor_codigo: row.vendedor_codigo,
+          vendedor_codigo: row.vendedor_codigo,
           vendedor_nombre: row.vendedor_nombre, zona_nombre: row.zona_nombre,
           clientes: new Set(),
           saldo_total: 0, vigente: 0, d0_7: 0, d8_15: 0, d16_30: 0, d31_60: 0, d61_mas: 0,
@@ -88,13 +112,15 @@ export async function GET(_req: NextRequest) {
     XLSX.utils.book_append_sheet(wb, ws, 'Resumen Vendedor');
 
     const fecha = new Date().toISOString().slice(0, 10);
+    const sufijo = soloDeuda ? '' : '-con-pagados';
     const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
 
     return new Response(buf, {
       headers: {
         'Content-Type':        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="resumen-vendedor-${fecha}.xlsx"`,
+        'Content-Disposition': `attachment; filename="resumen-vendedor-${fecha}${sufijo}.xlsx"`,
+        'Cache-Control':       'no-store',
       },
     });
   } catch (err) {

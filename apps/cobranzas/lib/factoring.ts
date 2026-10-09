@@ -12,7 +12,7 @@ async function canjesActivosPorDocumento(db: SupabaseClient, documentoIds: strin
   if (documentoIds.length === 0) return new Map();
 
   const canjeFacturas = await fetchAll<{ documento_id: string; canje_id: string; monto_canje: number }>((from, to) =>
-    db.from('factoring_canje_facturas').select('documento_id, canje_id, monto_canje').in('documento_id', documentoIds).range(from, to)
+    db.from('factoring_canje_facturas').select('documento_id, canje_id, monto_canje').in('documento_id', documentoIds).order('id').range(from, to)
   );
   if (canjeFacturas.length === 0) return new Map();
 
@@ -38,7 +38,7 @@ export async function documentosYaIngresados(db: SupabaseClient, documentoIds: s
   if (documentoIds.length === 0) return new Set();
 
   const ingresoFacturas = await fetchAll<{ documento_id: string; ingreso_id: string }>((from, to) =>
-    db.from('factoring_ingreso_facturas').select('documento_id, ingreso_id').in('documento_id', documentoIds).range(from, to)
+    db.from('factoring_ingreso_facturas').select('documento_id, ingreso_id').in('documento_id', documentoIds).order('id').range(from, to)
   );
   if (ingresoFacturas.length === 0) return new Set();
 
@@ -88,13 +88,13 @@ export interface FilaReporteFactoring {
 /** Facturas actualmente esperando el ingreso al banco (Parte 3: reporte). */
 export async function construirReporteFactoring(db: SupabaseClient, filtros: { cliente_ruc?: string | null }): Promise<FilaReporteFactoring[]> {
   const canjes = await fetchAll<{ id: string; cliente_ruc: string; fecha_canje: string; anulado: boolean }>((from, to) =>
-    db.from('factoring_canjes').select('id, cliente_ruc, fecha_canje, anulado').eq('anulado', false).range(from, to)
+    db.from('factoring_canjes').select('id, cliente_ruc, fecha_canje, anulado').eq('anulado', false).order('id').range(from, to)
   );
   if (canjes.length === 0) return [];
 
   const canjeIds = canjes.map(c => c.id);
   const canjeFacturas = await fetchAll<{ canje_id: string; documento_id: string; monto_canje: number }>((from, to) =>
-    db.from('factoring_canje_facturas').select('canje_id, documento_id, monto_canje').in('canje_id', canjeIds).range(from, to)
+    db.from('factoring_canje_facturas').select('canje_id, documento_id, monto_canje').in('canje_id', canjeIds).order('id').range(from, to)
   );
 
   const canjePorId = new Map(canjes.map(c => [c.id, c]));

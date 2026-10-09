@@ -19,7 +19,7 @@ export async function POST() {
       .eq('clasificacion', 'cobro')
       .eq('estado_conciliacion', 'pendiente')
       .not('operacion_numero', 'is', null)
-      .range(from, to)
+      .order('id').range(from, to)
   );
 
   const ops = Array.from(new Set(pendientes.map(p => p.operacion_numero).filter(Boolean))) as string[];

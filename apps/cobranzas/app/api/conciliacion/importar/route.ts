@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     // documentos/pagos). Se compara antes/después del insert.
     const sumaSaldos = async () => {
       const filas = await fetchAll<{ saldo_pendiente: number }>((from, to) =>
-        db.from('v_saldos').select('saldo_pendiente').range(from, to)
+        db.from('v_saldos').select('saldo_pendiente').order('id').range(from, to)
       );
       return Math.round(filas.reduce((s, f) => s + (Number(f.saldo_pendiente) || 0), 0) * 100) / 100;
     };
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     // Claves ya existentes en la tabla (para no duplicar en re-subidas).
     const existentes = await fetchAll<{ operacion_numero: string | null; fecha: string; monto: number; descripcion: string }>((from, to) =>
-      db.from('movimientos_banco_import').select('operacion_numero, fecha, monto, descripcion').range(from, to)
+      db.from('movimientos_banco_import').select('operacion_numero, fecha, monto, descripcion').order('id').range(from, to)
     );
     const clave = (op: string | null, fecha: string | null, monto: number, desc: string) =>
       op ? `op|${op}|${fecha}|${monto}` : `nd|${fecha}|${monto}|${desc}`;

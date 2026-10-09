@@ -26,7 +26,7 @@ const SIN_VEND = '__sin__';
 export async function computeCobranza(db: SupabaseClient, desde: string, hasta: string): Promise<CobranzaData> {
   const pagos = await fetchAll<{ documento_id: string; monto: number; fecha_pago: string }>((from, to) =>
     db.from('pagos').select('documento_id, monto, fecha_pago').eq('tipo', 'pago')
-      .gte('fecha_pago', desde).lte('fecha_pago', hasta).range(from, to)
+      .gte('fecha_pago', desde).lte('fecha_pago', hasta).order('id').range(from, to)
   );
 
   const docIds = Array.from(new Set(pagos.map(p => p.documento_id)));
@@ -42,7 +42,7 @@ export async function computeCobranza(db: SupabaseClient, desde: string, hasta: 
     for (const c of data ?? []) vendedorPorRuc.set(c.ruc, c.vendedor_actual_id);
   }
   const vendedores = await fetchAll<{ id: string; nombres: string; apellidos: string | null; codigo: string | null }>((from, to) =>
-    db.from('vendedores').select('id, nombres, apellidos, codigo').range(from, to));
+    db.from('vendedores').select('id, nombres, apellidos, codigo').order('id').range(from, to));
   const vendMap = new Map(vendedores.map(v => [v.id, { nombre: `${v.nombres} ${v.apellidos ?? ''}`.trim(), codigo: v.codigo }]));
 
   let totalCobrado = 0, totalVencido = 0;

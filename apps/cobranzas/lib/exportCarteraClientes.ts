@@ -20,7 +20,7 @@ export async function carteraClientesXlsx(db: SupabaseClient, vendedorId: string
           .select('ruc, razon_social, direccion, distrito, codigo_zona, celular')
           .eq('vendedor_actual_id', vendedorId)
           .order('razon_social')
-          .range(from, to)
+          .order('ruc').range(from, to)
     ),
   ]);
 

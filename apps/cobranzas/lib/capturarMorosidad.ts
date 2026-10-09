@@ -12,7 +12,7 @@ export async function capturarMorosidad(fecha: string): Promise<{ fecha: string;
   }>((from, to) =>
     db.from('v_saldos')
       .select('vendedor_id, saldo_pendiente, d0_7, d8_15, d16_30, d31_60, d61_mas')
-      .range(from, to)
+      .order('id').range(from, to)
   );
 
   const agg = new Map<string, { total: number; vencido: number; nVencidas: number }>();

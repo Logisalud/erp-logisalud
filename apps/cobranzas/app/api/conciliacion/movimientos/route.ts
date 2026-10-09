@@ -16,7 +16,7 @@ export async function GET() {
       .select('id, fecha, descripcion, monto, operacion_numero, clasificacion, nombre_banco_detectado, estado_conciliacion, pago_id, importado_en')
       .order('fecha', { ascending: false })
       .order('importado_en', { ascending: false })
-      .range(from, to)
+      .order('id').range(from, to)
   );
 
   // Factura enlazada (comprobante + cliente) para los conciliados.

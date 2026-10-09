@@ -71,7 +71,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
         .select('id, comprobante, cliente_ruc, razon_social, fecha_emision, fecha_vencimiento, importe_total, total_nc, total_pagado, saldo_pendiente, d0_7, d8_15, d16_30, d31_60, d61_mas, tiene_letras')
         .eq('vendedor_id', vendedor!.id)
         .gt('saldo_pendiente', 0.005)
-        .range(from, to)
+        .order('id').range(from, to)
     ),
     db.from('digemid_zona_vendedor').select('codigo_zona').eq('vendedor_id', vendedor.id),
     // Ventas al contado ya saldadas (informativo): forma_pago CONTADO y no pendiente.
@@ -81,7 +81,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
         .eq('vendedor_id', vendedor!.id)
         .eq('forma_pago', 'CONTADO')
         .eq('contado_pendiente', false)
-        .range(from, to)
+        .order('id').range(from, to)
     ),
   ]);
 

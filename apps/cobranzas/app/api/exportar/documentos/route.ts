@@ -32,16 +32,16 @@ export async function GET(_req: NextRequest) {
         db.from('documentos')
           .select('id, tipo, serie, numero, cliente_ruc, fecha_emision, fecha_vencimiento, importe_total, forma_pago, contado_pendiente, documento_relacionado_id, moneda, tipo_cambio, anulado')
           .order('fecha_emision', { ascending: false })
-          .range(from, to)
+          .order('id').range(from, to)
       ),
       fetchAll((from, to) =>
-        db.from('clientes').select('ruc, razon_social').range(from, to)
+        db.from('clientes').select('ruc, razon_social').order('ruc').range(from, to)
       ),
       fetchAll((from, to) =>
         db.from('pagos')
           .select('id, documento_id, monto, fecha_pago, referencia, created_at')
           .order('fecha_pago', { ascending: false })
-          .range(from, to)
+          .order('id').range(from, to)
       ),
     ]);
 

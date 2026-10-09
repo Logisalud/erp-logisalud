@@ -76,6 +76,23 @@ role key, bypassa RLS).
   de **ajuste con su motivo** (CONTADO al despacho, redondeo, canje en
   letras, pagado de más, o "sin explicar"). Al 2026-09-25 las 2.497 facturas
   caen en uno de los cinco motivos y ninguna en "sin explicar".
+- **`fetchAll()` exige un orden único en la consulta.** Pagina con
+  `.range()` porque PostgREST corta en 1.000 filas, y sin `ORDER BY`
+  determinista la página 2 repite filas de la 1 y se saltea otras: números
+  mal, sin error, distintos en cada corrida. Pasó en producción (oct-2026):
+  el Excel "Resumen por vendedor" paginaba 2.573 filas de `v_saldos` sin
+  orden, traía 592 repetidas y perdía 592 — S/ 54.086 de diferencia contra
+  la pantalla. Ordenar por fecha o razón social **no alcanza**: los empates
+  se reordenan igual; hay que agregar la clave única como desempate final.
+  En este esquema es `id` en todas las tablas y vistas, salvo `clientes`
+  (`ruc`) y `letra_documento` (`documento_id` + `letra_id`).
+- **Un Excel y su pantalla tienen que salir de las mismas reglas.** El
+  mismo caso dejó la otra mitad de la lección: la exportación agrupaba sólo
+  por vendedor y no aplicaba el filtro "Solo cartera pendiente", así que
+  mostraba otras cifras que la pantalla de al lado (y contaba facturas
+  pagadas como si fueran deuda: 368 contra 21 en un vendedor). Si una
+  pantalla tiene filtros, el export los recibe por querystring y agrupa
+  igual.
 - Flujos de importación pesada (Nubefact, cartera) siguen el patrón
   preview→confirm: `lib/<algo>-parser.ts` (usa `xlsx`, detecta fila de
   headers, matching difuso de columnas) + `app/api/<algo>/preview` +

@@ -43,7 +43,7 @@ export async function GET(
         : q.eq('vendedor_id', vendedorId);
       if (zona) q = q.eq('zona_nombre', zona);
       if (soloDeuda) q = q.gt('saldo_pendiente', 0);
-      return q.range(from, to);
+      return q.order('id').range(from, to);
     });
 
     const grupos = new Map<string, GrupoCliente>();

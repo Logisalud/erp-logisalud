@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         .from('v_saldos')
         .select('vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, saldo_pendiente, vigente, d0_7, d8_15, d16_30, d31_60, d61_mas');
       if (soloDeuda) q = q.gt('saldo_pendiente', 0);
-      return q.range(from, to);
+      return q.order('id').range(from, to);
     });
 
     // Agrupa por vendedor + zona, no solo por vendedor: si una persona cubre

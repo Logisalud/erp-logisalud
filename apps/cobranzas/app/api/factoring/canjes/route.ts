@@ -19,12 +19,12 @@ export async function GET() {
   const canjes = await fetchAll<{
     id: string; cliente_ruc: string; fecha_canje: string; observaciones: string | null;
     registrado_por: string | null; anulado: boolean; anulado_motivo: string | null; created_at: string;
-  }>((from, to) => db.from('factoring_canjes').select('*').order('fecha_canje', { ascending: false }).range(from, to));
+  }>((from, to) => db.from('factoring_canjes').select('*').order('fecha_canje', { ascending: false }).order('id').range(from, to));
 
   const canjeIds = canjes.map(c => c.id);
   const canjeFacturas = canjeIds.length
     ? await fetchAll<{ id: string; canje_id: string; documento_id: string; monto_canje: number }>((from, to) =>
-        db.from('factoring_canje_facturas').select('id, canje_id, documento_id, monto_canje').in('canje_id', canjeIds).range(from, to)
+        db.from('factoring_canje_facturas').select('id, canje_id, documento_id, monto_canje').in('canje_id', canjeIds).order('id').range(from, to)
       )
     : [];
 

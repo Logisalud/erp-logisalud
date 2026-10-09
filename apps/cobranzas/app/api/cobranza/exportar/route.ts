@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     const pagos = await fetchAll<{ documento_id: string; monto: number; fecha_pago: string }>((from, to) =>
       db.from('pagos').select('documento_id, monto, fecha_pago').eq('tipo', 'pago')
-        .gte('fecha_pago', desde).lte('fecha_pago', hasta).range(from, to)
+        .gte('fecha_pago', desde).lte('fecha_pago', hasta).order('id').range(from, to)
     );
 
     const docIds = Array.from(new Set(pagos.map(p => p.documento_id)));
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       for (const c of data ?? []) vendedorPorRuc.set(c.ruc, c.vendedor_actual_id);
     }
     const vendedores = await fetchAll<{ id: string; nombres: string; apellidos: string | null; codigo: string | null }>((from, to) =>
-      db.from('vendedores').select('id, nombres, apellidos, codigo').range(from, to));
+      db.from('vendedores').select('id, nombres, apellidos, codigo').order('id').range(from, to));
     const vendMap = new Map(vendedores.map(v => [v.id, `${v.nombres} ${v.apellidos ?? ''} (${v.codigo ?? ''})`.trim()]));
 
     const porVend = new Map<string, { nombre: string; total: number; vencido: number; alDia: number; n: number }>();

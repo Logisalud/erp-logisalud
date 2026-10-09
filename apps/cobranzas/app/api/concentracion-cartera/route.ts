@@ -43,7 +43,7 @@ export async function GET() {
       db.from('v_saldos')
         .select('cliente_ruc, razon_social, vendedor_id, vendedor_codigo, vendedor_nombre, zona_nombre, saldo_pendiente, dias_retraso, d0_7, d8_15, d16_30, d31_60, d61_mas')
         .gt('saldo_pendiente', 0)
-        .range(from, to)
+        .order('id').range(from, to)
     );
 
     const map = new Map<string, ClienteConcentracion>();

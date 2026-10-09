@@ -78,7 +78,7 @@ export async function construirFilasNubecont(db: SupabaseClient, desde: string, 
     db.from('pagos')
       .select('id, documento_id, monto, fecha_pago, referencia, medio_cobro, cuenta_bancaria_codigo, estado_efectivo, fecha_deposito, documentos(tipo, serie, numero, cliente_ruc)')
       .eq('tipo', 'pago')
-      .range(from, to)
+      .order('id').range(from, to)
   )) as unknown as PagoCrudo[];
 
   // Fecha efectiva: fecha_deposito para efectivo ya depositado (es cuando
