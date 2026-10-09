@@ -124,6 +124,10 @@ export class InventarioDemo extends EntradasDemo {
   }
 
   // ── Movimientos internos ────────────────────────────────────────────────
+  // Los movimientos de demostración se siembran una vez; las alertas y su contador necesitan verlos aunque nadie abra Movimientos antes.
+  listarAlertas(): ReturnType<EntradasDemo['listarAlertas']> { sembrarInventario(estadoE()); return super.listarAlertas() }
+  contarAlertasAbiertas(): ReturnType<EntradasDemo['contarAlertasAbiertas']> { sembrarInventario(estadoE()); return super.contarAlertasAbiertas() }
+
   private ordenes(): OrdenMovimiento[] { const e = estadoE(); sembrarInventario(e); return e.inv.ordenes }
   private orden(id: string) { return this.ordenes().find((o) => o.id === id) }
 

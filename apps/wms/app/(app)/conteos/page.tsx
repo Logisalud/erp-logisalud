@@ -21,7 +21,7 @@ export default async function Conteos() {
   const pendientes = ajustes.filter((a) => a.estado === 'PROPUESTO')
   const porPosicion = new Map<string, number>()
   for (const s of p.saldos) if (s.cantidad > 0) porPosicion.set(s.posicionId, (porPosicion.get(s.posicionId) ?? 0) + s.cantidad)
-  const posiciones: PosicionContable[] = p.posiciones.filter((x) => porPosicion.has(x.id)).map((x) => ({ id: x.id, codigo: x.codigo, area: ETIQUETA_AREA[x.tipoArea], unidades: porPosicion.get(x.id)!, ocupada: enMovimiento.has(x.id) ? 'tiene un movimiento abierto' : undefined }))
+  const posiciones: PosicionContable[] = p.posiciones.filter((x) => porPosicion.has(x.id)).map((x) => ({ id: x.id, codigo: x.codigo, area: ETIQUETA_AREA[x.tipoArea], unidades: porPosicion.get(x.id)!, ocupada: enMovimiento.has(x.id) ? 'tiene movimientos por verificar' : undefined }))
     .sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }))
   return (
     <div className="space-y-6">

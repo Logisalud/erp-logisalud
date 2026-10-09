@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, Ban, Check, CheckCircle2, PackageCheck, RotateCcw, TriangleAlert } from 'lucide-react'
+import { ArrowLeftRight, ArrowRight, Ban, Check, CheckCircle2, PackageCheck, RotateCcw, TriangleAlert } from 'lucide-react'
 import {
   anularMovimientoAccion, resolverMovimientoAccion, revisarMovimientoAccion,
 } from '@/app/acciones-inventario'
+import { textoTransito } from '@/domain/transito'
 import type { AccionesOrden, LineaOrdenMovimiento, OrdenMovimiento, RevisionLinea } from '@/domain/inventario'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
@@ -43,22 +44,25 @@ export function AccionesMovimiento({ orden, acciones }: { orden: OrdenMovimiento
       {orden.estado === 'EJECUTADO' && !acciones.verificar && (
         <Aviso tipo="info" testid="mov-espera-verificador">Espera a otra persona. {acciones.motivoNoVerifica ?? 'Solo el personal de almacén verifica.'} Quien ejecuta un movimiento no lo verifica: lo hace otro auxiliar, el Jefe o su reemplazo.</Aviso>
       )}
+      {orden.estado === 'EJECUTADO' && orden.lineas.some((l) => l.verificacion === 'PENDIENTE') && (
+        <p className="flex items-center gap-2 rounded-lg border border-teal-300 bg-teal-50 px-3 py-2 text-sm text-teal-900" data-testid="mov-en-transito"><ArrowLeftRight className="h-4 w-4 shrink-0" aria-hidden />{textoTransito(orden.lineas.filter((l) => l.verificacion === 'PENDIENTE').reduce((n, l) => n + l.cantidad, 0))}: las unidades siguen reservadas hasta que otra persona verifique cada línea.</p>
+      )}
 
-      {acciones.verificar && (
-        <div className="space-y-3" data-testid="mov-revision">
+      {(acciones.verificar || acciones.ejecutorViendo) && (
+        <div className="space-y-3" data-testid="mov-revision" data-bloqueado={acciones.verificar ? undefined : 'si'}>
           <p className="text-sm text-gray-700">Comprueba cada línea en el destino: producto, lote y cantidad. Si algo no coincide, márcalo: solo esa línea queda abierta y las demás se confirman.</p>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium text-gray-900" data-testid="mov-progreso">{decididas} de {porVerificar.length} revisadas</p>
-            <button type="button" className="btn-secondary btn-sm" onClick={todoCoincide} data-testid="mov-todo-coincide"><CheckCircle2 className="h-4 w-4" aria-hidden />Todo coincide</button>
+            <button type="button" className="btn-secondary btn-sm" onClick={todoCoincide} disabled={!acciones.verificar} data-testid="mov-todo-coincide"><CheckCircle2 className="h-4 w-4" aria-hidden />Marcar todo como «Coincide»</button>
           </div>
           <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200" data-testid="mov-revision-lineas">
-            {porVerificar.map((l) => <LineaRevision key={l.id} l={l} d={decisiones[l.id]} alDecidir={(d) => decidir(l.id, d)} />)}
+            {porVerificar.map((l) => <LineaRevision key={l.id} l={l} d={decisiones[l.id]} alDecidir={(d) => decidir(l.id, d)} bloqueada={!acciones.verificar} />)}
           </ul>
           {/* Acción principal fija abajo en teléfono */}
           <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 -mx-4 border-t border-gray-200 bg-white px-4 py-3 md:static md:mx-0 md:border-0 md:p-0">
-            <button type="button" className="btn-primary w-full md:w-auto" disabled={pendiente || !listo} onClick={enviarRevision} data-testid="mov-enviar-revision">
+            <button type="button" className="btn-primary w-full md:w-auto" disabled={pendiente || !listo || !acciones.verificar} onClick={enviarRevision} data-testid="mov-enviar-revision">
               <Check className="h-5 w-5" aria-hidden />
-              {!listo ? (faltaNota ? 'Cuenta qué no coincide' : `Revisa las ${porVerificar.length - decididas} líneas que faltan`) : conDif === 0 ? 'Confirmar el movimiento' : `Confirmar ${porVerificar.length - conDif} y reportar ${conDif}`}
+              {!listo ? (faltaNota ? 'Cuenta qué no coincide' : `Faltan ${porVerificar.length - decididas} por revisar`) : conDif === 0 ? 'Confirmar verificación' : `Confirmar verificación (${conDif} con diferencia)`}
             </button>
           </div>
         </div>
@@ -106,7 +110,7 @@ export function AccionesMovimiento({ orden, acciones }: { orden: OrdenMovimiento
   )
 }
 
-function LineaRevision({ l, d, alDecidir }: { l: LineaOrdenMovimiento; d: Decision | undefined; alDecidir: (d: Partial<Decision>) => void }) {
+function LineaRevision({ l, d, alDecidir, bloqueada }: { l: LineaOrdenMovimiento; d: Decision | undefined; alDecidir: (d: Partial<Decision>) => void; bloqueada: boolean }) {
   return (
     <li className="space-y-2 p-3" data-testid="mov-revision-linea">
       <div>
@@ -115,13 +119,13 @@ function LineaRevision({ l, d, alDecidir }: { l: LineaOrdenMovimiento; d: Decisi
         <p className="tabular mt-0.5 flex items-center gap-1.5 text-sm text-gray-800">{l.desde}<ArrowRight className="h-4 w-4 text-gray-500" aria-hidden />{l.hacia}</p>
       </div>
       <div className="grid grid-cols-2 gap-2" role="group" aria-label={`Resultado de ${l.producto}`}>
-        <button type="button" aria-pressed={d?.resultado === 'COINCIDE'} onClick={() => alDecidir({ resultado: 'COINCIDE', nota: '' })} data-testid="linea-coincide"
+        <button type="button" disabled={bloqueada} aria-pressed={d?.resultado === 'COINCIDE'} onClick={() => alDecidir({ resultado: 'COINCIDE', nota: '' })} data-testid="linea-coincide"
           className={`inline-flex min-h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border-2 px-2 font-medium ${d?.resultado === 'COINCIDE' ? SI_OK : SIN_MARCAR}`}>
           <Check className="h-5 w-5" aria-hidden />Coincide
         </button>
-        <button type="button" aria-pressed={d?.resultado === 'DIFERENCIA'} onClick={() => alDecidir({ resultado: 'DIFERENCIA' })} data-testid="linea-diferencia"
+        <button type="button" disabled={bloqueada} aria-pressed={d?.resultado === 'DIFERENCIA'} onClick={() => alDecidir({ resultado: 'DIFERENCIA' })} data-testid="linea-diferencia"
           className={`inline-flex min-h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border-2 px-2 font-medium ${d?.resultado === 'DIFERENCIA' ? SI_DIF : SIN_MARCAR}`}>
-          <TriangleAlert className="h-5 w-5" aria-hidden />No coincide
+          <TriangleAlert className="h-5 w-5" aria-hidden />Hay una diferencia
         </button>
       </div>
       {d?.resultado === 'DIFERENCIA' && (

@@ -63,7 +63,7 @@ describe('movimientos internos: dos personas, ejecutar → verificar (D-15)', ()
     id: verificacion, productoId: 'p', producto: 'P', loteId: 'l', lote: 'L', propietario: 'LOGISSA', estado: 'APROBADO', procedenciaId: 'x', desdePosicionId: 'a', desde: 'A-1', haciaPosicionId: 'b', hacia: 'B-1', cantidad: 1, verificacion,
   })
   it('no hay autorización ni paso intermedio: el Jefe solo resuelve diferencias y anula', () => {
-    expect(Object.keys(accionesDeOrden(orden('EJECUTADO'), 'x', ['jefe_almacen'])).sort()).toEqual(['anular', 'motivoNoVerifica', 'resolver', 'verificar'])
+    expect(Object.keys(accionesDeOrden(orden('EJECUTADO'), 'x', ['jefe_almacen'])).sort()).toEqual(['anular', 'ejecutorViendo', 'motivoNoVerifica', 'resolver', 'verificar'])
     expect(accionesDeOrden(orden('CON_DIFERENCIA'), 'x', ['jefe_almacen']).resolver).toBe(true)
     expect(accionesDeOrden(orden('CON_DIFERENCIA'), 'x', ['auxiliar']).resolver).toBe(false)
     expect(accionesDeOrden(orden('CON_DIFERENCIA'), 'x', ['reemplazo_jefe']).resolver).toBe(true)
@@ -142,7 +142,7 @@ describe('Mover: buscar el origen y validar el destino', () => {
     const v = validarDestino(pan, cuarentena.id, aValidar())!
     expect(v.ok).toBe(false)
     expect(v.invalidas).toBe(v.porLinea.length)
-    expect(v.porLinea[0].mensaje).toMatch(/no admite unidades en Aprobado/)
+    expect(v.porLinea[0].mensaje).toMatch(/Ya está aprobado: no vuelve a Cuarentena|no admite unidades en Aprobado/)
   })
   it('no se mueve a la misma ubicación, ni a una inactiva o bloqueada', () => {
     expect(validarDestino(pan, origenId, aValidar())!.porLinea.every((x) => x.mensaje === 'Ya está en esa ubicación.')).toBe(true)
@@ -187,7 +187,7 @@ describe('Mover con varios orígenes: buscar por producto y validar cada línea 
     const vences = celdas.map((c) => c.vence ?? '9999')
     expect([...vences].sort()).toEqual(vences)
     const bloq = ubicacionesDeProducto(pan, dapa.id, new Map(), { [celdas[0].posicionId]: 'está en conteo CT-1' })
-    expect(bloq.find((c) => c.posicionId === celdas[0].posicionId)!.bloqueada).toBe('está en conteo CT-1')
+    expect(bloq.find((c) => c.posicionId === celdas[0].posicionId)).toBeUndefined() // una ubicación en conteo no se ofrece como origen
   })
 
   it('cada línea se valida contra SU destino: el de la cabecera o uno propio', () => {
@@ -197,7 +197,7 @@ describe('Mover con varios orígenes: buscar por producto y validar cada línea 
     const base = celdas.slice(0, 2).map((c) => ({ clave: c.clave, posicionId: c.posicionId, propietarioId: c.propietarioId, propietario: c.propietario, estado: c.estado }))
     const r = validarLineasMovimiento(pan, [{ ...base[0], haciaPosicionId: libre.id }, { ...base[1], haciaPosicionId: cuarentena.id }])
     expect(r[1]).toMatchObject({ ok: false })
-    expect(r[1].mensaje).toMatch(/no admite unidades en Aprobado|es de|no tiene una asignación/)
+    expect(r[1].mensaje).toMatch(/Ya está aprobado|no admite unidades en Aprobado|es de|no tiene una asignación/)
     expect(r[0].clave).toBe(base[0].clave)
   })
 

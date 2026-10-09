@@ -308,6 +308,8 @@ export interface AccionesOrden {
   verificar: boolean
   /** Por qué no puede verificar quien lo intenta (D-15). */
   motivoNoVerifica?: string
+  /** Es quien ejecutó el movimiento: ve la verificación, pero con los botones deshabilitados. */
+  ejecutorViendo: boolean
   resolver: boolean
   anular: boolean
 }
@@ -319,6 +321,7 @@ export function accionesDeOrden(o: OrdenMovimiento, actorId: string, roles: read
   return {
     verificar: verif && r.puede,
     motivoNoVerifica: verif && !r.puede ? r.mensaje : undefined,
+    ejecutorViendo: o.estado === 'EJECUTADO' && actorId === o.ejecutorId,
     resolver: o.estado === 'CON_DIFERENCIA' && esJefe(roles),
     // Solo mientras nadie verificó ninguna línea: lo anula quien lo ejecutó o el Jefe.
     anular: o.estado === 'EJECUTADO' && o.lineas.every((l) => l.verificacion === 'PENDIENTE') && (actorId === o.ejecutorId || esJefe(roles)),

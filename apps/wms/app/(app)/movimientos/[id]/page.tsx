@@ -52,7 +52,7 @@ export default async function DetalleMovimiento({ params }: { params: { id: stri
               {o.lineas.map((l) => (
                 <tr key={l.id} data-testid="fila-linea">
                   <td className="px-3 py-2.5 font-medium text-gray-900">{l.producto}</td>
-                  <td className="tabular px-3 py-2.5 text-gray-800">{l.lote}</td>
+                  <td className="tabular px-3 py-2.5 text-gray-800"><Link href={`/lotes/${l.loteId}`} className="underline underline-offset-2" data-testid="ir-lote">{l.lote}</Link></td>
                   <td className="tabular whitespace-nowrap px-3 py-2.5 text-gray-800">{formatoFecha(l.vence)}</td>
                   <td className="px-3 py-2.5 text-gray-800">{l.propietario}</td>
                   <td className="px-3 py-2.5 text-gray-800">{ETIQUETA_ESTADO[l.estado]}</td>
@@ -71,7 +71,7 @@ export default async function DetalleMovimiento({ params }: { params: { id: stri
           {o.lineas.map((l) => (
             <li key={l.id} className="space-y-1 px-4 py-3" data-testid="fila-linea-movil">
               <p className="font-medium text-gray-900">{l.producto}</p>
-              <p className="tabular text-sm text-gray-700">Lote {l.lote} · vence {formatoFecha(l.vence)} · {l.propietario} · {ETIQUETA_ESTADO[l.estado]}</p>
+              <p className="tabular text-sm text-gray-700">Lote <Link href={`/lotes/${l.loteId}`} className="underline underline-offset-2" data-testid="ir-lote">{l.lote}</Link> · vence {formatoFecha(l.vence)} · {l.propietario} · {ETIQUETA_ESTADO[l.estado]}</p>
               <p className="tabular flex flex-wrap items-center gap-x-2 font-heading text-base font-semibold tracking-wide text-gray-900">{l.desde}<ArrowRight className="h-4 w-4 text-gray-500" aria-hidden />{l.hacia}<span className="ml-auto font-body text-sm font-medium">{l.cantidad} u</span></p>
               <div className="flex flex-wrap items-center gap-2"><span data-testid="estado-linea-movil"><ChipVerificacion v={l.verificacion} /></span>{l.notaDiferencia && <span className="text-xs text-gray-700">{l.notaDiferencia}</span>}</div>
             </li>

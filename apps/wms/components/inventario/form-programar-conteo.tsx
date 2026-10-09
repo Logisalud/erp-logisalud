@@ -1,5 +1,6 @@
 'use client'
 
+import { normalizar } from '@/domain/busqueda'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ClipboardCheck, Search } from 'lucide-react'
@@ -17,7 +18,7 @@ export function FormProgramarConteo({ posiciones }: { posiciones: PosicionContab
   const [q, setQ] = useState('')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [nota, setNota] = useState('')
-  const visibles = useMemo(() => posiciones.filter((p) => p.codigo.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 60), [posiciones, q])
+  const visibles = useMemo(() => posiciones.filter((p) => normalizar(`${p.codigo} ${p.area}`).includes(normalizar(q))).slice(0, 60), [posiciones, q])
   const alternar = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   return (
     <section className="card space-y-4" aria-labelledby="prog" data-testid="form-programar-conteo">

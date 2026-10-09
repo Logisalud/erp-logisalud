@@ -173,7 +173,13 @@ test.describe('movimientos internos (INV-02, D-15): ejecutar → verificar', () 
     await filasVisibles(page).first().click()
     const numero = (await page.getByTestId('titulo-movimiento').textContent())!
     await expect(page.getByTestId('mov-espera-verificador')).toContainText(/no puede ser quien ejecutó/)
-    await expect(page.getByTestId('mov-revision')).toHaveCount(0)
+    // el ejecutor ve la verificación, pero no puede marcar nada: botones deshabilitados y un aviso que lo explica
+    await expect(page.getByTestId('mov-revision')).toHaveAttribute('data-bloqueado', 'si')
+    await expect(page.getByTestId('linea-coincide').first()).toBeDisabled()
+    await expect(page.getByTestId('linea-diferencia').first()).toBeDisabled()
+    await expect(page.getByTestId('mov-todo-coincide')).toBeDisabled()
+    await expect(page.getByTestId('mov-enviar-revision')).toBeDisabled()
+    await expect(page.getByTestId('mov-en-transito')).toContainText('en tránsito, por verificar')
     await sinDesborde(page)
     await capturar(page, info, 'movimiento-espera-verificador', { completa: true })
     // otro auxiliar, el Jefe o su reemplazo verifican; el ejecutor del otro movimiento (el Jefe) no puede con el suyo
@@ -268,6 +274,29 @@ test.describe('movimientos internos (INV-02, D-15): ejecutar → verificar', () 
     // la ubicación NO queda bloqueada: lo reservado por el movimiento en curso no está disponible
     await expect(page.locator('[data-testid="opcion-origen"][disabled]').or(page.getByTestId('sin-origenes')).first()).toBeVisible()
     await capturar(page, info, 'mover-reservadas')
+  })
+
+  test('las unidades de un movimiento por verificar se ven «en tránsito» en el buscador, el mapa, la ubicación y la historia del lote', async ({ page }, info) => {
+    await entrarComo(page, 'jefe_almacen')
+    // el buscador universal lo dice en la ubicación y en el lote
+    await page.goto('/wms/almacen?buscar=L-VENCE')
+    if (!esTelefono(info)) await expect(page.getByTestId('mapa')).toBeVisible()
+    await page.goto('/wms/movimientos?q=' + ordenMultiorigen)
+    await filasVisibles(page).first().click()
+    await expect(page.getByTestId('mov-en-transito')).toContainText('en tránsito, por verificar')
+    // desde la línea se llega a la historia del lote, que muestra lo que está en tránsito
+    const lote = page.locator('[data-testid="ir-lote"]:visible').first()
+    {
+      await lote.click()
+      await expect(page.getByTestId('lote-en-transito')).toContainText('en tránsito, por verificar')
+      await capturar(page, info, 'lote-en-transito', { completa: true })
+    }
+    // el mapa marca las celdas con unidades en tránsito
+    await page.goto('/wms/almacen')
+    if (!esTelefono(info)) {
+      await expect(page.getByTestId('marca-transito').first()).toBeAttached()
+      await capturar(page, info, 'mapa-en-transito')
+    }
   })
 
   test('el destino por defecto se aplica a las líneas sin destino; una línea se cambia a otro destino', async ({ page }, info) => {

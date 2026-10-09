@@ -246,3 +246,37 @@ describe('un movimiento con productos de distintos orígenes (el demo aplica lo 
     expect(Object.keys(await repo.posicionesBloqueadas()).includes(a.posicionId)).toBe(false)
   })
 })
+
+describe('modo tabla en el demo: verificación vencida, tránsito y ejecutor', () => {
+  it('un movimiento que pasa de 24 h sin verificar avisa al Jefe, una sola vez; verificado, deja de contar', async () => {
+    const alertas = await repo.listarAlertas()
+    const sin = alertas.filter((a) => a.tipo === 'MOVIMIENTO_SIN_VERIFICAR')
+    expect(sin.length).toBeGreaterThanOrEqual(1)
+    expect(sin[0]).toMatchObject({ destinatario: 'jefe_almacen' })
+    expect(sin[0].mensaje).toMatch(/más de 24 horas sin verificar/)
+    expect((await repo.listarAlertas()).filter((a) => a.tipo === 'MOVIMIENTO_SIN_VERIFICAR')).toHaveLength(sin.length) // no se repite
+  })
+
+  it('el mismo borrador reintentado (mismo token) no crea dos movimientos', async () => {
+    const { s } = await stockLibre(10)
+    const p = await repo.panorama()
+    const destino = p.posiciones.find((x) => x.id !== s.posicionId && x.activa)!
+    const linea = { desdePosicionId: s.posicionId, haciaPosicionId: destino.id, loteId: s.loteId, estado: s.estado, procedenciaId: s.procedenciaId, cantidad: 1 }
+    const a = await repo.ejecutarMovimiento([linea], 'Reposición', AUX, 'token-1')
+    const b = await repo.ejecutarMovimiento([linea], 'Reposición', AUX, 'token-1')
+    if (a.ok) expect(b).toMatchObject({ ok: true, numero: a.numero })
+  })
+
+  it('las unidades en tránsito siguen en el origen hasta que otra persona verifica', async () => {
+    const ordenes = await repo.listarMovimientos()
+    const abierta = ordenes.find((o) => o.estado === 'EJECUTADO')!
+    const { transitoPorPosicion } = await import('@/domain/transito')
+    const t = transitoPorPosicion(ordenes)
+    for (const l of abierta.lineas.filter((x) => x.verificacion === 'PENDIENTE')) {
+      expect(t.get(l.desdePosicionId)!.salen).toBeGreaterThanOrEqual(l.cantidad)
+      expect(t.get(l.haciaPosicionId)!.llegan).toBeGreaterThanOrEqual(l.cantidad)
+    }
+    const quien = actor(abierta.ejecutorId.replace('demo:', '') as Actor['roles'][number])
+    expect(await repo.revisarMovimiento(abierta.id, abierta.lineas.map((l) => ({ lineaId: l.id, resultado: 'COINCIDE' as const })), quien)).toMatchObject({ ok: false })
+  })
+})

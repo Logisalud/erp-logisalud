@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Undo2, CircleDashed, Clock, Hourglass, MessageSquareWarning, ShieldAlert, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { ArrowLeftRight, Ban, CheckCircle2, Undo2, CircleDashed, Clock, Hourglass, MessageSquareWarning, ShieldAlert, ShieldCheck, TriangleAlert } from 'lucide-react'
 import type { Estado } from '@/domain/tipos'
 import type { SituacionRS } from '@/domain/regulatorio'
 import { ETIQUETA_ESTADO } from '@/domain/estados'
@@ -51,6 +51,16 @@ export function ChipPorTrasladar({ className = '' }: { className?: string }) {
     <span className={`${base} border-teal-300 bg-teal-50 text-teal-900 ${className}`}>
       <Clock className="h-3.5 w-3.5" aria-hidden />
       Aprobado · por trasladar
+    </span>
+  )
+}
+
+/** Unidades que ya salieron de su origen y esperan la verificación de otra persona en el destino. */
+export function ChipEnTransito({ unidades, className = '' }: { unidades: number; className?: string }) {
+  return (
+    <span className={`${base} border-teal-300 bg-teal-50 text-teal-900 ${className}`} data-testid="chip-en-transito">
+      <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden />
+      {unidades.toLocaleString('es-PE')} u en tránsito, por verificar
     </span>
   )
 }

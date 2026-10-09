@@ -81,7 +81,7 @@ export function FormMovimientoTabla({ usuarioId }: { usuarioId: string }) {
   if (paso === 'revisar') return <Revision m={m} enviando={enviando} error={error} enLinea={enLinea} volver={() => { setPaso('editar'); setError(null) }} ejecutar={ejecutar} />
 
   return (
-    <div className="space-y-4" data-testid="form-tabla">
+    <div className="min-w-0 max-w-full space-y-4" data-testid="form-tabla">
       {b.recuperado && (
         <Aviso tipo="info" testid="borrador-recuperado">
           <span className="block font-medium">Encontramos un movimiento a medias.</span>

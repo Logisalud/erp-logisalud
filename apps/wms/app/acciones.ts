@@ -1,5 +1,6 @@
 'use server'
 
+import { transitoPorLote, transitoPorPosicion } from '@/domain/transito'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
@@ -30,7 +31,7 @@ export async function buscarAccion(consulta: string): Promise<ResultadoBusqueda[
   if (consulta.trim().length < 1) return []
   const repo = repositorio()
   const [panorama, entradas, ordenes] = await Promise.all([repo.panorama(), repo.buscarEntradas(consulta), repo.listarMovimientos()])
-  return [...buscar(panorama, consulta), ...buscarMovimientos(ordenes, consulta), ...entradas]
+  return [...buscar(panorama, consulta, 24, { porPosicion: transitoPorPosicion(ordenes), porLote: transitoPorLote(ordenes) }), ...buscarMovimientos(ordenes, consulta), ...entradas]
 }
 
 export interface EstadoFormulario {

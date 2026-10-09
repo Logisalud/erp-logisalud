@@ -7,7 +7,7 @@ import { normalizar } from '@/domain/busqueda'
 import { AREAS_COMPARTIDAS } from '@/domain/zonas'
 import type { CeldaVista, FilaStockVista, PosicionVista } from '@/domain/vista-mapa'
 import { vistaPropietario } from '../propietarios-color'
-import { ChipEstado, ChipPorTrasladar, ChipPorVerificar } from '../chips'
+import { ChipEnTransito, ChipEstado, ChipPorTrasladar, ChipPorVerificar } from '../chips'
 
 function titulo(p: PosicionVista): string {
   if (p.forma === 'SUBRACK') return `Subrack ${p.subnivel}`
@@ -83,6 +83,13 @@ function Nivel({ p, consulta }: { p: PosicionVista; consulta: string }) {
           <ChipPorVerificar />
           {p.nota && <span className="pt-0.5">{p.nota}</span>}
         </p>
+      )}
+
+      {p.transito && (
+        <div className="mt-2 flex flex-col gap-1" data-testid="transito-posicion">
+          {p.transito.salen > 0 && <p className="flex items-center gap-2 text-xs text-teal-900"><ChipEnTransito unidades={p.transito.salen} /><span>salen de aquí</span></p>}
+          {p.transito.llegan > 0 && <p className="flex items-center gap-2 text-xs text-teal-900"><ChipEnTransito unidades={p.transito.llegan} /><span>llegan aquí</span></p>}
+        </div>
       )}
 
       {p.stock.length === 0 ? (

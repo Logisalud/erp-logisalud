@@ -38,7 +38,12 @@ Botones: píldora `btn-primary`/`btn-secondary` (≥ 48 px de alto), campos `cam
 Se empieza por lo que la persona ya sabe (el origen) y se busca escribiendo, nunca en desplegables. Una sola acción principal, fija
 abajo en el teléfono (sobre la barra de navegación) y en línea en pantallas grandes, con un resumen vivo («3 líneas · 126 u · B-1 → B-2»)
 y, si falta algo, qué falta. Las líneas son filas marcables con casilla de 24 px y cantidad editable; el destino se valida al elegirlo
-y explica por línea por qué no sirve. La revisión es por línea («Coincide» / «No coincide», con nota obligatoria en el segundo caso).
+y explica por línea por qué no sirve. La revisión es por línea («Coincide» / «Hay una diferencia», con nota obligatoria en el segundo caso).
+
+**Crear un movimiento es una tabla** (PC y tablet): una fila por producto con sus listas en un panel bajo la fila (nunca un desplegable
+dentro de una celda estrecha), un mensaje bajo cada fila (neutral si falta algo, rojo con ícono si hay un error), barra inferior con
+«X de Y líneas listas · N u · K destinos» y un resumen antes de ejecutar. En el teléfono la misma lógica sin tabla: filas compactas y una
+hoja inferior con pasos Producto → Origen → Destino → Cantidad. Las unidades en tránsito se muestran con el chip «X u en tránsito, por verificar».
 
 ## Estados de pantalla
 Vacío (con qué hacer), cargando (esqueleto con la forma de la pantalla), error (qué pasó y cómo seguir, con reintento), éxito
