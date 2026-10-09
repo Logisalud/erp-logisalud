@@ -52,7 +52,7 @@ export default async function DetalleProducto({ params, searchParams }: { params
         <p className="text-sm text-gray-600">{prod.codigo}</p>
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">{prod.descripcion}</h1>
         {prod.presentacion && <p className="mt-1 text-gray-700">{prod.presentacion}</p>}
-        {reg && <div className="mt-3 flex flex-wrap gap-2"><ChipRS situacion={sit} /></div>}
+        {reg && <div className="mt-3 flex flex-wrap items-center gap-2"><ChipRS situacion={sit} /><Link href={`/kardex?producto=${prod.id}`} className="text-sm text-gray-800 underline" data-testid="ver-kardex-producto">Ver su Kardex</Link></div>}
       </header>
 
       {sit === 'VENCIDO' && reg?.rsVence && (

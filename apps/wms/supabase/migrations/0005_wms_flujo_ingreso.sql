@@ -184,7 +184,7 @@ on conflict (clave) do nothing;
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- La solicitud ya no cuelga del ingreso: el ingreso (recepción física) cuelga de la solicitud.
-alter table wms.solicitudes_ingreso drop column if exists ingreso_id cascade;
+do $$ begin if exists (select 1 from information_schema.columns where table_schema = 'wms' and table_name = 'solicitudes_ingreso' and column_name = 'ingreso_id') then alter table wms.solicitudes_ingreso drop column ingreso_id cascade; end if; end $$;
 alter table wms.solicitudes_ingreso
   add column if not exists numero text,
   add column if not exists tipo text,
@@ -209,26 +209,25 @@ alter table wms.solicitudes_ingreso
 do $$ begin
   alter table wms.solicitudes_ingreso add constraint solicitudes_numero_unico unique (numero);
 exception when duplicate_object or duplicate_table then null; end $$;
-alter table wms.solicitudes_ingreso drop constraint if exists solicitudes_tipo_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'solicitudes_tipo_check' and conrelid = to_regclass('wms.solicitudes_ingreso')) then alter table wms.solicitudes_ingreso drop constraint solicitudes_tipo_check; end if; end $$;
 alter table wms.solicitudes_ingreso add constraint solicitudes_tipo_check
   check (tipo in ('COMPRA_LOCAL', 'DEVOLUCION', 'INGRESO_CLIENTE'));
-alter table wms.solicitudes_ingreso drop constraint if exists solicitudes_estado_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'solicitudes_estado_check' and conrelid = to_regclass('wms.solicitudes_ingreso')) then alter table wms.solicitudes_ingreso drop constraint solicitudes_estado_check; end if; end $$;
 alter table wms.solicitudes_ingreso add constraint solicitudes_estado_check
   check (estado in ('BORRADOR', 'ENVIADA', 'PROGRAMADA', 'EN_RECEPCION', 'CERRADA', 'ANULADA'));
-alter table wms.solicitudes_ingreso drop constraint if exists solicitudes_origen_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'solicitudes_origen_check' and conrelid = to_regclass('wms.solicitudes_ingreso')) then alter table wms.solicitudes_ingreso drop constraint solicitudes_origen_check; end if; end $$;
 alter table wms.solicitudes_ingreso add constraint solicitudes_origen_check check (origen_creacion in ('INTERNO', 'CLIENTE'));
-alter table wms.solicitudes_ingreso drop constraint if exists solicitudes_ruc_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'solicitudes_ruc_check' and conrelid = to_regclass('wms.solicitudes_ingreso')) then alter table wms.solicitudes_ingreso drop constraint solicitudes_ruc_check; end if; end $$;
 alter table wms.solicitudes_ingreso add constraint solicitudes_ruc_check
   check (contraparte_ruc is null or contraparte_ruc ~ '^[0-9]{11}$');
 -- La devolución sin factura o boleta original no existe; el ingreso de cliente sin guía tampoco.
-alter table wms.solicitudes_ingreso drop constraint if exists solicitudes_devolucion_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'solicitudes_devolucion_check' and conrelid = to_regclass('wms.solicitudes_ingreso')) then alter table wms.solicitudes_ingreso drop constraint solicitudes_devolucion_check; end if; end $$;
 alter table wms.solicitudes_ingreso add constraint solicitudes_devolucion_check
   check (tipo <> 'DEVOLUCION' or (doc_original_tipo in ('FACTURA', 'BOLETA') and nullif(trim(doc_original_numero), '') is not null));
-alter table wms.solicitudes_ingreso drop constraint if exists solicitudes_cliente_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'solicitudes_cliente_check' and conrelid = to_regclass('wms.solicitudes_ingreso')) then alter table wms.solicitudes_ingreso drop constraint solicitudes_cliente_check; end if; end $$;
 alter table wms.solicitudes_ingreso add constraint solicitudes_cliente_check
   check (tipo <> 'INGRESO_CLIENTE' or nullif(trim(guia_numero), '') is not null);
 create index if not exists solicitudes_estado_idx on wms.solicitudes_ingreso (estado, creado_en desc);
-alter table wms.solicitudes_ingreso add column if not exists creado_en timestamptz not null default now();
 
 create table if not exists wms.solicitud_ingreso_lineas (
   id uuid primary key default gen_random_uuid(),
@@ -271,7 +270,7 @@ begin
   end if;
   return new;
 end $$;
-drop trigger if exists solicitud_linea_guardia on wms.solicitud_ingreso_lineas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'solicitud_linea_guardia' and tgrelid = to_regclass('wms.solicitud_ingreso_lineas') and not tgisinternal) then drop trigger solicitud_linea_guardia on wms.solicitud_ingreso_lineas; end if; end $$;
 create trigger solicitud_linea_guardia before update or delete on wms.solicitud_ingreso_lineas
   for each row execute function wms.trg_solicitud_linea_guardia();
 
@@ -290,10 +289,10 @@ create table if not exists wms.solicitud_ingreso_cambios (
 );
 alter table wms.solicitud_ingreso_cambios enable row level security;
 create index if not exists solicitud_cambios_sol_idx on wms.solicitud_ingreso_cambios (solicitud_id, id);
-drop trigger if exists solicitud_cambios_inmutable on wms.solicitud_ingreso_cambios;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'solicitud_cambios_inmutable' and tgrelid = to_regclass('wms.solicitud_ingreso_cambios') and not tgisinternal) then drop trigger solicitud_cambios_inmutable on wms.solicitud_ingreso_cambios; end if; end $$;
 create trigger solicitud_cambios_inmutable before update or delete on wms.solicitud_ingreso_cambios
   for each row execute function wms.trg_inmutable();
-drop trigger if exists solicitud_cambios_inmutable_tr on wms.solicitud_ingreso_cambios;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'solicitud_cambios_inmutable_tr' and tgrelid = to_regclass('wms.solicitud_ingreso_cambios') and not tgisinternal) then drop trigger solicitud_cambios_inmutable_tr on wms.solicitud_ingreso_cambios; end if; end $$;
 create trigger solicitud_cambios_inmutable_tr before truncate on wms.solicitud_ingreso_cambios
   for each statement execute function wms.trg_inmutable();
 
@@ -309,20 +308,20 @@ do $$ declare c record; begin
     execute format('alter table wms.ingresos drop constraint %I', c.conname);
   end loop;
 end $$;
-alter table wms.ingresos drop constraint if exists ingresos_estado_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'ingresos_estado_check' and conrelid = to_regclass('wms.ingresos')) then alter table wms.ingresos drop constraint ingresos_estado_check; end if; end $$;
 alter table wms.ingresos add constraint ingresos_estado_check check (estado in ('BORRADOR', 'EN_RECEPCION', 'CONFIRMADO'));
 alter table wms.ingresos alter column estado set default 'EN_RECEPCION';
 
 -- Las líneas de la recepción: una por línea de solicitud con cantidad > 0.
-drop table if exists wms.ingreso_lineas cascade;
-alter table wms.ingreso_lotes drop column if exists linea_id;
+do $$ begin if to_regclass('wms.ingreso_lineas') is not null then drop table wms.ingreso_lineas cascade; end if; end $$;
+do $$ begin if exists (select 1 from information_schema.columns where table_schema = 'wms' and table_name = 'ingreso_lotes' and column_name = 'linea_id') then alter table wms.ingreso_lotes drop column linea_id; end if; end $$;
 alter table wms.ingreso_lotes alter column lote_id drop not null;        -- el lote se asegura al confirmar
 alter table wms.ingreso_lotes alter column posicion_id drop not null;    -- el destino se elige al verificar
 alter table wms.ingreso_lotes
   add column if not exists solicitud_linea_id uuid references wms.solicitud_ingreso_lineas(id),
   add column if not exists lote_codigo text,
   add column if not exists verificacion text not null default 'PENDIENTE';
-alter table wms.ingreso_lotes drop constraint if exists ingreso_lotes_verificacion_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'ingreso_lotes_verificacion_check' and conrelid = to_regclass('wms.ingreso_lotes')) then alter table wms.ingreso_lotes drop constraint ingreso_lotes_verificacion_check; end if; end $$;
 alter table wms.ingreso_lotes add constraint ingreso_lotes_verificacion_check check (verificacion in ('PENDIENTE', 'COINCIDE', 'AJUSTADA'));
 do $$ begin
   alter table wms.ingreso_lotes add constraint ingreso_lotes_linea_unica unique (solicitud_linea_id);
@@ -330,11 +329,11 @@ exception when duplicate_object or duplicate_table then null; end $$;
 
 -- Alertas: tipos nuevos y destinatario Sandra.
 alter table wms.alertas add column if not exists solicitud_id uuid references wms.solicitudes_ingreso(id);
-alter table wms.alertas drop constraint if exists alertas_tipo_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'alertas_tipo_check' and conrelid = to_regclass('wms.alertas')) then alter table wms.alertas drop constraint alertas_tipo_check; end if; end $$;
 alter table wms.alertas add constraint alertas_tipo_check check (tipo in (
   'TEMPERATURA', 'RS_VENCIDO', 'DIVERGENCIA_COMPRAS', 'POR_TRASLADAR_VENCIDO', 'LOTE_POR_VENCER', 'LOTE_VENCIDO',
   'SOLICITUD_AJUSTADA', 'EXCEDE_OC', 'POR_REGISTRAR_EN_COMPRAS', 'NO_COINCIDE_CON_COMPRAS'));
-alter table wms.alertas drop constraint if exists alertas_destinatario_rol_check;
+do $$ begin if exists (select 1 from pg_constraint where conname = 'alertas_destinatario_rol_check' and conrelid = to_regclass('wms.alertas')) then alter table wms.alertas drop constraint alertas_destinatario_rol_check; end if; end $$;
 alter table wms.alertas add constraint alertas_destinatario_rol_check
   check (destinatario_rol in ('direccion_tecnica', 'jefe_almacen', 'asistente_dt'));
 
@@ -369,14 +368,14 @@ end $$;
 -- 4. Funciones: se retira el camino antiguo (ingreso desde una recepción de Compras, lotes tecleados)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-drop function if exists wms.crear_ingreso(text, uuid, jsonb, jsonb);
-drop function if exists wms.guardar_lotes(uuid, uuid, jsonb);
-drop function if exists wms.editar_solicitud(uuid, jsonb, text);
-drop function if exists wms.lineas_descuadradas(uuid);
-drop function if exists wms._solicitud_datos(uuid);
-drop function if exists wms._nueva_version_solicitud(uuid, jsonb, text);
-drop function if exists wms.revisar_divergencias();
-drop function if exists wms._alertar(text, text, uuid, uuid, text, text, text);
+do $$ begin if to_regprocedure('wms.crear_ingreso(text, uuid, jsonb, jsonb)') is not null then drop function wms.crear_ingreso(text, uuid, jsonb, jsonb); end if; end $$;
+do $$ begin if to_regprocedure('wms.guardar_lotes(uuid, uuid, jsonb)') is not null then drop function wms.guardar_lotes(uuid, uuid, jsonb); end if; end $$;
+do $$ begin if to_regprocedure('wms.editar_solicitud(uuid, jsonb, text)') is not null then drop function wms.editar_solicitud(uuid, jsonb, text); end if; end $$;
+do $$ begin if to_regprocedure('wms.lineas_descuadradas(uuid)') is not null then drop function wms.lineas_descuadradas(uuid); end if; end $$;
+do $$ begin if to_regprocedure('wms._solicitud_datos(uuid)') is not null then drop function wms._solicitud_datos(uuid); end if; end $$;
+do $$ begin if to_regprocedure('wms._nueva_version_solicitud(uuid, jsonb, text)') is not null then drop function wms._nueva_version_solicitud(uuid, jsonb, text); end if; end $$;
+do $$ begin if to_regprocedure('wms.revisar_divergencias()') is not null then drop function wms.revisar_divergencias(); end if; end $$;
+do $$ begin if to_regprocedure('wms._alertar(text, text, uuid, uuid, text, text, text)') is not null then drop function wms._alertar(text, text, uuid, uuid, text, text, text); end if; end $$;
 
 create or replace function wms._alertar(p_tipo text, p_rol text, p_ingreso uuid, p_producto uuid, p_clave text, p_mensaje text,
                                          p_lote text default null, p_solicitud uuid default null)
@@ -1302,7 +1301,7 @@ select so.id as solicitud_id, so.numero, so.tipo, so.estado, so.propietario_id, 
 
 do $$ declare t text; begin
   foreach t in array array['solicitud_ingreso_lineas', 'solicitud_ingreso_cambios'] loop
-    execute format('drop policy if exists lectura on wms.%I', t);
+    if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = t and policyname = 'lectura') then execute format('drop policy lectura on wms.%I', t); end if;
     execute format('create policy lectura on wms.%I for select to authenticated using (wms.es_usuario())', t);
   end loop;
 end $$;

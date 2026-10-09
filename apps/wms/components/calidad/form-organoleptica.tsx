@@ -12,6 +12,7 @@ import { formatoFechaHora } from '@/domain/fechas'
 import { ChipEstado } from '../chips'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
+import { SEGMENTO_CONFORME, SEGMENTO_NO_CONFORME, SEGMENTO_NO_APLICA, SEGMENTO_INACTIVO, PILDORA_ACTIVA, PILDORA_ACTIVA_ROJA, PILDORA_INACTIVA, PILDORA_INACTIVA_HOVER } from '@/components/estilos-opcion'
 
 const RESPUESTAS: Respuesta[] = ['C', 'NC', 'NA']
 const TXT: Record<Respuesta, string> = { C: 'Conforme', NC: 'No conforme', NA: 'No aplica' }
@@ -21,7 +22,7 @@ function Segmentado({ nombre, valor, onCambio, deshabilitado }: { nombre: string
     <div role="radiogroup" aria-label={nombre} className="inline-flex shrink-0 overflow-hidden rounded-full border border-gray-300 bg-white">
       {RESPUESTAS.map((r) => {
         const on = valor === r
-        const cls = on ? (r === 'C' ? 'bg-green-100 text-green-900' : r === 'NC' ? 'bg-red-100 text-red-900' : 'bg-gray-200 text-gray-900') : 'text-gray-700 hover:bg-gray-50'
+        const cls = on ? (r === 'C' ? SEGMENTO_CONFORME : r === 'NC' ? SEGMENTO_NO_CONFORME : SEGMENTO_NO_APLICA) : SEGMENTO_INACTIVO
         return (
           <button key={r} type="button" role="radio" aria-checked={on} disabled={deshabilitado} onClick={() => onCambio(r)}
             className={`min-h-11 min-w-12 px-3 text-xs font-semibold transition duration-fast disabled:cursor-not-allowed ${cls} ${r !== 'C' ? 'border-l border-gray-300' : ''}`}>
@@ -113,7 +114,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
           <div className="mt-2 flex flex-wrap gap-2">
             {opcionales.map((g) => {
               const on = materiales.has(g.id)
-              return <button key={g.id} type="button" role="checkbox" aria-checked={on} onClick={() => setMateriales((m) => { const n = new Set(m); if (on) n.delete(g.id); else n.add(g.id); return n })} className={`min-h-11 rounded-full border px-4 text-sm font-medium transition duration-fast ${on ? 'border-green-300 bg-green-50 text-green-900' : 'border-gray-300 bg-white text-gray-800 hover:border-gray-400'}`}>{g.titulo.replace('III. ', '')}</button>
+              return <button key={g.id} type="button" role="checkbox" aria-checked={on} onClick={() => setMateriales((m) => { const n = new Set(m); if (on) n.delete(g.id); else n.add(g.id); return n })} className={`min-h-11 rounded-full border px-4 text-sm font-medium transition duration-fast ${on ? PILDORA_ACTIVA : PILDORA_INACTIVA_HOVER}`}>{g.titulo.replace('III. ', '')}</button>
             })}
           </div>
         </fieldset>
@@ -123,16 +124,16 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
         <h2 id="cierre" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Cierre del acta</h2>
         <fieldset>
           <legend className="etiqueta">Trae certificado de análisis o protocolo analítico</legend>
-          <div role="radiogroup" className="flex gap-2">{[true, false].map((v) => <button key={String(v)} type="button" role="radio" aria-checked={cert === v} disabled={!editable} onClick={() => setCert(v)} className={`min-h-11 min-w-20 rounded-full border px-4 text-sm font-medium ${cert === v ? 'border-green-300 bg-green-50 text-green-900' : 'border-gray-300 bg-white text-gray-800'} disabled:cursor-not-allowed`}>{v ? 'Sí' : 'No'}</button>)}</div>
+          <div role="radiogroup" className="flex gap-2">{[true, false].map((v) => <button key={String(v)} type="button" role="radio" aria-checked={cert === v} disabled={!editable} onClick={() => setCert(v)} className={`min-h-11 min-w-20 rounded-full border px-4 text-sm font-medium ${cert === v ? PILDORA_ACTIVA : PILDORA_INACTIVA} disabled:cursor-not-allowed`}>{v ? 'Sí' : 'No'}</button>)}</div>
         </fieldset>
         <div><label htmlFor="obs-org" className="etiqueta">Observación</label><textarea id="obs-org" rows={2} className="campo py-2" value={obs} disabled={!editable} onChange={(e) => setObs(e.target.value)} /></div>
         <fieldset>
           <legend className="etiqueta">Destino que sugieres</legend>
-          <div role="radiogroup" className="flex flex-wrap gap-2">{([['APROBADO', 'Aprobado'], ['DEVOLUCION', 'Devolución'], ['BAJA', 'Baja']] as const).map(([v, t]) => <button key={v} type="button" role="radio" aria-checked={destino === v} disabled={!editable} onClick={() => setDestino(v)} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${destino === v ? 'border-green-300 bg-green-50 text-green-900' : 'border-gray-300 bg-white text-gray-800'} disabled:cursor-not-allowed`}>{t}</button>)}</div>
+          <div role="radiogroup" className="flex flex-wrap gap-2">{([['APROBADO', 'Aprobado'], ['DEVOLUCION', 'Devolución'], ['BAJA', 'Baja']] as const).map(([v, t]) => <button key={v} type="button" role="radio" aria-checked={destino === v} disabled={!editable} onClick={() => setDestino(v)} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${destino === v ? PILDORA_ACTIVA : PILDORA_INACTIVA} disabled:cursor-not-allowed`}>{t}</button>)}</div>
         </fieldset>
         <fieldset>
           <legend className="etiqueta">Conclusión</legend>
-          <div role="radiogroup" className="flex flex-wrap gap-2">{([['CONFORME', 'Conforme'], ['NO_CONFORME', 'No conforme']] as const).map(([v, t]) => <button key={v} type="button" role="radio" aria-checked={conclusion === v} disabled={!editable} onClick={() => { setConclusion(v); setConcluyoSolo(false) }} data-testid={`conclusion-${v}`} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${conclusion === v ? (v === 'CONFORME' ? 'border-green-300 bg-green-50 text-green-900' : 'border-red-300 bg-red-50 text-red-900') : 'border-gray-300 bg-white text-gray-800'} disabled:cursor-not-allowed`}>{t}</button>)}</div>
+          <div role="radiogroup" className="flex flex-wrap gap-2">{([['CONFORME', 'Conforme'], ['NO_CONFORME', 'No conforme']] as const).map(([v, t]) => <button key={v} type="button" role="radio" aria-checked={conclusion === v} disabled={!editable} onClick={() => { setConclusion(v); setConcluyoSolo(false) }} data-testid={`conclusion-${v}`} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${conclusion === v ? (v === 'CONFORME' ? PILDORA_ACTIVA : PILDORA_ACTIVA_ROJA) : PILDORA_INACTIVA} disabled:cursor-not-allowed`}>{t}</button>)}</div>
           {noConformes.length > 0 && editable && <p className="mt-2 text-sm text-red-800">Marcaste como no conforme: {noConformes.slice(0, 3).join('; ')}{noConformes.length > 3 ? ` y ${noConformes.length - 3} más` : ''}.</p>}
         </fieldset>
         {acta.estado !== 'FIRMADA' && editable && (

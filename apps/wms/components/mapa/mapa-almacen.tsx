@@ -9,6 +9,7 @@ import { MAPA_ALTO, MAPA_ANCHO } from '@/domain/mapa'
 import { vistaPropietario } from '../propietarios-color'
 import { ChipEstado, ChipPorVerificar } from '../chips'
 import { DrawerPosicion } from './drawer-posicion'
+import { TAB_ACTIVA, TAB_INACTIVA } from '@/components/estilos-opcion'
 
 export type Capa = 'propietario' | 'estado' | 'ocupacion'
 
@@ -254,7 +255,7 @@ export function MapaAlmacen({
           {CAPAS.map((c) => (
             <button
               key={c.id} type="button" onClick={() => setCapa(c.id)} aria-pressed={capa === c.id} data-testid={`capa-${c.id}`}
-              className={`min-h-10 rounded-full px-4 text-sm font-medium transition duration-fast ${capa === c.id ? 'bg-green-100 text-green-900' : 'text-gray-700 hover:bg-gray-100'}`}
+              className={`min-h-10 rounded-full px-4 text-sm font-medium transition duration-fast ${capa === c.id ? TAB_ACTIVA : TAB_INACTIVA}`}
             >
               {c.etiqueta}
             </button>

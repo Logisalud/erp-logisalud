@@ -118,16 +118,16 @@ create index if not exists partidas_lote_idx on wms.partidas (lote_id, ts);
 create index if not exists partidas_mov_idx on wms.partidas (movimiento_id);
 
 -- Inmutabilidad del ledger y de los movimientos.
-drop trigger if exists partidas_inmutable on wms.partidas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'partidas_inmutable' and tgrelid = to_regclass('wms.partidas') and not tgisinternal) then drop trigger partidas_inmutable on wms.partidas; end if; end $$;
 create trigger partidas_inmutable before update or delete on wms.partidas
   for each row execute function wms.trg_inmutable();
-drop trigger if exists partidas_inmutable_truncate on wms.partidas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'partidas_inmutable_truncate' and tgrelid = to_regclass('wms.partidas') and not tgisinternal) then drop trigger partidas_inmutable_truncate on wms.partidas; end if; end $$;
 create trigger partidas_inmutable_truncate before truncate on wms.partidas
   for each statement execute function wms.trg_inmutable();
-drop trigger if exists movimientos_inmutable on wms.movimientos;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'movimientos_inmutable' and tgrelid = to_regclass('wms.movimientos') and not tgisinternal) then drop trigger movimientos_inmutable on wms.movimientos; end if; end $$;
 create trigger movimientos_inmutable before update or delete on wms.movimientos
   for each row execute function wms.trg_inmutable();
-drop trigger if exists movimientos_inmutable_truncate on wms.movimientos;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'movimientos_inmutable_truncate' and tgrelid = to_regclass('wms.movimientos') and not tgisinternal) then drop trigger movimientos_inmutable_truncate on wms.movimientos; end if; end $$;
 create trigger movimientos_inmutable_truncate before truncate on wms.movimientos
   for each statement execute function wms.trg_inmutable();
 
@@ -183,7 +183,7 @@ begin
   end if;
   return new;
 end $$;
-drop trigger if exists validar_partida on wms.partidas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'validar_partida' and tgrelid = to_regclass('wms.partidas') and not tgisinternal) then drop trigger validar_partida on wms.partidas; end if; end $$;
 create trigger validar_partida before insert on wms.partidas
   for each row execute function wms.trg_validar_partida();
 
@@ -207,7 +207,7 @@ begin
   end if;
   return new;
 end $$;
-drop trigger if exists aplicar_saldo on wms.partidas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'aplicar_saldo' and tgrelid = to_regclass('wms.partidas') and not tgisinternal) then drop trigger aplicar_saldo on wms.partidas; end if; end $$;
 create trigger aplicar_saldo after insert on wms.partidas
   for each row execute function wms.trg_aplicar_saldo();
 
@@ -294,7 +294,7 @@ begin
   perform wms.validar_movimiento(new.movimiento_id);
   return null;
 end $$;
-drop trigger if exists validar_movimiento_diferido on wms.partidas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'validar_movimiento_diferido' and tgrelid = to_regclass('wms.partidas') and not tgisinternal) then drop trigger validar_movimiento_diferido on wms.partidas; end if; end $$;
 create constraint trigger validar_movimiento_diferido
   after insert on wms.partidas deferrable initially deferred
   for each row execute function wms.trg_validar_movimiento_diferido();
@@ -443,11 +443,11 @@ create or replace view wms.v_stock with (security_invoker = true) as
 -- RLS: lectura para quien tenga rol WMS; DML directo a ledger/saldos: nadie.
 do $$ declare t text; begin
   foreach t in array array['tipos_movimiento', 'lotes', 'movimientos', 'partidas', 'saldos'] loop
-    execute format('drop policy if exists lectura on wms.%I', t);
+    if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = t and policyname = 'lectura') then execute format('drop policy lectura on wms.%I', t); end if;
     execute format('create policy lectura on wms.%I for select to authenticated using (wms.es_usuario())', t);
   end loop;
 end $$;
-drop policy if exists escritura on wms.tipos_movimiento;
+do $$ begin if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = 'tipos_movimiento' and policyname = 'escritura') then drop policy escritura on wms.tipos_movimiento; end if; end $$;
 create policy escritura on wms.tipos_movimiento for all to authenticated
   using (wms.tiene_rol('admin_wms')) with check (wms.tiene_rol('admin_wms'));
 

@@ -1,6 +1,6 @@
 # Datos regulatorios del producto: duplicidad con `catalogo.productos` (D-37) — reporte y propuesta
 
-**Estado:** reporte para decisión. **No se resolvió ni se movió ningún dato.**
+**Estado:** decidido por Sebas (2026-10-08, D-38): presentación y principio activo **siguen solo en `catalogo.productos`**; Compras los llena al crear el producto y, después, solo Katia y Sandra los editan desde el WMS con historial. **Pendiente de aprobar los cambios de permisos en Compras** antes de implementarlo: `propuesta-presentacion-principio-activo.md`. No se movió ningún dato.
 
 ## Qué pidió Sebas
 Solo Katia y Sandra editan: registro sanitario, vencimiento (del registro), forma farmacéutica, concentración, presentación, fabricante,

@@ -7,7 +7,7 @@
 ## 0. Contexto
 - Proyecto Supabase consolidado `erp-cobranzas` (id `qpkigzniatidsvnxikox`), compartido con Cobranzas y Compras. El WMS vive en un schema propio, `wms`.
 - Estado actual: **nada del WMS está aplicado** (el intento parcial de 0001–0003 se revirtió a mano; ver el historial en `progreso.md`).
-- La cadena es `0001 … 0006` + seed de topología. Todas son re-ejecutables y aditivas respecto a `public`, `catalogo` y `compras` (solo agregan vistas y grants dentro de `wms`; `crear_producto` inserta filas en `catalogo.productos`).
+- La cadena es `0001 … 0008` + seed de topología. Todas son re-ejecutables y aditivas respecto a `public`, `catalogo` y `compras` (solo agregan vistas y grants dentro de `wms`; `crear_producto` inserta filas en `catalogo.productos`; **0008 agrega un trigger a `catalogo.productos`**, ver `propuesta-presentacion-principio-activo.md`).
 
 ## 1. Prerrequisitos (antes de la ventana)
 1. **Aprobación expresa** de Sebas del PR #168 y de este plan. Sin merge a `main` no hay despliegue; las migraciones **no** se aplican solas.
@@ -44,12 +44,12 @@ Cada uno es un **cambio aparte** y se anota. Recién ahí puede decidirse el dep
 
 ## 4. Herramienta y reglas de ejecución
 - **Herramienta que deje historial** (migraciones de Supabase o el panel SQL con registro). Cada migración se registra con su nombre y hora.
-- Antes de cada ejecución: `set lock_timeout = '5s'; set statement_timeout = '60s';` (las migraciones ya no usan `drop … if exists` sobre objetos que pueden no existir, patrón que **colgó** la herramienta MCP el 2026-10-08).
+- Antes de cada ejecución: `set lock_timeout = '5s'; set statement_timeout = '60s';` (**0001–0007 ya no usan `drop … if exists`**: verifican con `pg_trigger`/`pg_policies`/`pg_constraint`/`to_regprocedure` antes de borrar. Ese patrón sobre objetos inexistentes **colgó** la herramienta MCP el 2026-10-08; hasta el 2026-10-08 (Batch 3) las migraciones 0001, 0002, 0004 y 0005 todavía lo usaban —el plan lo daba por corregido y no lo estaba—, y ahora lo comprueba la prueba `tests/db/migraciones.test.ts`: sin ese patrón y sin avisos «does not exist, skipping» al aplicar la cadena en una base nueva).
 - Sin `drop` ni `alter` sobre tablas de otros módulos; si una migración intentara hacerlo, se detiene.
 - **Si algo falla o se cuelga: detenerse.** Solo lecturas para reportar el estado. No cambiar de herramienta, no partir el SQL, no reintentar con otro método sin la aprobación de Sebas.
 
 ## 5. Reversa (probada en local)
-- Script: `apps/wms/supabase/rollback/wms_0001_a_0006_rollback.sql` (`lock_timeout`, `drop schema wms cascade`, y `drop extension btree_gist` **solo** si la creó el WMS y nada depende de ella).
+- Script: `apps/wms/supabase/rollback/wms_0001_a_0008_rollback.sql` (`lock_timeout`, `drop schema wms cascade`, y `drop extension btree_gist` **solo** si la creó el WMS y nada depende de ella).
 - **Probado** en `tests/db/rollback.test.ts`: aplica stubs → foto → cadena completa + seed → reversa → foto idéntica (objetos, funciones, columnas, extensiones, constraints y filas de `catalogo.productos`), y una segunda reversa sin efecto.
 - Pasos manuales previos a la reversa, si ya se hicieron: quitar `wms` de `public.schemas_compras_y_pagos()` y revertir los grants concedidos a mano.
 - **No deshace** los productos que `crear_producto` haya insertado en `catalogo.productos` (son datos de Compras): revisarlos a mano.

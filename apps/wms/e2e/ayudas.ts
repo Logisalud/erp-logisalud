@@ -2,7 +2,7 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-export type RolDemo = 'direccion_tecnica' | 'asistente_dt' | 'jefe_almacen' | 'auxiliar' | 'admin_wms' | 'auditoria_lectura'
+export type RolDemo = 'direccion_tecnica' | 'asistente_dt' | 'jefe_almacen' | 'reemplazo_jefe' | 'auxiliar' | 'admin_wms' | 'auditoria_lectura'
 
 const CARPETA = resolve(__dirname, '../../../docs/wms/screenshots')
 

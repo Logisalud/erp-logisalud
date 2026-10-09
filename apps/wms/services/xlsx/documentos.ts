@@ -2,6 +2,7 @@ import 'server-only'
 import ExcelJS from 'exceljs'
 import { CHECKLIST_ORGANOLEPTICO, ETIQUETA_DECISION, ETIQUETA_TIPO_INGRESO } from '@/domain/entradas'
 import type { ActaRecepcionVista, OrganolepticaVista, SolicitudDetalle } from '@/domain/entradas-vistas'
+import { totalesKardex, type FilaKardex, type FiltroKardex } from '@/domain/inventario'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 
 // Versión Excel de los documentos del ingreso (mismos datos que el PDF). El RUC va siempre como texto.
@@ -137,6 +138,23 @@ export async function xlsxActaOrganoleptica(a: OrganolepticaVista): Promise<Buff
     ['Decidido por', a.decididoPor ? `${a.decididoPor} · ${formatoFechaHora(a.decididoEn)}` : undefined],
     ['Observación de Dirección Técnica', a.observacionDt],
   ])
+  return salida(wb)
+}
+
+/** Kardex en Excel: las mismas columnas del formato de ejemplo. El RUC siempre va como texto de 11 dígitos. */
+export async function xlsxKardex(filas: FilaKardex[], filtro: FiltroKardex, producto: string, formato: string): Promise<Buffer> {
+  const t = totalesKardex(filas)
+  const { wb, ws } = libro('Tarjeta de Control de Existencias (Kardex)', 'Kardex', `${producto} · Cód. Formato: ${formato}${formato.includes('provisional') ? ' (provisional, pendiente de código controlado)' : ''}`)
+  ws.getCell('A3').value = `Rango: ${filtro.desde ? formatoFecha(filtro.desde) : 'desde el inicio'} — ${filtro.hasta ? formatoFecha(filtro.hasta) : 'hoy'} · Saldo inicial ${t.saldoInicial} · Entradas ${t.entradas} · Salidas ${t.salidas} · Saldo final ${t.saldoFinal}`
+  ws.columns = [{ width: 38 }, { width: 22 }, { width: 14 }, { width: 14 }, { width: 16 }, { width: 34 }, { width: 14 }, { width: 22 }, { width: 14 }, { width: 14 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 18 }, { width: 18 }]
+  encabezado(ws, ['Producto', 'Tipo Documento', 'Nro Acta', 'Fecha Acta', 'Lote', 'Proveedor/Cliente', 'Ruc', 'Documento', 'Nro Doc.', 'Ubicación', 'Entrada', 'Salida', 'Saldo', 'Tipo de ingreso', 'Propietario'])
+  ws.views = [{ state: 'frozen', ySplit: ws.rowCount }]
+  for (const f of filas) {
+    const r = ws.addRow([f.producto ?? producto, f.tipoDocumento, f.numeroActa ?? '', f.fechaActa ? formatoFecha(f.fechaActa.slice(0, 10)) : '', f.lote ?? '', f.contraparte ?? '',
+      f.ruc ? String(f.ruc) : '', f.tipoDocRef ?? '', f.numeroDocRef ?? '', f.posicion ?? '', f.entrada ?? 0, f.salida ?? 0, f.saldo, f.tipoIngreso ?? '', f.propietario ?? ''])
+    r.getCell(7).numFmt = '@'
+    if (f.esReversa) r.font = { color: { argb: 'FFB91C1C' } }
+  }
   return salida(wb)
 }
 

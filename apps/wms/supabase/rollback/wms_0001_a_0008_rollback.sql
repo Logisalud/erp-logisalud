@@ -1,4 +1,4 @@
--- Reversa completa del WMS (migraciones 0001–0006 + seed de topología). SE EJECUTA A MANO, por quien decida el usuario.
+-- Reversa completa del WMS (migraciones 0001–0008 + seed de topología). SE EJECUTA A MANO, por quien decida el usuario.
 -- Probada en Postgres local (tests/db/rollback.test.ts): deja intactos catalogo, compras y public.
 --
 -- ANTES: tomar el snapshot de control de Cobranzas/Compras (ver docs/wms/plan-aplicacion-produccion.md).
@@ -13,7 +13,15 @@ set statement_timeout = '60s';
 -- 1. Si se había agregado `wms` a public.schemas_compras_y_pagos() o se concedieron grants a mano, revertirlo ANTES (paso manual,
 --    ver el plan): este script no toca `public`.
 
--- 2. El schema completo (tablas, vistas, funciones, triggers, policies y grants viven dentro de `wms`).
+-- 2a. El trigger de 0008 vive en catalogo.productos (de Compras) pero depende de una función de `wms`: se quita explícitamente.
+do $$ begin
+  if to_regclass('catalogo.productos') is not null
+     and exists (select 1 from pg_trigger where tgname = 'proteger_presentacion_principio' and tgrelid = 'catalogo.productos'::regclass) then
+    drop trigger proteger_presentacion_principio on catalogo.productos;
+  end if;
+end $$;
+
+-- 2b. El schema completo (tablas, vistas, funciones, triggers, policies y grants viven dentro de `wms`).
 drop schema if exists wms cascade;
 
 -- 3. La extensión btree_gist solo se elimina si la creó el WMS y nada fuera de `wms` depende de ella.

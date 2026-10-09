@@ -3,7 +3,7 @@
 > **No se aplicó nada en ninguna base.** Este documento es la lista de pasos para cuando exista una base donde probarlas
 > y, después, para producción. Las migraciones están en `apps/wms/supabase/migrations/` y son re-ejecutables.
 
-Orden: `0001_wms_base.sql` → `0002_wms_ledger.sql` → `0003_wms_productos.sql` → `0004_wms_entradas.sql` → `0005_wms_flujo_ingreso.sql` → `0006_wms_regulatorio_y_verificacion.sql` → seed `supabase/seeds/0001_topologia.sql`
+Orden: `0001_wms_base.sql` → `0002_wms_ledger.sql` → `0003_wms_productos.sql` → `0004_wms_entradas.sql` → `0005_wms_flujo_ingreso.sql` → `0006_wms_regulatorio_y_verificacion.sql` → `0007_wms_inventario.sql` → seed `supabase/seeds/0001_topologia.sql`
 (generado con `npm run seed:topologia --workspace erp-logisalud-wms`).
 
 **0005 reemplaza el flujo de 0004** (la solicitud pasa a ser primaria; retira `crear_ingreso`, `guardar_lotes`, `editar_solicitud`, la tabla `ingreso_lineas` y
@@ -16,6 +16,11 @@ Orden: `0001_wms_base.sql` → `0002_wms_ledger.sql` → `0003_wms_productos.sql
 `condicion_almacenamiento`, el historial inmutable `producto_regulatorio_cambios`, `editar_regulatorio` y el nuevo `crear_producto` (12 argumentos); `movimientos.preparador_id` con su
 restricción; el parámetro `kardex_codigo_formato`; y la vista `v_stock_por_origen`. **No usa `drop … if exists` sobre objetos que pueden no existir** (verifica antes con `pg_policies`/`pg_trigger`/`to_regprocedure`),
 porque la herramienta MCP de Supabase se colgó con ese patrón. El plan completo para producción está en `plan-aplicacion-produccion.md`.
+
+**0007** (Batch 3): Kardex (`kardex_filas`) e historia del lote, movimientos internos (`ordenes_movimiento*` + funciones; **redefine `postear_movimiento`** para guardar a preparador y verificador), conteos y ajustes
+(`conteos`, `conteo_lineas`, `ajustes_inventario`; el saldo del sistema se lee solo por `conteo_lineas_para`), carga inicial y el trigger `pausa_por_conteo`. Amplía `alertas_tipo_check`. Todo dentro de `wms`.
+
+**0008** (D-38, después de 0007): trigger `proteger_presentacion_principio` en `catalogo.productos` (rechaza que una sesión de aplicación cambie presentación o principio activo; **no** bloquea INSERT, otras columnas, `postgres` ni `service_role`) y `wms.editar_regulatorio` con esos dos campos. **Toca un objeto de Compras (agrega un trigger)**: se aplica solo con la salida a producción, con snapshot de control antes y después. Reversa: `supabase/rollback/wms_0008_rollback.sql`.
 
 Antes de aplicar:
 1. Exponer el schema `wms` en Dashboard → Settings → Data API → Exposed schemas (si falta: HTTP 406 `Invalid schema`).

@@ -5,6 +5,7 @@ import type {
 } from '@/domain/entradas-vistas'
 import type { EstadoLineaSolicitud, EstadoSolicitud, TipoIngreso, VerificacionLinea } from '@/domain/entradas'
 import { construirPanoramaDemo, sumarDias } from './datos'
+import { iniciarInventario, type InvDemo } from './libro'
 import type { Actor } from '../repositorio'
 
 export interface LineaSolicitudDemo {
@@ -93,6 +94,8 @@ export interface EstadoDemo {
   auditoria: EventoAuditoria[]
   contador: number
   cambiosRegulatorios: CambioRegulatorio[]
+  /** Batch 3: libro mayor, movimientos internos, conteos, ajustes y cargas iniciales. */
+  inv: InvDemo
   solicitudes: SolicitudDemo[]
   actas: ActaDemo[]
   organolepticas: OrganolepticaVista[]
@@ -124,6 +127,7 @@ export function estado(): EstadoDemo {
       panorama,
       contador: 6,
       cambiosRegulatorios: [],
+      inv: iniciarInventario(panorama),
       solicitudes: [], actas: [], organolepticas: [], alertas: [], expedientes: [], compras: [], correlativos: {},
       aprobadoEn: {}, plazoPorTrasladarHoras: 24, plazoRegistroComprasHoras: 24, diasAlertaVencimiento: 90,
       auditoria: [

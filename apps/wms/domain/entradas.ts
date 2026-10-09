@@ -460,6 +460,7 @@ export function puedeGenerarActa(i: {
 export type TipoAlerta =
   | 'TEMPERATURA' | 'RS_VENCIDO' | 'DIVERGENCIA_COMPRAS' | 'POR_TRASLADAR_VENCIDO' | 'LOTE_POR_VENCER' | 'LOTE_VENCIDO'
   | 'SOLICITUD_AJUSTADA' | 'EXCEDE_OC' | 'POR_REGISTRAR_EN_COMPRAS' | 'NO_COINCIDE_CON_COMPRAS'
+  | 'MOVIMIENTO_CON_DIFERENCIA' | 'CONTEO_CON_DIFERENCIA' | 'AJUSTE_POR_AUTORIZAR'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt'
 
@@ -474,6 +475,9 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   EXCEDE_OC: 'Llega más de lo que pedía la OC',
   POR_REGISTRAR_EN_COMPRAS: 'Falta registrarlo en Compras',
   NO_COINCIDE_CON_COMPRAS: 'Compras tiene otra cantidad',
+  MOVIMIENTO_CON_DIFERENCIA: 'Movimiento con diferencia',
+  CONTEO_CON_DIFERENCIA: 'Conteo con diferencia',
+  AJUSTE_POR_AUTORIZAR: 'Ajuste por autorizar',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -491,6 +495,10 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   EXCEDE_OC: 'direccion_tecnica',
   POR_REGISTRAR_EN_COMPRAS: 'jefe_almacen',
   NO_COINCIDE_CON_COMPRAS: 'jefe_almacen',
+  // INV-02 / INV-05: una diferencia abierta la resuelve el Jefe; un ajuste lo autoriza Dirección Técnica.
+  MOVIMIENTO_CON_DIFERENCIA: 'jefe_almacen',
+  CONTEO_CON_DIFERENCIA: 'jefe_almacen',
+  AJUSTE_POR_AUTORIZAR: 'direccion_tecnica',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {

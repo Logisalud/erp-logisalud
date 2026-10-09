@@ -1,11 +1,11 @@
 # WMS — Progreso
 
-Para que otra sesión retome sin contexto. Última actualización: 2026-10-08 (Batch 2 construido; en verificación final).
+Para que otra sesión retome sin contexto. Última actualización: 2026-10-08 (Batches 1 y 2 y addendum **mergeados a main** [PR #168, `537379e`]; Batch 3 construido en `feat/wms-batch-3`, pendiente de tu aprobación).
 
 ## Estado
-- **Batch 1 (fundación, almacén y maestros): construido, verificado y APROBADO (2026-10-08).** PR abierto hacia `main`; **no se hace merge hasta que lo apruebes en GitHub.**
-- **Batch 2 (entradas y calidad): en curso** (misma rama; ver "Batch 2" abajo).
-- Rama de trabajo: `feat/wms-batch-1`. Los documentos de `docs/wms/` viven en `main` (último merge: ver `git log`).
+- **Batches 1 y 2 y addendum de ingreso: aprobados y mergeados a `main` (PR #168, 2026-10-08).** El merge no creó deploys de producción del WMS (guarda en `apps/wms/vercel.json`) y los builds de compras, cobranzas, pedidos y auth quedaron READY.
+- **Batch 3 (inventario en operación): construido; ver «Batch 3» abajo; espera tu aprobación.**
+- Rama de trabajo: `feat/wms-batch-3`. Los documentos de `docs/wms/` viven en `main` (último merge: ver `git log`).
 - **Nada en producción:** ninguna migración aplicada, ningún deploy a producción, ninguna variable de producción.
   Lecturas a producción: solo esquemas y, con tu autorización (D-24), el área y el rol de `public.perfiles`.
 
@@ -101,19 +101,36 @@ Docs corregidos (reglas, visión, gate-0, decisiones D-31..D-37, ADR-009), migra
 - **No verificado:** adaptador Supabase contra base real (nunca se corrió contra una); columnas de Compras solo contra stubs en las pruebas locales (se verificaron en solo lectura el 2026-10-08); el estado del Preview es por instancia.
 - Abiertas para Katia: **D-01 (prioridad)**, hold, documentos de baja, contramuestra, muestreo √n+1, práctica de «Calidad». Abierta: D-36 (integración con Compras).
 
-## Batch 3 — alcance ajustado (Kardex, 2026-10-08)
-Ejemplos en `formatos/` (un PDF por lote, un Excel por producto). Además de carga inicial, movimientos internos, conteos y ajustes:
-1. **Dos vistas.** (a) *Kardex / Tarjeta de Control de Existencias*: solo entradas y salidas, una fila por partida con saldo corrido; por producto (todos los lotes) o por lote;
-   filtro por propietario y rango de fechas, con **saldo inicial** al comienzo del rango. Columnas del ejemplo: tipo de documento, N° de acta, fecha de acta, lote, proveedor/cliente,
-   RUC, tipo y N° de documento, fecha de documento, ubicación, entrada, salida, saldo, tipo de ingreso y propietario.
-   (b) *Historia completa del lote*: incluye movimientos internos, cambios de estado sanitario, conteos y ajustes, con usuario y fecha.
-2. **Anulaciones y reversas** como filas vinculadas a la original; nunca se ocultan (el ejemplo las muestra como "Acta de Recepción (Anul.)").
-3. **Devoluciones** se identifican por *tipo de ingreso*, no por el nombre del cliente.
-4. **Cambio de propietario:** salida en el kardex del propietario anterior y entrada en el del nuevo.
-5. **Exportación:** PDF (tarjeta formal como el ejemplo) y XLSX (exceljs). El RUC siempre como texto de 11 dígitos.
-6. **Solo del ledger:** el kardex se deriva únicamente de `wms.partidas`; un test verifica que el saldo final coincide con `wms.saldos`.
-7. **Salidas:** las columnas quedan listas (salidas de despacho aún no existen en este alcance).
-8. **Decisión nueva D-29** (Katia): código controlado del formato de Kardex de Logisalud (el ejemplo usa CF-FO-010, que parece de otra empresa). Mientras tanto, código configurable.
+## Batch 3 — Inventario en operación (construido; pendiente de tu aprobación)
+Rama `feat/wms-batch-3` (desde `main` con los Batches 1 y 2 y el addendum ya mergeados, PR #168). **Nada aplicado en ninguna base.** Migración **0007** (sin aplicar), ADR-011.
+**Qué hay:**
+1. **Kardex** (por producto o por lote; filtro por propietario y rango de fechas con saldo inicial; solo entradas y salidas del libro mayor; reversas como filas vinculadas; devoluciones por tipo de ingreso) en pantalla, **PDF** y **Excel** (columnas del formato de ejemplo; RUC como texto; código del formato `LS-FR-KDX (provisional)` configurable, D-29) · **historia completa del lote** (ingresos, movimientos internos, cambios de estado, ajustes y reversas con quién preparó, movió y verificó) · **vencimientos** (D-30: vencidos y por vencer con tramos configurables `vencimiento_tramos_dias`).
+2. **Movimientos internos (INV-02, D-15):** preparar → autorizar (Jefe) → mover → verificar y confirmar (otra persona); el stock cambia solo al confirmar; con diferencia queda abierto y avisa al Jefe; reserva de unidades; zona y propietario validados al preparar y en el libro.
+3. **Conteos cíclicos (INV-05):** programación por ubicación, **conteo a ciegas aplicado en la base** (el saldo solo se lee por una función que lo oculta), segundo conteo de otra persona, causa, **ajuste propuesto por el Jefe y autorizado por Dirección Técnica** (con sustento y fila en el Kardex), escalamiento con evidencia, **ubicación en conteo = no se mueve**, cierre con causa y acción.
+4. **Carga inicial:** CSV con vista previa fila por fila, borrador y confirmación **solo después de la decisión de Dirección Técnica sobre el estado del stock inicial (D-09)**. En el demo y en pruebas se usa con datos de prueba.
+5. **Arreglos transversales:** migraciones 0001–0005 sin `drop … if exists` (prueba que lo exige y que una base nueva no emite avisos); prueba de búsqueda robusta; contrastes sin avisos de Impeccable; en el demo se agrega el rol «Reemplazo del Jefe» para poder probar D-15 con tres personas; `apps/wms/vercel.json` evita el deploy automático desde `main` (no hay producción del WMS hasta que se apruebe).
+**Verificación (sobre el código final):**
+| Qué | Resultado |
+|---|---|
+| Dominio, servicios y componentes (Vitest) | **181 pruebas, 20 archivos, en verde** |
+| Base de datos (Postgres 16 local, cadena 0001–0007 + seed) | **136 pruebas, 7 archivos, en verde** (18 nuevas de inventario, reversa de la cadena completa, migraciones sin `drop … if exists`) |
+| E2E Playwright, 4 viewports (modo demostración) | **1440: 66 · 1280: 66 · 1024: 66 · 390: 60**, 0 fallan (las omitidas son del mapa completo en teléfono) |
+| `tsc`, `next build` (wms, compras, cobranzas, pedidos) | OK |
+| Regresión: Compras 883 y Pedidos 570 pruebas | OK, sin cambios en esas apps |
+| Detector de Impeccable | 0 hallazgos |
+**No incluido en este batch (dicho con claridad):** revisión diaria (INV-04), KPIs, exportación de stock vendible a Pedidos (INV-01), el **movimiento de cambio de propietario** (el Kardex ya lo reconoce, pero no existe el tipo de movimiento) y la **carga inicial con datos reales** (falta la exportación de Odoo, D-26; D-08/D-09 siguen abiertas).
+**No verificado:** el adaptador de Supabase contra una base real (ni las funciones nuevas por PostgREST); el rendimiento de `kardex_filas` con volumen real; el estado del Preview es por instancia (puede reiniciarse).
+**Después del Batch 3 y antes de la salida a producción (aprobado por Sebas):** integración WMS → Compras en dos fases (D-36) y, si se aprueba, la edición de presentación y principio activo con permisos en Compras (D-38).
+
+### Rediseño del flujo «Mover» (cambio de plan, sobre el mismo PR)
+- **Búsqueda en vez de desplegables** (nombre, código, lote o ubicación; resultados al escribir, con espera y descarte de respuestas viejas). **Se empieza por el origen:** eliges la ubicación, ves todo su contenido, marcas líneas (cantidad editable, por defecto el total) o «Mover todo», y eliges **un solo destino**, que se **valida al instante** (propietario, área y estado) con un mensaje por línea antes de enviar.
+- **Movimiento multilínea:** una autorización, una revisión línea por línea; si una línea tiene diferencia solo esa queda abierta, las demás se confirman (migración 0007 editada en sitio —aún sin aplicar en ninguna base— con `revisar_movimiento`, `resolver_movimiento` por línea y `posiciones_bloqueadas`).
+- **Teléfono:** buscador grande, acción principal fija sobre la barra de navegación, mínimo tipeo (motivos rápidos).
+- Pruebas nuevas: base de datos (multilínea, diferencia en una sola línea, revisión incompleta rechazada, validación por línea, solo Katia autoriza ajustes), dominio (buscar origen, validar destino) y E2E de los dos flujos en los 4 viewports (1440: 66 · 1280: 66 · 1024: 66 · 390: 60). Detector de Impeccable: 0 hallazgos.
+- **Autoridad de ajustes:** el marcador `[ELIGE …]` del pedido llegó sin elegir. Se dejó **como está en la base: solo Katia autoriza ajustes de inventario** (Sandra no), ahora con test. Si quieres que Sandra también pueda, es un cambio de una línea.
+
+### D-38 (presentación y principio activo): construido, sin aplicar
+Migración **0008** + reversa + 11 pruebas de base de datos (ver `propuesta-presentacion-principio-activo.md`). **Revisión previa de procesos automáticos** (solo lectura del repo): ninguno de los importadores, sincronizaciones o jobs de las apps actualiza esos campos hoy; solo hay cargas únicas por migración SQL (`0070`, `0077` de Compras; `1002` y similares de Pedidos) y el script manual `scripts/migrar-datos-pedidos.ts`, que corren como `postgres`/`service_role` y no se bloquean. Riesgo futuro: al consolidar Pedidos en este proyecto, su importador de listas de precios o su edición de productos deberán dejar de escribir estos dos campos o hacerlo como `service_role`. Pruebas: WMS base de datos **153** en verde; Compras **883**.
 
 ## Bloqueado / pendiente
 Ver `docs/wms/decisiones-pendientes.md` (D-01..D-29). Ninguna bloquea la aprobación del Batch 1.

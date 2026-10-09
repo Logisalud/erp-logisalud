@@ -23,6 +23,18 @@ create table if not exists catalogo.productos (
 );
 grant usage on schema catalogo to authenticated;
 grant select on catalogo.productos to authenticated;
+-- Lo que Compras concede hoy sobre el catálogo (apps/compras/supabase/migrations/0005): RLS, lectura para cualquier área y escritura
+-- (`for all`) para compras, direccion_tecnica y admin. `public.area_en` se simula con la variable de sesión `test.area`.
+create or replace function public.area_en(variadic p_areas text[]) returns boolean language sql stable as $$
+  select coalesce(current_setting('test.area', true), '') = any (p_areas)
+$$;
+alter table catalogo.productos enable row level security;
+do $$ begin
+  create policy productos_lectura on catalogo.productos for select to authenticated using (true);
+  create policy productos_escritura on catalogo.productos for all to authenticated
+    using (public.area_en('compras', 'direccion_tecnica', 'admin')) with check (public.area_en('compras', 'direccion_tecnica', 'admin'));
+exception when duplicate_object then null; end $$;
+grant insert, update on catalogo.productos to authenticated;
 
 -- Réplica mínima de las tablas de Compras que lee la vista wms.v_recepciones_compra
 -- (estructura real: apps/compras/supabase/migrations/0001_compras_pagos_schemas.sql).

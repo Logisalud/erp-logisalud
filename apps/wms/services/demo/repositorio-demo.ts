@@ -5,10 +5,10 @@ import {
   type DatosRegulatorios, type EntradaProducto,
 } from '@/domain/productos'
 import { estado, registrar } from './estado'
-import { EntradasDemo } from './entradas-demo'
+import { InventarioDemo } from './inventario-demo'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 
-export class RepositorioDemo extends EntradasDemo implements Repositorio {
+export class RepositorioDemo extends InventarioDemo implements Repositorio {
   async panorama(): Promise<Panorama> {
     return structuredClone(estado().panorama)
   }

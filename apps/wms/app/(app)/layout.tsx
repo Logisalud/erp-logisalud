@@ -15,11 +15,16 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
     { href: '/', etiqueta: 'Inicio', icono: 'inicio' },
     { href: '/almacen', etiqueta: 'Almacén', icono: 'almacen' },
     { href: '/entradas', etiqueta: 'Entradas', icono: 'entradas' },
+    { href: '/movimientos', etiqueta: 'Movimientos', icono: 'movimientos' },
+    { href: '/conteos', etiqueta: 'Conteos', icono: 'conteos' },
+    { href: '/kardex', etiqueta: 'Kardex', icono: 'kardex' },
+    { href: '/vencimientos', etiqueta: 'Vencimientos', icono: 'vencimientos' },
     { href: '/productos', etiqueta: 'Productos', icono: 'productos' },
     { href: '/calidad', etiqueta: 'Calidad', icono: 'calidad' },
     { href: '/alertas', etiqueta: 'Alertas', icono: 'alertas', insignia: misAlertas },
     { href: '/expedientes', etiqueta: 'Expedientes', icono: 'expedientes' },
   ]
+  if (ctx.roles.includes('admin_wms') || ctx.roles.includes('direccion_tecnica')) items.push({ href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
   if (ctx.roles.some((r) => r !== 'auxiliar')) items.push({ href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })
   if (puede(ctx.roles, 'auditar')) items.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })
   return (
