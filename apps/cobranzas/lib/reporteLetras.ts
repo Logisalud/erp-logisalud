@@ -50,7 +50,7 @@ export async function construirReporteLetras(db: SupabaseClient, filtros: Filtro
 
   const letraIds = letras.map(l => l.id);
   const ld = await fetchAll<{ letra_id: string; documento_id: string }>((from, to) =>
-    db.from('letra_documento').select('letra_id, documento_id').in('letra_id', letraIds).range(from, to)
+    db.from('letra_documento').select('letra_id, documento_id').in('letra_id', letraIds).order('documento_id').order('letra_id').range(from, to)
   );
 
   const documentoIds = Array.from(new Set(ld.map(x => x.documento_id)));

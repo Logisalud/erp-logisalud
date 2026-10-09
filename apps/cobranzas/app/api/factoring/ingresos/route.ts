@@ -25,17 +25,17 @@ export async function GET() {
     id: string; entidad: string; fecha_ingreso: string; monto_neto_recibido: number;
     referencia: string | null; observaciones: string | null; registrado_por: string | null;
     anulado: boolean; anulado_motivo: string | null; created_at: string;
-  }>((from, to) => db.from('factoring_ingresos').select('*').order('fecha_ingreso', { ascending: false }).range(from, to));
+  }>((from, to) => db.from('factoring_ingresos').select('*').order('fecha_ingreso', { ascending: false }).order('id').range(from, to));
 
   const ingresoIds = ingresos.map(i => i.id);
   const facturas = ingresoIds.length
     ? await fetchAll<{ id: string; ingreso_id: string; documento_id: string; monto_factorizado: number; pago_id: string | null }>((from, to) =>
-        db.from('factoring_ingreso_facturas').select('*').in('ingreso_id', ingresoIds).range(from, to)
+        db.from('factoring_ingreso_facturas').select('*').in('ingreso_id', ingresoIds).order('id').range(from, to)
       )
     : [];
   const gastos = ingresoIds.length
     ? await fetchAll<{ id: string; ingreso_id: string; tipo: string; monto: number; incluye_igv: boolean | null; numero_factura: string | null; recuperado: boolean; observaciones: string | null }>((from, to) =>
-        db.from('factoring_gastos').select('*').in('ingreso_id', ingresoIds).range(from, to)
+        db.from('factoring_gastos').select('*').in('ingreso_id', ingresoIds).order('id').range(from, to)
       )
     : [];
 

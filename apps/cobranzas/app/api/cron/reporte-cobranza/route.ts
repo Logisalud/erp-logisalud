@@ -209,7 +209,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     const roster = (await fetchAll<{ id: string; nombres: string; apellidos: string | null; codigo: string | null; activo: boolean }>((from, to) =>
-      supabaseAdmin().from('vendedores').select('id, nombres, apellidos, codigo, activo').range(from, to)
+      supabaseAdmin().from('vendedores').select('id, nombres, apellidos, codigo, activo').order('id').range(from, to)
     )).filter(v => v.activo).map(v => ({ id: v.id, nombre: `${v.nombres} ${v.apellidos ?? ''}`.trim(), codigo: v.codigo }));
 
     const rankAyer = mergeRoster(roster, ayer);

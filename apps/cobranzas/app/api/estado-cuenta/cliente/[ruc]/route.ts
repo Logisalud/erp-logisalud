@@ -23,7 +23,7 @@ export async function GET(
         .eq('cliente_ruc', params.ruc)
         .order('fecha_vencimiento', { ascending: false, nullsFirst: false });
       if (soloDeuda) q = q.gt('saldo_pendiente', 0);
-      return q.range(from, to);
+      return q.order('id').range(from, to);
     });
 
     return NextResponse.json({ facturas: data }, {

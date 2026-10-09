@@ -16,13 +16,13 @@ export async function GET(_req: NextRequest) {
 
     const [clientes, vendedores, saldoRows] = await Promise.all([
       fetchAll((from, to) =>
-        db.from('clientes').select('ruc, razon_social, vendedor_actual_id').order('razon_social').range(from, to)
+        db.from('clientes').select('ruc, razon_social, vendedor_actual_id').order('razon_social').order('ruc').range(from, to)
       ),
       fetchAll((from, to) =>
-        db.from('vendedores').select('id, codigo, nombres, apellidos').range(from, to)
+        db.from('vendedores').select('id, codigo, nombres, apellidos').order('id').range(from, to)
       ),
       fetchAll((from, to) =>
-        db.from('v_saldos').select('cliente_ruc, saldo_pendiente, zona_nombre').range(from, to)
+        db.from('v_saldos').select('cliente_ruc, saldo_pendiente, zona_nombre').order('id').range(from, to)
       ),
     ]);
 

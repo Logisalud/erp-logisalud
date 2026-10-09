@@ -72,7 +72,7 @@ export async function cargarEstadoCuenta(
       )
       .eq('cliente_ruc', ruc)
       .order('fecha_emision')
-      .range(from, to),
+      .order('id').range(from, to),
   )) as FacturaCruda[];
 
   const notas = (await fetchAll((from, to) =>
@@ -83,7 +83,7 @@ export async function cargarEstadoCuenta(
       .in('tipo', ['07', '08'])
       .eq('anulado', false)
       .order('fecha_emision')
-      .range(from, to),
+      .order('id').range(from, to),
   )) as unknown as Array<NotaCruda & { serie: string; numero: number }>;
 
   const ids = facturas.map((f) => f.id);

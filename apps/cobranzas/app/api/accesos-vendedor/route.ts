@@ -15,10 +15,10 @@ export async function GET() {
 
   const [vendedores, accesos] = await Promise.all([
     fetchAll<{ id: string; nombres: string; apellidos: string | null; codigo: string | null; activo: boolean }>((from, to) =>
-      db.from('vendedores').select('id, nombres, apellidos, codigo, activo').range(from, to)
+      db.from('vendedores').select('id, nombres, apellidos, codigo, activo').order('id').range(from, to)
     ),
     fetchAll<{ vendedor_id: string; fecha_hora: string }>((from, to) =>
-      db.from('accesos_vendedor').select('vendedor_id, fecha_hora').range(from, to)
+      db.from('accesos_vendedor').select('vendedor_id, fecha_hora').order('id').range(from, to)
     ),
   ]);
 

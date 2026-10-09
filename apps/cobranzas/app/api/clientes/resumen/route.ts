@@ -14,7 +14,7 @@ export async function GET() {
   const db = crearClienteServidor();
 
   const clientes = await fetchAll<{ codigo_zona: string | null; vendedor_actual_id: string | null }>((from, to) =>
-    db.from('clientes').select('codigo_zona, vendedor_actual_id').range(from, to)
+    db.from('clientes').select('codigo_zona, vendedor_actual_id').order('ruc').range(from, to)
   );
 
   const porZona: Record<string, number> = {};

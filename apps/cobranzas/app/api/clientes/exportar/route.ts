@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
           .from('clientes')
           .select('ruc, razon_social, codigo_zona, distrito, vendedor_actual_id, vendedor_manual_id')
           .order('razon_social')
-          .range(from, to);
+          .order('ruc').range(from, to);
         if (sinAsignar)   q = q.is('codigo_zona', null);
         if (soloOverride) q = q.not('vendedor_manual_id', 'is', null);
         if (zona)         q = q.eq('codigo_zona', zona);
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
         return q;
       }),
       fetchAll<{ id: string; codigo: string; nombres: string; apellidos: string }>((from, to) =>
-        db.from('vendedores').select('id, codigo, nombres, apellidos').range(from, to)
+        db.from('vendedores').select('id, codigo, nombres, apellidos').order('id').range(from, to)
       ),
     ]);
 
