@@ -8,13 +8,14 @@ Proveedor nuevo, el sexto. Archivo de origen: `JAM_PHARMA_PRECIOS.xlsx`
 | | |
 |---|---:|
 | Proveedor | JAM Pharma |
-| Productos vendibles (`JAM…`) | 34 |
-| Gemelos de bonificación (`BOJAM…`) | 34 |
-| Perfiles tributarios (GRAVADO 18%) | 68 |
-| Precios (34 productos × 6 canales) | 204 |
-| Bonificaciones (27 productos × 6 canales) | 162 |
+| Productos vendibles (`JAM…`) | 35 |
+| Gemelos de bonificación (`BOJAM…`) | 35 |
+| Perfiles tributarios (GRAVADO 18%) | 70 |
+| Precios (35 productos × 6 canales) | 210 |
+| Bonificaciones (28 productos × 6 canales) | 168 |
 
-Queda en `pedidos.audit_logs` id **8700**.
+Queda en `pedidos.audit_logs` ids **8700** (los primeros 34) y **8703**
+(`JAM203`, cargado el mismo día tras confirmarlo).
 
 ## Decisiones de carga
 
@@ -44,28 +45,39 @@ producto bonificado no tiene uno**, y lo hace en silencio.
 **Lo que el archivo no trae** y quedó vacío: presentación, principio
 activo, marca y master pack. `unidad_medida` quedó en `CJA`.
 
-## Lo que NO se cargó, y por qué
+## El código que hubo que confirmar: `JAM203`
 
-**`JAM203` y `BOJAM203` quedaron pendientes.** En la hoja `PRECIOS` figuran
-con la descripción *"TENSOFLOW 10MG CJA X 30 TAB REC"* — **idéntica a la de
-`JAM202`** — pero en la hoja `PROMOS` el mismo código aparece como
+En la hoja `PRECIOS` figuraba con la descripción *"TENSOFLOW 10MG CJA X 30
+TAB REC"* — **idéntica a la de `JAM202`** — y en la hoja `PROMOS`, como
 *"TENSOFLOW 15MG"*. Los precios son distintos (JAM202 = 85, JAM203 = 76),
-así que son dos productos distintos y una de las dos hojas tiene mal el
-nombre.
+así que eran dos productos distintos con una de las dos hojas mal.
 
-Cargarlo igual dejaba dos productos con el mismo nombre y distinto precio
-en el buscador del vendedor: el error más fácil de cometer y el más difícil
-de ver en un pedido. Falta confirmar la descripción correcta; con eso se
-cargan el producto, su gemelo, sus 6 precios y su promo 1 + 1.
+No se cargó en la primera tanda: dos productos con el mismo nombre y
+distinto precio en el buscador del vendedor es el error más fácil de
+cometer y el más difícil de ver en un pedido ya enviado. El usuario
+confirmó la escala correcta el mismo día:
+
+| Código | Producto | Precio |
+|---|---|---:|
+| JAM201 | TENSOFLOW 5MG | 79,90 |
+| JAM202 | TENSOFLOW 10MG | 85,00 |
+| JAM203 | **TENSOFLOW 15MG** | 76,00 |
+
+`JAM203` quedó cargado como *TENSOFLOW 15MG CJA X 30 TAB REC*, con su
+gemelo `BOJAM203`, sus 6 precios a 76,00 y su promoción 1 + 1. La hoja
+`PRECIOS` del archivo conserva el nombre equivocado: la corrección vive
+acá, no en el Excel.
 
 ## Verificación
 
-- Los 34 productos, sus descripciones y los 204 precios coinciden con el
-  archivo, sin una sola diferencia.
-- Los 34 tienen precio en los 6 canales y el mismo precio en todos.
-- Ninguno de los 68 quedó sin perfil tributario.
-- Las 162 filas de promoción apuntan al gemelo que dice el archivo, y los 27
+- Los 35 productos, sus descripciones y los 210 precios coinciden con el
+  archivo (con `JAM203` ya corregido), sin una sola diferencia.
+- Los 35 tienen precio en los 6 canales y el mismo precio en todos.
+- Ninguno de los 70 quedó sin perfil tributario.
+- Las 168 filas de promoción apuntan al gemelo que dice el archivo, y los 28
   bonificados tienen perfil tributario.
+- **Ninguna descripción se repite** entre los 35 vendibles: era justamente
+  lo que había que evitar con `JAM203`.
 
 ## Un hallazgo aparte (no se tocó)
 
