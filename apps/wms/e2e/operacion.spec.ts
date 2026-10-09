@@ -170,14 +170,14 @@ test.describe('reportes', () => {
   test('cada rol ve los reportes que le corresponden; filtra sin tildes, guarda vistas y descarga CSV y Excel', async ({ page }, info) => {
     await entrarComo(page, 'auxiliar')
     await page.goto('/wms/reportes')
-    await expect(page.getByTestId('reporte-enlace')).toHaveCount(5) // sin exactitud ni auditoría
+    await expect(page.getByTestId('reporte-enlace')).toHaveCount(6) // sin exactitud ni auditoría
     await cambiarRol(page, 'jefe_almacen')
     await page.goto('/wms/reportes')
-    await expect(page.getByTestId('reporte-enlace')).toHaveCount(6) // el Jefe no audita
+    await expect(page.getByTestId('reporte-enlace')).toHaveCount(7) // el Jefe no audita
     await capturar(page, info, 'reportes', { completa: true })
     await cambiarRol(page, 'auditoria_lectura')
     await page.goto('/wms/reportes')
-    await expect(page.getByTestId('reporte-enlace')).toHaveCount(7)
+    await expect(page.getByTestId('reporte-enlace')).toHaveCount(8)
     await cambiarRol(page, 'jefe_almacen')
 
     // inventario: tabla en PC/tablet, tarjetas en el teléfono; filtros y vistas
@@ -188,6 +188,7 @@ test.describe('reportes', () => {
     await sinDesborde(page)
     await capturar(page, info, 'reporte-inventario')
     const total = await page.getByTestId('reporte-resumen').textContent()
+    if (esTelefono(info)) await page.getByTestId('reporte-filtros-abrir').click() // en el teléfono los filtros se abren a pedido
     await page.getByTestId('filtro-q').fill('DAPAGLIFLOZINA') // mayúsculas y sin tildes
     await expect(page.getByTestId('reporte-resumen')).not.toHaveText(total!)
     const filtrado = await page.getByTestId('reporte-resumen').textContent()
@@ -221,7 +222,7 @@ test.describe('reportes', () => {
 
   test('ocupación, recepciones, calidad, movimientos, exactitud y auditoría abren con sus filtros y sin desborde', async ({ page }, info) => {
     await entrarComo(page, 'auditoria_lectura')
-    for (const id of ['ocupacion', 'recepciones', 'calidad', 'movimientos', 'exactitud', 'auditoria']) {
+    for (const id of ['vencimientos', 'ocupacion', 'recepciones', 'calidad', 'movimientos', 'exactitud', 'auditoria']) {
       await page.goto(`/wms/reportes/${id}`)
       await expect(page.getByTestId('titulo-reporte')).toBeVisible()
       await expect(page.getByTestId('reporte-filtros')).toBeVisible()
@@ -230,5 +231,143 @@ test.describe('reportes', () => {
       await sinDesborde(page)
       await capturar(page, info, `reporte-${id}`)
     }
+  })
+})
+
+test.describe('reporte de Vencimientos', () => {
+  /** Los «días para vencer» de las filas que se ven, sea tabla (PC y tablet) o filas compactas (teléfono). */
+  async function diasVisibles(page: Page, info: Parameters<typeof esTelefono>[0]): Promise<number[]> {
+    if (esTelefono(info)) {
+      const textos = await page.getByTestId('reporte-tarjeta').allInnerTexts()
+      return textos.map((t) => { const m = /Vencido hace (\d+)|Vence en (\d+)|Vence hoy/.exec(t); return !m ? NaN : m[1] ? -Number(m[1]) : m[2] ? Number(m[2]) : 0 })
+    }
+    const cab = await page.locator('thead th').allInnerTexts()
+    const i = cab.findIndex((c) => /Días para vencer/.test(c))
+    const celdas = await page.locator(`[data-testid="reporte-fila"] td:nth-child(${i + 1})`).allInnerTexts()
+    return celdas.map((c) => Number(c.replace(/\s/g, '').replace('−', '-')))
+  }
+
+  test('es el primero de Reportes, con acceso directo desde Inicio y desde la alerta de vencimiento', async ({ page }) => {
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/reportes')
+    await expect(page.getByTestId('reporte-enlace').first()).toHaveAttribute('data-reporte', 'VENCIMIENTOS')
+    await page.goto('/wms')
+    await expect(page.getByTestId('atajo-vencimientos')).toBeVisible()
+    await page.getByTestId('atajo-vencimientos').click()
+    await expect(page.getByTestId('titulo-reporte')).toHaveText('Vencimientos')
+    await page.goto('/wms/alertas')
+    const enlace = page.getByTestId('alerta-ver-vencimientos').first()
+    if (await enlace.count()) { await enlace.click(); await expect(page.getByTestId('titulo-reporte')).toHaveText('Vencimientos') }
+  })
+
+  test('abre con los vencidos primero y luego del más próximo al más lejano; los tramos filtran y traen sus totales', async ({ page }, info) => {
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/reportes/vencimientos')
+    await expect(page.getByTestId('tramos')).toBeVisible()
+    const chips = page.getByTestId('tramo-chip')
+    await expect(chips.first()).toContainText('Vencido')
+    await expect(page.getByTestId('tramo-chip').filter({ hasText: '0–3 meses' })).toBeVisible()
+    await expect(page.getByTestId('tramo-chip').filter({ hasText: '3–6 meses' })).toBeVisible()
+    await expect(page.getByTestId('tramo-chip').filter({ hasText: '6–12 meses' })).toBeVisible()
+    await expect(page.getByTestId('tramo-chip').filter({ hasText: 'Más de 12 meses' })).toBeVisible()
+    await expect(chips.first()).toContainText(/\d+ lotes? · [\d.,]+ u/)
+    // orden por defecto
+    const dias = await diasVisibles(page, info)
+    expect(dias.length).toBeGreaterThan(5)
+    expect(dias[0]).toBeLessThan(0) // un vencido abre la lista
+    expect(dias).toEqual([...dias].sort((a, b) => a - b))
+    await sinDesborde(page)
+    await capturar(page, info, 'reporte-vencimientos')
+    // el tramo «Vencido» deja solo lo vencido y su total coincide con el del chip
+    const vencido = page.locator('[data-testid="tramo-chip"][data-tramo="Vencido"]')
+    const unidades = /([\d.,]+) u/.exec((await vencido.innerText()))![1]
+    await vencido.click()
+    await expect(vencido).toHaveAttribute('aria-pressed', 'true')
+    const filas = await diasVisibles(page, info)
+    expect(filas.length).toBeGreaterThan(0)
+    expect(filas.every((d) => d < 0)).toBe(true)
+    await expect(page.getByTestId('reporte-resumen')).toContainText(`Unidades: ${unidades}`)
+    await capturar(page, info, 'reporte-vencimientos-tramo')
+    // otro tramo, y «Todos» lo suelta
+    await page.locator('[data-testid="tramo-chip"][data-tramo="0–3 meses"]').click()
+    expect((await diasVisibles(page, info)).every((d) => d >= 0 && d <= 90)).toBe(true)
+    await page.getByTestId('tramo-todos').click()
+    expect((await diasVisibles(page, info)).length).toBeGreaterThan(filas.length)
+  })
+
+  test('filtra por propietario, estado, producto y ubicación; ordena por cualquier columna y guarda la vista', async ({ page }, info) => {
+    test.skip(esTelefono(info), 'En el teléfono las filas no tienen encabezados para ordenar; el orden y los filtros se cubren en los demás viewports')
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/reportes/vencimientos')
+    const total = await page.getByTestId('reporte-resumen').innerText()
+    await page.getByTestId('filtro-producto').fill('DAPAGLIFLOZINA')
+    await expect(page.getByTestId('reporte-resumen')).not.toHaveText(total)
+    await page.getByTestId('filtro-ubicacion').fill('zzz')
+    await expect(page.getByTestId('reporte-vacio')).toBeVisible()
+    await page.getByTestId('filtro-ubicacion').fill('')
+    await page.getByTestId('filtro-propietario').selectOption({ index: 1 })
+    await page.getByTestId('filtro-estado').selectOption({ index: 1 })
+    await expect(page.locator('[data-testid="reporte-fila"], [data-testid="reporte-vacio"]').first()).toBeAttached() // pueden no coincidir juntos
+    await page.getByTestId('filtro-propietario').selectOption('')
+    await page.getByTestId('filtro-estado').selectOption('')
+    // orden por la columna Unidades (dos clics: de menor a mayor y de mayor a menor)
+    await page.getByTestId('ordenar-cantidad').click()
+    await page.getByTestId('ordenar-cantidad').click()
+    const cab = await page.locator('thead th').allInnerTexts()
+    const i = cab.findIndex((c) => /Unidades/.test(c))
+    const cant = (await page.locator(`[data-testid="reporte-fila"] td:nth-child(${i + 1})`).allInnerTexts()).map((c) => Number(c.replace(/\D/g, '')))
+    expect(cant).toEqual([...cant].sort((a, b) => b - a))
+    // vista guardada: filtros y orden vuelven juntos
+    await page.getByTestId('reporte-guardar-vista').click()
+    await page.getByTestId('reporte-vista-nombre').fill('Dapagliflozina por unidades')
+    await page.getByTestId('reporte-vista-confirmar').click()
+    await page.getByTestId('reporte-limpiar').click()
+    const dias = await diasVisibles(page, info)
+    expect(dias).toEqual([...dias].sort((a, b) => a - b)) // vuelve al orden por defecto
+    await page.getByTestId('reporte-vista').click()
+    await expect(page.getByTestId('filtro-producto')).toHaveValue('DAPAGLIFLOZINA')
+    const cant2 = (await page.locator(`[data-testid="reporte-fila"] td:nth-child(${i + 1})`).allInnerTexts()).map((c) => Number(c.replace(/\D/g, '')))
+    expect(cant2).toEqual([...cant2].sort((a, b) => b - a))
+    await capturar(page, info, 'reporte-vencimientos-filtrado')
+  })
+
+  test('la descarga en Excel y CSV trae lo que se ve: el tramo elegido y el mismo orden', async ({ page }, info) => {
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/reportes/vencimientos')
+    await page.locator('[data-testid="tramo-chip"][data-tramo="Vencido"]').click()
+    const base = (h: string) => h.replace(/^\//, '/wms/')
+    const csv = await page.request.get(base((await page.getByTestId('exportar-csv').getAttribute('href'))!))
+    expect(csv.status()).toBe(200)
+    const cuerpo = await csv.text()
+    expect(cuerpo.charCodeAt(0)).toBe(0xfeff) // BOM: Excel abre las tildes bien
+    const lineas = cuerpo.trim().split('\r\n')
+    expect(lineas[0]).toBe('Producto,Código,Lote,Vence,Días para vencer,Tramo,Propietario,Ubicación,Estado sanitario,Unidades')
+    expect(lineas.length).toBeGreaterThan(1)
+    expect(lineas.slice(1).every((l) => l.includes(',Vencido,'))).toBe(true)
+    const dias = lineas.slice(1).map((l) => Number(l.split(',')[4]))
+    expect(dias).toEqual([...dias].sort((a, b) => a - b))
+    expect(lineas.length - 1).toBe((await diasVisibles(page, info)).length) // lo mismo que en pantalla
+    const xlsx = await page.request.get(base((await page.getByTestId('exportar-xlsx').getAttribute('href'))!))
+    expect(xlsx.status()).toBe(200)
+    expect(xlsx.headers()['content-type']).toContain('spreadsheetml')
+    expect((await xlsx.body()).subarray(0, 2).toString()).toBe('PK')
+    expect(xlsx.headers()['content-disposition']).toContain('Vencimientos')
+  })
+
+  test('en el teléfono cada lote es una fila compacta: producto, lote, vence en X días y ubicación, sin desplazamiento horizontal', async ({ page }, info) => {
+    test.skip(!esTelefono(info), 'Solo el teléfono usa filas compactas')
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/reportes/vencimientos')
+    const fila = page.getByTestId('reporte-tarjeta').first()
+    await expect(fila).toContainText(/Lote .+ · /)
+    await expect(fila).toContainText(/Vencido hace \d+|Vence en \d+/)
+    await expect(page.getByTestId('reporte-tabla')).toBeHidden()
+    await sinDesborde(page)
+    // los tramos se desplazan de lado dentro de su franja, no la página
+    await expect(page.getByTestId('tramos')).toBeVisible()
+    await expect(page.getByTestId('exportar-xlsx')).toBeVisible()
+    await capturar(page, info, 'reporte-vencimientos-movil', { completa: true })
+    await fila.click() // lleva al Kardex del lote
+    await expect(page).toHaveURL(/\/wms\/kardex/)
   })
 })

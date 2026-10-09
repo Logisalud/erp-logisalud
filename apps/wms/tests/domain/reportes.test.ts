@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { construirPanoramaDemo } from '@/services/demo/datos'
 import {
-  REPORTES, aCsv, aplicarFiltros, esIdReporte, filasAuditoria, filasCalidad, filasExactitud, filasInventario, filasMovimientos, filasOcupacion, filtrosDeUrl, opcionesDe, puedeVerReporte, resumenDe, valorTexto,
+  REPORTES, ORDEN_REPORTES, TRAMO_VENCIDO, aCsv, aplicarFiltros, esIdReporte, etiquetasTramos, filasVencimientos, ordenDeTexto, ordenarFilas, tramoDeDias, totalesPorTramo, textoVence, filasAuditoria, filasCalidad, filasExactitud, filasInventario, filasMovimientos, filasOcupacion, filtrosDeUrl, opcionesDe, puedeVerReporte, resumenDe, valorTexto,
 } from '@/domain/reportes'
 import type { OrdenMovimiento } from '@/domain/inventario'
 
@@ -9,7 +9,8 @@ const p = construirPanoramaDemo('2026-10-09')
 
 describe('reportes: quién ve qué', () => {
   it('los siete reportes existen; exactitud solo para quien gestiona y auditoría solo para quien audita', () => {
-    expect(Object.keys(REPORTES)).toHaveLength(7)
+    expect(Object.keys(REPORTES)).toHaveLength(8)
+    expect(ORDEN_REPORTES[0]).toBe('VENCIMIENTOS') // el más usado, primero
     expect(esIdReporte('INVENTARIO')).toBe(true); expect(esIdReporte('XX')).toBe(false)
     expect(puedeVerReporte('INVENTARIO', ['auxiliar'])).toBe(true)
     expect(puedeVerReporte('EXACTITUD', ['auxiliar'])).toBe(false)
@@ -92,5 +93,71 @@ describe('reportes: filtros, exportación y búsqueda', () => {
     expect(valorTexto(fec, '2027-01-02')).toBe('02/01/2027')
     expect(valorTexto(pct, 66.7)).toBe('66,7 %')
     expect(valorTexto(num, null)).toBe('—')
+  })
+})
+
+describe('reporte de Vencimientos', () => {
+  const tramos = [90, 180, 365]
+  const filas = filasVencimientos(p, tramos)
+  const def = REPORTES.VENCIMIENTOS
+  it('los tramos por defecto son 3, 6 y 12 meses y se configuran', () => {
+    expect(etiquetasTramos(tramos)).toEqual(['Vencido', '0–3 meses', '3–6 meses', '6–12 meses', 'Más de 12 meses', 'Sin fecha'])
+    expect(etiquetasTramos([30, 60])).toEqual(['Vencido', '0–30 días', '30–60 días', 'Más de 60 días', 'Sin fecha'])
+    expect(tramoDeDias(-1, tramos)).toBe('Vencido'); expect(tramoDeDias(0, tramos)).toBe('0–3 meses'); expect(tramoDeDias(90, tramos)).toBe('0–3 meses')
+    expect(tramoDeDias(91, tramos)).toBe('3–6 meses'); expect(tramoDeDias(365, tramos)).toBe('6–12 meses'); expect(tramoDeDias(366, tramos)).toBe('Más de 12 meses'); expect(tramoDeDias(null, tramos)).toBe('Sin fecha')
+  })
+  it('una fila por lote y ubicación, con todas las columnas pedidas y sin Bajas/Rechazados', () => {
+    expect(def.columnas.map((c) => c.etiqueta)).toEqual(['Producto', 'Código', 'Lote', 'Vence', 'Días para vencer', 'Tramo', 'Propietario', 'Ubicación', 'Estado sanitario', 'Unidades'])
+    expect(filas.length).toBeGreaterThan(50)
+    expect(filas.every((f) => f.estado !== 'Baja / Rechazado' && Number(f.cantidad) > 0)).toBe(true)
+    expect(new Set(filas.map((f) => `${f.loteId}|${f.ubicacion}|${f.estado}`)).size).toBe(filas.length)
+  })
+  it('por defecto abre con los vencidos primero y luego del más próximo al más lejano; cualquier columna ordena', () => {
+    const o = ordenarFilas(def, filas, null)
+    const dias = o.map((f) => f.dias as number | null).filter((d): d is number => d !== null)
+    expect(dias).toEqual([...dias].sort((a, b) => a - b))
+    expect(o[0].tramo).toBe(TRAMO_VENCIDO)
+    expect(dias.findIndex((d) => d >= 0)).toBeGreaterThan(0) // los vencidos (negativos) van delante
+    const porCantidad = ordenarFilas(def, filas, ordenDeTexto(def, 'cantidad:desc'))
+    expect(Number(porCantidad[0].cantidad)).toBe(Math.max(...filas.map((f) => Number(f.cantidad))))
+    expect(ordenDeTexto(def, 'inexistente:asc')).toBeNull()
+  })
+  it('lo que no tiene fecha va siempre al final, en cualquier sentido', () => {
+    const f = [{ ...filas[0], dias: null, tramo: 'Sin fecha' }, { ...filas[1], dias: 5 }, { ...filas[2], dias: 1 }]
+    expect(ordenarFilas(def, f, { clave: 'dias', asc: true }).map((x) => x.dias)).toEqual([1, 5, null])
+    expect(ordenarFilas(def, f, { clave: 'dias', asc: false }).map((x) => x.dias)).toEqual([5, 1, null])
+  })
+  it('los tramos clicables traen su total de lotes y unidades; filtrar por tramo deja solo ese tramo', () => {
+    const orden = etiquetasTramos(tramos)
+    const chips = totalesPorTramo(filas, orden)
+    expect(chips.map((c) => c.tramo)).toEqual(orden)
+    expect(chips.reduce((n, c) => n + c.unidades, 0)).toBe(filas.reduce((n, f) => n + Number(f.cantidad), 0))
+    const v = chips.find((c) => c.tramo === TRAMO_VENCIDO)!
+    const soloVencidos = aplicarFiltros(def, filas, { tramo: TRAMO_VENCIDO })
+    expect(soloVencidos.every((f) => f.tramo === TRAMO_VENCIDO)).toBe(true)
+    expect(soloVencidos.reduce((n, f) => n + Number(f.cantidad), 0)).toBe(v.unidades)
+    expect(new Set(soloVencidos.map((f) => f.loteId)).size).toBe(v.lotes)
+  })
+  it('filtra por producto (nombre o código) y por ubicación sin tildes ni mayúsculas, y por propietario y estado', () => {
+    const f0 = filas[0]
+    expect(aplicarFiltros(def, filas, { producto: String(f0.codigo).toLowerCase() }).every((f) => f.codigo === f0.codigo)).toBe(true)
+    expect(aplicarFiltros(def, filas, { ubicacion: String(f0.ubicacion).toLowerCase() }).every((f) => String(f.ubicacion).toLowerCase().includes(String(f0.ubicacion).toLowerCase()))).toBe(true)
+    expect(aplicarFiltros(def, filas, { propietario: String(f0.propietario), estado: String(f0.estado) }).every((f) => f.propietario === f0.propietario && f.estado === f0.estado)).toBe(true)
+    // el filtro de producto no mira las demás columnas: un lote no lo activa
+    expect(aplicarFiltros(def, [{ ...f0, producto: 'Losartán', codigo: 'X-1', lote: 'ZZZ9' }], { producto: 'ZZZ9' })).toEqual([])
+  })
+  it('la descarga trae lo que se ve: mismos filtros y mismo orden', () => {
+    const vistas = ordenarFilas(def, aplicarFiltros(def, filas, { tramo: TRAMO_VENCIDO }), ordenDeTexto(def, 'dias:asc'))
+    const csv = aCsv(def, vistas).trim().split('\r\n')
+    expect(csv).toHaveLength(vistas.length + 1)
+    expect(csv[0].split(',')).toEqual(def.columnas.map((c) => c.etiqueta))
+    expect(csv.slice(1).every((l) => l.includes(TRAMO_VENCIDO))).toBe(true)
+  })
+  it('el teléfono muestra producto, lote, cuánto falta y ubicación en una fila compacta', () => {
+    const m = def.movil!({ ...filas[0], dias: 12, vence: '2026-10-21' })
+    expect(m.titulo).toBe(filas[0].producto)
+    expect(m.lineas[0]).toBe(`Lote ${filas[0].lote} · ${filas[0].ubicacion}`)
+    expect(m.lineas[1]).toBe('Vence en 12 días (21/10/2026)')
+    expect(textoVence(-3)).toBe('Vencido hace 3 días'); expect(textoVence(0)).toBe('Vence hoy'); expect(textoVence(1)).toBe('Vence en 1 día')
   })
 })

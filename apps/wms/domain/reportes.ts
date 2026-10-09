@@ -25,11 +25,16 @@ export interface Columna {
   suma?: boolean
   /** Lo que identifica la fila en la tarjeta del teléfono. */
   titulo?: boolean
+  /** A dónde lleva el valor (por ejemplo, del lote a su Kardex). */
+  enlace?: (f: FilaReporte) => string | null
 }
 
+/** Una fila compacta para el teléfono (sin desplazamiento horizontal): título, un par de líneas y un valor al final. */
+export interface FilaMovil { titulo: string; lineas: string[]; fin?: string; aviso?: string; enlace?: string }
+
 export type FiltroDef =
-  | { clave: string; etiqueta: string; tipo: 'texto' }
-  | { clave: string; etiqueta: string; tipo: 'seleccion'; campo: string }
+  | { clave: string; etiqueta: string; tipo: 'texto'; /** Solo busca en estas columnas (por defecto, en todas). */ campos?: string[] }
+  | { clave: string; etiqueta: string; tipo: 'seleccion'; campo: string; /** No se dibuja como control (lo maneja otra parte de la pantalla). */ oculto?: boolean }
   | { clave: string; etiqueta: string; tipo: 'desde' | 'hasta'; campo: string }
 
 export interface DefinicionReporte {
@@ -40,7 +45,12 @@ export interface DefinicionReporte {
   filtros: FiltroDef[]
   /** Para qué sirve y con qué frecuencia mirarlo (se muestra bajo el título). */
   uso: string
+  /** Orden con que abre el reporte (por defecto, el de las filas tal como llegan). */
+  ordenInicial?: Orden
+  /** Cómo se ve cada fila en el teléfono; si falta, una tarjeta con todos los campos. */
+  movil?: (f: FilaReporte) => FilaMovil
 }
+export interface Orden { clave: string; asc: boolean }
 
 const texto = (clave: string, etiqueta: string, opciones: Partial<Columna> = {}): Columna => ({ clave, etiqueta, tipo: 'texto', ...opciones })
 const numero = (clave: string, etiqueta: string, opciones: Partial<Columna> = {}): Columna => ({ clave, etiqueta, tipo: 'numero', ...opciones })
@@ -48,6 +58,23 @@ const fecha = (clave: string, etiqueta: string): Columna => ({ clave, etiqueta, 
 const buscar: FiltroDef = { clave: 'q', etiqueta: 'Buscar', tipo: 'texto' }
 
 export const REPORTES: Record<IdReporte, DefinicionReporte> = {
+  VENCIMIENTOS: {
+    id: 'VENCIMIENTOS', titulo: 'Vencimientos', descripcion: 'Una fila por lote y ubicación, de lo que ya venció a lo que vence más tarde. No incluye lo que está en Bajas/Rechazados.', uso: 'Para actuar a tiempo sobre lo que vence. Se mira a diario.',
+    ordenInicial: { clave: 'dias', asc: true },
+    columnas: [texto('producto', 'Producto', { titulo: true }), texto('codigo', 'Código'), { ...texto('lote', 'Lote'), enlace: (f) => (f.productoId && f.loteId ? `/kardex?producto=${f.productoId}&lote=${f.loteId}` : null) }, fecha('vence', 'Vence'), numero('dias', 'Días para vencer'), texto('tramo', 'Tramo'), texto('propietario', 'Propietario'), texto('ubicacion', 'Ubicación'), texto('estado', 'Estado sanitario'), numero('cantidad', 'Unidades', { suma: true })],
+    filtros: [
+      { clave: 'tramo', etiqueta: 'Tramo', tipo: 'seleccion', campo: 'tramo', oculto: true },
+      { clave: 'propietario', etiqueta: 'Propietario', tipo: 'seleccion', campo: 'propietario' },
+      { clave: 'estado', etiqueta: 'Estado sanitario', tipo: 'seleccion', campo: 'estado' },
+      { clave: 'producto', etiqueta: 'Producto', tipo: 'texto', campos: ['producto', 'codigo'] },
+      { clave: 'ubicacion', etiqueta: 'Ubicación', tipo: 'texto', campos: ['ubicacion'] },
+      buscar,
+    ],
+    movil: (f) => ({
+      titulo: String(f.producto), lineas: [`Lote ${f.lote} · ${f.ubicacion}`, textoVence(f.dias === null ? null : Number(f.dias), String(f.vence ?? ''))], fin: `${Number(f.cantidad).toLocaleString('es-PE')} u`,
+      aviso: f.tramo === TRAMO_VENCIDO ? 'Vencido' : undefined, enlace: f.productoId && f.loteId ? `/kardex?producto=${f.productoId}&lote=${f.loteId}` : undefined,
+    }),
+  },
   INVENTARIO: {
     id: 'INVENTARIO', titulo: 'Inventario', descripcion: 'Qué hay, dónde está, de quién es y en qué estado.', uso: 'Para saber cuánto stock hay de cada producto y lote. Se mira a diario.',
     columnas: [texto('producto', 'Producto', { titulo: true }), texto('lote', 'Lote'), fecha('vence', 'Vence'), texto('propietario', 'Propietario'), texto('ubicacion', 'Ubicación'), texto('area', 'Área'), texto('estado', 'Estado'), numero('cantidad', 'Unidades', { suma: true })],
@@ -84,7 +111,7 @@ export const REPORTES: Record<IdReporte, DefinicionReporte> = {
     filtros: [buscar, { clave: 'entidad', etiqueta: 'Sobre', tipo: 'seleccion', campo: 'entidad' }, { clave: 'desde', etiqueta: 'Desde', tipo: 'desde', campo: 'fecha' }, { clave: 'hasta', etiqueta: 'Hasta', tipo: 'hasta', campo: 'fecha' }],
   },
 }
-export const ORDEN_REPORTES: IdReporte[] = ['INVENTARIO', 'OCUPACION', 'RECEPCIONES', 'CALIDAD', 'MOVIMIENTOS', 'EXACTITUD', 'AUDITORIA']
+export const ORDEN_REPORTES: IdReporte[] = ['VENCIMIENTOS', 'INVENTARIO', 'OCUPACION', 'RECEPCIONES', 'CALIDAD', 'MOVIMIENTOS', 'EXACTITUD', 'AUDITORIA']
 export const esIdReporte = (x: string): x is IdReporte => x in REPORTES
 
 const GESTION: Rol[] = ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura']
@@ -103,6 +130,59 @@ const limaDia = (ts: string) => new Date(ts).toLocaleDateString('en-CA', { timeZ
 const limaHora = (ts: string) => new Date(ts).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Lima' })
 const diasEntre = (desde: string, hasta: string) => Math.round((Date.parse(`${hasta}T12:00:00Z`) - Date.parse(`${desde}T12:00:00Z`)) / 86_400_000)
 export const DIAS_ALERTA_VENCIMIENTO = 90
+
+
+// ── Vencimientos: tramos configurables (por defecto 3, 6 y 12 meses) ────────
+
+export const TRAMO_VENCIDO = 'Vencido'
+export const TRAMO_SIN_FECHA = 'Sin fecha'
+const mesesDe = (dias: number): number | null => (dias === 365 ? 12 : dias % 30 === 0 ? dias / 30 : null)
+
+/** Las etiquetas de los tramos, en orden: «Vencido», «0–3 meses», «3–6 meses», «6–12 meses», «Más de 12 meses» y «Sin fecha». */
+export function etiquetasTramos(tramosDias: number[]): string[] {
+  const enMeses = tramosDias.every((t) => t >= 90 && mesesDe(t) !== null)
+  const u = (n: number) => (enMeses ? `${mesesDe(n)}` : `${n}`)
+  const unidad = enMeses ? 'meses' : 'días'
+  const out = [TRAMO_VENCIDO]
+  let previo: number | null = null
+  for (const t of tramosDias) { out.push(previo === null ? `0–${u(t)} ${unidad}` : `${u(previo)}–${u(t)} ${unidad}`); previo = t }
+  out.push(`Más de ${u(previo ?? 0)} ${unidad}`, TRAMO_SIN_FECHA)
+  return out
+}
+
+export function tramoDeDias(dias: number | null, tramosDias: number[], etiquetas: string[] = etiquetasTramos(tramosDias)): string {
+  if (dias === null) return TRAMO_SIN_FECHA
+  if (dias < 0) return TRAMO_VENCIDO
+  const i = tramosDias.findIndex((t) => dias <= t)
+  return etiquetas[1 + (i === -1 ? tramosDias.length : i)]
+}
+
+export const textoVence = (dias: number | null, vence?: string): string => {
+  if (dias === null) return 'Sin fecha de vencimiento'
+  if (dias < 0) return `Vencido hace ${Math.abs(dias)} ${Math.abs(dias) === 1 ? 'día' : 'días'}`
+  if (dias === 0) return 'Vence hoy'
+  return `Vence en ${dias} ${dias === 1 ? 'día' : 'días'}${vence ? ` (${valorTexto({ clave: 'v', etiqueta: '', tipo: 'fecha' }, vence)})` : ''}`
+}
+
+export function filasVencimientos(p: Panorama, tramosDias: number[]): FilaReporte[] {
+  const etiquetas = etiquetasTramos(tramosDias)
+  return filasDeStock(p).filter((f) => f.saldo.cantidad > 0 && f.saldo.estado !== 'BAJAS_RECHAZADOS').map((f): FilaReporte => {
+    const dias = f.lote.vence ? diasEntre(p.hoy, f.lote.vence) : null
+    return {
+      producto: f.producto.descripcion, codigo: f.producto.codigo, lote: f.lote.codigo, vence: f.lote.vence ?? null, dias, tramo: tramoDeDias(dias, tramosDias, etiquetas), propietario: f.propietario.codigo,
+      ubicacion: f.posicion.codigo, estado: ETIQUETA_ESTADO[f.saldo.estado], cantidad: f.saldo.cantidad, productoId: f.producto.id, loteId: f.lote.id,
+    }
+  })
+}
+
+export interface ChipTramo { tramo: string; lotes: number; unidades: number }
+/** Total de lotes y unidades por tramo, en el orden de los tramos (un lote en varias ubicaciones cuenta una vez). */
+export function totalesPorTramo(filas: FilaReporte[], orden: string[]): ChipTramo[] {
+  return orden.map((tramo) => {
+    const de = filas.filter((f) => f.tramo === tramo)
+    return { tramo, lotes: new Set(de.map((f) => `${f.productoId}|${f.loteId}`)).size, unidades: de.reduce((n, f) => n + (Number(f.cantidad) || 0), 0) }
+  })
+}
 
 export function filasInventario(p: Panorama): FilaReporte[] {
   return filasDeStock(p).filter((f) => f.saldo.cantidad > 0).map((f) => ({
@@ -175,13 +255,36 @@ export function aplicarFiltros(def: DefinicionReporte, filas: FilaReporte[], fil
   return filas.filter((f) => def.filtros.every((d) => {
     const v = (filtros[d.clave] ?? '').trim()
     if (!v) return true
-    if (d.tipo === 'texto') return normalizar(Object.values(f).filter((x) => x !== null).join(' ')).includes(normalizar(v))
+    if (d.tipo === 'texto') return normalizar((d.campos ? d.campos.map((c) => f[c]) : Object.values(f)).filter((x) => x !== null && x !== undefined).join(' ')).includes(normalizar(v))
     const campo = f[d.campo]
     if (d.tipo === 'seleccion') return String(campo ?? '') === v
     if (campo === null || campo === undefined) return false
     return d.tipo === 'desde' ? String(campo) >= v : String(campo) <= v
   }))
 }
+
+/** Ordena por una columna; lo que no tiene valor va siempre al final, sea cual sea el sentido. */
+export function ordenarFilas(def: DefinicionReporte, filas: FilaReporte[], orden?: Orden | null): FilaReporte[] {
+  const o = orden ?? def.ordenInicial
+  const col = o && def.columnas.find((c) => c.clave === o.clave)
+  if (!o || !col) return filas
+  const vacio = (v: Valor | undefined) => v === null || v === undefined || v === ''
+  return [...filas].sort((a, b) => {
+    const x = a[col.clave], y = b[col.clave]
+    if (vacio(x) && vacio(y)) return 0
+    if (vacio(x)) return 1
+    if (vacio(y)) return -1
+    const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'es', { numeric: true })
+    return o.asc ? c : -c
+  })
+}
+
+/** «dias:asc» → { clave: 'dias', asc: true }; solo columnas del reporte. */
+export function ordenDeTexto(def: DefinicionReporte, t: string | undefined | null): Orden | null {
+  const [clave, dir] = (t ?? '').split(':')
+  return def.columnas.some((c) => c.clave === clave) ? { clave, asc: dir !== 'desc' } : null
+}
+export const ordenATexto = (o: Orden) => `${o.clave}:${o.asc ? 'asc' : 'desc'}`
 
 /** Las opciones de un filtro de selección, tomadas de los datos. */
 export function opcionesDe(filas: FilaReporte[], campo: string): string[] {

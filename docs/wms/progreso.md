@@ -163,6 +163,14 @@ Migración **0008** + reversa + 11 pruebas de base de datos (ver `propuesta-pres
 - **Verificación del 3b:** base de datos **180** pruebas · dominio/demo/componentes **254** · Compras **883** · E2E completos en los 4 viewports (1440, 1280, 1024, 390) en verde (se omiten las pruebas que solo aplican a otro viewport) · detector de Impeccable **0** hallazgos · `tsc` y builds de wms, compras, cobranzas y pedidos OK. Corregido de paso: con 14 ítems en el menú, «Cerrar sesión» quedaba fuera de pantalla en 1280×800 (ahora el menú se desplaza).
 - **Pendiente / no verificado:** metas y semáforos de los KPI (D-42); prueba de volumen con base real (D-43); el adaptador de Supabase de operación y reportes no corrió contra una base real.
 
+### Reporte de Vencimientos (cambio pedido sobre el PR #170) — construido
+- **Ahora vive en Reportes, primero de la lista**, con acceso directo desde **Inicio** (atajo y avisos de lotes vencidos / por vencer en 90 días) y desde la **alerta de vencimiento** («ver en Vencimientos»). La ruta vieja `/vencimientos` redirige; salió del menú lateral.
+- **Tabla, una fila por lote y ubicación:** producto, código, lote (lleva a su Kardex), vence, días para vencer, tramo, propietario, ubicación, estado sanitario y unidades. Orden por defecto: **vencidos primero y luego del más próximo al más lejano**; orden por cualquier columna (lo que no tiene fecha va siempre al final).
+- **Tramos como filtros clicables** (Vencido, 0–3, 3–6, 6–12 y más de 12 meses; «Sin fecha» solo si hay) con su total de lotes y unidades. Siguen siendo configurables: `vencimiento_tramos_dias`, ahora **90,180,365** por defecto (si los tramos no son de meses enteros se muestran en días).
+- **Filtros** por propietario, estado, producto (nombre o código) y ubicación (sin tildes ni mayúsculas) y búsqueda general; **vistas guardadas** (guardan también el orden); **descarga en Excel y CSV con lo que se ve** (mismos filtros y mismo orden).
+- **Teléfono:** filas compactas sin desplazamiento horizontal (producto, lote · ubicación, «Vence en X días», unidades; toque → Kardex del lote); los tramos se desplazan de lado dentro de su franja y los filtros se abren a pedido.
+- Migración 0009 (sin aplicar) acepta `VENCIMIENTOS` en las vistas guardadas; 0007 (sin aplicar) cambia el valor por defecto de los tramos.
+
 ## Bloqueado / pendiente
 Ver `docs/wms/decisiones-pendientes.md` (D-01..D-29). Ninguna bloquea la aprobación del Batch 1.
 

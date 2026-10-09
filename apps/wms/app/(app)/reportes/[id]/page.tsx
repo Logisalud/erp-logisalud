@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import { exigirContexto } from '@/lib/contexto'
 import { cargarFilas } from '@/lib/reportes-datos'
 import { repositorio } from '@/services/repositorio-actual'
-import { REPORTES, esIdReporte, filtrosDeUrl, opcionesDe, puedeVerReporte } from '@/domain/reportes'
+import { REPORTES, esIdReporte, etiquetasTramos, filtrosDeUrl, opcionesDe, ordenDeTexto, puedeVerReporte } from '@/domain/reportes'
 import { ReporteTabla } from '@/components/reportes/reporte-tabla'
 
 export const metadata = { title: 'Reporte — WMS LOGISALUD' }
@@ -17,6 +17,8 @@ export default async function PaginaReporte({ params, searchParams }: { params: 
   const def = REPORTES[id]
   const actor = { id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles }
   const [filas, vistas] = await Promise.all([cargarFilas(id, actor), repositorio().listarVistas(id, actor)])
+  const tramosOrden = id === 'VENCIMIENTOS' ? etiquetasTramos((await repositorio().parametrosInventario()).tramosVencimiento) : undefined
+  const un = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
   const opciones = Object.fromEntries(def.filtros.filter((f) => f.tipo === 'seleccion').map((f) => [f.clave, opcionesDe(filas, (f as { campo: string }).campo)]))
   return (
     <div className="space-y-4">
@@ -25,7 +27,7 @@ export default async function PaginaReporte({ params, searchParams }: { params: 
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900" data-testid="titulo-reporte">{def.titulo}</h1>
         <p className="mt-1 text-gray-600">{def.descripcion} {def.uso}</p>
       </header>
-      <ReporteTabla id={id} filas={filas} vistas={vistas} opciones={opciones} filtrosIniciales={filtrosDeUrl(def, searchParams)} />
+      <ReporteTabla id={id} filas={filas} vistas={vistas} opciones={opciones} filtrosIniciales={filtrosDeUrl(def, searchParams)} ordenInicial={ordenDeTexto(def, un(searchParams.orden)) ?? def.ordenInicial ?? null} tramosOrden={tramosOrden} />
     </div>
   )
 }

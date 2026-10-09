@@ -358,7 +358,7 @@ grant execute on function
 create table if not exists wms.vistas_guardadas (
   id uuid primary key default gen_random_uuid(),
   usuario_id uuid not null default auth.uid(),
-  reporte text not null check (reporte in ('INVENTARIO', 'OCUPACION', 'RECEPCIONES', 'CALIDAD', 'MOVIMIENTOS', 'EXACTITUD', 'AUDITORIA')),
+  reporte text not null check (reporte in ('INVENTARIO', 'OCUPACION', 'RECEPCIONES', 'CALIDAD', 'MOVIMIENTOS', 'EXACTITUD', 'AUDITORIA', 'VENCIMIENTOS')),
   nombre text not null check (nullif(trim(nombre), '') is not null),
   filtros jsonb not null default '{}'::jsonb,
   creada_en timestamptz not null default now(),

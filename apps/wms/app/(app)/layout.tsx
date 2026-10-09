@@ -19,7 +19,6 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
     { href: '/conteos', etiqueta: 'Conteos', icono: 'conteos' },
     { href: '/revision-diaria', etiqueta: 'Revisión diaria', icono: 'revision' },
     { href: '/kardex', etiqueta: 'Kardex', icono: 'kardex' },
-    { href: '/vencimientos', etiqueta: 'Vencimientos', icono: 'vencimientos' },
     { href: '/productos', etiqueta: 'Productos', icono: 'productos' },
     { href: '/calidad', etiqueta: 'Calidad', icono: 'calidad' },
     { href: '/alertas', etiqueta: 'Alertas', icono: 'alertas', insignia: misAlertas },

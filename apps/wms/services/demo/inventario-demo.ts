@@ -5,6 +5,7 @@ import {
   type AjusteVista, type CargaInicialVista, type ConteoVista, type ErrorFilaCarga, type FilaCargaInicial, type FilaHistoriaLote,
   type FilaKardex, type FiltroKardex, type LineaConteoVista, type LineaEjecutar, type LineaOrdenMovimiento, type OrdenMovimiento, type ReporteVista, type VistaGuardada,
   type ResultadoLinea, type RevisionLinea,
+  TRAMOS_POR_DEFECTO,
 } from '@/domain/inventario'
 import { puedeVerificar } from '@/domain/verificacion'
 import { areaAdmite } from '@/domain/zonas'
@@ -120,7 +121,7 @@ export class InventarioDemo extends EntradasDemo {
   }
 
   async parametrosInventario() {
-    return { tramosVencimiento: [30, 60, 90, 180], kardexCodigoFormato: 'LS-FR-KDX (provisional)' }
+    return { tramosVencimiento: TRAMOS_POR_DEFECTO, kardexCodigoFormato: 'LS-FR-KDX (provisional)' }
   }
 
   // ── Movimientos internos ────────────────────────────────────────────────

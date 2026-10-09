@@ -1,7 +1,7 @@
 # Indicadores (KPI) del WMS
 
 Cada indicador tiene **nombre, definición, fórmula, fuente, frecuencia y responsable**. «Dónde se ve hoy» dice si ya sale de un reporte del WMS o si todavía se calcula a mano.
-Los responsables son **roles** (no personas): quien ocupe el rol responde por el indicador. Las metas son propuestas para confirmar con Dirección Técnica; **no hay metas aprobadas todavía** (ver D-42 en `decisiones-pendientes.md`).
+Los responsables son **roles** (no personas): quien ocupe el rol responde por el indicador. Las metas son propuestas para confirmar con Dirección Técnica; **no hay metas ni semáforos**: por decisión de Sebas (D-42) los KPI se miden **un mes con operación real** y después se fijan las metas con Katia y Charlie.
 
 Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Excel (`/reportes`).
 
@@ -81,7 +81,7 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Fuente:** `wms.lotes` y `wms.saldos`.
 - **Frecuencia:** diaria.
 - **Responsable:** Jefe de Almacén; Dirección Técnica decide el destino de lo vencido.
-- **Dónde se ve hoy:** pantalla **Vencimientos** y reporte **Calidad**.
+- **Dónde se ve hoy:** reporte **Vencimientos** (el primero de Reportes; tramos de 3, 6 y 12 meses con su total de lotes y unidades) y reporte **Calidad**.
 
 ### 10. Ciclo de recepción
 - **Definición:** cuánto tarda una solicitud de ingreso en cerrarse.
@@ -136,5 +136,5 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Dónde se ve hoy:** pantalla **Alertas** (insignia en el menú).
 
 ## Lo que falta para cerrar los indicadores
-- Aprobar metas y semáforos con Dirección Técnica (D-42).
+- Medir un mes con operación real y fijar metas y semáforos con Katia y Charlie (D-42).
 - Los indicadores marcados «a mano» pasan a un reporte propio cuando Dirección Técnica los confirme; hoy son cálculos sobre los reportes existentes.

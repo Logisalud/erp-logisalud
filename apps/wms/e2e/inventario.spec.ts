@@ -73,14 +73,11 @@ test.describe('Kardex, historia del lote y vencimientos', () => {
     await capturar(page, info, 'historia-lote', { completa: true })
   })
 
-  test('vencimientos agrupa por tramos y los lotes llevan al Kardex', async ({ page }, info) => {
+  test('la ruta vieja de Vencimientos lleva al reporte, que ahora está dentro de Reportes', async ({ page }) => {
     await entrarComo(page, 'jefe_almacen')
     await page.goto('/wms/vencimientos')
-    await expect(page.getByTestId('tramo-vencido')).toBeVisible()
-    await expect(page.getByTestId('tramo-hasta-30')).toBeVisible()
-    await expect(page.getByTestId('tramo-mas')).toBeVisible()
-    await sinDesborde(page)
-    await capturar(page, info, 'vencimientos', { completa: true })
+    await expect(page).toHaveURL(/\/wms\/reportes\/vencimientos/)
+    await expect(page.getByTestId('titulo-reporte')).toHaveText('Vencimientos')
   })
 })
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { obtenerContexto } from '@/lib/contexto'
 import { cargarFilas } from '@/lib/reportes-datos'
-import { aCsv, aplicarFiltros, esIdReporte, filtrosDeUrl, puedeVerReporte, REPORTES } from '@/domain/reportes'
+import { aCsv, aplicarFiltros, esIdReporte, filtrosDeUrl, ordenarFilas, ordenDeTexto, puedeVerReporte, REPORTES } from '@/domain/reportes'
 import { TIPO_XLSX, xlsxReporte } from '@/services/xlsx/reportes'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +18,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const formato = url.searchParams.get('formato') === 'xlsx' ? 'xlsx' : 'csv'
   const def = REPORTES[id]
   const filtros = filtrosDeUrl(def, Object.fromEntries(url.searchParams))
-  const filas = aplicarFiltros(def, await cargarFilas(id, { id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles }), filtros)
+  // Lo mismo que se ve en pantalla: mismos filtros y mismo orden.
+  const filas = ordenarFilas(def, aplicarFiltros(def, await cargarFilas(id, { id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles }), filtros), ordenDeTexto(def, url.searchParams.get('orden')))
   const nombre = `${def.titulo} ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' })}`
   if (formato === 'xlsx') {
     const x = await xlsxReporte(def, filas, filtros)

@@ -51,7 +51,7 @@ describe('vencimientos (D-30)', () => {
   it('el vencimiento de hoy todavía no está vencido; los tramos se leen del parámetro', () => {
     expect(reporteVencimientos([l('H', hoy, 1)], hoy)[0].unidades).toBe(0)
     expect(parsearTramos('90, 30,30,x,-5')).toEqual([30, 90])
-    expect(parsearTramos('')).toEqual([30, 60, 90, 180])
+    expect(parsearTramos('')).toEqual([90, 180, 365])
   })
 })
 

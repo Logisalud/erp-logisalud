@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import {
-  ArrowLeftRight, ArrowRight, Bell, Boxes, ClipboardCheck, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Hourglass, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, Undo2, type LucideIcon,
+  ArrowLeftRight, ArrowRight, Bell, Boxes, CalendarClock, ClipboardCheck, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Hourglass, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, Undo2, type LucideIcon,
 } from 'lucide-react'
+import { TRAMO_VENCIDO, filasVencimientos } from '@/domain/reportes'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import {
@@ -83,6 +84,17 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   }
   if (opera && e.enProceso > 0) {
     avisos.push({ clave: 'en-proceso', Icono: Inbox, texto: 'Recepciones en curso', detalle: 'Falta verificar lo que llegó, completar los datos o generar el acta.', cantidad: e.enProceso, unidad: pl(e.enProceso, 'recepción', 'recepciones'), href: '/entradas?f=proceso', tono: 'info' })
+  }
+  // Lotes vencidos y por vencer (umbral de alerta de 90 días): acceso directo al reporte de Vencimientos.
+  const venc = filasVencimientos(p, [90]).filter((f) => f.dias !== null && Number(f.dias) <= 90)
+  const lotesDe = (filas: typeof venc) => new Set(filas.map((f) => f.loteId)).size
+  const yaVencidos = venc.filter((f) => f.tramo === TRAMO_VENCIDO)
+  if (yaVencidos.length > 0) {
+    avisos.push({ clave: 'lotes-vencidos', Icono: CalendarClock, texto: 'Lotes vencidos en el inventario', detalle: 'Abre el reporte de Vencimientos: salen primero.', cantidad: lotesDe(yaVencidos), unidad: pl(lotesDe(yaVencidos), 'lote', 'lotes'), href: `/reportes/vencimientos?tramo=${TRAMO_VENCIDO}`, tono: 'atencion' })
+  }
+  const porVencer = venc.filter((f) => f.tramo !== TRAMO_VENCIDO)
+  if (porVencer.length > 0) {
+    avisos.push({ clave: 'lotes-por-vencer', Icono: CalendarClock, texto: 'Lotes que vencen en 90 días o menos', cantidad: lotesDe(porVencer), unidad: pl(lotesDe(porVencer), 'lote', 'lotes'), href: '/reportes/vencimientos', tono: 'info' })
   }
   const porVerificar = p.posiciones.filter((x) => x.porVerificar).length
   const trasladar = unidadesPorTrasladar(p)
@@ -244,6 +256,7 @@ export default async function Inicio() {
         <div className="flex flex-wrap gap-3">
           <Link href="/almacen" className="btn-primary"><Map className="h-5 w-5" aria-hidden />Ver el almacén</Link>
           {puede(ctx.roles, 'ejecutar') && <Link href="/entradas/nuevo" className="btn-secondary"><Inbox className="h-5 w-5" aria-hidden />Registrar una entrada</Link>}
+          <Link href="/reportes/vencimientos" className="btn-secondary" data-testid="atajo-vencimientos"><CalendarClock className="h-5 w-5" aria-hidden />Vencimientos</Link>
           <Link href="/productos" className="btn-secondary"><Boxes className="h-5 w-5" aria-hidden />Productos</Link>
           {puedeCrearProducto(ctx.roles) && <Link href="/productos/nuevo" className="btn-secondary"><FilePlus2 className="h-5 w-5" aria-hidden />Dar de alta un producto</Link>}
         </div>

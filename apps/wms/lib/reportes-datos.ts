@@ -1,7 +1,7 @@
 import 'server-only'
 import { repositorio } from '@/services/repositorio-actual'
 import {
-  filasAuditoria, filasCalidad, filasExactitud, filasInventario, filasMovimientos, filasOcupacion, filasRecepciones, type FilaReporte, type IdReporte,
+  filasAuditoria, filasCalidad, filasVencimientos, filasExactitud, filasInventario, filasMovimientos, filasOcupacion, filasRecepciones, type FilaReporte, type IdReporte,
 } from '@/domain/reportes'
 import type { Actor } from '@/services/repositorio'
 
@@ -9,6 +9,7 @@ import type { Actor } from '@/services/repositorio'
 export async function cargarFilas(id: IdReporte, actor: Actor): Promise<FilaReporte[]> {
   const repo = repositorio()
   switch (id) {
+    case 'VENCIMIENTOS': return filasVencimientos(await repo.panorama(), (await repo.parametrosInventario()).tramosVencimiento)
     case 'INVENTARIO': return filasInventario(await repo.panorama())
     case 'OCUPACION': return filasOcupacion(await repo.panorama())
     case 'RECEPCIONES': return filasRecepciones(await repo.listarSolicitudes())

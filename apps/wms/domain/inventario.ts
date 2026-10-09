@@ -190,7 +190,8 @@ export interface TramoVencimiento {
   unidades: number
 }
 
-export const TRAMOS_POR_DEFECTO = [30, 60, 90, 180]
+/** 3, 6 y 12 meses en días; se agregan «Vencido» y «Más de 12 meses». Configurable en `vencimiento_tramos_dias`. */
+export const TRAMOS_POR_DEFECTO = [90, 180, 365]
 
 /** «30,60,90» → [30, 60, 90] (ordenado, positivo y sin repetidos). Vacío o inválido → los tramos por defecto. */
 export function parsearTramos(texto: string | undefined | null): number[] {
@@ -330,7 +331,7 @@ export function accionesDeOrden(o: OrdenMovimiento, actorId: string, roles: read
 
 // ── Vistas guardadas (listas y reportes): filtros con nombre, por persona ─────────────────────────
 
-export type ReporteVista = 'INVENTARIO' | 'OCUPACION' | 'RECEPCIONES' | 'CALIDAD' | 'MOVIMIENTOS' | 'EXACTITUD' | 'AUDITORIA'
+export type ReporteVista = 'INVENTARIO' | 'OCUPACION' | 'RECEPCIONES' | 'CALIDAD' | 'MOVIMIENTOS' | 'EXACTITUD' | 'AUDITORIA' | 'VENCIMIENTOS'
 export interface VistaGuardada { id: string; reporte: ReporteVista; nombre: string; filtros: Record<string, string> }
 
 // ── Conteos cíclicos (INV-05) y ajustes ─────────────────────────────────────

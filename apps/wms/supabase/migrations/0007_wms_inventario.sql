@@ -10,7 +10,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 
 insert into wms.parametros (clave, valor, nota) values
-  ('vencimiento_tramos_dias', '30,60,90,180', 'D-30: tramos (en días) del reporte de vencimientos; se agregan «vencido» y «más de N días»'),
+  ('vencimiento_tramos_dias', '90,180,365', 'D-30: tramos (en días) del reporte de vencimientos (3, 6 y 12 meses); se agregan «vencido» y «más de N»'),
   ('conteos_por_semana', '3', 'INV-05: cuántos conteos cíclicos se programan por semana')
 on conflict (clave) do nothing;
 
