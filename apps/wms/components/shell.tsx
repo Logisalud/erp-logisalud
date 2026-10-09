@@ -69,7 +69,7 @@ export function Shell({
             <span className="mt-1 block font-heading text-sm uppercase tracking-widest text-gray-500">Almacén</span>
           </span>
         </div>
-        <nav aria-label="Principal" className="flex-1 space-y-1 px-2 xl:px-3">
+        <nav aria-label="Principal" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 xl:px-3">
           {items.map((i) => {
             const Icono = ICONOS[i.icono]
             const on = activo(pathname, i.href)

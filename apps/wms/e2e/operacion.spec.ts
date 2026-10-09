@@ -139,11 +139,15 @@ test.describe('programación de los 3 conteos semanales (INV-05)', () => {
     await abrirOrigenes()
     const codigos = await page.getByTestId('opcion-origen').locator('strong').allTextContents()
     expect(codigos.length).toBeGreaterThan(1)
-    const enConteo = codigos.find((c) => /^\w-[\d.]+$/.test(c))!
-    // el Jefe pone esa ubicación en conteo (conteo extra por incidencia)
+    // el Jefe pone una de esas ubicaciones en conteo (conteo extra por incidencia); se salta las que tienen movimientos por verificar
     await page.goto('/wms/conteos')
-    await page.getByTestId('conteo-buscar').fill(enConteo)
-    await page.getByTestId(`conteo-pos-${enConteo}`).check()
+    let enConteo = ''
+    for (const c of codigos.filter((x) => /^\w-[\d.]+$/.test(x))) {
+      await page.getByTestId('conteo-buscar').fill(c)
+      const caja = page.getByTestId(`conteo-pos-${c}`)
+      if (await caja.isEnabled().catch(() => false)) { await caja.check(); enConteo = c; break }
+    }
+    expect(enConteo).not.toBe('')
     await page.getByTestId('conteo-incidencia').fill('Sospecha de faltante en la ubicación')
     await page.getByTestId('conteo-programar').click()
     await expect(page.getByTestId('titulo-conteo')).toHaveText(/CT-\d{4}-\d{5}/)
@@ -152,7 +156,7 @@ test.describe('programación de los 3 conteos semanales (INV-05)', () => {
     await abrirOrigenes()
     const ahora = await page.getByTestId('opcion-origen').locator('strong').allTextContents()
     expect(ahora).not.toContain(enConteo)
-    expect(ahora.length).toBe(codigos.length - 1)
+    expect(ahora.length).toBe(codigos.filter((c) => c !== enConteo).length)
     await capturar(page, info, 'mover-ubicacion-en-conteo')
     // …ni como destino
     await page.locator('[data-testid="opcion-origen"]:not([disabled])').first().click()
