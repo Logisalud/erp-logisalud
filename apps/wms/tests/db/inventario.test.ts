@@ -242,14 +242,98 @@ describe('movimiento multilínea: un origen, un destino, una autorización y una
     expect((await base.admin.query(`select count(*)::int n from wms.ordenes_movimiento where motivo = 'x'`)).rows[0].n).toBe(0)
   })
 
-  it('posiciones_bloqueadas dice qué ubicaciones tienen un movimiento abierto o un conteo', async () => {
+  it('un movimiento abierto reserva sus unidades pero NO bloquea la ubicación; solo un conteo la bloquea', async () => {
     const aux1 = await persona('auxiliar')
     const s = await stock('A-17.1', 'MB-1', 5)
     const id = await preparar(aux1, s, 'A-16.1', 1)
-    const filas = await rpc<{ posicion_id: string; motivo: string }>(aux1, 'select * from wms.posiciones_bloqueadas()')
-    expect(filas.find((f) => f.posicion_id === s.posicionId)?.motivo).toMatch(/movimiento MI-/)
-    await rpc(aux1, 'select wms.anular_movimiento($1, $2)', [id, 'Ya no hace falta'])
     expect((await rpc<{ posicion_id: string }>(aux1, 'select * from wms.posiciones_bloqueadas()')).some((f) => f.posicion_id === s.posicionId)).toBe(false)
+    // el resto de las unidades sigue disponible para otra persona; lo reservado, no
+    const otro = await persona('auxiliar')
+    expect((await falla(preparar(otro, s, 'A-18.1', 5))).message).toMatch(/otros movimientos ya reservan 1/)
+    const id2 = await preparar(otro, s, 'A-18.1', 4)
+    await rpc(aux1, 'select wms.anular_movimiento($1, $2)', [id, 'Ya no hace falta'])
+    await rpc(otro, 'select wms.anular_movimiento($1, $2)', [id2, 'Ya no hace falta'])
+    // un conteo sí bloquea
+    await rpc(P().charlie.id, 'select wms.programar_conteo(array[$1]::uuid[], $2)', [s.posicionId, 'x'])
+    const filas = await rpc<{ posicion_id: string; motivo: string }>(aux1, 'select * from wms.posiciones_bloqueadas()')
+    expect(filas.find((f) => f.posicion_id === s.posicionId)?.motivo).toMatch(/en conteo CT-/)
+  })
+})
+
+describe('un movimiento con productos de distintos orígenes (como en Odoo)', () => {
+  const preparaVarias = (quien: string, lineas: object[], motivo = 'Reubicar varios productos') =>
+    rpc<{ id: string }>(quien, 'select wms.preparar_movimiento($1::jsonb, $2) as id', [JSON.stringify(lineas), motivo]).then((r) => r[0].id)
+  const lineasDe = async (id: string) =>
+    (await base.admin.query('select l.id, l.verificacion, l.nota_diferencia, p.codigo as desde, h.codigo as hacia, l.cantidad from wms.ordenes_movimiento_lineas l join wms.posiciones p on p.id = l.desde_posicion_id join wms.posiciones h on h.id = l.hasta_posicion_id where l.orden_id = $1 order by p.codigo', [id])).rows
+
+  it('una orden lleva líneas con orígenes y destinos distintos (el destino por defecto con una línea cambiada); se autoriza una vez y se verifica en una revisión', async () => {
+    const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar')
+    const a = await stock('A-15.2', 'OD-1', 10)
+    const b = await stock('A-16.2', 'OD-2', 8)
+    const c = await stock('A-17.2', 'OD-3', 6)
+    // destino por defecto A-19.2 para las tres; la tercera línea va a otro destino
+    const id = await preparaVarias(aux1, [await linea(a, 'A-19.2', 10), await linea(b, 'A-19.2', 3), await linea(c, 'A-20.2', 6)])
+    expect((await lineasDe(id)).map((l) => `${l.desde}→${l.hacia}:${l.cantidad}`)).toEqual(['A-15.2→A-19.2:10', 'A-16.2→A-19.2:3', 'A-17.2→A-20.2:6'])
+    await rpc(P().charlie.id, 'select wms.autorizar_movimiento($1)', [id])
+    await rpc(aux1, 'select wms.ejecutar_movimiento($1)', [id])
+    const ls = await lineasDe(id)
+    await rpc(aux2, 'select wms.revisar_movimiento($1, $2::jsonb)', [id, JSON.stringify(ls.map((l) => ({ linea_id: l.id, resultado: 'COINCIDE' })))])
+    expect((await lineasDe(id)).map((l) => l.verificacion)).toEqual(['CONFIRMADA', 'CONFIRMADA', 'CONFIRMADA'])
+    expect((await orden(id)).estado).toBe('CONFIRMADO')
+    const saldo = async (pos: string, lote: string) => (await base.admin.query(`select coalesce(sum(s.cantidad), 0)::int n from wms.saldos s join wms.posiciones p on p.id = s.posicion_id join wms.lotes l on l.id = s.lote_id where p.codigo = $1 and l.codigo = $2`, [pos, lote])).rows[0].n
+    expect([await saldo('A-15.2', 'OD-1'), await saldo('A-19.2', 'OD-1'), await saldo('A-16.2', 'OD-2'), await saldo('A-19.2', 'OD-2'), await saldo('A-20.2', 'OD-3')]).toEqual([0, 10, 5, 3, 6])
+  })
+
+  it('si una línea tiene diferencia, solo esa queda abierta: las demás se confirman y el Jefe la resuelve por separado', async () => {
+    const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar')
+    const a = await stock('A-21.2', 'OD-4', 5); const b = await stock('A-22.2', 'OD-5', 5); const c = await stock('A-23.2', 'OD-6', 5)
+    const id = await preparaVarias(aux1, [await linea(a, 'A-24.2', 5), await linea(b, 'A-25.2', 5), await linea(c, 'A-24.2', 5)])
+    await rpc(P().charlie.id, 'select wms.autorizar_movimiento($1)', [id])
+    await rpc(aux1, 'select wms.ejecutar_movimiento($1)', [id])
+    const ls = await lineasDe(id)
+    const revision = ls.map((l, i) => (i === 1 ? { linea_id: l.id, resultado: 'DIFERENCIA', nota: 'Faltan 2 en el destino' } : { linea_id: l.id, resultado: 'COINCIDE' }))
+    await rpc(aux2, 'select wms.revisar_movimiento($1, $2::jsonb)', [id, JSON.stringify(revision)])
+    expect((await lineasDe(id)).map((l) => l.verificacion)).toEqual(['CONFIRMADA', 'CON_DIFERENCIA', 'CONFIRMADA'])
+    expect((await orden(id)).estado).toBe('CON_DIFERENCIA')
+    // la abierta sigue reservando sus unidades; las confirmadas ya no
+    const d = await stock('A-26.2', 'OD-7', 5)
+    expect(d.posicionId).toBeTruthy()
+    const abierta = ls[1]
+    expect((await falla(rpc(aux2, 'select wms.resolver_movimiento($1, $2, $3)', [abierta.id, 'ANULAR', 'x']))).code).toBe('42501') // solo el Jefe
+    await rpc(P().charlie.id, 'select wms.resolver_movimiento($1, $2, $3)', [abierta.id, 'ANULAR', 'Se encontró el faltante, se anula esta línea'])
+    expect((await lineasDe(id)).map((l) => l.verificacion)).toEqual(['CONFIRMADA', 'ANULADA', 'CONFIRMADA'])
+  })
+
+  it('las unidades de una orden preparada quedan reservadas: otra persona no puede moverlas, pero sí el resto', async () => {
+    const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar')
+    const a = await stock('A-14.2', 'OD-8', 10)
+    const b = await stock('A-14.3', 'OD-9', 10)
+    const id = await preparaVarias(aux1, [await linea(a, 'A-27.2', 7), await linea(b, 'A-27.2', 10)])
+    const e = await falla(preparaVarias(aux2, [await linea(a, 'A-27.3', 5)]))
+    expect(e.code).toBe('P0002')
+    expect(e.message).toMatch(/hay 10, otros movimientos ya reservan 7/)
+    await preparaVarias(aux2, [await linea(a, 'A-27.3', 3)]) // lo que quedaba libre
+    // al anular la orden, lo reservado se libera
+    await rpc(aux1, 'select wms.anular_movimiento($1, $2)', [id, 'Ya no hace falta'])
+    await preparaVarias(aux2, [await linea(a, 'A-27.4', 7)])
+  })
+
+  it('dos líneas de la misma celda en una sola orden no pueden pasar de lo que hay', async () => {
+    const aux1 = await persona('auxiliar')
+    const a = await stock('A-14.4', 'OD-10', 10)
+    const e = await falla(preparaVarias(aux1, [await linea(a, 'A-27.2', 6), await linea(a, 'A-27.3', 6)]))
+    expect(e.message).toMatch(/hay 10, otros movimientos ya reservan 6/)
+    expect((await base.admin.query(`select count(*)::int n from wms.ordenes_movimiento where preparador_id = $1`, [aux1])).rows[0].n).toBe(0)
+    await preparaVarias(aux1, [await linea(a, 'A-27.2', 6), await linea(a, 'A-27.3', 4)]) // 6 + 4 = 10: sí
+  })
+
+  it('una ubicación en conteo bloquea a cualquier línea de la orden (origen o destino) y rechaza toda la orden', async () => {
+    const aux1 = await persona('auxiliar')
+    const a = await stock('A-19.3', 'OD-11', 4); const b = await stock('A-19.4', 'OD-12', 4)
+    await rpc(P().charlie.id, 'select wms.programar_conteo(array[$1]::uuid[], $2)', [b.posicionId, 'Semana 42'])
+    const e = await falla(preparaVarias(aux1, [await linea(a, 'A-27.2', 4), await linea(b, 'A-27.3', 4)]))
+    expect(e.message).toMatch(/está en conteo/)
+    expect((await base.admin.query(`select count(*)::int n from wms.ordenes_movimiento where preparador_id = $1 and motivo = 'Reubicar varios productos'`, [aux1])).rows[0].n).toBe(0)
   })
 })
 

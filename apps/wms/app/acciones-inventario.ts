@@ -39,8 +39,8 @@ export async function decidirEstadoCargaInicialAccion(estado: 'APROBADO' | 'CUAR
 export async function confirmarCargaInicialAccion(id: string): Promise<ResultadoAccion> { return repositorio().confirmarCargaInicial(id, await quien()) }
 
 // ── Flujo «Mover»: búsqueda y validación mientras se escribe ────────────────
-import { buscarDestinos, buscarOrigenes, contenidoDeUbicacion, reservadoPorCelda, validarDestino } from '@/domain/inventario'
-import type { LineaContenido, ResultadoDestino, ResultadoOrigen, ValidacionDestino } from '@/domain/inventario'
+import { buscarDestinos, buscarOrigenes, buscarProductosConStock, contenidoDeUbicacion, reservadoPorCelda, ubicacionesDeProducto, validarDestino, validarLineasMovimiento } from '@/domain/inventario'
+import type { CeldaDeProducto, LineaContenido, LineaParaChequear, ResultadoDestino, ResultadoOrigen, ResultadoProducto, ValidacionDestino, ValidacionLineaMov } from '@/domain/inventario'
 import { ETIQUETA_AREA } from '@/domain/zonas'
 
 export interface ContenidoOrigen { posicionId: string; codigo: string; area: string; bloqueada?: string; lineas: LineaContenido[] }
@@ -60,6 +60,30 @@ export async function contenidoOrigenAccion(posicionId: string): Promise<Conteni
   const pos = p.posiciones.find((x) => x.id === posicionId)
   if (!pos) return null
   return { posicionId, codigo: pos.codigo, area: ETIQUETA_AREA[pos.tipoArea], bloqueada: bloqueadas[posicionId], lineas: contenidoDeUbicacion(p, posicionId, reservadoPorCelda(ordenes)) }
+}
+
+/** Agregar por producto: busca el producto (nombre, código, principio activo o lote). */
+export async function buscarProductoAccion(q: string): Promise<ResultadoProducto[]> {
+  await exigirContexto()
+  const repo = repositorio()
+  const [p, ordenes] = await Promise.all([repo.panorama(), repo.listarMovimientos()])
+  return buscarProductosConStock(p, q, reservadoPorCelda(ordenes))
+}
+
+/** Todas las ubicaciones donde está un producto, con lote, vencimiento, propietario, estado y lo disponible para mover. */
+export async function ubicacionesProductoAccion(productoId: string): Promise<CeldaDeProducto[]> {
+  await exigirContexto()
+  const repo = repositorio()
+  const [p, ordenes, bloqueadas] = await Promise.all([repo.panorama(), repo.listarMovimientos(), repo.posicionesBloqueadas()])
+  return ubicacionesDeProducto(p, productoId, reservadoPorCelda(ordenes), bloqueadas)
+}
+
+/** Valida cada línea contra su propio destino (el de la cabecera o uno propio), antes de enviar. */
+export async function validarLineasAccion(lineas: LineaParaChequear[]): Promise<ValidacionLineaMov[]> {
+  await exigirContexto()
+  const repo = repositorio()
+  const [p, bloqueadas] = await Promise.all([repo.panorama(), repo.posicionesBloqueadas()])
+  return validarLineasMovimiento(p, lineas, bloqueadas)
 }
 
 export async function buscarDestinoAccion(q: string, lineas: LineaMin[]): Promise<ResultadoDestino[]> {

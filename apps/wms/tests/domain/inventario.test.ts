@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { construirPanoramaDemo } from '@/services/demo/datos'
 import {
-  accionesDeOrden, buscarDestinos, buscarOrigenes, contenidoDeUbicacion, validarDestino, clasificarReconteo, construirKardex, entraEnKardex, fechaEnLima, parsearCargaInicial, parsearTramos,
+  accionesDeOrden, buscarDestinos, buscarOrigenes, buscarProductosConStock, contenidoDeUbicacion, ubicacionesDeProducto, validarDestino, validarLineasMovimiento, clasificarReconteo, construirKardex, entraEnKardex, fechaEnLima, parsearCargaInicial, parsearTramos,
   reporteVencimientos, totalesKardex, type LoteConStock, type OrdenMovimiento, type PartidaLedger,
 } from '@/domain/inventario'
 
@@ -136,5 +136,60 @@ describe('Mover: buscar el origen y validar el destino', () => {
     const r = buscarDestinos(pan, 'A-', aValidar())
     const primerMalo = r.findIndex((x) => x.invalidas > 0)
     expect(primerMalo === -1 || r.slice(primerMalo).every((x) => x.invalidas > 0)).toBe(true)
+  })
+})
+
+describe('Mover con varios orígenes: buscar por producto y validar cada línea contra su destino', () => {
+  const pan = construirPanoramaDemo('2026-10-07')
+  const dapa = pan.productos.find((x) => x.codigo === 'DEMO-001')!
+
+  it('buscar por nombre, por código o por lote encuentra el producto con lo disponible', () => {
+    const porNombre = buscarProductosConStock(pan, 'dapagliflozina')
+    expect(porNombre[0]).toMatchObject({ productoId: dapa.id, codigo: 'DEMO-001' })
+    expect(porNombre[0].disponibles).toBeGreaterThan(0)
+    expect(buscarProductosConStock(pan, 'DEMO-001')[0].productoId).toBe(dapa.id)
+    const loteDeDapa = pan.lotes.find((l) => l.productoId === dapa.id)!
+    const r = buscarProductosConStock(pan, loteDeDapa.codigo)
+    expect(r.some((x) => x.productoId === dapa.id)).toBe(true)
+    expect(r.find((x) => x.productoId === dapa.id)!.coincidencias).toContain(`lote ${loteDeDapa.codigo}`)
+    expect(buscarProductosConStock(pan, '  ')).toEqual([])
+  })
+
+  it('lo disponible descuenta lo reservado por movimientos abiertos', () => {
+    const celda = pan.saldos.find((s) => s.productoId === dapa.id && s.estado === 'APROBADO')!
+    const clave = `${celda.posicionId}|${celda.loteId}|${celda.estado}|${celda.procedenciaId}`
+    const libre = buscarProductosConStock(pan, 'DEMO-001')[0].disponibles
+    const reservado = buscarProductosConStock(pan, 'DEMO-001', new Map([[clave, 5]]))[0].disponibles
+    expect(libre - reservado).toBe(5)
+  })
+
+  it('«dónde está» lista todas las celdas del producto, lo que vence antes primero, con posición, área y bloqueo', () => {
+    const celdas = ubicacionesDeProducto(pan, dapa.id)
+    expect(celdas.length).toBeGreaterThan(0)
+    expect(celdas.every((c) => c.productoId === dapa.id && c.posicion && c.area)).toBe(true)
+    const vences = celdas.map((c) => c.vence ?? '9999')
+    expect([...vences].sort()).toEqual(vences)
+    const bloq = ubicacionesDeProducto(pan, dapa.id, new Map(), { [celdas[0].posicionId]: 'está en conteo CT-1' })
+    expect(bloq.find((c) => c.posicionId === celdas[0].posicionId)!.bloqueada).toBe('está en conteo CT-1')
+  })
+
+  it('cada línea se valida contra SU destino: el de la cabecera o uno propio', () => {
+    const celdas = ubicacionesDeProducto(pan, dapa.id)
+    const cuarentena = pan.posiciones.find((x) => x.tipoArea === 'CUARENTENA')!
+    const libre = pan.posiciones.find((x) => x.tipoArea === 'APROBADOS' && x.id !== celdas[0].posicionId && !pan.saldos.some((s) => s.posicionId === x.id))!
+    const base = celdas.slice(0, 2).map((c) => ({ clave: c.clave, posicionId: c.posicionId, propietarioId: c.propietarioId, propietario: c.propietario, estado: c.estado }))
+    const r = validarLineasMovimiento(pan, [{ ...base[0], haciaPosicionId: libre.id }, { ...base[1], haciaPosicionId: cuarentena.id }])
+    expect(r[1]).toMatchObject({ ok: false })
+    expect(r[1].mensaje).toMatch(/no admite unidades en Aprobado|es de|no tiene una asignación/)
+    expect(r[0].clave).toBe(base[0].clave)
+  })
+
+  it('una línea sin destino se marca «falta elegir el destino»; un origen en conteo no se mueve', () => {
+    const c = ubicacionesDeProducto(pan, dapa.id)[0]
+    const min = { clave: c.clave, posicionId: c.posicionId, propietarioId: c.propietarioId, propietario: c.propietario, estado: c.estado }
+    expect(validarLineasMovimiento(pan, [min])[0]).toMatchObject({ ok: false, sinDestino: true, mensaje: 'Falta elegir el destino.' })
+    const otro = pan.posiciones.find((x) => x.id !== c.posicionId && x.tipoArea === 'APROBADOS')!
+    const r = validarLineasMovimiento(pan, [{ ...min, haciaPosicionId: otro.id }], { [c.posicionId]: 'está en conteo CT-1' })
+    expect(r[0].mensaje).toMatch(/está en conteo CT-1: no se mueve desde ahí/)
   })
 })

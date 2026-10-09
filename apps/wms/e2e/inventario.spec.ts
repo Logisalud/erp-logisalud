@@ -97,49 +97,111 @@ test.describe('movimientos internos (INV-02, D-15)', () => {
     await capturar(page, info, 'movimiento-confirmado', { completa: true })
   })
 
-  test('el auxiliar prepara un movimiento de varias líneas buscando el origen; el destino se valida al elegirlo', async ({ page }, info) => {
+  test('el auxiliar arma una orden con productos de distintos orígenes (por ubicación y por producto) y cada línea se valida contra su destino', async ({ page }, info) => {
     await entrarComo(page, 'auxiliar')
     await page.goto('/wms/movimientos/nuevo')
     await expect(page.getByTestId('mover-preparar')).toBeDisabled()
+    await expect(page.getByTestId('mover-lista-vacia')).toBeVisible()
+    await capturar(page, info, 'mover-vacio')
+
+    // 1 · por ubicación: se busca por lote, se ve todo lo que hay y «Mover todo»
+    await page.getByTestId('modo-ubicacion').click()
     await page.getByTestId('mover-buscar-origen').fill('L-VENCE')
-    await expect(page.getByTestId('mover-origen').first()).toBeVisible()
-    await capturar(page, info, 'mover-buscar-origen')
-    // buscar por lote lleva a la ubicación, que trae más de una línea (el demo la deja con 3)
     await page.getByTestId('mover-origen').first().click()
     await expect(page.getByTestId('mover-origen-elegido')).toBeVisible()
-    expect(await page.getByTestId('mover-linea').count()).toBeGreaterThanOrEqual(2)
     await page.getByTestId('mover-todo').click()
-    await expect(page.getByTestId('mover-resumen')).toContainText(/\d+ líneas/)
-    await expect(page.getByTestId('mover-preparar')).toBeDisabled()
-    // cantidad editable: una cantidad imposible se rechaza con un mensaje humano
+    // la cantidad es editable y se valida; «Todo» la deja completa
     await page.getByTestId('mover-cantidad').first().fill('999999')
     await expect(page.getByTestId('mover-error-cantidad').first()).toBeVisible()
     await page.getByTestId('mover-linea-todo').first().click()
     await expect(page.getByTestId('mover-error-cantidad')).toHaveCount(0)
-    // destino: se valida al elegirlo
-    // los destinos que sirven salen primero; si el primero no sirve, se explica antes de enviar
-    let bueno = false
-    for (const q of ['A-', 'Cuarentena', 'B-', 'C-', 'D-', 'E-', 'F-']) {
-      await page.getByTestId('mover-buscar-destino').fill(q)
-      const primero = page.getByTestId('mover-destino').first()
-      if (!(await primero.waitFor({ timeout: 3000 }).then(() => true, () => false))) continue
-      if (q === 'A-') await capturar(page, info, 'mover-buscar-destino', { completa: true })
-      await primero.click()
-      const resultado = page.getByTestId('mover-destino-ok').or(page.getByTestId('mover-destino-problemas'))
-      await expect(resultado).toBeVisible()
-      if (await page.getByTestId('mover-destino-ok').isVisible()) { bueno = true; break }
-      await expect(page.getByTestId('mover-destino-problemas')).toBeVisible() // mensaje humano antes de enviar
-      await expect(page.getByTestId('mover-preparar')).toBeDisabled()
-      await page.getByTestId('mover-cambiar-destino').click()
+    await capturar(page, info, 'mover-por-ubicacion', { completa: true })
+    await page.getByTestId('mover-agregar').click()
+    await expect(page.getByTestId('mover-agregado')).toContainText('Agregamos 2 líneas')
+
+    // 2 · por producto: se busca el producto y se ve dónde está (otra ubicación)
+    await page.getByTestId('modo-producto').click()
+    await page.getByTestId('mover-buscar-producto').fill('dapagliflozina')
+    await expect(page.getByTestId('mover-producto').first()).toBeVisible()
+    await capturar(page, info, 'mover-por-producto')
+    await page.getByTestId('mover-producto').first().click()
+    await expect(page.getByTestId('mover-producto-elegido')).toBeVisible()
+    const libres = page.getByTestId('mover-celda').filter({ hasNot: page.getByTestId('mover-celda-no') })
+    await libres.first().getByTestId('mover-marcar').check()
+    await capturar(page, info, 'mover-producto-donde-esta', { completa: true })
+    await page.getByTestId('mover-agregar').click()
+    await expect(page.getByTestId('mover-totales')).toContainText('3 líneas')
+    await expect(page.getByTestId('mover-lista')).toBeVisible()
+    await sinDesborde(page)
+
+    // 3 · destino por defecto: se ve al instante si sirve; las líneas que no sirven explican por qué
+    const buscarDestino = async (campo: ReturnType<Page['getByTestId']>, resultado: ReturnType<Page['getByTestId']>) => {
+      for (const q of ['A-', 'B-', 'C-', 'D-', 'E-', 'F-', 'G-', 'H-', 'I-', 'J-', 'K-', 'L-', 'M-']) {
+        await campo.fill(q)
+        if (await resultado.first().waitFor({ timeout: 3000 }).then(() => true, () => false)) return
+      }
+      throw new Error('ningún destino aparece')
     }
-    expect(bueno, 'algún destino recibe todas las líneas').toBe(true)
+    await buscarDestino(page.getByTestId('mover-buscar-destino'), page.getByTestId('mover-buscar-destino-resultados').getByTestId('mover-destino'))
+    await page.getByTestId('mover-buscar-destino-resultados').getByTestId('mover-destino').first().click()
+    await expect(page.getByTestId('mover-destino-elegido')).toBeVisible()
+    await expect(page.getByTestId('mover-preparar')).toBeDisabled()
+
+    // 4 · cada línea que el destino por defecto no recibe se resuelve con un destino propio de esa línea
+    const tarjetas = page.getByTestId('mover-linea-carrito')
+    await expect(tarjetas.first().locator('[data-testid="linea-valida"], [data-testid="linea-problema"]')).toBeVisible()
+    for (let i = 0; i < 3; i++) {
+      const t = tarjetas.nth(i)
+      await expect(t.locator('[data-testid="linea-valida"], [data-testid="linea-problema"]')).toBeVisible()
+      if (await t.getByTestId('linea-problema').count()) {
+        await expect(t.getByTestId('linea-problema')).not.toBeEmpty() // mensaje humano, antes de enviar
+        await t.getByTestId('linea-cambiar-destino').click()
+        const campo = t.getByTestId('linea-q-destino')
+        for (const q of ['A-', 'B-', 'C-', 'D-', 'E-', 'F-', 'G-', 'H-', 'I-', 'J-', 'K-', 'L-', 'M-']) {
+          await campo.fill(q)
+          const primero = t.getByTestId('linea-q-destino-resultados').getByTestId('mover-destino').first()
+          if (!(await primero.waitFor({ timeout: 3000 }).then(() => true, () => false))) continue
+          await primero.click()
+          // la validación llega un instante después de elegir: si aparece «recibe esta línea», ese destino sirve
+          if (await t.getByTestId('linea-valida').waitFor({ timeout: 2500 }).then(() => true, () => false)) break
+          await t.getByTestId('linea-cambiar-destino').click()
+        }
+        await expect(t.getByTestId('linea-valida')).toBeVisible()
+        await expect(t.getByTestId('linea-destino-tipo')).toContainText('destino propio')
+      }
+    }
+    await expect(page.getByTestId('linea-problema')).toHaveCount(0)
+
+    // 5 · la misma celda no se agrega dos veces; se edita y se quita antes de enviar
+    await page.getByTestId('modo-producto').click()
+    await page.getByTestId('mover-buscar-producto').fill('dapagliflozina')
+    await page.getByTestId('mover-producto').first().click()
+    await expect(page.getByTestId('mover-celda-no').filter({ hasText: 'Ya está en el movimiento' }).first()).toBeVisible()
+    await page.getByTestId('mover-cambiar-producto').click()
+    await tarjetas.nth(2).getByTestId('linea-cantidad').fill('1')
+    await expect(page.getByTestId('mover-totales')).toContainText('3 líneas')
+    await tarjetas.nth(2).getByTestId('linea-quitar').click()
+    await expect(page.getByTestId('mover-totales')).toContainText('2 líneas')
+
     await page.getByTestId('mover-motivo-rapido').first().click()
     await expect(page.getByTestId('mover-preparar')).toBeEnabled()
     await sinDesborde(page)
     await capturar(page, info, 'mover-listo', { completa: true })
     await page.getByTestId('mover-preparar').click()
     await expect(page.getByTestId('titulo-movimiento')).toHaveText(/MI-\d{4}-\d{5}/)
-    await expect(page.getByTestId('lineas-movimiento').locator('li')).not.toHaveCount(1)
+    await expect(page.getByTestId('lineas-movimiento').locator('li')).toHaveCount(2)
+  })
+
+  test('las unidades de una orden preparada quedan reservadas: otra persona no puede moverlas', async ({ page }, info) => {
+    await entrarComo(page, 'reemplazo_jefe')
+    await page.goto('/wms/movimientos/nuevo')
+    await page.getByTestId('modo-ubicacion').click()
+    await page.getByTestId('mover-buscar-origen').fill('L-VENCE')
+    await page.getByTestId('mover-origen').first().click() // la ubicación NO queda bloqueada: solo sus unidades
+    await expect(page.getByTestId('mover-origen-elegido')).toBeVisible()
+    await expect(page.getByTestId('mover-celda-no').filter({ hasText: 'Reservadas por otro movimiento' })).toHaveCount(2)
+    await expect(page.getByTestId('mover-marcar').first()).toBeDisabled()
+    await capturar(page, info, 'mover-reservadas')
   })
 
   test('una sola autorización, una sola revisión: la línea con diferencia queda abierta y las demás se confirman', async ({ page }, info) => {

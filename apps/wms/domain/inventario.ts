@@ -492,6 +492,9 @@ export interface ResultadoOrigen {
 export interface LineaContenido {
   clave: string
   posicionId: string
+  /** Código y área de la ubicación donde está (para mostrar «dónde está» sin otra consulta). */
+  posicion: string
+  area: string
   loteId: string
   productoId: string
   codigoProducto: string
@@ -527,11 +530,13 @@ export function contenidoDeUbicacion(p: Panorama, posicionId: string, reservado:
   const lote = new Map(p.lotes.map((l) => [l.id, l]))
   const prod = new Map(p.productos.map((x) => [x.id, x]))
   const prop = new Map(p.propietarios.map((x) => [x.id, x]))
+  const pos = new Map(p.posiciones.map((x) => [x.id, x]))
   return p.saldos.filter((s) => s.posicionId === posicionId && s.cantidad > 0).map((s): LineaContenido => {
     const l = lote.get(s.loteId); const x = prod.get(s.productoId)
     const clave = claveCelda(s.posicionId, s.loteId, s.estado, s.procedenciaId)
+    const ub = pos.get(s.posicionId)
     return {
-      clave, posicionId: s.posicionId, loteId: s.loteId, productoId: s.productoId, codigoProducto: x?.codigo ?? '', producto: x?.descripcion ?? '—', lote: l?.codigo ?? '—', vence: l?.vence,
+      clave, posicionId: s.posicionId, posicion: ub?.codigo ?? '—', area: ub ? ETIQUETA_AREA[ub.tipoArea] : '—', loteId: s.loteId, productoId: s.productoId, codigoProducto: x?.codigo ?? '', producto: x?.descripcion ?? '—', lote: l?.codigo ?? '—', vence: l?.vence,
       propietarioId: s.propietarioId, propietario: prop.get(s.propietarioId)?.codigo ?? '—', estado: s.estado, procedenciaId: s.procedenciaId, cantidad: s.cantidad,
       disponible: Math.max(0, s.cantidad - (reservado.get(clave) ?? 0)),
     }
@@ -567,6 +572,83 @@ export function buscarOrigenes(p: Panorama, consulta: string, bloqueadas: Record
     out.push({ posicionId: pos.id, codigo: pos.codigo, area: ETIQUETA_AREA[pos.tipoArea], unidades: e.unidades, lineas: e.lineas, coincidencias: e.coincidencias, bloqueada: bloqueadas[pos.id], score })
   }
   return out.sort((a, b) => b.score - a.score || a.codigo.localeCompare(b.codigo, 'es', { numeric: true })).slice(0, limite).map(({ score: _s, ...r }) => { void _s; return r })
+}
+
+// ── Agregar líneas por producto: ¿en qué ubicaciones está y cuánto hay disponible? ──────────────────
+
+export interface ResultadoProducto {
+  productoId: string
+  codigo: string
+  descripcion: string
+  principioActivo?: string
+  /** Unidades disponibles para mover (saldo menos lo reservado por movimientos abiertos). */
+  disponibles: number
+  ubicaciones: number
+  /** Lotes que coinciden con lo escrito, para reconocer el producto de un vistazo. */
+  coincidencias: string[]
+}
+
+/** Busca PRODUCTOS con stock por nombre, código, principio activo o lote. */
+export function buscarProductosConStock(p: Panorama, consulta: string, reservado: Map<string, number> = new Map(), limite = 10): ResultadoProducto[] {
+  const q = consulta.trim()
+  if (!q) return []
+  const lote = new Map(p.lotes.map((l) => [l.id, l]))
+  const porProducto = new Map<string, { disponibles: number; posiciones: Set<string>; mejor: number; coincidencias: string[] }>()
+  for (const s of p.saldos) {
+    if (s.cantidad <= 0) continue
+    const x = p.productos.find((q2) => q2.id === s.productoId)
+    if (!x) continue
+    const l = lote.get(s.loteId)
+    const base = Math.max(puntaje(q, x.descripcion), puntaje(q, x.codigo), puntaje(q, x.principioActivo ?? ''))
+    const sLote = puntaje(q, l?.codigo ?? '')
+    const e = porProducto.get(x.id) ?? { disponibles: 0, posiciones: new Set<string>(), mejor: 0, coincidencias: [] }
+    e.disponibles += Math.max(0, s.cantidad - (reservado.get(claveCelda(s.posicionId, s.loteId, s.estado, s.procedenciaId)) ?? 0))
+    e.posiciones.add(s.posicionId)
+    e.mejor = Math.max(e.mejor, base, sLote)
+    if (sLote > 0 && sLote >= base && l && e.coincidencias.length < 2 && !e.coincidencias.includes(`lote ${l.codigo}`)) e.coincidencias.push(`lote ${l.codigo}`)
+    porProducto.set(x.id, e)
+  }
+  const out: (ResultadoProducto & { score: number })[] = []
+  for (const [id, e] of porProducto) {
+    if (e.mejor <= 0) continue
+    const x = p.productos.find((q2) => q2.id === id)!
+    out.push({ productoId: id, codigo: x.codigo, descripcion: x.descripcion, principioActivo: x.principioActivo, disponibles: e.disponibles, ubicaciones: e.posiciones.size, coincidencias: e.coincidencias, score: e.mejor })
+  }
+  return out.sort((a, b) => b.score - a.score || a.descripcion.localeCompare(b.descripcion, 'es')).slice(0, limite).map(({ score: _s, ...r }) => { void _s; return r })
+}
+
+/** Una celda (ubicación + lote + estado) donde está el producto, con lo disponible para mover. */
+export interface CeldaDeProducto extends LineaContenido { bloqueada?: string }
+
+/** Todas las ubicaciones donde está un producto: primero lo que vence antes (FEFO), luego por ubicación. */
+export function ubicacionesDeProducto(p: Panorama, productoId: string, reservado: Map<string, number> = new Map(), bloqueadas: Record<string, string> = {}): CeldaDeProducto[] {
+  const posiciones = new Set(p.saldos.filter((s) => s.productoId === productoId && s.cantidad > 0).map((s) => s.posicionId))
+  const celdas: CeldaDeProducto[] = []
+  for (const id of posiciones) {
+    for (const c of contenidoDeUbicacion(p, id, reservado)) if (c.productoId === productoId) celdas.push({ ...c, bloqueada: bloqueadas[id] })
+  }
+  return celdas.sort((a, b) => (a.vence ?? '9999').localeCompare(b.vence ?? '9999') || a.posicion.localeCompare(b.posicion, 'es', { numeric: true }) || a.lote.localeCompare(b.lote, 'es', { numeric: true }))
+}
+
+/** Una línea de la lista del movimiento, con su destino efectivo (el de la cabecera o uno propio). */
+export interface LineaParaChequear extends Pick<LineaContenido, 'clave' | 'posicionId' | 'propietarioId' | 'propietario' | 'estado'> { haciaPosicionId?: string }
+export interface ValidacionLineaMov { clave: string; ok: boolean; mensaje?: string; sinDestino?: boolean }
+
+/** Valida cada línea contra SU destino (propietario, área, estado, ubicación en conteo) con mensajes humanos. La base de datos vuelve a validar. */
+export function validarLineasMovimiento(p: Panorama, lineas: LineaParaChequear[], bloqueadas: Record<string, string> = {}): ValidacionLineaMov[] {
+  const porDestino = new Map<string, LineaParaChequear[]>()
+  for (const l of lineas) if (l.haciaPosicionId) porDestino.set(l.haciaPosicionId, [...(porDestino.get(l.haciaPosicionId) ?? []), l])
+  const resultado = new Map<string, ValidacionLineaMov>()
+  for (const [destino, ls] of porDestino) {
+    const v = validarDestino(p, destino, ls, bloqueadas)
+    for (const r of v?.porLinea ?? []) resultado.set(r.clave, r)
+  }
+  const nombre = (id: string) => p.posiciones.find((x) => x.id === id)?.codigo ?? id
+  return lineas.map((l): ValidacionLineaMov => {
+    if (bloqueadas[l.posicionId]) return { clave: l.clave, ok: false, mensaje: `La ubicación ${nombre(l.posicionId)} ${bloqueadas[l.posicionId]}: no se mueve desde ahí.` }
+    if (!l.haciaPosicionId) return { clave: l.clave, ok: false, sinDestino: true, mensaje: 'Falta elegir el destino.' }
+    return resultado.get(l.clave) ?? { clave: l.clave, ok: false, mensaje: 'No encontramos ese destino.' }
+  })
 }
 
 export interface ValidacionLineaDestino { clave: string; ok: boolean; mensaje?: string }

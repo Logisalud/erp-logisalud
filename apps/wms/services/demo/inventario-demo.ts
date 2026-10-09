@@ -269,10 +269,6 @@ export class InventarioDemo extends EntradasDemo {
     const n = nombres(e)
     const out: Record<string, string> = {}
     for (const c of e.inv.conteos) if (c.estado !== 'CERRADO') for (const l of c.lineas) out[l.posicionId] = `está en conteo ${c.numero}`
-    for (const o of e.inv.ordenes) if (ACTIVA.has(o.estado)) for (const l of o.lineas) {
-      if (l.verificacion !== 'PENDIENTE' && l.verificacion !== 'CON_DIFERENCIA') continue
-      for (const pid of [l.desdePosicionId, l.haciaPosicionId]) out[pid] ??= `tiene el movimiento ${o.numero} abierto`
-    }
     void n
     return out
   }

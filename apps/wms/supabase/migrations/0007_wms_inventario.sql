@@ -337,7 +337,7 @@ begin
      where posicion_id = v_desde and lote_id = v_lote.id and estado = v_estado and procedencia_id = v_proc;
     select coalesce(sum(l.cantidad), 0) into v_reservado
       from wms.ordenes_movimiento_lineas l join wms.ordenes_movimiento o on o.id = l.orden_id
-     where o.estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA') and o.id <> v_id
+     where o.estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA')   -- incluye las líneas ya cargadas de ESTA orden
        and l.verificacion in ('PENDIENTE', 'CON_DIFERENCIA')
        and l.desde_posicion_id = v_desde and l.lote_id = v_lote.id and l.estado = v_estado and l.procedencia_id = v_proc;
     if v_cant > v_disp - v_reservado then
@@ -981,17 +981,13 @@ end $$;
 grant execute on function
   wms.validar_carga_inicial(jsonb), wms.crear_carga_inicial(jsonb, text), wms.decidir_estado_carga_inicial(text), wms.confirmar_carga_inicial(uuid) to authenticated;
 
--- Ubicaciones que hoy no se pueden usar como origen ni destino: en conteo o con un movimiento abierto.
+-- Ubicaciones que hoy no se pueden usar como origen ni destino: las que están en conteo (INV-05, paso 3).
+-- Un movimiento abierto NO bloquea la ubicación: reserva solo sus unidades (disponible = saldo − reservado), para que otra persona
+-- pueda mover el resto de lo que hay ahí. Lo inverso sí aplica: no se programa un conteo donde hay movimientos abiertos.
 create or replace function wms.posiciones_bloqueadas()
 returns table (posicion_id uuid, motivo text)
 language sql stable security definer set search_path = wms, pg_temp as $$
   select distinct l.posicion_id, 'está en conteo ' || c.numero
     from wms.conteo_lineas l join wms.conteos c on c.id = l.conteo_id where c.estado <> 'CERRADO' and wms.es_usuario()
-  union
-  select x.pid, 'tiene el movimiento ' || x.numero || ' abierto'
-    from (select unnest(array[ml.desde_posicion_id, ml.hasta_posicion_id]) as pid, o.numero
-            from wms.ordenes_movimiento_lineas ml join wms.ordenes_movimiento o on o.id = ml.orden_id
-           where o.estado in ('PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA') and ml.verificacion in ('PENDIENTE', 'CON_DIFERENCIA')) x
-   where wms.es_usuario()
 $$;
 grant execute on function wms.posiciones_bloqueadas() to authenticated;

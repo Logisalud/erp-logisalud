@@ -126,7 +126,8 @@ Cada posición tiene tipo de área y propietario. El sistema bloquea combinacion
 - **D-15 (2026-10-08):** quien hace un movimiento no lo valida: el verificador es distinto de quien lo **preparó** y de quien lo **ejecutó**. Se aplica en dominio (`puedeVerificar`) y en base de datos (restricciones de `wms.movimientos` y `validar_movimiento`), con test.
 - Autoriza Charlie (Jefe de Almacén), o Roberto/Jasury en su ausencia.
 - Con diferencia, queda abierta solo la línea afectada; las demás líneas del movimiento se confirman en la misma revisión.
-- Un movimiento puede llevar varias líneas: todo lo que va del mismo origen al mismo destino es un solo movimiento, con una sola autorización y una sola revisión línea por línea.
+- Un movimiento puede llevar varias líneas con **orígenes y destinos distintos** (productos distintos, cada uno desde donde esté), con una sola autorización y una sola revisión línea por línea. El destino de la cabecera lo heredan las líneas; una línea puede tener el suyo.
+- **Disponible para mover** = saldo menos lo reservado por movimientos abiertos (incluida la misma orden). Un movimiento abierto reserva sus unidades pero no bloquea la ubicación; solo un conteo la bloquea.
 - Se guarda: origen, destino, producto, lote, propietario, cantidad, motivo, ejecutor y verificador.
 - Corrección = movimiento inverso vinculado al original.
 - Mover no cambia el estado.

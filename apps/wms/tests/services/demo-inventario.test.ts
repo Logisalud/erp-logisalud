@@ -182,3 +182,62 @@ describe('carga inicial (D-09)', () => {
     expect(await repo.confirmarCargaInicial(c.id, ADMIN)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/decidió APROBADO/) })
   })
 })
+
+describe('un movimiento con productos de distintos orígenes (el demo aplica lo mismo que la base)', () => {
+  /** Tres celdas Aprobadas de ubicaciones distintas y con unidades de sobra, y tres destinos libres. */
+  async function armar() {
+    const p = await repo.panorama()
+    const usadas = new Set((await repo.listarMovimientos()).flatMap((o) => o.lineas.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId])))
+    const origenes = p.saldos.filter((x) => x.estado === 'APROBADO' && x.cantidad >= 10 && !usadas.has(x.posicionId))
+    const porPos = new Map(origenes.map((s) => [s.posicionId, s]))
+    const celdas = [...porPos.values()].slice(0, 3)
+    const destinos = p.posiciones.filter((x) => x.tipoArea === 'APROBADOS' && x.activa && !p.saldos.some((s) => s.posicionId === x.id))
+    return { p, celdas, destinos }
+  }
+  const lineaDe = (s: { posicionId: string; loteId: string; estado: never; procedenciaId: string }, hacia: string, cantidad: number) =>
+    ({ desdePosicionId: s.posicionId, haciaPosicionId: hacia, loteId: s.loteId, estado: s.estado, procedenciaId: s.procedenciaId, cantidad })
+
+  it('una orden con orígenes distintos y un destino cambiado en una línea; una autorización y una revisión; solo la línea con diferencia queda abierta', async () => {
+    const { celdas, destinos } = await armar()
+    const [a, b, c] = celdas
+    const r = exito(await repo.prepararMovimiento([
+      lineaDe(a as never, destinos[0].id, 5), lineaDe(b as never, destinos[0].id, 4), lineaDe(c as never, destinos[1].id, 3), // la tercera, a otro destino
+    ], 'Reubicar varios productos', AUX))
+    const o = (await repo.obtenerMovimiento(r.id))!
+    expect(o.lineas.map((l) => l.hacia)).toEqual([destinos[0].codigo, destinos[0].codigo, destinos[1].codigo])
+    expect(new Set(o.lineas.map((l) => l.desde)).size).toBe(3)
+    exito(await repo.autorizarMovimiento(r.id, JEFE))
+    exito(await repo.ejecutarMovimiento(r.id, AUX))
+    exito(await repo.revisarMovimiento(r.id, o.lineas.map((l, i) => (i === 1 ? { lineaId: l.id, resultado: 'DIFERENCIA' as const, nota: 'Faltan 2 en el destino' } : { lineaId: l.id, resultado: 'COINCIDE' as const })), REEMPLAZO))
+    const d = (await repo.obtenerMovimiento(r.id))!
+    expect(d.estado).toBe('CON_DIFERENCIA')
+    expect(d.lineas.map((l) => l.verificacion)).toEqual(['CONFIRMADA', 'CON_DIFERENCIA', 'CONFIRMADA'])
+    const p = await repo.panorama()
+    const en = (pos: string, lote: string) => p.saldos.filter((s) => s.posicionId === pos && s.loteId === lote).reduce((n, s) => n + s.cantidad, 0)
+    expect(en(destinos[0].id, a.loteId)).toBe(5)   // confirmada
+    expect(en(destinos[0].id, b.loteId)).toBe(0)   // con diferencia: no se movió
+    expect(en(destinos[1].id, c.loteId)).toBe(3)   // confirmada, a su destino propio
+    exito(await repo.resolverMovimiento(d.lineas[1].id, 'ANULAR', 'Se encontró el faltante', JEFE))
+    expect((await repo.obtenerMovimiento(r.id))!.lineas.map((l) => l.verificacion)).toEqual(['CONFIRMADA', 'ANULADA', 'CONFIRMADA'])
+  })
+
+  it('las unidades de una orden preparada quedan reservadas para otra persona; el resto sigue libre; anular las libera', async () => {
+    const { celdas, destinos } = await armar()
+    const [a] = celdas
+    const r = exito(await repo.prepararMovimiento([lineaDe(a as never, destinos[0].id, a.cantidad - 2)], 'Reservar', AUX))
+    const otra = await repo.prepararMovimiento([lineaDe(a as never, destinos[1].id, 3)], 'Mismas unidades', REEMPLAZO)
+    expect(otra).toMatchObject({ ok: false, mensaje: expect.stringMatching(/otros movimientos ya reservan/) })
+    exito(await repo.prepararMovimiento([lineaDe(a as never, destinos[1].id, 2)], 'Lo que quedaba', REEMPLAZO))
+    exito(await repo.anularMovimiento(r.id, 'Ya no hace falta', AUX))
+    exito(await repo.prepararMovimiento([lineaDe(a as never, destinos[2].id, a.cantidad - 2)], 'Ya libre', REEMPLAZO))
+  })
+
+  it('dos líneas de la misma celda en una orden no pasan de lo que hay, y un movimiento abierto no bloquea la ubicación', async () => {
+    const { celdas, destinos } = await armar()
+    const [a] = celdas
+    const e = await repo.prepararMovimiento([lineaDe(a as never, destinos[0].id, a.cantidad - 1), lineaDe(a as never, destinos[1].id, 2)], 'x', AUX)
+    expect(e.ok).toBe(false)
+    exito(await repo.prepararMovimiento([lineaDe(a as never, destinos[0].id, 1)], 'Una', AUX))
+    expect(Object.keys(await repo.posicionesBloqueadas()).includes(a.posicionId)).toBe(false)
+  })
+})

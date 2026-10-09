@@ -15,7 +15,7 @@ export default async function NuevoMovimiento() {
       <Link href="/movimientos" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-gray-700 hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden />Movimientos</Link>
       <header>
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Mover</h1>
-        <p className="mt-1 text-gray-600">Busca de dónde sale, marca lo que se mueve y elige un solo destino. Todo lo que va del mismo origen al mismo destino es un solo movimiento. Todavía no cambia el stock.</p>
+        <p className="mt-1 text-gray-600">Agrega varios productos en una sola orden, cada uno desde donde esté. Elige un destino para todos y cámbialo en una línea si hace falta. Se autoriza una vez y se verifica en una sola revisión. Todavía no cambia el stock.</p>
       </header>
       <FormMover />
     </div>
