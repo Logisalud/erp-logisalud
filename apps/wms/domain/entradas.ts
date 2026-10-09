@@ -460,7 +460,7 @@ export function puedeGenerarActa(i: {
 export type TipoAlerta =
   | 'TEMPERATURA' | 'RS_VENCIDO' | 'DIVERGENCIA_COMPRAS' | 'POR_TRASLADAR_VENCIDO' | 'LOTE_POR_VENCER' | 'LOTE_VENCIDO'
   | 'SOLICITUD_AJUSTADA' | 'EXCEDE_OC' | 'POR_REGISTRAR_EN_COMPRAS' | 'NO_COINCIDE_CON_COMPRAS'
-  | 'MOVIMIENTO_CON_DIFERENCIA' | 'CONTEO_CON_DIFERENCIA' | 'AJUSTE_POR_AUTORIZAR'
+  | 'MOVIMIENTO_CON_DIFERENCIA' | 'MOVIMIENTO_SIN_VERIFICAR' | 'CONTEO_CON_DIFERENCIA' | 'AJUSTE_POR_AUTORIZAR' | 'PENDIENTE_AFECTA_PRODUCTO'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt'
 
@@ -476,6 +476,8 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   POR_REGISTRAR_EN_COMPRAS: 'Falta registrarlo en Compras',
   NO_COINCIDE_CON_COMPRAS: 'Compras tiene otra cantidad',
   MOVIMIENTO_CON_DIFERENCIA: 'Movimiento con diferencia',
+  MOVIMIENTO_SIN_VERIFICAR: 'Movimiento sin verificar',
+  PENDIENTE_AFECTA_PRODUCTO: 'Pendiente que puede afectar producto',
   CONTEO_CON_DIFERENCIA: 'Conteo con diferencia',
   AJUSTE_POR_AUTORIZAR: 'Ajuste por autorizar',
 }
@@ -497,6 +499,10 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   NO_COINCIDE_CON_COMPRAS: 'jefe_almacen',
   // INV-02 / INV-05: una diferencia abierta la resuelve el Jefe; un ajuste lo autoriza Dirección Técnica.
   MOVIMIENTO_CON_DIFERENCIA: 'jefe_almacen',
+  // Un movimiento ejecutado que pasa más de N horas (24 por defecto) sin verificar: sus unidades siguen en tránsito.
+  MOVIMIENTO_SIN_VERIFICAR: 'jefe_almacen',
+  // INV-04: un pendiente de la revisión diaria que puede afectar producto avisa a Dirección Técnica.
+  PENDIENTE_AFECTA_PRODUCTO: 'direccion_tecnica',
   CONTEO_CON_DIFERENCIA: 'jefe_almacen',
   AJUSTE_POR_AUTORIZAR: 'direccion_tecnica',
 }
@@ -507,6 +513,8 @@ export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: Destinat
 
 export const PLAZO_POR_TRASLADAR_HORAS_DEFECTO = 24
 export const PLAZO_REGISTRO_COMPRAS_HORAS_DEFECTO = 24
+/** Horas sin verificar un movimiento ejecutado antes de avisar al Jefe (parámetro `movimiento_sin_verificar_horas`). */
+export const PLAZO_MOVIMIENTO_SIN_VERIFICAR_HORAS_DEFECTO = 24
 
 /** Días antes del vencimiento de un lote en que se avisa (parámetro `lote_dias_alerta_vencimiento`; D-30 por confirmar con Katia). */
 export const DIAS_ALERTA_VENCIMIENTO_LOTE_DEFECTO = 90

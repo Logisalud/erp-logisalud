@@ -883,6 +883,7 @@ export class MotorEntradas {
     revisarRegistroCompras(e)
     revisarPorTrasladar(e)
     revisarVencimientos(e)
+    revisarMovimientosSinVerificar(e)
     return structuredClone(e.alertas).map(limpiarClave)
   }
 
@@ -1069,6 +1070,19 @@ function revisarVencimientos(e: EstadoDemo) {
         `El lote ${lote.codigo} de ${prod?.descripcion} vence el ${fecha} (en ${dias} días): ${g.unidades} unidades en ${donde}. Sácalo primero o rótalo.`,
         `lote-por-vencer:${loteId}`, undefined, lote.productoId, lote.codigo)
     }
+  }
+}
+
+/** Un movimiento ejecutado que lleva más de N horas sin verificar avisa al Jefe (una alerta por movimiento). */
+function revisarMovimientosSinVerificar(e: EstadoDemo) {
+  const limite = Date.now() - e.plazoMovSinVerificarHoras * 3_600_000
+  for (const o of e.inv.ordenes) {
+    if (o.estado !== 'EJECUTADO' || Date.parse(o.ejecutadoEn) >= limite) continue
+    const pendientes = o.lineas.filter((l) => l.verificacion === 'PENDIENTE').length
+    if (!pendientes) continue
+    alertar(e, 'MOVIMIENTO_SIN_VERIFICAR', 'jefe_almacen',
+      `El movimiento ${o.numero} lleva más de ${e.plazoMovSinVerificarHoras} horas sin verificar (${pendientes} ${pendientes === 1 ? 'línea pendiente' : 'líneas pendientes'}). Sus unidades siguen reservadas y en tránsito: pide a otra persona que lo verifique.`,
+      `mov-sin-verificar:${o.id}`)
   }
 }
 

@@ -275,6 +275,8 @@ export interface OrdenMovimiento {
   ejecutorId: string
   ejecutor: string
   ejecutadoEn: string
+  /** Llave de idempotencia del borrador con que se creó (no se muestra). */
+  token?: string
   verificadorId?: string
   verificador?: string
   verificadoEn?: string
@@ -577,6 +579,7 @@ export interface ResultadoProducto {
   codigo: string
   descripcion: string
   principioActivo?: string
+  presentacion?: string
   /** Unidades disponibles para mover (saldo menos lo reservado por movimientos abiertos). */
   disponibles: number
   ubicaciones: number
@@ -585,13 +588,13 @@ export interface ResultadoProducto {
 }
 
 /** Busca PRODUCTOS con stock por nombre, código, principio activo o lote. */
-export function buscarProductosConStock(p: Panorama, consulta: string, reservado: Map<string, number> = new Map(), limite = 10): ResultadoProducto[] {
+export function buscarProductosConStock(p: Panorama, consulta: string, reservado: Map<string, number> = new Map(), limite = 10, bloqueadas: Record<string, string> = {}): ResultadoProducto[] {
   const q = consulta.trim()
   if (!q) return []
   const lote = new Map(p.lotes.map((l) => [l.id, l]))
   const porProducto = new Map<string, { disponibles: number; posiciones: Set<string>; mejor: number; coincidencias: string[] }>()
   for (const s of p.saldos) {
-    if (s.cantidad <= 0) continue
+    if (s.cantidad <= 0 || bloqueadas[s.posicionId]) continue   // una ubicación en conteo no aparece como origen
     const x = p.productos.find((q2) => q2.id === s.productoId)
     if (!x) continue
     const l = lote.get(s.loteId)
@@ -608,7 +611,7 @@ export function buscarProductosConStock(p: Panorama, consulta: string, reservado
   for (const [id, e] of porProducto) {
     if (e.mejor <= 0) continue
     const x = p.productos.find((q2) => q2.id === id)!
-    out.push({ productoId: id, codigo: x.codigo, descripcion: x.descripcion, principioActivo: x.principioActivo, disponibles: e.disponibles, ubicaciones: e.posiciones.size, coincidencias: e.coincidencias, score: e.mejor })
+    out.push({ productoId: id, codigo: x.codigo, descripcion: x.descripcion, principioActivo: x.principioActivo, presentacion: x.presentacion, disponibles: e.disponibles, ubicaciones: e.posiciones.size, coincidencias: e.coincidencias, score: e.mejor })
   }
   return out.sort((a, b) => b.score - a.score || a.descripcion.localeCompare(b.descripcion, 'es')).slice(0, limite).map(({ score: _s, ...r }) => { void _s; return r })
 }
@@ -616,12 +619,15 @@ export function buscarProductosConStock(p: Panorama, consulta: string, reservado
 /** Una celda (ubicación + lote + estado) donde está el producto, con lo disponible para mover. */
 export interface CeldaDeProducto extends LineaContenido { bloqueada?: string }
 
-/** Todas las ubicaciones donde está un producto: primero lo que vence antes (FEFO), luego por ubicación. */
+/**
+ * Todas las ubicaciones donde está un producto: primero lo que vence antes (FEFO), luego por ubicación.
+ * Una ubicación en conteo NO aparece (ni como origen ni como destino).
+ */
 export function ubicacionesDeProducto(p: Panorama, productoId: string, reservado: Map<string, number> = new Map(), bloqueadas: Record<string, string> = {}): CeldaDeProducto[] {
-  const posiciones = new Set(p.saldos.filter((s) => s.productoId === productoId && s.cantidad > 0).map((s) => s.posicionId))
+  const posiciones = new Set(p.saldos.filter((s) => s.productoId === productoId && s.cantidad > 0 && !bloqueadas[s.posicionId]).map((s) => s.posicionId))
   const celdas: CeldaDeProducto[] = []
   for (const id of posiciones) {
-    for (const c of contenidoDeUbicacion(p, id, reservado)) if (c.productoId === productoId) celdas.push({ ...c, bloqueada: bloqueadas[id] })
+    for (const c of contenidoDeUbicacion(p, id, reservado)) if (c.productoId === productoId) celdas.push({ ...c })
   }
   return celdas.sort((a, b) => (a.vence ?? '9999').localeCompare(b.vence ?? '9999') || a.posicion.localeCompare(b.posicion, 'es', { numeric: true }) || a.lote.localeCompare(b.lote, 'es', { numeric: true }))
 }
@@ -700,6 +706,7 @@ export function buscarDestinos(p: Panorama, consulta: string, lineas: LineaParaV
   for (const s of p.saldos) if (s.cantidad > 0) unidades.set(s.posicionId, (unidades.get(s.posicionId) ?? 0) + s.cantidad)
   const out: (ResultadoDestino & { score: number })[] = []
   for (const pos of p.posiciones) {
+    if (bloqueadas[pos.id]) continue   // una ubicación en conteo no aparece como destino
     const score = puntaje(q, pos.codigo)
     if (score === 0 && !normalizar(ETIQUETA_AREA[pos.tipoArea]).includes(normalizar(q))) continue
     const v = validarDestino(p, pos.id, lineas, bloqueadas)!

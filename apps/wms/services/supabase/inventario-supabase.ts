@@ -94,10 +94,10 @@ export class InventarioSupabase extends EntradasSupabase {
   async listarMovimientos() { return this.cargarOrdenes() }
   async obtenerMovimiento(id: string) { return (await this.cargarOrdenes(id))[0] ?? null }
 
-  async ejecutarMovimiento(lineas: LineaEjecutar[], motivo: string, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+  async ejecutarMovimiento(lineas: LineaEjecutar[], motivo: string, _actor: Actor, token?: string): Promise<ResultadoAccion<{ id: string; numero: string }>> {
     const { data, error } = await rpc('ejecutar_movimiento', {
       p_lineas: lineas.map((l) => ({ desde_posicion_id: l.desdePosicionId, hasta_posicion_id: l.haciaPosicionId, lote_id: l.loteId, estado: l.estado, procedencia_id: l.procedenciaId, cantidad: l.cantidad })),
-      p_motivo: motivo,
+      p_motivo: motivo, p_token: token ?? null,
     })
     if (error) return mal(error)
     const o = await this.obtenerMovimiento(String(data))

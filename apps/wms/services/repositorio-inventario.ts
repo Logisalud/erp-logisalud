@@ -17,8 +17,9 @@ export interface RepositorioInventario {
   /**
    * Registra Y ejecuta el movimiento: quien lo crea es quien mueve la mercadería (una sola persona, el «ejecutor»). No hay autorización
    * previa en el sistema. Desde aquí sus unidades quedan reservadas; el stock cambia al verificar cada línea.
+   * `token` es la llave de idempotencia del borrador: si se reintenta (conexión cortada), devuelve el movimiento ya creado y no uno nuevo.
    */
-  ejecutarMovimiento(lineas: LineaEjecutar[], motivo: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
+  ejecutarMovimiento(lineas: LineaEjecutar[], motivo: string, actor: Actor, token?: string): Promise<ResultadoAccion<{ id: string; numero: string }>>
   /** «Todo coincide»: equivale a revisar todas las líneas por verificar como conformes. */
   confirmarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion>
   /** Revisión línea por línea: las que coinciden se confirman juntas; cada diferencia deja abierta solo su línea. */

@@ -52,7 +52,7 @@ export interface FiltrosMovimientos {
   propietario: string
   ejecutor: string
   ubicacion: string
-  /** Solo los que le tocan a la persona (verificar o resolver). */
+  /** Solo los que esperan su acción (verificar o resolver). */
   mios: boolean
 }
 export const FILTROS_VACIOS: FiltrosMovimientos = { q: '', estado: '', desde: '', hasta: '', propietario: '', ejecutor: '', ubicacion: '', mios: false }

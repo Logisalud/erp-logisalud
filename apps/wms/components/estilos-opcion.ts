@@ -21,3 +21,10 @@ export const CHIP_OK = 'border-green-200 bg-green-50 text-green-800'
 export const CHIP_NEUTRO = 'border-gray-300 bg-gray-100 text-gray-800'
 export const CONTADOR_AMBAR = 'bg-amber-100 text-amber-900'
 export const PILDORA_DESHABILITADA = 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-500'
+
+// Filas de listas de selección (origen, destino) y pasos de la hoja inferior.
+export const OPCION_ELEGIDA = 'bg-green-50'
+export const OPCION_LIBRE = 'hover:bg-gray-50 active:bg-gray-100'
+export const PASO_ACTIVO = 'bg-green-50 font-semibold text-green-900 ring-1 ring-green-700'
+export const PASO_INACTIVO = 'text-gray-800 disabled:text-gray-500'
+export const PILDORA_ACTIVA_FUERTE = 'border-green-700 bg-green-50 font-semibold text-green-900'

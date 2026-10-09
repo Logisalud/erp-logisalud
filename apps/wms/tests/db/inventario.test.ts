@@ -498,3 +498,49 @@ describe('carga inicial (D-09)', () => {
     expect((await falla(rpc(P().admin.id, 'select wms.confirmar_carga_inicial($1)', [carga]))).message).toMatch(/decidió APROBADO/)
   })
 })
+
+describe('modo tabla: borrador reintentado y movimientos sin verificar', () => {
+  const ejecutarConToken = (quien: string, lineas: object[], token: string) =>
+    rpc<{ id: string }>(quien, 'select wms.ejecutar_movimiento($1::jsonb, $2, $3) as id', [JSON.stringify(lineas), 'Reorganización', token]).then((r) => r[0].id)
+
+  it('un borrador que se reintenta (conexión cortada) no crea dos movimientos ni reserva dos veces', async () => {
+    const aux1 = await persona('auxiliar')
+    const a = await stock('A-14.2', 'TK-1', 10)
+    const lineas = [await linea(a, 'A-16.2', 6)]
+    const id1 = await ejecutarConToken(aux1, lineas, 'borrador-uno')
+    const id2 = await ejecutarConToken(aux1, lineas, 'borrador-uno')       // el reintento
+    expect(id2).toBe(id1)
+    expect((await base.admin.query(`select count(*)::int n from wms.ordenes_movimiento where token = 'borrador-uno'`)).rows[0].n).toBe(1)
+    // lo reservado es solo 6 (no 12): se puede reservar el resto
+    await ejecutarConToken(aux1, [await linea(a, 'A-16.2', 4)], 'borrador-dos')
+    // otra persona con el mismo token NO recibe el movimiento ajeno: crea el suyo (o falla por el token único, nunca lo ve)
+    const otro = await persona('auxiliar')
+    const b = await stock('A-14.3', 'TK-2', 5)
+    const e = await falla(ejecutarConToken(otro, [await linea(b, 'A-16.3', 1)], 'borrador-uno'))
+    expect(e.code).toBe('23505')
+  })
+
+  it('un movimiento que pasa más de 24 h sin verificar avisa al Jefe, una sola vez; verificado, ya no', async () => {
+    const aux1 = await persona('auxiliar'); const aux2 = await persona('auxiliar')
+    const a = await stock('A-15.3', 'TK-3', 5)
+    const id = await ejecutar(aux1, a, 'A-16.3', 2)
+    expect((await rpc<{ n: number }>(P().charlie.id, 'select wms.revisar_movimientos_sin_verificar() as n'))[0].n).toBe(0)   // recién ejecutado
+    await base.admin.query(`update wms.ordenes_movimiento set ejecutado_en = now() - interval '25 hours' where id = $1`, [id])
+    expect((await rpc<{ n: number }>(P().charlie.id, 'select wms.revisar_movimientos_sin_verificar() as n'))[0].n).toBeGreaterThanOrEqual(1)
+    await rpc(P().charlie.id, 'select wms.revisar_movimientos_sin_verificar()')
+    const al = await base.admin.query(`select tipo, destinatario_rol, estado, mensaje from wms.alertas where clave = $1`, ['mov-sin-verificar:' + id])
+    expect(al.rows).toHaveLength(1)
+    expect(al.rows[0]).toMatchObject({ tipo: 'MOVIMIENTO_SIN_VERIFICAR', destinatario_rol: 'jefe_almacen', estado: 'ABIERTA' })
+    expect(al.rows[0].mensaje).toMatch(/más de 24 horas sin verificar/)
+    // el plazo es un parámetro
+    await base.admin.query(`update wms.parametros set valor = '48' where clave = 'movimiento_sin_verificar_horas'`)
+    const id2 = await ejecutar(aux1, a, 'A-16.3', 1)
+    await base.admin.query(`update wms.ordenes_movimiento set ejecutado_en = now() - interval '30 hours' where id = $1`, [id2])
+    await rpc(P().charlie.id, 'select wms.revisar_movimientos_sin_verificar()')
+    expect((await base.admin.query(`select count(*)::int n from wms.alertas where clave = $1`, ['mov-sin-verificar:' + id2])).rows[0].n).toBe(0)
+    await base.admin.query(`update wms.parametros set valor = '24' where clave = 'movimiento_sin_verificar_horas'`)
+    // verificado: ya no cuenta
+    await rpc(aux2, 'select wms.confirmar_movimiento($1)', [id])
+    await base.admin.query(`update wms.alertas set estado = 'ATENDIDA', atendida_en = now() where clave = $1`, ['mov-sin-verificar:' + id])
+  })
+})

@@ -87,10 +87,12 @@ function sembrarInventario(e: EstadoDemo) {
     }
   }
   // Un movimiento ya ejecutado por el auxiliar que espera su verificación, y otro más antiguo del Jefe (para probar la regla de las dos personas).
-  const l1 = linea(0, 0, 6); const l2 = linea(1, 1, 4)
+  const l1 = linea(0, 0, 6); const l2 = linea(1, 1, 4); const l3 = linea(2, 2, 5)
   let k = 0
   if (l1) inv.ordenes.push({ id: 'mi-demo-1', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Acomodo de producto de alta rotación', ejecutorId: 'demo:auxiliar', ejecutor: nombrePersona('demo:auxiliar')!, ejecutadoEn: new Date(Date.now() - 3 * 3_600_000).toISOString(), lineas: [l1] })
   if (l2) inv.ordenes.push({ id: 'mi-demo-2', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Acercar al despacho', ejecutorId: 'demo:jefe_almacen', ejecutor: nombrePersona('demo:jefe_almacen')!, ejecutadoEn: new Date(Date.now() - 5 * 3_600_000).toISOString(), lineas: [l2] })
+  // Uno que lleva más de 24 h sin verificar: avisa al Jefe (alerta MOVIMIENTO_SIN_VERIFICAR).
+  if (l3) inv.ordenes.push({ id: 'mi-demo-3', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Reubicar por espacio', ejecutorId: 'demo:reemplazo_jefe', ejecutor: nombrePersona('demo:reemplazo_jefe')!, ejecutadoEn: new Date(Date.now() - 30 * 3_600_000).toISOString(), lineas: [l3] })
   inv.contadores[`MI-${anioDe(e)}`] = k
   void posDe
 }
@@ -128,8 +130,11 @@ export class InventarioDemo extends EntradasDemo {
   async listarMovimientos() { return structuredClone([...this.ordenes()].reverse()) }
   async obtenerMovimiento(id: string) { const o = this.orden(id); return o ? structuredClone(o) : null }
 
-  async ejecutarMovimiento(lineas: LineaEjecutar[], motivo: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+  async ejecutarMovimiento(lineas: LineaEjecutar[], motivo: string, actor: Actor, token?: string): Promise<ResultadoAccion<{ id: string; numero: string }>> {
     const e = estadoE(); sembrarInventario(e)
+    // Reintento del mismo borrador (conexión cortada): devuelve el movimiento ya creado, nunca uno nuevo.
+    const previo = token ? e.inv.ordenes.find((o) => o.token === token && o.ejecutorId === actor.id) : undefined
+    if (previo) return { ok: true, id: previo.id, numero: previo.numero }
     if (!puedeEjecutarMovimiento(actor.roles)) return falla('No tienes permiso para registrar movimientos')
     if (!motivo?.trim()) return falla('Cuéntanos por qué se mueve: el motivo es obligatorio', { motivo: 'Cuéntanos por qué se mueve.' })
     if (!lineas.length) return falla('El movimiento no tiene líneas')
@@ -159,7 +164,7 @@ export class InventarioDemo extends EntradasDemo {
     }
     const o: OrdenMovimiento = {
       id: nuevoId(), numero: numeroDe(e.inv, 'MI', anioDe(e)), estado: 'EJECUTADO', motivo: motivo.trim(), ejecutorId: actor.id, ejecutor: actor.nombre,
-      ejecutadoEn: ahora(), lineas: nuevas,
+      ejecutadoEn: ahora(), token, lineas: nuevas,
     }
     e.inv.ordenes.push(o)
     registrar(e, actor, 'movimiento_ejecutado', 'ordenes_movimiento', o.numero, `Movimiento ejecutado: espera su verificación (${nuevas.length} ${nuevas.length === 1 ? 'línea' : 'líneas'})`, o.motivo)

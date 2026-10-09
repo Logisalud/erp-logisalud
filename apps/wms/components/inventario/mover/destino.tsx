@@ -23,7 +23,7 @@ export function BuscarDestino({ id, etiqueta, ayuda, lineas, alElegir, testid, a
       <Buscador id={id} etiqueta={etiqueta} ayuda={ayuda} valor={q} onCambio={setQ} testid={testid} autoFoco={autoFoco} />
       <div aria-live="polite" className="min-h-5 text-sm text-gray-600">{r.cargando ? 'Buscando…' : r.error ? 'No pudimos buscar. Intenta de nuevo.' : r.resultados && r.resultados.length === 0 ? 'Ninguna ubicación coincide.' : ''}</div>
       <ul className="space-y-2" data-testid={`${testid}-resultados`}>
-        {(r.resultados ?? []).map((d) => (
+        {[...(r.resultados ?? [])].sort((a, b) => Number(!!a.motivo) - Number(!!b.motivo) || a.invalidas - b.invalidas).map((d) => (
           <li key={d.posicionId}>
             <button type="button" disabled={!!d.motivo} onClick={() => alElegir({ posicionId: d.posicionId, codigo: d.codigo, area: d.area })}
               className={`flex min-h-14 w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-left ${d.motivo ? 'cursor-not-allowed border-gray-200 bg-gray-50' : 'border-gray-300 bg-white hover:border-gray-400 active:bg-gray-50'}`} data-testid="mover-destino" data-sirve={d.motivo ? 'no' : 'si'}>

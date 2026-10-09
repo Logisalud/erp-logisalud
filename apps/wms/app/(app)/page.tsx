@@ -52,7 +52,7 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
     avisos.push({ clave: 'alertas', Icono: Bell, texto: 'Alertas abiertas para ti', detalle: 'Temperatura, registro sanitario, cambios de una solicitud, diferencias con Compras o aprobados sin trasladar.', cantidad: e.alertasMias, unidad: pl(e.alertasMias, 'alerta', 'alertas'), href: '/alertas', tono: 'atencion' })
   }
   if (e.movimientosParaMi > 0) {
-    avisos.push({ clave: 'movimientos', Icono: ArrowLeftRight, texto: 'Movimientos internos que te tocan', detalle: 'Autorizar, mover o verificar: quien prepara o mueve no verifica.', cantidad: e.movimientosParaMi, unidad: pl(e.movimientosParaMi, 'movimiento', 'movimientos'), href: '/movimientos', tono: 'atencion' })
+    avisos.push({ clave: 'movimientos', Icono: ArrowLeftRight, texto: 'Movimientos internos por atender', detalle: 'Verificar lo que otra persona movió o resolver una diferencia: quien ejecuta no verifica lo suyo.', cantidad: e.movimientosParaMi, unidad: pl(e.movimientosParaMi, 'movimiento', 'movimientos'), href: '/movimientos', tono: 'atencion' })
   }
   if (roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar'].includes(r)) && e.conteosAbiertos > 0) {
     avisos.push({ clave: 'conteos', Icono: ClipboardCheck, texto: 'Conteos cíclicos abiertos', detalle: 'Cuenta a ciegas; sus ubicaciones no se mueven hasta cerrarlos.', cantidad: e.conteosAbiertos, unidad: pl(e.conteosAbiertos, 'conteo', 'conteos'), href: '/conteos', tono: 'info' })

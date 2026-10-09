@@ -21,8 +21,12 @@ do $$ begin
   alter table wms.alertas add constraint alertas_tipo_check check (tipo in (
     'TEMPERATURA', 'RS_VENCIDO', 'DIVERGENCIA_COMPRAS', 'POR_TRASLADAR_VENCIDO', 'LOTE_POR_VENCER', 'LOTE_VENCIDO',
     'SOLICITUD_AJUSTADA', 'EXCEDE_OC', 'POR_REGISTRAR_EN_COMPRAS', 'NO_COINCIDE_CON_COMPRAS',
-    'MOVIMIENTO_CON_DIFERENCIA', 'CONTEO_CON_DIFERENCIA', 'AJUSTE_POR_AUTORIZAR'));
+    'MOVIMIENTO_CON_DIFERENCIA', 'MOVIMIENTO_SIN_VERIFICAR', 'CONTEO_CON_DIFERENCIA', 'AJUSTE_POR_AUTORIZAR'));
 end $$;
+
+insert into wms.parametros (clave, valor, nota) values
+  ('movimiento_sin_verificar_horas', '24', 'Horas desde que se ejecuta un movimiento interno sin verificar antes de alertar al Jefe de Almacén')
+on conflict (clave) do nothing;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1. Kardex (solo entradas y salidas) e historia completa del lote
@@ -121,6 +125,8 @@ create table if not exists wms.ordenes_movimiento (
   motivo text not null check (nullif(trim(motivo), '') is not null),
   ejecutor_id uuid not null,                      -- quien lo crea en el sistema y mueve la mercadería: la misma persona
   ejecutado_en timestamptz not null default now(),
+  -- Llave de idempotencia del borrador: si la conexión se corta y se reintenta, el mismo borrador no crea dos movimientos.
+  token text unique,
   verificador_id uuid,
   verificado_en timestamptz,
   nota_diferencia text,
@@ -287,7 +293,7 @@ begin
 end $$;
 
 -- Crea el movimiento: quien lo registra es quien lo mueve. Queda EJECUTADO y reserva sus unidades hasta que otra persona lo verifique.
-create or replace function wms.ejecutar_movimiento(p_lineas jsonb, p_motivo text)
+create or replace function wms.ejecutar_movimiento(p_lineas jsonb, p_motivo text, p_token text default null)
 returns uuid language plpgsql security definer set search_path = wms, pg_temp as $$
 declare
   v_id uuid := gen_random_uuid();
@@ -308,6 +314,12 @@ begin
   if not wms.tiene_permiso('ejecutar') then
     raise exception 'No tienes permiso para registrar movimientos' using errcode = '42501';
   end if;
+  -- Reintento del mismo borrador (por ejemplo, tras cortarse la conexión): devuelve el movimiento ya creado, nunca uno nuevo.
+  if nullif(trim(p_token), '') is not null then
+    select id into v_id from wms.ordenes_movimiento where token = trim(p_token) and ejecutor_id = auth.uid();
+    if found then return v_id; end if;
+    v_id := gen_random_uuid();
+  end if;
   if nullif(trim(p_motivo), '') is null then
     raise exception 'Cuéntanos por qué se mueve: el motivo es obligatorio' using errcode = 'P0001';
   end if;
@@ -315,8 +327,8 @@ begin
     raise exception 'El movimiento no tiene líneas' using errcode = 'P0001';
   end if;
 
-  insert into wms.ordenes_movimiento (id, numero, motivo, ejecutor_id)
-  values (v_id, 'MI-' || v_anio || '-' || lpad(wms.siguiente_correlativo('MI-' || v_anio)::text, 5, '0'), trim(p_motivo), auth.uid());
+  insert into wms.ordenes_movimiento (id, numero, motivo, ejecutor_id, token)
+  values (v_id, 'MI-' || v_anio || '-' || lpad(wms.siguiente_correlativo('MI-' || v_anio)::text, 5, '0'), trim(p_motivo), auth.uid(), nullif(trim(p_token), ''));
 
   for x in select * from jsonb_array_elements(p_lineas) loop
     v_desde := (x->>'desde_posicion_id')::uuid;
@@ -516,8 +528,31 @@ begin
   perform wms.registrar_audit('movimiento_anulado', 'ordenes_movimiento', p_orden::text, null, null, p_motivo);
 end $$;
 
+-- Un movimiento ejecutado que lleva más de N horas sin verificar (parámetro, 24 por defecto) avisa al Jefe de Almacén. Una alerta por movimiento.
+create or replace function wms.revisar_movimientos_sin_verificar() returns integer
+language plpgsql security definer set search_path = wms, pg_temp as $$
+declare
+  r record; v_n int := 0;
+  v_horas numeric := coalesce((select valor::numeric from wms.parametros where clave = 'movimiento_sin_verificar_horas'), 24);
+begin
+  if not wms.es_usuario() then raise exception 'Sin permiso' using errcode = '42501'; end if;
+  for r in
+    select o.id, o.numero, o.ejecutado_en,
+           (select count(*) from wms.ordenes_movimiento_lineas l where l.orden_id = o.id and l.verificacion = 'PENDIENTE') as pendientes
+      from wms.ordenes_movimiento o
+     where o.estado = 'EJECUTADO' and o.ejecutado_en < now() - make_interval(secs => v_horas * 3600)
+       and exists (select 1 from wms.ordenes_movimiento_lineas l where l.orden_id = o.id and l.verificacion = 'PENDIENTE')
+  loop
+    perform wms._alertar('MOVIMIENTO_SIN_VERIFICAR', 'jefe_almacen', null, null, 'mov-sin-verificar:' || r.id,
+      format('El movimiento %s lleva más de %s horas sin verificar (%s líneas pendientes). Sus unidades siguen reservadas y en tránsito: pide a otra persona que lo verifique.',
+             r.numero, trim(to_char(v_horas, 'FM999990.##')), r.pendientes));
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
 grant execute on function
-  wms.ejecutar_movimiento(jsonb, text), wms.confirmar_movimiento(uuid),
+  wms.ejecutar_movimiento(jsonb, text, text), wms.confirmar_movimiento(uuid), wms.revisar_movimientos_sin_verificar(),
   wms.revisar_movimiento(uuid, jsonb), wms.resolver_movimiento(uuid, text, text), wms.anular_movimiento(uuid, text) to authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────

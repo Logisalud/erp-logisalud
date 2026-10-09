@@ -461,7 +461,7 @@ export class EntradasSupabase {
 
   async listarAlertas(): Promise<AlertaVista[]> {
     // Las revisiones son idempotentes: crean la alerta una sola vez mientras siga abierta.
-    await Promise.all([rpc('revisar_registro_compras', {}), rpc('revisar_por_trasladar', {}), rpc('revisar_vencimientos', {})])
+    await Promise.all([rpc('revisar_registro_compras', {}), rpc('revisar_por_trasladar', {}), rpc('revisar_vencimientos', {}), rpc('revisar_movimientos_sin_verificar', {})])
     const [filas, ingresos] = await Promise.all([traerTodo('alertas', 'wms', '*', 'creada_en'), traerTodo('ingresos', 'wms', 'id, solicitud_id')])
     const nombres = await nombresDe(filas.map((r) => s(r.atendida_por)))
     const solDeIngreso = new Map(ingresos.map((i) => [String(i.id), String(i.solicitud_id)]))

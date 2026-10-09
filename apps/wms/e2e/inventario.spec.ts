@@ -15,6 +15,22 @@ async function cambiarRol(page: Page, rol: RolDemo) {
   await expect(page.getByTestId('banner-demo')).toBeVisible()
 }
 
+/** Abre la línea `n` del movimiento: en PC/tablet es la fila de la tabla; en el teléfono, la hoja inferior de esa línea. */
+async function empezarLinea(page: Page, info: { project: { name: string } }, n: number) {
+  const telefono = info.project.name.startsWith('telefono')
+  if (telefono) {
+    if (n === 0) await page.getByTestId('editar-linea').first().click()
+    else await page.getByTestId('anadir-producto-movil').click()
+    await expect(page.getByTestId('hoja-linea')).toBeVisible()
+  } else if (n > 0) await page.getByTestId('anadir-producto').click()
+}
+/** Escribe en el buscador de producto de la línea abierta. */
+async function escribirProducto(page: Page, info: { project: { name: string } }, texto: string) {
+  const campo = info.project.name.startsWith('telefono') ? page.getByTestId('hoja-linea').getByTestId('buscar-producto') : page.getByTestId('buscar-producto').last()
+  await campo.fill(texto)
+  await expect(page.getByTestId('opcion-producto').first()).toBeVisible()
+}
+
 /** Las filas de la lista de movimientos que se ven (tabla en PC y tablet; filas compactas en el teléfono). */
 const filasVisibles = (page: Page) => page.locator('[data-testid="fila-movimiento"]:visible, [data-testid="fila-movimiento-movil"]:visible')
 /** Las líneas del detalle que se ven (tabla o filas del teléfono). */
@@ -178,104 +194,65 @@ test.describe('movimientos internos (INV-02, D-15): ejecutar → verificar', () 
     await expect(page.getByTestId('mov-espera-verificador')).toContainText(/no puede ser quien ejecutó/)
   })
 
-  test('el auxiliar registra y ejecuta una orden con productos de distintos orígenes (por ubicación y por producto); cada línea se valida contra su destino', async ({ page }, info) => {
+  test('modo tabla: una orden con productos de distintos orígenes y destinos, con mensajes por línea, resumen antes de ejecutar y número MI', async ({ page }, info) => {
     await entrarComo(page, 'auxiliar')
     await page.goto('/wms/movimientos/nuevo')
-    await expect(page.getByTestId('mover-registrar')).toBeDisabled()
-    await expect(page.getByTestId('mover-lista-vacia')).toBeVisible()
+    await expect(page.getByTestId('form-tabla')).toBeVisible()
+    await expect(page.getByTestId('revisar-ejecutar')).toBeDisabled()
+    await expect(page.getByTestId('barra-resumen')).toContainText('0 de 1 línea')
+    await expect(page.getByTestId('mensaje-linea').first()).toContainText('Busca el producto')
     await capturar(page, info, 'mover-vacio')
 
-    // 1 · por ubicación: se busca por lote, se ve todo lo que hay y «Mover todo»
-    await page.getByTestId('modo-ubicacion').click()
-    await page.getByTestId('mover-buscar-origen').fill('L-VENCE')
-    await page.getByTestId('mover-origen').first().click()
-    await expect(page.getByTestId('mover-origen-elegido')).toBeVisible()
-    await page.getByTestId('mover-todo').click()
-    // la cantidad es editable y se valida; «Todo» la deja completa
-    await page.getByTestId('mover-cantidad').first().fill('999999')
-    await expect(page.getByTestId('mover-error-cantidad').first()).toBeVisible()
-    await page.getByTestId('mover-linea-todo').first().click()
-    await expect(page.getByTestId('mover-error-cantidad')).toHaveCount(0)
-    await capturar(page, info, 'mover-por-ubicacion', { completa: true })
-    await page.getByTestId('mover-agregar').click()
-    await expect(page.getByTestId('mover-agregado')).toContainText('Agregamos 2 líneas')
+    // línea 1: producto → todas sus ubicaciones (lote, vence, estado, propietario, disponible) → origen
+    await empezarLinea(page, info, 0)
+    await escribirProducto(page, info, 'dapagliflozina')
+    await expect(page.getByTestId('opcion-producto').first()).toContainText(/en \d+ ubicaci/)
+    await capturar(page, info, 'mover-buscar-producto')
+    await page.getByTestId('opcion-producto').first().click()
+    await expect(page.getByTestId('lista-origenes')).toBeVisible()
+    await capturar(page, info, 'mover-origenes')
+    await page.locator('[data-testid="opcion-origen"]:not([disabled])').first().click()
+    // sin destino: mensaje neutral; en el destino, las ubicaciones que no sirven salen deshabilitadas con su motivo
+    await expect(page.getByTestId('lista-destinos')).toBeVisible()
+    await expect(page.locator('[data-testid="opcion-destino"][data-sirve="si"]').first()).toBeVisible()
+    await capturar(page, info, 'mover-destinos')
+    await page.locator('[data-testid="opcion-destino"][data-sirve="si"]').first().click()
+    if (esTelefono(info)) await page.getByTestId('paso-cantidad').click()
+    // la cantidad se valida al instante: pasarse del disponible es un error en palabras
+    await page.getByTestId('celda-cantidad').first().fill('999999')
+    await expect(page.locator('[data-testid="mensaje-linea"][data-tipo="error"]').first()).toContainText(/No se puede mover lo que no existe/)
+    await expect(page.getByTestId('revisar-ejecutar')).toBeDisabled()
+    await page.getByTestId('usar-todo').first().click()
+    await expect(page.locator('[data-testid="mensaje-linea"][data-tipo="error"]')).toHaveCount(0)
+    if (esTelefono(info)) await page.getByTestId('hoja-listo').click()
+    await expect(page.getByTestId('barra-resumen')).toContainText('1 de 1 línea lista')
+    await expect(page.getByTestId('revisar-ejecutar')).toBeEnabled()
 
-    // 2 · por producto: se busca el producto y se ve dónde está (otra ubicación)
-    await page.getByTestId('modo-producto').click()
-    await page.getByTestId('mover-buscar-producto').fill('dapagliflozina')
-    await expect(page.getByTestId('mover-producto').first()).toBeVisible()
-    await capturar(page, info, 'mover-por-producto')
-    await page.getByTestId('mover-producto').first().click()
-    await expect(page.getByTestId('mover-producto-elegido')).toBeVisible()
-    const libres = page.getByTestId('mover-celda').filter({ hasNot: page.getByTestId('mover-celda-no') })
-    await libres.first().getByTestId('mover-marcar').check()
-    await capturar(page, info, 'mover-producto-donde-esta', { completa: true })
-    await page.getByTestId('mover-agregar').click()
-    await expect(page.getByTestId('mover-totales')).toContainText('3 líneas')
-    await expect(page.getByTestId('mover-lista')).toBeVisible()
-    await sinDesborde(page)
-
-    // 3 · destino por defecto: se ve al instante si sirve; las líneas que no sirven explican por qué
-    const buscarDestino = async (campo: ReturnType<Page['getByTestId']>, resultado: ReturnType<Page['getByTestId']>) => {
-      for (const q of ['A-', 'B-', 'C-', 'D-', 'E-', 'F-', 'G-', 'H-', 'I-', 'J-', 'K-', 'L-', 'M-']) {
-        await campo.fill(q)
-        if (await resultado.first().waitFor({ timeout: 3000 }).then(() => true, () => false)) return
-      }
-      throw new Error('ningún destino aparece')
-    }
-    await buscarDestino(page.getByTestId('mover-buscar-destino'), page.getByTestId('mover-buscar-destino-resultados').getByTestId('mover-destino'))
-    await page.getByTestId('mover-buscar-destino-resultados').getByTestId('mover-destino').first().click()
-    await expect(page.getByTestId('mover-destino-elegido')).toBeVisible()
-    await expect(page.getByTestId('mover-registrar')).toBeDisabled()
-
-    // 4 · cada línea que el destino por defecto no recibe se resuelve con un destino propio de esa línea
-    const tarjetas = page.getByTestId('mover-linea-carrito')
-    await expect(tarjetas.first().locator('[data-testid="linea-valida"], [data-testid="linea-problema"]')).toBeVisible()
-    for (let i = 0; i < 3; i++) {
-      const t = tarjetas.nth(i)
-      await expect(t.locator('[data-testid="linea-valida"], [data-testid="linea-problema"]')).toBeVisible()
-      if (await t.getByTestId('linea-problema').count()) {
-        await expect(t.getByTestId('linea-problema')).not.toBeEmpty() // mensaje humano, antes de enviar
-        await t.getByTestId('linea-cambiar-destino').click()
-        const campo = t.getByTestId('linea-q-destino')
-        for (const q of ['A-', 'B-', 'C-', 'D-', 'E-', 'F-', 'G-', 'H-', 'I-', 'J-', 'K-', 'L-', 'M-']) {
-          await campo.fill(q)
-          // solo se pueden elegir los destinos que sirven; los demás salen deshabilitados, con su motivo
-          const primero = t.getByTestId('linea-q-destino-resultados').locator('[data-sirve="si"]').first()
-          if (!(await primero.waitFor({ timeout: 2500 }).then(() => true, () => false))) continue
-          await primero.click()
-          // la validación llega un instante después de elegir: si aparece «recibe esta línea», ese destino sirve
-          if (await t.getByTestId('linea-valida').waitFor({ timeout: 2500 }).then(() => true, () => false)) break
-          await t.getByTestId('linea-cambiar-destino').click()
-        }
-        await expect(t.getByTestId('linea-valida')).toBeVisible()
-        await expect(t.getByTestId('linea-destino-tipo')).toContainText('destino propio')
-      }
-    }
-    await expect(page.getByTestId('linea-problema')).toHaveCount(0)
-
-    // 5 · la misma celda no se agrega dos veces; se edita y se quita antes de enviar
-    await page.getByTestId('modo-producto').click()
-    await page.getByTestId('mover-buscar-producto').fill('dapagliflozina')
-    await page.getByTestId('mover-producto').first().click()
-    await expect(page.getByTestId('mover-celda-no').filter({ hasText: 'Ya está en el movimiento' }).first()).toBeVisible()
-    await page.getByTestId('mover-cambiar-producto').click()
-    await tarjetas.nth(2).getByTestId('linea-cantidad').fill('1')
-    await expect(page.getByTestId('mover-totales')).toContainText('3 líneas')
-    await tarjetas.nth(2).getByTestId('linea-quitar').click()
-    await expect(page.getByTestId('mover-totales')).toContainText('2 líneas')
-
-    await page.getByTestId('mover-motivo-rapido').first().click()
-    await expect(page.getByTestId('mover-registrar')).toBeEnabled()
+    // línea 2: otro producto, con su propio origen y destino
+    await empezarLinea(page, info, 1)
+    await escribirProducto(page, info, 'L-VENCE')
+    await page.getByTestId('opcion-producto').first().click()
+    await page.locator('[data-testid="opcion-origen"]:not([disabled])').first().click()
+    await page.locator('[data-testid="opcion-destino"][data-sirve="si"]').first().click()
+    if (esTelefono(info)) await page.getByTestId('hoja-listo').click()
+    await expect(page.getByTestId('barra-resumen')).toContainText('2 de 2 líneas listas')
     await sinDesborde(page)
     await capturar(page, info, 'mover-listo', { completa: true })
-    await page.getByTestId('mover-registrar').click()
+
+    // resumen antes de ejecutar: nada cambia hasta confirmar
+    await page.getByTestId('revisar-ejecutar').click()
+    await expect(page.getByTestId('resumen-largo')).toContainText(/Vas a mover [\d.,]+ unidades? en 2 líneas, hacia \d+ destinos?\. Motivo: Reorganización\./)
+    await expect(page.getByTestId('resumen-linea')).toHaveCount(2)
+    await sinDesborde(page)
+    await capturar(page, info, 'mover-resumen', { completa: true })
+    await page.getByTestId('volver-editar').click()
+    await expect(page.getByTestId('barra-resumen')).toContainText('2 de 2 líneas listas')
+    await page.getByTestId('revisar-ejecutar').click()
+    await page.getByTestId('ejecutar-movimiento').click()
     await expect(page.getByTestId('titulo-movimiento')).toHaveText(/MI-\d{4}-\d{5}/)
     ordenMultiorigen = (await page.getByTestId('titulo-movimiento').textContent())!
     await expect(lineasVisibles(page)).toHaveCount(2)
-    // nace ejecutado: sin autorización, el ejecutor es quien lo registró y la verificación queda para otra persona
     await expect(page.getByTestId('personas-movimiento')).toContainText('Auxiliar de almacén (demo)')
-    await expect(page.getByTestId('personas-movimiento')).toContainText('pendiente')
     await expect(page.getByTestId('mov-espera-verificador')).toBeVisible()
     await sinDesborde(page)
     await capturar(page, info, 'movimiento-detalle', { completa: true })
@@ -284,51 +261,70 @@ test.describe('movimientos internos (INV-02, D-15): ejecutar → verificar', () 
   test('las unidades de una orden ejecutada quedan reservadas: otra persona no puede moverlas', async ({ page }, info) => {
     await entrarComo(page, 'reemplazo_jefe')
     await page.goto('/wms/movimientos/nuevo')
-    await page.getByTestId('modo-ubicacion').click()
-    await page.getByTestId('mover-buscar-origen').fill('L-VENCE')
-    await page.getByTestId('mover-origen').first().click() // la ubicación NO queda bloqueada: solo sus unidades
-    await expect(page.getByTestId('mover-origen-elegido')).toBeVisible()
-    await expect(page.getByTestId('mover-celda-no').filter({ hasText: 'Reservadas por otro movimiento' })).toHaveCount(2)
-    await expect(page.getByTestId('mover-marcar').first()).toBeDisabled()
+    await empezarLinea(page, info, 0)
+    await escribirProducto(page, info, 'L-VENCE')
+    await page.getByTestId('opcion-producto').first().click()
+    await expect(page.getByTestId('lista-origenes')).toBeVisible()
+    // la ubicación NO queda bloqueada: lo reservado por el movimiento en curso no está disponible
+    await expect(page.locator('[data-testid="opcion-origen"][disabled]').or(page.getByTestId('sin-origenes')).first()).toBeVisible()
     await capturar(page, info, 'mover-reservadas')
   })
 
-  test('origen y destino por defecto: se ahorran pasos y una línea se cambia a otro destino', async ({ page }, info) => {
+  test('el destino por defecto se aplica a las líneas sin destino; una línea se cambia a otro destino', async ({ page }, info) => {
+    test.skip(esTelefono(info), 'En el teléfono el destino de cada línea se elige en la hoja inferior; se cubre en el flujo completo')
     await entrarComo(page, 'jefe_almacen')
     await page.goto('/wms/movimientos/nuevo')
-    // origen por defecto: «Por ubicación» abre directo su contenido
-    await page.getByTestId('mover-buscar-origen-defecto').fill('A-12')
-    await page.getByTestId('mover-origen-resultado').first().click()
-    await expect(page.getByTestId('mover-origen-defecto')).toBeVisible()
-    await page.getByTestId('modo-ubicacion').click()
-    await expect(page.getByTestId('mover-origen-elegido')).toBeVisible()
-    await page.getByTestId('mover-todo').click()
-    await page.getByTestId('mover-agregar').click()
-    // por producto: con origen por defecto solo muestra esa ubicación, con «ver todas»
-    await page.getByTestId('modo-producto').click()
-    await page.getByTestId('mover-buscar-producto').fill('dapagliflozina')
-    await page.getByTestId('mover-producto').first().click()
-    await expect(page.locator('[data-testid="mover-solo-origen"], [data-testid="mover-nada-en-origen"]').first()).toBeVisible()
-    await page.getByTestId('mover-ver-todas').or(page.getByTestId('mover-cambiar-producto')).first().click()
-    // destino por defecto + una línea con el suyo
-    const tarjetas = page.getByTestId('mover-linea-carrito')
-    const n = await tarjetas.count()
-    expect(n).toBeGreaterThanOrEqual(1)
-    await page.getByTestId('mover-buscar-destino').fill('A-')
-    await page.getByTestId('mover-buscar-destino-resultados').getByTestId('mover-destino').first().click()
-    await expect(page.getByTestId('mover-destino-elegido')).toBeVisible()
-    await tarjetas.first().getByTestId('linea-cambiar-destino').click()
-    await tarjetas.first().getByTestId('linea-q-destino').fill('A-')
-    const validos = tarjetas.first().getByTestId('linea-q-destino-resultados').locator('[data-sirve="si"]')
-    await expect(validos.first()).toBeVisible()
-    await validos.first().click()
-    await expect(tarjetas.first().getByTestId('linea-destino-tipo')).toContainText('destino propio')
-    // un destino que no sirve para esa línea se ve deshabilitado, con el motivo en palabras
-    await tarjetas.first().getByTestId('linea-cambiar-destino').click()
-    await tarjetas.first().getByTestId('linea-q-destino').fill('Cuarentena')
-    await expect(tarjetas.first().getByTestId('linea-q-destino-resultados').locator('[data-sirve="no"]').first()).toBeDisabled()
-    await expect(tarjetas.first().getByTestId('mover-destino-motivo').first()).toContainText(/no admite|es de|asignación/)
+    await empezarLinea(page, info, 0)
+    await escribirProducto(page, info, 'dapagliflozina')
+    await page.getByTestId('opcion-producto').first().click()
+    await page.locator('[data-testid="opcion-origen"]:not([disabled])').first().click()
+    // sin destino todavía: se cierra la lista de destinos y se fija el de la cabecera
+    await page.getByTestId('celda-destino').click()
+    const posibles = page.getByTestId('defecto-buscar-resultados').getByRole('button', { name: /\bSirve\b/ })
+    for (const q of ['A-', 'B-', 'C-', 'D-', 'E-', 'F-', 'G-', 'H-', 'I-', 'J-', 'K-', 'L-', 'M-']) {
+      await page.getByTestId('defecto-buscar').fill(q)
+      if (await posibles.first().waitFor({ timeout: 2500 }).then(() => true, () => false)) break
+    }
+    await expect(posibles.first()).toBeVisible()
+    await posibles.first().click()
+    await expect(page.getByTestId('destino-defecto')).toBeVisible()
+    await expect(page.getByTestId('celda-destino').first()).not.toContainText('Elegir a dónde va')
+    await expect(page.getByTestId('nota-defecto')).toContainText(/línea/)
+    // una línea con destino propio
+    await page.getByTestId('celda-destino').first().click()
+    const otro = page.locator('[data-testid="opcion-destino"][data-sirve="si"]').nth(1)
+    await expect(otro).toBeVisible()
+    await otro.click()
+    // un destino que no sirve sale deshabilitado, con el motivo en palabras
+    await page.getByTestId('celda-destino').first().click()
+    await expect(page.locator('[data-testid="opcion-destino"][data-sirve="no"]').first()).toBeDisabled()
+    await expect(page.getByTestId('destino-motivo').first()).toContainText(/\S+/)
     await capturar(page, info, 'mover-defectos', { completa: true })
+  })
+
+  test('el borrador no se pierde: al volver a abrir se recupera tal cual', async ({ page }, info) => {
+    await entrarComo(page, 'auxiliar')
+    await page.goto('/wms/movimientos/nuevo')
+    await empezarLinea(page, info, 0)
+    await escribirProducto(page, info, 'dapagliflozina')
+    await page.getByTestId('opcion-producto').first().click()
+    await page.locator('[data-testid="opcion-origen"]:not([disabled])').first().click()
+    await page.locator('[data-testid="opcion-destino"][data-sirve="si"]').first().click()
+    if (esTelefono(info)) await page.getByTestId('hoja-listo').click()
+    await expect(page.getByTestId('barra-resumen')).toContainText('1 de 1 línea lista')
+    await page.waitForTimeout(600) // el autoguardado espera un instante
+    await page.reload() // como si se cortara la conexión o se cerrara la app
+    await expect(page.getByTestId('borrador-recuperado')).toBeVisible()
+    await capturar(page, info, 'mover-borrador')
+    await page.getByTestId('borrador-seguir').click()
+    await expect(page.getByTestId('barra-resumen')).toContainText('1 de 1 línea lista')
+    await expect(page.getByTestId('revisar-ejecutar')).toBeEnabled()
+    // empezar de cero lo descarta
+    await page.reload()
+    await page.getByTestId('borrador-descartar').click()
+    await expect(page.getByTestId('borrador-recuperado')).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByTestId('borrador-recuperado')).toHaveCount(0)
   })
 
   test('una diferencia en una sola línea: solo esa queda abierta, las demás se confirman y el Jefe la resuelve por separado', async ({ page }, info) => {

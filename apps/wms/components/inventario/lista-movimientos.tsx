@@ -58,7 +58,7 @@ export function ListaMovimientos({ filas, vistas, mios, qInicial = '' }: { filas
       <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
         <Buscador id="q-mov" etiqueta="Buscar movimientos" ayuda="Por referencia, producto, lote, ubicación o persona." valor={f.q} onCambio={(q) => cambiar({ q })} testid="mov-buscar" />
         <div className="flex flex-wrap items-center gap-2">
-          {mios.length > 0 && <button type="button" aria-pressed={f.mios} onClick={() => cambiar({ mios: !f.mios })} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${f.mios ? PILDORA_ACTIVA : PILDORA_INACTIVA_HOVER}`} data-testid="mov-filtro-mios">Me tocan ({mios.length})</button>}
+          {mios.length > 0 && <button type="button" aria-pressed={f.mios} onClick={() => cambiar({ mios: !f.mios })} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${f.mios ? PILDORA_ACTIVA : PILDORA_INACTIVA_HOVER}`} data-testid="mov-filtro-mios">Por atender ({mios.length})</button>}
           <button type="button" onClick={() => setFiltrosAbiertos((a) => !a)} aria-expanded={filtrosAbiertos} aria-controls="mov-filtros" className="btn-secondary btn-sm md:hidden" data-testid="mov-abrir-filtros">
             <ListFilter className="h-4 w-4" aria-hidden />Filtros{totalFiltros > 0 ? ` (${totalFiltros})` : ''}
           </button>
