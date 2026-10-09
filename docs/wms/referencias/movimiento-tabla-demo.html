@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Nuevo movimiento entre ubicaciones</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&amp;family=Poppins:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7F5}
+a{color:#1F6E73}a:hover{color:#14494C}
+button{font-family:inherit}
+input{font-family:inherit}
+</style>
+</helmet>
+<div style="font-family: Poppins, system-ui, sans-serif; color: #17231C; background: #F5F7F5; min-height: 100vh; font-size: 14px; line-height: 1.45">
+
+<div style="background: #17231C; color: #FFFFFF; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 24px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="background: #F2C94C; color: #17231C; font-weight: 600; font-size: 12px; padding: 2px 8px; border-radius: 4px">DEMO</span>
+<span style="font-size: 13px">Datos de prueba · nada de esto toca el inventario real</span>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+<span style="font-size: 13px">Probar como:</span>
+<button type="button" onClick="{{asChristians}}" style="{{christiansStyle}}">Christians · Auxiliar</button>
+<button type="button" onClick="{{asCharlie}}" style="{{charlieStyle}}">Charlie · Jefe de Almacén</button>
+</div>
+</div>
+
+<div style="max-width: 1360px; margin: 0 auto; padding: 28px 24px 120px; display: flex; flex-direction: column; gap: 20px">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #4F5D55">Movimientos internos</span>
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h1 style="margin: 0; font-family: Oswald, Poppins, sans-serif; font-weight: 600; font-size: 32px; letter-spacing: 0.2px">{{pageTitle}}</h1>
+<span style="{{statusStyle}}">MI-2026-00042 · {{statusLabel}}</span>
+</div>
+<span style="color: #4F5D55">Ejecutado por <strong style="color: #17231C">{{executorName}}</strong> · 08/10/2026</span>
+</div>
+</div>
+
+<sc-if value="{{isBuild}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; gap: 20px">
+
+<div style="background: #FFFFFF; border: 1px solid #DCE3DE; border-radius: 12px; padding: 18px 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-weight: 600">Destino por defecto <span style="font-weight: 400; color: #4F5D55">(opcional)</span></span>
+<button type="button" onClick="{{toggleHeaderDest}}" style="height: 44px; text-align: left; padding: 0 14px; border: 1px solid #B9C4BD; border-radius: 8px; background: #FFFFFF; color: #17231C; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: space-between">
+<span>{{defaultDestLabel}}</span>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+</button>
+<sc-if value="{{showHeaderList}}" hint-placeholder-val="{{false}}">
+<div style="border: 1px solid #DCE3DE; border-radius: 8px; background: #FFFFFF; display: flex; flex-direction: column; max-height: 260px; overflow-y: auto">
+<sc-for list="{{headerOptions}}" as="h" hint-placeholder-count="5">
+<button type="button" onClick="{{h.pick}}" style="text-align: left; padding: 10px 14px; border: 0; border-bottom: 1px solid #EEF2EF; background: #FFFFFF; color: #17231C; font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px">
+<strong>{{h.id}}</strong>
+<span style="color: #4F5D55">{{h.meta}}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+<span style="font-size: 13px; color: #4F5D55">{{defaultNote}}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-weight: 600">Motivo</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{motivos}}" as="m" hint-placeholder-count="4">
+<button type="button" onClick="{{m.pick}}" style="{{m.style}}">{{m.label}}</button>
+</sc-for>
+</div>
+<span style="font-size: 13px; color: #4F5D55">La indicación del Jefe es verbal; aquí solo queda el motivo.</span>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCE3DE; border-radius: 12px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #DCE3DE">
+<span style="font-family: Oswald, Poppins, sans-serif; font-weight: 500; font-size: 20px">Líneas</span>
+<span style="font-size: 13px; color: #4F5D55">Cada línea tiene su propio origen y destino. Lote, vencimiento, propietario y estado se completan solos.</span>
+</div>
+<div style="overflow-x: auto">
+<div style="min-width: 1240px">
+<div style="display: grid; grid-template-columns: 40px minmax(220px, 2.2fr) minmax(180px, 1.7fr) 100px 104px 120px 96px minmax(180px, 1.7fr) 128px 48px; background: #EEF2EF; font-size: 12px; font-weight: 600; color: #34413A; text-transform: uppercase; letter-spacing: 0.4px">
+<div style="padding: 10px 8px">#</div>
+<div style="padding: 10px 8px">Producto</div>
+<div style="padding: 10px 8px">Origen · lote</div>
+<div style="padding: 10px 8px">Vence</div>
+<div style="padding: 10px 8px">Propietario</div>
+<div style="padding: 10px 8px">Estado</div>
+<div style="padding: 10px 8px">Disponible</div>
+<div style="padding: 10px 8px">Destino</div>
+<div style="padding: 10px 8px">Cantidad</div>
+<div style="padding: 10px 8px"></div>
+</div>
+
+<sc-for list="{{lines}}" as="line" hint-placeholder-count="3">
+<div style="border-top: 1px solid #DCE3DE">
+<div style="display: grid; grid-template-columns: 40px minmax(220px, 2.2fr) minmax(180px, 1.7fr) 100px 104px 120px 96px minmax(180px, 1.7fr) 128px 48px; align-items: start">
+<div style="padding: 14px 8px; color: #4F5D55">{{line.num}}</div>
+
+<div style="padding: 8px; display: flex; flex-direction: column; gap: 6px">
+<sc-if value="{{line.hasProduct}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{line.toggleProduct}}" style="text-align: left; border: 1px solid transparent; background: transparent; padding: 4px 6px; border-radius: 6px; cursor: pointer; color: #17231C; display: flex; flex-direction: column; gap: 2px">
+<strong style="font-size: 14px">{{line.productName}}</strong>
+<span style="font-size: 12px; color: #4F5D55">[{{line.productCode}}] {{line.productPres}}</span>
+</button>
+</sc-if>
+<sc-if value="{{line.noProduct}}" hint-placeholder-val="{{false}}">
+<label style="display: flex; flex-direction: column; gap: 4px">
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Buscar producto</span>
+<input type="text" value="{{line.query}}" onChange="{{line.onQuery}}" onFocus="{{line.openProduct}}" placeholder="Buscar nombre, código o lote" style="height: 40px; box-sizing: border-box; width: 100%; border: 1px solid #8FA096; border-radius: 8px; padding: 0 12px; font-size: 14px; color: #17231C; background: #FFFFFF">
+</label>
+</sc-if>
+<sc-if value="{{line.showProductList}}" hint-placeholder-val="{{false}}">
+<div style="border: 1px solid #DCE3DE; border-radius: 8px; background: #FFFFFF; display: flex; flex-direction: column">
+<sc-for list="{{line.productMatches}}" as="pm" hint-placeholder-count="3">
+<button type="button" onClick="{{pm.pick}}" style="text-align: left; padding: 8px 10px; border: 0; border-bottom: 1px solid #EEF2EF; background: #FFFFFF; cursor: pointer; color: #17231C; display: flex; flex-direction: column; gap: 2px">
+<strong style="font-size: 13px">{{pm.name}}</strong>
+<span style="font-size: 12px; color: #4F5D55">{{pm.where}}</span>
+</button>
+</sc-for>
+<sc-if value="{{line.noMatches}}" hint-placeholder-val="{{false}}">
+<span style="padding: 10px; font-size: 13px; color: #4F5D55">No encontramos ese producto. Prueba con parte del nombre o el código.</span>
+</sc-if>
+</div>
+</sc-if>
+</div>
+
+<div style="padding: 8px; display: flex; flex-direction: column; gap: 6px">
+<sc-if value="{{line.hasProduct}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{line.toggleOrigin}}" style="{{line.originBtnStyle}}">{{line.originLabel}}</button>
+</sc-if>
+<sc-if value="{{line.noProduct}}" hint-placeholder-val="{{false}}">
+<span style="padding: 10px 6px; color: #8A968F">—</span>
+</sc-if>
+<sc-if value="{{line.showOriginList}}" hint-placeholder-val="{{false}}">
+<div style="border: 1px solid #DCE3DE; border-radius: 8px; background: #FFFFFF; display: flex; flex-direction: column">
+<span style="padding: 6px 10px; font-size: 12px; color: #4F5D55; background: #F5F7F5">Dónde está · primero lo que vence antes</span>
+<sc-for list="{{line.origins}}" as="o" hint-placeholder-count="3">
+<button type="button" onClick="{{o.pick}}" style="{{o.style}}">
+<span style="display: flex; justify-content: space-between; gap: 8px"><strong>{{o.loc}}</strong><span>{{o.availLabel}}</span></span>
+<span style="font-size: 12px; color: #4F5D55">Lote {{o.lote}} · vence {{o.vence}} · {{o.state}} · {{o.owner}}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+
+<div style="padding: 14px 8px">{{line.vence}}</div>
+<div style="padding: 14px 8px">{{line.owner}}</div>
+<div style="padding: 10px 8px">
+<sc-if value="{{line.hasStock}}" hint-placeholder-val="{{true}}">
+<span style="{{line.stateStyle}}">{{line.state}}</span>
+</sc-if>
+<sc-if value="{{line.noStock}}" hint-placeholder-val="{{false}}">
+<span style="color: #8A968F">—</span>
+</sc-if>
+</div>
+<div style="padding: 14px 8px">{{line.availLabel}}</div>
+
+<div style="padding: 8px; display: flex; flex-direction: column; gap: 6px">
+<sc-if value="{{line.hasStock}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{line.toggleDest}}" style="{{line.destBtnStyle}}">{{line.destLabel}}</button>
+</sc-if>
+<sc-if value="{{line.noStock}}" hint-placeholder-val="{{false}}">
+<span style="padding: 10px 6px; color: #8A968F">—</span>
+</sc-if>
+<sc-if value="{{line.showDestList}}" hint-placeholder-val="{{false}}">
+<div style="border: 1px solid #DCE3DE; border-radius: 8px; background: #FFFFFF; display: flex; flex-direction: column">
+<sc-for list="{{line.destOptions}}" as="d" hint-placeholder-count="4">
+<button type="button" onClick="{{d.pick}}" disabled="{{d.disabled}}" style="{{d.style}}">
+<span style="display: flex; justify-content: space-between; gap: 8px"><strong>{{d.id}}</strong><span>{{d.area}}</span></span>
+<span style="font-size: 12px">{{d.note}}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+
+<div style="padding: 8px; display: flex; flex-direction: column; gap: 4px">
+<label style="display: flex; flex-direction: column; gap: 4px">
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Cantidad</span>
+<input type="number" min="1" value="{{line.qty}}" onChange="{{line.onQty}}" style="{{line.qtyStyle}}">
+</label>
+<sc-if value="{{line.hasStock}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{line.useAll}}" style="border: 0; background: transparent; color: #1F6E73; font-size: 12px; text-align: left; padding: 2px 0; cursor: pointer; text-decoration: underline">Todo ({{line.avail}})</button>
+</sc-if>
+</div>
+
+<div style="padding: 8px">
+<button type="button" onClick="{{line.remove}}" aria-label="Quitar línea" style="width: 36px; height: 36px; border: 1px solid #DCE3DE; border-radius: 8px; background: #FFFFFF; color: #4F5D55; cursor: pointer; display: flex; align-items: center; justify-content: center">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+</button>
+</div>
+</div>
+<sc-if value="{{line.hasMessage}}" hint-placeholder-val="{{false}}">
+<div style="{{line.messageStyle}}">{{line.message}}</div>
+</sc-if>
+</div>
+</sc-for>
+
+</div>
+</div>
+<div style="padding: 12px 20px; border-top: 1px solid #DCE3DE">
+<button type="button" onClick="{{addLine}}" style="height: 40px; padding: 0 16px; border: 1px dashed #8FA096; border-radius: 8px; background: #FFFFFF; color: #17231C; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+Añadir un producto
+</button>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCE3DE; border-radius: 12px; padding: 14px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<strong style="font-size: 16px">{{summaryShort}}</strong>
+<span style="font-size: 13px; color: #4F5D55">{{readyNote}}</span>
+</div>
+<button type="button" onClick="{{goReview}}" disabled="{{cannotReview}}" style="{{reviewBtnStyle}}">Revisar y ejecutar</button>
+</div>
+
+</div>
+</sc-if>
+
+<sc-if value="{{isReview}}" hint-placeholder-val="{{false}}">
+<div style="background: #FFFFFF; border: 1px solid #DCE3DE; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-family: Oswald, Poppins, sans-serif; font-weight: 500; font-size: 24px">Revisa antes de ejecutar</h2>
+<p style="margin: 0; font-size: 16px">{{summaryLong}}</p>
+<div style="display: flex; flex-direction: column; border: 1px solid #DCE3DE; border-radius: 8px">
+<sc-for list="{{reviewRows}}" as="r" hint-placeholder-count="3">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #EEF2EF">
+<span><strong>{{r.qty}} u</strong> · {{r.product}} · Lote {{r.lote}} · {{r.owner}}</span>
+<span style="font-weight: 600">{{r.from}} → {{r.to}}</span>
+</div>
+</sc-for>
+</div>
+<p style="margin: 0; color: #4F5D55">Al ejecutar, estas unidades quedan reservadas y en tránsito. El stock cambia recién cuando otra persona verifique cada línea.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<button type="button" onClick="{{backToBuild}}" style="height: 44px; padding: 0 18px; border: 1px solid #8FA096; border-radius: 8px; background: #FFFFFF; color: #17231C; font-size: 14px; cursor: pointer">Volver a editar</button>
+<button type="button" onClick="{{execute}}" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #23704A; color: #FFFFFF; font-size: 14px; font-weight: 600; cursor: pointer">Ejecutar movimiento</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isExecuted}}" hint-placeholder-val="{{false}}">
+<div style="background: #E3F3E9; border: 1px solid #A9D5B9; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-family: Oswald, Poppins, sans-serif; font-weight: 500; font-size: 24px">Movimiento ejecutado</h2>
+<p style="margin: 0; font-size: 16px">{{executedText}}</p>
+<p style="margin: 0; color: #34413A">En el mapa y en el buscador, origen y destino muestran estas unidades como «en tránsito, por verificar».</p>
+<div>
+<button type="button" onClick="{{goVerify}}" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #23704A; color: #FFFFFF; font-size: 14px; font-weight: 600; cursor: pointer">Ir a verificar</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isVerify}}" hint-placeholder-val="{{false}}">
+<div style="background: #FFFFFF; border: 1px solid #DCE3DE; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-family: Oswald, Poppins, sans-serif; font-weight: 500; font-size: 24px">Verificar MI-2026-00042</h2>
+<sc-if value="{{selfVerify}}" hint-placeholder-val="{{false}}">
+<div style="background: #FDEBD8; color: #6E3500; border-radius: 8px; padding: 12px 14px">Tú ejecutaste este movimiento, así que lo debe verificar otra persona. Cambia a Charlie arriba para probar.</div>
+</sc-if>
+<span style="color: #4F5D55">Revisa en el lugar que cada producto esté en su destino, con el lote y la cantidad correctos.</span>
+<div style="display: flex; flex-direction: column; border: 1px solid #DCE3DE; border-radius: 8px">
+<sc-for list="{{verifyRows}}" as="v" hint-placeholder-count="3">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #EEF2EF">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<strong>{{v.qty}} u · {{v.product}}</strong>
+<span style="font-size: 13px; color: #4F5D55">Lote {{v.lote}} · {{v.from}} → {{v.to}}</span>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<button type="button" onClick="{{v.ok}}" disabled="{{selfVerify}}" style="{{v.okStyle}}">✓ Coincide</button>
+<button type="button" onClick="{{v.diff}}" disabled="{{selfVerify}}" style="{{v.diffStyle}}">Hay una diferencia</button>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+<button type="button" onClick="{{allOk}}" disabled="{{selfVerify}}" style="height: 44px; padding: 0 18px; border: 1px solid #8FA096; border-radius: 8px; background: #FFFFFF; color: #17231C; font-size: 14px; cursor: pointer">Marcar todo como «Coincide»</button>
+<button type="button" onClick="{{confirmVerify}}" disabled="{{cannotConfirm}}" style="{{confirmBtnStyle}}">Confirmar verificación</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isDone}}" hint-placeholder-val="{{false}}">
+<div style="background: #FFFFFF; border: 1px solid #DCE3DE; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-family: Oswald, Poppins, sans-serif; font-weight: 500; font-size: 24px">Listo</h2>
+<p style="margin: 0; font-size: 16px">{{doneText}}</p>
+<div>
+<button type="button" onClick="{{reset}}" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #23704A; color: #FFFFFF; font-size: 14px; font-weight: 600; cursor: pointer">Empezar otro movimiento</button>
+</div>
+</div>
+</sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+var PRODUCTS = [
+  { id: 'p1', code: '300025', name: 'Diclofenaco 75 mg/3 mL', pres: 'Cja x 50 amp.' },
+  { id: 'p2', code: '100047', name: 'Dipharelax 60 mg/2 mL', pres: 'Cja x 1 amp.' },
+  { id: 'p3', code: 'DEMO-001', name: 'Dapagliflozina 10 mg', pres: 'Cja x 30 tab.' }
+];
+var STOCKS = [
+  { id: 's1', p: 'p1', loc: 'F-3.1', lote: 'L2501', vence: '15/11/2027', iso: '2027-11-15', owner: 'Logissa', state: 'Aprobado', qty: 120 },
+  { id: 's2', p: 'p1', loc: 'H-2.4', lote: 'L2515', vence: '04/10/2027', iso: '2027-10-04', owner: 'Logissa', state: 'Aprobado', qty: 32 },
+  { id: 's3', p: 'p1', loc: 'A-8', lote: 'L2602', vence: '30/03/2028', iso: '2028-03-30', owner: 'Logissa', state: 'Cuarentena', qty: 60 },
+  { id: 's4', p: 'p2', loc: 'J-2.4', lote: 'L2604', vence: '30/07/2027', iso: '2027-07-30', owner: 'Diphasac', state: 'Aprobado', qty: 75 },
+  { id: 's5', p: 'p2', loc: 'J-3.1', lote: 'L2605', vence: '29/08/2027', iso: '2027-08-29', owner: 'Diphasac', state: 'Aprobado', qty: 50 },
+  { id: 's6', p: 'p3', loc: 'G-2.3', lote: 'L2611', vence: '13/07/2027', iso: '2027-07-13', owner: 'Logissa', state: 'Aprobado', qty: 48 },
+  { id: 's7', p: 'p3', loc: 'E-9.2', lote: 'L2620', vence: '02/02/2028', iso: '2028-02-02', owner: 'Logissa', state: 'Aprobado', qty: 24 }
+];
+var DESTS = [
+  { id: 'F-4.1', owner: 'Logissa', area: 'Aprobados' },
+  { id: 'F-5.2', owner: 'Logissa', area: 'Aprobados' },
+  { id: 'H-6.3', owner: 'Logissa', area: 'Aprobados' },
+  { id: 'J-5.2', owner: 'Diphasac', area: 'Aprobados' },
+  { id: 'J-6.1', owner: 'Diphasac', area: 'Aprobados' },
+  { id: 'A-7', owner: 'Compartida', area: 'Cuarentena' },
+  { id: 'E-8.1.2', owner: 'Logissa', area: 'Bajas/Rechazados' }
+];
+var MOTIVOS = ['Reorganización', 'Reposición', 'Consolidar lotes', 'Salida de Cuarentena', 'Otro'];
+
+function norm(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+function findP(id) { for (var i = 0; i < PRODUCTS.length; i++) if (PRODUCTS[i].id === id) return PRODUCTS[i]; return null; }
+function findS(id) { for (var i = 0; i < STOCKS.length; i++) if (STOCKS[i].id === id) return STOCKS[i]; return null; }
+function findD(id) { for (var i = 0; i < DESTS.length; i++) if (DESTS[i].id === id) return DESTS[i]; return null; }
+
+function destReason(stock, dest) {
+  if (!stock) return 'Elige primero el origen';
+  if (dest.id === stock.loc) return 'Es el mismo origen';
+  if (dest.owner !== 'Compartida' && dest.owner !== stock.owner) return 'Es de ' + dest.owner;
+  if (stock.state === 'Aprobado') {
+    if (dest.area === 'Cuarentena') return 'Ya está aprobado: no vuelve a Cuarentena';
+    if (dest.area === 'Bajas/Rechazados') return 'Solo para lotes dados de baja';
+  }
+  if (stock.state === 'Cuarentena' && dest.area !== 'Cuarentena') return 'Sigue en Cuarentena: no puede ir a un rack';
+  return null;
+}
+
+var BTN = 'height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; cursor: pointer; ';
+var PICK = 'height: 40px; box-sizing: border-box; width: 100%; text-align: left; padding: 0 12px; border-radius: 8px; font-size: 14px; cursor: pointer; background: #FFFFFF; ';
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = this.initial();
+  }
+  initial() {
+    return {
+      step: 'build',
+      actor: 'Christians',
+      executor: null,
+      motivo: 'Reorganización',
+      defaultDestId: null,
+      defaultNote: 'Se aplica a las líneas sin destino. Puedes cambiar cualquier línea.',
+      headerOpen: false,
+      nextId: 4,
+      verify: {},
+      lines: [
+        { id: 1, productId: 'p1', stockId: 's1', destId: 'F-4.1', qty: '40', query: '', open: null },
+        { id: 2, productId: 'p2', stockId: 's4', destId: null, qty: '75', query: '', open: 'dest' },
+        { id: 3, productId: null, stockId: null, destId: null, qty: '', query: '', open: 'product' }
+      ]
+    };
+  }
+  upd(id, patch) {
+    this.setState(function (st) {
+      return { lines: st.lines.map(function (l) { return l.id === id ? Object.assign({}, l, patch) : l; }) };
+    });
+  }
+  toggle(id, which) {
+    this.setState(function (st) {
+      return { lines: st.lines.map(function (l) { return l.id === id ? Object.assign({}, l, { open: l.open === which ? null : which }) : l; }) };
+    });
+  }
+  used(lines, stockId, exceptId) {
+    var n = 0;
+    lines.forEach(function (l) { if (l.stockId === stockId && l.id !== exceptId) n += parseInt(l.qty, 10) || 0; });
+    return n;
+  }
+  computeLine(l, idx, lines) {
+    var self = this;
+    var prod = findP(l.productId);
+    var stock = findS(l.stockId);
+    var dest = findD(l.destId);
+    var avail = stock ? stock.qty - this.used(lines, stock.id, l.id) : 0;
+    var qty = parseInt(l.qty, 10) || 0;
+    var reason = stock && dest ? destReason(stock, dest) : null;
+
+    var error = null, hint = null;
+    if (!prod) hint = 'Busca el producto que vas a mover.';
+    else if (!stock) hint = 'Elige de dónde sale.';
+    else if (!dest) hint = 'Elige a dónde va.';
+    else if (reason) error = 'Ese destino no sirve: ' + reason + '.';
+    else if (qty <= 0) hint = 'Indica cuántas unidades.';
+    else if (qty > avail) error = 'Solo hay ' + avail + ' u disponibles en ' + stock.loc + '. No se puede mover lo que no existe.';
+
+    var q = norm(l.query);
+    var matches = PRODUCTS.filter(function (p) {
+      if (!q) return true;
+      var lotes = STOCKS.filter(function (s) { return s.p === p.id; }).map(function (s) { return s.lote; }).join(' ');
+      return norm(p.name + ' ' + p.code + ' ' + lotes).indexOf(q) !== -1;
+    }).map(function (p) {
+      var ss = STOCKS.filter(function (s) { return s.p === p.id; });
+      var total = ss.reduce(function (a, s) { return a + s.qty; }, 0);
+      return {
+        name: p.name + ' · ' + p.pres,
+        where: '[' + p.code + '] · en ' + ss.length + ' ubicaciones · ' + total + ' u',
+        pick: function () { self.upd(l.id, { productId: p.id, stockId: null, destId: null, query: '', open: 'origin', qty: '' }); }
+      };
+    });
+
+    var origins = STOCKS.filter(function (s) { return prod && s.p === prod.id; })
+      .sort(function (a, b) { return a.iso < b.iso ? -1 : 1; })
+      .map(function (s) {
+        var av = s.qty - self.used(lines, s.id, l.id);
+        var sel = stock && stock.id === s.id;
+        return {
+          loc: s.loc, lote: s.lote, vence: s.vence, state: s.state, owner: s.owner,
+          availLabel: av + ' u',
+          style: 'text-align: left; padding: 8px 10px; border: 0; border-bottom: 1px solid #EEF2EF; cursor: pointer; color: #17231C; display: flex; flex-direction: column; gap: 2px; font-size: 13px; background: ' + (sel ? '#E3F3E9' : '#FFFFFF'),
+          pick: function () {
+            var keepDest = l.destId && findD(l.destId) && !destReason(s, findD(l.destId)) ? l.destId : null;
+            var autoDest = keepDest || (self.state.defaultDestId && !destReason(s, findD(self.state.defaultDestId)) ? self.state.defaultDestId : null);
+            self.upd(l.id, { stockId: s.id, destId: autoDest, open: autoDest ? null : 'dest', qty: l.qty || String(Math.max(av, 0)) });
+          }
+        };
+      });
+
+    var destOptions = DESTS.map(function (d) {
+      var r = destReason(stock, d);
+      var sel = dest && dest.id === d.id;
+      return {
+        id: d.id,
+        area: d.area,
+        note: r ? r : (d.owner === 'Compartida' ? 'Área compartida' : d.owner),
+        disabled: !!r,
+        style: 'text-align: left; padding: 8px 10px; border: 0; border-bottom: 1px solid #EEF2EF; display: flex; flex-direction: column; gap: 2px; font-size: 13px; ' +
+          (r ? 'background: #F5F7F5; color: #6B7770; cursor: not-allowed;' : 'cursor: pointer; color: #17231C; background: ' + (sel ? '#E3F3E9' : '#FFFFFF') + ';'),
+        pick: function () { if (!r) self.upd(l.id, { destId: d.id, open: null }); }
+      };
+    });
+
+    var isAprob = stock && stock.state === 'Aprobado';
+    var qtyBad = stock && qty > avail;
+    return {
+      id: l.id,
+      num: idx + 1,
+      hasProduct: !!prod, noProduct: !prod,
+      productName: prod ? prod.name : '', productCode: prod ? prod.code : '', productPres: prod ? prod.pres : '',
+      query: l.query,
+      onQuery: function (e) { self.upd(l.id, { query: e.target.value, open: 'product' }); },
+      openProduct: function () { self.upd(l.id, { open: 'product' }); },
+      toggleProduct: function () { self.toggle(l.id, 'product'); },
+      showProductList: l.open === 'product',
+      productMatches: matches,
+      noMatches: matches.length === 0,
+      originLabel: stock ? stock.loc + ' · ' + stock.lote : 'Elegir de dónde sale',
+      originBtnStyle: PICK + 'color: #17231C; border: 1px solid ' + (stock ? '#B9C4BD' : '#1F6E73') + ';',
+      toggleOrigin: function () { self.toggle(l.id, 'origin'); },
+      showOriginList: !!prod && l.open === 'origin',
+      origins: origins,
+      hasStock: !!stock, noStock: !stock,
+      vence: stock ? stock.vence : '—',
+      owner: stock ? stock.owner : '—',
+      state: stock ? (isAprob ? '✓ Aprobado' : '◷ Cuarentena') : '',
+      stateStyle: 'display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; ' + (isAprob ? 'background: #E3F3E9; color: #1D5E3D;' : 'background: #FDEBD8; color: #6E3500;'),
+      avail: avail,
+      availLabel: stock ? avail + ' u' : '—',
+      destLabel: dest ? dest.id + ' · ' + dest.area : 'Elegir a dónde va',
+      destBtnStyle: PICK + 'color: #17231C; border: 1px solid ' + (reason ? '#B3261E' : (dest ? '#B9C4BD' : '#1F6E73')) + ';',
+      toggleDest: function () { self.toggle(l.id, 'dest'); },
+      showDestList: !!stock && l.open === 'dest',
+      destOptions: destOptions,
+      qty: l.qty,
+      onQty: function (e) { self.upd(l.id, { qty: e.target.value }); },
+      qtyStyle: 'height: 40px; box-sizing: border-box; width: 100%; border: 1px solid ' + (qtyBad ? '#B3261E' : '#8FA096') + '; border-radius: 8px; padding: 0 10px; font-size: 14px; color: #17231C; background: #FFFFFF',
+      useAll: function () { self.upd(l.id, { qty: String(Math.max(avail, 0)) }); },
+      remove: function () { self.setState(function (st) { return { lines: st.lines.filter(function (x) { return x.id !== l.id; }) }; }); },
+      hasMessage: !!(error || hint),
+      message: error || hint || '',
+      messageStyle: 'margin: 0 12px 12px 48px; padding: 8px 12px; border-radius: 8px; font-size: 13px; ' + (error ? 'background: #FBE4E2; color: #8C1D18;' : 'background: #F5F7F5; color: #4F5D55;'),
+      ok: !error && !hint,
+      qtyNum: qty, stock: stock, dest: dest, prod: prod
+    };
+  }
+  renderVals() {
+    var self = this;
+    var st = this.state;
+    var lines = st.lines.map(function (l, i) { return self.computeLine(l, i, st.lines); });
+    var valid = lines.filter(function (l) { return l.ok; });
+    var units = valid.reduce(function (a, l) { return a + l.qtyNum; }, 0);
+    var dests = {}; valid.forEach(function (l) { dests[l.dest.id] = true; });
+    var nd = Object.keys(dests).length;
+    var pending = lines.length - valid.length;
+    var canReview = lines.length > 0 && pending === 0;
+
+    var execName = st.executor || st.actor;
+    var on = 'height: 34px; padding: 0 12px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #FFFFFF; background: #FFFFFF; color: #17231C; font-weight: 600;';
+    var off = 'height: 34px; padding: 0 12px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #8FA096; background: transparent; color: #FFFFFF;';
+
+    var stepLabels = { build: 'Borrador', review: 'Borrador', executed: 'Por verificar', verify: 'Por verificar', done: 'Verificado' };
+    var stepStyles = {
+      build: 'background: #EEF2EF; color: #34413A;',
+      review: 'background: #EEF2EF; color: #34413A;',
+      executed: 'background: #E0F2F3; color: #14494C;',
+      verify: 'background: #E0F2F3; color: #14494C;',
+      done: 'background: #E3F3E9; color: #1D5E3D;'
+    };
+
+    var verifyRows = lines.filter(function (l) { return l.ok; }).map(function (l) {
+      var v = st.verify[l.id];
+      var base = 'height: 44px; padding: 0 16px; border-radius: 8px; font-size: 14px; cursor: pointer; ';
+      return {
+        qty: l.qtyNum, product: l.productName, lote: l.stock.lote, from: l.stock.loc, to: l.dest.id,
+        ok: function () { self.setState(function (s) { var m = Object.assign({}, s.verify); m[l.id] = 'ok'; return { verify: m }; }); },
+        diff: function () { self.setState(function (s) { var m = Object.assign({}, s.verify); m[l.id] = 'diff'; return { verify: m }; }); },
+        okStyle: base + (v === 'ok' ? 'background: #23704A; color: #FFFFFF; border: 1px solid #23704A; font-weight: 600;' : 'background: #FFFFFF; color: #1D5E3D; border: 1px solid #23704A;'),
+        diffStyle: base + (v === 'diff' ? 'background: #8C1D18; color: #FFFFFF; border: 1px solid #8C1D18; font-weight: 600;' : 'background: #FFFFFF; color: #8C1D18; border: 1px solid #B3261E;')
+      };
+    });
+    var decided = verifyRows.filter(function (r, i) { return st.verify[valid[i].id]; }).length;
+    var selfVerify = st.actor === execName;
+    var okCount = valid.filter(function (l) { return st.verify[l.id] === 'ok'; }).length;
+    var diffCount = valid.filter(function (l) { return st.verify[l.id] === 'diff'; }).length;
+    var cannotConfirm = selfVerify || decided < verifyRows.length;
+
+    return {
+      pageTitle: st.step === 'build' || st.step === 'review' ? 'Nuevo movimiento' : 'Movimiento entre ubicaciones',
+      statusLabel: stepLabels[st.step],
+      statusStyle: 'padding: 4px 10px; border-radius: 12px; font-size: 13px; font-weight: 600; ' + stepStyles[st.step],
+      executorName: execName,
+      christiansStyle: st.actor === 'Christians' ? on : off,
+      charlieStyle: st.actor === 'Charlie' ? on : off,
+      asChristians: function () { self.setState({ actor: 'Christians' }); },
+      asCharlie: function () { self.setState({ actor: 'Charlie' }); },
+
+      isBuild: st.step === 'build',
+      isReview: st.step === 'review',
+      isExecuted: st.step === 'executed',
+      isVerify: st.step === 'verify',
+      isDone: st.step === 'done',
+
+      defaultDestLabel: st.defaultDestId ? st.defaultDestId + ' · ' + findD(st.defaultDestId).area : 'Sin destino por defecto',
+      toggleHeaderDest: function () { self.setState({ headerOpen: !st.headerOpen }); },
+      showHeaderList: st.headerOpen,
+      headerOptions: DESTS.map(function (d) {
+        return {
+          id: d.id,
+          meta: d.area + ' · ' + (d.owner === 'Compartida' ? 'compartida' : d.owner),
+          pick: function () {
+            self.setState(function (s) {
+              var applied = 0, skipped = 0;
+              var nl = s.lines.map(function (l) {
+                if (l.destId || !l.stockId) return l;
+                if (destReason(findS(l.stockId), d)) { skipped++; return l; }
+                applied++;
+                return Object.assign({}, l, { destId: d.id, open: l.open === 'dest' ? null : l.open });
+              });
+              var note = 'Aplicado a ' + applied + ' línea(s).' + (skipped ? ' ' + skipped + ' no puede(n) ir a ' + d.id + ': elige su destino.' : ' Las líneas nuevas lo tomarán al elegir su origen.');
+              return { defaultDestId: d.id, headerOpen: false, lines: nl, defaultNote: note };
+            });
+          }
+        };
+      }),
+      defaultNote: st.defaultNote,
+      motivos: MOTIVOS.map(function (m) {
+        var sel = st.motivo === m;
+        return {
+          label: m,
+          pick: function () { self.setState({ motivo: m }); },
+          style: BTN + (sel ? 'background: #1F6E73; color: #FFFFFF; border: 1px solid #1F6E73; font-weight: 600;' : 'background: #FFFFFF; color: #17231C; border: 1px solid #B9C4BD;')
+        };
+      }),
+
+      lines: lines,
+      addLine: function () {
+        self.setState(function (s) {
+          return {
+            nextId: s.nextId + 1,
+            lines: s.lines.map(function (l) { return Object.assign({}, l, { open: null }); })
+              .concat([{ id: s.nextId, productId: null, stockId: null, destId: null, qty: '', query: '', open: 'product' }])
+          };
+        });
+      },
+      summaryShort: valid.length + ' de ' + lines.length + ' líneas listas · ' + units + ' u · ' + nd + ' destino(s)',
+      readyNote: canReview ? 'Todo listo. Revisa el resumen antes de ejecutar.' : (lines.length === 0 ? 'Añade al menos un producto.' : 'Completa ' + pending + ' línea(s) para continuar.'),
+      cannotReview: !canReview,
+      reviewBtnStyle: 'height: 44px; padding: 0 20px; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; ' + (canReview ? 'background: #23704A; color: #FFFFFF; cursor: pointer;' : 'background: #DCE3DE; color: #4F5D55; cursor: not-allowed;'),
+      goReview: function () { if (canReview) self.setState({ step: 'review' }); },
+
+      summaryLong: 'Vas a mover ' + units + ' unidades en ' + valid.length + ' líneas, hacia ' + nd + ' destino(s). Motivo: ' + st.motivo + '.',
+      reviewRows: valid.map(function (l) {
+        return { qty: l.qtyNum, product: l.productName, lote: l.stock.lote, owner: l.stock.owner, from: l.stock.loc, to: l.dest.id };
+      }),
+      backToBuild: function () { self.setState({ step: 'build' }); },
+      execute: function () { self.setState({ step: 'executed', executor: st.actor, verify: {} }); },
+
+      executedText: 'Ejecutado por ' + execName + '. ' + units + ' u en ' + valid.length + ' líneas quedan reservadas y en tránsito hasta que otra persona las verifique.',
+      goVerify: function () { self.setState({ step: 'verify' }); },
+
+      selfVerify: selfVerify,
+      verifyRows: verifyRows,
+      allOk: function () {
+        self.setState(function (s) { var m = {}; valid.forEach(function (l) { m[l.id] = 'ok'; }); return { verify: m }; });
+      },
+      cannotConfirm: cannotConfirm,
+      confirmBtnStyle: 'height: 44px; padding: 0 20px; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; ' + (cannotConfirm ? 'background: #DCE3DE; color: #4F5D55; cursor: not-allowed;' : 'background: #23704A; color: #FFFFFF; cursor: pointer;'),
+      confirmVerify: function () { if (!cannotConfirm) self.setState({ step: 'done' }); },
+
+      doneText: 'Verificado por ' + st.actor + '. ' + okCount + ' línea(s) confirmadas: su stock ya cambió de ubicación.' + (diffCount ? ' ' + diffCount + ' línea(s) con diferencia quedan abiertas para que el Jefe de Almacén las resuelva.' : ' Ninguna diferencia.'),
+      reset: function () { self.setState(self.initial()); }
+    };
+  }
+}
+</script>
+</body>
+</html>
