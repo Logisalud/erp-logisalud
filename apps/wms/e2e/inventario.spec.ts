@@ -395,6 +395,7 @@ test.describe('conteos cíclicos y ajustes (INV-05)', () => {
     await expect(page.getByTestId('conteos-vacio')).toBeVisible()
     await capturar(page, info, 'conteos', { completa: true })
     await page.locator('[data-testid^="conteo-pos-"]:not([disabled])').first().check()
+    await page.getByTestId('conteo-incidencia').fill('Faltante detectado en la entrega del lunes')
     await page.getByTestId('conteo-programar').click()
     await expect(page.getByTestId('titulo-conteo')).toHaveText(/CT-\d{4}-\d{5}/)
     const url = page.url()

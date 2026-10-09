@@ -17,12 +17,14 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
     { href: '/entradas', etiqueta: 'Entradas', icono: 'entradas' },
     { href: '/movimientos', etiqueta: 'Movimientos', icono: 'movimientos' },
     { href: '/conteos', etiqueta: 'Conteos', icono: 'conteos' },
+    { href: '/revision-diaria', etiqueta: 'Revisión diaria', icono: 'revision' },
     { href: '/kardex', etiqueta: 'Kardex', icono: 'kardex' },
     { href: '/vencimientos', etiqueta: 'Vencimientos', icono: 'vencimientos' },
     { href: '/productos', etiqueta: 'Productos', icono: 'productos' },
     { href: '/calidad', etiqueta: 'Calidad', icono: 'calidad' },
     { href: '/alertas', etiqueta: 'Alertas', icono: 'alertas', insignia: misAlertas },
     { href: '/expedientes', etiqueta: 'Expedientes', icono: 'expedientes' },
+    { href: '/reportes', etiqueta: 'Reportes', icono: 'reportes' },
   ]
   if (ctx.roles.includes('admin_wms') || ctx.roles.includes('direccion_tecnica')) items.push({ href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
   if (ctx.roles.some((r) => r !== 'auxiliar')) items.push({ href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })

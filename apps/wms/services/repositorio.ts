@@ -1,5 +1,6 @@
 import type { CambioRegulatorio, EventoAuditoria, Rol } from '@/domain/tipos'
 import type { Panorama } from '@/domain/panorama'
+import type { RepositorioOperacion } from './repositorio-operacion'
 import type { RepositorioInventario } from './repositorio-inventario'
 import type { DatosRegulatorios, EntradaProducto } from '@/domain/productos'
 import type { CambioEntrada, Decision, EntradaSolicitud, TipoIngreso } from '@/domain/entradas'
@@ -24,7 +25,7 @@ export type ResultadoAccion<T = unknown> =
  *  · demo     → datos de prueba en memoria (solo Preview / local con WMS_DEMO_LOCAL=1);
  *  · supabase → el schema `wms` del proyecto consolidado (RLS por persona).
  */
-export interface Repositorio extends RepositorioInventario {
+export interface Repositorio extends RepositorioInventario, RepositorioOperacion {
   panorama(): Promise<Panorama>
   auditoria(limite?: number): Promise<EventoAuditoria[]>
   crearProducto(entrada: EntradaProducto, actor: Actor): Promise<ResultadoAccion<{ id: string }>>

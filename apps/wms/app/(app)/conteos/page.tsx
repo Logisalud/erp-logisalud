@@ -8,14 +8,19 @@ import { ChipConteo } from '@/components/inventario/chips-inventario'
 import { FormProgramarConteo, type PosicionContable } from '@/components/inventario/form-programar-conteo'
 import { AjustesPorDecidir } from '@/components/inventario/ajustes-por-decidir'
 import { ETIQUETA_AREA } from '@/domain/zonas'
+import { CONTEOS_POR_SEMANA_DEFECTO, lunesDe } from '@/domain/operacion'
+import { ProgramacionSemanal } from '@/components/operacion/programacion-semanal'
 import { CONTADOR_AMBAR } from '@/components/estilos-opcion'
 
 export const metadata = { title: 'Conteos — WMS LOGISALUD' }
 
-export default async function Conteos() {
+export default async function Conteos({ searchParams }: { searchParams: { semana?: string } }) {
   const ctx = await exigirContexto()
   const repo = repositorio()
-  const [conteos, ajustes, p, ordenes] = await Promise.all([repo.listarConteos(), repo.listarAjustes(), repo.panorama(), repo.listarMovimientos()])
+  const [conteos, ajustes, p, ordenes, cobertura] = await Promise.all([repo.listarConteos(), repo.listarAjustes(), repo.panorama(), repo.listarMovimientos(), repo.ultimaCobertura()])
+  const hoyLunes = lunesDe(p.hoy)
+  const semana = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.semana ?? '') ? lunesDe(searchParams.semana!) : hoyLunes
+  const programaciones = await repo.programacionDeSemana(semana)
   const enMovimiento = new Set(ordenes.filter((o) => ['EJECUTADO', 'CON_DIFERENCIA'].includes(o.estado)).flatMap((o) => o.lineas.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId])))
   const puedeProgramar = puedeProgramarConteo(ctx.roles)
   const pendientes = ajustes.filter((a) => a.estado === 'PROPUESTO')
@@ -36,6 +41,8 @@ export default async function Conteos() {
           <div className="mt-3"><AjustesPorDecidir ajustes={pendientes} puedeDecidir={puedeDecidirAjuste(ctx.roles)} /></div>
         </section>
       )}
+
+      <ProgramacionSemanal semana={semana} hoyLunes={hoyLunes} programaciones={programaciones} cobertura={cobertura} posiciones={posiciones} puedeProgramar={puedeProgramar} porSemana={CONTEOS_POR_SEMANA_DEFECTO} />
 
       {puedeProgramar && <FormProgramarConteo posiciones={posiciones} />}
 

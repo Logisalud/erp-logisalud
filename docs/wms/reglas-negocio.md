@@ -139,7 +139,7 @@ Cada posición tiene tipo de área y propietario. El sistema bloquea combinacion
 - **Implementado (Batch 3, 0007):** el Jefe programa conteos por ubicación (3 por semana, parámetro `conteos_por_semana`). El contador **no ve** el saldo del sistema (ni lo puede leer por la API). Una ubicación en conteo **no se mueve** hasta cerrarlo. Si hay diferencia, la **segunda persona** cuenta, también a ciegas; si dos conteos coinciden entre sí, se registra la **causa** y el Jefe **propone** un ajuste que **autoriza Dirección Técnica** (distinta de quien propone) y deja su sustento y su fila en el Kardex; sin explicación, se **escala** con evidencia. El conteo se cierra con fecha, alcance, quién contó, diferencia, causa y acción.
 - **Kardex:** solo entradas y salidas (ingresos, carga inicial, ajustes y sus reversas), con saldo corrido y saldo inicial al comienzo del rango; los movimientos internos y cambios de estado van en la historia completa del lote.
 - **Carga inicial:** administración la sube (con vista previa fila por fila); **no se confirma sin la decisión de Dirección Técnica sobre el estado del stock inicial (D-09)**.
-- 3 por semana, programados.
+- 3 por semana, programados **por rotación** (primero lo que hace más tiempo no se cuenta); una ubicación no se repite dentro de la semana; la ubicación con movimientos por verificar no se puede contar todavía. Un **conteo extra por incidencia** exige decir la incidencia y no cuenta entre los 3. (Implementado en Batch 3b, 0009.)
 - Primer conteo ciego.
 - Reconteo por otra persona solo si hay diferencia.
 - Posición en pausa durante el conteo.
@@ -148,6 +148,7 @@ Cada posición tiene tipo de área y propietario. El sistema bloquea combinacion
 
 ## Revisión diaria (INV-04)
 Recorrido con 4 focos: orden, limpieza, ubicaciones y situaciones anormales. Solo se registran pendientes, con responsable.
+- **Implementado (Batch 3b, 0009):** lo hace el Jefe de Almacén o su reemplazo, una por día. No mueve stock, no decide estados y no es una inspección de calidad: todo traslado se hace con un Movimiento (INV-02). El **responsable es obligatorio** y debe ser alguien del equipo. Un foco con pendientes abiertos no queda «sin problemas»; la revisión no se cierra con focos sin revisar. Los pendientes siguen visibles en las revisiones siguientes hasta que su responsable (o el Jefe) los resuelve y el Jefe los verifica. Un pendiente que puede afectar producto avisa a Dirección Técnica.
 
 ## Expediente (REC-03)
 - La OC (o el N° de acta, si no hay compra) agrupa los documentos.

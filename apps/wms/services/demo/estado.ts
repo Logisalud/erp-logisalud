@@ -96,6 +96,8 @@ export interface EstadoDemo {
   cambiosRegulatorios: CambioRegulatorio[]
   /** Batch 3: libro mayor, movimientos internos, conteos, ajustes y cargas iniciales. */
   inv: InvDemo
+  /** Batch 3b: revisión diaria y programación de conteos (se crea al primer uso). */
+  op?: import('./operacion-demo').OpDemo
   solicitudes: SolicitudDemo[]
   actas: ActaDemo[]
   organolepticas: OrganolepticaVista[]

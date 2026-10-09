@@ -8,7 +8,7 @@ import type { Panorama, ProductoConReg } from '@/domain/panorama'
 import { validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, n, s, traerTodo, type Fila } from './util'
-import { InventarioSupabase } from './inventario-supabase'
+import { OperacionSupabase } from './operacion-supabase'
 
 export function mapearPosicion(r: Fila): Posicion {
   return {
@@ -26,7 +26,7 @@ export function mapearRegulatorio(r: Fila): Regulatorio {
   }
 }
 
-export class RepositorioSupabase extends InventarioSupabase implements Repositorio {
+export class RepositorioSupabase extends OperacionSupabase implements Repositorio {
   async panorama(): Promise<Panorama> {
     const [props, poss, asigs, docs, prods, regs, lotes, saldos] = await Promise.all([
       traerTodo('propietarios', 'wms'),
