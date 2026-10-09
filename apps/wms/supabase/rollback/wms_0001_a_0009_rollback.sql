@@ -1,4 +1,4 @@
--- Reversa completa del WMS (migraciones 0001–0008 + seed de topología). SE EJECUTA A MANO, por quien decida el usuario.
+-- Reversa completa del WMS (migraciones 0001–0009 + seed de topología). SE EJECUTA A MANO, por quien decida el usuario.
 -- Probada en Postgres local (tests/db/rollback.test.ts): deja intactos catalogo, compras y public.
 --
 -- ANTES: tomar el snapshot de control de Cobranzas/Compras (ver docs/wms/plan-aplicacion-produccion.md).

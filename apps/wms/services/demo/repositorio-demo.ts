@@ -1,4 +1,4 @@
-import { CAMPOS_REGULATORIOS, type CambioRegulatorio, type EventoAuditoria, type Regulatorio } from '@/domain/tipos'
+import { CAMPOS_CATALOGO, CAMPOS_REGULATORIOS, type CambioRegulatorio, type EventoAuditoria, type Regulatorio } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
 import {
   autorizarAltaProducto, autorizarEdicionRegulatoria, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio,
@@ -68,6 +68,16 @@ export class RepositorioDemo extends InventarioDemo implements Repositorio {
       const antes = actual[c.clave]
       if (antes === despues) continue
       ;(nuevo as unknown as Record<string, string | undefined>)[c.clave] = despues
+      cambios.push({ id: `${id}:${c.campo}:${e.cambiosRegulatorios.length + cambios.length}`, productoId: id, campo: c.campo, antes, despues, usuario: actor.nombre, ts: new Date().toISOString(), motivo: motivo.trim() })
+    }
+    // D-38: presentación y principio activo viven en el catálogo, con el mismo historial
+    for (const c of CAMPOS_CATALOGO) {
+      const crudo = (v.datos as Record<string, string | undefined>)[c.clave]
+      if (crudo === undefined) continue
+      const despues = crudo.trim() || undefined
+      const antes = prod[c.clave]
+      if (antes === despues) continue
+      prod[c.clave] = despues
       cambios.push({ id: `${id}:${c.campo}:${e.cambiosRegulatorios.length + cambios.length}`, productoId: id, campo: c.campo, antes, despues, usuario: actor.nombre, ts: new Date().toISOString(), motivo: motivo.trim() })
     }
     prod.reg = nuevo

@@ -49,7 +49,7 @@ export function validarMotivoRegulatorio(motivo: string | undefined): string | n
 }
 
 /** Los datos regulatorios que se envían a editar (texto tal como lo escribe la persona; vacío = quitar el dato). */
-export type DatosRegulatorios = Partial<Record<'registroSanitario' | 'rsVence' | 'formaPresentacion' | 'concentracion' | 'fabricante' | 'condicionAlmacenamiento', string>>
+export type DatosRegulatorios = Partial<Record<'registroSanitario' | 'rsVence' | 'formaPresentacion' | 'concentracion' | 'fabricante' | 'condicionAlmacenamiento' | 'presentacion' | 'principioActivo', string>>
 
 /** Valida y normaliza una edición: la fecha se convierte a ISO y no se deja un registro sin su vencimiento. */
 export function validarEdicionRegulatoria(

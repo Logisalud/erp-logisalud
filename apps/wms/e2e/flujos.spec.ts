@@ -352,6 +352,24 @@ test.describe('productos y registro sanitario', () => {
     await expect(page.getByTestId('historial-regulatorio')).toContainText('EG-55555')
   })
 
+  test('D-38: la ficha muestra presentación y principio activo y Katia los edita con historial', async ({ page }, info) => {
+    await entrarComo(page, 'direccion_tecnica')
+    await page.goto('/wms/productos')
+    await page.locator('main a[href*="/productos/prod"]:visible').first().click()
+    await expect(page.getByTestId('dato-presentacion')).toBeVisible()
+    await expect(page.getByTestId('dato-principio-activo')).toBeVisible()
+    await page.fill('#reg-presentacion', 'Caja x 90 tabletas')
+    await page.fill('#reg-principioActivo', 'Principio de prueba')
+    await page.fill('#reg-motivo', 'Corrección de la ficha (D-38).')
+    await page.getByTestId('guardar-regulatorio').click()
+    await expect(page.getByTestId('mensaje-ok')).toContainText('quedaron en el historial')
+    await expect(page.getByTestId('historial-regulatorio')).toContainText('Presentación')
+    await expect(page.getByTestId('historial-regulatorio')).toContainText('Caja x 90 tabletas')
+    await expect(page.getByTestId('dato-principio-activo')).toContainText('Principio de prueba')
+    await sinDesborde(page)
+    await capturar(page, info, 'producto-presentacion-principio', { completa: true })
+  })
+
   test('Sandra tiene la misma autoridad; el Jefe de Almacén no ve el editor', async ({ page }) => {
     await entrarComo(page, 'asistente_dt')
     await page.goto('/wms/productos')

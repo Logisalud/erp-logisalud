@@ -109,6 +109,7 @@ export class RepositorioSupabase extends InventarioSupabase implements Repositor
     const columnas: Record<keyof DatosRegulatorios, string> = {
       registroSanitario: 'registro_sanitario', rsVence: 'rs_vence', formaPresentacion: 'forma_presentacion',
       concentracion: 'concentracion', fabricante: 'fabricante', condicionAlmacenamiento: 'condicion_almacenamiento',
+      presentacion: 'presentacion', principioActivo: 'principio_activo',
     }
     const json: Record<string, string> = {}
     for (const [k, col] of Object.entries(columnas)) {

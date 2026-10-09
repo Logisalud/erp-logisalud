@@ -61,7 +61,7 @@ export async function editarRegulatorioAccion(_prev: EstadoFormulario, formData:
   const ctx = await exigirContexto()
   const id = campo(formData, 'id')
   const datos: DatosRegulatorios = {}
-  for (const k of ['registroSanitario', 'rsVence', 'formaPresentacion', 'concentracion', 'fabricante', 'condicionAlmacenamiento'] as const) {
+  for (const k of ['registroSanitario', 'rsVence', 'formaPresentacion', 'concentracion', 'fabricante', 'condicionAlmacenamiento', 'presentacion', 'principioActivo'] as const) {
     datos[k] = campo(formData, k)
   }
   const r = await repositorio().editarRegulatorio(id, datos, campo(formData, 'motivo'), {
