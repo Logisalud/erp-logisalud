@@ -94,9 +94,57 @@ export function sembrarInventario(e: EstadoDemo) {
   if (l2) inv.ordenes.push({ id: 'mi-demo-2', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Acercar al despacho', ejecutorId: 'demo:jefe_almacen', ejecutor: nombrePersona('demo:jefe_almacen')!, ejecutadoEn: new Date(Date.now() - 5 * 3_600_000).toISOString(), lineas: [l2] })
   // Uno que lleva más de 24 h sin verificar: avisa al Jefe (alerta MOVIMIENTO_SIN_VERIFICAR).
   if (l3) inv.ordenes.push({ id: 'mi-demo-3', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Reubicar por espacio', ejecutorId: 'demo:reemplazo_jefe', ejecutor: nombrePersona('demo:reemplazo_jefe')!, ejecutadoEn: new Date(Date.now() - 30 * 3_600_000).toISOString(), lineas: [l3] })
+  k = sembrarDisponibilidad(e, hacia.slice(3), k)
   inv.contadores[`MI-${anioDe(e)}`] = k
   void posDe
   sembrarConteosCerrados(e)
+}
+
+/**
+ * Las recepciones del historial que Dirección Técnica ya aprobó: unas horas después de la aprobación, el personal de almacén movió cada lote a una
+ * posición de Aprobados y otra persona lo verificó. Así «Tiempo de disponibilidad» (dock-to-stock) tiene valor y tendencia en la demo.
+ */
+function sembrarDisponibilidad(e: EstadoDemo, destinos: { id: string; codigo: string }[], k0: number): number {
+  const inv = e.inv
+  const n = nombres(e)
+  const anio = anioDe(e)
+  const horasTraslado = [3, 5, 2, 20, 4, 6, 3, 26, 5]
+  let k = k0; let i = 0; let d = 0
+  for (const s of e.solicitudes) {
+    const aprobada = e.organolepticas.filter((o) => o.solicitudId === s.id && o.decision === 'APROBADO' && o.decididoEn).map((o) => o.decididoEn!).sort().pop()
+    const lineas = s.lineas.filter((l) => l.cantidad > 0 && /^H2\d{4}[BX]?$/.test(l.lote))
+    if (!aprobada || !s.recepcion?.confirmadoEn || !lineas.length) continue
+    const ejecutadoEn = new Date(Date.parse(aprobada) + horasTraslado[i % horasTraslado.length] * 3_600_000)
+    const verificadoEn = new Date(ejecutadoEn.getTime() + 90 * 60_000)
+    i += 1
+    const cuerpo: LineaOrdenMovimiento[] = []
+    for (const l of lineas) {
+      const lote = e.panorama.lotes.find((x) => x.productoId === l.productoId && x.codigo === l.lote)
+      const saldo = lote && e.panorama.saldos.find((x) => x.loteId === lote.id && x.estado === 'APROBADO' && x.cantidad >= l.cantidad)
+      const destino = destinos[d % Math.max(1, destinos.length)]
+      if (!lote || !saldo || !destino) continue
+      d += 1
+      cuerpo.push({
+        id: `mi-hist-${i}-${cuerpo.length}`, productoId: l.productoId, producto: n.producto(l.productoId), loteId: lote.id, lote: lote.codigo, vence: lote.vence, propietario: n.propietario(saldo.propietarioId),
+        estado: 'APROBADO', procedenciaId: saldo.procedenciaId, desdePosicionId: saldo.posicionId, desde: n.posicion(saldo.posicionId), haciaPosicionId: destino.id, hacia: destino.codigo, cantidad: l.cantidad, verificacion: 'CONFIRMADA',
+      })
+    }
+    if (cuerpo.length !== lineas.length) continue
+    k += 1
+    const numero = `MI-${anio}-${String(k).padStart(5, '0')}`
+    const movId = `mov-mi-${numero}-1`
+    for (const l of cuerpo) {
+      moverSaldo(e, { ...l, propietarioId: n.loteObj(l.loteId)!.propietarioId })
+      l.movimientoId = movId
+    }
+    anotar(inv, movId, 'MOVIMIENTO', verificadoEn.toISOString(), { motivo: 'Trasladar a Aprobados lo que Dirección Técnica aprobó', ejecutorId: 'demo:auxiliar', preparadorId: 'demo:auxiliar', verificadorId: 'demo:jefe_almacen', referenciaTipo: 'orden_movimiento', referenciaId: numero },
+      cuerpo.flatMap((l) => {
+        const base = { productoId: l.productoId, loteId: l.loteId, propietarioId: n.loteObj(l.loteId)!.propietarioId, estado: l.estado, origen: origenDe(e, l.loteId, l.procedenciaId), procedenciaId: l.procedenciaId }
+        return [{ ...base, posicionId: l.desdePosicionId, delta: -l.cantidad }, { ...base, posicionId: l.haciaPosicionId, delta: l.cantidad }]
+      }))
+    inv.ordenes.push({ id: `mi-hist-${i}`, numero, estado: 'CONFIRMADO', motivo: 'Trasladar a Aprobados lo que Dirección Técnica aprobó', ejecutorId: 'demo:auxiliar', ejecutor: nombrePersona('demo:auxiliar')!, ejecutadoEn: ejecutadoEn.toISOString(), verificadorId: 'demo:jefe_almacen', verificador: nombrePersona('demo:jefe_almacen')!, verificadoEn: verificadoEn.toISOString(), movimientoId: movId, lineas: cuerpo })
+  }
+  return k
 }
 
 /**

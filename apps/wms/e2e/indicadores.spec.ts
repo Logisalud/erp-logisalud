@@ -1,30 +1,38 @@
-// Indicadores (KPI): el grupo «Inventario y almacén» de Inicio y la pantalla Indicadores dentro de Reportes, en los 4 viewports.
+// Indicadores (KPI): las 3 tarjetas de Inicio y la pantalla Indicadores dentro de Reportes, en los 4 viewports.
+// Las tarjetas muestran hacia dónde va cada indicador (color por tendencia, con ícono y palabra) y su mini gráfico de 30 días.
 import { expect, test } from '@playwright/test'
 import { capturar, entrarComo, esTelefono, sinDesborde } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
 
-const INICIO = ['exactitud', 'vencimientos', 'ocupacion', 'recepciones-dif']
+const INICIO = ['exactitud', 'vencimientos', 'disponibilidad']
 
 test.describe('Inicio: Inventario y almacén', () => {
-  test('4 indicadores con valor, variación, «¿Cómo se calcula?» y enlace a su reporte; el bloque de unidades por estado ya no está', async ({ page }, info) => {
+  test('3 indicadores con valor, tendencia con ícono y palabra, mini gráfico, «¿Cómo se calcula?» y enlace a su reporte; el bloque de unidades por estado ya no está', async ({ page }, info) => {
     await entrarComo(page, 'jefe_almacen')
     const grupo = page.getByTestId('kpis-inicio')
     await expect(grupo).toBeVisible()
     await expect(grupo.getByRole('heading', { name: 'Inventario y almacén' })).toBeVisible()
     const tarjetas = grupo.getByTestId('kpi')
-    await expect(tarjetas).toHaveCount(4)
+    await expect(tarjetas).toHaveCount(3)
     for (const [i, clave] of INICIO.entries()) await expect(tarjetas.nth(i)).toHaveAttribute('data-kpi', clave)
     await expect(page.getByText('Unidades por estado')).toHaveCount(0)
     await expect(page.getByText('Ubicaciones usadas por propietario')).toHaveCount(0)
     // cada tarjeta: valor (o por qué no hay) y variación frente al periodo anterior
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const t = tarjetas.nth(i)
       await expect(t.locator('[data-testid="kpi-valor"], [data-testid="kpi-sin-datos"]')).toBeVisible()
-      await expect(t.getByTestId('kpi-variacion')).toContainText(/frente a|Sin periodo anterior|No hay|No hubo/)
+      // hacia dónde va: ícono + cambio + palabra (el color nunca es la única señal)
+      const v = t.getByTestId('kpi-variacion')
+      await expect(v).toContainText(/mejoró|empeoró|Sin cambio|Sin periodo anterior|No hay|No hubo/)
+      if ((await v.getAttribute('data-efecto')) !== null) await expect(v.locator('svg')).toHaveCount(1)
+      await expect(t.getByTestId('kpi-tendencia')).toBeVisible() // mini gráfico de 30 días
     }
     await expect(tarjetas.nth(1)).toContainText(/\d+ lotes? · [\d.,]+ u/) // por vencer y vencidos: lotes y unidades
-    await expect(tarjetas.nth(2)).toContainText(/\d+(\.\d)? %/) // ocupación
+    await expect(tarjetas.nth(0)).toContainText(/\d+(\.\d)? %/) // exactitud
+    await expect(tarjetas.nth(2)).toContainText(/\d+(\.\d)? h/) // tiempo de disponibilidad, en horas
+    await expect(tarjetas.nth(2).getByTestId('kpi-detalle')).toContainText(/\d+ recepci/) // con detalle por propietario
+    await expect(tarjetas.nth(2).getByTestId('kpi-variacion')).toContainText(/mejoró/) // la demo acortó su cuarentena
     // ¿Cómo se calcula?: fórmula y datos
     await tarjetas.nth(1).getByTestId('kpi-como').locator('summary').click()
     await expect(tarjetas.nth(1).getByTestId('kpi-como')).toContainText('Fórmula')
@@ -41,13 +49,19 @@ test.describe('Inicio: Inventario y almacén', () => {
     await capturar(page, info, 'inicio-kpis-completa', { completa: true })
   })
 
-  test('en el teléfono las 4 tarjetas forman una cuadrícula de 2×2 encima de los pendientes', async ({ page }, info) => {
-    test.skip(!esTelefono(info), 'La cuadrícula 2×2 es del teléfono')
+  test('en el teléfono las 3 tarjetas van en una columna, encima de los pendientes; en pantallas grandes, en una fila', async ({ page }, info) => {
     await entrarComo(page, 'jefe_almacen')
     const c = await page.getByTestId('kpis-inicio').getByTestId('kpi').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y) } }))
-    expect(c[0].y).toBe(c[1].y); expect(c[2].y).toBe(c[3].y)
-    expect(c[2].y).toBeGreaterThan(c[0].y)
-    expect(c[1].x).toBeGreaterThan(c[0].x); expect(c[2].x).toBe(c[0].x)
+    expect(c).toHaveLength(3)
+    if (esTelefono(info)) {
+      expect(new Set(c.map((x) => x.x)).size).toBe(1)
+      expect(c[1].y).toBeGreaterThan(c[0].y); expect(c[2].y).toBeGreaterThan(c[1].y)
+      const yAtencion = (await page.getByTestId('atencion').boundingBox())!.y
+      expect(yAtencion).toBeGreaterThan(c[2].y)
+    } else {
+      expect(new Set(c.map((x) => x.y)).size).toBe(1)
+      expect(c[1].x).toBeGreaterThan(c[0].x); expect(c[2].x).toBeGreaterThan(c[1].x)
+    }
     await expect(page.getByTestId('atencion')).toBeVisible()
   })
 
@@ -58,15 +72,12 @@ test.describe('Inicio: Inventario y almacén', () => {
     await expect(page.getByTestId('filtro-diasHasta')).toHaveValue('90')
     await expect(page.getByTestId('titulo-reporte')).toHaveText('Vencimientos')
     await page.goto('/wms')
-    await page.getByTestId('kpis-inicio').locator('[data-kpi="recepciones-dif"]').getByTestId('kpi-enlace').click()
-    await expect(page).toHaveURL(/\/wms\/reportes\/recepciones\?diferencias=/)
+    await page.getByTestId('kpis-inicio').locator('[data-kpi="disponibilidad"]').getByTestId('kpi-enlace').click()
+    await expect(page).toHaveURL(/\/wms\/reportes\/recepciones\?/)
     await expect(page.getByTestId('titulo-reporte')).toHaveText('Recepciones')
     await page.goto('/wms')
     await page.getByTestId('kpis-inicio').locator('[data-kpi="exactitud"]').getByTestId('kpi-enlace').click()
     await expect(page).toHaveURL(/\/wms\/reportes\/exactitud\?desde=/)
-    await page.goto('/wms')
-    await page.getByTestId('kpis-inicio').locator('[data-kpi="ocupacion"]').getByTestId('kpi-enlace').click()
-    await expect(page).toHaveURL(/\/wms\/reportes\/ocupacion/)
   })
 
   test('el contador (auxiliar) no ve los indicadores: no puede leer saldos; Dirección Técnica sí', async ({ page }) => {
@@ -83,14 +94,21 @@ test.describe('Inicio: Inventario y almacén', () => {
 })
 
 test.describe('Reportes → Indicadores', () => {
-  test('todos los indicadores por tema, con «En Inicio» en los 4 y el grupo Despacho previsto', async ({ page }, info) => {
+  test('todos los indicadores por tema, con «En Inicio» en los 3, las mismas tarjetas que Inicio y el grupo Despacho previsto', async ({ page }, info) => {
     await entrarComo(page, 'jefe_almacen')
     await page.goto('/wms/reportes')
     await page.getByTestId('indicadores-enlace').click()
     await expect(page.getByTestId('titulo-indicadores')).toBeVisible()
     for (const t of ['Inventario', 'Recepciones', 'Calidad', 'Movimientos y conteos', 'Operación diaria', 'Despacho']) await expect(page.locator(`[data-testid="grupo-kpi"][data-grupo="${t}"]`)).toBeVisible()
-    await expect(page.getByTestId('kpi')).toHaveCount(17)
-    await expect(page.getByTestId('kpi-en-inicio')).toHaveCount(4)
+    await expect(page.getByTestId('kpi')).toHaveCount(18)
+    await expect(page.getByTestId('kpi-en-inicio')).toHaveCount(3)
+    await expect(page.locator('[data-kpi="ocupacion"]').getByTestId('kpi-en-inicio')).toHaveCount(0) // salió de Inicio: queda aquí
+    await expect(page.locator('[data-kpi="recepciones-dif"]').getByTestId('kpi-en-inicio')).toHaveCount(0)
+    // el mismo componente que Inicio: tendencia con ícono y palabra, y mini gráfico
+    const exa = page.locator('[data-kpi="exactitud"]')
+    await expect(exa.getByTestId('kpi-variacion')).toContainText(/mejoró|empeoró|Sin cambio/)
+    await expect(exa.getByTestId('kpi-tendencia')).toBeVisible()
+    expect(await page.getByTestId('kpi-tendencia').count()).toBeGreaterThan(8)
     for (const c of INICIO) await expect(page.locator(`[data-kpi="${c}"]`).getByTestId('kpi-en-inicio')).toBeVisible()
     await expect(page.locator('[data-kpi="tiempo-cuarentena"]').getByTestId('kpi-en-inicio')).toHaveCount(0) // solo en Reportes
     // Despacho: los 4 previstos, sin valores todavía

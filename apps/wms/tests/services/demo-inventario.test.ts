@@ -47,7 +47,7 @@ describe('Kardex e historia', () => {
 })
 
 describe('movimientos internos: ejecutar → verificar, dos personas (D-15)', () => {
-  const del = async (rol: string) => (await repo.listarMovimientos()).find((x) => x.ejecutorId === `demo:${rol}`)!
+  const del = async (rol: string) => (await repo.listarMovimientos()).find((x) => x.ejecutorId === `demo:${rol}` && x.estado === 'EJECUTADO')!
   const enOrigen = async (o: { lineas: { loteId: string; desdePosicionId: string }[] }) =>
     (await repo.panorama()).saldos.filter((s) => s.loteId === o.lineas[0].loteId && s.posicionId === o.lineas[0].desdePosicionId).reduce((n, s) => n + s.cantidad, 0)
 

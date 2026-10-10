@@ -160,6 +160,9 @@ export function construirPanoramaDemo(hoy: string): Panorama {
   poner(rackLogissa, porVencer, 'APROBADO', 90, `entrega:${porVencer.id}`)
   const yaVencido = nuevoLote(5, 'LOGISSA', 'L-VENCIDO', sumarDias(hoy, -12))
   poner(rackLogissa, yaVencido, 'APROBADO', 36, `entrega:${yaVencido.id}`)
+  // Entró en la ventana de 90 días hace poco (vence en ~2 meses y medio): por eso «Por vencer y vencidos» sube frente a hace 30 días.
+  const venceEnDosMeses = nuevoLote(2, 'LOGISSA', 'L-VENCE-2-MESES', sumarDias(hoy, 75))
+  poner(rackLogissa, venceEnDosMeses, 'APROBADO', 54, `entrega:${venceEnDosMeses.id}`)
 
   // El lote ABC: una entrega ya Aprobada y otra nueva en Cuarentena (cada una con su procedencia).
   const abc = nuevoLote(1, 'DIPHASAC', 'ABC', sumarDias(hoy, 420))

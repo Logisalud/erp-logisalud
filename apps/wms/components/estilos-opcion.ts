@@ -33,3 +33,15 @@ export const PILDORA_ACTIVA_FUERTE = 'border-green-700 bg-green-50 font-semibold
 export const CHIP_AVISO = 'border-amber-300 bg-amber-50 text-amber-900'
 export const CHIP_TEAL = 'border-teal-300 bg-teal-50 text-teal-900'
 export const CHIP_SIN_MARCAR = 'border-gray-300 bg-gray-50 text-gray-800'
+
+// Tendencia de un indicador (hacia dónde va, no si está bien o mal): verde si mejoró, ámbar si empeoró, gris si no cambió o no se juzga.
+// Siempre con ícono y palabra; el color nunca es la única señal.
+export const TENDENCIA_MEJORO = 'border-green-700/40 bg-green-50 text-green-900'
+export const TENDENCIA_EMPEORO = 'border-amber-700/40 bg-amber-50 text-amber-950'
+export const TENDENCIA_NEUTRA = 'border-gray-300 bg-gray-50 text-gray-800'
+export const LINEA_MEJORO = 'stroke-green-700'
+export const LINEA_EMPEORO = 'stroke-amber-700'
+export const LINEA_NEUTRA = 'stroke-gray-600'
+export const PUNTO_MEJORO = 'fill-green-700'
+export const PUNTO_EMPEORO = 'fill-amber-700'
+export const PUNTO_NEUTRO = 'fill-gray-600'

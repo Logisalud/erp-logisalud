@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { ChevronRight, CircleHelp, Home, Hourglass } from 'lucide-react'
 import type { Indicador, IndicadorPrevisto } from '@/domain/indicadores'
+import { ChipVariacion, Tendencia } from './tendencia'
 
 /**
- * La tarjeta de un indicador: valor, variación frente al periodo anterior (una flecha y el cambio; sin colores de bueno o malo, D-42),
- * «¿Cómo se calcula?» con la fórmula y los datos, y un clic lleva a su reporte. Sin tarjetas anidadas.
+ * La tarjeta de un indicador: valor, hacia dónde va frente al periodo anterior (ícono, cambio y palabra; el color sigue la tendencia, no una meta: D-42),
+ * su tendencia de 30 días, «¿Cómo se calcula?» con la fórmula y los datos, y un clic lleva a su reporte. Sin tarjetas anidadas.
+ * El mismo componente se usa en Inicio y en Indicadores.
  */
 export function TarjetaIndicador({ k, compacta = false, marcaInicio = false }: { k: Indicador; compacta?: boolean; marcaInicio?: boolean }) {
   return (
@@ -20,10 +22,13 @@ export function TarjetaIndicador({ k, compacta = false, marcaInicio = false }: {
         {k.sinDatos ? (
           <span className="mt-1.5 block text-sm text-gray-700" data-testid="kpi-sin-datos"><span className="tabular block font-heading text-2xl font-semibold text-gray-500 md:text-3xl">—</span>{k.sinDatos}</span>
         ) : (
-          <span className="tabular mt-1 block font-heading text-xl font-semibold leading-tight text-gray-900 md:text-3xl" data-testid="kpi-valor">{k.texto}</span>
+          <span className="mt-1 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+            <span className="tabular block whitespace-nowrap font-heading text-xl font-semibold leading-tight text-gray-900 md:text-3xl" data-testid="kpi-valor">{k.texto}</span>
+            {k.serie && <Tendencia serie={k.serie} efecto={k.variacion?.efecto ?? 'sin-juicio'} nombre={k.nombre} />}
+          </span>
         )}
-        <span className="mt-1 block text-xs leading-snug text-gray-700 md:text-[13px]" data-testid="kpi-variacion">
-          {k.variacion ? k.variacion.texto : k.sinVariacion ?? 'Sin periodo anterior para comparar.'}
+        <span className="mt-1.5 block text-xs leading-snug text-gray-700 md:text-[13px]">
+          {k.variacion ? <ChipVariacion v={k.variacion} /> : <span data-testid="kpi-variacion">{k.sinVariacion ?? 'Sin periodo anterior para comparar.'}</span>}
         </span>
       </Link>
 
@@ -38,6 +43,7 @@ export function TarjetaIndicador({ k, compacta = false, marcaInicio = false }: {
         <div className="space-y-1.5 pb-2 pt-1">
           <p><strong className="font-medium text-gray-900">Fórmula:</strong> {k.formula}</p>
           {k.datos && <p><strong className="font-medium text-gray-900">Con estos datos:</strong> {k.datos}</p>}
+          {k.variacion && <p><strong className="font-medium text-gray-900">Comparación:</strong> el cambio es {k.variacion.comparacion}.</p>}
           {!k.filtraPropietario && <p className="text-gray-700">Este indicador no se filtra por propietario.</p>}
           {k.detalle.length > 0 && compacta && (
             <dl className="space-y-0.5 md:hidden">{k.detalle.map((x) => <div key={x.etiqueta}><div className="flex justify-between gap-3"><dt>{x.etiqueta}</dt><dd className="tabular font-medium text-gray-900">{x.valor}</dd></div>{x.sub && <p className="text-[11px] leading-snug text-gray-700">{x.sub}</p>}</div>)}</dl>
@@ -65,9 +71,9 @@ export function TarjetaPrevista({ k }: { k: IndicadorPrevisto }) {
 
 /** Un grupo de indicadores con su título. `previstos`: los que se agregarán después (se muestran aparte, con borde punteado). */
 export function GrupoIndicadores({ id, titulo, descripcion, indicadores, previstos = [], compacta = false, marcaInicio = false, columnas = 4 }: {
-  id: string; titulo: string; descripcion?: string; indicadores: Indicador[]; previstos?: IndicadorPrevisto[]; compacta?: boolean; marcaInicio?: boolean; columnas?: 2 | 3 | 4
+  id: string; titulo: string; descripcion?: string; indicadores: Indicador[]; previstos?: IndicadorPrevisto[]; compacta?: boolean; marcaInicio?: boolean; columnas?: 2 | 3 | 4 | 'tres'
 }) {
-  const cols = columnas === 4 ? 'md:grid-cols-2 xl:grid-cols-4' : columnas === 3 ? 'md:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-2'
+  const cols = columnas === 4 ? 'md:grid-cols-2 xl:grid-cols-4' : columnas === 3 ? 'md:grid-cols-2 xl:grid-cols-3' : columnas === 'tres' ? 'md:grid-cols-3' : 'md:grid-cols-2'
   return (
     <section aria-labelledby={id} data-testid="grupo-kpi" data-grupo={titulo}>
       <h2 id={id} className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">{titulo}</h2>
