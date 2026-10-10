@@ -1,233 +1,186 @@
 # WMS — Plan del Batch 4: preparación para producción
 
-Estado: **propuesta, nada ejecutado.** Se ejecuta por partes, cada una con su aprobación.
-Personas: **Claude** (código, pruebas, documentos), **Sebas** (decisiones, accesos, datos), **Katia** y **Charlie** (operación, validación, capacitación).
+Estado: **propuesta ajustada con las decisiones de Sebas (2026-10-10). Nada de producción se ejecuta sin su aprobación.**
+Personas: **Claude** (código, pruebas, documentos), **Sebas** (decisiones, accesos, datos), **Katia** (Dirección Técnica), **Charlie** (Jefe de Almacén).
 
-Hallazgos de la investigación que condicionan el plan:
+## Orden de trabajo
 
-1. **`traerTodo` pagina sin orden.** `services/supabase/util.ts` pagina con `.range()` y en 22 de sus usos no ordena. En Postgres, paginar sin `ORDER BY` puede repetir o perder filas entre páginas (el mismo bug que ya corrigió `apps/cobranzas/lib/fetchAll.ts`). PostgREST además corta en 1.000 filas. Es el riesgo n.º 1 con la base real.
-2. **La CI de GitHub Actions del WMS está roja desde el 8-oct** en el paso `npm run test:e2e` (todas las corridas, incluidos los merges de #168/#169/#170). Unitarias, base de datos y build pasan. Hipótesis sin verificar: la CI corre los 4 viewports contra un solo servidor demo con estado en memoria compartido. Se arregla primero (punto 1, paso 1.0).
-3. **Ninguna migración (0001–0009) está aplicada en ninguna base.** Los adaptadores Supabase nunca se ejecutaron contra una base real: la primera prueba real es también la primera vez que corren.
-4. `plan-aplicacion-produccion.md` habla de 0001…0008; hay que actualizarlo a 0009.
+| # | Qué | Entrega |
+|---|---|---|
+| A | CI del WMS en verde + regla «nunca merge con CI en rojo» + `traerTodo` con orden obligatorio + verificación de deploys | PR propio |
+| B | Este plan actualizado | PR de documentación |
+| C | Rediseño de KPI (3 en Inicio, color por tendencia, mini gráfico, Tiempo de disponibilidad) | PR propio, con Preview y capturas; espera aprobación |
+| D | Volumen y paginación en servidor (punto 1) | Después de C |
+| E | Integración con Compras, fase 1 (punto 2) | Después de D |
+| F | Roles y cargos (punto 4) y ensayo local → aplicación real (punto 3) | Con aprobación de la ventana |
+
+La carga inicial desde Odoo y la operación en paralelo **se postergan** hasta que existan las salidas en el WMS (ver punto 5).
 
 ---
 
-## 0. Ajuste chico en las tarjetas de KPI (más es mejor / peor)
+## Previo (hecho en el PR A)
 
-**Qué es «pp»:** *puntos porcentuales*. Es la diferencia entre dos porcentajes, no un porcentaje de un porcentaje. Si la exactitud pasó de 68,8 % a 84,4 %, subió **15,6 pp** (no «22,7 %»). Se usa para que no se confunda «subió 15,6 %» con «subió 15,6 puntos». Propuesta: en pantalla escribirlo en palabras («puntos»), sin la sigla.
+1. **CI del WMS.** El job «apps/wms — dominio, base de datos, build y E2E» estaba rojo en el paso `npm run test:e2e` desde el 8-oct, en todas las corridas, incluidos los merges de #168, #169 y #170. Diagnóstico y arreglo: ver el PR A.
+2. **Regla nueva** en `apps/wms/CLAUDE.md`: nunca un merge con la CI en rojo, aunque Vercel esté en verde. Antes de pedir aprobación de un PR se informa el estado del job del WMS.
+3. **Deploys posteriores al merge de #170** (`e46a665`), leídos en solo lectura en Vercel: producción de `erp-logisalud` (Cobranzas), `erp-logisalud-compras`, `erp-logisalud-pedidos` y `auth` en **READY**; `erp-logisalud-wms` **sin deploy de producción** (los tres últimos intentos figuran CANCELED, como corresponde).
+4. **`traerTodo`**: orden obligatorio por clave única en sus 22 usos, con registro de claves (`services/supabase/claves.ts`), test unitario y test de base de datos que lo compara con las claves primarias reales.
 
-**Cambio:**
-- `domain/indicadores.ts`: cada indicador declara `mejorSiSube: boolean` (exactitud: sí; vencidos, recepciones con diferencia, tiempo en cuarentena: no; ocupación y otros neutros: se define con Katia).
-- `variacion()` devuelve el texto con palabras: «↑ 16,4 puntos · empeoró», «↑ 15,6 puntos · mejoró», «sin cambio». Los indicadores sin sentido definido muestran solo la flecha.
-- Sin colores, sin metas ni semáforos (D-42 sigue vigente).
-- Pruebas unitarias de los 17 indicadores (sentido y texto); revisar tarjeta en 4 viewports; detector Impeccable en 0.
+---
+
+## 0. KPI: rediseño (reemplaza el «ajuste chico» anterior)
+
+Detalle completo en el mensaje del pedido; resumen:
+
+- **Inicio muestra 3 indicadores:** Exactitud de inventario, Por vencer y vencidos, y **Tiempo de disponibilidad** (dock-to-stock: horas desde la recepción física confirmada hasta que la mercadería queda Aprobada y verificada en una posición de Aprobados; mediana de los últimos 30 días, con detalle por propietario). «Recepciones con diferencia» y «Ocupación del almacén» salen de Inicio y quedan en Indicadores.
+- **Tarjetas:** color **por tendencia**, no por meta (verde si mejoró, ámbar si empeoró), siempre con ícono y palabra («↑ 15,6 puntos · mejoró»); cada indicador declara si «más» es mejor o peor; el color nunca es la única señal. Mini gráfico de tendencia de 30 días en SVG propio, sin librería. Sin frases, celebraciones ni otros elementos. El mismo componente en Inicio e Indicadores.
+- **Teléfono:** las 3 tarjetas en una columna, encima de la lista de pendientes.
+- **Texto:** «puntos», no «pp».
+- `kpis.md` define Tiempo de disponibilidad; tests con datos conocidos; demo con valor y tendencia.
+- Sigue vigente D-42: sin metas ni semáforos.
 
 | Quién | Qué |
 |---|---|
-| Claude | Implementar, probar, mostrar en el Preview |
-| Katia | Confirmar el sentido de cada indicador (lista de 17) |
-| Sebas | Aprobar el texto |
-
-Decisión: ¿«puntos» o «pp»? (recomiendo «puntos»). Riesgo: bajo; un indicador mal clasificado dice «mejoró» cuando no — por eso Katia confirma la lista.
+| Claude | Implementar, probar, capturas en 4 viewports, Impeccable |
+| Katia | Confirmar el sentido (más es mejor/peor) de cada indicador |
+| Sebas | Aprobar el Preview |
 
 ---
 
 ## 1. Prueba de volumen y paginación en servidor (D-43)
 
-**Paso 1.0 — Arreglar la CI E2E** (reproducir el fallo, correr un viewport por servidor como ya hace `e2e-por-viewport.sh`). Sin esto no hay red de seguridad para lo demás.
+**Base de la prueba:** Sebas enviará una **exportación de Odoo** con productos, lotes, stock por ubicación y **movimientos de los últimos 12 meses**. **Meta: menos de 2 s por pantalla.**
 
-**Paso 1.1 — Paginación segura en `traerTodo`:** orden obligatorio por clave única (id; clientes por RUC; letra_documento por documento_id+letra_id). Cambiar la firma para que no se pueda llamar sin orden. Prueba con base local de 25.000 filas: contar, sin duplicados ni faltantes.
-
-**Paso 1.2 — Paginación y filtros en el servidor** para reportes y modo tabla: página + orden + filtros se resuelven en el servidor (`range` con orden estable, `count`), en pantalla «Anterior / Siguiente» y total. La descarga CSV/XLSX se arma en el servidor por bloques (no trae todo al navegador). Los KPI que hoy agregan en memoria pasan a funciones SQL/agregados donde el volumen lo exija.
-
-**Paso 1.3 — Prueba de volumen:** con la base que envíe Sebas, cargada en un Postgres local (no en Supabase todavía): medir tiempos de panorama, kardex, reportes, indicadores, vencimientos y carga inicial. Criterio propuesto: pantalla en < 2 s con el volumen real; descarga completa sin error. Si falta algún índice, se agrega en una migración 0010 (re-ejecutable).
-
-| Quién | Qué |
-|---|---|
-| Sebas | Enviar la base (qué formato, ver decisión) y confirmar que se puede usar sin datos personales sensibles |
-| Claude | Todo el código, el generador de volumen sintético de respaldo y el informe de tiempos |
-| Katia | Decir qué reportes usa más (para priorizar) |
-
-Decisiones: formato de la base (dump de Odoo / CSV / Excel); criterio de tiempo aceptable. Riesgos: la base real puede traer lotes/vencimientos sucios (se mide también cuántas filas no pasan validación); sin datos reales usaría volumen sintético, menos fiel.
-
----
-
-## 2. Integración con Compras (D-36), fases 1 y 2
-
-Documento base: `integracion-wms-compras.md`. Se propone la **opción A**: Compras **lee**, no se le escribe.
-
-**Fase 1 — Solo lectura (no cambia el comportamiento de Compras):**
-- Migración del WMS: vista `wms.v_cantidad_fisica_confirmada` (por línea de OC: cantidad confirmada físicamente en almacén), con `grant select` al rol que usa Compras. Se agrega a `public.schemas_compras_y_pagos()` / `aplicar_grants_del_modulo()` solo con ese permiso.
-- Compras: una columna informativa «Recibido según almacén» en el detalle de la OC y la recepción. **No reemplaza** `cantidad_recibida`, no entra en conciliación ni obligaciones.
-- Si el WMS no está aplicado, la pantalla de Compras muestra «—» (sin error).
-
-**Fase 2 — Diferencias visibles:**
-- Alerta en Compras cuando «Recibido según almacén» ≠ `cantidad_recibida`, con la lista de OC afectadas. Sigue siendo informativa; quien decide es Compras.
-- La decisión de qué hacer con una diferencia (ajustar recepción, reclamar al proveedor) queda manual.
-
-**Qué cambia en Compras:** `apps/compras/services/recepciones.ts` y `ordenes-compra.ts` (lectura de la vista), `app/ordenes-compra/[id]/page.tsx` y la pantalla de recepción (columna/alerta). **No se tocan** `domain/conciliacion.ts`, `facturas-pendientes`, `obligaciones` ni sus migraciones.
-
-**Cómo se prueba que Compras sigue funcionando:**
-1. Antes de tocar: correr los 883 tests de Compras y guardar el resultado.
-2. Cambios con pruebas propias (vista presente / ausente / vacía).
-3. Después: los mismos 883 + build + E2E de Compras en verde; comparar que los totales de recepciones, facturas pendientes y obligaciones **son idénticos** antes y después sobre la misma base de prueba.
-4. En el ensayo real (punto 3): comprobar en el Preview de Compras que OC, recepción y facturas pendientes muestran los mismos importes.
-5. Reversa: quitar la vista y la columna no afecta ningún dato de Compras (solo lectura).
+**Pasos**
+1. *(hecho en PR A)* Paginación segura de `traerTodo` y CI.
+2. **Importador de la exportación** a una base **local** (nunca Supabase) con un validador que informa filas que no pasan validación (lotes o vencimientos faltantes, productos inexistentes).
+3. **Paginación, orden y filtros en el servidor** para reportes y modo tabla (página + total + orden estable por clave única); descarga CSV/XLSX armada en el servidor por bloques.
+4. Los indicadores y paneles que hoy suman en memoria pasan a agregados SQL donde el volumen lo pida.
+5. **Medición:** panorama, Kardex, historia del lote, reportes, Vencimientos, Indicadores, modo tabla y Revisión diaria. Informe con tiempos por pantalla. Si falta un índice, migración 0010 (re-ejecutable).
 
 | Quién | Qué |
 |---|---|
-| Claude | Vista, cambios en Compras, pruebas de no regresión |
-| Sebas | Decidir A (recomendada), y las preguntas abiertas de D-36 |
-| Katia | Quién concilia las diferencias y cuándo |
-| Charlie | Si hay recepciones que no pasan por el WMS (compras directas, servicios) |
+| Sebas | Enviar la exportación de Odoo |
+| Claude | Importador, paginación, mediciones, informe |
+| Katia / Charlie | Decir qué reportes usan más, para priorizar |
 
-Decisiones: opción A vs. otras; qué hacer con recepciones fuera del WMS; quién cierra una OC con diferencia. Riesgos: tocar el módulo financiero (mitigado: solo lectura y aislado); la migración 0008 ya toca `catalogo.productos` de Compras (se aplica **al final** y se prueba con Compras); fases 3+ (escribir `cantidad_recibida`) quedan fuera.
+Decisiones: ninguna pendiente (meta fijada en 2 s). Riesgos: la exportación puede venir con datos sucios (se mide y se informa); los 12 meses de movimientos son datos históricos de Odoo, no del libro mayor del WMS: se importan solo para la prueba, no como historia real.
 
 ---
 
-## 3. Primera prueba contra Supabase real, sin costo adicional
+## 2. Integración con Compras (D-36)
 
-Base: `plan-aplicacion-produccion.md` y `aplicar-migraciones.md`. Proyecto consolidado `erp-cobranzas`, compartido con Cobranzas y Compras.
+Documento base: `integracion-wms-compras.md`. Compras **no deja de funcionar** en ninguna fase.
 
-**Opciones sin costo (decidir):**
-- **A (recomendada):** aplicar en el proyecto real, pero primero ensayar completo en un Postgres local con una copia de las tablas de Cobranzas/Compras (ya existe la cadena de tests DB). Lo real solo se toca con el ensayo en verde.
-- **B:** usar un branch de Supabase — suele tener costo; solo si Sebas confirma que está incluido en el plan.
-- **C:** segundo proyecto gratuito — no replica lo compartido; sirve para adaptadores, no para RLS/Compras.
+### Fase 1 — Solo lectura (se hace como se propuso)
+- Vista `wms.v_cantidad_fisica_confirmada` (por línea de OC: cantidad confirmada físicamente en el almacén), con `grant select` solo de lectura.
+- Compras: columna informativa **«Recibido según almacén»** en el detalle de la OC y en la recepción. No reemplaza `cantidad_recibida` ni entra en conciliación, facturas u obligaciones. Si el WMS no está aplicado, muestra «—».
 
-**Antes de aplicar (todos):**
-1. Snapshot de Cobranzas y Compras: los 8 indicadores de Cobranzas (saldo pendiente ref. 646.898,20), `catalogo.productos` = 509 filas, conteos por tabla de Compras, y esquema/funciones/policies exportados.
-2. Respaldo: dump lógico del proyecto + (si el plan lo ofrece) copia de seguridad de Supabase; guardar fuera del repo.
-3. Ventana acordada (fuera de horario de cobranzas/compras), `lock_timeout 5s` y `statement_timeout 60s`.
+### Fase 2 — Propuesta (**no se implementa sin aprobación de Sebas**): eliminar la copia manual
 
-**Qué se aplica y en qué orden:**
-1. Pasos previos de configuración: exponer el schema `wms` en la Data API; incorporarlo a `public.schemas_compras_y_pagos()` + `aplicar_grants_del_modulo()`.
-2. Migraciones **0001 → 0007**, luego **0009**, y la **0008 al final** (la única que toca un objeto de Compras: trigger en `catalogo.productos`). Si el orden numérico real exige 0008 antes de 0009, se respeta el que dicten las dependencias; se verifica en el ensayo local.
-3. Seed de catálogos y `wms.usuario_roles` (punto 4).
-4. `wms.verificar_saldos()` = 0 filas.
+Hoy, en Compras, Almacén teclea la **Cantidad Física** en la recepción de tres columnas (`registrarRecepcionTresColumnas`, `apps/compras/services/recepciones.ts`). Ese número alimenta `recepciones_items.cantidad_fisica`, suma a `ordenes_compra_items.cantidad_recibida`, decide la discrepancia físico vs. factura y de ahí nacen la obligación, la conciliación y las facturas pendientes.
 
-**Qué se prueba primero (en este orden):**
-1. **Snapshot idéntico** (nada de Cobranzas/Compras cambió).
-2. **Login** con cada rol (usuario real de Supabase Auth, no demo).
-3. **RLS**: cada rol ve/edita lo que debe y nada más (pruebas con usuarios reales de cada rol; usuario sin rol → HTTP 403/vacío).
-4. **Adaptadores** (primera ejecución real): panorama, kardex, un movimiento, un conteo, un reporte, un indicador. Cualquier error de columna/tipo aparece aquí.
-5. **Migraciones 0001–0009**: re-ejecutar una vez para confirmar idempotencia.
-6. **Compras y Cobranzas** siguen igual (snapshot + prueba humana).
+**Cambio mínimo propuesto: cambiar *quién escribe* el número, no *qué* se hace con él.**
+1. En el servicio `registrarRecepcionTresColumnas` (y en el formulario), la columna **Cantidad Física** pasa a ser de **solo lectura** y su valor se toma, en el servidor, de `wms.v_cantidad_fisica_confirmada` para esa línea de OC. Lo que venga del formulario para esa columna se **ignora** (nadie la escribe).
+2. Si la línea no tiene cantidad confirmada en el WMS, la recepción de Compras de esa línea **no se puede registrar** y la pantalla dice que falta la confirmación en el almacén (alternativa a decidir: permitir la entrada manual con motivo, para recepciones que no pasan por el WMS).
+3. **No se toca**: `domain/conciliacion.ts`, `domain/facturas-pendientes.ts`, `obligaciones`, `reportes-ordenes-compra`, sus migraciones ni las columnas. `cantidad_fisica` sigue siendo el mismo dato con el mismo significado; solo cambia su origen.
+4. Nada se escribe desde el WMS en tablas de Compras (el WMS sigue sin permisos de escritura sobre ellas).
 
-**Rollback:** `apps/wms/supabase/rollback/wms_0001_a_0009_rollback.sql` (ya probado en `tests/db/rollback.test.ts`); luego comparar contra el snapshot. Se prueba antes en local. Criterio para decidir rollback: cualquier diferencia en el snapshot o fallo de login en Cobranzas/Compras.
+**Cómo se prueba que conciliación, facturas y obligaciones no cambian**
+- **Prueba de equivalencia (dorada):** para un conjunto de casos (físico = factura, físico < factura, físico > factura, parciales, varias guías, línea exonerada), correr el flujo actual y el nuevo con **el mismo número físico** y comparar fila a fila `recepciones`, `recepciones_items`, `ordenes_compra_items.cantidad_recibida`, `obligaciones` (base, IGV, total, `espera_nota_credito`) y la cola de facturas pendientes: deben ser **idénticos**.
+- Los **883 tests de Compras** antes y después, sin cambios en los de dominio.
+- Build y E2E de Compras en verde; Preview de Compras revisado por Charlie con una OC de prueba.
+- Pruebas nuevas: sin dato del WMS (bloquea / «—»), dato presente (se usa), y el formulario no puede forzar otro valor.
+- Reversa: volver a habilitar la columna editable (un cambio de un archivo); los datos ya escritos no cambian porque la semántica es la misma.
+
+Decisiones para Sebas: aprobar o ajustar la fase 2; qué pasa con las recepciones que no pasan por el WMS (compras directas, servicios); quién resuelve una diferencia WMS ↔ factura (hoy la regla de Compras es la de las tres columnas). Riesgos: Almacén queda bloqueado en Compras si el WMS no confirmó (mitigado con la alternativa manual con motivo); la fase 2 toca el módulo financiero (mitigada con la prueba de equivalencia).
 
 | Quién | Qué |
 |---|---|
-| Sebas | Aprobar la ventana, dar acceso al proyecto, elegir A/B/C, confirmar el plan de Supabase y su respaldo |
-| Claude | Ensayo local, scripts de snapshot/verificación, aplicar con la herramienta de historial, informe |
-| Katia / Charlie | Probar login y pantallas con su rol y confirmar que Cobranzas/Compras siguen igual (Katia: Cobranzas; Charlie: operación) |
-
-Riesgos: compartir proyecto con Cobranzas/Compras (mitigado: snapshot, ventana, reversa probada); no deploy de producción del WMS hasta que todo esté verde; los adaptadores nunca corrieron → habrá errores de primera vez (esperados, por eso es una "primera prueba").
-
----
-
-## 4. Usuarios y roles
-
-Roles en `wms.usuario_roles`: `direccion_tecnica`, `asistente_dt`, `jefe_almacen`, `reemplazo_jefe`, `auxiliar`, `auditoria_lectura`, `admin_wms` (con `desde`/`hasta` para reemplazos temporales).
-
-**Lo que Sebas crea o confirma por cada persona:**
-- Correo con el que entrará (debe existir en Supabase Auth; si ya está en Cobranzas/Compras se reutiliza el mismo usuario).
-- Rol principal y, si aplica, rol de reemplazo con fechas.
-- Que está activa (y quién deja de estarlo).
-
-**Tabla a llenar (la completa Sebas; Claude la convierte en el seed):**
-
-| Persona | Correo | Rol WMS | Desde / hasta | Observación |
-|---|---|---|---|---|
-| Sebas | | admin_wms | | |
-| Katia | | (por confirmar: asistente_dt / dirección técnica) | | |
-| Charlie | | (por confirmar: jefe_almacen) | | |
-| Reemplazo del jefe | | reemplazo_jefe | | |
-| Auxiliares | | auxiliar | | |
-| Auditoría | | auditoria_lectura | | |
-
-Principio: el mínimo permiso necesario; nadie con `admin_wms` salvo Sebas. Cada rol se prueba con una persona real en el punto 3.
-
-Decisiones: quién es Dirección Técnica vs. asistente; si hay más de un jefe/reemplazo. Riesgos: un usuario existente en Cobranzas con otro correo → duplicados; roles demasiado amplios por comodidad.
+| Claude | Fase 1 (tras D); propuesta de fase 2 lista para su revisión |
+| Sebas | Aprobar la fase 2 antes de cualquier código |
+| Charlie | Revisar el Preview de Compras |
+| Katia | Confirmar qué es «físico confirmado» en el WMS |
 
 ---
 
-## 5. Carga inicial desde Odoo
+## 3. Primera prueba contra Supabase real (sin branch, sin costo adicional)
 
-**Archivo exacto** (Excel o CSV; una fila = una combinación única de producto, lote, posición y estado). Separadores `,` `;` o tab; fechas `dd/mm/aaaa` o `aaaa-mm-dd`; encabezados con o sin tilde:
+Base: `plan-aplicacion-produccion.md` y `aplicar-migraciones.md`. Proyecto consolidado `erp-cobranzas`, compartido con Cobranzas y Compras. **Se espera la aprobación de Sebas antes de tocar la base real**, y se aplica **de noche o fin de semana**.
 
-| Columna | Obligatoria | Qué lleva |
-|---|---|---|
-| `producto` (alias `codigo`) | Sí | Código del producto tal como está en el catálogo |
-| `lote` | Sí (si el producto maneja lote) | Lote del fabricante |
-| `vence` (alias `vencimiento`) | Sí (si maneja vencimiento) | Fecha de vencimiento |
-| `propietario` | Sí | Dueño del stock (empresa/cliente) |
-| `posicion` (alias `ubicacion`) | Sí | Posición física del almacén |
-| `estado` | Sí | Disponible / cuarentena / bloqueado, etc. |
-| `cantidad` | Sí | Unidades, número positivo |
+**Secuencia:** 1) ensayo completo **en local** (Postgres 16 con las tablas de Cobranzas/Compras simuladas, más el volumen del punto 1); 2) con el ensayo en verde y aprobado, aplicación en el proyecto real en la ventana acordada.
 
-Desde Odoo: exportar el inventario valorizado por lote/ubicación. Si Odoo no separa propietario o estado, se indica una columna por defecto y se corrige en el ensayo.
+### Mecanismo exacto (propuesta)
+- **Herramienta:** SQL Editor del panel de Supabase, ejecutado **por Sebas** (o Andrés), pegando cada migración tal cual está en el repo. **No** se usa `apply_migration` del MCP (se colgó el 2026-10-08) ni se aplica al mergear. Claude **no ejecuta nada** sobre la base real; solo lee el esquema por el MCP (solo lectura) para verificar.
+- **Cada paso**, uno a la vez, con la misma cabecera: `set lock_timeout = '5s'; set statement_timeout = '60s';`. Las migraciones no usan `drop … if exists` sobre objetos inexistentes (lo comprueba `tests/db/migraciones.test.ts`).
+- **Historial:** después de cada migración exitosa, Sebas ejecuta el `insert` en `supabase_migrations.schema_migrations` (versión y nombre de la migración, que Claude prepara en un bloque listo para pegar), para que la integración de Supabase con GitHub **no la vuelva a aplicar** al mergear y el historial quede completo. Claude verifica por lectura que el historial coincida con los archivos.
+- **Si algo falla o se cuelga:** detenerse, solo lecturas para reportar el estado, y no reintentar por otro método sin la aprobación de Sebas.
+- **Respaldo previo:** copia de seguridad del proyecto (la que ofrezca el plan de Supabase) y volcado lógico del esquema `public`, `catalogo`, `compras`, `almacen`, guardados fuera del repo. **Snapshot de Cobranzas y Compras** (8 indicadores de Cobranzas; saldo pendiente de referencia 646.898,20; `catalogo.productos` = 509; conteos por tabla de Compras), tomado por lectura antes y después.
+- **Rollback:** `apps/wms/supabase/rollback/wms_0001_a_0009_rollback.sql` (probado en `tests/db/rollback.test.ts`), también ejecutado por Sebas. Criterio: cualquier diferencia en el snapshot o fallo de login en Cobranzas/Compras.
 
-**Cómo será el ensayo:**
-1. Claude valida el archivo (formato, productos no encontrados, lotes duplicados, vencimientos imposibles) y entrega un informe de errores sin cargar nada.
-2. Se corrige en Odoo/archivo hasta quedar en 0 errores.
-3. Carga en la base local → comparación: total de unidades y valor por propietario = total de Odoo; `wms.verificar_saldos()` = 0.
-4. Carga en Supabase real (en la primera prueba), **conteo físico de muestra** (Katia/Charlie: ~30 posiciones) comparado con el sistema.
-5. La **carga definitiva** se hace el día del corte, con Odoo congelado (sin movimientos) durante la carga.
+### Qué se aplica y en qué orden
+1. Pasos previos: exponer el schema `wms` en la Data API; agregarlo a `public.schemas_compras_y_pagos()` y `aplicar_grants_del_modulo()`.
+2. Migraciones **0001 → 0007, luego 0009**, y la **0008 al final** (única que toca un objeto de Compras: trigger en `catalogo.productos`). El orden definitivo se confirma en el ensayo local según las dependencias reales.
+3. Seed y usuarios/roles (punto 4). 4. `wms.verificar_saldos()` = 0 filas.
+
+### Qué se prueba primero
+1. Snapshot idéntico. 2. Login con cada rol real. 3. RLS por rol. 4. Adaptadores (primera ejecución real): panorama, Kardex, un movimiento, un conteo, un reporte, un indicador. 5. Re-ejecución de las migraciones (idempotencia). 6. Compras y Cobranzas intactos.
 
 | Quién | Qué |
 |---|---|
-| Sebas | Exportar de Odoo y enviar el archivo; confirmar el corte |
-| Claude | Validador, informe, carga y conciliación |
-| Katia / Charlie | Conteo físico de la muestra; resolver lotes/vencimientos dudosos |
+| Sebas | Aprobar ventana y plan; ejecutar en el panel; respaldos; confirmar plan de Supabase |
+| Claude | Ensayo local, scripts de snapshot y verificación, bloques de historial, informe |
+| Katia / Charlie | Probar login y pantallas con su rol |
 
-Decisiones: fecha de corte; qué se hace con stock sin lote/vencimiento; qué estado inicial tiene lo dudoso (propuesta: cuarentena hasta revisar). Riesgos: datos sucios de Odoo; diferencias entre físico y sistema el día del corte; movimientos de Odoo durante la carga.
+Riesgos: base compartida (mitigado: snapshot, ventana, reversa probada); los adaptadores nunca corrieron (se esperan errores de primera vez); migración manual y orden del historial (mitigado con verificación por lectura).
 
 ---
 
-## 6. Checklist de salida
+## 4. Usuarios, cargos y permisos
 
-**Capacitación**
-- [ ] Guía corta por rol (Katia / Charlie / auxiliares), con capturas del WMS real. *(Claude escribe; Katia y Charlie revisan.)*
-- [ ] Sesión práctica en el Preview con datos demo (1 h por rol). *(Charlie y Katia; Claude apoya.)*
-- [ ] Cada persona hace un recorrido completo: recibir, mover, contar, revisar vencimientos.
-- [ ] Persona responsable de dudas la primera semana (Charlie) y canal para reportar problemas (Sebas define).
+**Cargo** = lo que se muestra en pantalla, actas y auditoría. **Permiso** (rol en `wms.usuario_roles`) = lo que la persona puede hacer. Hoy la tabla solo tiene el permiso: se agrega la columna **`cargo`** (texto, con historial de vigencia como el rol) en la migración 0010.
 
-**Operación en paralelo con Odoo** (propuesta: 4 semanas, a coordinar con la medición de KPI de D-42)
-- [ ] Odoo sigue siendo el sistema oficial; el WMS se alimenta con los mismos movimientos del día.
-- [ ] Cada día laborable: revisión diaria (lunes a viernes) en el WMS.
-- [ ] Reglas claras: qué se registra en ambos y quién es la fuente en caso de duda (Odoo, hasta la salida).
+| Persona | Cargo (se muestra) | Permisos (rol) | Correo |
+|---|---|---|---|
+| Katia | Dirección Técnica (QF) | `direccion_tecnica` | *(Sebas)* |
+| Sandra | Asistente de Dirección Técnica | `direccion_tecnica` | *(Sebas)* |
+| Charlie | Jefe de Almacén | `jefe_almacen` | *(Sebas)* |
+| Roberto | Jefe de Transporte | `jefe_almacen` | *(Sebas)* |
+| Jasury | [Asistente de almacén — confirmar el nombre exacto] | `jefe_almacen` | *(Sebas)* |
+| Christians | Auxiliar de almacén | `auxiliar` | *(Sebas)* |
+| Jose Carlos | Auxiliar de almacén | `auxiliar` | *(Sebas)* |
+| Alberto | Auxiliar de almacén | `auxiliar` | *(Sebas)* |
+| Milka | Auxiliar de almacén | `auxiliar` | *(Sebas)* |
+| Sebas | Administrador | `admin_wms` | *(Sebas)* |
+| Andrés | Administrador | `admin_wms` | *(Andrés)* |
 
-**Comparación semanal de diferencias** (cada viernes)
-1. Claude entrega un reporte «WMS vs. Odoo» por producto/lote/propietario: cantidad en cada sistema y la diferencia.
-2. Las diferencias se clasifican: error de captura WMS, error en Odoo, movimiento aún no registrado, pendiente de explicar.
-3. Katia y Charlie resuelven y firman cada semana; se anotan causas.
-4. Criterio de salida propuesto (a confirmar): 2 semanas seguidas con diferencias explicadas en el 100 % y sin diferencias de cantidad sin explicar mayores al umbral que fijen Katia y Charlie.
-
-**Salida definitiva**
-- [ ] Criterio de comparación cumplido. [ ] Corte acordado. [ ] Carga definitiva hecha y conciliada. [ ] Respaldo del día del corte. [ ] Plan de vuelta atrás: seguir con Odoo y descartar el WMS (con la reversa probada). [ ] Deploy de producción del WMS aprobado explícitamente por Sebas. [ ] Metas/semáforos de KPI se definen tras el mes de medición (D-42).
+- Solo Sebas y Andrés son `admin_wms`.
+- **Jefe de Transporte** queda previsto: hoy usa los permisos de Jefe de Almacén; cuando existan las salidas tendrá permisos propios (rol `jefe_transporte`, que se agrega en el batch de despacho). Como los permisos se leen del rol y el cargo es aparte, ese cambio no obliga a rehacer nada.
+- Consecuencias de las decisiones, para que Sebas las confirme: **Sandra con permisos de Dirección Técnica** puede aprobar ajustes de inventario (hoy solo Dirección Técnica), no solo editar datos regulatorios; el rol `asistente_dt` queda sin uso por ahora. **Roberto y Jasury con permisos de Jefe de Almacén** pueden revertir movimientos y gestionar lo que gestiona el Jefe de Almacén.
+- Cada persona se prueba con su rol real en el punto 3.
 
 | Quién | Qué |
 |---|---|
-| Claude | Guías, reporte semanal de comparación, correcciones |
-| Sebas | Decidir fecha de salida, criterio y canal de soporte |
-| Katia | Validación de indicadores y firma de diferencias |
-| Charlie | Operación diaria, conteos, firma de diferencias |
+| Sebas | Completar los correos; confirmar el cargo de Jasury y las consecuencias de arriba |
+| Claude | Migración 0010 (columna `cargo`), mostrar el cargo en pantalla/actas/auditoría, seed de usuarios |
+| Katia / Charlie | Confirmar que cada persona ve y puede lo que le toca |
 
-Decisiones: duración del paralelo; umbral de diferencia aceptable; quién responde si el WMS cae. Riesgos: doble digitación → cansancio y datos inconsistentes (mitigado: periodo corto y acotado); el equipo vuelve a Odoo si el WMS es lento (de ahí la prueba de volumen); la fuente de verdad ambigua.
+Riesgos: un correo distinto al usuario ya existente en Cobranzas/Compras duplica la persona (se usa el mismo usuario de Auth); permisos amplios por comodidad (se revisan al terminar el ensayo).
 
 ---
 
-## Orden recomendado
+## 5. Carga inicial desde Odoo y operación en paralelo — **POSTERGADOS**
 
-1. CI E2E arreglada (1.0) y ajuste 0 de KPI.
-2. Paginación en servidor + prueba de volumen (1.1–1.3), con la base que envíe Sebas.
-3. Integración con Compras fases 1–2 (en local).
-4. Ensayo completo local → primera prueba contra Supabase real (3), con usuarios (4).
-5. Carga inicial: ensayo y validación (5).
-6. Capacitación y operación en paralelo (6).
+**Motivo (decisión de Sebas):** sin salidas en el WMS, el stock del WMS no puede cuadrar con Odoo. Se hacen cuando existan las salidas. **No se ejecuta nada de esto en el Batch 4.** El formato del archivo y el procedimiento quedan documentados en `carga-inicial-odoo.md`.
 
-Cada paso termina con un informe y espera aprobación antes de pasar al siguiente. Nada de esto toca producción del WMS sin orden explícita.
+Reglas ya decididas para cuando toque:
+- **Stock sin lote o vencimiento:** no entra como Aprobado; se completa en el inventario general y lo que no se pueda completar entra en **Cuarentena** para decisión de Katia.
+- **Paralelo con Odoo:** **4 semanas**, con la regla de que **toda diferencia esté explicada y firmada por Katia y Charlie**.
 
-## Decisiones que necesito de Sebas (resumen)
+---
 
-1. «puntos» vs. «pp» en la UI. 2. Formato de la base para la prueba de volumen y criterio de tiempo. 3. Opción A de D-36 y preguntas abiertas. 4. Opción A/B/C para la prueba en Supabase, y ventana. 5. Tabla de personas y roles. 6. Fecha de corte y manejo del stock sin lote/vencimiento. 7. Duración del paralelo y umbral de diferencias.
+## Decisiones que quedan para Sebas
+
+1. Aprobar o ajustar la **fase 2 de Compras** (y qué hacer con recepciones fuera del WMS).
+2. Aprobar el **mecanismo de aplicación** (SQL Editor por Sebas/Andrés + historial manual + `lock_timeout`) y la **ventana**.
+3. Correos de la tabla de personas, cargo exacto de Jasury y las consecuencias de los permisos.
+4. Enviar la **exportación de Odoo** para la prueba de volumen.
