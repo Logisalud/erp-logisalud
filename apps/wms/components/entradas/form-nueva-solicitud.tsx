@@ -11,6 +11,7 @@ import {
 import type { OcPendiente } from '@/domain/entradas-vistas'
 import { formatoFecha, parsearVencimiento } from '@/domain/fechas'
 import type { Propietario } from '@/domain/tipos'
+import { CampoVencimiento } from '../campo-vencimiento'
 import { useAccion } from '../usar-accion'
 import { Aviso } from './aviso'
 import { SelectorProducto, type ProductoElegido } from './selector-producto'
@@ -106,7 +107,7 @@ export function FormNuevaSolicitud({ propietarios, ocs }: { propietarios: Propie
           {err(`producto-${l.clave}`) && <p role="alert" className="mt-1 text-xs text-red-700">{err(`producto-${l.clave}`)}</p>}</div>
       )}
       <div><label htmlFor={`lote-${l.clave}`} className="etiqueta">Lote</label><input id={`lote-${l.clave}`} className={`campo ${err(`lote-${l.clave}`) ? '!border-red-500' : ''}`} value={l.lote} onChange={(ev) => set(l.clave, 'lote', ev.target.value)} placeholder="Como está impreso" autoComplete="off" />{err(`lote-${l.clave}`) && <p role="alert" className="mt-1 text-xs text-red-700">{err(`lote-${l.clave}`)}</p>}</div>
-      <div><label htmlFor={`vence-${l.clave}`} className="etiqueta">Vencimiento</label><input id={`vence-${l.clave}`} className={`campo tabular ${err(`vence-${l.clave}`) ? '!border-red-500' : ''}`} value={l.vence} onChange={(ev) => set(l.clave, 'vence', ev.target.value)} placeholder="30/06/2028" autoComplete="off" />
+      <div><label htmlFor={`vence-${l.clave}`} className="etiqueta">Vencimiento</label><CampoVencimiento id={`vence-${l.clave}`} className={`campo tabular ${err(`vence-${l.clave}`) ? '!border-red-500' : ''}`} value={l.vence} onChange={(v) => set(l.clave, 'vence', v)} />
         {err(`vence-${l.clave}`) ? <p role="alert" className="mt-1 text-xs text-red-700">{err(`vence-${l.clave}`)}</p> : l.vence.trim() && parsearVencimiento(l.vence) ? <p className="mt-1 text-xs text-gray-600">{formatoFecha(parsearVencimiento(l.vence)!.fecha)}</p> : null}</div>
       <div><label htmlFor={`cant-${l.clave}`} className="etiqueta">Cantidad</label><input id={`cant-${l.clave}`} className={`campo tabular ${err(`cantidad-${l.clave}`) ? '!border-red-500' : ''}`} inputMode="numeric" value={l.cantidad} onChange={(ev) => set(l.clave, 'cantidad', ev.target.value.replace(/[^\d]/g, ''))} autoComplete="off" />{err(`cantidad-${l.clave}`) && <p role="alert" className="mt-1 text-xs text-red-700">{err(`cantidad-${l.clave}`)}</p>}</div>
       <button type="button" onClick={() => setLineas((x) => x.filter((y) => y.clave !== l.clave))} aria-label={`Quitar el lote ${l.lote || i + 1}`} className="flex h-12 w-12 items-center justify-center self-end rounded-full text-gray-700 hover:bg-gray-200"><Trash2 className="h-5 w-5" aria-hidden /></button>
