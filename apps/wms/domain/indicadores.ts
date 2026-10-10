@@ -95,7 +95,8 @@ export interface DatosIndicadores {
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
 
-const limaDia = (ts: string) => new Date(ts).toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
+/** El día de Lima (UTC−5, sin horario de verano) de un instante. Aritmética simple: se llama miles de veces por pantalla (también para la tendencia). */
+const limaDia = (ts: string) => new Date(Date.parse(ts) - 5 * 3_600_000).toISOString().slice(0, 10)
 const enPeriodo = (dia: string, p: Periodo) => dia >= p.desde && dia <= p.hasta
 const nf = (n: number, dec = 1) => n.toLocaleString('es-PE', { maximumFractionDigits: dec })
 const pct = (n: number) => `${nf(n)} %`

@@ -207,7 +207,7 @@ export class OperacionDemo extends InventarioDemo implements RepositorioOperacio
     const e = estadoE(); sembrarInventario(e)
     const m = new Map<string, Saldo>()
     for (const x of e.inv.ledger) {
-      if (new Date(x.ts).toLocaleDateString('en-CA', { timeZone: 'America/Lima' }) > fecha) continue
+      if (new Date(Date.parse(x.ts) - 5 * 3_600_000).toISOString().slice(0, 10) > fecha) continue // día de Lima (UTC−5)
       const k = [x.posicionId, x.productoId, x.loteId, x.propietarioId, x.estado, x.procedenciaId].join('|')
       const s = m.get(k) ?? { posicionId: x.posicionId, productoId: x.productoId, loteId: x.loteId, propietarioId: x.propietarioId, estado: x.estado, procedenciaId: x.procedenciaId, cantidad: 0 }
       s.cantidad += x.delta; m.set(k, s)
