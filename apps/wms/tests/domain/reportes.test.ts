@@ -161,3 +161,19 @@ describe('reporte de Vencimientos', () => {
     expect(textoVence(-3)).toBe('Vencido hace 3 días'); expect(textoVence(0)).toBe('Vence hoy'); expect(textoVence(1)).toBe('Vence en 1 día')
   })
 })
+
+describe('diferencias de una recepción (D-35)', () => {
+  const l = (id: string, estadoLinea: string, inicial: number, cantidad: number) => ({ id, estadoLinea, inicial, cantidad })
+  it('sin cambios no hay diferencia; cantidad, lote, vencimiento y línea no esperada se distinguen', async () => {
+    const { tiposDeDiferencia } = await import('@/domain/entradas-vistas')
+    expect(tiposDeDiferencia([l('a', 'ESPERADA', 10, 10)], [])).toEqual([])
+    expect(tiposDeDiferencia([l('a', 'AJUSTADA', 10, 9)], [{ lineaId: 'a', campo: 'cantidad' }])).toEqual(['CANTIDAD'])
+    expect(tiposDeDiferencia([l('a', 'AJUSTADA', 10, 10)], [{ lineaId: 'a', campo: 'lote' }])).toEqual(['LOTE'])
+    expect(tiposDeDiferencia([l('a', 'AJUSTADA', 10, 10)], [{ lineaId: 'a', campo: 'lote' }, { lineaId: 'a', campo: 'vence' }]).sort()).toEqual(['LOTE', 'VENCIMIENTO'])
+    expect(tiposDeDiferencia([l('a', 'ESPERADA', 10, 10), l('b', 'AJUSTADA', 0, 5)], [{ lineaId: 'b', campo: 'línea agregada' }])).toEqual(['LINEA_NO_ESPERADA']) // una línea agregada no cuenta además como cantidad distinta
+    // un cambio hecho antes de autorizar (la línea sigue «esperada») no es una diferencia
+    expect(tiposDeDiferencia([l('a', 'ESPERADA', 10, 10)], [{ lineaId: 'a', campo: 'lote' }])).toEqual([])
+    // una línea retirada es una diferencia de cantidad
+    expect(tiposDeDiferencia([l('a', 'RETIRADA', 10, 0)], [{ lineaId: 'a', campo: 'cantidad' }])).toEqual(['CANTIDAD'])
+  })
+})

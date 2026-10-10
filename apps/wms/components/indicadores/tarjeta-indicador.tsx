@@ -29,7 +29,7 @@ export function TarjetaIndicador({ k, compacta = false, marcaInicio = false }: {
 
       {k.detalle.length > 0 && (
         <dl className={`${compacta ? 'hidden md:block' : 'block'} space-y-0.5 border-t border-gray-100 px-3 py-2 text-xs text-gray-800 md:px-4 md:text-[13px]`} data-testid="kpi-detalle">
-          {k.detalle.slice(0, compacta ? 4 : 8).map((x) => <div key={x.etiqueta} className="flex justify-between gap-3"><dt className="truncate">{x.etiqueta}</dt><dd className="tabular shrink-0 font-medium text-gray-900">{x.valor}</dd></div>)}
+          {k.detalle.slice(0, compacta ? 4 : 8).map((x) => <div key={x.etiqueta}><div className="flex justify-between gap-3"><dt className="truncate">{x.etiqueta}</dt><dd className="tabular shrink-0 font-medium text-gray-900">{x.valor}</dd></div>{x.sub && <p className="text-[11px] leading-snug text-gray-700" data-testid="kpi-detalle-sub">{x.sub}</p>}</div>)}
         </dl>
       )}
 
@@ -40,7 +40,7 @@ export function TarjetaIndicador({ k, compacta = false, marcaInicio = false }: {
           {k.datos && <p><strong className="font-medium text-gray-900">Con estos datos:</strong> {k.datos}</p>}
           {!k.filtraPropietario && <p className="text-gray-700">Este indicador no se filtra por propietario.</p>}
           {k.detalle.length > 0 && compacta && (
-            <dl className="space-y-0.5 md:hidden">{k.detalle.map((x) => <div key={x.etiqueta} className="flex justify-between gap-3"><dt>{x.etiqueta}</dt><dd className="tabular font-medium text-gray-900">{x.valor}</dd></div>)}</dl>
+            <dl className="space-y-0.5 md:hidden">{k.detalle.map((x) => <div key={x.etiqueta}><div className="flex justify-between gap-3"><dt>{x.etiqueta}</dt><dd className="tabular font-medium text-gray-900">{x.valor}</dd></div>{x.sub && <p className="text-[11px] leading-snug text-gray-700">{x.sub}</p>}</div>)}</dl>
           )}
         </div>
       </details>

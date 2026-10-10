@@ -254,6 +254,36 @@ export interface ResumenExpediente {
   ingresos: number
 }
 
+/** Por qué una recepción «tiene diferencia»: lo que llegó o se declaró no es lo que anunciaba la solicitud (D-35: un lote o vencimiento distinto es un ajuste explícito, no un rechazo). */
+export type TipoDiferenciaRecepcion = 'LINEA_NO_ESPERADA' | 'CANTIDAD' | 'LOTE' | 'VENCIMIENTO'
+export const ETIQUETA_DIFERENCIA_RECEPCION: Record<TipoDiferenciaRecepcion, string> = {
+  LINEA_NO_ESPERADA: 'línea no esperada', CANTIDAD: 'cantidad distinta', LOTE: 'lote distinto', VENCIMIENTO: 'vencimiento distinto',
+}
+
+/**
+ * Los tipos de diferencia de una solicitud, a partir de sus líneas y del historial de cambios campo a campo:
+ * línea no esperada (agregada o con otro estado que «esperada» sin otra explicación), cantidad final distinta de la inicial,
+ * y lote o vencimiento distinto al declarado.
+ */
+export function tiposDeDiferencia(
+  lineas: { id: string; estadoLinea: string; inicial?: number | null; cantidad: number }[],
+  cambios: { lineaId?: string; campo: string }[],
+): TipoDiferenciaRecepcion[] {
+  const t = new Set<TipoDiferenciaRecepcion>()
+  const ajustada = new Map(lineas.map((l) => [l.id, l.estadoLinea !== 'ESPERADA']))
+  const agregadas = new Set(cambios.filter((c) => c.campo === 'línea agregada' && c.lineaId).map((c) => c.lineaId!))
+  for (const l of lineas) if (!agregadas.has(l.id) && l.inicial != null && l.inicial !== l.cantidad) t.add('CANTIDAD')
+  for (const c of cambios) {
+    if (c.campo === 'línea agregada') t.add('LINEA_NO_ESPERADA')
+    else if (c.lineaId && !agregadas.has(c.lineaId) && ajustada.get(c.lineaId)) {
+      if (c.campo === 'lote') t.add('LOTE'); else if (c.campo === 'vence') t.add('VENCIMIENTO'); else if (c.campo === 'cantidad') t.add('CANTIDAD')
+    }
+  }
+  // Una línea que ya no es la esperada, sin que el historial diga por qué
+  if (t.size === 0 && lineas.some((l) => l.estadoLinea !== 'ESPERADA')) t.add('LINEA_NO_ESPERADA')
+  return [...t]
+}
+
 export interface SolicitudResumen {
   id: string
   numero: string
@@ -271,6 +301,10 @@ export interface SolicitudResumen {
   alertasAbiertas: number
   /** La solicitud final difiere de la inicial. */
   conDiferencias: boolean
+  /** De qué tipo(s) es la diferencia (vacío si no hay). */
+  tiposDiferencia: TipoDiferenciaRecepcion[]
+  /** Cuándo se confirmó la recepción física. */
+  confirmadaEn?: string
   cerradaEn?: string
   /** Cuándo Dirección Técnica aprobó (acta organoléptica firmada con decisión Aprobado): fin de la Cuarentena. */
   aprobadaEn?: string
@@ -316,6 +350,7 @@ export interface SolicitudDetalle {
   /** Hay firmas en el acta vigente: los datos y las cantidades ya no se editan. */
   bloqueadoPorFirmas: boolean
   conDiferencias: boolean
+  tiposDiferencia: TipoDiferenciaRecepcion[]
   /** Bloque "Cantidad física confirmada" (solo compras con ingreso confirmado). */
   cantidadFisica: BloqueFisico[]
   /** Estado de inventario con el que nacen las unidades de esta solicitud. */

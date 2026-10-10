@@ -16,7 +16,7 @@ import type { Estado, Origen, Rol, Saldo } from '@/domain/tipos'
 import { ESTADOS } from '@/domain/tipos'
 import { sumarDias } from './datos'
 import { EntradasDemo, alertar, estadoE, falla, ahora, nuevoId } from './entradas-demo'
-import { anotar, numeroDe, siguiente, type ConteoDemo, type ConteoLineaDemo } from './libro'
+import { anotar, numeroDe, siguiente, type AjusteDemo, type ConteoDemo, type ConteoLineaDemo } from './libro'
 import { registrar, type EstadoDemo } from './estado'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
@@ -69,7 +69,7 @@ function moverSaldo(e: EstadoDemo, l: { loteId: string; productoId: string; prop
 }
 
 /** Casos de demostración (ids fijos: iguales en todas las instancias). Se crean una sola vez. */
-function sembrarInventario(e: EstadoDemo) {
+export function sembrarInventario(e: EstadoDemo) {
   const inv = e.inv
   if (inv.sembrado) return
   inv.sembrado = true
@@ -96,18 +96,83 @@ function sembrarInventario(e: EstadoDemo) {
   if (l3) inv.ordenes.push({ id: 'mi-demo-3', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Reubicar por espacio', ejecutorId: 'demo:reemplazo_jefe', ejecutor: nombrePersona('demo:reemplazo_jefe')!, ejecutadoEn: new Date(Date.now() - 30 * 3_600_000).toISOString(), lineas: [l3] })
   inv.contadores[`MI-${anioDe(e)}`] = k
   void posDe
+  sembrarConteosCerrados(e)
+}
+
+/**
+ * Historial de conteos cerrados (últimos ~2 meses) para que Exactitud, Diferencias y Ajustes tengan valores reales en la demo:
+ * la mayoría coincide a la primera, otros coinciden recién en el reconteo, uno se ajusta con autorización y otros se escalan.
+ */
+function sembrarConteosCerrados(e: EstadoDemo) {
+  const inv = e.inv
+  const hoy = e.panorama.hoy
+  const anio = anioDe(e)
+  const n = nombres(e)
+  const usadas = new Set(inv.ordenes.flatMap((o) => o.lineas.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId])))
+  const candidatas = e.panorama.saldos.filter((s) => s.estado === 'APROBADO' && s.cantidad >= 15 && !usadas.has(s.posicionId))
+  const porPos = new Map<string, typeof candidatas>()
+  for (const s of candidatas) porPos.set(s.posicionId, [...(porPos.get(s.posicionId) ?? []), s])
+  const posiciones = [...porPos.keys()].sort((a, b) => n.posicion(a).localeCompare(n.posicion(b), 'es', { numeric: true }))
+  type Tipo = 'OK' | 'RECONTEO' | 'AJUSTE' | 'ESCALA'
+  // días atrás y el resultado de cada una de sus 8 líneas
+  const plan: { dias: number; lineas: Tipo[]; causa?: string }[] = [
+    { dias: 4, lineas: ['OK', 'OK', 'OK', 'OK', 'OK', 'OK', 'RECONTEO', 'ESCALA'], causa: 'Posible despacho sin registrar' },
+    { dias: 11, lineas: ['OK', 'OK', 'OK', 'OK', 'OK', 'OK', 'OK', 'AJUSTE'], causa: 'Error de conteo en una recepción anterior' },
+    { dias: 19, lineas: ['OK', 'OK', 'OK', 'OK', 'OK', 'OK', 'OK', 'OK'] },
+    { dias: 27, lineas: ['OK', 'OK', 'OK', 'OK', 'OK', 'OK', 'RECONTEO', 'RECONTEO'], causa: 'Cajas mal contadas la primera vez' },
+    { dias: 34, lineas: ['OK', 'OK', 'OK', 'OK', 'OK', 'RECONTEO', 'RECONTEO', 'AJUSTE'], causa: 'Faltante de una devolución' },
+    { dias: 48, lineas: ['OK', 'OK', 'OK', 'OK', 'OK', 'OK', 'RECONTEO', 'ESCALA'], causa: 'Sin explicación todavía' },
+  ]
+  let p = 0
+  for (const c of plan) {
+    const dia = sumarDias(hoy, -c.dias)
+    const ts = `${dia}T20:00:00.000Z`
+    const conteo: ConteoDemo = {
+      id: nuevoId(), numero: numeroDe(inv, 'CT', anio), estado: 'CERRADO', nota: 'Conteo cíclico semanal', programadoPor: nombrePersona('demo:jefe_almacen')!, programadoEn: `${sumarDias(dia, -1)}T14:00:00.000Z`,
+      cerradoEn: ts, resultado: c.lineas.includes('ESCALA') ? 'ESCALADO' : c.lineas.includes('AJUSTE') ? 'CORREGIDO' : 'COINCIDE', causa: c.causa, accion: c.causa ? 'Registrado y revisado' : undefined, lineas: [],
+    }
+    for (const t of c.lineas) {
+      const posId = posiciones[p % posiciones.length]; p += 1
+      const s = (porPos.get(posId) ?? [])[0]
+      if (!s) continue
+      const sis = s.cantidad
+      const linea: ConteoLineaDemo = {
+        id: nuevoId(), posicionId: s.posicionId, productoId: s.productoId, loteId: s.loteId, propietarioId: s.propietarioId, estado: s.estado, origen: origenDe(e, s.loteId, s.procedenciaId), procedenciaId: s.procedenciaId,
+        cantidadSistema: sis, conteo1: sis, contador1: 'demo:auxiliar',
+      }
+      if (t === 'OK') linea.resultado = 'COINCIDE'
+      if (t === 'RECONTEO') { linea.conteo1 = sis - 1; linea.conteo2 = sis; linea.contador2 = 'demo:reemplazo_jefe'; linea.resultado = 'COINCIDE_EN_RECONTEO' }
+      if (t === 'ESCALA') { linea.conteo1 = sis + 2; linea.conteo2 = sis + 2; linea.contador2 = 'demo:reemplazo_jefe'; linea.causa = c.causa; linea.resultado = 'ESCALADA'; linea.nota = 'Se revisaron despachos y recepciones sin encontrar la causa; escalada a Dirección Técnica.' }
+      if (t === 'AJUSTE') {
+        const delta = -3
+        linea.conteo1 = sis + delta; linea.conteo2 = sis + delta; linea.contador2 = 'demo:reemplazo_jefe'; linea.causa = c.causa; linea.resultado = 'AJUSTADA'
+        const aj: AjusteDemo = {
+          id: nuevoId(), numero: numeroDe(inv, 'AJ', anio), conteoLineaId: linea.id, lineaId: linea.id, conteoNumero: conteo.numero, producto: n.producto(s.productoId), lote: n.lote(s.loteId), posicion: n.posicion(s.posicionId), delta,
+          causa: c.causa!, motivo: `Corregir ${Math.abs(delta)} u según el conteo ${conteo.numero}`, estado: 'AUTORIZADO', propuestoPor: nombrePersona('demo:jefe_almacen')!, propuestoPorId: 'demo:jefe_almacen',
+          propuestoEn: `${dia}T16:00:00.000Z`, decididoPor: nombrePersona('demo:direccion_tecnica')!, decididoEn: ts, notaDecision: 'Autorizado con evidencia del conteo.',
+        }
+        inv.ajustes.push(aj)
+        // el stock y el libro mayor quedan consistentes con el ajuste (el Kardex lo muestra)
+        s.cantidad += delta
+        anotar(inv, `mov-aj-${aj.numero}`, 'AJUSTE', ts, { motivo: `Ajuste ${aj.numero} — ${aj.causa}`, ejecutorId: 'demo:direccion_tecnica', referenciaTipo: 'conteo', referenciaId: conteo.numero, sustentoTipo: 'ajuste', sustentoId: aj.numero },
+          [{ posicionId: s.posicionId, productoId: s.productoId, loteId: s.loteId, propietarioId: s.propietarioId, estado: s.estado, origen: linea.origen, procedenciaId: s.procedenciaId, delta }])
+      }
+      conteo.lineas.push(linea)
+    }
+    inv.conteos.push(conteo)
+  }
 }
 
 export class InventarioDemo extends EntradasDemo {
   // ── Kardex ──────────────────────────────────────────────────────────────
   async kardex(f: FiltroKardex): Promise<FilaKardex[]> {
-    const e = estadoE()
+    const e = estadoE(); sembrarInventario(e)
     const n = nombres(e)
     return construirKardex(e.inv.ledger, f, { ...n, producto: n.producto(f.productoId), propietarioDeLote: (id) => n.loteObj(id)?.propietarioId ?? '' })
   }
 
   async historiaLote(loteId: string): Promise<FilaHistoriaLote[]> {
-    const e = estadoE()
+    const e = estadoE(); sembrarInventario(e)
     const n = nombres(e)
     let saldo = 0
     return e.inv.ledger.filter((p) => p.loteId === loteId).sort((a, b) => a.id - b.id).map((p) => {
@@ -296,7 +361,7 @@ export class InventarioDemo extends EntradasDemo {
   }
 
   // ── Conteos cíclicos y ajustes ──────────────────────────────────────────
-  private conteos(): ConteoDemo[] { return estadoE().inv.conteos }
+  private conteos(): ConteoDemo[] { const e = estadoE(); sembrarInventario(e); return e.inv.conteos }
   private lineaConteo(lineaId: string): { c: ConteoDemo; l: ConteoLineaDemo } | null {
     for (const c of this.conteos()) { const l = c.lineas.find((x) => x.id === lineaId); if (l) return { c, l } }
     return null
@@ -476,7 +541,8 @@ export class InventarioDemo extends EntradasDemo {
   }
 
   async listarAjustes(): Promise<AjusteVista[]> {
-    return [...estadoE().inv.ajustes].reverse().map(({ propuestoPorId: _p, lineaId: _l, ...a }) => { void _p; void _l; return structuredClone(a) as AjusteVista })
+    const e0 = estadoE(); sembrarInventario(e0)
+    return [...e0.inv.ajustes].reverse().map(({ propuestoPorId: _p, lineaId: _l, ...a }) => { void _p; void _l; return structuredClone(a) as AjusteVista })
   }
 
   // ── Carga inicial ───────────────────────────────────────────────────────

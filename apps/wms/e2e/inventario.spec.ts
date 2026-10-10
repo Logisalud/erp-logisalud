@@ -68,7 +68,7 @@ test.describe('Kardex, historia del lote y vencimientos', () => {
     await expect(page).toHaveURL(/lote=/)
     await page.getByTestId('historia-del-lote').click()
     await expect(page.getByTestId('historia-lote')).toBeVisible()
-    await expect(page.getByTestId('fila-historia').first()).toContainText('Carga inicial')
+    await expect(page.getByTestId('fila-historia').first()).toContainText(/Carga inicial|Ingreso/)
     await sinDesborde(page)
     await capturar(page, info, 'historia-lote', { completa: true })
   })
@@ -389,7 +389,7 @@ test.describe('conteos cíclicos y ajustes (INV-05)', () => {
   test('conteo a ciegas, segundo conteo de otra persona, causa, ajuste autorizado por Dirección Técnica y cierre', async ({ page }, info) => {
     await entrarComo(page, 'jefe_almacen')
     await page.goto('/wms/conteos')
-    await expect(page.getByTestId('conteos-vacio')).toBeVisible()
+    await expect(page.getByTestId('lista-conteos')).toBeVisible() // la demo trae conteos cerrados de los últimos meses
     await capturar(page, info, 'conteos', { completa: true })
     await page.locator('[data-testid^="conteo-pos-"]:not([disabled])').first().check()
     await page.getByTestId('conteo-incidencia').fill('Faltante detectado en la entrega del lunes')

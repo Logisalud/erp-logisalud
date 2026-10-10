@@ -7,7 +7,7 @@ import type { FilaExactitud } from '@/domain/operacion'
 const HOY = '2026-10-09'
 const p = construirPanoramaDemo(HOY)
 const sol = (o: Partial<SolicitudResumen>): SolicitudResumen => ({
-  id: 'x', numero: 'SI-1', tipo: 'COMPRA_LOCAL', estado: 'CERRADA', paso: 'CERRADA' as never, propietario: 'LOGISSA', contraparte: 'Proveedor A', unidades: 10, productos: 1, creadoEn: '2026-09-25T15:00:00Z', alertasAbiertas: 0, conDiferencias: false, ...o,
+  id: 'x', numero: 'SI-1', tipo: 'COMPRA_LOCAL', estado: 'CERRADA', paso: 'CERRADA' as never, propietario: 'LOGISSA', contraparte: 'Proveedor A', unidades: 10, productos: 1, creadoEn: '2026-09-25T15:00:00Z', alertasAbiertas: 0, conDiferencias: false, tiposDiferencia: [], ...o,
 })
 const ex = (o: Partial<FilaExactitud>): FilaExactitud => ({ conteo: 'CT-1', cerradoEn: '2026-10-05T20:00:00Z', posicion: 'A-1', producto: 'P', lote: 'L', propietario: 'LOGISSA', estado: 'APROBADO', cantidadSistema: 10, cantidadContada: 10, primerConteo: 10, diferencia: 0, resultado: 'COINCIDE', ...o })
 const datos = (o: Partial<DatosIndicadores> = {}): DatosIndicadores => ({
@@ -62,13 +62,21 @@ describe('indicadores', () => {
     const k = por(calcularIndicadores(datos(), periodoDe(HOY, 30)), 'exactitud')
     expect(k.valor).toBeNull(); expect(k.sinDatos).toMatch(/Sin conteos cerrados/)
   })
-  it('recepciones con diferencia: % de cerradas del periodo, con detalle por proveedor', () => {
-    const r = calcularIndicadores(datos({ solicitudes: [sol({}), sol({ conDiferencias: true }), sol({ conDiferencias: true, contraparte: 'Proveedor B' }), sol({ estado: 'EN_RECEPCION' }), sol({ creadoEn: '2026-08-20T15:00:00Z' })] }), periodoDe(HOY, 30))
+  it('recepciones con diferencia: por la fecha en que se confirmó la recepción física, con el tipo de diferencia por proveedor', () => {
+    const conf = (dia: string, o: Partial<SolicitudResumen> = {}) => sol({ confirmadaEn: `${dia}T15:00:00Z`, creadoEn: '2026-07-01T15:00:00Z', ...o })
+    const r = calcularIndicadores(datos({ solicitudes: [
+      conf('2026-10-01'), conf('2026-10-02', { conDiferencias: true, tiposDiferencia: ['CANTIDAD'] }),
+      conf('2026-10-03', { conDiferencias: true, tiposDiferencia: ['LOTE', 'VENCIMIENTO'], contraparte: 'Proveedor B' }),
+      sol({ confirmadaEn: undefined }), // todavía sin confirmar: no cuenta aunque se haya creado en el periodo
+      conf('2026-08-20'), // antes del periodo
+      sol({ creadoEn: '2026-09-25T15:00:00Z', confirmadaEn: '2026-08-15T15:00:00Z', conDiferencias: true, tiposDiferencia: ['CANTIDAD'] }), // creada en el periodo pero confirmada en el anterior
+    ] }), periodoDe(HOY, 30))
     const k = por(r, 'recepciones-dif')
     expect(k.texto).toBe('66.7 %')
-    expect(k.detalle).toEqual([{ etiqueta: 'Proveedor A', valor: '1 de 2' }, { etiqueta: 'Proveedor B', valor: '1 de 1' }])
+    expect(k.detalle).toEqual([{ etiqueta: 'Proveedor A', valor: '1 de 2', sub: 'cantidad distinta' }, { etiqueta: 'Proveedor B', valor: '1 de 1', sub: 'lote distinto · vencimiento distinto' }])
+    expect(k.datos).toContain('Tipos:')
+    expect(k.variacion?.texto).toContain('↑') // el periodo anterior: 1 de 2 = 50 %
     expect(k.href).toContain('/reportes/recepciones?diferencias=S%C3%AD&desde=2026-09-10&hasta=2026-10-09')
-    expect(k.variacion?.texto).toContain('↑') // el anterior tuvo 0 de 1
   })
   it('por vencer y vencidos: lotes y unidades en 90 días o menos, más los vencidos; compara con el stock de hace un periodo', () => {
     const k = por(calcularIndicadores(datos({ saldosAntes: p.saldos.slice(0, 5) }), periodoDe(HOY, 30)), 'vencimientos')

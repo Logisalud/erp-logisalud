@@ -14,6 +14,7 @@ import {
   situacionLote, temperaturaFueraDeRango, validarDecision, validarEntradaSolicitud, validarLineaSolicitud, validarTransportista,
   type CambioEntrada, type Checklist, type Decision, type DestinatarioAlerta, type EntradaSolicitud, type EstadoRegistroCompras, type TipoAlerta,
 } from '@/domain/entradas'
+import { tiposDeDiferencia } from '@/domain/entradas-vistas'
 import type {
   ActaRecepcionVista, AlertaVista, BloqueFisico, CambioVista, ColaDT, ContenidoActaRecepcion, DatosEdicionRecepcion,
   DatosOrganolepticaGuardar, DatosVerificacion, ExpedienteVista, FirmaEntrada, LineaSolicitudVista, OcPendiente, OrganolepticaVista,
@@ -118,7 +119,8 @@ function lineaVista(e: EstadoDemo, s: SolicitudDemo, l: LineaSolicitudDemo): Lin
   }
 }
 
-const hayDiferencias = (s: SolicitudDemo) => s.lineas.some((l) => l.estadoLinea !== 'ESPERADA' || (l.inicial != null && l.inicial !== l.cantidad))
+const tiposDiferencia = (s: SolicitudDemo) => tiposDeDiferencia(s.lineas, s.cambios)
+const hayDiferencias = (s: SolicitudDemo) => tiposDiferencia(s).length > 0
 const unidades = (s: SolicitudDemo) => s.lineas.reduce((n, l) => n + l.cantidad, 0)
 
 /** Lo que Compras debería mostrar como recibido (lo de antes + lo físico de las solicitudes cerradas) frente a lo que muestra hoy. */
@@ -165,7 +167,7 @@ function detalle(e: EstadoDemo, s: SolicitudDemo): SolicitudDetalle {
     actas: e.actas.filter((a) => a.solicitudId === s.id).map((a) => actaVista(e, a)).reverse(),
     organolepticas: e.organolepticas.filter((o) => o.solicitudId === s.id),
     alertas: e.alertas.filter((a) => a.solicitudId === s.id).map(limpiarClave),
-    expedienteId: s.expedienteId, bloqueadoPorFirmas: !!acta && acta.firmas.length > 0, conDiferencias: hayDiferencias(s),
+    expedienteId: s.expedienteId, bloqueadoPorFirmas: !!acta && acta.firmas.length > 0, conDiferencias: hayDiferencias(s), tiposDiferencia: tiposDiferencia(s),
     cantidadFisica: conciliacion(e, s), estadoInicial: ESTADO_INICIAL[s.tipo],
   }
 }
@@ -187,7 +189,7 @@ function resumen(e: EstadoDemo, s: SolicitudDemo): SolicitudResumen {
   return {
     id: s.id, numero: s.numero, tipo: s.tipo, estado: s.estado, paso: d.paso, propietario: d.propietario, contraparte: s.contraparteNombre,
     referencia: referenciaDe(s), actaNumero: actaVigente(e, s.id)?.numero, unidades: unidades(s), productos: new Set(s.lineas.filter((l) => l.cantidad > 0).map((l) => l.productoId)).size,
-    fechaPrevista: s.fechaPrevista, creadoEn: s.creadoEn, alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias,
+    fechaPrevista: s.fechaPrevista, creadoEn: s.creadoEn, alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias, tiposDiferencia: d.tiposDiferencia, confirmadaEn: d.recepcion?.confirmadoEn,
     cerradaEn: d.cerradaEn, aprobadaEn: aprobadaEnDe(d),
     registroCompras: peorRegistro(d.cantidadFisica.map((b) => b.estado)),
   }
@@ -1215,6 +1217,69 @@ function sembrar(e: EstadoDemo) {
     eng.iniciarRecepcion(g8.id, CHARLIE)
     eng.verificarLinea(g8.id, sol(g8.id).lineas[0].id, { coincide: false, cantidad: 53, motivo: 'Llegaron 5 unidades de más', posicionId: pos('A-9') }, CHARLIE)
   }
+  // 9) Historial de recepciones ya confirmadas en los últimos ~2 meses, con y sin diferencias de distintos tipos (D-35), para que los indicadores
+  //    de Inicio y de Indicadores tengan valores reales en la demo. Cada una se cuenta por la fecha en que se confirmó la recepción física.
+  const PROV = {
+    andina: ['Distribuidora Andina S.A.C.', '20100000001'], sur: ['Laboratorios del Sur S.A.', '20100000003'], pacifico: ['Droguería Pacífico S.A.C.', '20100000002'],
+  } as const
+  type Dif = 'OK' | 'LOTE' | 'CANTIDAD' | 'VENCIMIENTO+CANTIDAD' | 'LINEA_NO_ESPERADA'
+  const historial: { dias: number; prov: keyof typeof PROV; dif: Dif; producto: number; aprobar: boolean; diasCuarentena: number }[] = [
+    { dias: 3, prov: 'andina', dif: 'LOTE', producto: 4, aprobar: false, diasCuarentena: 0 },
+    { dias: 6, prov: 'sur', dif: 'CANTIDAD', producto: 11, aprobar: false, diasCuarentena: 0 },
+    { dias: 9, prov: 'pacifico', dif: 'OK', producto: 12, aprobar: true, diasCuarentena: 2 },
+    { dias: 12, prov: 'andina', dif: 'VENCIMIENTO+CANTIDAD', producto: 13, aprobar: true, diasCuarentena: 3 },
+    { dias: 18, prov: 'sur', dif: 'OK', producto: 14, aprobar: true, diasCuarentena: 1 },
+    { dias: 21, prov: 'pacifico', dif: 'LINEA_NO_ESPERADA', producto: 16, aprobar: true, diasCuarentena: 2 },
+    { dias: 26, prov: 'andina', dif: 'OK', producto: 17, aprobar: true, diasCuarentena: 2 },
+    { dias: 33, prov: 'andina', dif: 'OK', producto: 18, aprobar: true, diasCuarentena: 3 },
+    { dias: 38, prov: 'sur', dif: 'CANTIDAD', producto: 19, aprobar: true, diasCuarentena: 5 },
+    { dias: 44, prov: 'pacifico', dif: 'OK', producto: 4, aprobar: true, diasCuarentena: 4 },
+    { dias: 50, prov: 'andina', dif: 'OK', producto: 11, aprobar: true, diasCuarentena: 4 },
+    { dias: 56, prov: 'sur', dif: 'OK', producto: 12, aprobar: true, diasCuarentena: 6 },
+  ]
+  const iso = (dia: string, h = 15) => `${dia}T${String(h).padStart(2, '0')}:00:00.000Z`
+  // Lo que se registró al armar este historial no es «de hoy»: no ensucia la auditoría reciente
+  const auditoriaAntes = [...e.auditoria]
+  historial.forEach((h, k) => {
+    const n = 8 + k
+    const [nombre, ruc] = PROV[h.prov]
+    facturadas[n] = 40
+    oc(n, `OC-DEMO-${String(n).padStart(4, '0')}`, nombre, ruc, [[h.producto, 200]])
+    const lote = `H${String(24000 + n)}`
+    const r = compra(n, [{ item: 1, lote, vence: '30/11/2029', cantidad: 40 }])
+    if (!r.ok) return
+    eng.iniciarRecepcion(r.id, CHARLIE)
+    const l0 = sol(r.id).lineas[0]
+    // Las diferencias nacen DESPUÉS de autorizar: son ajustes explícitos, con motivo y historial (D-35)
+    if (h.dif === 'LOTE') eng.ajustarSolicitud(r.id, [{ op: 'LINEA', lineaId: l0.id, campo: 'lote', valor: `${lote}B` }], 'El lote impreso en la caja no es el de la guía', CHARLIE)
+    if (h.dif === 'CANTIDAD') eng.ajustarSolicitud(r.id, [{ op: 'LINEA', lineaId: l0.id, campo: 'cantidad', valor: '36' }], 'Llegaron 4 cajas menos que lo anunciado', CHARLIE)
+    if (h.dif === 'VENCIMIENTO+CANTIDAD') eng.ajustarSolicitud(r.id, [{ op: 'LINEA', lineaId: l0.id, campo: 'vence', valor: '31/05/2029' }, { op: 'LINEA', lineaId: l0.id, campo: 'cantidad', valor: '38' }], 'El vencimiento de la caja es anterior y faltaron 2 unidades', CHARLIE)
+    if (h.dif === 'LINEA_NO_ESPERADA') eng.ajustarSolicitud(r.id, [{ op: 'AGREGAR_LINEA', ocItemId: `compras-oc:${n}:item:1`, lote: `${lote}X`, vence: '30/09/2029', cantidad: 10 }], 'Llegó una caja de otro lote que no estaba en la guía', CHARLIE)
+    recibirTodo(r.id, ['A-6', 'A-7', 'A-8', 'A-9'])
+    const total = sol(r.id).lineas.reduce((m, l) => m + l.cantidad, 0)
+    registrarEnCompras(n, 1, total)
+    // Se fecha en el pasado: creación, confirmación física, cierre y movimientos del libro mayor
+    const dia = sumarDias(hoy, -h.dias)
+    const x = sol(r.id)
+    x.creadoEn = iso(sumarDias(dia, -2), 14)
+    if (x.recepcion) x.recepcion.confirmadoEn = iso(dia)
+    x.cerradaEn = iso(dia)
+    // Las alertas de aquel momento (por ejemplo «solicitud ajustada») ya se atendieron
+    for (const al of e.alertas.filter((q) => q.solicitudId === r.id)) { al.estado = 'ATENDIDA'; al.atendidaPor = KATIA.nombre; al.atendidaEn = iso(dia, 18) }
+    const acta = e.actas.find((a) => a.solicitudId === r.id && a.estado === 'FIRMADA')
+    for (const p of e.inv.ledger) if (acta && p.movimientoId === `mov-ingreso-${acta.numero}`) p.ts = iso(dia)
+    for (const o of e.organolepticas.filter((q) => q.solicitudId === r.id)) {
+      o.creadaEn = iso(dia)
+      if (!h.aprobar) continue
+      const lleno = eng.guardarOrganoleptica(o.id, { certAnalisis: true, checklist: checklistConforme(), destinoSugerido: 'APROBADO', conclusion: 'CONFORME', observacion: 'Sin observaciones.' }, true, SANDRA)
+      if (!lleno.ok || !eng.decidirOrganoleptica(o.id, 'APROBADO', undefined, KATIA).ok) continue
+      const decidida = iso(sumarDias(dia, h.diasCuarentena), 17)
+      o.decididoEn = decidida
+      for (const p of e.inv.ledger) if (p.referenciaTipo === 'acta_organoleptica' && p.referenciaId === o.numero) p.ts = decidida
+      delete e.aprobadoEn[o.ingresoLoteId] // ya se trasladó hace tiempo: no es un «por trasladar» vencido
+    }
+  })
+  e.auditoria.splice(0, e.auditoria.length, ...auditoriaAntes)
   // El "aprobado por trasladar" del Batch 1 lleva más del plazo (D-28).
   const traslado = e.panorama.lotes.find((l) => l.codigo === 'L-TRASLADO')
   const s = e.panorama.saldos.find((x) => x.loteId === traslado?.id)

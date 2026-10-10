@@ -1,7 +1,7 @@
 // Indicadores (KPI) del WMS: definidos en docs/wms/kpis.md. Todo es cálculo puro sobre datos ya leídos; no hay metas ni semáforos (D-42):
 // cada indicador muestra su valor, la variación frente al periodo anterior (solo una flecha y el cambio, sin colores de bueno o malo),
 // cómo se calcula y a qué reporte lleva.
-import type { SolicitudResumen, AlertaVista } from './entradas-vistas'
+import { ETIQUETA_DIFERENCIA_RECEPCION, type AlertaVista, type SolicitudResumen, type TipoDiferenciaRecepcion } from './entradas-vistas'
 import type { AjusteVista, OrdenMovimiento } from './inventario'
 import type { Cobertura, FilaExactitud, PendienteVista, ProgramacionVista, RevisionDiaria } from './operacion'
 import { exactitudDeFilas, lunesDe, sumarDiasISO } from './operacion'
@@ -29,7 +29,7 @@ export function periodoDeRango(desde: string | undefined, hasta: string | undefi
 }
 
 export interface Variacion { sentido: 'sube' | 'baja' | 'igual'; texto: string }
-export interface DetalleIndicador { etiqueta: string; valor: string }
+export interface DetalleIndicador { etiqueta: string; valor: string; /** Una línea más pequeña bajo la fila (por ejemplo, el tipo de diferencia). */ sub?: string }
 export interface Indicador {
   clave: string
   tema: Tema
@@ -298,20 +298,27 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     }))
   }
 
-  // 11 · Recepciones con diferencia (Inicio)
+  // 11 · Recepciones con diferencia (Inicio): por la fecha en que se CONFIRMÓ la recepción física
   {
-    const de = (per: Periodo) => d.solicitudes.filter((x) => x.estado === 'CERRADA' && enPeriodo(limaDia(x.creadoEn), per) && (!cod || x.propietario === cod))
+    const de = (per: Periodo) => d.solicitudes.filter((x) => x.confirmadaEn && enPeriodo(limaDia(x.confirmadaEn), per) && (!cod || x.propietario === cod))
     const sa = de(periodo); const sb = de(ant)
     const difA = sa.filter((x) => x.conDiferencias).length; const difB = sb.filter((x) => x.conDiferencias).length
-    const porProv = new Map<string, { dif: number; total: number }>()
-    for (const x of sa) { const k = x.contraparte ?? 'Sin proveedor'; const e = porProv.get(k) ?? { dif: 0, total: 0 }; e.total += 1; if (x.conDiferencias) e.dif += 1; porProv.set(k, e) }
+    const porProv = new Map<string, { dif: number; total: number; tipos: Map<string, number> }>()
+    const porTipo = new Map<string, number>()
+    for (const x of sa) {
+      const k = x.contraparte ?? 'Sin proveedor'; const e = porProv.get(k) ?? { dif: 0, total: 0, tipos: new Map() }
+      e.total += 1
+      if (x.conDiferencias) { e.dif += 1; for (const t of x.tiposDiferencia) { e.tipos.set(t, (e.tipos.get(t) ?? 0) + 1); porTipo.set(t, (porTipo.get(t) ?? 0) + 1) } }
+      porProv.set(k, e)
+    }
+    const textoTipos = (m: Map<string, number>) => [...m].sort((x, y) => y[1] - x[1]).map(([t, n]) => `${ETIQUETA_DIFERENCIA_RECEPCION[t as TipoDiferenciaRecepcion] ?? t}${n > 1 ? ` ×${n}` : ''}`).join(' · ')
     out.push(base({
       clave: 'recepciones-dif', tema: 'Recepciones', nombre: 'Recepciones con diferencia', enInicio: true, filtraPropietario: true,
-      formula: 'Recepciones cerradas del periodo en que la cantidad física confirmada no coincide con la Solicitud de Ingreso o la OC ÷ recepciones cerradas del periodo.',
+      formula: 'Recepciones físicas confirmadas en el periodo que llegaron distintas de lo declarado ÷ recepciones confirmadas en el periodo. Hay diferencia si la cantidad final no coincide con la Solicitud de Ingreso o la OC, si hay una línea no esperada, o si el lote o el vencimiento es distinto al declarado (D-35). El periodo se cuenta por la fecha en que se confirmó la recepción física.',
       valor: razon(difA, sa.length), texto: sa.length ? pct(razon(difA, sa.length)!) : '—', variacion: variacion(razon(difA, sa.length), razon(difB, sb.length), 'pp', etiqAnt),
-      detalle: [...porProv].sort((x, y) => y[1].dif - x[1].dif || y[1].total - x[1].total).slice(0, 5).map(([k, v]) => ({ etiqueta: k, valor: `${v.dif} de ${v.total}` })),
-      datos: `${difA} de ${sa.length} recepciones cerradas tuvieron diferencia (${difB} de ${sb.length} en ${etiqAnt}). El periodo se cuenta por la fecha de creación de la solicitud.`,
-      sinDatos: sa.length ? undefined : 'Sin recepciones cerradas en este periodo.', href: `/reportes/recepciones?diferencias=S%C3%AD&${q}${prop}`,
+      detalle: [...porProv].sort((x, y) => y[1].dif - x[1].dif || y[1].total - x[1].total).slice(0, 5).map(([k, v]) => ({ etiqueta: k, valor: `${v.dif} de ${v.total}`, sub: v.dif ? textoTipos(v.tipos) : undefined })),
+      datos: `${difA} de ${sa.length} recepciones confirmadas tuvieron diferencia (${difB} de ${sb.length} en ${etiqAnt}).${porTipo.size ? ` Tipos: ${textoTipos(porTipo)}.` : ''}`,
+      sinDatos: sa.length ? undefined : 'Sin recepciones confirmadas en este periodo.', href: `/reportes/recepciones?diferencias=S%C3%AD&${q}${prop}`,
     }))
   }
 

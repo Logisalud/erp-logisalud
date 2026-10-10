@@ -6,6 +6,7 @@ import {
   validarLineaSolicitud, validarTransportista, type CambioEntrada, type Decision, type EntradaSolicitud, type EstadoRegistroCompras,
   type TipoIngreso,
 } from '@/domain/entradas'
+import { tiposDeDiferencia } from '@/domain/entradas-vistas'
 import type {
   ActaRecepcionVista, AlertaVista, BloqueFisico, CambioVista, ColaDT, DatosEdicionRecepcion, DatosOrganolepticaGuardar, DatosVerificacion,
   ExpedienteVista, FirmaEntrada, LineaSolicitudVista, OcPendiente, OrganolepticaVista, PosicionDestino, ResumenExpediente,
@@ -198,7 +199,8 @@ function armarDetalle(c: Carga, sol: Fila, bloque: BloqueFisico[], facturadas: M
   const temp = ing?.temperatura_c == null ? undefined : Number(ing.temperatura_c)
   const pendientes = [...lotesIng.values()].filter((x) => x.verificacion === 'PENDIENTE').length
   const estado = sol.estado as SolicitudDetalle['estado']
-  const conDiferencias = lineas.some((l) => l.estadoLinea !== 'ESPERADA' || (l.inicial != null && l.inicial !== l.cantidad))
+  const tiposDiferencia = tiposDeDiferencia(lineas, cambios)
+  const conDiferencias = tiposDiferencia.length > 0
   const sinNombre = (v: unknown) => (v ? nombres.get(String(v)) ?? 'Usuario' : undefined)
   return {
     id, numero: String(sol.numero), tipo, estado, version: Number(sol.version_actual), propietarioId: String(sol.propietario_id),
@@ -219,7 +221,7 @@ function armarDetalle(c: Carga, sol: Fila, bloque: BloqueFisico[], facturadas: M
     organolepticas: armarOrganolepticas(c).filter((o) => o.solicitudId === id),
     alertas: c.alertas.filter((a) => String(a.solicitud_id) === id || (ing && String(a.ingreso_id) === String(ing.id))).map((a) => mapearAlerta(a, nombres, solicitudesDeIngreso(c))),
     expedienteId: s(ing?.expediente_id), bloqueadoPorFirmas: !!vigente && c.firmas.some((x) => String(x.acta_id) === String(vigente.id)),
-    conDiferencias, cantidadFisica: bloque, estadoInicial: ESTADO_INICIAL[tipo],
+    conDiferencias, tiposDiferencia, cantidadFisica: bloque, estadoInicial: ESTADO_INICIAL[tipo],
   }
 }
 
@@ -295,7 +297,7 @@ export class EntradasSupabase {
       referencia: d.tipo === 'COMPRA_LOCAL' ? d.ocCodigo : d.tipo === 'DEVOLUCION' ? `${d.docOriginalTipo === 'BOLETA' ? 'Boleta' : 'Factura'} ${d.docOriginalNumero}` : d.guiaNumero ? `Guía ${d.guiaNumero}` : undefined,
       actaNumero: d.actas.find((a) => a.estado !== 'ANULADA')?.numero, unidades: d.lineas.reduce((n, l) => n + l.cantidad, 0),
       productos: new Set(d.lineas.filter((l) => l.cantidad > 0).map((l) => l.productoId)).size, fechaPrevista: d.fechaPrevista, creadoEn: d.creadoEn,
-      alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias, registroCompras: registro.get(d.id), cerradaEn: d.cerradaEn,
+      alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias, tiposDiferencia: d.tiposDiferencia, confirmadaEn: d.recepcion?.confirmadoEn, registroCompras: registro.get(d.id), cerradaEn: d.cerradaEn,
       aprobadaEn: d.organolepticas.filter((o) => o.decision === 'APROBADO' && o.decididoEn).map((o) => o.decididoEn!).sort().pop(),
     }))
   }

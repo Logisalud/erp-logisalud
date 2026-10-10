@@ -4,7 +4,7 @@
 import { normalizar } from './busqueda'
 import { ETIQUETA_ESTADO } from './estados'
 import { ETIQUETA_ESTADO_SOLICITUD, ETIQUETA_TIPO_INGRESO } from './entradas'
-import type { SolicitudResumen } from './entradas-vistas'
+import { ETIQUETA_DIFERENCIA_RECEPCION, type SolicitudResumen } from './entradas-vistas'
 import { ETIQUETA_ESTADO_ORDEN, ETIQUETA_VERIFICACION_LINEA, type OrdenMovimiento, type ReporteVista } from './inventario'
 import type { FilaExactitud } from './operacion'
 import { exactitudDeFilas } from './operacion'
@@ -90,8 +90,8 @@ export const REPORTES: Record<IdReporte, DefinicionReporte> = {
   },
   RECEPCIONES: {
     id: 'RECEPCIONES', titulo: 'Recepciones', descripcion: 'Las solicitudes de ingreso y su avance.', uso: 'Para seguir lo que llega y lo que falta cerrar. Se mira a diario.',
-    columnas: [texto('numero', 'Solicitud', { titulo: true }), fecha('fecha', 'Creada'), texto('tipo', 'Tipo'), texto('propietario', 'Propietario'), texto('contraparte', 'Proveedor o cliente'), texto('referencia', 'Referencia'), texto('estado', 'Estado'), texto('acta', 'Acta'), numero('productos', 'Productos', { suma: true }), numero('unidades', 'Unidades', { suma: true }), texto('diferencias', 'Con diferencias')],
-    filtros: [buscar, { clave: 'tipo', etiqueta: 'Tipo', tipo: 'seleccion', campo: 'tipo' }, { clave: 'estado', etiqueta: 'Estado', tipo: 'seleccion', campo: 'estado' }, { clave: 'diferencias', etiqueta: 'Con diferencia', tipo: 'seleccion', campo: 'diferencias' }, { clave: 'propietario', etiqueta: 'Propietario', tipo: 'seleccion', campo: 'propietario' }, { clave: 'desde', etiqueta: 'Desde', tipo: 'desde', campo: 'fecha' }, { clave: 'hasta', etiqueta: 'Hasta', tipo: 'hasta', campo: 'fecha' }],
+    columnas: [texto('numero', 'Solicitud', { titulo: true }), fecha('fecha', 'Creada'), fecha('confirmada', 'Recepción confirmada'), texto('tipo', 'Tipo'), texto('propietario', 'Propietario'), texto('contraparte', 'Proveedor o cliente'), texto('referencia', 'Referencia'), texto('estado', 'Estado'), texto('acta', 'Acta'), numero('productos', 'Productos', { suma: true }), numero('unidades', 'Unidades', { suma: true }), texto('diferencias', 'Con diferencia'), texto('tiposDif', 'Tipo de diferencia')],
+    filtros: [buscar, { clave: 'tipo', etiqueta: 'Tipo', tipo: 'seleccion', campo: 'tipo' }, { clave: 'estado', etiqueta: 'Estado', tipo: 'seleccion', campo: 'estado' }, { clave: 'diferencias', etiqueta: 'Con diferencia', tipo: 'seleccion', campo: 'diferencias' }, { clave: 'propietario', etiqueta: 'Propietario', tipo: 'seleccion', campo: 'propietario' }, { clave: 'desde', etiqueta: 'Confirmada desde', tipo: 'desde', campo: 'confirmada' }, { clave: 'hasta', etiqueta: 'Confirmada hasta', tipo: 'hasta', campo: 'confirmada' }],
   },
   CALIDAD: {
     id: 'CALIDAD', titulo: 'Calidad', descripcion: 'Lo que pide atención de calidad: Cuarentena, dados de baja, por trasladar y lotes vencidos o por vencer.', uso: 'Para que ningún lote quede olvidado en Cuarentena ni venza sin aviso. Se mira a diario.',
@@ -211,6 +211,7 @@ export function filasRecepciones(sols: SolicitudResumen[]): FilaReporte[] {
   return sols.map((s) => ({
     numero: s.numero, fecha: dia(s.creadoEn), tipo: ETIQUETA_TIPO_INGRESO[s.tipo], propietario: s.propietario, contraparte: s.contraparte ?? null, referencia: s.referencia ?? null,
     estado: ETIQUETA_ESTADO_SOLICITUD[s.estado], acta: s.actaNumero ?? null, productos: s.productos, unidades: s.unidades, diferencias: s.conDiferencias ? 'Sí' : 'No',
+    confirmada: s.confirmadaEn ? limaDia(s.confirmadaEn) : null, tiposDif: s.tiposDiferencia.length ? s.tiposDiferencia.map((t) => ETIQUETA_DIFERENCIA_RECEPCION[t]).join(', ') : null,
   })).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)) || String(b.numero).localeCompare(String(a.numero)))
 }
 

@@ -103,6 +103,10 @@ describe('programación de los 3 conteos semanales', () => {
 describe('exactitud', () => {
   it('solo quien gestiona la ve; sale de los conteos cerrados', async () => {
     expect(await repo.exactitudConteos(undefined, undefined, AUX)).toEqual([])
-    expect(await repo.exactitudConteos(undefined, undefined, KATIA)).toEqual([]) // todavía no hay conteos cerrados
+    const filas = await repo.exactitudConteos(undefined, undefined, KATIA)
+    expect(filas.length).toBeGreaterThan(30) // la demo trae conteos cerrados de los últimos dos meses
+    expect(filas.some((f) => f.primerConteo !== f.cantidadSistema)).toBe(true) // y algunos con diferencia
+    expect(filas.some((f) => f.primerConteo !== f.cantidadSistema && f.diferencia === 0)).toBe(true) // coincidieron recién en el reconteo
+    expect(await repo.exactitudConteos('2999-01-01', undefined, KATIA)).toEqual([])
   })
 })

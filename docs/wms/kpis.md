@@ -120,12 +120,13 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Dónde se ve hoy:** pantalla **Revisión diaria → Pendientes por resolver** (con el filtro «Solo los importantes»).
 
 ### 16. Recepciones con diferencia
-- **Definición:** qué parte de las recepciones cerradas llegó con una cantidad física distinta de la Solicitud de Ingreso o de la OC.
-- **Fórmula:** recepciones **cerradas** del periodo con diferencia ÷ recepciones cerradas del periodo (× 100). Detalle por proveedor (diferencias de cada uno). El periodo se cuenta por la **fecha de creación de la solicitud**.
-- **Fuente:** `wms.solicitudes_ingreso` (`con diferencias`: una línea con estado distinto de *esperada* o con cantidad final distinta de la inicial).
+- **Definición:** qué parte de las recepciones físicas llegó distinta de lo declarado.
+- **Qué es «diferencia»** (sin importar quién la registró): la cantidad física confirmada **no coincide con la Solicitud de Ingreso o la OC** (cantidad final distinta de la inicial, incluida una línea retirada); hay una **línea no esperada** (agregada después de autorizar); o el **lote o el vencimiento es distinto al declarado** (D-35: es un ajuste explícito con motivo, no un rechazo).
+- **Fórmula:** recepciones con diferencia ÷ recepciones **confirmadas** en el periodo (× 100). **El periodo se cuenta por la fecha en que se confirmó la recepción física**, no por la creación de la solicitud. Detalle por proveedor: cuántas con diferencia sobre el total y **el tipo de diferencia** (cantidad distinta, lote distinto, vencimiento distinto, línea no esperada).
+- **Fuente:** `wms.solicitudes_ingreso` (cantidad inicial y final por línea), su historial de cambios campo a campo y `wms.ingresos` (`confirmado_en`).
 - **Frecuencia:** mensual (se mira cada semana en Inicio).
 - **Responsable:** Jefe de Almacén; Compras sigue a los proveedores con más diferencias.
-- **Dónde se ve hoy:** **Inicio → Inventario y almacén**, **Reportes → Indicadores** y reporte **Recepciones** (filtro «Con diferencia»).
+- **Dónde se ve hoy:** **Inicio → Inventario y almacén**, **Reportes → Indicadores** y reporte **Recepciones** (columnas «Recepción confirmada», «Con diferencia» y «Tipo de diferencia»; filtro «Con diferencia»).
 
 ### 17. Tiempo en Cuarentena
 - **Definición:** cuánto espera un lote en Cuarentena hasta que Dirección Técnica lo aprueba.

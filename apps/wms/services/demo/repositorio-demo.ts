@@ -5,11 +5,15 @@ import {
   type DatosRegulatorios, type EntradaProducto,
 } from '@/domain/productos'
 import { estado, registrar } from './estado'
+import { estadoE } from './entradas-demo'
 import { OperacionDemo } from './operacion-demo'
+import { sembrarInventario } from './inventario-demo'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 
 export class RepositorioDemo extends OperacionDemo implements Repositorio {
   async panorama(): Promise<Panorama> {
+    // El historial de conteos y ajustes de la demo se siembra antes de leer el stock, para que todo sea consistente
+    sembrarInventario(estadoE())
     return structuredClone(estado().panorama)
   }
 

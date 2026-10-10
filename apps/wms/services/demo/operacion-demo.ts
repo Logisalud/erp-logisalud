@@ -6,7 +6,7 @@ import {
 } from '@/domain/operacion'
 import { ETIQUETA_ROL } from '@/domain/permisos'
 import type { Rol, Saldo } from '@/domain/tipos'
-import { InventarioDemo } from './inventario-demo'
+import { InventarioDemo, sembrarInventario } from './inventario-demo'
 import { alertar, estadoE, falla, nuevoId } from './entradas-demo'
 import { registrar, type EstadoDemo } from './estado'
 import type { RepositorioOperacion } from '../repositorio-operacion'
@@ -142,7 +142,7 @@ export class OperacionDemo extends InventarioDemo implements RepositorioOperacio
   }
 
   async ultimaCobertura(): Promise<Cobertura[]> {
-    const e = estadoE(); const o = op(e)
+    const e = estadoE(); sembrarInventario(e); const o = op(e)
     const m = new Map<string, string>()
     const marcar = (id: string, f: string) => { if (!m.has(id) || f > m.get(id)!) m.set(id, f) }
     for (const c of e.inv.conteos) for (const l of c.lineas) marcar(l.posicionId, c.programadoEn.slice(0, 10))
@@ -204,7 +204,7 @@ export class OperacionDemo extends InventarioDemo implements RepositorioOperacio
   // ── Indicadores: el stock en una fecha, desde el libro mayor ────────────
   async saldosAl(fecha: string, actor: Actor): Promise<Saldo[]> {
     if (!actor.roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'asistente_dt', 'admin_wms', 'auditoria_lectura'].includes(r))) return []
-    const e = estadoE()
+    const e = estadoE(); sembrarInventario(e)
     const m = new Map<string, Saldo>()
     for (const x of e.inv.ledger) {
       if (new Date(x.ts).toLocaleDateString('en-CA', { timeZone: 'America/Lima' }) > fecha) continue
@@ -218,7 +218,7 @@ export class OperacionDemo extends InventarioDemo implements RepositorioOperacio
   // ── Exactitud ───────────────────────────────────────────────────────────
   async exactitudConteos(desde: string | undefined, hasta: string | undefined, actor: Actor): Promise<FilaExactitud[]> {
     if (!actor.roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))) return []
-    const e = estadoE(); const p = e.panorama
+    const e = estadoE(); sembrarInventario(e); const p = e.panorama
     const out: FilaExactitud[] = []
     for (const c of e.inv.conteos) {
       if (c.estado !== 'CERRADO' || !c.cerradoEn) continue
