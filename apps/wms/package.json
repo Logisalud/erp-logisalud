@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run --exclude \"tests/db/**\"",
-    "test:e2e": "playwright test",
+    "test:e2e": "./scripts/e2e-por-viewport.sh",
+    "test:e2e:un-servidor": "playwright test",
     "seed:topologia": "tsx scripts/generar-seed-topologia.ts",
     "test:db": "./scripts/db-local.sh && vitest run tests/db"
   },

@@ -74,7 +74,7 @@ jobs:
   wms:
     name: apps/wms — dominio, base de datos, build y E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     # Postgres 16 de servicio: los tests de base de datos corren las migraciones del
     # WMS contra un Postgres con un schema `auth` simulado (ver apps/wms/tests/db/stubs.sql).
     # No es Supabase: no cubre PostgREST, GoTrue ni Storage (docs/wms/gate-0.md §G.1).
@@ -111,7 +111,9 @@ jobs:
 
       - run: npm run build --workspace erp-logisalud-wms
 
-      # E2E en los 4 viewports, en modo demostración (datos de prueba, sin base real).
+      # E2E en los 4 viewports, en modo demostración (datos de prueba, sin base real). El script reinicia el servidor
+      # entre viewports: el estado de la demo vive en memoria y las pruebas lo consumen (p. ej. la recepción de la OC-0002);
+      # con un solo servidor para los 4, los viewports posteriores al primero fallaban (rojo desde el 8-oct).
       - run: npx playwright install --with-deps chromium
 
       - run: npm run test:e2e --workspace erp-logisalud-wms
