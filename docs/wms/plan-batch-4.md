@@ -38,11 +38,17 @@ Detalle completo en el mensaje del pedido; resumen:
 - `kpis.md` define Tiempo de disponibilidad; tests con datos conocidos; demo con valor y tendencia.
 - Sigue vigente D-42: sin metas ni semáforos.
 
+**Estado (2026-10-10):** aprobado por Sebas en el Preview (PR #176).
+
+**Pendiente de Katia (D-45):** confirmar el sentido —«más es mejor» o «más es peor»— de los **18 indicadores** (tabla en `kpis.md`). **Ocupación del almacén queda neutral** (sin palabra ni color, solo flecha y cambio) hasta que decida.
+
+**Más adelante en el Batch 4 (cuando haya tiempo):** un **reporte propio de Tiempo de disponibilidad**, recepción por recepción: **llegada** (recepción física confirmada), **aprobación** (Dirección Técnica), **ubicación final** (la posición de Aprobados donde quedó) y **horas totales**; con **filtro por propietario** y la descarga en CSV y Excel como los demás reportes. La tarjeta de Inicio e Indicadores lo abrirá en lugar del reporte de Recepciones.
+
 | Quién | Qué |
 |---|---|
-| Claude | Implementar, probar, capturas en 4 viewports, Impeccable |
-| Katia | Confirmar el sentido (más es mejor/peor) de cada indicador |
-| Sebas | Aprobar el Preview |
+| Claude | Implementar, probar, capturas en 4 viewports, Impeccable (hecho); reporte propio de Tiempo de disponibilidad |
+| Katia | Confirmar el sentido (más es mejor/peor) de cada indicador (D-45) |
+| Sebas | Aprobar el Preview (hecho) |
 
 ---
 
