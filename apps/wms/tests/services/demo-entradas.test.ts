@@ -467,7 +467,7 @@ describe('alertas', () => {
 describe('vencimiento de lotes en el inventario (D-30)', () => {
   it('alerta de lote por vencer (Jefe de Almacén) y de lote vencido (Dirección Técnica)', async () => {
     const abiertas = (await repo.listarAlertas()).filter((a) => a.estado === 'ABIERTA')
-    const pronto = abiertas.find((a) => a.tipo === 'LOTE_POR_VENCER')!
+    const pronto = abiertas.find((a) => a.tipo === 'LOTE_POR_VENCER' && a.mensaje.includes('L-VENCE-PRONTO'))!
     expect(pronto).toMatchObject({ destinatario: 'jefe_almacen' })
     expect(pronto.mensaje).toMatch(/L-VENCE-PRONTO.*en 38 días.*90 unidades/)
     const vencido = abiertas.find((a) => a.tipo === 'LOTE_VENCIDO')!

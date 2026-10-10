@@ -124,7 +124,7 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   return avisos
 }
 
-/** Los 4 indicadores del grupo «Inventario y almacén», en su orden (últimos 30 días contra los 30 anteriores). */
+/** Los 3 indicadores de Inicio, en su orden (últimos 30 días contra los 30 anteriores). */
 async function cargarKpisInicio(actor: Actor, hoy: string): Promise<Indicador[]> {
   const { indicadores } = await cargarIndicadores(actor, periodoDe(hoy, 30))
   return CLAVES_INICIO.map((c) => indicadores.find((i) => i.clave === c)!).filter(Boolean)
@@ -163,7 +163,7 @@ export default async function Inicio() {
 
       {kpis && (
         <div data-testid="kpis-inicio">
-          <GrupoIndicadores id="g-inventario" titulo="Inventario y almacén" compacta indicadores={kpis} descripcion="Últimos 30 días frente a los 30 anteriores. Sin metas todavía: se miden un mes antes de fijarlas." />
+          <GrupoIndicadores id="g-inventario" titulo="Inventario y almacén" columnas="tres" indicadores={kpis} descripcion="Últimos 30 días frente a los 30 anteriores. Sin metas todavía: se miden un mes antes de fijarlas." />
           <p className="mt-3"><Link href="/reportes/indicadores" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-teal-800 underline underline-offset-2" data-testid="ver-todos-indicadores"><BarChart3 className="h-4 w-4" aria-hidden />Ver todos los indicadores</Link></p>
           {/* Segundo grupo, «Despacho»: se agrega aquí cuando existan las salidas (ver DESPACHO_PREVISTO), sin rehacer Inicio. */}
         </div>

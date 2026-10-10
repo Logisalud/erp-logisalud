@@ -310,6 +310,8 @@ export interface SolicitudResumen {
   aprobadaEn?: string
   /** Solo compras cerradas: peor estado del registro en Compras entre sus líneas. */
   registroCompras?: EstadoRegistroCompras
+  /** Los lotes que trae (producto y lote tal como están impresos), para saber cuándo quedó disponible todo lo recibido. */
+  lotes?: { productoId: string; lote: string }[]
 }
 
 export interface SolicitudDetalle {
