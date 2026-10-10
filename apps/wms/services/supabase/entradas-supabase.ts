@@ -44,7 +44,7 @@ export async function nombresDe(ids: (string | undefined)[]): Promise<Map<string
 }
 
 /** Lectura de las vistas de Compras (solo existen si Compras está en la misma base). */
-async function leerOpcional(tabla: string, orden?: string): Promise<Fila[]> {
+async function leerOpcional(tabla: string, orden: readonly string[] = []): Promise<Fila[]> {
   try { return await traerTodo(tabla, 'wms', '*', orden) } catch { return [] }
 }
 
@@ -70,14 +70,14 @@ interface Carga {
 async function cargar(): Promise<Carga> {
   const [solicitudes, lineas, cambios, versiones, ingresos, lotesIngreso, lotes, posiciones, productos, regulatorio, propietarios, actas, firmas, organolepticas, alertas] =
     await Promise.all([
-      traerTodo('solicitudes_ingreso', 'wms', '*', 'creado_en'), traerTodo('solicitud_ingreso_lineas', 'wms', '*', 'creado_en'),
-      traerTodo('solicitud_ingreso_cambios', 'wms', '*', 'id'), traerTodo('solicitud_ingreso_versiones', 'wms'),
-      traerTodo('ingresos', 'wms', '*', 'creado_en'), traerTodo('ingreso_lotes', 'wms'),
+      traerTodo('solicitudes_ingreso', 'wms', '*', ['creado_en']), traerTodo('solicitud_ingreso_lineas', 'wms', '*', ['creado_en']),
+      traerTodo('solicitud_ingreso_cambios', 'wms', '*', ['id']), traerTodo('solicitud_ingreso_versiones', 'wms'),
+      traerTodo('ingresos', 'wms', '*', ['creado_en']), traerTodo('ingreso_lotes', 'wms'),
       traerTodo('lotes', 'wms'), traerTodo('posiciones', 'wms', 'id, codigo, tipo_area'),
       traerTodo('productos', 'catalogo', 'id, codigo, descripcion, presentacion, principio_activo'),
       traerTodo('producto_regulatorio', 'wms'), traerTodo('propietarios', 'wms'),
-      traerTodo('actas_recepcion', 'wms', '*', 'generada_en'), traerTodo('acta_firmas', 'wms'),
-      traerTodo('actas_organolepticas', 'wms', '*', 'creado_en'), traerTodo('alertas', 'wms', '*', 'creada_en'),
+      traerTodo('actas_recepcion', 'wms', '*', ['generada_en']), traerTodo('acta_firmas', 'wms'),
+      traerTodo('actas_organolepticas', 'wms', '*', ['creado_en']), traerTodo('alertas', 'wms', '*', ['creada_en']),
     ])
   const nombres = await nombresDe([
     ...solicitudes.map((r) => s(r.creado_por)), ...solicitudes.map((r) => s(r.autorizado_por)), ...versiones.map((r) => s(r.editado_por)),
@@ -262,7 +262,7 @@ async function ingresoDe(solicitudId: string): Promise<string | undefined> {
 export class EntradasSupabase {
   async ocsPendientes(): Promise<OcPendiente[]> {
     // Vista de integración (solo lectura; existe si Compras está en la misma base).
-    const filas = await leerOpcional('v_oc_items', 'oc_codigo')
+    const filas = await leerOpcional('v_oc_items', ['oc_codigo'])
     const grupos = por(filas, 'oc_id')
     return [...grupos.entries()].map(([ocId, ls]) => ({
       ocId, codigo: String(ls[0].oc_codigo), proveedorNombre: String(ls[0].proveedor_nombre), proveedorRuc: String(ls[0].proveedor_ruc), estado: s(ls[0].estado_oc),
@@ -465,7 +465,7 @@ export class EntradasSupabase {
   async listarAlertas(): Promise<AlertaVista[]> {
     // Las revisiones son idempotentes: crean la alerta una sola vez mientras siga abierta.
     await Promise.all([rpc('revisar_registro_compras', {}), rpc('revisar_por_trasladar', {}), rpc('revisar_vencimientos', {}), rpc('revisar_movimientos_sin_verificar', {})])
-    const [filas, ingresos] = await Promise.all([traerTodo('alertas', 'wms', '*', 'creada_en'), traerTodo('ingresos', 'wms', 'id, solicitud_id')])
+    const [filas, ingresos] = await Promise.all([traerTodo('alertas', 'wms', '*', ['creada_en']), traerTodo('ingresos', 'wms', 'id, solicitud_id')])
     const nombres = await nombresDe(filas.map((r) => s(r.atendida_por)))
     const solDeIngreso = new Map(ingresos.map((i) => [String(i.id), String(i.solicitud_id)]))
     return filas.map((r) => mapearAlerta(r, nombres, solDeIngreso)).reverse()
@@ -485,7 +485,7 @@ export class EntradasSupabase {
 
   async listarExpedientes(): Promise<ResumenExpediente[]> {
     const [exps, docs, falt, ings] = await Promise.all([
-      traerTodo('expedientes', 'wms', '*', 'creado_en'), traerTodo('expediente_documentos', 'wms', 'id, expediente_id'),
+      traerTodo('expedientes', 'wms', '*', ['creado_en']), traerTodo('expediente_documentos', 'wms', 'id, expediente_id'),
       traerTodo('expediente_faltantes', 'wms', 'id, expediente_id, estado'), traerTodo('ingresos', 'wms', 'id, expediente_id'),
     ])
     return exps.map((x) => ({
@@ -498,7 +498,7 @@ export class EntradasSupabase {
 
   async obtenerExpediente(id: string): Promise<ExpedienteVista | null> {
     const [exps, docs, falt, ings, actas, lotes, sols] = await Promise.all([
-      traerTodo('expedientes', 'wms'), traerTodo('expediente_documentos', 'wms', '*', 'agregado_en'), traerTodo('expediente_faltantes', 'wms', '*', 'creado_en'),
+      traerTodo('expedientes', 'wms'), traerTodo('expediente_documentos', 'wms', '*', ['agregado_en']), traerTodo('expediente_faltantes', 'wms', '*', ['creado_en']),
       traerTodo('ingresos', 'wms', 'id, tipo, solicitud_id, expediente_id, confirmado_en'), traerTodo('actas_recepcion', 'wms', 'ingreso_id, numero, estado'),
       traerTodo('ingreso_lotes', 'wms', 'ingreso_id, cantidad'), traerTodo('solicitudes_ingreso', 'wms', 'id, numero'),
     ])
