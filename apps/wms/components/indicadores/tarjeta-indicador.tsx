@@ -22,8 +22,8 @@ export function TarjetaIndicador({ k, compacta = false, marcaInicio = false }: {
         {k.sinDatos ? (
           <span className="mt-1.5 block text-sm text-gray-700" data-testid="kpi-sin-datos"><span className="tabular block font-heading text-2xl font-semibold text-gray-500 md:text-3xl">—</span>{k.sinDatos}</span>
         ) : (
-          <span className="mt-1 flex items-end justify-between gap-3">
-            <span className="tabular block font-heading text-xl font-semibold leading-tight text-gray-900 md:text-3xl" data-testid="kpi-valor">{k.texto}</span>
+          <span className="mt-1 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+            <span className="tabular block whitespace-nowrap font-heading text-xl font-semibold leading-tight text-gray-900 md:text-3xl" data-testid="kpi-valor">{k.texto}</span>
             {k.serie && <Tendencia serie={k.serie} efecto={k.variacion?.efecto ?? 'sin-juicio'} nombre={k.nombre} />}
           </span>
         )}
