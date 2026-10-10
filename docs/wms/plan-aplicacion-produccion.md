@@ -43,6 +43,8 @@ Después (pasos de configuración de `aplicar-migraciones.md`): exponer `wms` en
 Cada uno es un **cambio aparte** y se anota. Recién ahí puede decidirse el deploy de Preview con datos reales (otra aprobación).
 
 ## 4. Herramienta y reglas de ejecución
+> **Paso a paso de la ventana (decidido 2026-10-10):** SQL Editor del panel de Supabase ejecutado por Sebas o Andrés (no `apply_migration`), un bloque por migración con su cabecera de seguridad y su anotación en el historial, **0009 antes de 0008** (lo único que toca Compras al final), snapshots antes y después y reversa que limpia también el historial. Ver `guia-ventana-supabase.md` y `apps/wms/supabase/ventana/`.
+
 - **Herramienta que deje historial** (migraciones de Supabase o el panel SQL con registro). Cada migración se registra con su nombre y hora.
 - Antes de cada ejecución: `set lock_timeout = '5s'; set statement_timeout = '60s';` (**0001–0007 ya no usan `drop … if exists`**: verifican con `pg_trigger`/`pg_policies`/`pg_constraint`/`to_regprocedure` antes de borrar. Ese patrón sobre objetos inexistentes **colgó** la herramienta MCP el 2026-10-08; hasta el 2026-10-08 (Batch 3) las migraciones 0001, 0002, 0004 y 0005 todavía lo usaban —el plan lo daba por corregido y no lo estaba—, y ahora lo comprueba la prueba `tests/db/migraciones.test.ts`: sin ese patrón y sin avisos «does not exist, skipping» al aplicar la cadena en una base nueva).
 - Sin `drop` ni `alter` sobre tablas de otros módulos; si una migración intentara hacerlo, se detiene.
