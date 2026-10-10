@@ -192,6 +192,7 @@ function resumen(e: EstadoDemo, s: SolicitudDemo): SolicitudResumen {
     fechaPrevista: s.fechaPrevista, creadoEn: s.creadoEn, alertasAbiertas: d.alertas.filter((a) => a.estado === 'ABIERTA').length, conDiferencias: d.conDiferencias, tiposDiferencia: d.tiposDiferencia, confirmadaEn: d.recepcion?.confirmadoEn,
     cerradaEn: d.cerradaEn, aprobadaEn: aprobadaEnDe(d),
     registroCompras: peorRegistro(d.cantidadFisica.map((b) => b.estado)),
+    lotes: s.lineas.filter((l) => l.cantidad > 0).map((l) => ({ productoId: l.productoId, lote: l.lote })),
   }
 }
 

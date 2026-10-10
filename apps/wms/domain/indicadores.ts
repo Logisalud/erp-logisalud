@@ -1,6 +1,7 @@
 // Indicadores (KPI) del WMS: definidos en docs/wms/kpis.md. Todo es cálculo puro sobre datos ya leídos; no hay metas ni semáforos (D-42):
-// cada indicador muestra su valor, la variación frente al periodo anterior (solo una flecha y el cambio, sin colores de bueno o malo),
-// cómo se calcula y a qué reporte lleva.
+// cada indicador muestra su valor, hacia dónde va frente al periodo anterior (una flecha, el cambio y una palabra: «mejoró» o «empeoró»,
+// según si «más» es mejor o peor para ese indicador), su tendencia de 30 días, cómo se calcula y a qué reporte lleva.
+// La tendencia dice hacia dónde va, no si está bien o mal: no hay metas.
 import { ETIQUETA_DIFERENCIA_RECEPCION, type AlertaVista, type SolicitudResumen, type TipoDiferenciaRecepcion } from './entradas-vistas'
 import type { AjusteVista, OrdenMovimiento } from './inventario'
 import type { Cobertura, FilaExactitud, PendienteVista, ProgramacionVista, RevisionDiaria } from './operacion'
@@ -28,7 +29,21 @@ export function periodoDeRango(desde: string | undefined, hasta: string | undefi
   return periodoDe(hoy, 30)
 }
 
-export interface Variacion { sentido: 'sube' | 'baja' | 'igual'; texto: string }
+/** `efecto`: si el cambio mejoró o empeoró según el sentido del indicador; `sin-juicio` si el indicador no declara cuál es mejor. */
+export type EfectoVariacion = 'mejoro' | 'empeoro' | 'igual' | 'sin-juicio'
+export interface Variacion {
+  sentido: 'sube' | 'baja' | 'igual'
+  efecto: EfectoVariacion
+  /** Cuánto cambió y en qué unidad («15,6 puntos», «2 lotes»); vacío si no cambió. */
+  cantidad: string
+  /** «mejoró», «empeoró» o «sin cambio»; vacío si el indicador no declara qué es mejor. */
+  palabra: string
+  /** Todo junto, para leer o anunciar: «↑ 15,6 puntos · mejoró». */
+  texto: string
+  /** Contra qué se comparó («los 30 días anteriores»). */
+  comparacion: string
+}
+export interface PuntoSerie { dia: string; valor: number | null }
 export interface DetalleIndicador { etiqueta: string; valor: string; /** Una línea más pequeña bajo la fila (por ejemplo, el tipo de diferencia). */ sub?: string }
 export interface Indicador {
   clave: string
@@ -40,6 +55,10 @@ export interface Indicador {
   /** Lo que se lee grande en la tarjeta («92,5 %», «12 lotes · 340 u»). */
   texto: string
   variacion: Variacion | null
+  /** Cada indicador declara si «más» es mejor (true), peor (false) o si no se juzga todavía (null). Ver MAS_ES_MEJOR. */
+  masEsMejor: boolean | null
+  /** Su valor cada pocos días de los últimos 30 (tendencia). Ausente si ese indicador no se puede reconstruir hacia atrás. */
+  serie?: PuntoSerie[]
   /** Por qué no hay variación (por ejemplo, no hay historial). */
   sinVariacion?: string
   detalle: DetalleIndicador[]
@@ -85,29 +104,75 @@ const dias = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) 
 const finDelDia = (d: string) => Date.parse(`${d}T23:59:59-05:00`)
 type EntradaIndicador = Pick<Indicador, 'clave' | 'tema' | 'nombre' | 'enInicio' | 'formula' | 'href' | 'filtraPropietario'> & Partial<Indicador>
 function base(x: EntradaIndicador): Indicador {
-  return { valor: null, texto: '—', variacion: null, detalle: [], datos: '', ...x }
+  return { valor: null, texto: '—', variacion: null, masEsMejor: MAS_ES_MEJOR[x.clave] ?? null, detalle: [], datos: '', ...x }
 }
 
 export const textoPeriodo = (p: Periodo) => `${p.dias} días`
 
-/** La variación como una flecha y el cambio, sin juzgar si es bueno o malo. `unidad`: «pp» (puntos porcentuales), «lotes», «u», «días»… */
+const SINGULAR: Record<string, string> = { puntos: 'punto', lotes: 'lote', líneas: 'línea', ajustes: 'ajuste', alertas: 'alerta', días: 'día', horas: 'hora', pendientes: 'pendiente' }
+
+/**
+ * Cuánto y hacia dónde cambió un indicador (sin juzgarlo todavía: el juicio lo pone `juzgar`, según el sentido del indicador).
+ * `unidad` va en plural («puntos», «lotes», «u», «días»); un puntos de diferencia dice «1 punto».
+ */
 export function variacion(actual: number | null, anterior: number | null, unidad: string, etiquetaAnterior: string, decimales = 1): Variacion | null {
   if (actual === null || anterior === null) return null
   const d = Math.round((actual - anterior) * 10 ** decimales) / 10 ** decimales
-  if (d === 0) return { sentido: 'igual', texto: `= Sin cambio frente a ${etiquetaAnterior}` }
-  return { sentido: d > 0 ? 'sube' : 'baja', texto: `${d > 0 ? '↑' : '↓'} ${nf(Math.abs(d), decimales)} ${unidad} frente a ${etiquetaAnterior}` }
+  const comparacion = `frente a ${etiquetaAnterior}`
+  if (d === 0) return { sentido: 'igual', efecto: 'igual', cantidad: '', palabra: 'sin cambio', texto: '= sin cambio', comparacion }
+  const abs = Math.abs(d)
+  const cantidad = `${nf(abs, decimales)} ${abs === 1 ? SINGULAR[unidad] ?? unidad : unidad}`
+  return { sentido: d > 0 ? 'sube' : 'baja', efecto: 'sin-juicio', cantidad, palabra: '', texto: `${d > 0 ? '↑' : '↓'} ${cantidad}`, comparacion }
+}
+
+/** Dice con una palabra si el cambio mejoró o empeoró, según si «más» es mejor para ese indicador. No es una meta: solo hacia dónde va. */
+export function juzgar(v: Variacion | null, masEsMejor: boolean | null): Variacion | null {
+  if (!v || v.sentido === 'igual' || masEsMejor === null) return v
+  const mejoro = (v.sentido === 'sube') === masEsMejor
+  const palabra = mejoro ? 'mejoró' : 'empeoró'
+  return { ...v, efecto: mejoro ? 'mejoro' : 'empeoro', palabra, texto: `${v.texto} · ${palabra}` }
+}
+
+/**
+ * Para cada indicador, ¿«más» es mejor? true = más es mejor; false = más es peor; null = todavía sin juicio (solo flecha y cambio).
+ * Es la única lista que decide las palabras «mejoró» y «empeoró»: Dirección Técnica la confirma (docs/wms/kpis.md).
+ */
+export const MAS_ES_MEJOR: Record<string, boolean | null> = {
+  exactitud: true,
+  'conteos-semana': true,
+  cobertura: true,
+  'diferencias-conteo': false,
+  'movs-a-tiempo': true,
+  'movs-sin-verificar': false,
+  'lineas-con-dif': false,
+  'cuarentena-trasladar': false,
+  vencimientos: false,
+  'ciclo-recepcion': false,
+  'recepciones-dif': false,
+  'tiempo-cuarentena': false,
+  disponibilidad: false,
+  ocupacion: null,
+  'revision-diaria': true,
+  pendientes: false,
+  ajustes: false,
+  alertas: false,
 }
 
 const sinHistorial = 'No hay historial para comparar este indicador.'
 
 // ── El cálculo ──────────────────────────────────────────────────────────────
 
-export interface OpcionesIndicadores { propietarioId?: string }
+export interface OpcionesIndicadores {
+  propietarioId?: string
+  /** El momento «actual» (ms). Por defecto, ahora; las series de tendencia lo mueven al final de cada día. */
+  ahora?: number
+}
 
 export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: OpcionesIndicadores = {}): Indicador[] {
   const ant = periodoAnterior(periodo)
   const p = d.panorama
   const pid = o.propietarioId
+  const ahoraMs = o.ahora ?? Date.now()
   const codigoDe = new Map(p.propietarios.map((x) => [x.id, x.codigo]))
   const cod = pid ? codigoDe.get(pid) : undefined
   const posPorId = new Map(p.posiciones.map((x) => [x.id, x]))
@@ -126,7 +191,7 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     out.push(base({
       clave: 'exactitud', tema: 'Inventario', nombre: 'Exactitud de inventario', enInicio: true, filtraPropietario: true,
       formula: 'Líneas contadas (ubicación + lote) cuyo PRIMER conteo coincidió con lo que decía el sistema ÷ líneas contadas, en conteos cerrados del periodo.',
-      valor: a.porcentaje, texto: a.porcentaje === null ? '—' : pct(a.porcentaje), variacion: variacion(a.porcentaje, b.porcentaje, 'pp', etiqAnt),
+      valor: a.porcentaje, texto: a.porcentaje === null ? '—' : pct(a.porcentaje), variacion: variacion(a.porcentaje, b.porcentaje, 'puntos', etiqAnt),
       sinVariacion: b.porcentaje === null ? `No hubo conteos cerrados en ${etiqAnt}.` : undefined,
       datos: a.lineas ? `${a.exactas} de ${a.lineas} líneas coincidieron en el primer conteo (${b.lineas} líneas en ${etiqAnt}).` : 'No hubo conteos cerrados en el periodo.',
       sinDatos: a.lineas ? undefined : 'Sin conteos cerrados en este periodo.', href: `/reportes/exactitud?${q}${prop}`,
@@ -141,7 +206,7 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     out.push(base({
       clave: 'conteos-semana', tema: 'Movimientos y conteos', nombre: 'Cumplimiento de los conteos semanales', enInicio: false, filtraPropietario: false,
       formula: 'Conteos semanales generados ÷ 3 por cada semana del periodo (los conteos extra por incidencia no cuentan).',
-      valor: razon(a.hechos, a.previstos), texto: pct(razon(a.hechos, a.previstos) ?? 0), variacion: variacion(razon(a.hechos, a.previstos), razon(b.hechos, b.previstos), 'pp', etiqAnt),
+      valor: razon(a.hechos, a.previstos), texto: pct(razon(a.hechos, a.previstos) ?? 0), variacion: variacion(razon(a.hechos, a.previstos), razon(b.hechos, b.previstos), 'puntos', etiqAnt),
       datos: `${a.hechos} de ${a.previstos} conteos previstos se generaron.`, href: '/conteos',
     }))
   }
@@ -167,7 +232,7 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     out.push(base({
       clave: 'diferencias-conteo', tema: 'Inventario', nombre: 'Diferencias en conteo', enInicio: false, filtraPropietario: true,
       formula: 'Suma de |contado final − sistema| ÷ suma de lo que decía el sistema, en conteos cerrados del periodo.',
-      valor: v, texto: v === null ? '—' : pct(v), variacion: variacion(v, razon(b.dif, b.sis), 'pp', etiqAnt),
+      valor: v, texto: v === null ? '—' : pct(v), variacion: variacion(v, razon(b.dif, b.sis), 'puntos', etiqAnt),
       datos: `${a.dif.toLocaleString('es-PE')} u de diferencia sobre ${a.sis.toLocaleString('es-PE')} u en el sistema (${a.lineas} líneas).`, sinDatos: a.lineas ? undefined : 'Sin conteos cerrados en este periodo.',
       href: `/reportes/exactitud?${q}&diferencia=Con%20diferencia${prop}`,
     }))
@@ -176,7 +241,7 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
   // 5 · Movimientos verificados a tiempo
   {
     const plazoMs = d.plazoMovHoras * 3_600_000
-    const ahora = Date.now()
+    const ahora = ahoraMs
     const duenos = (o2: OrdenMovimiento) => !cod || o2.lineas.some((l) => l.propietario === cod)
     const de = (per: Periodo) => {
       const os = d.ordenes.filter((x) => x.estado !== 'ANULADO' && enPeriodo(limaDia(x.ejecutadoEn), per) && duenos(x))
@@ -191,7 +256,7 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     out.push(base({
       clave: 'movs-a-tiempo', tema: 'Movimientos y conteos', nombre: 'Movimientos verificados a tiempo', enInicio: false, filtraPropietario: true,
       formula: `Movimientos verificados en ${d.plazoMovHoras} h o menos desde que se ejecutaron ÷ movimientos que ya se verificaron o que ya pasaron ese plazo sin verificar. Los que siguen dentro del plazo no cuentan todavía.`,
-      valor: razon(a.atiempo, a.total), texto: a.total ? pct(razon(a.atiempo, a.total)!) : '—', variacion: variacion(razon(a.atiempo, a.total), razon(b.atiempo, b.total), 'pp', etiqAnt),
+      valor: razon(a.atiempo, a.total), texto: a.total ? pct(razon(a.atiempo, a.total)!) : '—', variacion: variacion(razon(a.atiempo, a.total), razon(b.atiempo, b.total), 'puntos', etiqAnt),
       datos: `${a.atiempo} de ${a.total} movimientos se verificaron a tiempo.`, sinDatos: a.total ? undefined : 'Sin movimientos para medir en este periodo.', href: `/reportes/movimientos?${q}${prop}`,
     }))
   }
@@ -209,11 +274,11 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
       }
       return { lineas, vencidas }
     }
-    const a = pendientesAl(Date.now()); const b = pendientesAl(finDelDia(sumarDiasISO(periodo.desde, -1)))
+    const a = pendientesAl(ahoraMs); const b = pendientesAl(finDelDia(sumarDiasISO(periodo.desde, -1)))
     out.push(base({
       clave: 'movs-sin-verificar', tema: 'Movimientos y conteos', nombre: 'Movimientos sin verificar', enInicio: false, filtraPropietario: true,
       formula: `Líneas de movimientos ejecutados que todavía no verificó otra persona (sus unidades están en tránsito); y de ellas, las que pasaron de ${d.plazoMovHoras} h.`,
-      valor: a.lineas, texto: `${a.lineas} ${a.lineas === 1 ? 'línea' : 'líneas'}`, variacion: variacion(a.lineas, b.lineas, a.lineas === 1 ? 'línea' : 'líneas', etiqHace, 0),
+      valor: a.lineas, texto: `${a.lineas} ${a.lineas === 1 ? 'línea' : 'líneas'}`, variacion: variacion(a.lineas, b.lineas, 'líneas', etiqHace, 0),
       detalle: [{ etiqueta: `Con más de ${d.plazoMovHoras} h`, valor: `${a.vencidas}` }], datos: `Ahora: ${a.lineas} líneas por verificar, ${a.vencidas} fuera de plazo. Hace ${periodo.dias} días: ${b.lineas}.`,
       href: `/reportes/movimientos?estado=Por%20verificar${prop}`,
     }))
@@ -230,7 +295,7 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     out.push(base({
       clave: 'lineas-con-dif', tema: 'Movimientos y conteos', nombre: 'Líneas con diferencia al verificar', enInicio: false, filtraPropietario: true,
       formula: 'Líneas con diferencia ÷ líneas verificadas (confirmadas + con diferencia), de movimientos ejecutados en el periodo.',
-      valor: razon(a.dif, a.verificadas), texto: a.verificadas ? pct(razon(a.dif, a.verificadas)!) : '—', variacion: variacion(razon(a.dif, a.verificadas), razon(b.dif, b.verificadas), 'pp', etiqAnt),
+      valor: razon(a.dif, a.verificadas), texto: a.verificadas ? pct(razon(a.dif, a.verificadas)!) : '—', variacion: variacion(razon(a.dif, a.verificadas), razon(b.dif, b.verificadas), 'puntos', etiqAnt),
       datos: `${a.dif} de ${a.verificadas} líneas verificadas tuvieron diferencia.`, sinDatos: a.verificadas ? undefined : 'Sin líneas verificadas en este periodo.',
       href: `/reportes/movimientos?${q}&estado=Con%20diferencia${prop}`,
     }))
@@ -276,7 +341,7 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     out.push(base({
       clave: 'vencimientos', tema: 'Calidad', nombre: 'Por vencer y vencidos', enInicio: true, filtraPropietario: true,
       formula: `Lotes (y sus unidades) con stock que vencen en ${d.diasAlertaVencimiento} días o menos, más los que ya vencieron. No cuenta lo que está en Bajas/Rechazados.`,
-      valor: a.lotes, texto: `${a.lotes} ${a.lotes === 1 ? 'lote' : 'lotes'} · ${a.unidades.toLocaleString('es-PE')} u`, variacion: variacion(a.lotes, b.lotes, a.lotes === 1 ? 'lote' : 'lotes', etiqHace, 0),
+      valor: a.lotes, texto: `${a.lotes} ${a.lotes === 1 ? 'lote' : 'lotes'} · ${a.unidades.toLocaleString('es-PE')} u`, variacion: variacion(a.lotes, b.lotes, 'lotes', etiqHace, 0),
       detalle: [{ etiqueta: 'Ya vencidos', valor: `${a.vencidos} ${a.vencidos === 1 ? 'lote' : 'lotes'} · ${a.uV.toLocaleString('es-PE')} u` }, { etiqueta: `Vencen en ${d.diasAlertaVencimiento} días o menos`, valor: `${a.porVencer} ${a.porVencer === 1 ? 'lote' : 'lotes'} · ${a.uP.toLocaleString('es-PE')} u` }],
       datos: `Ahora: ${a.lotes} lotes y ${a.unidades} u. Hace ${periodo.dias} días: ${b.lotes} lotes y ${b.unidades} u.`, href: `/reportes/vencimientos?diasHasta=${d.diasAlertaVencimiento}${prop}`,
     }))
@@ -313,12 +378,31 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     }
     const textoTipos = (m: Map<string, number>) => [...m].sort((x, y) => y[1] - x[1]).map(([t, n]) => `${ETIQUETA_DIFERENCIA_RECEPCION[t as TipoDiferenciaRecepcion] ?? t}${n > 1 ? ` ×${n}` : ''}`).join(' · ')
     out.push(base({
-      clave: 'recepciones-dif', tema: 'Recepciones', nombre: 'Recepciones con diferencia', enInicio: true, filtraPropietario: true,
+      clave: 'recepciones-dif', tema: 'Recepciones', nombre: 'Recepciones con diferencia', enInicio: false, filtraPropietario: true,
       formula: 'Recepciones físicas confirmadas en el periodo que llegaron distintas de lo declarado ÷ recepciones confirmadas en el periodo. Hay diferencia si la cantidad final no coincide con la Solicitud de Ingreso o la OC, si hay una línea no esperada, o si el lote o el vencimiento es distinto al declarado (D-35). El periodo se cuenta por la fecha en que se confirmó la recepción física.',
-      valor: razon(difA, sa.length), texto: sa.length ? pct(razon(difA, sa.length)!) : '—', variacion: variacion(razon(difA, sa.length), razon(difB, sb.length), 'pp', etiqAnt),
+      valor: razon(difA, sa.length), texto: sa.length ? pct(razon(difA, sa.length)!) : '—', variacion: variacion(razon(difA, sa.length), razon(difB, sb.length), 'puntos', etiqAnt),
       detalle: [...porProv].sort((x, y) => y[1].dif - x[1].dif || y[1].total - x[1].total).slice(0, 5).map(([k, v]) => ({ etiqueta: k, valor: `${v.dif} de ${v.total}`, sub: v.dif ? textoTipos(v.tipos) : undefined })),
       datos: `${difA} de ${sa.length} recepciones confirmadas tuvieron diferencia (${difB} de ${sb.length} en ${etiqAnt}).${porTipo.size ? ` Tipos: ${textoTipos(porTipo)}.` : ''}`,
       sinDatos: sa.length ? undefined : 'Sin recepciones confirmadas en este periodo.', href: `/reportes/recepciones?diferencias=S%C3%AD&${q}${prop}`,
+    }))
+  }
+
+  // 11b · Tiempo de disponibilidad (dock-to-stock, Inicio)
+  {
+    const mediana = (xs: number[]) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return Math.round((s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) * 10) / 10 }
+    const todas = tiemposDeDisponibilidad(d.solicitudes, d.ordenes, posPorId).filter((x) => !cod || x.propietario === cod)
+    const de = (per: Periodo) => todas.filter((x) => enPeriodo(limaDia(x.disponibleEn), per))
+    const sa = de(periodo); const sb = de(ant)
+    const ma = mediana(sa.map((x) => x.horas)); const mb = mediana(sb.map((x) => x.horas))
+    const porProp = new Map<string, number[]>(); for (const x of sa) porProp.set(x.propietario, [...(porProp.get(x.propietario) ?? []), x.horas])
+    out.push(base({
+      clave: 'disponibilidad', tema: 'Recepciones', nombre: 'Tiempo de disponibilidad', enInicio: true, filtraPropietario: true,
+      formula: 'Horas desde que se confirmó la recepción física hasta que toda la mercadería de esa recepción quedó Aprobada y verificada en una posición de Aprobados (el último lote que quedó disponible). Es la mediana de las recepciones que quedaron disponibles en el periodo.',
+      valor: ma, texto: ma === null ? '—' : `${nf(ma)} h`, variacion: variacion(ma, mb, 'horas', etiqAnt),
+      sinVariacion: mb === null ? `No hubo recepciones disponibles en ${etiqAnt}.` : undefined,
+      detalle: [...porProp].map(([k, v]) => ({ k, m: mediana(v)!, n: v.length })).sort((x, y) => y.n - x.n || x.k.localeCompare(y.k)).map((x) => ({ etiqueta: x.k, valor: `${nf(x.m)} h`, sub: `${x.n} ${x.n === 1 ? 'recepción' : 'recepciones'}` })),
+      datos: ma === null ? 'Ninguna recepción quedó disponible en el periodo.' : `Mediana de ${sa.length} recepciones: ${nf(ma)} h (${sb.length} en ${etiqAnt}${mb === null ? '' : `: ${nf(mb)} h`}).`,
+      sinDatos: sa.length ? undefined : 'Ninguna recepción quedó disponible en este periodo.', href: `/reportes/recepciones?estado=Cerrada&${q}${prop}`,
     }))
   }
 
@@ -358,9 +442,9 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
       return { cod: pr.codigo, asignadas: asignadas.size, usadas }
     }).filter((x) => x.asignadas > 0).sort((x, y) => y.asignadas - x.asignadas)
     out.push(base({
-      clave: 'ocupacion', tema: 'Inventario', nombre: 'Ocupación del almacén', enInicio: true, filtraPropietario: true,
+      clave: 'ocupacion', tema: 'Inventario', nombre: 'Ocupación del almacén', enInicio: false, filtraPropietario: true,
       formula: pid ? 'Ubicaciones asignadas a este propietario con stock ÷ ubicaciones asignadas vigentes.' : 'Ubicaciones activas con stock ÷ ubicaciones activas.',
-      valor: razon(a.ocupadas, a.total), texto: a.total ? pct(razon(a.ocupadas, a.total)!) : '—', variacion: variacion(razon(a.ocupadas, a.total), razon(b.ocupadas, b.total), 'pp', etiqHace),
+      valor: razon(a.ocupadas, a.total), texto: a.total ? pct(razon(a.ocupadas, a.total)!) : '—', variacion: variacion(razon(a.ocupadas, a.total), razon(b.ocupadas, b.total), 'puntos', etiqHace),
       detalle: porProp.slice(0, 6).map((x) => ({ etiqueta: x.cod, valor: `${razon(x.usadas, x.asignadas)?.toLocaleString('es-PE') ?? 0} % (${x.usadas} de ${x.asignadas})` })),
       datos: `${a.ocupadas} de ${a.total} ubicaciones tienen stock. Hace ${periodo.dias} días: ${b.ocupadas} de ${b.total}.`, href: `/reportes/ocupacion${prop ? `?${prop.slice(1)}` : ''}`, sinDatos: a.total ? undefined : 'No hay ubicaciones para medir.',
     }))
@@ -374,7 +458,7 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     out.push(base({
       clave: 'revision-diaria', tema: 'Operación diaria', nombre: 'Cumplimiento de la revisión diaria', enInicio: false, filtraPropietario: false,
       formula: 'Días de trabajo (lunes a viernes) con la revisión diaria cerrada ÷ días de trabajo del periodo.',
-      valor: razon(a.c, a.l), texto: a.l ? pct(razon(a.c, a.l)!) : '—', variacion: variacion(razon(a.c, a.l), razon(b.c, b.l), 'pp', etiqAnt),
+      valor: razon(a.c, a.l), texto: a.l ? pct(razon(a.c, a.l)!) : '—', variacion: variacion(razon(a.c, a.l), razon(b.c, b.l), 'puntos', etiqAnt),
       datos: `${a.c} revisiones cerradas en ${a.l} días de trabajo.`, href: '/revision-diaria', sinDatos: a.l ? undefined : 'Sin días de trabajo en este periodo.',
     }))
   }
@@ -400,7 +484,7 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
     out.push(base({
       clave: 'ajustes', tema: 'Inventario', nombre: 'Ajustes de inventario', enInicio: false, filtraPropietario: false,
       formula: 'Ajustes autorizados por Dirección Técnica en el periodo y sus unidades (aumentos y disminuciones por separado).',
-      valor: a.length, texto: `${a.length} ${a.length === 1 ? 'ajuste' : 'ajustes'}`, variacion: variacion(a.length, b.length, a.length === 1 ? 'ajuste' : 'ajustes', etiqAnt, 0),
+      valor: a.length, texto: `${a.length} ${a.length === 1 ? 'ajuste' : 'ajustes'}`, variacion: variacion(a.length, b.length, 'ajustes', etiqAnt, 0),
       detalle: [{ etiqueta: 'Aumentos', valor: `+${aum.toLocaleString('es-PE')} u` }, { etiqueta: 'Disminuciones', valor: `${dis.toLocaleString('es-PE')} u` }],
       datos: `${a.length} ajustes autorizados (${b.length} en ${etiqAnt}).`, href: '/conteos',
     }))
@@ -409,23 +493,23 @@ export function calcularIndicadores(d: DatosIndicadores, periodo: Periodo, o: Op
   // 17 · Alertas abiertas
   {
     const abiertasAl = (corte: number) => d.alertas.filter((x) => Date.parse(x.creadaEn) <= corte && (x.estado === 'ABIERTA' || !x.atendidaEn || Date.parse(x.atendidaEn) > corte) && !(x.estado === 'ATENDIDA' && !x.atendidaEn))
-    const ahora = d.alertas.filter((x) => x.estado === 'ABIERTA')
+    const ahora = o.ahora === undefined ? d.alertas.filter((x) => x.estado === 'ABIERTA') : abiertasAl(ahoraMs)
     const antes = abiertasAl(finDelDia(sumarDiasISO(periodo.desde, -1)))
     const porTipo = new Map<string, number>(); for (const x of ahora) porTipo.set(x.tipo, (porTipo.get(x.tipo) ?? 0) + 1)
     out.push(base({
       clave: 'alertas', tema: 'Operación diaria', nombre: 'Alertas abiertas', enInicio: false, filtraPropietario: false,
       formula: 'Alertas del sistema que nadie atendió todavía, por tipo.',
-      valor: ahora.length, texto: `${ahora.length} ${ahora.length === 1 ? 'alerta' : 'alertas'}`, variacion: variacion(ahora.length, antes.length, ahora.length === 1 ? 'alerta' : 'alertas', etiqHace, 0),
+      valor: ahora.length, texto: `${ahora.length} ${ahora.length === 1 ? 'alerta' : 'alertas'}`, variacion: variacion(ahora.length, antes.length, 'alertas', etiqHace, 0),
       detalle: [...porTipo].sort((x, y) => y[1] - x[1]).slice(0, 5).map(([k, v]) => ({ etiqueta: ETIQUETA_ALERTA[k as TipoAlerta] ?? k, valor: `${v}` })),
       datos: `${ahora.length} alertas abiertas ahora; ${antes.length} hace ${periodo.dias} días.`, href: '/alertas',
     }))
   }
 
-  return out
+  return out.map((k) => ({ ...k, variacion: juzgar(k.variacion, k.masEsMejor) }))
 }
 
-/** Los 4 indicadores del grupo «Inventario y almacén» de Inicio, en su orden. */
-export const CLAVES_INICIO = ['exactitud', 'vencimientos', 'ocupacion', 'recepciones-dif'] as const
+/** Los 3 indicadores de Inicio, en su orden. */
+export const CLAVES_INICIO = ['exactitud', 'vencimientos', 'disponibilidad'] as const
 
 // ── Despacho: previsto para cuando existan las salidas ──────────────────────
 
@@ -437,3 +521,74 @@ export const DESPACHO_PREVISTO: IndicadorPrevisto[] = [
   { clave: 'exactitud-despacho', nombre: 'Exactitud de despacho', definicion: 'Pedidos despachados sin errores de producto, lote o cantidad.', formula: 'Pedidos sin errores de producto, lote o cantidad ÷ pedidos despachados.' },
   { clave: 'tiempo-preparacion', nombre: 'Tiempo de preparación', definicion: 'Cuánto tarda un pedido desde que se recibe hasta que se despacha.', formula: 'Promedio de (despacho − recepción del pedido), en horas.' },
 ]
+
+// ── Tiempo de disponibilidad (dock-to-stock) ────────────────────────────────
+
+export interface TiempoDisponibilidad { solicitudId: string; numero: string; propietario: string; confirmadaEn: string; disponibleEn: string; horas: number }
+
+/**
+ * Por cada recepción confirmada y aprobada por Dirección Técnica: cuántas horas pasaron hasta que TODA su mercadería quedó Aprobada y verificada
+ * en una posición de Aprobados. Un lote queda disponible cuando una persona distinta de quien lo movió verificó (CONFIRMADA) un movimiento que lo deja
+ * en un área de Aprobados, estando ya aprobado, y después de la aprobación. La recepción queda disponible con su último lote. Si algún lote
+ * todavía no está en Aprobados, la recepción no entra (no hay una hora para medir).
+ */
+export function tiemposDeDisponibilidad(
+  solicitudes: Pick<SolicitudResumen, 'id' | 'numero' | 'propietario' | 'confirmadaEn' | 'aprobadaEn' | 'lotes'>[],
+  ordenes: OrdenMovimiento[],
+  posiciones: Map<string, { tipoArea: string }>,
+): TiempoDisponibilidad[] {
+  // para cada (producto, lote): las verificaciones que lo dejaron en Aprobados
+  const llegadas = new Map<string, number[]>()
+  for (const o of ordenes) {
+    if (o.estado === 'ANULADO' || !o.verificadoEn) continue
+    const ts = Date.parse(o.verificadoEn)
+    for (const l of o.lineas) {
+      if (l.verificacion !== 'CONFIRMADA' || l.estado !== 'APROBADO' || posiciones.get(l.haciaPosicionId)?.tipoArea !== 'APROBADOS') continue
+      const k = `${l.productoId}|${l.lote}`
+      llegadas.set(k, [...(llegadas.get(k) ?? []), ts])
+    }
+  }
+  const out: TiempoDisponibilidad[] = []
+  for (const s of solicitudes) {
+    if (!s.confirmadaEn || !s.aprobadaEn || !s.lotes?.length) continue
+    const conf = Date.parse(s.confirmadaEn); const aprob = Date.parse(s.aprobadaEn)
+    let ultimo = 0; let completa = true
+    for (const l of s.lotes) {
+      const primera = (llegadas.get(`${l.productoId}|${l.lote}`) ?? []).filter((ts) => ts >= aprob).sort((a, b) => a - b)[0]
+      if (primera === undefined) { completa = false; break }
+      ultimo = Math.max(ultimo, primera)
+    }
+    if (!completa || ultimo < conf) continue
+    out.push({ solicitudId: s.id, numero: s.numero, propietario: s.propietario, confirmadaEn: s.confirmadaEn, disponibleEn: new Date(ultimo).toISOString(), horas: Math.round(((ultimo - conf) / 3_600_000) * 10) / 10 })
+  }
+  return out
+}
+
+// ── Tendencia de 30 días ────────────────────────────────────────────────────
+
+/** Los días de la tendencia: de hace 30 días a hoy, cada 3 días (11 puntos). */
+export function diasDeSerie(hoy: string): string[] {
+  const out: string[] = []
+  for (let atras = 30; atras >= 0; atras -= 3) out.push(sumarDiasISO(hoy, -atras))
+  return out
+}
+
+/** Indicadores que no se pueden reconstruir hacia atrás (dependen del estado de hoy y no guardan su historia): no llevan tendencia. */
+const SIN_SERIE = new Set(['cobertura', 'pendientes'])
+
+/**
+ * Agrega a cada indicador su tendencia: el mismo cálculo, con la misma ventana del periodo, terminando en cada día de `diasDeSerie`.
+ * `saldosPorDia` trae cómo era el stock al final de cada uno de esos días (el libro mayor); los indicadores de stock lo usan.
+ */
+export function conSeries(indicadores: Indicador[], d: DatosIndicadores, periodo: Periodo, o: OpcionesIndicadores, saldosPorDia: Map<string, Saldo[]>): Indicador[] {
+  const dias = diasDeSerie(d.hoy)
+  const porClave = new Map<string, PuntoSerie[]>()
+  for (const dia of dias) {
+    const saldos = dia === d.hoy ? d.panorama.saldos : saldosPorDia.get(dia)
+    const dd: DatosIndicadores = { ...d, hoy: dia, panorama: { ...d.panorama, hoy: dia, saldos: saldos ?? d.panorama.saldos }, saldosAntes: [] }
+    for (const k of calcularIndicadores(dd, periodoDe(dia, periodo.dias), { ...o, ahora: dia === d.hoy ? o.ahora : finDelDia(dia) })) {
+      porClave.set(k.clave, [...(porClave.get(k.clave) ?? []), { dia, valor: k.sinDatos ? null : k.valor }])
+    }
+  }
+  return indicadores.map((k) => (SIN_SERIE.has(k.clave) ? k : { ...k, serie: porClave.get(k.clave) }))
+}

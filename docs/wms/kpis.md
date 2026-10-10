@@ -3,7 +3,19 @@
 Cada indicador tiene **nombre, definición, fórmula, fuente, frecuencia y responsable**. «Dónde se ve hoy» dice si ya sale de un reporte del WMS o si todavía se calcula a mano.
 Los responsables son **roles** (no personas): quien ocupe el rol responde por el indicador. Las metas son propuestas para confirmar con Dirección Técnica; **no hay metas ni semáforos**: por decisión de Sebas (D-42) los KPI se miden **un mes con operación real** y después se fijan las metas con Katia y Charlie.
 
-Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Excel (`/reportes`). **Todos los indicadores** están en **Reportes → Indicadores** (agrupados por tema, con periodo —últimos 7, 30 y 90 días o un rango— y filtro por propietario); los 4 de **Inicio → «Inventario y almacén»** (exactitud, por vencer y vencidos, ocupación y recepciones con diferencia) aparecen allí marcados «En Inicio». Cada tarjeta muestra el valor, la variación frente al periodo anterior (flecha y cambio, **sin semáforos**), «¿Cómo se calcula?» y un clic al reporte. Lo ven quienes gestionan el inventario (el contador no lee saldos).
+Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Excel (`/reportes`). **Todos los indicadores** están en **Reportes → Indicadores** (agrupados por tema, con periodo —últimos 7, 30 y 90 días o un rango— y filtro por propietario). **Inicio → «Inventario y almacén»** muestra solo **3**: **Exactitud de inventario**, **Por vencer y vencidos** y **Tiempo de disponibilidad**; en Indicadores llevan la marca «En Inicio». *Recepciones con diferencia* y *Ocupación del almacén* salieron de Inicio y quedan en Indicadores. Lo ven quienes gestionan el inventario (el contador no lee saldos).
+
+**La tarjeta** (la misma en Inicio y en Indicadores) trae el valor, **hacia dónde va** frente al periodo anterior, un **mini gráfico de los últimos 30 días**, «¿Cómo se calcula?» y un clic al reporte. Lo de «hacia dónde va»:
+- **Color por tendencia, no por meta:** verde si **mejoró**, ámbar si **empeoró**, gris si no cambió. Siempre con **ícono y palabra** («↑ 15,6 puntos · mejoró»): el color nunca es la única señal. No dice si el valor está bien o mal, solo hacia dónde va (sin metas ni semáforos: D-42).
+- **Cada indicador declara si «más» es mejor o peor** (tabla de abajo; vive en `MAS_ES_MEJOR`, `domain/indicadores.ts`). Un indicador sin sentido declarado muestra la flecha y el cambio, sin palabra ni color.
+- Los cambios en porcentajes se dicen en **puntos** (la diferencia entre dos porcentajes: de 68,8 % a 84,4 % son 15,6 puntos), nunca como porcentaje de un porcentaje.
+- **El mini gráfico** tiene un punto cada 3 días (11 puntos, de hace 30 días a hoy), calculado con la misma ventana del periodo elegido; los de «foto» (stock, vencimientos, alertas, movimientos sin verificar) se reconstruyen del libro mayor. *Cobertura de ubicaciones* y *Pendientes de la revisión* no guardan su historia: no llevan gráfico.
+
+**¿Más es mejor o peor?** (Dirección Técnica la confirma):
+
+| Más es mejor | Más es peor | Sin sentido declarado |
+|---|---|---|
+| Exactitud de inventario · Cumplimiento de conteos semanales · Cobertura de ubicaciones · Movimientos verificados a tiempo · Cumplimiento de la revisión diaria | Diferencias en conteo · Movimientos sin verificar · Líneas con diferencia al verificar · Stock en Cuarentena y por trasladar · Por vencer y vencidos · Ciclo de recepción · Recepciones con diferencia · Tiempo en Cuarentena · **Tiempo de disponibilidad** · Pendientes de la revisión · Ajustes de inventario · Alertas abiertas | Ocupación del almacén (más ocupado puede ser buen uso del espacio o falta de lugar) |
 
 **Cómo se compara con el periodo anterior:** los indicadores de periodo se comparan con el periodo anterior del mismo largo; los de «foto» (ocupación, vencimientos, Cuarentena, movimientos sin verificar, alertas) con cómo estaban al comienzo del periodo, reconstruido desde el libro mayor (`wms.saldos_al`) y las fechas de cada registro. Los que no tienen historial (cobertura, pendientes de la revisión) lo dicen y no muestran variación.
 
@@ -101,7 +113,7 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Fuente:** `wms.asignaciones_posicion` y `wms.saldos`.
 - **Frecuencia:** semanal.
 - **Responsable:** Jefe de Almacén (Dirección Técnica negocia las asignaciones).
-- **Dónde se ve hoy:** **Inicio → Inventario y almacén** (% de ubicaciones ocupadas, con detalle por propietario), **Reportes → Indicadores** y reporte **Ocupación por propietario**.
+- **Dónde se ve hoy:** **Reportes → Indicadores** (% de ubicaciones ocupadas, con detalle por propietario; ya no está en Inicio) y reporte **Ocupación por propietario**.
 
 ### 12. Cumplimiento de la revisión diaria
 - **Definición:** en cuántos días de trabajo se hizo y cerró el recorrido de 4 focos.
@@ -124,9 +136,9 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Qué es «diferencia»** (sin importar quién la registró): la cantidad física confirmada **no coincide con la Solicitud de Ingreso o la OC** (cantidad final distinta de la inicial, incluida una línea retirada); hay una **línea no esperada** (agregada después de autorizar); o el **lote o el vencimiento es distinto al declarado** (D-35: es un ajuste explícito con motivo, no un rechazo).
 - **Fórmula:** recepciones con diferencia ÷ recepciones **confirmadas** en el periodo (× 100). **El periodo se cuenta por la fecha en que se confirmó la recepción física**, no por la creación de la solicitud. Detalle por proveedor: cuántas con diferencia sobre el total y **el tipo de diferencia** (cantidad distinta, lote distinto, vencimiento distinto, línea no esperada).
 - **Fuente:** `wms.solicitudes_ingreso` (cantidad inicial y final por línea), su historial de cambios campo a campo y `wms.ingresos` (`confirmado_en`).
-- **Frecuencia:** mensual (se mira cada semana en Inicio).
+- **Frecuencia:** mensual.
 - **Responsable:** Jefe de Almacén; Compras sigue a los proveedores con más diferencias.
-- **Dónde se ve hoy:** **Inicio → Inventario y almacén**, **Reportes → Indicadores** y reporte **Recepciones** (columnas «Recepción confirmada», «Con diferencia» y «Tipo de diferencia»; filtro «Con diferencia»).
+- **Dónde se ve hoy:** **Reportes → Indicadores** (ya no está en Inicio) y reporte **Recepciones** (columnas «Recepción confirmada», «Con diferencia» y «Tipo de diferencia»; filtro «Con diferencia»).
 
 ### 17. Tiempo en Cuarentena
 - **Definición:** cuánto espera un lote en Cuarentena hasta que Dirección Técnica lo aprueba.
@@ -135,6 +147,17 @@ Todos los reportes se pueden filtrar, guardar como vista y descargar en CSV y Ex
 - **Frecuencia:** mensual.
 - **Responsable:** Dirección Técnica decide; el Jefe de Almacén lleva las muestras y el acta.
 - **Dónde se ve hoy:** **Reportes → Indicadores** (tema Calidad) y reporte **Calidad**. **No va en Inicio.**
+
+### 18. Tiempo de disponibilidad (dock-to-stock)
+- **Definición:** cuánto tarda la mercadería en estar lista para usarse desde que llega: horas desde la **recepción física confirmada** hasta que queda **Aprobada y verificada en una posición de Aprobados**.
+- **Fórmula, por recepción:** (momento en que **todos sus lotes** quedaron disponibles − momento en que se confirmó la recepción física), en horas. Un lote queda disponible cuando otra persona (no quien lo movió) **verificó** —*Confirmada*— un movimiento que lo deja en una posición de un área de **Aprobados**, estando ya **Aprobado** y **después de que Dirección Técnica lo aprobó**. La recepción queda disponible con su **último** lote; si algún lote todavía no está en Aprobados, la recepción no entra (aún no hay una hora que medir).
+- **Valor de la tarjeta:** la **mediana** de esas horas, de las recepciones que **quedaron disponibles** en el periodo (**últimos 30 días** en Inicio; 7, 30, 90 días o un rango en Indicadores). Se usa la mediana y no el promedio para que una recepción excepcional no distorsione el número. **Detalle por propietario:** la mediana y cuántas recepciones entran de cada uno.
+- **Cómo se compara:** con la mediana del periodo anterior del mismo largo; menos horas es mejor.
+- **Fuente:** `wms.solicitudes_ingreso` (`confirmado_en`), `wms.actas_organolepticas` (decisión *Aprobado*), `wms.ordenes_movimiento` y sus líneas (`verificado_en`, estado y destino).
+- **Frecuencia:** semanal.
+- **Responsable:** Jefe de Almacén (lleva el traslado a Aprobados); Dirección Técnica (aprueba).
+- **Dónde se ve hoy:** **Inicio → Inventario y almacén** y **Reportes → Indicadores** (tema Recepciones). Un clic lleva al reporte **Recepciones** (todavía no hay un reporte propio de este indicador).
+- **Ejemplo (los datos de las pruebas):** recepción confirmada el 1 oct 00:00; aprobada por Dirección Técnica el 1 oct 10:00; el movimiento a Aprobados verificado el 2 oct 00:00 → **24 h**. Con 24 h, 48 h y 96 h en el periodo, la mediana es **48 h**; con 100 h y 140 h en el periodo anterior (mediana 120 h), la tarjeta dice «↓ 72 horas · mejoró».
 
 ## Trazabilidad
 
