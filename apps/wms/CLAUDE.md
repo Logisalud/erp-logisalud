@@ -17,6 +17,17 @@ variables en producción; crear el proyecto Vercel (solo Preview, y solo si lo a
 cualquier cambio en compras, pedidos o cobranzas que no sea aditivo (vistas, grants);
 usar la base de producción para pruebas (Supabase MCP: solo lectura de esquemas).
 
+**CI en verde antes de cualquier merge:** nunca se hace (ni se propone) un merge con la CI de GitHub
+Actions en rojo, aunque Vercel esté en verde. Vercel solo prueba que compila; la CI corre dominio, base de
+datos, build y E2E en los 4 viewports. Si la CI está roja, primero se arregla (o se reporta y se espera la
+decisión del usuario). Antes de pedir la aprobación de un PR se revisa el resultado del job
+«apps/wms — dominio, base de datos, build y E2E» y se informa su estado. (Origen: 2026-10-10, la CI del WMS
+estuvo roja desde el 8-oct en el paso `test:e2e` y se mergearon #169 y #170 mirando solo Vercel.)
+
+**Paginación:** toda lectura de más de 1.000 filas usa `traerTodo`, que ordena siempre por la clave única de
+la tabla (`services/supabase/claves.ts`). Una tabla nueva se registra ahí antes de leerla. Paginar con
+`.range()` sin orden determinista repite y pierde filas.
+
 **Datos y reglas:** schema `wms` en el Supabase consolidado; RLS desde la primera migración;
 ninguna API route salta RLS con service role; reglas sanitarias, de zona y de propietario en
 dominio **y** en base de datos; saldos derivados de un ledger append-only; nada se borra ni se
