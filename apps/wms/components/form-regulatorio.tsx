@@ -22,13 +22,15 @@ function Campo({ nombre, etiqueta, valor, error, ayuda }: { nombre: string; etiq
 }
 
 /** Katia o Sandra: editan los datos regulatorios; rige de inmediato y el motivo es obligatorio (D-37). */
-export function FormRegulatorio({ productoId, reg }: { productoId: string; reg?: Regulatorio }) {
+export function FormRegulatorio({ productoId, reg, presentacion, principioActivo }: { productoId: string; reg?: Regulatorio; presentacion?: string; principioActivo?: string }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(editarRegulatorioAccion, {})
   const e = estado.errores ?? {}
   return (
     <form action={accion} className="space-y-4" noValidate>
       <input type="hidden" name="id" value={productoId} />
       <div className="grid gap-4 md:grid-cols-2">
+        <Campo nombre="presentacion" etiqueta="Presentación" valor={presentacion} error={e.presentacion} ayuda="Por ejemplo: Caja x 30 tabletas." />
+        <Campo nombre="principioActivo" etiqueta="Principio activo" valor={principioActivo} error={e.principioActivo} />
         <Campo nombre="registroSanitario" etiqueta="Número de registro sanitario" valor={reg?.registroSanitario} error={e.registroSanitario} />
         <Campo nombre="rsVence" etiqueta="Vencimiento del registro" valor={reg?.rsVence} error={e.rsVence} ayuda="30/06/2030, 2030-06-30 o 06/2030." />
         <Campo nombre="formaPresentacion" etiqueta="Forma farmacéutica" valor={reg?.formaPresentacion} error={e.formaPresentacion} />

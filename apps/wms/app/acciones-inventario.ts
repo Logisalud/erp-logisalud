@@ -2,7 +2,7 @@
 
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
-import type { FilaCargaInicial, ErrorFilaCarga, LineaPreparar, RevisionLinea } from '@/domain/inventario'
+import type { FilaCargaInicial, ErrorFilaCarga, LineaEjecutar, ReporteVista, RevisionLinea, VistaGuardada } from '@/domain/inventario'
 import type { Actor, ResultadoAccion } from '@/services/repositorio'
 
 async function quien(): Promise<Actor> {
@@ -11,11 +11,9 @@ async function quien(): Promise<Actor> {
 }
 
 // ── Movimientos internos ────────────────────────────────────────────────────
-export async function prepararMovimientoAccion(lineas: LineaPreparar[], motivo: string): Promise<ResultadoAccion<{ id: string; numero: string }>> {
-  return repositorio().prepararMovimiento(lineas, motivo, await quien())
+export async function ejecutarMovimientoAccion(lineas: LineaEjecutar[], motivo: string, token?: string): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+  return repositorio().ejecutarMovimiento(lineas, motivo, await quien(), token)
 }
-export async function autorizarMovimientoAccion(id: string): Promise<ResultadoAccion> { return repositorio().autorizarMovimiento(id, await quien()) }
-export async function ejecutarMovimientoAccion(id: string): Promise<ResultadoAccion> { return repositorio().ejecutarMovimiento(id, await quien()) }
 export async function confirmarMovimientoAccion(id: string): Promise<ResultadoAccion> { return repositorio().confirmarMovimiento(id, await quien()) }
 export async function revisarMovimientoAccion(id: string, revision: RevisionLinea[]): Promise<ResultadoAccion<{ confirmadas: number; conDiferencia: number }>> { return repositorio().revisarMovimiento(id, revision, await quien()) }
 export async function resolverMovimientoAccion(lineaId: string, accion: 'REINTENTAR' | 'ANULAR', nota: string): Promise<ResultadoAccion> { return repositorio().resolverMovimiento(lineaId, accion, nota, await quien()) }
@@ -39,8 +37,9 @@ export async function decidirEstadoCargaInicialAccion(estado: 'APROBADO' | 'CUAR
 export async function confirmarCargaInicialAccion(id: string): Promise<ResultadoAccion> { return repositorio().confirmarCargaInicial(id, await quien()) }
 
 // ── Flujo «Mover»: búsqueda y validación mientras se escribe ────────────────
-import { buscarDestinos, buscarOrigenes, contenidoDeUbicacion, reservadoPorCelda, validarDestino } from '@/domain/inventario'
-import type { LineaContenido, ResultadoDestino, ResultadoOrigen, ValidacionDestino } from '@/domain/inventario'
+import { buscarDestinos, buscarOrigenes, buscarProductosConStock, contenidoDeUbicacion, reservadoPorCelda, ubicacionesDeProducto, validarDestino, validarLineasMovimiento } from '@/domain/inventario'
+import { opcionesDestinoLinea, type OpcionDestino } from '@/domain/movimiento-tabla'
+import type { CeldaDeProducto, LineaContenido, LineaParaChequear, ResultadoDestino, ResultadoOrigen, ResultadoProducto, ValidacionDestino, ValidacionLineaMov } from '@/domain/inventario'
 import { ETIQUETA_AREA } from '@/domain/zonas'
 
 export interface ContenidoOrigen { posicionId: string; codigo: string; area: string; bloqueada?: string; lineas: LineaContenido[] }
@@ -62,6 +61,66 @@ export async function contenidoOrigenAccion(posicionId: string): Promise<Conteni
   return { posicionId, codigo: pos.codigo, area: ETIQUETA_AREA[pos.tipoArea], bloqueada: bloqueadas[posicionId], lineas: contenidoDeUbicacion(p, posicionId, reservadoPorCelda(ordenes)) }
 }
 
+/** Agregar por producto: busca el producto (nombre, código, principio activo o lote). */
+export async function buscarProductoAccion(q: string): Promise<ResultadoProducto[]> {
+  await exigirContexto()
+  const repo = repositorio()
+  const [p, ordenes, bloqueadas] = await Promise.all([repo.panorama(), repo.listarMovimientos(), repo.posicionesBloqueadas()])
+  return buscarProductosConStock(p, q, reservadoPorCelda(ordenes), 10, bloqueadas)
+}
+
+/** Todas las ubicaciones donde está un producto, con lote, vencimiento, propietario, estado y lo disponible para mover. */
+export async function ubicacionesProductoAccion(productoId: string): Promise<CeldaDeProducto[]> {
+  await exigirContexto()
+  const repo = repositorio()
+  const [p, ordenes, bloqueadas] = await Promise.all([repo.panorama(), repo.listarMovimientos(), repo.posicionesBloqueadas()])
+  return ubicacionesDeProducto(p, productoId, reservadoPorCelda(ordenes), bloqueadas)
+}
+
+/** Valida cada línea contra su propio destino (el de la cabecera o uno propio), antes de enviar. */
+export async function validarLineasAccion(lineas: LineaParaChequear[]): Promise<ValidacionLineaMov[]> {
+  await exigirContexto()
+  const repo = repositorio()
+  const [p, bloqueadas] = await Promise.all([repo.panorama(), repo.posicionesBloqueadas()])
+  return validarLineasMovimiento(p, lineas, bloqueadas)
+}
+
+/** Posiciones entre las que elegir el destino de UNA línea; las que no sirven salen con su motivo en palabras. Una ubicación en conteo no aparece. */
+export async function opcionesDestinoAccion(q: string, linea: LineaParaChequear): Promise<OpcionDestino[]> {
+  await exigirContexto()
+  const repo = repositorio()
+  const [p, bloqueadas] = await Promise.all([repo.panorama(), repo.posicionesBloqueadas()])
+  return opcionesDestinoLinea(p, q, linea, bloqueadas)
+}
+
+export interface LineaRehidratada {
+  producto?: { id: string; codigo: string; descripcion: string; presentacion?: string }
+  celda?: CeldaDeProducto
+  destino?: { posicionId: string; codigo: string; area: string }
+}
+
+/**
+ * Vuelve a armar las líneas de un borrador recuperado con lo que hay HOY: el disponible puede haber cambiado, una ubicación puede estar ahora
+ * en conteo o una celda puede haberse vaciado. Lo que ya no existe vuelve sin celda y la persona lo elige de nuevo.
+ */
+export async function rehidratarBorradorAccion(items: { productoId?: string; celdaClave?: string; destinoId?: string }[]): Promise<LineaRehidratada[]> {
+  await exigirContexto()
+  const repo = repositorio()
+  const [p, ordenes, bloqueadas] = await Promise.all([repo.panorama(), repo.listarMovimientos(), repo.posicionesBloqueadas()])
+  const reservado = reservadoPorCelda(ordenes)
+  return items.map((it): LineaRehidratada => {
+    const prod = it.productoId ? p.productos.find((x) => x.id === it.productoId) : undefined
+    const posId = it.celdaClave?.split('|')[0]
+    const celda = posId && !bloqueadas[posId] ? contenidoDeUbicacion(p, posId, reservado).find((c) => c.clave === it.celdaClave && c.productoId === it.productoId) : undefined
+    const d = it.destinoId ? p.posiciones.find((x) => x.id === it.destinoId && x.activa && !bloqueadas[x.id]) : undefined
+    return {
+      producto: prod ? { id: prod.id, codigo: prod.codigo, descripcion: prod.descripcion, presentacion: prod.presentacion } : undefined,
+      celda: celda ? { ...celda } : undefined,
+      destino: d ? { posicionId: d.id, codigo: d.codigo, area: ETIQUETA_AREA[d.tipoArea] } : undefined,
+    }
+  })
+}
+
 export async function buscarDestinoAccion(q: string, lineas: LineaMin[]): Promise<ResultadoDestino[]> {
   await exigirContexto()
   const repo = repositorio()
@@ -75,3 +134,8 @@ export async function validarDestinoAccion(posicionId: string, lineas: LineaMin[
   const [p, bloqueadas] = await Promise.all([repo.panorama(), repo.posicionesBloqueadas()])
   return validarDestino(p, posicionId, lineas, bloqueadas)
 }
+
+// ── Vistas guardadas de las listas ──────────────────────────────────────────
+export async function listarVistasAccion(reporte: ReporteVista): Promise<VistaGuardada[]> { return repositorio().listarVistas(reporte, await quien()) }
+export async function guardarVistaAccion(reporte: ReporteVista, nombre: string, filtros: Record<string, string>): Promise<ResultadoAccion<{ id: string }>> { return repositorio().guardarVista(reporte, nombre, filtros, await quien()) }
+export async function borrarVistaAccion(id: string): Promise<ResultadoAccion> { return repositorio().borrarVista(id, await quien()) }

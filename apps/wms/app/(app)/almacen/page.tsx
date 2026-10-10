@@ -7,8 +7,9 @@ export const metadata = { title: 'Almacén — WMS LOGISALUD' }
 
 export default async function PaginaAlmacen({ searchParams }: { searchParams: { buscar?: string; ver?: string; capa?: string } }) {
   await exigirContexto()
-  const panorama = await repositorio().panorama()
-  const vista = construirVistaMapa(panorama)
+  const repo = repositorio()
+  const [panorama, ordenes] = await Promise.all([repo.panorama(), repo.listarMovimientos()])
+  const vista = construirVistaMapa(panorama, ordenes)
   const capa = (['propietario', 'estado', 'ocupacion', 'verificar'] as const).find((c) => c === searchParams.capa)
   return (
     <div className="space-y-4">

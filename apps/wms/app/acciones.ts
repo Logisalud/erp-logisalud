@@ -1,5 +1,6 @@
 'use server'
 
+import { transitoPorLote, transitoPorPosicion } from '@/domain/transito'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
@@ -8,6 +9,7 @@ import { modoDemoActivo } from '@/lib/demo'
 import { COOKIE_ROL_DEMO, rolDemoDesdeCookie } from '@/lib/sesion-demo'
 import { repositorio } from '@/services/repositorio-actual'
 import { buscar, type ResultadoBusqueda } from '@/domain/panorama'
+import { buscarMovimientos } from '@/domain/movimientos-lista'
 import type { DatosRegulatorios, EntradaProducto } from '@/domain/productos'
 import type { ResultadoAccion } from '@/services/repositorio'
 
@@ -28,8 +30,8 @@ export async function buscarAccion(consulta: string): Promise<ResultadoBusqueda[
   await exigirContexto()
   if (consulta.trim().length < 1) return []
   const repo = repositorio()
-  const [panorama, entradas] = await Promise.all([repo.panorama(), repo.buscarEntradas(consulta)])
-  return [...buscar(panorama, consulta), ...entradas]
+  const [panorama, entradas, ordenes] = await Promise.all([repo.panorama(), repo.buscarEntradas(consulta), repo.listarMovimientos()])
+  return [...buscar(panorama, consulta, 24, { porPosicion: transitoPorPosicion(ordenes), porLote: transitoPorLote(ordenes) }), ...buscarMovimientos(ordenes, consulta), ...entradas]
 }
 
 export interface EstadoFormulario {
@@ -61,7 +63,7 @@ export async function editarRegulatorioAccion(_prev: EstadoFormulario, formData:
   const ctx = await exigirContexto()
   const id = campo(formData, 'id')
   const datos: DatosRegulatorios = {}
-  for (const k of ['registroSanitario', 'rsVence', 'formaPresentacion', 'concentracion', 'fabricante', 'condicionAlmacenamiento'] as const) {
+  for (const k of ['registroSanitario', 'rsVence', 'formaPresentacion', 'concentracion', 'fabricante', 'condicionAlmacenamiento', 'presentacion', 'principioActivo'] as const) {
     datos[k] = campo(formData, k)
   }
   const r = await repositorio().editarRegulatorio(id, datos, campo(formData, 'motivo'), {

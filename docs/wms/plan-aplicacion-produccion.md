@@ -49,7 +49,7 @@ Cada uno es un **cambio aparte** y se anota. Recién ahí puede decidirse el dep
 - **Si algo falla o se cuelga: detenerse.** Solo lecturas para reportar el estado. No cambiar de herramienta, no partir el SQL, no reintentar con otro método sin la aprobación de Sebas.
 
 ## 5. Reversa (probada en local)
-- Script: `apps/wms/supabase/rollback/wms_0001_a_0008_rollback.sql` (`lock_timeout`, `drop schema wms cascade`, y `drop extension btree_gist` **solo** si la creó el WMS y nada depende de ella).
+- Script: `apps/wms/supabase/rollback/wms_0001_a_0009_rollback.sql` (`lock_timeout`, `drop schema wms cascade`, y `drop extension btree_gist` **solo** si la creó el WMS y nada depende de ella).
 - **Probado** en `tests/db/rollback.test.ts`: aplica stubs → foto → cadena completa + seed → reversa → foto idéntica (objetos, funciones, columnas, extensiones, constraints y filas de `catalogo.productos`), y una segunda reversa sin efecto.
 - Pasos manuales previos a la reversa, si ya se hicieron: quitar `wms` de `public.schemas_compras_y_pagos()` y revertir los grants concedidos a mano.
 - **No deshace** los productos que `crear_producto` haya insertado en `catalogo.productos` (son datos de Compras): revisarlos a mano.

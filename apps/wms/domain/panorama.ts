@@ -163,7 +163,7 @@ export function alertasRegulatorias(p: Panorama): AlertasRegulatorias {
   return out
 }
 
-export type TipoResultado = 'producto' | 'lote' | 'posicion' | 'oc' | 'acta'
+export type TipoResultado = 'producto' | 'lote' | 'posicion' | 'oc' | 'acta' | 'movimiento'
 
 export interface ResultadoBusqueda {
   tipo: TipoResultado
@@ -180,7 +180,7 @@ export interface ResultadoBusqueda {
 const plural = (n: number, uno: string, varios: string) => `${n.toLocaleString('es-PE')} ${n === 1 ? uno : varios}`
 
 /** Búsqueda universal: producto, lote y ubicación. (OC y actas las agrega el repositorio de entradas.) */
-export function buscar(p: Panorama, consulta: string, limite = 24): ResultadoBusqueda[] {
+export function buscar(p: Panorama, consulta: string, limite = 24, transito: { porPosicion?: Map<string, { salen: number; llegan: number }>; porLote?: Map<string, { unidades: number }> } = {}): ResultadoBusqueda[] {
   const q = consulta.trim()
   if (q.length < 1) return []
   const stock = filasDeStock(p)
@@ -214,7 +214,7 @@ export function buscar(p: Panorama, consulta: string, limite = 24): ResultadoBus
     const unidades = filas.reduce((n, f) => n + f.saldo.cantidad, 0)
     out.push({
       tipo: 'lote', id: l.id, titulo: `Lote ${l.codigo}`,
-      detalle: `${prodPorId.get(l.productoId)?.descripcion ?? 'Producto'} · ${unidades > 0 ? plural(unidades, 'unidad', 'unidades') : 'sin stock'}`,
+      detalle: `${prodPorId.get(l.productoId)?.descripcion ?? 'Producto'} · ${unidades > 0 ? plural(unidades, 'unidad', 'unidades') : 'sin stock'}${transito.porLote?.get(l.id) ? ` · ${transito.porLote.get(l.id)!.unidades.toLocaleString('es-PE')} u en tránsito, por verificar` : ''}`,
       posiciones, unidades, puntaje: sc + 2, href: `/almacen?buscar=${encodeURIComponent(l.codigo)}`,
     })
   }
@@ -224,9 +224,10 @@ export function buscar(p: Panorama, consulta: string, limite = 24): ResultadoBus
     if (sc === 0) continue
     const filas = stock.filter((f) => f.posicion.id === pos.id)
     const unidades = filas.reduce((n, f) => n + f.saldo.cantidad, 0)
+    const tPos = transito.porPosicion?.get(pos.id)
     out.push({
       tipo: 'posicion', id: pos.id, titulo: `Ubicación ${pos.codigo}`,
-      detalle: unidades > 0 ? `${plural(unidades, 'unidad', 'unidades')} · ${filas.length} ${filas.length === 1 ? 'lote' : 'lotes'}` : 'Vacía',
+      detalle: `${unidades > 0 ? `${plural(unidades, 'unidad', 'unidades')} · ${filas.length} ${filas.length === 1 ? 'lote' : 'lotes'}` : 'Vacía'}${tPos ? ` · ${(tPos.salen + tPos.llegan).toLocaleString('es-PE')} u en tránsito, por verificar` : ''}`,
       posiciones: [pos.codigo], unidades, puntaje: sc, href: `/almacen?ver=${encodeURIComponent(claveCelda(pos))}`,
     })
   }

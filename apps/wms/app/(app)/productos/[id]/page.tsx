@@ -5,7 +5,7 @@ import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { filasDeStock } from '@/domain/panorama'
 import { puedeEditarRegulatorio } from '@/domain/permisos'
-import { CAMPOS_REGULATORIOS } from '@/domain/tipos'
+import { etiquetaCampo } from '@/domain/tipos'
 import { diasHasta, situacionRS } from '@/domain/regulatorio'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { ChipEstado, ChipPorTrasladar, ChipRS } from '@/components/chips'
@@ -75,19 +75,21 @@ export default async function DetalleProducto({ params, searchParams }: { params
       </section>
 
       <section className="card" aria-labelledby="catalogo">
-        <h2 id="catalogo" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Datos del maestro (Compras)</h2>
+        <h2 id="catalogo" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Datos del producto</h2>
+        <p className="mt-1 text-sm text-gray-600">Compras llena presentación y principio activo al crear el producto; después solo Dirección Técnica los edita, desde aquí.</p>
         <dl className="mt-1 divide-y divide-gray-100">
+          <div data-testid="dato-presentacion">{dato('Presentación', prod.presentacion)}</div>
+          <div data-testid="dato-principio-activo">{dato('Principio activo', prod.principioActivo)}</div>
           {dato('Marca', prod.marca)}
-          {dato('Principio activo', prod.principioActivo)}
           {dato('Unidad', prod.unidadMedida)}
         </dl>
       </section>
 
       {puedeEditar && (
         <section className="card border-2 border-teal-400" aria-labelledby="editar" data-testid="panel-regulatorio">
-          <h2 id="editar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Editar datos regulatorios</h2>
+          <h2 id="editar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Editar datos regulatorios y del producto</h2>
           <p className="mb-3 mt-1 text-sm text-gray-600">Katia y Sandra tienen la misma autoridad. El cambio rige de inmediato y queda registrado con tu nombre, la fecha y el motivo.</p>
-          <FormRegulatorio productoId={prod.id} reg={reg} />
+          <FormRegulatorio productoId={prod.id} reg={reg} presentacion={prod.presentacion} principioActivo={prod.principioActivo} />
         </section>
       )}
 
@@ -99,7 +101,7 @@ export default async function DetalleProducto({ params, searchParams }: { params
           <ul className="mt-2 divide-y divide-gray-100">
             {historial.map((c) => (
               <li key={c.id} className="py-3 text-sm">
-                <p className="text-gray-900"><strong>{CAMPOS_REGULATORIOS.find((x) => x.campo === c.campo)?.etiqueta ?? c.campo}</strong>: {c.antes ?? '—'} → <strong>{c.despues ?? '—'}</strong></p>
+                <p className="text-gray-900"><strong>{etiquetaCampo(c.campo)}</strong>: {c.antes ?? '—'} → <strong>{c.despues ?? '—'}</strong></p>
                 <p className="text-gray-600">{c.usuario} · {formatoFechaHora(c.ts)} · {c.motivo}</p>
               </li>
             ))}

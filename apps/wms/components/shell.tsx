@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeftRight, Bell, Boxes, CalendarClock, ClipboardCheck, FileSpreadsheet, FolderOpen, History, Home, Inbox, Map, MoreHorizontal, Search, ShieldCheck, Upload, Users, X } from 'lucide-react'
+import { ArrowLeftRight, Bell, BarChart3, Boxes, CalendarClock, ClipboardCheck, FileSpreadsheet, FolderOpen, History, Home, Inbox, ListChecks, Map, MoreHorizontal, Search, ShieldCheck, Upload, Users, X } from 'lucide-react'
 import { Marca, MarcaIcono } from './marca'
 import { PaletaBusqueda } from './paleta-busqueda'
 import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
@@ -11,12 +11,12 @@ import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
 export interface ItemNav {
   href: string
   etiqueta: string
-  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos' | 'conteos' | 'kardex' | 'vencimientos' | 'carga'
+  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos' | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes'
   /** Cantidad que se muestra como insignia (alertas abiertas). */
   insignia?: number
 }
 
-const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload }
+const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload, revision: ListChecks, reportes: BarChart3 }
 
 const PRINCIPALES = ['inicio', 'almacen', 'entradas']
 
@@ -69,7 +69,7 @@ export function Shell({
             <span className="mt-1 block font-heading text-sm uppercase tracking-widest text-gray-500">Almacén</span>
           </span>
         </div>
-        <nav aria-label="Principal" className="flex-1 space-y-1 px-2 xl:px-3">
+        <nav aria-label="Principal" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 xl:px-3">
           {items.map((i) => {
             const Icono = ICONOS[i.icono]
             const on = activo(pathname, i.href)

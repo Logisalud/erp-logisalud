@@ -4,6 +4,8 @@ import { claveCelda, coordenadasCelda } from './mapa'
 import { filasDeStock, indices, resumenesDeCeldas, type Panorama } from './panorama'
 import { asignacionVigente, ETIQUETA_AREA } from './zonas'
 import { normalizar } from './busqueda'
+import { transitoPorPosicion } from './transito'
+import type { OrdenMovimiento } from './inventario'
 
 export interface FilaStockVista {
   producto: string
@@ -29,6 +31,8 @@ export interface PosicionVista {
   nota?: string
   asignacion?: { propietario: string; desde: string; hasta?: string; documento?: string; porConfirmar: boolean }
   stock: FilaStockVista[]
+  /** Unidades que salen de aquí o llegan aquí en un movimiento aún por verificar. */
+  transito?: { salen: number; llegan: number }
 }
 
 export interface CeldaVista {
@@ -42,6 +46,8 @@ export interface CeldaVista {
   propietarios: string[]
   estados: Estado[]
   porVerificar: boolean
+  /** Unidades de esta celda en tránsito (salen o llegan), por verificar. */
+  enTransito: number
   libre: boolean
   /** Texto normalizado para filtrar (códigos, productos, lotes, propietarios). */
   texto: string
@@ -53,7 +59,8 @@ export interface VistaMapa {
   propietarios: { codigo: string; nombre: string }[]
 }
 
-export function construirVistaMapa(p: Panorama): VistaMapa {
+export function construirVistaMapa(p: Panorama, ordenes: OrdenMovimiento[] = []): VistaMapa {
+  const transito = transitoPorPosicion(ordenes)
   const ind = indices(p)
   const res = resumenesDeCeldas(p)
   const filas = filasDeStock(p)
@@ -78,6 +85,7 @@ export function construirVistaMapa(p: Panorama): VistaMapa {
           asignacion: vig && ind.propietario.get(vig.propietarioId)
             ? { propietario: ind.propietario.get(vig.propietarioId)!.codigo, desde: vig.desde, hasta: vig.hasta, documento: doc?.titulo, porConfirmar: doc?.estadoConfirmacion === 'POR_CONFIRMAR' }
             : undefined,
+          transito: transito.has(pos.id) ? { salen: transito.get(pos.id)!.salen, llegan: transito.get(pos.id)!.llegan } : undefined,
           stock: (porPos.get(pos.id) ?? []).map((f) => ({
             producto: f.producto.descripcion, presentacion: f.producto.presentacion, productoCodigo: f.producto.codigo,
             lote: f.lote.codigo, vence: f.lote.vence, cantidad: f.saldo.cantidad, estado: f.saldo.estado,
@@ -93,6 +101,7 @@ export function construirVistaMapa(p: Panorama): VistaMapa {
     celdas.push({
       clave: r.clave, x, y, tipoArea: r.tipoArea, unidades: r.unidades, niveles: r.niveles, nivelesConStock: r.nivelesConStock,
       propietarios: r.propietarios, estados: r.estados, porVerificar: r.porVerificar, libre: r.libre, texto, posiciones,
+      enTransito: posiciones.reduce((n, x) => n + (x.transito ? x.transito.salen + x.transito.llegan : 0), 0),
     })
   }
   return {

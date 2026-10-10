@@ -29,6 +29,20 @@ describe('datos regulatorios', () => {
     expect(h.find((c) => c.campo === 'registro_sanitario')!.antes).toBeTruthy()
   })
 
+  it('D-38: presentación y principio activo se editan con historial y solo Katia y Sandra', async () => {
+    const antes = (await repo.panorama()).productos.find((p) => p.id === 'prod:1')!
+    const r = await repo.editarRegulatorio('prod:1', { presentacion: 'Caja x 60', principioActivo: 'Otro principio' }, 'Corrección de la ficha', KATIA)
+    expect(r).toMatchObject({ ok: true, cambios: 2 })
+    const despues = (await repo.panorama()).productos.find((p) => p.id === 'prod:1')!
+    expect(despues).toMatchObject({ presentacion: 'Caja x 60', principioActivo: 'Otro principio' })
+    const h = await repo.historialRegulatorio('prod:1')
+    expect(h.find((c) => c.campo === 'presentacion')).toMatchObject({ antes: antes.presentacion, despues: 'Caja x 60', usuario: 'Katia', motivo: 'Corrección de la ficha' })
+    expect(h.find((c) => c.campo === 'principio_activo')).toMatchObject({ despues: 'Otro principio' })
+    expect(await repo.editarRegulatorio('prod:1', { presentacion: 'Caja x 60' }, 'igual', SANDRA)).toMatchObject({ ok: true, cambios: 0 })
+    expect((await repo.editarRegulatorio('prod:1', { presentacion: 'X' }, 'no puedo', CHARLIE)).ok).toBe(false)
+    expect((await repo.panorama()).productos.find((p) => p.id === 'prod:1')!.presentacion).toBe('Caja x 60')
+  })
+
   it('nadie más edita', async () => {
     const r = await repo.editarRegulatorio('prod:1', { fabricante: 'X' }, 'prueba', CHARLIE)
     expect(r.ok).toBe(false)

@@ -118,7 +118,18 @@ export interface CambioRegulatorio {
   motivo: string
 }
 
-export type CampoRegulatorio = 'registro_sanitario' | 'rs_vence' | 'forma_presentacion' | 'concentracion' | 'fabricante' | 'condicion_almacenamiento'
+export type CampoRegulatorio = 'registro_sanitario' | 'rs_vence' | 'forma_presentacion' | 'concentracion' | 'fabricante' | 'condicion_almacenamiento' | CampoCatalogo
+
+/** D-38: presentación y principio activo viven solo en catalogo.productos; Compras los llena al crear y después solo Dirección Técnica los edita. */
+export type CampoCatalogo = 'presentacion' | 'principio_activo'
+export const CAMPOS_CATALOGO: readonly { campo: CampoCatalogo; clave: 'presentacion' | 'principioActivo'; etiqueta: string }[] = [
+  { campo: 'presentacion', clave: 'presentacion', etiqueta: 'Presentación' },
+  { campo: 'principio_activo', clave: 'principioActivo', etiqueta: 'Principio activo' },
+]
+
+/** Etiqueta de cualquier campo editable del historial (regulatorio o del catálogo). */
+export const etiquetaCampo = (campo: string): string =>
+  CAMPOS_REGULATORIOS.find((x) => x.campo === campo)?.etiqueta ?? CAMPOS_CATALOGO.find((x) => x.campo === campo)?.etiqueta ?? campo
 
 export const CAMPOS_REGULATORIOS: readonly { campo: CampoRegulatorio; clave: keyof Omit<Regulatorio, 'productoId' | 'creadoPor'>; etiqueta: string }[] = [
   { campo: 'registro_sanitario', clave: 'registroSanitario', etiqueta: 'Registro sanitario' },

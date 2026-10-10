@@ -1,9 +1,10 @@
 'use client'
 
+import { normalizar } from '@/domain/busqueda'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ClipboardCheck, Search } from 'lucide-react'
-import { programarConteoAccion } from '@/app/acciones-inventario'
+import { conteoExtraAccion } from '@/app/acciones-operacion'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 import { PILDORA_ACTIVA, PILDORA_DESHABILITADA, PILDORA_INACTIVA } from '@/components/estilos-opcion'
@@ -17,13 +18,13 @@ export function FormProgramarConteo({ posiciones }: { posiciones: PosicionContab
   const [q, setQ] = useState('')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [nota, setNota] = useState('')
-  const visibles = useMemo(() => posiciones.filter((p) => p.codigo.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 60), [posiciones, q])
+  const visibles = useMemo(() => posiciones.filter((p) => normalizar(`${p.codigo} ${p.area}`).includes(normalizar(q))).slice(0, 60), [posiciones, q])
   const alternar = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   return (
     <section className="card space-y-4" aria-labelledby="prog" data-testid="form-programar-conteo">
       <div>
-        <h2 id="prog" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Programar un conteo</h2>
-        <p className="mt-1 text-sm text-gray-600">Elige las ubicaciones de esta vez (tres conteos pequeños por semana). El contador verá producto, lote, vencimiento y ubicación, pero <strong>no</strong> la cantidad que dice el sistema.</p>
+        <h2 id="prog" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Conteo extra por una incidencia</h2>
+        <p className="mt-1 text-sm text-gray-600">Los tres conteos de la semana se programan arriba. Usa este solo cuando una incidencia pide contar algo fuera de la rotación (un faltante, un golpe, una sospecha). El contador verá producto, lote, vencimiento y ubicación, pero <strong>no</strong> la cantidad que dice el sistema.</p>
       </div>
       <div className="relative md:w-72">
         <label htmlFor="q-conteo" className="sr-only">Buscar ubicación</label>
@@ -42,12 +43,12 @@ export function FormProgramarConteo({ posiciones }: { posiciones: PosicionContab
         {visibles.length === 0 && <li className="text-sm text-gray-600">Ninguna ubicación con stock coincide.</li>}
       </ul>
       <div>
-        <label htmlFor="nota-conteo" className="etiqueta">Nota (opcional)</label>
-        <input id="nota-conteo" className="campo" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Por ejemplo: rotación de la semana 41" autoComplete="off" />
+        <label htmlFor="nota-conteo" className="etiqueta">¿Qué incidencia lo pide?</label>
+        <input id="nota-conteo" className="campo" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Por ejemplo: faltante en la entrega del lunes" autoComplete="off" data-testid="conteo-incidencia" />
       </div>
-      <button type="button" className="btn-primary" disabled={pendiente || sel.size === 0} data-testid="conteo-programar"
-        onClick={() => ejecutar(() => programarConteoAccion([...sel], nota.trim() || undefined), { exito: 'Conteo programado.', refrescar: false, alExito: (r) => router.push(`/conteos/${r.id}`) })}>
-        <ClipboardCheck className="h-5 w-5" aria-hidden />{pendiente ? 'Programando…' : `Programar el conteo (${sel.size})`}
+      <button type="button" className="btn-primary" disabled={pendiente || sel.size === 0 || !nota.trim()} data-testid="conteo-programar"
+        onClick={() => ejecutar(() => conteoExtraAccion([...sel], nota.trim()), { exito: 'Conteo extra programado.', refrescar: false, alExito: (r) => router.push(`/conteos/${r.id}`) })}>
+        <ClipboardCheck className="h-5 w-5" aria-hidden />{pendiente ? 'Programando…' : `Contar ahora (${sel.size})`}
       </button>
       {mensaje && <Aviso tipo={mensaje.tipo === 'ok' ? 'ok' : 'error'}>{mensaje.texto}</Aviso>}
     </section>

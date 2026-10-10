@@ -7,7 +7,9 @@ import { ETIQUETA_ESTADO } from '@/domain/estados'
 import { celdaCoincide, unidadesQueCoinciden, type CeldaVista, type VistaMapa } from '@/domain/vista-mapa'
 import { MAPA_ALTO, MAPA_ANCHO } from '@/domain/mapa'
 import { vistaPropietario } from '../propietarios-color'
-import { ChipEstado, ChipPorVerificar } from '../chips'
+import { ChipEnTransito, ChipEstado, ChipPorVerificar } from '../chips'
+import { textoTransito } from '@/domain/transito'
+import { normalizar } from '@/domain/busqueda'
 import { DrawerPosicion } from './drawer-posicion'
 import { TAB_ACTIVA, TAB_INACTIVA } from '@/components/estilos-opcion'
 
@@ -309,7 +311,7 @@ export function MapaAlmacen({
                   return (
                     <g
                       key={c.clave} data-celda={c.clave} data-coincide={on ? '1' : '0'} role="button" tabIndex={0}
-                      aria-label={`${c.clave}. ${c.unidades > 0 ? `${c.unidades} unidades en ${c.nivelesConStock} de ${c.niveles} niveles` : 'Vacía'}${c.propietarios.length ? `. ${c.propietarios.map((p) => vistaPropietario(p).corto).join(', ')}` : ''}${c.porVerificar ? '. Por verificar en sitio' : ''}`}
+                      aria-label={`${c.clave}. ${c.unidades > 0 ? `${c.unidades} unidades en ${c.nivelesConStock} de ${c.niveles} niveles` : 'Vacía'}${c.propietarios.length ? `. ${c.propietarios.map((p) => vistaPropietario(p).corto).join(', ')}` : ''}${c.porVerificar ? '. Por verificar en sitio' : ''}${c.enTransito > 0 ? `. ${textoTransito(c.enTransito)}` : ''}`}
                       opacity={hayFiltro && !on ? 0.2 : 1} style={{ cursor: 'pointer', outline: 'none' }}
                       onClick={() => { if (!arrastre.current?.movio) seleccionar(c.clave) }}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); seleccionar(c.clave) } }}
@@ -323,6 +325,12 @@ export function MapaAlmacen({
                         <g aria-hidden>
                           <polygon points={`${x + 1},${y + 14} ${x + 1},${y + 1} ${x + 14},${y + 1}`} fill="#F59E0B" />
                           <text x={x + 3.2} y={y + 10} fontSize={9} fontWeight={800} fill="#1A201D">!</text>
+                        </g>
+                      )}
+                      {c.enTransito > 0 && (
+                        <g aria-hidden data-testid="marca-transito">
+                          <rect x={x + w - 17} y={y + 3} width={14} height={14} rx={3} fill="#0E7C86" />
+                          <text x={x + w - 10} y={y + 13.5} textAnchor="middle" fontSize={9} fontWeight={800} fill="#FFFFFF">↔</text>
                         </g>
                       )}
                       <text x={x + w / 2} y={y + 21} textAnchor="middle" fontSize={14} fontWeight={700} fill="#1A201D" className="tabular">{c.clave}</text>
@@ -435,7 +443,7 @@ export function MapaAlmacen({
 
 /** Resultado en texto para el teléfono: "Dapagliflozina está en A-21.1 (120 u)…" */
 function ResultadosTexto({ celdas, consulta, onAbrir }: { celdas: CeldaVista[]; consulta: string; onAbrir: (c: string) => void }) {
-  const q = consulta.trim().toLowerCase()
+  const q = normalizar(consulta)
   if (celdas.length === 0) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6 text-center" data-testid="sin-resultados">
@@ -449,14 +457,14 @@ function ResultadosTexto({ celdas, consulta, onAbrir }: { celdas: CeldaVista[]; 
     <ul className="space-y-2">
       {celdas.slice(0, 40).map((c) => {
         const filas = c.posiciones.flatMap((p) => p.stock.map((s) => ({ p, s })))
-        const coinciden = filas.filter(({ p, s }) => `${s.producto} ${s.productoCodigo} ${s.lote} ${p.codigo}`.toLowerCase().includes(q.split(/\s+/)[0] ?? ''))
+        const coinciden = filas.filter(({ p, s }) => normalizar(`${s.producto} ${s.productoCodigo} ${s.lote} ${p.codigo}`).includes(q.split(/\s+/)[0] ?? ''))
         const mostrar = (coinciden.length ? coinciden : filas).slice(0, 3)
         return (
           <li key={c.clave}>
             <button type="button" onClick={() => onAbrir(c.clave)} className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left active:bg-gray-50">
               <span className="flex items-center justify-between gap-2">
                 <span className="font-heading text-lg font-semibold tracking-wide text-gray-900">{c.clave}</span>
-                <span className="flex gap-1.5">{c.porVerificar && <ChipPorVerificar />}</span>
+                <span className="flex gap-1.5">{c.porVerificar && <ChipPorVerificar />}{c.enTransito > 0 && <ChipEnTransito unidades={c.enTransito} />}</span>
               </span>
               {mostrar.length === 0 ? (
                 <span className="mt-1 block text-sm text-gray-600">Sin stock en esta ubicación</span>

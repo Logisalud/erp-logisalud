@@ -16,7 +16,7 @@ import type { BloqueFisico, SolicitudDetalle } from '@/domain/entradas-vistas'
 const base: SolicitudDetalle = {
   id: 's1', numero: 'SI-2026-00001', tipo: 'COMPRA_LOCAL', estado: 'EN_RECEPCION', paso: 'VERIFICANDO', version: 1, propietarioId: 'p', propietario: 'LOGISSA',
   ocId: 'oc1', ocCodigo: 'OC-1', origenCreacion: 'INTERNO', creadoEn: '2026-10-08T10:00:00Z', cambios: [], versiones: [], actas: [], organolepticas: [], alertas: [],
-  bloqueadoPorFirmas: false, conDiferencias: false, cantidadFisica: [], estadoInicial: 'CUARENTENA',
+  bloqueadoPorFirmas: false, conDiferencias: false, tiposDiferencia: [], cantidadFisica: [], estadoInicial: 'CUARENTENA',
   lineas: [{ id: 'l1', productoId: 'prod', codigo: 'DEMO-001', descripcion: 'Dapagliflozina 10 mg', lote: 'L1', vence: '2028-06-30', cantidad: 50, inicial: 50, estadoLinea: 'ESPERADA', verificacion: 'PENDIENTE' }],
 }
 const posiciones = [{ id: 'pos:A-6', codigo: 'A-6', area: 'Cuarentena', ocupadas: 0 }]

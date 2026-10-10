@@ -8,20 +8,25 @@ import { ChipConteo } from '@/components/inventario/chips-inventario'
 import { FormProgramarConteo, type PosicionContable } from '@/components/inventario/form-programar-conteo'
 import { AjustesPorDecidir } from '@/components/inventario/ajustes-por-decidir'
 import { ETIQUETA_AREA } from '@/domain/zonas'
+import { CONTEOS_POR_SEMANA_DEFECTO, lunesDe } from '@/domain/operacion'
+import { ProgramacionSemanal } from '@/components/operacion/programacion-semanal'
 import { CONTADOR_AMBAR } from '@/components/estilos-opcion'
 
 export const metadata = { title: 'Conteos — WMS LOGISALUD' }
 
-export default async function Conteos() {
+export default async function Conteos({ searchParams }: { searchParams: { semana?: string } }) {
   const ctx = await exigirContexto()
   const repo = repositorio()
-  const [conteos, ajustes, p, ordenes] = await Promise.all([repo.listarConteos(), repo.listarAjustes(), repo.panorama(), repo.listarMovimientos()])
-  const enMovimiento = new Set(ordenes.filter((o) => ['PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA'].includes(o.estado)).flatMap((o) => o.lineas.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId])))
+  const [conteos, ajustes, p, ordenes, cobertura] = await Promise.all([repo.listarConteos(), repo.listarAjustes(), repo.panorama(), repo.listarMovimientos(), repo.ultimaCobertura()])
+  const hoyLunes = lunesDe(p.hoy)
+  const semana = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.semana ?? '') ? lunesDe(searchParams.semana!) : hoyLunes
+  const programaciones = await repo.programacionDeSemana(semana)
+  const enMovimiento = new Set(ordenes.filter((o) => ['EJECUTADO', 'CON_DIFERENCIA'].includes(o.estado)).flatMap((o) => o.lineas.flatMap((l) => [l.desdePosicionId, l.haciaPosicionId])))
   const puedeProgramar = puedeProgramarConteo(ctx.roles)
   const pendientes = ajustes.filter((a) => a.estado === 'PROPUESTO')
   const porPosicion = new Map<string, number>()
   for (const s of p.saldos) if (s.cantidad > 0) porPosicion.set(s.posicionId, (porPosicion.get(s.posicionId) ?? 0) + s.cantidad)
-  const posiciones: PosicionContable[] = p.posiciones.filter((x) => porPosicion.has(x.id)).map((x) => ({ id: x.id, codigo: x.codigo, area: ETIQUETA_AREA[x.tipoArea], unidades: porPosicion.get(x.id)!, ocupada: enMovimiento.has(x.id) ? 'tiene un movimiento abierto' : undefined }))
+  const posiciones: PosicionContable[] = p.posiciones.filter((x) => porPosicion.has(x.id)).map((x) => ({ id: x.id, codigo: x.codigo, area: ETIQUETA_AREA[x.tipoArea], unidades: porPosicion.get(x.id)!, ocupada: enMovimiento.has(x.id) ? 'tiene movimientos por verificar' : undefined }))
     .sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }))
   return (
     <div className="space-y-6">
@@ -36,6 +41,8 @@ export default async function Conteos() {
           <div className="mt-3"><AjustesPorDecidir ajustes={pendientes} puedeDecidir={puedeDecidirAjuste(ctx.roles)} /></div>
         </section>
       )}
+
+      <ProgramacionSemanal semana={semana} hoyLunes={hoyLunes} programaciones={programaciones} cobertura={cobertura} posiciones={posiciones} puedeProgramar={puedeProgramar} porSemana={CONTEOS_POR_SEMANA_DEFECTO} />
 
       {puedeProgramar && <FormProgramarConteo posiciones={posiciones} />}
 

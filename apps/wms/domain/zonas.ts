@@ -44,6 +44,10 @@ export function mensajeZonaNoAdmite(area: TipoArea, estado: Estado): string {
   if (area === 'RECEPCION' || area === 'CONTRAMUESTRA' || area === 'EMBALAJE' || area === 'DESPACHO') {
     return `${a} no recibe stock en este momento.`
   }
+  // Mensajes humanos para los casos de todos los días.
+  if (area === 'CUARENTENA' && estado === 'APROBADO') return 'Ya está aprobado: no vuelve a Cuarentena.'
+  if (area === 'BAJAS_RECHAZADOS' && estado !== 'BAJAS_RECHAZADOS') return 'Solo para lotes dados de baja.'
+  if (estado === 'CUARENTENA') return 'Sigue en Cuarentena: no puede ir a un rack.'
   return `${a} no admite unidades en ${ETIQUETA_ESTADO[estado]}.`
 }
 

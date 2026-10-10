@@ -84,7 +84,6 @@ export interface FilaHistoriaLote {
   origen: Origen
   delta: number
   ejecutor?: string
-  preparador?: string
   verificador?: string
   movimientoId: string
   reversaDe?: string
@@ -191,7 +190,8 @@ export interface TramoVencimiento {
   unidades: number
 }
 
-export const TRAMOS_POR_DEFECTO = [30, 60, 90, 180]
+/** 3, 6 y 12 meses en días; se agregan «Vencido» y «Más de 12 meses». Configurable en `vencimiento_tramos_dias`. */
+export const TRAMOS_POR_DEFECTO = [90, 180, 365]
 
 /** «30,60,90» → [30, 60, 90] (ordenado, positivo y sin repetidos). Vacío o inválido → los tramos por defecto. */
 export function parsearTramos(texto: string | undefined | null): number[] {
@@ -232,11 +232,10 @@ export function reporteVencimientos(lotes: LoteConStock[], hoy: string, tramos: 
 
 // ── Movimientos internos (INV-02) ───────────────────────────────────────────
 
-export type EstadoOrden = 'PREPARADO' | 'AUTORIZADO' | 'EJECUTADO' | 'CONFIRMADO' | 'CON_DIFERENCIA' | 'ANULADO'
+export type EstadoOrden = 'EJECUTADO' | 'CONFIRMADO' | 'CON_DIFERENCIA' | 'ANULADO'
 
 export const ETIQUETA_ESTADO_ORDEN: Record<EstadoOrden, string> = {
-  PREPARADO: 'Por autorizar', AUTORIZADO: 'Por mover', EJECUTADO: 'Por verificar', CONFIRMADO: 'Confirmado',
-  CON_DIFERENCIA: 'Con diferencia', ANULADO: 'Anulado',
+  EJECUTADO: 'Por verificar', CONFIRMADO: 'Confirmado', CON_DIFERENCIA: 'Con diferencia', ANULADO: 'Anulado',
 }
 
 export interface LineaOrdenMovimiento {
@@ -273,14 +272,12 @@ export interface OrdenMovimiento {
   numero: string
   estado: EstadoOrden
   motivo: string
-  preparadorId: string
-  preparador: string
-  preparadoEn: string
-  autorizadoPor?: string
-  autorizadoEn?: string
-  ejecutorId?: string
-  ejecutor?: string
-  ejecutadoEn?: string
+  /** Quien lo creó en el sistema y movió la mercadería (la misma persona). */
+  ejecutorId: string
+  ejecutor: string
+  ejecutadoEn: string
+  /** Llave de idempotencia del borrador con que se creó (no se muestra). */
+  token?: string
   verificadorId?: string
   verificador?: string
   verificadoEn?: string
@@ -290,8 +287,8 @@ export interface OrdenMovimiento {
   lineas: LineaOrdenMovimiento[]
 }
 
-/** Lo que se pide al preparar: de dónde a dónde, qué y cuánto. */
-export interface LineaPreparar {
+/** Lo que se registra al ejecutar: de dónde a dónde, qué y cuánto (vencimiento, propietario y estado salen del lote). */
+export interface LineaEjecutar {
   desdePosicionId: string
   haciaPosicionId: string
   loteId: string
@@ -304,16 +301,16 @@ const esJefe = (roles: readonly Rol[]) => roles.includes('jefe_almacen') || role
 const puedeEjecutarAlgo = (roles: readonly Rol[]) => roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe', 'asistente_dt'].includes(r))
 const puedeVerificarAlgo = (roles: readonly Rol[]) => roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe'].includes(r))
 
-export const puedePrepararMovimiento = puedeEjecutarAlgo
-export const puedeAutorizarMovimiento = esJefe
+/** Quien mueve mercadería registra el movimiento (y lo ejecuta). No hay autorización previa en el sistema: la indicación es verbal. */
+export const puedeEjecutarMovimiento = puedeEjecutarAlgo
 export const puedeProgramarConteo = esJefe
 
 export interface AccionesOrden {
-  autorizar: boolean
-  ejecutar: boolean
   verificar: boolean
   /** Por qué no puede verificar quien lo intenta (D-15). */
   motivoNoVerifica?: string
+  /** Es quien ejecutó el movimiento: ve la verificación, pero con los botones deshabilitados. */
+  ejecutorViendo: boolean
   resolver: boolean
   anular: boolean
 }
@@ -321,16 +318,21 @@ export interface AccionesOrden {
 /** Qué puede hacer esta persona con esta orden ahora (la base de datos vuelve a comprobarlo). */
 export function accionesDeOrden(o: OrdenMovimiento, actorId: string, roles: readonly Rol[]): AccionesOrden {
   const verif = o.estado === 'EJECUTADO' && puedeVerificarAlgo(roles)
-  const r = verif ? puedeVerificar(actorId, { preparadorId: o.preparadorId, ejecutorId: o.ejecutorId }) : { puede: false as const, mensaje: undefined }
+  const r = verif ? puedeVerificar(actorId, { ejecutorId: o.ejecutorId }) : { puede: false as const, mensaje: undefined }
   return {
-    autorizar: o.estado === 'PREPARADO' && esJefe(roles),
-    ejecutar: o.estado === 'AUTORIZADO' && puedeEjecutarAlgo(roles),
     verificar: verif && r.puede,
     motivoNoVerifica: verif && !r.puede ? r.mensaje : undefined,
+    ejecutorViendo: o.estado === 'EJECUTADO' && actorId === o.ejecutorId,
     resolver: o.estado === 'CON_DIFERENCIA' && esJefe(roles),
-    anular: (o.estado === 'PREPARADO' || o.estado === 'AUTORIZADO') && (actorId === o.preparadorId || esJefe(roles)),
+    // Solo mientras nadie verificó ninguna línea: lo anula quien lo ejecutó o el Jefe.
+    anular: o.estado === 'EJECUTADO' && o.lineas.every((l) => l.verificacion === 'PENDIENTE') && (actorId === o.ejecutorId || esJefe(roles)),
   }
 }
+
+// ── Vistas guardadas (listas y reportes): filtros con nombre, por persona ─────────────────────────
+
+export type ReporteVista = 'INVENTARIO' | 'OCUPACION' | 'RECEPCIONES' | 'CALIDAD' | 'MOVIMIENTOS' | 'EXACTITUD' | 'AUDITORIA' | 'VENCIMIENTOS'
+export interface VistaGuardada { id: string; reporte: ReporteVista; nombre: string; filtros: Record<string, string> }
 
 // ── Conteos cíclicos (INV-05) y ajustes ─────────────────────────────────────
 
@@ -492,6 +494,9 @@ export interface ResultadoOrigen {
 export interface LineaContenido {
   clave: string
   posicionId: string
+  /** Código y área de la ubicación donde está (para mostrar «dónde está» sin otra consulta). */
+  posicion: string
+  area: string
   loteId: string
   productoId: string
   codigoProducto: string
@@ -513,7 +518,7 @@ export const claveCelda = (posicionId: string, loteId: string, estado: string, p
 export function reservadoPorCelda(ordenes: OrdenMovimiento[]): Map<string, number> {
   const m = new Map<string, number>()
   for (const o of ordenes) {
-    if (!['PREPARADO', 'AUTORIZADO', 'EJECUTADO', 'CON_DIFERENCIA'].includes(o.estado)) continue
+    if (!['EJECUTADO', 'CON_DIFERENCIA'].includes(o.estado)) continue
     for (const l of o.lineas) {
       if (l.verificacion !== 'PENDIENTE' && l.verificacion !== 'CON_DIFERENCIA') continue
       const k = claveCelda(l.desdePosicionId, l.loteId, l.estado, l.procedenciaId)
@@ -527,11 +532,13 @@ export function contenidoDeUbicacion(p: Panorama, posicionId: string, reservado:
   const lote = new Map(p.lotes.map((l) => [l.id, l]))
   const prod = new Map(p.productos.map((x) => [x.id, x]))
   const prop = new Map(p.propietarios.map((x) => [x.id, x]))
+  const pos = new Map(p.posiciones.map((x) => [x.id, x]))
   return p.saldos.filter((s) => s.posicionId === posicionId && s.cantidad > 0).map((s): LineaContenido => {
     const l = lote.get(s.loteId); const x = prod.get(s.productoId)
     const clave = claveCelda(s.posicionId, s.loteId, s.estado, s.procedenciaId)
+    const ub = pos.get(s.posicionId)
     return {
-      clave, posicionId: s.posicionId, loteId: s.loteId, productoId: s.productoId, codigoProducto: x?.codigo ?? '', producto: x?.descripcion ?? '—', lote: l?.codigo ?? '—', vence: l?.vence,
+      clave, posicionId: s.posicionId, posicion: ub?.codigo ?? '—', area: ub ? ETIQUETA_AREA[ub.tipoArea] : '—', loteId: s.loteId, productoId: s.productoId, codigoProducto: x?.codigo ?? '', producto: x?.descripcion ?? '—', lote: l?.codigo ?? '—', vence: l?.vence,
       propietarioId: s.propietarioId, propietario: prop.get(s.propietarioId)?.codigo ?? '—', estado: s.estado, procedenciaId: s.procedenciaId, cantidad: s.cantidad,
       disponible: Math.max(0, s.cantidad - (reservado.get(clave) ?? 0)),
     }
@@ -567,6 +574,87 @@ export function buscarOrigenes(p: Panorama, consulta: string, bloqueadas: Record
     out.push({ posicionId: pos.id, codigo: pos.codigo, area: ETIQUETA_AREA[pos.tipoArea], unidades: e.unidades, lineas: e.lineas, coincidencias: e.coincidencias, bloqueada: bloqueadas[pos.id], score })
   }
   return out.sort((a, b) => b.score - a.score || a.codigo.localeCompare(b.codigo, 'es', { numeric: true })).slice(0, limite).map(({ score: _s, ...r }) => { void _s; return r })
+}
+
+// ── Agregar líneas por producto: ¿en qué ubicaciones está y cuánto hay disponible? ──────────────────
+
+export interface ResultadoProducto {
+  productoId: string
+  codigo: string
+  descripcion: string
+  principioActivo?: string
+  presentacion?: string
+  /** Unidades disponibles para mover (saldo menos lo reservado por movimientos abiertos). */
+  disponibles: number
+  ubicaciones: number
+  /** Lotes que coinciden con lo escrito, para reconocer el producto de un vistazo. */
+  coincidencias: string[]
+}
+
+/** Busca PRODUCTOS con stock por nombre, código, principio activo o lote. */
+export function buscarProductosConStock(p: Panorama, consulta: string, reservado: Map<string, number> = new Map(), limite = 10, bloqueadas: Record<string, string> = {}): ResultadoProducto[] {
+  const q = consulta.trim()
+  if (!q) return []
+  const lote = new Map(p.lotes.map((l) => [l.id, l]))
+  const porProducto = new Map<string, { disponibles: number; posiciones: Set<string>; mejor: number; coincidencias: string[] }>()
+  for (const s of p.saldos) {
+    if (s.cantidad <= 0 || bloqueadas[s.posicionId]) continue   // una ubicación en conteo no aparece como origen
+    const x = p.productos.find((q2) => q2.id === s.productoId)
+    if (!x) continue
+    const l = lote.get(s.loteId)
+    const base = Math.max(puntaje(q, x.descripcion), puntaje(q, x.codigo), puntaje(q, x.principioActivo ?? ''))
+    const sLote = puntaje(q, l?.codigo ?? '')
+    const e = porProducto.get(x.id) ?? { disponibles: 0, posiciones: new Set<string>(), mejor: 0, coincidencias: [] }
+    e.disponibles += Math.max(0, s.cantidad - (reservado.get(claveCelda(s.posicionId, s.loteId, s.estado, s.procedenciaId)) ?? 0))
+    e.posiciones.add(s.posicionId)
+    e.mejor = Math.max(e.mejor, base, sLote)
+    if (sLote > 0 && sLote >= base && l && e.coincidencias.length < 2 && !e.coincidencias.includes(`lote ${l.codigo}`)) e.coincidencias.push(`lote ${l.codigo}`)
+    porProducto.set(x.id, e)
+  }
+  const out: (ResultadoProducto & { score: number })[] = []
+  for (const [id, e] of porProducto) {
+    if (e.mejor <= 0) continue
+    const x = p.productos.find((q2) => q2.id === id)!
+    out.push({ productoId: id, codigo: x.codigo, descripcion: x.descripcion, principioActivo: x.principioActivo, presentacion: x.presentacion, disponibles: e.disponibles, ubicaciones: e.posiciones.size, coincidencias: e.coincidencias, score: e.mejor })
+  }
+  return out.sort((a, b) => b.score - a.score || a.descripcion.localeCompare(b.descripcion, 'es')).slice(0, limite).map(({ score: _s, ...r }) => { void _s; return r })
+}
+
+/** Una celda (ubicación + lote + estado) donde está el producto, con lo disponible para mover. */
+export interface CeldaDeProducto extends LineaContenido { bloqueada?: string }
+
+/**
+ * Todas las ubicaciones donde está un producto: primero lo que vence antes (FEFO), luego por ubicación.
+ * Una ubicación en conteo NO aparece (ni como origen ni como destino).
+ */
+export function ubicacionesDeProducto(p: Panorama, productoId: string, reservado: Map<string, number> = new Map(), bloqueadas: Record<string, string> = {}): CeldaDeProducto[] {
+  const posiciones = new Set(p.saldos.filter((s) => s.productoId === productoId && s.cantidad > 0 && !bloqueadas[s.posicionId]).map((s) => s.posicionId))
+  const celdas: CeldaDeProducto[] = []
+  for (const id of posiciones) {
+    for (const c of contenidoDeUbicacion(p, id, reservado)) if (c.productoId === productoId) celdas.push({ ...c })
+  }
+  return celdas.sort((a, b) => (a.vence ?? '9999').localeCompare(b.vence ?? '9999') || a.posicion.localeCompare(b.posicion, 'es', { numeric: true }) || a.lote.localeCompare(b.lote, 'es', { numeric: true }))
+}
+
+/** Una línea de la lista del movimiento, con su destino efectivo (el de la cabecera o uno propio). */
+export interface LineaParaChequear extends Pick<LineaContenido, 'clave' | 'posicionId' | 'propietarioId' | 'propietario' | 'estado'> { haciaPosicionId?: string }
+export interface ValidacionLineaMov { clave: string; ok: boolean; mensaje?: string; sinDestino?: boolean }
+
+/** Valida cada línea contra SU destino (propietario, área, estado, ubicación en conteo) con mensajes humanos. La base de datos vuelve a validar. */
+export function validarLineasMovimiento(p: Panorama, lineas: LineaParaChequear[], bloqueadas: Record<string, string> = {}): ValidacionLineaMov[] {
+  const porDestino = new Map<string, LineaParaChequear[]>()
+  for (const l of lineas) if (l.haciaPosicionId) porDestino.set(l.haciaPosicionId, [...(porDestino.get(l.haciaPosicionId) ?? []), l])
+  const resultado = new Map<string, ValidacionLineaMov>()
+  for (const [destino, ls] of porDestino) {
+    const v = validarDestino(p, destino, ls, bloqueadas)
+    for (const r of v?.porLinea ?? []) resultado.set(r.clave, r)
+  }
+  const nombre = (id: string) => p.posiciones.find((x) => x.id === id)?.codigo ?? id
+  return lineas.map((l): ValidacionLineaMov => {
+    if (bloqueadas[l.posicionId]) return { clave: l.clave, ok: false, mensaje: `La ubicación ${nombre(l.posicionId)} ${bloqueadas[l.posicionId]}: no se mueve desde ahí.` }
+    if (!l.haciaPosicionId) return { clave: l.clave, ok: false, sinDestino: true, mensaje: 'Falta elegir el destino.' }
+    return resultado.get(l.clave) ?? { clave: l.clave, ok: false, mensaje: 'No encontramos ese destino.' }
+  })
 }
 
 export interface ValidacionLineaDestino { clave: string; ok: boolean; mensaje?: string }
@@ -608,7 +696,11 @@ export function validarDestino(p: Panorama, destinoId: string, lineas: LineaPara
   return { posicionId: d.id, codigo: d.codigo, area: ETIQUETA_AREA[d.tipoArea], general, porLinea, validas, invalidas: porLinea.length - validas, ok: porLinea.length > 0 && validas === porLinea.length }
 }
 
-export interface ResultadoDestino { posicionId: string; codigo: string; area: string; validas: number; invalidas: number; general?: string; ocupadas: number }
+export interface ResultadoDestino {
+  posicionId: string; codigo: string; area: string; validas: number; invalidas: number; general?: string; ocupadas: number
+  /** Con UNA sola línea: por qué esa ubicación no la recibe (mensaje humano). */
+  motivo?: string
+}
 
 /** Busca ubicaciones de DESTINO por código; primero las que sirven para todas las líneas marcadas. */
 export function buscarDestinos(p: Panorama, consulta: string, lineas: LineaParaValidar[], bloqueadas: Record<string, string> = {}, limite = 10): ResultadoDestino[] {
@@ -618,10 +710,11 @@ export function buscarDestinos(p: Panorama, consulta: string, lineas: LineaParaV
   for (const s of p.saldos) if (s.cantidad > 0) unidades.set(s.posicionId, (unidades.get(s.posicionId) ?? 0) + s.cantidad)
   const out: (ResultadoDestino & { score: number })[] = []
   for (const pos of p.posiciones) {
+    if (bloqueadas[pos.id]) continue   // una ubicación en conteo no aparece como destino
     const score = puntaje(q, pos.codigo)
     if (score === 0 && !normalizar(ETIQUETA_AREA[pos.tipoArea]).includes(normalizar(q))) continue
     const v = validarDestino(p, pos.id, lineas, bloqueadas)!
-    out.push({ posicionId: pos.id, codigo: pos.codigo, area: v.area, validas: v.validas, invalidas: v.invalidas, general: v.general, ocupadas: unidades.get(pos.id) ?? 0, score })
+    out.push({ posicionId: pos.id, codigo: pos.codigo, area: v.area, validas: v.validas, invalidas: v.invalidas, general: v.general, ocupadas: unidades.get(pos.id) ?? 0, motivo: lineas.length === 1 && !v.ok ? (v.general ?? v.porLinea[0]?.mensaje) : undefined, score })
   }
   return out.sort((a, b) => Number(a.invalidas > 0) - Number(b.invalidas > 0) || b.score - a.score || a.codigo.localeCompare(b.codigo, 'es', { numeric: true }))
     .slice(0, limite).map(({ score: _s, ...r }) => { void _s; return r })

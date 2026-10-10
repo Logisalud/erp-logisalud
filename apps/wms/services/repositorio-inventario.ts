@@ -1,6 +1,6 @@
 import type {
   AjusteVista, CargaInicialVista, ConteoVista, ErrorFilaCarga, FilaCargaInicial, FilaHistoriaLote, FilaKardex, FiltroKardex,
-  LineaConteoVista, LineaPreparar, OrdenMovimiento, RevisionLinea,
+  LineaConteoVista, LineaEjecutar, OrdenMovimiento, ReporteVista, RevisionLinea, VistaGuardada,
 } from '@/domain/inventario'
 import type { Actor, ResultadoAccion } from './repositorio'
 
@@ -9,23 +9,31 @@ export interface RepositorioInventario {
   kardex(filtro: FiltroKardex): Promise<FilaKardex[]>
   historiaLote(loteId: string): Promise<FilaHistoriaLote[]>
   /** Parámetros que el reporte y el PDF necesitan: tramos de vencimiento (D-30) y código provisional del formato (D-29). */
-  parametrosInventario(): Promise<{ tramosVencimiento: number[]; kardexCodigoFormato: string }>
+  parametrosInventario(): Promise<{ tramosVencimiento: number[]; kardexCodigoFormato: string; movimientoSinVerificarHoras: number; diasAlertaVencimiento: number }>
 
   // ── Movimientos internos ────────────────────────────────────────────────
   listarMovimientos(): Promise<OrdenMovimiento[]>
   obtenerMovimiento(id: string): Promise<OrdenMovimiento | null>
-  prepararMovimiento(lineas: LineaPreparar[], motivo: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
-  autorizarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion>
-  ejecutarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion>
+  /**
+   * Registra Y ejecuta el movimiento: quien lo crea es quien mueve la mercadería (una sola persona, el «ejecutor»). No hay autorización
+   * previa en el sistema. Desde aquí sus unidades quedan reservadas; el stock cambia al verificar cada línea.
+   * `token` es la llave de idempotencia del borrador: si se reintenta (conexión cortada), devuelve el movimiento ya creado y no uno nuevo.
+   */
+  ejecutarMovimiento(lineas: LineaEjecutar[], motivo: string, actor: Actor, token?: string): Promise<ResultadoAccion<{ id: string; numero: string }>>
   /** «Todo coincide»: equivale a revisar todas las líneas por verificar como conformes. */
   confirmarMovimiento(id: string, actor: Actor): Promise<ResultadoAccion>
   /** Revisión línea por línea: las que coinciden se confirman juntas; cada diferencia deja abierta solo su línea. */
   revisarMovimiento(id: string, revision: RevisionLinea[], actor: Actor): Promise<ResultadoAccion<{ confirmadas: number; conDiferencia: number }>>
   /** El Jefe resuelve UNA línea con diferencia: volver a moverla o anularla. */
   resolverMovimiento(lineaId: string, accion: 'REINTENTAR' | 'ANULAR', nota: string, actor: Actor): Promise<ResultadoAccion>
-  /** Ubicaciones que hoy no se pueden usar: en conteo o con un movimiento abierto (posición → motivo). */
+  /** Ubicaciones que hoy no se pueden usar: solo las que están en conteo (un movimiento abierto reserva unidades, no bloquea la ubicación). */
   posicionesBloqueadas(): Promise<Record<string, string>>
   anularMovimiento(id: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
+
+  // ── Vistas guardadas de las listas y reportes (por persona) ─────────────
+  listarVistas(reporte: ReporteVista, actor: Actor): Promise<VistaGuardada[]>
+  guardarVista(reporte: ReporteVista, nombre: string, filtros: Record<string, string>, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
+  borrarVista(id: string, actor: Actor): Promise<ResultadoAccion>
 
   // ── Conteos cíclicos y ajustes ──────────────────────────────────────────
   listarConteos(): Promise<ConteoVista[]>

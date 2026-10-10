@@ -2,7 +2,7 @@
 import type { Panorama } from '@/domain/panorama'
 import type { Estado } from '@/domain/tipos'
 import type {
-  AjusteVista, FilaCargaInicial, OrdenMovimiento, PartidaLedger, EstadoConteo, ResultadoLinea,
+  AjusteVista, FilaCargaInicial, OrdenMovimiento, PartidaLedger, EstadoConteo, ResultadoLinea, VistaGuardada,
 } from '@/domain/inventario'
 import type { Origen } from '@/domain/tipos'
 
@@ -60,6 +60,8 @@ export interface InvDemo {
   cargas: CargaDemo[]
   /** D-09: estado del stock inicial decidido por Dirección Técnica ('' = sin decidir). */
   cargaDecision: string
+  /** Vistas guardadas de las listas, por persona. */
+  vistas: Record<string, VistaGuardada[]>
   contadores: Record<string, number>
   sembrado: boolean
 }
@@ -73,7 +75,7 @@ export function iniciarInventario(panorama: Panorama): InvDemo {
     origen: 'CARGA_INICIAL' as const, procedenciaId: s.procedenciaId, delta: s.cantidad, ejecutorId: 'demo:admin_wms',
     referenciaTipo: 'carga_inicial', referenciaId: 'CI-DEMO-00001',
   }))
-  return { ledger, ordenes: [], conteos: [], ajustes: [], cargas: [], cargaDecision: '', contadores: {}, sembrado: false }
+  return { ledger, ordenes: [], conteos: [], ajustes: [], cargas: [], cargaDecision: '', vistas: {}, contadores: {}, sembrado: false }
 }
 
 export const siguiente = (inv: InvDemo, clave: string): number => {

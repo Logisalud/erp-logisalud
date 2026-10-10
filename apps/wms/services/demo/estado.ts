@@ -96,6 +96,8 @@ export interface EstadoDemo {
   cambiosRegulatorios: CambioRegulatorio[]
   /** Batch 3: libro mayor, movimientos internos, conteos, ajustes y cargas iniciales. */
   inv: InvDemo
+  /** Batch 3b: revisión diaria y programación de conteos (se crea al primer uso). */
+  op?: import('./operacion-demo').OpDemo
   solicitudes: SolicitudDemo[]
   actas: ActaDemo[]
   organolepticas: OrganolepticaVista[]
@@ -106,6 +108,8 @@ export interface EstadoDemo {
   /** Desde cuándo está Aprobado cada entrega (para el plazo de "por trasladar"). */
   aprobadoEn: Record<string, string>
   plazoPorTrasladarHoras: number
+  /** Horas sin verificar un movimiento ejecutado antes de avisar al Jefe (`movimiento_sin_verificar_horas`). */
+  plazoMovSinVerificarHoras: number
   /** Horas desde el cierre de una solicitud para ver su cantidad física registrada en Compras. */
   plazoRegistroComprasHoras: number
   /** Días antes del vencimiento de un lote en que se alerta (D-30). */
@@ -129,7 +133,7 @@ export function estado(): EstadoDemo {
       cambiosRegulatorios: [],
       inv: iniciarInventario(panorama),
       solicitudes: [], actas: [], organolepticas: [], alertas: [], expedientes: [], compras: [], correlativos: {},
-      aprobadoEn: {}, plazoPorTrasladarHoras: 24, plazoRegistroComprasHoras: 24, diasAlertaVencimiento: 90,
+      aprobadoEn: {}, plazoPorTrasladarHoras: 24, plazoMovSinVerificarHoras: 24, plazoRegistroComprasHoras: 24, diasAlertaVencimiento: 90,
       auditoria: [
         { id: 6, ts: ts(0, '08:12'), actor: 'Dirección Técnica (demo)', evento: 'regulatorio_editado', entidad: 'producto_regulatorio', entidadId: 'DEMO-019', detalle: 'Registro sanitario actualizado', motivo: 'Renovación del registro' },
         { id: 5, ts: ts(0, '07:40'), actor: 'Asistente DT (demo)', evento: 'producto_creado', entidad: 'productos', entidadId: 'DEMO-020', detalle: 'Alta de producto' },
