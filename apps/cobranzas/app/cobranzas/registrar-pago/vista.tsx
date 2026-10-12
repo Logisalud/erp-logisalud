@@ -21,6 +21,9 @@ interface FacturaBuscar {
   contado_pendiente: boolean;
   factorizado?: boolean;
   factoring_entidad?: string | null;
+  incobrable?: boolean;
+  incobrable_motivo?: string | null;
+  incobrable_fecha?: string | null;
 }
 
 interface NcNd {
@@ -128,7 +131,7 @@ function FileUpload({
   );
 }
 
-export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditarContado: boolean }) {
+export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja }: { puedeEditarContado: boolean; puedeDarDeBaja: boolean }) {
   const [busqueda, setBusqueda]         = useState('');
   const [sugerencias, setSugerencias]   = useState<FacturaBuscar[]>([]);
   const [sugerenciasPagos, setSugerenciasPagos] = useState<PagoBuscar[]>([]);
@@ -173,6 +176,7 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
   const [editGuardando, setEditGuardando] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const [togContado, setTogContado]     = useState(false);
+  const [togBaja, setTogBaja]           = useState(false);
 
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevUrlRef = useRef<string | null>(null);
@@ -250,6 +254,44 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
     const fresca = d.factura ?? f;
     setFactura(fresca);
     await cargarDetalle(fresca);
+  };
+
+  /**
+   * Dar de baja la factura por incobrable, o revertirla.
+   *
+   * El motivo es obligatorio y queda guardado con el nombre de quien la dio
+   * de baja: es lo único que va a explicar, dentro de un año, por qué estos
+   * soles salieron de la cartera.
+   */
+  const marcarIncobrable = async (fActual: FacturaBuscar) => {
+    const motivo = window.prompt(
+      `Dar de baja ${fActual.comprobante} por ${fmt(Number(fActual.saldo_pendiente))}.\n\n` +
+      '¿Por qué no se va a cobrar? (queda guardado con tu nombre)',
+      '',
+    );
+    if (motivo === null) return;
+    setTogBaja(true);
+    try {
+      const res = await fetch(`/api/documentos/${fActual.id}/incobrable`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      await recargar(fActual);
+    } catch (e) { alert(String(e)); }
+    finally { setTogBaja(false); }
+  };
+
+  const revertirIncobrable = async (fActual: FacturaBuscar) => {
+    if (!window.confirm(`Devolver ${fActual.comprobante} a la cartera. ¿Seguro?`)) return;
+    setTogBaja(true);
+    try {
+      const res = await fetch(`/api/documentos/${fActual.id}/incobrable`, { method: 'DELETE' });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      await recargar(fActual);
+    } catch (e) { alert(String(e)); }
+    finally { setTogBaja(false); }
   };
 
   const toggleContadoPendiente = async (fActual: FacturaBuscar) => {
@@ -662,7 +704,20 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
                         Con letras
                       </span>
                     )}
+                    {factura.incobrable && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-800 text-white">
+                        ⛔ Incobrable — fuera de la cobranza
+                      </span>
+                    )}
                   </div>
+
+                  {/* Por qué se dio de baja. Sin esto, un saldo en cero no se
+                      explica solo y en seis meses nadie se acuerda. */}
+                  {factura.incobrable && factura.incobrable_motivo && (
+                    <p className="mt-2 text-xs text-gray-500 max-w-md">
+                      <span className="font-medium text-gray-600">Motivo:</span> {factura.incobrable_motivo}
+                    </p>
+                  )}
                   {/* Toggle contado_pendiente */}
                   {esContado && puedeEditarContado && (
                     <div className="flex items-center gap-3 mt-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
@@ -683,6 +738,29 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
                           : 'Marcar como pendiente de cobro'}
                       </span>
                     </div>
+                  )}
+
+                  {/* Dar de baja por incobrable. Solo admin: esto saca plata
+                      de la cartera de un clic. La factura no se borra ni se
+                      anula ante SUNAT — deja de contarse, nada más. */}
+                  {puedeDarDeBaja && (
+                    factura.incobrable ? (
+                      <button
+                        disabled={togBaja}
+                        onClick={() => revertirIncobrable(factura)}
+                        className="mt-3 text-xs text-gray-500 underline hover:text-gray-700 disabled:opacity-50"
+                      >
+                        {togBaja ? 'Actualizando…' : 'Devolver a la cartera'}
+                      </button>
+                    ) : Number(factura.saldo_pendiente) > 0 ? (
+                      <button
+                        disabled={togBaja}
+                        onClick={() => marcarIncobrable(factura)}
+                        className="mt-3 text-xs text-gray-500 underline hover:text-red-600 disabled:opacity-50"
+                      >
+                        {togBaja ? 'Actualizando…' : 'Dar de baja por incobrable…'}
+                      </button>
+                    ) : null
                   )}
                 </div>
                 <div className="text-right">
@@ -715,6 +793,8 @@ export default function RegistrarPagoVista({ puedeEditarContado }: { puedeEditar
               tieneLetras={factura.tiene_letras}
               factorizado={factura.factorizado}
               factoringEntidad={factura.factoring_entidad}
+              incobrable={factura.incobrable}
+              incobrableMotivo={factura.incobrable_motivo}
               letrasPagadas={letras
                 .filter(l => l.estado === 'pagada')
                 .map(l => ({ numero_letra: l.numero_letra, fecha_pago: l.fecha_pago ?? null }))}
