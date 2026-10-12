@@ -42,3 +42,12 @@ export const AREAS_BORRADO = [] as const
  * necesita, sacarla es un cambio de una línea acá, no un guard nuevo.
  */
 export const AREAS_ASIGNACION = ['gerencia', 'tesoreria'] as const
+
+/**
+ * Dar de baja una factura por incobrable (y revertirla).
+ *
+ * Solo admin, igual que el borrado y por la misma razón: sacar S/ 12.000 de
+ * la cartera con un clic no puede estar al alcance de cualquiera. El resto
+ * de las áreas la ve marcada —con su motivo— pero no puede marcarla.
+ */
+export const AREAS_INCOBRABLE = [] as const

@@ -68,7 +68,7 @@ export async function cargarEstadoCuenta(
     db
       .from('v_saldos')
       .select(
-        'id, tipo, comprobante, fecha_emision, fecha_vencimiento, importe_total, saldo_pendiente, forma_pago, contado_pendiente, factorizado, factoring_entidad',
+        'id, tipo, comprobante, fecha_emision, fecha_vencimiento, importe_total, saldo_pendiente, forma_pago, contado_pendiente, factorizado, factoring_entidad, incobrable, incobrable_motivo',
       )
       .eq('cliente_ruc', ruc)
       .order('fecha_emision')

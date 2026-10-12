@@ -33,6 +33,7 @@ interface FacturaRow {
   total_nc: number; total_nd: number; total_pagado: number; saldo_pendiente: number;
   dias_retraso: number; rango_vencimiento: string;
   tiene_letras: boolean; contado_pendiente: boolean;
+  incobrable?: boolean; incobrable_motivo?: string | null;
 }
 
 interface LetraRow {
@@ -694,6 +695,15 @@ function RangoBadge({ rango }: { rango: string }) {
 }
 
 function EstadoPagoBadge({ f }: { f: FacturaRow }) {
+  // Una factura dada de baja tiene saldo 0 pero nadie pagó: decir "Pagado"
+  // sería mentir justo donde más importa.
+  if (f.incobrable)
+    return (
+      <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-800 text-white"
+            title={f.incobrable_motivo ?? 'Dada de baja de la cobranza'}>
+        Incobrable
+      </span>
+    );
   const saldo   = Number(f.saldo_pendiente);
   const pagado  = Number(f.total_pagado);
   const importe = Number(f.importe_total);
