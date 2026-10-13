@@ -127,7 +127,7 @@ export async function GET(_req: NextRequest) {
     XLSX.utils.book_append_sheet(wb, wsPagos, 'Pagos');
 
     const fecha = new Date().toISOString().slice(0, 10);
-    const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
     const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
 
     return new Response(buf, {

@@ -92,7 +92,7 @@ export function estadoCuentaXlsx(
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, wsF, 'Por factura');
   XLSX.utils.book_append_sheet(wb, ws, 'Estado de cuenta');
-  const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+  const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx', compression: true }) as ArrayBuffer;
 
   return { buf, filename: `estado-cuenta-${ruc}${desde || hasta ? '-filtrado' : ''}.xlsx` };
 }
