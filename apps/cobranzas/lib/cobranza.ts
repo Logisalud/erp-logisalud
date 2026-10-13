@@ -146,6 +146,6 @@ export function buildCobranzaXlsx(
     }
     XLSX.utils.book_append_sheet(wb, ws, diasSeccion.nombre.slice(0, 31));
   }
-  const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
   return raw;
 }

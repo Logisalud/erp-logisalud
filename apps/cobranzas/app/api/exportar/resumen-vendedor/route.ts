@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
 
     const fecha = new Date().toISOString().slice(0, 10);
     const sufijo = soloDeuda ? '' : '-con-pagados';
-    const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
     const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
 
     return new Response(buf, {

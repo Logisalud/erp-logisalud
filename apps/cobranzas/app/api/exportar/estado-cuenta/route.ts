@@ -6,6 +6,12 @@ import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 
 export const dynamic = 'force-dynamic';
+/**
+ * El export "todo" son ~2.650 facturas con sus pagos, letras y NC: entre
+ * leer y armar el Excel no entra en los 10 s por defecto de una función
+ * serverless, y el navegador se queda sin archivo y sin error visible.
+ */
+export const maxDuration = 60;
 
 const toDate = (s: string | null | undefined): Date | string => {
   if (!s) return '';
@@ -14,6 +20,10 @@ const toDate = (s: string | null | undefined): Date | string => {
 };
 
 const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+
+// Una sola línea y literal a propósito: supabase-js deduce el tipo de las
+// filas parseando este string, y si se arma concatenando pierde el tipo.
+const COLUMNAS_SALDOS = 'id, comprobante, cliente_ruc, razon_social, vendedor_codigo, vendedor_nombre, zona_nombre, fecha_emision, fecha_vencimiento, forma_pago, moneda, importe_total, total_nc, total_nd, total_pagado, saldo_pendiente, vigente, d0_7, d8_15, d16_30, d31_60, d61_mas, dias_retraso, rango_vencimiento, tiene_letras';
 
 export async function GET(req: NextRequest) {
   const auth = await exigirArea(AREAS_LECTURA);
@@ -27,9 +37,12 @@ export async function GET(req: NextRequest) {
     const db = crearClienteServidor();
 
     const data = await fetchAll((from, to) => {
+      // Las columnas que usa el Excel y ninguna más: con `select('*')` cada
+      // página de 1.000 filas traía también tipo_cambio, created_at, los
+      // campos de factoring y los de incobrable, que nadie lee acá.
       let q = db
         .from('v_saldos')
-        .select('*')
+        .select(COLUMNAS_SALDOS)
         .order('cliente_ruc')
         .order('fecha_emision', { ascending: false });
 
@@ -52,17 +65,60 @@ export async function GET(req: NextRequest) {
       medio_cobro: string; estado_efectivo: string | null; fecha_deposito: string | null;
     }
     const ids = data.map(r => r.id as string);
-    const pagosPorDoc = new Map<string, PagoRow[]>();
-    for (let i = 0; i < ids.length; i += 500) {
-      const { data: ps } = await db
-        .from('pagos')
-        .select('documento_id, monto, fecha_pago, referencia, tipo, created_at, medio_cobro, estado_efectivo, fecha_deposito')
-        .in('documento_id', ids.slice(i, i + 500));
-      for (const p of (ps ?? []) as PagoRow[]) {
-        const arr = pagosPorDoc.get(p.documento_id) ?? [];
-        arr.push(p);
-        pagosPorDoc.set(p.documento_id, arr);
+    const esDelExport = new Set(ids);
+
+    /**
+     * Pagos, letras y NC de las facturas exportadas.
+     *
+     * Preguntar por los ids tiene un techo: PostgREST los manda en la URL y
+     * una tanda de 500 UUID son 19,7 KB de querystring. El export completo
+     * terminaba haciendo 17 consultas así —pagos, letras y NC, tanda por
+     * tanda— y se le iba el presupuesto de tiempo de la función antes de
+     * escribir el archivo: el navegador se quedaba esperando una descarga
+     * que nunca llegaba. Con muchas facturas sale más barato traer la tabla
+     * entera (2.245 pagos, 259 NC, 74 letras) y filtrar acá; con pocas —un
+     * cliente, un vendedor— sigue conviniendo preguntar por ids.
+     */
+    const UMBRAL_IDS = 400;
+    const traerDeFacturas = async <T>(
+      tabla: string,
+      columnas: string,
+      fk: string,
+      desempate: string[],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      extra: (q: any) => any = q => q, // eslint-disable-line @typescript-eslint/no-explicit-any
+    ): Promise<T[]> => {
+      if (ids.length <= UMBRAL_IDS) {
+        const filas: T[] = [];
+        for (let i = 0; i < ids.length; i += 200) {
+          const { data: d, error } = await extra(
+            db.from(tabla).select(columnas).in(fk, ids.slice(i, i + 200)),
+          );
+          if (error) throw new Error(error.message);
+          filas.push(...((d ?? []) as T[]));
+        }
+        return filas;
       }
+      // `fetchAll` exige un orden único: sin eso la página 2 repite filas de
+      // la 1 y se saltea otras (ver lib/fetchAll.ts).
+      const todas = await fetchAll<T>((from, to) => {
+        let q = extra(db.from(tabla).select(columnas));
+        for (const col of desempate) q = q.order(col);
+        return q.range(from, to);
+      });
+      return todas.filter(f => esDelExport.has((f as Record<string, unknown>)[fk] as string));
+    };
+
+    const pagosPorDoc = new Map<string, PagoRow[]>();
+    for (const p of await traerDeFacturas<PagoRow>(
+      'pagos',
+      'documento_id, monto, fecha_pago, referencia, tipo, created_at, medio_cobro, estado_efectivo, fecha_deposito',
+      'documento_id',
+      ['id'],
+    )) {
+      const arr = pagosPorDoc.get(p.documento_id) ?? [];
+      arr.push(p);
+      pagosPorDoc.set(p.documento_id, arr);
     }
     for (const arr of pagosPorDoc.values()) {
       arr.sort((a, b) => (a.fecha_pago ?? '').localeCompare(b.fecha_pago ?? '') || a.created_at.localeCompare(b.created_at));
@@ -112,14 +168,12 @@ export async function GET(req: NextRequest) {
     // Dos consultas planas en vez de un embed de PostgREST, igual que
     // /api/letras: la tabla puente y después las letras por id.
     const letrasPorDoc = new Map<string, LetraRow[]>();
-    const vinculos: Array<{ documento_id: string; letra_id: string; monto_aplicado: number }> = [];
-    for (let i = 0; i < ids.length; i += 500) {
-      const { data: lds } = await db
-        .from('letra_documento')
-        .select('documento_id, letra_id, monto_aplicado')
-        .in('documento_id', ids.slice(i, i + 500));
-      vinculos.push(...((lds ?? []) as typeof vinculos));
-    }
+    const vinculos = await traerDeFacturas<{ documento_id: string; letra_id: string; monto_aplicado: number }>(
+      'letra_documento',
+      'documento_id, letra_id, monto_aplicado',
+      'documento_id',
+      ['documento_id', 'letra_id'], // no tiene `id`: la clave son las dos
+    );
     if (vinculos.length > 0) {
       const letraIds = [...new Set(vinculos.map(v => v.letra_id))];
       const letrasPorId = new Map<string, Record<string, unknown>>();
@@ -172,18 +226,16 @@ export async function GET(req: NextRequest) {
     // propia columna "Fecha NC" (una por cada NC, mismo orden que "NC Aplicadas").
     interface NcRow { serie: string; numero: number; fecha_emision: string; documento_relacionado_id: string; importe_total: number }
     const ncsPorDoc = new Map<string, NcRow[]>();
-    for (let i = 0; i < ids.length; i += 500) {
-      const { data: ncs } = await db
-        .from('documentos')
-        .select('serie, numero, fecha_emision, documento_relacionado_id, importe_total')
-        .eq('tipo', '07')
-        .eq('anulado', false)
-        .in('documento_relacionado_id', ids.slice(i, i + 500));
-      for (const n of (ncs ?? []) as NcRow[]) {
-        const arr = ncsPorDoc.get(n.documento_relacionado_id) ?? [];
-        arr.push(n);
-        ncsPorDoc.set(n.documento_relacionado_id, arr);
-      }
+    for (const n of await traerDeFacturas<NcRow>(
+      'documentos',
+      'serie, numero, fecha_emision, documento_relacionado_id, importe_total',
+      'documento_relacionado_id',
+      ['id'],
+      q => q.eq('tipo', '07').eq('anulado', false),
+    )) {
+      const arr = ncsPorDoc.get(n.documento_relacionado_id) ?? [];
+      arr.push(n);
+      ncsPorDoc.set(n.documento_relacionado_id, arr);
     }
     for (const arr of ncsPorDoc.values()) {
       arr.sort((a, b) => a.fecha_emision.localeCompare(b.fecha_emision));
@@ -323,7 +375,12 @@ export async function GET(req: NextRequest) {
     XLSX.utils.book_append_sheet(wb, wsNc, 'Notas de Crédito');
 
     const fecha = new Date().toISOString().slice(0, 10);
-    const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    // `compression: true` no es cosmético: por defecto SheetJS guarda el XML
+    // sin comprimir dentro del .xlsx y el archivo completo pesaba ~3,9 MB,
+    // contra el tope de 4,5 MB que tiene la respuesta de una función
+    // serverless. Comprimido baja a ~1 MB y tarda lo mismo. Está puesto en
+    // todos los export de la app, pero el que se pasaba era este.
+    const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
     const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
 
     return new Response(buf, {
