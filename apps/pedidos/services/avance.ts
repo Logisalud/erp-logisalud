@@ -241,6 +241,8 @@ export async function publicarAvance(file: File, actor: string): Promise<Resulta
 
     const { error: errorPublicar } = await supabase.rpc("avance_publicar", { p_carga_id: cargaId });
     if (errorPublicar) throw new Error(errorPublicar.message);
+
+    await limpiarCargasViejas(resumen.periodo);
   } catch (e) {
     // Una carga a medias no se queda: el índice único deja una sola
     // vigente, pero las filas sueltas ensucian el histórico. El delete se
@@ -269,6 +271,36 @@ export async function publicarAvance(file: File, actor: string): Promise<Resulta
 // ---------------------------------------------------------------------
 // Lectura para las pantallas
 // ---------------------------------------------------------------------
+
+/**
+ * Se guardan la carga vigente y dos anteriores de cada período.
+ *
+ * Son ~3.000 filas de detalle por carga y se sube todos los días: sin
+ * limpiar, un año son más de un millón de filas que nadie va a leer. Las
+ * dos que quedan alcanzan para comparar contra ayer si algo no cuadra.
+ *
+ * Es al final y aparte de `avance_publicar` a propósito: si la limpieza
+ * falla, la carga del día ya está publicada y nadie se entera de nada. Lo
+ * peor que pasa es que sobren filas viejas.
+ */
+async function limpiarCargasViejas(periodo: string) {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("avance_cargas")
+      .select("id")
+      .eq("periodo", periodo)
+      .eq("vigente", false)
+      .order("subido_en", { ascending: false });
+
+    const sobrantes = (data ?? []).slice(2).map((c) => c.id as string);
+    if (sobrantes.length > 0) {
+      await supabase.from("avance_cargas").delete().in("id", sobrantes);
+    }
+  } catch {
+    // Nunca romper la publicación por la limpieza.
+  }
+}
 
 export type Carga = {
   id: string;

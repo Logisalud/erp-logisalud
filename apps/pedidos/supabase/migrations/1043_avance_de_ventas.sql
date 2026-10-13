@@ -1,5 +1,11 @@
 -- El avance de ventas del mes, para que cada vendedor vea el suyo.
 --
+-- APLICADA A MANO el 2026-10-13 sobre el proyecto de pedidos, sentencia
+-- por sentencia: el MCP de Supabase se cuelga a los 60 s con scripts
+-- largos (y con cualquier DELETE), así que el bloque entero no entra de
+-- una. Si hay que reaplicarla, ir de a un `create` por vez; es
+-- re-ejecutable.
+--
 -- Hasta ahora esto vivía solo en un Excel que Comercial actualiza todos los
 -- días: la hoja "AVANCE 2026" (avance y cuota por vendedor, por línea, por
 -- semana y por día) y la hoja "base" (el detalle de cada documento
@@ -193,10 +199,10 @@ create policy avance_detalle_admin_write on pedidos.avance_detalle
 -- del día anterior o ninguno. La carga se inserta apagada, se llenan sus
 -- filas, y esto la enciende de golpe.
 --
--- De paso limpia: se guardan las tres últimas cargas de cada período (la
--- vigente y dos para poder mirar atrás). Son ~3.000 filas de detalle por
--- carga y se sube todos los días; sin esto, un año son más de un millón de
--- filas que nadie va a leer.
+-- Y son dos UPDATE, no uno con `vigente = (id = p_carga_id)`: el índice
+-- único se verifica fila por fila durante la sentencia, no al final, así
+-- que el UPDATE de una sola pasada falla con "duplicate key" según el
+-- orden en que toque las filas. Pasó al probar la instalación.
 create or replace function pedidos.avance_publicar(p_carga_id uuid)
 returns void
 language plpgsql
@@ -212,7 +218,7 @@ begin
 
   select periodo into v_periodo from pedidos.avance_cargas where id = p_carga_id;
   if v_periodo is null then
-    raise exception 'La carga % no existe.', p_carga_id;
+    raise exception 'La carga no existe.';
   end if;
 
   update pedidos.avance_cargas
@@ -220,16 +226,6 @@ begin
    where periodo = v_periodo and vigente and id <> p_carga_id;
 
   update pedidos.avance_cargas set vigente = true where id = p_carga_id;
-
-  delete from pedidos.avance_cargas
-   where periodo = v_periodo
-     and not vigente
-     and id not in (
-       select id from pedidos.avance_cargas
-        where periodo = v_periodo and not vigente
-        order by subido_en desc
-        limit 2
-     );
 end;
 $$;
 
