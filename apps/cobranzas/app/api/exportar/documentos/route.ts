@@ -39,7 +39,7 @@ export async function GET(_req: NextRequest) {
       ),
       fetchAll((from, to) =>
         db.from('pagos')
-          .select('id, documento_id, monto, fecha_pago, referencia, created_at')
+          .select('id, documento_id, monto, fecha_pago, referencia, created_at, tipo')
           .order('fecha_pago', { ascending: false })
           .order('id').range(from, to)
       ),
@@ -47,6 +47,16 @@ export async function GET(_req: NextRequest) {
 
     const clienteMap = new Map(clientes.map(c => [c.ruc, c.razon_social]));
     const docMap     = new Map(docs.map(d => [d.id, `${d.serie}-${d.numero}`]));
+
+    // La retención de IGV (3%) vive en `pagos` con tipo 'retencion': baja el
+    // saldo igual que un cobro, pero no es plata que entró — la retuvo el
+    // cliente para pagársela a SUNAT. Mezclada con los pagos reales, como
+    // estaba, no había forma de saber cuál era cuál desde el Excel.
+    const retencionPorDoc = new Map<string, number>();
+    for (const p of pagos) {
+      if (p.tipo !== 'retencion') continue;
+      retencionPorDoc.set(p.documento_id, (retencionPorDoc.get(p.documento_id) ?? 0) + (Number(p.monto) || 0));
+    }
 
     // Las NC (tipo '07') se guardan en positivo en la base (importe_total >= 0
     // por diseño) — el signo negativo es solo de presentación en este export,
@@ -67,6 +77,7 @@ export async function GET(_req: NextRequest) {
         'Tipo Cambio':       Number(d.tipo_cambio) || 1,
         'Forma Pago':        d.forma_pago ?? '',
         'Contado Pendiente': d.contado_pendiente ? 'Sí' : 'No',
+        'Retención IGV':     retencionPorDoc.get(d.id) ?? 0,
         'Doc. Relacionado':  d.documento_relacionado_id
                                ? (docMap.get(d.documento_relacionado_id) ?? d.documento_relacionado_id)
                                : '',
@@ -77,6 +88,7 @@ export async function GET(_req: NextRequest) {
     const pagoRows = pagos.map(p => ({
       'ID Pago':    p.id,
       'Factura':    docMap.get(p.documento_id) ?? p.documento_id,
+      'Tipo':       p.tipo === 'retencion' ? 'Retención IGV' : 'Pago',
       'Monto':      Number(p.monto) || 0,
       'Fecha Pago': toDate(p.fecha_pago),
       'Referencia': p.referencia ?? '',
@@ -88,7 +100,7 @@ export async function GET(_req: NextRequest) {
     const wsDocs = XLSX.utils.json_to_sheet(docRows, { cellDates: true });
     wsDocs['!cols'] = [
       { wch: 13 }, { wch: 14 }, { wch: 13 }, { wch: 35 }, { wch: 13 }, { wch: 16 },
-      { wch: 13 }, { wch: 7  }, { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 8 },
+      { wch: 13 }, { wch: 7  }, { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 8 },
     ];
     // Autofiltro solo sobre las filas de datos (antes de agregar el total).
     const r1 = XLSX.utils.decode_range(wsDocs['!ref'] ?? 'A1');
@@ -107,8 +119,11 @@ export async function GET(_req: NextRequest) {
 
     const wsPagos = XLSX.utils.json_to_sheet(pagoRows, { cellDates: true });
     wsPagos['!cols'] = [
-      { wch: 38 }, { wch: 14 }, { wch: 13 }, { wch: 13 }, { wch: 20 }, { wch: 13 },
+      { wch: 38 }, { wch: 14 }, { wch: 14 }, { wch: 13 }, { wch: 13 }, { wch: 20 }, { wch: 13 },
     ];
+    // Con autofiltro se puede ver "Retención IGV" sola, o sólo los pagos reales.
+    const r2 = XLSX.utils.decode_range(wsPagos['!ref'] ?? 'A1');
+    wsPagos['!autofilter'] = { ref: XLSX.utils.encode_range(r2) };
     XLSX.utils.book_append_sheet(wb, wsPagos, 'Pagos');
 
     const fecha = new Date().toISOString().slice(0, 10);
