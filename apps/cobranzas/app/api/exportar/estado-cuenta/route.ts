@@ -68,21 +68,29 @@ export async function GET(req: NextRequest) {
       arr.sort((a, b) => (a.fecha_pago ?? '').localeCompare(b.fecha_pago ?? '') || a.created_at.localeCompare(b.created_at));
     }
 
-    const tipoLabel = (t: string) => t === 'retencion' ? 'Retención IGV' : 'Pago';
     const estadoEfectivoLabel = (p: PagoRow) => p.estado_efectivo === 'depositado'
       ? `Depositado${p.fecha_deposito ? ` (${fmtFechaCorta(p.fecha_deposito)})` : ''}`
       : 'Cobrado - por depositar';
 
-    // "Pagos Registrados": un ítem de texto por pago/retención, en la MISMA
-    // fila del documento (columna, no fila). Vacía si no hay ninguno.
-    const pagosRegistradosLabel = (documentoId: string) => {
-      const ps = pagosPorDoc.get(documentoId);
-      if (!ps || ps.length === 0) return '';
+    // El cobro de una factura entra por dos caminos distintos y cobranzas
+    // los mira distinto: la plata que pagó el cliente y la retención de IGV
+    // 3% que retuvo y le paga a SUNAT. Antes iban mezcladas en una sola
+    // columna de texto ("… - Pago; … - Retención IGV") y había que leer
+    // cada celda para separarlas. Ahora son dos columnas: una por camino,
+    // cada una con su total numérico al lado, así se filtran y se suman en
+    // la tabla dinámica sin tocar el texto.
+    const detallePagos = (documentoId: string, tipo: 'pago' | 'retencion') => {
+      const ps = (pagosPorDoc.get(documentoId) ?? []).filter(p => p.tipo === tipo);
+      if (ps.length === 0) return '';
       return ps.map(p => {
-        const base = `${fmtFechaCorta(p.fecha_pago)} - S/ ${(Number(p.monto) || 0).toFixed(2)} - ${tipoLabel(p.tipo)}`;
+        const base = `${fmtFechaCorta(p.fecha_pago)} - S/ ${(Number(p.monto) || 0).toFixed(2)}`;
         return p.referencia ? `${base} (Ref: ${p.referencia})` : base;
       }).join('; ');
     };
+    const totalPagos = (documentoId: string, tipo: 'pago' | 'retencion') =>
+      (pagosPorDoc.get(documentoId) ?? [])
+        .filter(p => p.tipo === tipo)
+        .reduce((s, p) => s + (Number(p.monto) || 0), 0);
     // "Estado Efectivo": solo los pagos en efectivo (nunca retenciones), un
     // ítem de texto por cada uno. Vacía si todos los pagos son transferencia.
     const estadoEfectivoDetalle = (documentoId: string) => {
@@ -224,8 +232,14 @@ export async function GET(req: NextRequest) {
         'NC Aplicadas':       ncAplicadasLabel(id),
         'Fecha NC':           fechaNcLabel(id),
         'Total ND':           Number(row.total_nd) || 0,
+        // `total_pagado` de la vista suma TODO lo aplicado a la factura,
+        // retención incluida — es lo que efectivamente baja el saldo. Las
+        // dos columnas que siguen lo abren en sus dos partes.
         'Total Pagado':       pagado,
-        'Pagos Registrados':  pagosRegistradosLabel(id),
+        'Total Pagos (sin ret.)': totalPagos(id, 'pago'),
+        'Pagos Registrados':  detallePagos(id, 'pago'),
+        'Total Retención IGV': totalPagos(id, 'retencion'),
+        'Retenciones IGV':    detallePagos(id, 'retencion'),
         'Total Letras Pagadas': totalLetrasPagadas(id),
         'Letras Pagadas':     letrasPagadasLabel(id),
         'Total Cobrado':      cobrado,
@@ -252,7 +266,8 @@ export async function GET(req: NextRequest) {
       { wch: 14 }, { wch: 13 }, { wch: 35 }, { wch: 10 }, { wch: 22 }, { wch: 18 },
       { wch: 13 }, { wch: 16 }, { wch: 10 }, { wch: 7  },
       { wch: 13 }, { wch: 10 }, { wch: 24 }, { wch: 20 }, { wch: 10 },
-      { wch: 12 }, { wch: 45 }, { wch: 20 }, { wch: 45 }, { wch: 14 }, { wch: 30 },
+      { wch: 12 }, { wch: 15 }, { wch: 45 }, { wch: 14 }, { wch: 40 },
+      { wch: 20 }, { wch: 45 }, { wch: 14 }, { wch: 30 },
       { wch: 14 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 13 }, { wch: 11 }, { wch: 12 }, { wch: 15 }, { wch: 11 },
