@@ -8,7 +8,7 @@ import {
   TRAMOS_POR_DEFECTO,
 } from '@/domain/inventario'
 import { puedeVerificar } from '@/domain/verificacion'
-import { areaAdmite } from '@/domain/zonas'
+import { AREAS_DE_SALIDA, areaAdmite } from '@/domain/zonas'
 import { posicionAcepta } from '@/domain/zonas'
 import { ETIQUETA_ROL } from '@/domain/permisos'
 import { ETIQUETA_ESTADO } from '@/domain/estados'
@@ -272,6 +272,7 @@ export class InventarioDemo extends EntradasDemo {
       const destino = e.panorama.posiciones.find((p) => p.id === l.haciaPosicionId)
       if (!destino) return falla('No encontramos la ubicación de destino')
       const origen = origenDe(e, l.loteId, l.procedenciaId)
+      if (AREAS_DE_SALIDA.has(destino.tipoArea)) return falla('Embalaje, Despacho y las zonas de salida se usan solo en las salidas: no se mueven a mano')
       if (!areaAdmite(destino.tipoArea, l.estado, origen)) return falla(`La zona de destino (${destino.tipoArea}) no admite unidades en estado ${l.estado}`)
       if (!posicionAcepta(destino, lote.propietarioId, e.panorama.asignaciones, e.panorama.hoy)) return falla('La posición de destino no acepta stock de ese propietario (sin asignación vigente)')
       if (ocupadaPorConteo(e, [l.desdePosicionId, l.haciaPosicionId])) return falla('Una de las ubicaciones está en conteo: no se mueve hasta cerrarlo')
