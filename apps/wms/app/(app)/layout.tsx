@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { etiquetaRoles, exigirContexto } from '@/lib/contexto'
 import { puede } from '@/domain/permisos'
+import { puedeVerBandeja } from '@/domain/pedidos-despacho'
 import { Shell, type ItemNav } from '@/components/shell'
 import { Salir } from '@/components/salir'
 import { repositorio } from '@/services/repositorio-actual'
@@ -25,6 +26,7 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
     { href: '/expedientes', etiqueta: 'Expedientes', icono: 'expedientes' },
     { href: '/reportes', etiqueta: 'Reportes', icono: 'reportes' },
   ]
+  if (puedeVerBandeja(ctx.roles)) items.splice(4, 0, { href: '/pedidos', etiqueta: 'Pedidos', icono: 'pedidos' })
   if (ctx.roles.includes('admin_wms') || ctx.roles.includes('direccion_tecnica')) items.push({ href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
   if (ctx.roles.some((r) => r !== 'auxiliar')) items.push({ href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })
   if (puede(ctx.roles, 'auditar')) items.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })
