@@ -104,10 +104,10 @@ export const ETIQUETA_TIPO_MOVIMIENTO: Record<TipoMovimientoLedger, string> = {
   RETORNO: 'Retorno de pedido no entregado',
 }
 
-const TIPOS_KARDEX: readonly TipoMovimientoLedger[] = ['INGRESO', 'CARGA_INICIAL', 'AJUSTE', 'CAMBIO_PROPIETARIO']
+const TIPOS_KARDEX: readonly TipoMovimientoLedger[] = ['INGRESO', 'CARGA_INICIAL', 'AJUSTE', 'CAMBIO_PROPIETARIO', 'SALIDA', 'RETORNO']
 
 const TEXTO_REVERSA: Partial<Record<TipoMovimientoLedger, string>> = {
-  INGRESO: 'acta de recepción', AJUSTE: 'ajuste', CARGA_INICIAL: 'carga inicial', CAMBIO_PROPIETARIO: 'cambio de propietario',
+  INGRESO: 'acta de recepción', AJUSTE: 'ajuste', CARGA_INICIAL: 'carga inicial', CAMBIO_PROPIETARIO: 'cambio de propietario', SALIDA: 'salida', RETORNO: 'retorno',
 }
 
 export function tipoDocumentoKardex(p: Pick<PartidaLedger, 'tipo' | 'tipoOriginal'>): string {
@@ -115,6 +115,8 @@ export function tipoDocumentoKardex(p: Pick<PartidaLedger, 'tipo' | 'tipoOrigina
   if (p.tipo === 'INGRESO') return 'Acta de Recepción'
   if (p.tipo === 'CARGA_INICIAL') return 'Carga inicial'
   if (p.tipo === 'AJUSTE') return 'Ajuste autorizado'
+  if (p.tipo === 'SALIDA') return 'Salida'
+  if (p.tipo === 'RETORNO') return 'Retorno de pedido no entregado'
   return 'Cambio de propietario'
 }
 

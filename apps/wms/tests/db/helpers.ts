@@ -26,6 +26,8 @@ export const SQL = {
   m0008: () => leer('supabase/migrations/0008_wms_presentacion_principio_activo.sql'),
   m0009: () => leer('supabase/migrations/0009_wms_operacion_diaria_y_reportes.sql'),
   m0011: () => leer('supabase/migrations/0011_wms_salidas_cimientos.sql'),
+  m0012: () => leer('supabase/migrations/0012_wms_salidas_nucleo_de_stock.sql'),
+  m0013: () => leer('supabase/migrations/0013_wms_salidas_edicion_libre_de_lotes.sql'),
   seed: () => leer('supabase/seeds/0001_topologia.sql'),
 }
 
@@ -53,7 +55,7 @@ export interface BaseDePrueba {
   cerrar: () => Promise<void>
 }
 
-export async function crearBaseDePrueba(opciones: { conSeed?: boolean } = {}): Promise<BaseDePrueba> {
+export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigracion0012?: boolean } = {}): Promise<BaseDePrueba> {
   const nombre = `wms_test_${randomUUID().slice(0, 8).replace(/-/g, '')}`
   const raiz = new Client({ connectionString: url })
   await raiz.connect()
@@ -81,6 +83,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean } = {}): P
   await admin.query(SQL.m0008())
   await admin.query(SQL.m0009())
   await admin.query(SQL.m0011())
+  if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()) }
   if (opciones.conSeed !== false) await admin.query(SQL.seed())
 
   const personas = {
@@ -219,12 +222,12 @@ export async function sembrarStock(
   base: BaseDePrueba,
   opciones: {
     posicion: string; producto: string; lote: string; propietario: string
-    estado?: PartidaIn['estado']; cantidad: number; procedencia?: string; origen?: string
+    estado?: PartidaIn['estado']; cantidad: number; procedencia?: string; origen?: string; vence?: string
   },
 ): Promise<{ procedencia: string; posicionId: string; propietarioId: string; loteId: string }> {
   const posicionId = await idPosicion(base.admin, opciones.posicion)
   const propietarioId = await idPropietario(base.admin, opciones.propietario)
-  const loteId = await crearLote(base.admin, opciones.producto, opciones.lote, '2028-12-31', propietarioId)
+  const loteId = await crearLote(base.admin, opciones.producto, opciones.lote, opciones.vence ?? '2028-12-31', propietarioId)
   const procedencia = opciones.procedencia ?? randomUUID()
   await base.como(base.personas.admin.id, (c) =>
     postear(c, 'CARGA_INICIAL', [{

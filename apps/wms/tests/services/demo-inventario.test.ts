@@ -4,7 +4,7 @@ import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import type { Actor } from '@/services/repositorio'
 
 const actor = (rol: Actor['roles'][number]): Actor => ({ id: `demo:${rol}`, nombre: `${rol} (demo)`, roles: [rol] })
-const AUX = actor('auxiliar'); const JEFE = actor('jefe_almacen'); const REEMPLAZO = actor('reemplazo_jefe')
+const AUX = actor('auxiliar'); const JEFE = actor('jefe_almacen'); const OTRO_AUX: Actor = { id: 'demo:auxiliar-2', nombre: 'Otro auxiliar (demo)', roles: ['auxiliar'] }
 const KATIA = actor('direccion_tecnica'); const ADMIN = actor('admin_wms'); const AUDITOR = actor('auditoria_lectura')
 
 let repo: RepositorioDemo
@@ -34,7 +34,7 @@ describe('Kardex e historia', () => {
     const [orden] = await repo.listarMovimientos()
     const o = (await repo.listarMovimientos()).find((x) => x.ejecutorId === 'demo:jefe_almacen')!
     expect(orden).toBeTruthy()
-    exito(await repo.confirmarMovimiento(o.id, REEMPLAZO))
+    exito(await repo.confirmarMovimiento(o.id, OTRO_AUX))
     const lote = o.lineas[0].loteId
     const p = await repo.panorama()
     const productoId = p.lotes.find((l) => l.id === lote)!.productoId
@@ -42,7 +42,7 @@ describe('Kardex e historia', () => {
     expect(kardex.map((f) => f.tipoDocumento)).toEqual(['Carga inicial'])
     const h = await repo.historiaLote(lote)
     expect(h.map((x) => x.tipo)).toEqual(['CARGA_INICIAL', 'MOVIMIENTO', 'MOVIMIENTO'])
-    expect(h[1]).toMatchObject({ ejecutor: 'Jefe de Almacén (demo)', verificador: 'Reemplazo del Jefe de Almacén (demo)', referencia: o.numero })
+    expect(h[1]).toMatchObject({ ejecutor: 'Jefe de Almacén (demo)', verificador: 'auxiliar-2 (demo)', referencia: o.numero })
   })
 })
 
@@ -59,7 +59,7 @@ describe('movimientos internos: ejecutar → verificar, dos personas (D-15)', ()
     exito(await repo.confirmarMovimiento(o.id, AUX))                        // otro auxiliar
     expect(await enOrigen(o)).toBe(antes - o.lineas[0].cantidad)
   })
-  it('el Jefe y su reemplazo también verifican (si no ejecutaron); Dirección Técnica y auditoría no', async () => {
+  it('el Jefe también verifica (si no ejecutó); Dirección Técnica y auditoría no', async () => {
     const o = await del('auxiliar')
     expect(await repo.confirmarMovimiento(o.id, KATIA)).toMatchObject({ ok: false })
     expect(await repo.confirmarMovimiento(o.id, AUDITOR)).toMatchObject({ ok: false })
@@ -77,9 +77,9 @@ describe('movimientos internos: ejecutar → verificar, dos personas (D-15)', ()
   it('con diferencia queda abierta SOLO esa línea y avisa al Jefe; no se cuadra', async () => {
     const o = await del('auxiliar')
     const l = o.lineas[0]
-    expect(await repo.revisarMovimiento(o.id, [{ lineaId: l.id, resultado: 'DIFERENCIA', nota: '  ' }], REEMPLAZO)).toMatchObject({ ok: false })
-    expect(await repo.revisarMovimiento(o.id, [], REEMPLAZO)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Revisa las 1 líneas/) })
-    exito(await repo.revisarMovimiento(o.id, [{ lineaId: l.id, resultado: 'DIFERENCIA', nota: 'Faltan 2 cajas' }], REEMPLAZO))
+    expect(await repo.revisarMovimiento(o.id, [{ lineaId: l.id, resultado: 'DIFERENCIA', nota: '  ' }], OTRO_AUX)).toMatchObject({ ok: false })
+    expect(await repo.revisarMovimiento(o.id, [], OTRO_AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Revisa las 1 líneas/) })
+    exito(await repo.revisarMovimiento(o.id, [{ lineaId: l.id, resultado: 'DIFERENCIA', nota: 'Faltan 2 cajas' }], OTRO_AUX))
     expect((await repo.obtenerMovimiento(o.id))!.estado).toBe('CON_DIFERENCIA')
     expect((await repo.listarAlertas()).some((a) => a.tipo === 'MOVIMIENTO_CON_DIFERENCIA' && a.estado === 'ABIERTA')).toBe(true)
     exito(await repo.resolverMovimiento(l.id, 'REINTENTAR', 'Se vuelve a mover', JEFE))
@@ -97,7 +97,7 @@ describe('movimientos internos: ejecutar → verificar, dos personas (D-15)', ()
     const r = exito(await repo.ejecutarMovimiento(lineas, 'Mover todo', AUX))
     const o = (await repo.obtenerMovimiento(r.id))!
     const revision = o.lineas.map((l, i) => i === 0 && o.lineas.length > 1 ? { lineaId: l.id, resultado: 'DIFERENCIA' as const, nota: 'Falta una caja' } : { lineaId: l.id, resultado: 'COINCIDE' as const })
-    const res = exito(await repo.revisarMovimiento(r.id, revision, REEMPLAZO))
+    const res = exito(await repo.revisarMovimiento(r.id, revision, OTRO_AUX))
     expect(res.confirmadas).toBe(o.lineas.length > 1 ? o.lineas.length - 1 : o.lineas.length)
     const despues = await repo.obtenerMovimiento(r.id)
     expect(despues!.estado).toBe(o.lineas.length > 1 ? 'CON_DIFERENCIA' : 'CONFIRMADO')
@@ -133,14 +133,14 @@ describe('conteos y ajustes (INV-05)', () => {
     expect((await repo.obtenerConteo(c.id, AUX))!.lineas.find((l) => l.id === linea.id)).toMatchObject({ cantidadSistema: undefined, miConteo: 1, conteo1: undefined })
     expect((await repo.obtenerConteo(c.id, JEFE))!.lineas.find((l) => l.id === linea.id)!.cantidadSistema).toBeGreaterThan(1)
     expect(await repo.registrarConteo(linea.id, 1, AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/otra persona/) })
-    expect(exito(await repo.registrarConteo(linea.id, 1, REEMPLAZO)).resultado).toBe('DIFERENCIA_CONFIRMADA')
+    expect(exito(await repo.registrarConteo(linea.id, 1, OTRO_AUX)).resultado).toBe('DIFERENCIA_CONFIRMADA')
   })
   it('un ajuste exige causa, lo propone el Jefe y lo autoriza Dirección Técnica; sin eso el saldo no cambia', async () => {
     const { c, s, linea } = await conteo()
     const total = () => repo.panorama().then((p) => p.saldos.filter((x) => x.loteId === s.loteId).reduce((n, x) => n + x.cantidad, 0))
     const antes = await total()
     exito(await repo.registrarConteo(linea.id, 1, AUX))
-    exito(await repo.registrarConteo(linea.id, 1, REEMPLAZO))
+    exito(await repo.registrarConteo(linea.id, 1, OTRO_AUX))
     expect(await repo.cerrarConteo(c.id, undefined, undefined, JEFE)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/sin resolver/) })
     expect(await repo.proponerAjuste(linea.id, 'Ajustar', JEFE)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/causa/) })
     exito(await repo.registrarCausaConteo(linea.id, 'Despacho sin registrar', JEFE))
@@ -213,7 +213,7 @@ describe('un movimiento con productos de distintos orígenes (el demo aplica lo 
     const o = (await repo.obtenerMovimiento(r.id))!
     expect(o.lineas.map((l) => l.hacia)).toEqual([destinos[0].codigo, destinos[0].codigo, destinos[1].codigo])
     expect(new Set(o.lineas.map((l) => l.desde)).size).toBe(3)
-    exito(await repo.revisarMovimiento(r.id, o.lineas.map((l, i) => (i === 1 ? { lineaId: l.id, resultado: 'DIFERENCIA' as const, nota: 'Faltan 2 en el destino' } : { lineaId: l.id, resultado: 'COINCIDE' as const })), REEMPLAZO))
+    exito(await repo.revisarMovimiento(r.id, o.lineas.map((l, i) => (i === 1 ? { lineaId: l.id, resultado: 'DIFERENCIA' as const, nota: 'Faltan 2 en el destino' } : { lineaId: l.id, resultado: 'COINCIDE' as const })), OTRO_AUX))
     const d = (await repo.obtenerMovimiento(r.id))!
     expect(d.estado).toBe('CON_DIFERENCIA')
     expect(d.lineas.map((l) => l.verificacion)).toEqual(['CONFIRMADA', 'CON_DIFERENCIA', 'CONFIRMADA'])
@@ -230,11 +230,11 @@ describe('un movimiento con productos de distintos orígenes (el demo aplica lo 
     const { celdas, destinos } = await armar()
     const [a] = celdas
     const r = exito(await repo.ejecutarMovimiento([lineaDe(a as never, destinos[0].id, a.cantidad - 2)], 'Reservar', AUX))
-    const otra = await repo.ejecutarMovimiento([lineaDe(a as never, destinos[1].id, 3)], 'Mismas unidades', REEMPLAZO)
+    const otra = await repo.ejecutarMovimiento([lineaDe(a as never, destinos[1].id, 3)], 'Mismas unidades', OTRO_AUX)
     expect(otra).toMatchObject({ ok: false, mensaje: expect.stringMatching(/otros movimientos ya reservan/) })
-    exito(await repo.ejecutarMovimiento([lineaDe(a as never, destinos[1].id, 2)], 'Lo que quedaba', REEMPLAZO))
+    exito(await repo.ejecutarMovimiento([lineaDe(a as never, destinos[1].id, 2)], 'Lo que quedaba', OTRO_AUX))
     exito(await repo.anularMovimiento(r.id, 'Ya no hace falta', AUX))
-    exito(await repo.ejecutarMovimiento([lineaDe(a as never, destinos[2].id, a.cantidad - 2)], 'Ya libre', REEMPLAZO))
+    exito(await repo.ejecutarMovimiento([lineaDe(a as never, destinos[2].id, a.cantidad - 2)], 'Ya libre', OTRO_AUX))
   })
 
   it('dos líneas de la misma celda en una orden no pasan de lo que hay, y un movimiento abierto no bloquea la ubicación', async () => {

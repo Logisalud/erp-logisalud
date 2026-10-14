@@ -30,6 +30,10 @@ sobre todas las funciones de `wms`** (hasta hoy cualquier persona autenticada po
 **Antes de aplicarla en producción:** verificar con `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'wms' and has_function_privilege('authenticated', p.oid, 'execute')`
 que la lista coincide con la de `tests/db/aislamiento.test.ts`.
 
+**0012** (Salidas, S2; requiere la 0011): núcleo de stock de la salida. Tablas `salidas`, `salida_lineas`, `reservas`, `cambios_lote_asignado` (inmutable), `ordenes_picking(+_lineas)` y `salida_movimientos`; funciones `disponibilidad_por_lote`, `stock_vendible`, `asignar_salida`, `proponer_reemplazo`, `editar_asignacion`, el flujo de picking → conformidad → salida y `registrar_retorno`; redefine `postear_movimiento`, `validar_movimiento`, `ejecutar_movimiento`, `revertir_movimiento` y `kardex_filas`. Acciones nuevas `preparar_salidas` y `confirmar_salida`. Las funciones quedan con permiso cerrado (solo `authenticated` donde se concede). Re-ejecutable. En el tipo A una línea puede repartirse en varios lotes (D-76). **Se aplica a mano, después de la 0011.**
+
+**0013** (Salidas, S2b; requiere la 0012, se aplica **después** de ella): edición libre de los lotes asignados (D-79). El motivo de `cambios_lote_asignado` pasa a ser opcional y cada cambio guarda la asignación FEFO original y si se apartó de ella; `editar_asignacion(linea, asignaciones, motivo opcional)` sin la regla «vencer después»; nuevas `lotes_para_editar`, `avisos_fefo` y `reporte_cambios_fefo`; `proponer_reemplazo` sin esa regla. Permisos: los auxiliares ganan `cambiar_lote_asignado` y se retiran `cambiar_lote_asignado`/`preparar_salidas` del rol `reemplazo_jefe` (que no existe). No borra datos; re-ejecutable.
+
 Antes de aplicar:
 1. Exponer el schema `wms` en Dashboard → Settings → Data API → Exposed schemas (si falta: HTTP 406 `Invalid schema`).
 2. Agregar `wms` a `public.schemas_compras_y_pagos()` y ejecutar `select public.aplicar_grants_del_modulo();` (si falta: HTTP 403).
