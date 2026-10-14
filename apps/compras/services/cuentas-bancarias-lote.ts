@@ -12,6 +12,10 @@ import { crearClienteServidor } from '@logisalud/auth/server'
  * Tres consultas porque hay tres tablas de cuentas y PostgREST no embebe
  * entre schemas: proveedores de compra (`compras`), proveedores de servicio
  * (`servicios`) y empleados (`public`). Las tres tienen las mismas columnas.
+ *
+ * "Empleados" incluye a las personas sin usuario (0081): su cuenta vive en
+ * la misma tabla, con `persona_sin_usuario_id` en vez de `usuario_id`. Se
+ * buscan los ids en las dos columnas y la clave del mapa es la que tenga.
  */
 
 export type CuentaDeLote = {
@@ -64,15 +68,28 @@ export async function mapaCuentasDeLote({
     empleados.length === 0
       ? Promise.resolve({ data: [] as any[] })
       : supabase.from('empleado_cuentas_bancarias')
-          .select(`usuario_id, ${COLUMNAS}`)
-          .in('usuario_id', [...new Set(empleados)])
+          .select(`usuario_id, persona_sin_usuario_id, ${COLUMNAS}`)
+          .or(filtroTitular([...new Set(empleados)]))
           .order('es_principal', { ascending: false }),
   ])
 
   agregar(compra.data as any[], 'proveedor_id')
   agregar(servicio.data as any[], 'proveedor_servicio_id')
-  agregar(empleado.data as any[], 'usuario_id')
+  agregar(
+    ((empleado.data as any[]) ?? []).map(({ usuario_id, persona_sin_usuario_id, ...cuenta }) => ({
+      ...cuenta,
+      titular: usuario_id ?? persona_sin_usuario_id,
+    })),
+    'titular'
+  )
   return mapa
+}
+
+/** `usuario_id` o `persona_sin_usuario_id` en la lista — los ids son UUID,
+ * así que van tal cual dentro del filtro de PostgREST. */
+export function filtroTitular(ids: readonly string[]): string {
+  const lista = ids.join(',')
+  return `usuario_id.in.(${lista}),persona_sin_usuario_id.in.(${lista})`
 }
 
 /** La cuenta que Tesorería usaría por defecto: la principal, o la primera. */

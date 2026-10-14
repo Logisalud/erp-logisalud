@@ -4,8 +4,23 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { crearCuentaBancariaAction, eliminarCuentaBancariaAction, type EstadoFormulario } from './actions'
 import type { CuentaBancariaEmpleado } from '@/services/empleado-cuentas-bancarias'
 
-export function FormularioCuentaBancaria({ cuentas }: { cuentas: CuentaBancariaEmpleado[] }) {
-  const [estado, accion] = useFormState<EstadoFormulario, FormData>(crearCuentaBancariaAction, null)
+/**
+ * Por defecto, las cuentas de quien está logueado. Con las acciones y el
+ * texto por props, el mismo formulario sirve para que Contabilidad cargue la
+ * cuenta de una persona sin usuario (/personas-sin-usuario/[id]).
+ */
+export function FormularioCuentaBancaria({
+  cuentas,
+  accionCrear = crearCuentaBancariaAction,
+  accionEliminar = eliminarCuentaBancariaAction,
+  textoVacio = 'Todavía no cargaste ninguna cuenta bancaria. Tesorería la necesita para poder pagarte un reembolso, anticipo o reposición directo a tu cuenta.',
+}: {
+  cuentas: CuentaBancariaEmpleado[]
+  accionCrear?: (previo: EstadoFormulario, form: FormData) => Promise<EstadoFormulario>
+  accionEliminar?: (id: string) => Promise<void>
+  textoVacio?: string
+}) {
+  const [estado, accion] = useFormState<EstadoFormulario, FormData>(accionCrear, null)
 
   return (
     <div className="space-y-4">
@@ -27,7 +42,7 @@ export function FormularioCuentaBancaria({ cuentas }: { cuentas: CuentaBancariaE
                 </p>
                 <p className="font-mono text-xs text-gray-500">CCI {c.cci}</p>
               </div>
-              <form action={eliminarCuentaBancariaAction.bind(null, c.id)}>
+              <form action={accionEliminar.bind(null, c.id)}>
                 <button type="submit" className="text-sm text-gray-500 underline">
                   Eliminar
                 </button>
@@ -36,10 +51,7 @@ export function FormularioCuentaBancaria({ cuentas }: { cuentas: CuentaBancariaE
           ))}
         </ul>
       ) : (
-        <p className="card text-sm text-gray-600">
-          Todavía no cargaste ninguna cuenta bancaria. Tesorería la necesita para poder pagarte un
-          reembolso, anticipo o reposición directo a tu cuenta.
-        </p>
+        <p className="card text-sm text-gray-600">{textoVacio}</p>
       )}
 
       <section className="card">

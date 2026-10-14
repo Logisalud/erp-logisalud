@@ -1,5 +1,6 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
+import { mapaNombresBeneficiarios } from '@/services/beneficiarios'
 import {
   calcularFechaVencimientoReal,
   conciliarLineas,
@@ -513,7 +514,7 @@ export type ObligacionListada = {
   concepto?: string | null
   /**
    * Fallback de display para origen prestamo/fraccionamiento_sunat/impuesto:
-   * ninguno de esos tiene proveedor ni beneficiario_persona (no le pagan a
+   * ninguno de esos tiene proveedor ni beneficiario_id (no le pagan a
    * un proveedor del catálogo ni a un empleado), así que
    * services/financiamiento.ts y services/impuestos.ts dejan acá una
    * etiqueta legible (entidad financiera, expediente SUNAT, tipo+periodo)
@@ -534,7 +535,7 @@ export async function listarObligaciones(
   let q = supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones, categoria_pago_directo_id, espera_nota_credito')
+    .select('id, codigo, origen, numero_factura, moneda, total, neto_a_pagar, estado, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_id, observaciones, categoria_pago_directo_id, espera_nota_credito')
     .order('created_at', { ascending: false })
     .limit(200)
 
@@ -554,7 +555,7 @@ export async function listarObligaciones(
       [...new Set((data ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[],
       [...new Set((data ?? []).map((o) => o.proveedor_servicio_id).filter(Boolean))] as string[]
     ),
-    mapaBeneficiarios([...new Set((data ?? []).map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
+    mapaBeneficiarios([...new Set((data ?? []).map((o) => o.beneficiario_id).filter(Boolean))] as string[]),
     mapaPropuestaDeObligacion(ids),
     idsConPagoAplicado(ids),
     mapaCategoriasPagoDirecto((data ?? []).map((o: any) => o.categoria_pago_directo_id)),
@@ -562,7 +563,7 @@ export async function listarObligaciones(
   return (data ?? []).map((o) => ({
     ...o,
     proveedor: proveedores.get(o.proveedor_id ?? o.proveedor_servicio_id ?? '') ?? null,
-    beneficiario: o.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
+    beneficiario: o.beneficiario_id ? beneficiarios.get(o.beneficiario_id) ?? null : null,
     propuesta: propuestas.get(o.id) ?? null,
     yaPagada: pagadas.has(o.id),
     concepto: [categoriasPD.get((o as any).categoria_pago_directo_id ?? ''), o.observaciones?.trim()]
@@ -670,12 +671,11 @@ async function idsConPagoAplicado(obligacionIds: string[]): Promise<Set<string>>
   return new Set((data ?? []).map((p: any) => p.obligacion_id))
 }
 
-/** Origen gasto_directo/reembolso/anticipo: el beneficiario es un empleado, no un proveedor. */
+/** Origen gasto_directo/reembolso/anticipo: el beneficiario es una persona
+ * — usuario o persona sin usuario (0081) —, no un proveedor. */
 async function mapaBeneficiarios(ids: string[]) {
-  const supabase = crearClienteServidor()
-  if (ids.length === 0) return new Map()
-  const { data } = await supabase.from('perfiles').select('id, nombre').in('id', ids)
-  return new Map((data ?? []).map((p: any) => [p.id, { nombre: p.nombre }]))
+  const nombres = await mapaNombresBeneficiarios(ids)
+  return new Map([...nombres].map(([id, nombre]) => [id, { nombre }]))
 }
 
 /**
@@ -791,7 +791,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .from('obligaciones')
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, monto_exonerado, igv,
              monto_detraccion, estado, fecha_vencimiento_real, observaciones, espera_nota_credito,
-             proveedor_id, proveedor_servicio_id, beneficiario_persona,
+             proveedor_id, proveedor_servicio_id, beneficiario_id,
              oc_id, recepcion_id, categoria_pago_directo_id, cotizacion_storage_path, factura_storage_path,
              anulada_en, anulada_motivo, rechazada_en, rechazo_motivo, editado_por, editado_en,
              obligaciones_items(id, oc_item_id, cantidad_facturada, precio_facturado)`)
@@ -807,7 +807,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
       data.proveedor_id ? [data.proveedor_id] : [],
       data.proveedor_servicio_id ? [data.proveedor_servicio_id] : []
     ),
-    mapaBeneficiarios(data.beneficiario_persona ? [data.beneficiario_persona] : []),
+    mapaBeneficiarios(data.beneficiario_id ? [data.beneficiario_id] : []),
     data.oc_id ? obtenerOCBasica(data.oc_id) : Promise.resolve(null),
     data.recepcion_id ? obtenerRecepcionBasica(data.recepcion_id) : Promise.resolve(null),
     listarNotasCredito(id),
@@ -840,7 +840,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     espera_nota_credito: (data as any).espera_nota_credito ?? false,
     proveedor_id: data.proveedor_id ?? null,
     proveedor: proveedores.get(data.proveedor_id ?? data.proveedor_servicio_id ?? '') ?? null,
-    beneficiario: data.beneficiario_persona ? beneficiarios.get(data.beneficiario_persona) ?? null : null,
+    beneficiario: data.beneficiario_id ? beneficiarios.get(data.beneficiario_id) ?? null : null,
     oc,
     recepcion,
     items: items.map((i) => ({
