@@ -1,0 +1,134 @@
+import 'server-only'
+
+import { crearClienteServidor } from '@logisalud/auth/server'
+import {
+  totalUnidades, type EstadoRuta, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
+} from '@/domain/rutas'
+import type { PedidoSnapshot } from '@/domain/pedidos-despacho'
+import type { Actor, ResultadoAccion } from '../repositorio'
+import type { RepositorioRutas } from '../repositorio-rutas'
+import { nombresDe } from './entradas-supabase'
+import { PedidosSupabase } from './pedidos-supabase'
+import { mensajeHumano, rpc, s, traerTodo, type Fila } from './util'
+
+// ESTE ADAPTADOR NO SE EJECUTÓ CONTRA UNA BASE REAL (misma limitación que los demás). Está verificado contra el contrato de las funciones SQL de la
+// migración 0017 (probada en Postgres local) y por tipos. Las reglas (vehículo calificado, corte, un pedido en una sola ruta) las aplica la base de datos.
+
+const dia = (v: unknown) => String(v).slice(0, 10)
+const mal = (error: { code?: string; message: string }) => ({ ok: false as const, mensaje: mensajeHumano(error) })
+const sch = () => crearClienteServidor().schema('wms')
+
+const vehiculoDe = (v: Fila): VehiculoVista => ({
+  id: String(v.id), placa: String(v.placa), descripcion: s(v.descripcion), tipo: v.tipo === 'EXTERNO' ? 'EXTERNO' : 'PROPIO', calificado: Boolean(v.calificado),
+  aptoCadenaFrio: Boolean(v.apto_cadena_frio), capacidadBultos: v.capacidad_bultos == null ? undefined : Number(v.capacidad_bultos), activo: Boolean(v.activo),
+})
+const personalDe = (p: Fila): PersonalTransporte => ({ id: String(p.id), nombre: String(p.nombre), funcion: p.funcion === 'AUXILIAR' ? 'AUXILIAR' : 'CONDUCTOR', activo: Boolean(p.activo) })
+
+export class DespachoSupabase extends PedidosSupabase implements RepositorioRutas {
+  private async armarRutas(filtroId?: string): Promise<{ rutas: RutaVista[]; vehiculos: VehiculoVista[]; personal: PersonalTransporte[]; planificables: PedidoPlanificable[] }> {
+    const [rutas, paradas, versiones, vehiculos, personal, pedidos, salidas, lineas, registros, prods] = await Promise.all([
+      traerTodo('rutas', 'wms', '*', ['fecha']), traerTodo('ruta_paradas', 'wms', '*'), traerTodo('ruta_versiones', 'wms', '*', ['version']),
+      traerTodo('vehiculos', 'wms', '*', ['placa']), traerTodo('personal_transporte', 'wms', '*', ['nombre']),
+      traerTodo('pedidos_despacho', 'wms', '*', ['fecha']), traerTodo('salidas', 'wms', 'id, numero'), traerTodo('salida_lineas', 'wms', 'id, salida_id, estado'),
+      traerTodo('registros_ls_fr_43_03', 'wms', 'id, ruta_id, estado'), traerTodo('productos', 'catalogo', 'codigo'),
+    ])
+    const vig = pedidos.filter((p) => p.vigente)
+    const pedidoPorId = new Map(vig.map((p) => [String(p.id), p]))
+    const veh = vehiculos.map(vehiculoDe); const per = personal.map(personalDe)
+    const numSalida = new Map(salidas.map((x) => [String(x.id), String(x.numero)]))
+    const sinStock = new Set(lineas.filter((l) => l.estado === 'SIN_STOCK').map((l) => String(l.salida_id)))
+    const nombres = await nombresDe([...rutas.map((r) => s(r.creada_por)), ...versiones.map((v) => s(v.por))])
+    const numeroRutaViva = new Map<string, string>()
+    for (const r of rutas) if (r.estado !== 'CANCELADA' && r.estado !== 'CERRADA') for (const pa of paradas.filter((x) => x.activa && String(x.ruta_id) === String(r.id))) numeroRutaViva.set(String(pa.pedido_id), String(r.numero))
+    const vistaParada = (pa: Fila): ParadaVista => {
+      const pd = pedidoPorId.get(String(pa.pedido_despacho_id)) ?? pedidos.find((x) => String(x.id) === String(pa.pedido_despacho_id))
+      const snap = (pd?.snapshot ?? {}) as PedidoSnapshot
+      const c = snap.cliente
+      const salidaId = s(pa.salida_id)
+      return {
+        id: String(pa.id), secuencia: Number(pa.secuencia), pedidoId: String(pa.pedido_id), pedidoNumero: String(pd?.numero ?? '?'), cliente: c?.nombre ?? String(pd?.cliente_nombre ?? ''), ruc: c?.ruc,
+        direccion: c?.direccion, distrito: c?.distrito, ventanaCita: c?.ventanaCita, vehiculoCalificado: c?.vehiculoCalificado, lineas: snap.lineas?.length ?? 0,
+        unidades: (snap.lineas ?? []).reduce((t, l) => t + l.cantidad, 0), salidaNumero: salidaId ? numSalida.get(salidaId) : undefined,
+        stock: !salidaId ? 'PENDIENTE' : sinStock.has(salidaId) ? 'SIN_STOCK' : 'ASIGNADA', excepcionCorte: Boolean(pa.excepcion_corte), motivoExcepcion: s(pa.motivo_excepcion),
+      }
+    }
+    const vistas: RutaVista[] = rutas.filter((r) => !filtroId || String(r.id) === filtroId).map((r) => {
+      const ps = paradas.filter((x) => String(x.ruta_id) === String(r.id) && x.activa).sort((a, b) => Number(a.secuencia) - Number(b.secuencia)).map(vistaParada)
+      return {
+        id: String(r.id), numero: String(r.numero), fecha: dia(r.fecha), estado: r.estado as EstadoRuta, version: Number(r.version),
+        vehiculo: veh.find((v) => v.id === s(r.vehiculo_id)), conductor: per.find((p) => p.id === s(r.conductor_id)), auxiliar: per.find((p) => p.id === s(r.auxiliar_id)),
+        paradas: ps,
+        versiones: versiones.filter((v) => String(v.ruta_id) === String(r.id)).sort((a, b) => Number(b.version) - Number(a.version))
+          .map((v) => ({ version: Number(v.version), en: String(v.en), por: nombres.get(String(v.por)) ?? 'Usuario', motivo: String(v.motivo ?? ''), paradas: Array.isArray(v.paradas) ? v.paradas.length : 0 })),
+        registroLsFr: registros.find((x) => String(x.ruta_id) === String(r.id))?.estado as RutaVista['registroLsFr'], motivoCancelacion: s(r.motivo_cancelacion),
+        creadaPor: nombres.get(String(r.creada_por)) ?? 'Usuario', creadaEn: String(r.creada_en), confirmadaEn: s(r.confirmada_en), unidades: totalUnidades(ps),
+      }
+    })
+    const codigos = new Set(prods.map((x) => String(x.codigo).toUpperCase()))
+    const planificables: PedidoPlanificable[] = vig.map((p) => {
+      const snap = p.snapshot as PedidoSnapshot
+      return {
+        pedidoId: String(p.pedido_id), numero: String(p.numero), cliente: snap.cliente.nombre, ruc: snap.cliente.ruc, direccion: snap.cliente.direccion, distrito: snap.cliente.distrito,
+        ventanaCita: snap.cliente.ventanaCita, vehiculoCalificado: snap.cliente.vehiculoCalificado, lineas: snap.lineas.length, unidades: snap.lineas.reduce((t, l) => t + l.cantidad, 0),
+        importadoEn: String(p.importado_en), enRuta: numeroRutaViva.get(String(p.pedido_id)), cambioPorRevisar: Boolean(p.cambio_pendiente),
+        sinCatalogo: snap.lineas.filter((l) => !codigos.has(l.productoCodigo.toUpperCase())).map((l) => l.productoCodigo),
+      }
+    })
+    return { rutas: vistas, vehiculos: veh, personal: per, planificables }
+  }
+
+  async panoramaRutas(): Promise<PanoramaRutas> {
+    const [{ rutas, vehiculos, personal, planificables }, param] = await Promise.all([this.armarRutas(), sch().from('parametros').select('valor').eq('clave', 'hora_corte_planificacion').maybeSingle()])
+    return {
+      hoy: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }), corte: String((param.data as Fila | null)?.valor ?? '16:00'),
+      rutas: rutas.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)), vehiculos, personal, pedidos: planificables,
+    }
+  }
+
+  async obtenerRuta(id: string): Promise<RutaVista | null> {
+    const { rutas } = await this.armarRutas(id)
+    return rutas[0] ?? null
+  }
+
+  async crearRuta(datos: { fecha: string; vehiculoId?: string; conductorId?: string; auxiliarId?: string }, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+    const { data, error } = await rpc('crear_ruta', { p_fecha: datos.fecha, p_vehiculo: datos.vehiculoId ?? null, p_conductor: datos.conductorId ?? null, p_auxiliar: datos.auxiliarId ?? null })
+    if (error) return mal(error)
+    const id = String(data)
+    const { data: r } = await sch().from('rutas').select('numero').eq('id', id).maybeSingle()
+    return { ok: true, id, numero: String((r as Fila | null)?.numero ?? '') }
+  }
+
+  async planificarRuta(id: string, plan: PlanRuta, _actor: Actor): Promise<ResultadoAccion<{ version: number; bloqueadosPorStock: string[] }>> {
+    const { data, error } = await rpc('planificar_ruta', {
+      p_ruta: id, p_fecha: plan.fecha, p_vehiculo: plan.vehiculoId ?? null, p_conductor: plan.conductorId ?? null, p_auxiliar: plan.auxiliarId ?? null,
+      p_paradas: plan.paradas.map((p) => ({ pedido_id: p.pedidoId, excepcion_corte: !!p.excepcionCorte, motivo_excepcion: p.motivoExcepcion ?? null })), p_motivo: plan.motivo ?? null,
+    })
+    if (error) return mal(error)
+    const d = data as { version: number; bloqueados_por_stock: string[] }
+    return { ok: true, version: d.version, bloqueadosPorStock: d.bloqueados_por_stock ?? [] }
+  }
+
+  async confirmarRuta(id: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('confirmar_ruta', { p_ruta: id })
+    return error ? mal(error) : { ok: true }
+  }
+
+  async cancelarRuta(id: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('cancelar_ruta', { p_ruta: id, p_motivo: motivo })
+    return error ? mal(error) : { ok: true }
+  }
+
+  async guardarPersonal(p: { id?: string; nombre: string; funcion: PersonalTransporte['funcion']; activo: boolean }, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+    const { data, error } = await rpc('guardar_personal_transporte', { p_id: p.id ?? null, p_nombre: p.nombre, p_funcion: p.funcion, p_activo: p.activo })
+    return error ? mal(error) : { ok: true, id: String(data) }
+  }
+
+  async guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+    // La política de la tabla ya limita la escritura al Jefe de Transporte y a administración
+    const fila = { placa: v.placa.trim().toUpperCase(), descripcion: v.descripcion?.trim() || null, tipo: v.tipo, calificado: v.calificado, apto_cadena_frio: v.aptoCadenaFrio, activo: v.activo }
+    const q = v.id ? sch().from('vehiculos').update(fila).eq('id', v.id).select('id').single() : sch().from('vehiculos').insert(fila).select('id').single()
+    const { data, error } = await q
+    if (error) return mal(error)
+    return { ok: true, id: String((data as Fila).id) }
+  }
+}

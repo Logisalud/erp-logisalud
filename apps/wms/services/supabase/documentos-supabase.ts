@@ -9,7 +9,7 @@ import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioDocumentos } from '../repositorio-documentos'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { nombresDe } from './entradas-supabase'
-import { PedidosSupabase } from './pedidos-supabase'
+import { DespachoSupabase } from './despacho-supabase'
 import { mensajeHumano, rpc, s, traerTodo, type Fila } from './util'
 
 // ESTE ADAPTADOR NO SE EJECUTÓ CONTRA UNA BASE REAL (misma limitación que los demás) y NO TOCA Storage: el archivo ya está subido y aquí solo se registra su
@@ -19,7 +19,7 @@ const dia = (v: unknown) => String(v).slice(0, 10)
 const mal = (error: { code?: string; message: string }) => ({ ok: false as const, mensaje: mensajeHumano(error) })
 const sch = () => crearClienteServidor().schema('wms')
 
-export class DocumentosSupabase extends PedidosSupabase implements RepositorioDocumentos {
+export class DocumentosSupabase extends DespachoSupabase implements RepositorioDocumentos {
   private async lotesParaRelacionar(): Promise<LoteParaRelacionar[]> {
     const [lotes, prods] = await Promise.all([traerTodo('lotes', 'wms', 'id, codigo, producto_id'), traerTodo('productos', 'catalogo', 'id, codigo, descripcion')])
     const p = new Map(prods.map((x) => [String(x.id), x]))

@@ -21,7 +21,6 @@ interface FilaPedidoDemo {
 }
 export interface PedidosDemoEstado { filas: FilaPedidoDemo[]; importaciones: ImportacionVista[]; consultas: number; sembrado: boolean }
 
-const hace = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
 
 function ped(e: EstadoDemo): PedidosDemoEstado {
   if (!e.pedidos) e.pedidos = { filas: [], importaciones: [], consultas: 0, sembrado: false }
@@ -48,17 +47,15 @@ function aplicar(e: EstadoDemo, pedidos: PedidoSnapshot[], cuando: string): Omit
 }
 
 export class PedidosDemo extends OperacionDemo implements RepositorioPedidos {
-  private async asegurarSiembra(e: EstadoDemo) {
+  protected async asegurarSiembra(e: EstadoDemo) {
     const s = ped(e)
     if (s.sembrado) return
     s.sembrado = true
     const r = await traerPedidos(new FuenteDemo(productosDemo(e), 0, e.panorama.hoy))
     if (!r.ok) return
-    const cuando = hace(180)
+    // Importados ayer a las 10:00 (hora de Lima): dentro del corte de planificación a cualquier hora en que se pruebe
+    const cuando = `${new Date(Date.parse(`${e.panorama.hoy}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10)}T15:00:00Z`
     const resumen = aplicar(e, r.pedidos, cuando)
-    // uno de los pedidos de demostración ya tiene su salida (para ver el estado «Con salida»)
-    const conSalida = s.filas.find((f) => f.snapshot.numero === 'PED-DEMO-103')
-    if (conSalida) conSalida.salida = 'SAL-2026-00001'
     s.importaciones.unshift({ id: nuevoId(), en: cuando, por: 'Jefe de Transporte (demo)', origen: 'demostración', ok: true, resumen: { ...resumen, descartados: r.descartados.length } })
   }
 
