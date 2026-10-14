@@ -1,81 +1,24 @@
 import "server-only";
-import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "./audit-log";
-import {
-  ErrorDeFormato,
-  HOJA_AVANCE,
-  HOJA_DETALLE,
-  parsearAvance,
-  parsearDetalle,
-  resumirCarga,
-  type AvanceParseado,
-  type CeldaCruda,
-  type FilaCruda,
-  type FilaDetalle,
-  type ResumenCarga,
-} from "@/domain/avance-import";
+import type { FilaAvance, FilaDetalle, ResumenCarga } from "@/domain/avance-import";
 
 /**
  * El avance de ventas: subirlo (administrador) y leerlo (cada vendedor).
  *
- * Mismo contrato que los otros importadores del módulo: `preview` no
- * escribe nada y `publicar` escribe lo que la vista previa mostró.
+ * **El Excel se lee en el navegador, no acá.** Pesa 3,4 MB y tiene
+ * dieciséis hojas; mandarlo entero al servidor hacía que la petición ni
+ * siquiera llegara a ejecutarse —el navegador mostraba "Failed to fetch" y
+ * en los registros del servidor no quedaba nada— y encima el archivo crece
+ * todos los días a medida que se agregan ventas al mes. Ahora el navegador
+ * lo abre, saca las dos hojas que importan y manda solo eso, en tandas.
+ *
+ * Que los números los calcule el cliente no abre un agujero: publicar es
+ * de administradores (lo exige esta capa y lo vuelve a exigir la RLS), y un
+ * administrador podría igual editar el Excel antes de subirlo. Lo que
+ * ningún cliente puede hacer es escribir en nombre de otro ni leer lo que
+ * no le toca: eso lo decide la base.
  */
-
-// ---------------------------------------------------------------------
-// Lectura del archivo
-// ---------------------------------------------------------------------
-
-function celdaPlana(valor: ExcelJS.CellValue): CeldaCruda {
-  if (valor === null || valor === undefined) return null;
-  if (valor instanceof Date) return valor;
-  if (typeof valor === "object") {
-    if ("result" in valor) return celdaPlana((valor as { result: ExcelJS.CellValue }).result);
-    if ("richText" in valor) {
-      return (valor as { richText: Array<{ text: string }> }).richText.map((t) => t.text).join("");
-    }
-    if ("text" in valor) return String((valor as { text: unknown }).text);
-    return null;
-  }
-  if (typeof valor === "boolean") return String(valor);
-  return valor as CeldaCruda;
-}
-
-function filasDeHoja(hoja: ExcelJS.Worksheet): FilaCruda[] {
-  const filas: FilaCruda[] = [];
-  hoja.eachRow({ includeEmpty: true }, (fila, numero) => {
-    const valores = fila.values as ExcelJS.CellValue[];
-    const salida: FilaCruda = [];
-    // `row.values` es 1-based y arranca con un hueco; acá se pasa a 0-based
-    // para que el índice 0 sea la columna A.
-    for (let i = 1; i < valores.length; i++) salida[i - 1] = celdaPlana(valores[i]);
-    filas[numero - 1] = salida;
-  });
-  for (let i = 0; i < filas.length; i++) filas[i] ??= [];
-  return filas;
-}
-
-async function leerArchivo(file: File): Promise<{ avance: AvanceParseado; detalle: FilaDetalle[] }> {
-  const libro = new ExcelJS.Workbook();
-  await libro.xlsx.load(await file.arrayBuffer());
-
-  const hojaAvance = libro.getWorksheet(HOJA_AVANCE);
-  if (!hojaAvance) {
-    throw new ErrorDeFormato(
-      `El archivo no tiene la hoja "${HOJA_AVANCE}". Tiene: ${libro.worksheets.map((h) => h.name).join(", ")}.`,
-    );
-  }
-  const hojaDetalle = libro.getWorksheet(HOJA_DETALLE);
-  if (!hojaDetalle) {
-    throw new ErrorDeFormato(`El archivo no tiene la hoja "${HOJA_DETALLE}" con el detalle de venta.`);
-  }
-
-  return {
-    avance: parsearAvance(filasDeHoja(hojaAvance)),
-    detalle: parsearDetalle(filasDeHoja(hojaDetalle)),
-  };
-}
 
 // ---------------------------------------------------------------------
 // Vendedores
@@ -98,158 +41,156 @@ async function vendedores(): Promise<Vendedor[]> {
 }
 
 // ---------------------------------------------------------------------
-// Vista previa
+// Lo que el navegador necesita para armar la vista previa
 // ---------------------------------------------------------------------
 
-export type PreviewAvance = {
-  resumen: ResumenCarga;
-  /** La carga vigente del mismo período, si ya hay una: esto la reemplaza. */
-  reemplazaA: { fechaCorte: string; subidoEn: string } | null;
+export type ContextoDeCarga = {
+  /** Códigos con vendedor cargado: los demás no los va a ver nadie. */
+  codigos: string[];
+  /** La carga vigente del período, si ya hay una: esta la reemplaza. */
+  vigente: { fechaCorte: string; subidoEn: string } | null;
 };
 
-export async function previewAvance(file: File): Promise<PreviewAvance> {
-  const { avance, detalle } = await leerArchivo(file);
-  const conocidos = new Set((await vendedores()).map((v) => v.codigo));
-  const resumen = resumirCarga(avance, detalle, conocidos);
+export async function contextoDeCarga(periodo: string | null): Promise<ContextoDeCarga> {
+  const codigos = (await vendedores()).map((v) => v.codigo);
 
-  let reemplazaA: PreviewAvance["reemplazaA"] = null;
-  if (resumen.periodo) {
+  let vigente: ContextoDeCarga["vigente"] = null;
+  if (periodo) {
     const supabase = createClient();
     const { data } = await supabase
       .from("avance_cargas")
       .select("fecha_corte, subido_en")
-      .eq("periodo", resumen.periodo)
+      .eq("periodo", periodo)
       .eq("vigente", true)
       .maybeSingle();
-    if (data) {
-      reemplazaA = { fechaCorte: String(data.fecha_corte), subidoEn: String(data.subido_en) };
-    }
+    if (data) vigente = { fechaCorte: String(data.fecha_corte), subidoEn: String(data.subido_en) };
   }
 
-  return { resumen, reemplazaA };
+  return { codigos, vigente };
 }
 
 // ---------------------------------------------------------------------
-// Publicación
+// Publicación, en tres tiempos
 // ---------------------------------------------------------------------
 
-/** PostgREST se atraganta con inserts enormes; van de a tandas. */
-const TANDA = 500;
+export type CabeceraCarga = {
+  periodo: string;
+  fechaCorte: string;
+  inicioMes: string | null;
+  diasMes: number | null;
+  diasTranscurridos: number | null;
+  archivo: string;
+  filasDetalle: number;
+};
 
-async function insertarPorTandas(tabla: string, filas: Record<string, unknown>[]) {
+/**
+ * Abre la carga y escribe el cuadro.
+ *
+ * La carga nace apagada (`vigente = false`): mientras se suben las tandas
+ * de detalle, los vendedores siguen viendo la de ayer entera, nunca media
+ * carga a medio llenar.
+ */
+export async function crearCarga(cabecera: CabeceraCarga, filas: FilaAvance[]): Promise<string> {
   const supabase = createClient();
-  for (let i = 0; i < filas.length; i += TANDA) {
-    const { error } = await supabase.from(tabla).insert(filas.slice(i, i + TANDA));
-    if (error) throw new Error(`${tabla}: ${error.message}`);
-  }
-}
-
-export type ResultadoAvance = { cargaId: string; resumen: ResumenCarga };
-
-export async function publicarAvance(file: File, actor: string): Promise<ResultadoAvance> {
-  const supabase = createClient();
-  const { avance, detalle } = await leerArchivo(file);
-
-  const lista = await vendedores();
-  const porCodigo = new Map(lista.map((v) => [v.codigo, v.id]));
-  const resumen = resumirCarga(avance, detalle, new Set(porCodigo.keys()));
-
-  if (!resumen.periodo || !resumen.fechaCorte) {
-    throw new ErrorDeFormato(
-      `No pude leer la fecha de corte de la hoja "${HOJA_AVANCE}". Es la celda que está sobre los encabezados del cuadro.`,
-    );
-  }
-
+  const porCodigo = new Map((await vendedores()).map((v) => [v.codigo, v.id]));
   const idDe = (codigo: string | null) => (codigo ? (porCodigo.get(codigo.toUpperCase()) ?? null) : null);
 
-  // La carga entra apagada: recién se vuelve visible cuando terminaron de
-  // entrar sus filas (ver pedidos.avance_publicar).
-  const { data: carga, error: errorCarga } = await supabase
+  const { data, error } = await supabase
     .from("avance_cargas")
     .insert({
-      periodo: resumen.periodo,
-      fecha_corte: resumen.fechaCorte,
-      inicio_mes: avance.inicioMes,
-      dias_mes: resumen.diasMes,
-      dias_transcurridos: resumen.diasTranscurridos,
-      archivo: file.name,
-      filas_avance: avance.filas.length,
-      filas_detalle: detalle.length,
+      periodo: cabecera.periodo,
+      fecha_corte: cabecera.fechaCorte,
+      inicio_mes: cabecera.inicioMes,
+      dias_mes: cabecera.diasMes,
+      dias_transcurridos: cabecera.diasTranscurridos,
+      archivo: cabecera.archivo,
+      filas_avance: filas.length,
+      filas_detalle: cabecera.filasDetalle,
       vigente: false,
-      subido_por: actor,
     })
     .select("id")
     .single();
-  if (errorCarga) throw new Error(errorCarga.message);
-  const cargaId = carga.id as string;
+  if (error) throw new Error(error.message);
+  const cargaId = data.id as string;
 
-  try {
-    await insertarPorTandas(
-      "avance_filas",
-      avance.filas.map((f) => ({
-        carga_id: cargaId,
-        tipo: f.tipo,
-        grupo: f.grupo,
-        zona: f.zona,
-        codigo: f.codigo,
-        seller_id: idDe(f.codigo),
-        etiqueta: f.etiqueta,
-        orden: f.orden,
-        s1_avance: f.semanas[0]?.avance ?? null,
-        s1_cuota: f.semanas[0]?.cuota ?? null,
-        s2_avance: f.semanas[1]?.avance ?? null,
-        s2_cuota: f.semanas[1]?.cuota ?? null,
-        s3_avance: f.semanas[2]?.avance ?? null,
-        s3_cuota: f.semanas[2]?.cuota ?? null,
-        s4_avance: f.semanas[3]?.avance ?? null,
-        s4_cuota: f.semanas[3]?.cuota ?? null,
-        avance: f.avance,
-        cuota: f.cuota,
-        prom_venta_diaria: f.promVentaDiaria,
-        proy_lineal: f.proyLineal,
-        cuota_diaria: f.cuotaDiaria,
-        por_dia: f.porDia,
-      })),
-    );
-
-    await insertarPorTandas(
-      "avance_detalle",
-      detalle.map((d) => ({
-        carga_id: cargaId,
-        codigo: d.codigo,
-        seller_id: idDe(d.codigo),
-        vendedor: d.vendedor,
-        fecha: d.fecha,
-        tipo_documento: d.tipoDocumento,
-        nro_documento: d.nroDocumento,
-        ruc: d.ruc,
-        razon_social: d.razonSocial,
-        familia: d.familia,
-        cod_producto: d.codProducto,
-        producto: d.producto,
-        linea: d.linea,
-        proveedor: d.proveedor,
-        origen: d.origen,
-        canal: d.canal,
-        departamento: d.departamento,
-        provincia: d.provincia,
-        distrito: d.distrito,
-        cantidad: d.cantidad,
-        neto: d.neto,
-      })),
-    );
-
-    const { error: errorPublicar } = await supabase.rpc("avance_publicar", { p_carga_id: cargaId });
-    if (errorPublicar) throw new Error(errorPublicar.message);
-
-    await limpiarCargasViejas(resumen.periodo);
-  } catch (e) {
-    // Una carga a medias no se queda: el índice único deja una sola
-    // vigente, pero las filas sueltas ensucian el histórico. El delete se
-    // lleva filas y detalle por cascada.
+  const { error: errorFilas } = await supabase.from("avance_filas").insert(
+    filas.map((f) => ({
+      carga_id: cargaId,
+      tipo: f.tipo,
+      grupo: f.grupo,
+      zona: f.zona,
+      codigo: f.codigo,
+      seller_id: idDe(f.codigo),
+      etiqueta: f.etiqueta,
+      orden: f.orden,
+      s1_avance: f.semanas[0]?.avance ?? null,
+      s1_cuota: f.semanas[0]?.cuota ?? null,
+      s2_avance: f.semanas[1]?.avance ?? null,
+      s2_cuota: f.semanas[1]?.cuota ?? null,
+      s3_avance: f.semanas[2]?.avance ?? null,
+      s3_cuota: f.semanas[2]?.cuota ?? null,
+      s4_avance: f.semanas[3]?.avance ?? null,
+      s4_cuota: f.semanas[3]?.cuota ?? null,
+      avance: f.avance,
+      cuota: f.cuota,
+      prom_venta_diaria: f.promVentaDiaria,
+      proy_lineal: f.proyLineal,
+      cuota_diaria: f.cuotaDiaria,
+      por_dia: f.porDia,
+    })),
+  );
+  if (errorFilas) {
     await supabase.from("avance_cargas").delete().eq("id", cargaId);
-    throw e;
+    throw new Error(errorFilas.message);
   }
+
+  return cargaId;
+}
+
+/** Una tanda de detalle. El navegador las manda de a unas cuantas filas. */
+export async function agregarDetalle(cargaId: string, filas: FilaDetalle[]): Promise<number> {
+  if (filas.length === 0) return 0;
+  const supabase = createClient();
+  const porCodigo = new Map((await vendedores()).map((v) => [v.codigo, v.id]));
+
+  const { error } = await supabase.from("avance_detalle").insert(
+    filas.map((d) => ({
+      carga_id: cargaId,
+      codigo: d.codigo,
+      seller_id: d.codigo ? (porCodigo.get(d.codigo.toUpperCase()) ?? null) : null,
+      vendedor: d.vendedor,
+      fecha: d.fecha,
+      tipo_documento: d.tipoDocumento,
+      nro_documento: d.nroDocumento,
+      ruc: d.ruc,
+      razon_social: d.razonSocial,
+      familia: d.familia,
+      cod_producto: d.codProducto,
+      producto: d.producto,
+      linea: d.linea,
+      proveedor: d.proveedor,
+      origen: d.origen,
+      canal: d.canal,
+      departamento: d.departamento,
+      provincia: d.provincia,
+      distrito: d.distrito,
+      cantidad: d.cantidad,
+      neto: d.neto,
+    })),
+  );
+  if (error) throw new Error(error.message);
+  return filas.length;
+}
+
+/** Enciende la carga: a partir de acá es la que ven los vendedores. */
+export async function finalizarCarga(
+  cargaId: string,
+  actor: string,
+  resumen: ResumenCarga,
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("avance_publicar", { p_carga_id: cargaId });
+  if (error) throw new Error(error.message);
 
   await logAudit({
     actor,
@@ -259,18 +200,19 @@ export async function publicarAvance(file: File, actor: string): Promise<Resulta
     datosDespues: {
       periodo: resumen.periodo,
       fecha_corte: resumen.fechaCorte,
-      filas_avance: avance.filas.length,
-      filas_detalle: detalle.length,
-      archivo: file.name,
+      vendedores: resumen.vendedores,
+      filas_detalle: resumen.filasDetalle,
     },
   });
 
-  return { cargaId, resumen };
+  if (resumen.periodo) await limpiarCargasViejas(resumen.periodo);
 }
 
-// ---------------------------------------------------------------------
-// Lectura para las pantallas
-// ---------------------------------------------------------------------
+/** Si el navegador se corta a mitad de camino, la carga a medias no queda. */
+export async function descartarCarga(cargaId: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("avance_cargas").delete().eq("id", cargaId);
+}
 
 /**
  * Se guardan la carga vigente y dos anteriores de cada período.
@@ -301,6 +243,10 @@ async function limpiarCargasViejas(periodo: string) {
     // Nunca romper la publicación por la limpieza.
   }
 }
+
+// ---------------------------------------------------------------------
+// Lectura para las pantallas
+// ---------------------------------------------------------------------
 
 export type Carga = {
   id: string;
