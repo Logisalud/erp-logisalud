@@ -247,7 +247,7 @@ describe('P0: el usuario de cliente solo ve lo de su propietario', () => {
     const antes = Number((await base.admin.query('select sum(cantidad) n from wms.saldos')).rows[0].n)
     for (const tipo of ['MOVIMIENTO', 'INGRESO', 'AJUSTE', 'CARGA_INICIAL', 'CAMBIO_ESTADO', 'REVERSA', 'SALIDA', 'RETORNO']) {
       const e = await falla(base.como(ajr, (c) => c.query(`select wms.postear_movimiento($1, 'x', $2::jsonb)`, [tipo, partidas])))
-      expect(e.message, tipo).toMatch(/permiso|Solo Dirección|no habilitado|permission denied/i)
+      expect(e.message, tipo).toMatch(/permiso|Solo Dirección|no habilitado|permission denied|solo se registran por el flujo de salidas/i)
     }
     expect(Number((await base.admin.query('select sum(cantidad) n from wms.saldos')).rows[0].n)).toBe(antes)
   })
@@ -272,6 +272,10 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'revisar_movimientos_sin_verificar', 'revisar_por_trasladar', 'revisar_registro_compras', 'revisar_vencimientos',
     'saldos_al', 'tiene_permiso', 'tiene_rol', 'ultima_cobertura_por_posicion', 'validar_carga_inicial', 'validar_movimiento',
     'verificar_linea', 'verificar_pendiente', 'verificar_saldos',
+    // S2 (0012)
+    'aprobar_salida_vencida', 'asignar_salida', 'cambiar_lote_asignado', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
+    'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',
+    'registrar_retorno', 'stock_vendible',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {
