@@ -4,7 +4,7 @@ import {
   FOCOS, lunesDe, puedeCerrarRevision, puedeHacerRevision, puedeResolverPendiente, sumarDiasISO, validarMarcaFoco, validarPendiente, validarProgramacion,
   type Cobertura, type EntradaPendiente, type EstadoPendiente, type FilaExactitud, type FocoRevision, type PendienteVista, type PersonaEquipo, type ProgramacionVista, type ResultadoFoco, type RevisionDiaria,
 } from '@/domain/operacion'
-import { ETIQUETA_ROL } from '@/domain/permisos'
+import { nombrePersonaDemo } from '@/lib/sesion-demo'
 import type { Rol, Saldo } from '@/domain/tipos'
 import { InventarioDemo, sembrarInventario } from './inventario-demo'
 import { alertar, estadoE, falla, nuevoId } from './entradas-demo'
@@ -14,9 +14,9 @@ import type { Actor, ResultadoAccion } from '../repositorio'
 
 export interface OpDemo { revisiones: RevisionDiaria[]; pendientes: PendienteVista[]; programaciones: ProgramacionVista[]; sembrado: boolean }
 
-const ROLES_EQUIPO: Rol[] = ['jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'asistente_dt', 'direccion_tecnica']
-const nombreDe = (id: string) => (id.startsWith('demo:') ? `${ETIQUETA_ROL[id.slice(5) as Rol] ?? id.slice(5)} (demo)` : id)
-const exigirJefe = (a: Actor) => (puedeHacerRevision(a.roles) ? null : 'Solo el Jefe de Almacén (o su reemplazo) hace esto')
+const CLAVES_EQUIPO = ['jefe_almacen', 'reemplazante_jefe', 'auxiliar', 'asistente_dt', 'direccion_tecnica']
+const nombreDe = nombrePersonaDemo
+const exigirJefe = (a: Actor) => (puedeHacerRevision(a.roles) ? null : 'Solo el Jefe de Almacén hace esto')
 
 function op(e: EstadoDemo): OpDemo {
   if (!e.op) e.op = { revisiones: [], pendientes: [], programaciones: [], sembrado: false }
@@ -33,7 +33,7 @@ function op(e: EstadoDemo): OpDemo {
     })
     const pend = [
       mk('pend-demo-1', 'ORDEN', 'Cajas vacías apiladas frente al rack D-4: retirar para despejar el pasillo.', 'demo:auxiliar', 'ABIERTO', { critico: true, ubicacion: 'D-4' }),
-      mk('pend-demo-2', 'ANORMAL', 'Gotera leve cerca del ingreso: avisar a mantenimiento.', 'demo:reemplazo_jefe', 'RESUELTO', { notaResolucion: 'Mantenimiento la selló esta mañana.', resueltoPor: nombreDe('demo:reemplazo_jefe') }),
+      mk('pend-demo-2', 'ANORMAL', 'Gotera leve cerca del ingreso: avisar a mantenimiento.', 'demo:reemplazante_jefe', 'RESUELTO', { notaResolucion: 'Mantenimiento la selló esta mañana.', resueltoPor: nombreDe('demo:reemplazante_jefe') }),
     ]
     rev.pendientes = pend
     e.op.revisiones.push(rev); e.op.pendientes.push(...pend)
@@ -53,7 +53,7 @@ export class OperacionDemo extends InventarioDemo implements RepositorioOperacio
     return o.revisiones.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, limite).map((r) => structuredClone({ ...r, pendientes: o.pendientes.filter((p) => p.revisionId === r.id) }))
   }
   async pendientesVivos(): Promise<PendienteVista[]> { return structuredClone(op(estadoE()).pendientes.filter((p) => p.estado !== 'VERIFICADO')) }
-  async personasDelEquipo(): Promise<PersonaEquipo[]> { return ROLES_EQUIPO.map((rol) => ({ id: `demo:${rol}`, nombre: nombreDe(`demo:${rol}`), rol })) }
+  async personasDelEquipo(): Promise<PersonaEquipo[]> { return CLAVES_EQUIPO.map((clave) => ({ id: `demo:${clave}`, nombre: nombreDe(`demo:${clave}`), rol: (clave === 'reemplazante_jefe' ? 'jefe_almacen' : clave) as Rol })) }
 
   async iniciarRevision(actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
     const e = estadoE(); const o = op(e)
@@ -203,7 +203,7 @@ export class OperacionDemo extends InventarioDemo implements RepositorioOperacio
 
   // ── Indicadores: el stock en una fecha, desde el libro mayor ────────────
   async saldosAl(fecha: string, actor: Actor): Promise<Saldo[]> {
-    if (!actor.roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'asistente_dt', 'admin_wms', 'auditoria_lectura'].includes(r))) return []
+    if (!actor.roles.some((r) => ['jefe_almacen', 'direccion_tecnica', 'asistente_dt', 'admin_wms', 'auditoria_lectura'].includes(r))) return []
     const e = estadoE(); sembrarInventario(e)
     const m = new Map<string, Saldo>()
     for (const x of e.inv.ledger) {
@@ -217,7 +217,7 @@ export class OperacionDemo extends InventarioDemo implements RepositorioOperacio
 
   // ── Exactitud ───────────────────────────────────────────────────────────
   async exactitudConteos(desde: string | undefined, hasta: string | undefined, actor: Actor): Promise<FilaExactitud[]> {
-    if (!actor.roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))) return []
+    if (!actor.roles.some((r) => ['jefe_almacen', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))) return []
     const e = estadoE(); sembrarInventario(e); const p = e.panorama
     const out: FilaExactitud[] = []
     for (const c of e.inv.conteos) {

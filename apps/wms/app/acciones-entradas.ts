@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers'
 import { exigirContexto } from '@/lib/contexto'
 import { modoDemoActivo } from '@/lib/demo'
-import { COOKIE_ROL_DEMO, rolDemoDesdeCookie } from '@/lib/sesion-demo'
+import { COOKIE_ROL_DEMO, personaDemoDesdeCookie } from '@/lib/sesion-demo'
 import { repositorio } from '@/services/repositorio-actual'
 import { buscar } from '@/domain/panorama'
 import type { CambioEntrada, Decision, EntradaSolicitud } from '@/domain/entradas'
@@ -99,7 +99,7 @@ export async function buscarProductosAccion(consulta: string): Promise<{ id: str
 /** Solo demostración: cambiar de rol sin volver al inicio de sesión (para probar el flujo con varias personas). */
 export async function cambiarRolDemoAccion(rol: string): Promise<void> {
   if (!modoDemoActivo()) return
-  const r = rolDemoDesdeCookie(rol)
+  const r = personaDemoDesdeCookie(rol)
   if (!r) return
-  cookies().set(COOKIE_ROL_DEMO, r, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
+  cookies().set(COOKIE_ROL_DEMO, r.clave, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
 }

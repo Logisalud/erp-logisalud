@@ -20,7 +20,7 @@ async function persona(rol: string): Promise<string> {
 
 describe('permisos: la base y el dominio dicen lo mismo', () => {
   it('permisos_rol (base) == puede() (dominio) para cada rol y cada acción', async () => {
-    const roles = ['direccion_tecnica', 'asistente_dt', 'jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'auditoria_lectura', 'admin_wms',
+    const roles = ['direccion_tecnica', 'asistente_dt', 'jefe_almacen', 'auxiliar', 'auditoria_lectura', 'admin_wms',
       'jefe_transporte', 'conductor', 'auxiliar_transporte', 'conformidad_despacho', 'autoriza_salidas_sin_venta', 'usuario_cliente'] as Rol[]
     const acciones = ['ver', 'ejecutar', 'verificar', 'aprobar', 'ajustar', 'configurar', 'exportar', 'auditar', 'dar_conformidad',
       'cambiar_lote_asignado', 'imprimir_paquete_documental', 'gestionar_documentos_regulatorios', 'autorizar_salida_sin_venta', 'preparar_salidas', 'confirmar_salida'] as Accion[]
@@ -178,7 +178,7 @@ describe('vehículos', () => {
 
 describe('la migración 0011 es re-ejecutable (en su lugar de la cadena, como un reintento tras un fallo)', () => {
   it('correrla otra vez no falla y no cambia lo que ya había', async () => {
-    const solo11 = await crearBaseDePrueba({ sinMigracion0012: true })
+    const solo11 = await crearBaseDePrueba({ sinMigracion0012: true, sinMigracion0015: true })
     try {
       const n = async () => (await solo11.admin.query('select count(*)::int n from wms.permisos_rol')).rows[0].n
       const antes = await n()

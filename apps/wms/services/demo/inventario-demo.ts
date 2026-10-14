@@ -14,6 +14,7 @@ import { ETIQUETA_ROL } from '@/domain/permisos'
 import { ETIQUETA_ESTADO } from '@/domain/estados'
 import type { Estado, Origen, Rol, Saldo } from '@/domain/tipos'
 import { ESTADOS } from '@/domain/tipos'
+import { nombrePersonaDemo } from '@/lib/sesion-demo'
 import { sumarDias } from './datos'
 import { EntradasDemo, alertar, estadoE, falla, ahora, nuevoId } from './entradas-demo'
 import { anotar, numeroDe, siguiente, type AjusteDemo, type ConteoDemo, type ConteoLineaDemo } from './libro'
@@ -23,10 +24,9 @@ import type { Actor, ResultadoAccion } from '../repositorio'
 const anioDe = (e: EstadoDemo) => e.panorama.hoy.slice(0, 4)
 const nombrePersona = (id?: string): string | undefined => {
   if (!id) return undefined
-  if (id.startsWith('demo:')) return `${ETIQUETA_ROL[id.slice(5) as Rol] ?? id.slice(5)} (demo)`
-  return id
+  return nombrePersonaDemo(id)
 }
-const esJefe = (r: readonly Rol[]) => r.includes('jefe_almacen') || r.includes('reemplazo_jefe')
+const esJefe = (r: readonly Rol[]) => r.includes('jefe_almacen')
 const ACTIVA = new Set(['EJECUTADO', 'CON_DIFERENCIA'])
 const mismaCelda = (s: Saldo, posicionId: string, loteId: string, estado: Estado, proc: string) =>
   s.posicionId === posicionId && s.loteId === loteId && s.estado === estado && s.procedenciaId === proc
@@ -93,7 +93,7 @@ export function sembrarInventario(e: EstadoDemo) {
   if (l1) inv.ordenes.push({ id: 'mi-demo-1', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Acomodo de producto de alta rotación', ejecutorId: 'demo:auxiliar', ejecutor: nombrePersona('demo:auxiliar')!, ejecutadoEn: new Date(Date.now() - 3 * 3_600_000).toISOString(), lineas: [l1] })
   if (l2) inv.ordenes.push({ id: 'mi-demo-2', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Acercar al despacho', ejecutorId: 'demo:jefe_almacen', ejecutor: nombrePersona('demo:jefe_almacen')!, ejecutadoEn: new Date(Date.now() - 5 * 3_600_000).toISOString(), lineas: [l2] })
   // Uno que lleva más de 24 h sin verificar: avisa al Jefe (alerta MOVIMIENTO_SIN_VERIFICAR).
-  if (l3) inv.ordenes.push({ id: 'mi-demo-3', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Reubicar por espacio', ejecutorId: 'demo:reemplazo_jefe', ejecutor: nombrePersona('demo:reemplazo_jefe')!, ejecutadoEn: new Date(Date.now() - 30 * 3_600_000).toISOString(), lineas: [l3] })
+  if (l3) inv.ordenes.push({ id: 'mi-demo-3', numero: `MI-${anioDe(e)}-${String(++k).padStart(5, '0')}`, estado: 'EJECUTADO', motivo: 'Reubicar por espacio', ejecutorId: 'demo:reemplazante_jefe', ejecutor: nombrePersona('demo:reemplazante_jefe')!, ejecutadoEn: new Date(Date.now() - 30 * 3_600_000).toISOString(), lineas: [l3] })
   k = sembrarDisponibilidad(e, hacia.slice(3), k)
   inv.contadores[`MI-${anioDe(e)}`] = k
   void posDe
@@ -189,11 +189,11 @@ function sembrarConteosCerrados(e: EstadoDemo) {
         cantidadSistema: sis, conteo1: sis, contador1: 'demo:auxiliar',
       }
       if (t === 'OK') linea.resultado = 'COINCIDE'
-      if (t === 'RECONTEO') { linea.conteo1 = sis - 1; linea.conteo2 = sis; linea.contador2 = 'demo:reemplazo_jefe'; linea.resultado = 'COINCIDE_EN_RECONTEO' }
-      if (t === 'ESCALA') { linea.conteo1 = sis + 2; linea.conteo2 = sis + 2; linea.contador2 = 'demo:reemplazo_jefe'; linea.causa = c.causa; linea.resultado = 'ESCALADA'; linea.nota = 'Se revisaron despachos y recepciones sin encontrar la causa; escalada a Dirección Técnica.' }
+      if (t === 'RECONTEO') { linea.conteo1 = sis - 1; linea.conteo2 = sis; linea.contador2 = 'demo:reemplazante_jefe'; linea.resultado = 'COINCIDE_EN_RECONTEO' }
+      if (t === 'ESCALA') { linea.conteo1 = sis + 2; linea.conteo2 = sis + 2; linea.contador2 = 'demo:reemplazante_jefe'; linea.causa = c.causa; linea.resultado = 'ESCALADA'; linea.nota = 'Se revisaron despachos y recepciones sin encontrar la causa; escalada a Dirección Técnica.' }
       if (t === 'AJUSTE') {
         const delta = -3
-        linea.conteo1 = sis + delta; linea.conteo2 = sis + delta; linea.contador2 = 'demo:reemplazo_jefe'; linea.causa = c.causa; linea.resultado = 'AJUSTADA'
+        linea.conteo1 = sis + delta; linea.conteo2 = sis + delta; linea.contador2 = 'demo:reemplazante_jefe'; linea.causa = c.causa; linea.resultado = 'AJUSTADA'
         const aj: AjusteDemo = {
           id: nuevoId(), numero: numeroDe(inv, 'AJ', anio), conteoLineaId: linea.id, lineaId: linea.id, conteoNumero: conteo.numero, producto: n.producto(s.productoId), lote: n.lote(s.loteId), posicion: n.posicion(s.posicionId), delta,
           causa: c.causa!, motivo: `Corregir ${Math.abs(delta)} u según el conteo ${conteo.numero}`, estado: 'AUTORIZADO', propuestoPor: nombrePersona('demo:jefe_almacen')!, propuestoPorId: 'demo:jefe_almacen',
@@ -300,7 +300,7 @@ export class InventarioDemo extends EntradasDemo {
 
   /** Mismo orden de mensajes que la base: permiso → ejecutó. */
   private puedeVerificarOrden(o: OrdenMovimiento, actor: Actor): string | null {
-    if (!actor.roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe'].includes(r))) return 'Solo el personal de almacén verifica movimientos'
+    if (!actor.roles.some((r) => ['auxiliar', 'jefe_almacen'].includes(r))) return 'Solo el personal de almacén verifica movimientos'
     const r = puedeVerificar(actor.id, { ejecutorId: o.ejecutorId })
     return r.puede ? null : r.mensaje
   }
@@ -352,7 +352,7 @@ export class InventarioDemo extends EntradasDemo {
 
   async resolverMovimiento(lineaId: string, accion: 'REINTENTAR' | 'ANULAR', nota: string, actor: Actor): Promise<ResultadoAccion> {
     const e = estadoE(); sembrarInventario(e)
-    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén (o su reemplazo) hace esto')
+    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén hace esto')
     const o = e.inv.ordenes.find((x) => x.lineas.some((l) => l.id === lineaId))
     const l = o?.lineas.find((x) => x.id === lineaId)
     if (!o || !l) return falla('No encontramos esa línea')
@@ -435,8 +435,8 @@ export class InventarioDemo extends EntradasDemo {
     const c = this.conteos().find((x) => x.id === id)
     if (!c) return null
     const n = nombres(e)
-    const gestiona = actor.roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))
-    const puedeEjecutar = actor.roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe', 'asistente_dt'].includes(r))
+    const gestiona = actor.roles.some((r) => ['jefe_almacen', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))
+    const puedeEjecutar = actor.roles.some((r) => ['auxiliar', 'jefe_almacen', 'asistente_dt'].includes(r))
     const lineas: LineaConteoVista[] = c.lineas.map((l) => {
       const lote = n.loteObj(l.loteId)
       const aj = e.inv.ajustes.filter((a) => a.lineaId === l.id).slice(-1)[0]
@@ -457,7 +457,7 @@ export class InventarioDemo extends EntradasDemo {
 
   async programarConteo(posicionIds: string[], nota: string | undefined, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
     const e = estadoE(); sembrarInventario(e)
-    if (!puedeProgramarConteo(actor.roles)) return falla('Solo el Jefe de Almacén (o su reemplazo) hace esto')
+    if (!puedeProgramarConteo(actor.roles)) return falla('Solo el Jefe de Almacén hace esto')
     if (!posicionIds.length) return falla('Elige al menos una ubicación para contar')
     const n = nombres(e)
     const ocupada = ocupadaPorConteo(e, posicionIds)
@@ -477,7 +477,7 @@ export class InventarioDemo extends EntradasDemo {
 
   async registrarConteo(lineaId: string, cantidad: number, actor: Actor): Promise<ResultadoAccion<{ resultado: string }>> {
     const e = estadoE()
-    if (!actor.roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe', 'asistente_dt'].includes(r))) return falla('No tienes permiso para contar')
+    if (!actor.roles.some((r) => ['auxiliar', 'jefe_almacen', 'asistente_dt'].includes(r))) return falla('No tienes permiso para contar')
     if (!Number.isInteger(cantidad) || cantidad < 0) return falla('Cuenta las unidades reales (0 o más)')
     const f = this.lineaConteo(lineaId)
     if (!f) return falla('No encontramos esa línea del conteo')
@@ -503,7 +503,7 @@ export class InventarioDemo extends EntradasDemo {
   }
 
   async registrarCausaConteo(lineaId: string, causa: string, actor: Actor): Promise<ResultadoAccion> {
-    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén (o su reemplazo) hace esto')
+    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén hace esto')
     const f = this.lineaConteo(lineaId)
     if (!f) return falla('No encontramos esa línea del conteo')
     if (f.l.resultado !== 'DIFERENCIA_CONFIRMADA' && f.l.resultado !== 'NO_CONCLUYENTE') return falla('Esa línea no tiene una diferencia por explicar')
@@ -514,7 +514,7 @@ export class InventarioDemo extends EntradasDemo {
 
   async proponerAjuste(lineaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
     const e = estadoE()
-    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén (o su reemplazo) hace esto')
+    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén hace esto')
     const f = this.lineaConteo(lineaId)
     if (!f) return falla('No encontramos esa línea del conteo')
     const { c, l } = f
@@ -563,7 +563,7 @@ export class InventarioDemo extends EntradasDemo {
 
   async escalarLineaConteo(lineaId: string, nota: string, actor: Actor): Promise<ResultadoAccion> {
     const e = estadoE()
-    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén (o su reemplazo) hace esto')
+    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén hace esto')
     const f = this.lineaConteo(lineaId)
     if (!f) return falla('No encontramos esa línea del conteo')
     if (f.l.resultado !== 'DIFERENCIA_CONFIRMADA' && f.l.resultado !== 'NO_CONCLUYENTE') return falla('Esa línea no tiene una diferencia sin explicar')
@@ -576,7 +576,7 @@ export class InventarioDemo extends EntradasDemo {
 
   async cerrarConteo(id: string, causa: string | undefined, accion: string | undefined, actor: Actor): Promise<ResultadoAccion> {
     const e = estadoE()
-    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén (o su reemplazo) hace esto')
+    if (!esJefe(actor.roles)) return falla('Solo el Jefe de Almacén hace esto')
     const c = this.conteos().find((x) => x.id === id)
     if (!c) return falla('No encontramos ese conteo')
     if (c.estado === 'CERRADO') return falla('Este conteo ya está cerrado')

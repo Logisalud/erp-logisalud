@@ -66,7 +66,6 @@ describe('movimientos internos: dos personas, ejecutar → verificar (D-15)', ()
     expect(Object.keys(accionesDeOrden(orden('EJECUTADO'), 'x', ['jefe_almacen'])).sort()).toEqual(['anular', 'ejecutorViendo', 'motivoNoVerifica', 'resolver', 'verificar'])
     expect(accionesDeOrden(orden('CON_DIFERENCIA'), 'x', ['jefe_almacen']).resolver).toBe(true)
     expect(accionesDeOrden(orden('CON_DIFERENCIA'), 'x', ['auxiliar']).resolver).toBe(false)
-    expect(accionesDeOrden(orden('CON_DIFERENCIA'), 'x', ['reemplazo_jefe']).resolver).toBe(true)
   })
   it('lo anula quien lo ejecutó (o el Jefe), solo mientras nadie verificó ninguna línea', () => {
     const o = orden('EJECUTADO', { lineas: [l('PENDIENTE')] })
@@ -76,18 +75,20 @@ describe('movimientos internos: dos personas, ejecutar → verificar (D-15)', ()
     expect(accionesDeOrden(orden('EJECUTADO', { lineas: [l('PENDIENTE'), l('CONFIRMADA')] }), 'ana', ['auxiliar']).anular).toBe(false)
     expect(accionesDeOrden(orden('CONFIRMADO', { lineas: [l('CONFIRMADA')] }), 'ana', ['jefe_almacen']).anular).toBe(false)
   })
-  it('el EJECUTOR no verifica su propio movimiento; otro auxiliar, el Jefe o su reemplazo sí; Dirección Técnica no', () => {
+  it('el EJECUTOR no verifica su propio movimiento; otro auxiliar, el Jefe sí; Dirección Técnica no', () => {
     const o = orden('EJECUTADO', { lineas: [l('PENDIENTE')] })
     expect(accionesDeOrden(o, 'ana', ['auxiliar'])).toMatchObject({ verificar: false, motivoNoVerifica: expect.stringMatching(/ejecutó/) })
     expect(accionesDeOrden(o, 'ana', ['jefe_almacen']).verificar).toBe(false)            // ni siendo el Jefe: la regla es por persona
     expect(accionesDeOrden(o, 'carla', ['auxiliar']).verificar).toBe(true)
     expect(accionesDeOrden(o, 'carla', ['jefe_almacen']).verificar).toBe(true)
-    expect(accionesDeOrden(o, 'carla', ['reemplazo_jefe']).verificar).toBe(true)
+    // con varios roles la regla sigue siendo por persona: Charlie (Jefe de Almacén y de Transporte) no verifica lo que él ejecutó
+    expect(accionesDeOrden(o, 'ana', ['jefe_almacen', 'jefe_transporte']).verificar).toBe(false)
+    expect(accionesDeOrden(o, 'carla', ['jefe_transporte', 'jefe_almacen']).verificar).toBe(true)
     expect(accionesDeOrden(o, 'carla', ['direccion_tecnica']).verificar).toBe(false)
     expect(accionesDeOrden(o, 'carla', ['auditoria_lectura']).verificar).toBe(false)
   })
   it('quienes mueven mercadería registran movimientos; Dirección Técnica y auditoría no', () => {
-    expect(['auxiliar', 'jefe_almacen', 'reemplazo_jefe'].every((r) => puedeEjecutarMovimiento([r as never]))).toBe(true)
+    expect(['auxiliar', 'jefe_almacen'].every((r) => puedeEjecutarMovimiento([r as never]))).toBe(true)
     expect(puedeEjecutarMovimiento(['direccion_tecnica'])).toBe(false)
     expect(puedeEjecutarMovimiento(['auditoria_lectura'])).toBe(false)
   })

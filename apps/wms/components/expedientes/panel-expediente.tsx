@@ -31,7 +31,7 @@ export function PanelExpediente({ exp, roles }: { exp: ExpedienteVista; roles: R
   const [falta, setFalta] = useState('')
   const [resp, setResp] = useState('')
   const puedeCerrar = roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica')
-  const puedeGestionar = roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica' || r === 'jefe_almacen' || r === 'reemplazo_jefe')
+  const puedeGestionar = roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica' || r === 'jefe_almacen')
   const abiertos = exp.faltantes.filter((f) => f.estado === 'ABIERTO')
   const resueltos = exp.faltantes.filter((f) => f.estado === 'RESUELTO')
 

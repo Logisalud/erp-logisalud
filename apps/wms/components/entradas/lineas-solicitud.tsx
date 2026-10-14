@@ -1,5 +1,6 @@
 'use client'
 
+import { CampoVencimiento } from '../campo-vencimiento'
 import { useState } from 'react'
 import { CheckCircle2, Pencil, RotateCcw, TriangleAlert } from 'lucide-react'
 import { ajustarSolicitudAccion, verificarLineaAccion } from '@/app/acciones-entradas'
@@ -60,7 +61,7 @@ function FormCambio({ solicitud, linea, modo, posicionId, alTerminar }: { solici
       <div className="grid gap-3 sm:grid-cols-3">
         <div><label htmlFor={id('cantidad')} className="etiqueta">Cantidad {modo === 'verificar' ? 'encontrada' : ''}</label><input id={id('cantidad')} className="campo tabular" inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value.replace(/\D/g, ''))} autoComplete="off" /></div>
         <div><label htmlFor={id('lote')} className="etiqueta">Lote</label><input id={id('lote')} className="campo" value={lote} onChange={(e) => setLote(e.target.value)} autoComplete="off" /></div>
-        <div><label htmlFor={id('vence')} className="etiqueta">Vencimiento</label><input id={id('vence')} className="campo tabular" value={vence} onChange={(e) => setVence(e.target.value)} placeholder="30/06/2028" autoComplete="off" aria-invalid={vence.trim() && !f ? true : undefined} />{vence.trim() && !f && <p role="alert" className="mt-1 text-xs text-red-700">No entiendo esa fecha. Usa 30/06/2028 o 06/2028.</p>}</div>
+        <div><label htmlFor={id('vence')} className="etiqueta">Vencimiento</label><CampoVencimiento id={id('vence')} value={vence} onChange={setVence} invalido={!!vence.trim() && !f} />{vence.trim() && !f && <p role="alert" className="mt-1 text-xs text-red-700">No entiendo esa fecha. Usa 30/06/2028 o 06/2028.</p>}</div>
       </div>
       <div><label htmlFor={id('motivo')} className="etiqueta">{motivoObligatorio ? '¿Por qué cambia? (queda en el historial)' : '¿Por qué cambia? (opcional)'}</label><input id={id('motivo')} className="campo" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej.: la caja trae 5 unidades menos" autoComplete="off" /></div>
       {aviso && <p className="text-sm text-amber-950" data-testid="texto-diferencia"><TriangleAlert className="mr-1.5 inline h-4 w-4 align-text-bottom" aria-hidden />{aviso}</p>}

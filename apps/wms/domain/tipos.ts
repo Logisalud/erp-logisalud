@@ -29,7 +29,6 @@ export type Rol =
   | 'direccion_tecnica'
   | 'asistente_dt'
   | 'jefe_almacen'
-  | 'reemplazo_jefe'
   | 'auxiliar'
   | 'auditoria_lectura'
   | 'admin_wms'

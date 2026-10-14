@@ -693,7 +693,7 @@ export class MotorEntradas {
     if (a.estado !== 'BORRADOR') return falla(`El acta ${a.numero} ya no admite firmas (${a.estado.toLowerCase()})`)
     if (!ROLES_FIRMA.includes(firma.rol)) return falla('Rol de firma inválido')
     if (!puedeFirmarComo(actor.roles, firma.rol)) {
-      return falla(firma.rol === 'JEFE_ALMACEN' ? 'Solo el Jefe de Almacén (o su reemplazo) firma como Jefe de Almacén'
+      return falla(firma.rol === 'JEFE_ALMACEN' ? 'Solo el Jefe de Almacén firma como Jefe de Almacén'
         : firma.rol === 'DIRECCION_TECNICA' ? 'Solo Dirección Técnica firma como Dirección Técnica'
         : firma.rol === 'RESPONSABLE_CONTEO' ? 'Solo el personal de almacén firma como responsable de conteo'
         : 'Solo el personal de almacén registra la firma del transportista')
@@ -714,8 +714,8 @@ export class MotorEntradas {
 
   anularActa(actaId: string, motivo: string, actor: Actor): ResultadoAccion {
     const e = estadoE()
-    if (!actor.roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe' || r === 'direccion_tecnica')) {
-      return falla('Solo el Jefe de Almacén (o su reemplazo) o Dirección Técnica anulan un acta')
+    if (!actor.roles.some((r) => r === 'jefe_almacen' || r === 'direccion_tecnica')) {
+      return falla('Solo el Jefe de Almacén o Dirección Técnica anulan un acta')
     }
     if (!motivo.trim()) return falla('La anulación necesita un motivo')
     const a = e.actas.find((x) => x.id === actaId)
@@ -953,7 +953,7 @@ export class MotorEntradas {
 
   agregarFaltante(expedienteId: string, documento: string, responsable: string, actor: Actor): ResultadoAccion {
     const e = estadoE()
-    if (!actor.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica' || r === 'jefe_almacen' || r === 'reemplazo_jefe')) return falla('No tienes permiso para el expediente')
+    if (!actor.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica' || r === 'jefe_almacen')) return falla('No tienes permiso para el expediente')
     if (!documento.trim() || !responsable.trim()) return falla('Un faltante necesita el documento y su responsable')
     const x = e.expedientes.find((y) => y.id === expedienteId)
     if (!x) return falla('Expediente inexistente')
@@ -966,7 +966,7 @@ export class MotorEntradas {
 
   resolverFaltante(faltanteId: string, nota: string | undefined, actor: Actor): ResultadoAccion {
     const e = estadoE()
-    if (!actor.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica' || r === 'jefe_almacen' || r === 'reemplazo_jefe')) return falla('No tienes permiso para el expediente')
+    if (!actor.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica' || r === 'jefe_almacen')) return falla('No tienes permiso para el expediente')
     for (const x of e.expedientes) {
       const f = x.faltantes.find((y) => y.id === faltanteId)
       if (f) {

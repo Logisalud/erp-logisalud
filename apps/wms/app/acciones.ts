@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { exigirContexto, obtenerContexto } from '@/lib/contexto'
 import { modoDemoActivo } from '@/lib/demo'
-import { COOKIE_ROL_DEMO, rolDemoDesdeCookie } from '@/lib/sesion-demo'
+import { COOKIE_ROL_DEMO, personaDemoDesdeCookie } from '@/lib/sesion-demo'
 import { repositorio } from '@/services/repositorio-actual'
 import { buscar, type ResultadoBusqueda } from '@/domain/panorama'
 import { buscarMovimientos } from '@/domain/movimientos-lista'
@@ -15,9 +15,9 @@ import type { ResultadoAccion } from '@/services/repositorio'
 
 export async function entrarDemo(formData: FormData) {
   if (!modoDemoActivo()) redirect('/login')
-  const rol = rolDemoDesdeCookie(String(formData.get('rol') ?? ''))
-  if (!rol) redirect('/login')
-  cookies().set(COOKIE_ROL_DEMO, rol, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
+  const p = personaDemoDesdeCookie(String(formData.get('rol') ?? ''))
+  if (!p) redirect('/login')
+  cookies().set(COOKIE_ROL_DEMO, p.clave, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
   redirect('/')
 }
 

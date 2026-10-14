@@ -29,12 +29,12 @@ describe('revisión diaria (INV-04)', () => {
     await base.admin.query(`update wms.revisiones_diarias set fecha = fecha - $2::int, numero = 'RD-' || to_char(fecha - $2::int, 'YYYYMMDD') where id = $1`, [id, atras])
   }
 
-  it('solo el Jefe (o su reemplazo) hace el recorrido; hay una revisión por día', async () => {
+  it('solo el Jefe de Almacén (cualquiera con ese rol, p. ej. su reemplazante) hace el recorrido; hay una revisión por día', async () => {
     const aux = await persona('auxiliar')
     expect((await falla(iniciar(aux))).code).toBe('42501')
     expect((await falla(iniciar(P().katia.id))).code).toBe('42501')
     const a = await iniciar()
-    const reemplazo = await persona('reemplazo_jefe')
+    const reemplazo = await persona('jefe_almacen')
     expect(await iniciar(reemplazo)).toBe(a) // la misma del día, no otra
     const r = (await base.admin.query('select numero, estado, fecha::text from wms.revisiones_diarias where id = $1', [a])).rows[0]
     expect(r).toMatchObject({ estado: 'ABIERTA', fecha: await hoy() })
@@ -134,7 +134,7 @@ describe('revisión diaria (INV-04)', () => {
   it('el selector de responsable lista solo al equipo, una fila por persona', async () => {
     const p = await rpc<{ user_id: string; rol: string }>(P().charlie.id, 'select * from wms.personas_del_equipo()')
     expect(new Set(p.map((x) => x.user_id)).size).toBe(p.length)
-    expect(p.map((x) => x.rol).every((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'asistente_dt', 'direccion_tecnica'].includes(r))).toBe(true)
+    expect(p.map((x) => x.rol).every((r) => ['jefe_almacen', 'auxiliar', 'asistente_dt', 'direccion_tecnica'].includes(r))).toBe(true)
     expect(p.some((x) => x.user_id === P().auditor.id)).toBe(false)
     expect(await rpc(P().sinRol.id, 'select * from wms.personas_del_equipo()')).toEqual([])
   })

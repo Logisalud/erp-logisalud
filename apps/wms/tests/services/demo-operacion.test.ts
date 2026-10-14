@@ -28,7 +28,7 @@ describe('revisión diaria', () => {
 
   it('un pendiente que puede afectar producto avisa a Dirección Técnica', async () => {
     const { id } = bien(await repo.iniciarRevision(JEFE))
-    bien(await repo.registrarPendiente(id, { foco: 'ANORMAL', descripcion: 'Goteras sobre el rack G-3', responsableId: 'demo:reemplazo_jefe', critico: true, afectaProducto: true }, JEFE))
+    bien(await repo.registrarPendiente(id, { foco: 'ANORMAL', descripcion: 'Goteras sobre el rack G-3', responsableId: 'demo:reemplazante_jefe', critico: true, afectaProducto: true }, JEFE))
     const a = (await repo.listarAlertas()).find((x) => x.tipo === 'PENDIENTE_AFECTA_PRODUCTO')
     expect(a).toMatchObject({ destinatario: 'direccion_tecnica' })
     expect(a?.mensaje).toContain('Goteras')

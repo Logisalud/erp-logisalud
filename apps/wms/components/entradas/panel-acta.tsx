@@ -74,8 +74,8 @@ export function PanelActa({ solicitud, roles, motivoSinActa, base }: { solicitud
   const [motivo, setMotivo] = useState('')
   const vigente = ingreso.actas.find((a) => a.estado !== 'ANULADA')
   const ultimaAnulada = ingreso.actas.find((a) => a.estado === 'ANULADA' && !ingreso.actas.some((x) => x.reemplazaA === a.id))
-  const puedeEjecutar = roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe' || r === 'auxiliar' || r === 'asistente_dt')
-  const puedeAnular = roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe' || r === 'direccion_tecnica')
+  const puedeEjecutar = roles.some((r) => r === 'jefe_almacen' || r === 'auxiliar' || r === 'asistente_dt')
+  const puedeAnular = roles.some((r) => r === 'jefe_almacen' || r === 'direccion_tecnica')
 
   return (
     <div className="mt-3 space-y-4">

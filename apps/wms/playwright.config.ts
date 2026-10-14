@@ -39,6 +39,6 @@ export default defineConfig({
     url: `http://localhost:${PUERTO}/wms/login`,
     reuseExistingServer: true,
     timeout: 60_000,
-    env: { WMS_DEMO_LOCAL: '1', PORT: String(PUERTO) },
+    env: { WMS_DEMO_LOCAL: '1', WMS_DEMO_DATOS: 'sintetico', PORT: String(PUERTO) },
   },
 })

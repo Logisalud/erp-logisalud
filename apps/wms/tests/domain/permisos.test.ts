@@ -5,7 +5,7 @@ describe('permisos por rol', () => {
   it('solo Dirección Técnica aprueba y ajusta', () => {
     expect(puede(['direccion_tecnica'], 'aprobar')).toBe(true)
     expect(puede(['direccion_tecnica'], 'ajustar')).toBe(true)
-    for (const r of ['asistente_dt', 'jefe_almacen', 'reemplazo_jefe', 'auxiliar'] as const) {
+    for (const r of ['asistente_dt', 'jefe_almacen', 'auxiliar'] as const) {
       expect(puede([r], 'aprobar')).toBe(false)
       expect(puede([r], 'ajustar')).toBe(false)
     }
@@ -37,7 +37,7 @@ describe('permisos por rol', () => {
 describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
   it('la conformidad es un permiso propio: no la tiene el Jefe de Almacén ni el de Transporte', () => {
     expect(puede(['conformidad_despacho'], 'dar_conformidad')).toBe(true)
-    for (const r of ['jefe_almacen', 'reemplazo_jefe', 'jefe_transporte', 'auxiliar', 'asistente_dt', 'direccion_tecnica'] as const) {
+    for (const r of ['jefe_almacen', 'jefe_transporte', 'auxiliar', 'asistente_dt', 'direccion_tecnica'] as const) {
       expect(puede([r], 'dar_conformidad'), r).toBe(false)
     }
     // Un usuario con varios roles (p. ej. Sandra: asistente de DT + conformidad) suma sus permisos.
@@ -68,7 +68,7 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
     expect(esPersonal(['jefe_transporte'])).toBe(true)
   })
   it('todo rol tiene etiqueta y el personal es un subconjunto de los roles', () => {
-    expect(Object.keys(ETIQUETA_ROL)).toHaveLength(13)
+    expect(Object.keys(ETIQUETA_ROL)).toHaveLength(12)
     for (const r of ROLES_DE_PERSONAL) expect(ETIQUETA_ROL[r]).toBeTruthy()
     expect(rolesDesdeTexto('usuario_cliente, jefe_transporte')).toEqual(['usuario_cliente', 'jefe_transporte'])
   })

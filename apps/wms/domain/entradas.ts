@@ -211,11 +211,11 @@ export const ETIQUETA_ROL_FIRMA: Record<RolFirma, string> = {
 /** Qué rol WMS puede firmar cada parte (la base de datos es la que manda). */
 export function puedeFirmarComo(roles: readonly Rol[], firma: RolFirma): boolean {
   switch (firma) {
-    case 'JEFE_ALMACEN': return roles.includes('jefe_almacen') || roles.includes('reemplazo_jefe')
+    case 'JEFE_ALMACEN': return roles.includes('jefe_almacen')
     case 'DIRECCION_TECNICA': return roles.includes('direccion_tecnica')
     case 'RESPONSABLE_CONTEO':
     case 'TRANSPORTISTA':
-      return roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe' || r === 'auxiliar' || r === 'asistente_dt')
+      return roles.some((r) => r === 'jefe_almacen' || r === 'auxiliar' || r === 'asistente_dt')
   }
 }
 
