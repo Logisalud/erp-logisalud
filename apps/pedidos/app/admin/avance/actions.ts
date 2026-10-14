@@ -29,8 +29,9 @@ export async function leerContexto(periodo: string | null): Promise<ContextoDeCa
 }
 
 export async function abrirCarga(cabecera: CabeceraCarga, filas: FilaAvance[]): Promise<string> {
+  const userId = await requireUserId();
   await requireRole(["administrador"]);
-  return crearCarga(cabecera, filas);
+  return crearCarga(cabecera, filas, userId);
 }
 
 export async function subirTandaDeDetalle(cargaId: string, filas: FilaDetalle[]): Promise<number> {

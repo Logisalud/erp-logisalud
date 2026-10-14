@@ -90,7 +90,11 @@ export type CabeceraCarga = {
  * de detalle, los vendedores siguen viendo la de ayer entera, nunca media
  * carga a medio llenar.
  */
-export async function crearCarga(cabecera: CabeceraCarga, filas: FilaAvance[]): Promise<string> {
+export async function crearCarga(
+  cabecera: CabeceraCarga,
+  filas: FilaAvance[],
+  actor: string,
+): Promise<string> {
   const supabase = createClient();
   const porCodigo = new Map((await vendedores()).map((v) => [v.codigo, v.id]));
   const idDe = (codigo: string | null) => (codigo ? (porCodigo.get(codigo.toUpperCase()) ?? null) : null);
@@ -107,6 +111,7 @@ export async function crearCarga(cabecera: CabeceraCarga, filas: FilaAvance[]): 
       filas_avance: filas.length,
       filas_detalle: cabecera.filasDetalle,
       vigente: false,
+      subido_por: actor,
     })
     .select("id")
     .single();
