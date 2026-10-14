@@ -103,29 +103,33 @@ describe('disponible y vendible: una sola fuente', () => {
 })
 
 describe('modo A: FEFO entre lotes aptos', () => {
-  it('toma el lote que vence primero con cantidad suficiente, salta los de menos de 60 días y los vencidos, y reserva por celdas en orden de recorrido', async () => {
+  it('toma del lote que vence primero, salta los de menos de 60 días y los vencidos, y completa con el siguiente lote FEFO válido', async () => {
     const p = await producto()
     await sembrar(p, 'F-1.1', 'VENCIDO', en(-3), logissa, 500)
     await sembrar(p, 'F-1.2', 'CORTO', en(20), logissa, 500) // 20 días: no cumple
-    await sembrar(p, 'F-3.1', 'JUSTO', en(60), logissa, 30) // 60 días: cumple (inclusive) pero no alcanza para 50
+    await sembrar(p, 'F-3.1', 'JUSTO', en(60), logissa, 30) // 60 días: cumple (inclusive); no alcanza solo para 50
     await sembrar(p, 'F-4.1', 'B-LARGO', en(300), logissa, 40)
-    await sembrar(p, 'F-2.1', 'B-LARGO', en(300), logissa, 40) // el mismo lote en dos celdas: F-2 va antes que F-4 en el recorrido
-    await sembrar(p, 'F-5.1', 'A-MEDIO', en(120), logissa, 200) // alcanza y vence antes que B-LARGO
+    await sembrar(p, 'F-2.1', 'B-LARGO', en(300), logissa, 40)
+    await sembrar(p, 'F-5.1', 'A-MEDIO', en(120), logissa, 200) // completa lo que falta
     const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 50 }], 'PED-1')
     expect((await lineas(s))[0].estado).toBe('PENDIENTE')
     const r = await asignar(jt, s)
     expect(r[0]).toMatchObject({ estado: 'ASIGNADA' })
     const l = (await lineas(s))[0]
-    expect(l.lote_codigo).toBe('A-MEDIO')
-    expect(l.fefo_codigo).toBe('A-MEDIO')
+    expect(l.lote_codigo).toBe('JUSTO') // el lote principal de la línea es el primero en FEFO
+    expect(l.fefo_codigo).toBe('JUSTO')
     const rs = await reservas(l.id)
-    expect(rs.map((x) => [x.posicion, x.cantidad, x.estado])).toEqual([['F-5.1', 50, 'ACTIVA']])
+    // Una línea, dos lotes (uno por reserva): 30 de JUSTO y los 20 que faltan de A-MEDIO, cada uno en su ubicación.
+    expect(rs.map((x) => [x.lote, x.posicion, x.cantidad, x.estado])).toEqual([['JUSTO', 'F-3.1', 30, 'ACTIVA'], ['A-MEDIO', 'F-5.1', 20, 'ACTIVA']])
+    expect(rs.reduce((t, x) => t + x.cantidad, 0)).toBe(50)
     // El disponible ya descuenta lo reservado.
-    const f = (await disp(jt, logissa, p)).find((x) => x.lote === 'A-MEDIO')
-    expect(f).toMatchObject({ saldo: 200, comprometido: 50, disponible: 150 })
+    const d = await disp(jt, logissa, p)
+    expect(d.find((x) => x.lote === 'JUSTO')).toMatchObject({ saldo: 30, comprometido: 30, disponible: 0 })
+    expect(d.find((x) => x.lote === 'A-MEDIO')).toMatchObject({ saldo: 200, comprometido: 20, disponible: 180 })
+    expect(d.every((x) => x.disponible >= 0)).toBe(true)
   })
 
-  it('un lote que no alcanza solo no se parte entre dos lotes; el que alcanza y vence primero gana; las celdas van por recorrido', async () => {
+  it('un lote que alcanza en varias celdas no se completa con otro: las celdas van por recorrido', async () => {
     const p = await producto()
     await sembrar(p, 'F-4.1', 'L1', en(100), logissa, 30)
     await sembrar(p, 'F-2.1', 'L1', en(100), logissa, 30) // L1 tiene 60 en total, repartidos en F-2 y F-4
@@ -133,17 +137,39 @@ describe('modo A: FEFO entre lotes aptos', () => {
     const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 45 }])
     await asignar(jt, s)
     const l = (await lineas(s))[0]
-    expect(l.lote_codigo).toBe('L1') // vence antes y entre sus dos celdas alcanza
-    expect((await reservas(l.id)).map((x) => [x.posicion, x.cantidad])).toEqual([['F-2.1', 30], ['F-4.1', 15]])
+    expect(l.lote_codigo).toBe('L1')
+    expect((await reservas(l.id)).map((x) => [x.lote, x.posicion, x.cantidad])).toEqual([['L1', 'F-2.1', 30], ['L1', 'F-4.1', 15]])
   })
 
-  it('dos líneas del mismo producto en una orden no se pisan: la segunda ve lo que reservó la primera', async () => {
+  it('una línea que necesita más de lo que hay en el primer lote se completa con el siguiente, en el orden de recorrido de cada lote', async () => {
+    const p = await producto()
+    await sembrar(p, 'F-4.1', 'L1', en(100), logissa, 30)
+    await sembrar(p, 'F-2.1', 'L1', en(100), logissa, 30)
+    await sembrar(p, 'F-6.1', 'L2', en(150), logissa, 100)
+    const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 80 }])
+    await asignar(jt, s)
+    const l = (await lineas(s))[0]
+    expect(l.estado).toBe('ASIGNADA')
+    expect(l.lote_codigo).toBe('L1')
+    expect((await reservas(l.id)).map((x) => [x.lote, x.posicion, x.cantidad])).toEqual([['L1', 'F-2.1', 30], ['L1', 'F-4.1', 30], ['L2', 'F-6.1', 20]])
+    // La orden de picking lleva una línea por lote y celda, con su ubicación, ordenadas por el recorrido.
+    const o = await como(jt, (c) => c.query('select wms.generar_orden_picking($1) id', [s]))
+    const ol = await q(`select ps.codigo as posicion, lt.codigo as lote, x.cantidad from wms.ordenes_picking_lineas x join wms.posiciones ps on ps.id = x.posicion_id
+        join wms.lotes lt on lt.id = x.lote_id where x.orden_id = $1 order by x.orden_recorrido nulls last, ps.codigo, x.id`, [o.rows[0].id])
+    expect(ol.map((x) => [x.lote, x.posicion, x.cantidad])).toEqual([['L1', 'F-2.1', 30], ['L1', 'F-4.1', 30], ['L2', 'F-6.1', 20]])
+  })
+
+  it('nunca toma más de lo disponible: lo reservado por otra línea no cuenta, y el disponible nunca queda negativo', async () => {
     const p = await producto()
     await sembrar(p, 'F-1.1', 'U1', en(100), logissa, 60)
     await sembrar(p, 'F-2.1', 'U2', en(200), logissa, 60)
     const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 50 }, { producto_id: p, cantidad: 50 }])
     await asignar(jt, s)
-    expect((await lineas(s)).map((x) => x.lote_codigo)).toEqual(['U1', 'U2'])
+    const ls = await lineas(s)
+    expect(ls.map((x) => x.estado)).toEqual(['ASIGNADA', 'ASIGNADA'])
+    expect((await reservas(ls[0].id)).map((x) => [x.lote, x.cantidad])).toEqual([['U1', 50]])
+    expect((await reservas(ls[1].id)).map((x) => [x.lote, x.cantidad])).toEqual([['U1', 10], ['U2', 40]]) // la segunda ve lo que reservó la primera
+    expect((await disp(jt, logissa, p)).every((x) => x.disponible >= 0)).toBe(true)
   })
 
   it('sin stock: la línea queda SIN_STOCK, se alerta al Jefe de Transporte (una sola vez) y se resuelve al llegar stock', async () => {
@@ -163,6 +189,47 @@ describe('modo A: FEFO entre lotes aptos', () => {
     const r2 = await asignar(jt, s)
     expect(r2[0]).toMatchObject({ estado: 'ASIGNADA' })
     expect((await q(`select estado from wms.alertas where tipo = 'STOCK_INSUFICIENTE' and producto_id = $1`, [p]))[0].estado).toBe('ATENDIDA')
+  })
+
+  it('ni sumando los lotes alcanza: no se reserva nada, la línea queda SIN_STOCK y se genera la alerta de stock insuficiente', async () => {
+    const p = await producto()
+    await sembrar(p, 'F-1.1', 'P1', en(90), logissa, 20)
+    await sembrar(p, 'F-1.2', 'P2', en(120), logissa, 15)
+    await sembrar(p, 'F-1.3', 'P3-CORTO', en(30), logissa, 400) // no cumple 60 días: no suma
+    const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 50 }])
+    const r = await asignar(jt, s)
+    expect(r[0].estado).toBe('SIN_STOCK')
+    expect(r[0].mensaje).toMatch(/Stock insuficiente: la línea pide 50 y, sumando todos los lotes aptos, hay 35/)
+    expect(await reservas((await lineas(s))[0].id)).toHaveLength(0) // todo o nada: no queda una reserva parcial
+    const d = await disp(jt, logissa, p)
+    expect(d.find((x) => x.lote === 'P1')).toMatchObject({ comprometido: 0, disponible: 20 })
+    expect(d.every((x) => x.disponible >= 0)).toBe(true)
+    const alertas = await q(`select * from wms.alertas where tipo = 'STOCK_INSUFICIENTE' and producto_id = $1`, [p])
+    expect(alertas).toHaveLength(1)
+    expect(alertas[0]).toMatchObject({ destinatario_rol: 'jefe_transporte', estado: 'ABIERTA' })
+    expect(alertas[0].mensaje).toMatch(/Stock insuficiente/)
+  })
+
+  it('una línea con varios lotes se retorna por lote: el retorno nunca supera lo que salió de ese lote', async () => {
+    const p = await producto()
+    await sembrar(p, 'F-1.1', 'R1', en(90), logissa, 30)
+    await sembrar(p, 'F-1.2', 'R2', en(150), logissa, 30)
+    const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 40 }])
+    await asignar(jt, s)
+    const l = (await lineas(s))[0]
+    const o = (await como(jt, (c) => c.query('select wms.generar_orden_picking($1) id', [s]))).rows[0].id
+    for (const ol of await q('select id from wms.ordenes_picking_lineas where orden_id = $1', [o])) {
+      await como(aux1, (c) => c.query(`select wms.registrar_picking($1, 'PICKEADA', (select cantidad from wms.ordenes_picking_lineas where id = $1))`, [ol.id]))
+      await como(sandra, (c) => c.query(`select wms.dar_conformidad($1, 'CONFORME')`, [ol.id]))
+    }
+    await como(jt, (c) => c.query('select wms.confirmar_salida($1)', [s]))
+    const r2 = (await q(`select id from wms.lotes where producto_id = $1 and codigo = 'R2'`, [p]))[0].id
+    expect(l.estado).toBe('ASIGNADA')
+    // Salieron 30 de R1 y 10 de R2: de R2 no pueden volver más de 10.
+    expect((await falla(como(aux1, (c) => c.query('select wms.registrar_retorno($1, 11, null, null, $2)', [l.id, r2])))).message).toMatch(/No puede volver más de lo que salió/)
+    await como(aux1, (c) => c.query('select wms.registrar_retorno($1, 10, null, null, $2)', [l.id, r2]))
+    const rs = await reservas(l.id)
+    expect(rs.map((x) => [x.lote, x.cantidad, x.cantidad_retornada]).sort()).toEqual([['R1', 30, 0], ['R2', 10, 10]])
   })
 
   it('una ubicación en conteo no se cuenta como stock: el mensaje dice «en conteo», no «no hay»', async () => {

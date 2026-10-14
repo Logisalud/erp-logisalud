@@ -204,4 +204,4 @@ Ver `docs/wms/decisiones-pendientes.md` (D-01..D-29). Ninguna bloquea la aprobac
 5. Leer `apps/wms/CLAUDE.md`, `gate-0.md` y `decisiones-pendientes.md`.
 
 ## S2 — núcleo de stock de salidas (migración 0012, sin aplicar)
-Reservas, asignación FEFO/lote del cliente, picking, conformidad, salida y retorno en la base, con 257 pruebas de base de datos en verde. Interpretación a confirmar: D-76. Pendiente después: pantallas (S3 en adelante).
+Reservas, asignación FEFO/lote del cliente, picking, conformidad, salida y retorno en la base, con 257 pruebas de base de datos en verde. D-76 decidida (tipo A: una línea con varios lotes; tipo B: un lote por línea); interpretaciones en D-77. Prueba de SEC1 en `it.skip` hasta que SEC1 termine. Pendiente después: pantallas (S3 en adelante).

@@ -9,7 +9,9 @@
 --   2. `salidas` y `salida_lineas` (tres tipos: DISTRIBUCION de Logissa, CLIENTE por cuenta de un cliente de almacenamiento,
 --      MUESTRA de Logissa), `reservas` (la asignación física: celda + lote + cantidad) y `cambios_lote_asignado` (la excepción).
 --   3. Dos modos de asignación: A = FEFO entre lotes Aprobados, sin bloqueo, no vencidos y con ≥ 60 días (parámetro; las muestras
---      no exigen los 60 días); B = el lote que indica el cliente, con validación completa. Una línea = un lote.
+--      no exigen los 60 días); B = el lote que indica el cliente, con validación completa.
+--      En A una línea puede repartirse en varios lotes (D-76): se toma lo que haya del lote FEFO válido y se completa con el siguiente;
+--      en B una línea = un lote (si el cliente necesita dos lotes, usa dos líneas).
 --      Vencidos: el stock de Logissa NUNCA sale vencido; el de un cliente solo con motivo pesquisa DIGEMID, destrucción o
 --      devolución al proveedor y con aprobación de Dirección Técnica (D-69).
 --   4. Cambio de lote por la ÚNICA excepción (D-62): Jefe de Almacén / reemplazo / Jefe de Transporte, antes del picking, con un
@@ -365,14 +367,15 @@ begin
   if not wms.tiene_permiso(p_accion) then raise exception '%', p_mensaje using errcode = '42501'; end if;
 end $$;
 
--- Reserva `cantidad` unidades de UN lote, celda por celda en orden de recorrido. Quien la llama ya verificó que alcanza.
-create or replace function wms._reservar_en_lote(p_linea uuid, p_lote uuid) returns void
+-- Reserva `p_cantidad` unidades de UN lote para la línea, celda por celda en orden de recorrido. Quien la llama ya verificó que alcanza.
+-- Una línea puede tener varias reservas de lotes distintos (D-76, tipo A); cada una lleva su lote, su celda y su cantidad.
+create or replace function wms._reservar_en_lote(p_linea uuid, p_lote uuid, p_cantidad integer) returns void
 language plpgsql security definer set search_path = wms, pg_temp as $$
 declare l wms.salida_lineas; s wms.salidas; c record; v_restante integer; v_tomar integer;
 begin
   select * into l from wms.salida_lineas where id = p_linea;
   select * into s from wms.salidas where id = l.salida_id;
-  v_restante := l.cantidad;
+  v_restante := p_cantidad;
   for c in select * from wms._candidatos(s.propietario_id, l.producto_id) x
             where x.lote_id = p_lote and x.disponible > 0 and not x.en_conteo
             order by x.orden_recorrido nulls last, x.posicion, x.disponible desc, x.procedencia_id loop
@@ -387,14 +390,18 @@ begin
   end if;
 end $$;
 
--- Asigna UNA línea: el lote (B = el indicado; A = el que vence primero con cantidad suficiente, entre los aptos) y sus celdas.
--- Devuelve null si quedó asignada, o el motivo por el que no hay stock (la línea queda SIN_STOCK y se alerta al Jefe de Transporte).
+-- Asigna UNA línea. Tipo B (por cuenta de un cliente): un solo lote, el que indica el cliente, con toda la cantidad.
+-- Tipo A (distribución) y muestras: el pedido no trae lote (D-76); se toma lo que haya del lote FEFO válido y se completa, automáticamente,
+-- con el siguiente lote FEFO válido, y así hasta cubrir la cantidad. La línea queda con una reserva por lote y celda (cada una con su ubicación
+-- en la orden de picking). Solo entran lotes aptos (no vencidos; 60 días de vida útil en distribución), sin bloqueo, fuera de conteo y con
+-- saldo disponible positivo: nunca se toma más de lo disponible. Si ni sumando los lotes alcanza, no se reserva nada: la línea queda
+-- SIN_STOCK y se alerta al Jefe de Transporte. Devuelve null si quedó asignada, o el motivo por el que no hay stock.
 create or replace function wms._asignar_linea(p_linea uuid) returns text
 language plpgsql security definer set search_path = wms, pg_temp as $$
 declare
   l wms.salida_lineas; s wms.salidas;
-  v_hoy date := wms._hoy_lima(); v_min integer; v_lote uuid;
-  v_total integer; v_conteo integer; v_noapto integer; v_msg text; v_prod text; v_cod text;
+  v_hoy date := wms._hoy_lima(); v_min integer; v_lote uuid; v_primero uuid; v_restante integer; v_tomar integer; c record;
+  v_apto integer; v_total integer; v_conteo integer; v_noapto integer; v_msg text; v_prod text; v_cod text;
 begin
   select * into l from wms.salida_lineas where id = p_linea for update;
   select * into s from wms.salidas where id = l.salida_id;
@@ -402,20 +409,46 @@ begin
   v_min := case when s.tipo = 'DISTRIBUCION'
                 then coalesce((select p.valor::integer from wms.parametros p where p.clave = 'vida_util_minima_venta_dias'), 60) else 0 end;
 
-  select x.lote_id into v_lote from (
-    select c.lote_id, c.vence, c.lote, sum(c.disponible) as total
-      from wms._candidatos(s.propietario_id, l.producto_id) c
-      cross join lateral wms._lote_apto(c.vence, s.tipo, s.motivo, v_hoy, v_min) a
-     where c.disponible > 0 and not c.en_conteo and a.apto and not wms.lote_bloqueado(c.lote_id)
-       and (l.lote_indicado_id is null or c.lote_id = l.lote_indicado_id)
-     group by c.lote_id, c.vence, c.lote
-    having sum(c.disponible) >= l.cantidad
-     order by c.vence nulls last, c.lote
-     limit 1) x;
+  if l.lote_indicado_id is not null then
+    -- Tipo B: una línea, un lote, el que indica el cliente, con toda la cantidad.
+    select x.lote_id into v_lote from (
+      select c2.lote_id, c2.vence, c2.lote, sum(c2.disponible) as total
+        from wms._candidatos(s.propietario_id, l.producto_id) c2
+        cross join lateral wms._lote_apto(c2.vence, s.tipo, s.motivo, v_hoy, v_min) a
+       where c2.disponible > 0 and not c2.en_conteo and a.apto and not wms.lote_bloqueado(c2.lote_id) and c2.lote_id = l.lote_indicado_id
+       group by c2.lote_id, c2.vence, c2.lote
+      having sum(c2.disponible) >= l.cantidad
+       limit 1) x;
+    if v_lote is not null then
+      perform wms._reservar_en_lote(p_linea, v_lote, l.cantidad);
+      v_primero := v_lote;
+    end if;
+  else
+    -- Tipo A y muestras: FEFO lote por lote hasta cubrir la cantidad (todo o nada).
+    select coalesce(sum(c2.disponible), 0)::integer into v_apto
+      from wms._candidatos(s.propietario_id, l.producto_id) c2
+      cross join lateral wms._lote_apto(c2.vence, s.tipo, s.motivo, v_hoy, v_min) a
+     where c2.disponible > 0 and not c2.en_conteo and a.apto and not wms.lote_bloqueado(c2.lote_id);
+    if v_apto >= l.cantidad then
+      v_restante := l.cantidad;
+      for c in select c2.lote_id, sum(c2.disponible)::integer as total
+                 from wms._candidatos(s.propietario_id, l.producto_id) c2
+                 cross join lateral wms._lote_apto(c2.vence, s.tipo, s.motivo, v_hoy, v_min) a
+                where c2.disponible > 0 and not c2.en_conteo and a.apto and not wms.lote_bloqueado(c2.lote_id)
+                group by c2.lote_id, c2.vence, c2.lote
+                order by c2.vence nulls last, c2.lote loop
+        exit when v_restante <= 0;
+        v_tomar := least(c.total, v_restante);
+        perform wms._reservar_en_lote(p_linea, c.lote_id, v_tomar);
+        v_primero := coalesce(v_primero, c.lote_id);
+        v_restante := v_restante - v_tomar;
+      end loop;
+    end if;
+  end if;
 
-  if v_lote is not null then
-    perform wms._reservar_en_lote(p_linea, v_lote);
-    update wms.salida_lineas set lote_id = v_lote, lote_fefo_id = coalesce(lote_fefo_id, v_lote), estado = 'ASIGNADA', nota_stock = null
+  if v_primero is not null then
+    -- lote_id / lote_fefo_id guardan el lote principal (el primero en FEFO); el detalle por lote está en las reservas.
+    update wms.salida_lineas set lote_id = v_primero, lote_fefo_id = coalesce(lote_fefo_id, v_primero), estado = 'ASIGNADA', nota_stock = null
      where id = p_linea;
     update wms.alertas set estado = 'ATENDIDA', atendida_en = now(), nota_atencion = 'La línea quedó asignada'
      where clave = 'stock:' || p_linea and estado = 'ABIERTA';
@@ -423,16 +456,21 @@ begin
   end if;
 
   -- No alcanzó: se explica por qué (poco stock, ubicaciones en conteo o lotes que no cumplen vencimiento/vida útil).
-  select coalesce(sum(c.disponible) filter (where c.disponible > 0), 0), coalesce(sum(c.disponible) filter (where c.disponible > 0 and c.en_conteo), 0),
-         coalesce(sum(c.disponible) filter (where c.disponible > 0 and not c.en_conteo and not a.apto), 0)
-    into v_total, v_conteo, v_noapto
-    from wms._candidatos(s.propietario_id, l.producto_id) c
-    cross join lateral wms._lote_apto(c.vence, s.tipo, s.motivo, v_hoy, v_min) a
-   where l.lote_indicado_id is null or c.lote_id = l.lote_indicado_id;
+  select coalesce(sum(c2.disponible) filter (where c2.disponible > 0), 0), coalesce(sum(c2.disponible) filter (where c2.disponible > 0 and c2.en_conteo), 0),
+         coalesce(sum(c2.disponible) filter (where c2.disponible > 0 and not c2.en_conteo and not a.apto), 0),
+         coalesce(sum(c2.disponible) filter (where c2.disponible > 0 and not c2.en_conteo and a.apto and not wms.lote_bloqueado(c2.lote_id)), 0)
+    into v_total, v_conteo, v_noapto, v_apto
+    from wms._candidatos(s.propietario_id, l.producto_id) c2
+    cross join lateral wms._lote_apto(c2.vence, s.tipo, s.motivo, v_hoy, v_min) a
+   where l.lote_indicado_id is null or c2.lote_id = l.lote_indicado_id;
   select codigo into v_prod from catalogo.productos where id = l.producto_id;
   select codigo into v_cod from wms.lotes where id = l.lote_indicado_id;
-  v_msg := format('No hay %s con %s unidades disponibles', case when l.lote_indicado_id is null then 'un lote' else 'en el lote ' || v_cod end, l.cantidad)
-        || format(' (hay %s en total', v_total)
+  if l.lote_indicado_id is null then
+    v_msg := format('Stock insuficiente: la línea pide %s y, sumando todos los lotes aptos, hay %s', l.cantidad, v_apto);
+  else
+    v_msg := format('No hay en el lote %s con %s unidades disponibles (hay %s)', v_cod, l.cantidad, v_apto);
+  end if;
+  v_msg := v_msg || format(' (hay %s en total', v_total)
         || case when v_conteo > 0 then format(', %s en ubicaciones en conteo', v_conteo) else '' end
         || case when v_noapto > 0 then format(', %s de lotes que no cumplen vencimiento o vida útil', v_noapto) else '' end || ')';
   update wms.salida_lineas set estado = 'SIN_STOCK', nota_stock = v_msg where id = p_linea;
@@ -567,6 +605,9 @@ begin
   if l.estado not in ('ASIGNADA', 'EN_PICKING') then
     raise exception 'La línea no está asignada o ya salió del picking: no se cambia el lote' using errcode = 'P0001';
   end if;
+  if (select count(distinct r.lote_id) from wms.reservas r where r.linea_id = p_linea and r.estado = 'ACTIVA') > 1 then
+    raise exception 'La línea está repartida en varios lotes (no alcanzaba un solo lote): el cambio de lote solo aplica a líneas de un lote' using errcode = 'P0001';
+  end if;
   if exists (select 1 from wms.ordenes_picking_lineas ol where ol.linea_id = p_linea and ol.picking <> 'PENDIENTE') then
     raise exception 'Ya empezó el picking de esta línea: no se cambia el lote' using errcode = 'P0001';
   end if;
@@ -594,7 +635,7 @@ begin
   end if;
 
   update wms.reservas set estado = 'LIBERADA', actualizada_en = now() where linea_id = p_linea and estado = 'ACTIVA';
-  perform wms._reservar_en_lote(p_linea, v_new.id);
+  perform wms._reservar_en_lote(p_linea, v_new.id, l.cantidad);
   update wms.salida_lineas set lote_id = v_new.id where id = p_linea;
   insert into wms.cambios_lote_asignado (linea_id, lote_anterior_id, lote_nuevo_id, motivo, por) values (p_linea, v_old.id, v_new.id, p_motivo, auth.uid());
   -- Si ya hay orden de picking, se reescriben sus líneas (ninguna se había pickeado).
@@ -613,11 +654,11 @@ end $$;
 
 -- El picker no encuentra el lote asignado (solo en A): primero el MISMO lote en otra ubicación; si no, el siguiente FEFO válido
 -- (y, si la línea tenía la excepción, uno que también venza después del lote original).
-create or replace function wms.proponer_reemplazo(p_linea uuid)
+create or replace function wms.proponer_reemplazo(p_linea uuid, p_lote uuid default null)
 returns table (posicion_id uuid, posicion text, lote_id uuid, lote text, vence date, disponible integer, motivo text)
 language plpgsql stable security definer set search_path = wms, pg_temp as $$
 #variable_conflict use_column
-declare l wms.salida_lineas; s wms.salidas; v_hoy date := wms._hoy_lima(); v_min integer; v_orig date;
+declare l wms.salida_lineas; s wms.salidas; v_hoy date := wms._hoy_lima(); v_min integer; v_orig date; v_lote uuid; v_cant integer;
 begin
   if not wms.es_usuario() then raise exception 'Sin acceso' using errcode = '42501'; end if;
   select * into l from wms.salida_lineas where id = p_linea;
@@ -626,11 +667,16 @@ begin
   if s.tipo = 'CLIENTE' then raise exception 'En una salida de cliente el lote lo indica el cliente: no hay reemplazo' using errcode = 'P0001'; end if;
   v_min := case when s.tipo = 'DISTRIBUCION' then coalesce((select p.valor::integer from wms.parametros p where p.clave = 'vida_util_minima_venta_dias'), 60) else 0 end;
   select lt.vence into v_orig from wms.lotes lt where lt.id = l.lote_fefo_id;
+  -- El lote que el picker no encuentra (por defecto, el principal de la línea) y cuántas unidades de ese lote lleva la línea.
+  v_lote := coalesce(p_lote, l.lote_id);
+  select coalesce(sum(r.cantidad), 0)::integer into v_cant from wms.reservas r
+   where r.linea_id = l.id and r.lote_id = v_lote and r.estado in ('ACTIVA', 'EN_TRANSITO');
+  if v_cant = 0 then raise exception 'Ese lote no está asignado a esta línea' using errcode = 'P0001'; end if;
   return query
   select c.posicion_id, c.posicion, c.lote_id, c.lote, c.vence, c.disponible, 'MISMO_LOTE_OTRA_UBICACION'::text
     from wms._candidatos(s.propietario_id, l.producto_id) c
-   where c.lote_id = l.lote_id and c.disponible >= l.cantidad and not c.en_conteo
-     and not exists (select 1 from wms.reservas r where r.linea_id = l.id and r.posicion_id = c.posicion_id and r.estado in ('ACTIVA', 'EN_TRANSITO'))
+   where c.lote_id = v_lote and c.disponible >= v_cant and not c.en_conteo
+     and not exists (select 1 from wms.reservas r where r.linea_id = l.id and r.lote_id = v_lote and r.posicion_id = c.posicion_id and r.estado in ('ACTIVA', 'EN_TRANSITO'))
    order by c.orden_recorrido nulls last, c.posicion;
   if found then return; end if;
   return query
@@ -639,9 +685,9 @@ begin
                  sum(c.disponible) over (partition by c.lote_id) as total, c.orden_recorrido
             from wms._candidatos(s.propietario_id, l.producto_id) c
             cross join lateral wms._lote_apto(c.vence, s.tipo, s.motivo, v_hoy, v_min) a
-           where c.lote_id <> l.lote_id and c.disponible > 0 and not c.en_conteo and a.apto and not wms.lote_bloqueado(c.lote_id)
+           where c.lote_id <> v_lote and c.disponible > 0 and not c.en_conteo and a.apto and not wms.lote_bloqueado(c.lote_id)
            order by c.lote_id, c.orden_recorrido nulls last, c.posicion) x
-   where x.total >= l.cantidad and (v_orig is null or l.lote_id = l.lote_fefo_id or x.vence > v_orig)
+   where x.total >= v_cant and (v_orig is null or v_lote = l.lote_fefo_id or x.vence > v_orig)
    order by x.vence nulls last, x.lote
    limit 5;
 end $$;
@@ -827,7 +873,7 @@ begin
 end $$;
 
 -- Retorno de un pedido no entregado: RETORNO a la zona Retorno reservado, con el mismo lote, propietario y procedencia. Tope: nunca más de lo que salió.
-create or replace function wms.registrar_retorno(p_linea uuid, p_cantidad integer, p_destino uuid default null, p_token text default null)
+create or replace function wms.registrar_retorno(p_linea uuid, p_cantidad integer, p_destino uuid default null, p_token text default null, p_lote uuid default null)
 returns uuid language plpgsql security definer set search_path = wms, pg_temp as $$
 declare
   l wms.salida_lineas; s wms.salidas; r wms.reservas; v_dst uuid; v_paso uuid; v_mov uuid; v_origen text; v_pend integer; v_resto integer;
@@ -842,13 +888,13 @@ begin
   select * into l from wms.salida_lineas where id = p_linea for update;
   if not found then raise exception 'No encontramos esa línea' using errcode = 'P0001'; end if;
   select * into s from wms.salidas where id = l.salida_id;
-  select coalesce(sum(cantidad - cantidad_retornada), 0) into v_pend from wms.reservas where linea_id = p_linea and estado = 'CONSUMIDA';
+  select coalesce(sum(cantidad - cantidad_retornada), 0) into v_pend from wms.reservas where linea_id = p_linea and estado = 'CONSUMIDA' and (p_lote is null or lote_id = p_lote);
   if p_cantidad > v_pend then
     raise exception 'No puede volver más de lo que salió (salieron % sin retorno, se intenta devolver %)', v_pend, p_cantidad using errcode = 'P0001';
   end if;
   v_dst := wms._posicion_de_zona('RETORNO_RESERVADO', p_destino);
   v_resto := p_cantidad;
-  for r in select * from wms.reservas where linea_id = p_linea and estado = 'CONSUMIDA' and cantidad_retornada < cantidad order by id for update loop
+  for r in select * from wms.reservas where linea_id = p_linea and estado = 'CONSUMIDA' and cantidad_retornada < cantidad and (p_lote is null or lote_id = p_lote) order by id for update loop
     exit when v_resto <= 0;
     v_tomar := least(v_resto, r.cantidad - r.cantidad_retornada);
     select origen into v_origen from wms.partidas where procedencia_id = r.procedencia_id and lote_id = r.lote_id order by id limit 1;
@@ -1323,7 +1369,7 @@ create trigger conteo_sin_salidas_abiertas before insert on wms.conteo_lineas
 grant execute on function
   wms.disponibilidad_por_lote(uuid, uuid), wms.stock_vendible(uuid), wms.lote_bloqueado(uuid),
   wms.crear_salida(text, text, uuid, jsonb, text, text, text), wms.asignar_salida(uuid), wms.aprobar_salida_vencida(uuid, text),
-  wms.cambiar_lote_asignado(uuid, uuid, text), wms.proponer_reemplazo(uuid), wms.generar_orden_picking(uuid),
+  wms.cambiar_lote_asignado(uuid, uuid, text), wms.proponer_reemplazo(uuid, uuid), wms.generar_orden_picking(uuid),
   wms.registrar_picking(uuid, text, integer, text), wms.dar_conformidad(uuid, text, text, uuid), wms.confirmar_salida(uuid, text),
-  wms.registrar_retorno(uuid, integer, uuid, text), wms.cancelar_salida(uuid, text) to authenticated;
+  wms.registrar_retorno(uuid, integer, uuid, text, uuid), wms.cancelar_salida(uuid, text) to authenticated;
 revoke execute on all functions in schema wms from public;
