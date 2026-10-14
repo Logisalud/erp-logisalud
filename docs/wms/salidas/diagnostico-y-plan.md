@@ -54,7 +54,7 @@ RUT-12 Retornos:  «No entregado» → zona Retorno reservado (sigue reservado a
 | Los documentos definitivos (GRE, factura) se emiten **después** de la conformidad, no antes | 02, 03 | Se acaban las anulaciones por falta de stock. El WMS debe poder bloquear un pedido antes de cualquier documento. |
 | La conformidad es un control **independiente**; Transporte deja de recontar | 04, 07 | Una sola barrera de contenido. Transporte controla bultos, sellos, documentos y carga. |
 | Existe el **bulto** con ID | 05 | Nueva unidad logística: se escanea al cargar y al retornar. |
-| **Liberar unidad** + **Salida confirmada** como eventos | 07 | Hoy no hay OK de salida formal; el stock se valida horas después en Odoo. |
+| **Liberar unidad** + **Salida confirmada** como eventos | 07 | Hoy no hay OK de salida formal; el stock se valida horas después en Odoo (que el WMS reemplaza). |
 | Tracking por **eventos** (no por WhatsApp + Excel) | 09 | Los datos del LS-FR.43.03 se capturan **una vez**, durante la ruta. |
 | Reprogramar = **nuevo intento** sobre el mismo pedido; nunca se edita una GRE | 08, 10, 12 | Historial de intentos; anulación/reemisión formal. |
 | El LS-FR.43.03 **lo genera el WMS** al cierre | 11 | Se elimina el llenado a mano que hoy hacen los transportistas. |
@@ -95,11 +95,11 @@ Nunca stock negativo · el ledger es la fuente del stock y nada se borra (revers
 
 **1. (Resuelto) El Master ya está en el repo.** Estados, roles, KPI y mapa del LS-FR se contrastaron; ver conflictos 15 a 18 para lo que el Master trajo.
 
-**2. Odoo: «integrar el movimiento con ERP/Odoo» (RUT-07 paso 9, Implementación P1) vs «el WMS reemplaza a Odoo cuando existan salidas» (reglas-negocio, Transición).**
-- *Impacto:* durante las 4 semanas de paralelo, Charlie hoy valida la salida en Odoo **horas después**; el RUT dice que la salida sincroniza al instante sin esperar esa validación. Ambas cosas no pueden ser ciertas a la vez sin escribir en Odoo.
-- *Alternativas:* (a) integración automática con Odoo (costo y riesgo; no hay API acordada); (b) **durante el paralelo**, «Salida confirmada» en el WMS genera una cola «por validar en Odoo» (con el mismo contenido de la hoja de Odoo) y el reporte «WMS vs Odoo» concilia; después del corte no hay integración; (c) no tener paralelo (descartado: ya lo decidiste).
-- *Master:* su hoja `07_Roadmap` también pone «Odoo/ERP» entre las integraciones P1 («después de estados núcleo»), y su hoja de roles dice que el responsable de almacén «deja de validar Odoo horas después». Pero la transición decidida (el WMS reemplaza a Odoo tras el paralelo) es regla cerrada y gana.
-- *Recomendación [B]:* **(b)**. Es temporal, sin costo y compatible con tu decisión de paralelo. **Decide Sebas.**
+**2. Odoo (RESUELTO por Sebas, 2026-10-14): Odoo desaparece; el WMS lo reemplaza. No se integra ni se usa.** El Master (hoja `07_Roadmap`, integraciones P1 «Odoo/ERP») y RUT-07 (paso 9, «integra con ERP/Odoo») hablaban de sincronizar con Odoo; por esta decisión **esa integración se descarta**: «Salida confirmada» es el movimiento definitivo del WMS y no se envía a ningún ERP. Consecuencias que dejo anotadas:
+- **Fuera del diseño:** la cola «por validar en Odoo», el reporte de conciliación con Odoo para salidas y cualquier escritura en Odoo.
+- **El WMS pasa a ser la fuente de verdad de las salidas** (hoja de salida, lote y ubicación, validación de la salida). Lo que hoy se hace en Odoo —preparar la salida con ubicación y lote, imprimir la hoja de salida, validar la salida horas después, anular o revertir la salida de un rechazo— lo cubre el WMS.
+- **Stock vendible para Pedidos (INV-01):** hoy es una carga manual diaria desde Odoo; pasa a publicarlo el WMS (§4.1).
+- **Se mantiene** lo ya decidido sobre la **carga inicial** (una exportación única de Odoo tras el inventario general) y el **paralelo de 4 semanas**, que solo sirve para comparar y firmar diferencias (ver `carga-inicial-odoo.md`): mientras dure, Odoo se sigue usando por el equipo; **el WMS nunca lee ni escribe en Odoo**. Si ya no quieres ese paralelo, dímelo y lo quito del plan.
 
 **3. Pedidos ya tiene su propio módulo de despacho** (`pedidos.fulfillments`, `confirm_dispatch`, estado terminal `DISPATCHED`, `stock_levels`/`stock_lotes` manuales; 0045–0049) **que choca con las salidas del WMS:**
 - *Qué choca:* (i) dos fuentes de verdad del despacho; (ii) Pedidos **no bloquea por falta de stock** («pendiente_de_stock») mientras el WMS nunca admite negativo ni stock no Aprobado; (iii) Pedidos elige la «fuente de stock» (central/regional) al despachar, mientras el WMS maneja propietario; (iv) `DISPATCHED` es terminal y no existe «no entregado / rechazado / reprogramado»; (v) `vehicles`/`drivers`/`transporters` son catálogos de solo nombre (sin placa, sin «calificado»).
@@ -209,7 +209,7 @@ Estado actual en todas las filas: *no existe en el WMS* salvo donde se indica.
 | 7.5 | **Liberar unidad** solo con conciliación, checklist, documentos y vehículo calificado | A | — | Crít | Acción protegida en DB (`liberar_unidad`) | P0 |
 | 7.6 | **Salida confirmada** con hora real y **movimiento definitivo de stock** | A | No existe `SALIDA` en el ledger | Crít | Transaccional e idempotente (§4.3) | P0 |
 | 7.7 | Actualizar el LS-FR con la hora real y dejar la ruta «En ruta» | A | — | Alta | Evento → registro | P1 |
-| 7.8 | Integración con ERP/Odoo | A | Conflicto 2 | Alta | Cola «por validar en Odoo» durante el paralelo | P1 |
+| 7.8 | ~~Integración con ERP/Odoo~~ | A (descartado) | Conflicto 2 resuelto: Odoo desaparece | — | No se construye integración; el WMS es la fuente de verdad | — |
 
 ### RUT-08 Coordinación con transportistas
 | # | Requerimiento | Fuente | Gap | Sev | Cambio | Pri |
@@ -282,7 +282,7 @@ Estado actual en todas las filas: *no existe en el WMS* salvo donde se indica.
 - **Adaptador SQL (tras consolidar):** una vista y una función en el mismo proyecto. Cambia el adaptador, no el dominio.
 - **Dirección «entrada» (Pedidos → WMS): *pull* idempotente.** El WMS consulta (al abrir la bandeja y por una tarea programada) y hace `upsert` por `(pedido_id, versión)` en `wms.pedidos_despacho`. Reintentar nunca duplica. Si Pedidos no responde, el WMS sigue operando con lo ya importado y la bandeja muestra «última actualización hace X». Un pedido modificado en Pedidos después de importarse genera una nueva versión y **alerta** al planificador (no se pisa en silencio).
 - **Dirección «salida» (WMS → Pedidos): *outbox*.** Cada evento relevante se escribe en `wms.eventos_salida` **en la misma transacción** que el cambio de estado, con clave de idempotencia (`pedido + tipo + intento`); un despachador los envía con reintentos y backoff. Si Pedidos está caído, nada se pierde ni bloquea el almacén; al volver, se entregan en orden. Pedidos aplica cada evento una sola vez (guarda la clave).
-- **Stock vendible (INV-01, hoy carga manual diaria de Odoo):** el WMS publica `GET …/wms/api/stock-vendible` (también HMAC) con producto/lote/vencimiento/cantidad **vendible**; el importador que Pedidos ya tiene para `stock_lotes` lo consume en lugar del Excel. Es el reemplazo natural del paso manual. *Depende de que el stock del WMS sea real (carga inicial, hoy postergada hasta que existan salidas).*
+- **Stock vendible (INV-01, hoy carga manual diaria desde Odoo, que el WMS reemplaza):** el WMS publica `GET …/wms/api/stock-vendible` (también HMAC) con producto/lote/vencimiento/cantidad **vendible**; el importador que Pedidos ya tiene para `stock_lotes` lo consume en lugar del Excel. Es el reemplazo natural del paso manual. *Depende de que el stock del WMS sea real (carga inicial, hoy postergada hasta que existan salidas).*
 - **Costo:** **ninguno nuevo**, todo cabe en lo que ya pagas: rutas serverless y **Vercel Cron** (Vercel Pro) para la importación programada; **Resend** para avisos por correo (pedido cambiado tras importarse, retorno sin ubicar, ruta pendiente de cierre); en Supabase Pro, `pg_cron` para los despachadores y revisiones periódicas, y **Realtime** si el tablero de ruta lo justifica. No hace falta una cola externa.
 - **Riesgos:** secreto compartido (rotarlo; guardarlo solo en variables del entorno, **requiere tu aprobación para configurar variables en producción**); desfase de versión (mitigado por alerta); duplicados (idempotencia en ambos lados).
 - **Cambios en Pedidos (aditivos, necesitan tu aprobación):** columnas de cliente (coordenadas, ventana de cita, vehículo calificado, mínimo de vencimiento), las dos rutas, y la aplicación de eventos. Lo **no aditivo** (apagar `confirm_dispatch`; conflicto 3) se pide aparte.
@@ -416,7 +416,7 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 | **S5** | **Picking (RUT-03) y Conformidad (RUT-04):** colas por rol, discrepancia ≠ sin stock, bloqueo por stock, no conformidades, zona Observado | S2, S3 (**no** necesita S4 si se acepta un arranque temporal sin ruta: opción a decidir) | Móvil primero para el picker |
 | **S6** | **Documentación (RUT-02):** perfil documental, checklist, N.° de guía manual | S5 | Sin emisión GRE |
 | **S7** | **Embalaje y bultos (RUT-05):** ID/QR, etiquetas, staging por ruta | S5 | Context7 para QR/cámara |
-| **S8** | **Carga y salida (RUT-07):** checklist vehicular, escaneo, conciliación, **Liberar unidad**, **Salida confirmada** (ledger `SALIDA`), cola «por validar en Odoo», Kardex con salidas | S2, S4, S6, S7 | Aquí el stock sale de verdad |
+| **S8** | **Carga y salida (RUT-07):** checklist vehicular, escaneo, conciliación, **Liberar unidad**, **Salida confirmada** (ledger `SALIDA`), Kardex con salidas | S2, S4, S6, S7 | Aquí el stock sale de verdad |
 | **S9** | **Mis rutas y tracking (RUT-09):** eventos, POD, temperatura (según DT), retorno de unidad | S8 | **Prioridad móvil**; el 390×844 manda |
 | **S10** | **Incidencias y reprogramación (RUT-10):** catálogo, playbook, intentos | S9 | Contenido del playbook, de Roberto |
 | **S11** | **Retornos y devoluciones (RUT-12):** `RETORNO`, Retorno reservado, ingreso Devolución adaptado | S8, S9, S10; respuestas de Katia | |
@@ -432,7 +432,7 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 1. **Sube también el archivo del formato LS-FR.43.03** a `docs/wms/formatos/` (el Master ya está; falta el formato mismo para el PDF fiel).
 2. **Pedidos y su módulo de despacho** (conflicto 3): ¿Pedidos deja de despachar y recibe los estados del WMS (recomendado, con *flag* hasta el corte)? Es no aditivo.
 3. **Aprobar los cambios aditivos en Pedidos** (columnas de cliente, rutas de integración, aplicación de eventos) y **el secreto HMAC en variables** (producción: solo con tu aprobación).
-4. **Odoo durante el paralelo** (conflicto 2): cola «por validar en Odoo» + reporte WMS vs Odoo (recomendado).
+4. ~~Odoo durante el paralelo~~ **Resuelto: Odoo desaparece y no se integra.** Solo confírmame si el paralelo de 4 semanas (solo comparar) sigue.
 5. **Escalón rack → staging:** ¿al verificar la conformidad (recomendado) o al confirmar el picker? (§4.3)
 6. **Roberto:** ¿conserva `reemplazo_jefe` además de `jefe_transporte`? (conflicto 14)
 7. **¿Picking antes que Rutas?** (§6, S5/S4). El roadmap del Master pone Ruta primero, luego Almacén, Transporte y Cierre; mi orden respeta esa secuencia pero antepone S1–S3 (datos, stock, pedidos) que el roadmap no menciona.

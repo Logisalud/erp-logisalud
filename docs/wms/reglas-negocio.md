@@ -18,6 +18,7 @@ Nada de esto está construido. Las reglas cerradas de arriba se mantienen; lo si
 - **LS-FR.43.03** (formato controlado, LS-POE.07.05): el usuario genera la ruta y el WMS genera el documento; firmas de Conductor y Dirección Técnica físicas mientras Calidad no apruebe otra cosa. Seis definiciones pendientes de Katia (D-53).
 
 ## Transición
+- **Odoo desaparece y el WMS lo reemplaza (Sebas, 2026-10-14): no se integra con Odoo ni se vuelve a usar tras el corte.**
 - El WMS opera en paralelo a Odoo hasta tener salidas; recién entonces lo reemplaza.
 - Carga inicial: exportación de Odoo tras el inventario general (dato real).
 - En Odoo, LWDIP = almacén DHP (Diphasac).
