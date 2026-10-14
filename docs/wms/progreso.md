@@ -205,3 +205,6 @@ Ver `docs/wms/decisiones-pendientes.md` (D-01..D-29). Ninguna bloquea la aprobac
 
 ## S2 — núcleo de stock de salidas (migración 0012, sin aplicar)
 Reservas, asignación FEFO/lote del cliente, picking, conformidad, salida y retorno en la base, con 257 pruebas de base de datos en verde. D-76 decidida (tipo A: una línea con varios lotes; tipo B: un lote por línea); edición de la asignación FEFO (D-77, interpretación en D-78). Prueba de SEC1 en `it.skip` hasta que SEC1 termine. Pendiente después: pantallas (S3 en adelante).
+
+## S2b — edición libre de lotes (migración 0013, sin aplicar)
+Cambio de decisión de Sebas (D-79, reemplaza D-77 (a) y D-78): el Jefe de Almacén, el Jefe de Transporte y los auxiliares editan los lotes de una línea antes del picking, sin motivo obligatorio y sin la regla «vencer después»; siguen las reglas de seguridad en dominio y base de datos. Apartarse de FEFO avisa y no bloquea (`avisos_fefo`); la lista de lotes válidos para la celda (`lotes_para_editar`) trae vencimiento, ubicación, disponible y el FEFO como «sugerido». Trazabilidad automática (FEFO original, anterior, final, quién, cuándo; motivo opcional) y reporte «Cambios a FEFO» (`reporte_cambios_fefo`). El rol «reemplazo del Jefe» no existe: se quitó de los usuarios de la demo y no recibe permisos nuevos. La pantalla en formato tabla llega con las pantallas de salidas.

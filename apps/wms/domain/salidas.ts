@@ -81,60 +81,69 @@ export function asignarLinea(e: EntradaAsignacion): ResultadoAsignacion {
   return { ok: true, asignaciones }
 }
 
-// ── Edición de la asignación FEFO (D-62, D-76) ──────────────────────────────────────────────────────────────────────────────────
-export const MOTIVO_EDICION_ASIGNACION = 'CLIENTE_SOLICITA_VENCIMIENTO_MAS_LARGO'
+// ── Edición de la asignación (D-79: libre, con reglas de seguridad; reemplaza D-77 (a) y D-78) ─────────────────────────────────────────
+// Quien prepara la salida (Jefe de Almacén, Jefe de Transporte, auxiliares) puede elegir el lote que quiera para una línea de venta antes del
+// picking. FEFO es la propuesta por defecto; apartarse de ella NO bloquea: se avisa («Hay un lote que vence antes») y se deja registro.
 
 export interface AsignacionLote { loteId: string; cantidad: number }
-export interface LoteEditable extends LoteDisponible { productoId?: string }
-
-/** Primer vencimiento (ISO) entre los lotes FEFO originales que pierden cantidad en la edición; null si ninguno pierde. */
-function vencimientoQueSeReemplaza(fefo: readonly (AsignacionLote & { vence: string | null })[], nueva: readonly AsignacionLote[]): { fecha: string | null; sinFecha: boolean } {
-  const perdidos = fefo.filter((f) => f.cantidad > (nueva.find((n) => n.loteId === f.loteId)?.cantidad ?? 0))
-  const fechas = perdidos.map((f) => f.vence).filter((v): v is string => !!v).sort()
-  return { fecha: fechas[0] ?? null, sinFecha: perdidos.some((f) => !f.vence) }
-}
 
 export interface EntradaEdicion {
   cantidadLinea: number
   hoy: string
-  /** Asignación FEFO ORIGINAL de la línea (no cambia nunca). */
-  fefo: readonly (AsignacionLote & { vence: string | null })[]
   nueva: readonly AsignacionLote[]
-  /** Lotes del producto con lo disponible PARA ESTA LÍNEA (lo que ya tiene reservado la línea cuenta como disponible). */
+  /** Lotes del producto (del mismo propietario) con lo disponible PARA ESTA LÍNEA (lo que ya tiene reservado la línea cuenta como disponible). */
   lotes: readonly LoteDisponible[]
   minDias?: number
-  motivo?: string
 }
 
-/** Espejo de wms.editar_asignacion: devuelve los motivos por los que la edición no vale (vacío = vale). */
+/** Espejo de wms.editar_asignacion: devuelve los motivos por los que la edición no vale (vacío = vale). Solo reglas de seguridad. */
 export function validarEdicionAsignacion(e: EntradaEdicion): string[] {
   const errores: string[] = []
-  if (e.motivo !== MOTIVO_EDICION_ASIGNACION) errores.push('El único motivo permitido es «Cliente solicita vencimiento más largo».')
-  if (e.nueva.length === 0) return [...errores, 'Indica al menos un lote con su cantidad.']
+  if (e.nueva.length === 0) return ['Indica al menos un lote con su cantidad.']
   if (e.nueva.some((n) => !Number.isInteger(n.cantidad) || n.cantidad <= 0)) errores.push('Cada lote lleva su cantidad, mayor que cero.')
   if (new Set(e.nueva.map((n) => n.loteId)).size !== e.nueva.length) errores.push('Un lote aparece una sola vez.')
   const suma = e.nueva.reduce((t, n) => t + n.cantidad, 0)
   if (suma !== e.cantidadLinea) errores.push(`La suma de los lotes (${suma}) debe ser igual a la cantidad de la línea (${e.cantidadLinea}).`)
-  const reemplazado = vencimientoQueSeReemplaza(e.fefo, e.nueva)
   for (const n of e.nueva) {
     const lote = e.lotes.find((l) => l.loteId === n.loteId)
     if (!lote) { errores.push('Uno de los lotes no corresponde a este producto.'); continue }
     const apto = loteApto(lote.vence, 'DISTRIBUCION', 'VENTA', e.hoy, e.minDias)
     if (!apto.apto) errores.push(`Lote ${lote.codigo}: ${apto.razon}`)
     if (lote.bloqueado) errores.push(`El lote ${lote.codigo} está bloqueado.`)
-    if (!e.fefo.some((f) => f.loteId === n.loteId) && (!reemplazado.fecha || reemplazado.sinFecha || !lote.vence || lote.vence <= reemplazado.fecha)) {
-      errores.push(`El lote ${lote.codigo} debe vencer después del lote FEFO que reemplaza (${reemplazado.fecha ?? 'ninguno'}).`)
-    }
     if (lote.disponible < n.cantidad) errores.push(`El lote ${lote.codigo} no tiene suficientes unidades disponibles (hay ${lote.disponible}, se piden ${n.cantidad}).`)
   }
   return errores
 }
 
-/** Los lotes que el botón «Editar lotes» ofrece: solo los válidos (aptos, sin bloqueo, con disponible y, si son nuevos, que vencen después del primer FEFO). */
-export function lotesEditables(e: Pick<EntradaEdicion, 'hoy' | 'fefo' | 'lotes' | 'minDias'>): LoteDisponible[] {
-  const primero = e.fefo.map((f) => f.vence).filter((v): v is string => !!v).sort()[0] ?? null
+/** Los lotes que la lista de la celda ofrece: aptos, sin bloqueo y con disponible, por vencimiento (FEFO primero). */
+export function lotesEditables(e: Pick<EntradaEdicion, 'hoy' | 'lotes' | 'minDias'>): LoteDisponible[] {
   return e.lotes
     .filter((l) => l.disponible > 0 && !l.bloqueado && loteApto(l.vence, 'DISTRIBUCION', 'VENTA', e.hoy, e.minDias).apto)
-    .filter((l) => e.fefo.some((f) => f.loteId === l.loteId) || (!!primero && !!l.vence && l.vence > primero))
     .sort((a, b) => (a.vence ?? '9999-12-31').localeCompare(b.vence ?? '9999-12-31') || a.codigo.localeCompare(b.codigo))
+}
+
+export interface AvisoFefo { loteId: string; codigo: string; antesCodigo: string; antesVence: string }
+
+/** «Hay un lote que vence antes (L2501, vence 11/2027)»: por cada lote elegido, el lote válido no elegido que vence antes (el primero). No bloquea. */
+export function avisosFefo(e: Pick<EntradaEdicion, 'hoy' | 'lotes' | 'minDias' | 'nueva'>): AvisoFefo[] {
+  const validos = lotesEditables(e)
+  const elegidos = new Set(e.nueva.map((n) => n.loteId))
+  const avisos: AvisoFefo[] = []
+  for (const id of elegidos) {
+    const lote = validos.find((l) => l.loteId === id)
+    if (!lote?.vence) continue
+    const antes = validos.find((v) => !elegidos.has(v.loteId) && !!v.vence && v.vence < lote.vence!)
+    if (antes?.vence) avisos.push({ loteId: id, codigo: lote.codigo, antesCodigo: antes.codigo, antesVence: antes.vence })
+  }
+  return avisos
+}
+
+/** «11/2027» (mes/año) para el aviso. */
+export const mesAnio = (iso: string) => `${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+export const textoAvisoFefo = (a: AvisoFefo) => `Hay un lote que vence antes (${a.antesCodigo}, vence ${mesAnio(a.antesVence)})`
+
+/** ¿La asignación final se aparta de la propuesta FEFO original? (otro lote u otra distribución) */
+export function seApartaDeFefo(fefo: readonly AsignacionLote[], final: readonly AsignacionLote[]): boolean {
+  const k = (a: readonly AsignacionLote[]) => [...a].sort((x, y) => x.loteId.localeCompare(y.loteId)).map((x) => `${x.loteId}:${x.cantidad}`).join('|')
+  return k(fefo) !== k(final)
 }

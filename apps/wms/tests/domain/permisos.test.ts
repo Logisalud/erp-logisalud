@@ -43,9 +43,9 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
     // Un usuario con varios roles (p. ej. Sandra: asistente de DT + conformidad) suma sus permisos.
     expect(puede(['asistente_dt', 'conformidad_despacho'], 'dar_conformidad')).toBe(true)
   })
-  it('cambiar el lote asignado: Jefe de Almacén, su reemplazo y el Jefe de Transporte', () => {
-    for (const r of ['jefe_almacen', 'reemplazo_jefe', 'jefe_transporte'] as const) expect(puede([r], 'cambiar_lote_asignado'), r).toBe(true)
-    for (const r of ['auxiliar', 'asistente_dt', 'conductor', 'usuario_cliente'] as const) expect(puede([r], 'cambiar_lote_asignado'), r).toBe(false)
+  it('cambiar el lote asignado (D-79): Jefe de Almacén, Jefe de Transporte y auxiliares de almacén', () => {
+    for (const r of ['jefe_almacen', 'jefe_transporte', 'auxiliar'] as const) expect(puede([r], 'cambiar_lote_asignado'), r).toBe(true)
+    for (const r of ['asistente_dt', 'conductor', 'usuario_cliente', 'direccion_tecnica'] as const) expect(puede([r], 'cambiar_lote_asignado'), r).toBe(false)
   })
   it('Roberto (solo jefe_transporte) no tiene permisos de Jefe de Almacén', () => {
     for (const a of ['ejecutar', 'verificar', 'ajustar', 'aprobar', 'configurar'] as const) expect(puede(['jefe_transporte'], a), a).toBe(false)
