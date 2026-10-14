@@ -179,8 +179,8 @@ test.describe('movimientos internos (INV-02, D-15): ejecutar → verificar', () 
     await expect(page.getByTestId('mov-en-transito')).toContainText('en tránsito, por verificar')
     await sinDesborde(page)
     await capturar(page, info, 'movimiento-espera-verificador', { completa: true })
-    // otro auxiliar, el Jefe o su reemplazo verifican; el ejecutor del otro movimiento (el Jefe) no puede con el suyo
-    await cambiarRol(page, 'reemplazo_jefe')
+    // otro auxiliar o el Jefe verifican; el ejecutor del otro movimiento (el Jefe) no puede con el suyo
+    await cambiarRol(page, 'jefe_almacen')
     await page.goto('/wms/movimientos?q=' + numero)
     await filasVisibles(page).first().click()
     await expect(page.getByTestId('mov-enviar-revision')).toBeDisabled() // hay que revisar cada línea
@@ -188,7 +188,7 @@ test.describe('movimientos internos (INV-02, D-15): ejecutar → verificar', () 
     await capturar(page, info, 'movimiento-revision', { completa: true })
     await page.getByTestId('mov-enviar-revision').click()
     await expect(page.getByTestId('mov-confirmado')).toContainText('Verificó')
-    await expect(page.getByTestId('personas-movimiento')).toContainText('Reemplazo del Jefe de Almacén (demo)')
+    await expect(page.getByTestId('personas-movimiento')).toContainText('Jefe de Almacén (demo)')
     await capturar(page, info, 'movimiento-confirmado', { completa: true })
     // el Jefe ejecutó el otro movimiento de demostración: no puede verificarlo, pero el auxiliar sí
     await cambiarRol(page, 'jefe_almacen')
@@ -262,7 +262,7 @@ test.describe('movimientos internos (INV-02, D-15): ejecutar → verificar', () 
   })
 
   test('las unidades de una orden ejecutada quedan reservadas: otra persona no puede moverlas', async ({ page }, info) => {
-    await entrarComo(page, 'reemplazo_jefe')
+    await entrarComo(page, 'auxiliar')
     await page.goto('/wms/movimientos/nuevo')
     await empezarLinea(page, info, 0)
     await escribirProducto(page, info, 'L-VENCE')
@@ -413,7 +413,7 @@ test.describe('conteos cíclicos y ajustes (INV-05)', () => {
     await capturar(page, info, 'conteo-contador', { completa: true })
     // el mismo contador no hace el segundo conteo
     await expect(page.getByTestId('conteo-cantidad')).toHaveCount(0)
-    await cambiarRol(page, 'reemplazo_jefe')
+    await cambiarRol(page, 'asistente_dt')
     for (let i = 0; i < n; i++) {
       await page.getByTestId('linea-conteo').nth(i).getByTestId('conteo-cantidad').fill('1')
       await page.getByTestId('linea-conteo').nth(i).getByTestId('conteo-registrar').click()

@@ -23,7 +23,7 @@ describe('permisos: la base y el dominio dicen lo mismo', () => {
     const roles = ['direccion_tecnica', 'asistente_dt', 'jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'auditoria_lectura', 'admin_wms',
       'jefe_transporte', 'conductor', 'auxiliar_transporte', 'conformidad_despacho', 'autoriza_salidas_sin_venta', 'usuario_cliente'] as Rol[]
     const acciones = ['ver', 'ejecutar', 'verificar', 'aprobar', 'ajustar', 'configurar', 'exportar', 'auditar', 'dar_conformidad',
-      'cambiar_lote_asignado', 'imprimir_paquete_documental', 'gestionar_documentos_regulatorios', 'autorizar_salida_sin_venta'] as Accion[]
+      'cambiar_lote_asignado', 'imprimir_paquete_documental', 'gestionar_documentos_regulatorios', 'autorizar_salida_sin_venta', 'preparar_salidas', 'confirmar_salida'] as Accion[]
     const filas = await q('select rol, accion from wms.permisos_rol')
     const enBase = new Set(filas.map((f) => `${f.rol}/${f.accion}`))
     for (const r of roles) for (const a of acciones) expect(enBase.has(`${r}/${a}`), `${r}/${a}`).toBe(puede([r], a))
@@ -53,10 +53,10 @@ describe('permisos: la base y el dominio dicen lo mismo', () => {
   })
 })
 
-describe('tipos de movimiento SALIDA y RETORNO: creados, pero apagados hasta S2', () => {
-  it('existen deshabilitados y el ledger los rechaza', async () => {
+describe('tipos de movimiento SALIDA y RETORNO', () => {
+  it('existen; S2 los habilita y nadie los registra a mano (solo el flujo de salidas)', async () => {
     const t = await q(`select codigo, habilitado from wms.tipos_movimiento where codigo in ('SALIDA', 'RETORNO') order by 1`)
-    expect(t).toEqual([{ codigo: 'RETORNO', habilitado: false }, { codigo: 'SALIDA', habilitado: false }])
+    expect(t.map((r) => r.codigo)).toEqual(['RETORNO', 'SALIDA'])
     const pos = await idPosicion(base.admin, 'K-1')
     const prop = await idPropietario(base.admin, 'LOGISSA')
     const lote = (await q(`insert into wms.lotes (producto_id, codigo, vence, propietario_id) values ($1, 'S1-L', '2030-01-01', $2) returning id`, [base.productos.dapa, prop]))[0].id
@@ -64,7 +64,7 @@ describe('tipos de movimiento SALIDA y RETORNO: creados, pero apagados hasta S2'
       const e = await falla(base.como(base.personas.admin.id, (c) =>
         postear(c, tipo, [{ posicion_id: pos, producto_id: base.productos.dapa, lote_id: lote, propietario_id: prop, estado: 'APROBADO',
           origen: 'CARGA_INICIAL', procedencia_id: randomUUID(), delta: -1 }])))
-      expect(e.message, tipo).toMatch(/no habilitado/)
+      expect(e.message, tipo).toMatch(/no habilitado|solo se registran por el flujo de salidas/)
     }
   })
 })
@@ -92,7 +92,8 @@ describe('zonas de salida', () => {
     const z = await q(`select codigo, es_compartida, en_alcance from wms.tipos_area where codigo in ('PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO') order by 1`)
     expect(z).toHaveLength(3)
     expect(z.every((r) => r.en_alcance === false && r.es_compartida === true)).toBe(true)
-    expect(await q(`select 1 from wms.area_estado_admitido where tipo_area in ('PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO')`)).toHaveLength(0)
+    // S2 hace que «Pendiente de conformidad» y «Retorno reservado» admitan Aprobado (sin posiciones, nada entra); «Observado» sigue sin admitir nada.
+    expect(await q(`select 1 from wms.area_estado_admitido where tipo_area = 'OBSERVADO'`)).toHaveLength(0)
     expect(await q(`select 1 from wms.posiciones where tipo_area in ('PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO')`)).toHaveLength(0)
     // Una posición de prueba en una zona apagada: la base no deja entrar nada (la zona no admite ningún estado).
     const prop = await idPropietario(base.admin, 'LOGISSA')
@@ -175,12 +176,16 @@ describe('vehículos', () => {
   })
 })
 
-describe('la migración 0011 es re-ejecutable', () => {
+describe('la migración 0011 es re-ejecutable (en su lugar de la cadena, como un reintento tras un fallo)', () => {
   it('correrla otra vez no falla y no cambia lo que ya había', async () => {
-    const antes = (await q('select count(*)::int n from wms.permisos_rol'))[0].n
-    await base.admin.query(SQL.m0011())
-    await base.admin.query(SQL.m0011())
-    expect((await q('select count(*)::int n from wms.permisos_rol'))[0].n).toBe(antes)
-    expect((await q(`select valor from wms.parametros where clave = 'acceso_clientes_habilitado'`))[0].valor).toBe('false')
-  })
+    const solo11 = await crearBaseDePrueba({ sinMigracion0012: true })
+    try {
+      const n = async () => (await solo11.admin.query('select count(*)::int n from wms.permisos_rol')).rows[0].n
+      const antes = await n()
+      await solo11.admin.query(SQL.m0011())
+      await solo11.admin.query(SQL.m0011())
+      expect(await n()).toBe(antes)
+      expect((await solo11.admin.query(`select valor from wms.parametros where clave = 'acceso_clientes_habilitado'`)).rows[0].valor).toBe('false')
+    } finally { await solo11.cerrar() }
+  }, 60_000)
 })
