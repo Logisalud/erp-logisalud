@@ -38,6 +38,32 @@ test.describe('rutas (S4)', () => {
     await capturar(page, info, 'rutas-editor', { completa: true })
   })
 
+  test('el formato LS-FR.43.03 nace con la ruta confirmada: panel con sus pendientes de Dirección Técnica y PDF horizontal; la ruta en borrador todavía no lo tiene', async ({ page }, info) => {
+    await entrarComo(page, 'jefe_transporte')
+    await page.goto('/wms/rutas')
+    const planificada = page.getByTestId(esTelefono(info) ? 'fila-ruta-movil' : 'fila-ruta').filter({ hasText: 'Planificada' }).first()
+    await (esTelefono(info) ? planificada : planificada.getByRole('link', { name: /^Abrir/ })).click()
+    await expect(page.getByTestId('lsfr-panel')).toContainText('LS-FR.43.03')
+    await page.getByTestId('lsfr-definiciones').locator('summary').click()
+    await expect(page.getByTestId('lsfr-definiciones')).toContainText('Qué significa la columna USUARIO')
+    await sinDesborde(page)
+    await capturar(page, info, 'rutas-lsfr-panel', { completa: true })
+    const href = await page.getByTestId('ver-lsfr').getAttribute('href')
+    const r = await page.request.get(href!)
+    expect(r.status()).toBe(200)
+    expect(r.headers()['content-type']).toContain('application/pdf')
+    const cuerpo = await r.body()
+    expect(cuerpo.subarray(0, 4).toString()).toBe('%PDF')
+    expect(cuerpo.length).toBeGreaterThan(5_000)
+    if (info.project.name.startsWith('desktop')) (await import('node:fs')).writeFileSync('/tmp/claude-0/lsfr-demo.pdf', cuerpo)
+    // una ruta en borrador no tiene registro todavía
+    await page.goto('/wms/rutas')
+    await page.getByTestId('nueva-ruta').click()
+    await expect(page.getByTestId('lsfr-pendiente')).toContainText('Se crea cuando confirmas la ruta')
+    const id = page.url().split('/').pop()!
+    expect((await page.request.get(`/wms/rutas/${id}/pdf`)).status()).toBe(404)
+  })
+
   test('armar una ruta nueva: vehículo, personal, un pedido, orden; guardar y confirmar (nace el LS-FR.43.03)', async ({ page }, info) => {
     await entrarComo(page, 'jefe_transporte')
     await prepararBandeja(page, info)

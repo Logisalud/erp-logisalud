@@ -4,6 +4,7 @@ import { crearClienteServidor } from '@logisalud/auth/server'
 import {
   totalUnidades, type EstadoRuta, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
 } from '@/domain/rutas'
+import { armarRegistroLsFr, parametrosDesdeClaves, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import type { PedidoSnapshot } from '@/domain/pedidos-despacho'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioRutas } from '../repositorio-rutas'
@@ -88,6 +89,17 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
   async obtenerRuta(id: string): Promise<RutaVista | null> {
     const { rutas } = await this.armarRutas(id)
     return rutas[0] ?? null
+  }
+
+  /** Lo que las etapas siguientes registran y el formato pide (guías, bultos, horas). Las clases de más abajo lo completan. */
+  protected async extrasLsFr(_rutaId: string): Promise<ExtrasLsFr> { return {} }
+
+  async registroLsFr(rutaId: string): Promise<RegistroLsFrVista | null> {
+    const ruta = await this.obtenerRuta(rutaId)
+    if (!ruta || !puedeImprimirLsFr(ruta)) return null
+    const { data } = await sch().from('parametros').select('clave, valor').or('clave.like.ls_fr_43_03_%,clave.eq.cajas_equivale_a_bultos')
+    const valores = Object.fromEntries(((data ?? []) as Fila[]).map((f) => [String(f.clave), String(f.valor)]))
+    return armarRegistroLsFr(ruta, parametrosDesdeClaves(valores), await this.extrasLsFr(rutaId))
   }
 
   async crearRuta(datos: { fecha: string; vehiculoId?: string; conductorId?: string; auxiliarId?: string }, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
