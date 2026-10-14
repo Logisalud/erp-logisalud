@@ -10,15 +10,31 @@ export const ETIQUETA_AREA: Record<TipoArea, string> = {
   CONTRAMUESTRA: 'Contramuestra',
   EMBALAJE: 'Embalaje',
   DESPACHO: 'Despacho',
+  PENDIENTE_CONFORMIDAD: 'Pendiente de conformidad',
+  OBSERVADO: 'Observado / pendiente de corrección',
+  RETORNO_RESERVADO: 'Retorno no entregado / reservado',
 }
 
 /** Áreas donde varios propietarios pueden tener stock a la vez. */
 export const AREAS_COMPARTIDAS: ReadonlySet<TipoArea> = new Set<TipoArea>([
-  'RECEPCION', 'CUARENTENA', 'EMBALAJE', 'DESPACHO',
+  'RECEPCION', 'CUARENTENA', 'EMBALAJE', 'DESPACHO', 'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO',
 ])
 
-/** Áreas fuera del alcance actual (se crean, pero no operan). */
-export const AREAS_FUERA_DE_ALCANCE: ReadonlySet<TipoArea> = new Set<TipoArea>(['EMBALAJE', 'DESPACHO'])
+/**
+ * Zonas nuevas, configurables y APAGADAS (D-52: Katia y Charlie definen su ubicación física y su tipo BPA). Sin
+ * `area_estado_admitido` ni posiciones, nada puede entrar.
+ */
+export const AREAS_FUERA_DE_ALCANCE: ReadonlySet<TipoArea> = new Set<TipoArea>([
+  'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO',
+])
+
+/**
+ * Zonas que solo alimenta el flujo de salidas (picking, conformidad, embalaje, carga). Un movimiento interno manual
+ * (Mover) no las elige como destino, aunque la base de datos admita Aprobado en ellas.
+ */
+export const AREAS_DE_SALIDA: ReadonlySet<TipoArea> = new Set<TipoArea>([
+  'EMBALAJE', 'DESPACHO', 'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO',
+])
 
 interface ReglaArea {
   estado: Estado
@@ -31,6 +47,8 @@ const MATRIZ: Partial<Record<TipoArea, ReglaArea[]>> = {
   DEVOLUCIONES: [{ estado: 'DEVOLUCIONES', origenRequerido: 'DEVOLUCION' }],
   APROBADOS: [{ estado: 'APROBADO' }],
   BAJAS_RECHAZADOS: [{ estado: 'BAJAS_RECHAZADOS' }],
+  EMBALAJE: [{ estado: 'APROBADO' }],
+  DESPACHO: [{ estado: 'APROBADO' }],
 }
 
 export function areaAdmite(area: TipoArea, estado: Estado, origen: Origen): boolean {
@@ -41,7 +59,8 @@ export function areaAdmite(area: TipoArea, estado: Estado, origen: Origen): bool
 
 export function mensajeZonaNoAdmite(area: TipoArea, estado: Estado): string {
   const a = ETIQUETA_AREA[area]
-  if (area === 'RECEPCION' || area === 'CONTRAMUESTRA' || area === 'EMBALAJE' || area === 'DESPACHO') {
+  if (AREAS_DE_SALIDA.has(area) && estado === 'APROBADO') return `${a} se usa solo en las salidas.`
+  if (area === 'RECEPCION' || area === 'CONTRAMUESTRA' || AREAS_DE_SALIDA.has(area)) {
     return `${a} no recibe stock en este momento.`
   }
   // Mensajes humanos para los casos de todos los días.
