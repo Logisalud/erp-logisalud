@@ -185,6 +185,11 @@ Migración **0008** + reversa + 11 pruebas de base de datos (ver `propuesta-pres
 - **Supuestos confirmados por Sebas (2026-10-10):** exactitud por **línea** (ubicación + lote); revisión diaria de **lunes a viernes**; comparación contra el periodo anterior **desde el libro mayor**; indicadores solo para quienes gestionan el inventario. **Cambios pedidos:** las recepciones se cuentan por la **fecha en que se confirmó la recepción física**, y «con diferencia» incluye además **lote o vencimiento distinto al declarado** (D-35), con el **tipo de diferencia** en el detalle por proveedor.
 - **Demo con valores reales:** la demo trae **6 conteos cerrados** de los últimos dos meses (la mayoría coincide a la primera; algunos coinciden recién en el reconteo; 2 se ajustan con autorización de Dirección Técnica y 2 se escalan) y **12 recepciones confirmadas** de distintos proveedores y fechas, con diferencias de los cuatro tipos (lote, cantidad, vencimiento+cantidad y línea no esperada), aprobaciones de Dirección Técnica para el tiempo en Cuarentena y el stock del libro mayor consistente con todo ello.
 
+### Salidas (RUT) — diagnóstico y plan (2026-10-14) — solo documento
+- `docs/wms/salidas/diagnostico-y-plan.md`: proceso de punta a punta, reutilización vs extensión del código, 14 conflictos/contradicciones (sin resolver), gap analysis de los 11 RUT, respuestas a los 7 puntos de arquitectura, modelo de dominio y estados por agregado, plan en PRs (S0–S14), preguntas por decisor. Decisiones D-47..D-59 en `decisiones-pendientes.md`; reglas cerradas de Salidas añadidas a `reglas-negocio.md`.
+- **Falta el Master v2 y el formato LS-FR.43.03** en el repo (D-48): los estados y el mapa de campos son hipótesis hasta contrastarlos.
+- Sin código, sin migraciones, sin tocar Pedidos ni ninguna base real. Siguiente: aprobación del diagnóstico → S0/S0b → S1+S2.
+
 ## Bloqueado / pendiente
 Ver `docs/wms/decisiones-pendientes.md` (D-01..D-29). Ninguna bloquea la aprobación del Batch 1.
 

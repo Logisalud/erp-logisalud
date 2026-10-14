@@ -6,6 +6,17 @@ Fuentes: docs/wms/procesos/ (hoja 03_TO-BE), docs/wms/formatos/, docs/wms/layout
 ## Alcance actual
 Solo entradas y movimientos internos. Las salidas (preparación, despacho, transporte) se construyen después de su mapeo; el modelo debe admitirlas sin rehacerse.
 
+## Salidas (decididas por Sebas, 2026-10-14; diagnóstico en `docs/wms/salidas/diagnostico-y-plan.md`)
+Nada de esto está construido. Las reglas cerradas de arriba se mantienen; lo siguiente es lo que Sebas fijó al abrir el bloque de Salidas:
+- **Se extiende el WMS; no se rediseña lo existente.** Entradas, calidad, movimientos, conteos, revisión diaria, Kardex, reportes e indicadores ya están aprobados.
+- **Selección de lotes:** FEFO por defecto. Un cliente puede pedir un vencimiento más lejano o un lote específico **por línea de pedido**; se respeta si el lote está Aprobado, sin bloqueo y con cantidad suficiente. Se registran criterio solicitado, lote sugerido y lote despachado. Vive en dominio y base de datos, no solo en la pantalla.
+- **Solo se despacha stock Aprobado del propietario del pedido.** Quien prepara no es quien verifica (picking y conformidad).
+- **Reserva:** Pedidos gobierna la reserva comercial; el WMS, la asignación física de lote y ubicación (ver diagnóstico §4.2).
+- **Retornos:** «No entregado» vuelve a la zona de retorno reservado sin evaluación de Katia y sigue reservado al cliente. Solo «Rechazado» entra por el flujo de devolución existente (estado Devoluciones, acta organoléptica, decisión de Katia).
+- **Fuera de la primera fase:** salida de stock de terceros (Diphasac, AJR Labs, Triamed, Medic Pharma Lab); emisión de la GRE ante SUNAT (el WMS registra el N.° de guía); GPS; RUT-14.
+- **Transporte:** roles Conductor y Auxiliar de transporte (usuarios principales en ruta, desde el teléfono) y permisos propios para el Jefe de Transporte. Roles, no nombres.
+- **LS-FR.43.03** (formato controlado, LS-POE.07.05): el usuario genera la ruta y el WMS genera el documento; firmas de Conductor y Dirección Técnica físicas mientras Calidad no apruebe otra cosa. Seis definiciones pendientes de Katia (D-53).
+
 ## Transición
 - El WMS opera en paralelo a Odoo hasta tener salidas; recién entonces lo reemplaza.
 - Carga inicial: exportación de Odoo tras el inventario general (dato real).

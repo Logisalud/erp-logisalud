@@ -1,7 +1,7 @@
 # apps/wms
 
 WMS de Logisalud. Documentos de negocio en `docs/wms/` (raíz del monorepo).
-Alcance actual: entradas y movimientos internos. **Antes de tocar nada lee
+Alcance actual: entradas y movimientos internos (las salidas están en diagnóstico: `docs/wms/salidas/diagnostico-y-plan.md`). **Antes de tocar nada lee
 `docs/wms/gate-0.md`, `docs/wms/progreso.md` y `docs/wms/decisiones-pendientes.md`.**
 
 ## Obligaciones para todas las sesiones
