@@ -77,7 +77,7 @@ test.describe('revisión diaria (INV-04)', () => {
     await expect(s2.getByTestId('estado-pendiente')).toHaveText(/Abierto/)
     await sinDesborde(page)
     await capturar(page, info, 'revision-diaria-pendientes', { completa: true })
-    // el otro (resuelto por el reemplazo) se verifica conforme y deja de arrastrarse
+    // el otro (resuelto por el reemplazante) se verifica conforme y deja de arrastrarse
     const gotera = page.getByTestId('pendiente').filter({ hasText: 'Gotera leve' })
     await gotera.getByTestId('pendiente-verificar').click()
     await expect(page.getByTestId('pendiente').filter({ hasText: 'Gotera leve' })).toHaveCount(0)

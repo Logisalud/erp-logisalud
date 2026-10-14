@@ -1,5 +1,5 @@
 // D-15: quien hace un movimiento no lo verifica. Un movimiento interno tiene solo dos personas: el EJECUTOR (quien lo crea en el
-// sistema y mueve la mercadería: la misma persona) y el VERIFICADOR (otro auxiliar, el Jefe o su reemplazo; nunca el ejecutor).
+// sistema y mueve la mercadería: la misma persona) y el VERIFICADOR (otro auxiliar, el Jefe; nunca el ejecutor).
 // También lo exige la base de datos (restricciones de wms.ordenes_movimiento y wms.movimientos, y wms.revisar_movimiento).
 
 export interface ParticipantesMovimiento {

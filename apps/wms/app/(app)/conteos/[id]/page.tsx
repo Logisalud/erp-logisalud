@@ -18,7 +18,7 @@ export default async function DetalleConteo({ params }: { params: { id: string }
   const actor = { id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles }
   const d = await repositorio().obtenerConteo(decodeURIComponent(params.id), actor)
   if (!d) notFound()
-  const gestiona = ctx.roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))
+  const gestiona = ctx.roles.some((r) => ['jefe_almacen', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))
   const pendientes = d.lineas.filter((l) => !l.resultado || l.resultado === 'DIFERENCIA_CONFIRMADA' || l.resultado === 'NO_CONCLUYENTE').length
   const cerrado = d.conteo.estado === 'CERRADO'
   return (

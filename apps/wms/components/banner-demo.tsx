@@ -4,13 +4,11 @@ import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
 import { FlaskConical } from 'lucide-react'
 import { cambiarRolDemoAccion } from '@/app/acciones-entradas'
-import type { Rol } from '@/domain/tipos'
-import { ETIQUETA_ROL } from '@/domain/permisos'
+import { PERSONAS_DEMO } from '@/lib/sesion-demo'
 
-const ROLES: Rol[] = ['jefe_almacen', 'auxiliar', 'asistente_dt', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura']
 
 /** Aviso visible en TODA pantalla mientras el modo demostración esté activo (fijo arriba, alto 2.25rem). */
-export function BannerDemo({ rolActual }: { rolActual?: Rol | null }) {
+export function BannerDemo({ rolActual }: { rolActual?: string | null }) {
   const router = useRouter()
   const [, empezar] = useTransition()
   return (
@@ -30,7 +28,7 @@ export function BannerDemo({ rolActual }: { rolActual?: Rol | null }) {
           <select aria-label="Cambiar el rol de prueba" data-testid="cambiar-rol-demo" value={rolActual}
             onChange={(e) => empezar(async () => { await cambiarRolDemoAccion(e.target.value); router.refresh() })}
             className="h-7 max-w-[11rem] rounded border border-gray-600 bg-gray-800 px-1.5 text-xs text-white focus:border-teal-300">
-            {ROLES.map((r) => <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>)}
+            {PERSONAS_DEMO.map((p) => <option key={p.clave} value={p.clave}>{p.cargo}</option>)}
           </select>
         </label>
       )}
