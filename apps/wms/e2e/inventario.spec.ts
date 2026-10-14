@@ -195,6 +195,12 @@ test.describe('movimientos internos (INV-02, D-15): ejecutar → verificar', () 
     await page.goto('/wms/movimientos?q=' + encodeURIComponent('Acercar al despacho'))
     await filasVisibles(page).first().click()
     await expect(page.getByTestId('mov-espera-verificador')).toContainText(/no puede ser quien ejecutó/)
+    // D-81: la regla es por persona. La reemplazante del Jefe (mismo rol Jefe de Almacén) sí puede verificar lo que ejecutó el Jefe
+    await cambiarRol(page, 'reemplazante_jefe')
+    await page.goto('/wms/movimientos?q=' + encodeURIComponent('Acercar al despacho'))
+    await filasVisibles(page).first().click()
+    await expect(page.getByTestId('mov-espera-verificador')).toHaveCount(0)
+    await expect(page.getByTestId('mov-todo-coincide')).toBeVisible()
   })
 
   test('modo tabla: una orden con productos de distintos orígenes y destinos, con mensajes por línea, resumen antes de ejecutar y número MI', async ({ page }, info) => {

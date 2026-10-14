@@ -34,6 +34,18 @@ que la lista coincide con la de `tests/db/aislamiento.test.ts`.
 
 **0013** (Salidas, S2b; requiere la 0012, se aplica **después** de ella): edición libre de los lotes asignados (D-79). El motivo de `cambios_lote_asignado` pasa a ser opcional y cada cambio guarda la asignación FEFO original y si se apartó de ella; `editar_asignacion(linea, asignaciones, motivo opcional)` sin la regla «vencer después»; nuevas `lotes_para_editar`, `avisos_fefo` y `reporte_cambios_fefo`; `proponer_reemplazo` sin esa regla. Permisos: los auxiliares ganan `cambiar_lote_asignado` y se retiran `cambiar_lote_asignado`/`preparar_salidas` del rol `reemplazo_jefe` (que no existe). No borra datos; re-ejecutable.
 
+**0015** (Roles de los jefes y cargos, D-81; requiere la 0011; independiente de la 0012–0014): crea `cargos_usuario` y `asignar_cargo(usuario, cargo)` (solo administración), **retira el rol `reemplazo_jefe` sin borrar historia** (quien lo tenía vigente recibe `jefe_almacen` desde hoy y su fila antigua queda cerrada con `hasta` = ayer; el valor sigue permitido en filas históricas pero ya no se puede asignar) y quita ese rol de `permisos_rol` y de `es_usuario()`. No toca a nadie más. **Después de aplicarla, y con tu aprobación, se asignan a mano los roles y cargos (datos de producción):** Charlie → `jefe_almacen` + `jefe_transporte`, cargo «Jefe de Almacén»; Roberto → `jefe_transporte` + `jefe_almacen`, cargo «Jefe de Transporte»; Jasury ya queda con `jefe_almacen` por la migración (cargo «Reemplazante del Jefe de Almacén»). Plantilla (reemplaza los correos; se corre una vez):
+
+```sql
+-- roles (idempotente)
+insert into wms.usuario_roles (user_id, rol)
+select u.id, r.rol from auth.users u join (values
+  ('charlie@…', 'jefe_almacen'), ('charlie@…', 'jefe_transporte'),
+  ('roberto@…', 'jefe_transporte'), ('roberto@…', 'jefe_almacen')) as r(email, rol) on r.email = u.email
+on conflict (user_id, rol, desde) do nothing;
+-- cargos (con la sesión de administración: select wms.asignar_cargo(<user_id>, 'Jefe de Almacén');)
+```
+
 Antes de aplicar:
 1. Exponer el schema `wms` en Dashboard → Settings → Data API → Exposed schemas (si falta: HTTP 406 `Invalid schema`).
 2. Agregar `wms` a `public.schemas_compras_y_pagos()` y ejecutar `select public.aplicar_grants_del_modulo();` (si falta: HTTP 403).

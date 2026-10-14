@@ -51,14 +51,14 @@ interface DatosEntradas {
 function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   const a = alertasRegulatorias(p)
   const avisos: Aviso[] = []
-  const opera = roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'asistente_dt'].includes(r))
+  const opera = roles.some((r) => ['jefe_almacen', 'auxiliar', 'asistente_dt'].includes(r))
   if (e.alertasMias > 0) {
     avisos.push({ clave: 'alertas', Icono: Bell, texto: 'Alertas abiertas para ti', detalle: 'Temperatura, registro sanitario, cambios de una solicitud, diferencias con Compras o aprobados sin trasladar.', cantidad: e.alertasMias, unidad: pl(e.alertasMias, 'alerta', 'alertas'), href: '/alertas', tono: 'atencion' })
   }
   if (e.movimientosParaMi > 0) {
     avisos.push({ clave: 'movimientos', Icono: ArrowLeftRight, texto: 'Movimientos internos por atender', detalle: 'Verificar lo que otra persona movió o resolver una diferencia: quien ejecuta no verifica lo suyo.', cantidad: e.movimientosParaMi, unidad: pl(e.movimientosParaMi, 'movimiento', 'movimientos'), href: '/movimientos', tono: 'atencion' })
   }
-  if (roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar'].includes(r)) && e.conteosAbiertos > 0) {
+  if (roles.some((r) => ['jefe_almacen', 'auxiliar'].includes(r)) && e.conteosAbiertos > 0) {
     avisos.push({ clave: 'conteos', Icono: ClipboardCheck, texto: 'Conteos cíclicos abiertos', detalle: 'Cuenta a ciegas; sus ubicaciones no se mueven hasta cerrarlos.', cantidad: e.conteosAbiertos, unidad: pl(e.conteosAbiertos, 'conteo', 'conteos'), href: '/conteos', tono: 'info' })
   }
   if (roles.includes('direccion_tecnica') && e.ajustesPorAutorizar > 0) {
@@ -76,7 +76,7 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   if (puedePrepararSolicitud(roles) && e.porAutorizar > 0) {
     avisos.push({ clave: 'por-autorizar', Icono: FilePlus2, texto: 'Solicitudes de ingreso por autorizar', detalle: 'Autorízalas para que queden programadas ("por llegar").', cantidad: e.porAutorizar, unidad: pl(e.porAutorizar, 'solicitud', 'solicitudes'), href: '/entradas?f=autorizar', tono: 'atencion' })
   }
-  if (e.porRegistrarEnCompras > 0 && roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'asistente_dt'].includes(r))) {
+  if (e.porRegistrarEnCompras > 0 && roles.some((r) => ['jefe_almacen', 'direccion_tecnica', 'asistente_dt'].includes(r))) {
     avisos.push({ clave: 'por-registrar-compras', Icono: ClipboardList, texto: 'Cantidades físicas por registrar en Compras', detalle: 'El WMS ya confirmó lo que llegó; Compras todavía no lo tiene igual. Copia la "Cantidad física confirmada" a la recepción de la OC.', cantidad: e.porRegistrarEnCompras, unidad: pl(e.porRegistrarEnCompras, 'solicitud', 'solicitudes'), href: '/entradas?f=compras', tono: 'atencion' })
   }
   if (opera && e.porLlegar > 0) {
@@ -112,10 +112,10 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   if (puedeEditarRegulatorio(roles) && a.sinRegistro.length > 0) {
     avisos.push({ clave: 'sin-registro', Icono: FilePlus2, texto: 'Productos sin registro sanitario cargado', cantidad: a.sinRegistro.length, unidad: pl(a.sinRegistro.length, 'producto', 'productos'), href: '/productos?rs=SIN_DATO', tono: 'atencion' })
   }
-  if (roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'direccion_tecnica'].includes(r)) && trasladar > 0) {
+  if (roles.some((r) => ['jefe_almacen', 'auxiliar', 'direccion_tecnica'].includes(r)) && trasladar > 0) {
     avisos.push({ clave: 'trasladar', Icono: ShieldCheck, texto: 'Aprobados esperando su traslado a un rack', detalle: 'Siguen en la zona de Cuarentena.', cantidad: trasladar, unidad: pl(trasladar, 'unidad', 'unidades'), href: '/almacen?capa=estado', tono: 'atencion' })
   }
-  if (roles.some((r) => ['jefe_almacen', 'reemplazo_jefe', 'admin_wms'].includes(r)) && porVerificar > 0) {
+  if (roles.some((r) => ['jefe_almacen', 'admin_wms'].includes(r)) && porVerificar > 0) {
     avisos.push({ clave: 'verificar', Icono: TriangleAlert, texto: 'Ubicaciones por verificar en sitio', detalle: 'Aparecen en los planos o en Odoo pero faltan en la tabla de propietarios.', cantidad: porVerificar, unidad: pl(porVerificar, 'ubicación', 'ubicaciones'), href: '/almacen?capa=verificar', tono: 'atencion' })
   }
   if (roles.includes('admin_wms') && docsPorConfirmar.length > 0) {
@@ -137,7 +137,7 @@ export default async function Inicio() {
     repo.panorama(), repo.listarSolicitudes(), repo.colaDireccionTecnica(), repo.listarExpedientes(), repo.contarAlertasAbiertas(),
     repo.listarMovimientos(), repo.listarConteos(), repo.listarAjustes(),
   ])
-  const alertasMias = (ctx.roles.includes('direccion_tecnica') ? conteo.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe') ? conteo.jefe_almacen : 0) + (ctx.roles.includes('asistente_dt') ? conteo.asistente_dt : 0)
+  const alertasMias = (ctx.roles.includes('direccion_tecnica') ? conteo.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen') ? conteo.jefe_almacen : 0) + (ctx.roles.includes('asistente_dt') ? conteo.asistente_dt : 0)
   const avisos = avisosPara(ctx.roles, p, {
     porAutorizar: ingresos.filter((i) => i.paso === 'POR_AUTORIZAR').length,
     porLlegar: ingresos.filter((i) => i.paso === 'POR_LLEGAR').length,

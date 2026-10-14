@@ -86,7 +86,7 @@ export function pendientesVivos(todos: PendienteVista[]): PendienteVista[] {
   return todos.filter((p) => p.estado !== 'VERIFICADO').sort((a, b) => Number(b.critico) - Number(a.critico) || a.fecha.localeCompare(b.fecha) || a.descripcion.localeCompare(b.descripcion, 'es'))
 }
 
-export const puedeHacerRevision = (roles: readonly Rol[]) => roles.some((r) => r === 'jefe_almacen' || r === 'reemplazo_jefe')
+export const puedeHacerRevision = (roles: readonly Rol[]) => roles.some((r) => r === 'jefe_almacen')
 export const puedeResolverPendiente = (roles: readonly Rol[], actorId: string, p: Pick<PendienteVista, 'responsableId'>) => puedeHacerRevision(roles) || p.responsableId === actorId
 
 // ── Programación de los inventarios cíclicos (INV-05) ────────────────────────

@@ -4,7 +4,6 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
   direccion_tecnica: 'Dirección Técnica',
   asistente_dt: 'Asistente de Dirección Técnica',
   jefe_almacen: 'Jefe de Almacén',
-  reemplazo_jefe: 'Reemplazo del Jefe de Almacén',
   auxiliar: 'Auxiliar de almacén',
   auditoria_lectura: 'Auditoría (solo lectura)',
   admin_wms: 'Administración del WMS',
@@ -21,7 +20,6 @@ const PERMISOS: Record<Rol, readonly Accion[]> = {
   direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental'],
   asistente_dt: ['ver', 'ejecutar', 'exportar'],
   jefe_almacen: ['ver', 'ejecutar', 'verificar', 'exportar', 'cambiar_lote_asignado', 'preparar_salidas'],
-  reemplazo_jefe: ['ver', 'ejecutar', 'verificar'],
   auxiliar: ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado'],
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
   admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],
@@ -38,7 +36,7 @@ const PERMISOS: Record<Rol, readonly Accion[]> = {
  * (conductor, auxiliar de transporte) NO leen el inventario; sus pantallas y políticas llegan en B3 y S9.
  */
 export const ROLES_DE_PERSONAL: readonly Rol[] = [
-  'direccion_tecnica', 'asistente_dt', 'jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'auditoria_lectura', 'admin_wms',
+  'direccion_tecnica', 'asistente_dt', 'jefe_almacen', 'auxiliar', 'auditoria_lectura', 'admin_wms',
   'jefe_transporte', 'conformidad_despacho', 'autoriza_salidas_sin_venta',
 ]
 export const esPersonal = (roles: readonly Rol[]) => roles.some((r) => ROLES_DE_PERSONAL.includes(r))

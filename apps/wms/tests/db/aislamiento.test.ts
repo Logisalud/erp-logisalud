@@ -103,7 +103,7 @@ describe('reglas de la cuenta de cliente (con el acceso habilitado por un admini
 
 const ROLES_ESPERADOS: Record<string, boolean> = {
   // rol → ¿cuenta como personal? (es_usuario). Si se agrega un rol al CHECK y no se clasifica aquí, la prueba falla.
-  direccion_tecnica: true, asistente_dt: true, jefe_almacen: true, reemplazo_jefe: true, auxiliar: true,
+  direccion_tecnica: true, asistente_dt: true, jefe_almacen: true, reemplazo_jefe: false, auxiliar: true,
   auditoria_lectura: true, admin_wms: true, jefe_transporte: true, conformidad_despacho: true,
   autoriza_salidas_sin_venta: true,
   conductor: false, auxiliar_transporte: false, usuario_cliente: false,
@@ -121,6 +121,7 @@ describe('es_usuario(): lista cerrada de personal', () => {
     await interruptor('true')
     try {
       for (const [rol, personal] of Object.entries(ROLES_ESPERADOS)) {
+        if (rol === 'reemplazo_jefe') continue // retirado (0015): ya no se puede asignar; ver roles-jefes.test.ts
         const u = await nuevaCuenta()
         await base.admin.query(`insert into wms.usuario_roles (user_id, rol, propietario_id) values ($1, $2, $3)`, [u, rol, rol === 'usuario_cliente' ? idAjr : null])
         const r = await base.como(u, async (c) => (await c.query('select wms.es_usuario() as p')).rows[0].p)
@@ -276,6 +277,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'aprobar_salida_vencida', 'asignar_salida', 'editar_asignacion', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
     'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',
     'registrar_retorno', 'stock_vendible',
+    // Roles de los jefes y cargos (0015)
+    'asignar_cargo',
     // S2b (0013)
     'avisos_fefo', 'lotes_para_editar', 'reporte_cambios_fefo',
   ]

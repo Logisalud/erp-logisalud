@@ -1,7 +1,7 @@
 import { FlaskConical } from 'lucide-react'
 import { FormularioLogin } from '@logisalud/auth/componentes'
 import { modoDemoActivo } from '@/lib/demo'
-import { ROLES_DEMO } from '@/lib/sesion-demo'
+import { PERSONAS_DEMO } from '@/lib/sesion-demo'
 import { ETIQUETA_ROL } from '@/domain/permisos'
 import { entrarDemo } from '../acciones'
 import { Marca } from '@/components/marca'
@@ -29,7 +29,7 @@ export default function LoginPage({ searchParams }: { searchParams: { volver_a?:
         Nada de lo que hagas aquí se guarda ni toca ninguna base real.
       </p>
       <ul className="mt-6 space-y-3">
-        {ROLES_DEMO.map(({ rol, descripcion }) => (
+        {PERSONAS_DEMO.map(({ clave: rol, cargo, roles, descripcion }) => (
           <li key={rol}>
             <form action={entrarDemo}>
               <input type="hidden" name="rol" value={rol} />
@@ -39,7 +39,8 @@ export default function LoginPage({ searchParams }: { searchParams: { volver_a?:
                 className="flex min-h-16 w-full items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-left shadow-xs transition duration-fast hover:border-green-400 hover:shadow-md active:scale-[0.99]"
               >
                 <span>
-                  <span className="block font-medium text-gray-900">{ETIQUETA_ROL[rol]}</span>
+                  <span className="block font-medium text-gray-900">{cargo}</span>
+                  {roles.length > 1 && <span className="block text-xs font-medium text-gray-700">Roles: {roles.map((r) => ETIQUETA_ROL[r]).join(' y ')}</span>}
                   <span className="block text-sm text-gray-600">{descripcion}</span>
                 </span>
                 <span className="shrink-0 rounded-full bg-green-50 px-3 py-1 text-sm font-medium text-green-800">Entrar</span>
