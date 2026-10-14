@@ -31,8 +31,10 @@ Cuadre: 14.105 + 25 + 24 + 1.330 + 89 + 19.478 = 35.051 → **0 diferencias**.
 8. Códigos BO (BOJAM, BODHP, BOBSA, BOP, BOD): productos propios, con su propio código (p. ej. BODHP108 y DHP108 comparten el código de lote pero son productos y lotes distintos).
 9. Cuarentena y Bajas se cargan con ese estado, en la zona que corresponde.
 
-## Diphasac (interpretación a confirmar — D-75)
-El extracto trae 97 productos (cantidad a mano), sin lote ni vencimiento. Entran **87 productos / 296.903 unidades** en posiciones A-14.1…A-27.1, con el lote marcado «SIN-LOTE-ODOO» y sin vencimiento. Se excluyen los 9 códigos `AJR*` (de AJR Labs). DHP106 entra.
+## Diphasac (decidido por Sebas, D-75)
+El extracto trae 97 productos (cantidad a mano) sin lote ni vencimiento. **En el WMS no existe stock sin lote**, así que no se carga con un lote ficticio: se generan **lotes y vencimientos de PRUEBA**, con código `DEMO-<producto>-<n>`, de forma determinista (`lotesDemoDiphasac`). Más cantidad, más lotes (3 desde 100 unidades, 2 desde 10, 1 si es menos); la suma de los lotes de cada producto es su cantidad a mano.
+Variedad para probar FEFO y los 60 días: cada 11.º producto lleva un lote **ya vencido**, cada 7.º uno **por vencer** (menos de 60 días) y el resto vence con holgura.
+Resultado: 87 productos / 296.903 unidades en 190 lotes DEMO (60 productos con varios lotes; 8 lotes vencidos; 11 por vencer en menos de 60 días), en A-14.1…A-27.1. Se excluyen los 9 códigos `AJR*` (de AJR Labs); DHP106 entra.
 
 ## Qué sigue sintético
 - Los datos regulatorios (registro sanitario, etc.) no vienen de Odoo: se generan como «RS-DEMO» con los mismos 4 casos de prueba (vigente, por vencer, vencido, pendiente).

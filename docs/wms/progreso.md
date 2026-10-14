@@ -204,4 +204,4 @@ Ver `docs/wms/decisiones-pendientes.md` (D-01..D-29). Ninguna bloquea la aprobac
 5. Leer `apps/wms/CLAUDE.md`, `gate-0.md` y `decisiones-pendientes.md`.
 
 ## Demo con datos de Odoo (2026-10-14, rama `feat/wms-demo-datos-odoo`)
-Datos de PRUEBA tomados de Odoo para que la demo sea realista (no es la carga inicial de producción). Resumen de validación, reglas y números: `docs/wms/demo-odoo.md`. Fuentes y generador: `docs/wms/datos-demo-odoo/` y `apps/wms/scripts/generar-datos-demo-odoo.ts`. Los tests y el E2E siguen con datos sintéticos (`WMS_DEMO_DATOS=sintetico`); la prueba de rendimiento, con datos sintéticos escalados. Interpretaciones a confirmar: D-75.
+Datos de PRUEBA tomados de Odoo para que la demo sea realista (no es la carga inicial de producción). Resumen de validación, reglas y números: `docs/wms/demo-odoo.md`. Fuentes y generador: `docs/wms/datos-demo-odoo/` y `apps/wms/scripts/generar-datos-demo-odoo.ts`. Los tests y el E2E siguen con datos sintéticos (`WMS_DEMO_DATOS=sintetico`); la prueba de rendimiento, con datos sintéticos escalados. Diphasac con lotes DEMO generados: D-75 decidida.

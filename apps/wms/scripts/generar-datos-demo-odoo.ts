@@ -56,6 +56,24 @@ export interface SaldoOdoo {
 }
 
 const HOY_EXTRACTO = '2026-10-14'
+
+function sumarDiasISO(desde: string, n: number): string {
+  return new Date(Date.parse(`${desde}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
+}
+
+/**
+ * Lotes de PRUEBA de un producto de Diphasac (el extracto no trae lote ni vencimiento). Código «DEMO-<producto>-<n>».
+ * Más cantidad → más lotes (3 desde 100 unidades, 2 desde 10, 1 si es menos). Cada 11.º producto tiene un lote ya vencido,
+ * cada 7.º uno por vencer (<60 días) y el resto vence con holgura. Los lotes quedan ordenados del que vence antes al que vence después.
+ */
+export function lotesDemoDiphasac(codigo: string, aMano: number, indice: number): { lote: string; vence: string; cantidad: number }[] {
+  const n = aMano >= 100 ? 3 : aMano >= 10 ? 2 : 1
+  const primero = indice % 11 === 0 ? -45 : indice % 7 === 0 ? 30 : 75 + (indice % 5) * 40
+  const partes = n === 3 ? [0.2, 0.3] : n === 2 ? [0.4] : []
+  const cantidades = partes.map((f) => Math.max(1, Math.floor(aMano * f)))
+  cantidades.push(aMano - cantidades.reduce((t, c) => t + c, 0))
+  return cantidades.map((cantidad, k) => ({ lote: `DEMO-${codigo}-${k + 1}`, vence: sumarDiasISO(HOY_EXTRACTO, primero + k * 170), cantidad }))
+}
 const POSICIONES = new Set(generarPosiciones().map((p) => p.codigo))
 const POSICIONES_AJR_PENDIENTES = new Set(['G-8.1', 'G-9.1', 'G-10.1'])
 /** «LGS/Cuarentena» no trae ubicación exacta: entra a la primera posición del área Cuarentena (A-6..A-9). */
@@ -107,7 +125,7 @@ export interface Informe {
   lotesEnArchivo: number
   saldosLogissa: number
   saldosDiphasac: number
-  diphasac: { productosConCantidad: number; unidades: number; excluidosAjr: number }
+  diphasac: { productosConCantidad: number; unidades: number; excluidosAjr: number; lotes: number; vencidos: number; porVencer60: number; productosConVariosLotes: number }
   productosBo: number
   vencidos: number
   porVencer60: number
@@ -160,13 +178,18 @@ export function construir() {
   }
   for (const s of saldos.values()) if (!s.vence) throw new Error(`Sin vencimiento en el archivo de lotes: ${s.producto} ${s.lote}`)
 
-  // Diphasac (regla 7): trae productos con su cantidad a mano, sin lote, sin vencimiento y sin ubicación.
+  // Diphasac (regla 7): el extracto trae productos con su cantidad a mano, sin lote, sin vencimiento y sin ubicación.
+  // En el WMS no existe stock sin lote (decisión de Sebas, D-75): se generan lotes y vencimientos de PRUEBA, marcados «DEMO»,
+  // de forma determinista (mismo resultado en cada corrida) y con variedad para probar FEFO y los 60 días.
   const dip = leerDiphasac()
   const excluidosAjr = dip.filter((d) => d.codigo.startsWith('AJR')).length
   const propios = dip.filter((d) => !d.codigo.startsWith('AJR') && d.aMano > 0)
-  propios.forEach((d, i) => saldos.set(`DIPHASAC|${d.codigo}`, {
-    propietario: 'DIPHASAC', producto: d.codigo, lote: 'SIN-LOTE-ODOO', posicion: POSICIONES_DIPHASAC[i % POSICIONES_DIPHASAC.length], estado: 'APROBADO', cantidad: d.aMano,
-  }))
+  propios.forEach((d, i) => {
+    const posicion = POSICIONES_DIPHASAC[i % POSICIONES_DIPHASAC.length]
+    for (const l of lotesDemoDiphasac(d.codigo, d.aMano, i)) {
+      saldos.set(`DIPHASAC|${d.codigo}|${l.lote}`, { propietario: 'DIPHASAC', producto: d.codigo, lote: l.lote, vence: l.vence, posicion, estado: 'APROBADO', cantidad: l.cantidad })
+    }
+  })
 
   const todos = [...saldos.values()]
   const nombres = new Map<string, string>()
@@ -183,12 +206,18 @@ export function construir() {
   const productos = orden.map((codigo) => ({ codigo, nombre: nombres.get(codigo)! }))
   const hoy = Date.parse(`${HOY_EXTRACTO}T00:00:00Z`)
   const dias = (v: string) => Math.round((Date.parse(`${v}T00:00:00Z`) - hoy) / 86_400_000)
+  const diphasac = todos.filter((s) => s.propietario === 'DIPHASAC')
   const logissaConVence = todos.filter((s) => s.propietario === 'LOGISSA' && s.vence)
   const informe: Informe = {
     extracto: HOY_EXTRACTO, ...inf,
     lotesConStock: new Set(logissaConVence.map((s) => `${s.producto}|${s.lote}`)).size, lotesEnArchivo: lotes.size,
-    saldosLogissa: todos.filter((s) => s.propietario === 'LOGISSA').length, saldosDiphasac: propios.length,
-    diphasac: { productosConCantidad: propios.length, unidades: propios.reduce((t, d) => t + d.aMano, 0), excluidosAjr: excluidosAjr },
+    saldosLogissa: todos.filter((s) => s.propietario === 'LOGISSA').length, saldosDiphasac: todos.filter((s) => s.propietario === 'DIPHASAC').length,
+    diphasac: {
+      productosConCantidad: propios.length, unidades: propios.reduce((t, d) => t + d.aMano, 0), excluidosAjr: excluidosAjr,
+      lotes: diphasac.length, vencidos: diphasac.filter((s) => dias(s.vence!) < 0).length,
+      porVencer60: diphasac.filter((s) => dias(s.vence!) >= 0 && dias(s.vence!) < 60).length,
+      productosConVariosLotes: new Set(diphasac.filter((s) => diphasac.filter((t) => t.producto === s.producto).length > 1).map((s) => s.producto)).size,
+    },
     productosBo: productos.filter((p) => esBo(p.codigo)).length,
     vencidos: logissaConVence.filter((s) => dias(s.vence!) < 0).length,
     porVencer60: logissaConVence.filter((s) => dias(s.vence!) >= 0 && dias(s.vence!) < 60).length,

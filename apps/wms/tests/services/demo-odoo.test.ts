@@ -8,7 +8,7 @@ import { areaAdmite, posicionAcepta } from '@/domain/zonas'
 import { construirPanoramaDemo, datosDemoActivos } from '@/services/demo/datos'
 import { InventarioDemo } from '@/services/demo/inventario-demo'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
-import { construir, emitir, filasCsv } from '../../scripts/generar-datos-demo-odoo'
+import { construir, emitir, filasCsv, lotesDemoDiphasac } from '../../scripts/generar-datos-demo-odoo'
 
 const HOY = '2026-10-14'
 const suma = (xs: { cantidad: number }[]) => xs.reduce((t, x) => t + x.cantidad, 0)
@@ -128,13 +128,35 @@ describe('qué entra y qué se excluye (reglas 1 a 9)', () => {
     expect([...porProducto.values()].filter((v) => v.size >= 2).length).toBeGreaterThan(20)
   })
 
-  it('el stock de Diphasac viene sin lote ni vencimiento en el extracto: lleva un lote marcado «SIN-LOTE-ODOO»', () => {
-    expect(EXTRACTO_ODOO.diphasac.excluidosAjr).toBe(9) // los códigos AJR son de AJR Labs
-    expect(saldosDiphasac).toHaveLength(EXTRACTO_ODOO.diphasac.productosConCantidad)
-    const lotes = new Set(saldosDiphasac.map((s) => p.lotes.find((l) => l.id === s.loteId)!.codigo))
-    expect([...lotes]).toEqual(['SIN-LOTE-ODOO'])
-    expect(p.lotes.filter((l) => l.propietarioId === 'prop:DIPHASAC').every((l) => l.vence === undefined)).toBe(true)
+  it('Diphasac: sin stock sin lote; lotes y vencimientos de PRUEBA marcados DEMO, con variedad (D-75)', () => {
+    const d = EXTRACTO_ODOO.diphasac
+    expect(d.excluidosAjr).toBe(9) // los códigos AJR son de AJR Labs
+    expect(saldosDiphasac).toHaveLength(d.lotes)
+    expect(saldosDiphasac.reduce((t, s) => t + s.cantidad, 0)).toBe(d.unidades) // la suma por producto sigue siendo la cantidad a mano
+    const lotesDip = p.lotes.filter((l) => l.propietarioId === 'prop:DIPHASAC')
+    expect(lotesDip.length).toBeGreaterThan(0)
+    for (const l of lotesDip) {
+      expect(l.codigo, l.codigo).toMatch(/^DEMO-/)
+      expect(l.vence, l.codigo).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    }
+    expect(p.lotes.some((l) => l.codigo === 'SIN-LOTE-ODOO')).toBe(false)
+    const dias = (v: string) => Math.round((Date.parse(`${v}T00:00:00Z`) - Date.parse(`${HOY}T00:00:00Z`)) / 86_400_000)
+    expect(lotesDip.filter((l) => dias(l.vence!) < 0)).toHaveLength(d.vencidos)
+    expect(lotesDip.filter((l) => dias(l.vence!) >= 0 && dias(l.vence!) < 60)).toHaveLength(d.porVencer60)
+    expect(d.vencidos).toBeGreaterThan(0)
+    expect(d.porVencer60).toBeGreaterThan(0)
+    expect(d.productosConVariosLotes).toBeGreaterThan(20)
     expect(p.productos.some((x) => x.codigo.startsWith('AJR'))).toBe(false)
+  })
+
+  it('los lotes de prueba de Diphasac son deterministas, suman la cantidad a mano y vienen ordenados por vencimiento', () => {
+    for (const [i, cant] of [[0, 2563], [1, 5], [7, 40], [11, 100], [3, 1]] as const) {
+      const a = lotesDemoDiphasac('X', cant, i)
+      expect(a).toEqual(lotesDemoDiphasac('X', cant, i))
+      expect(a.reduce((t, l) => t + l.cantidad, 0)).toBe(cant)
+      expect(a.every((l) => l.cantidad >= 1)).toBe(true)
+      expect([...a].sort((x, y) => x.vence.localeCompare(y.vence))).toEqual(a)
+    }
   })
 
   it('los lotes del panorama son únicos por producto, código y propietario', () => {
