@@ -160,7 +160,7 @@ Riesgos: base compartida (mitigado: snapshot, ventana, reversa probada); los ada
 | Andrés | Administrador | `admin_wms` | *(Andrés)* |
 
 - Solo Sebas y Andrés son `admin_wms`.
-- **Jefe de Transporte** queda previsto: hoy usa los permisos de Jefe de Almacén; cuando existan las salidas tendrá permisos propios (rol `jefe_transporte`, que se agrega en el batch de despacho). Como los permisos se leen del rol y el cargo es aparte, ese cambio no obliga a rehacer nada.
+- **Jefe de Transporte (decidido 2026-10-14, D-57):** Roberto es **solo `jefe_transporte`**, sin permisos de Jefe de Almacén; el reemplazo del Jefe de Almacén es **Jasury**. El rol se agrega en el bloque de Salidas (S1, migración 0011). Un usuario puede tener varios roles. Como los permisos se leen del rol y el cargo es aparte, ese cambio no obliga a rehacer nada.
 - Consecuencias de las decisiones, para que Sebas las confirme: **Sandra con permisos de Dirección Técnica** puede aprobar ajustes de inventario (hoy solo Dirección Técnica), no solo editar datos regulatorios; el rol `asistente_dt` queda sin uso por ahora. **Roberto y Jasury con permisos de Jefe de Almacén** pueden revertir movimientos y gestionar lo que gestiona el Jefe de Almacén.
 - Cada persona se prueba con su rol real en el punto 3.
 

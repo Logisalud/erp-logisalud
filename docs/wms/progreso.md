@@ -187,8 +187,9 @@ Migración **0008** + reversa + 11 pruebas de base de datos (ver `propuesta-pres
 
 ### Salidas (RUT) — diagnóstico y plan (2026-10-14) — solo documento
 - `docs/wms/salidas/diagnostico-y-plan.md`: proceso de punta a punta, reutilización vs extensión del código, 14 conflictos/contradicciones (sin resolver), gap analysis de los 11 RUT, respuestas a los 7 puntos de arquitectura, modelo de dominio y estados por agregado, plan en PRs (S0–S14), preguntas por decisor. Decisiones D-47..D-59 en `decisiones-pendientes.md`; reglas cerradas de Salidas añadidas a `reglas-negocio.md`.
-- **Master v2 recibido y contrastado** (las hojas RUT del Master = TO-BE de cada RUT). Falta solo el archivo del formato LS-FR.43.03 (D-48). Contradicciones nuevas: secuencia documentación/embalaje (D-60) y KPI del Master vs D-44 (D-61).
-- Sin código, sin migraciones, sin tocar Pedidos ni ninguna base real. Siguiente: aprobación del diagnóstico → S0/S0b → S1+S2.
+- **Master v2 recibido y contrastado** (las hojas RUT del Master = TO-BE de cada RUT). El formato LS-FR.43.03 también llegó y coincide con el Master (D-48 resuelta). Contradicciones nuevas: secuencia documentación/embalaje (D-60) y KPI del Master vs D-44 (D-61).
+- **Revisión 3 (2026-10-14):** incorpora las decisiones de Sebas (D-50, D-51, D-57, D-59, D-60, D-62, D-63; interpretaciones a confirmar en D-64) y el contraste con el formato LS-FR.43.03 (coincide con el Master). Nuevos requerimientos: asignación FEFO con una sola excepción, orden y hoja de picking, repositorio de documentos regulatorios y paquete documental (PR nuevo S6a).
+- Sin código, sin migraciones, sin tocar Pedidos ni ninguna base real. Siguiente: CI en verde de #184 → aprobación → S0b → S1+S2 (rama nueva; migraciones desde 0011).
 
 ## Bloqueado / pendiente
 Ver `docs/wms/decisiones-pendientes.md` (D-01..D-29). Ninguna bloquea la aprobación del Batch 1.

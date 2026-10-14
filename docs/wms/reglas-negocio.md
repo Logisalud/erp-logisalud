@@ -9,8 +9,13 @@ Solo entradas y movimientos internos. Las salidas (preparación, despacho, trans
 ## Salidas (decididas por Sebas, 2026-10-14; diagnóstico en `docs/wms/salidas/diagnostico-y-plan.md`)
 Nada de esto está construido. Las reglas cerradas de arriba se mantienen; lo siguiente es lo que Sebas fijó al abrir el bloque de Salidas:
 - **Se extiende el WMS; no se rediseña lo existente.** Entradas, calidad, movimientos, conteos, revisión diaria, Kardex, reportes e indicadores ya están aprobados.
-- **Selección de lotes:** FEFO por defecto. Un cliente puede pedir un vencimiento más lejano o un lote específico **por línea de pedido**; se respeta si el lote está Aprobado, sin bloqueo y con cantidad suficiente. Se registran criterio solicitado, lote sugerido y lote despachado. Vive en dominio y base de datos, no solo en la pantalla.
+- **Selección de lotes: solo FEFO (D-62).** El WMS asigna siempre el lote Aprobado, sin bloqueo, no vencido y con cantidad suficiente que vence primero; no se toca Pedidos. **Única excepción:** el Jefe de Almacén (o su reemplazo) o el Jefe de Transporte pueden cambiar el lote de una línea **antes del picking**, con un único motivo fijo: «Cliente solicita vencimiento más largo». El lote nuevo debe vencer después del asignado, estar Aprobado, sin bloqueo y con cantidad suficiente (dominio y base de datos). Se registra quién, cuándo, lote anterior, lote nuevo y motivo; trazabilidad: lote asignado → cambio → lote despachado. Sin stock suficiente: alerta al Jefe de Transporte antes del picking. Si el picker no encuentra el lote: discrepancia y propuesta del siguiente FEFO válido. *(Reemplaza la regla anterior de «lote o vencimiento pedido por línea» y «vencimiento mínimo por cliente»; esas dos quedan como fase posterior, D-62b.)*
+- **Orden de picking:** el WMS asigna lote y ubicación a cada línea y genera la orden (ubicación, producto, lote, vencimiento, cantidad) ordenada por recorrido; en el teléfono y como hoja imprimible desde el primer día.
+- **Documentos después de la conformidad:** la GRE y la factura se emiten con los lotes realmente despachados, tomados de lo confirmado. La GRE no se conecta con SUNAT: el WMS registra su número. «Listo para carga» = conforme + embalado + con GRE + paquete documental completo.
+- **Paquete documental (D-63):** COA por lote, registro sanitario por producto y certificado BPM por fabricante, con vigencia; el maestro del cliente dice qué exige; solo Dirección Técnica sube o reemplaza documentos regulatorios, con historial; el Jefe de Transporte imprime el paquete de un pedido o ruta en un solo PDF; alerta si falta o vence algo antes de «Listo para carga».
+- **Roles:** Roberto es solo `jefe_transporte`; el reemplazo del Jefe de Almacén es Jasury; un usuario puede tener varios roles; la conformidad es un permiso propio.
 - **Solo se despacha stock Aprobado del propietario del pedido.** Quien prepara no es quien verifica (picking y conformidad).
+- **Rack → staging:** el movimiento se registra cuando Conformidad verifica (D-51); mientras tanto las unidades quedan reservadas y visibles «en tránsito».
 - **Reserva:** Pedidos gobierna la reserva comercial; el WMS, la asignación física de lote y ubicación (ver diagnóstico §4.2).
 - **Retornos:** «No entregado» vuelve a la zona de retorno reservado sin evaluación de Katia y sigue reservado al cliente. Solo «Rechazado» entra por el flujo de devolución existente (estado Devoluciones, acta organoléptica, decisión de Katia).
 - **Fuera de la primera fase:** salida de stock de terceros (Diphasac, AJR Labs, Triamed, Medic Pharma Lab); emisión de la GRE ante SUNAT (el WMS registra el N.° de guía); GPS; RUT-14.
@@ -29,7 +34,8 @@ Nada de esto está construido. Las reglas cerradas de arriba se mantienen; lo si
 | Katia Zapata | Dirección Técnica: decide estados, valida productos, aprueba ajustes |
 | Sandra López | Asistente DT: evaluación organoléptica, alta de productos, cierre documental |
 | Charlie Chancco | Jefe de Almacén (así se llama el cargo en la interfaz y en el acta, como en LS-FR.03.05) |
-| Roberto, Jasury | Reemplazos de Charlie (autorizan movimientos) |
+| Jasury | Reemplazo de Charlie (verifica movimientos y resuelve diferencias) |
+| Roberto | **Jefe de Transporte** (rol propio `jefe_transporte`, sin permisos de Jefe de Almacén; decidido 2026-10-14) |
 | Christians, Jose Carlos, Alberto, Milka | Auxiliares de almacén |
 El equipo usa teléfonos personales.
 
