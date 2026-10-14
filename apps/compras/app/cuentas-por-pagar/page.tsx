@@ -61,7 +61,7 @@ export default async function CuentasPorPagar({
         {/* Baja lo que se está viendo, con los filtros puestos — mismas
             columnas que la tabla, no un recorte distinto. */}
         <a
-          href={`/cuentas-por-pagar/descargar${querystringDeFiltro(filtro)}`}
+          href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/cuentas-por-pagar/descargar${querystringDeFiltro(filtro)}`}
           className="btn-secondary w-full sm:w-auto"
         >
           Exportar a Excel
