@@ -117,14 +117,15 @@ describe('indicadores', () => {
     expect(por(calcularIndicadores(datos(), periodoDe(HOY, 30), { propietarioId: dueno.id }), 'revision-diaria').filtraPropietario).toBe(false)
   })
   it('movimientos verificados a tiempo y sin verificar usan el plazo configurado', () => {
-    const ahora = Date.now()
+    // Hora fija dentro del periodo (HOY, 17:00 de Lima): con Date.now() esta prueba dejó de pasar cuando el reloj real salió de la ventana de HOY.
+    const ahora = Date.parse(`${HOY}T22:00:00Z`)
     const ord = (id: string, h: number, verificadoH?: number) => ({
       id, numero: id, estado: 'EJECUTADO' as const, motivo: 'x', ejecutorId: 'u', ejecutor: 'U', ejecutadoEn: new Date(ahora - h * 3_600_000).toISOString(),
       verificadoEn: verificadoH === undefined ? undefined : new Date(ahora - (h - verificadoH) * 3_600_000).toISOString(),
       lineas: [{ id: id + 'l', productoId: 'p', producto: 'P', loteId: 'l', lote: 'L', propietario: 'LOGISSA', estado: 'APROBADO' as const, procedenciaId: 'x', desdePosicionId: 'a', desde: 'A', haciaPosicionId: 'b', hacia: 'B', cantidad: 1, verificacion: verificadoH === undefined ? 'PENDIENTE' as const : 'CONFIRMADA' as const }],
     })
     // verificado en 2 h (a tiempo), verificado en 30 h (tarde), sin verificar a las 30 h (tarde), sin verificar a las 3 h (todavía en plazo: no cuenta)
-    const r = calcularIndicadores(datos({ ordenes: [ord('a', 40, 2), ord('b', 60, 30), ord('c', 30), ord('d', 3)] }), periodoDe(HOY, 30))
+    const r = calcularIndicadores(datos({ ordenes: [ord('a', 40, 2), ord('b', 60, 30), ord('c', 30), ord('d', 3)] }), periodoDe(HOY, 30), { ahora })
     expect(por(r, 'movs-a-tiempo').datos).toContain('1 de 3')
     expect(por(r, 'movs-sin-verificar').valor).toBe(2) // c y d siguen sin verificar
     expect(por(r, 'movs-sin-verificar').detalle[0].valor).toBe('1') // solo c pasó de 24 h
