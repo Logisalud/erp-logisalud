@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { listarCategoriasGasto, obtenerSolicitud, sugerenciaResponsableArea } from '@/services/solicitudes-gasto'
 import { listarUsuarios } from '@/services/usuarios'
+import { listarPersonasSinUsuario } from '@/services/beneficiarios'
 import { puedeEditarseSolicitud } from '@/domain/edicion'
 import { valoresDeSolicitud } from '@/domain/valores-solicitud'
 import { FormularioSolicitud } from '@/app/gastos/nueva/formulario'
@@ -27,9 +28,13 @@ export default async function EditarSolicitud({ params }: { params: { id: string
   // están Anular y Rechazar, los caminos que sí corresponden.
   if (!puedeEditarseSolicitud(solicitud.estado)) redirect(`/gastos/${params.id}`)
 
-  const [categorias, usuarios, sugerenciaAutoriza] = await Promise.all([
+  // Todas, no solo las activas: si la persona asignada se desactivó después,
+  // tiene que seguir apareciendo como la elegida (el buscador oculta las
+  // inactivas salvo esa).
+  const [categorias, usuarios, personas, sugerenciaAutoriza] = await Promise.all([
     listarCategoriasGasto(),
     listarUsuarios(),
+    listarPersonasSinUsuario({ soloActivas: false }),
     sugerenciaResponsableArea(),
   ])
 
@@ -49,6 +54,7 @@ export default async function EditarSolicitud({ params }: { params: { id: string
       <FormularioSolicitud
         categorias={categorias}
         usuarios={usuarios}
+        personas={personas}
         sugerenciaAutoriza={sugerenciaAutoriza}
         inicial={valoresDeSolicitud(solicitud as any)}
         accionServidor={editarSolicitudAction.bind(null, params.id)}
