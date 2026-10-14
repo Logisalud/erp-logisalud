@@ -1,7 +1,7 @@
 # apps/wms
 
 WMS de Logisalud. Documentos de negocio en `docs/wms/` (raíz del monorepo).
-Alcance actual: entradas y movimientos internos. **Antes de tocar nada lee
+Alcance actual: entradas y movimientos internos (las salidas están en diagnóstico: `docs/wms/salidas/diagnostico-y-plan.md`). **Antes de tocar nada lee
 `docs/wms/gate-0.md`, `docs/wms/progreso.md` y `docs/wms/decisiones-pendientes.md`.**
 
 ## Obligaciones para todas las sesiones
@@ -23,6 +23,8 @@ datos, build y E2E en los 4 viewports. Si la CI está roja, primero se arregla (
 decisión del usuario). Antes de pedir la aprobación de un PR se revisa el resultado del job
 «apps/wms — dominio, base de datos, build y E2E» y se informa su estado. (Origen: 2026-10-10, la CI del WMS
 estuvo roja desde el 8-oct en el paso `test:e2e` y se mergearon #169 y #170 mirando solo Vercel.)
+
+**Avisos al usuario:** no informes las actualizaciones automáticas de los comentarios de Vercel ni de Supabase en los PR (despliegues, vistas previas, «ignorado», etc.). Informa solo cuando **una CI termine**, cuando **algo falle** o cuando **necesites una decisión** del usuario. (Origen: 2026-10-14, instrucción de Sebas.)
 
 **Paginación:** toda lectura de más de 1.000 filas usa `traerTodo`, que ordena siempre por la clave única de
 la tabla (`services/supabase/claves.ts`). Una tabla nueva se registra ahí antes de leerla. Paginar con

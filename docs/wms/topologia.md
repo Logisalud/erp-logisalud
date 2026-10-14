@@ -1,9 +1,10 @@
 # Topología — Almacén Lurín (Panamericana Sur km 29.5)
 Fuentes: planos en docs/wms/layouts/ y contratos/adendas de almacenamiento.
 Nomenclatura:
-- Rack-Posición.Nivel (A-10.2); niveles 1–4.
-- Subrack: Rack-Posición.Nivel.Sub (E-8.1.3).
-- Piso: Rack-Posición (B-1).
+- **Rack-Columna.Nivel** (A-10.2 = rack A, columna 10, nivel 2); niveles 1 a 4 **de abajo hacia arriba** (decidido por Sebas, 2026-10-14; en el esquema, la columna `posicion`).
+- Subrack: Rack-Columna.Nivel.Sub (E-8.1.3).
+- Piso: Rack-Columna (B-1). **Las posiciones de piso (B, C, D y E-1 a E-7) no tienen niveles.**
+- **Recorrido de picking:** se ordena por la posición física de cada columna (D-65).
 
 ## Áreas compartidas (varios propietarios por posición)
 - Recepción: A-1 a A-5 (pallets) y A-M1 (mesa). Tránsito.
