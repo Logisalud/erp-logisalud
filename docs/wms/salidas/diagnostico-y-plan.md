@@ -1,6 +1,7 @@
 # WMS — Salidas (RUT): diagnóstico y plan
 
 > **Estado:** primera entrega, **solo documento, sin código** (2026-10-14). Nada de esto está construido ni aprobado.
+> **Revisión 4 (2026-10-14):** agrega la **salida tipo B** (por cuenta de un cliente de almacenamiento) como parte del plan, con su seguridad de aislamiento entre propietarios (P0), los códigos de producto múltiples y la entrega al transportista del cliente (§2.5, §3 «Salida tipo B», §4.9, §6). Registra además la nomenclatura Rack-Columna.Nivel, el COA por lote, los productos vencidos, las salidas sin venta, la vida útil mínima de 60 días y las firmas del LS-FR.43.03 (§2.5).
 > **Revisión 3 (2026-10-14):** incorpora las **decisiones de Sebas** (§2.4: D-51, secuencia del Master con orden/hoja de picking, FEFO único con su excepción, paquete documental, roles, orden de PRs, paralelo con Odoo) y contrasta el diagnóstico con el **formato LS-FR.43.03** ya subido (§0 y §5.4).
 > **Revisión 2 (2026-10-14):** contrastado con el **Master TO-BE v2** (subido después de la primera versión). Lo que cambió está en §0 y marcado «Master».
 > **Principio rector:** el proceso gobierna al software. Si algo de aquí contradice una regla ya cerrada, **no la cambio**: la reporto (sección 2.3).
@@ -180,6 +181,38 @@ Nunca stock negativo · el ledger es la fuente del stock y nada se borra (revers
 - *Un lote vencido nunca se asigna*, aunque esté Aprobado (salvaguarda mía).
 - *Sin stock suficiente:* el pedido o la línea se bloquea y vuelve al planificador/Comercial (RUT-03 paso 7). Los **despachos parciales no están en ningún RUT**: queda como pregunta a Roberto/Comercial.
 
+### 2.5 Ajustes de Sebas (2026-10-14, revisión 4) [A]
+
+**1. Ubicaciones.** La nomenclatura es **Rack-Columna.Nivel** (A-10.2 = rack A, columna 10, nivel 2; niveles 1 a 4 **de abajo hacia arriba**). Las posiciones de **piso** (B, C, D y E-1 a E-7) **no tienen niveles**. El recorrido de picking se mantiene, **ordenando por la posición física de cada columna**. *(En el esquema, la columna `wms.posiciones.posicion` ya guarda ese número; solo cambia el nombre en la documentación, no hace falta migrar. `orden_recorrido` se calcula con la posición física de cada columna.)*
+
+**2. COA por lote.** Cada lote recibido trae su COA y se adjunta **en la recepción**. **La carpeta existente se importa con la carga masiva.**
+
+**3. Dos tipos de salida (cambia el plan; §4.9).** **A) Distribución** (stock de Logissa): el pedido nace en Pedidos, Logissa emite factura y GRE, FEFO asigna el lote; es lo que cubren los RUT. **B) Por cuenta de un cliente de almacenamiento** (Diphasac, AJR Labs, Medic Pharma Lab, Triamed): el cliente emite su propia factura y GRE, su usuario crea la orden de salida en el WMS indicando el lote, Logisalud pica, conforma, embala y despacha; el transporte puede ser recojo del cliente, ruta de Logisalud o transportista del cliente. **Reemplaza** la decisión anterior de dejar la salida de terceros fuera de la primera fase: **entra al plan**, después del núcleo de picking, conformidad y despacho, y **antes del paralelo con Odoo**, porque es requisito para apagar Odoo (hoy los clientes crean sus órdenes ahí).
+
+**4. Productos vencidos.** Stock de **Logissa**: nunca sale vencido; lo vencido va por el flujo de Bajas. Stock de **un cliente**: puede ordenar la salida de un lote vencido **solo con un motivo que no sea venta** (destrucción, devolución al proveedor, pesquisa DIGEMID) y **con aprobación de Dirección Técnica** (a confirmar con Katia).
+
+**5. Salidas sin venta de Logissa** (muestra, pesquisa DIGEMID, otros): autorizadas por el rol **«autoriza salidas sin venta»** (hoy Juan y Sebas), **sin el mínimo de 60 días**, pero **nunca vencidas**.
+
+**6. Pedidos de venta de Logissa: vida útil mínima de 60 días** (parámetro configurable). Consecuencia: el FEFO asigna el lote que vence primero **entre los que tienen al menos 60 días**, y el «stock vendible» que se publica a Pedidos excluye los lotes con menos de 60 días.
+
+**7. LS-FR.43.03:** firmas **solo al final, en la última página**; el pie «LOGISSA S.A.C.» **se mantiene tal cual**. *(Resuelve dos de las preguntas nuevas para DT; las seis de la hoja `08` siguen abiertas salvo la parte de firmas por página.)*
+
+**Precisiones de la salida B:**
+- **Flujo real:** el cliente consulta su stock en nuestro sistema → emite factura y GRE en su sistema con el lote elegido → crea la orden en el WMS con su usuario → picamos, conformamos y embalamos → **su transportista recoge**.
+- **El stock que ve el cliente es su disponible real por lote y vencimiento** (saldo menos lo comprometido en sus órdenes en curso), porque con eso emite un documento tributario. La validación al crear la orden se mantiene.
+- **Códigos de producto:** un producto tiene varios códigos: el nuestro de distribución, el del proveedor (se conserva, nunca se elimina) y el de cada cliente de almacenamiento (AJR0026 para AJR; Medic Pharma enviará los suyos). El cliente ve y busca con su código; **la búsqueda del WMS encuentra un producto por cualquiera**. *Revisado: `catalogo.productos` guarda `codigo` (el nuestro), `codigo_proveedor` (un solo texto) y `codigo_bonificacion`; **no hay códigos por cliente ni varios por proveedor**, así que hace falta una tabla nueva y aditiva (§4.7).*
+- **Transporte en la salida B:** el cliente recoge con su transportista; **el LS-FR.43.03 no aplica** (solo cuando transporta Logisalud). Se registra la **ENTREGA AL TRANSPORTISTA DEL CLIENTE**: transportista, placa y conductor (tomados de su GRE), bultos entregados, hora y **firma en pantalla** de quien recoge. **Ese evento es la salida confirmada y el movimiento definitivo de stock.**
+
+**Lo que no tengo registrado (te lo digo para no inventarlo):**
+- **El ejemplo de GRE de AJR (EG07-00002031) no está en `docs/wms/referencias/`**: la carpeta solo trae `movimiento-tabla-demo.html`. Trabajo con los campos que describiste (lote y vencimiento por línea, código del cliente AJR0026, bonificación, destinatario, punto de llegada, transportista, placa, conductor y observaciones de temperatura). Súbelo para el diseño fino de la orden y de la futura lectura automática.
+- Tres veces escribiste «como te indiqué»: **el recorrido de picking** (punto 1), **las salidas sin venta** (punto 5) y **los 60 días** (punto 6). **No tengo esas instrucciones anteriores en mi contexto** (solo los pasos que me diste aquí). Las registro **tal como las escribes ahora**; si había algún detalle más, dímelo y lo ajusto.
+
+**Impacto en S0b, S1 y S2 (te lo aviso antes de seguir, como pediste):**
+- **S0b no cambia** (CI en Postgres 17).
+- **S1 sí cambia:** agrega el rol **`usuario_cliente` ligado a un propietario** y, antes que nada, el **aislamiento por propietario en la base de datos**. Hallazgo de seguridad (P0): hoy casi todas las tablas del WMS se leen con la política «`wms.es_usuario()`», que es verdadera para **cualquier** fila de `usuario_roles`; si el rol de cliente se guardara ahí sin más, **un usuario de cliente vería el stock de todos los propietarios**. Hay que cambiar `es_usuario()` para que no cuente al rol de cliente y definir políticas propias por propietario, con pruebas de aislamiento (D-68).
+- **S2 sí cambia:** la asignación debe soportar **dos modos** (FEFO con mínimo de 60 días para A; lote indicado por el cliente para B), el **disponible real por propietario** (saldo menos lo comprometido), la regla de **vencidos** (Logissa nunca; cliente solo con motivo no-venta y aprobación de DT) y la reserva desde la creación de la orden B.
+- Por eso **no empiezo S1 ni S2 hasta que lo confirmes**.
+
 ## 3. Gap analysis por RUT
 
 Leyenda de severidad: **Crít** (impide operar o rompe una regla cerrada), **Alta**, **Media**. Prioridad: **P0** crítico para operación, integridad o regulación; **P1** necesario; **P2** mejora posterior. Capas: **F** frontend · **B** backend (acciones/servicios) · **DB** base de datos · **M** migración · **T** tests.
@@ -316,6 +349,25 @@ Estado actual en todas las filas: *no existe en el WMS* salvo donde se indica.
 | 12.6 | Reversas documentarias y nota de crédito | A | Es de Pedidos/facturación | Alta | El WMS **emite el evento** «devolución confirmada»; no emite NC | P1 |
 | 12.7 | Trazabilidad por pedido, lote, motivo, intento, actas y decisión sanitaria | A | — | Alta | Expediente de retorno | P1 |
 
+### Salida tipo B — por cuenta de un cliente de almacenamiento (nuevo, no está en los RUT)
+> No hay RUT para esta salida: es un requisito nuevo de Sebas (§2.5). Todo es **[A]** salvo donde se indica. Reutiliza picking, conformidad, embalaje, bultos y despacho de la salida A.
+
+| # | Requerimiento | Gap | Sev | Cambio | Pri |
+|---|---|---|---|---|---|
+| B.1 | **Rol «Usuario de cliente» ligado a un propietario**; solo ve y opera el stock de su propietario | No existe. **`es_usuario()` lo dejaría leer todo** (hallazgo §2.5) | Crít | Rol + vínculo usuario-propietario; `es_usuario()` excluye al cliente; políticas por propietario en **RLS** (no solo interfaz); **pruebas de aislamiento entre propietarios** (lectura, escritura, funciones, vistas, Storage) | **P0** |
+| B.2 | **Autenticación de usuarios externos** en el mismo proyecto Supabase que el personal | Los usuarios de cliente serían `authenticated` en el proyecto compartido: **Pedidos tiene 18 y Compras 5 políticas de lectura `using (true)`** para cualquier autenticado | Crít | **Decisión de Sebas (D-68):** endurecer esas políticas (cambio no aditivo en otras apps) o aislar a los clientes de otra forma. Sin resolverlo no se abre el acceso de clientes | **P0** |
+| B.3 | **Orden de salida de cliente:** lote indicado por el cliente; GRE del cliente adjunta (PDF) y su número registrado | No existe | Crít | `ordenes_salida_cliente` + líneas (producto, lote, cantidad), GRE en Storage, N.° de guía | P0 |
+| B.4 | **Validación al crear la orden:** el lote existe, es de ese propietario, está Aprobado, sin bloqueo y con cantidad suficiente; si no, avisa en ese momento | No existe | Crít | Función en DB (`crear_orden_salida_cliente`) + el mismo dominio; reserva al crear; nunca stock negativo | P0 |
+| B.5 | **Disponible real del cliente** por lote y vencimiento (saldo − comprometido en sus órdenes en curso) | La vista de «disponible» solo conoce movimientos internos | Crít | Vista por propietario con reservas de órdenes B y A (§4.2) | P0 |
+| B.6 | **Vencidos de cliente:** salida solo con motivo no-venta (destrucción, devolución al proveedor, pesquisa DIGEMID) y aprobación de DT | No existe | Alta | Motivo cerrado + aprobación de DT; Logissa nunca vencido. **Confirmar con Katia** | P1 |
+| B.7 | **Códigos de producto múltiples** (nuestro, proveedor, cliente); búsqueda por cualquiera; el cliente ve el suyo | `catalogo.productos` solo tiene `codigo`, `codigo_proveedor` (texto único) y `codigo_bonificacion` | Alta | Tabla aditiva `wms.producto_codigos` (§4.7); índice de búsqueda; el código de proveedor **nunca se elimina** | P1 |
+| B.8 | **Vista del cliente:** su stock por lote y vencimiento, crear órdenes y seguir su estado (pendiente, en preparación, lista, despachada, entregada); más adelante su Kardex e indicadores | No existe | Alta | Pantallas propias del cliente (Impeccable, 4 viewports); Kardex e indicadores: fase posterior | P1 |
+| B.9 | **Picking, conformidad y embalaje** con el mismo flujo, pero **sin FEFO** (el lote lo fija el cliente); si el picker no encuentra el lote, discrepancia **sin sustituir por otro lote** | S5–S7 deben admitir los dos tipos de orden | Alta | Tipo de orden en las tareas; sin propuesta de reemplazo para B (otro lote lo decide el cliente) [B] | P0 |
+| B.10 | **Transporte:** recojo del cliente, ruta de Logisalud (Ruta + LS-FR.43.03) o transportista del cliente | Solo existe el diseño de ruta propia | Alta | Campo «modalidad de transporte» en la orden; Ruta/LS-FR solo si transporta Logisalud | P1 |
+| B.11 | **Entrega al transportista del cliente** = salida confirmada: transportista, placa y conductor (de su GRE), bultos, hora y **firma en pantalla** de quien recoge | No existe | Crít | Evento `ENTREGA_A_TRANSPORTISTA` que registra la `SALIDA` en el ledger; firma táctil (ya existe en actas) | P0 |
+| B.12 | **Prellenar la orden leyendo la GRE del cliente** (PDF o XML) | — | Media | **Fase posterior**; no se construye ahora | P2 |
+| B.13 | Quién crea las cuentas de usuario del cliente y cómo se les da de baja | No definido | Alta | Alta por Administración con vigencia (como `usuario_roles`); sin autoservicio | P1 |
+
 ## 4. Respuestas propuestas a los 7 puntos de arquitectura
 
 ### 4.1 Integración con Pedidos (otro proyecto Supabase) [B]
@@ -362,7 +414,7 @@ Se usan **tres escalones**, todos por `postear_movimiento` (transaccionales, ide
 
 ### 4.4 Pedidos y clientes de distribución; salida de terceros [A/B]
 - Los clientes **nacen en Pedidos** (hoy `public.clientes` + `pedidos.cliente_config/cliente_direcciones/cliente_contactos`). **El WMS no crea clientes**: guarda un *snapshot* del cliente en cada pedido importado (nombre, RUC, dirección y datos de entrega tal como estaban), para que el historial no cambie si el maestro cambia.
-- **Salida de stock de terceros** (Diphasac, AJR Labs, Triamed, Medic Pharma Lab): **fuera de la primera fase** [A]. Se deja preparado: cada línea de pedido, reserva, bulto y movimiento lleva `propietario_id` (ya es parte de la celda de saldo); la regla «solo se despacha stock Aprobado **del propietario del pedido**» ya se valida en la base de datos. Se anota como pendiente (D-5x, abajo).
+- **Salida de stock de terceros (Diphasac, AJR Labs, Medic Pharma Lab, Triamed): ahora SÍ entra al plan** (decisión del 2026-10-14; **sustituye** a «fuera de la primera fase»). Es la **salida tipo B**, con su propio diseño en §4.9. La línea, la reserva, el bulto y el movimiento llevan `propietario_id` (ya es parte de la celda de saldo) y la regla «solo se despacha stock Aprobado **del propietario de la orden**» se valida en la base de datos.
 
 ### 4.5 GRE [A/B]
 No se emite ante SUNAT en las primeras fases. El WMS **registra el N.° de guía** (una sola vez, con serie-correlativo y fecha) y lo usa en la Ruta, el Pedido y el LS-FR.43.03. Si una reprogramación o cambio afecta el documento, el WMS lo marca **«por reemitir»** y deja visible el bloqueo; **no valida ni inventa reglas tributarias** (se marca «para validar con Contabilidad/facturación»). La integración Nubefact u otra va después (RUT-02 P2, roadmap del Master).
@@ -389,6 +441,7 @@ Roles (no nombres), ampliando `usuario_roles.rol` y `permisos_rol`; el **cargo**
 | **Clientes** | `public.clientes` (Cobranzas, fuente) + `pedidos.cliente_config`, `cliente_direcciones` (dirección, ubigeo, referencia), `cliente_contactos`. **Sin coordenadas, citas, vehículo calificado ni requisitos documentales.** | Extender **en Pedidos** (columnas aditivas; clientes nacen allí). El WMS solo lee el *snapshot*. |
 | **Vehículos / personal de transporte** | `pedidos.vehicles/drivers/transporters`: **solo nombre y descripción** (sin placa ni «calificado»). Cobranzas y Compras: nada. | Maestro **en el WMS** (recurso operativo): `vehiculos` (placa, calificado, estado) y disponibilidad diaria; el personal son **usuarios con rol** (todos tienen usuario propio). No se duplica el catálogo de nombres de Pedidos: cuando Pedidos deje de despachar (conflicto 3), ese catálogo queda obsoleto. |
 | **Perfil documental del cliente** (qué documentos exige: p. ej. BPM solo si lo pide) | No existe. | **En el WMS, ligado al RUC** del cliente (los clientes siguen naciendo en Pedidos; no se toca Pedidos). Ver §4.8. |
+| **Códigos de producto** | `catalogo.productos.codigo` (el nuestro), `codigo_proveedor` (un texto), `codigo_bonificacion`. **No hay códigos por cliente ni varios por proveedor.** | Tabla **aditiva en el WMS** `wms.producto_codigos` (`producto_id`, `tipo` = DISTRIBUCION · PROVEEDOR · CLIENTE, `propietario_id` solo para CLIENTE, `codigo`; único por tipo + propietario + código). Se **siembra** con `codigo` y `codigo_proveedor` **sin tocar ni borrar** el catálogo; los de cliente (AJR0026…) se cargan por importación (Medic Pharma enviará los suyos). La búsqueda del WMS (producto, lote, ubicación, Ctrl+K) busca en todos; el cliente ve y busca con el suyo. |
 | **Productos / lotes / propietarios** | `catalogo.productos`, `wms.lotes`, `wms.propietarios` | Se reutilizan. |
 
 ### 4.8 Paquete documental por producto (decisión 4) [A/B]
@@ -405,6 +458,29 @@ Roles (no nombres), ampliando `usuario_roles.rol` y `permisos_rol`; el **cargo**
 - **Costo:** **ninguno adicional**; el plan Pro de Supabase incluye Storage. Los archivos se comprimen/limitan por tamaño.
 - **Límite de las pruebas:** la base local (Postgres) **no cubre Storage** ni sus políticas (ya dicho en gate-0 §G.1). Se prueban en base de datos los permisos, vigencias e historial de la tabla; las políticas del bucket se verifican en el Preview.
 
+### 4.9 Salida tipo B: por cuenta de un cliente de almacenamiento [A/B]
+**Flujo:** el cliente consulta su disponible real → emite su factura y su GRE (con su RUC como remitente) en su propio sistema → crea la **orden de salida** en el WMS con su usuario, adjunta el PDF de la GRE y registra su número → el WMS valida y **reserva** → Logisalud pica, conforma y embala (mismo flujo que A) → el cliente recoge con su transportista → **entrega al transportista del cliente** (salida confirmada).
+
+**Diferencias con la salida A [A]:** no hay Pedidos, ni factura ni GRE de Logissa, ni FEFO (el lote lo indica el cliente), ni mínimo de 60 días; el propietario es el cliente; el LS-FR.43.03 solo si transporta Logisalud.
+
+**Estados de la orden (del cliente) [A/C]:** `Pendiente → En preparación → Lista → Despachada → Entregada` (+ `Cancelada` [C]). *Pregunta abierta:* ¿quién marca «Entregada» cuando el transportista es del cliente?, ¿es el propio cliente?, ¿o «Despachada» ya es lo último que sabe el WMS?
+
+**Validación al crear la orden (dominio y base de datos) [A]:** para cada línea, el lote existe, **es de ese propietario**, está Aprobado, sin bloqueo y con cantidad suficiente (descontando lo comprometido en sus órdenes en curso); si no, **avisa en ese momento**. Vencidos: solo con motivo no-venta y aprobación de DT (B.6). Una orden se puede cancelar mientras no haya empezado el picking; al cancelar se libera la reserva.
+
+**Aislamiento entre propietarios (P0) [A]:**
+- Rol `usuario_cliente` + tabla de vínculo usuario → propietario (con vigencia). Un usuario de cliente solo ve y opera el stock, lotes, órdenes, documentos y Kardex de **su** propietario.
+- **En la base de datos, con RLS**, no solo en la interfaz: políticas por propietario en `saldos`, `lotes`, `movimientos`/`partidas` (vistas), órdenes, documentos y Storage; `es_usuario()` **no** cuenta al rol de cliente; las funciones `security definer` revisan el propietario; ninguna vista ni función devuelve filas de otro propietario.
+- **Pruebas específicas de aislamiento** (en `tests/db`): dos propietarios, dos usuarios de cliente y un usuario de personal; cada tabla, vista y función se prueba con intentos de lectura y escritura cruzados.
+- **Autenticación externa en el proyecto compartido:** ver B.2 y D-68. *Hasta que Sebas decida, no se abre ningún acceso de cliente.*
+
+**Códigos:** cada línea de la orden guarda el producto del WMS y el código con que el cliente lo pidió (AJR0026) para que su documento y nuestra hoja coincidan.
+
+**Entrega al transportista del cliente [A]:** registra transportista, placa y conductor (de su GRE), bultos entregados, hora y firma en pantalla de quien recoge; este evento **es la salida confirmada** y escribe la `SALIDA` en el ledger (mismo escalón que A). Los bultos se escanean como en la carga (S8).
+
+**Ruta de Logisalud o recojo del cliente [A]:** si transporta Logisalud, aplican Ruta y LS-FR.43.03 con las filas de las órdenes B; si el cliente recoge, solo la entrega al transportista.
+
+**Fase posterior [A]:** prellenar la orden leyendo la GRE del cliente (PDF o XML); Kardex e indicadores del cliente.
+
 ## 5. Modelo de dominio objetivo
 
 ### 5.1 Agregados y relaciones [B]
@@ -412,6 +488,7 @@ Roles (no nombres), ampliando `usuario_roles.rol` y `permisos_rol`; el **cargo**
 PedidoDespacho (snapshot de Pedidos, versionado)  1──* LineaPedido (producto, cantidad)
 LineaPedido    1──* Asignacion (lote FEFO + celda) 0..1 CambioLoteExcepcion (quién, cuándo, lote anterior, lote nuevo, motivo fijo)
 Asignacion     ── lote asignado (FEFO) → lote cambiado (excepción) → lote despachado
+OrdenSalidaCliente (tipo B: propietario, GRE del cliente, modalidad de transporte, estado) 1──* LineaOrdenSalida (producto WMS + código del cliente, lote indicado, cantidad) ── reserva al crear · EntregaATransportista (transportista, placa, conductor, bultos, hora, firma) ── UsuarioCliente ──▶ Propietario · ProductoCodigo (DISTRIBUCION · PROVEEDOR · CLIENTE)
 OrdenPicking 1──* LineaOrdenPicking (ubicación, producto, lote, vencimiento, cantidad, orden_recorrido)   ← teléfono + HOJA imprimible
 DocumentoRegulatorio (COA por lote · RS por producto · BPM por fabricante; versiones con vigencia) · PerfilDocumentalCliente (por RUC) · PaqueteDocumental (PDF por pedido o ruta)
 PedidoDespacho 1──* IntentoEntrega (n.º, ruta, fecha, motivo, N.° guía)   ← reprogramar crea un intento, no un pedido
@@ -464,7 +541,7 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 - Nace **al confirmar la ruta** (placa, conductor, auxiliar, fecha, clientes y orden); se enriquece con **guía y cajas** antes de salir (RUT-02/05), con **hora real de salida** (RUT-07) y con los eventos de ruta —entrega/recojo, temperatura, hora de entrega, observaciones— (RUT-09); se genera el **PDF oficial** al cierre (RUT-11): código, estructura y versión controlados, **10 filas por página**, con espacios de firma física de Conductor y DT (hasta que Calidad apruebe otra cosa).
 - **Se construye parametrizable.** Las 6 definiciones de Katia quedan como parámetros **bloqueados** (visibles en la pantalla de configuración como «pendiente de DT»), y **no bloquean el resto**: significado de *USUARIO*, *N.° CAJAS* frente a bultos, método y momento de la *temperatura*, si viaja una copia física prellenada, firmas, y retención/archivo.
 - **Detalles del Master (hoja `02_LS-FR43.03`):** HORA SALIDA = evento *Salida confirmada*; **HORA LLEGADA = evento *Retorno de unidad*** (llegada a Lurín, no llegada al cliente); N.° PÁG. automático (10 filas por página); temperatura **por fila**, con captura guiada en la fase 1 y datalogger solo si se valida en la fase 2; el WMS puede generar un documento **de pre-salida** (prellenado) y el **final**, según lo que decida DT sobre la copia física. El código, la versión y la vigencia (01-09-2026 a 01-09-2028) del formato son **parámetros**, para que un cambio de versión no obligue a tocar código.
-- **Contrastado con el formato real (`LS-FR.43.03 Planificación de ruta.docx`):** el PDF respeta el encabezado («PLANIFICACIÓN DE RUTA», Cód. POE LS-POE.07.05, Cód. Formato LS-FR.43.03, vigencia 01-09-2026 a 01-09-2028), la tabla de 10 filas con sus columnas (N.°, CLIENTE, N.° GUÍA, N.° CAJAS, DETALLE ENTREGA/RECOJO, TEMPERATURA 15 °C–25 °C, HORA DE ENTREGA, OBSERVACIONES), las firmas CONDUCTOR y DIRECTOR TÉCNICO, el logo y el pie «Este documento no puede ser reproducido ni fotocopiado sin autorización de LOGISSA S.A.C.». Preguntas nuevas para DT: ¿las firmas van en cada página o solo en la última?, ¿el pie con LOGISSA S.A.C. se mantiene tal cual?
+- **Contrastado con el formato real (`LS-FR.43.03 Planificación de ruta.docx`):** el PDF respeta el encabezado («PLANIFICACIÓN DE RUTA», Cód. POE LS-POE.07.05, Cód. Formato LS-FR.43.03, vigencia 01-09-2026 a 01-09-2028), la tabla de 10 filas con sus columnas (N.°, CLIENTE, N.° GUÍA, N.° CAJAS, DETALLE ENTREGA/RECOJO, TEMPERATURA 15 °C–25 °C, HORA DE ENTREGA, OBSERVACIONES), las firmas CONDUCTOR y DIRECTOR TÉCNICO, el logo y el pie «Este documento no puede ser reproducido ni fotocopiado sin autorización de LOGISSA S.A.C.». **Decidido por Sebas (2026-10-14): las firmas van solo al final, en la última página, y el pie «LOGISSA S.A.C.» se mantiene tal cual.**
 - **Primer entregable de este bloque:** el PDF con datos de prueba, para que Calidad valide el diseño del formato mientras se construye el resto. Hace falta el archivo real del formato (§0.3).
 
 ## 6. Plan por PRs pequeños, con dependencias reales
@@ -476,8 +553,8 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 |---|---|---|---|
 | **S0** | Este documento + decisiones registradas en `decisiones-pendientes.md`/`progreso.md`/`reglas-negocio.md`/`plan-batch-4.md` (PR #184) | CI en verde y tu aprobación | Solo docs |
 | **S0b** | CI en Postgres 17 | S0 mergeado | Pequeño; permite ensayar en la versión de producción (el contenedor solo trae 16) |
-| **S1** | **Cimientos de datos:** tipos `SALIDA` y `RETORNO`; áreas `EMBALAJE` y `DESPACHO` habilitadas; zonas nuevas **configurables y apagadas** hasta que Katia y Charlie decidan; **`orden_recorrido`** por posición; **roles** `jefe_transporte`, `conductor`, `auxiliar_transporte` y permisos por operación (`dar_conformidad`, `cambiar_lote_asignado`, `imprimir_paquete_documental`, `gestionar_documentos_regulatorios`…); alertas dirigidas a `jefe_transporte`; `vehiculos` | S0b | Migración 0011. Un usuario con varios roles. Tests de base de datos |
-| **S2** | **Núcleo de stock de salidas, sin pantallas:** `reservas`, `asignaciones` y `ordenes_picking` (datos); **«disponible» y «vendible» en una sola fuente**; **asignación FEFO** en dominio y DB (Aprobado, sin bloqueo vía `lote_bloqueado()`, no vencido, cantidad suficiente); **cambio de lote por la excepción única** con su validación y registro; alerta de stock insuficiente **antes** del picking; **propuesta de reemplazo** (mismo lote en otra ubicación, luego siguiente FEFO, o siguiente que venza después del original); escalones de §4.3 con el movimiento rack → staging **al verificar la conformidad**; invariantes (no negativo, `RETORNO ≤ SALIDA`, idempotencia) | S1 | **El PR más riesgoso.** Pruebas de concurrencia. Reajusta el «disponible» de Mover y la vista de tránsito sin romper sus pruebas |
+| **S1** | **Cimientos de datos y aislamiento por propietario:** tipos `SALIDA` y `RETORNO`; áreas `EMBALAJE` y `DESPACHO` habilitadas; zonas nuevas **configurables y apagadas**; **`orden_recorrido`** por posición (columna física; piso sin niveles); **roles** `jefe_transporte`, `conductor`, `auxiliar_transporte`, **`usuario_cliente` ligado a un propietario** y «autoriza salidas sin venta»; permisos por operación (`dar_conformidad`, `cambiar_lote_asignado`, `imprimir_paquete_documental`, `gestionar_documentos_regulatorios`…); **`es_usuario()` no cuenta al cliente** y políticas por propietario con **pruebas de aislamiento** (P0); alertas dirigidas a `jefe_transporte`; `vehiculos` | S0b; **tu confirmación del cambio** | Migración 0011. **Cambió con la salida B** (antes sin rol de cliente ni aislamiento). Un usuario con varios roles. No se abre ningún acceso de cliente hasta resolver D-68 |
+| **S2** | **Núcleo de stock de salidas, sin pantallas:** `reservas`, `asignaciones` y `ordenes_picking` (datos); **«disponible» y «vendible» en una sola fuente, por propietario** (saldo − comprometido); **dos modos de asignación:** **A** = FEFO entre lotes Aprobados, sin bloqueo, **no vencidos y con ≥ 60 días** (parámetro) y **B** = lote indicado por el cliente con validación completa; **reglas de vencidos** (Logissa nunca; cliente solo con motivo no-venta y aprobación de DT; salidas sin venta sin los 60 días pero nunca vencidas); cambio de lote por la excepción única; alerta de stock insuficiente **antes** del picking; propuesta de reemplazo (solo en A); escalones de §4.3 con el movimiento rack → staging **al verificar la conformidad**; invariantes (no negativo, `RETORNO ≤ SALIDA`, idempotencia) | S1 | **El PR más riesgoso; cambió con la salida B y los 60 días.** Pruebas de concurrencia y de propietario. Reajusta el «disponible» de Mover y la vista de tránsito sin romper sus pruebas |
 | **S3** | **Bandeja de pedidos + puerto `FuentePedidos`:** adaptador demo y HTTP (HMAC); snapshot; versionado; alertas de cambio. **No se toca Pedidos para el FEFO.** | S1; **tu aprobación de los cambios aditivos en Pedidos** | El contrato se prueba contra un doble hasta que apruebes |
 | **S6a** | **Repositorio de documentos regulatorios:** COA por lote (adjuntado en la recepción), registro sanitario por producto, BPM por fabricante (con `fabricantes`), vigencias e historial, permisos (solo DT reemplaza/sube RS y BPM), perfil documental del cliente por RUC, alertas de faltante o vencido | S1 (independiente de S3–S5) | Supabase Storage (plan Pro, sin costo adicional). Extiende de forma aditiva el ingreso (COA) |
 | **S4** | **Rutas (RUT-01 y parte de 08):** planificación, versiones, compatibilidad de vehículo, corte 4 p. m., disponibilidad de personal. Al asignar un pedido a la ruta se ejecuta la asignación FEFO (S2) | S1, S3 | Registro base LS-FR.43.03 al confirmar |
@@ -486,12 +563,20 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 | **S6b** | **Documentación final (RUT-02):** checklist, **N.° de guía** registrado (GRE y factura salen de los lotes confirmados), **botón «Imprimir paquete»** (pedido o ruta, un solo PDF ordenado) y alerta antes de «Listo para carga» | S5, S6a | Sin emisión SUNAT |
 | **S7** | **Embalaje y bultos (RUT-05):** ID/QR, etiquetas, staging por ruta; «Listo para carga» = conforme + embalado + GRE + paquete completo | S5, S6b | Context7 para QR/cámara |
 | **S8** | **Carga y salida (RUT-07):** checklist vehicular, escaneo, conciliación, **Liberar unidad**, **Salida confirmada** (ledger `SALIDA`), Kardex con salidas | S2, S4, S7 | Aquí el stock sale de verdad. Sin integración con Odoo |
+| **B1** | **Códigos de producto múltiples** (`wms.producto_codigos`: distribución, proveedor, cliente), siembra desde el catálogo sin tocarlo, importación de códigos de cliente y búsqueda por cualquiera | S2 | Aditivo; el código de proveedor nunca se elimina |
+| **B2** | **Orden de salida de cliente — datos y validación:** orden y líneas, GRE adjunta (Storage) y número, **validación al crear** (lote del propietario, Aprobado, sin bloqueo, cantidad suficiente, vencidos), reserva, **disponible real**, cancelación | S1, S2, B1; **D-68 resuelto para abrir acceso real** | Sin pantallas. **Pruebas de aislamiento entre propietarios** (P0) |
+| **B3** | **Vista del cliente:** su stock por lote y vencimiento (con su código), crear órdenes, seguir su estado | B2 | Impeccable + 4 viewports; móvil y PC |
+| **B4** | **Picking, conformidad y embalaje para órdenes B** (sin FEFO; lote fijado) y modalidad de transporte | S5, S7, B2 | Reutiliza las colas por rol |
+| **B5** | **Entrega al transportista del cliente** (transportista, placa, conductor, bultos, hora, firma en pantalla) = **salida confirmada** (`SALIDA`); ruta de Logisalud con LS-FR si aplica | S8, B4 | Cierra la salida B |
+| **B6** | *(Fase posterior)* Prellenar la orden leyendo la GRE (PDF/XML); Kardex e indicadores del cliente | B5 | No se construye ahora |
 | **S9** | **Mis rutas y tracking (RUT-09):** eventos, POD, temperatura (según DT), retorno de unidad | S8 | **Prioridad móvil**; el 390×844 manda |
 | **S10** | **Incidencias y reprogramación (RUT-10):** catálogo, playbook, intentos | S9 | Contenido del playbook, de Roberto |
 | **S11** | **Retornos y devoluciones (RUT-12):** `RETORNO`, Retorno reservado, ingreso Devolución adaptado | S8, S9, S10; respuestas de Katia | |
 | **S12** | **Cierre (RUT-11):** conciliación, cargos, resumen, PDF oficial final, expediente de ruta | S9, S11, S4b | |
 | **S13** | **KPI de Despacho (D1–D4 de D-44)** y grupo «Transporte y retornos» con los indicadores del Master (conflicto 17) | S8–S12 | Tiempo de preparación, OTIF, etc. |
 | **S14** | **Lado Pedidos** (estado logístico, recibir eventos, apagar `confirm_dispatch` tras el corte) | Tu aprobación; S3, S8 | **No aditivo en parte** |
+
+**Cómo queda el orden (con la salida B):** **S0b → S1 → S2** (sin pantallas; S1 y S2 ahora incluyen el aislamiento por propietario y los dos modos de asignación) → **S3** (Pedidos) → **S4** (Rutas) → **S5** (Picking y Conformidad) → S6a/S6b (documentos) → **S7** (Embalaje) → **S8** (Carga y salida A) → **B1 → B2 → B3 → B4 → B5** (salida tipo B) → S9–S14 (seguimiento, incidencias, retornos, cierre, KPI, lado Pedidos) → **paralelo con Odoo** (4 semanas). La salida B queda **después** del núcleo de picking, conformidad y despacho y **antes** del paralelo, como pediste. S6a y B1 se pueden construir en paralelo con S3–S5.
 
 **Por qué este orden y no el de los RUT:** el repositorio sugiere empezar por lo que todo lo demás consume y se prueba sin pantallas —**el stock, las reservas y la asignación FEFO (S2)**— y no por «Rutas» (RUT-01), que es lo más visible pero lo que menos riesgo de integridad carga. El PDF del LS-FR (S4b) sube en el orden porque su bloqueo depende de personas. El repositorio de documentos (S6a) es independiente del picking y se puede construir en paralelo, y es útil desde ya porque el COA se adjunta **en la recepción**. El roadmap del Master pone Ruta, luego Almacén, Transporte y Cierre; este plan respeta esa secuencia y antepone S1 a S3, que el roadmap no menciona.
 
@@ -505,10 +590,14 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 3. **KPI (D-61, conflicto 17):** los 4 de D-44 en Inicio y los 12 del Master como grupo aparte. Se necesita para S13.
 4. **Calendario de la consolidación de Pedidos** (afecta solo el adaptador, no el dominio).
 5. **Confirmar mis interpretaciones de §2.4** (perfil documental del cliente guardado en el WMS por RUC; COA adjuntado por quien recibe y reemplazado solo por DT; «Listo para carga» exige además estar embalado).
-6. **Costos (ninguno se contrata sin avisarte):** hoy todo cabe en Supabase, Vercel y Resend Pro. Posibles costos menores futuros: rollos de etiquetas, capacidad de Supabase si la prueba de volumen lo pide, API de mapas y mensajería (P2).
+6. **D-68 (P0): autenticación de los usuarios de cliente.** Entrarían al **mismo proyecto Supabase** que el personal; en ese proyecto, **Pedidos tiene 18 y Compras 5 políticas de lectura `using (true)`** (cualquier autenticado lee). Opciones: (a) **endurecer** esas políticas para exigir perfil de personal (cambio **no aditivo** en Pedidos y Compras, con tu aprobación y pruebas de regresión); (b) **proyecto Supabase aparte** para clientes (costo y réplica de datos); (c) **no abrir** acceso de clientes hasta consolidar y endurecer. Recomiendo **(a)**, que además ya conviene por sí misma. Sin esta decisión no abro ningún acceso de cliente (B2 en adelante); S1 y S2 avanzan.
+6b. **Lo que no tengo registrado:** el ejemplo de GRE de AJR (no está en `docs/wms/referencias/`) y las instrucciones previas sobre el recorrido, las salidas sin venta y los 60 días (§2.5).
+6c. **Confirmar el cambio de S1 y S2** por la salida B (§2.5) antes de empezar.
+7. **Costos (ninguno se contrata sin avisarte):** hoy todo cabe en Supabase, Vercel y Resend Pro. Posibles costos menores futuros: rollos de etiquetas, capacidad de Supabase si la prueba de volumen lo pide, API de mapas y mensajería (P2).
 
 ### Katia
-1. **Las 6 definiciones del LS-FR.43.03** (idénticas a su hoja `08_Decisiones_DT`): significado de USUARIO; N.° CAJAS frente a bultos; método y momento de la temperatura; si viaja una copia física prellenada; firmas; retención y archivo. **Nuevas por el formato real:** ¿las firmas van en cada página o solo en la última?; ¿el pie con «LOGISSA S.A.C.» se mantiene?
+1. **Las definiciones del LS-FR.43.03** (hoja `08_Decisiones_DT`): significado de USUARIO; N.° CAJAS frente a bultos; método y momento de la temperatura; si viaja una copia física prellenada; **retención y archivo**; y quién firma por el Director Técnico. *(Ya decidido por Sebas: firmas solo al final, en la última página, y el pie «LOGISSA S.A.C.» tal cual.)*
+1b. **Vencidos de un cliente de almacenamiento:** puede ordenar la salida de un lote vencido solo con motivo que no sea venta (destrucción, devolución al proveedor, pesquisa DIGEMID) y con tu aprobación. ¿Lo confirmas? ¿Qué documento respalda cada motivo?
 2. **Zonas «Observado», «Retorno reservado» y «Pendiente de conformidad»:** tipo de área BPA (con Charlie).
 3. **Tercer conteo de Transporte** (conflicto 4): ¿se elimina el día uno o tras el piloto?
 4. **Solicitud de Devolución para un rechazo en ruta** (conflicto 6): ¿nace automática con autorización posterior?
