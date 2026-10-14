@@ -29,6 +29,7 @@ export const SQL = {
   m0012: () => leer('supabase/migrations/0012_wms_salidas_nucleo_de_stock.sql'),
   m0013: () => leer('supabase/migrations/0013_wms_salidas_edicion_libre_de_lotes.sql'),
   m0014: () => leer('supabase/migrations/0014_wms_salidas_bandeja_de_pedidos.sql'),
+  m0015: () => leer('supabase/migrations/0015_wms_roles_jefes_y_cargos.sql'),
   seed: () => leer('supabase/seeds/0001_topologia.sql'),
 }
 
@@ -56,7 +57,7 @@ export interface BaseDePrueba {
   cerrar: () => Promise<void>
 }
 
-export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigracion0012?: boolean } = {}): Promise<BaseDePrueba> {
+export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigracion0012?: boolean; sinMigracion0015?: boolean } = {}): Promise<BaseDePrueba> {
   const nombre = `wms_test_${randomUUID().slice(0, 8).replace(/-/g, '')}`
   const raiz = new Client({ connectionString: url })
   await raiz.connect()
@@ -85,6 +86,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   await admin.query(SQL.m0009())
   await admin.query(SQL.m0011())
   if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()); await admin.query(SQL.m0014()) }
+  if (!opciones.sinMigracion0015) await admin.query(SQL.m0015())
   if (opciones.conSeed !== false) await admin.query(SQL.seed())
 
   const personas = {

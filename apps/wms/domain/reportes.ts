@@ -117,7 +117,7 @@ export const REPORTES: Record<IdReporte, DefinicionReporte> = {
 export const ORDEN_REPORTES: IdReporte[] = ['VENCIMIENTOS', 'INVENTARIO', 'OCUPACION', 'RECEPCIONES', 'CALIDAD', 'MOVIMIENTOS', 'EXACTITUD', 'AUDITORIA']
 export const esIdReporte = (x: string): x is IdReporte => x in REPORTES
 
-const GESTION: Rol[] = ['jefe_almacen', 'reemplazo_jefe', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura']
+const GESTION: Rol[] = ['jefe_almacen', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura']
 /** Quién puede abrir cada reporte (la base de datos vuelve a comprobarlo en la exactitud). */
 export function puedeVerReporte(id: IdReporte, roles: readonly Rol[]): boolean {
   if (roles.length === 0) return false

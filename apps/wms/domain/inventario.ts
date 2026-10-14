@@ -301,9 +301,9 @@ export interface LineaEjecutar {
   cantidad: number
 }
 
-const esJefe = (roles: readonly Rol[]) => roles.includes('jefe_almacen') || roles.includes('reemplazo_jefe')
-const puedeEjecutarAlgo = (roles: readonly Rol[]) => roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe', 'asistente_dt'].includes(r))
-const puedeVerificarAlgo = (roles: readonly Rol[]) => roles.some((r) => ['auxiliar', 'jefe_almacen', 'reemplazo_jefe'].includes(r))
+const esJefe = (roles: readonly Rol[]) => roles.includes('jefe_almacen')
+const puedeEjecutarAlgo = (roles: readonly Rol[]) => roles.some((r) => ['auxiliar', 'jefe_almacen', 'asistente_dt'].includes(r))
+const puedeVerificarAlgo = (roles: readonly Rol[]) => roles.some((r) => ['auxiliar', 'jefe_almacen'].includes(r))
 
 /** Quien mueve mercadería registra el movimiento (y lo ejecuta). No hay autorización previa en el sistema: la indicación es verbal. */
 export const puedeEjecutarMovimiento = puedeEjecutarAlgo

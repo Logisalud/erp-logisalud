@@ -48,7 +48,7 @@ export function RevisionDiariaVista({ hoy, revision, vivos, equipo, historial, r
           <div className="mt-4 space-y-3" data-testid="revision-sin-empezar">
             <p className="text-gray-800">Todavía no se hizo el recorrido de hoy. Son cuatro focos y toma entre 10 y 15 minutos. Esta revisión no mueve stock ni decide estados: solo anota pendientes con su responsable.</p>
             {jefe ? <button type="button" className="btn-primary w-full sm:w-auto" disabled={pendiente} onClick={() => ejecutar(() => iniciarRevisionAccion(), { exito: 'Revisión iniciada.' })} data-testid="iniciar-revision"><ClipboardList className="h-5 w-5" aria-hidden />Empezar la revisión de hoy</button>
-              : <p className="text-sm text-gray-700">La empieza el Jefe de Almacén o su reemplazo.</p>}
+              : <p className="text-sm text-gray-700">La empieza el Jefe de Almacén.</p>}
           </div>
         )}
 

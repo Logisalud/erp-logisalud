@@ -106,7 +106,6 @@ describe('temperatura', () => {
 describe('firmas del Acta de Recepción', () => {
   it('cada parte firma con su rol', () => {
     expect(puedeFirmarComo(['jefe_almacen'], 'JEFE_ALMACEN')).toBe(true)
-    expect(puedeFirmarComo(['reemplazo_jefe'], 'JEFE_ALMACEN')).toBe(true)
     expect(puedeFirmarComo(['auxiliar'], 'JEFE_ALMACEN')).toBe(false)
     expect(puedeFirmarComo(['direccion_tecnica'], 'DIRECCION_TECNICA')).toBe(true)
     expect(puedeFirmarComo(['jefe_almacen'], 'DIRECCION_TECNICA')).toBe(false)
