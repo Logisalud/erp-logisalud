@@ -98,6 +98,8 @@ export interface EstadoDemo {
   inv: InvDemo
   /** Batch 3b: revisión diaria y programación de conteos (se crea al primer uso). */
   op?: import('./operacion-demo').OpDemo
+  /** S3: la bandeja de pedidos (se crea al primer uso). */
+  pedidos?: import('./pedidos-demo').PedidosDemoEstado
   solicitudes: SolicitudDemo[]
   actas: ActaDemo[]
   organolepticas: OrganolepticaVista[]

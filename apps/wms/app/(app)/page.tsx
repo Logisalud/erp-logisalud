@@ -137,7 +137,7 @@ export default async function Inicio() {
     repo.panorama(), repo.listarSolicitudes(), repo.colaDireccionTecnica(), repo.listarExpedientes(), repo.contarAlertasAbiertas(),
     repo.listarMovimientos(), repo.listarConteos(), repo.listarAjustes(),
   ])
-  const alertasMias = (ctx.roles.includes('direccion_tecnica') ? conteo.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen') ? conteo.jefe_almacen : 0) + (ctx.roles.includes('asistente_dt') ? conteo.asistente_dt : 0)
+  const alertasMias = (ctx.roles.includes('direccion_tecnica') ? conteo.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen') ? conteo.jefe_almacen : 0) + (ctx.roles.includes('asistente_dt') ? conteo.asistente_dt : 0) + (ctx.roles.includes('jefe_transporte') ? conteo.jefe_transporte : 0)
   const avisos = avisosPara(ctx.roles, p, {
     porAutorizar: ingresos.filter((i) => i.paso === 'POR_AUTORIZAR').length,
     porLlegar: ingresos.filter((i) => i.paso === 'POR_LLEGAR').length,

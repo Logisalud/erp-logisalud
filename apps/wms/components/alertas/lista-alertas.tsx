@@ -13,7 +13,7 @@ import { Aviso } from '../entradas/aviso'
 import { ChipAlerta } from '../entradas/chips-entradas'
 
 const NOMBRE_DESTINATARIO: Record<DestinatarioAlerta, string> = {
-  direccion_tecnica: 'Dirección Técnica', jefe_almacen: 'el Jefe de Almacén', asistente_dt: 'la Asistente de Dirección Técnica',
+  direccion_tecnica: 'Dirección Técnica', jefe_almacen: 'el Jefe de Almacén', asistente_dt: 'la Asistente de Dirección Técnica', jefe_transporte: 'el Jefe de Transporte',
 }
 
 function Tarjeta({ a, roles }: { a: AlertaVista; roles: Rol[] }) {
