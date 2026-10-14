@@ -187,7 +187,7 @@ Migración **0008** + reversa + 11 pruebas de base de datos (ver `propuesta-pres
 
 ### Salidas (RUT) — diagnóstico y plan (2026-10-14) — solo documento
 - `docs/wms/salidas/diagnostico-y-plan.md`: proceso de punta a punta, reutilización vs extensión del código, 14 conflictos/contradicciones (sin resolver), gap analysis de los 11 RUT, respuestas a los 7 puntos de arquitectura, modelo de dominio y estados por agregado, plan en PRs (S0–S14), preguntas por decisor. Decisiones D-47..D-59 en `decisiones-pendientes.md`; reglas cerradas de Salidas añadidas a `reglas-negocio.md`.
-- **Falta el Master v2 y el formato LS-FR.43.03** en el repo (D-48): los estados y el mapa de campos son hipótesis hasta contrastarlos.
+- **Master v2 recibido y contrastado** (las hojas RUT del Master = TO-BE de cada RUT). Falta solo el archivo del formato LS-FR.43.03 (D-48). Contradicciones nuevas: secuencia documentación/embalaje (D-60) y KPI del Master vs D-44 (D-61).
 - Sin código, sin migraciones, sin tocar Pedidos ni ninguna base real. Siguiente: aprobación del diagnóstico → S0/S0b → S1+S2.
 
 ## Bloqueado / pendiente

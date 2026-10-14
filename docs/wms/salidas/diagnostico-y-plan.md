@@ -1,15 +1,17 @@
 # WMS — Salidas (RUT): diagnóstico y plan
 
 > **Estado:** primera entrega, **solo documento, sin código** (2026-10-14). Nada de esto está construido ni aprobado.
+> **Revisión 2 (2026-10-14):** contrastado con el **Master TO-BE v2** (subido después de la primera versión). Lo que cambió está en §0 y marcado «Master».
 > **Principio rector:** el proceso gobierna al software. Si algo de aquí contradice una regla ya cerrada, **no la cambio**: la reporto (sección 2.3).
 > **Etiquetas** (se usan en todo el documento):
 > **[A]** requisito confirmado del proceso (RUT o decisión tuya) · **[B]** recomendación mía · **[C]** hipótesis por validar.
 
-## 0. Lo primero: qué falta para poder cerrar este diagnóstico
+## 0. Fuentes revisadas
 
-1. **El Master `LOGISALUD_RUT_TOBE_Master_v2.xlsx` no está en el repositorio.** Lo busqué en `origin/main`, en las 60+ ramas remotas, en el historial de git y en el disco del contenedor: solo llegaron los 11 RUT (commit `47f9fbd`, «Add files via upload»). Sin el Master me faltan: la hoja `03_Estados_WMS`, la matriz MEC, los roles del Master, los KPI y el roadmap, la hoja `02_LS-FR43.03` (mapa de campos) y `08_Decisiones_DT`. **Lo que dependía de esas hojas lo derivé de los RUT y lo marqué [C]**; cuando subas el Master lo contrasto y corrijo este documento. Los RUT sí los leí completos (las 4 hojas de cada uno: AS-IS, Diagnóstico, TO-BE e Implementación).
-2. Los 11 RUT están en `docs/wms/salidas/`, no en `docs/wms/procesos/salidas/` (donde dice tu mensaje). Dejé este documento junto a ellos. No existe RUT-06 y RUT-13 quedó integrado en el RUT-11 (lo dice su AS-IS); RUT-14 no se toca.
-3. **El formato LS-FR.43.03 tampoco está en `docs/wms/formatos/`** (ahí solo están LS-FR.03.05, 05.05, 55.02 y el Kardex). Sus campos los conozco únicamente por la descripción de RUT-11 y RUT-09 (placa, conductor, auxiliar, fecha, salida/llegada, cliente, guía, N.° cajas, entrega/recojo, temperatura, hora de entrega, observaciones). Hace falta el archivo real (o su hoja del Master) antes de construir el generador.
+1. **Master `LOGISALUD_RUT_TOBE_Master_v2.xlsx`: recibido y leído completo** (9 hojas de gestión + las 11 hojas RUT). Verifiqué celda por celda que **las 11 hojas RUT del Master son idénticas a la hoja `03_TO-BE` de cada RUT** (solo cambia el título): no hay contradicción Master↔RUT en los pasos del proceso. Las contradicciones nuevas están en el Master mismo y contra reglas ya cerradas (§2.3, conflictos 15 a 18).
+2. Los 11 RUT, leídos completos (AS-IS, Diagnóstico, TO-BE, Implementación). Están en `docs/wms/salidas/`, no en `procesos/salidas/`. No existe RUT-06; RUT-13 quedó integrado en RUT-11; RUT-14 no se toca.
+3. **El archivo del formato LS-FR.43.03 sigue sin estar en `docs/wms/formatos/`.** Tengo su mapa de campos (hoja `02_LS-FR43.03` del Master), pero para el PDF fiel hace falta el formato mismo (diseño, código y versión: el Master indica vigencia 01-09-2026 a 01-09-2028).
+4. **Jerarquía aplicada:** decisiones tuyas y reglas cerradas > Master > RUT > tus aclaraciones de esta conversación > AS-IS > código. Donde el Master o un RUT choca con una regla cerrada, gana la regla y lo reporto.
 
 ## 1. Cómo entiendo el proceso de punta a punta
 
@@ -90,11 +92,12 @@ Nunca stock negativo · el ledger es la fuente del stock y nada se borra (revers
 
 > Formato pedido: contradicción → impacto → alternativas → recomendación.
 
-**1. El Master no está en el repo (ver §0).** Impacto: estados, roles, KPI y mapa del LS-FR quedan como hipótesis. Recomendación: súbelo a `docs/wms/salidas/` y lo contrasto antes del primer PR de código.
+**1. (Resuelto) El Master ya está en el repo.** Estados, roles, KPI y mapa del LS-FR se contrastaron; ver conflictos 15 a 18 para lo que el Master trajo.
 
 **2. Odoo: «integrar el movimiento con ERP/Odoo» (RUT-07 paso 9, Implementación P1) vs «el WMS reemplaza a Odoo cuando existan salidas» (reglas-negocio, Transición).**
 - *Impacto:* durante las 4 semanas de paralelo, Charlie hoy valida la salida en Odoo **horas después**; el RUT dice que la salida sincroniza al instante sin esperar esa validación. Ambas cosas no pueden ser ciertas a la vez sin escribir en Odoo.
 - *Alternativas:* (a) integración automática con Odoo (costo y riesgo; no hay API acordada); (b) **durante el paralelo**, «Salida confirmada» en el WMS genera una cola «por validar en Odoo» (con el mismo contenido de la hoja de Odoo) y el reporte «WMS vs Odoo» concilia; después del corte no hay integración; (c) no tener paralelo (descartado: ya lo decidiste).
+- *Master:* su hoja `07_Roadmap` también pone «Odoo/ERP» entre las integraciones P1 («después de estados núcleo»), y su hoja de roles dice que el responsable de almacén «deja de validar Odoo horas después». Pero la transición decidida (el WMS reemplaza a Odoo tras el paralelo) es regla cerrada y gana.
 - *Recomendación [B]:* **(b)**. Es temporal, sin costo y compatible con tu decisión de paralelo. **Decide Sebas.**
 
 **3. Pedidos ya tiene su propio módulo de despacho** (`pedidos.fulfillments`, `confirm_dispatch`, estado terminal `DISPATCHED`, `stock_levels`/`stock_lotes` manuales; 0045–0049) **que choca con las salidas del WMS:**
@@ -112,7 +115,7 @@ Nunca stock negativo · el ledger es la fuente del stock y nada se borra (revers
 
 **8. Reingreso de lo «No entregado» «sin evaluación de Katia» (decidido) vs el riesgo de cadena de frío/BPA.** El estado se mantiene Aprobado (no viola «Aprobado no vuelve a Cuarentena»), pero una mercadería que viajó con sello roto o temperatura fuera de 15–25 °C no debería volver silenciosamente al stock vendible. RUT-12 paso 3 pide verificar sellos y «condiciones de transporte aplicables». *Recomendación [B]:* el retorno con sello roto o temperatura fuera de rango **se bloquea** y escala a Katia; eso necesita el **«hold» (bloqueo temporal de un lote Aprobado)**, que sigue pendiente para Katia en reglas-negocio (pendiente 3, D-17). **Decide Katia.** No cambio tu regla: solo señalo que sin «hold» esa excepción no tiene dónde vivir.
 
-**9. Tres nombres para casi lo mismo en la Ruta:** «Planificada / lista para preparación» (RUT-01), «Ruta lista para ejecutar» (RUT-08) y «Lista para carga» (RUT-07). *Recomendación [B]:* un solo estado `PLANIFICADA`; «lista para ejecutar» es una **condición calculada** (recursos, citas, ubicaciones y requisitos completos), no un estado más (§5.3).
+**9. Nombres de la Ruta.** RUT-01 dice «Planificada / lista para preparación», RUT-08 «Ruta lista para ejecutar» y RUT-07 «Lista para carga». *Master:* la hoja `03_Estados_WMS` define **Borrador → Planificada → Lista para carga → Liberada → En ruta → Pendiente de cierre → Cerrada**; «Ruta lista para ejecutar» aparece solo como *salida de la etapa 8 del flujo*, no como estado. *Recomendación [B]:* adoptar los estados del Master y tratar «lista para ejecutar» como **condición calculada** (recursos, citas, ubicaciones y requisitos completos) que se exige para pasar a Lista para carga.
 
 **10. «Recojo» aparece como resultado de parada (RUT-09, RUT-11) pero ningún RUT describe qué es** (¿recoger devoluciones del cliente? ¿recoger mercadería a terceros?). Si es un ingreso, tocaría el flujo de entradas. [C] Se pregunta a Roberto; no se construye hasta saberlo.
 
@@ -123,6 +126,14 @@ Nunca stock negativo · el ledger es la fuente del stock y nada se borra (revers
 **13. Transportista externo (Green Logistics, provincia):** RUT-08 lo registra, pero RUT-07, 09, 10 y 11 solo describen reparto propio. *Hueco de proceso* (sin escaneo de carga ni POD propio). [C] Entra después; en la primera fase una ruta externa es un caso simple (pedidos, ventana de recojo, responsable y evidencia).
 
 **14. Documentación de las reglas vs. tu mensaje:** «Roberto es Jefe de Transporte (hoy con permisos de Jefe de Almacén)» y reglas-negocio lo lista como **reemplazo de Charlie**. Si se le dan permisos propios de transporte, ¿conserva `reemplazo_jefe`? (afecta quién verifica movimientos internos). **Decide Sebas.**
+
+**15. Master (`03_Estados_WMS`) encadena Conforme → Documentación completa → Listo para carga, y su flujo pone RUT-02 antes que RUT-05; pero RUT-04 (paso 9) y RUT-05 (paso 1) dicen que la conformidad habilita **los dos a la vez**.** *Impacto:* decide si Almacén puede embalar mientras Administración espera la factura, o si el embalaje espera a los documentos. *Alternativas:* (a) secuencia estricta del Master (más simple, más lenta); (b) **paralelo**: «Documentación completa» y «Embalado» como dos condiciones y «Listo para carga» cuando ambas se cumplen (§5.2). *Recomendación [B]:* (b), que conserva los nombres del Master. *Por jerarquía el Master gana: si no dices nada, sigo (a).* **Decide Sebas.**
+
+**16. Estados que el Master no define y los RUT sí necesitan.** Faltan: **Bloqueado por stock** (RUT-03 paso 7), **Reprogramado** (el Master lo nombra como siguiente de «No entregado», pero sin fila), **Entregado** (se menciona en «En ruta → Llegó / Entregado», sin fila), **Cancelado**, y **todos los estados de Bulto y de Parada** (tú pediste estados por agregado, incluidos estos). Siguen en §5.2 como [C], marcados como «no están en el Master».
+
+**17. KPI de Despacho: el Master propone 13 indicadores y D-44 (aprobada) fija 4 distintos** (OTIF, nivel de servicio, exactitud de despacho, tiempo de preparación). Solo **OTIF** coincide. *Por jerarquía gana D-44.* *Recomendación [B]:* los 4 de D-44 en Inicio/Indicadores; los 12 restantes del Master (exactitud de ubicación, picking sin discrepancias, First Pass Yield, errores detectados por Transporte, carga conciliada, salida en tiempo real, incidencias por 100 entregas, reprogramaciones por causa, cargos conciliados, LS-FR automático, tiempo de cierre, retornos segregados) como un grupo «Transporte y retornos» en Reportes. Metas: el Master dice «meta por definir», coherente con D-42 (medir un mes primero). A cada uno hay que fijarle «más es mejor / peor» (D-45): p. ej. «errores detectados por Transporte ≈ 0» y «incidencias por 100» son «menos es mejor». **Decide Sebas.**
+
+**18. El Master nombra personas en los roles** («Roberto / Planificador de rutas», «Sandra / Conformidad», «Charlie», «Arlette»). Tu regla es roles, no nombres: los traduzco a **planificador de rutas** (`jefe_transporte`), **conformidad**, **responsable de almacén** y **administración/facturación**. Dato útil: el Master asigna hoy la conformidad a quien es asistente de Dirección Técnica; qué rol del WMS la ejerce queda abierto (D-57).
 
 ## 3. Gap analysis por RUT
 
@@ -354,16 +365,23 @@ Vehiculo · DisponibilidadTransporte · TransportistaExterno · PerfilDocumental
 ```
 Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. Todo evento es **append-only con actor y hora** (nada se edita; una corrección es un evento nuevo o una reversa vinculada).
 
-### 5.2 Estados **por agregado** (no hay una columna `status` única) [C hasta contrastar con `03_Estados_WMS`]
-**Pedido (logístico, en el WMS):** `ELEGIBLE → PLANIFICADO → EN_PICKING → PENDIENTE_DE_CONFORMIDAD ⇄ OBSERVADO → CONFORME_PARA_DESPACHO → LISTO_PARA_CARGA → CARGADO → EN_RUTA → ENTREGADO | NO_ENTREGADO | RECHAZADO`; desde `NO_ENTREGADO → REPROGRAMADO → LISTO_PARA_CARGA` (sin repetir conformidad); laterales: `BLOQUEADO_POR_STOCK`, `CANCELADO`.
-*Documentación* y *embalaje* **no son estados**: son dos indicadores paralelos que, cuando ambos están completos, llevan a `LISTO_PARA_CARGA` (reduce estados innecesarios).
+### 5.2 Estados **por agregado** (no hay una columna `status` única)
+**Master** = definido en `03_Estados_WMS` [A]. **Propuesta** = no está en el Master [C].
 
-**Ruta:** `BORRADOR → PLANIFICADA(v) → EN_CARGA → LIBERADA → EN_RUTA → PENDIENTE_DE_CIERRE → CERRADA`; `CANCELADA`. «Lista para ejecutar» = condición calculada (conflicto 9).
-**Parada:** `PENDIENTE → LLEGUE → ENTREGADA | RECOJO | NO_ENTREGADA | RECHAZADA` (+ `OMITIDA` con motivo).
-**Bulto:** `CREADO → SELLADO → EN_STAGING → CARGADO → ENTREGADO | RETORNADO`.
-**Tarea de picking:** `PENDIENTE → ASIGNADA → EN_CURSO → COMPLETA`; laterales `CON_DISCREPANCIA` y `BLOQUEADA`.
-**Retorno/devolución:** `POR_VERIFICAR → APTO(→ RETORNO_RESERVADO) | BLOQUEADO_REVISION`; `RECHAZADO → INGRESO_DEVOLUCION` (flujo existente: Devoluciones → Aprobado | Bajas/Rechazados).
-**Registro LS-FR.43.03:** `BASE → ENRIQUECIDO → EN_EJECUCION → COMPLETO → GENERADO → ARCHIVADO`.
+**Ruta (Master):** `Borrador → Planificada → Lista para carga → Liberada → En ruta → Pendiente de cierre → Cerrada`. *Propuesta:* `Cancelada` lateral.
+«Lista para carga» exige que todos los pedidos requeridos estén conformes, documentados y embalados, y que la condición «lista para ejecutar» (RUT-08) esté cumplida.
+
+**Pedido (Master):** `Asignado a Ruta → Picking en curso → Pendiente de conformidad ⇄ Observado → Conforme para despacho → Documentación completa → Listo para carga → Cargado → En ruta → (Entregado | No entregado | Rechazado)`.
+- *Conflicto 15:* el Master los encadena; RUT-04/05 los habilitan a la vez. Por jerarquía, se sigue el Master salvo que decidas el paralelo.
+- *Propuesta (no están en el Master):* `Elegible` (importado, antes de asignarse), `Bloqueado por stock`, `Reprogramado` (de `No entregado`, vuelve a `Listo para carga` **sin repetir conformidad**), `Entregado`, `Cancelado`.
+
+**Retorno (Master):** `Retorno reservado → (nuevo intento)`. *Propuesta:* antes, `Por verificar` (bultos, sellos) y el lateral `Bloqueado para revisión`.
+**Devolución (Master):** `Pendiente evaluación organoléptica → Aprobado | Bajas/Rechazados`. Es exactamente el estado sanitario `DEVOLUCIONES` ya existente (D-31): **no se crea un estado nuevo**; solo se vincula con el rechazo y con la parada.
+
+**Parada (no está en el Master):** `Pendiente → Llegué → Entregada | Recojo | No entregada | Rechazada` (+ `Omitida` con motivo).
+**Bulto (no está en el Master):** `Creado → Sellado → En staging → Cargado → Entregado | Retornado`.
+**Tarea de picking (no está en el Master):** `Pendiente → Asignada → En curso → Completa`; laterales `Con discrepancia` y `Bloqueada`.
+**Registro LS-FR.43.03 (no está en el Master):** `Base → Enriquecido → En ejecución → Completo → Generado → Archivado`.
 
 **Cómo se validan las transiciones [A]:** funciones SQL `security definer` (no DML directo, como el resto del WMS); cada una verifica rol/permiso, estado de origen y precondiciones, registra **actor, fecha y motivo** en el historial y es **idempotente** (token o clave de evento); la interfaz solo muestra lo que la base ya garantiza.
 
@@ -378,6 +396,7 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 **Principio: el usuario genera la ruta, el WMS genera el documento.**
 - Nace **al confirmar la ruta** (placa, conductor, auxiliar, fecha, clientes y orden); se enriquece con **guía y cajas** antes de salir (RUT-02/05), con **hora real de salida** (RUT-07) y con los eventos de ruta —entrega/recojo, temperatura, hora de entrega, observaciones— (RUT-09); se genera el **PDF oficial** al cierre (RUT-11): código, estructura y versión controlados, **10 filas por página**, con espacios de firma física de Conductor y DT (hasta que Calidad apruebe otra cosa).
 - **Se construye parametrizable.** Las 6 definiciones de Katia quedan como parámetros **bloqueados** (visibles en la pantalla de configuración como «pendiente de DT»), y **no bloquean el resto**: significado de *USUARIO*, *N.° CAJAS* frente a bultos, método y momento de la *temperatura*, si viaja una copia física prellenada, firmas, y retención/archivo.
+- **Detalles del Master (hoja `02_LS-FR43.03`):** HORA SALIDA = evento *Salida confirmada*; **HORA LLEGADA = evento *Retorno de unidad*** (llegada a Lurín, no llegada al cliente); N.° PÁG. automático (10 filas por página); temperatura **por fila**, con captura guiada en la fase 1 y datalogger solo si se valida en la fase 2; el WMS puede generar un documento **de pre-salida** (prellenado) y el **final**, según lo que decida DT sobre la copia física. El código, la versión y la vigencia (01-09-2026 a 01-09-2028) del formato son **parámetros**, para que un cambio de versión no obligue a tocar código.
 - **Primer entregable de este bloque:** el PDF con datos de prueba, para que Calidad valide el diseño del formato mientras se construye el resto. Hace falta el archivo real del formato (§0.3).
 
 ## 6. Plan por PRs pequeños, con dependencias reales
@@ -401,7 +420,7 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 | **S10** | **Incidencias y reprogramación (RUT-10):** catálogo, playbook, intentos | S9 | Contenido del playbook, de Roberto |
 | **S11** | **Retornos y devoluciones (RUT-12):** `RETORNO`, Retorno reservado, ingreso Devolución adaptado | S8, S9, S10; respuestas de Katia | |
 | **S12** | **Cierre (RUT-11):** conciliación, cargos, resumen, PDF oficial final, expediente de ruta | S9, S11, S4b | |
-| **S13** | **KPI de Despacho (D1–D4)** y reportes | S8–S12 | Tiempo de preparación, OTIF, etc. |
+| **S13** | **KPI de Despacho (D1–D4 de D-44)** y grupo «Transporte y retornos» con los indicadores del Master (conflicto 17) | S8–S12 | Tiempo de preparación, OTIF, etc. |
 | **S14** | **Lado Pedidos** (estado logístico, recibir eventos, apagar `confirm_dispatch` tras el corte) | Tu aprobación; S3, S8 | **No aditivo en parte** |
 
 **Por qué este orden y no el de los RUT:** el repositorio sugiere empezar por lo que todo lo demás consume y es testeable sin pantallas —**el stock y las reservas (S2)**— y no por «Rutas» (RUT-01), que es lo más visible pero lo que menos riesgo de integridad carga. El PDF del LS-FR (S4b) sube en el orden porque su bloqueo depende de personas, no de código. Y **Picking no necesita realmente la ruta** (solo el pedido y su stock): si prefieres operar Picking/Conformidad antes de tener Rutas, la dependencia de S5 con S4 se puede relajar (cambia el TO-BE: pregunta tuya).
@@ -409,13 +428,14 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 ## 7. Preguntas que bloquean de verdad (por quién decide)
 
 ### Sebas
-1. **Sube el Master v2** (y el formato LS-FR.43.03) a `docs/wms/salidas/`. Sin él, estados, roles, KPI y mapa de campos son hipótesis.
+1. **Sube también el archivo del formato LS-FR.43.03** a `docs/wms/formatos/` (el Master ya está; falta el formato mismo para el PDF fiel).
 2. **Pedidos y su módulo de despacho** (conflicto 3): ¿Pedidos deja de despachar y recibe los estados del WMS (recomendado, con *flag* hasta el corte)? Es no aditivo.
 3. **Aprobar los cambios aditivos en Pedidos** (columnas de cliente, rutas de integración, aplicación de eventos) y **el secreto HMAC en variables** (producción: solo con tu aprobación).
 4. **Odoo durante el paralelo** (conflicto 2): cola «por validar en Odoo» + reporte WMS vs Odoo (recomendado).
 5. **Escalón rack → staging:** ¿al verificar la conformidad (recomendado) o al confirmar el picker? (§4.3)
 6. **Roberto:** ¿conserva `reemplazo_jefe` además de `jefe_transporte`? (conflicto 14)
-7. **¿Picking antes que Rutas?** (§6, S5/S4).
+7. **¿Picking antes que Rutas?** (§6, S5/S4). El roadmap del Master pone Ruta primero, luego Almacén, Transporte y Cierre; mi orden respeta esa secuencia pero antepone S1–S3 (datos, stock, pedidos) que el roadmap no menciona.
+7b. **Conflicto 15** (secuencia o paralelo de documentación y embalaje) y **conflicto 17** (los 4 KPI de D-44 + los 12 del Master como grupo aparte).
 8. **Calendario de la consolidación de Pedidos** (afecta solo el adaptador, no el dominio).
 9. **Costos a confirmar:** etiquetas (¿hay stock de rollos?), fotos de POD en Supabase Storage (dentro del plan Pro con compresión), cron de Vercel. Hoy ninguno agrega costo.
 
@@ -443,7 +463,7 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 
 ## 8. Por dónde empezar
 
-1. **Hoy:** que revises este documento, subas el Master y respondas lo marcado a **Sebas** (en particular 1, 2, 4 y 5: definen el diseño del stock).
+1. **Hoy:** que revises este documento y respondas lo marcado a **Sebas** (en particular 2, 4, 5 y 7b: definen el diseño del stock y de los estados).
 2. **Primer PR después de tu aprobación: S0 (docs) + S0b (CI en Postgres 17).** Son baratos y desbloquean todo.
 3. **Primer PR de código: S1 + S2**, es decir, **los cimientos de datos y el núcleo de stock de salidas**, sin pantallas, con pruebas de concurrencia y de invariantes en Postgres 16 local y 17 en CI. Es donde se juega la integridad; conviene verlo antes de levantar una sola pantalla.
 4. **En paralelo, desde ya (sin código):** que Roberto empiece el P0 de datos de clientes y que Katia y Charlie decidan las zonas nuevas, porque son lo que más tarda.
