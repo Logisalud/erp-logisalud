@@ -206,4 +206,31 @@ describe("resumirCarga", () => {
     // CRP1009 no tiene vendedor cargado: su fila no la vería nadie.
     expect(r.codigosSinVendedor).toEqual(["CRP1009"]);
   });
+
+  it("cuenta las líneas de detalle que no son de nadie, por código o por nombre", () => {
+    // La columna RV del detalle viene vacía muy seguido y ahí lo único
+    // que identifica al vendedor es el nombre. Lo que no se pueda
+    // atribuir por ninguna de las dos vías no lo va a ver nadie.
+    const avance = parsearAvance(
+      hojaAvance([fila("SUR ESTE", "CRP1007", "Cinthya Vilchez", 1080.13, 31160)]),
+    );
+    const linea = (codigo: string | null, vendedor: string | null) =>
+      ({ codigo, vendedor, neto: 10 }) as unknown as Parameters<typeof resumirCarga>[1][number];
+
+    const r = resumirCarga(
+      avance,
+      [
+        linea("CRP1007", null), // por código
+        linea(null, "KARINA BENDEZU"), // por nombre, sin tilde
+        linea(null, "Karina  Bendezú"), // por nombre, con espacio de más
+        linea(null, "QUIEN SABE"), // de nadie
+        linea(null, null), // de nadie
+      ],
+      new Set(["CRP1007"]),
+      new Set(["KARINA BENDEZU"]),
+    );
+
+    expect(r.filasDetalle).toBe(5);
+    expect(r.detalleSinVendedor).toBe(2);
+  });
 });
