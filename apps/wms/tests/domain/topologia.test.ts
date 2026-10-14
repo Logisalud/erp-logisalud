@@ -63,10 +63,11 @@ describe('topología cargada desde datos', () => {
     }
   })
 
-  it('E-9.1 y E-10.1 se cargan de Logissa y por verificar', () => {
+  it('E-9.1 y E-10.1 existen, son de Logissa y ya no están por verificar (Sebas, 2026-10-14: Odoo las tiene con stock)', () => {
     expect(por('E-9.1')).toMatchObject({ propietario: 'LOGISSA' })
-    expect(por('E-9.1')?.porVerificar).toBeTruthy()
-    expect(por('E-10.1')?.porVerificar).toBeTruthy()
+    expect(por('E-10.1')).toMatchObject({ propietario: 'LOGISSA' })
+    expect(por('E-9.1')?.porVerificar).toBeFalsy()
+    expect(por('E-10.1')?.porVerificar).toBeFalsy()
   })
 
   it('las posiciones de estado "Aprobado" admiten Aprobado y las de bajas, Bajas', () => {

@@ -10,6 +10,7 @@
     "test:e2e": "./scripts/e2e-por-viewport.sh",
     "test:e2e:un-servidor": "playwright test",
     "seed:topologia": "tsx scripts/generar-seed-topologia.ts",
+    "datos:demo-odoo": "tsx scripts/generar-datos-demo-odoo.ts",
     "test:db": "./scripts/db-local.sh && vitest run tests/db"
   },
   "dependencies": {

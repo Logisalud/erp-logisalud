@@ -109,14 +109,15 @@ export function generarPosiciones(): PosicionConfig[] {
     for (let p = 1; p <= 7; p++) add(`${r}-${p}`, r, p, null, null, 'PISO', 'APROBADOS', 'LOGISSA')
   }
 
-  // E-8 a E-10: Logissa. E-8.1 se divide en subracks; E-9.1 y E-10.1 no figuran en la tabla 2026.
+  // E-8 a E-10: Logissa. E-8.1 se divide en subracks. E-9.1 y E-10.1 no figuran en la tabla 2026, pero existen y tienen stock
+  // (confirmado por Sebas el 2026-10-14): ya no llevan la marca «por verificar».
   sub('E', 8, 1, 1, 'DEVOLUCIONES', 'LOGISSA')
   sub('E', 8, 1, 2, 'BAJAS_RECHAZADOS', 'LOGISSA')
   sub('E', 8, 1, 3, 'CONTRAMUESTRA', 'LOGISSA')
   sub('E', 8, 1, 4, 'APROBADOS', 'LOGISSA')
   for (let n = 2; n <= 4; n++) niv('E', 8, n, 'APROBADOS', 'LOGISSA')
   for (const p of [9, 10]) {
-    niv('E', p, 1, 'APROBADOS', 'LOGISSA', 'No figura en la tabla de Logissa 2026; el plano la dibuja, Odoo la tiene y el total de pallets solo cuadra si se cuenta.')
+    niv('E', p, 1, 'APROBADOS', 'LOGISSA')
     for (let n = 2; n <= 4; n++) niv('E', p, n, 'APROBADOS', 'LOGISSA')
   }
 
