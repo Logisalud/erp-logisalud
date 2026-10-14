@@ -14,8 +14,9 @@
 --      en B una línea = un lote (si el cliente necesita dos lotes, usa dos líneas).
 --      Vencidos: el stock de Logissa NUNCA sale vencido; el de un cliente solo con motivo pesquisa DIGEMID, destrucción o
 --      devolución al proveedor y con aprobación de Dirección Técnica (D-69).
---   4. Cambio de lote por la ÚNICA excepción (D-62): Jefe de Almacén / reemplazo / Jefe de Transporte, antes del picking, con un
---      único motivo fijo; el lote nuevo debe vencer DESPUÉS. Alerta de stock insuficiente al Jefe de Transporte ANTES del picking.
+--   4. Edición de la asignación por la ÚNICA excepción (D-62, D-76): Jefe de Almacén / reemplazo / Jefe de Transporte, antes del picking,
+--      con un único motivo fijo: reemplazar, agregar o quitar lotes y redistribuir cantidades (la suma es la de la línea); todo lote
+--      nuevo debe vencer DESPUÉS del lote FEFO que reemplaza. Alerta de stock insuficiente al Jefe de Transporte ANTES del picking.
 --      Propuesta de reemplazo cuando el picker no encuentra el lote (solo en A).
 --   5. Orden de picking (por orden de recorrido) y los escalones de §4.3: picking confirmado (sin tocar el ledger) → conformidad
 --      de OTRA persona = MOVIMIENTO rack → staging (D-51) → SALIDA desde staging → RETORNO. Invariantes en la base: nunca negativo,
@@ -101,8 +102,9 @@ create table if not exists wms.salida_lineas (
   producto_id uuid not null,
   cantidad integer not null check (cantidad > 0),
   lote_indicado_id uuid references wms.lotes(id),    -- modo B: el lote que indica el cliente
-  lote_fefo_id uuid references wms.lotes(id),        -- el lote que asignó la regla (A) o el indicado (B): el ORIGINAL
-  lote_id uuid references wms.lotes(id),             -- el lote vigente (distinto del original solo tras la excepción)
+  lote_fefo_id uuid references wms.lotes(id),        -- el lote PRINCIPAL (el primero en FEFO) de la asignación original, o el indicado (B)
+  lote_id uuid references wms.lotes(id),             -- el lote principal vigente (el que vence primero de los asignados)
+  asignacion_fefo jsonb,                             -- la asignación FEFO ORIGINAL completa [{lote_id, lote, vence, cantidad}]: no cambia nunca
   estado text not null default 'PENDIENTE' check (estado in
     ('PENDIENTE', 'ASIGNADA', 'SIN_STOCK', 'EN_PICKING', 'PICKEADA', 'CONFORME', 'OBSERVADA', 'CONFIRMADA', 'CANCELADA')),
   nota_stock text,
@@ -132,13 +134,13 @@ alter table wms.reservas enable row level security;
 create index if not exists reservas_celda_idx on wms.reservas (posicion_id, lote_id, estado_stock, procedencia_id) where estado in ('ACTIVA', 'EN_TRANSITO', 'EN_STAGING');
 create index if not exists reservas_linea_idx on wms.reservas (linea_id);
 
--- La excepción única a FEFO (D-62): quién, cuándo, lote anterior, lote nuevo y un motivo fijo. Inmutable.
+-- La excepción única a FEFO (D-62): quién, cuándo, la asignación anterior y la nueva (lotes y cantidades) y un motivo fijo. Inmutable.
 create table if not exists wms.cambios_lote_asignado (
   id uuid primary key default gen_random_uuid(),
   linea_id uuid not null references wms.salida_lineas(id),
-  lote_anterior_id uuid not null references wms.lotes(id),
-  lote_nuevo_id uuid not null references wms.lotes(id),
   motivo text not null check (motivo = 'CLIENTE_SOLICITA_VENCIMIENTO_MAS_LARGO'),
+  asignacion_anterior jsonb not null,                -- [{lote_id, lote, vence, cantidad}] antes de la edición
+  asignacion_nueva jsonb not null,                   -- ídem, después
   por uuid not null,
   en timestamptz not null default now()
 );
@@ -390,6 +392,17 @@ begin
   end if;
 end $$;
 
+-- La asignación vigente de una línea (reservas activas agrupadas por lote), ordenada por vencimiento.
+create or replace function wms._asignacion_json(p_linea uuid) returns jsonb
+language sql stable security definer set search_path = wms, pg_temp as $$
+  select coalesce(jsonb_agg(jsonb_build_object('lote_id', x.lote_id, 'lote', x.codigo, 'vence', x.vence, 'cantidad', x.cantidad)
+                            order by x.vence nulls last, x.codigo), '[]'::jsonb)
+    from (select r.lote_id, lt.codigo, lt.vence, sum(r.cantidad)::integer as cantidad
+            from wms.reservas r join wms.lotes lt on lt.id = r.lote_id
+           where r.linea_id = p_linea and r.estado = 'ACTIVA'
+           group by r.lote_id, lt.codigo, lt.vence) x
+$$;
+
 -- Asigna UNA línea. Tipo B (por cuenta de un cliente): un solo lote, el que indica el cliente, con toda la cantidad.
 -- Tipo A (distribución) y muestras: el pedido no trae lote (D-76); se toma lo que haya del lote FEFO válido y se completa, automáticamente,
 -- con el siguiente lote FEFO válido, y así hasta cubrir la cantidad. La línea queda con una reserva por lote y celda (cada una con su ubicación
@@ -448,7 +461,8 @@ begin
 
   if v_primero is not null then
     -- lote_id / lote_fefo_id guardan el lote principal (el primero en FEFO); el detalle por lote está en las reservas.
-    update wms.salida_lineas set lote_id = v_primero, lote_fefo_id = coalesce(lote_fefo_id, v_primero), estado = 'ASIGNADA', nota_stock = null
+    update wms.salida_lineas set lote_id = v_primero, lote_fefo_id = coalesce(lote_fefo_id, v_primero), estado = 'ASIGNADA', nota_stock = null,
+           asignacion_fefo = coalesce(asignacion_fefo, wms._asignacion_json(p_linea))
      where id = p_linea;
     update wms.alertas set estado = 'ATENDIDA', atendida_en = now(), nota_atencion = 'La línea quedó asignada'
      where clave = 'stock:' || p_linea and estado = 'ABIERTA';
@@ -585,14 +599,21 @@ begin
   perform wms.registrar_audit('salida_vencida_aprobada', 'salidas', p_salida::text, null, null, p_nota);
 end $$;
 
--- La ÚNICA excepción a FEFO (D-62): antes del picking, con un motivo fijo; el lote nuevo debe vencer DESPUÉS, estar Aprobado, sin bloqueo y alcanzar.
-create or replace function wms.cambiar_lote_asignado(p_linea uuid, p_lote_nuevo uuid, p_motivo text)
+-- La ÚNICA excepción a FEFO (D-62, D-76): el Jefe de Almacén (o su reemplazo) o el Jefe de Transporte EDITAN la asignación de una línea
+-- de venta antes del picking: reemplazar un lote, agregar otro, quitar uno o redistribuir cantidades entre lotes, siempre que la suma
+-- sea la cantidad de la línea. Un solo motivo: «Cliente solicita vencimiento más largo»; por eso todo lote que NO estaba en la asignación
+-- FEFO original debe vencer DESPUÉS del lote FEFO que reemplaza (el primero, por vencimiento, de los lotes FEFO que pierden cantidad).
+-- Cada lote: Aprobado, sin bloqueo, con vida útil mínima, y con cantidad suficiente (nunca negativo). Queda la asignación FEFO original
+-- (`salida_lineas.asignacion_fefo`), y en cada edición quién, cuándo, la asignación anterior, la nueva y el motivo.
+-- p_asignaciones: [{"lote_id": uuid, "cantidad": n}, …]
+create or replace function wms.editar_asignacion(p_linea uuid, p_asignaciones jsonb, p_motivo text)
 returns void language plpgsql security definer set search_path = wms, pg_temp as $$
 declare
-  l wms.salida_lineas; s wms.salidas; v_old wms.lotes; v_new wms.lotes; v_hoy date := wms._hoy_lima(); v_min integer; v_apto record;
-  v_disp integer; v_ord uuid;
+  l wms.salida_lineas; s wms.salidas; v_hoy date := wms._hoy_lima(); v_min integer; x record;
+  v_suma integer := 0; v_ant jsonb; v_nueva jsonb; v_lote wms.lotes; v_apto record; v_disp integer; v_ord uuid;
+  v_min_red date; v_nulo boolean; v_n integer;
 begin
-  perform wms._exigir_accion('cambiar_lote_asignado', 'Solo el Jefe de Almacén (o su reemplazo) o el Jefe de Transporte cambian el lote asignado');
+  perform wms._exigir_accion('cambiar_lote_asignado', 'Solo el Jefe de Almacén (o su reemplazo) o el Jefe de Transporte editan los lotes asignados');
   if p_motivo is distinct from 'CLIENTE_SOLICITA_VENCIMIENTO_MAS_LARGO' then
     raise exception 'El único motivo permitido es «Cliente solicita vencimiento más largo»' using errcode = 'P0001';
   end if;
@@ -600,44 +621,70 @@ begin
   if not found then raise exception 'No encontramos esa línea' using errcode = 'P0001'; end if;
   select * into s from wms.salidas where id = l.salida_id;
   if s.tipo <> 'DISTRIBUCION' then
-    raise exception 'El lote solo se cambia en un pedido de venta (en una salida de cliente, el lote lo indica el cliente)' using errcode = 'P0001';
+    raise exception 'Los lotes solo se editan en un pedido de venta: en una salida de cliente el lote lo indica el cliente' using errcode = 'P0001';
   end if;
   if l.estado not in ('ASIGNADA', 'EN_PICKING') then
-    raise exception 'La línea no está asignada o ya salió del picking: no se cambia el lote' using errcode = 'P0001';
-  end if;
-  if (select count(distinct r.lote_id) from wms.reservas r where r.linea_id = p_linea and r.estado = 'ACTIVA') > 1 then
-    raise exception 'La línea está repartida en varios lotes (no alcanzaba un solo lote): el cambio de lote solo aplica a líneas de un lote' using errcode = 'P0001';
+    raise exception 'La línea no está asignada o ya salió del picking: no se editan los lotes' using errcode = 'P0001';
   end if;
   if exists (select 1 from wms.ordenes_picking_lineas ol where ol.linea_id = p_linea and ol.picking <> 'PENDIENTE') then
-    raise exception 'Ya empezó el picking de esta línea: no se cambia el lote' using errcode = 'P0001';
+    raise exception 'Ya empezó el picking de esta línea: no se editan los lotes' using errcode = 'P0001';
   end if;
-  select * into v_old from wms.lotes where id = l.lote_id;
-  select * into v_new from wms.lotes where id = p_lote_nuevo;
-  if not found then raise exception 'No encontramos ese lote' using errcode = 'P0001'; end if;
-  if v_new.producto_id <> l.producto_id or v_new.propietario_id <> s.propietario_id then
-    raise exception 'El lote nuevo no corresponde al producto o al propietario de la línea' using errcode = 'P0001';
+  if p_asignaciones is null or jsonb_typeof(p_asignaciones) <> 'array' or jsonb_array_length(p_asignaciones) = 0 then
+    raise exception 'Indica al menos un lote con su cantidad' using errcode = 'P0001';
   end if;
-  if v_new.id = v_old.id then raise exception 'Ese ya es el lote asignado' using errcode = 'P0001'; end if;
-  if v_new.vence is null or v_old.vence is null or v_new.vence <= v_old.vence then
-    raise exception 'El lote nuevo debe vencer después del asignado (asignado: %, nuevo: %)', coalesce(v_old.vence::text, 'sin fecha'), coalesce(v_new.vence::text, 'sin fecha')
-      using errcode = 'P0001';
+  for x in select (e->>'lote_id')::uuid as lote_id, (e->>'cantidad')::integer as cantidad from jsonb_array_elements(p_asignaciones) e loop
+    if x.lote_id is null or x.cantidad is null or x.cantidad <= 0 then
+      raise exception 'Cada lote lleva su cantidad, mayor que cero' using errcode = 'P0001';
+    end if;
+    v_suma := v_suma + x.cantidad;
+  end loop;
+  select count(distinct (e->>'lote_id')) into v_n from jsonb_array_elements(p_asignaciones) e;
+  if v_n <> jsonb_array_length(p_asignaciones) then raise exception 'Un lote aparece una sola vez' using errcode = 'P0001'; end if;
+  if v_suma <> l.cantidad then
+    raise exception 'La suma de los lotes (%) debe ser igual a la cantidad de la línea (%)', v_suma, l.cantidad using errcode = 'P0001';
   end if;
   perform wms._candado_stock(l.producto_id, s.propietario_id);
   v_min := coalesce((select p.valor::integer from wms.parametros p where p.clave = 'vida_util_minima_venta_dias'), 60);
-  select * into v_apto from wms._lote_apto(v_new.vence, s.tipo, s.motivo, v_hoy, v_min);
-  if not v_apto.apto then raise exception '%', v_apto.razon using errcode = 'P0001'; end if;
-  if wms.lote_bloqueado(v_new.id) then raise exception 'Ese lote está bloqueado' using errcode = 'P0001'; end if;
-  -- Las unidades de esta misma línea no cuentan como disponibles del lote nuevo (son del lote anterior).
-  select coalesce(sum(c.disponible) filter (where c.disponible > 0 and not c.en_conteo), 0) into v_disp
-    from wms._candidatos(s.propietario_id, l.producto_id) c where c.lote_id = v_new.id;
-  if v_disp < l.cantidad then
-    raise exception 'El lote % no tiene suficientes unidades disponibles (hay %, la línea pide %)', v_new.codigo, v_disp, l.cantidad using errcode = 'P0002';
-  end if;
+  v_ant := wms._asignacion_json(p_linea);
 
+  -- Se liberan las reservas vigentes de la línea (si algo no cumple, la transacción se deshace y vuelven a quedar como estaban).
   update wms.reservas set estado = 'LIBERADA', actualizada_en = now() where linea_id = p_linea and estado = 'ACTIVA';
-  perform wms._reservar_en_lote(p_linea, v_new.id, l.cantidad);
-  update wms.salida_lineas set lote_id = v_new.id where id = p_linea;
-  insert into wms.cambios_lote_asignado (linea_id, lote_anterior_id, lote_nuevo_id, motivo, por) values (p_linea, v_old.id, v_new.id, p_motivo, auth.uid());
+
+  -- El lote FEFO que se reemplaza: entre los lotes de la asignación FEFO original que pierden cantidad, el que vence primero.
+  select min(lt.vence), coalesce(bool_or(lt.vence is null), false) into v_min_red, v_nulo
+    from jsonb_to_recordset(l.asignacion_fefo) as f(lote_id uuid, cantidad integer)
+    join wms.lotes lt on lt.id = f.lote_id
+   where f.cantidad > coalesce((select sum((e->>'cantidad')::integer) from jsonb_array_elements(p_asignaciones) e
+                                 where (e->>'lote_id')::uuid = f.lote_id), 0);
+
+  for x in select (e->>'lote_id')::uuid as lote_id, (e->>'cantidad')::integer as cantidad from jsonb_array_elements(p_asignaciones) e loop
+    select * into v_lote from wms.lotes where id = x.lote_id;
+    if not found then raise exception 'No encontramos uno de los lotes' using errcode = 'P0001'; end if;
+    if v_lote.producto_id <> l.producto_id or v_lote.propietario_id <> s.propietario_id then
+      raise exception 'El lote % no corresponde al producto o al propietario de la línea', v_lote.codigo using errcode = 'P0001';
+    end if;
+    select * into v_apto from wms._lote_apto(v_lote.vence, s.tipo, s.motivo, v_hoy, v_min);
+    if not v_apto.apto then raise exception 'Lote %: %', v_lote.codigo, v_apto.razon using errcode = 'P0001'; end if;
+    if wms.lote_bloqueado(v_lote.id) then raise exception 'El lote % está bloqueado', v_lote.codigo using errcode = 'P0001'; end if;
+    if not exists (select 1 from jsonb_to_recordset(l.asignacion_fefo) as f(lote_id uuid) where f.lote_id = x.lote_id) then
+      -- lote nuevo (no estaba en la asignación FEFO original): debe vencer después del lote FEFO que reemplaza
+      if v_min_red is null or v_nulo or v_lote.vence is null or v_lote.vence <= v_min_red then
+        raise exception 'El lote % debe vencer después del lote FEFO que reemplaza (%)', v_lote.codigo, coalesce(v_min_red::text, 'ninguno')
+          using errcode = 'P0001';
+      end if;
+    end if;
+    select coalesce(sum(c.disponible) filter (where c.disponible > 0 and not c.en_conteo), 0) into v_disp
+      from wms._candidatos(s.propietario_id, l.producto_id) c where c.lote_id = v_lote.id;
+    if v_disp < x.cantidad then
+      raise exception 'El lote % no tiene suficientes unidades disponibles (hay %, se piden %)', v_lote.codigo, v_disp, x.cantidad using errcode = 'P0002';
+    end if;
+    perform wms._reservar_en_lote(p_linea, v_lote.id, x.cantidad);
+  end loop;
+
+  v_nueva := wms._asignacion_json(p_linea);
+  if v_nueva = v_ant then raise exception 'La asignación no cambió' using errcode = 'P0001'; end if;
+  update wms.salida_lineas set lote_id = (select (e->>'lote_id')::uuid from jsonb_array_elements(v_nueva) e limit 1) where id = p_linea;
+  insert into wms.cambios_lote_asignado (linea_id, motivo, asignacion_anterior, asignacion_nueva, por) values (p_linea, p_motivo, v_ant, v_nueva, auth.uid());
   -- Si ya hay orden de picking, se reescriben sus líneas (ninguna se había pickeado).
   select ol.orden_id into v_ord from wms.ordenes_picking_lineas ol join wms.ordenes_picking o on o.id = ol.orden_id
    where ol.linea_id = p_linea and o.estado <> 'CANCELADA' limit 1;
@@ -648,8 +695,7 @@ begin
       from wms.reservas r join wms.posiciones ps on ps.id = r.posicion_id join wms.lotes lt on lt.id = r.lote_id
      where r.linea_id = p_linea and r.estado = 'ACTIVA';
   end if;
-  perform wms.registrar_audit('lote_cambiado', 'salida_lineas', p_linea::text,
-    jsonb_build_object('lote', v_old.id), jsonb_build_object('lote', v_new.id), p_motivo);
+  perform wms.registrar_audit('asignacion_editada', 'salida_lineas', p_linea::text, v_ant, v_nueva, p_motivo);
 end $$;
 
 -- El picker no encuentra el lote asignado (solo en A): primero el MISMO lote en otra ubicación; si no, el siguiente FEFO válido
@@ -666,7 +712,10 @@ begin
   select * into s from wms.salidas where id = l.salida_id;
   if s.tipo = 'CLIENTE' then raise exception 'En una salida de cliente el lote lo indica el cliente: no hay reemplazo' using errcode = 'P0001'; end if;
   v_min := case when s.tipo = 'DISTRIBUCION' then coalesce((select p.valor::integer from wms.parametros p where p.clave = 'vida_util_minima_venta_dias'), 60) else 0 end;
-  select lt.vence into v_orig from wms.lotes lt where lt.id = l.lote_fefo_id;
+  -- Si la asignación se editó por la excepción, el reemplazo también debe vencer después del lote FEFO original (el primero por vencimiento).
+  if exists (select 1 from wms.cambios_lote_asignado cl where cl.linea_id = l.id) then
+    select min(lt.vence) into v_orig from jsonb_to_recordset(l.asignacion_fefo) as f(lote_id uuid) join wms.lotes lt on lt.id = f.lote_id;
+  end if;
   -- El lote que el picker no encuentra (por defecto, el principal de la línea) y cuántas unidades de ese lote lleva la línea.
   v_lote := coalesce(p_lote, l.lote_id);
   select coalesce(sum(r.cantidad), 0)::integer into v_cant from wms.reservas r
@@ -687,7 +736,7 @@ begin
             cross join lateral wms._lote_apto(c.vence, s.tipo, s.motivo, v_hoy, v_min) a
            where c.lote_id <> v_lote and c.disponible > 0 and not c.en_conteo and a.apto and not wms.lote_bloqueado(c.lote_id)
            order by c.lote_id, c.orden_recorrido nulls last, c.posicion) x
-   where x.total >= v_cant and (v_orig is null or v_lote = l.lote_fefo_id or x.vence > v_orig)
+   where x.total >= v_cant and (v_orig is null or x.vence > v_orig)
    order by x.vence nulls last, x.lote
    limit 5;
 end $$;
@@ -1369,7 +1418,7 @@ create trigger conteo_sin_salidas_abiertas before insert on wms.conteo_lineas
 grant execute on function
   wms.disponibilidad_por_lote(uuid, uuid), wms.stock_vendible(uuid), wms.lote_bloqueado(uuid),
   wms.crear_salida(text, text, uuid, jsonb, text, text, text), wms.asignar_salida(uuid), wms.aprobar_salida_vencida(uuid, text),
-  wms.cambiar_lote_asignado(uuid, uuid, text), wms.proponer_reemplazo(uuid, uuid), wms.generar_orden_picking(uuid),
+  wms.editar_asignacion(uuid, jsonb, text), wms.proponer_reemplazo(uuid, uuid), wms.generar_orden_picking(uuid),
   wms.registrar_picking(uuid, text, integer, text), wms.dar_conformidad(uuid, text, text, uuid), wms.confirmar_salida(uuid, text),
   wms.registrar_retorno(uuid, integer, uuid, text, uuid), wms.cancelar_salida(uuid, text) to authenticated;
 revoke execute on all functions in schema wms from public;

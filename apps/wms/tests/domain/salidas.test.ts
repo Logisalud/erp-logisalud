@@ -72,3 +72,33 @@ describe('asignación de una línea', () => {
     expect(() => venta(1.5, [])).toThrow()
   })
 })
+
+import { lotesEditables, validarEdicionAsignacion, MOTIVO_EDICION_ASIGNACION } from '@/domain/salidas'
+
+describe('edición de la asignación FEFO', () => {
+  const fefo = [{ loteId: 'l:A', cantidad: 30, vence: '2027-01-01' }, { loteId: 'l:B', cantidad: 20, vence: '2027-03-01' }]
+  const lotes = [lote('A', '2027-01-01', 50), lote('B', '2027-03-01', 40), lote('C', '2027-09-01', 100), lote('ANTES', '2026-12-20', 100), lote('CORTO', '2026-11-01', 100)]
+  const base = { cantidadLinea: 50, hoy: HOY, fefo, lotes, motivo: MOTIVO_EDICION_ASIGNACION }
+
+  it('redistribuir entre los lotes FEFO, agregar un lote que vence después y quitar uno valen si la suma es la de la línea', () => {
+    expect(validarEdicionAsignacion({ ...base, nueva: [{ loteId: 'l:A', cantidad: 10 }, { loteId: 'l:B', cantidad: 40 }] })).toEqual([])
+    expect(validarEdicionAsignacion({ ...base, nueva: [{ loteId: 'l:A', cantidad: 30 }, { loteId: 'l:C', cantidad: 20 }] })).toEqual([])
+    expect(validarEdicionAsignacion({ ...base, nueva: [{ loteId: 'l:C', cantidad: 50 }] })).toEqual([])
+  })
+
+  it('rechaza: suma distinta, cantidades no positivas, lote repetido, lote nuevo que no vence después, sin 60 días, sin disponible y otro motivo', () => {
+    const err = (nueva: { loteId: string; cantidad: number }[], extra = {}) => validarEdicionAsignacion({ ...base, nueva, ...extra }).join(' | ')
+    expect(err([{ loteId: 'l:A', cantidad: 49 }])).toMatch(/La suma de los lotes \(49\)/)
+    expect(err([{ loteId: 'l:A', cantidad: 0 }, { loteId: 'l:B', cantidad: 50 }])).toMatch(/mayor que cero/)
+    expect(err([{ loteId: 'l:A', cantidad: 25 }, { loteId: 'l:A', cantidad: 25 }])).toMatch(/una sola vez/)
+    expect(err([{ loteId: 'l:ANTES', cantidad: 50 }])).toMatch(/debe vencer después del lote FEFO que reemplaza \(2027-01-01\)/)
+    expect(err([{ loteId: 'l:CORTO', cantidad: 50 }])).toMatch(/vence en 18 días/)
+    expect(err([{ loteId: 'l:C', cantidad: 50 }], { lotes: [lote('C', '2027-09-01', 10)] })).toMatch(/no tiene suficientes unidades/)
+    expect(err([{ loteId: 'l:C', cantidad: 50 }], { motivo: 'OTRO' })).toMatch(/único motivo permitido/)
+    expect(err([])).toMatch(/al menos un lote/)
+  })
+
+  it('«Editar lotes» lista solo los lotes válidos', () => {
+    expect(lotesEditables({ hoy: HOY, fefo, lotes }).map((l) => l.codigo)).toEqual(['A', 'B', 'C'])
+  })
+})

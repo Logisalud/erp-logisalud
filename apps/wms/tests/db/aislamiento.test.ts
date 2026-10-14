@@ -273,7 +273,7 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'saldos_al', 'tiene_permiso', 'tiene_rol', 'ultima_cobertura_por_posicion', 'validar_carga_inicial', 'validar_movimiento',
     'verificar_linea', 'verificar_pendiente', 'verificar_saldos',
     // S2 (0012)
-    'aprobar_salida_vencida', 'asignar_salida', 'cambiar_lote_asignado', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
+    'aprobar_salida_vencida', 'asignar_salida', 'editar_asignacion', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
     'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',
     'registrar_retorno', 'stock_vendible',
   ]

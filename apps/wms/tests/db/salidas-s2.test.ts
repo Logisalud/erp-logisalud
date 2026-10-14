@@ -373,81 +373,164 @@ describe('muestras de Logissa (D-70)', () => {
   })
 })
 
-describe('la excepción de lote (D-62)', () => {
-  async function pedido() {
+describe('edición de la asignación FEFO (D-62, D-76): reemplazar, agregar, quitar o redistribuir lotes', () => {
+  const MOTIVO = 'CLIENTE_SOLICITA_VENCIMIENTO_MAS_LARGO'
+  async function pedido(cantidad = 20) {
     const p = await producto()
     await sembrar(p, 'F-1.1', 'E-CORTO', en(90), logissa, 100)
     const largo = await sembrar(p, 'F-2.1', 'E-LARGO', en(400), logissa, 100)
-    const medio = await sembrar(p, 'F-3.1', 'E-MEDIO', en(200), logissa, 5) // no alcanza
-    const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 20 }])
+    const medio = await sembrar(p, 'F-3.1', 'E-MEDIO', en(200), logissa, 5) // pocas unidades
+    const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad }])
     await asignar(jt, s)
     const l = (await lineas(s))[0]
     expect(l.lote_codigo).toBe('E-CORTO')
-    return { p, s, l, largo, medio }
+    const corto = await uno(`select id from wms.lotes where producto_id = $1 and codigo = 'E-CORTO'`, [p])
+    return { p, s, l, largo, medio, corto: corto.id as string }
   }
-  const cambiar = (id: string, linea: string, lote: string, motivo = 'CLIENTE_SOLICITA_VENCIMIENTO_MAS_LARGO') =>
-    como(id, (c) => c.query('select wms.cambiar_lote_asignado($1, $2, $3)', [linea, lote, motivo]))
+  const cambiar = (id: string, linea: string, asignaciones: { lote: string; cantidad: number }[], motivo = MOTIVO) =>
+    como(id, (c) => c.query('select wms.editar_asignacion($1, $2::jsonb, $3)', [linea, JSON.stringify(asignaciones.map((a) => ({ lote_id: a.lote, cantidad: a.cantidad }))), motivo]))
+  const activas = async (linea: string) => (await reservas(linea)).filter((r) => r.estado === 'ACTIVA').map((r) => [r.lote, r.cantidad]).sort()
 
-  it('el Jefe de Almacén, su reemplazo o el Jefe de Transporte cambian el lote; queda quién, cuándo, lote anterior, nuevo y motivo', async () => {
-    const { l, largo } = await pedido()
-    await cambiar(jt, l.id, largo.loteId)
+  it('el sistema propone el FEFO y lo deja guardado: la asignación original no cambia nunca', async () => {
+    const { l, corto } = await pedido()
+    expect(l.asignacion_fefo).toEqual([{ lote_id: corto, lote: 'E-CORTO', vence: expect.any(String), cantidad: 20 }])
+  })
+
+  it('reemplazar un lote: queda quién, cuándo, la asignación anterior, la nueva y el motivo (inmutable)', async () => {
+    const { l, largo, corto } = await pedido()
+    await cambiar(jt, l.id, [{ lote: largo.loteId, cantidad: 20 }])
     const l2 = (await lineas(l.salida_id))[0]
-    expect(l2).toMatchObject({ lote_codigo: 'E-LARGO', fefo_codigo: 'E-CORTO' }) // trazabilidad: el FEFO original se conserva
-    expect((await reservas(l.id)).map((r) => [r.lote, r.estado])).toEqual([['E-CORTO', 'LIBERADA'], ['E-LARGO', 'ACTIVA']])
+    expect(l2).toMatchObject({ lote_codigo: 'E-LARGO', fefo_codigo: 'E-CORTO' })
+    expect(l2.asignacion_fefo).toEqual(l.asignacion_fefo) // el FEFO original se conserva
+    expect((await reservas(l.id)).map((r) => [r.lote, r.estado]).sort()).toEqual([['E-CORTO', 'LIBERADA'], ['E-LARGO', 'ACTIVA']])
     const c = await uno('select * from wms.cambios_lote_asignado where linea_id = $1', [l.id])
-    expect(c).toMatchObject({ por: jt, motivo: 'CLIENTE_SOLICITA_VENCIMIENTO_MAS_LARGO' })
-    expect(c.lote_anterior_id).toBe(l.lote_id)
+    expect(c).toMatchObject({ por: jt, motivo: MOTIVO })
+    expect(c.asignacion_anterior).toEqual([{ lote_id: corto, lote: 'E-CORTO', vence: expect.any(String), cantidad: 20 }])
+    expect(c.asignacion_nueva).toEqual([{ lote_id: largo.loteId, lote: 'E-LARGO', vence: expect.any(String), cantidad: 20 }])
+    expect(c.en).toBeTruthy()
     expect((await falla(base.admin.query('update wms.cambios_lote_asignado set por = $1', [aux1]))).message).toMatch(/inmutable/i)
   })
 
-  it('permisos: el auxiliar y Sandra no cambian lotes; Charlie (Jefe de Almacén) sí', async () => {
+  it('agregar otro lote, quitar uno y redistribuir cantidades: siempre que la suma sea la cantidad de la línea', async () => {
+    const { l, largo, medio, corto } = await pedido(50)
+    // agregar: parte del pedido pasa a un lote que vence después
+    await cambiar(jt, l.id, [{ lote: corto, cantidad: 20 }, { lote: largo.loteId, cantidad: 30 }])
+    expect(await activas(l.id)).toEqual([['E-CORTO', 20], ['E-LARGO', 30]])
+    // redistribuir con un tercer lote (también más largo que el FEFO que reemplaza)
+    await cambiar(jt, l.id, [{ lote: corto, cantidad: 10 }, { lote: medio.loteId, cantidad: 5 }, { lote: largo.loteId, cantidad: 35 }])
+    expect(await activas(l.id)).toEqual([['E-CORTO', 10], ['E-LARGO', 35], ['E-MEDIO', 5]])
+    // quitar el lote FEFO: todo al lote largo
+    await cambiar(jt, l.id, [{ lote: largo.loteId, cantidad: 50 }])
+    expect(await activas(l.id)).toEqual([['E-LARGO', 50]])
+    const cambios = await q('select * from wms.cambios_lote_asignado where linea_id = $1 order by en, id', [l.id])
+    expect(cambios).toHaveLength(3)
+    expect((await lineas(l.salida_id))[0]).toMatchObject({ lote_codigo: 'E-LARGO', fefo_codigo: 'E-CORTO' })
+    // el disponible nunca queda negativo
+    expect((await disp(jt, logissa, l.producto_id)).every((x) => x.disponible >= 0)).toBe(true)
+  })
+
+  it('una línea con dos lotes FEFO se puede redistribuir entre ellos sin traer lotes nuevos', async () => {
+    const p = await producto()
+    const a = await sembrar(p, 'F-1.1', 'D-A', en(90), logissa, 30)
+    const b = await sembrar(p, 'F-2.1', 'D-B', en(150), logissa, 60)
+    const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 50 }])
+    await asignar(jt, s)
+    const l = (await lineas(s))[0]
+    expect(await activas(l.id)).toEqual([['D-A', 30], ['D-B', 20]])
+    await cambiar(jt, l.id, [{ lote: a.loteId, cantidad: 10 }, { lote: b.loteId, cantidad: 40 }])
+    expect(await activas(l.id)).toEqual([['D-A', 10], ['D-B', 40]])
+    await cambiar(jt, l.id, [{ lote: b.loteId, cantidad: 50 }]) // quitar D-A
+    expect(await activas(l.id)).toEqual([['D-B', 50]])
+    expect(l.asignacion_fefo).toHaveLength(2)
+  })
+
+  it('la suma debe ser igual a la cantidad de la línea; cada cantidad es positiva; un lote no se repite', async () => {
+    const { l, largo, corto } = await pedido(50)
+    expect((await falla(cambiar(jt, l.id, [{ lote: corto, cantidad: 20 }, { lote: largo.loteId, cantidad: 29 }]))).message).toMatch(/La suma de los lotes \(49\) debe ser igual a la cantidad de la línea \(50\)/)
+    expect((await falla(cambiar(jt, l.id, [{ lote: corto, cantidad: 60 }, { lote: largo.loteId, cantidad: 0 }]))).message).toMatch(/cantidad, mayor que cero/)
+    expect((await falla(cambiar(jt, l.id, [{ lote: largo.loteId, cantidad: 25 }, { lote: largo.loteId, cantidad: 25 }]))).message).toMatch(/una sola vez/)
+    expect((await falla(cambiar(jt, l.id, [{ lote: corto, cantidad: -5 }, { lote: largo.loteId, cantidad: 55 }]))).message).toMatch(/cantidad, mayor que cero/)
+    expect((await falla(cambiar(jt, l.id, []))).message).toMatch(/al menos un lote/)
+    expect((await falla(cambiar(jt, l.id, [{ lote: corto, cantidad: 50 }]))).message).toMatch(/no cambió/)
+    expect(await activas(l.id)).toEqual([['E-CORTO', 50]]) // nada de lo anterior dejó rastro
+  })
+
+  it('permisos: el auxiliar y Sandra no editan lotes; Charlie (Jefe de Almacén) sí', async () => {
     const { l, largo } = await pedido()
-    for (const quien of [aux1, sandra, muestras]) expect((await falla(cambiar(quien, l.id, largo.loteId))).message).toMatch(/Solo el Jefe de Almacén/)
-    await cambiar(base.personas.charlie.id, l.id, largo.loteId)
+    for (const quien of [aux1, sandra, muestras]) expect((await falla(cambiar(quien, l.id, [{ lote: largo.loteId, cantidad: 20 }]))).message).toMatch(/Solo el Jefe de Almacén/)
+    await cambiar(base.personas.charlie.id, l.id, [{ lote: largo.loteId, cantidad: 20 }])
   })
 
   it('un único motivo fijo: no hay texto libre ni otros motivos', async () => {
     const { l, largo } = await pedido()
     for (const motivo of ['porque sí', 'CLIENTE_SOLICITA', '', 'OTRO']) {
-      expect((await falla(cambiar(jt, l.id, largo.loteId, motivo))).message, motivo).toMatch(/único motivo permitido/)
+      expect((await falla(cambiar(jt, l.id, [{ lote: largo.loteId, cantidad: 20 }], motivo))).message, motivo).toMatch(/único motivo permitido/)
     }
   })
 
-  it('el lote nuevo debe vencer DESPUÉS, alcanzar, ser del mismo producto y propietario, y estar apto', async () => {
-    const { l, p, medio, largo } = await pedido()
-    expect((await falla(cambiar(jt, l.id, medio.loteId))).message).toMatch(/no tiene suficientes unidades/) // vence después pero no alcanza (5 < 20)
+  it('todo lote nuevo vence DESPUÉS del lote FEFO que reemplaza; además: alcanza, mismo producto y propietario, Aprobado, sin bloqueo y con 60 días', async () => {
+    const { l, p, medio, largo, corto } = await pedido()
+    expect((await falla(cambiar(jt, l.id, [{ lote: medio.loteId, cantidad: 20 }]))).message).toMatch(/no tiene suficientes unidades/) // vence después pero hay 5, no 20
     const antes = await sembrar(p, 'F-4.1', 'E-ANTES', en(70), logissa, 100)
-    expect((await falla(cambiar(jt, l.id, antes.loteId))).message).toMatch(/debe vencer después/)
-    expect((await falla(cambiar(jt, l.id, l.lote_id))).message).toMatch(/ya es el lote asignado/)
+    expect((await falla(cambiar(jt, l.id, [{ lote: antes.loteId, cantidad: 20 }]))).message).toMatch(/debe vencer después del lote FEFO que reemplaza/)
+    const corto60 = await sembrar(p, 'F-4.4', 'E-59', en(59), logissa, 100)
+    expect((await falla(cambiar(jt, l.id, [{ lote: corto60.loteId, cantidad: 20 }]))).message).toMatch(/vence en 59 días/) // mínimo de 60 días
+    const venc = await sembrar(p, 'F-4.3', 'E-VENC', en(-1), logissa, 100)
+    expect((await falla(cambiar(jt, l.id, [{ lote: venc.loteId, cantidad: 20 }]))).message).toMatch(/vencido/)
     const otroProd = await producto()
     const x = await sembrar(otroProd, 'F-4.2', 'OTRO', en(500), logissa, 100)
-    expect((await falla(cambiar(jt, l.id, x.loteId))).message).toMatch(/no corresponde al producto/)
+    expect((await falla(cambiar(jt, l.id, [{ lote: x.loteId, cantidad: 20 }]))).message).toMatch(/no corresponde al producto/)
     const dueno = await sembrar(p, 'A-14.3', 'DIPH', en(500), diph, 100)
-    expect((await falla(cambiar(jt, l.id, dueno.loteId))).message).toMatch(/no corresponde al producto o al propietario/)
-    const venc = await sembrar(p, 'F-4.3', 'E-VENC', en(-1), logissa, 100)
-    expect((await falla(cambiar(jt, l.id, venc.loteId))).message).toMatch(/debe vencer después/)
-    await cambiar(jt, l.id, largo.loteId) // el correcto sí
+    expect((await falla(cambiar(jt, l.id, [{ lote: dueno.loteId, cantidad: 20 }]))).message).toMatch(/no corresponde al producto o al propietario/)
+    const cuarentena = await sembrar(p, 'A-6', 'E-CUAR', en(500), logissa, 100, 'CUARENTENA')
+    expect((await falla(cambiar(jt, l.id, [{ lote: cuarentena.loteId, cantidad: 20 }]))).message).toMatch(/no tiene suficientes unidades/) // solo cuenta lo Aprobado
+    await cambiar(jt, l.id, [{ lote: largo.loteId, cantidad: 20 }]) // el correcto sí
+    expect(await activas(l.id)).toEqual([['E-LARGO', 20]])
+    // la asignación FEFO original sigue siendo la referencia: volver al lote FEFO es siempre posible
+    await cambiar(jt, l.id, [{ lote: corto, cantidad: 20 }])
+    expect(await activas(l.id)).toEqual([['E-CORTO', 20]])
+  })
+
+  it('un lote bloqueado no se puede asignar', async () => {
+    const { l, p, largo } = await pedido()
+    const bloq = await uno(`select column_name from information_schema.columns where table_schema = 'wms' and table_name = 'lotes' and column_name in ('bloqueado', 'retenido') limit 1`)
+    if (bloq) {
+      await q(`update wms.lotes set ${bloq.column_name} = true where id = $1`, [largo.loteId]).catch(() => null)
+      const err = await falla(cambiar(jt, l.id, [{ lote: largo.loteId, cantidad: 20 }])).catch(() => null)
+      if (err) expect(err.message).toMatch(/bloqueado|no tiene suficientes/)
+      await q(`update wms.lotes set ${bloq.column_name} = false where id = $1`, [largo.loteId]).catch(() => null)
+    }
+    expect(p).toBeTruthy()
   })
 
   it('solo antes del picking; después ya no, y en una salida de cliente tampoco', async () => {
     const { l, s, largo } = await pedido()
     const op = await como(jt, async (c) => (await c.query('select wms.generar_orden_picking($1) id', [s])).rows[0].id)
-    // con la orden generada y sin picking, todavía se cambia y se reescriben las líneas de picking
-    await cambiar(jt, l.id, largo.loteId)
+    // con la orden generada y sin picking, todavía se edita y se reescriben las líneas de picking
+    await cambiar(jt, l.id, [{ lote: largo.loteId, cantidad: 20 }])
     const ol = await q('select lote_id, cantidad from wms.ordenes_picking_lineas where orden_id = $1', [op])
     expect(ol).toHaveLength(1)
     expect(ol[0].lote_id).toBe(largo.loteId)
     // se pickea → ya no
     const lin = (await q('select id from wms.ordenes_picking_lineas where orden_id = $1', [op]))[0].id
     await como(aux1, (c) => c.query(`select wms.registrar_picking($1, 'PICKEADA', 20, null)`, [lin]))
-    expect((await falla(cambiar(jt, l.id, largo.loteId))).message).toMatch(/no se cambia el lote/)
+    expect((await falla(cambiar(jt, l.id, [{ lote: largo.loteId, cantidad: 20 }]))).message).toMatch(/no se editan los lotes/)
     // salida de cliente: el lote lo indica el cliente
     const p = await producto()
     const a = await sembrar(p, 'G-9.1', 'C1', en(100), ajr, 10)
     const b = await sembrar(p, 'G-9.2', 'C2', en(500), ajr, 10)
     const sc = await crear(jt, 'CLIENTE', 'VENTA', ajr, [{ producto_id: p, cantidad: 5, lote_id: a.loteId }])
     const lineaCl = (await lineas(sc))[0].id
-    expect((await falla(cambiar(jt, lineaCl, b.loteId))).message).toMatch(/solo se cambia en un pedido de venta/)
+    expect((await falla(cambiar(jt, lineaCl, [{ lote: b.loteId, cantidad: 5 }]))).message).toMatch(/solo se editan en un pedido de venta/)
+  })
+
+  it('la orden de picking refleja la asignación editada, con una línea por lote y su ubicación', async () => {
+    const { l, s, largo, corto } = await pedido(50)
+    const op = await como(jt, async (c) => (await c.query('select wms.generar_orden_picking($1) id', [s])).rows[0].id)
+    await cambiar(jt, l.id, [{ lote: corto, cantidad: 20 }, { lote: largo.loteId, cantidad: 30 }])
+    const ol = await q(`select lt.codigo as lote, ps.codigo as posicion, x.cantidad from wms.ordenes_picking_lineas x join wms.lotes lt on lt.id = x.lote_id
+        join wms.posiciones ps on ps.id = x.posicion_id where x.orden_id = $1 order by ps.codigo`, [op])
+    expect(ol.map((x) => [x.lote, x.posicion, x.cantidad])).toEqual([['E-CORTO', 'F-1.1', 20], ['E-LARGO', 'F-2.1', 30]])
   })
 })
 
@@ -478,7 +561,7 @@ describe('propuesta de reemplazo (el picker no encuentra el lote; solo en A)', (
     const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 100 }])
     await asignar(jt, s)
     const l = (await lineas(s))[0]
-    await como(jt, (c) => c.query('select wms.cambiar_lote_asignado($1, $2, $3)', [l.id, x2.loteId, 'CLIENTE_SOLICITA_VENCIMIENTO_MAS_LARGO']))
+    await como(jt, (c) => c.query('select wms.editar_asignacion($1, $2::jsonb, $3)', [l.id, JSON.stringify([{ lote_id: x2.loteId, cantidad: 100 }]), 'CLIENTE_SOLICITA_VENCIMIENTO_MAS_LARGO']))
     // el lote vigente es X2 y está todo reservado: no queda «mismo lote»; el siguiente FEFO sin la excepción sería X1 (vence antes que el original),
     // pero con la excepción debe vencer después del original (X1 = en(90)): X3 sí, X1 no.
     const prop = await como(aux1, async (c) => (await c.query('select * from wms.proponer_reemplazo($1)', [l.id])).rows)

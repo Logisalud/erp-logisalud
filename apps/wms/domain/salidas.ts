@@ -80,3 +80,61 @@ export function asignarLinea(e: EntradaAsignacion): ResultadoAsignacion {
   }
   return { ok: true, asignaciones }
 }
+
+// ── Edición de la asignación FEFO (D-62, D-76) ──────────────────────────────────────────────────────────────────────────────────
+export const MOTIVO_EDICION_ASIGNACION = 'CLIENTE_SOLICITA_VENCIMIENTO_MAS_LARGO'
+
+export interface AsignacionLote { loteId: string; cantidad: number }
+export interface LoteEditable extends LoteDisponible { productoId?: string }
+
+/** Primer vencimiento (ISO) entre los lotes FEFO originales que pierden cantidad en la edición; null si ninguno pierde. */
+function vencimientoQueSeReemplaza(fefo: readonly (AsignacionLote & { vence: string | null })[], nueva: readonly AsignacionLote[]): { fecha: string | null; sinFecha: boolean } {
+  const perdidos = fefo.filter((f) => f.cantidad > (nueva.find((n) => n.loteId === f.loteId)?.cantidad ?? 0))
+  const fechas = perdidos.map((f) => f.vence).filter((v): v is string => !!v).sort()
+  return { fecha: fechas[0] ?? null, sinFecha: perdidos.some((f) => !f.vence) }
+}
+
+export interface EntradaEdicion {
+  cantidadLinea: number
+  hoy: string
+  /** Asignación FEFO ORIGINAL de la línea (no cambia nunca). */
+  fefo: readonly (AsignacionLote & { vence: string | null })[]
+  nueva: readonly AsignacionLote[]
+  /** Lotes del producto con lo disponible PARA ESTA LÍNEA (lo que ya tiene reservado la línea cuenta como disponible). */
+  lotes: readonly LoteDisponible[]
+  minDias?: number
+  motivo?: string
+}
+
+/** Espejo de wms.editar_asignacion: devuelve los motivos por los que la edición no vale (vacío = vale). */
+export function validarEdicionAsignacion(e: EntradaEdicion): string[] {
+  const errores: string[] = []
+  if (e.motivo !== MOTIVO_EDICION_ASIGNACION) errores.push('El único motivo permitido es «Cliente solicita vencimiento más largo».')
+  if (e.nueva.length === 0) return [...errores, 'Indica al menos un lote con su cantidad.']
+  if (e.nueva.some((n) => !Number.isInteger(n.cantidad) || n.cantidad <= 0)) errores.push('Cada lote lleva su cantidad, mayor que cero.')
+  if (new Set(e.nueva.map((n) => n.loteId)).size !== e.nueva.length) errores.push('Un lote aparece una sola vez.')
+  const suma = e.nueva.reduce((t, n) => t + n.cantidad, 0)
+  if (suma !== e.cantidadLinea) errores.push(`La suma de los lotes (${suma}) debe ser igual a la cantidad de la línea (${e.cantidadLinea}).`)
+  const reemplazado = vencimientoQueSeReemplaza(e.fefo, e.nueva)
+  for (const n of e.nueva) {
+    const lote = e.lotes.find((l) => l.loteId === n.loteId)
+    if (!lote) { errores.push('Uno de los lotes no corresponde a este producto.'); continue }
+    const apto = loteApto(lote.vence, 'DISTRIBUCION', 'VENTA', e.hoy, e.minDias)
+    if (!apto.apto) errores.push(`Lote ${lote.codigo}: ${apto.razon}`)
+    if (lote.bloqueado) errores.push(`El lote ${lote.codigo} está bloqueado.`)
+    if (!e.fefo.some((f) => f.loteId === n.loteId) && (!reemplazado.fecha || reemplazado.sinFecha || !lote.vence || lote.vence <= reemplazado.fecha)) {
+      errores.push(`El lote ${lote.codigo} debe vencer después del lote FEFO que reemplaza (${reemplazado.fecha ?? 'ninguno'}).`)
+    }
+    if (lote.disponible < n.cantidad) errores.push(`El lote ${lote.codigo} no tiene suficientes unidades disponibles (hay ${lote.disponible}, se piden ${n.cantidad}).`)
+  }
+  return errores
+}
+
+/** Los lotes que el botón «Editar lotes» ofrece: solo los válidos (aptos, sin bloqueo, con disponible y, si son nuevos, que vencen después del primer FEFO). */
+export function lotesEditables(e: Pick<EntradaEdicion, 'hoy' | 'fefo' | 'lotes' | 'minDias'>): LoteDisponible[] {
+  const primero = e.fefo.map((f) => f.vence).filter((v): v is string => !!v).sort()[0] ?? null
+  return e.lotes
+    .filter((l) => l.disponible > 0 && !l.bloqueado && loteApto(l.vence, 'DISTRIBUCION', 'VENTA', e.hoy, e.minDias).apto)
+    .filter((l) => e.fefo.some((f) => f.loteId === l.loteId) || (!!primero && !!l.vence && l.vence > primero))
+    .sort((a, b) => (a.vence ?? '9999-12-31').localeCompare(b.vence ?? '9999-12-31') || a.codigo.localeCompare(b.codigo))
+}
