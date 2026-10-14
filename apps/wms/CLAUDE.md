@@ -35,6 +35,8 @@ cerrada: una función nueva obliga a decidirla ahí. (Origen: 2026-10-14, S1: cu
 **Usuarios de cliente (D-68):** el interruptor `acceso_clientes_habilitado` sigue **apagado** hasta que SEC1 esté en
 producción; no se crea ningún usuario de cliente ni se enciende desde la aplicación.
 
+**Fechas de vencimiento y vigencia:** todo campo de vencimiento o vigencia usa `components/campo-vencimiento.tsx` (botón de calendario y se puede seguir escribiendo `30/06/2028`, `2028-06-30` o `06/2028`), tanto controlado (`value`/`onChange`) como en formularios nativos (`name`/`defaultValue`). Un formulario nuevo con fecha se suma a `e2e/fecha-vencimiento.spec.ts` (verifica el selector) y `tests/components/campos-de-fecha.test.ts` falla si se escribe un campo a mano. (Origen: 2026-10-14, Sebas: el vencimiento del paso 3 de la solicitud de ingreso seguía en texto.)
+
 **Paginación:** toda lectura de más de 1.000 filas usa `traerTodo`, que ordena siempre por la clave única de
 la tabla (`services/supabase/claves.ts`). Una tabla nueva se registra ahí antes de leerla. Paginar con
 `.range()` sin orden determinista repite y pierde filas.
@@ -106,12 +108,13 @@ Mientras tanto, verificar con Playwright directo.
 
 - Desde la raíz: `npm run dev:wms`, `build:wms`, `test:wms` (dominio y componentes), `test:db:wms` (base de datos), `test:e2e:wms`.
 - **Modo demostración local:** `WMS_DEMO_LOCAL=1 npm run dev:wms` (datos de prueba en memoria, banner DEMO, sin base real).
+  Usa por defecto los datos de prueba de Odoo (`docs/wms/demo-odoo.md`); `WMS_DEMO_DATOS=sintetico` los cambia por los sintéticos (lo fijan vitest, Playwright y `e2e-por-viewport.sh`).
   En Vercel solo se activa en Preview con `WMS_DEMO=1`; en producción la app **se niega a arrancar** si hay una bandera puesta.
 - **Pruebas de base de datos:** `npm run test:db:wms` levanta el Postgres 16 local (`scripts/db-local.sh`; en CI corre en Postgres 17, la versión de producción) y corre las migraciones
   contra un schema `auth` simulado. No cubre PostgREST, GoTrue ni Storage (docs/wms/gate-0.md §G.1).
 - **E2E en 4 viewports + capturas:** `npm run build:wms` y luego
   `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium apps/wms/scripts/e2e-por-viewport.sh` (reinicia el servidor entre viewports).
   Las capturas quedan en `docs/wms/screenshots/<pantalla>/<viewport>.png`.
-- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0018; el 0010 está reservado), re-ejecutables, **se aplican a mano**; seed de topología generado con
+- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0019; el 0010 está reservado), re-ejecutables, **se aplican a mano**; seed de topología generado con
   `npm run seed:topologia --workspace erp-logisalud-wms`. Ver `docs/wms/aplicar-migraciones.md`.
 - Diseño: `PRODUCT.md` y `DESIGN.md` de esta carpeta; ADR en `docs/wms/adr/`.

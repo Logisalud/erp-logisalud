@@ -7,7 +7,7 @@
  * y el formulario sigue sin saber de Supabase.
  */
 
-import type { TipoSolicitud } from './gasto'
+import { valorAsignado, type TipoSolicitud } from './gasto'
 
 export type ValoresSolicitud = {
   tipo: TipoSolicitud
@@ -21,7 +21,8 @@ export type ValoresSolicitud = {
   fechaInicio: string
   fechaFin: string
   fechaRequerida: string
-  asignadoA: string
+  /** Codificado: `usuario:<id>` / `persona:<id>` / '' — ver leerAsignado. */
+  asignado: string
   quienAutoriza: string
   fechaFactura: string
   tipoComprobante: string
@@ -40,6 +41,7 @@ type FilaSolicitud = {
   fecha_fin: string | null
   fecha_requerida: string | null
   asignado_a: string | null
+  asignado_persona_id?: string | null
   quien_autoriza: string | null
   fecha_factura: string | null
 }
@@ -66,7 +68,7 @@ export function valoresDeSolicitud(fila: FilaSolicitud): ValoresSolicitud {
     fechaInicio: texto(fila.fecha_inicio),
     fechaFin: texto(fila.fecha_fin),
     fechaRequerida: texto(fila.fecha_requerida),
-    asignadoA: texto(fila.asignado_a),
+    asignado: valorAsignado(fila.asignado_a, fila.asignado_persona_id),
     quienAutoriza: texto(fila.quien_autoriza),
     fechaFactura: texto(fila.fecha_factura),
     // 'boleta' es el default del alta; una solicitud vieja sin el dato

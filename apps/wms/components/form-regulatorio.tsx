@@ -1,5 +1,6 @@
 'use client'
 
+import { CampoVencimiento } from './campo-vencimiento'
 import { useFormState, useFormStatus } from 'react-dom'
 import { CheckCircle2, TriangleAlert } from 'lucide-react'
 import { editarRegulatorioAccion, type EstadoFormulario } from '@/app/acciones'
@@ -10,12 +11,16 @@ function Guardar() {
   return <button type="submit" disabled={pending} className="btn-primary" data-testid="guardar-regulatorio">{pending ? 'Guardando…' : 'Guardar los cambios'}</button>
 }
 
-function Campo({ nombre, etiqueta, valor, error, ayuda }: { nombre: string; etiqueta: string; valor?: string; error?: string; ayuda?: string }) {
+function Campo({ nombre, etiqueta, valor, error, ayuda, fecha = false }: { nombre: string; etiqueta: string; valor?: string; error?: string; ayuda?: string; fecha?: boolean }) {
   const id = `reg-${nombre}`
   return (
     <div>
       <label htmlFor={id} className="etiqueta">{etiqueta}</label>
-      <input id={id} name={nombre} defaultValue={valor ?? ''} className={`campo ${error ? '!border-red-500' : ''}`} autoComplete="off" aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-e` : ayuda ? `${id}-a` : undefined} />
+      {fecha ? (
+        <CampoVencimiento id={id} name={nombre} defaultValue={valor ?? ''} className={`campo tabular ${error ? '!border-red-500' : ''}`} invalido={!!error} describedBy={error ? `${id}-e` : ayuda ? `${id}-a` : undefined} />
+      ) : (
+        <input id={id} name={nombre} defaultValue={valor ?? ''} className={`campo ${error ? '!border-red-500' : ''}`} autoComplete="off" aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-e` : ayuda ? `${id}-a` : undefined} />
+      )}
       {error ? <p id={`${id}-e`} role="alert" className="mt-1 text-sm text-red-700">{error}</p> : ayuda ? <p id={`${id}-a`} className="mt-1 text-xs text-gray-600">{ayuda}</p> : null}
     </div>
   )
@@ -32,7 +37,7 @@ export function FormRegulatorio({ productoId, reg, presentacion, principioActivo
         <Campo nombre="presentacion" etiqueta="Presentación" valor={presentacion} error={e.presentacion} ayuda="Por ejemplo: Caja x 30 tabletas." />
         <Campo nombre="principioActivo" etiqueta="Principio activo" valor={principioActivo} error={e.principioActivo} />
         <Campo nombre="registroSanitario" etiqueta="Número de registro sanitario" valor={reg?.registroSanitario} error={e.registroSanitario} />
-        <Campo nombre="rsVence" etiqueta="Vencimiento del registro" valor={reg?.rsVence} error={e.rsVence} ayuda="30/06/2030, 2030-06-30 o 06/2030." />
+        <Campo nombre="rsVence" fecha etiqueta="Vencimiento del registro" valor={reg?.rsVence} error={e.rsVence} ayuda="30/06/2030, 2030-06-30 o 06/2030." />
         <Campo nombre="formaPresentacion" etiqueta="Forma farmacéutica" valor={reg?.formaPresentacion} error={e.formaPresentacion} />
         <Campo nombre="concentracion" etiqueta="Concentración" valor={reg?.concentracion} error={e.concentracion} />
         <Campo nombre="fabricante" etiqueta="Fabricante" valor={reg?.fabricante} error={e.fabricante} />

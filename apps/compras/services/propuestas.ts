@@ -1,5 +1,6 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
+import { mapaNombresBeneficiarios } from '@/services/beneficiarios'
 import {
   montoAPagarConNotasCredito,
   puedeEntrarAPropuesta,
@@ -58,7 +59,7 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
   const { data, error } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, origen, estado, numero_factura, moneda, neto_a_pagar, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones, categoria_pago_directo_id')
+    .select('id, codigo, origen, estado, numero_factura, moneda, neto_a_pagar, fecha_vencimiento_real, proveedor_id, proveedor_servicio_id, beneficiario_id, observaciones, categoria_pago_directo_id')
     .eq('estado', 'conforme')
     .eq('espera_nota_credito', false)
     .order('fecha_vencimiento_real')
@@ -75,7 +76,7 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
       [...new Set(data!.map((o) => o.proveedor_id).filter(Boolean))] as string[],
       [...new Set(data!.map((o: any) => o.proveedor_servicio_id).filter(Boolean))] as string[]
     ),
-    mapaBeneficiarios([...new Set(data!.map((o) => o.beneficiario_persona).filter(Boolean))] as string[]),
+    mapaBeneficiarios([...new Set(data!.map((o) => o.beneficiario_id).filter(Boolean))] as string[]),
     mapaNotasCreditoSinAplicar(data!.map((o) => o.id)),
     mapaCategoriasPagoDirecto(data!.map((o: any) => o.categoria_pago_directo_id)),
   ])
@@ -88,7 +89,7 @@ export async function listarObligacionesConformes(): Promise<ObligacionConforme[
     neto_a_pagar: Number(o.neto_a_pagar),
     fecha_vencimiento_real: o.fecha_vencimiento_real,
     proveedor: proveedores.get(o.proveedor_id ?? (o as any).proveedor_servicio_id ?? '') ?? null,
-    beneficiario: o.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
+    beneficiario: o.beneficiario_id ? beneficiarios.get(o.beneficiario_id) ?? null : null,
     observaciones: o.observaciones,
     notasCreditoSinAplicar: notasCredito.get(o.id) ?? 0,
     origen: (o as any).origen,
@@ -106,12 +107,11 @@ async function mapaProveedores(ids: string[]) {
   return new Map((data ?? []).map((p: any) => [p.id, { razon_social: p.razon_social }]))
 }
 
-/** Origen gasto_directo/reembolso/anticipo: el beneficiario es un empleado, no un proveedor. */
+/** Origen gasto_directo/reembolso/anticipo: el beneficiario es una persona
+ * — usuario o persona sin usuario (0081) —, no un proveedor. */
 async function mapaBeneficiarios(ids: string[]) {
-  const supabase = crearClienteServidor()
-  if (ids.length === 0) return new Map()
-  const { data } = await supabase.from('perfiles').select('id, nombre').in('id', ids)
-  return new Map((data ?? []).map((p: any) => [p.id, { nombre: p.nombre }]))
+  const nombres = await mapaNombresBeneficiarios(ids)
+  return new Map([...nombres].map(([id, nombre]) => [id, { nombre }]))
 }
 
 /** Notas de crédito aplicadas por obligación — las que se restan al armar la propuesta. */
@@ -464,11 +464,11 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
   const { data: obligaciones } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
-    .select('id, codigo, numero_factura, moneda, estado, proveedor_id, proveedor_servicio_id, beneficiario_persona, observaciones, categoria_pago_directo_id')
+    .select('id, codigo, numero_factura, moneda, estado, proveedor_id, proveedor_servicio_id, beneficiario_id, observaciones, categoria_pago_directo_id')
     .in('id', obligacionIds)
   const idsCompra = [...new Set((obligaciones ?? []).map((o) => o.proveedor_id).filter(Boolean))] as string[]
   const idsServicio = [...new Set((obligaciones ?? []).map((o: any) => o.proveedor_servicio_id).filter(Boolean))] as string[]
-  const idsEmpleado = [...new Set((obligaciones ?? []).map((o) => o.beneficiario_persona).filter(Boolean))] as string[]
+  const idsEmpleado = [...new Set((obligaciones ?? []).map((o) => o.beneficiario_id).filter(Boolean))] as string[]
   // Cuatro consultas fijas para todo el lote, no cuatro por línea: antes
   // esto se resolvía dentro del `.map()` de la pantalla (Pieza 4).
   const [proveedores, beneficiarios, categoriasPD, cuentas] = await Promise.all([
@@ -494,7 +494,7 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
     detalle: detalle.map((d) => {
       const o = obligacionesMap.get(d.obligacion_id)
       const claveCuentas =
-        o?.proveedor_id ?? (o as any)?.proveedor_servicio_id ?? o?.beneficiario_persona ?? ''
+        o?.proveedor_id ?? (o as any)?.proveedor_servicio_id ?? o?.beneficiario_id ?? ''
       const cuentasDe = cuentas.get(claveCuentas) ?? []
       return {
         obligacionId: d.obligacion_id,
@@ -505,8 +505,8 @@ export async function obtenerPropuesta(id: string): Promise<PropuestaDetalle | n
         proveedorId: o?.proveedor_id ?? null,
         proveedorServicioId: (o as any)?.proveedor_servicio_id ?? null,
         proveedor: proveedores.get(o?.proveedor_id ?? (o as any)?.proveedor_servicio_id ?? '') ?? null,
-        beneficiarioPersonaId: o?.beneficiario_persona ?? null,
-        beneficiario: o?.beneficiario_persona ? beneficiarios.get(o.beneficiario_persona) ?? null : null,
+        beneficiarioPersonaId: o?.beneficiario_id ?? null,
+        beneficiario: o?.beneficiario_id ? beneficiarios.get(o.beneficiario_id) ?? null : null,
         observaciones: o?.observaciones ?? null,
         concepto: [
           categoriasPD.get((o as any)?.categoria_pago_directo_id ?? ''),

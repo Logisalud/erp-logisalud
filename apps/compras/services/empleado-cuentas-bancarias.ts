@@ -49,7 +49,28 @@ export async function listarCuentasBancariasDe(usuarioId: string): Promise<Cuent
   return data ?? []
 }
 
-export async function crearCuentaBancariaEmpleado(borrador: BorradorCuentaBancariaEmpleado): Promise<{ id: string }> {
+/** Las de una persona sin usuario (0081) — las administra Contabilidad. */
+export async function listarCuentasBancariasDePersona(personaId: string): Promise<CuentaBancariaEmpleado[]> {
+  const supabase = crearClienteServidor()
+  const { data, error } = await supabase
+    .from('empleado_cuentas_bancarias')
+    .select('id, banco, tipo_cuenta, numero_cuenta, cci, moneda, es_principal')
+    .eq('persona_sin_usuario_id', personaId)
+    .order('es_principal', { ascending: false })
+
+  if (error) throw new Error(`No se pudieron leer las cuentas bancarias: ${error.message}`)
+  return data ?? []
+}
+
+/**
+ * Sin `personaSinUsuarioId`, la cuenta es de quien está logueado (Mi cuenta
+ * bancaria). Con él, es de esa persona sin usuario, y la carga Contabilidad
+ * (RLS de la 0081). Misma tabla en los dos casos: así el pago no distingue.
+ */
+export async function crearCuentaBancariaEmpleado(
+  borrador: BorradorCuentaBancariaEmpleado,
+  { personaSinUsuarioId }: { personaSinUsuarioId?: string } = {},
+): Promise<{ id: string }> {
   const usuario = await exigirUsuario()
   const supabase = crearClienteServidor()
 
@@ -60,7 +81,8 @@ export async function crearCuentaBancariaEmpleado(borrador: BorradorCuentaBancar
   const { data, error } = await supabase
     .from('empleado_cuentas_bancarias')
     .insert({
-      usuario_id: usuario.id,
+      usuario_id: personaSinUsuarioId ? null : usuario.id,
+      persona_sin_usuario_id: personaSinUsuarioId ?? null,
       banco: borrador.banco.trim(),
       tipo_cuenta: borrador.tipoCuenta,
       numero_cuenta: borrador.numeroCuenta.trim(),
@@ -73,20 +95,25 @@ export async function crearCuentaBancariaEmpleado(borrador: BorradorCuentaBancar
 
   if (error) {
     if (error.code === '23505') {
-      throw new Error(`Ya tienes una cuenta principal en ${borrador.moneda} — desmárcala antes de agregar otra.`)
+      throw new Error(personaSinUsuarioId
+        ? `Ya tiene una cuenta principal en ${borrador.moneda} — agrega esta sin marcarla como principal.`
+        : `Ya tienes una cuenta principal en ${borrador.moneda} — desmárcala antes de agregar otra.`)
     }
     throw new Error(`No se pudo guardar la cuenta bancaria: ${error.message}`)
   }
   return data
 }
 
-export async function eliminarCuentaBancariaEmpleado(id: string): Promise<void> {
+export async function eliminarCuentaBancariaEmpleado(
+  id: string,
+  { personaSinUsuarioId }: { personaSinUsuarioId?: string } = {},
+): Promise<void> {
   const usuario = await exigirUsuario()
   const supabase = crearClienteServidor()
   const { error } = await supabase
     .from('empleado_cuentas_bancarias')
     .delete()
     .eq('id', id)
-    .eq('usuario_id', usuario.id)
+    .eq(personaSinUsuarioId ? 'persona_sin_usuario_id' : 'usuario_id', personaSinUsuarioId ?? usuario.id)
   if (error) throw new Error(`No se pudo eliminar la cuenta: ${error.message}`)
 }
