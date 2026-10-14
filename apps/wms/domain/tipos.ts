@@ -54,6 +54,8 @@ export type Accion =
   | 'imprimir_paquete_documental'
   | 'gestionar_documentos_regulatorios'
   | 'autorizar_salida_sin_venta'
+  | 'preparar_salidas'
+  | 'confirmar_salida'
 
 export interface Propietario {
   id: string

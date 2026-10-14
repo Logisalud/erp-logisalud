@@ -23,7 +23,7 @@ describe('permisos: la base y el dominio dicen lo mismo', () => {
     const roles = ['direccion_tecnica', 'asistente_dt', 'jefe_almacen', 'reemplazo_jefe', 'auxiliar', 'auditoria_lectura', 'admin_wms',
       'jefe_transporte', 'conductor', 'auxiliar_transporte', 'conformidad_despacho', 'autoriza_salidas_sin_venta', 'usuario_cliente'] as Rol[]
     const acciones = ['ver', 'ejecutar', 'verificar', 'aprobar', 'ajustar', 'configurar', 'exportar', 'auditar', 'dar_conformidad',
-      'cambiar_lote_asignado', 'imprimir_paquete_documental', 'gestionar_documentos_regulatorios', 'autorizar_salida_sin_venta'] as Accion[]
+      'cambiar_lote_asignado', 'imprimir_paquete_documental', 'gestionar_documentos_regulatorios', 'autorizar_salida_sin_venta', 'preparar_salidas', 'confirmar_salida'] as Accion[]
     const filas = await q('select rol, accion from wms.permisos_rol')
     const enBase = new Set(filas.map((f) => `${f.rol}/${f.accion}`))
     for (const r of roles) for (const a of acciones) expect(enBase.has(`${r}/${a}`), `${r}/${a}`).toBe(puede([r], a))

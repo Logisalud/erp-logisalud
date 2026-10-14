@@ -558,7 +558,7 @@ describe('picking → conformidad → salida → retorno (§4.3)', () => {
     const rack = await idPosicion(base.admin, 'F-1.1')
     const lote = (await uno(`select id from wms.lotes where producto_id = $1 and codigo = 'FL1'`, [p])).id
     const proc = (await uno(`select procedencia_id from wms.saldos where posicion_id = $1 and lote_id = $2`, [rack, lote])).procedencia_id
-    const partida = (pos: string, delta: number) => ({ posicion_id: pos, producto_id: p, lote_id: lote, propietario_id: logissa, estado: 'APROBADO', origen: 'CARGA_INICIAL', procedencia_id: proc, delta })
+    const partida = (pos: string, delta: number) => ({ posicion_id: pos, producto_id: p, lote_id: lote, propietario_id: logissa, estado: 'APROBADO' as const, origen: 'CARGA_INICIAL', procedencia_id: proc, delta })
     for (const quien of [jt, sandra, base.personas.charlie.id, base.personas.admin.id, base.personas.katia.id]) {
       for (const tipo of ['SALIDA', 'RETORNO']) {
         const e = await falla(como(quien, (c) => postear(c, tipo, [partida(rack, -1)])))

@@ -186,6 +186,14 @@ Recorrido con 4 focos: orden, limpieza, ubicaciones y situaciones anormales. Sol
 - **D-11 / D-12 / D-13:** firma electrónica con el usuario registrado; el formato de recepción lleva DNI del transportista y «Ingreso de cliente»; la numeración organoléptica es O-AAAAMM-NNNN.
 - **D-36:** el dueño de la cantidad física es el WMS; la copia manual a Compras es temporal (`integracion-wms-compras.md`).
 
+## Salidas — núcleo de stock (S2)
+- **Una sola cuenta de lo comprometido:** reservas activas, en tránsito o en staging más las líneas abiertas de «Mover». Disponible = saldo − comprometido; Mover y las salidas usan la misma cuenta.
+- **FEFO (modo A):** una línea = un lote (D-76). Lote apto: no vencido, sin retención, fuera de conteo y, solo en distribución de Logissa, con 60 días de vida útil como mínimo (`vida_util_minima_venta_dias`). El stock de Logissa nunca se considera vencido para muestras.
+- **Lote indicado por el cliente (modo B):** se respeta el lote pedido; un lote vencido de cliente solo sale por pesquisa, destrucción o devolución al proveedor y con aprobación de la Dirección Técnica antes del picking.
+- **El picking no toca el libro mayor.** La conformidad de otra persona (con `dar_conformidad`) registra el movimiento rack → staging; la salida confirma staging → fuera; el retorno nunca supera lo que salió.
+- **Cambio de lote asignado:** inmutable, con motivo fijo y quién lo hizo.
+- Idempotencia por token en cada paso; el Kardex incluye SALIDA y RETORNO.
+
 ## Integridad
 Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario, fecha, motivo).
 

@@ -20,12 +20,12 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
 const PERMISOS: Record<Rol, readonly Accion[]> = {
   direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental'],
   asistente_dt: ['ver', 'ejecutar', 'exportar'],
-  jefe_almacen: ['ver', 'ejecutar', 'verificar', 'exportar', 'cambiar_lote_asignado'],
-  reemplazo_jefe: ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado'],
+  jefe_almacen: ['ver', 'ejecutar', 'verificar', 'exportar', 'cambiar_lote_asignado', 'preparar_salidas'],
+  reemplazo_jefe: ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'preparar_salidas'],
   auxiliar: ['ver', 'ejecutar', 'verificar'],
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
   admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],
-  jefe_transporte: ['ver', 'cambiar_lote_asignado', 'imprimir_paquete_documental'],
+  jefe_transporte: ['ver', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida'],
   conductor: [], // sus permisos llegan con «Mis rutas» (S9)
   auxiliar_transporte: [],
   conformidad_despacho: ['ver', 'dar_conformidad'],
