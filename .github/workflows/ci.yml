@@ -75,12 +75,13 @@ jobs:
     name: apps/wms — dominio, base de datos, build y E2E
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # Postgres 16 de servicio: los tests de base de datos corren las migraciones del
-    # WMS contra un Postgres con un schema `auth` simulado (ver apps/wms/tests/db/stubs.sql).
-    # No es Supabase: no cubre PostgREST, GoTrue ni Storage (docs/wms/gate-0.md §G.1).
+    # Postgres 17 de servicio (la versión de producción: erp-cobranzas corre 17.6): los tests de base de
+    # datos corren las migraciones del WMS contra un Postgres con un schema `auth` simulado
+    # (ver apps/wms/tests/db/stubs.sql). No es Supabase: no cubre PostgREST, GoTrue ni Storage
+    # (docs/wms/gate-0.md §G.1). El contenedor de desarrollo solo trae Postgres 16: la prueba en 17 corre en CI.
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_PASSWORD: wms_test
           POSTGRES_USER: wms_test
