@@ -26,7 +26,7 @@ export default async function CajaChica() {
         </Link>
         {puedeAbrirFondo ? (
           <>
-            <a href="/caja-chica/descargar" className="btn-secondary w-full sm:w-auto">
+            <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/caja-chica/descargar`} className="btn-secondary w-full sm:w-auto">
               Descargar gastos (Excel)
             </a>
             <Link href="/caja-chica/nuevo-fondo" className="btn-primary w-full sm:w-auto">
