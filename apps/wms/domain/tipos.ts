@@ -12,6 +12,9 @@ export type TipoArea =
   | 'CONTRAMUESTRA'
   | 'EMBALAJE'
   | 'DESPACHO'
+  | 'PENDIENTE_CONFORMIDAD'
+  | 'OBSERVADO'
+  | 'RETORNO_RESERVADO'
 
 export type Origen =
   | 'COMPRA_LOCAL'
@@ -30,6 +33,12 @@ export type Rol =
   | 'auxiliar'
   | 'auditoria_lectura'
   | 'admin_wms'
+  | 'jefe_transporte'
+  | 'conductor'
+  | 'auxiliar_transporte'
+  | 'conformidad_despacho'
+  | 'autoriza_salidas_sin_venta'
+  | 'usuario_cliente'
 
 export type Accion =
   | 'ver'
@@ -40,6 +49,11 @@ export type Accion =
   | 'configurar'
   | 'exportar'
   | 'auditar'
+  | 'dar_conformidad'
+  | 'cambiar_lote_asignado'
+  | 'imprimir_paquete_documental'
+  | 'gestionar_documentos_regulatorios'
+  | 'autorizar_salida_sin_venta'
 
 export interface Propietario {
   id: string

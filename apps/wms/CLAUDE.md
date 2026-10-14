@@ -26,6 +26,15 @@ estuvo roja desde el 8-oct en el paso `test:e2e` y se mergearon #169 y #170 mira
 
 **Avisos al usuario:** no informes las actualizaciones automáticas de los comentarios de Vercel ni de Supabase en los PR (despliegues, vistas previas, «ignorado», etc.). Informa solo cuando **una CI termine**, cuando **algo falle** o cuando **necesites una decisión** del usuario. (Origen: 2026-10-14, instrucción de Sebas.)
 
+**Funciones (default-deny):** en Postgres toda función nace con EXECUTE para PUBLIC. Toda migración del WMS termina con
+`revoke execute on all functions in schema wms from public;` y concede a `authenticated` solo lo que la aplicación llama (o
+usan las políticas y los triggers que corren con el rol de quien escribe). `tests/db/aislamiento.test.ts` lleva la lista
+cerrada: una función nueva obliga a decidirla ahí. (Origen: 2026-10-14, S1: cualquier persona autenticada podía llamar
+`registrar_audit` o los ayudantes `_…`.)
+
+**Usuarios de cliente (D-68):** el interruptor `acceso_clientes_habilitado` sigue **apagado** hasta que SEC1 esté en
+producción; no se crea ningún usuario de cliente ni se enciende desde la aplicación.
+
 **Paginación:** toda lectura de más de 1.000 filas usa `traerTodo`, que ordena siempre por la clave única de
 la tabla (`services/supabase/claves.ts`). Una tabla nueva se registra ahí antes de leerla. Paginar con
 `.range()` sin orden determinista repite y pierde filas.
@@ -104,6 +113,6 @@ Mientras tanto, verificar con Playwright directo.
 - **E2E en 4 viewports + capturas:** `npm run build:wms` y luego
   `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium apps/wms/scripts/e2e-por-viewport.sh` (reinicia el servidor entre viewports).
   Las capturas quedan en `docs/wms/screenshots/<pantalla>/<viewport>.png`.
-- Migraciones: `apps/wms/supabase/migrations/` (0001–0009), re-ejecutables, **se aplican a mano**; seed de topología generado con
+- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011; el 0010 está reservado), re-ejecutables, **se aplican a mano**; seed de topología generado con
   `npm run seed:topologia --workspace erp-logisalud-wms`. Ver `docs/wms/aplicar-migraciones.md`.
 - Diseño: `PRODUCT.md` y `DESIGN.md` de esta carpeta; ADR en `docs/wms/adr/`.
