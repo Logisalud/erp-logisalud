@@ -6,7 +6,30 @@ Fuentes: docs/wms/procesos/ (hoja 03_TO-BE), docs/wms/formatos/, docs/wms/layout
 ## Alcance actual
 Solo entradas y movimientos internos. Las salidas (preparación, despacho, transporte) se construyen después de su mapeo; el modelo debe admitirlas sin rehacerse.
 
+## Salidas (decididas por Sebas, 2026-10-14; diagnóstico en `docs/wms/salidas/diagnostico-y-plan.md`)
+Nada de esto está construido. Las reglas cerradas de arriba se mantienen; lo siguiente es lo que Sebas fijó al abrir el bloque de Salidas:
+- **Se extiende el WMS; no se rediseña lo existente.** Entradas, calidad, movimientos, conteos, revisión diaria, Kardex, reportes e indicadores ya están aprobados.
+- **Selección de lotes en la salida A: solo FEFO (D-62), entre los lotes con al menos 60 días de vida útil (D-71).** El WMS asigna siempre el lote Aprobado, sin bloqueo, no vencido y con cantidad suficiente que vence primero; no se toca Pedidos. **Única excepción:** el Jefe de Almacén (o su reemplazo) o el Jefe de Transporte pueden cambiar el lote de una línea **antes del picking**, con un único motivo fijo: «Cliente solicita vencimiento más largo». El lote nuevo debe vencer después del asignado, estar Aprobado, sin bloqueo y con cantidad suficiente (dominio y base de datos). Se registra quién, cuándo, lote anterior, lote nuevo y motivo; trazabilidad: lote asignado → cambio → lote despachado. Sin stock suficiente: alerta al Jefe de Transporte antes del picking. Si el picker no encuentra el lote: discrepancia y propuesta del siguiente FEFO válido. *(Reemplaza la regla anterior de «lote o vencimiento pedido por línea» y «vencimiento mínimo por cliente»; esas dos quedan como fase posterior, D-62b.)*
+- **Orden de picking:** el WMS asigna lote y ubicación a cada línea y genera la orden (ubicación, producto, lote, vencimiento, cantidad) ordenada por recorrido; en el teléfono y como hoja imprimible desde el primer día.
+- **COA:** por lote, se adjunta en la recepción; la carpeta existente se importa con la carga masiva (D-66).
+- **Documentos después de la conformidad:** la GRE y la factura se emiten con los lotes realmente despachados, tomados de lo confirmado. La GRE no se conecta con SUNAT: el WMS registra su número. «Listo para carga» = conforme + embalado + con GRE + paquete documental completo.
+- **Paquete documental (D-63):** COA por lote, registro sanitario por producto y certificado BPM por fabricante, con vigencia; el maestro del cliente dice qué exige; solo Dirección Técnica sube o reemplaza documentos regulatorios, con historial; el Jefe de Transporte imprime el paquete de un pedido o ruta en un solo PDF; alerta si falta o vence algo antes de «Listo para carga».
+- **Roles:** Roberto es solo `jefe_transporte`; el reemplazo del Jefe de Almacén es Jasury; un usuario puede tener varios roles; la conformidad es un permiso propio.
+- **Solo se despacha stock Aprobado del propietario del pedido.** Quien prepara no es quien verifica (picking y conformidad).
+- **Rack → staging:** el movimiento se registra cuando Conformidad verifica (D-51); mientras tanto las unidades quedan reservadas y visibles «en tránsito».
+- **Reserva:** Pedidos gobierna la reserva comercial; el WMS, la asignación física de lote y ubicación (ver diagnóstico §4.2).
+- **Retornos:** «No entregado» vuelve a la zona de retorno reservado sin evaluación de Katia y sigue reservado al cliente. Solo «Rechazado» entra por el flujo de devolución existente (estado Devoluciones, acta organoléptica, decisión de Katia).
+- **Fuera de la primera fase:** emisión de la GRE ante SUNAT (el WMS registra el N.° de guía); GPS; RUT-14; prellenar la orden de un cliente leyendo su GRE.
+- **Dos tipos de salida (D-67):** **A) Distribución** (Logissa; el pedido nace en Pedidos; FEFO; factura y GRE de Logissa) y **B) por cuenta de un cliente de almacenamiento** (Diphasac, AJR Labs, Medic Pharma Lab, Triamed): el cliente emite su factura y su GRE, su usuario crea la **orden de salida** en el WMS con el **lote que él indica** (se valida: existe, es de su propietario, Aprobado, sin bloqueo y con cantidad suficiente), Logisalud pica, conforma, embala y despacha; el cliente ve su **disponible real** (saldo − comprometido). **Entrega al transportista del cliente = salida confirmada.** El LS-FR.43.03 solo aplica si transporta Logisalud. Un usuario de cliente **solo ve y opera el stock de su propietario** (RLS en la base de datos; D-68).
+- **Vencidos:** el stock de Logissa **nunca** sale vencido (va por Bajas). Un cliente puede ordenar la salida de un lote vencido solo con motivo pesquisa DIGEMID, destrucción o devolución al proveedor y con aprobación de Dirección Técnica (pendiente de que Katia confirme, D-69).
+- **Vida útil mínima de 60 días** para los pedidos de venta de Logissa (D-71); **salidas sin venta de Logissa: solo muestras**, autorizadas por el rol «autoriza salidas sin venta», con GRE sin factura, sin ese mínimo y nunca vencidas; Logisalud no destruye ni recibe pesquisas (D-70). En el stock de clientes la orden de salida lleva un **motivo** (venta, pesquisa DIGEMID, destrucción, devolución al proveedor, muestra): factura solo si es venta, GRE del cliente siempre.
+- **Códigos de producto:** uno de distribución, el del proveedor (nunca se elimina) y uno por cada cliente de almacenamiento; la búsqueda encuentra por cualquiera (D-73).
+- **Ubicaciones:** nomenclatura Rack-Columna.Nivel, niveles 1 a 4 de abajo hacia arriba; el piso (B, C, D, E-1 a E-7) no tiene niveles; el recorrido de picking sigue la posición física de cada columna (D-65).
+- **Transporte:** roles Conductor y Auxiliar de transporte (usuarios principales en ruta, desde el teléfono) y permisos propios para el Jefe de Transporte. Roles, no nombres.
+- **LS-FR.43.03** (formato controlado, LS-POE.07.05): el usuario genera la ruta y el WMS genera el documento; firmas de Conductor y Dirección Técnica físicas mientras Calidad no apruebe otra cosa. Seis definiciones pendientes de Katia (D-53).
+
 ## Transición
+- **Odoo desaparece y el WMS lo reemplaza (Sebas, 2026-10-14): no se integra con Odoo ni se vuelve a usar tras el corte.**
 - El WMS opera en paralelo a Odoo hasta tener salidas; recién entonces lo reemplaza.
 - Carga inicial: exportación de Odoo tras el inventario general (dato real).
 - En Odoo, LWDIP = almacén DHP (Diphasac).
@@ -17,7 +40,8 @@ Solo entradas y movimientos internos. Las salidas (preparación, despacho, trans
 | Katia Zapata | Dirección Técnica: decide estados, valida productos, aprueba ajustes |
 | Sandra López | Asistente DT: evaluación organoléptica, alta de productos, cierre documental |
 | Charlie Chancco | Jefe de Almacén (así se llama el cargo en la interfaz y en el acta, como en LS-FR.03.05) |
-| Roberto, Jasury | Reemplazos de Charlie (autorizan movimientos) |
+| Jasury | Reemplazo de Charlie (verifica movimientos y resuelve diferencias) |
+| Roberto | **Jefe de Transporte** (rol propio `jefe_transporte`, sin permisos de Jefe de Almacén; decidido 2026-10-14) |
 | Christians, Jose Carlos, Alberto, Milka | Auxiliares de almacén |
 El equipo usa teléfonos personales.
 

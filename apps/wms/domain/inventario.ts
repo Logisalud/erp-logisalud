@@ -5,11 +5,11 @@ import { puedeVerificar } from './verificacion'
 import { diasHasta } from './regulatorio'
 import type { Panorama } from './panorama'
 import { normalizar, puntaje } from './busqueda'
-import { areaAdmite, ETIQUETA_AREA, mensajeZonaNoAdmite, posicionAcepta, propietarioVigente } from './zonas'
+import { AREAS_DE_SALIDA, areaAdmite, ETIQUETA_AREA, mensajeZonaNoAdmite, posicionAcepta, propietarioVigente } from './zonas'
 
 // ── Libro mayor (lo que el Kardex y la historia leen) ───────────────────────
 
-export type TipoMovimientoLedger = 'INGRESO' | 'MOVIMIENTO' | 'CAMBIO_ESTADO' | 'AJUSTE' | 'CARGA_INICIAL' | 'REVERSA' | 'CAMBIO_PROPIETARIO'
+export type TipoMovimientoLedger = 'INGRESO' | 'MOVIMIENTO' | 'CAMBIO_ESTADO' | 'AJUSTE' | 'CARGA_INICIAL' | 'REVERSA' | 'CAMBIO_PROPIETARIO' | 'SALIDA' | 'RETORNO'
 
 /** Una partida del libro mayor con lo necesario para el Kardex (en el demo se arma en memoria; en la base lo hace SQL). */
 export interface PartidaLedger {
@@ -100,6 +100,8 @@ export const ETIQUETA_TIPO_MOVIMIENTO: Record<TipoMovimientoLedger, string> = {
   CARGA_INICIAL: 'Carga inicial',
   REVERSA: 'Reversa',
   CAMBIO_PROPIETARIO: 'Cambio de propietario',
+  SALIDA: 'Salida',
+  RETORNO: 'Retorno de pedido no entregado',
 }
 
 const TIPOS_KARDEX: readonly TipoMovimientoLedger[] = ['INGRESO', 'CARGA_INICIAL', 'AJUSTE', 'CAMBIO_PROPIETARIO']
@@ -686,6 +688,7 @@ export function validarDestino(p: Panorama, destinoId: string, lineas: LineaPara
   const porLinea = lineas.map((l): ValidacionLineaDestino => {
     if (general) return { clave: l.clave, ok: false, mensaje: general }
     if (l.posicionId === d.id) return { clave: l.clave, ok: false, mensaje: 'Ya está en esa ubicación.' }
+    if (AREAS_DE_SALIDA.has(d.tipoArea)) return { clave: l.clave, ok: false, mensaje: `${ETIQUETA_AREA[d.tipoArea]} se usa solo en las salidas.` }
     if (!areaAdmite(d.tipoArea, l.estado, origenAproximado(l.estado))) return { clave: l.clave, ok: false, mensaje: mensajeZonaNoAdmite(d.tipoArea, l.estado) }
     if (!posicionAcepta(d, l.propietarioId, p.asignaciones, p.hoy)) {
       return { clave: l.clave, ok: false, mensaje: nombreDuenio ? `${d.codigo} es de ${nombreDuenio}: no recibe stock de ${l.propietario}.` : `${d.codigo} no tiene una asignación vigente para ${l.propietario}.` }

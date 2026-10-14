@@ -22,6 +22,14 @@ porque la herramienta MCP de Supabase se colgó con ese patrón. El plan complet
 
 **0008** (D-38, después de 0007): trigger `proteger_presentacion_principio` en `catalogo.productos` (rechaza que una sesión de aplicación cambie presentación o principio activo; **no** bloquea INSERT, otras columnas, `postgres` ni `service_role`) y `wms.editar_regulatorio` con esos dos campos. **Toca un objeto de Compras (agrega un trigger)**: se aplica solo con la salida a producción, con snapshot de control antes y después. Reversa: `supabase/rollback/wms_0008_rollback.sql`.
 
+**0011** (Salidas, S1; el 0010 está reservado): roles nuevos (`jefe_transporte`, `conductor`, `auxiliar_transporte`, `conformidad_despacho`, `autoriza_salidas_sin_venta`, `usuario_cliente`) y acciones por
+operación; **`wms.es_usuario()` pasa a ser una lista cerrada de roles del personal** (el cliente y los roles de campo ya no leen el inventario) y `wms.propietario_cliente()` es la única puerta de lectura del cliente
+(solo `propietarios`, `lotes` y `saldos` de su propietario); interruptor `acceso_clientes_habilitado` (apagado; solo lo enciende SQL de un administrador de la base, después de SEC1); tipos `SALIDA` y `RETORNO`
+(deshabilitados hasta S2); Embalaje y Despacho admiten Aprobado y tres zonas nuevas apagadas; `posiciones.orden_recorrido`; tabla `wms.vehiculos`; alertas para `jefe_transporte`; y **`revoke execute … from public`
+sobre todas las funciones de `wms`** (hasta hoy cualquier persona autenticada podía llamar a los ayudantes internos y a `registrar_audit`). Redefine `wms.verificar_saldos()`. No toca Compras ni Pedidos.
+**Antes de aplicarla en producción:** verificar con `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'wms' and has_function_privilege('authenticated', p.oid, 'execute')`
+que la lista coincide con la de `tests/db/aislamiento.test.ts`.
+
 Antes de aplicar:
 1. Exponer el schema `wms` en Dashboard → Settings → Data API → Exposed schemas (si falta: HTTP 406 `Invalid schema`).
 2. Agregar `wms` a `public.schemas_compras_y_pagos()` y ejecutar `select public.aplicar_grants_del_modulo();` (si falta: HTTP 403).

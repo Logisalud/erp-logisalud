@@ -239,7 +239,7 @@ catálogos (`motivos_movimiento`, `causas_diferencia`, `tipos_pendiente`, `tipos
 
 **Personas y permisos:** `usuario_roles` (user_id → `auth.users`, rol, desde, hasta). Roles:
 `direccion_tecnica` (Katia: decide y firma estados), `asistente_dt` (Sandra), `jefe_almacen` (Charlie, "Jefe de Almacén"),
-`reemplazo_jefe` (Roberto, Jasury), `auxiliar`, `auditoria_lectura`, `admin_wms`. Helper
+`reemplazo_jefe` (Roberto, Jasury; **actualizado 2026-10-14: Roberto es solo `jefe_transporte`, ver reglas-negocio.md**), `auxiliar`, `auditoria_lectura`, `admin_wms`. Helper
 `wms.tiene_rol(...)` (security definer, `search_path` fijo) usado por todas las policies.
 `wms.permisos_rol` (rol → acciones: ver, ejecutar, verificar, aprobar, ajustar, configurar, exportar, auditar).
 

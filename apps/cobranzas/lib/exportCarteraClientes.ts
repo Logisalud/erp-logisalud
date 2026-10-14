@@ -45,7 +45,7 @@ export async function carteraClientesXlsx(db: SupabaseClient, vendedorId: string
   const nombreVendedor = `${vendedor.data.nombres} ${vendedor.data.apellidos ?? ''}`.trim();
   const codigo = vendedor.data.codigo ?? '';
   const fecha = new Date().toISOString().slice(0, 10);
-  const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
   const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
 
   return { buf, filename: `cartera-clientes-${codigo || nombreVendedor}-${fecha}.xlsx` };

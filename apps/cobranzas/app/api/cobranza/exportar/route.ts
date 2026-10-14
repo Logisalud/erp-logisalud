@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     wsD['!cols'] = [{ wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 13 }];
     XLSX.utils.book_append_sheet(wb, wsD, 'Por Día');
 
-    const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
     const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
     return new Response(buf, {
       headers: {

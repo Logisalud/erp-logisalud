@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  areaAdmite, asignacionesSolapan, asignacionVigente, posicionAcepta, propietarioVigente,
+  AREAS_DE_SALIDA, AREAS_FUERA_DE_ALCANCE, areaAdmite, asignacionesSolapan, asignacionVigente, mensajeZonaNoAdmite,
+  posicionAcepta, propietarioVigente,
 } from '@/domain/zonas'
 import type { Asignacion } from '@/domain/tipos'
 
@@ -22,11 +23,27 @@ describe('matriz de zonas BPA', () => {
     expect(areaAdmite('DEVOLUCIONES', 'CUARENTENA', 'DEVOLUCION')).toBe(false) // D-31: nunca pasa por Cuarentena
     expect(areaAdmite('DEVOLUCIONES', 'DEVOLUCIONES', 'COMPRA_LOCAL')).toBe(false)
   })
-  it('Recepción, Contramuestra, Embalaje y Despacho no admiten ningún estado', () => {
-    for (const a of ['RECEPCION', 'CONTRAMUESTRA', 'EMBALAJE', 'DESPACHO'] as const) {
+  it('Recepción y Contramuestra no admiten ningún estado', () => {
+    for (const a of ['RECEPCION', 'CONTRAMUESTRA'] as const) {
       expect(areaAdmite(a, 'CUARENTENA', 'COMPRA_LOCAL')).toBe(false)
       expect(areaAdmite(a, 'APROBADO', 'COMPRA_LOCAL')).toBe(false)
     }
+  })
+  it('S1: Embalaje y Despacho admiten solo Aprobado (el espejo de area_estado_admitido)', () => {
+    for (const a of ['EMBALAJE', 'DESPACHO'] as const) {
+      expect(areaAdmite(a, 'APROBADO', 'CARGA_INICIAL')).toBe(true)
+      for (const e of ['CUARENTENA', 'DEVOLUCIONES', 'BAJAS_RECHAZADOS'] as const) expect(areaAdmite(a, e, 'COMPRA_LOCAL')).toBe(false)
+    }
+  })
+  it('las zonas nuevas de salida están apagadas: no admiten nada hasta que Katia y Charlie las definan (D-52)', () => {
+    for (const a of AREAS_FUERA_DE_ALCANCE) {
+      for (const e of ['CUARENTENA', 'DEVOLUCIONES', 'APROBADO', 'BAJAS_RECHAZADOS'] as const) expect(areaAdmite(a, e, 'COMPRA_LOCAL')).toBe(false)
+    }
+    expect([...AREAS_FUERA_DE_ALCANCE].sort()).toEqual(['OBSERVADO', 'PENDIENTE_CONFORMIDAD', 'RETORNO_RESERVADO'])
+  })
+  it('un movimiento manual no usa las zonas de salida, con un mensaje claro', () => {
+    expect([...AREAS_DE_SALIDA].sort()).toEqual(['DESPACHO', 'EMBALAJE', 'OBSERVADO', 'PENDIENTE_CONFORMIDAD', 'RETORNO_RESERVADO'])
+    expect(mensajeZonaNoAdmite('DESPACHO', 'APROBADO')).toBe('Despacho se usa solo en las salidas.')
   })
 })
 

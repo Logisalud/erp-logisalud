@@ -1,7 +1,7 @@
 # apps/wms
 
 WMS de Logisalud. Documentos de negocio en `docs/wms/` (raíz del monorepo).
-Alcance actual: entradas y movimientos internos. **Antes de tocar nada lee
+Alcance actual: entradas y movimientos internos (las salidas están en diagnóstico: `docs/wms/salidas/diagnostico-y-plan.md`). **Antes de tocar nada lee
 `docs/wms/gate-0.md`, `docs/wms/progreso.md` y `docs/wms/decisiones-pendientes.md`.**
 
 ## Obligaciones para todas las sesiones
@@ -23,6 +23,17 @@ datos, build y E2E en los 4 viewports. Si la CI está roja, primero se arregla (
 decisión del usuario). Antes de pedir la aprobación de un PR se revisa el resultado del job
 «apps/wms — dominio, base de datos, build y E2E» y se informa su estado. (Origen: 2026-10-10, la CI del WMS
 estuvo roja desde el 8-oct en el paso `test:e2e` y se mergearon #169 y #170 mirando solo Vercel.)
+
+**Avisos al usuario:** no informes las actualizaciones automáticas de los comentarios de Vercel ni de Supabase en los PR (despliegues, vistas previas, «ignorado», etc.). Informa solo cuando **una CI termine**, cuando **algo falle** o cuando **necesites una decisión** del usuario. (Origen: 2026-10-14, instrucción de Sebas.)
+
+**Funciones (default-deny):** en Postgres toda función nace con EXECUTE para PUBLIC. Toda migración del WMS termina con
+`revoke execute on all functions in schema wms from public;` y concede a `authenticated` solo lo que la aplicación llama (o
+usan las políticas y los triggers que corren con el rol de quien escribe). `tests/db/aislamiento.test.ts` lleva la lista
+cerrada: una función nueva obliga a decidirla ahí. (Origen: 2026-10-14, S1: cualquier persona autenticada podía llamar
+`registrar_audit` o los ayudantes `_…`.)
+
+**Usuarios de cliente (D-68):** el interruptor `acceso_clientes_habilitado` sigue **apagado** hasta que SEC1 esté en
+producción; no se crea ningún usuario de cliente ni se enciende desde la aplicación.
 
 **Paginación:** toda lectura de más de 1.000 filas usa `traerTodo`, que ordena siempre por la clave única de
 la tabla (`services/supabase/claves.ts`). Una tabla nueva se registra ahí antes de leerla. Paginar con
@@ -96,11 +107,11 @@ Mientras tanto, verificar con Playwright directo.
 - Desde la raíz: `npm run dev:wms`, `build:wms`, `test:wms` (dominio y componentes), `test:db:wms` (base de datos), `test:e2e:wms`.
 - **Modo demostración local:** `WMS_DEMO_LOCAL=1 npm run dev:wms` (datos de prueba en memoria, banner DEMO, sin base real).
   En Vercel solo se activa en Preview con `WMS_DEMO=1`; en producción la app **se niega a arrancar** si hay una bandera puesta.
-- **Pruebas de base de datos:** `npm run test:db:wms` levanta el Postgres 16 local (`scripts/db-local.sh`) y corre las migraciones
+- **Pruebas de base de datos:** `npm run test:db:wms` levanta el Postgres 16 local (`scripts/db-local.sh`; en CI corre en Postgres 17, la versión de producción) y corre las migraciones
   contra un schema `auth` simulado. No cubre PostgREST, GoTrue ni Storage (docs/wms/gate-0.md §G.1).
 - **E2E en 4 viewports + capturas:** `npm run build:wms` y luego
   `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium apps/wms/scripts/e2e-por-viewport.sh` (reinicia el servidor entre viewports).
   Las capturas quedan en `docs/wms/screenshots/<pantalla>/<viewport>.png`.
-- Migraciones: `apps/wms/supabase/migrations/` (0001–0009), re-ejecutables, **se aplican a mano**; seed de topología generado con
+- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011; el 0010 está reservado), re-ejecutables, **se aplican a mano**; seed de topología generado con
   `npm run seed:topologia --workspace erp-logisalud-wms`. Ver `docs/wms/aplicar-migraciones.md`.
 - Diseño: `PRODUCT.md` y `DESIGN.md` de esta carpeta; ADR en `docs/wms/adr/`.

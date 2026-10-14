@@ -63,7 +63,7 @@ export default async function ReporteAportes({
           />
         </label>
         <button type="submit" className="btn-secondary">Filtrar</button>
-        <a href={`/reportes/aportes-accionista/descargar${querystring}`} className="btn-secondary">
+        <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/reportes/aportes-accionista/descargar${querystring}`} className="btn-secondary">
           Exportar a Excel
         </a>
       </form>

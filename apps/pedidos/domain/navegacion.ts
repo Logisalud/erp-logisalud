@@ -74,6 +74,22 @@ export const SECCIONES: Seccion[] = [
     roles: ["administrador", "vendedor"],
   },
   {
+    // Del vendedor: su avance del mes y su detalle de venta. La RLS le
+    // devuelve su fila y los totales de grupo y compañía, nunca el número
+    // de un compañero. Operaciones y control de pedidos no tienen cuota,
+    // así que para ellos la pantalla no diría nada.
+    href: "/avance",
+    title: "Mi avance",
+    description: "Cuánto llevo vendido del mes contra mi cuota, y el detalle de lo facturado.",
+    roles: ["administrador", "vendedor"],
+  },
+  {
+    href: "/admin/avance",
+    title: "Cargar avance de ventas",
+    description: "Subir el Excel del día para que cada vendedor vea su avance.",
+    roles: ["administrador"],
+  },
+  {
     href: "/operaciones",
     title: "Despachos",
     description: "Preparar y despachar los pedidos listos para operaciones.",

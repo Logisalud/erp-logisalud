@@ -20,8 +20,11 @@
  *  5. Factorizada: la factura entera se vendió a una empresa de factoring
  *     (ver `factoring_operaciones`/`factoring_facturas`); el saldo baja a 0
  *     sin que exista un pago real del cliente.
+ *  6. Incobrable: alguien de admin la dio de baja de la cobranza con un
+ *     motivo escrito (`documentos_incobrables`). El saldo baja a 0 y nadie
+ *     pagó nada: es una pérdida asumida, no un cobro.
  *
- * Lo que no cae en ninguna de las cinco se devuelve como diferencia sin
+ * Lo que no cae en ninguna de las seis se devuelve como diferencia sin
  * explicar, con `esProblema: true`. Eso es a propósito: antes esas
  * diferencias se las tragaba la pantalla y una factura podía mostrar
  * "26,247.03 − 1,221.43 = 0.00" sin que nada chirriara.
@@ -47,6 +50,10 @@ export interface EntradaDesglose {
   factorizado?: boolean;
   /** Para mostrar a quién se le vendió, si se conoce. */
   factoringEntidad?: string | null;
+  /** true si admin la dio de baja de la cobranza por incobrable. */
+  incobrable?: boolean;
+  /** Por qué se dio de baja. Va a la vista: es toda la explicación que hay. */
+  incobrableMotivo?: string | null;
 }
 
 export interface Desglose {
@@ -105,6 +112,14 @@ export function calcularDesglose(e: EntradaDesglose): Desglose {
       sinExplicar,
       etiqueta: 'Cobrado al despacho (contado anterior al 11/08/2026)',
       esProblema: false,
+    };
+  }
+  if (e.incobrable) {
+    return {
+      sinExplicar,
+      etiqueta: 'Dada de baja por incobrable',
+      esProblema: false,
+      nota: e.incobrableMotivo ?? undefined,
     };
   }
   if (e.factorizado) {

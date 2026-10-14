@@ -23,6 +23,9 @@
  *   daban por cobradas contra entrega y nunca tuvieron un pago registrado.
  * - `Redondeo` — saldo de hasta S/ 0.09, que la app trata como saldado.
  * - `Canje en letras` — las letras giradas no cubren el total de la factura.
+ * - `Dada de baja por incobrable` — admin la sacó de la cobranza con un
+ *   motivo escrito (`documentos_incobrables`). Nadie pagó: es una pérdida
+ *   asumida, y el extracto la muestra como tal en vez de inventar un cobro.
  * - `Factorizada` — la factura entera se vendió a una empresa de factoring
  *   (`factoring_operaciones`/`factoring_facturas`); el saldo baja a 0 sin
  *   pago real del cliente.
@@ -112,6 +115,9 @@ export interface FacturaCruda {
   /** true si la factura entera se vendió a una empresa de factoring. */
   factorizado?: boolean | null;
   factoring_entidad?: string | null;
+  /** true si admin la dio de baja de la cobranza por incobrable. */
+  incobrable?: boolean | null;
+  incobrable_motivo?: string | null;
 }
 
 export interface NotaCruda {
@@ -325,6 +331,10 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
       motivo = 'Pagado de más (el saldo no baja de cero)';
     } else if (natural > 0 && natural <= TOLERANCIA_CENTIMOS) {
       motivo = 'Redondeo (hasta S/ 0.09)';
+    } else if (f.incobrable) {
+      motivo = f.incobrable_motivo
+        ? `Dada de baja por incobrable — ${f.incobrable_motivo}`
+        : 'Dada de baja por incobrable';
     } else if (tieneLetras) motivo = 'Canje en letras';
     else if (f.factorizado) {
       motivo = f.factoring_entidad ? `Factorizada — ${f.factoring_entidad}` : 'Factorizada';
