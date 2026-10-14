@@ -10,6 +10,7 @@ import {
 } from "./actions";
 import { leerLibroDeAvance, type LibroDeAvance } from "@/lib/leer-excel-avance";
 import {
+  claveDeNombre,
   HOJA_AVANCE,
   HOJA_DETALLE,
   resumirCarga,
@@ -65,7 +66,12 @@ export function ImportadorAvance() {
       const { avance, detalle } = await leerLibroDeAvance(file);
 
       const contexto = await leerContexto(avance.periodo);
-      const resumen = resumirCarga(avance, detalle, new Set(contexto.codigos));
+      const resumen = resumirCarga(
+        avance,
+        detalle,
+        new Set(contexto.codigos),
+        new Set(contexto.nombres.map(claveDeNombre)),
+      );
 
       setEstado({
         paso: "previo",
@@ -240,6 +246,22 @@ export function ImportadorAvance() {
               <span>
                 Reemplaza la carga del corte al {fechaLarga(estado.reemplazaA.fechaCorte)}, subida el{" "}
                 {new Date(estado.reemplazaA.subidoEn).toLocaleString("es-PE")}.
+              </span>
+            </p>
+          )}
+
+          {estado.resumen.detalleSinVendedor > 0 && (
+            <p className="aviso-bloqueo">
+              <span aria-hidden>!</span>
+              <span>
+                <strong>
+                  {estado.resumen.detalleSinVendedor.toLocaleString("es-PE")} de{" "}
+                  {estado.resumen.filasDetalle.toLocaleString("es-PE")} líneas del detalle
+                </strong>{" "}
+                no se pueden atribuir a ningún vendedor: la hoja no trae ni el código (columna RV)
+                ni un nombre que exista en el sistema. Esas líneas no las va a ver nadie. Se puede
+                publicar igual —el cuadro de avance no cambia—, pero conviene revisar esa columna en
+                el archivo.
               </span>
             </p>
           )}

@@ -414,15 +414,38 @@ export type ResumenCarga = {
   totalCuota: number;
   /** Códigos del cuadro que no existen en `sellers`: no los verá nadie. */
   codigosSinVendedor: string[];
+  /**
+   * Líneas del detalle que no se pudieron atribuir a ningún vendedor, ni
+   * por código ni por nombre. Son líneas que nadie va a ver: la pantalla
+   * del vendedor entrega solo lo suyo.
+   */
+  detalleSinVendedor: number;
 };
+
+/** Para comparar nombres: sin tildes, sin mayúsculas, sin espacios de más. */
+export const claveDeNombre = (texto: string) =>
+  texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
 
 export function resumirCarga(
   avance: AvanceParseado,
   detalle: FilaDetalle[],
   codigosConocidos: Set<string>,
+  nombresConocidos: Set<string> = new Set(),
 ): ResumenCarga {
   const total = avance.filas.find((f) => f.tipo === "total");
   const vendedores = avance.filas.filter((f) => f.tipo === "vendedor");
+
+  // Mismo rescate que hace el servidor al guardar: si la fila no trae
+  // código —la columna RV viene vacía muy seguido— vale el nombre.
+  const sinVendedor = detalle.filter((d) => {
+    if (d.codigo && codigosConocidos.has(d.codigo.trim().toUpperCase())) return false;
+    return !(d.vendedor && nombresConocidos.has(claveDeNombre(d.vendedor)));
+  }).length;
 
   return {
     periodo: avance.periodo,
@@ -433,6 +456,7 @@ export function resumirCarga(
     lineas: avance.filas.filter((f) => f.tipo === "linea").length,
     grupos: avance.filas.filter((f) => f.tipo === "grupo").length,
     filasDetalle: detalle.length,
+    detalleSinVendedor: sinVendedor,
     totalAvance: total?.avance ?? 0,
     totalCuota: total?.cuota ?? 0,
     codigosSinVendedor: vendedores

@@ -40,6 +40,38 @@ async function vendedores(): Promise<Vendedor[]> {
   }));
 }
 
+/**
+ * De quién es una línea: por código, y si no hay código, por nombre.
+ *
+ * La columna RV del detalle viene vacía en buena parte de las filas —en la
+ * carga del 13/10 eran 410 de 505— y ahí lo único que identifica al
+ * vendedor es su nombre. Sin este rescate esas líneas quedan sin dueño, y
+ * como la RLS entrega el detalle por vendedor, **no las ve nadie**:
+ * Cinthya entraba a su detalle y lo encontraba vacío teniendo 35 líneas.
+ *
+ * El nombre se compara sin tildes, sin mayúsculas y sin espacios de más:
+ * el archivo escribe "KARINA BENDEZÚ" y a veces "Karina Bendezu".
+ */
+function buscadorDeVendedor(lista: Vendedor[]) {
+  const porCodigo = new Map(lista.map((v) => [v.codigo, v]));
+  const porNombre = new Map(lista.map((v) => [clave(v.nombre), v]));
+
+  return (codigo: string | null, nombre?: string | null): Vendedor | null => {
+    const porCod = codigo ? porCodigo.get(codigo.trim().toUpperCase()) : undefined;
+    if (porCod) return porCod;
+    const porNom = nombre ? porNombre.get(clave(nombre)) : undefined;
+    return porNom ?? null;
+  };
+}
+
+const clave = (texto: string) =>
+  texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
 // ---------------------------------------------------------------------
 // Lo que el navegador necesita para armar la vista previa
 // ---------------------------------------------------------------------
@@ -47,12 +79,16 @@ async function vendedores(): Promise<Vendedor[]> {
 export type ContextoDeCarga = {
   /** Códigos con vendedor cargado: los demás no los va a ver nadie. */
   codigos: string[];
+  /** Nombres de esos vendedores, para rescatar las filas sin código. */
+  nombres: string[];
   /** La carga vigente del período, si ya hay una: esta la reemplaza. */
   vigente: { fechaCorte: string; subidoEn: string } | null;
 };
 
 export async function contextoDeCarga(periodo: string | null): Promise<ContextoDeCarga> {
-  const codigos = (await vendedores()).map((v) => v.codigo);
+  const lista = await vendedores();
+  const codigos = lista.map((v) => v.codigo);
+  const nombres = lista.map((v) => v.nombre);
 
   let vigente: ContextoDeCarga["vigente"] = null;
   if (periodo) {
@@ -66,7 +102,7 @@ export async function contextoDeCarga(periodo: string | null): Promise<ContextoD
     if (data) vigente = { fechaCorte: String(data.fecha_corte), subidoEn: String(data.subido_en) };
   }
 
-  return { codigos, vigente };
+  return { codigos, nombres, vigente };
 }
 
 // ---------------------------------------------------------------------
@@ -96,8 +132,8 @@ export async function crearCarga(
   actor: string,
 ): Promise<string> {
   const supabase = createClient();
-  const porCodigo = new Map((await vendedores()).map((v) => [v.codigo, v.id]));
-  const idDe = (codigo: string | null) => (codigo ? (porCodigo.get(codigo.toUpperCase()) ?? null) : null);
+  const buscar = buscadorDeVendedor(await vendedores());
+  const idDe = (codigo: string | null) => buscar(codigo)?.id ?? null;
 
   const { data, error } = await supabase
     .from("avance_cargas")
@@ -156,14 +192,19 @@ export async function crearCarga(
 export async function agregarDetalle(cargaId: string, filas: FilaDetalle[]): Promise<number> {
   if (filas.length === 0) return 0;
   const supabase = createClient();
-  const porCodigo = new Map((await vendedores()).map((v) => [v.codigo, v.id]));
+  const buscar = buscadorDeVendedor(await vendedores());
 
   const { error } = await supabase.from("avance_detalle").insert(
-    filas.map((d) => ({
+    filas.map((d) => {
+      const vendedor = buscar(d.codigo, d.vendedor);
+      return {
       carga_id: cargaId,
-      codigo: d.codigo,
-      seller_id: d.codigo ? (porCodigo.get(d.codigo.toUpperCase()) ?? null) : null,
-      vendedor: d.vendedor,
+      // El código se completa con el del vendedor encontrado: así la
+      // pantalla y los filtros funcionan igual que si el archivo lo
+      // hubiera traído.
+      codigo: d.codigo ?? vendedor?.codigo ?? null,
+      seller_id: vendedor?.id ?? null,
+      vendedor: d.vendedor ?? vendedor?.nombre ?? null,
       fecha: d.fecha,
       tipo_documento: d.tipoDocumento,
       nro_documento: d.nroDocumento,
@@ -181,7 +222,8 @@ export async function agregarDetalle(cargaId: string, filas: FilaDetalle[]): Pro
       distrito: d.distrito,
       cantidad: d.cantidad,
       neto: d.neto,
-    })),
+      };
+    }),
   );
   if (error) throw new Error(error.message);
   return filas.length;
@@ -353,6 +395,7 @@ export type LineaDetalle = {
   codProducto: string | null;
   producto: string | null;
   linea: string | null;
+  origen: string | null;
   cantidad: number | null;
   neto: number | null;
   vendedor: string | null;
@@ -371,7 +414,7 @@ export async function detalleDeVenta(
   let q = supabase
     .from("avance_detalle")
     .select(
-      "fecha, tipo_documento, nro_documento, ruc, razon_social, familia, cod_producto, producto, linea, cantidad, neto, vendedor, codigo",
+      "fecha, tipo_documento, nro_documento, ruc, razon_social, familia, cod_producto, producto, linea, origen, cantidad, neto, vendedor, codigo",
     )
     .eq("carga_id", cargaId);
   if (opciones.codigo) q = q.eq("codigo", opciones.codigo);
@@ -392,6 +435,7 @@ export async function detalleDeVenta(
     codProducto: d.cod_producto as string | null,
     producto: d.producto as string | null,
     linea: d.linea as string | null,
+    origen: d.origen as string | null,
     cantidad: numeroONulo(d.cantidad),
     neto: numeroONulo(d.neto),
     vendedor: d.vendedor as string | null,

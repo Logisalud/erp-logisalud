@@ -36,7 +36,7 @@ export function DetalleDeVenta({
     return filas.filter((f) => {
       if (soloNotas && !/NOTA/i.test(f.tipoDocumento ?? "")) return false;
       if (!t) return true;
-      return [f.razonSocial, f.producto, f.nroDocumento, f.ruc, f.linea, f.codProducto, f.vendedor]
+      return [f.razonSocial, f.producto, f.nroDocumento, f.ruc, f.linea, f.codProducto, f.vendedor, f.origen]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(t));
     });
@@ -87,13 +87,14 @@ export function DetalleDeVenta({
           </p>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[46rem] text-sm">
+            <table className="w-full min-w-[52rem] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3">Fecha</th>
                   <th className="py-2 pr-3">Documento</th>
                   <th className="py-2 pr-3">Cliente</th>
                   <th className="py-2 pr-3">Producto</th>
+                  <th className="py-2 pr-3">Origen</th>
                   {mostrarVendedor && <th className="py-2 pr-3">Vendedor</th>}
                   <th className="py-2 pr-3 text-right">Cant.</th>
                   <th className="py-2 text-right">Neto</th>
@@ -120,6 +121,10 @@ export function DetalleDeVenta({
                           {[f.codProducto, f.linea].filter(Boolean).join(" · ")}
                         </span>
                       </td>
+                      {/* De dónde salió la venta: LOGISSA, DIPHASAC, PERU
+                          FARMA, M&M… Lo pidió Comercial para separar lo
+                          propio de lo que entra por otra casa. */}
+                      <td className="py-2 pr-3 whitespace-nowrap text-slate-600">{f.origen ?? "—"}</td>
                       {mostrarVendedor && <td className="py-2 pr-3 text-slate-600">{f.vendedor ?? "—"}</td>}
                       <td className="py-2 pr-3 text-right tabular-nums">{f.cantidad ?? 0}</td>
                       <td className="py-2 text-right tabular-nums">{soles(f.neto)}</td>
