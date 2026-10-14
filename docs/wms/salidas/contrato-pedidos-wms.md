@@ -1,6 +1,6 @@
 # Contrato Pedidos → WMS: pedidos listos para operaciones (S3)
 
-Estado: **contrato del lado del WMS, probado contra un doble** (`apps/wms/tests/services/fuente-pedidos.test.ts`). **No se tocó Pedidos.** Para que el
+Estado: **diseño aprobado por Sebas (D-80, 2026-10-14); la ejecución queda diferida hasta la salida a producción del WMS** — no se crea la ruta en Pedidos ni las variables en producción antes. Contrato del lado del WMS, probado contra un doble (`apps/wms/tests/services/fuente-pedidos.test.ts`). **No se tocó Pedidos.** Para que el
 WMS traiga pedidos reales, Pedidos tiene que exponer la ruta de abajo (cambio **aditivo**, necesita la aprobación de Sebas) y las dos variables del WMS
 tienen que configurarse (en producción, también con su aprobación). Mientras tanto, la bandeja funciona con la fuente de demostración y, sin
 configurar, dice «La conexión con Pedidos todavía no está configurada» y sigue con lo ya importado.
