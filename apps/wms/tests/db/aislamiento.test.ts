@@ -276,6 +276,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'aprobar_salida_vencida', 'asignar_salida', 'editar_asignacion', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
     'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',
     'registrar_retorno', 'stock_vendible',
+    // S2b (0013)
+    'avisos_fefo', 'lotes_para_editar', 'reporte_cambios_fefo',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {

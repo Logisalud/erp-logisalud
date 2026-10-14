@@ -73,32 +73,49 @@ describe('asignación de una línea', () => {
   })
 })
 
-import { lotesEditables, validarEdicionAsignacion, MOTIVO_EDICION_ASIGNACION } from '@/domain/salidas'
+import { avisosFefo, lotesEditables, seApartaDeFefo, textoAvisoFefo, validarEdicionAsignacion } from '@/domain/salidas'
 
-describe('edición de la asignación FEFO', () => {
-  const fefo = [{ loteId: 'l:A', cantidad: 30, vence: '2027-01-01' }, { loteId: 'l:B', cantidad: 20, vence: '2027-03-01' }]
+describe('edición libre de la asignación (D-79)', () => {
   const lotes = [lote('A', '2027-01-01', 50), lote('B', '2027-03-01', 40), lote('C', '2027-09-01', 100), lote('ANTES', '2026-12-20', 100), lote('CORTO', '2026-11-01', 100)]
-  const base = { cantidadLinea: 50, hoy: HOY, fefo, lotes, motivo: MOTIVO_EDICION_ASIGNACION }
+  const base = { cantidadLinea: 50, hoy: HOY, lotes }
 
-  it('redistribuir entre los lotes FEFO, agregar un lote que vence después y quitar uno valen si la suma es la de la línea', () => {
+  it('cualquier lote válido vale, venza antes o después del FEFO, si la suma es la de la línea', () => {
     expect(validarEdicionAsignacion({ ...base, nueva: [{ loteId: 'l:A', cantidad: 10 }, { loteId: 'l:B', cantidad: 40 }] })).toEqual([])
-    expect(validarEdicionAsignacion({ ...base, nueva: [{ loteId: 'l:A', cantidad: 30 }, { loteId: 'l:C', cantidad: 20 }] })).toEqual([])
     expect(validarEdicionAsignacion({ ...base, nueva: [{ loteId: 'l:C', cantidad: 50 }] })).toEqual([])
+    expect(validarEdicionAsignacion({ ...base, nueva: [{ loteId: 'l:ANTES', cantidad: 20 }, { loteId: 'l:C', cantidad: 30 }] })).toEqual([])
   })
 
-  it('rechaza: suma distinta, cantidades no positivas, lote repetido, lote nuevo que no vence después, sin 60 días, sin disponible y otro motivo', () => {
+  it('rechaza: suma distinta, cantidades no positivas, lote repetido, sin 60 días, bloqueado, sin disponible y lote ajeno', () => {
     const err = (nueva: { loteId: string; cantidad: number }[], extra = {}) => validarEdicionAsignacion({ ...base, nueva, ...extra }).join(' | ')
     expect(err([{ loteId: 'l:A', cantidad: 49 }])).toMatch(/La suma de los lotes \(49\)/)
     expect(err([{ loteId: 'l:A', cantidad: 0 }, { loteId: 'l:B', cantidad: 50 }])).toMatch(/mayor que cero/)
     expect(err([{ loteId: 'l:A', cantidad: 25 }, { loteId: 'l:A', cantidad: 25 }])).toMatch(/una sola vez/)
-    expect(err([{ loteId: 'l:ANTES', cantidad: 50 }])).toMatch(/debe vencer después del lote FEFO que reemplaza \(2027-01-01\)/)
     expect(err([{ loteId: 'l:CORTO', cantidad: 50 }])).toMatch(/vence en 18 días/)
+    expect(err([{ loteId: 'l:C', cantidad: 50 }], { lotes: [{ ...lote('C', '2027-09-01', 100), bloqueado: true }] })).toMatch(/bloqueado/)
     expect(err([{ loteId: 'l:C', cantidad: 50 }], { lotes: [lote('C', '2027-09-01', 10)] })).toMatch(/no tiene suficientes unidades/)
-    expect(err([{ loteId: 'l:C', cantidad: 50 }], { motivo: 'OTRO' })).toMatch(/único motivo permitido/)
+    expect(err([{ loteId: 'l:X', cantidad: 50 }])).toMatch(/no corresponde a este producto/)
     expect(err([])).toMatch(/al menos un lote/)
   })
 
-  it('«Editar lotes» lista solo los lotes válidos', () => {
-    expect(lotesEditables({ hoy: HOY, fefo, lotes }).map((l) => l.codigo)).toEqual(['A', 'B', 'C'])
+  it('la lista de lotes ofrece solo los válidos, por vencimiento (FEFO primero)', () => {
+    expect(lotesEditables({ hoy: HOY, lotes }).map((l) => l.codigo)).toEqual(['ANTES', 'A', 'B', 'C'])
+  })
+
+  it('apartarse de FEFO avisa, no bloquea: dice qué lote vence antes; el FEFO no avisa', () => {
+    const sinAviso = avisosFefo({ hoy: HOY, lotes, nueva: [{ loteId: 'l:ANTES', cantidad: 50 }] })
+    expect(sinAviso).toEqual([])
+    const avisos = avisosFefo({ hoy: HOY, lotes, nueva: [{ loteId: 'l:C', cantidad: 50 }] })
+    expect(avisos).toEqual([{ loteId: 'l:C', codigo: 'C', antesCodigo: 'ANTES', antesVence: '2026-12-20' }])
+    expect(textoAvisoFefo(avisos[0])).toBe('Hay un lote que vence antes (ANTES, vence 12/2026)')
+    expect(validarEdicionAsignacion({ ...base, nueva: [{ loteId: 'l:C', cantidad: 50 }] })).toEqual([])
+    // el aviso nombra el primero que vence antes y no se eligió (aquí, con ANTES elegido, queda A)
+    expect(avisosFefo({ hoy: HOY, lotes, nueva: [{ loteId: 'l:ANTES', cantidad: 20 }, { loteId: 'l:C', cantidad: 30 }] }).map((a) => a.antesCodigo)).toEqual(['A'])
+  })
+
+  it('detecta si la asignación final se aparta de la propuesta FEFO', () => {
+    const fefo = [{ loteId: 'l:A', cantidad: 30 }, { loteId: 'l:B', cantidad: 20 }]
+    expect(seApartaDeFefo(fefo, [{ loteId: 'l:B', cantidad: 20 }, { loteId: 'l:A', cantidad: 30 }])).toBe(false)
+    expect(seApartaDeFefo(fefo, [{ loteId: 'l:A', cantidad: 10 }, { loteId: 'l:B', cantidad: 40 }])).toBe(true)
+    expect(seApartaDeFefo(fefo, [{ loteId: 'l:C', cantidad: 50 }])).toBe(true)
   })
 })
