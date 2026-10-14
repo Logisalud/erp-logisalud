@@ -35,6 +35,8 @@ cerrada: una función nueva obliga a decidirla ahí. (Origen: 2026-10-14, S1: cu
 **Usuarios de cliente (D-68):** el interruptor `acceso_clientes_habilitado` sigue **apagado** hasta que SEC1 esté en
 producción; no se crea ningún usuario de cliente ni se enciende desde la aplicación.
 
+**Fechas de vencimiento y vigencia:** todo campo de vencimiento o vigencia usa `components/campo-vencimiento.tsx` (botón de calendario y se puede seguir escribiendo `30/06/2028`, `2028-06-30` o `06/2028`), tanto controlado (`value`/`onChange`) como en formularios nativos (`name`/`defaultValue`). Un formulario nuevo con fecha se suma a `e2e/fecha-vencimiento.spec.ts` (verifica el selector) y `tests/components/campos-de-fecha.test.ts` falla si se escribe un campo a mano. (Origen: 2026-10-14, Sebas: el vencimiento del paso 3 de la solicitud de ingreso seguía en texto.)
+
 **Paginación:** toda lectura de más de 1.000 filas usa `traerTodo`, que ordena siempre por la clave única de
 la tabla (`services/supabase/claves.ts`). Una tabla nueva se registra ahí antes de leerla. Paginar con
 `.range()` sin orden determinista repite y pierde filas.
