@@ -308,7 +308,7 @@ Recomiendo **tres escalones**, todos por `postear_movimiento` (transaccionales, 
 | **Rechazado** | `INGRESO` tipo Devolución **existente** → estado Devoluciones en Área de Devoluciones → acta organoléptica → Aprobado o Bajas/Rechazados | Tu regla cerrada (D-31). |
 | **Nueva salida del mismo pedido** (reprogramado) | `SALIDA` desde la zona Retorno reservado | Misma mecánica, otra celda de origen. |
 
-**Alternativa que descarto [B]:** modelar «En ruta» como una ubicación virtual por ruta (el stock nunca sale del ledger hasta la entrega). Es más elegante para la conservación, pero **contradice el Master** (el movimiento definitivo ocurre en «Salida confirmada») y complica Kardex y el reporte contra Odoo. Si prefieres esa, es una decisión tuya.
+**Alternativa que descarto [B]:** modelar «En ruta» como una ubicación virtual por ruta (el stock nunca sale del ledger hasta la entrega). Es más elegante para la conservación, pero **contradice el Master** (el movimiento definitivo ocurre en «Salida confirmada») y complica el Kardex y los reportes. Si prefieres esa, es una decisión tuya.
 
 **Decisión que te pido (Sebas):** si el movimiento rack → staging debe esperar la verificación de Conformidad (recomendado, coherente con D-41) o registrarse apenas el picker confirma (más fiel a lo físico, pero se escribe en el ledger algo que nadie ha verificado).
 
