@@ -10,6 +10,7 @@ import {
   montoTotalSolicitud,
   type BorradorSolicitud,
   type TipoComprobante,
+  leerAsignado,
 } from '@/domain/gasto'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
@@ -32,7 +33,7 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
     fechaRequerida: tipo === 'gasto_directo' ? null : textoONull(form.get('fechaRequerida')),
     fechaInicio: textoONull(form.get('fechaInicio')),
     fechaFin: textoONull(form.get('fechaFin')),
-    asignadoA: tipo === 'anticipo' ? textoONull(form.get('asignadoA')) : null,
+    ...(tipo === 'anticipo' ? leerAsignado(textoONull(form.get('asignado'))) : leerAsignado(null)),
     // Pieza A: informativo en Anticipo y en Reembolso.
     quienAutoriza: tipo === 'gasto_directo' ? null : textoONull(form.get('quienAutoriza')),
     // Pieza H: fecha del comprobante real (no aplica a un anticipo).

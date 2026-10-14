@@ -1,5 +1,6 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
+import { mapaNombresBeneficiarios } from '@/services/beneficiarios'
 import { mapaProveedoresBasico } from '@/services/obligaciones'
 import {
   bucketAntiguedad,
@@ -36,11 +37,9 @@ function normalizarBusqueda(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 }
 
-async function mapaBeneficiarios(ids: string[]) {
-  const supabase = crearClienteServidor()
-  if (ids.length === 0) return new Map<string, string>()
-  const { data } = await supabase.from('perfiles').select('id, nombre').in('id', ids)
-  return new Map((data ?? []).map((p: any) => [p.id, p.nombre as string]))
+/** Usuario o persona sin usuario — ver services/beneficiarios.ts. */
+function mapaBeneficiarios(ids: string[]) {
+  return mapaNombresBeneficiarios(ids)
 }
 
 type ObligacionBase = {
@@ -56,7 +55,7 @@ type ObligacionBase = {
   proveedor_id: string | null
   /** La otra tabla de proveedores — servicios.proveedores_servicio. */
   proveedor_servicio_id: string | null
-  beneficiario_persona: string | null
+  beneficiario_id: string | null
   /** Respaldo del nombre cuando la RLS de perfiles no deja leerlo (0042). */
   creador_correo: string | null
 }
@@ -71,7 +70,7 @@ async function resolverQuienDebe(filas: readonly ObligacionBase[]): Promise<Map<
       [...new Set(filas.map((f) => f.proveedor_id).filter((x): x is string => !!x))],
       [...new Set(filas.map((f) => f.proveedor_servicio_id).filter((x): x is string => !!x))]
     ),
-    mapaBeneficiarios([...new Set(filas.map((f) => f.beneficiario_persona).filter((x): x is string => !!x))]),
+    mapaBeneficiarios([...new Set(filas.map((f) => f.beneficiario_id).filter((x): x is string => !!x))]),
   ])
   const resultado = new Map<string, QuienDebe>()
   for (const f of filas) {
@@ -83,8 +82,8 @@ async function resolverQuienDebe(filas: readonly ObligacionBase[]): Promise<Map<
       // respaldo. `creador_correo` (columna de la 0042) lo resuelve con el
       // mismo criterio que "Pendientes de aprobar".
       beneficiario:
-        (f.beneficiario_persona ? beneficiarios.get(f.beneficiario_persona) ?? null : null) ??
-        (f.beneficiario_persona ? f.creador_correo ?? null : null),
+        (f.beneficiario_id ? beneficiarios.get(f.beneficiario_id) ?? null : null) ??
+        (f.beneficiario_id ? f.creador_correo ?? null : null),
       // Para prestamo/fraccionamiento_sunat/impuesto la referencia ya queda
       // escrita en observaciones al generar la obligación (ver
       // services/financiamiento.ts e services/impuestos.ts) — no hay
@@ -96,7 +95,7 @@ async function resolverQuienDebe(filas: readonly ObligacionBase[]): Promise<Map<
 }
 
 const COLUMNAS_BASE =
-  'id, codigo, origen, numero_factura, moneda, neto_a_pagar, estado, fecha_vencimiento_real, observaciones, proveedor_id, proveedor_servicio_id, beneficiario_persona, creador_correo'
+  'id, codigo, origen, numero_factura, moneda, neto_a_pagar, estado, fecha_vencimiento_real, observaciones, proveedor_id, proveedor_servicio_id, beneficiario_id, creador_correo'
 
 // ---------------------------------------------------------------------------
 // 1. Antigüedad de saldos (AP Aging)
@@ -433,7 +432,7 @@ export async function obtenerReporteDetracciones(filtros: { fechaDesde?: string;
     .from('obligaciones')
     .select(
       `id, codigo, numero_factura, fecha_factura, moneda, base_imponible, monto_detraccion, estado,
-       proveedor_id, beneficiario_persona, observaciones, origen, tasa_detraccion_id`
+       proveedor_id, beneficiario_id, observaciones, origen, tasa_detraccion_id`
     )
     .gt('monto_detraccion', 0)
     .order('fecha_factura', { ascending: false })

@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache'
 import {
   crearCuentaBancariaEmpleado,
   eliminarCuentaBancariaEmpleado,
-  type BorradorCuentaBancariaEmpleado,
 } from '@/services/empleado-cuentas-bancarias'
+import { cuentaBancariaDeFormulario } from '@/lib/form-cuenta-bancaria'
 
 export type EstadoFormulario = { error: string } | null
 
@@ -13,16 +13,7 @@ export async function crearCuentaBancariaAction(
   _previo: EstadoFormulario,
   form: FormData
 ): Promise<EstadoFormulario> {
-  const tipoCuenta = String(form.get('tipoCuenta') ?? '')
-
-  const borrador: BorradorCuentaBancariaEmpleado = {
-    banco: String(form.get('banco') ?? ''),
-    tipoCuenta: tipoCuenta === 'ahorros' || tipoCuenta === 'corriente' ? tipoCuenta : null,
-    numeroCuenta: String(form.get('numeroCuenta') ?? ''),
-    cci: String(form.get('cci') ?? ''),
-    moneda: String(form.get('moneda') ?? 'PEN'),
-    esPrincipal: form.get('esPrincipal') === 'on',
-  }
+  const borrador = cuentaBancariaDeFormulario(form)
 
   try {
     await crearCuentaBancariaEmpleado(borrador)
