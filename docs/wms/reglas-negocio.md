@@ -186,6 +186,14 @@ Recorrido con 4 focos: orden, limpieza, ubicaciones y situaciones anormales. Sol
 - **D-11 / D-12 / D-13:** firma electrónica con el usuario registrado; el formato de recepción lleva DNI del transportista y «Ingreso de cliente»; la numeración organoléptica es O-AAAAMM-NNNN.
 - **D-36:** el dueño de la cantidad física es el WMS; la copia manual a Compras es temporal (`integracion-wms-compras.md`).
 
+## Salidas — núcleo de stock (S2)
+- **Una sola cuenta de lo comprometido:** reservas activas, en tránsito o en staging más las líneas abiertas de «Mover». Disponible = saldo − comprometido; Mover y las salidas usan la misma cuenta.
+- **FEFO (modo A, distribución y muestras de Logissa; D-76):** el pedido no trae lote. Se toma lo que haya del lote FEFO válido y se completa, automáticamente, con el siguiente lote FEFO válido, hasta cubrir la línea. Una línea puede tener varias asignaciones (una por lote y celda): cada una aparece con su ubicación en la orden de picking y la GRE muestra cada lote con su cantidad. Lote válido: no vencido, sin retención, fuera de conteo y, solo en distribución, con 60 días de vida útil como mínimo (`vida_util_minima_venta_dias`). Nunca se toma más de lo disponible (el disponible no queda negativo). Si ni sumando los lotes alcanza, no se reserva nada y se alerta de stock insuficiente al Jefe de Transporte antes del picking. El stock de Logissa nunca se considera vencido para muestras.
+- **Lote indicado por el cliente (modo B): una línea, un lote** (si necesita dos lotes, usa dos líneas); se respeta el lote pedido; un lote vencido de cliente solo sale por pesquisa, destrucción o devolución al proveedor y con aprobación de la Dirección Técnica antes del picking.
+- **El picking no toca el libro mayor.** La conformidad de otra persona (con `dar_conformidad`) registra el movimiento rack → staging; la salida confirma staging → fuera; el retorno nunca supera lo que salió.
+- **Edición de la asignación (D-77):** el Jefe de Almacén (o su reemplazo) o el Jefe de Transporte pueden reemplazar, agregar o quitar lotes y redistribuir cantidades de una línea de venta antes del picking (suma = cantidad de la línea), con el único motivo «Cliente solicita vencimiento más largo»: todo lote nuevo vence después del lote FEFO que reemplaza. Queda la asignación FEFO original y, por edición, quién, cuándo, la asignación anterior y la nueva. El reemplazo en picking se propone por lote.
+- Idempotencia por token en cada paso; el Kardex incluye SALIDA y RETORNO.
+
 ## Integridad
 Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario, fecha, motivo).
 
