@@ -155,7 +155,7 @@ Nunca stock negativo · el ledger es la fuente del stock y nada se borra (revers
 - Embalaje después de la conformidad. **«Listo para carga» = conforme + embalado + con GRE + paquete documental completo.**
 
 **3. Selección de lote: solo FEFO.**
-- Asigna siempre el lote Aprobado, sin bloqueo y con cantidad suficiente que vence primero. **No se toca Pedidos.**
+- Asigna siempre el lote Aprobado, sin bloqueo y no vencido que vence primero (con 60 días de vida útil en ventas). **Si el lote FEFO no alcanza (D-76, decidida por Sebas), toma lo que haya de ese lote y completa automáticamente con el siguiente lote FEFO válido:** una línea del pedido puede tener varias asignaciones (una por lote), cada una con su ubicación en la orden de picking, y la GRE muestra cada lote con su cantidad. Si ni sumando lotes alcanza, no se reserva nada y se alerta de stock insuficiente. En la salida por cuenta de un cliente (tipo B) sigue siendo una línea, un lote, el que indica el cliente. **No se toca Pedidos.**
 - **Única excepción:** el Jefe de Almacén (o su reemplazo) o el Jefe de Transporte pueden **cambiar el lote asignado a una línea antes del picking**, con **un único motivo fijo: «Cliente solicita vencimiento más largo»** (sin texto libre ni otros motivos).
 - Validado en **dominio y base de datos**: el lote nuevo debe vencer **después** del asignado, estar Aprobado, sin bloqueo y con cantidad suficiente. Nunca stock negativo. Queda registrado quién, cuándo, lote anterior, lote nuevo y motivo.
 - **Sin stock suficiente para una línea:** el sistema alerta **antes del picking** al Jefe de Transporte; el picker nunca lo descubre en el pasillo.
