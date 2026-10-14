@@ -5,6 +5,12 @@ import { cargaVigente } from "@/services/avance";
 import { ImportadorAvance } from "./importador";
 
 export const dynamic = "force-dynamic";
+/**
+ * Las tandas de detalle son rápidas, pero el primer viaje escribe el
+ * cuadro entero y el último publica: con los 10 s por defecto de una
+ * función serverless, un arranque en frío se come el margen.
+ */
+export const maxDuration = 60;
 
 const fechaLarga = (iso: string) => {
   const [a, m, d] = iso.slice(0, 10).split("-");
