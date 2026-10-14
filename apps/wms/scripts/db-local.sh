@@ -2,7 +2,8 @@
 # Arranca el Postgres local del contenedor y deja listo el usuario de pruebas.
 # Los tests de base de datos (npm run test:db) usan WMS_TEST_DATABASE_URL, o por
 # defecto postgres://wms_test:wms_test@127.0.0.1:5432/postgres.
-# En CI se usa un servicio de Postgres 16 y este script no hace falta.
+# En CI se usa un servicio de Postgres 17 (la versión de producción) y este script no hace falta;
+# el contenedor de desarrollo solo trae Postgres 16.
 set -euo pipefail
 if command -v pg_ctlcluster >/dev/null 2>&1; then
   pg_ctlcluster 16 main start 2>/dev/null || true
