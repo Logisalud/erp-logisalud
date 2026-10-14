@@ -3,6 +3,7 @@
 > **Estado:** primera entrega, **solo documento, sin código** (2026-10-14). Nada de esto está construido ni aprobado.
 > **Revisión 2 (2026-10-14):** contrastado con el **Master TO-BE v2** (subido después de la primera versión). Lo que cambió está en §0 y marcado «Master».
 > **Principio rector:** el proceso gobierna al software. Si algo de aquí contradice una regla ya cerrada, **no la cambio**: la reporto (sección 2.3).
+> **Arquitectura y costos (aclaración de Sebas, 2026-10-14):** se mantiene la arquitectura del WMS tal como está (Next.js en Vercel, schema `wms` en el Supabase consolidado `erp-cobranzas`, ledger append-only, `Repositorio` + demo, migraciones a mano). Cuentas disponibles: **Supabase Pro, Vercel Pro y Resend Pro**. «Sin costos adicionales» deja de ser una restricción dura: un costo menor que mejore el WMS es aceptable, **pero cada uno se anota y se avisa antes de contratarlo** (nunca se contrata en silencio).
 > **Etiquetas** (se usan en todo el documento):
 > **[A]** requisito confirmado del proceso (RUT o decisión tuya) · **[B]** recomendación mía · **[C]** hipótesis por validar.
 
@@ -228,7 +229,7 @@ Estado actual en todas las filas: *no existe en el WMS* salvo donde se indica.
 | 9.2 | **«Mis rutas»** móvil: cliente, coordenadas, contacto, cita, guía y observaciones por parada | A + tu punto 6 | No existe vista móvil de transporte | Crít | Prioridad móvil (390×844) | P0 |
 | 9.3 | Eventos: **Llegué, Entregado, Recojo, No entregado, Rechazado, Incidencia** con hora automática | A | — | Crít | `eventos_ruta` append-only | P0 |
 | 9.4 | **Temperatura** por parada según método de DT | A + C | Método y momento **pendientes de Katia** | Alta | Campo parametrizable; bloqueado hasta su respuesta | P0 (bloqueado) |
-| 9.5 | POD: foto/cargo firmado y sellado dentro del pedido | A | Hoy solo WhatsApp | Alta | Foto con compresión en el teléfono (Supabase Storage dentro del plan Pro; **sin costo adicional**: se comprime y se limita el tamaño) | P1 |
+| 9.5 | POD: foto/cargo firmado y sellado dentro del pedido | A | Hoy solo WhatsApp | Alta | Foto con compresión en el teléfono (Supabase Storage del plan Pro; se comprime en el teléfono para cuidar la cuota) | P1 |
 | 9.6 | Cambio del orden real con motivo; el plan original queda | A | — | Media | Campos `secuencia_plan` / `secuencia_real` | P1 |
 | 9.7 | **Retorno de unidad** → «Pendiente de cierre» | A | — | Alta | Evento | P1 |
 | 9.8 | GPS / datalogger / ETA | A (P2; **GPS fuera del P1**, tu regla) | — | Media | No se hace | P2 |
@@ -282,7 +283,7 @@ Estado actual en todas las filas: *no existe en el WMS* salvo donde se indica.
 - **Dirección «entrada» (Pedidos → WMS): *pull* idempotente.** El WMS consulta (al abrir la bandeja y por una tarea programada) y hace `upsert` por `(pedido_id, versión)` en `wms.pedidos_despacho`. Reintentar nunca duplica. Si Pedidos no responde, el WMS sigue operando con lo ya importado y la bandeja muestra «última actualización hace X». Un pedido modificado en Pedidos después de importarse genera una nueva versión y **alerta** al planificador (no se pisa en silencio).
 - **Dirección «salida» (WMS → Pedidos): *outbox*.** Cada evento relevante se escribe en `wms.eventos_salida` **en la misma transacción** que el cambio de estado, con clave de idempotencia (`pedido + tipo + intento`); un despachador los envía con reintentos y backoff. Si Pedidos está caído, nada se pierde ni bloquea el almacén; al volver, se entregan en orden. Pedidos aplica cada evento una sola vez (guarda la clave).
 - **Stock vendible (INV-01, hoy carga manual diaria de Odoo):** el WMS publica `GET …/wms/api/stock-vendible` (también HMAC) con producto/lote/vencimiento/cantidad **vendible**; el importador que Pedidos ya tiene para `stock_lotes` lo consume en lugar del Excel. Es el reemplazo natural del paso manual. *Depende de que el stock del WMS sea real (carga inicial, hoy postergada hasta que existan salidas).*
-- **Costo:** ninguno adicional (rutas serverless ya incluidas en Vercel Pro; la «tarea programada» puede ser un *cron* de Vercel o, si no, un botón «actualizar» + actualización al abrir la bandeja). **No uso colas pagas ni servicios externos.**
+- **Costo:** **ninguno nuevo**, todo cabe en lo que ya pagas: rutas serverless y **Vercel Cron** (Vercel Pro) para la importación programada; **Resend** para avisos por correo (pedido cambiado tras importarse, retorno sin ubicar, ruta pendiente de cierre); en Supabase Pro, `pg_cron` para los despachadores y revisiones periódicas, y **Realtime** si el tablero de ruta lo justifica. No hace falta una cola externa.
 - **Riesgos:** secreto compartido (rotarlo; guardarlo solo en variables del entorno, **requiere tu aprobación para configurar variables en producción**); desfase de versión (mitigado por alerta); duplicados (idempotencia en ambos lados).
 - **Cambios en Pedidos (aditivos, necesitan tu aprobación):** columnas de cliente (coordenadas, ventana de cita, vehículo calificado, mínimo de vencimiento), las dos rutas, y la aplicación de eventos. Lo **no aditivo** (apagar `confirm_dispatch`; conflicto 3) se pide aparte.
 
@@ -437,7 +438,7 @@ Ledger: `SALIDA` y `RETORNO` (nuevos) con `referencia_tipo = 'pedido'|'ruta'`. T
 7. **¿Picking antes que Rutas?** (§6, S5/S4). El roadmap del Master pone Ruta primero, luego Almacén, Transporte y Cierre; mi orden respeta esa secuencia pero antepone S1–S3 (datos, stock, pedidos) que el roadmap no menciona.
 7b. **Conflicto 15** (secuencia o paralelo de documentación y embalaje) y **conflicto 17** (los 4 KPI de D-44 + los 12 del Master como grupo aparte).
 8. **Calendario de la consolidación de Pedidos** (afecta solo el adaptador, no el dominio).
-9. **Costos a confirmar:** etiquetas (¿hay stock de rollos?), fotos de POD en Supabase Storage (dentro del plan Pro con compresión), cron de Vercel. Hoy ninguno agrega costo.
+9. **Costos (ninguno se contrata sin avisarte):** dentro de lo que ya pagas están Storage para las fotos de POD, Vercel Cron, `pg_cron`, Realtime y Resend. **Costos menores que podrían convenir:** impresora/rollos de etiquetas para los QR de Lima; compute adicional de Supabase si la prueba de volumen lo pide; una API de mapas/geocodificación para coordenadas de clientes y ruteo asistido (P2); mensajería a clientes (WhatsApp/SMS) en P2. Te los presento con precio estimado cuando toque cada uno.
 
 ### Katia
 1. **Las 6 definiciones del LS-FR.43.03:** significado de USUARIO; N.° CAJAS frente a bultos; método y momento de la temperatura; si viaja una copia física prellenada; firmas; retención y archivo.
