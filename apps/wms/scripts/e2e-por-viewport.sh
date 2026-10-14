@@ -18,7 +18,7 @@ fi
 for proyecto in desktop-1440x900 laptop-1280x800 tablet-1024x768 telefono-390x844; do
   cleanup
   sleep 1
-  WMS_DEMO_LOCAL=1 PORT="$PUERTO" setsid npx next start -p "$PUERTO" >/dev/null 2>&1 &
+  WMS_DEMO_LOCAL=1 WMS_DEMO_DATOS=sintetico PORT="$PUERTO" setsid npx next start -p "$PUERTO" >/dev/null 2>&1 &
   echo $! > "$PID_FILE"
   until curl -s -o /dev/null "http://localhost:${PUERTO}/wms/login"; do sleep 1; done
   echo "── $proyecto"
