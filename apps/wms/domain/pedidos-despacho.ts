@@ -231,3 +231,18 @@ export interface ImportacionVista { id: string; en: string; por: string; origen:
 /** Quién ve y actualiza la bandeja (espejo de la política y de la función de la base de datos). */
 export const puedeVerBandeja = (roles: readonly string[]) => roles.some((r) => ['jefe_transporte', 'jefe_almacen', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))
 export const puedeActualizarBandeja = (roles: readonly string[]) => roles.some((r) => ['jefe_transporte', 'jefe_almacen'].includes(r))
+
+/** Arma la fila de la bandeja desde lo guardado (la usan la demo y el adaptador de Supabase, para que digan lo mismo). */
+export function bandejaDeFila(f: {
+  id: string; snapshot: PedidoSnapshot; cambios: string[]; cambioPendiente: boolean; salida?: string; importadoEn: string; codigosEnCatalogo: ReadonlySet<string>
+}): PedidoBandeja {
+  const p = f.snapshot
+  return armarBandeja({
+    id: f.id, pedidoId: p.pedidoId, numero: p.numero, version: p.version, fecha: p.fecha, clienteId: p.cliente.id, cliente: p.cliente.nombre, ruc: p.cliente.ruc,
+    direccion: p.cliente.direccion, distrito: p.cliente.distrito, ventanaCita: p.cliente.ventanaCita, vehiculoCalificado: p.cliente.vehiculoCalificado,
+    vendedor: p.vendedor, condicionPago: p.condicionPago, factura: p.factura, observaciones: p.observaciones,
+    lineas: p.lineas.map((l) => ({ ...l, enCatalogo: f.codigosEnCatalogo.has(l.productoCodigo) })),
+    estado: f.cambioPendiente ? 'CAMBIO_POR_REVISAR' : f.salida ? 'EN_SALIDA' : 'POR_PLANIFICAR',
+    cambios: f.cambios, importadoEn: f.importadoEn, salida: f.salida,
+  })
+}

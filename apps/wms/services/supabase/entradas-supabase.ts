@@ -472,11 +472,11 @@ export class EntradasSupabase {
     return filas.map((r) => mapearAlerta(r, nombres, solDeIngreso)).reverse()
   }
 
-  async contarAlertasAbiertas(): Promise<{ direccion_tecnica: number; jefe_almacen: number; asistente_dt: number }> {
+  async contarAlertasAbiertas(): Promise<{ direccion_tecnica: number; jefe_almacen: number; asistente_dt: number; jefe_transporte: number }> {
     const { data } = await crearClienteServidor().schema('wms').from('alertas').select('destinatario_rol').eq('estado', 'ABIERTA')
     const f = (data ?? []) as Fila[]
     const n = (rol: string) => f.filter((a) => a.destinatario_rol === rol).length
-    return { direccion_tecnica: n('direccion_tecnica'), jefe_almacen: n('jefe_almacen'), asistente_dt: n('asistente_dt') }
+    return { direccion_tecnica: n('direccion_tecnica'), jefe_almacen: n('jefe_almacen'), asistente_dt: n('asistente_dt'), jefe_transporte: n('jefe_transporte') }
   }
 
   async atenderAlerta(id: string, nota: string | undefined, _actor: Actor): Promise<ResultadoAccion> {

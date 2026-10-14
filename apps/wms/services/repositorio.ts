@@ -1,6 +1,7 @@
 import type { CambioRegulatorio, EventoAuditoria, Rol } from '@/domain/tipos'
 import type { Panorama } from '@/domain/panorama'
 import type { RepositorioOperacion } from './repositorio-operacion'
+import type { RepositorioPedidos } from './repositorio-pedidos'
 import type { RepositorioInventario } from './repositorio-inventario'
 import type { DatosRegulatorios, EntradaProducto } from '@/domain/productos'
 import type { CambioEntrada, Decision, EntradaSolicitud, TipoIngreso } from '@/domain/entradas'
@@ -25,7 +26,9 @@ export type ResultadoAccion<T = unknown> =
  *  · demo     → datos de prueba en memoria (solo Preview / local con WMS_DEMO_LOCAL=1);
  *  · supabase → el schema `wms` del proyecto consolidado (RLS por persona).
  */
-export interface Repositorio extends RepositorioInventario, RepositorioOperacion {
+export interface ConteoAlertas { direccion_tecnica: number; jefe_almacen: number; asistente_dt: number; jefe_transporte: number }
+
+export interface Repositorio extends RepositorioInventario, RepositorioOperacion, RepositorioPedidos {
   panorama(): Promise<Panorama>
   auditoria(limite?: number): Promise<EventoAuditoria[]>
   crearProducto(entrada: EntradaProducto, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
@@ -66,7 +69,7 @@ export interface Repositorio extends RepositorioInventario, RepositorioOperacion
   /** Revisa la conciliación con Compras, los traslados vencidos y los vencimientos, y devuelve las alertas. */
   listarAlertas(): Promise<AlertaVista[]>
   /** Cuántas alertas abiertas hay por destinatario (para la insignia del menú; no ejecuta las revisiones). */
-  contarAlertasAbiertas(): Promise<{ direccion_tecnica: number; jefe_almacen: number; asistente_dt: number }>
+  contarAlertasAbiertas(): Promise<ConteoAlertas>
   atenderAlerta(id: string, nota: string | undefined, actor: Actor): Promise<ResultadoAccion>
 
   // ── Expediente ──────────────────────────────────────────────────────────

@@ -893,11 +893,11 @@ export class MotorEntradas {
     return structuredClone(e.alertas).map(limpiarClave)
   }
 
-  contarAlertasAbiertas(): { direccion_tecnica: number; jefe_almacen: number; asistente_dt: number } {
+  contarAlertasAbiertas(): { direccion_tecnica: number; jefe_almacen: number; asistente_dt: number; jefe_transporte: number } {
     const e = estadoE()
     const abiertas = e.alertas.filter((a) => a.estado === 'ABIERTA')
     const n = (d: DestinatarioAlerta) => abiertas.filter((a) => a.destinatario === d).length
-    return { direccion_tecnica: n('direccion_tecnica'), jefe_almacen: n('jefe_almacen'), asistente_dt: n('asistente_dt') }
+    return { direccion_tecnica: n('direccion_tecnica'), jefe_almacen: n('jefe_almacen'), asistente_dt: n('asistente_dt'), jefe_transporte: n('jefe_transporte') }
   }
 
   atenderAlerta(id: string, nota: string | undefined, actor: Actor): ResultadoAccion {
