@@ -7,18 +7,21 @@ import { ArrowLeft, ClipboardList, Pencil, TriangleAlert } from 'lucide-react'
 import { generarOrdenPickingAccion } from '@/app/acciones-picking'
 import { mesAnio } from '@/domain/salidas'
 import type { LineaSalidaVista, SalidaVista } from '@/domain/despacho'
+import type { PaqueteSalida } from '@/domain/documentacion'
+import type { Rol } from '@/domain/tipos'
 import { useAccion } from '../usar-accion'
 import { useEsMovil } from '../usar-movil'
 import { Aviso } from '../entradas/aviso'
 import { HojaInferior } from '../hoja-inferior'
 import { ChipEtapa } from './chip-etapa'
+import { PanelDocumentacion } from './panel-documentacion'
 import { EditorLotes } from './editor-lotes'
 
 const Lotes = ({ l }: { l: LineaSalidaVista }) => l.asignacion.length === 0
   ? <span className="text-gray-500">Sin lotes</span>
   : <ul className="space-y-0.5">{l.asignacion.map((a) => <li key={a.loteId} className="tabular">{a.lote} <span className="text-gray-600">· vence {a.vence ? mesAnio(a.vence) : '—'}</span> × <strong>{a.cantidad.toLocaleString('es-PE')}</strong></li>)}</ul>
 
-export function DetalleSalida({ salida, puedeEditar, puedePreparar }: { salida: SalidaVista; puedeEditar: boolean; puedePreparar: boolean }) {
+export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, roles }: { salida: SalidaVista; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; roles: readonly Rol[] }) {
   const router = useRouter()
   const movil = useEsMovil()
   const { pendiente, mensaje, ejecutar } = useAccion()
@@ -84,6 +87,8 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar }: { salida: 
         {salida.ordenPickingId && <Link href={`/picking/${salida.ordenPickingId}`} className="btn-secondary" data-testid="ir-picking">Ver el picking ({salida.ordenNumero})</Link>}
         {salida.ordenPickingId && <Link href={`/conformidad/${salida.ordenPickingId}`} className="btn-secondary" data-testid="ir-conformidad">Ver la conformidad</Link>}
       </section>
+
+      {paquete && (paquete.conforme || paquete.guia) && <PanelDocumentacion paquete={paquete} roles={roles} />}
 
       {salida.cambios.length > 0 && (
         <section aria-labelledby="h-cambios" data-testid="cambios-salida">

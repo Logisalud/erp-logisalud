@@ -22,11 +22,9 @@ do $$ begin
     'STOCK_INSUFICIENTE', 'PEDIDO_CAMBIADO', 'DOCUMENTO_VENCIDO', 'DOCUMENTACION_INCOMPLETA'));
 end $$;
 
--- Quién registra la GRE y quién imprime el paquete (D-85: decisión técnica reversible; se cambia con una fila).
+-- Quién registra la GRE (D-85: decisión técnica reversible; se cambia con una fila). Imprimir el paquete ya es del Jefe de Transporte (y de DT) desde la 0011.
 insert into wms.permisos_rol (rol, accion) values
-  ('jefe_transporte', 'registrar_documentacion'), ('jefe_almacen', 'registrar_documentacion'), ('asistente_dt', 'registrar_documentacion'),
-  ('direccion_tecnica', 'registrar_documentacion'),
-  ('jefe_almacen', 'imprimir_paquete_documental'), ('asistente_dt', 'imprimir_paquete_documental')
+  ('jefe_transporte', 'registrar_documentacion'), ('asistente_dt', 'registrar_documentacion'), ('direccion_tecnica', 'registrar_documentacion')
 on conflict (rol, accion) do nothing;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -72,7 +70,7 @@ begin
   end if;
   return new;
 end $$;
-drop trigger if exists guias_remision_inmutable on wms.guias_remision;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'guias_remision_inmutable' and tgrelid = 'wms.guias_remision'::regclass) then drop trigger guias_remision_inmutable on wms.guias_remision; end if; end $$;
 create trigger guias_remision_inmutable before update or delete on wms.guias_remision for each row execute function wms._guia_inmutable();
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -224,7 +222,7 @@ begin
   end if;
   return null;
 end $$;
-drop trigger if exists ordenes_picking_lineas_documentacion on wms.ordenes_picking_lineas;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'ordenes_picking_lineas_documentacion' and tgrelid = 'wms.ordenes_picking_lineas'::regclass) then drop trigger ordenes_picking_lineas_documentacion on wms.ordenes_picking_lineas; end if; end $$;
 create trigger ordenes_picking_lineas_documentacion after update of conformidad on wms.ordenes_picking_lineas for each row execute function wms._tr_conformidad_documentacion();
 
 -- ─────────────────────────────────────────────────────────────────────────────

@@ -36,6 +36,7 @@ function PanelLsFr({ ruta, registro }: { ruta: RutaVista; registro: RegistroLsFr
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="font-medium text-gray-900">Formato {registro.codigo} · Planificación de ruta</p><p className="text-sm text-gray-700">Versión {registro.version} · {registro.filas.length} {registro.filas.length === 1 ? 'fila' : 'filas'} en {registro.paginas} {registro.paginas === 1 ? 'página' : 'páginas'} · lo genera el WMS desde la ruta</p></div>
         <Link href={`/rutas/${ruta.id}/pdf`} target="_blank" className="btn-secondary" data-testid="ver-lsfr"><FileText className="h-5 w-5" aria-hidden />Ver el PDF</Link>
+        <Link href={`/rutas/${ruta.id}/paquete`} target="_blank" className="btn-secondary" data-testid="paquete-ruta"><FileText className="h-5 w-5" aria-hidden />Imprimir el paquete documental de la ruta</Link>
       </div>
       {registro.pendientes.length > 0 && (
         <details className="text-sm text-gray-700" data-testid="lsfr-definiciones">

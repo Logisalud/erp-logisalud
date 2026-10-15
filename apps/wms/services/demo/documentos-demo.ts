@@ -171,7 +171,9 @@ export class DocumentosDemo extends PickingDemo implements RepositorioDocumentos
     return { ok: true }
   }
 
-  async requisitosDocumentales(loteId: string, ruc?: string, entrega?: string): Promise<RequisitoDocumental[]> {
+  async requisitosDocumentales(loteId: string, ruc?: string, entrega?: string): Promise<RequisitoDocumental[]> { return this.requisitosSync(loteId, ruc, entrega) }
+
+  protected requisitosSync(loteId: string, ruc?: string, entrega?: string): RequisitoDocumental[] {
     const e = estadoE(); const d = docs(e)
     const l = e.panorama.lotes.find((x) => x.id === loteId)
     if (!l) return []

@@ -55,6 +55,11 @@ export type Accion =
   | 'autorizar_salida_sin_venta'
   | 'preparar_salidas'
   | 'confirmar_salida'
+  | 'planificar_ruta'
+  | 'registrar_documentacion'
+  | 'embalar'
+  | 'cargar_ruta'
+  | 'liberar_unidad'
 
 export interface Propietario {
   id: string

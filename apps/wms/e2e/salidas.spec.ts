@@ -1,5 +1,6 @@
 // S5: salidas por pedido en los 4 viewports: lista, edición libre de lotes (tabla en PC, hoja inferior en teléfono), orden de picking, picking en celular y conformidad por otra persona.
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+import { PDFDocument } from 'pdf-lib'
 import { capturar, entrarComo, esTelefono, sinDesborde } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
@@ -84,7 +85,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await expect(page.getByTestId('avance-conformidad')).toContainText('Todo conforme')
 
     await page.goto('/wms/salidas')
-    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Conforme para despacho')
+    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Conforme: falta la documentación')
     // el mapa sigue funcionando con la zona de conformidad creada
     await page.goto('/wms/almacen')
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
@@ -99,5 +100,74 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await expect(page.getByText('La conformidad es del personal autorizado').or(page.getByTestId('cola-conformidad-vacia')).or(page.getByTestId('cola-conformidad'))).toBeVisible()
     await page.goto('/wms/salidas/cambios-fefo')
     await expect(page.getByText('Este reporte es de jefaturas y dirección.')).toBeVisible()
+  })
+
+  // ── S6b: documentación final ─────────────────────────────────────────────────────────────────────────────────
+  const abrirSalida101 = async (page: Page, info: Parameters<typeof esTelefono>[0]) => {
+    await page.goto('/wms/salidas')
+    const fila = page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })
+    await (esTelefono(info) ? fila : fila.getByRole('link', { name: /^Abrir/ })).click()
+    await expect(page.getByTestId('panel-documentacion')).toBeVisible()
+  }
+
+  test('con todo conforme se registra la guía a mano: formato validado, anulación con motivo y alerta por los COA que faltan', async ({ page }, info) => {
+    await entrarComo(page, 'jefe_transporte')
+    await page.goto('/wms/alertas')
+    await expect(page.getByText('COA del lote L2515 (falta)').first()).toBeVisible()
+    await abrirSalida101(page, info)
+    await expect(page.getByTestId('paquete-incompleto')).toContainText('COA del lote L2515 (falta)')
+    await expect(page.getByTestId('items-paquete')).toContainText('Registro sanitario: Listo')
+    await page.getByTestId('numero-gre').fill('1234')
+    await expect(page.getByTestId('error-numero-gre')).toContainText('T001-00001234')
+    await expect(page.getByTestId('registrar-gre')).toBeDisabled()
+    await page.getByTestId('numero-gre').fill('t001-00000001')
+    await page.getByTestId('registrar-gre').click()
+    await expect(page.getByTestId('guia-numero')).toHaveText('T001-00000001')
+    await expect(page.getByTestId('guia-lineas')).toContainText('L2515')
+    // una guía no se edita: se anula con motivo y se registra la correcta
+    await page.getByTestId('anular-gre').click()
+    await page.getByTestId('motivo-anular-gre').fill('Error de digitación')
+    await page.getByTestId('confirmar-anular-gre').click()
+    await expect(page.getByTestId('numero-gre')).toBeVisible()
+    await expect(page.getByTestId('guias-anuladas')).toContainText('T001-00000001')
+    await page.getByTestId('numero-gre').fill('T001-00001234')
+    await page.getByTestId('registrar-gre').click()
+    await expect(page.getByTestId('guia-numero')).toHaveText('T001-00001234')
+    await expect(page.getByTestId('chip-etapa')).toContainText('Conforme: falta la documentación')
+    await sinDesborde(page)
+    await capturar(page, info, 'documentacion-salida', { completa: true })
+  })
+
+  test('Sandra carga los COA que faltan, el paquete queda completo y se imprime en un solo PDF (pedido y ruta)', async ({ page }, info) => {
+    const pdfReal = async (titulo: string) => { const d = await PDFDocument.create(); d.addPage().drawText(titulo); return Buffer.from(await d.save()) }
+    await entrarComo(page, 'asistente_dt')
+    await page.goto('/wms/documentos/carga')
+    await page.getByTestId('carga-archivos').setInputFiles([
+      { name: 'COA_L2515.pdf', mimeType: 'application/pdf', buffer: await pdfReal('COA L2515') },
+      { name: 'COA_L-VENCE-2-MESES.pdf', mimeType: 'application/pdf', buffer: await pdfReal('COA L-VENCE-2-MESES') },
+    ])
+    await expect(page.getByTestId('carga-resumen')).toContainText('2 quedaron como COA vigente')
+
+    await entrarComo(page, 'jefe_transporte')
+    await abrirSalida101(page, info)
+    await expect(page.getByTestId('paquete-completo')).toBeVisible()
+    await expect(page.getByTestId('chip-etapa')).toContainText('Documentación completa: falta embalar')
+    await sinDesborde(page)
+    await capturar(page, info, 'documentacion-paquete-completo', { completa: true })
+    const href = await page.getByTestId('imprimir-paquete').getAttribute('href')
+    const r = await page.request.get(href!)
+    expect(r.status()).toBe(200)
+    const pdf = await PDFDocument.load(await r.body())
+    expect(pdf.getPageCount(), 'carátula + (RS + BPM + 2 COA) × 2 copias').toBeGreaterThanOrEqual(9)
+
+    // la ruta imprime el paquete de todos sus pedidos
+    await page.goto('/wms/rutas')
+    const planificada = page.getByTestId(esTelefono(info) ? 'fila-ruta-movil' : 'fila-ruta').filter({ hasText: 'Planificada' }).first()
+    await (esTelefono(info) ? planificada : planificada.getByRole('link', { name: /^Abrir/ })).click()
+    const hrefRuta = await page.getByTestId('paquete-ruta').getAttribute('href')
+    const rr = await page.request.get(hrefRuta!)
+    expect(rr.status()).toBe(200)
+    expect((await PDFDocument.load(await rr.body())).getPageCount()).toBeGreaterThanOrEqual(9)
+    if (info.project.name.startsWith('desktop')) (await import('node:fs')).writeFileSync('/tmp/claude-0/paquete-demo.pdf', await rr.body())
   })
 })

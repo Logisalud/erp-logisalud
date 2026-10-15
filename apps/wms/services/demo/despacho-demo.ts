@@ -42,7 +42,10 @@ export interface DespachoDemoEstado {
   corte: string; sembrado: boolean
   /** S5: órdenes de picking, cambios a FEFO y su historia (se crea al primer uso). */
   picking?: import('./picking-demo').PickingDemoEstado
+  /** S6b: guías de remisión registradas a mano (nunca se editan: se anulan con motivo). */
+  guias?: GuiaDemo[]
 }
+export interface GuiaDemo { id: string; salidaId: string; guia: import('@/domain/documentacion').GuiaVista }
 
 export function desp(e: EstadoDemo): DespachoDemoEstado {
   if (!e.desp) e.desp = { personal: [], vehiculos: [], rutas: [], salidas: [], reservas: [], corte: '16:00', sembrado: false }

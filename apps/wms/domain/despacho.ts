@@ -20,11 +20,16 @@ export type ResultadoConformidad = 'PENDIENTE' | 'CONFORME' | 'OBSERVADA'
 
 /** Dónde va el pedido en su camino a la salida (una sola columna para mirar y filtrar). */
 export type EtapaSalida =
-  | 'SIN_STOCK' | 'ASIGNADA' | 'EN_PICKING' | 'CON_DISCREPANCIA' | 'PENDIENTE_CONFORMIDAD' | 'OBSERVADA' | 'CONFORME' | 'CONFIRMADA' | 'CANCELADA'
+  | 'SIN_STOCK' | 'ASIGNADA' | 'EN_PICKING' | 'CON_DISCREPANCIA' | 'PENDIENTE_CONFORMIDAD' | 'OBSERVADA' | 'CONFORME' | 'DOCUMENTACION_COMPLETA' | 'EMBALADA'
+  | 'LISTA_PARA_CARGA' | 'CARGADA' | 'CONFIRMADA' | 'CANCELADA'
 export const ETIQUETA_ETAPA: Record<EtapaSalida, string> = {
   SIN_STOCK: 'Sin stock suficiente', ASIGNADA: 'Stock asignado', EN_PICKING: 'En picking', CON_DISCREPANCIA: 'Picking con discrepancia', PENDIENTE_CONFORMIDAD: 'Pendiente de conformidad',
-  OBSERVADA: 'Observada', CONFORME: 'Conforme para despacho', CONFIRMADA: 'Salida confirmada', CANCELADA: 'Cancelada',
+  OBSERVADA: 'Observada', CONFORME: 'Conforme: falta la documentación', DOCUMENTACION_COMPLETA: 'Documentación completa: falta embalar', EMBALADA: 'Embalada: falta la documentación',
+  LISTA_PARA_CARGA: 'Lista para carga', CARGADA: 'Cargada: falta liberar la unidad', CONFIRMADA: 'Salida confirmada', CANCELADA: 'Cancelada',
 }
+
+/** Lo que ocurre después de la conformidad. «Listo para carga» exige las tres cosas a la vez: guía registrada, paquete documental completo y embalaje (D-60). */
+export interface AvanceSalida { guia?: boolean; paquete?: boolean; embalada?: boolean; cargada?: boolean }
 
 export const NO_CONFORMIDADES = ['CANTIDAD', 'PRODUCTO', 'LOTE', 'VENCIMIENTO', 'DANO', 'DOCUMENTO', 'OTRO'] as const
 export type TipoNoConformidad = (typeof NO_CONFORMIDADES)[number]
@@ -36,7 +41,7 @@ export function etapaDeSalida(s: {
   estado: 'ABIERTA' | 'CONFIRMADA' | 'CANCELADA'
   lineas: readonly { estado: EstadoLineaSalida }[]
   orden?: { lineas: readonly { picking: ResultadoPicking; conformidad: ResultadoConformidad }[] } | null
-}): EtapaSalida {
+}, avance: AvanceSalida = {}): EtapaSalida {
   if (s.estado === 'CANCELADA') return 'CANCELADA'
   if (s.estado === 'CONFIRMADA') return 'CONFIRMADA'
   if (s.lineas.some((l) => l.estado === 'SIN_STOCK' || l.estado === 'PENDIENTE')) return 'SIN_STOCK'
@@ -46,7 +51,17 @@ export function etapaDeSalida(s: {
   if (o.lineas.some((l) => l.picking === 'PENDIENTE')) return 'EN_PICKING'
   if (o.lineas.some((l) => l.conformidad === 'OBSERVADA')) return 'OBSERVADA'
   if (o.lineas.some((l) => l.conformidad === 'PENDIENTE')) return 'PENDIENTE_CONFORMIDAD'
-  return 'CONFORME'
+  return etapaConAvance('CONFORME', avance)
+}
+
+/** Si el pedido ya está conforme, la etapa sigue con la documentación, el embalaje y la carga; antes de eso no cambia. */
+export function etapaConAvance(base: EtapaSalida, avance: AvanceSalida): EtapaSalida {
+  if (base !== 'CONFORME') return base
+  const documentada = !!avance.guia && !!avance.paquete
+  if (avance.cargada) return 'CARGADA'
+  if (documentada && avance.embalada) return 'LISTA_PARA_CARGA'
+  if (documentada) return 'DOCUMENTACION_COMPLETA'
+  return avance.embalada ? 'EMBALADA' : 'CONFORME'
 }
 
 // ── Asignación de lotes ────────────────────────────────────────────────────────────────────────────────────────────
@@ -81,6 +96,9 @@ export interface SalidaResumen {
   lineas: number
   etapa: EtapaSalida
   ordenNumero?: string
+  /** N.° de la guía de remisión vigente y documentos exigidos que faltan o están vencidos (S6b). */
+  guia?: string
+  documentosFaltantes?: number
 }
 
 export interface SalidaVista extends SalidaResumen {

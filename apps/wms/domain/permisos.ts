@@ -18,8 +18,8 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
 /** Espejo de wms.permisos_rol (la base de datos es la que manda; esto solo oculta botones). */
 const PERMISOS: Record<Rol, readonly Accion[]> = {
   direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion'],
-  asistente_dt: ['ver', 'ejecutar', 'exportar', 'imprimir_paquete_documental', 'registrar_documentacion'],
-  jefe_almacen: ['ver', 'ejecutar', 'verificar', 'exportar', 'cambiar_lote_asignado', 'preparar_salidas', 'imprimir_paquete_documental', 'registrar_documentacion'],
+  asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion'],
+  jefe_almacen: ['ver', 'ejecutar', 'verificar', 'exportar', 'cambiar_lote_asignado', 'preparar_salidas'],
   auxiliar: ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado'],
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
   admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],

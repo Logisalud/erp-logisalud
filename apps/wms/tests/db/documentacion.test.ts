@@ -113,13 +113,13 @@ describe('guía de remisión registrada a mano', () => {
     expect((await q('select estado from wms.guias_remision where salida_id = $1 order by registrada_en', [salida])).map((r) => r.estado)).toEqual(['ANULADA', 'VIGENTE'])
   })
 
-  it('quienes registran la guía: Transporte, Almacén, asistente de DT y DT; el auxiliar y quien no tiene rol, no', async () => {
+  it('quienes registran la guía: Transporte, asistente de DT y DT; Jefe de Almacén «solo», auxiliar, auditoría y quien no tiene rol, no', async () => {
     const p = await productoConRs()
     await sembrar(p, 'F-5.1', 'LOTE-GE', en(200), 50)
     const { salida, lineas } = await salidaPickeada(p, 5)
     for (const l of lineas) await conformar(l)
-    for (const quien of [aux1, base.personas.sinRol.id, base.personas.auditor.id]) expect((await falla(registrar(quien, salida, 'T003-00000001'))).message, quien).toMatch(/No tienes permiso para registrar la guía/)
-    await registrar(base.personas.charlie.id, salida, 'T003-00000001')
+    for (const quien of [aux1, base.personas.charlie.id, base.personas.sinRol.id, base.personas.auditor.id]) expect((await falla(registrar(quien, salida, 'T003-00000001'))).message, quien).toMatch(/No tienes permiso para registrar la guía/)
+    await registrar(sandra, salida, 'T003-00000001')
   })
 })
 
@@ -177,6 +177,6 @@ describe('migración 0019', () => {
   it('es re-ejecutable', async () => {
     const { SQL } = await import('./helpers')
     await base.admin.query(SQL.m0019()); await base.admin.query(SQL.m0019())
-    expect((await uno(`select count(*)::int n from wms.permisos_rol where accion = 'registrar_documentacion'`)).n).toBe(4)
+    expect((await uno(`select count(*)::int n from wms.permisos_rol where accion = 'registrar_documentacion'`)).n).toBe(3)
   })
 })
