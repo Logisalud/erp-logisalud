@@ -19,11 +19,11 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
 const PERMISOS: Record<Rol, readonly Accion[]> = {
   direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion'],
   asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion'],
-  jefe_almacen: ['ver', 'ejecutar', 'verificar', 'exportar', 'cambiar_lote_asignado', 'preparar_salidas', 'embalar'],
-  auxiliar: ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar'],
+  jefe_almacen: ['ver', 'ejecutar', 'verificar', 'exportar', 'cambiar_lote_asignado', 'preparar_salidas', 'embalar', 'cargar_ruta'],
+  auxiliar: ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta'],
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
   admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],
-  jefe_transporte: ['ver', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'embalar'],
+  jefe_transporte: ['ver', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad'],
   conductor: [], // sus permisos llegan con «Mis rutas» (S9)
   auxiliar_transporte: [],
   conformidad_despacho: ['ver', 'dar_conformidad'],
