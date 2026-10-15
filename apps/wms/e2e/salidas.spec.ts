@@ -168,6 +168,5 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     const rr = await page.request.get(hrefRuta!)
     expect(rr.status()).toBe(200)
     expect((await PDFDocument.load(await rr.body())).getPageCount()).toBeGreaterThanOrEqual(9)
-    if (info.project.name.startsWith('desktop')) (await import('node:fs')).writeFileSync('/tmp/claude-0/paquete-demo.pdf', await rr.body())
   })
 })
