@@ -35,6 +35,7 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
     items.splice(6, 0, { href: '/salidas', etiqueta: 'Salidas', icono: 'salidas' })
     if (puedePickear(ctx.roles)) items.splice(7, 0, { href: '/picking', etiqueta: 'Picking', icono: 'picking' })
     if (puedeDarConformidad(ctx.roles)) items.splice(8, 0, { href: '/conformidad', etiqueta: 'Conformidad', icono: 'conformidad' })
+    items.splice(items.findIndex((i) => i.href === '/picking' || i.href === '/salidas') + 1 + (puedePickear(ctx.roles) ? 1 : 0) + (puedeDarConformidad(ctx.roles) ? 1 : 0), 0, { href: '/embalaje', etiqueta: 'Embalaje', icono: 'embalaje' })
   }
   if (ctx.roles.includes('admin_wms') || ctx.roles.includes('direccion_tecnica')) items.push({ href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
   if (ctx.roles.some((r) => r !== 'auxiliar')) items.push({ href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })

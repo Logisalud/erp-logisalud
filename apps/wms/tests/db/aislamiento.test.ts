@@ -279,6 +279,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'registrar_retorno', 'stock_vendible',
     // Roles de los jefes y cargos (0015)
     'asignar_cargo',
+    // S7 (0020)
+    'embalar_salida', 'listo_para_carga', 'reabrir_embalaje',
     // S6b (0019)
     'anular_gre', 'documentacion_resumen', 'paquete_documental', 'registrar_gre',
     // S5 (0018)

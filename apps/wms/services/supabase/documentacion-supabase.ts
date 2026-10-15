@@ -90,17 +90,20 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     return { ...base, guias }
   }
 
+  /** Gancho para S7 y S8: lo que ya pasó con cada salida después de la conformidad (embalada, cargada). */
+  protected async avancePorSalida(): Promise<Map<string, { embalada?: boolean; cargada?: boolean }>> { return new Map() }
+
   /** La lista de salidas suma lo de la documentación: la guía vigente y cuántos documentos exigidos faltan. */
   private async conDocumentacion<T extends SalidaResumen>(salidas: T[]): Promise<T[]> {
     if (salidas.length === 0) return salidas
-    const [res, gs] = await Promise.all([sch().rpc('documentacion_resumen'), sch().from('guias_remision').select('salida_id, numero').eq('estado', 'VIGENTE')])
+    const [res, gs, extra] = await Promise.all([sch().rpc('documentacion_resumen'), sch().from('guias_remision').select('salida_id, numero').eq('estado', 'VIGENTE'), this.avancePorSalida()])
     const falta = new Map(((res.data ?? []) as Fila[]).map((r) => [String(r.salida_id), Number(r.faltantes)]))
     const guia = new Map(((gs.data ?? []) as Fila[]).map((g) => [String(g.salida_id), String(g.numero)]))
     return salidas.map((x) => {
       const conforme = x.etapa === 'CONFORME'
-      const faltantes = conforme || x.etapa === 'DOCUMENTACION_COMPLETA' ? falta.get(x.id) : undefined
+      const faltantes = conforme ? falta.get(x.id) : undefined
       const numero = guia.get(x.id)
-      return { ...x, guia: numero, documentosFaltantes: faltantes, etapa: etapaConAvance(x.etapa, { guia: !!numero, paquete: faltantes === 0 }) }
+      return { ...x, guia: numero, documentosFaltantes: faltantes, etapa: etapaConAvance(x.etapa, { guia: !!numero, paquete: faltantes === 0, ...extra.get(x.id) }) }
     })
   }
 

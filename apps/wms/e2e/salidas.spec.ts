@@ -170,4 +170,87 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     expect((await PDFDocument.load(await rr.body())).getPageCount()).toBeGreaterThanOrEqual(9)
     if (info.project.name.startsWith('desktop')) (await import('node:fs')).writeFileSync('/tmp/claude-0/paquete-demo.pdf', await rr.body())
   })
+
+  // ── S7: embalaje y bultos ───────────────────────────────────────────────────────────────────────────────────────
+  test('el auxiliar embala el pedido en 2 bultos «1 de 2»: tabla lote × bulto, la suma tiene que cerrar, etiquetas con QR y la guía/paquete quedan listos para carga', async ({ page }, info) => {
+    await entrarComo(page, 'auxiliar')
+    await page.goto('/wms/embalaje')
+    await expect(page.getByTestId('cola-embalaje')).toContainText('PED-DEMO-101')
+    await expect(page.getByTestId('pedido-embalaje').first()).toContainText('Por embalar')
+    await capturar(page, info, 'embalaje-cola')
+    await page.getByTestId('pedido-embalaje').first().click()
+    await expect(page.getByTestId('editor-embalaje')).toBeVisible()
+    await page.getByTestId('mas-bultos').click()
+    await expect(page.getByTestId('cuantos-bultos')).toHaveText('2')
+    // todo está en el bulto 1: el bulto 2 queda vacío y no se puede confirmar
+    await expect(page.getByTestId('confirmar-embalaje')).toBeDisabled()
+    await expect(page.getByTestId('error-reparto')).toContainText('El bulto 2 está vacío')
+    if (esTelefono(info)) {
+      await page.getByTestId('abrir-reparto').first().click()
+      await expect(page.getByTestId('hoja-reparto')).toBeVisible()
+      const celdas = page.getByTestId('celda-reparto-movil')
+      const total = Number(await celdas.nth(0).inputValue())
+      await celdas.nth(0).fill(String(total - 2)); await celdas.nth(1).fill('2')
+      await expect(page.getByRole('status').filter({ hasText: 'Completo' })).toBeVisible()
+      await sinDesborde(page)
+      await capturar(page, info, 'embalaje-reparto')
+      await page.getByTestId('hoja-listo').click()
+    } else {
+      const celdas = page.getByTestId('fila-reparto').first().getByTestId('celda-reparto')
+      const total = Number(await celdas.nth(0).inputValue())
+      await celdas.nth(0).fill(String(total - 2)); await celdas.nth(1).fill('2')
+      await expect(page.getByTestId('falta-fila').first()).toContainText('✓')
+      await sinDesborde(page)
+      await capturar(page, info, 'embalaje-reparto')
+    }
+    await expect(page.getByTestId('confirmar-embalaje')).toBeEnabled()
+    await page.getByTestId('confirmar-embalaje').click()
+    await expect(page.getByTestId('embalaje-hecho')).toBeVisible()
+    await expect(page.getByTestId('bulto')).toHaveCount(2)
+    await expect(page.getByTestId('bulto-etiqueta').first()).toHaveText('Bulto 1 de 2')
+    await expect(page.getByTestId('bulto-codigo').nth(1)).toContainText('-B2')
+    await expect(page.getByTestId('qr').first()).toBeVisible()
+    await sinDesborde(page)
+    await capturar(page, info, 'embalaje-bultos', { completa: true })
+    const pdf = await page.request.get((await page.getByTestId('imprimir-etiquetas').getAttribute('href'))!)
+    expect(pdf.status()).toBe(200)
+    expect((await PDFDocument.load(await pdf.body())).getPageCount()).toBe(2)
+    // con guía + paquete + embalaje el pedido queda «Lista para carga»
+    await entrarComo(page, 'jefe_transporte')
+    await page.goto('/wms/salidas')
+    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Lista para carga')
+  })
+
+  test('reabrir el embalaje pide motivo y deja el reparto anterior anulado; el LS-FR muestra los bultos del pedido', async ({ page }, info) => {
+    await entrarComo(page, 'auxiliar')
+    await page.goto('/wms/embalaje')
+    await page.getByTestId('pedido-embalaje').first().click()
+    await page.getByTestId('reabrir-embalaje').click()
+    await expect(page.getByTestId('confirmar-reabrir')).toBeDisabled()
+    await page.getByTestId('motivo-reabrir').fill('Se partió una caja')
+    await page.getByTestId('confirmar-reabrir').click()
+    await expect(page.getByTestId('editor-embalaje')).toBeVisible()
+    await page.getByTestId('mas-bultos').click()
+    // se reparte de nuevo (esta vez en 2 bultos con el lote completo en el primero de cada línea) y se confirma
+    if (esTelefono(info)) {
+      const filas = page.getByTestId('abrir-reparto')
+      for (let i = 0; i < await filas.count(); i++) {
+        await filas.nth(i).click()
+        const celdas = page.getByTestId('celda-reparto-movil')
+        const total = Number(await celdas.nth(0).inputValue()) + Number(await celdas.nth(1).inputValue())
+        await celdas.nth(0).fill(String(total - 1)); await celdas.nth(1).fill('1')
+        await page.getByTestId('hoja-listo').click()
+      }
+    } else {
+      const filas = page.getByTestId('fila-reparto')
+      for (let i = 0; i < await filas.count(); i++) {
+        const celdas = filas.nth(i).getByTestId('celda-reparto')
+        const total = Number(await celdas.nth(0).inputValue()) + Number(await celdas.nth(1).inputValue())
+        await celdas.nth(0).fill(String(total - 1)); await celdas.nth(1).fill('1')
+      }
+    }
+    await page.getByTestId('confirmar-embalaje').click()
+    await expect(page.getByTestId('bultos-anulados')).toContainText('Se partió una caja')
+    await expect(page.getByTestId('bulto')).toHaveCount(2)
+  })
 })

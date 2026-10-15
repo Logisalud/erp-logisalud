@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeftRight, BadgeCheck, PackageOpen, ScanLine, Bell, Truck, BarChart3, Boxes, CalendarClock, ClipboardCheck, FileSpreadsheet, FileText, FolderOpen, History, Home, Inbox, ListChecks, Map, MoreHorizontal, Route, Search, ShieldCheck, Upload, Users, X } from 'lucide-react'
+import { ArrowLeftRight, BadgeCheck, Package, PackageOpen, ScanLine, Bell, Truck, BarChart3, Boxes, CalendarClock, ClipboardCheck, FileSpreadsheet, FileText, FolderOpen, History, Home, Inbox, ListChecks, Map, MoreHorizontal, Route, Search, ShieldCheck, Upload, Users, X } from 'lucide-react'
 import { Marca, MarcaIcono } from './marca'
 import { PaletaBusqueda } from './paleta-busqueda'
 import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
@@ -11,12 +11,12 @@ import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
 export interface ItemNav {
   href: string
   etiqueta: string
-  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos' | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'picking' | 'conformidad'
+  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos' | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'picking' | 'conformidad' | 'embalaje'
   /** Cantidad que se muestra como insignia (alertas abiertas). */
   insignia?: number
 }
 
-const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload, revision: ListChecks, reportes: BarChart3, pedidos: Truck, rutas: Route, documentos: FileText, salidas: PackageOpen, picking: ScanLine, conformidad: BadgeCheck }
+const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload, revision: ListChecks, reportes: BarChart3, pedidos: Truck, rutas: Route, documentos: FileText, salidas: PackageOpen, picking: ScanLine, conformidad: BadgeCheck, embalaje: Package }
 
 const PRINCIPALES = ['inicio', 'almacen', 'entradas']
 
