@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Ban, Check, CheckCircle2, ListChecks, PackageCheck, ScanLine, Truck, Undo2, XCircle } from 'lucide-react'
 import { cargarBultoAccion, confirmarSalidaRutaAccion, excluirPedidoAccion, guardarChecklistAccion, liberarUnidadAccion, retirarBultoAccion } from '@/app/acciones-picking'
 import { ETIQUETA_ESTADO_CARGA, type CargaRuta, type ItemChecklist } from '@/domain/carga'
@@ -25,6 +25,9 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar }:
   const [motivo, setMotivo] = useState('')
   const [confirmando, setConfirmando] = useState(false)
   const entrada = useRef<HTMLInputElement>(null)
+  const guardado = JSON.stringify(carga.checklist)
+  // el checklist guardado manda; lo que se está editando sin guardar no se pierde al escanear
+  useEffect(() => { if (carga.checklist) setItems(carga.checklist) }, [guardado]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const escanear = useCallback((cod: string) => {
     const c = cod.trim()

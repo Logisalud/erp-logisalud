@@ -13,5 +13,5 @@ export default async function CargaRuta({ params }: { params: { id: string } }) 
   if (!puedeVerSalidas(ctx.roles)) return <div className="mx-auto max-w-2xl rounded-lg border border-gray-200 bg-white px-6 py-12 text-center" data-testid="salidas-sin-permiso"><Lock className="mx-auto h-9 w-9 text-gray-400" aria-hidden /><p className="mt-3 text-gray-700">No tienes acceso a la carga.</p></div>
   const carga = await repositorio().cargaRuta(params.id)
   if (!carga) notFound()
-  return <div className="mx-auto max-w-4xl"><PanelCarga key={`${carga.estado}-${carga.bultosCargados}-${carga.pedidosDetalle.filter((p) => p.excluida).length}`} carga={carga} puedeCargar={puedeCargar(ctx.roles)} puedeLiberar={puedeLiberarUnidad(ctx.roles)} puedeConfirmar={puedeConfirmarSalida(ctx.roles)} /></div>
+  return <div className="mx-auto max-w-4xl"><PanelCarga carga={carga} puedeCargar={puedeCargar(ctx.roles)} puedeLiberar={puedeLiberarUnidad(ctx.roles)} puedeConfirmar={puedeConfirmarSalida(ctx.roles)} /></div>
 }

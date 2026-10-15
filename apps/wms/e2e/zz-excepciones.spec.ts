@@ -10,7 +10,7 @@ const estado = { ordenUrl: '', numero: '' }
 const abrirOtraSalida = async (page: Page, info: Parameters<typeof esTelefono>[0]) => {
   await page.goto('/wms/salidas')
   const todas = page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida')
-  const fila = estado.numero ? todas.filter({ hasText: estado.numero }) : todas.filter({ hasText: 'PED-DEMO-102' }).filter({ hasText: 'Stock asignado' }).first()
+  const fila = todas.filter({ hasText: 'PED-DEMO-102' }).filter({ hasNotText: 'Cancelada' }).first()    // en el teléfono la fila muestra el pedido, no el N.° de salida
   await expect(fila).toBeVisible()
   await (esTelefono(info) ? fila : fila.getByRole('link', { name: /^Abrir/ })).click()
   await expect(page.getByTestId('detalle-salida')).toBeVisible()
