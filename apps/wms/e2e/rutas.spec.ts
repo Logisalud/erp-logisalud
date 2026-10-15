@@ -55,7 +55,6 @@ test.describe('rutas (S4)', () => {
     const cuerpo = await r.body()
     expect(cuerpo.subarray(0, 4).toString()).toBe('%PDF')
     expect(cuerpo.length).toBeGreaterThan(5_000)
-    if (info.project.name.startsWith('desktop')) (await import('node:fs')).writeFileSync('/tmp/claude-0/lsfr-demo.pdf', cuerpo)
     // una ruta en borrador no tiene registro todavía
     await page.goto('/wms/rutas')
     await page.getByTestId('nueva-ruta').click()
