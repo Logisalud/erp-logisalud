@@ -1,8 +1,13 @@
+import { requireSession } from "@/lib/auth/session";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { listOrdersWithDrafts } from "@/services/electronic-documents";
 
 export default async function DocumentosPage() {
+  // Antes de consultar nada: el layout y la página se renderizan en
+  // paralelo, así que sin esto la consulta sale al mismo tiempo que el
+  // guardia del layout y, con la sesión vencida, gana cualquiera.
+  await requireSession();
   const pedidos = await listOrdersWithDrafts();
 
   return (
