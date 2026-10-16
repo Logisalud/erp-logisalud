@@ -22,6 +22,8 @@
     "exceljs": "4.4.0",
     "lucide-react": "^0.468.0",
     "next": "14.2.29",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
     "server-only": "^0.0.1"
@@ -33,6 +35,7 @@
     "@testing-library/user-event": "^14.6.6",
     "@types/node": "^20",
     "@types/pg": "^8.11.10",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",

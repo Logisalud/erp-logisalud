@@ -100,6 +100,10 @@ export interface EstadoDemo {
   op?: import('./operacion-demo').OpDemo
   /** S3: la bandeja de pedidos (se crea al primer uso). */
   pedidos?: import('./pedidos-demo').PedidosDemoEstado
+  /** S4: rutas, salidas por pedido y reservas (se crea al primer uso). */
+  desp?: import('./despacho-demo').DespachoDemoEstado
+  /** S6a: documentos regulatorios (se crea al primer uso). */
+  docs?: import('./documentos-demo').DocsDemoEstado
   solicitudes: SolicitudDemo[]
   actas: ActaDemo[]
   organolepticas: OrganolepticaVista[]

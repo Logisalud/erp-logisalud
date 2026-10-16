@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { etiquetaCargo, exigirContexto } from '@/lib/contexto'
 import { puede } from '@/domain/permisos'
 import { puedeVerBandeja } from '@/domain/pedidos-despacho'
+import { puedeVerRutas } from '@/domain/rutas'
+import { puedeDarConformidad, puedePickear, puedeVerSalidas } from '@/domain/despacho'
 import { Shell, type ItemNav } from '@/components/shell'
 import { Salir } from '@/components/salir'
 import { repositorio } from '@/services/repositorio-actual'
@@ -23,10 +25,19 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
     { href: '/productos', etiqueta: 'Productos', icono: 'productos' },
     { href: '/calidad', etiqueta: 'Calidad', icono: 'calidad' },
     { href: '/alertas', etiqueta: 'Alertas', icono: 'alertas', insignia: misAlertas },
+    { href: '/documentos', etiqueta: 'Documentos', icono: 'documentos' },
     { href: '/expedientes', etiqueta: 'Expedientes', icono: 'expedientes' },
     { href: '/reportes', etiqueta: 'Reportes', icono: 'reportes' },
   ]
   if (puedeVerBandeja(ctx.roles)) items.splice(4, 0, { href: '/pedidos', etiqueta: 'Pedidos', icono: 'pedidos' })
+  if (puedeVerRutas(ctx.roles)) items.splice(5, 0, { href: '/rutas', etiqueta: 'Rutas', icono: 'rutas' })
+  if (puedeVerSalidas(ctx.roles)) {
+    items.splice(6, 0, { href: '/salidas', etiqueta: 'Salidas', icono: 'salidas' })
+    if (puedePickear(ctx.roles)) items.splice(7, 0, { href: '/picking', etiqueta: 'Picking', icono: 'picking' })
+    if (puedeDarConformidad(ctx.roles)) items.splice(8, 0, { href: '/conformidad', etiqueta: 'Conformidad', icono: 'conformidad' })
+    items.splice(items.findIndex((i) => i.href === '/picking' || i.href === '/salidas') + 1 + (puedePickear(ctx.roles) ? 1 : 0) + (puedeDarConformidad(ctx.roles) ? 1 : 0), 0, { href: '/embalaje', etiqueta: 'Embalaje', icono: 'embalaje' })
+    items.splice(items.findIndex((i) => i.href === '/embalaje') + 1, 0, { href: '/carga', etiqueta: 'Carga de unidad', icono: 'cargaunidad' })
+  }
   if (ctx.roles.includes('admin_wms') || ctx.roles.includes('direccion_tecnica')) items.push({ href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
   if (ctx.roles.some((r) => r !== 'auxiliar')) items.push({ href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })
   if (puede(ctx.roles, 'auditar')) items.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })

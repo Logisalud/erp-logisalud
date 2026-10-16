@@ -13,6 +13,8 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_BASE_PATH: '/wms',
   },
+  // Cada PDF de documentos regulatorios (≤ 15 MB) viaja en una acción del servidor
+  experimental: { serverActions: { bodySizeLimit: '16mb' } },
   images: {
     unoptimized: true,
   },

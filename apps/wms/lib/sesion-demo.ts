@@ -18,7 +18,7 @@ export interface PersonaDemo {
 
 export const PERSONAS_DEMO: PersonaDemo[] = [
   { clave: 'direccion_tecnica', nombre: 'Dirección Técnica (demo)', cargo: 'Dirección Técnica', roles: ['direccion_tecnica'], descripcion: 'Valida productos y decide los estados sanitarios.' },
-  { clave: 'asistente_dt', nombre: 'Asistente de Dirección Técnica (demo)', cargo: 'Asistente de Dirección Técnica', roles: ['asistente_dt'], descripcion: 'Da de alta productos y carga su registro sanitario.' },
+  { clave: 'asistente_dt', nombre: 'Asistente de Dirección Técnica (demo)', cargo: 'Asistente de Dirección Técnica', roles: ['asistente_dt', 'conformidad_despacho'], descripcion: 'Como Sandra: da de alta productos, carga su registro sanitario y da la conformidad de los despachos (rol Conformidad de despacho).' },
   { clave: 'jefe_almacen', nombre: 'Jefe de Almacén (demo)', cargo: 'Jefe de Almacén', roles: ['jefe_almacen', 'jefe_transporte'], descripcion: 'Como Charlie: ve el almacén, mueve, verifica y también planifica las salidas (roles Jefe de Almacén y Jefe de Transporte).' },
   { clave: 'jefe_transporte', nombre: 'Jefe de Transporte (demo)', cargo: 'Jefe de Transporte', roles: ['jefe_transporte', 'jefe_almacen'], descripcion: 'Como Roberto: planifica las salidas y la bandeja de pedidos, y también opera el almacén (roles Jefe de Transporte y Jefe de Almacén).' },
   { clave: 'reemplazante_jefe', nombre: 'Reemplazante del Jefe (demo)', cargo: 'Reemplazante del Jefe de Almacén', roles: ['jefe_almacen'], descripcion: 'Como Jasury: rol Jefe de Almacén con todos sus permisos. Sirve para probar que nadie verifica lo que hizo otra persona con el mismo rol.' },

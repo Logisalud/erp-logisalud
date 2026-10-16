@@ -52,11 +52,11 @@ function ocupadaPorConteo(e: EstadoDemo, posicionIds: string[]): string | null {
   return null
 }
 
-function origenDe(e: EstadoDemo, loteId: string, procedenciaId: string): Origen {
+export function origenDe(e: EstadoDemo, loteId: string, procedenciaId: string): Origen {
   return e.inv.ledger.find((p) => p.loteId === loteId && p.procedenciaId === procedenciaId)?.origen ?? 'CARGA_INICIAL'
 }
 
-function moverSaldo(e: EstadoDemo, l: { loteId: string; productoId: string; propietarioId: string; estado: Estado; procedenciaId: string; desdePosicionId: string; haciaPosicionId: string; cantidad: number }) {
+export function moverSaldo(e: EstadoDemo, l: { loteId: string; productoId: string; propietarioId: string; estado: Estado; procedenciaId: string; desdePosicionId: string; haciaPosicionId: string; cantidad: number }) {
   const sal = e.panorama.saldos
   const desde = sal.find((s) => mismaCelda(s, l.desdePosicionId, l.loteId, l.estado, l.procedenciaId))
   if (!desde || desde.cantidad < l.cantidad) return false
@@ -65,6 +65,16 @@ function moverSaldo(e: EstadoDemo, l: { loteId: string; productoId: string; prop
   const destino = sal.find((s) => mismaCelda(s, l.haciaPosicionId, l.loteId, l.estado, l.procedenciaId))
   if (destino) destino.cantidad += l.cantidad
   else sal.push({ posicionId: l.haciaPosicionId, productoId: l.productoId, loteId: l.loteId, propietarioId: l.propietarioId, estado: l.estado, procedenciaId: l.procedenciaId, cantidad: l.cantidad })
+  return true
+}
+
+/** Saca unidades de una celda (la salida confirmada): el saldo baja y, si queda en cero, la celda desaparece. */
+export function quitarSaldo(e: EstadoDemo, l: { loteId: string; estado: Estado; procedenciaId: string; posicionId: string; cantidad: number }) {
+  const sal = e.panorama.saldos
+  const c = sal.find((s) => mismaCelda(s, l.posicionId, l.loteId, l.estado, l.procedenciaId))
+  if (!c || c.cantidad < l.cantidad) return false
+  c.cantidad -= l.cantidad
+  if (c.cantidad === 0) sal.splice(sal.indexOf(c), 1)
   return true
 }
 

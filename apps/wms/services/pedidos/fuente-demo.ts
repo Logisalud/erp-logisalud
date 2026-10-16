@@ -26,7 +26,7 @@ export function pedidosDemo(productos: readonly ProductoDemo[], consulta: number
     base(103, 1, clinica, [linea('l-1', p(0), 100), { lineaId: 'l-2', productoCodigo: 'SIN-CATALOGO-9', descripcion: 'Producto que el WMS no conoce', cantidad: 12 }], { observaciones: 'Entrega con cadena de frío.' }),
   ]
   if (consulta >= 1) {
-    lista.push(base(104, 1, botica, [linea('l-1', p(3), 30)]))
+    lista.push(base(104, 1, botica, [linea('l-1', p(3), 250_000)])) // más de lo que hay en el almacén: sirve para ver «sin stock suficiente»
     lista.push({ ...base(199, 1, botica, []), numero: 'PED-DEMO-199' }) // sin líneas: se descarta con su motivo
   }
   return lista

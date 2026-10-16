@@ -31,8 +31,8 @@ test.describe('bandeja de pedidos (S3)', () => {
     await expect(page.getByTestId('bandeja-pedidos')).toBeVisible()
     await expect(page.getByTestId('bandeja-ultima')).toContainText('Última actualización')
     await expect(page.getByTestId('ped-conteo')).toHaveText('3 pedidos')
-    await expect(fila(page, info, 'PED-DEMO-101')).toContainText('Por planificar')
-    await expect(fila(page, info, 'PED-DEMO-103')).toContainText('Con salida')
+    await expect(fila(page, info, 'PED-DEMO-103')).toContainText('Por planificar')
+    await expect(fila(page, info, 'PED-DEMO-101')).toContainText('Con salida')
     await sinDesborde(page)
     await capturar(page, info, 'pedidos-bandeja', { completa: true })
 
@@ -58,7 +58,7 @@ test.describe('bandeja de pedidos (S3)', () => {
     await page.getByTestId('ped-limpiar').click()
     await page.getByTestId('ped-filtro-EN_SALIDA').click()
     await expect(page.getByTestId('ped-conteo')).toHaveText('1 de 3 pedidos')
-    await expect(fila(page, info, 'PED-DEMO-103')).toBeVisible()
+    await expect(fila(page, info, 'PED-DEMO-101')).toBeVisible()
   })
 
   test('actualizar desde Pedidos: llega uno nuevo y una versión nueva (con lo que cambió y su alerta), se descarta el mal formado y repetir no duplica', async ({ page }, info) => {

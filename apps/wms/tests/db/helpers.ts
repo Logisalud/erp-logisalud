@@ -30,6 +30,12 @@ export const SQL = {
   m0013: () => leer('supabase/migrations/0013_wms_salidas_edicion_libre_de_lotes.sql'),
   m0014: () => leer('supabase/migrations/0014_wms_salidas_bandeja_de_pedidos.sql'),
   m0015: () => leer('supabase/migrations/0015_wms_roles_jefes_y_cargos.sql'),
+  m0016: () => leer('supabase/migrations/0016_wms_documentos_regulatorios.sql'),
+  m0017: () => leer('supabase/migrations/0017_wms_rutas.sql'),
+  m0018: () => leer('supabase/migrations/0018_wms_picking_y_conformidad.sql'),
+  m0019: () => leer('supabase/migrations/0019_wms_documentacion_final.sql'),
+  m0020: () => leer('supabase/migrations/0020_wms_embalaje_y_bultos.sql'),
+  m0021: () => leer('supabase/migrations/0021_wms_carga_y_salida_confirmada.sql'),
   seed: () => leer('supabase/seeds/0001_topologia.sql'),
 }
 
@@ -85,7 +91,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   await admin.query(SQL.m0008())
   await admin.query(SQL.m0009())
   await admin.query(SQL.m0011())
-  if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()); await admin.query(SQL.m0014()) }
+  if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()); await admin.query(SQL.m0014()); await admin.query(SQL.m0016()); await admin.query(SQL.m0017()); await admin.query(SQL.m0018()); await admin.query(SQL.m0019()); await admin.query(SQL.m0020()); await admin.query(SQL.m0021()) }
   if (!opciones.sinMigracion0015) await admin.query(SQL.m0015())
   if (opciones.conSeed !== false) await admin.query(SQL.seed())
 

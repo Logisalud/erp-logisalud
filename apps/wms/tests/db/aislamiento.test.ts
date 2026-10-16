@@ -279,6 +279,19 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'registrar_retorno', 'stock_vendible',
     // Roles de los jefes y cargos (0015)
     'asignar_cargo',
+    // S8 (0021)
+    'cargar_bulto', 'conciliacion_carga', 'confirmar_salida_ruta', 'excluir_pedido_de_carga', 'guardar_checklist_vehicular', 'liberar_unidad', 'retirar_bulto_carga',
+    // S7 (0020)
+    'embalar_salida', 'listo_para_carga', 'reabrir_embalaje',
+    // S6b (0019)
+    'anular_gre', 'documentacion_resumen', 'paquete_documental', 'registrar_gre',
+    // S5 (0018)
+    'reabrir_observada', 'resolver_discrepancia_picking',
+    // S4 (0017)
+    'cancelar_ruta', 'confirmar_ruta', 'crear_ruta', 'guardar_personal_transporte', 'planificar_ruta',
+    // S6a (0016)
+    'asignar_fabricante_producto', 'asignar_item_coa', 'crear_fabricante', 'descartar_item_coa', 'estado_documental', 'guardar_perfil_documental', 'lotes_sin_coa',
+    'registrar_carga_coa', 'revisar_documentos_regulatorios', 'subir_documento_regulatorio',
     // S2b (0013)
     'avisos_fefo', 'lotes_para_editar', 'reporte_cambios_fefo',
     // S3 (0014)
