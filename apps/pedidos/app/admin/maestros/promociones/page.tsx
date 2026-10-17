@@ -1,8 +1,13 @@
+import { requireSession } from "@/lib/auth/session";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { listPromocionesVigentes } from "@/services/promo-import";
 import { PromoImporter } from "./promo-importer";
 
 export default async function PromocionesPage() {
+  // Antes de consultar nada: el layout y la página se renderizan en
+  // paralelo, así que sin esto la consulta sale al mismo tiempo que el
+  // guardia del layout y, con la sesión vencida, gana cualquiera.
+  await requireSession();
   const vigentes = await listPromocionesVigentes();
 
   return (

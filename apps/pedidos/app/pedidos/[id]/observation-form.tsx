@@ -12,12 +12,12 @@ export function ObservationForm({ orderId }: { orderId: string }) {
     const formData = new FormData(e.currentTarget);
     setError(null);
     startTransition(async () => {
-      try {
-        await agregarObservacion(orderId, formData);
-        (e.target as HTMLFormElement).reset();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo agregar la observación.");
+      const resultado = await agregarObservacion(orderId, formData);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
+        return;
       }
+      (e.target as HTMLFormElement).reset();
     });
   }
 

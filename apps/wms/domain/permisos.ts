@@ -16,14 +16,18 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
 }
 
 /** Espejo de wms.permisos_rol (la base de datos es la que manda; esto solo oculta botones). */
+const PERMISOS_AUXILIAR: readonly Accion[] = ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta']
+/** Los jefes tienen TODO lo del auxiliar (DT, 2026-10-17) además de lo suyo. */
+const conAuxiliar = (...propias: Accion[]): readonly Accion[] => [...new Set<Accion>([...PERMISOS_AUXILIAR, ...propias])]
+
 const PERMISOS: Record<Rol, readonly Accion[]> = {
-  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion'],
+  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote'],
   asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion'],
-  jefe_almacen: ['ver', 'ejecutar', 'verificar', 'exportar', 'cambiar_lote_asignado', 'preparar_salidas', 'embalar', 'cargar_ruta'],
-  auxiliar: ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta'],
+  jefe_almacen: conAuxiliar('exportar', 'preparar_salidas'),
+  auxiliar: PERMISOS_AUXILIAR,
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
   admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],
-  jefe_transporte: ['ver', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad'],
+  jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote'),
   conductor: [], // sus permisos llegan con «Mis rutas» (S9)
   auxiliar_transporte: [],
   conformidad_despacho: ['ver', 'dar_conformidad'],

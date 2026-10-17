@@ -276,9 +276,11 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     // S2 (0012)
     'aprobar_salida_vencida', 'asignar_salida', 'editar_asignacion', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
     'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',
-    'registrar_retorno', 'stock_vendible',
+    'stock_vendible',
     // Roles de los jefes y cargos (0015)
     'asignar_cargo',
+    // OS-1 (0022)
+    'aplicar_reserva_lote', 'quitar_reserva_lote',
     // S8 (0021)
     'cargar_bulto', 'conciliacion_carga', 'confirmar_salida_ruta', 'excluir_pedido_de_carga', 'guardar_checklist_vehicular', 'liberar_unidad', 'retirar_bulto_carga',
     // S7 (0020)

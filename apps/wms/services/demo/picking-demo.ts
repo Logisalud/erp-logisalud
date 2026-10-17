@@ -5,10 +5,12 @@ import {
   type OrdenPickingResumen, type OrdenPickingVista, type ReemplazoVista, type ResultadoConformidad, type ResultadoPicking, type SalidaResumen, type SalidaVista, type TipoNoConformidad,
 } from '@/domain/despacho'
 import { loteApto, seApartaDeFefo, validarEdicionAsignacion, type AsignacionLote, type LoteDisponible } from '@/domain/salidas'
+import { mensajeLoteEnReserva } from '@/domain/reserva'
 import type { Posicion } from '@/domain/tipos'
 import { registrar, type EstadoDemo } from './estado'
 import { ahora, estadoE, falla, nuevoId } from './entradas-demo'
-import { DespachoDemo, celdasLibres, desp, lotesDisponibles, reservarEnLote, type LineaSalidaDemo, type ReservaDemo, type SalidaDemo } from './despacho-demo'
+import { ReservasDemo } from './reservas-demo'
+import { celdasLibres, desp, loteEnReserva, lotesDisponibles, reservarEnLote, type LineaSalidaDemo, type ReservaDemo, type SalidaDemo } from './despacho-demo'
 import { moverSaldo, origenDe } from './inventario-demo'
 import { anotar, numeroDe } from './libro'
 import type { RepositorioPicking } from '../repositorio-picking'
@@ -59,10 +61,12 @@ function asignacionDe(e: EstadoDemo, lineaId: string, estados: ReservaDemo['esta
 const aLoteCantidad = (a: readonly AsignacionVista[]): AsignacionLote[] => a.map((x) => ({ loteId: x.loteId, cantidad: x.cantidad }))
 const nombreLoteCantidad = (e: EstadoDemo, a: readonly AsignacionLote[]) => a.map((x) => `${lote(e, x.loteId)?.codigo ?? x.loteId} × ${x.cantidad}`).join(' + ')
 
+/** Despacho: el stock que pasa la conformidad queda en la ubicación por defecto (K-1) o, si no hubiera, en la primera activa. */
 function posicionConformidad(e: EstadoDemo): Posicion {
-  let p = e.panorama.posiciones.find((x) => x.tipoArea === 'PENDIENTE_CONFORMIDAD' && x.activa)
+  const despacho = e.panorama.posiciones.filter((x) => x.tipoArea === 'DESPACHO' && x.activa)
+  let p = despacho.find((x) => x.codigo === 'K-1') ?? despacho[0]
   if (!p) {
-    p = { id: 'pos:conformidad', codigo: 'CONF-1', rack: 'CONF', posicion: null, nivel: null, subnivel: null, forma: 'PISO', tipoArea: 'PENDIENTE_CONFORMIDAD', activa: true, porVerificar: false }
+    p = { id: 'pos:despacho', codigo: 'K-1', rack: 'K', posicion: 1, nivel: null, subnivel: null, forma: 'PISO', tipoArea: 'DESPACHO', activa: true, porVerificar: false }
     e.panorama.posiciones.push(p)
   }
   return p
@@ -81,7 +85,7 @@ function recalcularEstadoOrden(o: OrdenDemo) {
   o.estado = o.lineas.some((l) => l.picking === 'DISCREPANCIA') ? 'CON_DISCREPANCIA' : o.lineas.every((l) => l.picking === 'PICKEADA') ? 'COMPLETA' : 'EN_CURSO'
 }
 
-export class PickingDemo extends DespachoDemo implements RepositorioPicking {
+export class PickingDemo extends ReservasDemo implements RepositorioPicking {
   // ── Vistas ─────────────────────────────────────────────────────────────────────────────────────────────────────
   protected ordenDe(e: EstadoDemo, salidaId: string) { return pk(e).ordenes.find((o) => o.salidaId === salidaId && o.estado !== 'CANCELADA') }
 
@@ -135,6 +139,7 @@ export class PickingDemo extends DespachoDemo implements RepositorioPicking {
     const out: LoteEditable[] = []
     for (const id of todos) {
       const lt = lote(e, id); if (!lt) continue
+      if (loteEnReserva(e, id)) continue   // un lote en Reserva no se ofrece
       if (!loteApto(lt.vence ?? null, 'DISTRIBUCION', 'VENTA', e.panorama.hoy).apto) continue
       const asignado = propios.get(id) ?? 0
       const libres = celdas.get(id) ?? []
@@ -188,6 +193,7 @@ export class PickingDemo extends DespachoDemo implements RepositorioPicking {
     if (s.lineas.some((l) => l.estado === 'PENDIENTE' || l.estado === 'SIN_STOCK')) return falla('Hay líneas sin stock o sin asignar: resuélvelas antes del picking')
     const lineas = s.lineas.filter((l) => l.estado === 'ASIGNADA')
     if (!lineas.length) return falla('La salida no tiene líneas asignadas')
+    for (const l of lineas) for (const r of vigentes(e, l.id)) if (loteEnReserva(e, r.loteId)) return falla(mensajeLoteEnReserva(lote(e, r.loteId)?.codigo ?? r.loteId))
     const o: OrdenDemo = { id: nuevoId(), numero: numeroDe(e.inv, 'OP', e.panorama.hoy.slice(0, 4)), salidaId: s.id, estado: 'GENERADA', generadaPor: actor.nombre, generadaEn: ahora(), lineas: lineasDeOrden(e, s, lineas) }
     pk(e).ordenes.push(o)
     for (const l of lineas) l.estado = 'EN_PICKING'
@@ -244,6 +250,7 @@ export class PickingDemo extends DespachoDemo implements RepositorioPicking {
     if (l.picking !== 'PENDIENTE') return falla('Esa línea ya se registró')
     if (o.estado === 'COMPLETA' && o.lineas.every((y) => y.picking === 'PICKEADA')) return falla('La orden de picking ya no está abierta')
     const sl = lineaDe(e, l.lineaId)!
+    if (resultado === 'PICKEADA' && loteEnReserva(e, l.loteId)) return falla(mensajeLoteEnReserva(lote(e, l.loteId)?.codigo ?? l.loteId))
     if (resultado === 'PICKEADA') {
       l.picking = 'PICKEADA'; l.pickerId = actor.id; l.picker = actor.nombre; l.pickeadaEn = ahora(); l.notaPicking = nota?.trim() || undefined
       const r = desp(e).reservas.find((y) => y.id === l.reservaId); if (r?.estado === 'ACTIVA') r.estado = 'EN_TRANSITO'

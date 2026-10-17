@@ -7,18 +7,21 @@ import { ETIQUETA_TIPO_MOVIMIENTO } from '@/domain/inventario'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { transitoPorLote, textoTransito } from '@/domain/transito'
 import { ChipEstado } from '@/components/chips'
+import { puedeReservarLote } from '@/domain/reserva'
+import { PanelReserva } from '@/components/lotes/panel-reserva'
 
 export const metadata = { title: 'Historia del lote — WMS LOGISALUD' }
 
 export default async function HistoriaLote({ params }: { params: { id: string } }) {
-  await exigirContexto()
+  const ctx = await exigirContexto()
   const repo = repositorio()
   const p = await repo.panorama()
   const lote = p.lotes.find((l) => l.id === decodeURIComponent(params.id))
   if (!lote) notFound()
   const prod = p.productos.find((x) => x.id === lote.productoId)
   const dueno = p.propietarios.find((x) => x.id === lote.propietarioId)
-  const [filas, ordenes] = await Promise.all([repo.historiaLote(lote.id), repo.listarMovimientos()])
+  const [filas, ordenes, reservas] = await Promise.all([repo.historiaLote(lote.id), repo.listarMovimientos(), repo.reservasDelLote(lote.id)])
+  const stockAprobado = p.saldos.filter((x) => x.loteId === lote.id && x.estado === 'APROBADO').reduce((t, x) => t + x.cantidad, 0)
   const transito = transitoPorLote(ordenes).get(lote.id)
 
   return (
@@ -30,6 +33,8 @@ export default async function HistoriaLote({ params }: { params: { id: string } 
         <p className="mt-1 text-gray-700">{prod?.descripcion} · propietario <strong>{dueno?.codigo}</strong> · vence {formatoFecha(lote.vence)}</p>
         <p className="mt-1 text-sm text-gray-600">Todo lo que tocó este lote, de lo más antiguo a lo más reciente: ingresos, movimientos internos, cambios de estado, ajustes y reversas, con quién y cuándo. Nada se oculta ni se borra.</p>
       </header>
+
+      <PanelReserva loteId={lote.id} lote={lote.codigo} historia={reservas} puedeReservar={puedeReservarLote(ctx.roles)} tieneStockAprobado={stockAprobado > 0} />
 
       {transito && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-900" data-testid="lote-en-transito" role="status">

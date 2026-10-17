@@ -405,9 +405,9 @@ describe('acta de recepción', () => {
     expect(x.id).toBeTruthy()
   })
 
-  it('(D-29) el código del formato de Kardex es un parámetro configurable, provisional', async () => {
+  it('(D-29) el código del formato de Kardex es un parámetro configurable: LS-FR.41 desde la 0022', async () => {
     const r = (await base.admin.query(`select valor from wms.parametros where clave = 'kardex_codigo_formato'`)).rows[0]
-    expect(r.valor).toBe('LS-FR-KDX (provisional)')
+    expect(r.valor).toBe('LS-FR.41')
   })
 
   it('cada rol firma con su rol, y el transportista exige DNI, placa y firma', async () => {

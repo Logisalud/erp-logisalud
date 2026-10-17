@@ -10,11 +10,7 @@ export type TipoArea =
   | 'APROBADOS'
   | 'BAJAS_RECHAZADOS'
   | 'CONTRAMUESTRA'
-  | 'EMBALAJE'
   | 'DESPACHO'
-  | 'PENDIENTE_CONFORMIDAD'
-  | 'OBSERVADO'
-  | 'RETORNO_RESERVADO'
 
 export type Origen =
   | 'COMPRA_LOCAL'
@@ -60,6 +56,7 @@ export type Accion =
   | 'embalar'
   | 'cargar_ruta'
   | 'liberar_unidad'
+  | 'reservar_lote'
 
 export interface Propietario {
   id: string

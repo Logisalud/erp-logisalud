@@ -245,7 +245,7 @@ export class InventarioDemo extends EntradasDemo {
 
   async parametrosInventario() {
     const e = estadoE()
-    return { tramosVencimiento: TRAMOS_POR_DEFECTO, kardexCodigoFormato: 'LS-FR-KDX (provisional)', movimientoSinVerificarHoras: e.plazoMovSinVerificarHoras, diasAlertaVencimiento: e.diasAlertaVencimiento }
+    return { tramosVencimiento: TRAMOS_POR_DEFECTO, kardexCodigoFormato: 'LS-FR.41', movimientoSinVerificarHoras: e.plazoMovSinVerificarHoras, diasAlertaVencimiento: e.diasAlertaVencimiento }
   }
 
   // ── Movimientos internos ────────────────────────────────────────────────
@@ -282,7 +282,7 @@ export class InventarioDemo extends EntradasDemo {
       const destino = e.panorama.posiciones.find((p) => p.id === l.haciaPosicionId)
       if (!destino) return falla('No encontramos la ubicación de destino')
       const origen = origenDe(e, l.loteId, l.procedenciaId)
-      if (AREAS_DE_SALIDA.has(destino.tipoArea)) return falla('Embalaje, Despacho y las zonas de salida se usan solo en las salidas: no se mueven a mano')
+      if (AREAS_DE_SALIDA.has(destino.tipoArea)) return falla('Despacho se usa solo en las salidas: no se mueve a mano')
       if (!areaAdmite(destino.tipoArea, l.estado, origen)) return falla(`La zona de destino (${destino.tipoArea}) no admite unidades en estado ${l.estado}`)
       if (!posicionAcepta(destino, lote.propietarioId, e.panorama.asignaciones, e.panorama.hoy)) return falla('La posición de destino no acepta stock de ese propietario (sin asignación vigente)')
       if (ocupadaPorConteo(e, [l.desdePosicionId, l.haciaPosicionId])) return falla('Una de las ubicaciones está en conteo: no se mueve hasta cerrarlo')

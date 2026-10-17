@@ -1,7 +1,7 @@
 // S5: salidas por pedido en los 4 viewports: lista, edición libre de lotes (tabla en PC, hoja inferior en teléfono), orden de picking, picking en celular y conformidad por otra persona.
 import { expect, test, type Page } from '@playwright/test'
 import { PDFDocument } from 'pdf-lib'
-import { capturar, entrarComo, esTelefono, sinDesborde } from './ayudas'
+import { capturar, elegirProductoKardex, entrarComo, esTelefono, sinDesborde } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -272,8 +272,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
   const kardex = async (page: Page, producto: string) => {
     await entrarComo(page, 'auditoria_lectura')
     await page.goto('/wms/kardex')
-    const valor = await page.locator('#k-producto option').evaluateAll((os, p) => (os.find((o) => (o.textContent ?? '').includes(p)) as HTMLOptionElement | undefined)?.value ?? '', producto)
-    await page.locator('#k-producto').selectOption(valor)
+    await elegirProductoKardex(page, producto)
     await page.getByTestId('ver-kardex').click()
     await expect(page.getByTestId('kardex-saldo-final')).toBeVisible()
     const saldo = Number(((await page.getByTestId('kardex-saldo-final').textContent()) ?? '').replace(/[^\d]/g, ''))
