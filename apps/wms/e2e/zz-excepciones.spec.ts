@@ -84,10 +84,12 @@ test.describe('excepciones del flujo de salida', () => {
   test('conformidad con diferencia: una línea con menos cantidad queda como ajuste visible y la orden pasa a Despacho', async ({ page }, info) => {
     await entrarComo(page, 'asistente_dt')
     await page.goto(estado.ordenUrl.replace('/picking/', '/conformidad/'))
-    await page.getByTestId('resultado-linea').first().selectOption('MENOS')
-    await page.getByTestId('cantidad-encontrada').first().fill('1')
-    await page.getByTestId('nota-linea').first().fill('Faltan unidades en la caja')
-    await page.getByTestId('bultos').fill('1')
+    const visible = (id: string) => page.locator(`[data-testid="${id}"]:visible`).first()
+    await visible('resultado-linea').selectOption('MENOS')
+    const total = Number(/de (\d+)/.exec((await visible('cantidad-encontrada').locator('xpath=following-sibling::span').textContent()) ?? '')![1])
+    await visible('cantidad-encontrada').fill(String(total - 1))        // falta una unidad: el resto de la línea sigue su camino
+    await visible('nota-linea').fill('Faltan unidades en la caja')
+    await visible('bultos').fill('1')
     await sinDesborde(page)
     await capturar(page, info, 'conformidad-ajuste')
     await page.getByTestId('dar-conformidad').click()

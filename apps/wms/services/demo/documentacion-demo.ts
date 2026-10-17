@@ -147,7 +147,17 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
 
   override async darConformidad(...a: Parameters<DocumentosDemo['darConformidad']>) {
     const r = await super.darConformidad(...a)
-    if (!r.ok) return r
+    if (r.ok) await this.alertarPaqueteIncompleto()
+    return r
+  }
+
+  override async conformarOrden(...a: Parameters<DocumentosDemo['conformarOrden']>) {
+    const r = await super.conformarOrden(...a)
+    if (r.ok) await this.alertarPaqueteIncompleto()
+    return r
+  }
+
+  private async alertarPaqueteIncompleto() {
     const e = estadoE()
     for (const s of desp(e).salidas) {
       if (s.estado !== 'ABIERTA' || !salidaConforme(e, s.id)) continue
@@ -156,6 +166,5 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       const falta = faltantesDelPaquete(items)
       if (falta.length) alertar(e, 'DOCUMENTACION_INCOMPLETA', 'jefe_transporte', `El pedido de la salida ${s.numero} tiene la conformidad completa, pero el paquete documental no: ${falta.join('; ')}.`, `doc-salida:${s.id}`)
     }
-    return r
   }
 }
