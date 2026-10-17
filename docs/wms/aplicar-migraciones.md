@@ -69,3 +69,5 @@ Storage, RLS real de Compras (`acceso_abierto_temporal`).
 
 **0019** (Documentación final, S6b, D-85; requiere la 0012, la 0016, la 0017 y la 0018): crea `guias_remision` (no se edita ni se borra: solo pasa a ANULADA con motivo), la alerta `DOCUMENTACION_INCOMPLETA`, el permiso `registrar_documentacion` (Jefe de Transporte, asistente de DT y DT; imprimir el paquete ya era del Jefe de Transporte y de DT) y un disparador sobre `ordenes_picking_lineas` que avisa al dar la última conformidad. Funciones: `registrar_gre`, `anular_gre`, `paquete_documental`, `documentacion_resumen`. Los PDF de los documentos siguen en el bucket privado `wms-documentos` (ver 0016); esta migración no toca Storage ni datos existentes.
 
+**0020** (Embalaje y bultos, S7, D-86; requiere la 0012, la 0018 y la 0019): crea `bultos` y `bulto_contenido` (no se editan ni se borran; un bulto solo pasa a ANULADO con motivo), el permiso `embalar` (auxiliar, Jefe de Almacén y Jefe de Transporte) y las funciones `embalar_salida`, `reabrir_embalaje` y `listo_para_carga`. No mueve stock ni toca datos existentes.
+

@@ -4,6 +4,7 @@ import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import type { AsignacionLote } from '@/domain/salidas'
 import type { TipoNoConformidad } from '@/domain/despacho'
+import type { RepartoBulto } from '@/domain/embalaje'
 import type { Actor } from '@/services/repositorio'
 
 async function quien(): Promise<Actor> {
@@ -22,3 +23,6 @@ export async function reabrirObservadaAccion(ordenLineaId: string, nota?: string
 
 export async function registrarGreAccion(salidaId: string, numero: string, nota?: string) { return repositorio().registrarGre(salidaId, numero, nota, await quien()) }
 export async function anularGreAccion(guiaId: string, motivo: string) { return repositorio().anularGre(guiaId, motivo, await quien()) }
+
+export async function embalarSalidaAccion(salidaId: string, reparto: RepartoBulto[]) { return repositorio().embalarSalida(salidaId, reparto, await quien()) }
+export async function reabrirEmbalajeAccion(salidaId: string, motivo: string) { return repositorio().reabrirEmbalaje(salidaId, motivo, await quien()) }

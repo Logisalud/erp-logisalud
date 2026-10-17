@@ -28,6 +28,9 @@ export const ETIQUETA_ETAPA: Record<EtapaSalida, string> = {
   LISTA_PARA_CARGA: 'Lista para carga', CARGADA: 'Cargada: falta liberar la unidad', CONFIRMADA: 'Salida confirmada', CANCELADA: 'Cancelada',
 }
 
+/** Las etapas en las que todo el pedido ya tiene la conformidad. */
+export const ETAPAS_CONFORMES: readonly EtapaSalida[] = ['CONFORME', 'DOCUMENTACION_COMPLETA', 'EMBALADA', 'LISTA_PARA_CARGA', 'CARGADA']
+
 /** Lo que ocurre después de la conformidad. «Listo para carga» exige las tres cosas a la vez: guía registrada, paquete documental completo y embalaje (D-60). */
 export interface AvanceSalida { guia?: boolean; paquete?: boolean; embalada?: boolean; cargada?: boolean }
 
