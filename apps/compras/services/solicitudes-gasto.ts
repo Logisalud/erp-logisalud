@@ -13,6 +13,7 @@ import {
   puedeAnularseSolicitud,
   ETIQUETA_ESTADO,
   esSugerenciaDeSiMismo,
+  beneficiarioDeSolicitud,
 } from '@/domain/gasto'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
 import {
@@ -77,6 +78,7 @@ export async function crearSolicitud(borrador: BorradorSolicitud): Promise<{ id:
       fecha_fin: borrador.fechaFin ?? null,
       fecha_requerida: borrador.fechaRequerida ?? null,
       asignado_a: borrador.tipo === 'anticipo' ? borrador.asignadoA ?? null : null,
+      asignado_persona_id: borrador.tipo === 'anticipo' ? borrador.asignadoPersonaId ?? null : null,
       // Informativo en Anticipo y en Reembolso (Pieza A): reemplaza la
       // aprobación del jefe, que en estos flujos no decidía nada.
       quien_autoriza: borrador.tipo === 'gasto_directo' ? null : borrador.quienAutoriza ?? null,
@@ -254,7 +256,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     .schema('gastos')
     .from('solicitudes_gasto')
     .select(`id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, area, created_at,
-             destino, fecha_inicio, fecha_fin, categoria_id, asignado_a, obligacion_id,
+             destino, fecha_inicio, fecha_fin, categoria_id, asignado_a, asignado_persona_id, obligacion_id,
              cotizacion_storage_path, quien_autoriza, fecha_factura, rechazo_motivo,
              fecha_requerida, anulado_motivo, editado_por, editado_en,
              comprobantes:solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
@@ -265,6 +267,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
   if (!data) return null
 
   const asignadoA = (data as any).asignado_a as string | null
+  const asignadoPersonaId = (data as any).asignado_persona_id as string | null
   const editadoPorId = (data as any).editado_por as string | null
   const [{ data: categoria }, { data: liquidacion }, { data: asignado }, { data: editor }] = await Promise.all([
     supabase.schema('gastos').from('categorias_gasto').select('nombre').eq('id', (data as any).categoria_id).maybeSingle(),
@@ -274,9 +277,12 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
       .select('monto_anticipo, monto_sustentado, diferencia, resultado, fecha_liquidacion')
       .eq('solicitud_id', id)
       .maybeSingle(),
-    asignadoA
-      ? supabase.from('perfiles').select('nombre').eq('id', asignadoA).maybeSingle()
-      : Promise.resolve({ data: null }),
+    // Usuario o persona sin usuario (0081) — nunca los dos.
+    asignadoPersonaId
+      ? supabase.from('personas_sin_usuario').select('nombre').eq('id', asignadoPersonaId).maybeSingle()
+      : asignadoA
+        ? supabase.from('perfiles').select('nombre').eq('id', asignadoA).maybeSingle()
+        : Promise.resolve({ data: null }),
     editadoPorId
       ? supabase.from('perfiles').select('nombre').eq('id', editadoPorId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -341,6 +347,7 @@ export async function editarSolicitud(
       fecha_fin: borrador.fechaFin ?? null,
       fecha_requerida: borrador.fechaRequerida ?? null,
       asignado_a: borrador.tipo === 'anticipo' ? borrador.asignadoA ?? null : null,
+      asignado_persona_id: borrador.tipo === 'anticipo' ? borrador.asignadoPersonaId ?? null : null,
       quien_autoriza: borrador.tipo === 'gasto_directo' ? null : borrador.quienAutoriza ?? null,
       fecha_factura: borrador.tipo === 'anticipo' ? null : borrador.fechaFactura ?? null,
       editado_por: usuario.id,
@@ -459,7 +466,7 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
   const { data: solicitud, error } = await supabase
     .schema('gastos')
     .from('solicitudes_gasto')
-    .select(`id, tipo, solicitante_id, asignado_a, moneda, monto_solicitado, base_imponible, igv, estado,
+    .select(`id, tipo, solicitante_id, asignado_a, asignado_persona_id, moneda, monto_solicitado, base_imponible, igv, estado,
              fecha_factura, fecha_requerida,
              solicitud_comprobantes(fase, numero)`)
     .eq('id', id)
@@ -510,7 +517,7 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
     .from('obligaciones')
     .insert({
       origen: solicitud.tipo,
-      beneficiario_persona: solicitud.asignado_a ?? solicitud.solicitante_id,
+      ...beneficiarioDeSolicitud(solicitud as any),
       solicitud_gasto_id: solicitud.id,
       moneda: solicitud.moneda,
       base_imponible: baseImponible,
@@ -647,7 +654,7 @@ export async function liquidarAnticipo(solicitudId: string): Promise<void> {
   const { data: solicitud, error } = await supabase
     .schema('gastos')
     .from('solicitudes_gasto')
-    .select('id, tipo, estado, moneda, solicitante_id, asignado_a, monto_solicitado, solicitud_comprobantes(fase, monto, sustentable)')
+    .select('id, tipo, estado, moneda, solicitante_id, asignado_a, asignado_persona_id, monto_solicitado, solicitud_comprobantes(fase, monto, sustentable)')
     .eq('id', solicitudId)
     .maybeSingle()
   if (error || !solicitud) throw new Error('No se encontró la solicitud.')
@@ -680,7 +687,7 @@ export async function liquidarAnticipo(solicitudId: string): Promise<void> {
       .from('obligaciones')
       .insert({
         origen: 'reembolso',
-        beneficiario_persona: solicitud.asignado_a ?? solicitud.solicitante_id,
+        ...beneficiarioDeSolicitud(solicitud as any),
         solicitud_gasto_id: solicitudId,
         moneda: solicitud.moneda,
         base_imponible: baseImponible,

@@ -8,9 +8,12 @@ import type { ValoresSolicitud } from '@/domain/valores-solicitud'
 import { AvisoErrores, useScrollAlPrimerError } from '@/components/errores-formulario'
 import { CampoArchivo } from '@/components/campo-archivo'
 import { TIPOS_SOLICITUD, ETIQUETA_TIPO, type TipoSolicitud } from '@/domain/gasto'
+import { BuscadorPersona } from '@/components/buscador-persona'
+import type { OpcionPersona } from '@/domain/buscar-persona'
 
 type CategoriaGasto = { id: string; nombre: string }
 type Usuario = { id: string; nombre: string; area: string }
+type PersonaSinUsuario = { id: string; nombre: string; activo: boolean }
 
 const SUGERENCIA_IGV = 0.18
 
@@ -22,6 +25,7 @@ const ID_AVISO_ERRORES = 'errores-solicitud-gasto'
 export function FormularioSolicitud({
   categorias,
   usuarios,
+  personas = [],
   tipoPreseleccionado,
   sugerenciaAutoriza,
   inicial,
@@ -31,6 +35,9 @@ export function FormularioSolicitud({
 }: {
   categorias: CategoriaGasto[]
   usuarios: Usuario[]
+  /** Vendedores y demás personas sin login (0081) — se ofrecen junto a los
+   * usuarios en "¿Para quién es el anticipo?". */
+  personas?: PersonaSinUsuario[]
   tipoPreseleccionado?: TipoSolicitud
   /** Nombre del responsable del área de quien crea la solicitud, o null si
    * esa área no tiene responsable cargado todavía. */
@@ -44,6 +51,10 @@ export function FormularioSolicitud({
   textoEnviando?: string
 }) {
   const editando = !!inicial
+  const opcionesAsignado: OpcionPersona[] = [
+    ...usuarios.map((u) => ({ valor: `usuario:${u.id}`, nombre: u.nombre, activo: true })),
+    ...personas.map((p) => ({ valor: `persona:${p.id}`, nombre: p.nombre, activo: p.activo })),
+  ]
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(accionServidor, null)
   const sucio = useMarcarSucioAlEditar(estado)
   const [tipo, setTipo] = useState<TipoSolicitud>(inicial?.tipo ?? tipoPreseleccionado ?? 'gasto_directo')
@@ -161,14 +172,9 @@ export function FormularioSolicitud({
               <Campo etiqueta="Monto del anticipo *" error={errorDe('montoAnticipo')}>
                 <input type="number" name="montoAnticipo" min="0" step="0.01" defaultValue={inicial?.montoAnticipo} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
               </Campo>
-              {usuarios.length > 1 ? (
+              {usuarios.length > 1 || personas.length > 0 ? (
                 <Campo etiqueta="Vendedor o persona asignada">
-                  <select name="asignadoA" defaultValue={inicial?.asignadoA ?? ''} className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
-                    <option value="">Para mí</option>
-                    {usuarios.map((u) => (
-                      <option key={u.id} value={u.id}>{u.nombre}</option>
-                    ))}
-                  </select>
+                  <BuscadorPersona name="asignado" opciones={opcionesAsignado} valorInicial={inicial?.asignado ?? ''} />
                   <p className="mt-1 text-xs text-gray-500">
                     Si estás armando el anticipo para otra persona (ej. viáticos de un vendedor),
                     elígela aquí — el pago le va a llegar a su cuenta, no a la tuya.

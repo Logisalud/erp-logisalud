@@ -1,5 +1,6 @@
 import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
+import { mapaNombresBeneficiarios } from '@/services/beneficiarios'
 import { diasVencido, estadoYSaldoSabana, ETIQUETA_ORIGEN, type OrigenObligacion, type EstadoPagoSabana } from '@/domain/reportes'
 import type { EstadoObligacion } from '@/domain/obligacion'
 import { hoyLima } from '@/domain/fecha'
@@ -54,7 +55,7 @@ type ObligacionCruda = {
   codigo: string
   origen: OrigenObligacion
   proveedor_id: string | null
-  beneficiario_persona: string | null
+  beneficiario_id: string | null
   oc_id: string | null
   os_id: string | null
   solicitud_gasto_id: string | null
@@ -78,7 +79,7 @@ export async function obtenerSabanaMaestra(filtros: FiltrosSabana): Promise<Fila
     .schema('cuentas_x_pagar')
     .from('obligaciones')
     .select(
-      `id, codigo, origen, proveedor_id, beneficiario_persona, oc_id, os_id, solicitud_gasto_id,
+      `id, codigo, origen, proveedor_id, beneficiario_id, oc_id, os_id, solicitud_gasto_id,
        reposicion_caja_chica_id, numero_factura, fecha_factura, moneda, neto_a_pagar, estado,
        fecha_vencimiento_real, observaciones, created_by, created_at`
     )
@@ -102,7 +103,7 @@ export async function obtenerSabanaMaestra(filtros: FiltrosSabana): Promise<Fila
   const [proveedores, beneficiarios, ocs, oss, solicitudes, reposiciones, letras, pagados, responsables, pagos] =
     await Promise.all([
       mapaProveedores([...new Set(filas.map((f) => f.proveedor_id).filter(esId))]),
-      mapaBeneficiarios([...new Set(filas.map((f) => f.beneficiario_persona).filter(esId))]),
+      mapaBeneficiarios([...new Set(filas.map((f) => f.beneficiario_id).filter(esId))]),
       mapaCodigos('compras', 'ordenes_compra', [...new Set(filas.map((f) => f.oc_id).filter(esId))]),
       mapaCodigos('servicios', 'ordenes_servicio', [...new Set(filas.map((f) => f.os_id).filter(esId))]),
       mapaCodigos('gastos', 'solicitudes_gasto', [...new Set(filas.map((f) => f.solicitud_gasto_id).filter(esId))]),
@@ -123,7 +124,7 @@ export async function obtenerSabanaMaestra(filtros: FiltrosSabana): Promise<Fila
       codigo: f.codigo,
       quien:
         (f.proveedor_id ? proveedores.get(f.proveedor_id)?.razon_social : undefined) ??
-        (f.beneficiario_persona ? beneficiarios.get(f.beneficiario_persona) : undefined) ??
+        (f.beneficiario_id ? beneficiarios.get(f.beneficiario_id) : undefined) ??
         f.observaciones ??
         ETIQUETA_ORIGEN[f.origen],
       ruc: f.proveedor_id ? proveedores.get(f.proveedor_id)?.ruc ?? null : null,
@@ -190,11 +191,9 @@ async function mapaProveedores(ids: string[]) {
   return new Map((data ?? []).map((p: any) => [p.id, { razon_social: p.razon_social, ruc: p.ruc }]))
 }
 
-async function mapaBeneficiarios(ids: string[]) {
-  const supabase = crearClienteServidor()
-  if (ids.length === 0) return new Map<string, string>()
-  const { data } = await supabase.from('perfiles').select('id, nombre').in('id', ids)
-  return new Map((data ?? []).map((p: any) => [p.id, p.nombre as string]))
+/** Usuario o persona sin usuario — ver services/beneficiarios.ts. */
+function mapaBeneficiarios(ids: string[]) {
+  return mapaNombresBeneficiarios(ids)
 }
 
 async function mapaResponsables(ids: string[]) {

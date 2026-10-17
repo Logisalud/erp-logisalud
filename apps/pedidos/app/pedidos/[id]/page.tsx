@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getOrderDetail } from "@/services/orders";
 import { getFulfillmentForOrder } from "@/services/fulfillments";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireSession } from "@/lib/auth/session";
 import { listProducts } from "@/services/products";
 import { listPaymentTerms } from "@/services/catalog";
 import { formatSoles } from "@/domain/order-email";
@@ -29,6 +29,13 @@ export default async function OrderDetailPage({
   params: { id: string };
   searchParams?: { excel?: string };
 }) {
+  // Antes de consultar nada: el layout y la página se renderizan en
+  // paralelo, así que sin esto la consulta del pedido sale al mismo tiempo
+  // que el guardia del layout y, con la sesión vencida, gana cualquiera.
+  // Cuando ganaba la consulta, el vendedor veía "No se pudo cargar esta
+  // pantalla" en vez de que lo mandaran a iniciar sesión.
+  const currentUser = await requireSession();
+
   const order = await getOrderDetail(params.id);
   if (!order) notFound();
 
@@ -36,7 +43,6 @@ export default async function OrderDetailPage({
   // poder editar nada (no hay policy de escritura para él en fulfillments).
   const fulfillment = order.estado === "DISPATCHED" ? await getFulfillmentForOrder(order.id) : null;
 
-  const currentUser = await getCurrentUser();
   // Los borradores se generan al despachar, así que antes de DISPATCHED no
   // hay nada que enlazar. Los leen administrador y control_pedidos.
   const puedeVerBorradores =
