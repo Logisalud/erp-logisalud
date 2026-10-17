@@ -281,6 +281,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'asignar_cargo',
     // OS-1 (0022)
     'aplicar_reserva_lote', 'quitar_reserva_lote',
+    // OS-7 (0027)
+    'cerrar_ruta', 'corregir_cierre_ruta', 'registrar_impresion_ls_fr', 'subir_escaneo_ls_fr',
     // S8 (0021)
     'cargar_bulto', 'conciliacion_carga', 'confirmar_salida_ruta', 'excluir_pedido_de_carga', 'guardar_checklist_vehicular', 'liberar_unidad', 'retirar_bulto_carga',
     // S7 (0020)
