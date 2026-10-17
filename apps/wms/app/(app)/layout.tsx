@@ -23,6 +23,7 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
     { href: '/productos', etiqueta: 'Productos', icono: 'productos' },
     { href: '/calidad', etiqueta: 'Calidad', icono: 'calidad' },
     { href: '/alertas', etiqueta: 'Alertas', icono: 'alertas', insignia: misAlertas },
+    { href: '/documentos', etiqueta: 'Documentos', icono: 'documentos' },
     { href: '/expedientes', etiqueta: 'Expedientes', icono: 'expedientes' },
     { href: '/reportes', etiqueta: 'Reportes', icono: 'reportes' },
   ]

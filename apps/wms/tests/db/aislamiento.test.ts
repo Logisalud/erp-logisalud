@@ -279,6 +279,9 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'registrar_retorno', 'stock_vendible',
     // Roles de los jefes y cargos (0015)
     'asignar_cargo',
+    // S6a (0016)
+    'asignar_fabricante_producto', 'asignar_item_coa', 'crear_fabricante', 'descartar_item_coa', 'estado_documental', 'guardar_perfil_documental', 'lotes_sin_coa',
+    'registrar_carga_coa', 'revisar_documentos_regulatorios', 'subir_documento_regulatorio',
     // S2b (0013)
     'avisos_fefo', 'lotes_para_editar', 'reporte_cambios_fefo',
     // S3 (0014)
