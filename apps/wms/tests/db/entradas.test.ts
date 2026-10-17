@@ -314,17 +314,17 @@ describe('devolución e ingreso de cliente', () => {
   })
 
   it('(D-31) la devolución nace en Devoluciones, nunca en Cuarentena, y sale por su Acta Organoléptica', async () => {
-    const dip = await idPropietario(base.admin, 'DIPHASAC')
+    const dip = await idPropietario(base.admin, 'LOGISSA') // OS-5: el stock de un cliente lo libera su DT (tests/db/os5-liberacion.test.ts); aquí, stock de Logissa
     const sol = await crear('DEVOLUCION', dip, { guia_numero: 'G-2', doc_original_tipo: 'FACTURA', doc_original_numero: 'F001-123', motivo: 'Cliente devolvió' },
       [{ producto_id: base.productos.dapa, lote: 'L-DEV1', vence: '2028-01-31', cantidad: 5 }])
     const linea = (await base.admin.query('select id from wms.solicitud_ingreso_lineas where solicitud_id = $1', [sol])).rows[0].id
     const ing = await recibir(sol)
     expect((await falla(verificar(linea, true, { posicion: await pos('A-6') }))).message).toMatch(/Área de Devoluciones: nunca pasa por Cuarentena/)
-    await verificar(linea, true, { posicion: await pos('A-10.1') })
+    await verificar(linea, true, { posicion: await pos('E-8.1.1') })
     await datosDeRecepcion(ing)
     await firmarTodo(ing)
     await confirmar(ing)
-    expect((await saldos(ing))[0]).toMatchObject({ estado: 'DEVOLUCIONES', cantidad: 5, propietario: 'DIPHASAC' })
+    expect((await saldos(ing))[0]).toMatchObject({ estado: 'DEVOLUCIONES', cantidad: 5, propietario: 'LOGISSA' })
     expect((await base.admin.query(`select count(*)::int n from wms.partidas p join wms.ingreso_lotes il on il.id = p.procedencia_id where il.ingreso_id = $1 and p.estado = 'CUARENTENA'`, [ing])).rows[0].n).toBe(0)
     // Sale de Devoluciones con su acta: a Aprobado.
     await (await decidirOrg(ing, 'L-DEV1', 'APROBADO')).decidir()
@@ -332,12 +332,12 @@ describe('devolución e ingreso de cliente', () => {
   })
 
   it('(D-31) la devolución rechazada va a Bajas/Rechazados', async () => {
-    const dip = await idPropietario(base.admin, 'DIPHASAC')
+    const dip = await idPropietario(base.admin, 'LOGISSA') // OS-5: el stock de un cliente lo libera su DT (tests/db/os5-liberacion.test.ts); aquí, stock de Logissa
     const sol = await crear('DEVOLUCION', dip, { guia_numero: 'G-3', doc_original_tipo: 'BOLETA', doc_original_numero: 'B001-9', motivo: 'Dañado' },
       [{ producto_id: base.productos.dapa, lote: 'L-DEV2', vence: '2028-01-31', cantidad: 2 }])
     const linea = (await base.admin.query('select id from wms.solicitud_ingreso_lineas where solicitud_id = $1', [sol])).rows[0].id
     const ing = await recibir(sol)
-    await verificar(linea, true, { posicion: await pos('A-10.1') })
+    await verificar(linea, true, { posicion: await pos('E-8.1.1') })
     await datosDeRecepcion(ing)
     await firmarTodo(ing)
     await confirmar(ing)
@@ -494,12 +494,11 @@ describe('alertas', () => {
 })
 
 describe('acta organoléptica', () => {
-  it('(6) muestra = techo(raíz(unidades)) + 1', async () => {
-    const m = async (n: number) => (await base.admin.query('select wms.muestra_organoleptica($1) m', [n])).rows[0].m
-    expect([await m(1), await m(4), await m(5), await m(9), await m(10), await m(100), await m(101)]).toEqual([2, 3, 4, 4, 5, 11, 12])
+  it('(6) la muestra sale de la tabla LS-TB.02.02 (OS-5): un lote de 4 unidades se evalúa al 100 % (ya no techo(raíz)+1)', async () => {
     const x = await ingresoCompletoCompra(base.productos.dapa, 4, [['L-M1', 4]])
-    const r = await base.admin.query('select cantidad_lote, cantidad_muestra from wms.actas_organolepticas where ingreso_id = $1 order by cantidad_lote desc', [x.id])
-    expect(r.rows).toEqual([{ cantidad_lote: 4, cantidad_muestra: 3 }])
+    const r = await base.admin.query('select cantidad_lote, cantidad_muestra, regimen_muestreo, tabla_muestreo from wms.actas_organolepticas where ingreso_id = $1 order by cantidad_lote desc', [x.id])
+    expect(r.rows).toEqual([{ cantidad_lote: 4, cantidad_muestra: 4, regimen_muestreo: 'LOTE_MENOR', tabla_muestreo: 'LS-TB.02.02' }])
+    expect((await base.admin.query(`select to_regprocedure('wms.muestra_organoleptica(integer)') f`)).rows[0].f).toBeNull()
   })
 
   it('hay un acta organoléptica por producto y lote, con su correlativo', async () => {

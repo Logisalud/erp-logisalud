@@ -106,7 +106,7 @@ const ROLES_ESPERADOS: Record<string, boolean> = {
   direccion_tecnica: true, asistente_dt: true, jefe_almacen: true, reemplazo_jefe: false, auxiliar: true,
   auditoria_lectura: true, admin_wms: true, jefe_transporte: true, conformidad_despacho: true,
   autoriza_salidas_sin_venta: true,
-  conductor: false, auxiliar_transporte: false, usuario_cliente: false,
+  conductor: false, auxiliar_transporte: false, usuario_cliente: false, dt_cliente: false,
 }
 
 describe('es_usuario(): lista cerrada de personal', () => {
@@ -123,7 +123,7 @@ describe('es_usuario(): lista cerrada de personal', () => {
       for (const [rol, personal] of Object.entries(ROLES_ESPERADOS)) {
         if (rol === 'reemplazo_jefe') continue // retirado (0015): ya no se puede asignar; ver roles-jefes.test.ts
         const u = await nuevaCuenta()
-        await base.admin.query(`insert into wms.usuario_roles (user_id, rol, propietario_id) values ($1, $2, $3)`, [u, rol, rol === 'usuario_cliente' ? idAjr : null])
+        await base.admin.query(`insert into wms.usuario_roles (user_id, rol, propietario_id) values ($1, $2, $3)`, [u, rol, rol === 'usuario_cliente' || rol === 'dt_cliente' ? idAjr : null])
         const r = await base.como(u, async (c) => (await c.query('select wms.es_usuario() as p')).rows[0].p)
         expect(r, rol).toBe(personal)
       }
@@ -265,7 +265,7 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'decidir_acta_organoleptica', 'decidir_ajuste', 'decidir_estado_carga_inicial', 'editar_ingreso', 'editar_regulatorio',
     'ejecutar_movimiento', 'es_usuario', 'escalar_linea_conteo', 'estado_registro_compras', 'exactitud_conteos',
     'firmar_acta_recepcion', 'generar_acta_recepcion', 'generar_conteo_programado', 'guardar_acta_organoleptica',
-    'historia_lote', 'iniciar_recepcion', 'iniciar_revision_diaria', 'kardex_filas', 'marcar_foco', 'muestra_organoleptica',
+    'historia_lote', 'iniciar_recepcion', 'iniciar_revision_diaria', 'kardex_filas', 'marcar_foco',
     'orden_recorrido_por_defecto', 'personas_del_equipo', 'posicion_acepta', 'posiciones_bloqueadas', 'postear_movimiento',
     'programar_conteo', 'programar_conteo_extra', 'programar_conteo_semanal', 'propietario_cliente', 'proponer_ajuste',
     'reemitir_acta_recepcion', 'registrar_causa_conteo', 'registrar_conteo', 'registrar_pendiente', 'resolver_faltante',
@@ -281,6 +281,9 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'asignar_cargo',
     // OS-1 (0022)
     'aplicar_reserva_lote', 'quitar_reserva_lote',
+    // OS-5 (0025)
+    'anular_dictamen_cliente', 'confirmar_dictamen_cliente', 'crear_retorno', 'dictaminar_como_dt_cliente', 'levantar_observacion_acta', 'lotes_retornables',
+    'marcar_muestreo_estricto', 'observar_acta_organoleptica', 'quitar_muestreo_estricto', 'registrar_dictamen_cliente',
     // S8 (0021)
     'cargar_bulto', 'conciliacion_carga', 'confirmar_salida_ruta', 'excluir_pedido_de_carga', 'guardar_checklist_vehicular', 'liberar_unidad', 'retirar_bulto_carga',
     // S7 (0020)
