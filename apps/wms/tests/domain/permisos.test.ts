@@ -47,9 +47,17 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
     for (const r of ['jefe_almacen', 'jefe_transporte', 'auxiliar'] as const) expect(puede([r], 'cambiar_lote_asignado'), r).toBe(true)
     for (const r of ['asistente_dt', 'conductor', 'usuario_cliente', 'direccion_tecnica'] as const) expect(puede([r], 'cambiar_lote_asignado'), r).toBe(false)
   })
-  it('Roberto (solo jefe_transporte) no tiene permisos de Jefe de Almacén', () => {
-    for (const a of ['ejecutar', 'verificar', 'ajustar', 'aprobar', 'configurar'] as const) expect(puede(['jefe_transporte'], a), a).toBe(false)
+  it('Roberto (solo jefe_transporte) tiene todo lo del auxiliar pero no ajusta, aprueba ni configura', () => {
+    for (const a of ['ajustar', 'aprobar', 'configurar'] as const) expect(puede(['jefe_transporte'], a), a).toBe(false)
     expect(puede(['jefe_transporte'], 'imprimir_paquete_documental')).toBe(true)
+  })
+  it('DT 2026-10-17: Jefe de Almacén y Jefe de Transporte tienen TODOS los permisos del auxiliar', () => {
+    const auxiliar = (['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta'] as const)
+    for (const r of ['jefe_almacen', 'jefe_transporte'] as const) for (const a of auxiliar) expect(puede([r], a), `${r} ${a}`).toBe(true)
+  })
+  it('la Reserva de un lote la aplican y la quitan solo el Jefe de Transporte y Dirección Técnica', () => {
+    for (const r of ['jefe_transporte', 'direccion_tecnica'] as const) expect(puede([r], 'reservar_lote'), r).toBe(true)
+    for (const r of ['jefe_almacen', 'auxiliar', 'asistente_dt', 'conformidad_despacho', 'admin_wms'] as const) expect(puede([r], 'reservar_lote'), r).toBe(false)
   })
   it('solo Dirección Técnica gestiona los documentos regulatorios', () => {
     expect(puede(['direccion_tecnica'], 'gestionar_documentos_regulatorios')).toBe(true)

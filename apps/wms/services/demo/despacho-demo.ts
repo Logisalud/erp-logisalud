@@ -46,6 +46,8 @@ export interface DespachoDemoEstado {
   guias?: GuiaDemo[]
   /** S7: bultos (los vigentes y los anulados al reabrir el embalaje). */
   bultos?: import('@/domain/embalaje').BultoVista[]
+  /** OS-1: Reservas de lote (la historia completa; la vigente es la que no tiene `quitadaEn`). */
+  reservasLote?: import('@/domain/reserva').ReservaLoteVista[]
   /** S8: carga por ruta (checklist, bultos cargados, exclusiones, liberación y salida). */
   carga?: Record<string, CargaDemo>
 }
@@ -92,10 +94,14 @@ export function celdasLibres(e: EstadoDemo, productoId: string, propietarioId: s
   return porLote
 }
 
+/** Las Reservas de lote (se crea al primer uso). */
+export const reservasLoteDe = (e: EstadoDemo) => (desp(e).reservasLote ??= [])
+export const loteEnReserva = (e: EstadoDemo, loteId: string) => reservasLoteDe(e).some((r) => r.loteId === loteId && !r.quitadaEn)
+
 export function lotesDisponibles(e: EstadoDemo, productoId: string, propietarioId: string): LoteDisponible[] {
   const lotes = new Map(e.panorama.lotes.map((l) => [l.id, l]))
   return [...celdasLibres(e, productoId, propietarioId)].map(([loteId, celdas]) => ({
-    loteId, codigo: lotes.get(loteId)?.codigo ?? loteId, vence: lotes.get(loteId)?.vence ?? null, disponible: celdas.reduce((t, c) => t + c.libre, 0),
+    loteId, codigo: lotes.get(loteId)?.codigo ?? loteId, vence: lotes.get(loteId)?.vence ?? null, disponible: celdas.reduce((t, c) => t + c.libre, 0), bloqueado: loteEnReserva(e, loteId),
   }))
 }
 

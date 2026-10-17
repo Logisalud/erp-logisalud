@@ -194,6 +194,13 @@ Recorrido con 4 focos: orden, limpieza, ubicaciones y situaciones anormales. Sol
 - **Edición de la asignación (D-79, reemplaza D-77 (a) y D-78):** el Jefe de Almacén, el Jefe de Transporte y los auxiliares de almacén reemplazan, agregan o quitan lotes y redistribuyen cantidades de una línea de venta antes del picking (suma = cantidad de la línea). Sin motivo obligatorio ni regla de «vencer después»; el aviso de lote que vence antes no bloquea. Queda, sin pedir nada al usuario, la asignación FEFO original, la anterior, la final, quién y cuándo (motivo opcional). Reporte «Cambios a FEFO»: cuántas veces y por quién se eligió un lote distinto al FEFO, por periodo. El reemplazo en picking se propone por lote.
 - Idempotencia por token en cada paso; el Kardex incluye SALIDA y RETORNO.
 
+## Orden de Salida — ajustes de Dirección Técnica (2026-10-17)
+El detalle completo está en `respuestas-dt-2026-10.md`. Lo que ya rige (OS-1):
+- **Áreas habilitadas:** Recepción, Cuarentena, Aprobados, Contramuestra, Bajas, Devoluciones y Despacho. «Pendiente de conformidad», «Observado», «Retorno reservado» y «Embalaje» se retiran; la mesa K-M2 es parte de Despacho. El picking solo sale de Aprobados; la conformidad deja el stock en Despacho y la salida sale de Despacho.
+- **Reserva:** un estado del lote (no un área). El lote sigue Aprobado pero no se asigna ni se pickea. La aplican y la quitan el Jefe de Transporte y Dirección Técnica, con motivo; la historia no se borra.
+- **Contramuestra:** solo cuando Logissa es titular del registro sanitario o del certificado de registro (fabricación por encargo, cada lote nuevo). Hoy no aplica a Logissa.
+- **Permisos:** Jefe de Almacén y Jefe de Transporte tienen todos los permisos del auxiliar. Kardex: código controlado LS-FR.41.
+
 ## Integridad
 Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario, fecha, motivo).
 

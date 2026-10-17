@@ -14,7 +14,6 @@ let aux1: string // auxiliar (picker)
 let aux2: string
 let muestras: string // autoriza_salidas_sin_venta
 let stg: string // posición de Pendiente de conformidad
-let ret: string // posición de Retorno reservado
 
 const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
 const en = (dias: number) => {
@@ -71,8 +70,8 @@ beforeAll(async () => {
   aux1 = await persona('auxiliar')
   aux2 = await persona('auxiliar')
   muestras = await persona('autoriza_salidas_sin_venta')
-  stg = (await uno(`insert into wms.posiciones (codigo, rack, forma, tipo_area) values ('STG-1', 'S', 'PISO', 'PENDIENTE_CONFORMIDAD') returning id`)).id
-  ret = (await uno(`insert into wms.posiciones (codigo, rack, forma, tipo_area) values ('RET-1', 'R', 'PISO', 'RETORNO_RESERVADO') returning id`)).id
+  stg = (await uno(`insert into wms.posiciones (codigo, rack, forma, tipo_area) values ('STG-1', 'S', 'PISO', 'DESPACHO') returning id`)).id
+  await base.admin.query(`update wms.parametros set valor = 'STG-1' where clave = 'posicion_despacho_defecto'`)
 }, 120_000)
 afterAll(async () => { await base?.cerrar() })
 
@@ -210,7 +209,7 @@ describe('modo A: FEFO entre lotes aptos', () => {
     expect(alertas[0].mensaje).toMatch(/Stock insuficiente/)
   })
 
-  it('una línea con varios lotes se retorna por lote: el retorno nunca supera lo que salió de ese lote', async () => {
+  it('una línea con varios lotes sale por lote: cada reserva conserva su lote y su cantidad', async () => {
     const p = await producto()
     await sembrar(p, 'F-1.1', 'R1', en(90), logissa, 30)
     await sembrar(p, 'F-1.2', 'R2', en(150), logissa, 30)
@@ -223,13 +222,9 @@ describe('modo A: FEFO entre lotes aptos', () => {
       await como(sandra, (c) => c.query(`select wms.dar_conformidad($1, 'CONFORME')`, [ol.id]))
     }
     await como(jt, (c) => c.query('select wms.confirmar_salida($1)', [s]))
-    const r2 = (await q(`select id from wms.lotes where producto_id = $1 and codigo = 'R2'`, [p]))[0].id
     expect(l.estado).toBe('ASIGNADA')
-    // Salieron 30 de R1 y 10 de R2: de R2 no pueden volver más de 10.
-    expect((await falla(como(aux1, (c) => c.query('select wms.registrar_retorno($1, 11, null, null, $2)', [l.id, r2])))).message).toMatch(/No puede volver más de lo que salió/)
-    await como(aux1, (c) => c.query('select wms.registrar_retorno($1, 10, null, null, $2)', [l.id, r2]))
     const rs = await reservas(l.id)
-    expect(rs.map((x) => [x.lote, x.cantidad, x.cantidad_retornada]).sort()).toEqual([['R1', 30, 0], ['R2', 10, 10]])
+    expect(rs.map((x) => [x.lote, x.cantidad, x.estado]).sort()).toEqual([['R1', 30, 'CONSUMIDA'], ['R2', 10, 'CONSUMIDA']])
   })
 
   it('una ubicación en conteo no se cuenta como stock: el mensaje dice «en conteo», no «no hay»', async () => {
@@ -709,16 +704,16 @@ describe('picking → conformidad → salida → retorno (§4.3)', () => {
     expect((await uno('select estado from wms.salida_lineas where id = $1', [linea.id])).estado).toBe('OBSERVADA')
   })
 
-  it('sin ubicación física para la zona de conformidad no se puede conformar (D-52)', async () => {
-    await base.admin.query(`update wms.posiciones set activa = false where codigo = 'STG-1'`)
+  it('Despacho tiene varias ubicaciones: sin la ubicación por defecto la conformidad pide indicar cuál usar', async () => {
+    await base.admin.query(`update wms.parametros set valor = 'NO-EXISTE' where clave = 'posicion_despacho_defecto'`)
     try {
       const { ols } = await preparado(10)
       await pickear(aux1, ols[0].id, ols[0].cantidad)
-      expect((await falla(conformar(sandra, ols[0].id))).message).toMatch(/todavía no tiene ubicación física/)
-    } finally { await base.admin.query(`update wms.posiciones set activa = true where codigo = 'STG-1'`) }
+      expect((await falla(conformar(sandra, ols[0].id))).message).toMatch(/Hay varias ubicaciones de DESPACHO: indica cuál usar/)
+    } finally { await base.admin.query(`update wms.parametros set valor = 'STG-1' where clave = 'posicion_despacho_defecto'`) }
   })
 
-  it('el ciclo completo: SALIDA desde staging, RETORNO ≤ SALIDA, idempotencia y Kardex', async () => {
+  it('el ciclo completo: SALIDA desde Despacho, idempotencia y Kardex', async () => {
     const { p, s, ols, linea } = await preparado()
     for (const ol of ols) { await pickear(aux1, ol.id, ol.cantidad); await conformar(sandra, ol.id) }
     expect(await saldoEn(p, 'STG-1')).toBe(50)
@@ -732,22 +727,12 @@ describe('picking → conformidad → salida → retorno (§4.3)', () => {
     // repetir (mismo token, o sin token) no duplica la salida
     expect(await como(jt, async (c) => (await c.query('select wms.confirmar_salida($1, $2) n', [s, 'tok-1'])).rows[0].n)).toBe(0)
     expect((await q(`select 1 from wms.partidas pa join wms.movimientos m on m.id = pa.movimiento_id where m.tipo = 'SALIDA' and pa.producto_id = $1`, [p])).length).toBe(2)
-    // retorno: nunca más de lo que salió
-    const ret1 = (cant: number, tok: string | null = null) => como(aux1, async (c) => (await c.query('select wms.registrar_retorno($1, $2, null, $3) m', [linea.id, cant, tok])).rows[0].m as string)
-    expect((await falla(ret1(51))).message).toMatch(/No puede volver más de lo que salió/)
-    const m1 = await ret1(20, 'r-1')
-    expect(await saldoEn(p, 'RET-1')).toBe(20)
-    expect(await ret1(20, 'r-1')).toBe(m1) // mismo token: misma respuesta, sin duplicar
-    expect(await saldoEn(p, 'RET-1')).toBe(20)
-    expect((await falla(ret1(31))).message).toMatch(/No puede volver más de lo que salió \(salieron 30 sin retorno/)
-    await ret1(30)
-    expect(await saldoEn(p, 'RET-1')).toBe(50)
-    expect((await falla(ret1(1))).message).toMatch(/salieron 0 sin retorno/)
-    // el Kardex (y la historia del lote) muestran la salida y el retorno
+    // el Kardex (y la historia del lote) muestran la salida
     const kardex = await como(jt, async (c) => (await c.query('select tipo_documento, entrada, salida from wms.kardex_filas($1, null, $2, null, null) where not es_saldo_inicial order by orden', [p, logissa])).rows)
-    expect(kardex.map((k) => k.tipo_documento)).toEqual(expect.arrayContaining(['Salida', 'Retorno de pedido no entregado']))
+    expect(kardex.map((k) => k.tipo_documento)).toEqual(expect.arrayContaining(['Salida']))
     expect(kardex.filter((k) => k.tipo_documento === 'Salida').reduce((t, k) => t + k.salida, 0)).toBe(50)
-    expect(kardex.filter((k) => k.tipo_documento === 'Retorno de pedido no entregado').reduce((t, k) => t + k.entrada, 0)).toBe(50)
+    // los retornos ya no entran por una zona propia: vuelven como recepción tipo devolución (OS-5)
+    expect(await uno(`select to_regprocedure('wms.registrar_retorno(uuid, integer, uuid, text, uuid)') f`)).toMatchObject({ f: null })
   })
 
   it('los invariantes viven en la base: nadie registra SALIDA, RETORNO ni staging por fuera del flujo', async () => {
@@ -760,7 +745,7 @@ describe('picking → conformidad → salida → retorno (§4.3)', () => {
     for (const quien of [jt, sandra, base.personas.charlie.id, base.personas.admin.id, base.personas.katia.id]) {
       for (const tipo of ['SALIDA', 'RETORNO']) {
         const e = await falla(como(quien, (c) => postear(c, tipo, [partida(rack, -1)])))
-        expect(e.message, tipo).toMatch(/solo se registran por el flujo de salidas/)
+        expect(e.message, tipo).toMatch(/no habilitado|solo se registran por el flujo de salidas/)
       }
       // mover a mano hacia staging
       const e2 = await falla(como(quien, (c) => postear(c, 'MOVIMIENTO', [partida(rack, -1), partida(stg, 1)])))
@@ -874,8 +859,8 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     // la 0012 se reintenta antes de la 0013 (la 0013 le agrega un valor por defecto a editar_asignacion, que la 0012 no puede quitar)
     await base.admin.query('drop function wms.editar_asignacion(uuid, jsonb, text)')
     // la 0017 agregó permisos que la lista de la 0012 no conoce: se quitan para reintentar la 0012 y se vuelven a poner con la 0017
-    await base.admin.query(`delete from wms.permisos_rol where accion in ('planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad')`)
-    await base.admin.query(`delete from wms.alertas where tipo in ('PEDIDO_CAMBIADO', 'DOCUMENTO_VENCIDO', 'DOCUMENTACION_INCOMPLETA')`) // tipos que la lista de la 0012 no conoce
+    await base.admin.query(`delete from wms.permisos_rol where accion in ('planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote')`)
+    await base.admin.query(`delete from wms.alertas where tipo in ('PEDIDO_CAMBIADO', 'DOCUMENTO_VENCIDO', 'DOCUMENTACION_INCOMPLETA', 'LOTE_EN_RESERVA')`) // tipos que la lista de la 0012 no conoce
     await base.admin.query(SQL.m0012())
     await base.admin.query(SQL.m0012())
     await base.admin.query(SQL.m0013()) // la 0013 va siempre después de la 0012 (y también se puede repetir)
@@ -890,6 +875,8 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     await base.admin.query(SQL.m0020())
     await base.admin.query(SQL.m0021())
     await base.admin.query(SQL.m0021())
-    expect((await uno(`select count(*)::int n from wms.tipos_movimiento where codigo in ('SALIDA', 'RETORNO') and habilitado`)).n).toBe(2)
+    await base.admin.query(SQL.m0022())
+    await base.admin.query(SQL.m0022())
+    expect((await uno(`select count(*)::int n from wms.tipos_movimiento where codigo in ('SALIDA', 'RETORNO') and habilitado`)).n).toBe(1)  // el retorno ya no es un movimiento propio (OS-1)
   })
 })

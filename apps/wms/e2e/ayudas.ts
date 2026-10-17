@@ -38,3 +38,10 @@ export async function esperarMapa(page: Page) {
     return !!g && /scale\((?!1\))/.test(g.getAttribute('transform') ?? '')
   })
 }
+
+/** Elige un producto en el buscador del Kardex: escribe y toca la primera opción (por nombre o código). */
+export async function elegirProductoKardex(page: Page, consulta: string) {
+  await page.locator('#k-producto').fill(consulta)
+  await page.locator('[role="option"] button').first().click()
+  await expect(page.getByTestId('k-producto-valor')).not.toHaveValue('')
+}

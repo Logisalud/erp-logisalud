@@ -19,7 +19,7 @@ import { EditorLotes } from './editor-lotes'
 
 const Lotes = ({ l }: { l: LineaSalidaVista }) => l.asignacion.length === 0
   ? <span className="text-gray-500">Sin lotes</span>
-  : <ul className="space-y-0.5">{l.asignacion.map((a) => <li key={a.loteId} className="tabular">{a.lote} <span className="text-gray-600">· vence {a.vence ? mesAnio(a.vence) : '—'}</span> × <strong>{a.cantidad.toLocaleString('es-PE')}</strong></li>)}</ul>
+  : <ul className="space-y-0.5">{l.asignacion.map((a) => <li key={a.loteId} className="tabular"><Link href={`/lotes/${a.loteId}`} className="underline underline-offset-2" data-testid="lote-enlace">{a.lote}</Link> <span className="text-gray-600">· vence {a.vence ? mesAnio(a.vence) : '—'}</span> × <strong>{a.cantidad.toLocaleString('es-PE')}</strong></li>)}</ul>
 
 export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, roles }: { salida: SalidaVista; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; roles: readonly Rol[] }) {
   const router = useRouter()

@@ -9,7 +9,7 @@ import type { PedidoSnapshot } from '@/domain/pedidos-despacho'
 import { seApartaDeFefo, type AsignacionLote } from '@/domain/salidas'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioPicking } from '../repositorio-picking'
-import { DespachoSupabase } from './despacho-supabase'
+import { ReservasSupabase } from './reservas-supabase'
 import { nombresDe } from './entradas-supabase'
 import { mensajeHumano, rpc, s, traerTodo, type Fila } from './util'
 
@@ -25,7 +25,7 @@ interface Contexto {
   pedidoPorSalida: Map<string, PedidoSnapshot & { numero: string }>; rutaPorSalida: Map<string, string>
 }
 
-export class PickingSupabase extends DespachoSupabase implements RepositorioPicking {
+export class PickingSupabase extends ReservasSupabase implements RepositorioPicking {
   protected async contexto(): Promise<Contexto> {
     const [salidas, lineas, reservas, ordenes, ordenLineas, lotes, posiciones, productos, pedidos, paradas, rutas] = await Promise.all([
       traerTodo('salidas', 'wms', '*', ['numero']), traerTodo('salida_lineas', 'wms', '*'), traerTodo('reservas', 'wms', '*'), traerTodo('ordenes_picking', 'wms', '*', ['numero']),

@@ -1,7 +1,7 @@
 // Flujos del Batch 3 (inventario en operación) en los 4 viewports. Modo demostración, en serie:
 // cada prueba parte de lo que dejó la anterior (el servidor se reinicia por viewport).
 import { expect, test, type Page } from '@playwright/test'
-import { capturar, entrarComo, esTelefono, sinDesborde, type RolDemo } from './ayudas'
+import { capturar, elegirProductoKardex, entrarComo, esTelefono, sinDesborde, type RolDemo } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -42,7 +42,7 @@ test.describe('Kardex, historia del lote y vencimientos', () => {
     await page.goto('/wms/kardex')
     await expect(page.getByTestId('kardex-vacio')).toBeVisible()
     await capturar(page, info, 'kardex-vacio')
-    await page.locator('#k-producto').selectOption({ index: 1 })
+    await elegirProductoKardex(page, 'DEMO-001')
     await page.getByTestId('ver-kardex').click()
     await expect(page.getByTestId('kardex-saldo-final')).toBeVisible()
     const filas = page.locator('[data-testid="fila-kardex"]:visible, [data-testid="lista-kardex"]:visible > li')
@@ -60,7 +60,7 @@ test.describe('Kardex, historia del lote y vencimientos', () => {
   test('un lote tiene su historia completa', async ({ page }, info) => {
     await entrarComo(page, 'auditoria_lectura')
     await page.goto('/wms/kardex')
-    await page.locator('#k-producto').selectOption({ index: 1 })
+    await elegirProductoKardex(page, 'DEMO-001')
     await page.getByTestId('ver-kardex').click()
     await expect(page.getByTestId('kardex-saldo-final')).toBeVisible()
     await page.locator('#k-lote').selectOption({ index: 1 })

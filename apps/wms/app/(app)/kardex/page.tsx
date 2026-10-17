@@ -1,3 +1,4 @@
+import { FiltroProducto } from '@/components/inventario/filtro-producto'
 import Link from 'next/link'
 import { Download, FileSpreadsheet, History, SearchX } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
@@ -31,10 +32,7 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
       <form method="get" className="card grid gap-3 md:grid-cols-6 md:items-end" data-testid="filtros-kardex">
         <div className="md:col-span-2">
           <label htmlFor="k-producto" className="etiqueta">Producto</label>
-          <select id="k-producto" name="producto" className="campo" defaultValue={filtro?.productoId ?? ''} required>
-            <option value="" disabled>Elige un producto…</option>
-            {[...p.productos].sort((a, b) => a.descripcion.localeCompare(b.descripcion, 'es')).map((x) => <option key={x.id} value={x.id}>{x.codigo} · {x.descripcion}</option>)}
-          </select>
+          <FiltroProducto inicial={prod ? { id: prod.id, codigo: prod.codigo, descripcion: prod.descripcion, presentacion: prod.presentacion } : null} />
         </div>
         <div>
           <label htmlFor="k-lote" className="etiqueta">Lote</label>

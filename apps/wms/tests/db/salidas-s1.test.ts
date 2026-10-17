@@ -36,7 +36,8 @@ describe('permisos: la base y el dominio dicen lo mismo', () => {
     expect(await consulta(sandra, 'dar_conformidad')).toBe(true)
     expect(await consulta(base.personas.charlie.id, 'dar_conformidad')).toBe(false)
     expect(await consulta(await persona('jefe_transporte'), 'cambiar_lote_asignado')).toBe(true)
-    expect(await consulta(await persona('jefe_transporte'), 'ejecutar')).toBe(false)
+    expect(await consulta(await persona('jefe_transporte'), 'ejecutar')).toBe(true) // tiene todo lo del auxiliar (DT, 2026-10-17)
+    expect(await consulta(await persona('jefe_transporte'), 'ajustar')).toBe(false)
     expect(await consulta(base.personas.katia.id, 'gestionar_documentos_regulatorios')).toBe(true)
     expect(await consulta(base.personas.sandra.id, 'gestionar_documentos_regulatorios')).toBe(false)
   })
@@ -70,9 +71,10 @@ describe('tipos de movimiento SALIDA y RETORNO', () => {
 })
 
 describe('zonas de salida', () => {
-  it('Embalaje y Despacho están en alcance y admiten Aprobado, no Cuarentena', async () => {
+  it('Despacho (con la mesa K-M2) está en alcance y admite Aprobado, no Cuarentena', async () => {
     expect(await q(`select codigo, en_alcance from wms.tipos_area where codigo in ('EMBALAJE', 'DESPACHO') order by 1`))
-      .toEqual([{ codigo: 'DESPACHO', en_alcance: true }, { codigo: 'EMBALAJE', en_alcance: true }])
+      .toEqual([{ codigo: 'DESPACHO', en_alcance: true }, { codigo: 'EMBALAJE', en_alcance: false }])
+    expect((await q(`select tipo_area from wms.posiciones where codigo = 'K-M2'`))[0].tipo_area).toBe('DESPACHO')
     const prop = await idPropietario(base.admin, 'LOGISSA')
     const lote = (await q(`insert into wms.lotes (producto_id, codigo, vence, propietario_id) values ($1, 'S1-D', '2030-01-01', $2) returning id`, [base.productos.dapa, prop]))[0].id
     const ped = (estado: 'APROBADO' | 'CUARENTENA') => [{ posicion_id: '', producto_id: base.productos.dapa, lote_id: lote, propietario_id: prop,
@@ -88,14 +90,16 @@ describe('zonas de salida', () => {
     }
   })
 
-  it('las tres zonas nuevas existen, apagadas, y la base rechaza cualquier unidad que intente entrar', async () => {
-    const z = await q(`select codigo, es_compartida, en_alcance from wms.tipos_area where codigo in ('PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO') order by 1`)
-    expect(z).toHaveLength(3)
-    expect(z.every((r) => r.en_alcance === false && r.es_compartida === true)).toBe(true)
-    // S2 hace que «Pendiente de conformidad» y «Retorno reservado» admitan Aprobado (sin posiciones, nada entra); «Observado» sigue sin admitir nada.
-    expect(await q(`select 1 from wms.area_estado_admitido where tipo_area = 'OBSERVADO'`)).toHaveLength(0)
-    expect(await q(`select 1 from wms.posiciones where tipo_area in ('PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO')`)).toHaveLength(0)
-    // Una posición de prueba en una zona apagada: la base no deja entrar nada (la zona no admite ningún estado).
+  it('las zonas retiradas (Embalaje, Pendiente de conformidad, Observado, Retorno reservado) quedan fuera de alcance, sin ubicaciones ni estados admitidos', async () => {
+    const z = await q(`select codigo, en_alcance from wms.tipos_area where codigo in ('EMBALAJE', 'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO') order by 1`)
+    expect(z).toHaveLength(4)
+    expect(z.every((r) => r.en_alcance === false)).toBe(true)
+    expect(await q(`select 1 from wms.area_estado_admitido where tipo_area in ('EMBALAJE', 'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO')`)).toHaveLength(0)
+    expect(await q(`select 1 from wms.posiciones where tipo_area in ('EMBALAJE', 'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO')`)).toHaveLength(0)
+    // Las siete áreas habilitadas.
+    expect((await q(`select codigo from wms.tipos_area where en_alcance order by 1`)).map((r) => r.codigo))
+      .toEqual(['APROBADOS', 'BAJAS_RECHAZADOS', 'CONTRAMUESTRA', 'CUARENTENA', 'DESPACHO', 'DEVOLUCIONES', 'RECEPCION'])
+    // Una posición de prueba en una zona retirada: la base no deja entrar nada.
     const prop = await idPropietario(base.admin, 'LOGISSA')
     const lote = (await q(`insert into wms.lotes (producto_id, codigo, vence, propietario_id) values ($1, 'S1-Z', '2030-01-01', $2) returning id`, [base.productos.dapa, prop]))[0].id
     const pos = (await q(`insert into wms.posiciones (codigo, rack, forma, tipo_area) values ('ZZ-PRUEBA', 'Z', 'PISO', 'OBSERVADO') returning id`))[0].id
@@ -118,9 +122,9 @@ describe('zonas de salida', () => {
     expect(e.message).toMatch(/solo en las salidas/)
   })
 
-  it('el trigger existe y nombra las cinco zonas de salida', async () => {
+  it('el trigger existe y nombra la zona de salida (Despacho)', async () => {
     const def = (await q(`select pg_get_functiondef('wms.trg_mover_no_toca_zonas_de_salida'::regproc) d`))[0].d as string
-    for (const a of ['EMBALAJE', 'DESPACHO', 'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO']) expect(def).toContain(`'${a}'`)
+    expect(def).toContain("'DESPACHO'")
     expect(await q(`select 1 from pg_trigger where tgname = 'mover_no_toca_zonas_de_salida' and not tgisinternal`)).toHaveLength(1)
   })
 })
