@@ -15,8 +15,8 @@ import type { RepositorioRutas } from '../repositorio-rutas'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
 export interface ReservaDemo {
-  id: string; lineaId: string; salidaId: string; productoId: string; loteId: string; posicionId: string; cantidad: number
-  estado: 'ACTIVA' | 'EN_STAGING' | 'CONSUMIDA' | 'LIBERADA'
+  id: string; lineaId: string; salidaId: string; productoId: string; loteId: string; posicionId: string; posicionOrigenId: string; procedenciaId: string; cantidad: number
+  estado: 'ACTIVA' | 'EN_TRANSITO' | 'EN_STAGING' | 'CONSUMIDA' | 'LIBERADA'
 }
 export interface LineaSalidaDemo {
   id: string; productoId: string; cantidad: number
@@ -40,6 +40,8 @@ export interface DespachoDemoEstado {
   personal: PersonalTransporte[]; vehiculos: VehiculoVista[]; rutas: RutaDemo[]; salidas: SalidaDemo[]; reservas: ReservaDemo[]
   /** Hora de corte de la planificación (parámetro). */
   corte: string; sembrado: boolean
+  /** S5: órdenes de picking, cambios a FEFO y su historia (se crea al primer uso). */
+  picking?: import('./picking-demo').PickingDemoEstado
 }
 
 export function desp(e: EstadoDemo): DespachoDemoEstado {
@@ -50,9 +52,18 @@ export function desp(e: EstadoDemo): DespachoDemoEstado {
 const sumarDias = (fecha: string, n: number) => new Date(Date.parse(`${fecha}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
 export const duenoDelAlmacen = (e: EstadoDemo) => e.panorama.propietarios.find((p) => p.esDuenoAlmacen)?.id ?? ''
 
+/** Lo comprometido de una celda: reservas de salidas vivas y movimientos internos todavía sin verificar (una sola fuente, como wms._comprometido). */
+export function comprometidoEn(e: EstadoDemo, posicionId: string, loteId: string, procedenciaId: string): number {
+  const d = desp(e)
+  const reservas = d.reservas.filter((r) => (r.estado === 'ACTIVA' || r.estado === 'EN_TRANSITO' || r.estado === 'EN_STAGING') && r.loteId === loteId && r.posicionId === posicionId && r.procedenciaId === procedenciaId).reduce((t, r) => t + r.cantidad, 0)
+  const movimientos = e.inv.ordenes.filter((o) => o.estado === 'EJECUTADO' || o.estado === 'CON_DIFERENCIA').flatMap((o) => o.lineas)
+    .filter((l) => (l.verificacion === 'PENDIENTE' || l.verificacion === 'CON_DIFERENCIA') && l.desdePosicionId === posicionId && l.loteId === loteId && l.procedenciaId === procedenciaId).reduce((t, l) => t + l.cantidad, 0)
+  return reservas + movimientos
+}
+
 // ── Stock disponible por lote y celda (saldo Aprobado − comprometido por reservas vivas) ──────────────────────────────────
-interface CeldaLibre { posicionId: string; codigo: string; libre: number }
-function celdasLibres(e: EstadoDemo, productoId: string, propietarioId: string): Map<string, CeldaLibre[]> {
+interface CeldaLibre { posicionId: string; codigo: string; procedenciaId: string; libre: number }
+export function celdasLibres(e: EstadoDemo, productoId: string, propietarioId: string): Map<string, CeldaLibre[]> {
   const d = desp(e)
   const pos = new Map(e.panorama.posiciones.map((p) => [p.id, p]))
   const porLote = new Map<string, CeldaLibre[]>()
@@ -60,9 +71,9 @@ function celdasLibres(e: EstadoDemo, productoId: string, propietarioId: string):
     if (s.productoId !== productoId || s.propietarioId !== propietarioId || s.estado !== 'APROBADO' || s.cantidad <= 0) continue
     const p = pos.get(s.posicionId)
     if (!p || AREAS_DE_SALIDA.has(p.tipoArea)) continue
-    const comprometido = d.reservas.filter((r) => r.estado === 'ACTIVA' && r.loteId === s.loteId && r.posicionId === s.posicionId).reduce((t, r) => t + r.cantidad, 0)
+    const comprometido = comprometidoEn(e, s.posicionId, s.loteId, s.procedenciaId)
     const libre = s.cantidad - comprometido
-    if (libre > 0) porLote.set(s.loteId, [...(porLote.get(s.loteId) ?? []), { posicionId: s.posicionId, codigo: p.codigo, libre }])
+    if (libre > 0) porLote.set(s.loteId, [...(porLote.get(s.loteId) ?? []), { posicionId: s.posicionId, codigo: p.codigo, procedenciaId: s.procedenciaId, libre }])
   }
   for (const celdas of porLote.values()) celdas.sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }))
   return porLote
@@ -75,13 +86,13 @@ export function lotesDisponibles(e: EstadoDemo, productoId: string, propietarioI
   }))
 }
 
-function reservarEnLote(e: EstadoDemo, salida: SalidaDemo, linea: LineaSalidaDemo, loteId: string, cantidad: number) {
+export function reservarEnLote(e: EstadoDemo, salida: SalidaDemo, linea: LineaSalidaDemo, loteId: string, cantidad: number) {
   const d = desp(e)
   let resto = cantidad
   for (const c of celdasLibres(e, linea.productoId, salida.propietarioId).get(loteId) ?? []) {
     if (resto <= 0) break
     const tomar = Math.min(c.libre, resto)
-    d.reservas.push({ id: nuevoId(), lineaId: linea.id, salidaId: salida.id, productoId: linea.productoId, loteId, posicionId: c.posicionId, cantidad: tomar, estado: 'ACTIVA' })
+    d.reservas.push({ id: nuevoId(), lineaId: linea.id, salidaId: salida.id, productoId: linea.productoId, loteId, posicionId: c.posicionId, posicionOrigenId: c.posicionId, procedenciaId: c.procedenciaId, cantidad: tomar, estado: 'ACTIVA' })
     resto -= tomar
   }
 }

@@ -64,3 +64,6 @@ Antes de aplicar:
 
 No cubierto por las pruebas locales (ver `gate-0.md §G.1`): PostgREST (exposición y grants por HTTP), GoTrue (JWT real),
 Storage, RLS real de Compras (`acceso_abierto_temporal`).
+
+**0018** (Picking y conformidad, S5, D-84; requiere la 0012, la 0013 y la 0017): agrega `no_conformidad` a `ordenes_picking_lineas`, crea `discrepancias_picking` y `observaciones_conformidad` (solo se agregan filas) y reemplaza `dar_conformidad` (ahora recibe tipo de no conformidad y nota; la versión anterior de 4 argumentos se elimina dentro de la misma migración). Funciones nuevas: `resolver_discrepancia_picking`, `reabrir_observada`. Requiere que exista una posición de tipo `PENDIENTE_CONFORMIDAD` (la zona de conformidad). No toca datos existentes.
+

@@ -1,0 +1,115 @@
+'use client'
+
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { ArrowLeft, ClipboardList, Pencil, TriangleAlert } from 'lucide-react'
+import { generarOrdenPickingAccion } from '@/app/acciones-picking'
+import { mesAnio } from '@/domain/salidas'
+import type { LineaSalidaVista, SalidaVista } from '@/domain/despacho'
+import { useAccion } from '../usar-accion'
+import { useEsMovil } from '../usar-movil'
+import { Aviso } from '../entradas/aviso'
+import { HojaInferior } from '../hoja-inferior'
+import { ChipEtapa } from './chip-etapa'
+import { EditorLotes } from './editor-lotes'
+
+const Lotes = ({ l }: { l: LineaSalidaVista }) => l.asignacion.length === 0
+  ? <span className="text-gray-500">Sin lotes</span>
+  : <ul className="space-y-0.5">{l.asignacion.map((a) => <li key={a.loteId} className="tabular">{a.lote} <span className="text-gray-600">· vence {a.vence ? mesAnio(a.vence) : '—'}</span> × <strong>{a.cantidad.toLocaleString('es-PE')}</strong></li>)}</ul>
+
+export function DetalleSalida({ salida, puedeEditar, puedePreparar }: { salida: SalidaVista; puedeEditar: boolean; puedePreparar: boolean }) {
+  const router = useRouter()
+  const movil = useEsMovil()
+  const { pendiente, mensaje, ejecutar } = useAccion()
+  const [editando, setEditando] = useState<string | null>(null)
+  const lineas = salida.lineasDetalle
+  const actual = lineas.find((l) => l.id === editando)
+  const puedeGenerar = puedePreparar && salida.estado === 'ABIERTA' && !salida.ordenPickingId && lineas.length > 0 && lineas.every((l) => l.estado === 'ASIGNADA')
+  const generar = () => ejecutar(() => generarOrdenPickingAccion(salida.id), { refrescar: false, alExito: (r) => router.push(`/picking/${r.id}`) })
+  const cerrar = () => setEditando(null)
+  const editor = (l: LineaSalidaVista) => <EditorLotes key={l.id} linea={l} cerrar={cerrar} />
+
+  return (
+    <div className="space-y-5" data-testid="detalle-salida">
+      <div><Link href="/salidas" className="inline-flex items-center gap-1.5 text-sm text-gray-700 underline"><ArrowLeft className="h-4 w-4" aria-hidden />Todas las salidas</Link></div>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="tabular font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">{salida.numero}</h1>
+          <p className="mt-1 text-gray-700">Pedido {salida.pedidoNumero ?? '—'} · {salida.cliente ?? 'Sin cliente'}{salida.rutaNumero ? ` · Ruta ${salida.rutaNumero}` : ''}</p>
+        </div>
+        <ChipEtapa etapa={salida.etapa} />
+      </header>
+
+      {lineas.some((l) => l.apartadaDeFefo) && <Aviso tipo="atencion" testid="aviso-fuera-fefo">Algún lote se apartó de la propuesta FEFO. Queda registrado con tu nombre; no necesitas explicar el motivo.</Aviso>}
+      {lineas.some((l) => l.estado === 'SIN_STOCK') && <Aviso tipo="error">Hay líneas sin stock suficiente. Mientras falte, no se puede generar el picking.</Aviso>}
+      {mensaje?.tipo === 'error' && <Aviso tipo="error">{mensaje.texto}</Aviso>}
+
+      <section aria-labelledby="h-lineas">
+        <h2 id="h-lineas" className="mb-2 font-heading text-xl font-medium tracking-wide text-gray-900">Productos y lotes</h2>
+        <div className="hidden overflow-x-auto rounded-lg border border-gray-200 bg-white md:block">
+          <table className="w-full text-[13px] xl:text-sm" data-testid="tabla-lineas-salida">
+            <caption className="sr-only">Líneas de la salida con sus lotes</caption>
+            <thead className="border-b border-gray-200 bg-gray-50 text-left text-gray-700"><tr>
+              <th scope="col" className="px-3 py-2 font-medium">Producto</th><th scope="col" className="px-3 py-2 text-right font-medium">Pedido</th>
+              <th scope="col" className="px-3 py-2 font-medium">Lotes asignados</th><th scope="col" className="px-3 py-2 font-medium">Estado</th><th scope="col" className="px-3 py-2"><span className="sr-only">Editar</span></th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-100">
+              {lineas.map((l) => (
+                <FilaTabla key={l.id} l={l} puedeEditar={puedeEditar} abierta={editando === l.id && !movil} abrir={() => setEditando(l.id)} editor={editor} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <ul className="space-y-2 md:hidden" data-testid="lineas-salida-movil">
+          {lineas.map((l) => (
+            <li key={l.id} className="rounded-xl border border-gray-200 bg-white" data-testid="linea-salida-movil">
+              <button type="button" className="flex min-h-16 w-full items-center gap-3 px-3 py-3 text-left disabled:opacity-100" disabled={!puedeEditar || !l.editable} onClick={() => setEditando(l.id)} data-testid="abrir-linea">
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-[15px] text-gray-900">{l.producto}</strong>
+                  <span className="mt-1 block text-sm text-gray-700"><Lotes l={l} /></span>
+                  {l.apartadaDeFefo && <span className="mt-1 inline-flex items-center gap-1 text-xs text-amber-900"><TriangleAlert className="h-3.5 w-3.5" aria-hidden />Fuera de FEFO</span>}
+                </span>
+                <span className="tabular shrink-0 text-sm font-medium text-gray-900">{l.cantidad.toLocaleString('es-PE')} u</span>
+                {puedeEditar && l.editable && <Pencil className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />}
+              </button>
+            </li>
+          ))}
+        </ul>
+        {movil && actual && <HojaInferior titulo={actual.producto} cerrar={cerrar} testid="hoja-lotes">{editor(actual)}</HojaInferior>}
+      </section>
+
+      <section className="flex flex-wrap items-center gap-3" aria-label="Siguiente paso">
+        {puedeGenerar && <button type="button" className="btn-primary" onClick={generar} disabled={pendiente} data-testid="generar-picking"><ClipboardList className="h-5 w-5" aria-hidden />{pendiente ? 'Generando…' : 'Generar orden de picking'}</button>}
+        {salida.ordenPickingId && <Link href={`/picking/${salida.ordenPickingId}`} className="btn-secondary" data-testid="ir-picking">Ver el picking ({salida.ordenNumero})</Link>}
+        {salida.ordenPickingId && <Link href={`/conformidad/${salida.ordenPickingId}`} className="btn-secondary" data-testid="ir-conformidad">Ver la conformidad</Link>}
+      </section>
+
+      {salida.cambios.length > 0 && (
+        <section aria-labelledby="h-cambios" data-testid="cambios-salida">
+          <h2 id="h-cambios" className="mb-2 font-heading text-xl font-medium tracking-wide text-gray-900">Cambios de lote</h2>
+          <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white text-sm">
+            {salida.cambios.map((c, i) => (
+              <li key={i} className="px-4 py-3"><span className="text-gray-900">{c.por}</span> cambió <span className="tabular">{c.anterior}</span> → <span className="tabular">{c.nueva}</span>{c.distintoDeFefo && <span className="ml-2 text-amber-900">(fuera de FEFO)</span>}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  )
+}
+
+function FilaTabla({ l, puedeEditar, abierta, abrir, editor }: { l: LineaSalidaVista; puedeEditar: boolean; abierta: boolean; abrir: () => void; editor: (l: LineaSalidaVista) => React.ReactNode }) {
+  return (
+    <>
+      <tr data-testid="fila-linea-salida">
+        <td className="px-3 py-3"><strong className="block text-gray-900">{l.producto}</strong><span className="tabular text-gray-600">{l.productoCodigo}</span></td>
+        <td className="tabular px-3 py-3 text-right text-gray-900">{l.cantidad.toLocaleString('es-PE')} u</td>
+        <td className="px-3 py-3 text-gray-800"><Lotes l={l} />{l.apartadaDeFefo && <span className="mt-1 inline-flex items-center gap-1 text-xs text-amber-900" data-testid="fuera-fefo"><TriangleAlert className="h-3.5 w-3.5" aria-hidden />Fuera de FEFO</span>}</td>
+        <td className="px-3 py-3 text-gray-700">{l.estado === 'SIN_STOCK' ? 'Sin stock' : l.editable ? 'Lista para picking' : l.estado === 'ASIGNADA' ? 'Asignada' : 'En proceso'}</td>
+        <td className="px-3 py-3 text-right">{puedeEditar && l.editable && !abierta && <button type="button" className="btn-secondary btn-sm" onClick={abrir} data-testid="editar-lotes"><Pencil className="h-4 w-4" aria-hidden />Cambiar lotes</button>}</td>
+      </tr>
+      {abierta && <tr className="bg-gray-50" data-testid="fila-editor"><td colSpan={5} className="px-4 py-4"><div className="max-w-3xl">{editor(l)}</div></td></tr>}
+    </>
+  )
+}

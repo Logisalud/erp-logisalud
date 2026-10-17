@@ -10,7 +10,7 @@ import { normalizar } from '@/domain/busqueda'
 import { sumarDias } from './datos'
 import { registrar, type EstadoDemo } from './estado'
 import { ahora, estadoE, falla, nuevoId } from './entradas-demo'
-import { DespachoDemo } from './despacho-demo'
+import { PickingDemo } from './picking-demo'
 import type { RepositorioDocumentos } from '../repositorio-documentos'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import { nombrePersonaDemo } from '@/lib/sesion-demo'
@@ -92,7 +92,7 @@ function etiquetaAlcance(e: EstadoDemo, d: DocsDemoEstado, tipo: TipoDocumento, 
   return d.fabricantes.find((f) => f.id === id)?.nombre
 }
 
-export class DocumentosDemo extends DespachoDemo implements RepositorioDocumentos {
+export class DocumentosDemo extends PickingDemo implements RepositorioDocumentos {
   async panoramaDocumentos(): Promise<PanoramaDocumentos> {
     const e = estadoE(); const d = docs(e); const hoy = e.panorama.hoy
     const vista: DocumentoVista[] = d.documentos.map((x) => {

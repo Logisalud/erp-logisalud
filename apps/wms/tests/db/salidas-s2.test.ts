@@ -881,6 +881,8 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     await base.admin.query(SQL.m0013())
     await base.admin.query(SQL.m0017())
     await base.admin.query(SQL.m0017())
+    await base.admin.query(SQL.m0018())
+    await base.admin.query(SQL.m0018())
     expect((await uno(`select count(*)::int n from wms.tipos_movimiento where codigo in ('SALIDA', 'RETORNO') and habilitado`)).n).toBe(2)
   })
 })

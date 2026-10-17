@@ -52,11 +52,11 @@ function ocupadaPorConteo(e: EstadoDemo, posicionIds: string[]): string | null {
   return null
 }
 
-function origenDe(e: EstadoDemo, loteId: string, procedenciaId: string): Origen {
+export function origenDe(e: EstadoDemo, loteId: string, procedenciaId: string): Origen {
   return e.inv.ledger.find((p) => p.loteId === loteId && p.procedenciaId === procedenciaId)?.origen ?? 'CARGA_INICIAL'
 }
 
-function moverSaldo(e: EstadoDemo, l: { loteId: string; productoId: string; propietarioId: string; estado: Estado; procedenciaId: string; desdePosicionId: string; haciaPosicionId: string; cantidad: number }) {
+export function moverSaldo(e: EstadoDemo, l: { loteId: string; productoId: string; propietarioId: string; estado: Estado; procedenciaId: string; desdePosicionId: string; haciaPosicionId: string; cantidad: number }) {
   const sal = e.panorama.saldos
   const desde = sal.find((s) => mismaCelda(s, l.desdePosicionId, l.loteId, l.estado, l.procedenciaId))
   if (!desde || desde.cantidad < l.cantidad) return false
