@@ -11,7 +11,7 @@ import { puedeVerificar } from '@/domain/verificacion'
 import { AREAS_DE_SALIDA, areaAdmite } from '@/domain/zonas'
 import { posicionAcepta } from '@/domain/zonas'
 import { ETIQUETA_ROL } from '@/domain/permisos'
-import { ETIQUETA_ESTADO } from '@/domain/estados'
+import { ESTADOS_CARGA, erroresDeFilaCarga, puedeConfirmarCargaInicial, puedeSubirCargaInicial, resumenCarga } from '@/domain/carga-inicial'
 import type { Estado, Origen, Rol, Saldo } from '@/domain/tipos'
 import { ESTADOS } from '@/domain/tipos'
 import { nombrePersonaDemo } from '@/lib/sesion-demo'
@@ -604,39 +604,64 @@ export class InventarioDemo extends EntradasDemo {
     return [...e0.inv.ajustes].reverse().map(({ propuestoPorId: _p, lineaId: _l, ...a }) => { void _p; void _l; return structuredClone(a) as AjusteVista })
   }
 
-  // ── Carga inicial ───────────────────────────────────────────────────────
-  async estadoCargaInicial() { return estadoE().inv.cargaDecision }
-
+  // ── Carga inicial (cambio de sistema, OS-7 / D-99) ───────────────────────
+  // Administración sube y revisa; Dirección Técnica valida con UNA sola confirmación. El stock de Odoo entra a su estado y ubicación sin acta organoléptica,
+  // pero el libro deja el recorrido: ingreso en Cuarentena → liberación (o baja) → ubicación final. Mismas reglas que la migración 0027.
   private erroresCarga(e: EstadoDemo, filas: FilaCargaInicial[]): ErrorFilaCarga[] {
     const out: ErrorFilaCarga[] = []
+    const vences = new Map<string, string>(); const combos = new Map<string, number>()
     filas.forEach((f, i) => {
       const fila = i + 1
       const prod = e.panorama.productos.find((p) => p.codigo === f.producto.trim())
       const prop = e.panorama.propietarios.find((p) => p.codigo === f.propietario.trim())
       const pos = e.panorama.posiciones.find((p) => p.codigo === f.posicion.trim())
       const cant = Number(f.cantidad)
-      if (f.vence && Number.isNaN(Date.parse(f.vence))) out.push({ fila, error: 'La fecha de vencimiento no es válida' })
+      for (const msg of erroresDeFilaCarga(f)) out.push({ fila, error: msg })
       if (!prod) out.push({ fila, error: `El producto «${f.producto}» no existe en el catálogo` })
       if (!prop) out.push({ fila, error: `El propietario «${f.propietario}» no existe` })
       if (!pos) out.push({ fila, error: `La ubicación «${f.posicion}» no existe` })
-      if (!f.lote.trim()) out.push({ fila, error: 'Falta el lote' })
       if (!Number.isInteger(cant) || cant <= 0) out.push({ fila, error: 'La cantidad debe ser un entero mayor que cero' })
       const est = f.estado.trim().toUpperCase() as Estado
       if (!ESTADOS.includes(est)) out.push({ fila, error: `El estado «${f.estado}» no existe` })
-      else if (pos && !areaAdmite(pos.tipoArea, est, 'CARGA_INICIAL')) out.push({ fila, error: `La zona ${pos.tipoArea} no admite unidades en estado ${est}` })
+      else if (ESTADOS_CARGA.includes(est) && pos && !areaAdmite(pos.tipoArea, est, 'CARGA_INICIAL')) out.push({ fila, error: `La zona ${pos.tipoArea} no admite unidades en estado ${est}` })
       if (pos && prop && !posicionAcepta(pos, prop.id, e.panorama.asignaciones, e.panorama.hoy)) out.push({ fila, error: `La ubicación ${f.posicion} no acepta stock de ese propietario` })
+      if (prop && est !== 'CUARENTENA' && ESTADOS_CARGA.includes(est) && !this.posicionCuarentena(e, prop.id)) out.push({ fila, error: `No hay una ubicación de Cuarentena para el propietario ${f.propietario}: la carga ingresa primero por Cuarentena` })
+      if (prod && est === 'APROBADO') {
+        const reg = prod.reg
+        if (!reg?.registroSanitario?.trim() || !reg.rsVence) out.push({ fila, error: `El producto ${f.producto} no tiene su registro sanitario y su vencimiento cargados: Dirección Técnica debe cargarlos antes de dejarlo Aprobado` })
+        else if (reg.rsVence < e.panorama.hoy) out.push({ fila, error: `El registro sanitario del producto ${f.producto} está vencido: no se puede dejar Aprobado hasta que Dirección Técnica lo resuelva` })
+      }
+      if (prod && prop && f.lote.trim() && f.vence) {
+        const lote = e.panorama.lotes.find((l) => l.productoId === prod.id && l.codigo === f.lote.trim() && l.propietarioId === prop.id)
+        if (lote && lote.vence !== f.vence) out.push({ fila, error: `El lote ${f.lote} ya existe con otro vencimiento (${lote.vence ?? 'sin fecha'}). Un mismo lote no puede tener dos fechas` })
+        const clave = `${prod.id}|${f.lote.trim()}|${prop.id}`
+        const visto = vences.get(clave)
+        if (visto && visto !== f.vence) out.push({ fila, error: `El lote ${f.lote} aparece con dos vencimientos distintos en el archivo` })
+        vences.set(clave, f.vence)
+        if (pos) {
+          const combo = `${clave}|${pos.id}|${est}`
+          const antes = combos.get(combo)
+          if (antes) out.push({ fila, error: `Esta combinación de producto, lote, ubicación y estado ya está en la fila ${antes}: una fila por combinación` })
+          else combos.set(combo, fila)
+        }
+      }
     })
     return out
   }
 
+  /** Dónde «ingresa» en Cuarentena lo que luego se libera o se da de baja: la primera ubicación de Cuarentena que acepta al propietario. */
+  private posicionCuarentena(e: EstadoDemo, propietarioId: string) {
+    return [...e.panorama.posiciones].filter((p) => p.tipoArea === 'CUARENTENA' && p.activa && posicionAcepta(p, propietarioId, e.panorama.asignaciones, e.panorama.hoy)).sort((a, b) => a.codigo.localeCompare(b.codigo))[0]
+  }
+
   async validarCargaInicial(filas: FilaCargaInicial[], actor: Actor): Promise<ErrorFilaCarga[]> {
-    if (!actor.roles.includes('admin_wms')) return [{ fila: 0, error: 'No tienes permiso para la carga inicial' }]
+    if (!puedeSubirCargaInicial(actor.roles)) return [{ fila: 0, error: 'No tienes permiso para la carga inicial' }]
     return this.erroresCarga(estadoE(), filas)
   }
 
   async crearCargaInicial(filas: FilaCargaInicial[], nota: string | undefined, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
     const e = estadoE()
-    if (!actor.roles.includes('admin_wms')) return falla('No tienes permiso para la carga inicial')
+    if (!puedeSubirCargaInicial(actor.roles)) return falla('No tienes permiso para la carga inicial')
     if (!filas.length) return falla('El archivo no tiene filas')
     const errores = this.erroresCarga(e, filas)
     if (errores.length) return falla(`La carga tiene ${new Set(errores.map((x) => x.fila)).size} filas con errores: corrígelas y vuelve a cargar`)
@@ -646,48 +671,63 @@ export class InventarioDemo extends EntradasDemo {
     return { ok: true, id: c.id, numero: c.numero }
   }
 
-  async decidirEstadoCargaInicial(estado: 'APROBADO' | 'CUARENTENA', actor: Actor): Promise<ResultadoAccion> {
-    const e = estadoE()
-    if (!actor.roles.includes('direccion_tecnica')) return falla('Solo Dirección Técnica decide el estado del stock inicial')
-    if (estado !== 'APROBADO' && estado !== 'CUARENTENA') return falla('El stock inicial se carga como Aprobado o como Cuarentena (lo rechazado se carga aparte, línea por línea)')
-    e.inv.cargaDecision = estado
-    registrar(e, actor, 'carga_inicial_estado_decidido', 'parametros', 'carga_inicial_estado', `Stock inicial: ${ETIQUETA_ESTADO[estado]}`, 'D-09')
-    return { ok: true }
-  }
-
   async confirmarCargaInicial(id: string, actor: Actor): Promise<ResultadoAccion> {
     const e = estadoE()
-    if (!actor.roles.includes('admin_wms')) return falla('No tienes permiso para la carga inicial')
+    if (!puedeConfirmarCargaInicial(actor.roles)) return falla('Solo Dirección Técnica valida la carga inicial')
     const c = e.inv.cargas.find((x) => x.id === id)
     if (!c) return falla('No encontramos esa carga')
     if (c.estado !== 'BORRADOR') return falla('Esta carga ya no está en borrador')
-    if (!e.inv.cargaDecision) return falla('Falta la decisión de Dirección Técnica sobre el estado del stock inicial (D-09): la carga no se confirma sin ella')
-    for (const [i, f] of c.filas.entries()) {
-      const est = f.estado.trim().toUpperCase()
-      if (est !== e.inv.cargaDecision && est !== 'BAJAS_RECHAZADOS') return falla(`La fila ${i + 1} está en estado ${est}, pero Dirección Técnica decidió ${e.inv.cargaDecision} para el stock inicial`)
-    }
-    const nuevos: { posicionId: string; productoId: string; loteId: string; propietarioId: string; estado: Estado; procedenciaId: string; delta: number }[] = []
+    // Se vuelve a validar al confirmar: entre la vista previa y hoy pudo cambiar el catálogo, el registro sanitario o las ubicaciones.
+    const errores = this.erroresCarga(e, c.filas)
+    if (errores.length) return falla(`La carga tiene ${new Set(errores.map((x) => x.fila)).size} filas con errores: vuelve a la vista previa y corrígelas`)
+    type P = { posicionId: string; productoId: string; loteId: string; propietarioId: string; estado: Estado; procedenciaId: string; delta: number; origen: 'CARGA_INICIAL' }
+    const ingreso = { APROBADO: [] as P[], BAJAS_RECHAZADOS: [] as P[], CUARENTENA: [] as P[] }
+    const cambio = { APROBADO: [] as P[], BAJAS_RECHAZADOS: [] as P[] }
+    const ubicacion: P[] = []
+    const nuevosLotes: typeof e.panorama.lotes = []
     for (const f of c.filas) {
       const prod = e.panorama.productos.find((p) => p.codigo === f.producto.trim())!
       const prop = e.panorama.propietarios.find((p) => p.codigo === f.propietario.trim())!
       const pos = e.panorama.posiciones.find((p) => p.codigo === f.posicion.trim())!
+      const est = f.estado.trim().toUpperCase() as 'APROBADO' | 'CUARENTENA' | 'BAJAS_RECHAZADOS'
       let lote = e.panorama.lotes.find((l) => l.productoId === prod.id && l.codigo === f.lote.trim() && l.propietarioId === prop.id)
-      if (lote && f.vence && lote.vence !== f.vence) return falla(`El lote ${f.lote} ya existe con otro vencimiento (${lote.vence ?? 'sin fecha'}). Un mismo lote no puede tener dos fechas.`)
-      if (!lote) { lote = { id: nuevoId(), productoId: prod.id, codigo: f.lote.trim(), vence: f.vence || undefined, propietarioId: prop.id }; e.panorama.lotes.push(lote) }
-      nuevos.push({ posicionId: pos.id, productoId: prod.id, loteId: lote.id, propietarioId: prop.id, estado: f.estado.trim().toUpperCase() as Estado, procedenciaId: nuevoId(), delta: Number(f.cantidad) })
+      if (!lote) { lote = { id: nuevoId(), productoId: prod.id, codigo: f.lote.trim(), vence: f.vence, propietarioId: prop.id }; nuevosLotes.push(lote) }
+      const base = { productoId: prod.id, loteId: lote.id, propietarioId: prop.id, procedenciaId: nuevoId(), origen: 'CARGA_INICIAL' as const }
+      const cant = Number(f.cantidad)
+      if (est === 'CUARENTENA') { ingreso.CUARENTENA.push({ ...base, posicionId: pos.id, estado: 'CUARENTENA', delta: cant }); continue }
+      const cuar = this.posicionCuarentena(e, prop.id)!
+      ingreso[est].push({ ...base, posicionId: cuar.id, estado: 'CUARENTENA', delta: cant })
+      cambio[est].push({ ...base, posicionId: cuar.id, estado: 'CUARENTENA', delta: -cant }, { ...base, posicionId: cuar.id, estado: est, delta: cant })
+      ubicacion.push({ ...base, posicionId: cuar.id, estado: est, delta: -cant }, { ...base, posicionId: pos.id, estado: est, delta: cant })
     }
-    for (const x of nuevos) e.panorama.saldos.push({ posicionId: x.posicionId, productoId: x.productoId, loteId: x.loteId, propietarioId: x.propietarioId, estado: x.estado, procedenciaId: x.procedenciaId, cantidad: x.delta })
-    anotar(e.inv, `mov-ci-${c.numero}`, 'CARGA_INICIAL', ahora(), { motivo: `Carga inicial ${c.numero}`, ejecutorId: actor.id, referenciaTipo: 'carga_inicial', referenciaId: c.numero }, nuevos.map((x) => ({ ...x, origen: 'CARGA_INICIAL' as const })))
-    c.estado = 'CONFIRMADA'; c.confirmadoEn = ahora()
-    registrar(e, actor, 'carga_inicial_confirmada', 'cargas_iniciales', c.numero, `Carga inicial confirmada (${c.filas.length} filas)`)
+    e.panorama.lotes.push(...nuevosLotes)
+    const sumar = (ps: P[]) => { for (const x of ps) {
+      const s = e.panorama.saldos.find((q) => mismaCelda(q, x.posicionId, x.loteId, x.estado, x.procedenciaId))
+      if (s) { s.cantidad += x.delta; if (s.cantidad === 0) e.panorama.saldos.splice(e.panorama.saldos.indexOf(s), 1) }
+      else e.panorama.saldos.push({ posicionId: x.posicionId, productoId: x.productoId, loteId: x.loteId, propietarioId: x.propietarioId, estado: x.estado, procedenciaId: x.procedenciaId, cantidad: x.delta })
+    } }
+    const ts = ahora(); const n = c.numero
+    const comunes = { ejecutorId: actor.id, referenciaTipo: 'carga_inicial', referenciaId: n }
+    const mov = (clave: string, tipo: 'CARGA_INICIAL' | 'CAMBIO_ESTADO' | 'MOVIMIENTO', motivo: string, ps: P[]) => { if (!ps.length) return; sumar(ps); anotar(e.inv, `mov-ci-${n}-${clave}`, tipo, ts, { ...comunes, motivo }, ps) }
+    mov('ing-a', 'CARGA_INICIAL', `Carga inicial ${n}: ingreso en Cuarentena → liberación → ubicación final (cambio de sistema, sin acta organoléptica)`, ingreso.APROBADO)
+    mov('ing-b', 'CARGA_INICIAL', `Carga inicial ${n}: ingreso en Cuarentena → baja → ubicación en Bajas (cambio de sistema, sin acta organoléptica)`, ingreso.BAJAS_RECHAZADOS)
+    mov('ing-c', 'CARGA_INICIAL', `Carga inicial ${n}: ingreso en Cuarentena (se queda en Cuarentena hasta que Dirección Técnica decida)`, ingreso.CUARENTENA)
+    mov('lib', 'CAMBIO_ESTADO', `Liberación por carga inicial ${n} (el stock ya estaba aprobado en Odoo: sin acta organoléptica)`, cambio.APROBADO)
+    mov('baja', 'CAMBIO_ESTADO', `Baja por carga inicial ${n} (el stock ya estaba dado de baja en Odoo: sin acta organoléptica)`, cambio.BAJAS_RECHAZADOS)
+    mov('ubic', 'MOVIMIENTO', `Ubicación final por carga inicial ${n} (la ubicación que tenía en Odoo)`, ubicacion)
+    c.estado = 'CONFIRMADA'; c.confirmadoEn = ts; c.confirmadoPor = actor.nombre
+    registrar(e, actor, 'carga_inicial_confirmada', 'cargas_iniciales', n, `Carga inicial confirmada (${c.filas.length} filas)`)
     return { ok: true }
   }
 
   async listarCargasIniciales(): Promise<CargaInicialVista[]> {
-    return [...estadoE().inv.cargas].reverse().map((c) => ({
-      id: c.id, numero: c.numero, estado: c.estado, nota: c.nota, creadoPor: c.creadoPor, creadoEn: c.creadoEn, confirmadoEn: c.confirmadoEn,
-      filas: c.filas.length, unidades: c.filas.reduce((n, f) => n + Number(f.cantidad), 0),
-    }))
+    return [...estadoE().inv.cargas].reverse().map((c) => {
+      const r = resumenCarga(c.filas)
+      return {
+        id: c.id, numero: c.numero, estado: c.estado, nota: c.nota, creadoPor: c.creadoPor, creadoEn: c.creadoEn, confirmadoEn: c.confirmadoEn, confirmadoPor: c.confirmadoPor,
+        filas: c.filas.length, unidades: r.total, porEstado: { aprobado: r.aprobado, cuarentena: r.cuarentena, bajas: r.bajas },
+      }
+    })
   }
 }
 void sumarDias

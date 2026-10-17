@@ -1,10 +1,11 @@
 import { FiltroProducto } from '@/components/inventario/filtro-producto'
 import Link from 'next/link'
-import { Download, FileSpreadsheet, History, SearchX } from 'lucide-react'
+import { Download, FileSpreadsheet, History, Info, SearchX } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { filtroDesdeUrl, consultaDe } from '@/lib/filtro-kardex'
 import { repositorio } from '@/services/repositorio-actual'
 import { totalesKardex } from '@/domain/inventario'
+import { NOTA_RECORRIDO_KARDEX } from '@/domain/carga-inicial'
 import { formatoFecha } from '@/domain/fechas'
 
 export const metadata = { title: 'Kardex — WMS LOGISALUD' }
@@ -124,6 +125,9 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
                   </li>
                 ))}
               </ul>
+              {filas.some((f) => f.tipoDocumento === 'Carga inicial') && (
+                <p className="flex items-start gap-2 text-sm text-gray-600" data-testid="nota-carga-inicial"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{NOTA_RECORRIDO_KARDEX}</p>
+              )}
             </>
           )}
         </>
