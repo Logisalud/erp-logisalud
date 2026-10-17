@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireSession } from "@/lib/auth/session";
 import { listActiveCustomers } from "@/services/customers";
 import { listActiveSellers } from "@/services/sellers";
 import { listCatalog, listPaymentTerms } from "@/services/catalog";
@@ -6,8 +6,11 @@ import { listDepartamentos } from "@/services/ubigeos";
 import { NewOrderForm } from "./new-order-form";
 
 export default async function NuevoPedidoPage() {
-  const user = await getCurrentUser();
-  const isAdmin = user?.roles.includes("administrador") ?? false;
+  // Antes de consultar nada: el layout y la página se renderizan en
+  // paralelo, así que sin esto la consulta sale al mismo tiempo que el
+  // guardia del layout y, con la sesión vencida, gana cualquiera.
+  const user = await requireSession();
+  const isAdmin = user.roles.includes("administrador");
 
   // La zona del cliente nuevo ya no se elige: sale del vendedor con el que
   // va a salir el pedido, así que la pantalla no necesita el catálogo.
