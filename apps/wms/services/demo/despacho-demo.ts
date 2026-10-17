@@ -6,6 +6,7 @@ import {
   type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
 } from '@/domain/rutas'
 import { AREAS_DE_SALIDA } from '@/domain/zonas'
+import { PENDIENTES_LS_FR, armarRegistroLsFr, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
 import { numeroDe } from './libro'
@@ -211,6 +212,18 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     const e = estadoE(); await this.sembrarDespacho(e)
     const r = desp(e).rutas.find((x) => x.id === id)
     return r ? structuredClone(this.vistaRuta(e, r)) : null
+  }
+
+  /** Lo que las etapas siguientes registran y el formato pide (guías, bultos, horas). Las clases de más abajo lo completan. */
+  protected extrasLsFr(_e: EstadoDemo, _r: RutaDemo): ExtrasLsFr { return {} }
+
+  async registroLsFr(rutaId: string): Promise<RegistroLsFrVista | null> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const r = desp(e).rutas.find((x) => x.id === rutaId)
+    if (!r) return null
+    const vista = this.vistaRuta(e, r)
+    if (!puedeImprimirLsFr(vista)) return null
+    return structuredClone(armarRegistroLsFr(vista, { codigo: 'LS-FR.43.03', version: '01', vigenteDesde: '2026-09-01', vigenteHasta: '2028-09-01', filasPorPagina: 10, pendientes: Object.keys(PENDIENTES_LS_FR) }, this.extrasLsFr(e, r)))
   }
 
   // ── Acciones ──────────────────────────────────────────────────────────────────────────────────────────────────

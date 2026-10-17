@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowUp, Ban, CheckCircle2, History, ListOrdered, Plus, Save, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Ban, CheckCircle2, FileText, History, ListOrdered, Plus, Save, Trash2, TriangleAlert } from 'lucide-react'
 import { cancelarRutaAccion, confirmarRutaAccion, planificarRutaAccion } from '@/app/acciones-rutas'
 import {
   ETIQUETA_ESTADO_RUTA, RUTA_EDITABLE, filtrarPedidosPlanificables, fueraDeCorte, ordenSugerido, validarPlan,
   type PanoramaRutas, type PedidoPlanificable, type PlanParada, type RutaVista,
 } from '@/domain/rutas'
 import { formatoFechaHora } from '@/domain/fechas'
+import { PENDIENTES_LS_FR, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import { CHIP_AVISO } from '../estilos-opcion'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
@@ -20,12 +21,40 @@ const base = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 t
 const icono = 'inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300'
 const diaLargo = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
 
+/** El formato LS-FR.43.03 de la ruta: nace al confirmarla; el PDF se arma con lo que ya está registrado. */
+function PanelLsFr({ ruta, registro }: { ruta: RutaVista; registro: RegistroLsFrVista | null }) {
+  if (!registro) {
+    return (
+      <section className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-700" aria-label="Formato LS-FR.43.03" data-testid="lsfr-pendiente">
+        <p className="font-medium text-gray-900">Formato LS-FR.43.03 · Planificación de ruta</p>
+        <p className="mt-1">Se crea cuando confirmas la ruta.</p>
+      </section>
+    )
+  }
+  return (
+    <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-4" aria-label="Formato LS-FR.43.03" data-testid="lsfr-panel">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><p className="font-medium text-gray-900">Formato {registro.codigo} · Planificación de ruta</p><p className="text-sm text-gray-700">Versión {registro.version} · {registro.filas.length} {registro.filas.length === 1 ? 'fila' : 'filas'} en {registro.paginas} {registro.paginas === 1 ? 'página' : 'páginas'} · lo genera el WMS desde la ruta</p></div>
+        <Link href={`/rutas/${ruta.id}/pdf`} target="_blank" className="btn-secondary" data-testid="ver-lsfr"><FileText className="h-5 w-5" aria-hidden />Ver el PDF</Link>
+      </div>
+      {registro.pendientes.length > 0 && (
+        <details className="text-sm text-gray-700" data-testid="lsfr-definiciones">
+          <summary className="min-h-11 cursor-pointer py-2 font-medium text-gray-900">Pendiente de Dirección Técnica ({registro.pendientes.length})</summary>
+          <ul className="list-disc space-y-1 pl-5">{registro.pendientes.map((k) => <li key={k}>{PENDIENTES_LS_FR[k] ?? k}</li>)}</ul>
+          <p className="mt-1">No bloquean la ruta: el formato sale con lo que ya está definido.</p>
+        </details>
+      )}
+    </section>
+  )
+}
+
 /** Una ruta ya cerrada o en ejecución: se mira, no se edita. */
-function VistaRuta({ ruta }: { ruta: RutaVista }) {
+function VistaRuta({ ruta, registro }: { ruta: RutaVista; registro: RegistroLsFrVista | null }) {
   return (
     <div className="space-y-4" data-testid="ruta-solo-lectura">
       <Aviso tipo="info">Esta ruta no se puede cambiar desde aquí{' '}({ETIQUETA_ESTADO_RUTA[ruta.estado].toLowerCase()}).{ruta.motivoCancelacion ? ` Motivo: ${ruta.motivoCancelacion}.` : ''}</Aviso>
       <TablaParadas paradas={ruta.paradas} />
+      <PanelLsFr ruta={ruta} registro={registro} />
     </div>
   )
 }
@@ -44,7 +73,7 @@ function TablaParadas({ paradas }: { paradas: RutaVista['paradas'] }) {
   )
 }
 
-export function EditorRuta({ ruta, panorama, soloLectura = false }: { ruta: RutaVista; panorama: PanoramaRutas; soloLectura?: boolean }) {
+export function EditorRuta({ ruta, panorama, registro = null, soloLectura = false }: { ruta: RutaVista; panorama: PanoramaRutas; registro?: RegistroLsFrVista | null; soloLectura?: boolean }) {
   const router = useRouter()
   const { pendiente, mensaje, ejecutar } = useAccion()
   const editable = RUTA_EDITABLE.includes(ruta.estado) && !soloLectura
@@ -68,7 +97,7 @@ export function EditorRuta({ ruta, panorama, soloLectura = false }: { ruta: Ruta
   const errores = useMemo(() => validarPlan({ hoy: panorama.hoy, corte: panorama.corte, plan: { fecha, vehiculoId, conductorId, auxiliarId, paradas }, vehiculo, pedidos: pedido, enOtraRuta }), [panorama, fecha, vehiculoId, conductorId, auxiliarId, paradas, vehiculo, pedido, enOtraRuta])
   const requiereMotivo = ruta.estado === 'PLANIFICADA' && sucio
 
-  if (!editable) return <VistaRuta ruta={ruta} />
+  if (!editable) return <VistaRuta ruta={ruta} registro={registro} />
 
   const mover = (i: number, d: -1 | 1) => setParadas((a) => { const b = [...a]; const j = i + d; if (j < 0 || j >= b.length) return a; [b[i], b[j]] = [b[j], b[i]]; return b })
   const quitar = (i: number) => setParadas((a) => a.filter((_, k) => k !== i))
@@ -205,6 +234,8 @@ export function EditorRuta({ ruta, panorama, soloLectura = false }: { ruta: Ruta
           </ul>
         )}
       </section>
+
+      <PanelLsFr ruta={ruta} registro={registro} />
 
       <section aria-labelledby="t-hist" className="space-y-2">
         <h2 id="t-hist" className="flex items-center gap-2 font-heading text-xl font-semibold uppercase tracking-wide text-gray-900"><History className="h-5 w-5 text-gray-500" aria-hidden />Historial de versiones</h2>
