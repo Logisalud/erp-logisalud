@@ -152,32 +152,38 @@ export function OrderHeader({
     }
 
     startTransition(async () => {
-      try {
-        if (cambioDeCliente) {
-          const r = await cambiarCliente(orderId, clienteElegido.id, direccionId);
-          if (!r.ok) {
-            setBloqueo(r.mensaje);
-            return;
-          }
-        } else if (direccionId !== address.id) {
-          await cambiarDireccion(orderId, direccionId);
+      if (cambioDeCliente) {
+        const r = await cambiarCliente(orderId, clienteElegido.id, direccionId);
+        if (!r.ok) {
+          // El cambio de cliente puede quedar bloqueado por conflictos de
+          // precio, que se muestran aparte del error común.
+          setBloqueo(r.mensaje);
+          return;
         }
-
-        if (
-          validacion.paymentTermsId !== currentPaymentTermsId ||
-          validacion.diasCreditoSolicitados !== currentDiasCredito
-        ) {
-          const fd = new FormData();
-          fd.set("paymentTermsId", String(validacion.paymentTermsId));
-          fd.set("diasCredito", condicion.diasCredito);
-          await actualizarCondicionPago(orderId, fd);
+      } else if (direccionId !== address.id) {
+        const r = await cambiarDireccion(orderId, direccionId);
+        if (!r.ok) {
+          setError(r.mensaje);
+          return;
         }
-
-        setGuardado(true);
-        setAbierto(false);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo guardar el encabezado.");
       }
+
+      if (
+        validacion.paymentTermsId !== currentPaymentTermsId ||
+        validacion.diasCreditoSolicitados !== currentDiasCredito
+      ) {
+        const fd = new FormData();
+        fd.set("paymentTermsId", String(validacion.paymentTermsId));
+        fd.set("diasCredito", condicion.diasCredito);
+        const r = await actualizarCondicionPago(orderId, fd);
+        if (!r.ok) {
+          setError(r.mensaje);
+          return;
+        }
+      }
+
+      setGuardado(true);
+      setAbierto(false);
     });
   }
 
