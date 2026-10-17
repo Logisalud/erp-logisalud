@@ -44,7 +44,7 @@ async function ruta(estado: string, fecha = '2026-10-20') {
   await base.admin.query(`insert into wms.registros_ls_fr_43_03 (ruta_id, codigo, version_formato, creado_por) values ($1, 'LS-FR.43.03', '01', $2)`, [r, jt])
   return r
 }
-const adjunto = (tipo: string, contenido = randomUUID()) => { const hash = sha(contenido); return { ref: `${tipo}/${hash.slice(0, 16)}-archivo.csv`, hash } }
+const adjunto = (tipo: string, contenido: string = randomUUID()) => { const hash = sha(contenido); return { ref: `${tipo}/${hash.slice(0, 16)}-archivo.csv`, hash } }
 const cerrar = (quien: string, r: string, min: number | null, max: number | null, a = adjunto('data_logger'), bytes = 2048) =>
   como(quien, async (c) => (await c.query('select wms.cerrar_ruta($1, $2, $3, $4, $5, $6, $7, $8, $9) id', [r, min, max, a.ref, 'logger.csv', a.hash, bytes, 'text/csv', 'Sin novedades'])).rows[0].id as string)
 const estadoRuta = async (r: string) => (await uno('select estado from wms.rutas where id = $1', [r])).estado as string

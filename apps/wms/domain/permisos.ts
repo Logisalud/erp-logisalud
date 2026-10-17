@@ -21,13 +21,13 @@ const PERMISOS_AUXILIAR: readonly Accion[] = ['ver', 'ejecutar', 'verificar', 'c
 const conAuxiliar = (...propias: Accion[]): readonly Accion[] => [...new Set<Accion>([...PERMISOS_AUXILIAR, ...propias])]
 
 const PERMISOS: Record<Rol, readonly Accion[]> = {
-  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote'],
-  asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion'],
-  jefe_almacen: conAuxiliar('exportar', 'preparar_salidas'),
+  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote', 'registrar_ls_fr'],
+  asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion', 'registrar_ls_fr'],
+  jefe_almacen: conAuxiliar('exportar', 'preparar_salidas', 'registrar_ls_fr'),
   auxiliar: PERMISOS_AUXILIAR,
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
   admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],
-  jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote'),
+  jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote', 'cerrar_ruta', 'registrar_ls_fr'),
   conductor: [], // sus permisos llegan con «Mis rutas» (S9)
   auxiliar_transporte: [],
   conformidad_despacho: ['ver', 'dar_conformidad'],

@@ -34,7 +34,7 @@ export class CargaSupabase extends EmbalajeSupabase implements RepositorioCarga 
 
   private resumenDe(r: Fila, pedidos: PedidoCarga[], placa?: string): CargaResumen {
     const salen = pedidos.filter((p) => !p.excluida)
-    const estado: EstadoCarga = r.estado === 'EN_RUTA' ? 'EN_RUTA' : r.estado === 'LIBERADA' ? 'LIBERADA' : 'EN_CARGA'
+    const estado: EstadoCarga = ['EN_RUTA', 'PENDIENTE_CIERRE', 'CERRADA'].includes(String(r.estado)) ? 'EN_RUTA' : r.estado === 'LIBERADA' ? 'LIBERADA' : 'EN_CARGA'
     return {
       rutaId: String(r.id), rutaNumero: String(r.numero), fecha: dia(r.fecha), estado, placa, pedidos: salen.length,
       bultosEsperados: salen.reduce((t, p) => t + p.bultos.length, 0), bultosCargados: salen.reduce((t, p) => t + p.bultos.filter((b) => b.cargado).length, 0),

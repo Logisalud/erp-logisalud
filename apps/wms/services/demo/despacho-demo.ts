@@ -6,7 +6,7 @@ import {
   type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
 } from '@/domain/rutas'
 import { AREAS_DE_SALIDA } from '@/domain/zonas'
-import { PENDIENTES_LS_FR, armarRegistroLsFr, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
+import { PARAMETROS_LS_FR_POR_DEFECTO, PENDIENTES_LS_FR, armarRegistroLsFr, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
 import { numeroDe } from './libro'
@@ -50,6 +50,8 @@ export interface DespachoDemoEstado {
   reservasLote?: import('@/domain/reserva').ReservaLoteVista[]
   /** S8: carga por ruta (checklist, bultos cargados, exclusiones, liberación y salida). */
   carga?: Record<string, CargaDemo>
+  /** OS-7: impresiones, escaneo firmado y cierre de cada ruta (LS-FR.43.03). */
+  lsFr?: Record<string, import('./cierre-ruta-demo').LsFrDemo>
 }
 export interface CargaDemo {
   checklist?: import('@/domain/carga').ItemChecklist[]; checklistPor?: string
@@ -253,7 +255,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     if (!r) return null
     const vista = this.vistaRuta(e, r)
     if (!puedeImprimirLsFr(vista)) return null
-    return structuredClone(armarRegistroLsFr(vista, { codigo: 'LS-FR.43.03', version: '01', vigenteDesde: '2026-09-01', vigenteHasta: '2028-09-01', filasPorPagina: 10, pendientes: Object.keys(PENDIENTES_LS_FR) }, this.extrasLsFr(e, r)))
+    return structuredClone(armarRegistroLsFr(vista, { ...PARAMETROS_LS_FR_POR_DEFECTO, pendientes: Object.keys(PENDIENTES_LS_FR) }, this.extrasLsFr(e, r)))
   }
 
   // ── Acciones ──────────────────────────────────────────────────────────────────────────────────────────────────
