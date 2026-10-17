@@ -319,26 +319,21 @@ describe('vencidos (D-69, D-70)', () => {
     expect((await asignar(jt, m))[0].estado).toBe('SIN_STOCK')
   })
 
-  it('un cliente solo saca un lote vencido con pesquisa, destrucción o devolución al proveedor, y con la aprobación de Dirección Técnica antes del picking', async () => {
+  it('lo vencido de un cliente no sale por ninguna salida de Aprobados: ni venta, ni muestra, ni pesquisa DIGEMID, ni devolución; la destrucción sale solo desde Bajas (OS-6)', async () => {
     const p = await producto()
     const a = await sembrar(p, 'G-8.1', 'AJR-VENC', en(-20), ajr, 30)
     for (const motivo of ['VENTA', 'MUESTRA']) {
       const e = await falla(crear(jt, 'CLIENTE', motivo, ajr, [{ producto_id: p, cantidad: 5, lote_id: a.loteId }]))
-      expect(e.message, motivo).toMatch(/hay 0 en total|vencido|no cumplen/)
+      expect(e.message, motivo).toMatch(/lote AJR-VENC: El lote está vencido: lo vencido solo va a Bajas/i)
     }
-    const s = await crear(jt, 'CLIENTE', 'PESQUISA_DIGEMID', ajr, [{ producto_id: p, cantidad: 30, lote_id: a.loteId }])
-    expect((await lineas(s))[0].estado).toBe('ASIGNADA') // se reserva al crear…
-    // …pero no hay picking sin la aprobación de DT.
-    expect((await falla(como(jt, (c) => c.query('select wms.generar_orden_picking($1)', [s])))).message).toMatch(/Dirección Técnica debe aprobar/)
-    expect((await falla(como(jt, (c) => c.query('select wms.aprobar_salida_vencida($1)', [s])))).message).toMatch(/Solo Dirección Técnica/)
-    await como(base.personas.katia.id, (c) => c.query('select wms.aprobar_salida_vencida($1, $2)', [s, 'Pesquisa DIGEMID oficio 123']))
-    const op = await como(jt, async (c) => (await c.query('select wms.generar_orden_picking($1) id', [s])).rows[0].id)
-    expect(op).toBeTruthy()
-    for (const motivo of ['DESTRUCCION', 'DEVOLUCION_PROVEEDOR']) {
-      const a2 = await sembrar(p, 'G-8.2', `V-${motivo}`, en(-2), ajr, 5)
-      const s2 = await crear(jt, 'CLIENTE', motivo, ajr, [{ producto_id: p, cantidad: 5, lote_id: a2.loteId }])
-      expect((await lineas(s2))[0].estado).toBe('ASIGNADA')
-    }
+    expect((await falla(crear(jt, 'CLIENTE', 'PESQUISA_DIGEMID', ajr, [{ producto_id: p, cantidad: 30, lote_id: a.loteId }]))).message).toMatch(/la pesquisa DIGEMID nunca es de lotes vencidos/)
+    // la devolución al proveedor ya no es motivo de un cliente
+    expect((await falla(crear(jt, 'CLIENTE', 'DEVOLUCION_PROVEEDOR', ajr, [{ producto_id: p, cantidad: 5, lote_id: a.loteId }]))).message).toMatch(/del stock de Logissa/)
+    // la destrucción sale solo desde Bajas: lo que está en Aprobados (aunque esté vencido) no se destruye sin darlo de baja
+    expect((await falla(crear(jt, 'CLIENTE', 'DESTRUCCION', ajr, [{ producto_id: p, cantidad: 5, lote_id: a.loteId }]))).message).toMatch(/La destrucción sale solo desde Bajas: del lote AJR-VENC hay 0 unidades en el área de Bajas/)
+    // la aprobación de lotes vencidos de Dirección Técnica (D-69) ya no existe
+    const s = await crear(jt, 'CLIENTE', 'VENTA', ajr, [{ producto_id: p, cantidad: 1, lote_id: (await sembrar(p, 'G-8.4', 'AJR-OK', en(300), ajr, 5)).loteId }])
+    expect((await falla(como(base.personas.katia.id, (c) => c.query('select wms.aprobar_salida_vencida($1, $2)', [s, 'x'])))).message).toMatch(/ya no sale por una salida con aprobación/)
   })
 
   it('un cliente SÍ puede sacar un lote que vence pronto (el mínimo de 60 días es de las ventas de Logissa)', async () => {
@@ -365,6 +360,57 @@ describe('muestras de Logissa (D-70)', () => {
     const v = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 2 }])
     await asignar(jt, v)
     expect((await lineas(v))[0].lote_codigo).toBe('M-LARGO')
+  })
+})
+
+describe('devolución al proveedor de Logissa (OS-6): una salida normal, solo antes del vencimiento y según la política de canje', () => {
+  const dev = (lote: string, prod: string, cantidad = 5, quien = jt, propietario = logissa) => crear(quien, 'PROVEEDOR', 'DEVOLUCION_PROVEEDOR', propietario, [{ producto_id: prod, cantidad, lote_id: lote }])
+
+  it('la crea quien prepara salidas (no hace falta «autoriza salidas sin venta»); reserva el lote indicado al crearla; es del dueño del almacén', async () => {
+    const p = await producto()
+    const a = await sembrar(p, 'F-2.1', 'DEV-1', en(150), logissa, 40)
+    const s = await dev(a.loteId, p, 15)
+    expect((await uno('select tipo, motivo from wms.salidas where id = $1', [s]))).toMatchObject({ tipo: 'PROVEEDOR', motivo: 'DEVOLUCION_PROVEEDOR' })
+    const l = (await lineas(s))[0]
+    expect(l.estado).toBe('ASIGNADA'); expect(l.lote_codigo).toBe('DEV-1')
+    expect((await falla(dev(a.loteId, p, 5, aux1))).message).toMatch(/No tienes permiso para preparar salidas/)
+    const c = await sembrar(p, 'G-9.1', 'DEV-AJR', en(150), ajr, 10)
+    expect((await falla(dev(c.loteId, p, 5, jt, ajr))).message).toMatch(/del dueño del almacén/)
+    expect((await falla(crear(jt, 'PROVEEDOR', 'VENTA', logissa, [{ producto_id: p, cantidad: 1, lote_id: a.loteId }]))).message).toMatch(/motivo no corresponde/)
+    expect((await falla(crear(jt, 'PROVEEDOR', 'DEVOLUCION_PROVEEDOR', logissa, [{ producto_id: p, cantidad: 1 }]))).message).toMatch(/Indica el lote/)
+  })
+
+  it('nunca de un lote vencido (va a Bajas); el último día de vigencia todavía se puede; no más de lo disponible', async () => {
+    const p = await producto()
+    const v = await sembrar(p, 'F-2.2', 'DEV-VENC', en(-1), logissa, 20)
+    expect((await falla(dev(v.loteId, p))).message).toMatch(/no se devuelve vencido a nadie\. Va a Bajas/)
+    const hoyMismo = await sembrar(p, 'F-2.3', 'DEV-HOY', en(0), logissa, 20)
+    expect((await lineas(await dev(hoyMismo.loteId, p, 20)))[0].estado).toBe('ASIGNADA')
+    const poco = await sembrar(p, 'F-2.4', 'DEV-POCO', en(100), logissa, 3)
+    expect((await falla(dev(poco.loteId, p, 10))).message).toMatch(/No hay en el lote DEV-POCO/)
+  })
+
+  it('la política de canje es un parámetro (PENDIENTE de Katia): mínimo y máximo de días antes de vencer', async () => {
+    const p = await producto()
+    const corto = await sembrar(p, 'F-8.1', 'CANJE-CORTO', en(20), logissa, 10)
+    const largo = await sembrar(p, 'F-8.2', 'CANJE-LARGO', en(400), logissa, 10)
+    expect((await lineas(await dev(corto.loteId, p)))[0].estado).toBe('ASIGNADA') // sin política: basta con que no esté vencido
+    try {
+      await base.admin.query(`update wms.parametros set valor = '30' where clave = 'canje_dias_minimos_antes_vencimiento'`)
+      await base.admin.query(`update wms.parametros set valor = '180' where clave = 'canje_dias_maximos_antes_vencimiento'`)
+      expect((await falla(dev(corto.loteId, p, 2))).message).toMatch(/al menos 30 días antes de vencer; a este le faltan 20/)
+      expect((await falla(dev(largo.loteId, p, 2))).message).toMatch(/180 días o menos para vencer; a este le faltan 400/)
+      const medio = await sembrar(p, 'F-8.3', 'CANJE-MEDIO', en(100), logissa, 10)
+      expect((await lineas(await dev(medio.loteId, p)))[0].estado).toBe('ASIGNADA')
+    } finally {
+      await base.admin.query(`update wms.parametros set valor = '0' where clave = 'canje_dias_minimos_antes_vencimiento'`)
+      await base.admin.query(`update wms.parametros set valor = '' where clave = 'canje_dias_maximos_antes_vencimiento'`)
+    }
+  })
+
+  it('el tipo B no puede devolver al proveedor, y las salidas viejas con ese motivo no se reescriben (el check nuevo es NOT VALID)', async () => {
+    expect((await uno(`select convalidated from pg_constraint where conrelid = 'wms.salidas'::regclass and conname = 'salidas_tipo_motivo_check'`)).convalidated).toBe(false)
+    await expect(base.admin.query(`insert into wms.salidas (numero, tipo, motivo, propietario_id, creada_por) values ('SAL-X-1', 'CLIENTE', 'DEVOLUCION_PROVEEDOR', $1, $2)`, [ajr, jt])).rejects.toThrow(/salidas_tipo_motivo_check/)
   })
 })
 
@@ -859,8 +905,8 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     // la 0012 se reintenta antes de la 0013 (la 0013 le agrega un valor por defecto a editar_asignacion, que la 0012 no puede quitar)
     await base.admin.query('drop function wms.editar_asignacion(uuid, jsonb, text)')
     // la 0017 agregó permisos que la lista de la 0012 no conoce: se quitan para reintentar la 0012 y se vuelven a poner con la 0017
-    await base.admin.query(`delete from wms.permisos_rol where accion in ('planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote')`)
-    await base.admin.query(`delete from wms.alertas where tipo in ('PEDIDO_CAMBIADO', 'DOCUMENTO_VENCIDO', 'DOCUMENTACION_INCOMPLETA', 'LOTE_EN_RESERVA')`) // tipos que la lista de la 0012 no conoce
+    await base.admin.query(`delete from wms.permisos_rol where accion in ('planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote', 'solicitar_baja', 'autorizar_baja')`)
+    await base.admin.query(`delete from wms.alertas where tipo in ('PEDIDO_CAMBIADO', 'DOCUMENTO_VENCIDO', 'DOCUMENTACION_INCOMPLETA', 'LOTE_EN_RESERVA', 'BAJA_POR_AUTORIZAR', 'BAJA_POR_TRASLADAR')`) // tipos que la lista de la 0012 no conoce
     await base.admin.query(SQL.m0012())
     await base.admin.query(SQL.m0012())
     await base.admin.query(SQL.m0013()) // la 0013 va siempre después de la 0012 (y también se puede repetir)
@@ -877,6 +923,8 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     await base.admin.query(SQL.m0021())
     await base.admin.query(SQL.m0022())
     await base.admin.query(SQL.m0022())
+    await base.admin.query(SQL.m0026())
+    await base.admin.query(SQL.m0026()) // OS-6: re-ejecutable
     expect((await uno(`select count(*)::int n from wms.tipos_movimiento where codigo in ('SALIDA', 'RETORNO') and habilitado`)).n).toBe(1)  // el retorno ya no es un movimiento propio (OS-1)
   })
 })

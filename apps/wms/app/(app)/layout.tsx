@@ -38,6 +38,7 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
     items.splice(items.findIndex((i) => i.href === '/picking' || i.href === '/salidas') + 1 + (puedePickear(ctx.roles) ? 1 : 0) + (puedeDarConformidad(ctx.roles) ? 1 : 0), 0, { href: '/embalaje', etiqueta: 'Embalaje', icono: 'embalaje' })
     items.splice(items.findIndex((i) => i.href === '/embalaje') + 1, 0, { href: '/carga', etiqueta: 'Carga de unidad', icono: 'cargaunidad' })
   }
+  items.splice(items.findIndex((i) => i.href === '/calidad') + 1, 0, { href: '/bajas', etiqueta: 'Bajas', icono: 'bajas' })
   if (ctx.roles.includes('admin_wms') || ctx.roles.includes('direccion_tecnica')) items.push({ href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
   if (ctx.roles.some((r) => r !== 'auxiliar')) items.push({ href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })
   if (puede(ctx.roles, 'auditar')) items.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })

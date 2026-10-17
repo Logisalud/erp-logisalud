@@ -57,6 +57,8 @@ export type Accion =
   | 'cargar_ruta'
   | 'liberar_unidad'
   | 'reservar_lote'
+  | 'solicitar_baja'
+  | 'autorizar_baja'
 
 export interface Propietario {
   id: string

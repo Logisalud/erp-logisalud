@@ -462,6 +462,7 @@ export type TipoAlerta =
   | 'SOLICITUD_AJUSTADA' | 'EXCEDE_OC' | 'POR_REGISTRAR_EN_COMPRAS' | 'NO_COINCIDE_CON_COMPRAS'
   | 'MOVIMIENTO_CON_DIFERENCIA' | 'MOVIMIENTO_SIN_VERIFICAR' | 'CONTEO_CON_DIFERENCIA' | 'AJUSTE_POR_AUTORIZAR' | 'PENDIENTE_AFECTA_PRODUCTO'
   | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO' | 'DOCUMENTACION_INCOMPLETA' | 'LOTE_EN_RESERVA'
+  | 'BAJA_POR_AUTORIZAR' | 'BAJA_POR_TRASLADAR'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
 
@@ -486,6 +487,8 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   DOCUMENTO_VENCIDO: 'Documento regulatorio vencido o por vencer',
   DOCUMENTACION_INCOMPLETA: 'Pedido conforme con documentos por completar',
   LOTE_EN_RESERVA: 'Lote en Reserva con pedidos asignados',
+  BAJA_POR_AUTORIZAR: 'Baja por autorizar',
+  BAJA_POR_TRASLADAR: 'Baja por trasladar a Bajas',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -517,6 +520,8 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   DOCUMENTO_VENCIDO: 'direccion_tecnica',
   DOCUMENTACION_INCOMPLETA: 'jefe_transporte',
   LOTE_EN_RESERVA: 'jefe_transporte',
+  BAJA_POR_AUTORIZAR: 'direccion_tecnica',
+  BAJA_POR_TRASLADAR: 'jefe_almacen',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {
