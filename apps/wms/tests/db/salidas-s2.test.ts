@@ -871,7 +871,7 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     // la 0012 se reintenta antes de la 0013 (la 0013 le agrega un valor por defecto a editar_asignacion, que la 0012 no puede quitar)
     await base.admin.query('drop function wms.editar_asignacion(uuid, jsonb, text)')
     // la 0017 agregó permisos que la lista de la 0012 no conoce: se quitan para reintentar la 0012 y se vuelven a poner con la 0017
-    await base.admin.query(`delete from wms.permisos_rol where accion in ('planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote')`)
+    await base.admin.query(`delete from wms.permisos_rol where accion in ('planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote', 'anular_guia')`)
     await base.admin.query(`delete from wms.alertas where tipo in ('PEDIDO_CAMBIADO', 'DOCUMENTO_VENCIDO', 'DOCUMENTACION_INCOMPLETA', 'LOTE_EN_RESERVA')`) // tipos que la lista de la 0012 no conoce
     await base.admin.query(SQL.m0012())
     await base.admin.query(SQL.m0012())
@@ -891,6 +891,8 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     await base.admin.query(SQL.m0022())
     await base.admin.query(SQL.m0023())
     await base.admin.query(SQL.m0023())
+    await base.admin.query(SQL.m0024())
+    await base.admin.query(SQL.m0024())
     expect((await uno(`select count(*)::int n from wms.tipos_movimiento where codigo in ('SALIDA', 'RETORNO') and habilitado`)).n).toBe(1)  // el retorno ya no es un movimiento propio (OS-1)
   })
 })

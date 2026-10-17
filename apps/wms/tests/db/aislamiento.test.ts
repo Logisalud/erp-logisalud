@@ -287,6 +287,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'cargar_bulto', 'conciliacion_carga', 'confirmar_salida_ruta', 'excluir_pedido_de_carga', 'guardar_checklist_vehicular', 'liberar_unidad', 'retirar_bulto_carga',
     // S7 (0020)
     'embalar_salida', 'listo_para_carga', 'reabrir_embalaje',
+    // OS-3 (0024)
+    'anular_guia', 'contexto_guia', 'marcar_evento_pedidos', 'registrar_guia_electronica',
     // S6b (0019)
     'anular_gre', 'documentacion_resumen', 'paquete_documental', 'registrar_gre',
     // S5 (0018)
