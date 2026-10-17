@@ -26,7 +26,7 @@ interface Contexto {
 }
 
 export class PickingSupabase extends DespachoSupabase implements RepositorioPicking {
-  private async contexto(): Promise<Contexto> {
+  protected async contexto(): Promise<Contexto> {
     const [salidas, lineas, reservas, ordenes, ordenLineas, lotes, posiciones, productos, pedidos, paradas, rutas] = await Promise.all([
       traerTodo('salidas', 'wms', '*', ['numero']), traerTodo('salida_lineas', 'wms', '*'), traerTodo('reservas', 'wms', '*'), traerTodo('ordenes_picking', 'wms', '*', ['numero']),
       traerTodo('ordenes_picking_lineas', 'wms', '*'), traerTodo('lotes', 'wms', 'id, codigo, vence, producto_id'), traerTodo('posiciones', 'wms', 'id, codigo, orden_recorrido'),
@@ -79,7 +79,7 @@ export class PickingSupabase extends DespachoSupabase implements RepositorioPick
     }
   }
 
-  private resumenSalida(c: Contexto, sal: Fila): SalidaResumen {
+  protected resumenSalida(c: Contexto, sal: Fila): SalidaResumen {
     const ls = c.lineas.filter((l) => String(l.salida_id) === String(sal.id))
     const orden = c.ordenes.find((o) => String(o.salida_id) === String(sal.id) && o.estado !== 'CANCELADA')
     const ol = orden ? c.ordenLineas.filter((x) => String(x.orden_id) === String(orden.id)).map((x) => ({ picking: x.picking as ResultadoPicking, conformidad: x.conformidad as ResultadoConformidad })) : null

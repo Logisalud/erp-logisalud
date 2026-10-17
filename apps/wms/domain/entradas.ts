@@ -461,7 +461,7 @@ export type TipoAlerta =
   | 'TEMPERATURA' | 'RS_VENCIDO' | 'DIVERGENCIA_COMPRAS' | 'POR_TRASLADAR_VENCIDO' | 'LOTE_POR_VENCER' | 'LOTE_VENCIDO'
   | 'SOLICITUD_AJUSTADA' | 'EXCEDE_OC' | 'POR_REGISTRAR_EN_COMPRAS' | 'NO_COINCIDE_CON_COMPRAS'
   | 'MOVIMIENTO_CON_DIFERENCIA' | 'MOVIMIENTO_SIN_VERIFICAR' | 'CONTEO_CON_DIFERENCIA' | 'AJUSTE_POR_AUTORIZAR' | 'PENDIENTE_AFECTA_PRODUCTO'
-  | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO'
+  | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO' | 'DOCUMENTACION_INCOMPLETA'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
 
@@ -484,6 +484,7 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   STOCK_INSUFICIENTE: 'Stock insuficiente en una salida',
   PEDIDO_CAMBIADO: 'El pedido cambió en Pedidos',
   DOCUMENTO_VENCIDO: 'Documento regulatorio vencido o por vencer',
+  DOCUMENTACION_INCOMPLETA: 'Pedido conforme con documentos por completar',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -513,6 +514,7 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   STOCK_INSUFICIENTE: 'jefe_transporte',
   PEDIDO_CAMBIADO: 'jefe_transporte',
   DOCUMENTO_VENCIDO: 'direccion_tecnica',
+  DOCUMENTACION_INCOMPLETA: 'jefe_transporte',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {

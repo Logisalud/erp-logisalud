@@ -43,7 +43,7 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
               <caption className="sr-only">Salidas por pedido</caption>
               <thead className="border-b border-gray-200 bg-gray-50 text-left text-gray-700"><tr>
                 <th scope="col" className="px-3 py-2 font-medium">Salida</th><th scope="col" className="px-3 py-2 font-medium">Pedido</th><th scope="col" className="px-3 py-2 font-medium">Cliente</th>
-                <th scope="col" className="px-3 py-2 font-medium">Ruta</th><th scope="col" className="px-3 py-2 text-right font-medium">Líneas</th><th scope="col" className="px-3 py-2 text-right font-medium">Unidades</th>
+                <th scope="col" className="px-3 py-2 font-medium">Ruta</th><th scope="col" className="px-3 py-2 font-medium">Guía</th><th scope="col" className="px-3 py-2 text-right font-medium">Líneas</th><th scope="col" className="px-3 py-2 text-right font-medium">Unidades</th>
                 <th scope="col" className="px-3 py-2 font-medium">Etapa</th><th scope="col" className="px-3 py-2"><span className="sr-only">Abrir</span></th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
@@ -53,6 +53,7 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
                     <td className="tabular px-3 py-3 text-gray-900">{s.pedidoNumero ?? '—'}</td>
                     <td className="px-3 py-3 text-gray-800">{s.cliente ?? '—'}</td>
                     <td className="tabular px-3 py-3 text-gray-800">{s.rutaNumero ?? <span className="text-gray-500">Sin ruta</span>}</td>
+                    <td className="tabular px-3 py-3 text-gray-800">{s.guia ?? <span className="text-gray-500">—</span>}{!!s.documentosFaltantes && <span className="ml-2 text-xs text-amber-900">{s.documentosFaltantes} {s.documentosFaltantes === 1 ? 'documento falta' : 'documentos faltan'}</span>}</td>
                     <td className="tabular px-3 py-3 text-right">{s.lineas}</td>
                     <td className="tabular px-3 py-3 text-right">{s.unidades.toLocaleString('es-PE')} u</td>
                     <td className="px-3 py-3"><ChipEtapa etapa={s.etapa} /></td>

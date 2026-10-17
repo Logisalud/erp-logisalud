@@ -28,3 +28,11 @@ export async function entregarArchivo(ref: string): Promise<{ bytes: Buffer } | 
   const { data, error } = await crearClienteServidor().storage.from(BUCKET).createSignedUrl(ref, 300)
   return error || !data ? null : { url: data.signedUrl }
 }
+
+/** Los bytes del archivo (para armar el paquete documental en un solo PDF). Nulo si no está disponible. */
+export async function leerArchivo(ref: string): Promise<Buffer | null> {
+  if (modoDemoActivo()) return memoria.get(ref) ?? null
+  const { data, error } = await crearClienteServidor().storage.from(BUCKET).download(ref)
+  if (error || !data) return null
+  return Buffer.from(await data.arrayBuffer())
+}

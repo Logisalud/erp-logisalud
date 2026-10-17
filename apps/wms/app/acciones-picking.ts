@@ -19,3 +19,6 @@ export async function proponerReemplazoAccion(ordenLineaId: string) { await exig
 export async function resolverDiscrepanciaAccion(ordenLineaId: string, loteId: string, posicionId: string | undefined, nota?: string) { return repositorio().resolverDiscrepancia(ordenLineaId, loteId, posicionId, nota, await quien()) }
 export async function darConformidadAccion(ordenLineaId: string, resultado: 'CONFORME' | 'OBSERVADA', nota?: string, tipo?: TipoNoConformidad) { return repositorio().darConformidad(ordenLineaId, resultado, nota, tipo, await quien()) }
 export async function reabrirObservadaAccion(ordenLineaId: string, nota?: string) { return repositorio().reabrirObservada(ordenLineaId, nota, await quien()) }
+
+export async function registrarGreAccion(salidaId: string, numero: string, nota?: string) { return repositorio().registrarGre(salidaId, numero, nota, await quien()) }
+export async function anularGreAccion(guiaId: string, motivo: string) { return repositorio().anularGre(guiaId, motivo, await quien()) }
