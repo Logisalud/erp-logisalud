@@ -319,26 +319,38 @@ describe('vencidos (D-69, D-70)', () => {
     expect((await asignar(jt, m))[0].estado).toBe('SIN_STOCK')
   })
 
-  it('un cliente solo saca un lote vencido con pesquisa, destrucción o devolución al proveedor, y con la aprobación de Dirección Técnica antes del picking', async () => {
+  it('lo vencido no sale de Aprobados con ningún motivo (DT 2026-10-17): ni la pesquisa DIGEMID; la destrucción sale de Bajas y la devolución a proveedor es de Logissa', async () => {
     const p = await producto()
     const a = await sembrar(p, 'G-8.1', 'AJR-VENC', en(-20), ajr, 30)
-    for (const motivo of ['VENTA', 'MUESTRA']) {
+    for (const motivo of ['VENTA', 'MUESTRA', 'PESQUISA_DIGEMID']) {
       const e = await falla(crear(jt, 'CLIENTE', motivo, ajr, [{ producto_id: p, cantidad: 5, lote_id: a.loteId }]))
       expect(e.message, motivo).toMatch(/hay 0 en total|vencido|no cumplen/)
     }
-    const s = await crear(jt, 'CLIENTE', 'PESQUISA_DIGEMID', ajr, [{ producto_id: p, cantidad: 30, lote_id: a.loteId }])
-    expect((await lineas(s))[0].estado).toBe('ASIGNADA') // se reserva al crear…
-    // …pero no hay picking sin la aprobación de DT.
-    expect((await falla(como(jt, (c) => c.query('select wms.generar_orden_picking($1)', [s])))).message).toMatch(/Dirección Técnica debe aprobar/)
-    expect((await falla(como(jt, (c) => c.query('select wms.aprobar_salida_vencida($1)', [s])))).message).toMatch(/Solo Dirección Técnica/)
-    await como(base.personas.katia.id, (c) => c.query('select wms.aprobar_salida_vencida($1, $2)', [s, 'Pesquisa DIGEMID oficio 123']))
-    const op = await como(jt, async (c) => (await c.query('select wms.generar_orden_picking($1) id', [s])).rows[0].id)
-    expect(op).toBeTruthy()
+    // un cliente de almacenamiento no devuelve al proveedor ni destruye desde Aprobados: esos motivos no son suyos
     for (const motivo of ['DESTRUCCION', 'DEVOLUCION_PROVEEDOR']) {
-      const a2 = await sembrar(p, 'G-8.2', `V-${motivo}`, en(-2), ajr, 5)
-      const s2 = await crear(jt, 'CLIENTE', motivo, ajr, [{ producto_id: p, cantidad: 5, lote_id: a2.loteId }])
-      expect((await lineas(s2))[0].estado).toBe('ASIGNADA')
+      expect((await falla(crear(jt, 'CLIENTE', motivo, ajr, [{ producto_id: p, cantidad: 5, lote_id: a.loteId }]))).message, motivo).toMatch(/motivo no corresponde/)
     }
+  })
+
+  it('la devolución al proveedor es una salida de Logissa: sale lo que NO está vencido, sin el mínimo de 60 días, y nunca un lote vencido', async () => {
+    const p = await producto()
+    await sembrar(p, 'F-8.1', 'LOG-VENCIDO', en(-3), logissa, 20)
+    await sembrar(p, 'F-8.2', 'LOG-CORTO', en(10), logissa, 20)     // 10 días: una venta no lo toma, una devolución sí
+    const s = await crear(jt, 'DISTRIBUCION', 'DEVOLUCION_PROVEEDOR', logissa, [{ producto_id: p, cantidad: 15 }])
+    await asignar(jt, s)
+    expect((await lineas(s))[0].lote_codigo).toBe('LOG-CORTO')
+    expect((await uno('select numero from wms.salidas where id = $1', [s])).numero).toMatch(/^OS-\d{4}-\d{5}$/)
+    // todo vencido: sin stock, no sale vencido
+    const p2 = await producto()
+    await sembrar(p2, 'F-8.3', 'LOG-VENC-2', en(-1), logissa, 10)
+    const s2 = await crear(jt, 'DISTRIBUCION', 'DEVOLUCION_PROVEEDOR', logissa, [{ producto_id: p2, cantidad: 5 }])
+    expect((await asignar(jt, s2))[0].estado).toBe('SIN_STOCK')
+    // la política de canje (parámetro) puede pedir más días de vida útil
+    await base.admin.query(`update wms.parametros set valor = '30' where clave = 'devolucion_proveedor_dias_minimos'`)
+    try {
+      const s3 = await crear(jt, 'DISTRIBUCION', 'DEVOLUCION_PROVEEDOR', logissa, [{ producto_id: p, cantidad: 1 }])
+      expect((await asignar(jt, s3))[0].estado).toBe('SIN_STOCK')
+    } finally { await base.admin.query(`update wms.parametros set valor = '0' where clave = 'devolucion_proveedor_dias_minimos'`) }
   })
 
   it('un cliente SÍ puede sacar un lote que vence pronto (el mínimo de 60 días es de las ventas de Logissa)', async () => {
@@ -877,6 +889,8 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     await base.admin.query(SQL.m0021())
     await base.admin.query(SQL.m0022())
     await base.admin.query(SQL.m0022())
+    await base.admin.query(SQL.m0023())
+    await base.admin.query(SQL.m0023())
     expect((await uno(`select count(*)::int n from wms.tipos_movimiento where codigo in ('SALIDA', 'RETORNO') and habilitado`)).n).toBe(1)  // el retorno ya no es un movimiento propio (OS-1)
   })
 })

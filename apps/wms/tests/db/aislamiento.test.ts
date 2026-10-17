@@ -279,6 +279,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'stock_vendible',
     // Roles de los jefes y cargos (0015)
     'asignar_cargo',
+    // OS-2 (0023)
+    'conformar_orden', 'designar_picker', 'personal_de_picking',
     // OS-1 (0022)
     'aplicar_reserva_lote', 'quitar_reserva_lote',
     // S8 (0021)

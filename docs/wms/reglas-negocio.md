@@ -200,6 +200,7 @@ El detalle completo está en `respuestas-dt-2026-10.md`. Lo que ya rige (OS-1):
 - **Reserva:** un estado del lote (no un área). El lote sigue Aprobado pero no se asigna ni se pickea. La aplican y la quitan el Jefe de Transporte y Dirección Técnica, con motivo; la historia no se borra.
 - **Contramuestra:** solo cuando Logissa es titular del registro sanitario o del certificado de registro (fabricación por encargo, cada lote nuevo). Hoy no aplica a Logissa.
 - **Permisos:** Jefe de Almacén y Jefe de Transporte tienen todos los permisos del auxiliar. Kardex: código controlado LS-FR.41.
+- **Orden de Salida (OS-2):** `OS-AAAA-NNNNN`, se imprime. Se indica quién picó; la conformidad de **toda la orden** la da otra persona en una tabla (por línea: otro lote, menos cantidad, no encontrado) con el número de bultos; el stock pasa a Despacho. Lima no embala; provincia sí. La ruta se asigna antes que la guía.
 
 ## Integridad
 Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario, fecha, motivo).

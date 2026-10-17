@@ -91,7 +91,7 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
   }
 
   /** Gancho para S7 y S8: lo que ya pasó con cada salida después de la conformidad (embalada, cargada). */
-  protected async avancePorSalida(): Promise<Map<string, { embalada?: boolean; cargada?: boolean }>> { return new Map() }
+  protected async avancePorSalida(): Promise<Map<string, { embalada?: boolean; cargada?: boolean; sinEmbalaje?: boolean }>> { return new Map() }
 
   /** La lista de salidas suma lo de la documentación: la guía vigente y cuántos documentos exigidos faltan. */
   private async conDocumentacion<T extends SalidaResumen>(salidas: T[]): Promise<T[]> {

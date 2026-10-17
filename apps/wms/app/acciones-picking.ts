@@ -3,7 +3,7 @@
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import type { AsignacionLote } from '@/domain/salidas'
-import type { TipoNoConformidad } from '@/domain/despacho'
+import type { ResultadoLineaConformidad, TipoNoConformidad } from '@/domain/despacho'
 import type { RepartoBulto } from '@/domain/embalaje'
 import type { ItemChecklist } from '@/domain/carga'
 import type { Actor } from '@/services/repositorio'
@@ -20,6 +20,8 @@ export async function registrarPickingAccion(ordenLineaId: string, resultado: 'P
 export async function proponerReemplazoAccion(ordenLineaId: string) { await exigirContexto(); return repositorio().proponerReemplazo(ordenLineaId) }
 export async function resolverDiscrepanciaAccion(ordenLineaId: string, loteId: string, posicionId: string | undefined, nota?: string) { return repositorio().resolverDiscrepancia(ordenLineaId, loteId, posicionId, nota, await quien()) }
 export async function darConformidadAccion(ordenLineaId: string, resultado: 'CONFORME' | 'OBSERVADA', nota?: string, tipo?: TipoNoConformidad) { return repositorio().darConformidad(ordenLineaId, resultado, nota, tipo, await quien()) }
+export async function conformarOrdenAccion(ordenId: string, lineas: ResultadoLineaConformidad[], bultos: number, nota?: string) { return repositorio().conformarOrden(ordenId, lineas, bultos, nota, await quien()) }
+export async function designarPickerAccion(ordenId: string, pickerId: string) { return repositorio().designarPicker(ordenId, pickerId, await quien()) }
 export async function reabrirObservadaAccion(ordenLineaId: string, nota?: string) { return repositorio().reabrirObservada(ordenLineaId, nota, await quien()) }
 
 export async function aplicarReservaAccion(loteId: string, motivo: string) { return repositorio().aplicarReserva(loteId, motivo, await quien()) }

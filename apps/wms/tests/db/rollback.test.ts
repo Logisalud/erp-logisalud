@@ -52,7 +52,7 @@ describe('reversa del WMS', () => {
   it('aplica la cadena completa y la reversa deja todo lo ajeno al WMS idéntico (y es re-ejecutable)', async () => {
     await admin.query(SQL.stubs())
     const antes = await foto()
-    for (const m of [SQL.m0001, SQL.m0002, SQL.m0003, SQL.m0004, SQL.m0005, SQL.m0006, SQL.m0007, SQL.m0008, SQL.m0009, SQL.m0011, SQL.m0012, SQL.m0013, SQL.m0014, SQL.m0015, SQL.m0016, SQL.m0017, SQL.m0018, SQL.m0019, SQL.m0020, SQL.m0021, SQL.m0022, SQL.seed]) await admin.query(m())
+    for (const m of [SQL.m0001, SQL.m0002, SQL.m0003, SQL.m0004, SQL.m0005, SQL.m0006, SQL.m0007, SQL.m0008, SQL.m0009, SQL.m0011, SQL.m0012, SQL.m0013, SQL.m0014, SQL.m0015, SQL.m0016, SQL.m0017, SQL.m0018, SQL.m0019, SQL.m0020, SQL.m0021, SQL.m0022, SQL.m0023, SQL.seed]) await admin.query(m())
     expect((await admin.query(`select count(*)::int n from pg_namespace where nspname = 'wms'`)).rows[0].n).toBe(1)
 
     await admin.query(rollback)
