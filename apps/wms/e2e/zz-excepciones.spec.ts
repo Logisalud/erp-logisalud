@@ -89,7 +89,7 @@ test.describe('excepciones del flujo de salida', () => {
     const total = Number(/de (\d+)/.exec((await visible('cantidad-encontrada').locator('xpath=following-sibling::span').textContent()) ?? '')![1])
     await visible('cantidad-encontrada').fill(String(total - 1))        // falta una unidad: el resto de la línea sigue su camino
     await visible('nota-linea').fill('Faltan unidades en la caja')
-    await visible('bultos').fill('1')
+    await visible('bultos').fill('2')
     await sinDesborde(page)
     await capturar(page, info, 'conformidad-ajuste')
     await page.getByTestId('dar-conformidad').click()

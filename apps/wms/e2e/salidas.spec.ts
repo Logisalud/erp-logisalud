@@ -93,7 +93,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await capturar(page, info, 'conformidad-orden', { completa: true })
     await expect(page.getByTestId('quien-pico')).toContainText('Pickeó')
     await expect(page.getByTestId('dar-conformidad')).toBeDisabled()          // falta el número de bultos
-    await page.getByTestId('bultos').fill('1')
+    await page.getByTestId('bultos').fill('2')
     await page.getByTestId('dar-conformidad').click()
     await expect(page.getByTestId('conformidad-hecha')).toContainText('Conformidad registrada')
     await expect(page.getByTestId('conformidad-hecha')).toContainText('Siguiente')
