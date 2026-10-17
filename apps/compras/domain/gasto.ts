@@ -151,6 +151,9 @@ export type BorradorSolicitud = {
    * vendedor). Si queda null, el beneficiario es quien la crea — ver
    * services/solicitudes-gasto.ts. */
   asignadoA?: string | null
+  /** Lo mismo, pero para una persona sin usuario (ej. un vendedor, 0081).
+   * Nunca junto con `asignadoA`: ver `leerAsignado`. */
+  asignadoPersonaId?: string | null
   /** Texto libre, puramente informativo — NO es un paso de aprobación real,
    * no bloquea nada ni requiere que esa persona entre al sistema (ver
    * quien_autoriza en la migración 0036). La pantalla lo sugiere con el
@@ -288,4 +291,46 @@ export function esSugerenciaDeSiMismo(
 ): boolean {
   if (!nombrePropio || !sugerencia) return false
   return nombrePropio.trim().toLowerCase() === sugerencia.trim().toLowerCase()
+}
+
+/**
+ * "¿Para quién es el anticipo?" viaja en UN solo campo del formulario, con
+ * el tipo adelante: `usuario:<id>` (alguien con login) o `persona:<id>` (una
+ * persona sin usuario, migración 0081). Vacío = para quien lo crea.
+ *
+ * Un solo campo y no dos para que el formulario no pueda mandar los dos a
+ * la vez — la base igual lo impide (`solicitudes_gasto_un_asignado`), pero
+ * acá el error sería del usuario y no tendría cómo corregirlo.
+ */
+export function leerAsignado(valor: string | null | undefined): {
+  asignadoA: string | null
+  asignadoPersonaId: string | null
+} {
+  const [tipo, id] = (valor ?? '').split(':')
+  if (tipo === 'usuario' && id) return { asignadoA: id, asignadoPersonaId: null }
+  if (tipo === 'persona' && id) return { asignadoA: null, asignadoPersonaId: id }
+  return { asignadoA: null, asignadoPersonaId: null }
+}
+
+/** El inverso de `leerAsignado`, para precargar el formulario al editar. */
+export function valorAsignado(asignadoA: string | null | undefined, asignadoPersonaId: string | null | undefined): string {
+  if (asignadoPersonaId) return `persona:${asignadoPersonaId}`
+  if (asignadoA) return `usuario:${asignadoA}`
+  return ''
+}
+
+/**
+ * A quién se le paga lo que nace de una solicitud: la persona asignada —
+ * usuario o persona sin usuario (0081) — o, si no hay, quien la creó. Mismo
+ * criterio para el anticipo y para el reembolso adicional de su liquidación
+ * (si el vendedor gastó de más, el que puso la plata fue él).
+ */
+export function beneficiarioDeSolicitud(s: {
+  solicitante_id: string | null
+  asignado_a: string | null
+  asignado_persona_id: string | null
+}) {
+  return s.asignado_persona_id
+    ? { beneficiario_persona: null, beneficiario_sin_usuario_id: s.asignado_persona_id }
+    : { beneficiario_persona: s.asignado_a ?? s.solicitante_id, beneficiario_sin_usuario_id: null }
 }

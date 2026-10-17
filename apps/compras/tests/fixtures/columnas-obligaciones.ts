@@ -1,9 +1,10 @@
 /**
  * Las columnas ESCRIBIBLES de `cuentas_x_pagar.obligaciones`, sacadas de la
  * base real (information_schema, is_generated = 'NEVER') el 2026-10-06, más
- * `monto_exonerado` (migración 0078).
+ * `monto_exonerado` (migración 0078) y `beneficiario_sin_usuario_id` (0081).
  *
- * Las generadas (`total`, `neto_a_pagar`) no van: no se pueden escribir.
+ * Las generadas (`total`, `neto_a_pagar`, `beneficiario_id`) no van: no se
+ * pueden escribir.
  *
  * Cuando una migración agregue o renombre una columna de obligaciones, hay
  * que actualizar esta lista en el mismo PR — el test que la usa va a fallar
@@ -11,7 +12,7 @@
  */
 export const COLUMNAS_ESCRIBIBLES_OBLIGACIONES = [
   'anulada_en', 'anulada_motivo', 'anulada_por', 'aporte_accionista_id', 'base_imponible',
-  'beneficiario_persona', 'categoria_pago_directo_id', 'codigo', 'condicion_pago_dias',
+  'beneficiario_persona', 'beneficiario_sin_usuario_id', 'categoria_pago_directo_id', 'codigo', 'condicion_pago_dias',
   'conformidad_fecha', 'conformidad_por', 'cotizacion_storage_path', 'creador_correo',
   'created_at', 'created_by', 'editado_en', 'editado_por', 'espera_nota_credito', 'estado',
   'factura_storage_path', 'fecha_factura', 'fecha_vencimiento_real', 'id', 'igv', 'moneda',

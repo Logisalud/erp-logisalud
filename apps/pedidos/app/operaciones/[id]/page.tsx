@@ -1,3 +1,4 @@
+import { requireSession } from "@/lib/auth/session";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/breadcrumb";
@@ -26,6 +27,10 @@ function Dato({ label, value }: { label: string; value: string | null }) {
 }
 
 export default async function DespachoPage({ params }: { params: { id: string } }) {
+  // Antes de consultar nada: el layout y la página se renderizan en
+  // paralelo, así que sin esto la consulta sale al mismo tiempo que el
+  // guardia del layout y, con la sesión vencida, gana cualquiera.
+  await requireSession();
   const order = await getOrderForFulfillment(params.id);
   if (!order) notFound();
 

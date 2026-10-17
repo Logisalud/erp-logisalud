@@ -1,6 +1,9 @@
-// Datos de PRUEBA para el modo demostración. Todo es sintético: no hay ninguna
-// conexión a una base real. Los nombres de medicamentos son genéricos y los códigos
-// llevan el prefijo DEMO-.
+// Datos de PRUEBA para el modo demostración. No hay ninguna conexión a una base real.
+// Dos juegos de datos (misma topología):
+//   · 'odoo'      → productos, lotes con vencimiento y saldos tomados de Odoo el 2026-10-14 (config/datos-demo-odoo.ts; qué entra y qué
+//                   se excluye: docs/wms/demo-odoo.md). Es lo que se ve al correr la demo.
+//   · 'sintetico' → datos inventados (códigos DEMO-…), con casos fijos que necesitan las pruebas (unitarias y E2E). Las pruebas lo
+//                   piden con WMS_DEMO_DATOS=sintetico.
 
 import {
   DOCUMENTOS_CONFIG, generarPosiciones, PROPIETARIOS_CONFIG, type CodigoPropietario,
@@ -10,6 +13,7 @@ import type {
 } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
 import { AREAS_COMPARTIDAS } from '@/domain/zonas'
+import { PRODUCTOS_ODOO, SALDOS_ODOO } from '@/config/datos-demo-odoo'
 
 /** Generador pseudoaleatorio determinista (el mismo resultado siempre). */
 function mulberry32(seed: number) {
@@ -51,7 +55,14 @@ const PRODUCTOS: { desc: string; pres: string; marca: string; pa: string; um: st
   { desc: 'Hisopos estériles (dispositivo)', pres: 'Caja x 100', marca: 'Genérico', pa: '—', um: 'CAJA' },
 ]
 
-export function construirPanoramaDemo(hoy: string): Panorama {
+export type DatosDemo = 'sintetico' | 'odoo'
+
+/** Qué juego de datos usa la demo: 'odoo' salvo que WMS_DEMO_DATOS=sintetico (las pruebas lo fijan así). */
+export function datosDemoActivos(env: Record<string, string | undefined> = process.env): DatosDemo {
+  return env.WMS_DEMO_DATOS === 'sintetico' ? 'sintetico' : 'odoo'
+}
+
+export function construirPanoramaDemo(hoy: string, datos: DatosDemo = datosDemoActivos()): Panorama {
   const azar = mulberry32(20261007)
   const entre = (a: number, b: number) => Math.floor(a + azar() * (b - a + 1))
 
@@ -74,6 +85,8 @@ export function construirPanoramaDemo(hoy: string): Panorama {
       id: `asig:${p.codigo}`, posicionId: `pos:${p.codigo}`, propietarioId: `prop:${p.propietario}`,
       desde: docPorCodigo.get(p.documento!)!.vigenteDesde, documentoId: `doc:${p.documento}`,
     }))
+
+  if (datos === 'odoo') return { hoy, propietarios, posiciones, asignaciones, documentos, ...productosYStockOdoo(hoy) }
 
   // Productos con su situación regulatoria (varios casos para que las alertas se vean).
   const productos: ProductoConReg[] = PRODUCTOS.map((x, i) => {
@@ -170,4 +183,45 @@ export function construirPanoramaDemo(hoy: string): Panorama {
   poner('A-8', abc, 'CUARENTENA', 48, 'entrega:ABC-2')
 
   return { hoy, propietarios, posiciones, asignaciones, documentos, productos, lotes, saldos }
+}
+
+/**
+ * Productos, lotes y saldos de la demo con datos de Odoo (config/datos-demo-odoo.ts, generado por scripts/generar-datos-demo-odoo.ts).
+ * Odoo no trae registro sanitario: cada producto lleva uno de DEMOSTRACIÓN (RS-DEMO-…), con los mismos cuatro casos de siempre
+ * (por vencer, por vencer, vencido, sin registro) para que se vean las alertas regulatorias.
+ */
+function productosYStockOdoo(hoy: string): Pick<Panorama, 'productos' | 'lotes' | 'saldos'> {
+  const idProducto = new Map<string, string>()
+  const productos: ProductoConReg[] = PRODUCTOS_ODOO.map((x, i) => {
+    const n = i + 1
+    idProducto.set(x.codigo, `prod:${n}`)
+    const base: Regulatorio = {
+      productoId: `prod:${n}`, registroSanitario: `RS-DEMO-${x.codigo}`, rsVence: sumarDias(hoy, 365 + (n % 9) * 40),
+      fabricante: 'Laboratorio de demostración', condicionAlmacenamiento: 'Conservar a menos de 30 °C', creadoPor: 'demo:sandra',
+    }
+    let reg: Regulatorio = base
+    if (n === 4) reg = { ...base, rsVence: sumarDias(hoy, 45) }
+    else if (n === 9) reg = { ...base, rsVence: sumarDias(hoy, 78) }
+    else if (n === 15) reg = { ...base, rsVence: sumarDias(hoy, -12) }
+    else if (n === 23) reg = { ...base, registroSanitario: undefined, rsVence: undefined }
+    return { id: `prod:${n}`, codigo: x.codigo, descripcion: x.nombre, unidadMedida: 'UNIDAD', estado: 'activo' as const, reg }
+  })
+  const lotes: Lote[] = []
+  const saldos: Saldo[] = []
+  const idLote = new Map<string, string>()
+  for (const s of SALDOS_ODOO) {
+    const productoId = idProducto.get(s.producto)!
+    const clave = `${s.propietario}|${s.producto}|${s.lote}`
+    let loteId = idLote.get(clave)
+    if (!loteId) {
+      loteId = `lote:${lotes.length + 1}`
+      idLote.set(clave, loteId)
+      lotes.push({ id: loteId, productoId, codigo: s.lote, vence: s.vence, propietarioId: `prop:${s.propietario}` })
+    }
+    saldos.push({
+      posicionId: `pos:${s.posicion}`, productoId, loteId, propietarioId: `prop:${s.propietario}`, estado: s.estado,
+      procedenciaId: `entrega:${loteId}${s.estado === 'APROBADO' ? '' : `-${s.estado}`}`, cantidad: s.cantidad,
+    })
+  }
+  return { productos, lotes, saldos }
 }

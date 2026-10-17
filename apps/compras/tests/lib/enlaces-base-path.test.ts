@@ -26,9 +26,9 @@ function archivosTsx(dir: string): string[] {
 
 /** Cada `<a ...>` del archivo, con el href que tenga (literal o template). */
 function hrefsDeAnclas(fuente: string): string[] {
-  const anclas = fuente.match(/<a\b[^>]*?>/gs) ?? []
+  const anclas = fuente.match(/<a\b[^>]*?>/g) ?? []
   return anclas
-    .map((a) => a.match(/href=(?:"([^"]*)"|'([^']*)'|\{\s*`([^`]*)`\s*\})/s))
+    .map((a) => a.match(/href=(?:"([^"]*)"|'([^']*)'|\{\s*`([^`]*)`\s*\})/))
     .filter((m): m is RegExpMatchArray => !!m)
     .map((m) => m[1] ?? m[2] ?? m[3])
 }
