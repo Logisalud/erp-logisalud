@@ -143,3 +143,17 @@ export interface AntecedenteCalidadVista {
 export const antecedenteVigente = (a: AntecedenteCalidadVista) => !a.quitadoEn
 
 export const AYUDA_ANTECEDENTES = 'Un producto con antecedentes de calidad se evalúa al 100 % en cada recepción (evaluación estricta). Lo marca y lo quita Dirección Técnica, siempre con motivo.'
+
+/** Lo que la pantalla del muestreo necesita: la tabla (o tablas, con su vigencia) y los productos con antecedentes de calidad. */
+export interface TablaMuestreoVista extends TablaMuestreo {
+  nota?: string
+  /** Rige hoy. */
+  vigente: boolean
+}
+export interface PanoramaMuestreo {
+  hoy: string
+  tablas: TablaMuestreoVista[]
+  antecedentes: AntecedenteCalidadVista[]
+  /** Productos del catálogo que se pueden marcar (para el buscador). */
+  productos: { id: string; codigo: string; descripcion: string }[]
+}

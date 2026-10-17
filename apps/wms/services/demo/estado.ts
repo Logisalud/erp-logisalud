@@ -78,6 +78,8 @@ export interface SolicitudDemo {
   cambios: CambioVista[]
   recepcion?: RecepcionDemo
   expedienteId?: string
+  /** OS-5: si es el retorno de una Orden de Salida (recepción tipo devolución). */
+  retorno?: import('@/domain/entradas-vistas').RetornoDeSalida
 }
 
 export interface ActaDemo extends Omit<ActaRecepcionVista, 'faltan' | 'reemplazaANumero' | 'reemplazadaPorNumero'> {
@@ -104,6 +106,10 @@ export interface EstadoDemo {
   desp?: import('./despacho-demo').DespachoDemoEstado
   /** S6a: documentos regulatorios (se crea al primer uso). */
   docs?: import('./documentos-demo').DocsDemoEstado
+  /** OS-5: productos con antecedentes de calidad (se evalúan al 100 %). */
+  antecedentes?: import('@/domain/muestreo').AntecedenteCalidadVista[]
+  /** OS-5: la Orden de Salida ya despachada de la demostración (para probar el retorno) se creó. */
+  os5Sembrado?: boolean
   solicitudes: SolicitudDemo[]
   actas: ActaDemo[]
   organolepticas: OrganolepticaVista[]

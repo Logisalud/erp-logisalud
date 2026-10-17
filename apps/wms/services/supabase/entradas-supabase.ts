@@ -13,6 +13,7 @@ import type {
   SolicitudDetalle, SolicitudResumen,
 } from '@/domain/entradas-vistas'
 import { parsearVencimiento } from '@/domain/fechas'
+import type { DictamenClienteVista, ObservacionVista } from '@/domain/liberacion'
 import type { ResultadoBusqueda } from '@/domain/panorama'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, num, rpc, s, traerTodo, type Fila } from './util'
@@ -64,11 +65,15 @@ interface Carga {
   firmas: Fila[]
   organolepticas: Fila[]
   alertas: Fila[]
+  /** OS-5: observaciones reversibles, dictámenes del DT del cliente y número de las Órdenes de Salida de las que vuelven los retornos. */
+  observaciones: Fila[]
+  dictamenes: Fila[]
+  salidasNumero: Map<string, string>
   nombres: Map<string, string>
 }
 
 async function cargar(): Promise<Carga> {
-  const [solicitudes, lineas, cambios, versiones, ingresos, lotesIngreso, lotes, posiciones, productos, regulatorio, propietarios, actas, firmas, organolepticas, alertas] =
+  const [solicitudes, lineas, cambios, versiones, ingresos, lotesIngreso, lotes, posiciones, productos, regulatorio, propietarios, actas, firmas, organolepticas, alertas, observaciones, dictamenes] =
     await Promise.all([
       traerTodo('solicitudes_ingreso', 'wms', '*', ['creado_en']), traerTodo('solicitud_ingreso_lineas', 'wms', '*', ['creado_en']),
       traerTodo('solicitud_ingreso_cambios', 'wms', '*', ['id']), traerTodo('solicitud_ingreso_versiones', 'wms'),
@@ -78,12 +83,20 @@ async function cargar(): Promise<Carga> {
       traerTodo('producto_regulatorio', 'wms'), traerTodo('propietarios', 'wms'),
       traerTodo('actas_recepcion', 'wms', '*', ['generada_en']), traerTodo('acta_firmas', 'wms'),
       traerTodo('actas_organolepticas', 'wms', '*', ['creado_en']), traerTodo('alertas', 'wms', '*', ['creada_en']),
+      traerTodo('observaciones_liberacion', 'wms', '*', ['registrada_en']), traerTodo('dictamenes_cliente', 'wms', '*', ['registrado_en']),
     ])
+  const idsSalida = [...new Set(solicitudes.map((r) => s(r.salida_id)).filter((x): x is string => !!x))]
+  const salidasNumero = new Map<string, string>()
+  if (idsSalida.length) {
+    const { data } = await crearClienteServidor().schema('wms').from('salidas').select('id, numero').in('id', idsSalida)
+    for (const r of (data ?? []) as Fila[]) salidasNumero.set(String(r.id), String(r.numero))
+  }
   const nombres = await nombresDe([
     ...solicitudes.map((r) => s(r.creado_por)), ...solicitudes.map((r) => s(r.autorizado_por)), ...versiones.map((r) => s(r.editado_por)),
     ...cambios.map((r) => s(r.usuario)), ...organolepticas.map((r) => s(r.decidido_por)), ...alertas.map((r) => s(r.atendida_por)),
+    ...observaciones.flatMap((r) => [s(r.registrada_por), s(r.cerrada_por)]), ...dictamenes.flatMap((r) => [s(r.registrado_por), s(r.confirmado_por), s(r.anulado_por)]),
   ])
-  return { solicitudes, lineas, cambios, versiones, ingresos, lotesIngreso, lotes, posiciones, productos, regulatorio, propietarios, actas, firmas, organolepticas, alertas, nombres }
+  return { solicitudes, lineas, cambios, versiones, ingresos, lotesIngreso, lotes, posiciones, productos, regulatorio, propietarios, actas, firmas, organolepticas, alertas, observaciones, dictamenes, salidasNumero, nombres }
 }
 
 /** Una alerta se refiere a una solicitud directamente o a través de su ingreso. */
@@ -98,6 +111,24 @@ function mapearAlerta(r: Fila, nombres: Map<string, string>, solicitudDeIngreso:
 }
 
 const solicitudesDeIngreso = (c: Carga) => new Map(c.ingresos.map((i) => [String(i.id), String(i.solicitud_id)]))
+
+const nombreDe = (c: Carga, v: unknown) => (v ? c.nombres.get(String(v)) ?? 'Usuario' : undefined)
+
+function observacionesDe(c: Carga, actaId: string): ObservacionVista[] {
+  return c.observaciones.filter((r) => String(r.acta_id) === actaId).map((r) => ({
+    id: String(r.id), actaId, texto: String(r.texto), registradaPor: nombreDe(c, r.registrada_por) ?? 'Usuario', registradaEn: String(r.registrada_en),
+    cerradaEn: s(r.cerrada_en), cerradaPor: nombreDe(c, r.cerrada_por), nota: s(r.nota),
+  })).sort((a, b) => b.registradaEn.localeCompare(a.registradaEn))
+}
+
+function dictamenesDe(c: Carga, actaId: string): DictamenClienteVista[] {
+  return c.dictamenes.filter((r) => String(r.acta_id) === actaId).map((r): DictamenClienteVista => ({
+    id: String(r.id), actaId, estado: r.estado as DictamenClienteVista['estado'], via: r.via as DictamenClienteVista['via'], liberada: Number(r.cantidad_liberada), rechazada: Number(r.cantidad_rechazada),
+    fechaDictamen: s(r.fecha_dictamen), observacion: s(r.observacion), documentoNombre: s(r.documento_nombre), documentoRef: s(r.documento_ref), documentoHash: s(r.documento_hash),
+    registradoPor: nombreDe(c, r.registrado_por) ?? 'Usuario', registradoEn: String(r.registrado_en), confirmadoPor: nombreDe(c, r.confirmado_por), confirmadoEn: s(r.confirmado_en),
+    anuladoPor: nombreDe(c, r.anulado_por), anuladoEn: s(r.anulado_en), motivoAnulacion: s(r.motivo_anulacion),
+  })).sort((a, b) => b.registradoEn.localeCompare(a.registradoEn))
+}
 
 function armarOrganolepticas(c: Carga): OrganolepticaVista[] {
   const prod = new Map(c.productos.map((r) => [String(r.id), r]))
@@ -123,7 +154,9 @@ function armarOrganolepticas(c: Carga): OrganolepticaVista[] {
       registroSanitario: s(rg?.registro_sanitario), rsVence: s(rg?.rs_vence), fabricante: s(rg?.fabricante),
       formaPresentacion: s(rg?.forma_presentacion) ?? s(p?.presentacion), lote: String(l?.codigo ?? x?.lote_codigo ?? ''), vence: String(l?.vence ?? x?.vence ?? ''),
       propietario: String(prop.get(String(i?.propietario_id))?.razon_social ?? ''), cantidadLote: Number(o.cantidad_lote),
-      cantidadMuestra: Number(o.cantidad_muestra), referencia: s(i?.oc_codigo) ?? s(sl?.guia_numero) ?? s(sl?.doc_original_numero),
+      cantidadMuestra: Number(o.cantidad_muestra), regimenMuestreo: (o.regimen_muestreo ?? undefined) as OrganolepticaVista['regimenMuestreo'], tablaMuestreo: s(o.tabla_muestreo),
+      esDeCliente: !prop.get(String(i?.propietario_id))?.es_dueno_almacen,
+      observaciones: observacionesDe(c, String(o.id)), dictamenes: dictamenesDe(c, String(o.id)), referencia: s(i?.oc_codigo) ?? s(sl?.guia_numero) ?? s(sl?.doc_original_numero),
       datos: {
         certAnalisis: o.cert_analisis == null ? null : Boolean(o.cert_analisis),
         checklist: (o.checklist ?? {}) as OrganolepticaVista['datos']['checklist'], observacion: s(o.observacion),
@@ -222,6 +255,7 @@ function armarDetalle(c: Carga, sol: Fila, bloque: BloqueFisico[], facturadas: M
     alertas: c.alertas.filter((a) => String(a.solicitud_id) === id || (ing && String(a.ingreso_id) === String(ing.id))).map((a) => mapearAlerta(a, nombres, solicitudesDeIngreso(c))),
     expedienteId: s(ing?.expediente_id), bloqueadoPorFirmas: !!vigente && c.firmas.some((x) => String(x.acta_id) === String(vigente.id)),
     conDiferencias, tiposDiferencia, cantidadFisica: bloque, estadoInicial: ESTADO_INICIAL[tipo],
+    retorno: sol.salida_id ? { salidaId: String(sol.salida_id), salidaNumero: c.salidasNumero.get(String(sol.salida_id)) ?? '', motivo: sol.retorno_motivo as 'RECHAZADO_CLIENTE' | 'NO_ENTREGADO', guiaNumero: s(sol.guia_numero) } : undefined,
   }
 }
 

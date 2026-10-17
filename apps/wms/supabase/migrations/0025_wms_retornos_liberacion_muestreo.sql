@@ -35,7 +35,7 @@ on conflict (rol, accion) do nothing;
 
 insert into wms.parametros (clave, valor, nota) values
   ('dictamen_cliente_dos_personas', 'no',
-   'OS-5 (pendiente de Katia, D-102): si es «si», quien confirma el cambio de estado por el dictamen de un DT de cliente debe ser una persona distinta de quien lo registró. Por defecto no se exige (Sandra o Katia pueden hacer los dos pasos).')
+   'OS-5 (pendiente de Katia, D-95): si es «si», quien confirma el cambio de estado por el dictamen de un DT de cliente debe ser una persona distinta de quien lo registró. Por defecto no se exige (Sandra o Katia pueden hacer los dos pasos).')
 on conflict (clave) do nothing;
 update wms.parametros set nota = 'OBSOLETO desde la 0025: el muestreo ya no es techo(√n)+1; el tamaño de la muestra sale de la tabla LS-TB.02.02 (wms.tablas_muestreo).'
  where clave = 'muestreo_constante';

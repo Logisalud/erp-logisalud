@@ -104,3 +104,14 @@ export const siguienteTrasRetorno = (autorizada: boolean) =>
   autorizada
     ? 'Siguiente: el almacén lo recibe como devolución cuando llegue (cuenta al 100 % y queda en Devoluciones).'
     : 'Siguiente: Sandra o Katia autorizan la solicitud; después el almacén la recibe como devolución cuando llegue.'
+
+/** Una Orden de Salida que ya salió y, por tanto, puede tener retorno. */
+export interface ResumenSalidaRetorno {
+  salidaId: string
+  numero: string
+  pedidoNumero?: string
+  cliente?: string
+  fecha: string
+  unidades: number
+  retornos: RetornoVista[]
+}
