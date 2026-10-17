@@ -3,19 +3,24 @@
 import Link from 'next/link'
 import { useFormState, useFormStatus } from 'react-dom'
 import { TriangleAlert } from 'lucide-react'
+import { CampoVencimiento } from './campo-vencimiento'
 import { crearProductoAccion, type EstadoFormulario } from '@/app/acciones'
 
 function Campo({
-  nombre, etiqueta, ayuda, error, requerido, placeholder, tipo = 'text',
-}: { nombre: string; etiqueta: string; ayuda?: string; error?: string; requerido?: boolean; placeholder?: string; tipo?: string }) {
+  nombre, etiqueta, ayuda, error, requerido, placeholder, tipo = 'text', fecha = false,
+}: { nombre: string; etiqueta: string; ayuda?: string; error?: string; requerido?: boolean; placeholder?: string; tipo?: string; fecha?: boolean }) {
   const id = `campo-${nombre}`
   return (
     <div>
       <label htmlFor={id} className="etiqueta">{etiqueta}{requerido && <span className="text-red-700"> *</span>}</label>
-      <input
-        id={id} name={nombre} type={tipo} placeholder={placeholder} className={`campo ${error ? '!border-red-500' : ''}`}
-        aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-error` : ayuda ? `${id}-ayuda` : undefined} autoComplete="off"
-      />
+      {fecha ? (
+        <CampoVencimiento id={id} name={nombre} invalido={!!error} describedBy={error ? `${id}-error` : ayuda ? `${id}-ayuda` : undefined} />
+      ) : (
+        <input
+          id={id} name={nombre} type={tipo} placeholder={placeholder} className={`campo ${error ? '!border-red-500' : ''}`}
+          aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-error` : ayuda ? `${id}-ayuda` : undefined} autoComplete="off"
+        />
+      )}
       {error ? <p id={`${id}-error`} role="alert" className="mt-1 text-sm text-red-700">{error}</p>
         : ayuda ? <p id={`${id}-ayuda`} className="mt-1 text-xs text-gray-600">{ayuda}</p> : null}
     </div>
@@ -62,7 +67,7 @@ export function FormProducto() {
         <p className="text-sm text-gray-600">Katia y Sandra los cargan y rigen de inmediato. Sin registro sanitario y vencimiento el producto no puede aprobar lotes.</p>
         <div className="grid gap-4 md:grid-cols-2">
           <Campo nombre="registroSanitario" etiqueta="Número de registro" placeholder="EG-12345" error={e.registroSanitario} />
-          <Campo nombre="rsVence" etiqueta="Vencimiento del registro" placeholder="30/06/2030" ayuda="Puedes escribir 30/06/2030, 2030-06-30 o solo 06/2030." error={e.rsVence} />
+          <Campo nombre="rsVence" fecha etiqueta="Vencimiento del registro" placeholder="30/06/2030" ayuda="Puedes escribir 30/06/2030, 2030-06-30 o solo 06/2030." error={e.rsVence} />
           <Campo nombre="fabricante" etiqueta="Fabricante" error={e.fabricante} />
           <Campo nombre="formaPresentacion" etiqueta="Forma farmacéutica" placeholder="Tableta recubierta" error={e.formaPresentacion} />
           <Campo nombre="concentracion" etiqueta="Concentración" placeholder="10 mg" error={e.concentracion} />

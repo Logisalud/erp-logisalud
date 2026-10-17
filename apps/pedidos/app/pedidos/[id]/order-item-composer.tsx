@@ -227,16 +227,12 @@ export function OrderItemComposer({
     const formData = new FormData(e.currentTarget);
     setError(null);
     startTransition(async () => {
-      try {
-        await solicitarDescuento(orderId, itemId, formData);
-        setDiscountFormItemId(null);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudo registrar la solicitud.",
-        );
+      const resultado = await solicitarDescuento(orderId, itemId, formData);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
+        return;
       }
+      setDiscountFormItemId(null);
     });
   }
 
@@ -245,15 +241,13 @@ export function OrderItemComposer({
     const formData = new FormData(e.currentTarget);
     setError(null);
     startTransition(async () => {
-      try {
-        await fijarPrecioEspecial(orderId, itemId, formData);
-        setDiscountFormItemId(null);
-        router.refresh();
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "No se pudo fijar el precio.",
-        );
+      const resultado = await fijarPrecioEspecial(orderId, itemId, formData);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
+        return;
       }
+      setDiscountFormItemId(null);
+      router.refresh();
     });
   }
 
@@ -265,17 +259,13 @@ export function OrderItemComposer({
     const formData = new FormData(e.currentTarget);
     setError(null);
     startTransition(async () => {
-      try {
-        await marcarComoBonificacion(orderId, itemId, formData);
-        setBonifFormItemId(null);
-        router.refresh();
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudo marcar la bonificación.",
-        );
+      const resultado = await marcarComoBonificacion(orderId, itemId, formData);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
+        return;
       }
+      setBonifFormItemId(null);
+      router.refresh();
     });
   }
 
@@ -294,15 +284,13 @@ export function OrderItemComposer({
   function enviar() {
     setError(null);
     startTransition(async () => {
-      try {
-        const result = await enviarPedido(orderId);
-        setSubmitResult(result);
-        router.refresh();
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "No se pudo enviar el pedido.",
-        );
+      const resultado = await enviarPedido(orderId);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
+        return;
       }
+      setSubmitResult(resultado.resultado);
+      router.refresh();
     });
   }
 

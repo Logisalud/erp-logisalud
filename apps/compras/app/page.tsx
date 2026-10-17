@@ -58,6 +58,9 @@ export default async function Inicio() {
   // carga, Contabilidad/Tesorería conforman y pagan). Gerencia y el resto
   // de las áreas no lo ven — ver domain/planilla.ts.
   const vePlanilla = puedeVerPlanilla(perfil)
+  // Vendedores y personas sin usuario (0081): la lista la mantiene
+  // Contabilidad; el resto solo la ve al elegir a quién va un anticipo.
+  const vePersonas = perfil?.area === 'contabilidad' || perfil?.area === 'admin'
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -176,6 +179,13 @@ export default async function Inicio() {
           titulo="Caja chica"
           descripcion="Administra fondos, gastos y reposiciones de caja chica."
         />
+        {vePersonas ? (
+          <MenuItem
+            href="/personas-sin-usuario" emoji="🧑‍💼"
+            titulo="Vendedores y personas sin usuario"
+            descripcion="A quién se le arma un anticipo sin que entre al sistema, y su cuenta bancaria."
+          />
+        ) : null}
         {veAportes ? (
           <MenuItem
             href="/aportes-accionista" emoji="🧾"

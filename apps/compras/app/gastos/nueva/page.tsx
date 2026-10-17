@@ -3,6 +3,7 @@ import { perfilActual } from '@logisalud/auth/server'
 import { Encabezado } from '@/components/nav'
 import { listarCategoriasGasto, sugerenciaResponsableArea } from '@/services/solicitudes-gasto'
 import { listarUsuarios } from '@/services/usuarios'
+import { listarPersonasSinUsuario } from '@/services/beneficiarios'
 import { TIPOS_SOLICITUD, type TipoSolicitud } from '@/domain/gasto'
 import { FormularioSolicitud } from './formulario'
 
@@ -23,6 +24,7 @@ export default async function NuevaSolicitud({
   // "persona asignada" del anticipo (formulario.tsx) simplemente no
   // muestra opciones útiles para nadie más, y no hace falta.
   const usuarios = await listarUsuarios()
+  const personas = await listarPersonasSinUsuario({ soloActivas: true })
   const tipoPreseleccionado = tipoValido(searchParams.tipo)
   const perfil = await perfilActual()
   const puedeCargarCategoria = perfil?.area === 'contabilidad' || perfil?.area === 'admin'
@@ -47,7 +49,7 @@ export default async function NuevaSolicitud({
         </div>
       ) : (
         <FormularioSolicitud
-          categorias={categorias} usuarios={usuarios} tipoPreseleccionado={tipoPreseleccionado}
+          categorias={categorias} usuarios={usuarios} personas={personas} tipoPreseleccionado={tipoPreseleccionado}
           sugerenciaAutoriza={sugerenciaAutoriza}
         />
       )}

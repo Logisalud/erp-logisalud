@@ -26,5 +26,5 @@ Cada asignación se registra con vigencia y referencia al documento que la suste
 El rack A llega hasta **A-27** (planos 2026, tabla de Diphasac y exportación de Odoo coinciden). El plano AJR de 2023 que se citaba antes está desactualizado y no forma parte del repo; la evidencia de A-27 es la tabla de Diphasac, el Excel de Odoo y los planos 2026.
 
 ## Conflictos por verificar en físico (no inventar)
-1. E-9.1 y E-10.1 no figuran en la tabla de Logissa 2026 (los planos las dibujan, Odoo las tiene y el total de pallets de Logissa solo cuadra si se cuentan).
+1. ~~E-9.1 y E-10.1 no figuran en la tabla de Logissa 2026~~ — **resuelto (2026-10-14, Sebas): existen y tienen stock** (Odoo lo confirma); ya no llevan la marca «por verificar».
 Todo esto debe ser configurable, no fijo en código. Los planos no tienen escala exacta: usar un layout aproximado marcado como tal, con herramienta de calibración.
