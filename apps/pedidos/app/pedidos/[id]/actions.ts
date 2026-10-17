@@ -12,6 +12,7 @@ import {
   removeOrderItem,
   setItemSpecialPriceAsAdmin,
   submitOrder,
+  type SubmitOrderResult,
   updateOrderAddress,
   updateOrderItemQuantity,
   updatePaymentTerms,
@@ -76,7 +77,11 @@ export async function quitarProducto(orderId: string, itemId: string): Promise<R
   }
 }
 
-export async function actualizarCondicionPago(orderId: string, formData: FormData) {
+export async function actualizarCondicionPago(
+  orderId: string,
+  formData: FormData,
+): Promise<ResultadoAccion> {
+  try {
   const userId = await requireUserId();
   const paymentTermsId = Number(formData.get("paymentTermsId"));
   // Se revalida contra el catálogo real: si la condición es la de días
@@ -93,16 +98,42 @@ export async function actualizarCondicionPago(orderId: string, formData: FormDat
     condicion.diasCreditoSolicitados,
   );
   revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo cambiar la condición de pago.");
+  }
 }
 
-export async function enviarPedido(orderId: string) {
-  const userId = await requireUserId();
-  const result = await submitOrder(orderId, userId);
-  revalidatePath(`/pedidos/${orderId}`);
-  return result;
+/**
+ * Enviar el pedido.
+ *
+ * El desenlace vuelve como valor y no como excepción porque casi todo lo
+ * que puede frenar un envío son reglas de negocio con mensaje escrito para
+ * el vendedor —falta el celular del cliente, el plazo pedido supera el
+ * aprobado, el límite de crédito— y las lanza `submit_order` desde la
+ * base. Lanzadas, Next las reemplaza en producción por "An error occurred
+ * in the Server Components render…": al vendedor le aparecía ese párrafo
+ * en inglés en vez de "falta el celular", con el cliente adelante. Pasó el
+ * 2026-10-16.
+ */
+export async function enviarPedido(
+  orderId: string,
+): Promise<ResultadoAccion<{ resultado: SubmitOrderResult }>> {
+  try {
+    const userId = await requireUserId();
+    const resultado = await submitOrder(orderId, userId);
+    revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true, resultado };
+  } catch (err) {
+    return falloDe(err, "No se pudo enviar el pedido.");
+  }
 }
 
-export async function agregarObservacion(orderId: string, formData: FormData) {
+export async function agregarObservacion(
+  orderId: string,
+  formData: FormData,
+): Promise<ResultadoAccion> {
+  try {
   const userId = await requireUserId();
   const comentario = String(formData.get("comentario") ?? "").trim();
   if (!comentario) throw new Error("Escribe un comentario.");
@@ -118,6 +149,10 @@ export async function agregarObservacion(orderId: string, formData: FormData) {
   }
 
   revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo agregar la observación.");
+  }
 }
 
 /**
@@ -128,7 +163,12 @@ export async function agregarObservacion(orderId: string, formData: FormData) {
  * que es la que de verdad manda. Un vendedor que llame a esta Server Action
  * a mano no pasa de la primera.
  */
-export async function fijarPrecioEspecial(orderId: string, itemId: string, formData: FormData) {
+export async function fijarPrecioEspecial(
+  orderId: string,
+  itemId: string,
+  formData: FormData,
+): Promise<ResultadoAccion> {
+  try {
   const user = await getCurrentUser();
   if (!user) throw new Error("No autenticado");
   if (!user.roles.includes("administrador")) {
@@ -149,7 +189,10 @@ export async function fijarPrecioEspecial(orderId: string, itemId: string, formD
   });
 
   revalidatePath(`/pedidos/${orderId}`);
-  return resultado;
+    return { ok: true, ...resultado };
+  } catch (err) {
+    return falloDe(err, "No se pudo fijar el precio.");
+  }
 }
 
 /**
@@ -165,7 +208,8 @@ export async function marcarComoBonificacion(
   orderId: string,
   itemId: string,
   formData: FormData,
-) {
+): Promise<ResultadoAccion> {
+  try {
   const userId = await requireUserId();
 
   const cantidad = Number(formData.get("cantidad"));
@@ -186,7 +230,10 @@ export async function marcarComoBonificacion(
   });
 
   revalidatePath(`/pedidos/${orderId}`);
-  return resultado;
+    return { ok: true, ...resultado };
+  } catch (err) {
+    return falloDe(err, "No se pudo marcar la bonificación.");
+  }
 }
 
 export async function quitarBonificacion(
@@ -203,7 +250,12 @@ export async function quitarBonificacion(
   }
 }
 
-export async function solicitarDescuento(orderId: string, itemId: string, formData: FormData) {
+export async function solicitarDescuento(
+  orderId: string,
+  itemId: string,
+  formData: FormData,
+): Promise<ResultadoAccion> {
+  try {
   const userId = await requireUserId();
   const cantidad = Number(formData.get("cantidad"));
   const precioSolicitado = formData.get("precioSolicitado") ? Number(formData.get("precioSolicitado")) : undefined;
@@ -226,6 +278,10 @@ export async function solicitarDescuento(orderId: string, itemId: string, formDa
   });
 
   revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo registrar la solicitud.");
+  }
 }
 
 /**
@@ -245,11 +301,19 @@ export async function getDireccionesDeCliente(customerId: string) {
 }
 
 /** Cambiar la dirección no mueve precios: es libre. */
-export async function cambiarDireccion(orderId: string, customerAddressId: string) {
-  const userId = await requireUserId();
-  if (!customerAddressId) throw new Error("Elige una dirección de entrega.");
-  await updateOrderAddress({ orderId, customerAddressId, actor: userId });
-  revalidatePath(`/pedidos/${orderId}`);
+export async function cambiarDireccion(
+  orderId: string,
+  customerAddressId: string,
+): Promise<ResultadoAccion> {
+  try {
+    const userId = await requireUserId();
+    if (!customerAddressId) throw new Error("Elige una dirección de entrega.");
+    await updateOrderAddress({ orderId, customerAddressId, actor: userId });
+    revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo cambiar la dirección de entrega.");
+  }
 }
 
 /**
@@ -262,7 +326,8 @@ export async function cambiarCliente(
   orderId: string,
   customerId: string,
   customerAddressId: string,
-) {
+): Promise<ResultadoAccion> {
+  try {
   const userId = await requireUserId();
   if (!customerId) throw new Error("Elige un cliente.");
   if (!customerAddressId) throw new Error("Elige una dirección de entrega.");
@@ -275,11 +340,14 @@ export async function cambiarCliente(
   });
 
   if (!result.ok) {
-    return { ok: false as const, mensaje: mensajeCambioBloqueado(result.conflictos), conflictos: result.conflictos };
+    return { ok: false, mensaje: mensajeCambioBloqueado(result.conflictos) };
   }
 
   revalidatePath(`/pedidos/${orderId}`);
-  return { ok: true as const };
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo cambiar el cliente.");
+  }
 }
 
 /** Corregir la cantidad de una línea sin tener que buscar el producto otra vez. */
@@ -306,17 +374,24 @@ export async function cambiarCantidad(
  * en la base, que es la que de verdad manda. Esta capa solo traduce el
  * desenlace a algo legible.
  */
-export async function borrarBorrador(orderId: string) {
-  const userId = await requireUserId();
-  const resultado = await deleteDraftOrder(orderId, userId);
+export async function borrarBorrador(orderId: string): Promise<ResultadoAccion> {
+  // El `redirect()` del final queda FUERA del try: Next lo implementa
+  // lanzando, y atraparlo lo convertiría en un "no se pudo borrar" sobre
+  // un pedido ya borrado.
+  try {
+    const userId = await requireUserId();
+    const resultado = await deleteDraftOrder(orderId, userId);
 
-  if (!resultado.ok) {
-    const mensajes: Record<typeof resultado.reason, string> = {
-      NO_ENCONTRADO: "Este pedido ya no existe.",
-      NO_ES_BORRADOR: "Este pedido ya fue enviado, así que no se puede borrar.",
-      SIN_PERMISO: "No puedes borrar este pedido: solo su vendedor o un administrador.",
-    };
-    throw new Error(mensajes[resultado.reason]);
+    if (!resultado.ok) {
+      const mensajes: Record<typeof resultado.reason, string> = {
+        NO_ENCONTRADO: "Este pedido ya no existe.",
+        NO_ES_BORRADOR: "Este pedido ya fue enviado, así que no se puede borrar.",
+        SIN_PERMISO: "No puedes borrar este pedido: solo su vendedor o un administrador.",
+      };
+      return { ok: false, mensaje: mensajes[resultado.reason] };
+    }
+  } catch (err) {
+    return falloDe(err, "No se pudo borrar el borrador.");
   }
 
   // El pedido ya no existe: quedarse en /pedidos/[id] sería un 404.

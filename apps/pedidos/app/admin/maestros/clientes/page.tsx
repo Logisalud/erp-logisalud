@@ -1,9 +1,14 @@
+import { requireSession } from "@/lib/auth/session";
 import { getCarteraSummary } from "@/services/customers-import";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { CustomerImporter } from "./customer-importer";
 import { CustomerSearch } from "./customer-search";
 
 export default async function ClientesPage() {
+  // Antes de consultar nada: el layout y la página se renderizan en
+  // paralelo, así que sin esto la consulta sale al mismo tiempo que el
+  // guardia del layout y, con la sesión vencida, gana cualquiera.
+  await requireSession();
   const summary = await getCarteraSummary();
 
   return (

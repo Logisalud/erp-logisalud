@@ -1,9 +1,14 @@
+import { requireSession } from "@/lib/auth/session";
 import { listCatalog } from "@/services/catalog";
 import { CatalogList } from "@/components/catalog-list";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { crearZona, cambiarEstadoZona } from "./actions";
 
 export default async function ZonasPage() {
+  // Antes de consultar nada: el layout y la página se renderizan en
+  // paralelo, así que sin esto la consulta sale al mismo tiempo que el
+  // guardia del layout y, con la sesión vencida, gana cualquiera.
+  await requireSession();
   const items = await listCatalog("zones");
 
   return (
