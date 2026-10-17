@@ -5,6 +5,9 @@ import { capturar, entrarComo, esTelefono, sinDesborde } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
 
+/** Los dos lotes en que se parte la primera línea del pedido 101 (se fija en la primera prueba; el resto del flujo los usa). */
+const lotes = { primero: '', segundo: '' }
+
 test.describe('salidas, picking y conformidad (S5)', () => {
   test('el Jefe de Transporte ve la salida del pedido 101 y cambia un lote: aviso FEFO que no bloquea y queda el registro', async ({ page }, info) => {
     await entrarComo(page, 'jefe_transporte')
@@ -28,6 +31,13 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     const otro = opciones.find((o) => !o.t.includes('sugerido') && Number(/hay (\d+)/.exec(o.t)?.[1] ?? 0) >= cantidad)
     expect(otro, 'hay un lote no sugerido con stock suficiente').toBeTruthy()
     await select.selectOption(otro!.v)
+    // la línea se parte en dos lotes: 12 del elegido y lo que falta (8) del siguiente que ofrece la tabla
+    await page.getByTestId('cantidad-lote').first().fill(String(cantidad - 8))
+    await expect(page.getByTestId('suma-lotes')).toContainText('Faltan 8')
+    await page.getByTestId('agregar-lote').click()
+    lotes.primero = /^(\S+)/.exec(otro!.t)![1]
+    lotes.segundo = /^(\S+)/.exec(await page.getByTestId('elegir-lote').nth(1).evaluate((el) => (el as HTMLSelectElement).selectedOptions[0].text))![1]
+    expect(lotes.segundo).not.toBe(lotes.primero)
     await expect(page.getByTestId('suma-lotes')).toContainText('Completo')
     await sinDesborde(page)
     await capturar(page, info, 'salidas-editor-lotes')
@@ -59,15 +69,17 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await expect(page.getByTestId('cola-picking')).toContainText('PED-DEMO-101')
     await capturar(page, info, 'picking-cola')
     await page.goto(url)
-    await expect(page.getByTestId('linea-picking')).toHaveCount(2)
-    await expect(page.getByTestId('avance-picking')).toContainText('2 líneas por pickear')
+    await expect(page.getByTestId('linea-picking')).toHaveCount(3)          // la primera línea sale en dos lotes
+    await expect(page.getByTestId('avance-picking')).toContainText('3 líneas por pickear')
     await sinDesborde(page)
     await capturar(page, info, 'picking-orden', { completa: true })
+    await page.getByTestId('pickeado').first().click()
+    await expect(page.getByTestId('avance-picking')).toContainText('2 líneas por pickear')
     await page.getByTestId('pickeado').first().click()
     await expect(page.getByTestId('avance-picking')).toContainText('1 línea por pickear')
     await page.getByTestId('pickeado').first().click()
     await expect(page.getByTestId('avance-picking')).toContainText('Picking completo')
-    await expect(page.getByTestId('estado-pickeado')).toHaveCount(2)
+    await expect(page.getByTestId('estado-pickeado')).toHaveCount(3)
   })
 
   test('la conformidad la da otra persona: quien pickeó no puede; Sandra marca conforme y el pedido queda listo', async ({ page }, info) => {
@@ -80,7 +92,8 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await sinDesborde(page)
     await capturar(page, info, 'conformidad-orden', { completa: true })
     await page.getByTestId('conforme').first().click()
-    await expect(page.getByTestId('avance-conformidad')).toContainText('1 de 2')
+    await expect(page.getByTestId('avance-conformidad')).toContainText('1 de 3')
+    await page.getByTestId('conforme').first().click()
     await page.getByTestId('conforme').first().click()
     await expect(page.getByTestId('avance-conformidad')).toContainText('Todo conforme')
 
@@ -113,9 +126,9 @@ test.describe('salidas, picking y conformidad (S5)', () => {
   test('con todo conforme se registra la guía a mano: formato validado, anulación con motivo y alerta por los COA que faltan', async ({ page }, info) => {
     await entrarComo(page, 'jefe_transporte')
     await page.goto('/wms/alertas')
-    await expect(page.getByText('COA del lote L2515 (falta)').first()).toBeVisible()
+    await expect(page.getByText(`COA del lote ${lotes.primero} (falta)`).first()).toBeVisible()
     await abrirSalida101(page, info)
-    await expect(page.getByTestId('paquete-incompleto')).toContainText('COA del lote L2515 (falta)')
+    await expect(page.getByTestId('paquete-incompleto')).toContainText(`COA del lote ${lotes.primero} (falta)`)
     await expect(page.getByTestId('items-paquete')).toContainText('Registro sanitario: Listo')
     await page.getByTestId('numero-gre').fill('1234')
     await expect(page.getByTestId('error-numero-gre')).toContainText('T001-00001234')
@@ -123,7 +136,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await page.getByTestId('numero-gre').fill('t001-00000001')
     await page.getByTestId('registrar-gre').click()
     await expect(page.getByTestId('guia-numero')).toHaveText('T001-00000001')
-    await expect(page.getByTestId('guia-lineas')).toContainText('L2515')
+    await expect(page.getByTestId('guia-lineas')).toContainText(lotes.primero)
     // una guía no se edita: se anula con motivo y se registra la correcta
     await page.getByTestId('anular-gre').click()
     await page.getByTestId('motivo-anular-gre').fill('Error de digitación')
@@ -143,10 +156,11 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await entrarComo(page, 'asistente_dt')
     await page.goto('/wms/documentos/carga')
     await page.getByTestId('carga-archivos').setInputFiles([
-      { name: 'COA_L2515.pdf', mimeType: 'application/pdf', buffer: await pdfReal('COA L2515') },
+      { name: `COA_${lotes.primero}.pdf`, mimeType: 'application/pdf', buffer: await pdfReal(`COA ${lotes.primero}`) },
+      { name: `COA_${lotes.segundo}.pdf`, mimeType: 'application/pdf', buffer: await pdfReal(`COA ${lotes.segundo}`) },
       { name: 'COA_L-VENCE-2-MESES.pdf', mimeType: 'application/pdf', buffer: await pdfReal('COA L-VENCE-2-MESES') },
     ])
-    await expect(page.getByTestId('carga-resumen')).toContainText('2 quedaron como COA vigente')
+    await expect(page.getByTestId('carga-resumen')).toContainText('3 quedaron como COA vigente')
 
     await entrarComo(page, 'jefe_transporte')
     await abrirSalida101(page, info)
@@ -251,5 +265,79 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await page.getByTestId('confirmar-embalaje').click()
     await expect(page.getByTestId('bultos-anulados')).toContainText('Se partió una caja')
     await expect(page.getByTestId('bulto')).toHaveCount(2)
+  })
+
+  // ── S8: carga, liberar la unidad y salida confirmada (el stock sale SOLO aquí) ────────────────────────────────
+  /** El saldo final del Kardex de un producto (lo que la auditoría ve) y si ya tiene una fila «Salida». */
+  const kardex = async (page: Page, producto: string) => {
+    await entrarComo(page, 'auditoria_lectura')
+    await page.goto('/wms/kardex')
+    const valor = await page.locator('#k-producto option').evaluateAll((os, p) => (os.find((o) => (o.textContent ?? '').includes(p)) as HTMLOptionElement | undefined)?.value ?? '', producto)
+    await page.locator('#k-producto').selectOption(valor)
+    await page.getByTestId('ver-kardex').click()
+    await expect(page.getByTestId('kardex-saldo-final')).toBeVisible()
+    const saldo = Number(((await page.getByTestId('kardex-saldo-final').textContent()) ?? '').replace(/[^\d]/g, ''))
+    const salidas = await page.locator('[data-testid="fila-kardex"]:visible, [data-testid="lista-kardex"]:visible > li').filter({ hasText: 'Salida' }).count()
+    return { saldo, salidas }
+  }
+
+  test('carga por bultos: checklist, escaneo por código, conciliación, liberar la unidad y confirmar la salida; el stock baja SOLO al confirmar', async ({ page }, info) => {
+    const antes = await kardex(page, 'DEMO-001')
+    await entrarComo(page, 'jefe_transporte')
+    await page.goto('/wms/carga')
+    await expect(page.getByTestId('cola-carga')).toBeVisible()
+    await sinDesborde(page)
+    await capturar(page, info, 'carga-cola')
+    await page.getByTestId('ruta-carga').filter({ hasText: 'RUT-2026-00001' }).click()
+    await expect(page.getByTestId('panel-carga')).toBeVisible()
+    await expect(page.getByTestId('motivos-no-liberar')).toContainText('Falta el checklist del vehículo')
+    await expect(page.getByTestId('liberar-unidad')).toBeDisabled()
+    // checklist: un punto en «no» pide su nota
+    await page.getByTestId('punto-no').first().click()
+    await expect(page.getByTestId('guardar-checklist')).toBeDisabled()
+    await page.getByTestId('nota-punto').fill('Huele a combustible')
+    await page.getByTestId('guardar-checklist').click()
+    await expect(page.getByTestId('checklist-guardado')).toContainText('hay puntos sin cumplir')
+    await expect(page.getByTestId('motivos-no-liberar')).toContainText('puntos sin cumplir')
+    await page.getByTestId('punto-si').first().click()
+    await page.getByTestId('guardar-checklist').click()
+    await expect(page.getByTestId('checklist-guardado')).not.toContainText('sin cumplir')
+    // un código que no existe, y luego los dos bultos (uno por código, otro marcado a mano)
+    await page.getByTestId('codigo-bulto').fill('SAL-9999-99999-B1')
+    await page.getByTestId('cargar-bulto').click()
+    await expect(page.getByText('No encontramos el bulto SAL-9999-99999-B1')).toBeVisible()
+    await page.getByTestId('codigo-bulto').fill('sal-2026-00001-b2')
+    await page.getByTestId('codigo-bulto').press('Enter')
+    await expect(page.getByTestId('aviso-escaneo')).toContainText('SAL-2026-00001-B2 cargado')
+    await expect(page.getByTestId('motivos-no-liberar')).toContainText('Faltan 1 bulto por cargar')
+    await expect(page.getByTestId('liberar-unidad')).toBeDisabled()
+    await sinDesborde(page)
+    await capturar(page, info, 'carga-conciliacion', { completa: true })
+    await page.getByTestId('marcar-cargado').click()
+    await expect(page.getByTestId('bulto-carga').filter({ has: page.locator('[data-cargado]') })).toHaveCount(0)
+    await expect(page.locator('[data-testid="bulto-carga"][data-cargado="si"]')).toHaveCount(2)
+    await expect(page.getByTestId('liberar-unidad')).toBeEnabled()
+    await page.getByTestId('liberar-unidad').click()
+    await expect(page.getByTestId('unidad-liberada')).toBeVisible()
+    await sinDesborde(page)
+    await capturar(page, info, 'carga-liberada', { completa: true })
+
+    // liberar NO descuenta stock
+    const liberada = await kardex(page, 'DEMO-001')
+    expect(liberada).toEqual(antes)
+    // confirmar la salida: ahora sí
+    await entrarComo(page, 'jefe_transporte')
+    await page.goto('/wms/carga')
+    await page.getByTestId('ruta-carga').filter({ hasText: 'RUT-2026-00001' }).click()
+    await page.getByTestId('confirmar-salida').click()
+    await page.getByTestId('confirmar-salida-si').click()
+    await expect(page.getByTestId('salida-confirmada')).toBeVisible()
+    await capturar(page, info, 'carga-salida-confirmada', { completa: true })
+    const despues = await kardex(page, 'DEMO-001')
+    expect(despues.saldo).toBe(antes.saldo - 20)
+    expect(despues.salidas).toBe(antes.salidas + 2)   // una fila de Salida por cada lote en que se partió la línea
+    await entrarComo(page, 'jefe_transporte')
+    await page.goto('/wms/salidas')
+    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Salida confirmada')
   })
 })

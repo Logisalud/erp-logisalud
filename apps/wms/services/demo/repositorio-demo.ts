@@ -6,11 +6,11 @@ import {
 } from '@/domain/productos'
 import { estado, registrar } from './estado'
 import { estadoE } from './entradas-demo'
-import { EmbalajeDemo } from './embalaje-demo'
+import { CargaDemo_ } from './carga-demo'
 import { sembrarInventario } from './inventario-demo'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 
-export class RepositorioDemo extends EmbalajeDemo implements Repositorio {
+export class RepositorioDemo extends CargaDemo_ implements Repositorio {
   async panorama(): Promise<Panorama> {
     // El historial de conteos y ajustes de la demo se siembra antes de leer el stock, para que todo sea consistente
     sembrarInventario(estadoE())
