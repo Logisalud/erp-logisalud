@@ -76,7 +76,7 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
     expect(esPersonal(['jefe_transporte'])).toBe(true)
   })
   it('todo rol tiene etiqueta y el personal es un subconjunto de los roles', () => {
-    expect(Object.keys(ETIQUETA_ROL)).toHaveLength(12)
+    expect(Object.keys(ETIQUETA_ROL)).toHaveLength(13)
     for (const r of ROLES_DE_PERSONAL) expect(ETIQUETA_ROL[r]).toBeTruthy()
     expect(rolesDesdeTexto('usuario_cliente, jefe_transporte')).toEqual(['usuario_cliente', 'jefe_transporte'])
   })
