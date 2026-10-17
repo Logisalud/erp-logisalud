@@ -5,13 +5,14 @@ import type { Actor } from '@/services/repositorio'
 /** Las personas de prueba que pueden pickear usan el id de sus claves reales (`demo:auxiliar`, …). */
 export const actorDemo = (clave: string, ...roles: Actor['roles']): Actor => ({ id: `demo:${clave}`, nombre: `${clave} (demo)`, roles })
 
-/** Marca una Orden de Salida como «a provincia» (se embala): el pedido 101 de la demostración va a Lima y queda con los bultos de la conformidad. */
-export function aProvincia(salidaId: string) {
+/** Fija si una salida va a provincia (se embala) o a Lima (no): el pedido 101 de la demostración va a provincia; el cambio vale hasta que se da la conformidad. */
+function marcarEmbalaje(salidaId: string, requiere: boolean) {
   const e = (globalThis as { __wmsDemo?: { desp?: { salidas: { id: string; requiereEmbalaje: boolean }[] } } }).__wmsDemo
   const s = e?.desp?.salidas.find((x) => x.id === salidaId)
   if (!s) throw new Error('La Orden de Salida no existe todavía')
-  s.requiereEmbalaje = true
+  s.requiereEmbalaje = requiere
 }
+export const aLima = (salidaId: string) => marcarEmbalaje(salidaId, false)
 
 /** Imprime la orden (con quien pica), y otra persona da la conformidad de toda la orden con `bultos` bultos. Devuelve la orden. */
 export async function imprimirYConformar(repo: RepositorioDemo, salidaId: string, o: { jt: Actor; picker: Actor; conforme: Actor; bultos?: number; conformar?: boolean }) {

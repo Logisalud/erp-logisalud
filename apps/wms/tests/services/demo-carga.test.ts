@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import type { Actor } from '@/services/repositorio'
-import { aProvincia, imprimirYConformar } from './ayudas-orden'
+import { imprimirYConformar } from './ayudas-orden'
 
 const actor = (id: string, ...roles: Actor['roles']): Actor => ({ id: `demo:${id}`, nombre: `${id} (demo)`, roles })
 const JT = actor('jt', 'jefe_transporte', 'jefe_almacen'); const AUX = actor('auxiliar', 'auxiliar'); const SANDRA = actor('sandra', 'asistente_dt', 'conformidad_despacho')
@@ -18,7 +18,7 @@ const stockTotal = async () => (await repo.panorama()).saldos.reduce((t, x) => t
 /** El pedido 101 listo para carga: picking, conformidad, COA cargados, guía y embalaje en 2 bultos. */
 async function pedidoListo() {
   const [res] = await repo.listarSalidas()
-  aProvincia(res.id)                                  // el pedido 101 va a Lima: aquí se prueba el camino con embalaje
+  
   await imprimirYConformar(repo, res.id, { jt: JT, picker: AUX, conforme: SANDRA, bultos: 2 })
   const pq = (await repo.paqueteSalida(res.id))!
   const archivos = pq.items.map((i) => ({ nombre: `COA_${i.lote}.pdf`, hash: `h-${i.lote}`, bytes: 1000, ref: `demo/${i.lote}.pdf` }))

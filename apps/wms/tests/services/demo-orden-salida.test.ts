@@ -1,7 +1,7 @@
 // Orden de Salida en el modo demostración: quién pica, conformidad de toda la orden (con ajustes por línea) y bultos. Mismas reglas que la migración 0023.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
-import { actorDemo as actor, aProvincia } from './ayudas-orden'
+import { actorDemo as actor, aLima } from './ayudas-orden'
 
 const JT = actor('jefe_transporte', 'jefe_transporte', 'jefe_almacen'); const AUX = actor('auxiliar', 'auxiliar'); const SANDRA = actor('asistente_dt', 'asistente_dt', 'conformidad_despacho')
 const JA = actor('reemplazante_jefe', 'jefe_almacen')
@@ -44,7 +44,7 @@ describe('Orden de Salida (demo)', () => {
     expect(await repo.conformarOrden(o.id, [], 2, undefined, AUX)).toMatchObject({ ok: false, mensaje: 'No tienes permiso para dar la conformidad' })
     expect(await repo.conformarOrden(o.id, [], 0, undefined, SANDRA)).toMatchObject({ ok: false, mensaje: 'Registra el número de bultos (cajas master): de 1 a 99' })
     const antes = (await repo.panorama()).saldos.reduce((t, x) => t + x.cantidad, 0)
-    expect(await repo.conformarOrden(o.id, [], 2, 'Todo coincide', SANDRA)).toMatchObject({ ok: true, unidades: 26, bultos: 2, ajustes: 0, requiereEmbalaje: false })
+    expect(await repo.conformarOrden(o.id, [], 2, 'Todo coincide', SANDRA)).toMatchObject({ ok: true, unidades: 26, bultos: 2, ajustes: 0, requiereEmbalaje: true })
     const p = await repo.panorama()
     expect(p.saldos.reduce((t, x) => t + x.cantidad, 0)).toBe(antes)       // el stock no sale: solo cambia de lugar
     const k1 = p.posiciones.find((x) => x.codigo === 'K-1')!
@@ -63,7 +63,8 @@ describe('Orden de Salida (demo)', () => {
 
   it('un pedido a Lima queda con sus bultos (sin contenido) y no se embala; uno a provincia sí se embala', async () => {
     const { orden: o, salidaId } = await orden('demo:auxiliar')
-    expect((await repo.obtenerSalida(salidaId))!.requiereEmbalaje).toBe(false)
+    expect((await repo.obtenerSalida(salidaId))!.requiereEmbalaje).toBe(true)
+    aLima(salidaId)
     await repo.conformarOrden(o.id, [], 3, undefined, SANDRA)
     expect((await repo.embalajeSalida(salidaId))!.bultosVigentes.map((b) => b.codigo)).toEqual([1, 2, 3].map((i) => expect.stringMatching(new RegExp(`^OS-\\d{4}-\\d{5}-B${i}$`))))
     expect(await repo.embalarSalida(salidaId, [], AUX)).toMatchObject({ ok: false })
@@ -72,7 +73,6 @@ describe('Orden de Salida (demo)', () => {
     ;(globalThis as { __wmsDemo?: unknown }).__wmsDemo = undefined
     repo = new RepositorioDemo()
     const b = await orden('demo:auxiliar')
-    aProvincia(b.salidaId)
     await repo.conformarOrden(b.orden.id, [], 2, undefined, SANDRA)
     expect((await repo.embalajeSalida(b.salidaId))!.bultosVigentes).toHaveLength(0)
     expect((await repo.colaEmbalaje()).map((x) => x.salidaId)).toContain(b.salidaId)

@@ -10,7 +10,7 @@ export interface ProductoDemo { codigo: string; descripcion: string }
 export function pedidosDemo(productos: readonly ProductoDemo[], consulta: number, hoy: string): unknown[] {
   const p = (i: number): ProductoDemo => productos[i % productos.length] ?? { codigo: 'SIN-PRODUCTO', descripcion: 'Producto de prueba' }
   const linea = (id: string, prod: ProductoDemo, cantidad: number) => ({ lineaId: id, productoCodigo: prod.codigo, descripcion: prod.descripcion, cantidad })
-  const botica = { id: 'cli-demo-1', nombre: 'Botica Salud Total SAC', ruc: '20512345671', direccion: 'Av. Arequipa 1450, Lince', distrito: 'Lince', ubigeo: '150116', ventanaCita: 'L-V 8:00-12:00', vehiculoCalificado: 'Camioneta' }
+  const botica = { id: 'cli-demo-1', nombre: 'Botica Salud Total SAC', ruc: '20512345671', direccion: 'Av. Giraldez 480, Huancayo', distrito: 'Huancayo', ubigeo: '120101', ventanaCita: 'L-V 8:00-12:00', vehiculoCalificado: 'Camioneta' }
   const farmacia = { id: 'cli-demo-2', nombre: 'Farmacia Los Ángeles EIRL', ruc: '20698765432', direccion: 'Calle Mercaderes 214, Arequipa', distrito: 'Arequipa', ubigeo: '040101', ventanaCita: 'L-S 9:00-13:00' }
   const clinica = { id: 'cli-demo-3', nombre: 'Clínica San Marcos SA', ruc: '20456789123', direccion: 'Av. Brasil 2100, Jesús María', distrito: 'Jesús María', ubigeo: '150113', ventanaCita: 'L-V 7:00-10:00', vehiculoCalificado: 'Furgón refrigerado' }
   const base = (n: number, version: number, cliente: object, lineas: object[], extra: object = {}) => ({

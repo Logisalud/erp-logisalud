@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import type { Actor } from '@/services/repositorio'
-import { aProvincia, imprimirYConformar } from './ayudas-orden'
+import { imprimirYConformar } from './ayudas-orden'
 
 const actor = (id: string, ...roles: Actor['roles']): Actor => ({ id: `demo:${id}`, nombre: `${id} (demo)`, roles })
 const JT = actor('jt', 'jefe_transporte', 'jefe_almacen'); const AUX = actor('auxiliar', 'auxiliar'); const SANDRA = actor('sandra', 'asistente_dt', 'conformidad_despacho')
@@ -15,7 +15,7 @@ beforeEach(() => {
 
 async function salidaConforme(conformar = true) {
   const [res] = await repo.listarSalidas()
-  aProvincia(res.id)                                  // el pedido 101 va a Lima: aquí se prueba el camino con embalaje
+  
   await imprimirYConformar(repo, res.id, { jt: JT, picker: AUX, conforme: SANDRA, bultos: 2, conformar })
   return res.id
 }
