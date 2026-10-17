@@ -218,3 +218,16 @@ describe('Despacho como zona de conformidad', () => {
     expect(await q(`select p.codigo, s.cantidad::int n from wms.saldos s join wms.posiciones p on p.id = s.posicion_id where s.producto_id = $1 and p.tipo_area = 'DESPACHO'`, [p])).toEqual([{ codigo: 'STG-9', n: 4 }])
   })
 })
+
+describe('ayudante para ampliar un check sin pisar lo ya agregado', () => {
+  it('agrega valores nuevos a un check «in (…)» conservando los anteriores y es re-ejecutable', async () => {
+    await base.admin.query(`create table wms._prueba_check (v text, constraint _prueba_check_v check (v in ('A', 'B')))`)
+    try {
+      await base.admin.query(`select wms._ampliar_check_in('wms._prueba_check', '_prueba_check_v', 'v', array['C', 'A'])`)
+      await base.admin.query(`select wms._ampliar_check_in('wms._prueba_check', '_prueba_check_v', 'v', array['D'])`)
+      await base.admin.query(`select wms._ampliar_check_in('wms._prueba_check', '_prueba_check_v', 'v', array['D', 'A'])`)
+      for (const v of ['A', 'B', 'C', 'D']) await base.admin.query(`insert into wms._prueba_check values ($1)`, [v])
+      expect((await falla(base.admin.query(`insert into wms._prueba_check values ('Z')`))).message).toMatch(/_prueba_check_v/)
+    } finally { await base.admin.query('drop table wms._prueba_check') }
+  })
+})

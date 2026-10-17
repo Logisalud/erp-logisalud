@@ -15,6 +15,22 @@
 -- 0. Permisos, alertas y parámetros
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- Ayudante para las migraciones que siguen: AGREGA valores a un `check (columna in (…))` sin reescribir la lista completa (así dos migraciones que agregan
+-- cada una sus propios valores no se pisan). Es interno: no se concede a nadie.
+create or replace function wms._ampliar_check_in(p_tabla text, p_constraint text, p_columna text, p_valores text[]) returns void
+language plpgsql set search_path = wms, pg_temp as $$
+declare v_def text; v_actuales text[]; v_nuevos text[];
+begin
+  select pg_get_constraintdef(c.oid) into v_def from pg_constraint c where c.conrelid = p_tabla::regclass and c.conname = p_constraint;
+  if v_def is null then raise exception 'No existe la restricción % en %', p_constraint, p_tabla; end if;
+  select coalesce(array_agg(m[1]), '{}') into v_actuales from regexp_matches(v_def, '''([^'']*)''', 'g') as m;
+  select coalesce(array_agg(v), '{}') into v_nuevos from unnest(p_valores) v where v <> all (v_actuales);
+  if cardinality(v_nuevos) = 0 then return; end if;
+  execute format('alter table %s drop constraint %I', p_tabla, p_constraint);
+  execute format('alter table %s add constraint %I check (%I in (%s))', p_tabla, p_constraint, p_columna,
+                 (select string_agg(quote_literal(x), ', ') from unnest(v_actuales || v_nuevos) x));
+end $$;
+
 do $$ begin
   if exists (select 1 from pg_constraint where conrelid = 'wms.permisos_rol'::regclass and conname = 'permisos_rol_accion_check') then
     alter table wms.permisos_rol drop constraint permisos_rol_accion_check;
