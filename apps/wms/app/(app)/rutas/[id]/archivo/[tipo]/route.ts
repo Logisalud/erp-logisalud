@@ -19,5 +19,10 @@ export async function GET(req: Request, { params }: { params: { id: string; tipo
   const e = await entregarArchivo(a.ref)
   if (!e) return new NextResponse('El archivo no está disponible (en la demo, se pierde al reiniciar el servidor).', { status: 404 })
   if ('url' in e) return NextResponse.redirect(e.url)
-  return new NextResponse(new Uint8Array(e.bytes), { headers: { 'Content-Type': a.tipo || 'application/octet-stream', 'Content-Disposition': `inline; filename="${encodeURIComponent(a.nombre)}"`, 'Cache-Control': 'private, no-store' } })
+  // Solo el PDF y las fotos se muestran en el navegador; cualquier otro archivo (el del data logger puede ser de cualquier tipo, incluso HTML) se descarga tal cual.
+  const seMuestra = a.tipo === 'application/pdf' || a.tipo === 'image/png' || a.tipo === 'image/jpeg'
+  return new NextResponse(new Uint8Array(e.bytes), { headers: {
+    'Content-Type': seMuestra ? a.tipo! : 'application/octet-stream', 'Content-Disposition': `${seMuestra ? 'inline' : 'attachment'}; filename="${encodeURIComponent(a.nombre)}"`,
+    'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
+  } })
 }

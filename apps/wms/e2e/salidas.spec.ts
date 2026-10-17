@@ -291,6 +291,8 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await expect(page.getByTestId('panel-carga')).toBeVisible()
     await expect(page.getByTestId('motivos-no-liberar')).toContainText('Falta el checklist del vehículo')
     await expect(page.getByTestId('liberar-unidad')).toBeDisabled()
+    // OS-7: la copia impresa del LS-FR.43.03 viaja con el conductor; sin imprimir solo se advierte
+    await expect(page.getByTestId('aviso-no-impreso')).toContainText('Todavía no imprimiste el formato LS-FR.43.03')
     // checklist: un punto en «no» pide su nota
     await page.getByTestId('punto-no').first().click()
     await expect(page.getByTestId('guardar-checklist')).toBeDisabled()

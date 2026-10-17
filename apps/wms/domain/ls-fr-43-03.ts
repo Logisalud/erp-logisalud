@@ -172,7 +172,7 @@ export function conservarHasta(fechaRuta: string, anios = CONSERVACION_ANIOS_POR
 
 /**
  * Advertencia al liberar la unidad: la copia impresa viaja con el conductor y todavía no se imprimió. Es una ADVERTENCIA, no un bloqueo
- * (decisión técnica reversible, D-111): se puede liberar igual.
+ * (decisión técnica reversible, D-100): se puede liberar igual.
  */
 export const textoNoImpreso = 'Todavía no imprimiste el formato LS-FR.43.03 de esta ruta: la copia impresa viaja con el conductor. Puedes liberar la unidad igual, pero imprímela antes de que salga.'
 export const faltaImprimir = (r: { impresiones: readonly ImpresionLsFr[] } | null | undefined) => !r || r.impresiones.length === 0

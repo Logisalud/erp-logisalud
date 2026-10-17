@@ -6,7 +6,7 @@ import { ArrowRight, CheckCircle2, FileUp, Hourglass, ShieldCheck, Ban } from 'l
 import { confirmarCargaInicialAccion, crearCargaInicialAccion, validarCargaInicialAccion } from '@/app/acciones-inventario'
 import { parsearCargaInicial, type CargaInicialVista, type ErrorFilaCarga, type FilaCargaInicial } from '@/domain/inventario'
 import { formatoFechaHora } from '@/domain/fechas'
-import { resumenCarga } from '@/domain/carga-inicial'
+import { ETIQUETA_ESTADO_CARGA, resumenCarga } from '@/domain/carga-inicial'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 import { CHIP_NEUTRO, CHIP_OK } from '@/components/estilos-opcion'
@@ -92,7 +92,7 @@ export function CargaInicial({ cargas, puedeCargar, puedeConfirmar }: { cargas: 
                       {filas.slice(0, 200).map((f, i) => { const err = errorDe(i + 1); return (
                         <tr key={i} className={err.length ? 'bg-red-50' : ''} data-testid="fila-previa">
                           <td className="tabular px-3 py-2">{i + 1}</td><td className="tabular px-3 py-2">{f.producto}</td><td className="tabular px-3 py-2">{f.lote}</td><td className="tabular px-3 py-2">{f.vence || '—'}</td>
-                          <td className="px-3 py-2">{f.propietario}</td><td className="tabular px-3 py-2">{f.posicion}</td><td className="px-3 py-2">{f.estado}</td><td className="tabular px-3 py-2 text-right">{f.cantidad}</td>
+                          <td className="px-3 py-2">{f.propietario}</td><td className="tabular px-3 py-2">{f.posicion}</td><td className="px-3 py-2">{ETIQUETA_ESTADO_CARGA[f.estado] ?? f.estado}</td><td className="tabular px-3 py-2 text-right">{f.cantidad}</td>
                           <td className="px-3 py-2">{err.length ? <span className="text-red-800">{err.join('; ')}</span> : <span className="inline-flex items-center gap-1 text-green-800"><CheckCircle2 className="h-4 w-4" aria-hidden />Bien</span>}</td>
                         </tr>) })}
                     </tbody>

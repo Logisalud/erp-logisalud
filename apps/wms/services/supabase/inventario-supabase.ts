@@ -244,8 +244,9 @@ export class InventarioSupabase extends EntradasSupabase {
     if (error) throw new Error(`No se pudieron leer las cargas: ${error.message}`)
     const cs = (data ?? []) as Fila[]
     if (!cs.length) return []
-    const { data: ls } = await supabase.schema('wms').from('cargas_iniciales_lineas').select('carga_id, cantidad, estado').in('carga_id', cs.map((c) => String(c.id)))
-    const porCarga = por((ls ?? []) as Fila[], 'carga_id')
+    // una carga real trae miles de filas: se pagina (con orden determinista) y solo se leen las columnas que se suman
+    const ls = (await traerTodo('cargas_iniciales_lineas', 'wms', 'carga_id, cantidad, estado')).filter((l) => cs.some((c) => String(c.id) === String(l.carga_id)))
+    const porCarga = por(ls, 'carga_id')
     const nombres = await nombresDe(cs.flatMap((c) => [s(c.creado_por), s(c.confirmado_por)]))
     return cs.map((c) => {
       const l = porCarga.get(String(c.id)) ?? []
