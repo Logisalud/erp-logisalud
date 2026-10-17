@@ -91,11 +91,12 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await expect(page.getByTestId('orden-conformidad')).toBeVisible()
     await sinDesborde(page)
     await capturar(page, info, 'conformidad-orden', { completa: true })
-    await page.getByTestId('conforme').first().click()
-    await expect(page.getByTestId('avance-conformidad')).toContainText('1 de 3')
-    await page.getByTestId('conforme').first().click()
-    await page.getByTestId('conforme').first().click()
-    await expect(page.getByTestId('avance-conformidad')).toContainText('Todo conforme')
+    await expect(page.getByTestId('quien-pico')).toContainText('Pickeó')
+    await expect(page.getByTestId('dar-conformidad')).toBeDisabled()          // falta el número de bultos
+    await page.getByTestId('bultos').fill('1')
+    await page.getByTestId('dar-conformidad').click()
+    await expect(page.getByTestId('conformidad-hecha')).toContainText('Conformidad registrada')
+    await expect(page.getByTestId('conformidad-hecha')).toContainText('Siguiente')
 
     await page.goto('/wms/salidas')
     await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Conforme: falta la documentación')

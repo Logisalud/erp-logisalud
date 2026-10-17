@@ -37,6 +37,7 @@ export const SQL = {
   m0020: () => leer('supabase/migrations/0020_wms_embalaje_y_bultos.sql'),
   m0021: () => leer('supabase/migrations/0021_wms_carga_y_salida_confirmada.sql'),
   m0022: () => leer('supabase/migrations/0022_wms_areas_estados_y_reserva.sql'),
+  m0023: () => leer('supabase/migrations/0023_wms_orden_de_salida.sql'),
   seed: () => leer('supabase/seeds/0001_topologia.sql'),
 }
 
@@ -92,7 +93,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   await admin.query(SQL.m0008())
   await admin.query(SQL.m0009())
   await admin.query(SQL.m0011())
-  if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()); await admin.query(SQL.m0014()); await admin.query(SQL.m0016()); await admin.query(SQL.m0017()); await admin.query(SQL.m0018()); await admin.query(SQL.m0019()); await admin.query(SQL.m0020()); await admin.query(SQL.m0021()); await admin.query(SQL.m0022()) }
+  if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()); await admin.query(SQL.m0014()); await admin.query(SQL.m0016()); await admin.query(SQL.m0017()); await admin.query(SQL.m0018()); await admin.query(SQL.m0019()); await admin.query(SQL.m0020()); await admin.query(SQL.m0021()); await admin.query(SQL.m0022()); await admin.query(SQL.m0023()) }
   if (!opciones.sinMigracion0015) await admin.query(SQL.m0015())
   if (opciones.conSeed !== false) await admin.query(SQL.seed())
 

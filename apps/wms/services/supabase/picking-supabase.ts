@@ -3,7 +3,7 @@ import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import {
   etapaDeSalida, type AsignacionVista, type CambioFefoPersona, type CambioFefoVista, type EstadoLineaSalida, type EstadoOrdenPicking, type LineaPickingVista, type LineaSalidaVista,
-  type LoteEditable, type OrdenPickingResumen, type OrdenPickingVista, type ReemplazoVista, type ResultadoConformidad, type ResultadoPicking, type SalidaResumen, type SalidaVista, type TipoNoConformidad,
+  type AjusteConformidadVista, type LoteEditable, type OrdenPickingResumen, type OrdenPickingVista, type PersonaPicking, type ReemplazoVista, type ResultadoLineaConformidad, type ResultadoConformidad, type ResultadoPicking, type SalidaResumen, type SalidaVista, type TipoNoConformidad,
 } from '@/domain/despacho'
 import type { PedidoSnapshot } from '@/domain/pedidos-despacho'
 import { seApartaDeFefo, type AsignacionLote } from '@/domain/salidas'
@@ -76,6 +76,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
       id: String(o.id), numero: String(o.numero), salidaNumero: String(sal?.numero ?? ''), pedidoNumero: ped?.numero, cliente: ped?.cliente?.nombre, rutaNumero: c.rutaPorSalida.get(String(o.salida_id)),
       estado: String(o.estado) as EstadoOrdenPicking, lineas: ls.length, unidades: ls.reduce((t, x) => t + Number(x.cantidad), 0), pickeadas: ls.filter((x) => x.picking === 'PICKEADA').length,
       conformes: ls.filter((x) => x.conformidad === 'CONFORME').length, observadas: ls.filter((x) => x.conformidad === 'OBSERVADA').length, discrepancias: ls.filter((x) => x.picking === 'DISCREPANCIA').length, generadaEn: String(o.generada_en),
+      pickerId: s(o.picker_id),
     }
   }
 
@@ -107,7 +108,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     const texto = (v: unknown) => ((Array.isArray(v) ? v : []) as { lote?: string; cantidad: number }[]).map((x) => `${x.lote ?? '?'} × ${x.cantidad}`).join(' + ')
     const cambios: CambioFefoVista[] = filas.map((f) => ({ lineaId: String(f.linea_id), en: String(f.en), por: nombres.get(String(f.por)) ?? 'Usuario', anterior: texto(f.asignacion_anterior), nueva: texto(f.asignacion_nueva), distintoDeFefo: Boolean(f.distinto_de_fefo), motivo: s(f.motivo) }))
     return {
-      ...this.resumenSalida(c, sal), estado: sal.estado as SalidaVista['estado'], creadaPor: nombres.get(String(sal.creada_por)) ?? 'Usuario',
+      ...this.resumenSalida(c, sal), estado: sal.estado as SalidaVista['estado'], requiereEmbalaje: sal.requiere_embalaje !== false, creadaPor: nombres.get(String(sal.creada_por)) ?? 'Usuario',
       lineasDetalle: c.lineas.filter((l) => String(l.salida_id) === id).map((l) => this.lineaVista(c, l)),
       ordenPickingId: s(c.ordenes.find((o) => String(o.salida_id) === id && o.estado !== 'CANCELADA')?.id), cambios,
     }
@@ -127,11 +128,34 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     return error ? mal(error) : { ok: true }
   }
 
-  async generarOrdenPicking(salidaId: string, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
-    const { data, error } = await rpc('generar_orden_picking', { p_salida: salidaId })
+  async generarOrdenPicking(salidaId: string, _actor: Actor, pickerId?: string): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+    const { data, error } = await rpc('generar_orden_picking', { p_salida: salidaId, p_picker: pickerId ?? null })
     if (error) return mal(error)
     const { data: o } = await sch().from('ordenes_picking').select('numero').eq('id', String(data)).maybeSingle()
     return { ok: true, id: String(data), numero: String((o as Fila | null)?.numero ?? '') }
+  }
+
+  async personalDePicking(): Promise<PersonaPicking[]> {
+    const { data, error } = await rpc('personal_de_picking', {})
+    if (error) throw new Error(mensajeHumano(error))
+    const ids = ((data ?? []) as unknown[]).map(String)
+    const nombres = await nombresDe(ids)
+    return ids.map((id) => ({ id, nombre: nombres.get(id) ?? 'Usuario' })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+  }
+
+  async designarPicker(ordenId: string, pickerId: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('designar_picker', { p_orden: ordenId, p_picker: pickerId })
+    return error ? mal(error) : { ok: true }
+  }
+
+  async conformarOrden(ordenId: string, lineas: ResultadoLineaConformidad[], bultos: number, nota: string | undefined, _actor: Actor): Promise<ResultadoAccion<{ unidades: number; bultos: number; ajustes: number; requiereEmbalaje: boolean }>> {
+    const { data, error } = await rpc('conformar_orden', {
+      p_orden: ordenId, p_bultos: bultos, p_nota: nota?.trim() || null,
+      p_lineas: lineas.filter((l) => l.resultado !== 'CONFORME').map((l) => ({ orden_linea_id: l.ordenLineaId, resultado: l.resultado, lote_id: l.loteId ?? null, cantidad: l.cantidad ?? null, nota: l.nota?.trim() || null })),
+    })
+    if (error) return mal(error)
+    const d = data as { unidades: number; bultos: number; ajustes: number; requiere_embalaje: boolean }
+    return { ok: true, unidades: Number(d.unidades), bultos: Number(d.bultos), ajustes: Number(d.ajustes), requiereEmbalaje: Boolean(d.requiere_embalaje) }
   }
 
   async colaPicking(): Promise<OrdenPickingResumen[]> {
@@ -141,7 +165,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
 
   async colaConformidad(): Promise<OrdenPickingResumen[]> {
     const c = await this.contexto()
-    return c.ordenes.filter((o) => o.estado !== 'CANCELADA' && c.ordenLineas.some((l) => String(l.orden_id) === String(o.id) && l.picking === 'PICKEADA' && l.conformidad !== 'CONFORME')).map((o) => this.resumenOrden(c, o))
+    return c.ordenes.filter((o) => o.estado !== 'CANCELADA' && c.ordenLineas.some((l) => String(l.orden_id) === String(o.id) && l.conformidad === 'PENDIENTE' && l.picking !== 'DISCREPANCIA')).map((o) => this.resumenOrden(c, o))
   }
 
   async obtenerOrdenPicking(id: string): Promise<OrdenPickingVista | null> {
@@ -154,12 +178,23 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
       const p = c.productos.get(String(l.producto_id)); const lt = c.lotes.get(String(l.lote_id))
       return {
         id: String(l.id), lineaId: String(l.linea_id), ubicacion: String(c.posiciones.get(String(l.posicion_id))?.codigo ?? ''), ordenRecorrido: Number(l.orden_recorrido ?? 0), productoCodigo: String(p?.codigo ?? ''), producto: String(p?.descripcion ?? ''),
-        lote: String(lt?.codigo ?? ''), vence: lt?.vence ? dia(lt.vence) : null, cantidad: Number(l.cantidad), picking: l.picking as ResultadoPicking, picker: l.picker_id ? nombres.get(String(l.picker_id)) : undefined, pickerId: s(l.picker_id),
+        loteId: String(l.lote_id), lote: String(lt?.codigo ?? ''), vence: lt?.vence ? dia(lt.vence) : null, cantidad: Number(l.cantidad), picking: l.picking as ResultadoPicking, picker: l.picker_id ? nombres.get(String(l.picker_id)) : undefined, pickerId: s(l.picker_id),
         pickeadaEn: s(l.pickeada_en), notaPicking: s(l.nota_picking), conformidad: l.conformidad as ResultadoConformidad, verificador: l.verificador_id ? nombres.get(String(l.verificador_id)) : undefined,
         verificadaEn: s(l.verificada_en), notaConformidad: s(l.nota_conformidad), noConformidad: (s(l.no_conformidad) as TipoNoConformidad | undefined),
       }
     }).sort((a, b) => a.ordenRecorrido - b.ordenRecorrido || a.ubicacion.localeCompare(b.ubicacion, 'es', { numeric: true }))
-    return { ...this.resumenOrden(c, o), salidaId: String(o.salida_id), generadaPor: nombres.get(String(o.generada_por)) ?? 'Usuario', lineasDetalle }
+    const sal = c.salidas.find((x) => String(x.id) === String(o.salida_id))
+    const { data: aj } = await sch().from('ajustes_conformidad').select('*').eq('orden_id', id).order('en')
+    const ajf = (aj ?? []) as Fila[]
+    const nombresAj = await nombresDe([...ajf.map((a) => String(a.por)), s(o.picker_id)].filter((x): x is string => !!x))
+    const ajustes: AjusteConformidadVista[] = ajf.map((a) => ({
+      ordenLineaId: String(a.orden_linea_id), tipo: String(a.tipo) as AjusteConformidadVista['tipo'], loteAntes: s(c.lotes.get(String(a.lote_antes_id))?.codigo), loteDespues: s(c.lotes.get(String(a.lote_despues_id))?.codigo),
+      cantidadAntes: Number(a.cantidad_antes), cantidadDespues: Number(a.cantidad_despues), nota: s(a.nota), por: nombresAj.get(String(a.por)) ?? 'Usuario', en: String(a.en),
+    }))
+    return {
+      ...this.resumenOrden(c, o), picker: o.picker_id ? nombresAj.get(String(o.picker_id)) : undefined, salidaId: String(o.salida_id), generadaPor: nombres.get(String(o.generada_por)) ?? 'Usuario', lineasDetalle,
+      requiereEmbalaje: sal?.requiere_embalaje !== false, bultosConformidad: sal?.bultos_conformidad == null ? undefined : Number(sal.bultos_conformidad), ajustes,
+    }
   }
 
   async registrarPicking(ordenLineaId: string, resultado: 'PICKEADA' | 'DISCREPANCIA', nota: string | undefined, _actor: Actor): Promise<ResultadoAccion> {

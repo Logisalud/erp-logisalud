@@ -13,6 +13,8 @@ export interface ClientePedido {
   ruc?: string
   direccion?: string
   distrito?: string
+  /** Ubigeo de entrega (6 dígitos): decide si el pedido va a Lima Metropolitana o a provincia (y entonces se embala). */
+  ubigeo?: string
   coordenadas?: { lat: number; lng: number }
   /** Ventana de cita de entrega, tal como la dio el cliente (texto: «L-V 8:00–12:00»). */
   ventanaCita?: string
@@ -39,6 +41,15 @@ export interface PedidoSnapshot {
 }
 
 export interface PedidoDescartado { indice: number; referencia?: string; motivo: string }
+
+/** Prefijos de ubigeo que se entregan en Lima Metropolitana y Callao: no necesitan embalaje (parámetro `ubigeos_lima_metropolitana`). */
+export const PREFIJOS_LIMA = ['1501', '0701'] as const
+/** Un pedido a provincia se embala; uno a Lima queda con los bultos de la conformidad. Sin ubigeo se embala (lo más prudente). Espejo de `wms._requiere_embalaje`. */
+export function requiereEmbalaje(ubigeo: string | undefined | null, prefijosLima: readonly string[] = PREFIJOS_LIMA): boolean {
+  const u = ubigeo?.trim()
+  if (!u) return true
+  return !prefijosLima.some((p) => u.startsWith(p))
+}
 
 const texto = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
 const esObjeto = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -81,7 +92,7 @@ export function validarPedidos(entrada: unknown): { pedidos: PedidoSnapshot[]; d
       pedidoId, numero, version, estado: ESTADO_PEDIDO_LISTO, fecha: String(crudo.fecha).slice(0, 10),
       modificadoEn: esFecha(crudo.modificadoEn) ? String(crudo.modificadoEn) : String(crudo.fecha).slice(0, 10) + 'T00:00:00Z',
       cliente: {
-        id: texto(c.id)!, nombre: texto(c.nombre)!, ruc: texto(c.ruc), direccion: texto(c.direccion), distrito: texto(c.distrito), coordenadas: coord,
+        id: texto(c.id)!, nombre: texto(c.nombre)!, ruc: texto(c.ruc), direccion: texto(c.direccion), distrito: texto(c.distrito), ubigeo: texto(c.ubigeo), coordenadas: coord,
         ventanaCita: texto(c.ventanaCita), vehiculoCalificado: texto(c.vehiculoCalificado),
       },
       vendedor: texto(crudo.vendedor), condicionPago: texto(crudo.condicionPago), factura: texto(crudo.factura), observaciones: texto(crudo.observaciones), lineas,

@@ -6,6 +6,7 @@ import {
   type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
 } from '@/domain/rutas'
 import { AREAS_DE_SALIDA } from '@/domain/zonas'
+import { requiereEmbalaje } from '@/domain/pedidos-despacho'
 import { PENDIENTES_LS_FR, armarRegistroLsFr, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
@@ -27,6 +28,8 @@ export interface LineaSalidaDemo {
 }
 export interface SalidaDemo {
   id: string; numero: string; pedidoId: string; propietarioId: string; estado: 'ABIERTA' | 'CONFIRMADA' | 'CANCELADA'
+  /** Un pedido a provincia se embala; uno a Lima queda con los bultos de la conformidad. */
+  requiereEmbalaje: boolean; bultosConformidad?: number
   lineas: LineaSalidaDemo[]; creadaEn: string; creadaPor: string
 }
 export interface ParadaDemo { id: string; secuencia: number; pedidoId: string; salidaId?: string; excepcionCorte: boolean; motivoExcepcion?: string; activa: boolean }
@@ -140,7 +143,7 @@ export function crearSalidaDePedido(e: EstadoDemo, pedidoId: string, actor: Acto
     if (!prod) return `El pedido ${fila.snapshot.numero} trae un producto que el WMS no conoce (${l.productoCodigo}): Dirección Técnica debe darlo de alta`
     lineas.push({ id: nuevoId(), productoId: prod.id, cantidad: l.cantidad, estado: 'PENDIENTE', fefo: [] })
   }
-  const salida: SalidaDemo = { id: nuevoId(), numero: numeroDe(e.inv, 'SAL', e.panorama.hoy.slice(0, 4)), pedidoId, propietarioId: duenoDelAlmacen(e), estado: 'ABIERTA', lineas, creadaEn: ahora(), creadaPor: actor.id }
+  const salida: SalidaDemo = { id: nuevoId(), numero: numeroDe(e.inv, 'OS', e.panorama.hoy.slice(0, 4)), pedidoId, requiereEmbalaje: requiereEmbalaje(fila.snapshot.cliente.ubigeo), propietarioId: duenoDelAlmacen(e), estado: 'ABIERTA', lineas, creadaEn: ahora(), creadaPor: actor.id }
   desp(e).salidas.push(salida)
   for (const l of salida.lineas) asignarLineaDemo(e, salida, l)
   return salida

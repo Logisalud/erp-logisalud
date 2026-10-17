@@ -16,7 +16,7 @@ describe('bandeja de pedidos (demo)', () => {
   it('arranca con tres pedidos ya importados: uno por planificar, uno con salida y un producto que el WMS no conoce', async () => {
     const b = await repo.bandejaPedidos()
     expect(b.pedidos.map((p) => p.numero).sort()).toEqual(['PED-DEMO-101', 'PED-DEMO-102', 'PED-DEMO-103'])
-    expect(b.pedidos.find((p) => p.numero === 'PED-DEMO-101')).toMatchObject({ estado: 'EN_SALIDA', salida: expect.stringMatching(/^SAL-\d{4}-00001$/), unidades: 26 })
+    expect(b.pedidos.find((p) => p.numero === 'PED-DEMO-101')).toMatchObject({ estado: 'EN_SALIDA', salida: expect.stringMatching(/^OS-\d{4}-00001$/), unidades: 26 })
     expect(b.pedidos.find((p) => p.numero === 'PED-DEMO-103')).toMatchObject({ estado: 'POR_PLANIFICAR' })
     expect(b.pedidos.find((p) => p.numero === 'PED-DEMO-103')!.lineas.some((l) => !l.enCatalogo)).toBe(true)
     expect(b.ultimaExitosa).toMatchObject({ ok: true, resumen: { nuevos: 3, nuevasVersiones: 0, descartados: 0 } })

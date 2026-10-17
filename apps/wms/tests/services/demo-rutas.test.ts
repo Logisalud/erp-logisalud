@@ -18,7 +18,7 @@ describe('rutas (demo)', () => {
     const p = await repo.panoramaRutas()
     expect(p.rutas).toHaveLength(1)
     expect(p.rutas[0]).toMatchObject({ estado: 'PLANIFICADA', registroLsFr: 'BASE', version: 3 - 1 })
-    expect(p.rutas[0].paradas).toEqual([expect.objectContaining({ pedidoNumero: 'PED-DEMO-101', stock: 'ASIGNADA', salidaNumero: expect.stringMatching(/^SAL-/) })])
+    expect(p.rutas[0].paradas).toEqual([expect.objectContaining({ pedidoNumero: 'PED-DEMO-101', stock: 'ASIGNADA', salidaNumero: expect.stringMatching(/^OS-/) })])
     expect(p.vehiculos.filter((v) => v.activo)).toHaveLength(3)
     expect(p.pedidos.find((x) => x.numero === 'PED-DEMO-101')!.enRuta).toBe(p.rutas[0].numero)
     expect(p.corte).toBe('16:00')

@@ -177,7 +177,7 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
     return Object.values(cargas(e)).some((c) => vivos(c).some((x) => codigos.has(x.codigo))) ? 'Hay bultos de este pedido cargados en una ruta: retíralos de la carga antes de reabrir el embalaje' : null
   }
 
-  protected override avanceExtra(e: EstadoDemo, s: SalidaDemo): { embalada?: boolean; cargada?: boolean } {
+  protected override avanceExtra(e: EstadoDemo, s: SalidaDemo): { embalada?: boolean; cargada?: boolean; sinEmbalaje?: boolean } {
     const b = bultosVigentes(e, s.id)
     const cargada = b.length > 0 && b.every((x) => Object.values(cargas(e)).some((c) => vivos(c).some((y) => y.codigo === x.codigo)))
     return { ...super.avanceExtra(e, s), cargada }

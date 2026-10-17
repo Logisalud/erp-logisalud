@@ -49,7 +49,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const o = pk(e).ordenes.find((x) => x.salidaId === salidaId && x.estado !== 'CANCELADA')
     const por = new Map<string, LineaGuia>()
     for (const l of o?.lineas ?? []) {
-      if (l.conformidad !== 'CONFORME') continue
+      if (l.conformidad !== 'CONFORME' || l.cantidad <= 0) continue
       const lt = e.panorama.lotes.find((x) => x.id === l.loteId); const p = e.panorama.productos.find((x) => x.id === l.productoId)
       const k = `${l.productoId}|${l.loteId}`
       const a = por.get(k) ?? { productoCodigo: p?.codigo ?? '', producto: p?.descripcion ?? '', lote: lt?.codigo ?? '', vence: lt?.vence ?? null, cantidad: 0 }
@@ -135,7 +135,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
   }
 
   /** Gancho para S7 y S8 (embalaje y carga). */
-  protected avanceExtra(_e: EstadoDemo, _s: SalidaDemo): { embalada?: boolean; cargada?: boolean } { return {} }
+  protected avanceExtra(_e: EstadoDemo, _s: SalidaDemo): { embalada?: boolean; cargada?: boolean; sinEmbalaje?: boolean } { return {} }
 
   /** Cuántos documentos exigidos faltan, de forma síncrona (la lista de salidas la necesita sin esperar). */
   private faltantesSync(e: EstadoDemo, s: SalidaDemo, ruc: string | undefined, entrega: string | undefined): number {

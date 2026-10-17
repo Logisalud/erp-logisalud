@@ -81,32 +81,18 @@ test.describe('excepciones del flujo de salida', () => {
     await expect(page.getByTestId('avance-picking')).toContainText('Picking completo')
   })
 
-  test('conformidad con diferencia: se observa con tipo y nota, se corrige y vuelve a picking, y la segunda conformidad la da otra persona', async ({ page }, info) => {
+  test('conformidad con diferencia: una línea con menos cantidad queda como ajuste visible y la orden pasa a Despacho', async ({ page }, info) => {
     await entrarComo(page, 'asistente_dt')
     await page.goto(estado.ordenUrl.replace('/picking/', '/conformidad/'))
-    await page.getByTestId('observar').first().click()
-    await expect(page.getByTestId('hoja-observar')).toBeVisible()
-    await expect(page.getByTestId('enviar-observacion')).toBeDisabled()
-    await page.getByTestId('tipo-CANTIDAD').check({ force: true })
-    await page.getByTestId('nota-observacion').fill('Faltan unidades en la caja')
+    await page.getByTestId('resultado-linea').first().selectOption('MENOS')
+    await page.getByTestId('cantidad-encontrada').first().fill('1')
+    await page.getByTestId('nota-linea').first().fill('Faltan unidades en la caja')
+    await page.getByTestId('bultos').fill('1')
     await sinDesborde(page)
-    await capturar(page, info, 'conformidad-observar')
-    await page.getByTestId('enviar-observacion').click()
-    await expect(page.getByTestId('estado-observada')).toContainText('Cantidad')
-    await expect(page.getByTestId('estado-observada')).toContainText('Faltan unidades en la caja')
-
-    await entrarComo(page, 'auxiliar')
-    await page.goto(estado.ordenUrl.replace('/picking/', '/conformidad/'))
-    await page.getByTestId('corregir-observada').click()
-    await page.goto(estado.ordenUrl)
-    await expect(page.getByTestId('avance-picking')).toContainText('1 línea por pickear')
-    await page.getByTestId('pickeado').first().click()
-    await expect(page.getByTestId('avance-picking')).toContainText('Picking completo')
-
-    await entrarComo(page, 'asistente_dt')
-    await page.goto(estado.ordenUrl.replace('/picking/', '/conformidad/'))
-    for (let i = await page.getByTestId('conforme').count(); i > 0; i--) await page.getByTestId('conforme').first().click()
-    await expect(page.getByTestId('avance-conformidad')).toContainText('Todo conforme')
+    await capturar(page, info, 'conformidad-ajuste')
+    await page.getByTestId('dar-conformidad').click()
+    await expect(page.getByTestId('conformidad-hecha')).toContainText('Conformidad registrada')
+    await expect(page.getByTestId('ajustes-conformidad')).toContainText('Faltan unidades en la caja')
   })
 
   test('un bulto que falta al cargar: no se libera la unidad; el pedido se deja fuera de la salida con motivo y no descuenta stock', async ({ page }, info) => {

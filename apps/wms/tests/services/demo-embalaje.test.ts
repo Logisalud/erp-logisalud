@@ -2,9 +2,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import type { Actor } from '@/services/repositorio'
+import { aProvincia, imprimirYConformar } from './ayudas-orden'
 
 const actor = (id: string, ...roles: Actor['roles']): Actor => ({ id: `demo:${id}`, nombre: `${id} (demo)`, roles })
-const JT = actor('jt', 'jefe_transporte', 'jefe_almacen'); const AUX = actor('aux', 'auxiliar'); const SANDRA = actor('sandra', 'asistente_dt', 'conformidad_despacho')
+const JT = actor('jt', 'jefe_transporte', 'jefe_almacen'); const AUX = actor('auxiliar', 'auxiliar'); const SANDRA = actor('sandra', 'asistente_dt', 'conformidad_despacho')
 
 let repo: RepositorioDemo
 beforeEach(() => {
@@ -14,14 +15,14 @@ beforeEach(() => {
 
 async function salidaConforme(conformar = true) {
   const [res] = await repo.listarSalidas()
-  const o = await repo.generarOrdenPicking(res.id, JT)
-  if (!o.ok) throw new Error(o.mensaje)
-  const orden = (await repo.obtenerOrdenPicking(o.id))!
-  for (const l of orden.lineasDetalle) await repo.registrarPicking(l.id, 'PICKEADA', undefined, AUX)
-  if (conformar) for (const l of orden.lineasDetalle) await repo.darConformidad(l.id, 'CONFORME', undefined, undefined, SANDRA)
+  aProvincia(res.id)                                  // el pedido 101 va a Lima: aquí se prueba el camino con embalaje
+  await imprimirYConformar(repo, res.id, { jt: JT, picker: AUX, conforme: SANDRA, bultos: 2, conformar })
   return res.id
 }
-const todoEnUno = (e: NonNullable<Awaited<ReturnType<RepositorioDemo['embalajeSalida']>>>) => [{ contenido: e.porEmbalar.map((p) => ({ lineaId: p.lineaId, loteId: p.loteId, cantidad: p.cantidad })) }]
+type Embalaje = NonNullable<Awaited<ReturnType<RepositorioDemo['embalajeSalida']>>>
+/** Todo lo confirmado repartido en 2 bultos (uno por lote: la conformidad de estas pruebas registró 2 bultos). */
+const enDosBultos = (e: Embalaje) => e.porEmbalar.slice(0, 2).map((p) => ({ contenido: [{ lineaId: p.lineaId, loteId: p.loteId, cantidad: p.cantidad }] }))
+const todoEnUno = (e: Embalaje) => [{ contenido: e.porEmbalar.map((p) => ({ lineaId: p.lineaId, loteId: p.loteId, cantidad: p.cantidad })) }]
 
 describe('embalaje (demo)', () => {
   it('solo con todo conforme; reparte lo confirmado en bultos «1 de 2» con su código; una sola vez', async () => {
@@ -30,11 +31,12 @@ describe('embalaje (demo)', () => {
     expect(antes.conforme).toBe(false)
     expect(await repo.embalarSalida(id, [], AUX)).toMatchObject({ ok: false, mensaje: 'El embalaje empieza cuando todo el pedido tiene la conformidad' })
     const orden = (await repo.obtenerOrdenPicking((await repo.obtenerSalida(id))!.ordenPickingId!))!
-    for (const l of orden.lineasDetalle) await repo.darConformidad(l.id, 'CONFORME', undefined, undefined, SANDRA)
+    expect(await repo.conformarOrden(orden.id, [], 2, undefined, SANDRA)).toMatchObject({ ok: true, unidades: 26, bultos: 2, requiereEmbalaje: true })
     const e = (await repo.embalajeSalida(id))!
     expect(e.conforme).toBe(true)
     expect(e.porEmbalar.map((x) => x.cantidad).reduce((a, b) => a + b, 0)).toBe(26)
-    expect(await repo.embalarSalida(id, todoEnUno(e), SANDRA)).toMatchObject({ ok: false, mensaje: 'No tienes permiso para embalar' })
+    expect(await repo.embalarSalida(id, enDosBultos(e), SANDRA)).toMatchObject({ ok: false, mensaje: 'No tienes permiso para embalar' })
+    expect(await repo.embalarSalida(id, todoEnUno(e), AUX)).toMatchObject({ ok: false, mensaje: 'La conformidad registró 2 bultos: el embalaje tiene que repartir lo confirmado en esos 2' })
     const [a, b] = e.porEmbalar
     const r = await repo.embalarSalida(id, [
       { contenido: [{ lineaId: a.lineaId, loteId: a.loteId, cantidad: a.cantidad - 2 }, { lineaId: b.lineaId, loteId: b.loteId, cantidad: b.cantidad }] },
@@ -42,8 +44,8 @@ describe('embalaje (demo)', () => {
     ], AUX)
     expect(r).toMatchObject({ ok: true, bultos: 2 })
     const hecho = (await repo.embalajeSalida(id))!
-    expect(hecho.bultosVigentes.map((x) => `${x.secuencia}/${x.total}:${x.codigo}`)).toEqual([expect.stringMatching(/^1\/2:SAL-\d{4}-00001-B1$/), expect.stringMatching(/^2\/2:SAL-\d{4}-00001-B2$/)])
-    expect(await repo.embalarSalida(id, todoEnUno(e), AUX)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya está embalado') })
+    expect(hecho.bultosVigentes.map((x) => `${x.secuencia}/${x.total}:${x.codigo}`)).toEqual([expect.stringMatching(/^1\/2:OS-\d{4}-00001-B1$/), expect.stringMatching(/^2\/2:OS-\d{4}-00001-B2$/)])
+    expect(await repo.embalarSalida(id, enDosBultos(e), AUX)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya está embalado') })
     expect(await repo.bultoPorCodigo(hecho.bultosVigentes[1].codigo.toLowerCase())).toMatchObject({ unidades: 2 })
     expect((await repo.colaEmbalaje())[0]).toMatchObject({ bultos: 2 })
   })
@@ -61,7 +63,7 @@ describe('embalaje (demo)', () => {
     const id = await salidaConforme()
     const e = (await repo.embalajeSalida(id))!
     expect(await repo.reabrirEmbalaje(id, 'x', AUX)).toMatchObject({ ok: false, mensaje: 'Este pedido no está embalado' })
-    await repo.embalarSalida(id, todoEnUno(e), AUX)
+    await repo.embalarSalida(id, enDosBultos(e), AUX)
     expect(await repo.reabrirEmbalaje(id, '  ', AUX)).toMatchObject({ ok: false, mensaje: 'Cuenta por qué se reabre el embalaje' })
     expect(await repo.reabrirEmbalaje(id, 'x', SANDRA)).toMatchObject({ ok: false })
     expect((await repo.obtenerSalida(id))!.etapa).toBe('EMBALADA')           // embalada, falta la documentación
@@ -70,7 +72,7 @@ describe('embalaje (demo)', () => {
     expect(await repo.reabrirEmbalaje(id, 'Se partió una caja', AUX)).toMatchObject({ ok: true })
     const h = (await repo.embalajeSalida(id))!
     expect(h.bultosVigentes).toHaveLength(0)
-    expect(h.bultosAnulados).toEqual([expect.objectContaining({ estado: 'ANULADO', anuladoMotivo: 'Se partió una caja' })])
-    expect(await repo.embalarSalida(id, todoEnUno(h), AUX)).toMatchObject({ ok: true })
+    expect(h.bultosAnulados).toEqual([expect.objectContaining({ estado: 'ANULADO', anuladoMotivo: 'Se partió una caja' }), expect.objectContaining({ estado: 'ANULADO', anuladoMotivo: 'Se partió una caja' })])
+    expect(await repo.embalarSalida(id, enDosBultos(h), AUX)).toMatchObject({ ok: true })
   })
 })
