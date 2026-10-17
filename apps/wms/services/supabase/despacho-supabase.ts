@@ -23,7 +23,7 @@ const vehiculoDe = (v: Fila): VehiculoVista => ({
   id: String(v.id), placa: String(v.placa), descripcion: s(v.descripcion), tipo: v.tipo === 'EXTERNO' ? 'EXTERNO' : 'PROPIO', calificado: Boolean(v.calificado),
   aptoCadenaFrio: Boolean(v.apto_cadena_frio), capacidadBultos: v.capacidad_bultos == null ? undefined : Number(v.capacidad_bultos), activo: Boolean(v.activo),
 })
-const personalDe = (p: Fila): PersonalTransporte => ({ id: String(p.id), nombre: String(p.nombre), funcion: p.funcion === 'AUXILIAR' ? 'AUXILIAR' : 'CONDUCTOR', activo: Boolean(p.activo) })
+const personalDe = (p: Fila): PersonalTransporte => ({ id: String(p.id), nombre: String(p.nombre), funcion: p.funcion === 'AUXILIAR' ? 'AUXILIAR' : 'CONDUCTOR', activo: Boolean(p.activo), dni: p.dni ? String(p.dni) : undefined })
 
 export class DespachoSupabase extends PedidosSupabase implements RepositorioRutas {
   private async armarRutas(filtroId?: string): Promise<{ rutas: RutaVista[]; vehiculos: VehiculoVista[]; personal: PersonalTransporte[]; planificables: PedidoPlanificable[] }> {

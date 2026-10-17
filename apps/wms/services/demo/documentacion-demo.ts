@@ -4,6 +4,10 @@ import {
   type GuiaVista, type ItemPaquete, type LineaGuia, type PaqueteSalida,
 } from '@/domain/documentacion'
 import { etapaDeSalida, type SalidaResumen } from '@/domain/despacho'
+import {
+  motivoNoPuedeAnular, puedeEmitirGuia,
+  type CasoAnulacion, type DatosGuia, type EventoPedidos, type RespuestaEmision, type TipoEventoPedidos, type TrasladoGuia,
+} from '@/domain/guia-electronica'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
 import { desp, type RutaDemo, type SalidaDemo } from './despacho-demo'
@@ -14,6 +18,9 @@ import type { RepositorioDocumentacion } from '../repositorio-documentacion'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
 const guias = (e: EstadoDemo) => (desp(e).guias ??= [])
+const bultosDeSalidaVivos = (e: EstadoDemo, salidaId: string) => (desp(e).bultos ?? []).filter((b) => b.salidaId === salidaId && b.estado === 'EMBALADO')
+const bultosDeSalida = (e: EstadoDemo, salidaId: string) => bultosDeSalidaVivos(e, salidaId).length
+const bultosCodigos = (e: EstadoDemo, salidaId: string) => bultosDeSalidaVivos(e, salidaId).map((b) => b.codigo)
 
 /** ¿Todas las líneas de la orden vigente están conformes? */
 export function salidaConforme(e: EstadoDemo, salidaId: string): boolean {
@@ -72,7 +79,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     })
   }
 
-  async registrarGre(salidaId: string, numero: string, nota: string | undefined, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+  async registrarGre(salidaId: string, numero: string, nota: string | undefined, actor: Actor, _archivoRef?: string): Promise<ResultadoAccion<{ id: string }>> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const s = desp(e).salidas.find((x) => x.id === salidaId)
     if (!s) return falla('No encontramos esa salida')
@@ -85,23 +92,107 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     if (guias(e).some((g) => g.guia.estado === 'VIGENTE' && g.guia.numero === n)) return falla(`La guía ${n} ya está registrada en otra salida`, { numero: 'Ese número ya está en otra salida.' })
     const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
     const placa = ruta?.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId)?.placa : undefined
-    const guia: GuiaVista = { id: nuevoId(), numero: n, estado: 'VIGENTE', lineas: this.lineasDeGuia(e, s.id), placa, fechaTraslado: ruta?.fecha, nota: nota?.trim() || undefined, registradaPor: actor.nombre, registradaEn: ahora() }
+    const guia: GuiaVista = { id: nuevoId(), numero: n, estado: 'VIGENTE', lineas: this.lineasDeGuia(e, s.id), placa, fechaTraslado: ruta?.fecha, nota: nota?.trim() || undefined, registradaPor: actor.nombre, registradaEn: ahora(), origen: 'MANUAL', bultos: s.bultosConformidad }
     guias(e).push({ id: guia.id, salidaId: s.id, guia })
+    this.encolarEvento(e, s, guia, 'GUIA_EMITIDA')
     registrar(e, actor, 'gre_registrada', 'guias_remision', guia.id, `Guía ${n} · ${s.numero}`)
     return { ok: true, id: guia.id }
   }
 
   async anularGre(guiaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {
+    const r = await this.anularGuia(guiaId, 1, motivo, actor)
+    return r.ok ? { ok: true } : r
+  }
+
+  // ── OS-3: guía electrónica, anulación por casos y avisos a Pedidos ─────────────────────────────────────────────────────────
+
+  private encolarEvento(e: EstadoDemo, s: SalidaDemo, guia: GuiaVista, tipo: TipoEventoPedidos) {
+    const ped = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === s.pedidoId)
+    const payload: Record<string, unknown> = {
+      guia: guia.numero, origen: guia.origen, entorno: guia.entorno, enlace: guia.enlace, enlace_xml: guia.enlaceXml, estado_sunat: guia.estadoSunat, salida: s.numero,
+      pedido_id: s.pedidoId, pedido_numero: ped?.snapshot.numero, fecha_traslado: guia.fechaInicio ?? guia.fechaTraslado, bultos: guia.bultos ?? s.bultosConformidad,
+      lineas: guia.lineas.map((l) => ({ producto_codigo: l.productoCodigo, producto: l.producto, lote: l.lote, vence: l.vence, cantidad: l.cantidad })),
+    }
+    if (tipo === 'GUIA_ANULADA') Object.assign(payload, { caso: guia.casoAnulacion, motivo: guia.anuladaMotivo, baja_sunat: guia.bajaSunat, aviso: 'El WMS no modifica la factura: Contabilidad decide si se anula o si corresponde una nota de crédito' })
+    ;(desp(e).eventosPedidos ??= []).push({ id: nuevoId(), tipo, estado: 'PENDIENTE', intentos: 0, creadoEn: ahora(), salidaId: s.id, guiaId: guia.id, payload })
+  }
+
+  async datosGuia(salidaId: string): Promise<DatosGuia | null> {
     const e = estadoE(); await this.sembrarDespacho(e)
-    if (!puedeRegistrarDocumentacion(actor.roles)) return falla('No tienes permiso para anular la guía de remisión')
-    if (!motivo.trim()) return falla('Cuenta por qué se anula la guía', { motivo: 'Cuenta por qué se anula la guía.' })
+    const s = desp(e).salidas.find((x) => x.id === salidaId)
+    if (!s) return null
+    const fila = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === s.pedidoId)
+    const cliente = fila?.snapshot.cliente
+    const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
+    const veh = ruta?.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId) : undefined
+    const cond = ruta?.conductorId ? desp(e).personal.find((p) => p.id === ruta.conductorId) : undefined
+    const aux = ruta?.auxiliarId ? desp(e).personal.find((p) => p.id === ruta.auxiliarId) : undefined
+    return structuredClone<DatosGuia>({
+      salidaId: s.id, salidaNumero: s.numero, tipo: 'DISTRIBUCION', conforme: salidaConforme(e, s.id), pedidoNumero: fila?.snapshot.numero,
+      destinatario: { nombre: cliente?.nombre, ruc: cliente?.ruc || undefined, direccion: cliente?.direccion, ubigeo: cliente?.ubigeo, distrito: cliente?.distrito },
+      lineas: this.lineasDeGuia(e, s.id), bultos: s.bultosConformidad ?? bultosDeSalida(e, s.id),
+      ruta: ruta ? { id: ruta.id, numero: ruta.numero, fecha: ruta.fecha, placa: veh?.placa, conductor: cond?.nombre, conductorDni: cond?.dni, auxiliar: aux?.nombre } : undefined,
+      partida: { ubigeo: '150119', direccion: 'Almacén Logisalud, Lurín (dirección de demostración)' },
+      motivoTraslado: 'VENTA', modalidad: 'TRANSPORTE PRIVADO', serie: 'T001',
+      reglasBaja: { plazoHoras: 'PENDIENTE', trasInicioTraslado: 'PENDIENTE', soportadaPorApi: 'PENDIENTE' },
+    })
+  }
+
+  async registrarGuiaElectronica(salidaId: string, r: Extract<RespuestaEmision, { ok: true }>, t: TrasladoGuia, _payload: unknown, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedeEmitirGuia(actor.roles)) return falla('No tienes permiso para emitir la guía de remisión')
+    const s = desp(e).salidas.find((x) => x.id === salidaId)
+    if (!s) return falla('No encontramos esa salida')
+    if (s.estado !== 'ABIERTA') return falla('La salida ya no está abierta')
+    if (!salidaConforme(e, s.id)) return falla('La guía se emite cuando todo el pedido tiene la conformidad: sus lotes salen de lo confirmado')
+    if (this.guiaVigente(e, s.id)) return falla('Este pedido ya tiene una guía. Para cambiarla, anúlala con el motivo y emite la nueva')
+    if (guias(e).some((g) => g.guia.estado === 'VIGENTE' && g.guia.numero === r.numero)) return falla(`La guía ${r.numero} ya está registrada en otra salida`)
+    const ruta = desp(e).rutas.find((x) => x.estado !== 'CANCELADA' && x.paradas.some((p) => p.activa && p.salidaId === s.id))
+    if (!ruta) return falla('Asigna primero el pedido a una ruta: la guía toma el vehículo, el conductor y la fecha de la ruta')
+    const placa = ruta.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId)?.placa : undefined
+    if (!placa || !ruta.conductorId) return falla('La ruta todavía no tiene vehículo y conductor: complétalos antes de emitir la guía')
+    const guia: GuiaVista = {
+      id: nuevoId(), numero: r.numero, estado: 'VIGENTE', lineas: this.lineasDeGuia(e, s.id), placa, fechaTraslado: ruta.fecha, registradaPor: actor.nombre, registradaEn: ahora(),
+      origen: 'NUBEFACT', entorno: r.entorno, enlace: r.enlace, enlaceXml: r.enlaceXml, estadoSunat: r.estadoSunat, bultos: s.bultosConformidad, pesoKg: t.pesoKg, fechaInicio: t.fechaInicio,
+    }
+    guias(e).push({ id: guia.id, salidaId: s.id, guia })
+    this.encolarEvento(e, s, guia, 'GUIA_EMITIDA')
+    registrar(e, actor, 'guia_electronica_emitida', 'guias_remision', guia.id, `Guía ${r.numero} · ${s.numero} (${r.entorno})`)
+    return { ok: true, id: guia.id, numero: r.numero }
+  }
+
+  async anularGuia(guiaId: string, caso: CasoAnulacion, motivo: string, actor: Actor): Promise<ResultadoAccion<{ caso: CasoAnulacion; conformidadReabierta: boolean; bajaSunat: 'PENDIENTE' | 'NO_APLICA' }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
     const g = guias(e).find((x) => x.id === guiaId)
     if (!g) return falla('No encontramos esa guía')
-    if (g.guia.estado === 'ANULADA') return falla('Esa guía ya está anulada')
-    const s = desp(e).salidas.find((x) => x.id === g.salidaId)
-    if (s && s.estado !== 'ABIERTA') return falla('La salida ya no está abierta')
-    g.guia.estado = 'ANULADA'; g.guia.anuladaMotivo = motivo.trim(); g.guia.anuladaEn = ahora()
-    registrar(e, actor, 'gre_anulada', 'guias_remision', guiaId, `Guía ${g.guia.numero} anulada`, motivo.trim())
+    const s = desp(e).salidas.find((x) => x.id === g.salidaId)!
+    const bloqueo = motivoNoPuedeAnular(actor.roles, caso, { salidaAbierta: s.estado === 'ABIERTA', guiaVigente: g.guia.estado === 'VIGENTE', motivo })
+    if (bloqueo) return falla(bloqueo, bloqueo === 'Cuenta por qué se anula la guía' ? { motivo: 'Cuenta por qué se anula la guía.' } : undefined)
+    if (caso === 2) {
+      const cargados = desp(e).carga ? Object.values(desp(e).carga!).some((c) => c.cargados.some((x) => x.estado === 'CARGADO' && bultosCodigos(e, s.id).includes(x.codigo))) : false
+      if (cargados) return falla('Ya hay bultos de este pedido cargados en el vehículo: retíralos de la carga antes de corregir el contenido')
+      const mal = this.reabrirConformidadDe(e, s.id, motivo.trim(), actor)
+      if (mal) return falla(mal)
+    }
+    const baja = g.guia.origen === 'NUBEFACT' ? 'PENDIENTE' : 'NO_APLICA'
+    Object.assign(g.guia, { estado: 'ANULADA', anuladaMotivo: motivo.trim(), anuladaEn: ahora(), casoAnulacion: caso, bajaSunat: baja })
+    this.encolarEvento(e, s, g.guia, 'GUIA_ANULADA')
+    registrar(e, actor, 'gre_anulada', 'guias_remision', guiaId, `Guía ${g.guia.numero} anulada (caso ${caso})`, motivo.trim())
+    return { ok: true, caso, conformidadReabierta: caso === 2, bajaSunat: baja }
+  }
+
+  async eventosPedidos(filtro?: { salidaId?: string; soloPendientes?: boolean }): Promise<EventoPedidos[]> {
+    const e = estadoE()
+    return structuredClone((desp(e).eventosPedidos ?? []).filter((x) => (!filtro?.salidaId || x.salidaId === filtro.salidaId) && (!filtro?.soloPendientes || x.estado === 'PENDIENTE')))
+  }
+
+  async marcarEventoPedidos(id: string, enviado: boolean, error: string | undefined, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE()
+    if (!puedeEmitirGuia(actor.roles)) return falla('No tienes permiso para enviar eventos a Pedidos')
+    const ev = (desp(e).eventosPedidos ?? []).find((x) => x.id === id && x.estado === 'PENDIENTE')
+    if (!ev) return { ok: true }
+    ev.intentos += 1
+    if (enviado) { ev.estado = 'ENVIADO'; ev.ultimoError = undefined } else ev.ultimoError = error?.trim() || undefined
     return { ok: true }
   }
 

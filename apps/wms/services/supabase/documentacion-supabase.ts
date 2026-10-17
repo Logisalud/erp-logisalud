@@ -4,6 +4,9 @@ import {
   faltantesDelPaquete, paqueteDeItemsCompleto, validarNumeroGre, normalizarNumeroGre,
   type GuiaVista, type ItemPaquete, type LineaGuia, type PaqueteSalida,
 } from '@/domain/documentacion'
+import {
+  type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type ModoNubefact, type OrigenGuia, type RespuestaEmision, type TrasladoGuia,
+} from '@/domain/guia-electronica'
 import { etapaConAvance, type SalidaResumen, type SalidaVista } from '@/domain/despacho'
 import type { EstadoRequisito, TipoDocumento } from '@/domain/documentos'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
@@ -28,6 +31,9 @@ function guiaVista(g: Fila, nombres: Map<string, string>): GuiaVista {
       .map((l): LineaGuia => ({ productoCodigo: l.producto_codigo, producto: l.producto, lote: l.lote, vence: l.vence ? dia(l.vence) : null, cantidad: Number(l.cantidad) })),
     placa: s(g.placa), fechaTraslado: g.fecha_traslado ? dia(g.fecha_traslado) : undefined, nota: s(g.nota), registradaPor: nombres.get(String(g.registrada_por)) ?? 'Usuario', registradaEn: String(g.registrada_en),
     anuladaMotivo: s(g.motivo_anulacion), anuladaEn: g.anulada_en ? String(g.anulada_en) : undefined,
+    origen: (s(g.origen) ?? 'MANUAL') as OrigenGuia, entorno: s(g.entorno) as ModoNubefact | undefined, enlace: s(g.enlace), enlaceXml: s(g.enlace_xml), estadoSunat: s(g.estado_sunat) as EstadoSunat | undefined,
+    bultos: g.bultos == null ? undefined : Number(g.bultos), pesoKg: g.peso_kg == null ? undefined : Number(g.peso_kg), fechaInicio: g.fecha_inicio_traslado ? dia(g.fecha_inicio_traslado) : undefined,
+    casoAnulacion: g.caso_anulacion == null ? undefined : (Number(g.caso_anulacion) as CasoAnulacion), bajaSunat: s(g.baja_sunat) as GuiaVista['bajaSunat'],
   }
 }
 
@@ -62,16 +68,66 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     }
   }
 
-  async registrarGre(salidaId: string, numero: string, nota: string | undefined, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+  async registrarGre(salidaId: string, numero: string, nota: string | undefined, _actor: Actor, archivoRef?: string): Promise<ResultadoAccion<{ id: string }>> {
     const bloqueo = validarNumeroGre(numero)
     if (bloqueo) return { ok: false, mensaje: bloqueo, errores: { numero: bloqueo } }
-    const { data, error } = await rpc('registrar_gre', { p_salida: salidaId, p_numero: normalizarNumeroGre(numero), p_nota: nota?.trim() || null })
+    const { data, error } = await rpc('registrar_gre', { p_salida: salidaId, p_numero: normalizarNumeroGre(numero), p_nota: nota?.trim() || null, p_archivo_ref: archivoRef ?? null })
     return error ? mal(error) : { ok: true, id: String(data) }
   }
 
   async anularGre(guiaId: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
     const { error } = await rpc('anular_gre', { p_guia: guiaId, p_motivo: motivo })
     return error ? mal(error) : { ok: true }
+  }
+
+  async datosGuia(salidaId: string): Promise<DatosGuia | null> {
+    const { data, error } = await rpc('contexto_guia', { p_salida: salidaId })
+    if (error || !data) return null
+    const c = data as Record<string, any>
+    const cli = (c.pedido?.snapshot?.cliente ?? {}) as Record<string, unknown>
+    const par = (c.parametros ?? {}) as Record<string, string>
+    return {
+      salidaId, salidaNumero: String(c.salida.numero), tipo: c.salida.tipo, conforme: Boolean(c.salida.conforme), pedidoNumero: s(c.pedido?.numero),
+      destinatario: { nombre: s(c.pedido?.cliente) ?? s(cli.nombre), ruc: s(c.pedido?.ruc) ?? s(cli.ruc), direccion: s(cli.direccion), ubigeo: s(cli.ubigeo), distrito: s(cli.distrito) },
+      lineas: ((c.lineas ?? []) as { producto_codigo: string; producto: string; lote: string; vence: string | null; cantidad: number }[])
+        .map((l): LineaGuia => ({ productoCodigo: l.producto_codigo, producto: l.producto, lote: l.lote, vence: l.vence ? dia(l.vence) : null, cantidad: Number(l.cantidad) })),
+      bultos: Number(c.bultos ?? 0),
+      ruta: c.ruta ? { id: String(c.ruta.id), numero: String(c.ruta.numero), fecha: dia(c.ruta.fecha), placa: s(c.ruta.placa), conductor: s(c.ruta.conductor), conductorDni: s(c.ruta.conductor_dni), auxiliar: s(c.ruta.auxiliar) } : undefined,
+      partida: { ubigeo: par.guia_partida_ubigeo ?? '', direccion: par.guia_partida_direccion ?? '' },
+      motivoTraslado: par.guia_motivo_traslado ?? 'VENTA', modalidad: par.guia_modalidad_transporte ?? 'TRANSPORTE PRIVADO', serie: par.guia_serie ?? 'T001',
+      reglasBaja: { plazoHoras: par.sunat_baja_plazo_horas ?? 'PENDIENTE', trasInicioTraslado: par.sunat_baja_tras_inicio_traslado ?? 'PENDIENTE', soportadaPorApi: par.nubefact_baja_soportada ?? 'PENDIENTE' },
+    }
+  }
+
+  async registrarGuiaElectronica(salidaId: string, r: Extract<RespuestaEmision, { ok: true }>, t: TrasladoGuia, payload: unknown, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+    const { data, error } = await rpc('registrar_guia_electronica', {
+      p_salida: salidaId, p_numero: r.numero, p_enlace: r.enlace, p_hash: r.hash, p_entorno: r.entorno, p_fecha_inicio: t.fechaInicio, p_peso: t.pesoKg,
+      p_payload: payload ?? null, p_respuesta: r.cruda ?? null, p_enlace_xml: r.enlaceXml ?? null, p_estado_sunat: r.estadoSunat,
+    })
+    return error ? mal(error) : { ok: true, id: String(data), numero: r.numero }
+  }
+
+  async anularGuia(guiaId: string, caso: CasoAnulacion, motivo: string, _actor: Actor): Promise<ResultadoAccion<{ caso: CasoAnulacion; conformidadReabierta: boolean; bajaSunat: 'PENDIENTE' | 'NO_APLICA' }>> {
+    const { data, error } = await rpc('anular_guia', { p_guia: guiaId, p_caso: caso, p_motivo: motivo })
+    if (error) return mal(error)
+    const r = (data ?? {}) as { conformidad_reabierta?: boolean; baja_sunat?: string }
+    return { ok: true, caso, conformidadReabierta: Boolean(r.conformidad_reabierta), bajaSunat: r.baja_sunat === 'PENDIENTE' ? 'PENDIENTE' : 'NO_APLICA' }
+  }
+
+  async eventosPedidos(filtro?: { salidaId?: string; soloPendientes?: boolean }): Promise<EventoPedidos[]> {
+    let q = sch().from('eventos_pedidos').select('*').order('creado_en', { ascending: false }).limit(200)
+    if (filtro?.salidaId) q = q.eq('salida_id', filtro.salidaId)
+    if (filtro?.soloPendientes) q = q.eq('estado', 'PENDIENTE')
+    const { data } = await q
+    return ((data ?? []) as Fila[]).map((f): EventoPedidos => ({
+      id: String(f.id), tipo: f.tipo === 'GUIA_ANULADA' ? 'GUIA_ANULADA' : 'GUIA_EMITIDA', estado: f.estado === 'ENVIADO' ? 'ENVIADO' : 'PENDIENTE', intentos: Number(f.intentos ?? 0),
+      ultimoError: s(f.ultimo_error), creadoEn: String(f.creado_en), salidaId: String(f.salida_id), guiaId: String(f.guia_id), payload: (f.payload ?? {}) as Record<string, unknown>,
+    }))
+  }
+
+  async marcarEventoPedidos(id: string, enviado: boolean, error: string | undefined, _actor: Actor): Promise<ResultadoAccion> {
+    const r = await rpc('marcar_evento_pedidos', { p_evento: id, p_enviado: enviado, p_error: error ?? null })
+    return r.error ? mal(r.error) : { ok: true }
   }
 
   async salidasDeRuta(rutaId: string): Promise<string[]> {

@@ -243,3 +243,6 @@ Primer PR del bloque «Orden de Salida» (ajustes de Dirección Técnica del 202
 
 ## OS-2 — Orden de Salida (migración 0023, sin aplicar)
 Orden `OS-AAAA-NNNNN` con picker registrado, conformidad de toda la orden en una tabla (otro lote / menos cantidad / no encontrado, bultos, dos personas), stock a Despacho, Lima sin embalaje. Decisiones en D-89. Pruebas: dominio 443, base de datos 372, E2E en 4 viewports (ver PR).
+
+## OS-3 — Guía electrónica con Nubefact (simulador), anulación por casos y avisos a Pedidos (migración 0024, sin aplicar)
+«Emitir guía» desde la Orden conformada con ruta (todo sale solo; se confirma fecha y peso), simulador con el contrato de Nubefact, cliente HTTP listo para pruebas/producción con candado (`NUBEFACT_PRODUCCION_APROBADA`), anulación en tres casos (el 2 reabre la conformidad y devuelve el stock al rack), bandeja de avisos a Pedidos con firma HMAC y reintento. Decisiones D-90, D-91 y D-92; contrato en `contrato-pedidos-guia.md`. Pendiente: validar con el entorno de pruebas de Nubefact, reglas de baja de SUNAT y conexión real con Pedidos (D-80).

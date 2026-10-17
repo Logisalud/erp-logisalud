@@ -213,3 +213,9 @@ Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario,
 5. Naturaleza de Contramuestra (solo importaciones).
 6. Confirmar muestreo techo(√unidades) + 1.
 7. Acondicionamiento en la ubicación "Calidad" de Odoo: formalizarlo (ÁMBAR) o eliminarlo. No se migra.
+
+## Guía de remisión y anulación (OS-3)
+- La guía de pedidos (tipo A) se **emite con Nubefact** desde la Orden de Salida conformada y **con la ruta ya asignada**; se completa sola y el Jefe de Transporte confirma fecha de inicio y peso bruto (12 kg). Si SUNAT rechaza, no se registra. Una guía **nunca se edita ni se borra**.
+- **Tipo B no genera guía**: se despacha con la GRE que sube el cliente.
+- **Anulación** (solo Jefe de Transporte, con motivo): caso 1 datos del traslado, caso 2 contenido (la Orden vuelve a conformidad y el stock regresa al rack), caso 3 después de la salida (retorno como devolución y nueva Orden). Sin guía vigente la orden no se carga ni sale. El WMS avisa a Pedidos y **no toca la factura**.
+- Las reglas de baja ante SUNAT están **pendientes** de Contabilidad y Nubefact. Nada se emite en producción sin aprobación de Sebas. Ver `docs/wms/nubefact.md` y `docs/wms/contrato-pedidos-guia.md`.

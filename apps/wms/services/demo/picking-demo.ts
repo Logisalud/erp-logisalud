@@ -492,6 +492,32 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     return { ok: true, unidades, bultos, ajustes: lineas.filter((x) => x.resultado !== 'CONFORME').length, requiereEmbalaje: s.requiereEmbalaje }
   }
 
+  /** Caso 2 de la anulación de una guía: las unidades vuelven de Despacho a su ubicación (movimiento del libro) y las líneas vuelven a conformidad. Devuelve el motivo si no se puede. */
+  protected reabrirConformidadDe(e: EstadoDemo, salidaId: string, motivo: string, actor: Actor): string | null {
+    const o = pk(e).ordenes.find((x) => x.salidaId === salidaId && x.estado !== 'CANCELADA')
+    const s = salidaDe(e, salidaId)
+    if (!o || !s) return 'Esa salida no tiene Orden de Salida'
+    const lineas = o.lineas.filter((l) => l.conformidad === 'CONFORME' && l.cantidad > 0)
+    const reservas = lineas.map((l) => desp(e).reservas.find((y) => y.id === l.reservaId))
+    if (reservas.some((r) => !r || r.estado !== 'EN_STAGING')) return 'Esas unidades ya no están en Despacho: no se puede reabrir la conformidad'
+    lineas.forEach((l, i) => {
+      const r = reservas[i]!
+      const lt = lote(e, r.loteId)!
+      moverSaldo(e, { loteId: r.loteId, productoId: r.productoId, propietarioId: lt.propietarioId, estado: 'APROBADO', procedenciaId: r.procedenciaId, desdePosicionId: r.posicionId, haciaPosicionId: r.posicionOrigenId, cantidad: r.cantidad })
+      const base = { productoId: r.productoId, loteId: r.loteId, propietarioId: lt.propietarioId, estado: 'APROBADO' as const, origen: origenDe(e, r.loteId, r.procedenciaId), procedenciaId: r.procedenciaId }
+      anotar(e.inv, `mov-reab-${o.numero}-${l.id.slice(-6)}`, 'MOVIMIENTO', ahora(), { motivo: `Se reabrió la conformidad de ${s.numero}: ${motivo}`, ejecutorId: actor.id, preparadorId: o.pickerId, referenciaTipo: 'salida_linea', referenciaId: l.lineaId },
+        [{ ...base, posicionId: r.posicionId, delta: -r.cantidad }, { ...base, posicionId: r.posicionOrigenId, delta: r.cantidad }])
+      r.estado = 'ACTIVA'; r.posicionId = r.posicionOrigenId
+      l.conformidad = 'PENDIENTE'; l.verificadorId = undefined; l.verificador = undefined; l.verificadaEn = undefined; l.notaConformidad = undefined
+    })
+    for (const sl of s.lineas) if (sl.estado === 'CONFORME') sl.estado = 'PICKEADA'
+    o.estado = 'EN_CURSO'
+    s.bultosConformidad = undefined
+    const bultos = (desp(e).bultos ??= [])
+    for (const b of bultos.filter((x) => x.salidaId === s.id && x.estado === 'EMBALADO')) { b.estado = 'ANULADO'; b.anuladoEn = ahora(); b.anuladoMotivo = `Se reabrió la conformidad: ${motivo}` }
+    return null
+  }
+
   async reabrirObservada(ordenLineaId: string, nota: string | undefined, actor: Actor): Promise<ResultadoAccion> {
     const e = estadoE(); await this.sembrarDespacho(e)
     if (!puedePickear(actor.roles)) return falla('No tienes permiso para corregir una línea observada')

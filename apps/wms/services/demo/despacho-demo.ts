@@ -47,6 +47,8 @@ export interface DespachoDemoEstado {
   picking?: import('./picking-demo').PickingDemoEstado
   /** S6b: guías de remisión registradas a mano (nunca se editan: se anulan con motivo). */
   guias?: GuiaDemo[]
+  /** OS-3: avisos hacia Pedidos (guía emitida / anulada). */
+  eventosPedidos?: import('@/domain/guia-electronica').EventoPedidos[]
   /** S7: bultos (los vigentes y los anulados al reabrir el embalaje). */
   bultos?: import('@/domain/embalaje').BultoVista[]
   /** OS-1: Reservas de lote (la historia completa; la vigente es la que no tiene `quitadaEn`). */
@@ -171,7 +173,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     if (d.sembrado) return
     d.sembrado = true
     d.personal.push(
-      { id: 'per-1', nombre: 'Luis Quispe', funcion: 'CONDUCTOR', activo: true }, { id: 'per-2', nombre: 'Marco Huamán', funcion: 'CONDUCTOR', activo: true },
+      { id: 'per-1', nombre: 'Luis Quispe', funcion: 'CONDUCTOR', activo: true, dni: '40123456' }, { id: 'per-2', nombre: 'Marco Huamán', funcion: 'CONDUCTOR', activo: true, dni: '41234567' },
       { id: 'per-3', nombre: 'Ana Ríos', funcion: 'AUXILIAR', activo: true }, { id: 'per-4', nombre: 'Pedro Soto', funcion: 'AUXILIAR', activo: true },
       { id: 'per-5', nombre: 'Raúl Díaz (de vacaciones)', funcion: 'CONDUCTOR', activo: false },
     )

@@ -7,6 +7,8 @@ import type { ResultadoLineaConformidad, TipoNoConformidad } from '@/domain/desp
 import type { RepartoBulto } from '@/domain/embalaje'
 import type { ItemChecklist } from '@/domain/carga'
 import type { Actor } from '@/services/repositorio'
+import type { CasoAnulacion, TrasladoGuia } from '@/domain/guia-electronica'
+import { anularGuiaConCaso, emitirGuiaElectronica, enviarEventosPedidos } from '@/services/guia-electronica'
 
 async function quien(): Promise<Actor> {
   const ctx = await exigirContexto()
@@ -39,3 +41,8 @@ export async function retirarBultoAccion(rutaId: string, codigo: string, motivo:
 export async function excluirPedidoAccion(rutaId: string, salidaId: string, motivo: string) { return repositorio().excluirPedido(rutaId, salidaId, motivo, await quien()) }
 export async function liberarUnidadAccion(rutaId: string) { return repositorio().liberarUnidad(rutaId, await quien()) }
 export async function confirmarSalidaRutaAccion(rutaId: string) { return repositorio().confirmarSalidaRuta(rutaId, await quien()) }
+
+// ── OS-3: guía electrónica, anulación por casos y avisos a Pedidos ────────────────────────────────────────────────────
+export async function emitirGuiaElectronicaAccion(salidaId: string, traslado: TrasladoGuia) { return emitirGuiaElectronica(salidaId, traslado, await quien()) }
+export async function anularGuiaAccion(guiaId: string, caso: CasoAnulacion, motivo: string) { return anularGuiaConCaso(guiaId, caso, motivo, await quien()) }
+export async function reenviarAvisosPedidosAccion(salidaId?: string) { return enviarEventosPedidos(await quien(), salidaId) }

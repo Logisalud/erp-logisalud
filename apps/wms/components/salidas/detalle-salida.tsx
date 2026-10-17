@@ -15,13 +15,14 @@ import { Aviso } from '../entradas/aviso'
 import { HojaInferior } from '../hoja-inferior'
 import { ChipEtapa } from './chip-etapa'
 import { PanelDocumentacion } from './panel-documentacion'
+import type { DatosGuia, EventoPedidos, ModoNubefact } from '@/domain/guia-electronica'
 import { EditorLotes } from './editor-lotes'
 
 const Lotes = ({ l }: { l: LineaSalidaVista }) => l.asignacion.length === 0
   ? <span className="text-gray-500">Sin lotes</span>
   : <ul className="space-y-0.5">{l.asignacion.map((a) => <li key={a.loteId} className="tabular"><Link href={`/lotes/${a.loteId}`} className="underline underline-offset-2" data-testid="lote-enlace">{a.lote}</Link> <span className="text-gray-600">· vence {a.vence ? mesAnio(a.vence) : '—'}</span> × <strong>{a.cantidad.toLocaleString('es-PE')}</strong></li>)}</ul>
 
-export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, roles }: { salida: SalidaVista; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; roles: readonly Rol[] }) {
+export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, guia, roles }: { salida: SalidaVista; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; guia: { datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[] }; roles: readonly Rol[] }) {
   const router = useRouter()
   const movil = useEsMovil()
   const { pendiente, mensaje, ejecutar } = useAccion()
@@ -89,7 +90,7 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, rol
         {ETAPAS_CONFORMES.includes(salida.etapa) && <Link href={`/embalaje/${salida.id}`} className="btn-secondary" data-testid="ir-embalaje">Embalaje y bultos</Link>}
       </section>
 
-      {paquete && (paquete.conforme || paquete.guia) && <PanelDocumentacion paquete={paquete} roles={roles} />}
+      {paquete && (paquete.conforme || paquete.guia || paquete.guiasAnuladas.length > 0) && <PanelDocumentacion paquete={paquete} roles={roles} datos={guia.datos} modo={guia.modo} hoy={guia.hoy} eventos={guia.eventos} />}
 
       {salida.cambios.length > 0 && (
         <section aria-labelledby="h-cambios" data-testid="cambios-salida">
