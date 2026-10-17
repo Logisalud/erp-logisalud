@@ -20,14 +20,11 @@ export function DeleteDraftButton({ orderId }: { orderId: string }) {
   function borrar() {
     setError(null);
     startTransition(async () => {
-      try {
-        await borrarBorrador(orderId);
-      } catch (err) {
-        // `redirect()` corta la Server Action lanzando: eso no es un error.
-        if (err && typeof err === "object" && "digest" in err && typeof err.digest === "string" && err.digest.startsWith("NEXT_REDIRECT")) {
-          throw err;
-        }
-        setError(err instanceof Error ? err.message : "No se pudo borrar el pedido.");
+      // Si sale bien no vuelve: la acción termina en un redirect a
+      // /pedidos. Solo hay resultado cuando algo lo frenó.
+      const resultado = await borrarBorrador(orderId);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
         setConfirmando(false);
       }
     });

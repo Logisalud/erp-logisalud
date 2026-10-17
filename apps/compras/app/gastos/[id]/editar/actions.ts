@@ -7,7 +7,7 @@ import { editarSolicitud } from '@/services/solicitudes-gasto'
 import { avisarCreacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
 import { cambioExigeAviso } from '@/domain/edicion'
-import { validarSolicitud, type BorradorSolicitud, type TipoComprobante } from '@/domain/gasto'
+import { validarSolicitud, type BorradorSolicitud, type TipoComprobante, leerAsignado } from '@/domain/gasto'
 import type { EstadoFormulario } from '@/app/gastos/nueva/actions'
 
 /**
@@ -38,7 +38,7 @@ export async function editarSolicitudAction(
     fechaRequerida: tipo === 'gasto_directo' ? null : textoONull(form.get('fechaRequerida')),
     fechaInicio: textoONull(form.get('fechaInicio')),
     fechaFin: textoONull(form.get('fechaFin')),
-    asignadoA: tipo === 'anticipo' ? textoONull(form.get('asignadoA')) : null,
+    ...(tipo === 'anticipo' ? leerAsignado(textoONull(form.get('asignado'))) : leerAsignado(null)),
     quienAutoriza: tipo === 'gasto_directo' ? null : textoONull(form.get('quienAutoriza')),
     fechaFactura: tipo === 'anticipo' ? null : textoONull(form.get('fechaFactura')),
     tipoComprobante: tipo === 'anticipo' ? null : tipoComprobante,

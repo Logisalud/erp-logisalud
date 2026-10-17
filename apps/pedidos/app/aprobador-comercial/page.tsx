@@ -1,7 +1,12 @@
+import { requireSession } from "@/lib/auth/session";
 import { listPendingApprovalRequests } from "@/services/approvals";
 import { ApprovalRequestList } from "./approval-request-list";
 
 export default async function AprobadorComercialPage() {
+  // Antes de consultar nada: el layout y la página se renderizan en
+  // paralelo, así que sin esto la consulta sale al mismo tiempo que el
+  // guardia del layout y, con la sesión vencida, gana cualquiera.
+  await requireSession();
   const requests = await listPendingApprovalRequests();
 
   return (

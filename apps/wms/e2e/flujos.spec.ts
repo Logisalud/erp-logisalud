@@ -220,7 +220,8 @@ test.describe('mapa del almacén', () => {
     await entrarComo(page, 'jefe_almacen')
     await page.goto('/wms/almacen?capa=verificar')
     await expect(page.getByTestId('resumen-busqueda')).toContainText('por verificar en sitio')
-    expect(await page.locator('[data-celda][data-coincide="1"]').count()).toBeGreaterThanOrEqual(3)
+    // E-9.1 y E-10.1 ya no están por verificar (confirmado por Sebas, 2026-10-14): quedan las demás marcadas en la topología.
+    expect(await page.locator('[data-celda][data-coincide="1"]').count()).toBeGreaterThanOrEqual(2)
   })
 
   test('teléfono: búsqueda y ubicación en texto, sin mapa', async ({ page }, info) => {
