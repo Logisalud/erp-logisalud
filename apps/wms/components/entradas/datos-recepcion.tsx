@@ -30,7 +30,8 @@ export function DatosRecepcion({ solicitud, editable, hoy }: { solicitud: Solici
   const [paletas, setPaletas] = useState(ingreso.paletas != null ? String(ingreso.paletas) : '')
   const [placa, setPlaca] = useState(ingreso.placa ?? '')
   const [marca, setMarca] = useState(ingreso.marcaVehiculo ?? '')
-  const [conteo, setConteo] = useState(ingreso.tipoConteo ?? '')
+  const devolucion = solicitud.tipo === 'DEVOLUCION'
+  const [conteo, setConteo] = useState(ingreso.tipoConteo ?? (devolucion ? 'TOTAL' : ''))
   const [inicio, setInicio] = useState(hora(ingreso.horaInicio))
   const [fin, setFin] = useState(hora(ingreso.horaFin))
   const [verif, setVerif] = useState<Record<string, boolean>>(ingreso.verificaciones)
@@ -75,7 +76,7 @@ export function DatosRecepcion({ solicitud, editable, hoy }: { solicitud: Solici
         </div>
         <div><label htmlFor="bultos" className="etiqueta">Bultos</label><input id="bultos" className="campo tabular" inputMode="numeric" value={bultos} onChange={(e) => setBultos(e.target.value.replace(/\D/g, ''))} autoComplete="off" /></div>
         <div><label htmlFor="paletas" className="etiqueta">Paletas</label><input id="paletas" className="campo tabular" inputMode="numeric" value={paletas} onChange={(e) => setPaletas(e.target.value.replace(/\D/g, ''))} autoComplete="off" /></div>
-        <div><label htmlFor="conteo" className="etiqueta">Tipo de conteo</label><select id="conteo" className="campo" value={conteo} onChange={(e) => setConteo(e.target.value as typeof conteo)}><option value="">Elige</option><option value="TOTAL">Al 100 %</option><option value="MUESTREO">Por muestreo</option><option value="OTROS">Otros</option></select></div>
+        <div><label htmlFor="conteo" className="etiqueta">Tipo de conteo</label><select id="conteo" className="campo" value={devolucion ? 'TOTAL' : conteo} disabled={devolucion} onChange={(e) => setConteo(e.target.value as typeof conteo)} aria-describedby={devolucion ? 'ayuda-conteo' : undefined}><option value="">Elige</option><option value="TOTAL">Al 100 %</option><option value="MUESTREO">Por muestreo</option><option value="OTROS">Otros</option></select>{devolucion && <p id="ayuda-conteo" className="mt-1 text-xs text-gray-600" data-testid="conteo-devolucion">Una devolución se cuenta siempre al 100 %.</p>}</div>
         <div><label htmlFor="placa" className="etiqueta">Placa del vehículo</label><input id="placa" className="campo uppercase" value={placa} onChange={(e) => setPlaca(e.target.value)} autoComplete="off" /></div>
         <div><label htmlFor="marca" className="etiqueta">Marca del vehículo</label><input id="marca" className="campo" value={marca} onChange={(e) => setMarca(e.target.value)} autoComplete="off" /></div>
         <div><label htmlFor="inicio" className="etiqueta">Hora de inicio</label><input id="inicio" type="time" className="campo tabular" value={inicio} onChange={(e) => setInicio(e.target.value)} /></div>

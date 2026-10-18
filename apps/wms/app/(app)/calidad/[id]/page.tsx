@@ -6,6 +6,8 @@ import { repositorio } from '@/services/repositorio-actual'
 import { ChipActa } from '@/components/entradas/chips-entradas'
 import { ChipEstado } from '@/components/chips'
 import { FormOrganoleptica } from '@/components/calidad/form-organoleptica'
+import { PanelLiberacion } from '@/components/calidad/panel-liberacion'
+import { puedeObservar, puedeRegistrarDictamenCliente } from '@/domain/liberacion'
 
 export const metadata = { title: 'Acta organoléptica — WMS LOGISALUD' }
 
@@ -26,7 +28,8 @@ export default async function ActaOrganoleptica({ params }: { params: { id: stri
         <h1 className="mt-2 font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Evaluación organoléptica</h1>
         <p className="mt-1 text-gray-700">{acta.producto} · lote <strong>{acta.lote}</strong> · <Link href={`/entradas/${acta.solicitudId}`} className="underline">ver la solicitud {acta.solicitudNumero}{acta.actaRecepcion ? ` (acta ${acta.actaRecepcion})` : ''}</Link></p>
       </header>
-      <FormOrganoleptica key={`${acta.id}-${acta.estado}`} acta={acta} puedeEditar={puedeEditar} puedeDecidir={puedeDecidir} hoy={panorama.hoy} base={`${prefijo}/calidad/${acta.id}`} />
+      <FormOrganoleptica key={`${acta.id}-${acta.estado}`} acta={acta} puedeEditar={puedeEditar} puedeDecidir={puedeDecidir} hoy={panorama.hoy} base={`${prefijo}/calidad/${acta.id}`}
+        liberacion={<PanelLiberacion acta={acta} puedeObservar={puedeObservar(ctx.roles, !!acta.esDeCliente)} puedeDictaminar={puedeRegistrarDictamenCliente(ctx.roles)} soyAsistente={!ctx.roles.includes('direccion_tecnica')} />} />
     </div>
   )
 }

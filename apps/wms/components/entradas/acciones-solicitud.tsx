@@ -16,9 +16,9 @@ export function AccionesSolicitud({ solicitud, puedePreparar, puedeRecibir }: { 
 
   return (
     <div className="space-y-3" data-testid="acciones-solicitud">
-      {s === 'BORRADOR' && puedePreparar && (
+      {(s === 'BORRADOR' || s === 'ENVIADA') && puedePreparar && (
         <div className="space-y-2">
-          <p className="text-sm text-gray-700">Esta solicitud todavía no está autorizada. Al autorizarla queda programada ("por llegar") y lo anunciado ya no se reescribe.</p>
+          <p className="text-sm text-gray-700">{s === 'ENVIADA' ? 'Esta solicitud espera tu autorización.' : 'Esta solicitud todavía no está autorizada.'} Al autorizarla queda programada ("por llegar") y lo anunciado ya no se reescribe.</p>
           <button type="button" className="btn-primary" disabled={pendiente} onClick={() => ejecutar(() => autorizarSolicitudAccion(solicitud.id), { exito: 'Solicitud autorizada: queda por llegar.' })} data-testid="autorizar-solicitud"><UserCheck className="h-5 w-5" aria-hidden />{pendiente ? 'Autorizando…' : 'Autorizar la solicitud'}</button>
         </div>
       )}

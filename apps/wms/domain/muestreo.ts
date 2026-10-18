@@ -157,3 +157,14 @@ export interface PanoramaMuestreo {
   /** Productos del catálogo que se pueden marcar (para el buscador). */
   productos: { id: string; codigo: string; descripcion: string }[]
 }
+
+/** Por qué un acta tiene ese régimen (lo que se lee en la pantalla y en el PDF del acta). */
+export function explicarRegimen(regimen: RegimenMuestreo, umbral = TABLA_LS_TB_02_02.umbralTotal): string {
+  return {
+    DEVOLUCION: 'Es una devolución: se evalúa el 100 % de las unidades.',
+    ESTRICTA: 'Dirección Técnica marcó este producto con antecedentes de calidad: se evalúa el 100 %.',
+    LOTE_MENOR: `El lote tiene menos de ${umbral} unidades: se evalúa el 100 %.`,
+    NORMAL: 'Es la primera recepción de este producto o de este proveedor: corresponde la evaluación normal.',
+    SIMPLIFICADA: 'Producto y proveedor conocidos: corresponde la evaluación simplificada.',
+  }[regimen]
+}

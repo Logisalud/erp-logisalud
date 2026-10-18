@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, CheckCircle2, ClipboardList, ShieldAlert } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ClipboardList, Eye, PackageCheck, ShieldAlert, SlidersHorizontal } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { formatoFecha } from '@/domain/fechas'
@@ -7,6 +7,7 @@ import { ChipEstado } from '@/components/chips'
 import { Aviso } from '@/components/entradas/aviso'
 import { ChipActa, ChipAlerta } from '@/components/entradas/chips-entradas'
 import type { OrganolepticaVista } from '@/domain/entradas-vistas'
+import { observacionVigente } from '@/domain/liberacion'
 
 export const metadata = { title: 'Calidad — WMS LOGISALUD' }
 
@@ -21,6 +22,8 @@ function Fila({ o, hoy }: { o: OrganolepticaVista; hoy: string }) {
           <span className="block text-xs text-gray-500">{o.numero}{o.referencia ? ` · ${o.referencia}` : ''}</span>
         </span>
         <span className="flex flex-wrap items-center gap-2">
+          {(o.observaciones ?? []).some(observacionVigente) && !o.decision && <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900" data-testid="chip-observada"><Eye className="h-3.5 w-3.5" aria-hidden />Observada</span>}
+          {o.esDeCliente && !o.decision && <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-900" data-testid="chip-de-cliente"><PackageCheck className="h-3.5 w-3.5" aria-hidden />Lo libera el DT del cliente</span>}
           {vencido && <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800"><ShieldAlert className="h-3.5 w-3.5" aria-hidden />Registro vencido</span>}
           {o.decision ? <ChipEstado estado={o.decision} /> : <ChipActa estado={o.estado === 'PENDIENTE_DT' ? 'PENDIENTE_DT' : 'BORRADOR'} />}
           <ArrowRight className="h-4 w-4 text-gray-400" aria-hidden />
@@ -42,6 +45,7 @@ export default async function Calidad() {
       <header>
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Calidad</h1>
         <p className="mt-1 text-gray-700">{esDT ? 'Lo que espera tu decisión.' : 'Pendientes de Dirección Técnica: lo que se llena, lo que se decide y lo que ya se decidió.'}</p>
+        <Link href="/calidad/muestreo" className="btn-secondary btn-sm mt-3" data-testid="ir-muestreo"><SlidersHorizontal className="h-4 w-4" aria-hidden />Tabla de muestreo y productos con antecedentes</Link>
       </header>
 
       <section aria-labelledby="pendientes" data-testid="cola-dt">

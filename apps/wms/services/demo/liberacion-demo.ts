@@ -300,7 +300,7 @@ export class LiberacionDemo extends CargaDemo_ implements RepositorioLiberacion 
     const puedeAutorizar = actor.roles.includes('asistente_dt') || actor.roles.includes('direccion_tecnica')
     const autorizada = autorizar && puedeAutorizar
     if (autorizada) motor.autorizarSolicitud(r.id, actor)
-    else alertar(e, 'RETORNO_POR_AUTORIZAR', 'asistente_dt', `La Orden de Salida ${s.numero} tiene un retorno por autorizar (${r.numero}): ${entrada.motivo === 'RECHAZADO_CLIENTE' ? 'rechazado por el cliente' : 'no entregado'}. Autoriza la solicitud para que el almacén la reciba como devolución.`, `retorno:${r.id}`, r.id)
+    else { sol.estado = 'ENVIADA'; alertar(e, 'RETORNO_POR_AUTORIZAR', 'asistente_dt', `La Orden de Salida ${s.numero} tiene un retorno por autorizar (${r.numero}): ${entrada.motivo === 'RECHAZADO_CLIENTE' ? 'rechazado por el cliente' : 'no entregado'}. Autoriza la solicitud para que el almacén la reciba como devolución.`, `retorno:${r.id}`, r.id) }
     registrar(e, actor, 'retorno_registrado', 'solicitudes_ingreso', r.numero, `Retorno de ${s.numero}`, entrada.motivo || undefined)
     return { ok: true, id: r.id, numero: r.numero, autorizada }
   }

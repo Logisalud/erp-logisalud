@@ -1,4 +1,5 @@
 import 'server-only'
+import { ETIQUETA_REGIMEN } from '@/domain/muestreo'
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer'
 import { CHECKLIST_ORGANOLEPTICO, ETIQUETA_DECISION, ETIQUETA_RESPUESTA } from '@/domain/entradas'
 import type { OrganolepticaVista } from '@/domain/entradas-vistas'
@@ -41,7 +42,7 @@ function ActaPdf({ a }: { a: OrganolepticaVista }) {
             <D k="Motivo:" v={a.ingresoTipo === 'COMPRA_LOCAL' ? 'Compra' : a.ingresoTipo === 'DEVOLUCION' ? 'Devolución' : 'Otros (ingreso de cliente)'} /><D k="Ref.:" v={a.referencia} />
             <D k="Nombre del producto:" v={a.producto} /><D k="Lote:" v={a.lote} />
             <D k="Nombre genérico:" v={a.principioActivo} /><D k="Fecha venc.:" v={a.vence ? formatoFecha(a.vence) : undefined} />
-            <D k="Cantidad recibida:" v={a.cantidadLote} /><D k="Cantidad de muestra:" v={a.cantidadMuestra} />
+            <D k="Cantidad recibida:" v={a.cantidadLote} /><D k="Cantidad de muestra:" v={a.cantidadMuestra} /><D k="Régimen de muestreo:" v={a.regimenMuestreo ? `${ETIQUETA_REGIMEN[a.regimenMuestreo]} (${a.tablaMuestreo ?? 'LS-TB.02.02'})` : undefined} />
             <D k="Registro sanitario:" v={a.registroSanitario} /><D k="F. venc. R.S.:" v={a.rsVence ? formatoFecha(a.rsVence) : undefined} />
             <D k="Fabricante/Proveedor:" v={a.fabricante} /><D k="Forma presentación:" v={a.formaPresentacion} />
             <D k="Cert. análisis / protocolo:" v={a.datos.certAnalisis == null ? undefined : a.datos.certAnalisis ? 'SÍ' : 'NO'} /><D k="Propietario:" v={a.propietario} />
