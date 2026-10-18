@@ -32,9 +32,15 @@ interface OrdenInterna {
   lineas: LineaInterna[]
 }
 
-/** El estado de Bajas vive aparte del resto, atado al estado general (si la demo se reinicia, esto también). */
-const memoria = new WeakMap<EstadoDemo, OrdenInterna[]>()
-const ordenesDe = (e: EstadoDemo): OrdenInterna[] => { let o = memoria.get(e); if (!o) { o = []; memoria.set(e, o) } return o }
+/**
+ * Las Órdenes viven como una propiedad más del estado general de la demo (no en una variable del módulo: las acciones del servidor y las páginas se compilan
+ * por separado y cada una tendría la suya). Si la demo se reinicia, esto también.
+ */
+const CLAVE_BAJAS = '__bajasDemo'
+const ordenesDe = (e: EstadoDemo): OrdenInterna[] => {
+  const x = e as unknown as Record<string, OrdenInterna[] | undefined>
+  return (x[CLAVE_BAJAS] ??= [])
+}
 
 const nombrePropietario = (e: EstadoDemo, id: string) => e.panorama.propietarios.find((p) => p.id === id)
 const producto = (e: EstadoDemo, id: string) => e.panorama.productos.find((p) => p.id === id)

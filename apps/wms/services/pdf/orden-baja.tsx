@@ -22,7 +22,7 @@ const s = StyleSheet.create({
 })
 
 // Anchos (suman 100 %): N.º, Producto, Presentación, Registro sanitario, Lote, Fecha expira, Cantidad, Motivo
-const W = { n: '5%', producto: '22%', pres: '13%', rs: '13%', lote: '10%', vence: '10%', cant: '8%', motivo: '19%' }
+const W = { n: '5%', producto: '21%', pres: '16%', rs: '13%', lote: '10%', vence: '10%', cant: '8%', motivo: '17%' }
 
 const Casilla = ({ k, v, w }: { k: string; v?: string; w: number }) => (
   <View style={{ width: w, border: '0.75pt solid #000', marginLeft: -0.75 }}>
@@ -45,7 +45,7 @@ function OrdenBajaPdf({ c, borrador, estado, hash }: { c: ContenidoOrdenBaja; bo
         <Page key={pi} size="A4" style={s.pagina}>
           <View style={s.cab}>
             <View style={[s.celda, { width: 118, alignItems: 'center' }]}><Image src={LOGO_LOGISALUD} style={{ height: 26, objectFit: 'contain' }} /></View>
-            <View style={[s.celda, { flex: 1, alignItems: 'center' }]}><Text style={{ fontSize: 13, fontFamily: 'Helvetica-Bold', textAlign: 'center' }}>ORDEN DE BAJA DE PRODUCTOS</Text></View>
+            <View style={[s.celda, { flex: 1, alignItems: 'center' }]}><Text style={{ fontSize: 11.5, fontFamily: 'Helvetica-Bold', textAlign: 'center' }}>ORDEN DE BAJA DE PRODUCTOS</Text></View>
             <View style={{ width: 190 }}>
               <View style={{ flexDirection: 'row', flex: 1, borderBottom: '0.75pt solid #000' }}><Text style={[s.etiquetaVerde, { width: 70, height: '100%' }]}>Cód. POE</Text><Text style={{ padding: 2, paddingLeft: 6, fontFamily: 'Helvetica-Bold', alignSelf: 'center' }}>{c.poe}</Text></View>
               <View style={{ flexDirection: 'row', flex: 1, borderBottom: '0.75pt solid #000' }}><Text style={[s.etiquetaVerde, { width: 70, height: '100%' }]}>Cód. Formato</Text><Text style={{ padding: 2, paddingLeft: 6, fontFamily: 'Helvetica-Bold', alignSelf: 'center' }}>{c.formato}</Text></View>
@@ -80,7 +80,7 @@ function OrdenBajaPdf({ c, borrador, estado, hash }: { c: ContenidoOrdenBaja; bo
           <View style={{ border: '1pt solid #000', marginTop: 8 }}>
             <View style={{ flexDirection: 'row', backgroundColor: '#E5E7EB', borderBottom: '0.75pt solid #000' }}>
               <Text style={[s.th, { width: W.n }]}>Nº</Text><Text style={[s.th, { width: W.producto }]}>Nombre del Producto</Text><Text style={[s.th, { width: W.pres }]}>Presentación</Text>
-              <Text style={[s.th, { width: W.rs }]}>Nº Registro Sanitario</Text><Text style={[s.th, { width: W.lote }]}>Nº Lote</Text><Text style={[s.th, { width: W.vence }]}>Fecha Expira</Text>
+              <Text style={[s.th, { width: W.rs }]}>Nº Registro Sanitario</Text><Text style={[s.th, { width: W.lote }]}>Nº Lote</Text><Text style={[s.th, { width: W.vence }]}>{'Fecha\nExpira'}</Text>
               <Text style={[s.th, { width: W.cant }]}>Cantidad</Text><Text style={[s.th, { width: W.motivo, borderRight: 0 }]}>Motivo*</Text>
             </View>
             {filas.map((l, i) => {
@@ -109,7 +109,7 @@ function OrdenBajaPdf({ c, borrador, estado, hash }: { c: ContenidoOrdenBaja; bo
           )}
 
           <View style={{ position: 'absolute', bottom: 34, left: 36, right: 36, fontSize: 6.5, color: '#6B7280' }} fixed>
-            <Text>{c.numero}{c.reemite ? ` (reemite ${c.reemite})` : ''} · {c.propietario.codigo} {c.propietario.razonSocial} · {borrador ? 'borrador' : estado === 'ANULADA' ? 'anulada' : 'emitida'}{hash ? ` · huella SHA-256 ${hash}` : ''} · página {pi + 1} de {paginas.length}</Text>
+            <Text>{c.numero}{c.reemite ? ` (reemite ${c.reemite})` : ''} · {c.propietario.razonSocial} · {borrador ? 'borrador' : estado === 'ANULADA' ? 'anulada' : 'emitida'}{hash ? ` · huella SHA-256 ${hash}` : ''} · página {pi + 1} de {paginas.length}</Text>
           </View>
           <Text style={s.pie} fixed>Este documento no podrá ser reproducido ni fotocopiado sin autorización de LOGISSA S.A.C.</Text>
         </Page>

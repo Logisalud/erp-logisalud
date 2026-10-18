@@ -12,7 +12,7 @@
 --      de Movimientos (`ejecutar_movimiento`: otra persona lo verifica). Nada se borra.
 --   3. La Orden de Baja LS-FR.56.01 la genera el WMS como PDF con un número correlativo BJ-AAAA-NNNNN. Una Orden emitida es inmutable: solo se anula con motivo y se
 --      reemite vinculada (como las actas). OJO: un cambio de estado NO se revierte (regla cerrada del ledger), así que anular una Orden anula el DOCUMENTO; el stock
---      sigue en Bajas. Si el stock se dio de baja por error, se corrige con un ajuste (D-107).
+--      sigue en Bajas. Si el stock se dio de baja por error, se corrige con un ajuste (D-98).
 --   4. Destrucción: lo vencido de clientes de almacenamiento solo va a Bajas y sale a destrucción cuando el cliente lo indica (OS-2). Esta migración deja la vista
 --      `wms.v_stock_en_bajas` (stock en Bajas por propietario, lote y ubicación) como contrato para esa salida.
 --   5. Vencidos y salidas sin venta (§7, sección 9 de este archivo): lo vencido no sale por ninguna salida (`_lote_apto`); devolución a proveedor = salida de tipo

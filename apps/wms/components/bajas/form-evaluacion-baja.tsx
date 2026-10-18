@@ -69,12 +69,12 @@ export function FormEvaluacionBaja({ lineaId, previa, onTerminar }: { lineaId: s
       </fieldset>
       <fieldset>
         <legend className="etiqueta">Trae certificado de análisis o protocolo analítico</legend>
-        <div role="radiogroup" className="flex gap-2">{[true, false].map((v) => <button key={String(v)} type="button" role="radio" aria-checked={cert === v} onClick={() => setCert(v)} className={`min-h-11 min-w-20 rounded-full border px-4 text-sm font-medium ${cert === v ? PILDORA_ACTIVA : PILDORA_INACTIVA}`}>{v ? 'Sí' : 'No'}</button>)}</div>
+        <div role="radiogroup" aria-label="Trae certificado de análisis o protocolo analítico" className="flex gap-2">{[true, false].map((v) => <button key={String(v)} type="button" role="radio" aria-checked={cert === v} onClick={() => setCert(v)} className={`min-h-11 min-w-20 rounded-full border px-4 text-sm font-medium ${cert === v ? PILDORA_ACTIVA : PILDORA_INACTIVA}`}>{v ? 'Sí' : 'No'}</button>)}</div>
       </fieldset>
       <div><label htmlFor={`obs-${lineaId}`} className="etiqueta">Lo que viste (observación)</label><textarea id={`obs-${lineaId}`} rows={2} className="campo py-2" value={obs} onChange={(e) => setObs(e.target.value)} data-testid="eval-observacion" /></div>
       <fieldset>
         <legend className="etiqueta">Conclusión</legend>
-        <div role="radiogroup" className="flex flex-wrap gap-2">{([['CONFORME', 'Conforme'], ['NO_CONFORME', 'No conforme']] as const).map(([v, t]) => <button key={v} type="button" role="radio" aria-checked={conclusion === v} onClick={() => { setConclusion(v); setSolo(false) }} data-testid={`eval-conclusion-${v}`} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${conclusion === v ? (v === 'CONFORME' ? PILDORA_ACTIVA : PILDORA_ACTIVA_ROJA) : PILDORA_INACTIVA}`}>{t}</button>)}</div>
+        <div role="radiogroup" aria-label="Conclusión de la evaluación" className="flex flex-wrap gap-2">{([['CONFORME', 'Conforme'], ['NO_CONFORME', 'No conforme']] as const).map(([v, t]) => <button key={v} type="button" role="radio" aria-checked={conclusion === v} onClick={() => { setConclusion(v); setSolo(false) }} data-testid={`eval-conclusion-${v}`} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${conclusion === v ? (v === 'CONFORME' ? PILDORA_ACTIVA : PILDORA_ACTIVA_ROJA) : PILDORA_INACTIVA}`}>{t}</button>)}</div>
       </fieldset>
       {faltan.length > 0 && <Aviso tipo="info" testid="eval-faltan"><p className="font-medium">Para guardar la evaluación falta:</p><ul className="mt-1 list-disc pl-5">{faltan.map((f) => <li key={f}>{f}</li>)}</ul></Aviso>}
       {mensaje?.tipo === 'error' && <Aviso tipo="error">{mensaje.texto}</Aviso>}

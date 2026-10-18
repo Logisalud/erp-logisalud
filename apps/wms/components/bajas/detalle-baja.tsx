@@ -119,10 +119,9 @@ function LineaCard({ orden, l, roles, avisar }: { orden: OrdenBajaVista; l: Line
 }
 
 /** Un motivo escrito (rechazar, retirar, anular): obligatorio, y se explica qué pasa después. */
-function AccionConMotivo({ id, etiqueta, ayuda, boton, icono, confirmar, exito, testid, tono = 'neutro' }: {
-  id: string; etiqueta: string; ayuda: string; boton: string; icono: React.ReactNode; confirmar: (motivo: string) => ReturnType<typeof cerrarSolicitudBajaAccion>; exito: string; testid: string; tono?: 'neutro' | 'peligro'
+function AccionConMotivo({ id, etiqueta, ayuda, boton, icono, confirmar, exito, testid, onListo, tono = 'neutro' }: {
+  onListo: (texto: string) => void; id: string; etiqueta: string; ayuda: string; boton: string; icono: React.ReactNode; confirmar: (motivo: string) => ReturnType<typeof cerrarSolicitudBajaAccion>; exito: string; testid: string; tono?: 'neutro' | 'peligro'
 }) {
-  const router = useRouter()
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [abierto, setAbierto] = useState(false)
   const [motivo, setMotivo] = useState('')
@@ -134,17 +133,17 @@ function AccionConMotivo({ id, etiqueta, ayuda, boton, icono, confirmar, exito, 
       <p className="text-sm text-gray-700">{ayuda}</p>
       {mensaje?.tipo === 'error' && <Aviso tipo="error">{mensaje.texto}</Aviso>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={tono === 'peligro' ? 'btn-secondary' : 'btn-primary'} disabled={pendiente || !motivo.trim()} onClick={() => ejecutar(() => confirmar(motivo), { exito, alExito: () => router.refresh() })} data-testid={`${testid}-confirmar`}>{icono}{pendiente ? 'Guardando…' : boton}</button>
+        <button type="button" className={tono === 'peligro' ? 'btn-secondary' : 'btn-primary'} disabled={pendiente || !motivo.trim()} onClick={() => ejecutar(() => confirmar(motivo), { alExito: () => onListo(exito) })} data-testid={`${testid}-confirmar`}>{icono}{pendiente ? 'Guardando…' : boton}</button>
         <button type="button" className="btn-secondary" disabled={pendiente} onClick={() => setAbierto(false)}>Cancelar</button>
       </div>
     </div>
   )
 }
 
-export function DetalleBaja({ orden, roles, usuarioId, ubicaciones, recienSolicitada }: { orden: OrdenBajaVista; roles: readonly Rol[]; usuarioId: string; ubicaciones: { id: string; codigo: string }[]; recienSolicitada: boolean }) {
+export function DetalleBaja({ orden, roles, usuarioId, ubicaciones, avisoInicial }: { orden: OrdenBajaVista; roles: readonly Rol[]; usuarioId: string; ubicaciones: { id: string; codigo: string }[]; avisoInicial?: string }) {
   const router = useRouter()
   const { pendiente, mensaje, ejecutar } = useAccion()
-  const [aviso, setAviso] = useState<string | null>(recienSolicitada ? MENSAJE_BAJA.solicitada(orden.numero) : null)
+  const [aviso, setAviso] = useState<string | null>(avisoInicial ?? null)
   const [destino, setDestino] = useState('')
   const paso = siguientePasoBaja(orden)
   const esDT = puedeAutorizarBaja(roles)
@@ -167,7 +166,7 @@ export function DetalleBaja({ orden, roles, usuarioId, ubicaciones, recienSolici
       </header>
 
       {aviso && <Aviso tipo="ok" testid="aviso-baja-ok">{aviso}</Aviso>}
-      {mensaje && <Aviso tipo={mensaje.tipo === 'ok' ? 'ok' : 'error'} testid={mensaje.tipo === 'ok' ? 'aviso-baja-ok' : 'aviso-baja-error'}>{mensaje.texto}</Aviso>}
+      {mensaje?.tipo === 'error' && <Aviso tipo="error" testid="aviso-baja-error">{mensaje.texto}</Aviso>}
 
       {paso.tono !== 'cerrada' && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-teal-950" data-testid="siguiente-paso-baja">
@@ -202,9 +201,9 @@ export function DetalleBaja({ orden, roles, usuarioId, ubicaciones, recienSolici
           ) : <p className="text-sm text-gray-700">Reúne el sustento de cada línea. Cuando esté completo, Dirección Técnica (Katia) la revisa y autoriza.</p>}
           <div className="flex flex-wrap gap-3">
             {esDT && <button type="button" className="btn-primary" disabled={pendiente || !!faltante} data-testid="autorizar-baja"
-              onClick={() => ejecutar(() => autorizarBajaAccion(orden.id), { exito: MENSAJE_BAJA.autorizada(orden.numero), alExito: () => setAviso(null) })}><Stamp className="h-5 w-5" aria-hidden />{pendiente ? 'Autorizando…' : 'Autorizar y emitir la Orden'}</button>}
-            {esDT && <AccionConMotivo id="motivo-rechazo" testid="rechazar-baja" boton="Rechazar la baja" etiqueta="Motivo del rechazo" ayuda="Quien pidió la baja verá tu motivo y podrá hacer otra solicitud." icono={<XCircle className="h-5 w-5" aria-hidden />} confirmar={(m) => cerrarSolicitudBajaAccion(orden.id, 'RECHAZADA', m)} exito={MENSAJE_BAJA.rechazada} />}
-            {puedeRetirar && <AccionConMotivo id="motivo-retiro" testid="retirar-baja" boton="Retirar la solicitud" etiqueta="¿Por qué la retiras?" ayuda="La solicitud se cierra y las unidades quedan libres. Si hace falta, haces otra." icono={<Undo2 className="h-5 w-5" aria-hidden />} confirmar={(m) => cerrarSolicitudBajaAccion(orden.id, 'CANCELADA', m)} exito={MENSAJE_BAJA.retirada} />}
+              onClick={() => { setAviso(null); ejecutar(() => autorizarBajaAccion(orden.id), { alExito: () => setAviso(MENSAJE_BAJA.autorizada(orden.numero)) }) }}><Stamp className="h-5 w-5" aria-hidden />{pendiente ? 'Autorizando…' : 'Autorizar y emitir la Orden'}</button>}
+            {esDT && <AccionConMotivo onListo={(t) => setAviso(t)} id="motivo-rechazo" testid="rechazar-baja" boton="Rechazar la baja" etiqueta="Motivo del rechazo" ayuda="Quien pidió la baja verá tu motivo y podrá hacer otra solicitud." icono={<XCircle className="h-5 w-5" aria-hidden />} confirmar={(m) => cerrarSolicitudBajaAccion(orden.id, 'RECHAZADA', m)} exito={MENSAJE_BAJA.rechazada} />}
+            {puedeRetirar && <AccionConMotivo onListo={(t) => setAviso(t)} id="motivo-retiro" testid="retirar-baja" boton="Retirar la solicitud" etiqueta="¿Por qué la retiras?" ayuda="La solicitud se cierra y las unidades quedan libres. Si hace falta, haces otra." icono={<Undo2 className="h-5 w-5" aria-hidden />} confirmar={(m) => cerrarSolicitudBajaAccion(orden.id, 'CANCELADA', m)} exito={MENSAJE_BAJA.retirada} />}
           </div>
         </section>
       )}
@@ -229,7 +228,7 @@ export function DetalleBaja({ orden, roles, usuarioId, ubicaciones, recienSolici
                   </div>
                 )}
               <button type="button" className="btn-primary" disabled={pendiente || ubicaciones.length === 0} data-testid="trasladar-baja"
-                onClick={() => ejecutar(() => trasladarBajaAccion(orden.id, destino || undefined), { exito: undefined, alExito: (r) => setAviso(MENSAJE_BAJA.trasladada(r.movimiento)) })}><Truck className="h-5 w-5" aria-hidden />{pendiente ? 'Registrando…' : 'Registrar el traslado a Bajas'}</button>
+                onClick={() => { setAviso(null); ejecutar(() => trasladarBajaAccion(orden.id, destino || undefined), { alExito: (r) => setAviso(MENSAJE_BAJA.trasladada(r.movimiento)) }) }}><Truck className="h-5 w-5" aria-hidden />{pendiente ? 'Registrando…' : 'Registrar el traslado a Bajas'}</button>
             </>
           ) : <p className="text-sm text-gray-700">El traslado lo registra el Jefe de Almacén o el auxiliar, y otra persona lo verifica.</p>}
         </section>
@@ -239,7 +238,7 @@ export function DetalleBaja({ orden, roles, usuarioId, ubicaciones, recienSolici
         <section className="card space-y-3" aria-labelledby="anular-baja">
           <h2 id="anular-baja" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Si el documento tiene un error</h2>
           <p className="text-sm text-gray-700">Anular deja sin efecto el documento, no el cambio de estado: el stock sigue en Bajas. Después puedes reemitir la Orden con otro número. Si las unidades se dieron de baja por error, se corrigen con un ajuste.</p>
-          <div><AccionConMotivo id="motivo-anulacion" testid="anular-orden" boton="Anular la Orden" etiqueta="Motivo de la anulación" ayuda="Queda en el historial con tu nombre." icono={<Ban className="h-5 w-5" aria-hidden />} tono="peligro" confirmar={(m) => anularOrdenBajaAccion(orden.id, m)} exito={MENSAJE_BAJA.anulada} /></div>
+          <div><AccionConMotivo onListo={(t) => setAviso(t)} id="motivo-anulacion" testid="anular-orden" boton="Anular la Orden" etiqueta="Motivo de la anulación" ayuda="Queda en el historial con tu nombre." icono={<Ban className="h-5 w-5" aria-hidden />} tono="peligro" confirmar={(m) => anularOrdenBajaAccion(orden.id, m)} exito={MENSAJE_BAJA.anulada} /></div>
         </section>
       )}
 
@@ -248,7 +247,7 @@ export function DetalleBaja({ orden, roles, usuarioId, ubicaciones, recienSolici
           <h2 id="reemitir-baja" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Reemitir</h2>
           <p className="text-sm text-gray-700">Se emite una Orden nueva con otro número y las mismas líneas, vinculada a esta. La anulada se conserva.</p>
           <button type="button" className="btn-primary" disabled={pendiente} data-testid="reemitir-orden"
-            onClick={() => ejecutar(() => reemitirOrdenBajaAccion(orden.id), { exito: undefined, refrescar: false, alExito: (r) => { router.push(`/bajas/${r.id}`) } })}><RefreshCw className="h-5 w-5" aria-hidden />{pendiente ? 'Reemitiendo…' : 'Reemitir la Orden'}</button>
+            onClick={() => { setAviso(null); ejecutar(() => reemitirOrdenBajaAccion(orden.id), { refrescar: false, alExito: (r) => { router.push(`/bajas/${r.id}?nueva=reemitida`) } }) }}><RefreshCw className="h-5 w-5" aria-hidden />{pendiente ? 'Reemitiendo…' : 'Reemitir la Orden'}</button>
         </section>
       )}
 
