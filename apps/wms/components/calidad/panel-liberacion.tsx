@@ -18,6 +18,8 @@ const ICONO: Record<EstadoDictamen, typeof Hourglass> = { REGISTRADO: Hourglass,
 const CLASE: Record<EstadoDictamen, string> = {
   REGISTRADO: 'border-amber-300 bg-amber-50 text-amber-900', CONFIRMADO: 'border-green-200 bg-green-50 text-green-800', ANULADO: 'border-gray-300 bg-gray-100 text-gray-700',
 }
+/** El acta cambia de clave al firmarse y la pantalla se vuelve a montar: el aviso de éxito se recuerda para que no desaparezca. */
+const recordado = new Map<string, string>()
 const u = (n: number) => `${n.toLocaleString('es-PE')} ${n === 1 ? 'unidad' : 'unidades'}`
 
 /**
@@ -25,7 +27,10 @@ const u = (n: number) => `${n.toLocaleString('es-PE')} ${n === 1 ? 'unidad' : 'u
  * de su DT, que Sandra o Katia registran con el documento recibido y luego confirman. Después de cada acción dice qué pasó y qué sigue.
  */
 export function PanelLiberacion({ acta, puedeObservar, puedeDictaminar, soyAsistente }: { acta: OrganolepticaVista; puedeObservar: boolean; puedeDictaminar: boolean; soyAsistente: boolean }) {
-  const { pendiente, mensaje, ejecutar, limpiar } = useAccion()
+  const { pendiente, mensaje: mensajeAccion, ejecutar: ejecutarAccion, limpiar } = useAccion()
+  const [previo] = useState(() => { const t = recordado.get(acta.id); recordado.delete(acta.id); return t })
+  const mensaje = mensajeAccion ?? (previo ? { tipo: 'ok' as const, texto: previo, errores: undefined } : null)
+  const ejecutar: typeof ejecutarAccion = (fn, o = {}) => { ejecutarAccion(fn, { ...o, alExito: (r) => { if (o.exito) recordado.set(acta.id, o.exito); o.alExito?.(r) } }) }
   const [modo, setModo] = useState<null | 'observar' | 'levantar' | { anular: string }>(null)
   const [texto, setTexto] = useState('')
   const errores: Record<string, string> = mensaje?.tipo === 'error' ? mensaje.errores ?? {} : {}
