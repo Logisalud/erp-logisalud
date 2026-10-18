@@ -21,9 +21,9 @@ const PERMISOS_AUXILIAR: readonly Accion[] = ['ver', 'ejecutar', 'verificar', 'c
 const conAuxiliar = (...propias: Accion[]): readonly Accion[] => [...new Set<Accion>([...PERMISOS_AUXILIAR, ...propias])]
 
 const PERMISOS: Record<Rol, readonly Accion[]> = {
-  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote'],
-  asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion'],
-  jefe_almacen: conAuxiliar('exportar', 'preparar_salidas'),
+  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote', 'solicitar_baja', 'autorizar_baja'],
+  asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion', 'solicitar_baja'],
+  jefe_almacen: conAuxiliar('exportar', 'preparar_salidas', 'solicitar_baja'),
   auxiliar: PERMISOS_AUXILIAR,
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
   admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],

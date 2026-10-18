@@ -1,11 +1,47 @@
 // Reglas puras de asignación de lotes en una salida (espejo de wms._lote_apto y wms._asignar_linea; D-69, D-70, D-71, D-76).
 // La base de datos es la que manda; esto lo usan la demo y las pantallas para explicar y previsualizar.
 
-export type TipoSalida = 'DISTRIBUCION' | 'CLIENTE' | 'MUESTRA'
+export type TipoSalida = 'DISTRIBUCION' | 'CLIENTE' | 'MUESTRA' | 'PROVEEDOR'
 export type MotivoSalida = 'VENTA' | 'PESQUISA_DIGEMID' | 'DESTRUCCION' | 'DEVOLUCION_PROVEEDOR' | 'MUESTRA'
 
 /** Días mínimos de vida útil de un pedido de venta de Logissa (parámetro `vida_util_minima_venta_dias`). */
 export const VIDA_UTIL_MINIMA_VENTA_DIAS = 60
+
+/** Motivos de cada tipo de salida (DT 2026-10-17 §7; espejo de `wms.crear_salida`). La devolución al proveedor es solo de Logissa. */
+export const MOTIVOS_DE_TIPO: Record<TipoSalida, readonly MotivoSalida[]> = {
+  DISTRIBUCION: ['VENTA'],
+  MUESTRA: ['MUESTRA'],
+  PROVEEDOR: ['DEVOLUCION_PROVEEDOR'],
+  CLIENTE: ['VENTA', 'PESQUISA_DIGEMID', 'MUESTRA', 'DESTRUCCION'],
+}
+
+export const ETIQUETA_MOTIVO_SALIDA: Record<MotivoSalida, string> = {
+  VENTA: 'Venta', PESQUISA_DIGEMID: 'Pesquisa DIGEMID', MUESTRA: 'Muestra', DESTRUCCION: 'Destrucción', DEVOLUCION_PROVEEDOR: 'Devolución al proveedor',
+}
+
+/** Mismo mensaje que la base: ¿este motivo corresponde a este tipo de salida? Devuelve el error o nulo. */
+export function validarMotivoSalida(tipo: TipoSalida, motivo: MotivoSalida): string | null {
+  if (tipo === 'CLIENTE' && motivo === 'DEVOLUCION_PROVEEDOR') {
+    return 'La devolución al proveedor es del stock de Logissa; un cliente de almacenamiento saca por venta, pesquisa DIGEMID, muestra o destrucción'
+  }
+  return MOTIVOS_DE_TIPO[tipo].includes(motivo) ? null : 'El motivo no corresponde a este tipo de salida'
+}
+
+/**
+ * De dónde sale el stock: todo sale de Aprobados, salvo la destrucción, que sale SOLO desde Bajas (lo vencido de un cliente nunca se devuelve ni se vende:
+ * va a Bajas con una Orden de Baja y sale a destrucción cuando el cliente lo indica).
+ */
+export const origenDelStock = (motivo: MotivoSalida): 'APROBADO' | 'BAJAS_RECHAZADOS' => (motivo === 'DESTRUCCION' ? 'BAJAS_RECHAZADOS' : 'APROBADO')
+
+/** La salida tipo B (por cuenta de un cliente) no emite guía del WMS: se despacha con la GRE que sube el cliente. Todo lo demás, sí (OS-3). */
+export const emiteGuiaDelWms = (tipo: TipoSalida) => tipo !== 'CLIENTE'
+
+/**
+ * Política de canje con el proveedor (DT: PENDIENTE de Katia). Dos parámetros de `wms.parametros`:
+ * `canje_dias_minimos_antes_vencimiento` (0 = hasta el día del vencimiento) y `canje_dias_maximos_antes_vencimiento` (sin valor = sin tope).
+ */
+export interface PoliticaCanje { diasMinimos: number; diasMaximos: number | null }
+export const POLITICA_CANJE_INICIAL: PoliticaCanje = { diasMinimos: 0, diasMaximos: null }
 
 export interface LoteDisponible {
   loteId: string
@@ -21,20 +57,28 @@ export interface AptitudLote { apto: boolean; requiereAprobacionDt: boolean; raz
 
 const dias = (desde: string, hasta: string) => Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000)
 
-export function loteApto(vence: string | null, tipo: TipoSalida, motivo: MotivoSalida, hoy: string, minDias = VIDA_UTIL_MINIMA_VENTA_DIAS): AptitudLote {
+/**
+ * ¿Puede este lote salir de Aprobados? Lo vencido no sale por ninguna salida (va a Bajas). La venta de Logissa pide 60 días; la devolución al proveedor, solo
+ * antes del vencimiento y según la política de canje. `requiereAprobacionDt` quedó en falso siempre (ya no hay aprobación de vencidos).
+ */
+export function loteApto(vence: string | null, tipo: TipoSalida, motivo: MotivoSalida, hoy: string, minDias = VIDA_UTIL_MINIMA_VENTA_DIAS, canje: PoliticaCanje = POLITICA_CANJE_INICIAL): AptitudLote {
   if (vence && vence < hoy) {
-    if (tipo === 'CLIENTE' && (motivo === 'PESQUISA_DIGEMID' || motivo === 'DESTRUCCION' || motivo === 'DEVOLUCION_PROVEEDOR')) {
-      return { apto: true, requiereAprobacionDt: true }
-    }
     return {
       apto: false, requiereAprobacionDt: false,
-      razon: tipo === 'CLIENTE'
-        ? 'El lote está vencido: solo puede salir por pesquisa DIGEMID, destrucción o devolución al proveedor.'
-        : 'El lote está vencido: el stock de Logissa nunca sale vencido.',
+      razon: tipo === 'PROVEEDOR' ? 'El lote está vencido: no se devuelve vencido a nadie. Va a Bajas con una Orden de Baja.'
+        : tipo === 'CLIENTE' && motivo === 'PESQUISA_DIGEMID' ? 'El lote está vencido: la pesquisa DIGEMID nunca es de lotes vencidos. Lo vencido va a Bajas y sale a destrucción cuando el cliente lo indica.'
+        : tipo === 'CLIENTE' ? 'El lote está vencido: lo vencido solo va a Bajas (Orden de Baja) y sale a destrucción cuando el cliente lo indica.'
+        : 'El lote está vencido: el stock de Logissa nunca sale vencido; solo va a Bajas (Orden de Baja).',
     }
   }
   if (tipo === 'DISTRIBUCION' && vence && dias(hoy, vence) < minDias) {
     return { apto: false, requiereAprobacionDt: false, razon: `El lote vence en ${dias(hoy, vence)} días: un pedido de venta pide al menos ${minDias}.` }
+  }
+  if (tipo === 'PROVEEDOR') {
+    if (!vence) return { apto: false, requiereAprobacionDt: false, razon: 'El lote no tiene fecha de vencimiento: no se puede evaluar la política de canje.' }
+    const faltan = dias(hoy, vence)
+    if (faltan < canje.diasMinimos) return { apto: false, requiereAprobacionDt: false, razon: `Según la política de canje, el proveedor recibe el lote con al menos ${canje.diasMinimos} días antes de vencer; a este le faltan ${faltan}.` }
+    if (canje.diasMaximos !== null && faltan > canje.diasMaximos) return { apto: false, requiereAprobacionDt: false, razon: `Según la política de canje, el proveedor recibe el lote cuando faltan ${canje.diasMaximos} días o menos para vencer; a este le faltan ${faltan}.` }
   }
   return { apto: true, requiereAprobacionDt: false }
 }
@@ -44,28 +88,28 @@ export type ResultadoAsignacion =
   | { ok: true; asignaciones: Asignacion[] }
   | { ok: false; motivo: 'STOCK_INSUFICIENTE'; pedido: number; aptoTotal: number; mensaje: string }
 
-export interface EntradaAsignacion { tipo: TipoSalida; motivo: MotivoSalida; cantidad: number; hoy: string; lotes: readonly LoteDisponible[]; loteIndicadoId?: string; minDias?: number }
+export interface EntradaAsignacion { tipo: TipoSalida; motivo: MotivoSalida; cantidad: number; hoy: string; lotes: readonly LoteDisponible[]; loteIndicadoId?: string; minDias?: number; canje?: PoliticaCanje }
 
 /**
  * Tipo A (distribución) y muestras: el pedido no trae lote. Se toma lo que haya del lote FEFO válido y se completa con el siguiente, y así
  * hasta cubrir la cantidad (una asignación por lote). Todo o nada: si ni sumando los lotes alcanza, no se asigna nada.
  * Tipo B (cliente): una línea, un lote, el que indica el cliente, con toda la cantidad.
- * Nunca se toma más de lo disponible de un lote ni se usa un lote vencido (salvo la excepción del cliente, que aprueba Dirección Técnica).
+ * Nunca se toma más de lo disponible de un lote ni se usa un lote vencido. La devolución al proveedor (PROVEEDOR) también indica su lote.
  */
 export function asignarLinea(e: EntradaAsignacion): ResultadoAsignacion {
   if (!Number.isInteger(e.cantidad) || e.cantidad <= 0) throw new Error('La cantidad debe ser un entero mayor que cero')
   const aptos = e.lotes
-    .filter((l) => l.disponible > 0 && !l.bloqueado && loteApto(l.vence, e.tipo, e.motivo, e.hoy, e.minDias).apto)
-    .filter((l) => (e.tipo === 'CLIENTE' ? l.loteId === e.loteIndicadoId : true))
+    .filter((l) => l.disponible > 0 && !l.bloqueado && loteApto(l.vence, e.tipo, e.motivo, e.hoy, e.minDias, e.canje).apto)
+    .filter((l) => (e.tipo === 'CLIENTE' || e.tipo === 'PROVEEDOR' ? l.loteId === e.loteIndicadoId : true))
     .sort((a, b) => (a.vence ?? '9999-12-31').localeCompare(b.vence ?? '9999-12-31') || a.codigo.localeCompare(b.codigo))
   const aptoTotal = aptos.reduce((t, l) => t + l.disponible, 0)
   const falta = (): ResultadoAsignacion => ({
     ok: false, motivo: 'STOCK_INSUFICIENTE', pedido: e.cantidad, aptoTotal,
-    mensaje: e.tipo === 'CLIENTE'
+    mensaje: e.tipo === 'CLIENTE' || e.tipo === 'PROVEEDOR'
       ? `No hay en el lote indicado ${e.cantidad} unidades disponibles (hay ${aptoTotal}).`
       : `Stock insuficiente: la línea pide ${e.cantidad} y, sumando todos los lotes aptos, hay ${aptoTotal}.`,
   })
-  if (e.tipo === 'CLIENTE') {
+  if (e.tipo === 'CLIENTE' || e.tipo === 'PROVEEDOR') {
     const l = aptos[0]
     return l && l.disponible >= e.cantidad ? { ok: true, asignaciones: [{ loteId: l.loteId, codigo: l.codigo, vence: l.vence, cantidad: e.cantidad }] } : falta()
   }

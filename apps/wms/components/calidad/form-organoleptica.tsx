@@ -17,7 +17,7 @@ import { SEGMENTO_CONFORME, SEGMENTO_NO_CONFORME, SEGMENTO_NO_APLICA, SEGMENTO_I
 const RESPUESTAS: Respuesta[] = ['C', 'NC', 'NA']
 const TXT: Record<Respuesta, string> = { C: 'Conforme', NC: 'No conforme', NA: 'No aplica' }
 
-function Segmentado({ nombre, valor, onCambio, deshabilitado }: { nombre: string; valor?: Respuesta; onCambio: (r: Respuesta) => void; deshabilitado: boolean }) {
+export function Segmentado({ nombre, valor, onCambio, deshabilitado }: { nombre: string; valor?: Respuesta; onCambio: (r: Respuesta) => void; deshabilitado: boolean }) {
   return (
     <div role="radiogroup" aria-label={nombre} className="inline-flex shrink-0 overflow-hidden rounded-full border border-gray-300 bg-white">
       {RESPUESTAS.map((r) => {

@@ -58,6 +58,8 @@ export type Accion =
   | 'liberar_unidad'
   | 'reservar_lote'
   | 'anular_guia'
+  | 'solicitar_baja'
+  | 'autorizar_baja'
 
 export interface Propietario {
   id: string
