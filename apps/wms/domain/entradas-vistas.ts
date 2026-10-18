@@ -6,6 +6,9 @@ import type {
   EstadoSolicitud, PasoSolicitud, RolFirma, TipoAlerta, TipoDocumentoExpediente, TipoIngreso, VerificacionLinea,
 } from './entradas'
 import type { Estado } from './tipos'
+import type { RegimenMuestreo } from './muestreo'
+import type { DictamenClienteVista, ObservacionVista } from './liberacion'
+import type { MotivoRetorno } from './retornos'
 
 /** Una orden de compra de Compras (solo lectura) con sus líneas, desde la que se prepara una solicitud. */
 export interface OcPendiente {
@@ -203,7 +206,18 @@ export interface OrganolepticaVista {
   propietario: string
   cantidadLote: number
   cantidadMuestra: number
+  /** Cómo se calculó la muestra (LS-TB.02.02, OS-5): el régimen, la tabla y la razón. */
+  regimenMuestreo?: RegimenMuestreo
+  tablaMuestreo?: string
   referencia?: string
+  /** El producto es de un cliente de almacenamiento: lo libera el DT del cliente (LS-POE.04.05), no Dirección Técnica de Logissa. */
+  esDeCliente?: boolean
+  /** Unidades de este lote que siguen esperando decisión. */
+  pendienteDecision?: number
+  /** Observación reversible vigente (el producto sigue en Cuarentena hasta la disposición final) y sus anteriores. */
+  observaciones?: ObservacionVista[]
+  /** Dictámenes del DT del cliente registrados para esta acta (solo productos de clientes). */
+  dictamenes?: DictamenClienteVista[]
   datos: DatosOrganoleptica
   decision?: Decision
   decididoPor?: string
@@ -312,6 +326,16 @@ export interface SolicitudResumen {
   registroCompras?: EstadoRegistroCompras
   /** Los lotes que trae (producto y lote tal como están impresos), para saber cuándo quedó disponible todo lo recibido. */
   lotes?: { productoId: string; lote: string }[]
+  /** OS-5: la devolución viene de una Orden de Salida (retorno). */
+  retorno?: RetornoDeSalida
+}
+
+/** De qué Orden de Salida vuelve una devolución, con qué guía y por qué. */
+export interface RetornoDeSalida {
+  salidaId: string
+  salidaNumero: string
+  motivo: MotivoRetorno
+  guiaNumero?: string
 }
 
 export interface SolicitudDetalle {
@@ -357,6 +381,8 @@ export interface SolicitudDetalle {
   cantidadFisica: BloqueFisico[]
   /** Estado de inventario con el que nacen las unidades de esta solicitud. */
   estadoInicial: Estado
+  /** OS-5: si es un retorno de una Orden de Salida. */
+  retorno?: RetornoDeSalida
 }
 
 export interface PosicionDestino {

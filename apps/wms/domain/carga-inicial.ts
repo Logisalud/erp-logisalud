@@ -1,4 +1,4 @@
-// Carga inicial como «cambio de sistema» (OS-7, respuestas de Dirección Técnica 2026-10-17, §10; decisión D-99).
+// Carga inicial como «cambio de sistema» (OS-7, respuestas de Dirección Técnica 2026-10-17, §10; decisión D-110).
 // El stock de Odoo entra directo a su estado y ubicación, SIN acta organoléptica ni recepción: Aprobados en su ubicación, Bajas en Bajas y Cuarentena en Cuarentena.
 // El libro mayor deja el recorrido real (ingreso por carga inicial en Cuarentena → liberación → ubicación final) y Dirección Técnica valida con UNA sola confirmación.
 // Puro: lo usan la demo, las pantallas y las pruebas. La base de datos (`wms.validar_carga_inicial` y `wms.confirmar_carga_inicial`, migración 0027) aplica las mismas reglas y manda.

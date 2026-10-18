@@ -165,7 +165,7 @@ describe('conteos y ajustes (INV-05)', () => {
   })
 })
 
-describe('carga inicial como cambio de sistema (OS-7, D-99)', () => {
+describe('carga inicial como cambio de sistema (OS-7, D-110)', () => {
   const fila = (extra: object = {}) => ({ producto: 'DEMO-001', lote: 'CI-1', vence: '2029-05-31', propietario: 'LOGISSA', posicion: 'A-6', estado: 'CUARENTENA', cantidad: '10', ...extra })
   const saldoDe = async (codigoLote: string) => {
     const p = await repo.panorama()

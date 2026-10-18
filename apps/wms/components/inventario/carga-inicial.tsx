@@ -22,7 +22,7 @@ function textoResumen(filas?: FilaCargaInicial[], p?: { aprobado: number; cuaren
 }
 
 /**
- * Carga inicial como cambio de sistema (OS-7, D-99): el stock de Odoo entra directo a su estado y ubicación, sin acta organoléptica.
+ * Carga inicial como cambio de sistema (OS-7, D-110): el stock de Odoo entra directo a su estado y ubicación, sin acta organoléptica.
  * Administración sube y revisa; Dirección Técnica (Katia) valida con UNA sola confirmación.
  */
 export function CargaInicial({ cargas, puedeCargar, puedeConfirmar }: { cargas: CargaInicialVista[]; puedeCargar: boolean; puedeConfirmar: boolean }) {

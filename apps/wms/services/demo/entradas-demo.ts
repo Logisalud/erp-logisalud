@@ -9,7 +9,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { hashDe } from '@/lib/hash'
 import {
   AREA_DESTINO, CHECKLIST_ORGANOLEPTICO, ESTADO_INICIAL, ETIQUETA_DECISION, ETIQUETA_ROL_FIRMA, ETIQUETA_TIPO_INGRESO,
-  diasParaVencer, estadoRegistroCompras, faltantesParaEnviar, mensajeTemperatura, muestraOrganoleptica, numeroDeActa,
+  diasParaVencer, estadoRegistroCompras, faltantesParaEnviar, mensajeTemperatura, numeroDeActa,
   pasoDeSolicitud, porTrasladarVencido, puedeAtenderAlerta, puedeFirmarComo, puedeGenerarActa, puedePrepararSolicitud, ROLES_FIRMA,
   situacionLote, temperaturaFueraDeRango, validarDecision, validarEntradaSolicitud, validarLineaSolicitud, validarTransportista,
   type CambioEntrada, type Checklist, type Decision, type DestinatarioAlerta, type EntradaSolicitud, type EstadoRegistroCompras, type TipoAlerta,
@@ -21,6 +21,8 @@ import type {
   PosicionDestino, ResumenExpediente, SolicitudDetalle, SolicitudResumen, VersionSolicitud,
 } from '@/domain/entradas-vistas'
 import { parsearVencimiento } from '@/domain/fechas'
+import { antecedenteVigente, planDeMuestreo, tablaVigente, TABLA_LS_TB_02_02 } from '@/domain/muestreo'
+import { observacionVigente } from '@/domain/liberacion'
 import { buscarEnTexto } from '@/domain/busqueda'
 import type { ResultadoBusqueda } from '@/domain/panorama'
 import { puede } from '@/domain/permisos'
@@ -165,7 +167,8 @@ function detalle(e: EstadoDemo, s: SolicitudDemo): SolicitudDetalle {
     } : undefined,
     cambios: [...s.cambios].reverse(), versiones: [...s.versiones].reverse(),
     actas: e.actas.filter((a) => a.solicitudId === s.id).map((a) => actaVista(e, a)).reverse(),
-    organolepticas: e.organolepticas.filter((o) => o.solicitudId === s.id),
+    organolepticas: e.organolepticas.filter((o) => o.solicitudId === s.id).map((o) => vistaOrganoleptica(e, o)),
+    retorno: s.retorno,
     alertas: e.alertas.filter((a) => a.solicitudId === s.id).map(limpiarClave),
     expedienteId: s.expedienteId, bloqueadoPorFirmas: !!acta && acta.firmas.length > 0, conDiferencias: hayDiferencias(s), tiposDiferencia: tiposDiferencia(s),
     cantidadFisica: conciliacion(e, s), estadoInicial: ESTADO_INICIAL[s.tipo],
@@ -438,17 +441,40 @@ function problemaParaActa(e: EstadoDemo, s: SolicitudDemo): string | null {
   return m ? m.replace(/\.$/, '') : null
 }
 
-function organolepticaDe(e: EstadoDemo, s: SolicitudDemo, l: LineaSolicitudDemo, lote: LoteRecepcionDemo, numero: string): OrganolepticaVista {
+/** El plan de muestreo de un lote recibido (LS-TB.02.02), con las mismas reglas que `wms.plan_muestreo`: devolución, antecedentes de calidad, lote pequeño, producto o proveedor nuevo. */
+function planDeLote(e: EstadoDemo, s: SolicitudDemo, l: LineaSolicitudDemo, lotesDeEstaRecepcion: ReadonlySet<string>) {
+  const tabla = tablaVigente([TABLA_LS_TB_02_02], e.panorama.hoy) ?? TABLA_LS_TB_02_02
+  const productoNuevo = !e.panorama.lotes.some((x) => x.productoId === l.productoId && !lotesDeEstaRecepcion.has(x.id))
+  const clave = s.contraparteRuc?.trim() || s.contraparteNombre?.trim()
+  const proveedorNuevo = s.tipo === 'COMPRA_LOCAL' && !!clave
+    && !e.solicitudes.some((x) => x.id !== s.id && x.tipo === 'COMPRA_LOCAL' && x.estado === 'CERRADA' && (s.contraparteRuc ? x.contraparteRuc === s.contraparteRuc : x.contraparteNombre === s.contraparteNombre))
+  const antecedentesCalidad = (e.antecedentes ?? []).some((a) => a.productoId === l.productoId && antecedenteVigente(a))
+  return planDeMuestreo({ unidades: l.cantidad, esDevolucion: s.tipo === 'DEVOLUCION', antecedentesCalidad, productoNuevo, proveedorNuevo }, tabla)
+}
+
+function organolepticaDe(e: EstadoDemo, s: SolicitudDemo, l: LineaSolicitudDemo, lote: LoteRecepcionDemo, numero: string, lotesDeEstaRecepcion: ReadonlySet<string>): OrganolepticaVista {
   const p = producto(e, l.productoId)!
+  const plan = planDeLote(e, s, l, lotesDeEstaRecepcion)
   return {
     id: nuevoId(), numero, estado: 'BORRADOR', solicitudId: s.id, solicitudNumero: s.numero, ingresoTipo: s.tipo, ingresoLoteId: lote.id, productoId: p.id,
     productoCodigo: p.codigo, producto: p.descripcion, principioActivo: p.principioActivo, registroSanitario: p.reg?.registroSanitario,
     rsVence: p.reg?.rsVence, fabricante: p.reg?.fabricante, formaPresentacion: p.reg?.formaPresentacion ?? p.presentacion,
     lote: l.lote, vence: l.vence, propietario: nombrePropietario(e, s.propietarioId), cantidadLote: l.cantidad,
-    cantidadMuestra: muestraOrganoleptica(l.cantidad), referencia: s.ocCodigo ?? s.guiaNumero ?? s.docOriginalNumero,
+    cantidadMuestra: plan.muestra, regimenMuestreo: plan.regimen, tablaMuestreo: plan.tablaCodigo, referencia: s.ocCodigo ?? s.guiaNumero ?? s.docOriginalNumero,
     datos: { certAnalisis: null, checklist: {}, destinoSugerido: null, conclusion: null }, creadaEn: ahora(),
   }
 }
+
+/** Lo que el acta muestra además de lo guardado: de quién es el producto, cuánto sigue esperando decisión y si hay una observación vigente. */
+export function vistaOrganoleptica(e: EstadoDemo, o: OrganolepticaVista): OrganolepticaVista {
+  const s = e.solicitudes.find((x) => x.id === o.solicitudId)
+  const dueno = e.panorama.propietarios.find((p) => p.esDuenoAlmacen)?.id
+  const desde = ESTADO_INICIAL[o.ingresoTipo]
+  const pendiente = e.panorama.saldos.filter((x) => x.procedenciaId === o.ingresoLoteId && x.estado === desde && x.cantidad > 0).reduce((t, x) => t + x.cantidad, 0)
+  return structuredClone({ ...o, esDeCliente: !!s && s.propietarioId !== dueno, pendienteDecision: o.estado === 'FIRMADA' ? 0 : pendiente, observaciones: o.observaciones ?? [], dictamenes: o.dictamenes ?? [] })
+}
+
+export const esActaObservada = (o: OrganolepticaVista) => (o.observaciones ?? []).some(observacionVigente)
 
 // ── Clase pública ───────────────────────────────────────────────────────────
 
@@ -587,7 +613,7 @@ export class MotorEntradas {
     if (!s) return falla('Solicitud inexistente')
     if (s.estado === 'EN_RECEPCION') return { ok: true }
     if (s.estado !== 'PROGRAMADA') return falla(`La solicitud ${s.numero} está ${s.estado === 'CERRADA' ? 'cerrada' : s.estado.toLowerCase()}: solo una solicitud programada ("por llegar") se empieza a recibir`)
-    s.recepcion = { id: nuevoId(), confirmado: false, horaInicio: ahora(), verificaciones: {}, lotes: [] }
+    s.recepcion = { id: nuevoId(), confirmado: false, horaInicio: ahora(), verificaciones: {}, lotes: [], ...(s.tipo === 'DEVOLUCION' ? { tipoConteo: 'TOTAL' as const } : {}) }
     s.estado = 'EN_RECEPCION'
     sincronizarRecepcion(s)
     registrar(e, actor, 'recepcion_iniciada', 'ingresos', s.numero, 'Recepción física iniciada')
@@ -651,7 +677,7 @@ export class MotorEntradas {
     if (d.paletas !== undefined) r.paletas = d.paletas ?? undefined
     if (d.placa !== undefined) r.placa = d.placa.trim() || undefined
     if (d.marcaVehiculo !== undefined) r.marcaVehiculo = d.marcaVehiculo.trim() || undefined
-    if (d.tipoConteo !== undefined) r.tipoConteo = d.tipoConteo || undefined
+    if (d.tipoConteo !== undefined) r.tipoConteo = s?.tipo === 'DEVOLUCION' ? 'TOTAL' : d.tipoConteo || undefined   // una devolución se cuenta siempre al 100 %
     if (d.horaInicio !== undefined) r.horaInicio = d.horaInicio || undefined
     if (d.horaFin !== undefined) r.horaFin = d.horaFin || undefined
     if (d.verificaciones !== undefined) r.verificaciones = d.verificaciones
@@ -795,7 +821,7 @@ export class MotorEntradas {
     const exp = e.expedientes.find((x) => x.id === s.expedienteId)!
     for (const { linea, x } of lotes) {
       const numero = siguienteCorrelativo(e, 'O')
-      const o = organolepticaDe(e, s, linea, x, numero)
+      const o = organolepticaDe(e, s, linea, x, numero, new Set(lotes.map((y) => y.lote.id)))
       o.actaRecepcion = acta.numero
       e.organolepticas.push(o)
       exp.faltantes.push({ id: nuevoId(), tipo: 'ACTA_ORGANOLEPTICA', documento: `Acta organoléptica ${numero} · ${o.producto} · lote ${o.lote}`, responsable: 'Dirección Técnica', estado: 'ABIERTO' })
@@ -810,7 +836,7 @@ export class MotorEntradas {
   obtenerOrganoleptica(id: string): OrganolepticaVista | null {
     const e = estadoE()
     const o = e.organolepticas.find((x) => x.id === id)
-    return o ? structuredClone(o) : null
+    return o ? vistaOrganoleptica(e, o) : null
   }
 
   guardarOrganoleptica(id: string, d: DatosOrganolepticaGuardar, enviar: boolean, actor: Actor): ResultadoAccion {
@@ -840,6 +866,7 @@ export class MotorEntradas {
     if (!o) return falla('Acta inexistente')
     if (o.estado === 'FIRMADA') return falla('El acta ya está firmada')
     if (o.estado !== 'PENDIENTE_DT') return falla('El acta todavía no está completa: falta que la envíen a Dirección Técnica')
+    if (vistaOrganoleptica(e, o).esDeCliente) return falla('Este producto es de un cliente de almacenamiento: lo libera el DT del cliente, no Dirección Técnica de Logissa. Registra su dictamen y confirma el cambio de estado.')
     const p = producto(e, o.productoId)
     const v = validarDecision(decision, o.datos.conclusion, p?.reg?.rsVence, e.panorama.hoy)
     if (!v.ok) return falla(v.mensaje)
@@ -854,6 +881,7 @@ export class MotorEntradas {
         { posicionId: s.posicionId, productoId: s.productoId, loteId: s.loteId, propietarioId: s.propietarioId, estado: decision, origen: o.ingresoTipo, procedenciaId: s.procedenciaId, delta: s.cantidad },
       ]))
     for (const s of saldos) s.estado = decision
+    for (const ob of o.observaciones ?? []) if (observacionVigente(ob)) { ob.cerradaEn = ahora(); ob.cerradaPor = actor.nombre; ob.nota = `Disposición final: ${decision === 'APROBADO' ? 'Aprobado' : 'Bajas/Rechazados'}` }
     o.estado = 'FIRMADA'
     o.decision = decision
     o.decididoPor = actor.nombre
@@ -875,9 +903,9 @@ export class MotorEntradas {
     const e = estadoE()
     const alertas = this.listarAlertas()
     return {
-      organolepticas: e.organolepticas.filter((o) => o.estado === 'PENDIENTE_DT').map((o) => structuredClone(o)),
-      borradores: e.organolepticas.filter((o) => o.estado === 'BORRADOR').map((o) => structuredClone(o)),
-      decididas: e.organolepticas.filter((o) => o.estado === 'FIRMADA').sort((a, b) => (b.decididoEn ?? '').localeCompare(a.decididoEn ?? '')).slice(0, 10).map((o) => structuredClone(o)),
+      organolepticas: e.organolepticas.filter((o) => o.estado === 'PENDIENTE_DT').map((o) => vistaOrganoleptica(e, o)),
+      borradores: e.organolepticas.filter((o) => o.estado === 'BORRADOR').map((o) => vistaOrganoleptica(e, o)),
+      decididas: e.organolepticas.filter((o) => o.estado === 'FIRMADA').sort((a, b) => (b.decididoEn ?? '').localeCompare(a.decididoEn ?? '')).slice(0, 10).map((o) => vistaOrganoleptica(e, o)),
       alertas: alertas.filter((a) => a.estado === 'ABIERTA' && a.destinatario === 'direccion_tecnica'),
     }
   }

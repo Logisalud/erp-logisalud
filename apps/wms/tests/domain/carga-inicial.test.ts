@@ -1,4 +1,4 @@
-// Carga inicial como cambio de sistema (OS-7, D-99): reglas puras que la migración 0027 repite en la base de datos.
+// Carga inicial como cambio de sistema (OS-7, D-110): reglas puras que la migración 0027 repite en la base de datos.
 import { describe, expect, it } from 'vitest'
 import { erroresDeFilaCarga, estadoDeArchivo, pasosDeCargaEnHistoria, puedeConfirmarCargaInicial, puedeSubirCargaInicial, recorridoCarga, resumenCarga } from '@/domain/carga-inicial'
 import { parsearCargaInicial } from '@/domain/inventario'

@@ -49,7 +49,7 @@ export interface RepositorioInventario {
   listarAjustes(): Promise<AjusteVista[]>
 
   // ── Carga inicial ───────────────────────────────────────────────────────
-  /** OS-7 (D-99): cambio de sistema. Administración sube y revisa; Dirección Técnica valida con UNA sola confirmación (ya no hay un estado que decidir aparte). */
+  /** OS-7 (D-110): cambio de sistema. Administración sube y revisa; Dirección Técnica valida con UNA sola confirmación (ya no hay un estado que decidir aparte). */
   validarCargaInicial(filas: FilaCargaInicial[], actor: Actor): Promise<ErrorFilaCarga[]>
   crearCargaInicial(filas: FilaCargaInicial[], nota: string | undefined, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
   confirmarCargaInicial(id: string, actor: Actor): Promise<ResultadoAccion>

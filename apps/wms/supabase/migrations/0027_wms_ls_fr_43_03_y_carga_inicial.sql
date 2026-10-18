@@ -11,7 +11,7 @@
 --      la unidad advierte si no se imprimió (advertencia en la pantalla; no bloquea).
 --   4. Firmas físicas (conductor y Dirección Técnica): se sube el escaneo firmado (`ls_fr_escaneos`) y queda ligado a la ruta. Cambiarlo exige motivo y deja la
 --      versión anterior. Conservación: 5 años (parámetro `ls_fr_43_03_conservacion_anios`); cada escaneo guarda su fecha «conservar hasta». Nada se borra.
--- B. Carga inicial = cambio de sistema, no reproceso (D-99)
+-- B. Carga inicial = cambio de sistema, no reproceso (D-110)
 --   El stock de Odoo entra directo a su estado y ubicación, sin acta organoléptica ni recepción, pero el libro mayor muestra el recorrido real:
 --   ingreso por carga inicial en Cuarentena → liberación (cambio de estado) → ubicación final (movimiento). Todo en la misma confirmación, con movimientos
 --   reales e inmutables. Dirección Técnica valida con UNA sola confirmación (ya no hay un paso aparte para «decidir el estado»). Todo lote lleva código de
@@ -289,7 +289,7 @@ do $$ begin
   end if;
 end $$;
 
-update wms.parametros set nota = 'D-09 reemplazada por D-99 (OS-7): ya no se decide un estado para toda la carga; cada fila trae su estado de Odoo. Sin uso.' where clave = 'carga_inicial_estado';
+update wms.parametros set nota = 'D-09 reemplazada por D-110 (OS-7): ya no se decide un estado para toda la carga; cada fila trae su estado de Odoo. Sin uso.' where clave = 'carga_inicial_estado';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. Carga inicial: validación (vista previa) con todo lote con código y vencimiento
@@ -396,7 +396,7 @@ begin
   return v_id;
 end $$;
 
--- D-09 queda reemplazada por D-99: ya no hay un estado para toda la carga. La función se conserva (la lista de funciones expuestas no cambia) pero no decide nada.
+-- D-09 queda reemplazada por D-110: ya no hay un estado para toda la carga. La función se conserva (la lista de funciones expuestas no cambia) pero no decide nada.
 create or replace function wms.decidir_estado_carga_inicial(p_estado text)
 returns void language plpgsql security definer set search_path = wms, pg_temp as $$
 begin

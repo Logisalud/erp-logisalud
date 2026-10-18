@@ -3,6 +3,7 @@ import { etiquetaCargo, exigirContexto } from '@/lib/contexto'
 import { puede } from '@/domain/permisos'
 import { puedeVerBandeja } from '@/domain/pedidos-despacho'
 import { puedeVerRutas } from '@/domain/rutas'
+import { puedeOriginarRetorno } from '@/domain/retornos'
 import { puedeDarConformidad, puedePickear, puedeVerSalidas } from '@/domain/despacho'
 import { Shell, type ItemNav } from '@/components/shell'
 import { Salir } from '@/components/salir'
@@ -39,6 +40,7 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
     items.splice(items.findIndex((i) => i.href === '/embalaje') + 1, 0, { href: '/carga', etiqueta: 'Carga de unidad', icono: 'cargaunidad' })
   }
   items.splice(items.findIndex((i) => i.href === '/calidad') + 1, 0, { href: '/bajas', etiqueta: 'Bajas', icono: 'bajas' })
+  if (puedeOriginarRetorno(ctx.roles)) items.splice(items.findIndex((i) => i.href === '/entradas') + 1, 0, { href: '/retornos', etiqueta: 'Retornos', icono: 'retornos' })
   if (ctx.roles.includes('admin_wms') || ctx.roles.includes('direccion_tecnica')) items.push({ href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
   if (ctx.roles.some((r) => r !== 'auxiliar')) items.push({ href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })
   if (puede(ctx.roles, 'auditar')) items.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })

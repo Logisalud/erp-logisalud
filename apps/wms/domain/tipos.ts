@@ -34,6 +34,7 @@ export type Rol =
   | 'conformidad_despacho'
   | 'autoriza_salidas_sin_venta'
   | 'usuario_cliente'
+  | 'dt_cliente'
 
 export type Accion =
   | 'ver'
@@ -62,6 +63,10 @@ export type Accion =
   | 'autorizar_baja'
   | 'cerrar_ruta'
   | 'registrar_ls_fr'
+  | 'originar_retorno'
+  | 'registrar_dictamen_cliente'
+  | 'marcar_antecedentes_calidad'
+  | 'liberar_stock_propietario'
 
 export interface Propietario {
   id: string

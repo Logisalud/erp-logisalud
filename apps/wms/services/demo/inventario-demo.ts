@@ -604,7 +604,7 @@ export class InventarioDemo extends EntradasDemo {
     return [...e0.inv.ajustes].reverse().map(({ propuestoPorId: _p, lineaId: _l, ...a }) => { void _p; void _l; return structuredClone(a) as AjusteVista })
   }
 
-  // ── Carga inicial (cambio de sistema, OS-7 / D-99) ───────────────────────
+  // ── Carga inicial (cambio de sistema, OS-7 / D-110) ───────────────────────
   // Administración sube y revisa; Dirección Técnica valida con UNA sola confirmación. El stock de Odoo entra a su estado y ubicación sin acta organoléptica,
   // pero el libro deja el recorrido: ingreso en Cuarentena → liberación (o baja) → ubicación final. Mismas reglas que la migración 0027.
   private erroresCarga(e: EstadoDemo, filas: FilaCargaInicial[]): ErrorFilaCarga[] {

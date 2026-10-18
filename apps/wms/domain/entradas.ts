@@ -21,7 +21,7 @@ export const ETIQUETA_TIPO_INGRESO: Record<TipoIngreso, string> = {
 
 export const AYUDA_TIPO_INGRESO: Record<TipoIngreso, string> = {
   COMPRA_LOCAL: 'Una orden de compra que va a llegar. Los productos y las cantidades salen de ella; tú indicas el lote y el vencimiento.',
-  DEVOLUCION: 'Mercadería que vuelve de un cliente. Necesita la factura o boleta original y se deja en el Área de Devoluciones.',
+  DEVOLUCION: 'Mercadería que vuelve de un cliente. Necesita la factura o boleta original, se cuenta al 100 % y se deja en el Área de Devoluciones. Si viene de una Orden de Salida, regístrala desde esa Orden.',
   INGRESO_CLIENTE: 'Mercadería que un cliente nos entrega para guardar. Se cuenta contra su guía.',
 }
 
@@ -240,11 +240,7 @@ export function numeroDeActa(prefijo: 'I' | 'O', fecha: Date | string, correlati
 }
 
 // ── Muestra organoléptica ───────────────────────────────────────────────────
-
-/** techo(√unidades) + constante (1). La muestra vuelve completa a su caja: no descuenta stock. */
-export function muestraOrganoleptica(unidades: number, constante = 1): number {
-  return Math.ceil(Math.sqrt(Math.max(unidades, 0))) + constante
-}
+// El tamaño de la muestra sale de la tabla LS-TB.02.02 (domain/muestreo.ts); la regla anterior techo(√unidades)+1 se retiró (OS-5).
 
 // ── Checklist del Acta de Evaluación Organoléptica (LS-FR.55.02) ────────────
 
@@ -463,6 +459,7 @@ export type TipoAlerta =
   | 'MOVIMIENTO_CON_DIFERENCIA' | 'MOVIMIENTO_SIN_VERIFICAR' | 'CONTEO_CON_DIFERENCIA' | 'AJUSTE_POR_AUTORIZAR' | 'PENDIENTE_AFECTA_PRODUCTO'
   | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO' | 'DOCUMENTACION_INCOMPLETA' | 'LOTE_EN_RESERVA'
   | 'BAJA_POR_AUTORIZAR' | 'BAJA_POR_TRASLADAR'
+  | 'RETORNO_POR_AUTORIZAR' | 'DICTAMEN_POR_CONFIRMAR'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
 
@@ -489,6 +486,8 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   LOTE_EN_RESERVA: 'Lote en Reserva con pedidos asignados',
   BAJA_POR_AUTORIZAR: 'Baja por autorizar',
   BAJA_POR_TRASLADAR: 'Baja por trasladar a Bajas',
+  RETORNO_POR_AUTORIZAR: 'Retorno de una Orden de Salida por autorizar',
+  DICTAMEN_POR_CONFIRMAR: 'Dictamen del DT del cliente por confirmar',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -522,6 +521,9 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   LOTE_EN_RESERVA: 'jefe_transporte',
   BAJA_POR_AUTORIZAR: 'direccion_tecnica',
   BAJA_POR_TRASLADAR: 'jefe_almacen',
+  // OS-5: quien registra el retorno no siempre puede autorizarlo; Sandra y Katia lo autorizan. El dictamen del DT del cliente lo confirma el otro.
+  RETORNO_POR_AUTORIZAR: 'asistente_dt',
+  DICTAMEN_POR_CONFIRMAR: 'asistente_dt',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {
@@ -557,7 +559,7 @@ export function porTrasladarVencido(desdeIso: string, ahoraIso: string, plazoHor
 
 export type TipoDocumentoExpediente =
   | 'ACTA_RECEPCION' | 'SOLICITUD_INGRESO' | 'GUIA_REMISION' | 'FACTURA' | 'FACTURA_BOLETA_ORIGINAL'
-  | 'FORMULARIO_DEVOLUCION' | 'ACTA_ORGANOLEPTICA' | 'OTRO'
+  | 'FORMULARIO_DEVOLUCION' | 'ACTA_ORGANOLEPTICA' | 'DICTAMEN_DT_CLIENTE' | 'OTRO'
 
 export const ETIQUETA_DOCUMENTO: Record<TipoDocumentoExpediente, string> = {
   ACTA_RECEPCION: 'Acta de Recepción',
@@ -567,6 +569,7 @@ export const ETIQUETA_DOCUMENTO: Record<TipoDocumentoExpediente, string> = {
   FACTURA_BOLETA_ORIGINAL: 'Factura o boleta original',
   FORMULARIO_DEVOLUCION: 'Formulario de devolución',
   ACTA_ORGANOLEPTICA: 'Acta organoléptica',
+  DICTAMEN_DT_CLIENTE: 'Dictamen del DT del cliente',
   OTRO: 'Otro documento',
 }
 

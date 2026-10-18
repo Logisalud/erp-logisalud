@@ -11,6 +11,7 @@ import type { RepositorioDocumentacion } from './repositorio-documentacion'
 import type { RepositorioEmbalaje } from './repositorio-embalaje'
 import type { RepositorioCarga } from './repositorio-carga'
 import type { RepositorioCierreRuta } from './repositorio-cierre-ruta'
+import type { RepositorioLiberacion } from './repositorio-liberacion'
 import type { RepositorioInventario } from './repositorio-inventario'
 import type { DatosRegulatorios, EntradaProducto } from '@/domain/productos'
 import type { CambioEntrada, Decision, EntradaSolicitud, TipoIngreso } from '@/domain/entradas'
@@ -37,7 +38,7 @@ export type ResultadoAccion<T = unknown> =
  */
 export interface ConteoAlertas { direccion_tecnica: number; jefe_almacen: number; asistente_dt: number; jefe_transporte: number }
 
-export interface Repositorio extends RepositorioInventario, RepositorioOperacion, RepositorioPedidos, RepositorioRutas, RepositorioPicking, RepositorioReservas, RepositorioDocumentos, RepositorioDocumentacion, RepositorioEmbalaje, RepositorioCarga, RepositorioBajas, RepositorioCierreRuta {
+export interface Repositorio extends RepositorioInventario, RepositorioOperacion, RepositorioPedidos, RepositorioRutas, RepositorioPicking, RepositorioReservas, RepositorioDocumentos, RepositorioDocumentacion, RepositorioEmbalaje, RepositorioCarga, RepositorioBajas, RepositorioCierreRuta, RepositorioLiberacion {
   panorama(): Promise<Panorama>
   auditoria(limite?: number): Promise<EventoAuditoria[]>
   crearProducto(entrada: EntradaProducto, actor: Actor): Promise<ResultadoAccion<{ id: string }>>

@@ -417,7 +417,7 @@ export interface AjusteVista {
 
 export const puedeDecidirAjuste = (roles: readonly Rol[]) => roles.includes('direccion_tecnica')
 
-// ── Carga inicial (D-09; cambio de sistema desde OS-7, D-99: ver carga-inicial.ts) ────────────────────────────────────────────────────
+// ── Carga inicial (D-09; cambio de sistema desde OS-7, D-110: ver carga-inicial.ts) ────────────────────────────────────────────────────
 
 export interface FilaCargaInicial {
   producto: string

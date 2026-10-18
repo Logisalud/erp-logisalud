@@ -13,6 +13,7 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
   conformidad_despacho: 'Conformidad de despacho',
   autoriza_salidas_sin_venta: 'Autoriza salidas sin venta',
   usuario_cliente: 'Usuario de cliente',
+  dt_cliente: 'DT de cliente',
 }
 
 /** Espejo de wms.permisos_rol (la base de datos es la que manda; esto solo oculta botones). */
@@ -21,18 +22,21 @@ const PERMISOS_AUXILIAR: readonly Accion[] = ['ver', 'ejecutar', 'verificar', 'c
 const conAuxiliar = (...propias: Accion[]): readonly Accion[] => [...new Set<Accion>([...PERMISOS_AUXILIAR, ...propias])]
 
 const PERMISOS: Record<Rol, readonly Accion[]> = {
-  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote', 'solicitar_baja', 'autorizar_baja', 'registrar_ls_fr'],
-  asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion', 'solicitar_baja', 'registrar_ls_fr'],
-  jefe_almacen: conAuxiliar('exportar', 'preparar_salidas', 'solicitar_baja', 'registrar_ls_fr'),
+  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote', 'solicitar_baja', 'autorizar_baja', 'registrar_ls_fr', 'originar_retorno', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad'],
+  asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion', 'solicitar_baja', 'registrar_ls_fr', 'originar_retorno', 'registrar_dictamen_cliente'],
+  jefe_almacen: conAuxiliar('exportar', 'preparar_salidas', 'solicitar_baja', 'registrar_ls_fr', 'originar_retorno'),
   auxiliar: PERMISOS_AUXILIAR,
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
   admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],
-  jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'cerrar_ruta', 'registrar_ls_fr'),
+  jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno'),
   conductor: [], // sus permisos llegan con «Mis rutas» (S9)
   auxiliar_transporte: [],
   conformidad_despacho: ['ver', 'dar_conformidad'],
   autoriza_salidas_sin_venta: ['ver', 'autorizar_salida_sin_venta'],
   usuario_cliente: [], // lo suyo (crear órdenes de salida) llega en B2, con validación de propietario en la base
+  // OS-5: un único permiso —liberar o rechazar el stock de SU propietario—. DESHABILITADO hasta SEC1: la base no deja crear la cuenta mientras el interruptor
+  // `acceso_clientes_habilitado` esté apagado, y no es personal (no lee el inventario).
+  dt_cliente: ['liberar_stock_propietario'],
 }
 
 /**
