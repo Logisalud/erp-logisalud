@@ -290,6 +290,21 @@ test.describe('liberación LS-POE.04.05 de un producto de un cliente de almacena
 test.describe('observación reversible de un producto', () => {
   test('Katia deja el acta observada: el producto sigue en Cuarentena; la levanta con una nota', async ({ page }, info) => {
     await entrarComo(page, 'direccion_tecnica')
+    // Katia necesita un acta ya enviada que no sea de un cliente: se la prepara con la del retorno (12 und), si Sandra todavía no la envió.
+    await cambiarRol(page, 'asistente_dt')
+    await page.goto('/wms/calidad')
+    const delRetorno = page.getByTestId('fila-organoleptica').filter({ hasText: /12 und/ }).first()
+    if (await delRetorno.count()) {
+      await delRetorno.click()
+      await page.getByTestId('marcar-conformes').click()
+      await page.getByRole('checkbox', { name: 'Envase de plástico' }).click()
+      await page.getByTestId('marcar-conformes').click()
+      await page.getByRole('group', { name: /Trae certificado/ }).getByRole('radio', { name: 'Sí' }).click()
+      await page.getByRole('group', { name: /Destino que sugieres/ }).getByRole('radio', { name: 'Aprobado' }).click()
+      await page.getByTestId('enviar-dt').click()
+      await expect(page.getByText('Ya está en la cola de Dirección Técnica')).toBeVisible()
+    }
+    await cambiarRol(page, 'direccion_tecnica')
     await page.goto('/wms/calidad')
     const fila = page.getByTestId('cola-dt').getByTestId('fila-organoleptica').filter({ hasNotText: 'Lo libera el DT del cliente' }).first()
     await fila.click()
