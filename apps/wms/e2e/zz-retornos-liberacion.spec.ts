@@ -35,6 +35,7 @@ async function firmarActa(page: Page) {
   await page.getByTestId('abrir-transportista').click()
   await page.getByLabel('Nombre completo').fill('Pedro Quispe')
   await page.getByLabel('DNI').fill('45678912')
+  await page.getByTestId('lienzo-firma').scrollIntoViewIfNeeded()
   const caja = (await page.getByTestId('lienzo-firma').boundingBox())!
   await page.mouse.move(caja.x + 20, caja.y + 40)
   await page.mouse.down()

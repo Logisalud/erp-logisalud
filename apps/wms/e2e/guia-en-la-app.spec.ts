@@ -52,7 +52,7 @@ test.describe('guía dentro de la app (OS-4)', () => {
   test('un ingreso también dice qué sigue y quién lo hace', async ({ page }, info) => {
     await entrarComo(page, 'direccion_tecnica')
     await page.goto('/wms/entradas')
-    await page.locator('a[href*="/entradas/"]').filter({ hasNotText: 'Nueva' }).first().click()
+    await page.locator('[data-testid="entradas-tabla"] a:visible, [data-testid="entradas-tarjetas"] a:visible').first().click()
     await expect(page.getByTestId('avance-ingreso')).toBeVisible()
     await expect(page.getByTestId('avance-ingreso-texto')).not.toBeEmpty()
     await sinDesborde(page)
