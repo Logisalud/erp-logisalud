@@ -336,27 +336,6 @@ describe('vencidos (D-69, D-70)', () => {
     expect((await falla(como(base.personas.katia.id, (c) => c.query('select wms.aprobar_salida_vencida($1, $2)', [s, 'x'])))).message).toMatch(/ya no sale por una salida con aprobación/)
   })
 
-  it('la devolución al proveedor es una salida de Logissa: sale lo que NO está vencido, sin el mínimo de 60 días, y nunca un lote vencido', async () => {
-    const p = await producto()
-    await sembrar(p, 'F-8.1', 'LOG-VENCIDO', en(-3), logissa, 20)
-    await sembrar(p, 'F-8.2', 'LOG-CORTO', en(10), logissa, 20)     // 10 días: una venta no lo toma, una devolución sí
-    const s = await crear(jt, 'DISTRIBUCION', 'DEVOLUCION_PROVEEDOR', logissa, [{ producto_id: p, cantidad: 15 }])
-    await asignar(jt, s)
-    expect((await lineas(s))[0].lote_codigo).toBe('LOG-CORTO')
-    expect((await uno('select numero from wms.salidas where id = $1', [s])).numero).toMatch(/^OS-\d{4}-\d{5}$/)
-    // todo vencido: sin stock, no sale vencido
-    const p2 = await producto()
-    await sembrar(p2, 'F-8.3', 'LOG-VENC-2', en(-1), logissa, 10)
-    const s2 = await crear(jt, 'DISTRIBUCION', 'DEVOLUCION_PROVEEDOR', logissa, [{ producto_id: p2, cantidad: 5 }])
-    expect((await asignar(jt, s2))[0].estado).toBe('SIN_STOCK')
-    // la política de canje (parámetro) puede pedir más días de vida útil
-    await base.admin.query(`update wms.parametros set valor = '30' where clave = 'devolucion_proveedor_dias_minimos'`)
-    try {
-      const s3 = await crear(jt, 'DISTRIBUCION', 'DEVOLUCION_PROVEEDOR', logissa, [{ producto_id: p, cantidad: 1 }])
-      expect((await asignar(jt, s3))[0].estado).toBe('SIN_STOCK')
-    } finally { await base.admin.query(`update wms.parametros set valor = '0' where clave = 'devolucion_proveedor_dias_minimos'`) }
-  })
-
   it('un cliente SÍ puede sacar un lote que vence pronto (el mínimo de 60 días es de las ventas de Logissa)', async () => {
     const p = await producto()
     const a = await sembrar(p, 'G-8.3', 'AJR-CORTO', en(5), ajr, 10)

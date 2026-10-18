@@ -87,7 +87,7 @@ create trigger ajustes_conformidad_inmutable before update or delete on wms.ajus
 -- Distribución: venta o devolución al proveedor (las dos son stock de Logissa que sale por la puerta).
 do $$ declare c record; begin
   for c in select conname from pg_constraint where conrelid = 'wms.salidas'::regclass and contype = 'c'
-            and pg_get_constraintdef(oid) ilike '%DISTRIBUCION%' and pg_get_constraintdef(oid) ilike '%MUESTRA%' and pg_get_constraintdef(oid) ilike '%tipo%motivo%' loop
+            and pg_get_constraintdef(oid) ilike '%DISTRIBUCION%' and pg_get_constraintdef(oid) ilike '%MUESTRA%' and pg_get_constraintdef(oid) ilike '%tipo%motivo%' and pg_get_constraintdef(oid) not ilike '%''PROVEEDOR''%' loop   -- la 0026 (OS-6) la reemplaza con el tipo PROVEEDOR: no se toca (re-ejecución)
     execute format('alter table wms.salidas drop constraint %I', c.conname);
   end loop;
   if not exists (select 1 from pg_constraint where conname = 'salidas_tipo_motivo_check' and conrelid = 'wms.salidas'::regclass) then
