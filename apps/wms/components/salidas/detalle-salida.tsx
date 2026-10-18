@@ -14,6 +14,8 @@ import { useEsMovil } from '../usar-movil'
 import { Aviso } from '../entradas/aviso'
 import { HojaInferior } from '../hoja-inferior'
 import { ChipEtapa } from './chip-etapa'
+import { AvancePasos } from '../guia/avance-pasos'
+import { avanceDeSalida } from '@/domain/pasos'
 import { PanelDocumentacion } from './panel-documentacion'
 import type { DatosGuia, EventoPedidos, ModoNubefact } from '@/domain/guia-electronica'
 import { EditorLotes } from './editor-lotes'
@@ -44,6 +46,8 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
         </div>
         <ChipEtapa etapa={salida.etapa} />
       </header>
+
+      <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE' })} roles={roles} />
 
       {lineas.some((l) => l.apartadaDeFefo) && <Aviso tipo="atencion" testid="aviso-fuera-fefo">Algún lote se apartó de la propuesta FEFO. Queda registrado con tu nombre; no necesitas explicar el motivo.</Aviso>}
       {lineas.some((l) => l.estado === 'SIN_STOCK') && <Aviso tipo="error">Hay líneas sin stock suficiente. Mientras falte, no se puede generar el picking.</Aviso>}

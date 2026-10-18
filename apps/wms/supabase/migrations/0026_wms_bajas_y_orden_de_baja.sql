@@ -815,7 +815,7 @@ begin
 
   v_id := gen_random_uuid();
   insert into wms.salidas (id, numero, tipo, motivo, propietario_id, referencia_tipo, referencia_id, autorizada_por, token, creada_por)
-  values (v_id, 'SAL-' || to_char(now(), 'YYYY') || '-' || lpad(wms.siguiente_correlativo('SAL-' || to_char(now(), 'YYYY'))::text, 5, '0'),
+  values (v_id, 'OS-' || to_char(now(), 'YYYY') || '-' || lpad(wms.siguiente_correlativo('OS-' || to_char(now(), 'YYYY'))::text, 5, '0'),
           p_tipo, p_motivo, p_propietario, p_referencia_tipo, p_referencia_id,
           case when p_tipo = 'MUESTRA' then auth.uid() end, nullif(trim(p_token), ''), auth.uid());
 
@@ -859,6 +859,7 @@ begin
       if v_msg is not null then raise exception '%', v_msg using errcode = 'P0002'; end if;
     end loop;
   end if;
+  update wms.salidas set requiere_embalaje = wms._requiere_embalaje(p_referencia_tipo, p_referencia_id) where id = v_id;   -- (0023, OS-2): la orden nace sabiendo si necesita embalaje
   perform wms.registrar_audit('salida_creada', 'salidas', v_id::text, null, p_lineas, p_tipo || ' / ' || p_motivo);
   return v_id;
 end $$;

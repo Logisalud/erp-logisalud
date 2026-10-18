@@ -151,6 +151,7 @@ begin
   loop
     select p.oid into v_oid from pg_proc p where p.pronamespace = 'wms'::regnamespace and p.proname = 'crear_salida' order by p.oid desc limit 1;
     v_def := pg_get_functiondef(v_oid);
+    if position('''PROVEEDOR''' in v_def) > 0 then exit; end if;         -- la 0026 (OS-6) ya la reescribió entera, con todo esto adentro (re-ejecución)
     if position(c.viejo in v_def) = 0 then
       if position(c.nuevo in v_def) > 0 then continue; end if;          -- ya aplicada (re-ejecución)
       raise exception 'No se encontró el texto esperado en wms.crear_salida: %', c.viejo;

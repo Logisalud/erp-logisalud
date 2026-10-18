@@ -160,7 +160,7 @@ describe('anular la guía por casos', () => {
     expect(r).toMatchObject({ caso: 2, conformidad_reabierta: true })
     expect(await saldoEnZona(o.prod, 'DESPACHO')).toBe(0)
     expect(await saldoEn(o.prod, 'F-7.1')).toBe(100)                              // de vuelta en su ubicación
-    const movs = await q(`select tipo, cantidad from wms.salida_movimientos where salida_id = $1 order by id`, [o.salida])
+    const movs = await q(`select tipo, cantidad from wms.salida_movimientos where salida_id = $1 order by creado_en`, [o.salida])
     expect(movs.map((m) => m.tipo)).toEqual(['STAGING', 'REVERSA_STAGING'])
     expect((await uno(`select count(*)::int n from wms.ordenes_picking_lineas where orden_id = $1 and conformidad = 'PENDIENTE'`, [o.op])).n).toBeGreaterThan(0)
     expect(await uno('select bultos_conformidad, conformada_por from wms.salidas where id = $1', [o.salida])).toMatchObject({ bultos_conformidad: null, conformada_por: null })

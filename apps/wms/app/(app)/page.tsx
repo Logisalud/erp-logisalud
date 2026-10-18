@@ -17,6 +17,11 @@ import { puedePrepararSolicitud } from '@/domain/entradas'
 import { accionesDeOrden } from '@/domain/inventario'
 import type { Rol } from '@/domain/tipos'
 import { formatoFecha } from '@/domain/fechas'
+import { misTareas } from '@/domain/pasos'
+import { ETIQUETA_ETAPA } from '@/domain/despacho'
+import { ETIQUETA_ESTADO_SOLICITUD, ETIQUETA_TIPO_INGRESO } from '@/domain/entradas'
+import { MisTareas } from '@/components/guia/mis-tareas'
+import { Recorrido } from '@/components/guia/recorrido'
 
 export const metadata = { title: 'Inicio — WMS LOGISALUD' }
 
@@ -137,6 +142,8 @@ export default async function Inicio() {
     repo.panorama(), repo.listarSolicitudes(), repo.colaDireccionTecnica(), repo.listarExpedientes(), repo.contarAlertasAbiertas(),
     repo.listarMovimientos(), repo.listarConteos(), repo.listarAjustes(),
   ])
+  const salidas = ctx.roles.some((r) => r !== 'usuario_cliente' && r !== 'dt_cliente') ? await repo.listarSalidas().catch(() => []) : []
+  const tareas = misTareas(ctx.roles, salidas, ingresos.map((i) => ({ id: i.id, numero: i.numero, estado: i.estado, etiquetaTipo: ETIQUETA_TIPO_INGRESO[i.tipo], etiquetaEstado: ETIQUETA_ESTADO_SOLICITUD[i.estado] })), ETIQUETA_ETAPA)
   const alertasMias = (ctx.roles.includes('direccion_tecnica') ? conteo.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen') ? conteo.jefe_almacen : 0) + (ctx.roles.includes('asistente_dt') ? conteo.asistente_dt : 0) + (ctx.roles.includes('jefe_transporte') ? conteo.jefe_transporte : 0)
   const avisos = avisosPara(ctx.roles, p, {
     porAutorizar: ingresos.filter((i) => i.paso === 'POR_AUTORIZAR').length,
@@ -161,6 +168,8 @@ export default async function Inicio() {
         <p className="mt-1 text-gray-600">{formatoFecha(p.hoy)}</p>
       </header>
 
+      <Recorrido />
+
       {kpis && (
         <div data-testid="kpis-inicio">
           <GrupoIndicadores id="g-inventario" titulo="Inventario y almacén" columnas="tres" indicadores={kpis} descripcion="Últimos 30 días frente a los 30 anteriores. Sin metas todavía: se miden un mes antes de fijarlas." />
@@ -168,6 +177,8 @@ export default async function Inicio() {
           {/* Segundo grupo, «Despacho»: se agrega aquí cuando existan las salidas (ver DESPACHO_PREVISTO), sin rehacer Inicio. */}
         </div>
       )}
+
+      <MisTareas tareas={tareas} />
 
       <section aria-labelledby="atencion" data-testid="atencion">
         <h2 id="atencion" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Qué necesita atención</h2>

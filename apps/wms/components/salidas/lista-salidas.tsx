@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { ChevronRight, PackageSearch, Search } from 'lucide-react'
 import { ETIQUETA_ETAPA, filtrarSalidas, type EtapaSalida, type SalidaResumen } from '@/domain/despacho'
 import { ChipEtapa } from './chip-etapa'
+import { avanceDeSalida } from '@/domain/pasos'
 
 const ETAPAS = Object.keys(ETIQUETA_ETAPA) as EtapaSalida[]
 
@@ -44,7 +45,7 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
               <thead className="border-b border-gray-200 bg-gray-50 text-left text-gray-700"><tr>
                 <th scope="col" className="px-3 py-2 font-medium">Salida</th><th scope="col" className="px-3 py-2 font-medium">Pedido</th><th scope="col" className="px-3 py-2 font-medium">Cliente</th>
                 <th scope="col" className="px-3 py-2 font-medium">Ruta</th><th scope="col" className="px-3 py-2 font-medium">Guía</th><th scope="col" className="px-3 py-2 text-right font-medium">Líneas</th><th scope="col" className="px-3 py-2 text-right font-medium">Unidades</th>
-                <th scope="col" className="px-3 py-2 font-medium">Etapa</th><th scope="col" className="px-3 py-2"><span className="sr-only">Abrir</span></th>
+                <th scope="col" className="px-3 py-2 font-medium">Etapa</th><th scope="col" className="px-3 py-2 font-medium">Qué sigue y quién lo hace</th><th scope="col" className="px-3 py-2"><span className="sr-only">Abrir</span></th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {vistas.map((s) => (
@@ -57,6 +58,7 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
                     <td className="tabular px-3 py-3 text-right">{s.lineas}</td>
                     <td className="tabular px-3 py-3 text-right">{s.unidades.toLocaleString('es-PE')} u</td>
                     <td className="px-3 py-3"><ChipEtapa etapa={s.etapa} /></td>
+                    <td className="max-w-[18rem] px-3 py-3 text-xs text-gray-800" data-testid="siguiente-salida">{(() => { const x = avanceDeSalida(s.etapa, s.id).siguiente; return <><span className="block text-gray-900">{x.texto}</span><span className="block text-gray-600">{x.fin ? '' : `Lo hace: ${x.responsable.etiqueta}`}</span></> })()}</td>
                     <td className="px-3 py-3 text-right"><Link href={`/salidas/${s.id}`} className="btn-secondary btn-sm" aria-label={`Abrir ${s.numero}`}>Abrir</Link></td>
                   </tr>
                 ))}
@@ -70,6 +72,7 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center justify-between gap-2"><span className="tabular font-heading text-sm font-semibold tracking-wide text-gray-900">{s.pedidoNumero ?? s.numero}</span><ChipEtapa etapa={s.etapa} /></div>
                     <p className="truncate text-sm text-gray-700">{s.cliente ?? 'Sin cliente'} · {s.unidades.toLocaleString('es-PE')} u</p>
+                    <p className="text-xs text-gray-600">Sigue: {avanceDeSalida(s.etapa, s.id).siguiente.texto}</p>
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />
                 </Link>

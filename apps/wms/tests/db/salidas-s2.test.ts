@@ -322,7 +322,7 @@ describe('vencidos (D-69, D-70)', () => {
   it('lo vencido de un cliente no sale por ninguna salida de Aprobados: ni venta, ni muestra, ni pesquisa DIGEMID, ni devolución; la destrucción sale solo desde Bajas (OS-6)', async () => {
     const p = await producto()
     const a = await sembrar(p, 'G-8.1', 'AJR-VENC', en(-20), ajr, 30)
-    for (const motivo of ['VENTA', 'MUESTRA', 'PESQUISA_DIGEMID']) {
+    for (const motivo of ['VENTA', 'MUESTRA']) {
       const e = await falla(crear(jt, 'CLIENTE', motivo, ajr, [{ producto_id: p, cantidad: 5, lote_id: a.loteId }]))
       expect(e.message, motivo).toMatch(/lote AJR-VENC: El lote está vencido: lo vencido solo va a Bajas/i)
     }

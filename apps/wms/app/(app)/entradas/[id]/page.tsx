@@ -10,6 +10,8 @@ import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { ChipEstado } from '@/components/chips'
 import { AccionesSolicitud } from '@/components/entradas/acciones-solicitud'
 import { Aviso } from '@/components/entradas/aviso'
+import { AvancePasos } from '@/components/guia/avance-pasos'
+import { avanceDeIngreso } from '@/domain/pasos'
 import { BloqueCantidadFisica } from '@/components/entradas/bloque-fisico'
 import { TablaCantidades } from '@/components/entradas/cantidades'
 import { ChipActa, ChipAlerta, ChipPaso, ChipTipoIngreso } from '@/components/entradas/chips-entradas'
@@ -19,13 +21,6 @@ import { LineasSolicitud } from '@/components/entradas/lineas-solicitud'
 import { PanelActa } from '@/components/entradas/panel-acta'
 
 export const metadata = { title: 'Solicitud de ingreso — WMS LOGISALUD' }
-
-const PASOS = [
-  { id: 'solicitud', t: 'Solicitud' },
-  { id: 'recepcion', t: 'Recepción' },
-  { id: 'firmas', t: 'Acta y firmas' },
-  { id: 'calidad', t: 'Calidad' },
-] as const
 
 export default async function DetalleSolicitud({ params }: { params: { id: string } }) {
   const ctx = await exigirContexto()
@@ -47,7 +42,6 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
   }) : null
   const titulo = sol.numero
   const prefijo = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
-  const idxPaso = sol.estado === 'CERRADA' ? 3 : sol.paso === 'FIRMAS' || sol.paso === 'CONFIRMAR' ? 2 : enRecepcion ? 1 : 0
   const alertasAbiertas = sol.alertas.filter((a) => a.estado === 'ABIERTA')
   const referencia = sol.tipo === 'COMPRA_LOCAL' ? sol.ocCodigo : sol.tipo === 'DEVOLUCION' ? `${sol.docOriginalTipo === 'BOLETA' ? 'Boleta' : 'Factura'} original ${sol.docOriginalNumero}` : sol.guiaNumero ? `Guía ${sol.guiaNumero}` : undefined
   const destino = sol.estadoInicial === 'DEVOLUCIONES' ? 'Devoluciones' : 'Cuarentena'
@@ -69,13 +63,7 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
         {sol.tipo === 'DEVOLUCION' && <p className="mt-1 text-sm text-gray-700">Se deja en el Área de Devoluciones y no pasa por Cuarentena: su acta organoléptica decide si va a Aprobado o a Bajas/Rechazados.</p>}
       </header>
 
-      <ol className="grid grid-cols-4 gap-2" aria-label="Avance del ingreso">
-        {PASOS.map((p, i) => (
-          <li key={p.id} aria-current={i === idxPaso ? 'step' : undefined} className={`border-t-4 px-2 pb-1 pt-2 text-xs font-medium sm:text-sm ${i < idxPaso ? 'border-logisalud-green text-green-900' : i === idxPaso ? 'border-logisalud-teal text-gray-900' : 'border-gray-200 text-gray-500'}`}>
-            <span className="tabular text-[11px] text-gray-500">{i + 1}</span> {p.t}
-          </li>
-        ))}
-      </ol>
+      <AvancePasos avance={avanceDeIngreso(sol.estado, sol.id)} roles={ctx.roles} titulo="Dónde va este ingreso y qué sigue" testid="avance-ingreso" />
 
       {sol.estado === 'CERRADA' && sol.tipo === 'COMPRA_LOCAL' && <BloqueCantidadFisica bloques={sol.cantidadFisica} ocId={sol.ocId} ocCodigo={sol.ocCodigo} solicitudNumero={sol.numero} />}
 
