@@ -35,6 +35,7 @@ async function firmarActa(page: Page) {
   await page.getByTestId('abrir-transportista').click()
   await page.getByLabel('Nombre completo').fill('Pedro Quispe')
   await page.getByLabel('DNI').fill('45678912')
+  await page.getByTestId('lienzo-firma').scrollIntoViewIfNeeded()
   const caja = (await page.getByTestId('lienzo-firma').boundingBox())!
   await page.mouse.move(caja.x + 20, caja.y + 40)
   await page.mouse.down()
@@ -75,7 +76,7 @@ async function llenarYEnviarActa(page: Page, lote: string) {
   await page.getByRole('group', { name: /Trae certificado/ }).getByRole('radio', { name: 'Sí' }).click()
   await page.getByRole('group', { name: /Destino que sugieres/ }).getByRole('radio', { name: 'Aprobado' }).click()
   await page.getByTestId('enviar-dt').click()
-  await expect(page.getByText('Enviada a Dirección Técnica.')).toBeVisible()
+  await expect(page.getByText('Ya está en la cola de Dirección Técnica')).toBeVisible()
 }
 
 test.describe('retornos: una recepción tipo devolución', () => {
@@ -290,7 +291,7 @@ test.describe('observación reversible de un producto', () => {
   test('Katia deja el acta observada: el producto sigue en Cuarentena; la levanta con una nota', async ({ page }, info) => {
     await entrarComo(page, 'direccion_tecnica')
     await page.goto('/wms/calidad')
-    const fila = page.getByTestId('fila-organoleptica').filter({ hasNotText: 'Lo libera el DT del cliente' }).first()
+    const fila = page.getByTestId('cola-dt').getByTestId('fila-organoleptica').filter({ hasNotText: 'Lo libera el DT del cliente' }).first()
     await fila.click()
     await expect(page.getByTestId('ayuda-liberacion')).toContainText('queda Observado')
     await page.getByTestId('observar-acta').click()

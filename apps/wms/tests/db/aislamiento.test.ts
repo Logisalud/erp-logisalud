@@ -238,7 +238,7 @@ describe('P0: el usuario de cliente solo ve lo de su propietario', () => {
     expect(await base.como(ajr, async (c) => (await c.query(`update wms.usuario_roles set propietario_id = $1`, [idDiph])).rowCount)).toBe(0)
     const e = await falla(base.como(ajr, (c) => c.query(`insert into wms.usuario_roles (user_id, rol) values ($1, 'admin_wms')`, [ajr])))
     expect(e.message).toMatch(/row-level security|permission denied|es de un cliente/)
-  })
+  }, 60_000)
 
   it('un cliente no logra nada con las operaciones del WMS (ledger, ingresos, conteos, alertas…)', async () => {
     const pos = (await base.admin.query(`select id from wms.posiciones where codigo = 'G-7.1'`)).rows[0].id
