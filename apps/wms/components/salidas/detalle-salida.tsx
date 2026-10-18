@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { ArrowLeft, ClipboardList, Pencil, TriangleAlert } from 'lucide-react'
 import { generarOrdenPickingAccion } from '@/app/acciones-picking'
 import { mesAnio } from '@/domain/salidas'
-import type { LineaSalidaVista, SalidaVista } from '@/domain/despacho'
+import { ETAPAS_CONFORMES, type LineaSalidaVista, type SalidaVista } from '@/domain/despacho'
 import type { PaqueteSalida } from '@/domain/documentacion'
 import type { Rol } from '@/domain/tipos'
 import { useAccion } from '../usar-accion'
@@ -86,6 +86,7 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, rol
         {puedeGenerar && <button type="button" className="btn-primary" onClick={generar} disabled={pendiente} data-testid="generar-picking"><ClipboardList className="h-5 w-5" aria-hidden />{pendiente ? 'Generando…' : 'Generar orden de picking'}</button>}
         {salida.ordenPickingId && <Link href={`/picking/${salida.ordenPickingId}`} className="btn-secondary" data-testid="ir-picking">Ver el picking ({salida.ordenNumero})</Link>}
         {salida.ordenPickingId && <Link href={`/conformidad/${salida.ordenPickingId}`} className="btn-secondary" data-testid="ir-conformidad">Ver la conformidad</Link>}
+        {ETAPAS_CONFORMES.includes(salida.etapa) && <Link href={`/embalaje/${salida.id}`} className="btn-secondary" data-testid="ir-embalaje">Embalaje y bultos</Link>}
       </section>
 
       {paquete && (paquete.conforme || paquete.guia) && <PanelDocumentacion paquete={paquete} roles={roles} />}

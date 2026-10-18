@@ -44,6 +44,8 @@ export interface DespachoDemoEstado {
   picking?: import('./picking-demo').PickingDemoEstado
   /** S6b: guías de remisión registradas a mano (nunca se editan: se anulan con motivo). */
   guias?: GuiaDemo[]
+  /** S7: bultos (los vigentes y los anulados al reabrir el embalaje). */
+  bultos?: import('@/domain/embalaje').BultoVista[]
 }
 export interface GuiaDemo { id: string; salidaId: string; guia: import('@/domain/documentacion').GuiaVista }
 
