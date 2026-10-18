@@ -258,3 +258,5 @@ Séptimo PR del bloque «Orden de Salida» (respuestas de Dirección Técnica de
 
 ## OS-8 — integración del bloque «Orden de Salida»
 Rama integrada `feat/wms-os-int` = OS-3 + OS-6 + OS-7 + OS-5 + OS-4. Al unirlas se corrigieron: la migración 0026 (Bajas) reescribía `crear_salida` y perdía el correlativo OS y la marca de embalaje de la 0023; la 0023 ahora es re-ejecutable después de la 0026; la prueba de «devolución a proveedor» de OS-2 se reemplazó por la de OS-6 (la devolución es un tipo de salida propio); las decisiones se renumeraron (D-110 a D-113). Guion: `docs/wms/salidas/guion-de-pruebas-orden-de-salida.md`.
+
+Nota de integración: S8 se probó sobre `main` con S4–S7 ya integrados; no cambia el comportamiento descrito arriba.
