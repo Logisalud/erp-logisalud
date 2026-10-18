@@ -28,7 +28,7 @@ export function PanelLiberacion({ acta, puedeObservar, puedeDictaminar, soyAsist
   const { pendiente, mensaje, ejecutar, limpiar } = useAccion()
   const [modo, setModo] = useState<null | 'observar' | 'levantar' | { anular: string }>(null)
   const [texto, setTexto] = useState('')
-  const [errores, setErrores] = useState<Record<string, string>>({})
+  const errores: Record<string, string> = mensaje?.tipo === 'error' ? mensaje.errores ?? {} : {}
   const esCliente = !!acta.esDeCliente
   const abierta = acta.estado === 'PENDIENTE_DT'
   const firmada = acta.estado === 'FIRMADA'
@@ -37,7 +37,7 @@ export function PanelLiberacion({ acta, puedeObservar, puedeDictaminar, soyAsist
   const porConfirmar = dictamenes.find((d) => d.estado === 'REGISTRADO')
   const esperando = acta.pendienteDecision ?? 0
   const puedeRegistrar = esCliente && puedeDictaminar && abierta && !porConfirmar && esperando > 0
-  const cerrar = () => { setModo(null); setTexto(''); setErrores({}) }
+  const cerrar = () => { setModo(null); setTexto('') }
   const hayHistoria = (acta.observaciones ?? []).length > 0 || dictamenes.length > 0
   if (!esCliente && !vigente && !(puedeObservar && abierta) && !hayHistoria) return null
 
@@ -47,7 +47,7 @@ export function PanelLiberacion({ acta, puedeObservar, puedeDictaminar, soyAsist
     f.set('actaId', acta.id)
     ejecutar(() => registrarDictamenAccion(f), {
       exito: textoTrasRegistrarDictamen(soyAsistente ? 'asistente_dt' : 'direccion_tecnica'),
-      alExito: () => { (ev.target as HTMLFormElement | null)?.reset?.(); setErrores({}) },
+      alExito: () => { (ev.target as HTMLFormElement | null)?.reset?.() },
     })
   }
 

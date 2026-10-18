@@ -112,7 +112,7 @@ La recepción no empieza cuando llega el camión: empieza con la **Solicitud de 
 
 ## Evaluación organoléptica y aprobación
 - Acta de Evaluación Organoléptica (LS-FR.55.02): una por producto y lote, también en devoluciones. La llena Sandra; Katia decide y firma en el WMS.
-- Muestra = techo(√unidades del lote) + 1. Vuelve completa a su caja: no descuenta stock.
+- Muestra según la tabla LS-TB.02.02 (parámetro con código y vigencia; reemplaza techo(√n)+1): lotes de menos de 100 unidades y devoluciones, 100 %; simplificada 100–1.000 → 20, 1.001–10.000 → 30, 10.001–100.000 → 80, más de 100.000 → 150; normal (producto o proveedor nuevo) 50, 150, 300, 500; estricta (antecedentes de calidad que marca DT) 100 %. Vuelve completa a su caja: no descuenta stock.
 - El acta firmada sustenta la decisión. No existe Acta de Liberación.
 - Lo rechazado en Cuarentena nunca vuelve al proveedor.
 
@@ -212,3 +212,8 @@ Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario,
 5. Naturaleza de Contramuestra (solo importaciones).
 6. Confirmar muestreo techo(√unidades) + 1.
 7. Acondicionamiento en la ubicación "Calidad" de Odoo: formalizarlo (ÁMBAR) o eliminarlo. No se migra.
+
+## OS-5 — retornos, liberación y muestreo (migración 0025, sin aplicar)
+- **Retornos:** todo lo que salió y vuelve (rechazado o no entregado) entra como recepción tipo devolución: Devoluciones, acta de recepción y acta organoléptica al 100 %, y Aprobado o Bajas. Nunca vuelve más de lo que salió, por lote. Reprogramar = nueva Orden de Salida.
+- **Liberación (LS-POE.04.05):** productos de Logissa, Sandra evalúa y Katia dictamina; observación reversible = sigue en Cuarentena. Productos de clientes: libera el DT del cliente; Sandra o Katia registran su dictamen con el documento y confirman el cambio de estado. Rol «DT de cliente» apagado hasta SEC1. Reemplaza el LS-FR.04.
+- **Muestreo:** tabla LS-TB.02.02 como parámetro (ver arriba). Decisiones D-93 a D-96.
