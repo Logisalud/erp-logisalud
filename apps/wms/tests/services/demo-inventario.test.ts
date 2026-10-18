@@ -1,6 +1,7 @@
 // El motor de inventario del modo demostración aplica las mismas reglas que la migración 0007.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
+import { posicionAcepta } from '@/domain/zonas'
 import type { Actor } from '@/services/repositorio'
 
 const actor = (rol: Actor['roles'][number]): Actor => ({ id: `demo:${rol}`, nombre: `${rol} (demo)`, roles: [rol] })
@@ -164,29 +165,89 @@ describe('conteos y ajustes (INV-05)', () => {
   })
 })
 
-describe('carga inicial (D-09)', () => {
+describe('carga inicial como cambio de sistema (OS-7, D-99)', () => {
   const fila = (extra: object = {}) => ({ producto: 'DEMO-001', lote: 'CI-1', vence: '2029-05-31', propietario: 'LOGISSA', posicion: 'A-6', estado: 'CUARENTENA', cantidad: '10', ...extra })
-  it('solo administración carga; la vista previa explica cada error', async () => {
-    expect(await repo.validarCargaInicial([fila()], AUX)).toEqual([{ fila: 0, error: expect.stringMatching(/permiso/) }])
-    const errores = await repo.validarCargaInicial([fila(), fila({ producto: 'NO-EXISTE' }), fila({ cantidad: '0' })], ADMIN)
-    expect(errores.map((x) => x.fila)).toEqual([2, 3])
-  })
-  it('no se confirma sin la decisión de Dirección Técnica; con ella suma al stock y al Kardex', async () => {
-    const c = exito(await repo.crearCargaInicial([fila()], 'Inventario general', ADMIN))
-    expect(await repo.confirmarCargaInicial(c.id, ADMIN)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Falta la decisión de Dirección Técnica/) })
-    expect(await repo.decidirEstadoCargaInicial('CUARENTENA', ADMIN)).toMatchObject({ ok: false })
-    exito(await repo.decidirEstadoCargaInicial('CUARENTENA', KATIA))
-    exito(await repo.confirmarCargaInicial(c.id, ADMIN))
+  const saldoDe = async (codigoLote: string) => {
     const p = await repo.panorama()
-    const lote = p.lotes.find((l) => l.codigo === 'CI-1')!
-    expect(p.saldos.filter((s) => s.loteId === lote.id).reduce((n, s) => n + s.cantidad, 0)).toBe(10)
-    expect((await repo.kardex({ productoId: lote.productoId, loteId: lote.id })).map((f) => f.saldo)).toEqual([10])
-    expect(await repo.confirmarCargaInicial(c.id, ADMIN)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/ya no está en borrador/) })
+    const lote = p.lotes.find((l) => l.codigo === codigoLote)!
+    return { p, lote, saldos: p.saldos.filter((s) => s.loteId === lote.id) }
+  }
+  /** Una ubicación Aprobada de Logissa y una de Bajas libres de movimientos: sirven de destino de la carga. */
+  async function ubicaciones() {
+    const p = await repo.panorama()
+    const dueno = p.propietarios.find((x) => x.codigo === 'LOGISSA')!
+    const de = (area: string) => [...p.posiciones].filter((x) => x.tipoArea === area && x.activa && posicionAcepta(x, dueno.id, p.asignaciones, p.hoy)).sort((a, b) => a.codigo.localeCompare(b.codigo))[0]
+    return { aprobados: de('APROBADOS'), cuarentena: de('CUARENTENA'), bajas: de('BAJAS_RECHAZADOS') }
+  }
+
+  it('Administración sube y revisa; la vista previa explica cada error, incluido el lote y el vencimiento', async () => {
+    expect(await repo.validarCargaInicial([fila()], AUX)).toEqual([{ fila: 0, error: expect.stringMatching(/permiso/) }])
+    const errores = await repo.validarCargaInicial([fila(), fila({ lote: 'X2', producto: 'NO-EXISTE' }), fila({ lote: 'X3', cantidad: '0' }), fila({ lote: '' }), fila({ lote: 'X5', vence: '' })], ADMIN)
+    expect(errores.map((x) => x.fila)).toEqual([2, 3, 4, 5])
+    expect(errores.find((x) => x.fila === 4)!.error).toMatch(/código de lote/)
+    expect(errores.find((x) => x.fila === 5)!.error).toMatch(/fecha de vencimiento/)
   })
-  it('una fila en otro estado que el decidido se rechaza', async () => {
-    const c = exito(await repo.crearCargaInicial([fila({ posicion: 'A-6', estado: 'CUARENTENA' })], undefined, ADMIN))
-    exito(await repo.decidirEstadoCargaInicial('APROBADO', KATIA))
-    expect(await repo.confirmarCargaInicial(c.id, ADMIN)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/decidió APROBADO/) })
+
+  it('un estado que no viene de Odoo (Retenido, etc.) no se carga', async () => {
+    const e = await repo.validarCargaInicial([fila({ estado: 'DEVOLUCIONES' })], ADMIN)
+    expect(e[0].error).toMatch(/no se carga/)
+  })
+
+  it('solo Dirección Técnica confirma, con una sola confirmación (sin decidir el estado aparte)', async () => {
+    const c = exito(await repo.crearCargaInicial([fila()], 'Inventario general', ADMIN))
+    expect(await repo.confirmarCargaInicial(c.id, ADMIN)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Solo Dirección Técnica/) })
+    exito(await repo.confirmarCargaInicial(c.id, KATIA))
+    const { saldos } = await saldoDe('CI-1')
+    expect(saldos.reduce((n, s) => n + s.cantidad, 0)).toBe(10)
+    expect(await repo.confirmarCargaInicial(c.id, KATIA)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/ya no está en borrador/) })
+    const [lista] = await repo.listarCargasIniciales()
+    expect(lista).toMatchObject({ estado: 'CONFIRMADA', confirmadoPor: KATIA.nombre, porEstado: { aprobado: 0, cuarentena: 10, bajas: 0 } })
+  })
+
+  it('Cuarentena se queda en Cuarentena, en su ubicación: un solo paso en el libro', async () => {
+    const c = exito(await repo.crearCargaInicial([fila({ lote: 'CI-Q' })], undefined, ADMIN))
+    exito(await repo.confirmarCargaInicial(c.id, KATIA))
+    const { lote, saldos } = await saldoDe('CI-Q')
+    expect(saldos).toHaveLength(1)
+    expect(saldos[0]).toMatchObject({ estado: 'CUARENTENA', cantidad: 10 })
+    expect((await repo.historiaLote(lote.id)).map((h) => h.tipo)).toEqual(['CARGA_INICIAL'])
+  })
+
+  it('Aprobados y Bajas entran por Cuarentena, se liberan (o se dan de baja) y terminan en su ubicación, sin acta organoléptica', async () => {
+    const u = await ubicaciones()
+    const filas = [
+      fila({ lote: 'CI-A', posicion: u.aprobados!.codigo, estado: 'APROBADO', cantidad: '30' }),
+      fila({ lote: 'CI-B', posicion: u.bajas!.codigo, estado: 'BAJAS_RECHAZADOS', cantidad: '4' }),
+    ]
+    expect(await repo.validarCargaInicial(filas, ADMIN)).toEqual([])
+    const c = exito(await repo.crearCargaInicial(filas, undefined, ADMIN))
+    exito(await repo.confirmarCargaInicial(c.id, KATIA))
+
+    const a = await saldoDe('CI-A')
+    expect(a.saldos).toHaveLength(1)
+    expect(a.saldos[0]).toMatchObject({ estado: 'APROBADO', cantidad: 30, posicionId: u.aprobados!.id })
+    const hA = await repo.historiaLote(a.lote.id)
+    expect(hA.map((h) => `${h.tipo}:${h.estado}:${h.delta}`)).toEqual([
+      'CARGA_INICIAL:CUARENTENA:30', 'CAMBIO_ESTADO:CUARENTENA:-30', 'CAMBIO_ESTADO:APROBADO:30', 'MOVIMIENTO:APROBADO:-30', 'MOVIMIENTO:APROBADO:30',
+    ])
+    expect(hA[0].posicion).toBe(u.cuarentena!.codigo)
+    expect(hA.at(-1)!.posicion).toBe(u.aprobados!.codigo)
+    expect(hA.map((h) => h.saldoLote).at(-1)).toBe(30)
+
+    const b = await saldoDe('CI-B')
+    expect(b.saldos[0]).toMatchObject({ estado: 'BAJAS_RECHAZADOS', cantidad: 4, posicionId: u.bajas!.id })
+    expect((await repo.historiaLote(b.lote.id))[1].motivo).toMatch(/Baja por carga inicial/)
+    // el Kardex cuenta una sola entrada: el ingreso por carga inicial; el resto del recorrido no cambia la cantidad del propietario
+    expect((await repo.kardex({ productoId: a.lote.productoId, loteId: a.lote.id })).map((f) => [f.tipoDocumento, f.entrada, f.saldo])).toEqual([['Carga inicial', 30, 30]])
+  })
+
+  it('todo lote lleva su vencimiento y un mismo lote no puede tener dos fechas', async () => {
+    const c = exito(await repo.crearCargaInicial([fila({ lote: 'CI-V', vence: '2029-05-31' })], undefined, ADMIN))
+    exito(await repo.confirmarCargaInicial(c.id, KATIA))
+    const e = await repo.validarCargaInicial([fila({ lote: 'CI-V', vence: '2030-01-31' })], ADMIN)
+    expect(e[0].error).toMatch(/ya existe con otro vencimiento/)
+    const dentro = await repo.validarCargaInicial([fila({ lote: 'CI-W', vence: '2029-05-31' }), fila({ lote: 'CI-W', vence: '2030-01-01', posicion: 'A-7' })], ADMIN)
+    expect(dentro.some((x) => /dos vencimientos distintos/.test(x.error))).toBe(true)
   })
 })
 

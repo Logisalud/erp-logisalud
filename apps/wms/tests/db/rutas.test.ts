@@ -101,7 +101,9 @@ describe('planificar una ruta', () => {
     await confirmar(jt, ruta)
     expect(await uno('select estado, confirmada_por from wms.rutas where id = $1', [ruta])).toMatchObject({ estado: 'PLANIFICADA', confirmada_por: jt })
     expect(await uno('select estado, codigo, version_formato from wms.registros_ls_fr_43_03 where ruta_id = $1', [ruta])).toMatchObject({ estado: 'BASE', codigo: 'LS-FR.43.03', version_formato: '01' })
-    expect((await q('select clave from wms.parametros where clave = $1 and valor = $2', ['ls_fr_43_03_usuario_significado', 'PENDIENTE'])).length).toBe(1)
+    // OS-7 (0027): las definiciones de DT del formato ya no están pendientes; el formato del archivo del data logger sí
+    expect((await q('select clave from wms.parametros where clave = $1 and valor = $2', ['ls_fr_43_03_usuario_significado', 'PENDIENTE'])).length).toBe(0)
+    expect((await q('select clave from wms.parametros where clave = $1 and valor = $2', ['ls_fr_43_03_logger_formato', 'PENDIENTE'])).length).toBe(1)
   })
 
   it('solo el Jefe de Transporte planifica: un Jefe de Almacén «solo», un auxiliar o una persona sin rol no', async () => {

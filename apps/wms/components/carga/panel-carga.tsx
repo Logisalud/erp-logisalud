@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Ban, Check, CheckCircle2, ListChecks, PackageCheck, ScanLine, Truck, Undo2, XCircle } from 'lucide-react'
 import { cargarBultoAccion, confirmarSalidaRutaAccion, excluirPedidoAccion, guardarChecklistAccion, liberarUnidadAccion, retirarBultoAccion } from '@/app/acciones-picking'
 import { ETIQUETA_ESTADO_CARGA, type CargaRuta, type ItemChecklist } from '@/domain/carga'
+import { textoNoImpreso } from '@/domain/ls-fr-43-03'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 import { CHIP_AVISO, CHIP_NEUTRO, CHIP_OK } from '../estilos-opcion'
@@ -14,7 +15,7 @@ const ROJO = 'border-red-200 bg-red-50 text-red-800'
 const hora = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Lima' }) : '')
 
 /** La carga de una ruta: checklist del vehículo, escaneo de bultos, conciliación por pedido, liberar la unidad y confirmar la salida. */
-export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar }: { carga: CargaRuta; puedeCargar: boolean; puedeLiberar: boolean; puedeConfirmar: boolean }) {
+export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, noImpreso = false }: { carga: CargaRuta; puedeCargar: boolean; puedeLiberar: boolean; puedeConfirmar: boolean; noImpreso?: boolean }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const enCarga = carga.estado === 'EN_CARGA'
   const [codigo, setCodigo] = useState('')
@@ -140,6 +141,11 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar }:
         {enCarga && (
           <>
             {!listosParaLiberar && <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900" data-testid="motivos-no-liberar">{carga.motivosNoLiberar.map((m) => <li key={m}>{m}</li>)}</ul>}
+            {noImpreso && (
+              <div className="mt-3" data-testid="aviso-no-impreso">
+                <Aviso tipo="atencion">{textoNoImpreso} <Link href={`/rutas/${carga.rutaId}`} className="font-medium underline">Ir a imprimirlo</Link></Aviso>
+              </div>
+            )}
             {puedeLiberar
               ? <button type="button" className="btn-primary mt-3" disabled={pendiente || !listosParaLiberar} onClick={() => ejecutar(() => liberarUnidadAccion(carga.rutaId))} data-testid="liberar-unidad"><Truck className="h-5 w-5" aria-hidden />Liberar la unidad</button>
               : <p className="mt-2 text-sm text-gray-700">La unidad la libera el Jefe de Transporte.</p>}

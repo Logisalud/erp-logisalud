@@ -286,6 +286,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     // OS-6 (0026)
     'adjuntar_sustento_baja', 'anular_orden_baja', 'autorizar_baja', 'cerrar_solicitud_baja', 'confirmar_vencimiento_baja', 'reemitir_orden_baja',
     'registrar_evaluacion_baja', 'solicitar_baja', 'stock_para_baja', 'trasladar_baja',
+    // OS-7 (0027)
+    'cerrar_ruta', 'corregir_cierre_ruta', 'registrar_impresion_ls_fr', 'subir_escaneo_ls_fr',
     // S8 (0021)
     'cargar_bulto', 'conciliacion_carga', 'confirmar_salida_ruta', 'excluir_pedido_de_carga', 'guardar_checklist_vehicular', 'liberar_unidad', 'retirar_bulto_carga',
     // S7 (0020)

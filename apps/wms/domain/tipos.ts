@@ -60,6 +60,8 @@ export type Accion =
   | 'anular_guia'
   | 'solicitar_baja'
   | 'autorizar_baja'
+  | 'cerrar_ruta'
+  | 'registrar_ls_fr'
 
 export interface Propietario {
   id: string

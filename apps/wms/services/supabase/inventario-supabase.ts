@@ -224,10 +224,6 @@ export class InventarioSupabase extends EntradasSupabase {
   }
 
   // ── Carga inicial ───────────────────────────────────────────────────────
-  async estadoCargaInicial() {
-    const filas = await traerTodo('parametros', 'wms')
-    return s(filas.find((f) => f.clave === 'carga_inicial_estado')?.valor) ?? ''
-  }
   private filasJson = (filas: FilaCargaInicial[]) => filas.map((f) => ({ producto: f.producto, lote: f.lote, vence: f.vence, propietario: f.propietario, posicion: f.posicion, estado: f.estado, cantidad: f.cantidad }))
   async validarCargaInicial(filas: FilaCargaInicial[], _a: Actor): Promise<ErrorFilaCarga[]> {
     const { data, error } = await rpc('validar_carga_inicial', { p_lineas: this.filasJson(filas) })
@@ -241,7 +237,6 @@ export class InventarioSupabase extends EntradasSupabase {
     const { data: c } = await supabase.schema('wms').from('cargas_iniciales').select('numero').eq('id', String(data)).maybeSingle()
     return ok({ id: String(data), numero: String((c as Fila | null)?.numero ?? '') })
   }
-  async decidirEstadoCargaInicial(estado: 'APROBADO' | 'CUARENTENA', _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('decidir_estado_carga_inicial', { p_estado: estado }); return error ? mal(error) : ok() }
   async confirmarCargaInicial(id: string, _a: Actor): Promise<ResultadoAccion> { const { error } = await rpc('confirmar_carga_inicial', { p_carga: id }); return error ? mal(error) : ok() }
   async listarCargasIniciales(): Promise<CargaInicialVista[]> {
     const supabase = crearClienteServidor()
@@ -249,12 +244,14 @@ export class InventarioSupabase extends EntradasSupabase {
     if (error) throw new Error(`No se pudieron leer las cargas: ${error.message}`)
     const cs = (data ?? []) as Fila[]
     if (!cs.length) return []
-    const { data: ls } = await supabase.schema('wms').from('cargas_iniciales_lineas').select('carga_id, cantidad').in('carga_id', cs.map((c) => String(c.id)))
-    const porCarga = por((ls ?? []) as Fila[], 'carga_id')
-    const nombres = await nombresDe(cs.map((c) => s(c.creado_por)))
+    // una carga real trae miles de filas: se pagina (con orden determinista) y solo se leen las columnas que se suman
+    const ls = (await traerTodo('cargas_iniciales_lineas', 'wms', 'carga_id, cantidad, estado')).filter((l) => cs.some((c) => String(c.id) === String(l.carga_id)))
+    const porCarga = por(ls, 'carga_id')
+    const nombres = await nombresDe(cs.flatMap((c) => [s(c.creado_por), s(c.confirmado_por)]))
     return cs.map((c) => {
       const l = porCarga.get(String(c.id)) ?? []
-      return { id: String(c.id), numero: String(c.numero), estado: c.estado as CargaInicialVista['estado'], nota: s(c.nota), creadoPor: nombres.get(String(c.creado_por)) ?? 'Usuario', creadoEn: String(c.creado_en), confirmadoEn: s(c.confirmado_en), filas: l.length, unidades: l.reduce((n, x) => n + Number(x.cantidad), 0) }
+      const suma = (est: string) => l.filter((x) => String(x.estado) === est).reduce((n, x) => n + Number(x.cantidad), 0)
+      return { id: String(c.id), numero: String(c.numero), estado: c.estado as CargaInicialVista['estado'], nota: s(c.nota), creadoPor: nombres.get(String(c.creado_por)) ?? 'Usuario', creadoEn: String(c.creado_en), confirmadoEn: s(c.confirmado_en), confirmadoPor: c.confirmado_por ? nombres.get(String(c.confirmado_por)) : undefined, filas: l.length, unidades: l.reduce((n, x) => n + Number(x.cantidad), 0), porEstado: { aprobado: suma('APROBADO'), cuarentena: suma('CUARENTENA'), bajas: suma('BAJAS_RECHAZADOS') } }
     })
   }
 }

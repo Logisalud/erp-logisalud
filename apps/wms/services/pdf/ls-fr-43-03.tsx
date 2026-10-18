@@ -1,7 +1,7 @@
 import 'server-only'
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer'
 import { formatoFecha } from '@/domain/fechas'
-import { paginarFilas, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
+import { cierreVigente, paginarFilas, textoTemperatura, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import { LOGO_LOGISALUD } from '../pdf-logo'
 
 // LS-FR.43.03 «Planificación de ruta» (A4 horizontal). Respeta el formato real: encabezado (logo, título, Cód. POE, Cód. Formato, vigencia), datos de la ruta
@@ -32,6 +32,7 @@ const Dato = ({ k, v, w }: { k: string; v?: string; w: string }) => (
 
 function LsFrPdf({ r }: { r: RegistroLsFrVista }) {
   const paginas = paginarFilas(r.filas, r.filasPorPagina)
+  const cierre = cierreVigente(r)
   return (
     <Document title={`${r.codigo} ${r.rutaNumero}`} author="WMS LOGISALUD" subject="Planificación de ruta">
       {paginas.map((filas, pi) => (
@@ -47,9 +48,10 @@ function LsFrPdf({ r }: { r: RegistroLsFrVista }) {
           </View>
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6, borderLeft: '0.75pt solid #000', borderTop: '0.75pt solid #000' }}>
-            <Dato k="USUARIO:" w="38%" /><Dato k="HORA SALIDA:" v={hora(r.horaSalida)} w="31%" /><Dato k="FECHA:" v={formatoFecha(r.fecha)} w="31%" />
+            <Dato k="USUARIO:" v={r.usuario} w="38%" /><Dato k="HORA SALIDA:" v={hora(r.horaSalida)} w="31%" /><Dato k="FECHA:" v={formatoFecha(r.fecha)} w="31%" />
             <Dato k="PLACA VEHÍCULO:" v={r.placa} w="38%" /><Dato k="LLEGADA:" v={hora(r.horaLlegada)} w="31%" /><Dato k="N° PAG.:" v={`${pi + 1} de ${paginas.length}`} w="31%" />
             <Dato k="CONDUCTOR:" v={r.conductor} w="38%" /><Dato k="AUX. TRANSPORTE:" v={r.auxiliar} w="62%" />
+            <Dato k="TEMP. REGISTRADA:" v={cierre ? `${textoTemperatura(cierre.tempMin, cierre.tempMax)} (data logger Elitech GSP-6)${cierre.fueraDeRango ? ' · fuera del rango del formato' : ''}` : ''} w="100%" />
           </View>
 
           <View style={{ border: '1pt solid #000', marginTop: 6 }}>

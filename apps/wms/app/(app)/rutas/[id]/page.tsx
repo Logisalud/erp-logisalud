@@ -3,6 +3,7 @@ import { Lock } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { puedePlanificarRutas, puedeVerRutas } from '@/domain/rutas'
+import { puedeCerrarRuta, puedeRegistrarLsFr } from '@/domain/cierre-ruta'
 import { EditorRuta } from '@/components/rutas/editor-ruta'
 
 export const metadata = { title: 'Ruta — WMS LOGISALUD' }
@@ -19,7 +20,7 @@ export default async function Ruta({ params }: { params: { id: string } }) {
     <div className="mx-auto max-w-6xl space-y-5">
       <header><h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Planificar ruta</h1>
         {!puedePlanificarRutas(ctx.roles) && <p className="mt-1 text-gray-600">Solo el Jefe de Transporte cambia el plan; aquí puedes verlo.</p>}</header>
-      <EditorRuta ruta={ruta} panorama={panorama} registro={registro} soloLectura={!puedePlanificarRutas(ctx.roles)} />
+      <EditorRuta ruta={ruta} panorama={panorama} registro={registro} soloLectura={!puedePlanificarRutas(ctx.roles)} permisos={{ cerrar: puedeCerrarRuta(ctx.roles), registrar: puedeRegistrarLsFr(ctx.roles) }} />
     </div>
   )
 }
