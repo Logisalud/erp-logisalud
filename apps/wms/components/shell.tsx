@@ -11,12 +11,12 @@ import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
 export interface ItemNav {
   href: string
   etiqueta: string
-  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos' | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'picking' | 'conformidad' | 'embalaje'
+  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos' | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'picking' | 'conformidad' | 'embalaje' | 'cargaunidad'
   /** Cantidad que se muestra como insignia (alertas abiertas). */
   insignia?: number
 }
 
-const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload, revision: ListChecks, reportes: BarChart3, pedidos: Truck, rutas: Route, documentos: FileText, salidas: PackageOpen, picking: ScanLine, conformidad: BadgeCheck, embalaje: Package }
+const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload, revision: ListChecks, reportes: BarChart3, pedidos: Truck, rutas: Route, documentos: FileText, salidas: PackageOpen, picking: ScanLine, conformidad: BadgeCheck, embalaje: Package, cargaunidad: Truck }
 
 const PRINCIPALES = ['inicio', 'almacen', 'entradas']
 

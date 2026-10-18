@@ -279,6 +279,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'registrar_retorno', 'stock_vendible',
     // Roles de los jefes y cargos (0015)
     'asignar_cargo',
+    // S8 (0021)
+    'cargar_bulto', 'conciliacion_carga', 'confirmar_salida_ruta', 'excluir_pedido_de_carga', 'guardar_checklist_vehicular', 'liberar_unidad', 'retirar_bulto_carga',
     // S7 (0020)
     'embalar_salida', 'listo_para_carga', 'reabrir_embalaje',
     // S6b (0019)

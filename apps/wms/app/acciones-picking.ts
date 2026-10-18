@@ -5,6 +5,7 @@ import { repositorio } from '@/services/repositorio-actual'
 import type { AsignacionLote } from '@/domain/salidas'
 import type { TipoNoConformidad } from '@/domain/despacho'
 import type { RepartoBulto } from '@/domain/embalaje'
+import type { ItemChecklist } from '@/domain/carga'
 import type { Actor } from '@/services/repositorio'
 
 async function quien(): Promise<Actor> {
@@ -26,3 +27,10 @@ export async function anularGreAccion(guiaId: string, motivo: string) { return r
 
 export async function embalarSalidaAccion(salidaId: string, reparto: RepartoBulto[]) { return repositorio().embalarSalida(salidaId, reparto, await quien()) }
 export async function reabrirEmbalajeAccion(salidaId: string, motivo: string) { return repositorio().reabrirEmbalaje(salidaId, motivo, await quien()) }
+
+export async function guardarChecklistAccion(rutaId: string, items: ItemChecklist[]) { return repositorio().guardarChecklist(rutaId, items, await quien()) }
+export async function cargarBultoAccion(rutaId: string, codigo: string) { return repositorio().cargarBulto(rutaId, codigo, await quien()) }
+export async function retirarBultoAccion(rutaId: string, codigo: string, motivo: string) { return repositorio().retirarBulto(rutaId, codigo, motivo, await quien()) }
+export async function excluirPedidoAccion(rutaId: string, salidaId: string, motivo: string) { return repositorio().excluirPedido(rutaId, salidaId, motivo, await quien()) }
+export async function liberarUnidadAccion(rutaId: string) { return repositorio().liberarUnidad(rutaId, await quien()) }
+export async function confirmarSalidaRutaAccion(rutaId: string) { return repositorio().confirmarSalidaRuta(rutaId, await quien()) }

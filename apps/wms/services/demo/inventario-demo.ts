@@ -68,6 +68,16 @@ export function moverSaldo(e: EstadoDemo, l: { loteId: string; productoId: strin
   return true
 }
 
+/** Saca unidades de una celda (la salida confirmada): el saldo baja y, si queda en cero, la celda desaparece. */
+export function quitarSaldo(e: EstadoDemo, l: { loteId: string; estado: Estado; procedenciaId: string; posicionId: string; cantidad: number }) {
+  const sal = e.panorama.saldos
+  const c = sal.find((s) => mismaCelda(s, l.posicionId, l.loteId, l.estado, l.procedenciaId))
+  if (!c || c.cantidad < l.cantidad) return false
+  c.cantidad -= l.cantidad
+  if (c.cantidad === 0) sal.splice(sal.indexOf(c), 1)
+  return true
+}
+
 /** Casos de demostración (ids fijos: iguales en todas las instancias). Se crean una sola vez. */
 export function sembrarInventario(e: EstadoDemo) {
   const inv = e.inv

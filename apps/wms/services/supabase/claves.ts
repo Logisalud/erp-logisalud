@@ -33,6 +33,8 @@ export const CLAVES_UNICAS: Readonly<Record<string, readonly string[]>> = {
   'wms.ordenes_picking_lineas': ['id'],
   'wms.guias_remision': ['id'],
   'wms.bultos': ['id'],
+  'wms.carga_bultos': ['id'],
+  'wms.carga_exclusiones': ['id'],
   'wms.bulto_contenido': ['bulto_id', 'linea_id', 'lote_id'],
   'wms.importaciones_pedidos': ['id'],
   'wms.parametros': ['clave'],

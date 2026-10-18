@@ -46,6 +46,14 @@ export interface DespachoDemoEstado {
   guias?: GuiaDemo[]
   /** S7: bultos (los vigentes y los anulados al reabrir el embalaje). */
   bultos?: import('@/domain/embalaje').BultoVista[]
+  /** S8: carga por ruta (checklist, bultos cargados, exclusiones, liberación y salida). */
+  carga?: Record<string, CargaDemo>
+}
+export interface CargaDemo {
+  checklist?: import('@/domain/carga').ItemChecklist[]; checklistPor?: string
+  cargados: { codigo: string; estado: 'CARGADO' | 'RETIRADO'; motivo?: string }[]
+  exclusiones: { salidaId: string; motivo: string; por: string; en: string }[]
+  liberadaEn?: string; salioEn?: string
 }
 export interface GuiaDemo { id: string; salidaId: string; guia: import('@/domain/documentacion').GuiaVista }
 
