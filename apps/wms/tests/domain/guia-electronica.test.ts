@@ -8,16 +8,16 @@ const datos = (o: Partial<DatosGuia> = {}): DatosGuia => ({
   salidaId: 's1', salidaNumero: 'OS-2026-00001', tipo: 'DISTRIBUCION', conforme: true, pedidoNumero: 'PED-101',
   destinatario: { nombre: 'Botica Salud Total SAC', ruc: '20512345671', direccion: 'Av. Giraldez 480, Huancayo', ubigeo: '120101' },
   lineas: [{ productoCodigo: 'P-1', producto: 'Paracetamol 500 mg', lote: 'L2515', vence: '2028-06-30', cantidad: 20 }, { productoCodigo: 'P-2', producto: 'Ibuprofeno 400 mg', lote: 'L77', vence: null, cantidad: 6 }],
-  bultos: 2, ruta: { id: 'r1', numero: 'RUT-2026-00001', fecha: '2026-10-20', placa: 'BKW-757', conductor: 'Luis Quispe', conductorDni: '40123456' },
-  partida: { ubigeo: '150119', direccion: 'Almacén Lurín' }, motivoTraslado: 'VENTA', modalidad: 'TRANSPORTE PRIVADO', serie: 'T001',
+  bultos: 2, ruta: { id: 'r1', numero: 'RUT-2026-00001', fecha: '2026-10-20', placa: 'BKW-757', conductor: 'Luis Quispe', conductorDni: '40123456', conductorLicencia: 'Q40123456' },
+  partida: { ubigeo: '150119', direccion: 'Almacén Lurín' }, motivoTraslado: 'VENTA', modalidad: 'TRANSPORTE PRIVADO', serie: 'TTT1',
   reglasBaja: { plazoHoras: 'PENDIENTE', trasInicioTraslado: 'PENDIENTE', soportadaPorApi: 'PENDIENTE' }, ...o,
 })
 const traslado: TrasladoGuia = { fechaInicio: '2026-10-20', pesoKg: 12 }
 
 describe('qué falta para emitir la guía', () => {
-  it('con todo completo en el simulador no falta nada; en prueba o producción falta la licencia', () => {
+  it('con todo completo no falta nada; sin licencia (ni guardada ni escrita) no se puede emitir', () => {
     expect(faltantesDeGuia(datos(), traslado, 'SIMULADOR')).toEqual([])
-    expect(faltantesDeGuia(datos(), traslado, 'PRUEBA')).toEqual(['Falta la licencia de conducir del conductor'])
+    expect(faltantesDeGuia(datos({ ruta: { ...datos().ruta!, conductorLicencia: undefined } }), traslado, 'PRUEBA')).toEqual(['Falta la licencia de conducir del conductor (9 o 10 letras y números)'])
     expect(faltantesDeGuia(datos(), { ...traslado, licenciaConductor: 'Q40123456' }, 'PRODUCCION')).toEqual([])
   })
 
@@ -45,11 +45,11 @@ describe('qué falta para emitir la guía', () => {
 
 describe('el mensaje a Nubefact', () => {
   it('se arma con lo del WMS: destinatario, línea por lote, partida Lurín, motivo venta, transporte privado, bultos, vehículo y conductor', () => {
-    const p = construirPayloadNubefact(datos(), { ...traslado, pesoKg: 12.5, licenciaConductor: 'Q1' }, '2026-10-19')
+    const p = construirPayloadNubefact(datos(), { ...traslado, pesoKg: 12.5, licenciaConductor: 'q99887766' }, '2026-10-19', 57)
     expect(p).toMatchObject({
-      operacion: 'generar_guia', tipo_de_comprobante: 7, serie: 'T001', cliente_numero_de_documento: '20512345671', cliente_denominacion: 'Botica Salud Total SAC',
+      operacion: 'generar_guia', tipo_de_comprobante: 7, serie: 'TTT1', numero: 57, peso_bruto_unidad_de_medida: 'KGM', cliente_numero_de_documento: '20512345671', cliente_denominacion: 'Botica Salud Total SAC',
       fecha_de_emision: '19-10-2026', fecha_de_inicio_de_traslado: '20-10-2026', motivo_de_traslado: '01', tipo_de_transporte: '02', peso_bruto_total: '12.50', numero_de_bultos: '2',
-      transportista_placa_numero: 'BKW-757', conductor_documento_numero: '40123456', conductor_numero_licencia: 'Q1', punto_de_partida_ubigeo: '150119', punto_de_llegada_ubigeo: '120101',
+      transportista_placa_numero: 'BKW757', conductor_documento_numero: '40123456', conductor_nombre: 'Luis', conductor_apellidos: 'Quispe', conductor_numero_licencia: 'Q99887766', punto_de_partida_ubigeo: '150119', punto_de_llegada_ubigeo: '120101',
     })
     expect(p.items).toHaveLength(2)
     expect(p.items[0]).toEqual({ unidad_de_medida: 'NIU', codigo: 'P-1', descripcion: 'Paracetamol 500 mg · lote L2515', cantidad: '20' })

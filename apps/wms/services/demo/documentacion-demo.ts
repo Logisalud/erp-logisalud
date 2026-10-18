@@ -6,7 +6,7 @@ import {
 import { etapaDeSalida, type SalidaResumen } from '@/domain/despacho'
 import {
   motivoNoPuedeAnular, puedeEmitirGuia,
-  type CasoAnulacion, type DatosGuia, type EventoPedidos, type RespuestaEmision, type TipoEventoPedidos, type TrasladoGuia,
+  type CasoAnulacion, type DatosGuia, type EstadoSunat, type EventoPedidos, type RespuestaConsulta, type RespuestaEmision, type TipoEventoPedidos, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
@@ -131,9 +131,9 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       salidaId: s.id, salidaNumero: s.numero, tipo: 'DISTRIBUCION', conforme: salidaConforme(e, s.id), pedidoNumero: fila?.snapshot.numero,
       destinatario: { nombre: cliente?.nombre, ruc: cliente?.ruc || undefined, direccion: cliente?.direccion, ubigeo: cliente?.ubigeo, distrito: cliente?.distrito },
       lineas: this.lineasDeGuia(e, s.id), bultos: s.bultosConformidad ?? bultosDeSalida(e, s.id),
-      ruta: ruta ? { id: ruta.id, numero: ruta.numero, fecha: ruta.fecha, placa: veh?.placa, conductor: cond?.nombre, conductorDni: cond?.dni, auxiliar: aux?.nombre } : undefined,
+      ruta: ruta ? { id: ruta.id, numero: ruta.numero, fecha: ruta.fecha, placa: veh?.placa, conductor: cond?.nombre, conductorDni: cond?.dni, conductorLicencia: cond?.licencia, auxiliar: aux?.nombre } : undefined,
       partida: { ubigeo: '150119', direccion: 'Almacén Logisalud, Lurín (dirección de demostración)' },
-      motivoTraslado: 'VENTA', modalidad: 'TRANSPORTE PRIVADO', serie: 'T001',
+      motivoTraslado: 'VENTA', modalidad: 'TRANSPORTE PRIVADO', serie: 'TTT1',
       reglasBaja: { plazoHoras: 'PENDIENTE', trasInicioTraslado: 'PENDIENTE', soportadaPorApi: 'PENDIENTE' },
     })
   }
@@ -151,14 +151,45 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     if (!ruta) return falla('Asigna primero el pedido a una ruta: la guía toma el vehículo, el conductor y la fecha de la ruta')
     const placa = ruta.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId)?.placa : undefined
     if (!placa || !ruta.conductorId) return falla('La ruta todavía no tiene vehículo y conductor: complétalos antes de emitir la guía')
+    if (r.estadoSunat === 'RECHAZADA') return falla('Una guía rechazada por SUNAT no se registra: se corrige y se vuelve a enviar')
     const guia: GuiaVista = {
       id: nuevoId(), numero: r.numero, estado: 'VIGENTE', lineas: this.lineasDeGuia(e, s.id), placa, fechaTraslado: ruta.fecha, registradaPor: actor.nombre, registradaEn: ahora(),
       origen: 'NUBEFACT', entorno: r.entorno, enlace: r.enlace, enlaceXml: r.enlaceXml, estadoSunat: r.estadoSunat, bultos: s.bultosConformidad, pesoKg: t.pesoKg, fechaInicio: t.fechaInicio,
     }
     guias(e).push({ id: guia.id, salidaId: s.id, guia })
-    this.encolarEvento(e, s, guia, 'GUIA_EMITIDA')
+    if (r.estadoSunat === 'ACEPTADA') this.encolarEvento(e, s, guia, 'GUIA_EMITIDA')
     registrar(e, actor, 'guia_electronica_emitida', 'guias_remision', guia.id, `Guía ${r.numero} · ${s.numero} (${r.entorno})`)
     return { ok: true, id: guia.id, numero: r.numero }
+  }
+
+  async siguienteNumeroGuia(serie: string): Promise<ResultadoAccion<{ numero: number }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const c = (desp(e).correlativosGuia ??= {})
+    const k = serie.trim().toUpperCase()
+    if (!/^T[A-Z0-9]{3}$/.test(k)) return falla(`La serie ${k} de guías no está configurada`)
+    c[k] = (c[k] ?? 0) + 1
+    return { ok: true, numero: c[k] }
+  }
+
+  async actualizarEstadoGuia(guiaId: string, c: Extract<RespuestaConsulta, { ok: true }>, actor: Actor): Promise<ResultadoAccion<{ estadoSunat: EstadoSunat }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedeEmitirGuia(actor.roles)) return falla('No tienes permiso para actualizar la guía de remisión')
+    const g = guias(e).find((x) => x.id === guiaId)
+    if (!g) return falla('No encontramos esa guía')
+    if (g.guia.origen !== 'NUBEFACT') return falla('Solo las guías emitidas con Nubefact tienen estado de SUNAT')
+    if (g.guia.estado !== 'VIGENTE' || g.guia.estadoSunat !== 'PENDIENTE') return { ok: true, estadoSunat: g.guia.estadoSunat ?? 'PENDIENTE' }
+    const s = desp(e).salidas.find((x) => x.id === g.salidaId)!
+    if (c.estadoSunat === 'ACEPTADA') {
+      if (!c.enlace) return falla('Falta el enlace de la guía que devolvió Nubefact')
+      Object.assign(g.guia, { estadoSunat: 'ACEPTADA', enlace: c.enlace, enlaceXml: c.enlaceXml })
+      this.encolarEvento(e, s, g.guia, 'GUIA_EMITIDA')
+      registrar(e, actor, 'guia_electronica_aceptada', 'guias_remision', guiaId, `Guía ${g.guia.numero} aceptada por SUNAT`)
+    } else if (c.estadoSunat === 'RECHAZADA') {
+      if (!c.error) return falla('Indica por qué SUNAT rechazó la guía')
+      Object.assign(g.guia, { estadoSunat: 'RECHAZADA', estado: 'ANULADA', anuladaMotivo: `SUNAT rechazó la guía: ${c.error}`, anuladaEn: ahora(), bajaSunat: 'NO_APLICA' })
+      registrar(e, actor, 'guia_electronica_rechazada', 'guias_remision', guiaId, `Guía ${g.guia.numero} rechazada por SUNAT`, c.error)
+    }
+    return { ok: true, estadoSunat: g.guia.estadoSunat ?? 'PENDIENTE' }
   }
 
   async anularGuia(guiaId: string, caso: CasoAnulacion, motivo: string, actor: Actor): Promise<ResultadoAccion<{ caso: CasoAnulacion; conformidadReabierta: boolean; bajaSunat: 'PENDIENTE' | 'NO_APLICA' }>> {

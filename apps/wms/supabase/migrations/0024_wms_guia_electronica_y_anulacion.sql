@@ -23,6 +23,7 @@ alter table wms.guias_remision add column if not exists bultos integer;
 alter table wms.guias_remision add column if not exists payload jsonb;
 alter table wms.guias_remision add column if not exists respuesta jsonb;
 alter table wms.guias_remision add column if not exists enlace_xml text;
+alter table wms.guias_remision add column if not exists enlace_cdr text;
 alter table wms.guias_remision add column if not exists estado_sunat text;
 alter table wms.guias_remision add column if not exists archivo_ref text;
 alter table wms.guias_remision add column if not exists caso_anulacion smallint;
@@ -36,7 +37,7 @@ do $$ begin
     alter table wms.guias_remision add constraint guias_remision_entorno_chk check (entorno is null or entorno in ('SIMULADOR', 'PRUEBA', 'PRODUCCION'));
   end if;
   if not exists (select 1 from pg_constraint where conname = 'guias_remision_sunat_chk') then
-    alter table wms.guias_remision add constraint guias_remision_sunat_chk check (estado_sunat is null or estado_sunat in ('ACEPTADA', 'PENDIENTE'));
+    alter table wms.guias_remision add constraint guias_remision_sunat_chk check (estado_sunat is null or estado_sunat in ('ACEPTADA', 'PENDIENTE', 'RECHAZADA'));
   end if;
   if not exists (select 1 from pg_constraint where conname = 'guias_remision_caso_chk') then
     alter table wms.guias_remision add constraint guias_remision_caso_chk check (caso_anulacion is null or caso_anulacion in (1, 2, 3));
@@ -45,22 +46,58 @@ do $$ begin
     alter table wms.guias_remision add constraint guias_remision_baja_chk check (baja_sunat is null or baja_sunat in ('PENDIENTE', 'NO_APLICA', 'HECHA'));
   end if;
   if not exists (select 1 from pg_constraint where conname = 'guias_remision_nubefact_chk') then
-    alter table wms.guias_remision add constraint guias_remision_nubefact_chk check (origen <> 'NUBEFACT' or (entorno is not null and enlace is not null));
+    alter table wms.guias_remision add constraint guias_remision_nubefact_chk check (origen <> 'NUBEFACT' or (entorno is not null and estado_sunat is not null));
   end if;
 end $$;
 
--- Lo que no puede cambiar nunca (todo lo registrado); solo se permite pasar a ANULADA con su motivo, caso y estado de la baja.
+-- Lo que no puede cambiar nunca (todo lo registrado). Solo se permite: pasar a ANULADA (con su motivo, caso y estado de la baja) y, mientras SUNAT no responda
+-- (estado PENDIENTE), completar lo que llega después —el estado de SUNAT, los enlaces al PDF, XML y CDR y la respuesta—, una sola vez.
 create or replace function wms._guia_inmutable() returns trigger language plpgsql as $$
 begin
   if tg_op = 'DELETE' then raise exception 'Una guía registrada no se borra: se anula con motivo' using errcode = 'P0001'; end if;
   if (new.salida_id, new.numero, new.lineas, new.placa, new.fecha_traslado, new.nota, new.registrada_por, new.registrada_en,
-      new.origen, new.entorno, new.enlace, new.hash_nubefact, new.fecha_inicio_traslado, new.peso_kg, new.bultos, new.payload, new.respuesta, new.archivo_ref, new.enlace_xml, new.estado_sunat)
+      new.origen, new.entorno, new.fecha_inicio_traslado, new.peso_kg, new.bultos, new.payload, new.archivo_ref)
      is distinct from (old.salida_id, old.numero, old.lineas, old.placa, old.fecha_traslado, old.nota, old.registrada_por, old.registrada_en,
-      old.origen, old.entorno, old.enlace, old.hash_nubefact, old.fecha_inicio_traslado, old.peso_kg, old.bultos, old.payload, old.respuesta, old.archivo_ref, old.enlace_xml, old.estado_sunat)
-     or (old.estado = 'ANULADA' and (new.estado, new.anulada_por, new.anulada_en, new.motivo_anulacion, new.caso_anulacion) is distinct from (old.estado, old.anulada_por, old.anulada_en, old.motivo_anulacion, old.caso_anulacion)) then
+      old.origen, old.entorno, old.fecha_inicio_traslado, old.peso_kg, old.bultos, old.payload, old.archivo_ref)
+     or (old.estado = 'ANULADA' and (new.estado, new.anulada_por, new.anulada_en, new.motivo_anulacion, new.caso_anulacion) is distinct from (old.estado, old.anulada_por, old.anulada_en, old.motivo_anulacion, old.caso_anulacion))
+     or ((new.enlace, new.enlace_xml, new.enlace_cdr, new.hash_nubefact, new.respuesta, new.estado_sunat) is distinct from (old.enlace, old.enlace_xml, old.enlace_cdr, old.hash_nubefact, old.respuesta, old.estado_sunat)
+         and old.estado_sunat is distinct from 'PENDIENTE') then
     raise exception 'Una guía registrada no se edita: se anula con motivo y se registra otra' using errcode = 'P0001';
   end if;
   return new;
+end $$;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'guias_remision_inmutable' and tgrelid = 'wms.guias_remision'::regclass) then drop trigger guias_remision_inmutable on wms.guias_remision; end if; end $$;
+create trigger guias_remision_inmutable before update or delete on wms.guias_remision for each row execute function wms._guia_inmutable();
+
+-- Lo que Nubefact necesita del conductor (licencia); el DNI ya estaba.
+alter table wms.personal_transporte add column if not exists licencia text;
+
+-- Correlativo de la guía por serie: Nubefact pide el número en cada envío. El WMS lo lleva en una sola fila por serie (candado de fila), así que dos personas nunca usan el mismo.
+-- Un envío que falla puede dejar un número sin usar: es preferible a repetir uno (SUNAT responde «1033: el comprobante fue registrado previamente con otros datos»).
+create table if not exists wms.guia_correlativos (
+  serie text primary key check (serie ~ '^T[A-Z0-9]{3}$'),
+  ultimo integer not null default 0 check (ultimo >= 0),
+  nota text
+);
+alter table wms.guia_correlativos enable row level security;
+do $$ begin
+  if exists (select 1 from pg_policies where schemaname = 'wms' and tablename = 'guia_correlativos' and policyname = 'lectura') then drop policy lectura on wms.guia_correlativos; end if;
+  create policy lectura on wms.guia_correlativos for select to authenticated using (wms.es_usuario());
+end $$;
+revoke all on wms.guia_correlativos from anon, authenticated;
+grant select on wms.guia_correlativos to authenticated;
+insert into wms.guia_correlativos (serie, ultimo, nota)
+values ('TTT1', 2887, 'Último número que muestra la factura FFF1-002677 (30/09/2026): CONFIRMAR con Nubefact antes de pasar a producción')
+on conflict (serie) do nothing;
+
+create or replace function wms.siguiente_numero_guia(p_serie text) returns integer
+language plpgsql security definer set search_path = wms, pg_temp as $$
+declare v_n integer; v_serie text := upper(btrim(coalesce(p_serie, '')));
+begin
+  perform wms._exigir_accion('registrar_documentacion', 'No tienes permiso para emitir la guía de remisión');
+  update wms.guia_correlativos set ultimo = ultimo + 1 where serie = v_serie returning ultimo into v_n;
+  if v_n is null then raise exception 'La serie % de guías no está configurada', v_serie using errcode = 'P0001'; end if;
+  return v_n;
 end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -68,14 +105,14 @@ end $$;
 -- ─────────────────────────────────────────────────────────────────────────────
 
 insert into wms.parametros (clave, valor, nota) values
-  ('guia_serie', 'T001', 'Serie de la guía de remisión remitente electrónica (la confirma Contabilidad al pasar a producción)'),
+  ('guia_serie', 'TTT1', 'Serie de la guía de remisión remitente electrónica (la que muestra la factura FFF1-002677); la serie de una guía remitente empieza con T'),
   ('guia_partida_ubigeo', '150119', 'Punto de partida: Lurín (Dirección Técnica, 2026-10)'),
-  ('guia_partida_direccion', 'PENDIENTE', 'Dirección exacta del almacén de Lurín tal como va en la guía: la confirma Charlie o Katia'),
+  ('guia_partida_direccion', 'CAR. PANAMERICANA SUR KM. 29.5 INT. A-08, LURIN, LIMA', 'Dirección del almacén de Lurín, tomada de la factura FFF1-002677: Charlie o Katia confirman que es la que va en la guía'),
   ('guia_motivo_traslado', 'VENTA', 'Motivo del traslado de las guías de pedidos (Dirección Técnica)'),
   ('guia_modalidad_transporte', 'TRANSPORTE PRIVADO', 'Modalidad del traslado (Dirección Técnica)'),
   ('sunat_baja_plazo_horas', 'PENDIENTE', 'Plazo para dar de baja una guía ante SUNAT: pendiente de validar con Contabilidad y Nubefact'),
   ('sunat_baja_tras_inicio_traslado', 'PENDIENTE', 'Si la baja procede después de iniciado el traslado: pendiente de validar con Contabilidad y Nubefact'),
-  ('nubefact_baja_soportada', 'PENDIENTE', 'Si la API de Nubefact da de baja la guía: pendiente de validar con Nubefact')
+  ('nubefact_baja_soportada', 'NO', 'Según el manual de Nubefact, una guía solo se da de baja en la SUNAT con Clave SOL (no por la API)')
 on conflict (clave) do nothing;
 
 select wms._ampliar_check_in('wms.permisos_rol', 'permisos_rol_accion_check', 'accion', array['anular_guia']);
@@ -162,7 +199,7 @@ begin
   perform wms._exigir_accion('registrar_documentacion', 'No tienes permiso para ver los datos de la guía');
   select * into s from wms.salidas where id = p_salida;
   if not found then raise exception 'No encontramos esa salida' using errcode = 'P0001'; end if;
-  select r.id, r.numero, r.fecha, r.estado, ve.placa, c.nombre as conductor, c.dni as conductor_dni, a.nombre as auxiliar
+  select r.id, r.numero, r.fecha, r.estado, ve.placa, c.nombre as conductor, c.dni as conductor_dni, c.licencia as conductor_licencia, a.nombre as auxiliar
     into v_ruta
     from wms.ruta_paradas pa join wms.rutas r on r.id = pa.ruta_id
     left join wms.vehiculos ve on ve.id = r.vehiculo_id
@@ -175,7 +212,7 @@ begin
     'salida', jsonb_build_object('id', s.id, 'numero', s.numero, 'tipo', s.tipo, 'motivo', s.motivo, 'estado', s.estado, 'conforme', wms._salida_conforme(p_salida)),
     'pedido', case when v_ped.pedido_id is null then null else jsonb_build_object('id', v_ped.pedido_id, 'numero', v_ped.numero, 'cliente', v_ped.cliente_nombre, 'ruc', v_ped.cliente_ruc, 'snapshot', v_ped.snapshot) end,
     'ruta', case when v_ruta.id is null then null else jsonb_build_object('id', v_ruta.id, 'numero', v_ruta.numero, 'fecha', v_ruta.fecha, 'placa', v_ruta.placa,
-              'conductor', v_ruta.conductor, 'conductor_dni', v_ruta.conductor_dni, 'auxiliar', v_ruta.auxiliar) end,
+              'conductor', v_ruta.conductor, 'conductor_dni', v_ruta.conductor_dni, 'conductor_licencia', v_ruta.conductor_licencia, 'auxiliar', v_ruta.auxiliar) end,
     'bultos', coalesce(s.bultos_conformidad, (select count(*)::integer from wms.bultos where salida_id = p_salida and estado = 'EMBALADO')),
     'lineas', wms._lineas_de_guia(p_salida),
     'parametros', v_par);
@@ -214,11 +251,12 @@ begin
   return v_id;
 end $$;
 
--- Electrónica: la aplicación ya la emitió con Nubefact (simulador, prueba o producción) y aquí se guarda el resultado, no se edita.
--- La ruta va antes que la guía: sin ruta con vehículo y conductor no se registra. Solo pedidos (el tipo B usa la GRE del cliente).
+-- Electrónica: la aplicación ya envió la guía a Nubefact (simulador, prueba o producción). Nubefact trabaja en DOS PASOS: «generar_guia» recibe la guía (sin PDF ni XML) y
+-- «consultar_guia» devuelve el PDF, el XML y el CDR cuando SUNAT la acepta, lo que puede tardar segundos o minutos. Por eso aquí se registra con el estado de SUNAT que haya
+-- (normalmente PENDIENTE) y `actualizar_estado_guia` lo completa después. La ruta va antes que la guía. Solo pedidos (el tipo B usa la GRE del cliente).
 create or replace function wms.registrar_guia_electronica(
-  p_salida uuid, p_numero text, p_enlace text, p_hash text, p_entorno text, p_fecha_inicio date, p_peso numeric, p_payload jsonb, p_respuesta jsonb,
-  p_enlace_xml text default null, p_estado_sunat text default 'ACEPTADA'
+  p_salida uuid, p_numero text, p_entorno text, p_fecha_inicio date, p_peso numeric, p_payload jsonb, p_respuesta jsonb,
+  p_estado_sunat text default 'PENDIENTE', p_enlace text default null, p_enlace_xml text default null, p_enlace_cdr text default null, p_hash text default null
 ) returns uuid
 language plpgsql security definer set search_path = wms, pg_temp as $$
 declare s wms.salidas; v_num text := upper(btrim(coalesce(p_numero, ''))); v_id uuid := gen_random_uuid(); v_ruta record;
@@ -232,7 +270,8 @@ begin
   end if;
   if v_num !~ '^[A-Z][A-Z0-9]{3}-[0-9]{1,8}$' then raise exception 'Nubefact devolvió un número de guía que no tiene el formato esperado (%)', v_num using errcode = 'P0001'; end if;
   if p_entorno is null or p_entorno not in ('SIMULADOR', 'PRUEBA', 'PRODUCCION') then raise exception 'Falta el entorno de Nubefact con el que se emitió' using errcode = 'P0001'; end if;
-  if nullif(btrim(coalesce(p_enlace, '')), '') is null then raise exception 'Falta el enlace de la guía que devolvió Nubefact' using errcode = 'P0001'; end if;
+  if p_estado_sunat is null or p_estado_sunat not in ('PENDIENTE', 'ACEPTADA') then raise exception 'Una guía rechazada por SUNAT no se registra: se corrige y se vuelve a enviar' using errcode = 'P0001'; end if;
+  if p_estado_sunat = 'ACEPTADA' and nullif(btrim(coalesce(p_enlace, '')), '') is null then raise exception 'Falta el enlace de la guía que devolvió Nubefact' using errcode = 'P0001'; end if;
   if not wms._salida_conforme(p_salida) then raise exception 'La guía se emite cuando todo el pedido tiene la conformidad: sus lotes salen de lo confirmado' using errcode = 'P0001'; end if;
   if exists (select 1 from wms.guias_remision where salida_id = p_salida and estado = 'VIGENTE') then
     raise exception 'Este pedido ya tiene una guía. Para cambiarla, anúlala con el motivo y emite la nueva' using errcode = 'P0001';
@@ -246,14 +285,61 @@ begin
   if v_ruta.id is null then raise exception 'Asigna primero el pedido a una ruta: la guía toma el vehículo, el conductor y la fecha de la ruta' using errcode = 'P0001'; end if;
   if v_ruta.placa is null or v_ruta.conductor_id is null then raise exception 'La ruta todavía no tiene vehículo y conductor: complétalos antes de emitir la guía' using errcode = 'P0001'; end if;
   if p_fecha_inicio is null then raise exception 'Indica la fecha de inicio del traslado' using errcode = 'P0001'; end if;
-  if p_estado_sunat is null or p_estado_sunat not in ('ACEPTADA', 'PENDIENTE') then raise exception 'Una guía rechazada por SUNAT no se registra: se corrige y se vuelve a enviar' using errcode = 'P0001'; end if;
   if p_peso is not null and p_peso <= 0 then raise exception 'El peso tiene que ser mayor que cero' using errcode = 'P0001'; end if;
-  insert into wms.guias_remision (id, salida_id, numero, lineas, placa, fecha_traslado, registrada_por, origen, entorno, enlace, hash_nubefact, fecha_inicio_traslado, peso_kg, bultos, payload, respuesta, enlace_xml, estado_sunat)
-  values (v_id, p_salida, v_num, wms._lineas_de_guia(p_salida), v_ruta.placa, v_ruta.fecha, auth.uid(), 'NUBEFACT', p_entorno, btrim(p_enlace), nullif(btrim(coalesce(p_hash, '')), ''),
-          p_fecha_inicio, p_peso, s.bultos_conformidad, p_payload, p_respuesta, nullif(btrim(coalesce(p_enlace_xml, '')), ''), p_estado_sunat);
-  perform wms._encolar_evento_guia(v_id, 'GUIA_EMITIDA');
-  perform wms.registrar_audit('guia_electronica_emitida', 'guias_remision', v_id::text, null, jsonb_build_object('numero', v_num, 'salida', s.numero, 'entorno', p_entorno), null);
+  insert into wms.guias_remision (id, salida_id, numero, lineas, placa, fecha_traslado, registrada_por, origen, entorno, enlace, enlace_xml, enlace_cdr, hash_nubefact, estado_sunat,
+                                  fecha_inicio_traslado, peso_kg, bultos, payload, respuesta)
+  values (v_id, p_salida, v_num, wms._lineas_de_guia(p_salida), v_ruta.placa, v_ruta.fecha, auth.uid(), 'NUBEFACT', p_entorno, nullif(btrim(coalesce(p_enlace, '')), ''),
+          nullif(btrim(coalesce(p_enlace_xml, '')), ''), nullif(btrim(coalesce(p_enlace_cdr, '')), ''), nullif(btrim(coalesce(p_hash, '')), ''), p_estado_sunat,
+          p_fecha_inicio, p_peso, s.bultos_conformidad, p_payload, p_respuesta);
+  -- A Pedidos solo se le avisa de una guía que SUNAT ya aceptó: con ella factura.
+  if p_estado_sunat = 'ACEPTADA' then perform wms._encolar_evento_guia(v_id, 'GUIA_EMITIDA'); end if;
+  perform wms.registrar_audit('guia_electronica_emitida', 'guias_remision', v_id::text, null, jsonb_build_object('numero', v_num, 'salida', s.numero, 'entorno', p_entorno, 'estado_sunat', p_estado_sunat), null);
   return v_id;
+end $$;
+
+-- Después de «consultar_guia»: SUNAT aceptó (se guardan el PDF, el XML y el CDR y se avisa a Pedidos) o rechazó (la guía queda anulada con el motivo de SUNAT y no hay baja que hacer).
+create or replace function wms.actualizar_estado_guia(
+  p_guia uuid, p_estado text, p_enlace text default null, p_enlace_xml text default null, p_enlace_cdr text default null, p_hash text default null, p_respuesta jsonb default null, p_error text default null
+) returns text
+language plpgsql security definer set search_path = wms, pg_temp as $$
+declare g wms.guias_remision; v_err text := nullif(btrim(coalesce(p_error, '')), '');
+begin
+  perform wms._exigir_accion('registrar_documentacion', 'No tienes permiso para actualizar la guía de remisión');
+  select * into g from wms.guias_remision where id = p_guia for update;
+  if not found then raise exception 'No encontramos esa guía' using errcode = 'P0001'; end if;
+  if g.origen <> 'NUBEFACT' then raise exception 'Solo las guías emitidas con Nubefact tienen estado de SUNAT' using errcode = 'P0001'; end if;
+  if g.estado <> 'VIGENTE' or g.estado_sunat <> 'PENDIENTE' then return g.estado_sunat; end if;      -- ya resuelta: consultar otra vez no cambia nada
+  if p_estado = 'PENDIENTE' then return 'PENDIENTE'; end if;
+  if p_estado = 'ACEPTADA' then
+    if nullif(btrim(coalesce(p_enlace, '')), '') is null then raise exception 'Falta el enlace de la guía que devolvió Nubefact' using errcode = 'P0001'; end if;
+    update wms.guias_remision set estado_sunat = 'ACEPTADA', enlace = btrim(p_enlace), enlace_xml = nullif(btrim(coalesce(p_enlace_xml, '')), ''),
+           enlace_cdr = nullif(btrim(coalesce(p_enlace_cdr, '')), ''), hash_nubefact = nullif(btrim(coalesce(p_hash, '')), ''), respuesta = coalesce(p_respuesta, respuesta) where id = p_guia;
+    perform wms._encolar_evento_guia(p_guia, 'GUIA_EMITIDA');
+    perform wms.registrar_audit('guia_electronica_aceptada', 'guias_remision', p_guia::text, null, jsonb_build_object('numero', g.numero), null);
+    return 'ACEPTADA';
+  elsif p_estado = 'RECHAZADA' then
+    if v_err is null then raise exception 'Indica por qué SUNAT rechazó la guía' using errcode = 'P0001'; end if;
+    update wms.guias_remision set estado_sunat = 'RECHAZADA', respuesta = coalesce(p_respuesta, respuesta), estado = 'ANULADA', anulada_por = auth.uid(), anulada_en = now(),
+           motivo_anulacion = 'SUNAT rechazó la guía: ' || v_err, baja_sunat = 'NO_APLICA' where id = p_guia;
+    perform wms.registrar_audit('guia_electronica_rechazada', 'guias_remision', p_guia::text, null, jsonb_build_object('numero', g.numero), v_err);
+    return 'RECHAZADA';
+  end if;
+  raise exception 'El estado de SUNAT es aceptada, pendiente o rechazada' using errcode = 'P0001';
+end $$;
+
+-- «Lista para carga» exige que SUNAT haya aceptado la guía electrónica (a una guía pendiente todavía no se le puede cargar ni sacar nada).
+do $$
+declare v_oid oid; v_def text;
+        v_viejo text := 'and exists (select 1 from wms.guias_remision where salida_id = p_salida and estado = ''VIGENTE'')';
+        v_nuevo text := 'and exists (select 1 from wms.guias_remision where salida_id = p_salida and estado = ''VIGENTE'' and (origen <> ''NUBEFACT'' or estado_sunat = ''ACEPTADA''))';
+begin
+  select p.oid into v_oid from pg_proc p where p.pronamespace = 'wms'::regnamespace and p.proname = 'listo_para_carga' order by p.oid desc limit 1;
+  v_def := pg_get_functiondef(v_oid);
+  if position(v_viejo in v_def) = 0 then
+    if position(v_nuevo in v_def) > 0 then return; end if;
+    raise exception 'No se encontró el texto esperado en wms.listo_para_carga: %', v_viejo;
+  end if;
+  execute replace(v_def, v_viejo, v_nuevo);
 end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -367,6 +453,6 @@ end $$;
 -- 8. Permisos de ejecución (default-deny)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-grant execute on function wms.contexto_guia(uuid), wms.registrar_gre(uuid, text, text, text), wms.registrar_guia_electronica(uuid, text, text, text, text, date, numeric, jsonb, jsonb, text, text),
+grant execute on function wms.contexto_guia(uuid), wms.registrar_gre(uuid, text, text, text), wms.registrar_guia_electronica(uuid, text, text, date, numeric, jsonb, jsonb, text, text, text, text, text), wms.actualizar_estado_guia(uuid, text, text, text, text, text, jsonb, text), wms.siguiente_numero_guia(text),
   wms.anular_guia(uuid, integer, text), wms.anular_gre(uuid, text), wms.marcar_evento_pedidos(uuid, boolean, text) to authenticated;
 revoke execute on all functions in schema wms from public;

@@ -5,7 +5,7 @@ import {
   type GuiaVista, type ItemPaquete, type LineaGuia, type PaqueteSalida,
 } from '@/domain/documentacion'
 import {
-  type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type ModoNubefact, type OrigenGuia, type RespuestaEmision, type TrasladoGuia,
+  type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type RespuestaConsulta, type ModoNubefact, type OrigenGuia, type RespuestaEmision, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 import { etapaConAvance, type SalidaResumen, type SalidaVista } from '@/domain/despacho'
 import type { EstadoRequisito, TipoDocumento } from '@/domain/documentos'
@@ -92,19 +92,33 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
       lineas: ((c.lineas ?? []) as { producto_codigo: string; producto: string; lote: string; vence: string | null; cantidad: number }[])
         .map((l): LineaGuia => ({ productoCodigo: l.producto_codigo, producto: l.producto, lote: l.lote, vence: l.vence ? dia(l.vence) : null, cantidad: Number(l.cantidad) })),
       bultos: Number(c.bultos ?? 0),
-      ruta: c.ruta ? { id: String(c.ruta.id), numero: String(c.ruta.numero), fecha: dia(c.ruta.fecha), placa: s(c.ruta.placa), conductor: s(c.ruta.conductor), conductorDni: s(c.ruta.conductor_dni), auxiliar: s(c.ruta.auxiliar) } : undefined,
+      ruta: c.ruta ? { id: String(c.ruta.id), numero: String(c.ruta.numero), fecha: dia(c.ruta.fecha), placa: s(c.ruta.placa), conductor: s(c.ruta.conductor), conductorDni: s(c.ruta.conductor_dni), conductorLicencia: s(c.ruta.conductor_licencia), auxiliar: s(c.ruta.auxiliar) } : undefined,
       partida: { ubigeo: par.guia_partida_ubigeo ?? '', direccion: par.guia_partida_direccion ?? '' },
-      motivoTraslado: par.guia_motivo_traslado ?? 'VENTA', modalidad: par.guia_modalidad_transporte ?? 'TRANSPORTE PRIVADO', serie: par.guia_serie ?? 'T001',
+      motivoTraslado: par.guia_motivo_traslado ?? 'VENTA', modalidad: par.guia_modalidad_transporte ?? 'TRANSPORTE PRIVADO', serie: par.guia_serie ?? 'TTT1',
       reglasBaja: { plazoHoras: par.sunat_baja_plazo_horas ?? 'PENDIENTE', trasInicioTraslado: par.sunat_baja_tras_inicio_traslado ?? 'PENDIENTE', soportadaPorApi: par.nubefact_baja_soportada ?? 'PENDIENTE' },
     }
   }
 
   async registrarGuiaElectronica(salidaId: string, r: Extract<RespuestaEmision, { ok: true }>, t: TrasladoGuia, payload: unknown, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
     const { data, error } = await rpc('registrar_guia_electronica', {
-      p_salida: salidaId, p_numero: r.numero, p_enlace: r.enlace, p_hash: r.hash, p_entorno: r.entorno, p_fecha_inicio: t.fechaInicio, p_peso: t.pesoKg,
-      p_payload: payload ?? null, p_respuesta: r.cruda ?? null, p_enlace_xml: r.enlaceXml ?? null, p_estado_sunat: r.estadoSunat,
+      p_salida: salidaId, p_numero: r.numero, p_entorno: r.entorno, p_fecha_inicio: t.fechaInicio, p_peso: t.pesoKg,
+      p_payload: payload ?? null, p_respuesta: r.cruda ?? null, p_estado_sunat: r.estadoSunat, p_enlace: r.enlace ?? null, p_enlace_xml: r.enlaceXml ?? null,
+      p_enlace_cdr: r.enlaceCdr ?? null, p_hash: r.hash || null,
     })
     return error ? mal(error) : { ok: true, id: String(data), numero: r.numero }
+  }
+
+  async siguienteNumeroGuia(serie: string): Promise<ResultadoAccion<{ numero: number }>> {
+    const { data, error } = await rpc('siguiente_numero_guia', { p_serie: serie })
+    return error ? mal(error) : { ok: true, numero: Number(data) }
+  }
+
+  async actualizarEstadoGuia(guiaId: string, c: Extract<RespuestaConsulta, { ok: true }>, _actor: Actor): Promise<ResultadoAccion<{ estadoSunat: EstadoSunat }>> {
+    const { data, error } = await rpc('actualizar_estado_guia', {
+      p_guia: guiaId, p_estado: c.estadoSunat, p_enlace: c.enlace ?? null, p_enlace_xml: c.enlaceXml ?? null, p_enlace_cdr: c.enlaceCdr ?? null, p_hash: c.hash ?? null,
+      p_respuesta: c.cruda ?? null, p_error: c.error ?? null,
+    })
+    return error ? mal(error) : { ok: true, estadoSunat: String(data) as EstadoSunat }
   }
 
   async anularGuia(guiaId: string, caso: CasoAnulacion, motivo: string, _actor: Actor): Promise<ResultadoAccion<{ caso: CasoAnulacion; conformidadReabierta: boolean; bajaSunat: 'PENDIENTE' | 'NO_APLICA' }>> {

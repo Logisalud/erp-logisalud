@@ -46,7 +46,7 @@ export function EmitirGuia({ datos, modo, hoy, alEmitir }: { datos: DatosGuia; m
           <label htmlFor="peso-bruto" className="etiqueta">Peso bruto (kg)</label>
           <input id="peso-bruto" inputMode="decimal" className="campo tabular" value={peso} onChange={(e) => setPeso(e.target.value.replace(/[^0-9.,]/g, ''))} data-testid="peso-bruto" />
         </div>
-        {real && (
+        {!d.ruta?.conductorLicencia && (
           <div>
             <label htmlFor="licencia" className="etiqueta">Licencia del conductor</label>
             <input id="licencia" className="campo tabular uppercase" value={licencia} onChange={(e) => setLicencia(e.target.value)} data-testid="licencia-conductor" />
@@ -61,7 +61,7 @@ export function EmitirGuia({ datos, modo, hoy, alEmitir }: { datos: DatosGuia; m
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" className="btn-primary" disabled={pendiente || faltan.length > 0} data-testid="emitir-guia-boton"
           onClick={() => ejecutar(() => emitirGuiaElectronicaAccion(d.salidaId, traslado), {
-            alExito: (r) => alEmitir(`Guía ${r.numero} emitida (${ETIQUETA_MODO[r.entorno as ModoNubefact]}). ${r.estadoSunat === 'ACEPTADA' ? 'SUNAT la aceptó.' : 'SUNAT todavía no responde: la guía queda registrada y se confirma después.'} ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje si va a provincia y la carga.`),
+            alExito: (r) => alEmitir(`Guía ${r.numero} emitida (${ETIQUETA_MODO[r.entorno as ModoNubefact]}). ${r.estadoSunat === 'ACEPTADA' ? `SUNAT la aceptó. ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje si va a provincia y la carga.` : 'SUNAT todavía no responde. Siguiente: pulsa «Consultar estado en SUNAT» en unos minutos; cuando la acepte, Pedidos recibe el número y podrás cargar.'}`),
           })}>
           <Send className="h-5 w-5" aria-hidden />{pendiente ? 'Emitiendo…' : 'Emitir guía'}
         </button>

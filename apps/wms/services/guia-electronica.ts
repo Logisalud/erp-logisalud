@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { construirPayloadNubefact, faltantesDeGuia, type CasoAnulacion, type TrasladoGuia } from '@/domain/guia-electronica'
+import { construirConsulta, construirPayloadNubefact, faltantesDeGuia, partirNumeroGuia, type CasoAnulacion, type EstadoSunat, type TrasladoGuia } from '@/domain/guia-electronica'
 import { repositorio } from './repositorio-actual'
 import { clienteNubefact, modoNubefactActual, NubefactNoConfigurado } from './nubefact/cliente'
 import { notificadorPedidos } from './pedidos/notificar'
@@ -9,11 +9,25 @@ import type { Actor, ResultadoAccion } from './repositorio'
 const hoyLima = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
 const falla = (mensaje: string): { ok: false; mensaje: string } => ({ ok: false, mensaje })
 
+/** Paso 2: pregunta a Nubefact si SUNAT ya aceptó la guía y anota la respuesta (aceptada → enlaces y aviso a Pedidos; rechazada → la guía se anula con el motivo). */
+async function consultarYAnotar(guiaId: string, numero: string, actor: Actor): Promise<{ ok: true; estadoSunat: EstadoSunat; error?: string } | { ok: false; mensaje: string }> {
+  let cliente
+  try { cliente = clienteNubefact() } catch (e) { return falla(e instanceof NubefactNoConfigurado ? e.message : 'No se pudo conectar con Nubefact') }
+  const { serie, numero: n } = partirNumeroGuia(numero)
+  const c = await cliente.consultarGuia(construirConsulta(serie, n))
+  if (!c.ok) return falla(c.error)
+  if (c.estadoSunat === 'PENDIENTE') return { ok: true, estadoSunat: 'PENDIENTE' }
+  const r = await repositorio().actualizarEstadoGuia(guiaId, c, actor)
+  if (!r.ok) return falla(r.mensaje)
+  return { ok: true, estadoSunat: r.estadoSunat, error: c.error }
+}
+
 /**
- * «Emitir guía»: toma todo del WMS, lo envía a Nubefact y, solo si Nubefact/SUNAT la aceptan, guarda el resultado (número, estado de SUNAT, PDF y XML)
- * y deja el aviso para Pedidos. Si SUNAT rechaza, no se guarda nada y se muestra el error en lenguaje humano para corregir y reenviar.
+ * «Emitir guía» (dos pasos, como Nubefact): toma todo del WMS, pide el siguiente número de la serie, envía la guía a Nubefact y la registra en espera de SUNAT;
+ * enseguida consulta una vez. Si SUNAT ya la aceptó, queda con su PDF y se avisa a Pedidos; si todavía no responde, queda «en espera» y se consulta con un botón;
+ * si SUNAT la rechaza, la guía se anula con el motivo en lenguaje humano para corregir y emitir otra.
  */
-export async function emitirGuiaElectronica(salidaId: string, traslado: TrasladoGuia, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string; entorno: string; estadoSunat: string; pedidos: 'ENVIADO' | 'PENDIENTE' }>> {
+export async function emitirGuiaElectronica(salidaId: string, traslado: TrasladoGuia, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string; entorno: string; estadoSunat: string; pedidos: 'ENVIADO' | 'PENDIENTE' | 'NO_AUN' }>> {
   const repo = repositorio()
   const datos = await repo.datosGuia(salidaId)
   if (!datos) return falla('No encontramos esa salida')
@@ -21,17 +35,37 @@ export async function emitirGuiaElectronica(salidaId: string, traslado: Traslado
   if (faltan.length) return falla(faltan.length === 1 ? faltan[0] : `Falta completar: ${faltan.join('; ')}.`)
   let cliente
   try { cliente = clienteNubefact() } catch (e) { return falla(e instanceof NubefactNoConfigurado ? e.message : 'No se pudo conectar con Nubefact') }
-  const payload = construirPayloadNubefact(datos, traslado, hoyLima())
+  const n = await repo.siguienteNumeroGuia(datos.serie)
+  if (!n.ok) return falla(n.mensaje)
+  const payload = construirPayloadNubefact(datos, traslado, hoyLima(), n.numero)
   const r = await cliente.emitirGuia(payload)
   if (!r.ok) return falla(r.error)
   const reg = await repo.registrarGuiaElectronica(salidaId, r, traslado, payload, actor)
   if (!reg.ok) {
-    // Nubefact ya la emitió: el número queda en el registro del servidor para conciliarla; la persona ve qué pasó y qué hacer.
-    console.error(`[guía electrónica] emitida en ${r.entorno} como ${r.numero} pero no se registró en el WMS: ${reg.mensaje}`)
-    return falla(`La guía ${r.numero} se emitió en Nubefact, pero el WMS no pudo registrarla: ${reg.mensaje}. No la vuelvas a emitir: avisa a Sistemas con ese número.`)
+    // Nubefact ya la recibió: el número queda en el registro del servidor para conciliarla; la persona ve qué pasó y qué hacer.
+    console.error(`[guía electrónica] enviada en ${r.entorno} como ${r.numero} pero no se registró en el WMS: ${reg.mensaje}`)
+    return falla(`La guía ${r.numero} se envió a Nubefact, pero el WMS no pudo registrarla: ${reg.mensaje}. No la vuelvas a emitir: avisa a Sistemas con ese número.`)
   }
+  let estado: EstadoSunat = r.estadoSunat
+  if (estado === 'PENDIENTE') {
+    const c = await consultarYAnotar(reg.id, reg.numero, actor)
+    if (c.ok) {
+      estado = c.estadoSunat
+      if (estado === 'RECHAZADA') return falla(`SUNAT rechazó la guía ${reg.numero}: ${c.error ?? 'sin detalle'}. La guía quedó anulada: corrige lo indicado y emite otra.`)
+    }
+  }
+  const envio = estado === 'ACEPTADA' ? await enviarEventosPedidos(actor, salidaId) : { pendientes: 0 }
+  return { ok: true, id: reg.id, numero: reg.numero, entorno: r.entorno, estadoSunat: estado, pedidos: estado !== 'ACEPTADA' ? 'NO_AUN' : envio.pendientes === 0 ? 'ENVIADO' : 'PENDIENTE' }
+}
+
+/** «Consultar estado en SUNAT» para una guía que quedó en espera. */
+export async function consultarEstadoGuia(guiaId: string, numero: string, salidaId: string, actor: Actor): Promise<ResultadoAccion<{ estadoSunat: EstadoSunat; pedidos: 'ENVIADO' | 'PENDIENTE' | 'NO_AUN' }>> {
+  const c = await consultarYAnotar(guiaId, numero, actor)
+  if (!c.ok) return falla(c.mensaje)
+  if (c.estadoSunat === 'RECHAZADA') return falla(`SUNAT rechazó la guía ${numero}: ${c.error ?? 'sin detalle'}. La guía quedó anulada: corrige lo indicado y emite otra.`)
+  if (c.estadoSunat === 'PENDIENTE') return { ok: true, estadoSunat: 'PENDIENTE', pedidos: 'NO_AUN' }
   const envio = await enviarEventosPedidos(actor, salidaId)
-  return { ok: true, id: reg.id, numero: reg.numero, entorno: r.entorno, estadoSunat: r.estadoSunat, pedidos: envio.pendientes === 0 ? 'ENVIADO' : 'PENDIENTE' }
+  return { ok: true, estadoSunat: 'ACEPTADA', pedidos: envio.pendientes === 0 ? 'ENVIADO' : 'PENDIENTE' }
 }
 
 /** Anula con el caso elegido y avisa a Pedidos. La baja ante SUNAT no se hace sola mientras sus reglas estén pendientes de validar (D-90). */

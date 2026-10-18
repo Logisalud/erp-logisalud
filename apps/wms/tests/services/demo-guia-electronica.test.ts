@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import { SimuladorNubefact, reiniciarSimuladorNubefact } from '@/services/nubefact/simulador'
-import { construirPayloadNubefact, faltantesDeGuia, type TrasladoGuia } from '@/domain/guia-electronica'
+import { construirConsulta, construirPayloadNubefact, faltantesDeGuia, type TrasladoGuia } from '@/domain/guia-electronica'
 import type { Actor } from '@/services/repositorio'
 import { imprimirYConformar } from './ayudas-orden'
 
@@ -25,10 +25,18 @@ async function salidaConforme(conformar = true) {
 async function emitir(id: string, actorEmite: Actor = JT) {
   const datos = (await repo.datosGuia(id))!
   expect(faltantesDeGuia(datos, traslado, 'SIMULADOR')).toEqual([])
-  const payload = construirPayloadNubefact(datos, traslado, '2026-10-19')
-  const r = await new SimuladorNubefact().emitirGuia(payload)
+  const n = await repo.siguienteNumeroGuia(datos.serie)
+  if (!n.ok) throw new Error(n.mensaje)
+  const payload = construirPayloadNubefact(datos, traslado, '2026-10-19', n.numero)
+  const sim = new SimuladorNubefact()
+  const r = await sim.emitirGuia(payload)
   if (!r.ok) throw new Error(r.error)
-  return { r, payload, reg: await repo.registrarGuiaElectronica(id, r, traslado, payload, actorEmite) }
+  const reg = await repo.registrarGuiaElectronica(id, r, traslado, payload, actorEmite)
+  if (reg.ok) {
+    const c = await sim.consultarGuia(construirConsulta(datos.serie, n.numero))
+    if (c.ok) await repo.actualizarEstadoGuia(reg.id, c, actorEmite)
+  }
+  return { r, payload, reg }
 }
 const stockEn = async (zona: 'DESPACHO' | 'rack') => {
   const p = await repo.panorama()
@@ -40,7 +48,7 @@ describe('datos de la guía (demo)', () => {
   it('toma del WMS el destinatario, las líneas por lote, la ruta con vehículo y conductor, los bultos y el punto de partida', async () => {
     const { id } = await salidaConforme()
     const d = (await repo.datosGuia(id))!
-    expect(d).toMatchObject({ tipo: 'DISTRIBUCION', conforme: true, bultos: 2, motivoTraslado: 'VENTA', modalidad: 'TRANSPORTE PRIVADO', serie: 'T001', partida: { ubigeo: '150119' } })
+    expect(d).toMatchObject({ tipo: 'DISTRIBUCION', conforme: true, bultos: 2, motivoTraslado: 'VENTA', modalidad: 'TRANSPORTE PRIVADO', serie: 'TTT1', partida: { ubigeo: '150119' } })
     expect(d.destinatario.ruc).toBeTruthy()
     expect(d.lineas.reduce((t, l) => t + l.cantidad, 0)).toBe(26)
     expect(d.reglasBaja).toEqual({ plazoHoras: 'PENDIENTE', trasInicioTraslado: 'PENDIENTE', soportadaPorApi: 'PENDIENTE' })
@@ -54,7 +62,7 @@ describe('emitir la guía (demo)', () => {
     expect(reg).toMatchObject({ ok: true, numero: r.ok ? r.numero : '' })
     const paquete = (await repo.paqueteSalida(id))!
     expect(paquete.guia).toMatchObject({ origen: 'NUBEFACT', entorno: 'SIMULADOR', estadoSunat: 'ACEPTADA', bultos: 2, pesoKg: 12, fechaInicio: '2026-10-20' })
-    expect(paquete.guia!.enlace).toMatch(/^\/simulador-nubefact\/T001-0000000\d$/)
+    expect(paquete.guia!.enlace).toMatch(/^\/simulador-nubefact\/TTT1-0000000\d$/)
     const ev = await repo.eventosPedidos({ salidaId: id })
     expect(ev).toHaveLength(1)
     expect(ev[0]).toMatchObject({ tipo: 'GUIA_EMITIDA', estado: 'PENDIENTE' })
@@ -64,7 +72,7 @@ describe('emitir la guía (demo)', () => {
   })
 
   it('sin conformidad no se emite; sin permiso tampoco', async () => {
-    const falsa = { ok: true as const, numero: 'T001-00000099', enlace: '/simulador-nubefact/T001-00000099', hash: 'h', estadoSunat: 'ACEPTADA' as const, entorno: 'SIMULADOR' as const, cruda: {} }
+    const falsa = { ok: true as const, numero: 'TTT1-00000099', enlace: '/simulador-nubefact/TTT1-00000099', hash: 'h', estadoSunat: 'ACEPTADA' as const, entorno: 'SIMULADOR' as const, cruda: {} }
     const { id } = await salidaConforme(false)
     expect(await repo.registrarGuiaElectronica(id, falsa, traslado, {}, JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('cuando todo el pedido tiene la conformidad') })
     ;(globalThis as { __wmsDemo?: unknown }).__wmsDemo = undefined; repo = new RepositorioDemo()

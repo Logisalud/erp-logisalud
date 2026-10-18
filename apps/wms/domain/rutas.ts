@@ -12,7 +12,7 @@ export const ETIQUETA_ESTADO_RUTA: Record<EstadoRuta, string> = {
 export const RUTA_EDITABLE: readonly EstadoRuta[] = ['BORRADOR', 'PLANIFICADA']
 
 export type FuncionTransporte = 'CONDUCTOR' | 'AUXILIAR'
-export interface PersonalTransporte { id: string; nombre: string; funcion: FuncionTransporte; activo: boolean; dni?: string }
+export interface PersonalTransporte { id: string; nombre: string; funcion: FuncionTransporte; activo: boolean; dni?: string; licencia?: string }
 export interface VehiculoVista {
   id: string; placa: string; descripcion?: string; tipo: 'PROPIO' | 'EXTERNO'
   /** Atiende a los clientes que exigen «vehículo calificado» (D-58 define cuáles). */

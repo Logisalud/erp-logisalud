@@ -10,8 +10,8 @@ export const ETIQUETA_MODO: Record<ModoNubefact, string> = {
   PRUEBA: 'Entorno de pruebas de Nubefact',
   PRODUCCION: 'Producción: la guía es real',
 }
-export type EstadoSunat = 'ACEPTADA' | 'PENDIENTE'
-export const ETIQUETA_ESTADO_SUNAT: Record<EstadoSunat, string> = { ACEPTADA: 'Aceptada por SUNAT', PENDIENTE: 'SUNAT todavía no responde' }
+export type EstadoSunat = 'ACEPTADA' | 'PENDIENTE' | 'RECHAZADA'
+export const ETIQUETA_ESTADO_SUNAT: Record<EstadoSunat, string> = { ACEPTADA: 'Aceptada por SUNAT', PENDIENTE: 'SUNAT todavía no responde', RECHAZADA: 'Rechazada por SUNAT' }
 
 /** Peso bruto por defecto (Dirección Técnica, 2026-10); el peso por producto queda preparado en el maestro y se usará después. */
 export const PESO_BRUTO_DEFECTO_KG = 12
@@ -33,7 +33,7 @@ export interface DatosGuia {
   /** Lo confirmado en la conformidad, línea por lote. */
   lineas: LineaGuia[]
   bultos: number
-  ruta?: { id: string; numero: string; fecha: string; placa?: string; conductor?: string; conductorDni?: string; auxiliar?: string }
+  ruta?: { id: string; numero: string; fecha: string; placa?: string; conductor?: string; conductorDni?: string; conductorLicencia?: string; auxiliar?: string }
   partida: { ubigeo: string; direccion: string }
   motivoTraslado: string
   modalidad: string
@@ -46,15 +46,30 @@ export interface DatosGuia {
 export interface TrasladoGuia {
   fechaInicio: string
   pesoKg: number
-  /** Solo hace falta para el entorno de pruebas y producción. */
+  /** Si el conductor ya tiene licencia guardada se usa esa; si no, se escribe aquí y vale solo para esta guía. */
   licenciaConductor?: string
+}
+
+/** La licencia que va en la guía: la que se escribió al emitir o, si no, la del conductor. */
+export const licenciaDeGuia = (d: DatosGuia, t: TrasladoGuia) => (t.licenciaConductor?.trim() || d.ruta?.conductorLicencia?.trim() || '').toUpperCase()
+
+/** Placa como la pide SUNAT: mayúsculas, sin guiones ni espacios. */
+export const placaParaSunat = (p: string | undefined) => (p ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+
+/** Nubefact pide nombre y apellidos por separado: la primera palabra es el nombre y el resto los apellidos (el Jefe de Transporte lo corrige si no coincide). */
+export function separarNombre(completo: string | undefined): { nombre: string; apellidos: string } {
+  const partes = (completo ?? '').trim().split(/\s+/).filter(Boolean)
+  if (partes.length <= 1) return { nombre: partes[0] ?? '', apellidos: partes[0] ?? '' }
+  if (partes.length === 2) return { nombre: partes[0], apellidos: partes[1] }
+  const mitad = Math.ceil(partes.length / 2)
+  return { nombre: partes.slice(0, mitad).join(' '), apellidos: partes.slice(mitad).join(' ') }
 }
 
 const PENDIENTE = 'PENDIENTE'
 const faltaTexto = (v: string | undefined) => !v || v.trim() === '' || v.trim().toUpperCase() === PENDIENTE
 
 /** Por qué todavía no se puede emitir, en palabras (vacío = se puede). Primero lo del flujo; luego lo que falta en los datos. */
-export function faltantesDeGuia(d: DatosGuia, t: TrasladoGuia, modo: ModoNubefact): string[] {
+export function faltantesDeGuia(d: DatosGuia, t: TrasladoGuia, _modo?: ModoNubefact): string[] {
   const f: string[] = []
   if (d.tipo !== 'DISTRIBUCION') return ['La guía de una orden de un cliente de almacenamiento la trae el cliente: el WMS no la emite']
   if (!d.conforme) f.push('Falta la conformidad de toda la Orden de Salida')
@@ -73,7 +88,7 @@ export function faltantesDeGuia(d: DatosGuia, t: TrasladoGuia, modo: ModoNubefac
   if (!d.bultos || d.bultos < 1) f.push('Falta el número de bultos')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(t.fechaInicio)) f.push('Indica la fecha de inicio del traslado')
   if (!(t.pesoKg > 0)) f.push('El peso bruto tiene que ser mayor que cero')
-  if (modo !== 'SIMULADOR' && faltaTexto(t.licenciaConductor)) f.push('Falta la licencia de conducir del conductor')
+  if (d.ruta?.conductor && !/^[A-Z0-9]{9,10}$/.test(licenciaDeGuia(d, t))) f.push('Falta la licencia de conducir del conductor (9 o 10 letras y números)')
   return f
 }
 
@@ -86,8 +101,9 @@ export interface PayloadNubefact {
   operacion: 'generar_guia'
   tipo_de_comprobante: 7
   serie: string
-  numero: ''
-  cliente_tipo_de_documento: '6'
+  /** Entero sin ceros a la izquierda: Nubefact no lo asigna, lo lleva el WMS (tabla guia_correlativos). */
+  numero: number
+  cliente_tipo_de_documento: 6
   cliente_numero_de_documento: string
   cliente_denominacion: string
   cliente_direccion: string
@@ -95,6 +111,7 @@ export interface PayloadNubefact {
   observaciones: string
   motivo_de_traslado: '01'
   peso_bruto_total: string
+  peso_bruto_unidad_de_medida: 'KGM'
   numero_de_bultos: string
   tipo_de_transporte: '02'
   fecha_de_inicio_de_traslado: string
@@ -102,15 +119,20 @@ export interface PayloadNubefact {
   conductor_documento_tipo: '1'
   conductor_documento_numero: string
   conductor_nombre: string
+  conductor_apellidos: string
   conductor_numero_licencia: string
   punto_de_partida_ubigeo: string
   punto_de_partida_direccion: string
+  punto_de_partida_codigo_establecimiento_sunat: '0000'
   punto_de_llegada_ubigeo: string
   punto_de_llegada_direccion: string
-  enviar_automaticamente_a_la_sunat: 'true'
+  punto_de_llegada_codigo_establecimiento_sunat: '0000'
   enviar_automaticamente_al_cliente: 'false'
   items: { unidad_de_medida: 'NIU'; codigo: string; descripcion: string; cantidad: string }[]
 }
+
+/** Segundo paso de Nubefact: con serie y número se consulta si SUNAT ya aceptó la guía (y recién entonces trae PDF, XML y CDR). */
+export interface PayloadConsulta { operacion: 'consultar_guia'; tipo_de_comprobante: 7; serie: string; numero: number }
 
 /** Observación de almacenamiento: el pedido, la Orden de Salida y los lotes con su vencimiento (línea por lote en BX). */
 export function observacionDeGuia(d: DatosGuia): string {
@@ -118,25 +140,41 @@ export function observacionDeGuia(d: DatosGuia): string {
   return `Almacenamiento y distribución. ${d.pedidoNumero ? `Pedido ${d.pedidoNumero}. ` : ''}Orden de Salida ${d.salidaNumero}. ${lotes}`.slice(0, 500)
 }
 
-export function construirPayloadNubefact(d: DatosGuia, t: TrasladoGuia, hoy: string): PayloadNubefact {
+export function construirPayloadNubefact(d: DatosGuia, t: TrasladoGuia, hoy: string, numero: number): PayloadNubefact {
+  const { nombre, apellidos } = separarNombre(d.ruta?.conductor)
   return {
-    operacion: 'generar_guia', tipo_de_comprobante: 7, serie: d.serie, numero: '',
-    cliente_tipo_de_documento: '6', cliente_numero_de_documento: sinEspacios(d.destinatario.ruc), cliente_denominacion: sinEspacios(d.destinatario.nombre),
-    cliente_direccion: sinEspacios(d.destinatario.direccion), fecha_de_emision: ddmmaaaa(hoy), observaciones: observacionDeGuia(d),
-    motivo_de_traslado: '01', peso_bruto_total: t.pesoKg.toFixed(2), numero_de_bultos: String(d.bultos), tipo_de_transporte: '02',
+    operacion: 'generar_guia', tipo_de_comprobante: 7, serie: d.serie, numero,
+    cliente_tipo_de_documento: 6, cliente_numero_de_documento: sinEspacios(d.destinatario.ruc), cliente_denominacion: sinEspacios(d.destinatario.nombre).slice(0, 100),
+    cliente_direccion: sinEspacios(d.destinatario.direccion).slice(0, 100), fecha_de_emision: ddmmaaaa(hoy), observaciones: observacionDeGuia(d),
+    motivo_de_traslado: '01', peso_bruto_total: t.pesoKg.toFixed(2), peso_bruto_unidad_de_medida: 'KGM', numero_de_bultos: String(d.bultos), tipo_de_transporte: '02',
     fecha_de_inicio_de_traslado: ddmmaaaa(t.fechaInicio),
-    transportista_placa_numero: sinEspacios(d.ruta?.placa), conductor_documento_tipo: '1', conductor_documento_numero: sinEspacios(d.ruta?.conductorDni),
-    conductor_nombre: sinEspacios(d.ruta?.conductor), conductor_numero_licencia: sinEspacios(t.licenciaConductor),
-    punto_de_partida_ubigeo: d.partida.ubigeo, punto_de_partida_direccion: d.partida.direccion,
-    punto_de_llegada_ubigeo: sinEspacios(d.destinatario.ubigeo), punto_de_llegada_direccion: sinEspacios(d.destinatario.direccion),
-    enviar_automaticamente_a_la_sunat: 'true', enviar_automaticamente_al_cliente: 'false',
-    items: d.lineas.map((l) => ({ unidad_de_medida: 'NIU', codigo: l.productoCodigo, descripcion: `${l.producto} · lote ${l.lote}`, cantidad: String(l.cantidad) })),
+    transportista_placa_numero: placaParaSunat(d.ruta?.placa), conductor_documento_tipo: '1', conductor_documento_numero: sinEspacios(d.ruta?.conductorDni),
+    conductor_nombre: nombre, conductor_apellidos: apellidos, conductor_numero_licencia: licenciaDeGuia(d, t),
+    punto_de_partida_ubigeo: d.partida.ubigeo, punto_de_partida_direccion: d.partida.direccion.slice(0, 150), punto_de_partida_codigo_establecimiento_sunat: '0000',
+    punto_de_llegada_ubigeo: sinEspacios(d.destinatario.ubigeo), punto_de_llegada_direccion: sinEspacios(d.destinatario.direccion).slice(0, 150), punto_de_llegada_codigo_establecimiento_sunat: '0000',
+    enviar_automaticamente_al_cliente: 'false',
+    items: d.lineas.map((l) => ({ unidad_de_medida: 'NIU', codigo: l.productoCodigo, descripcion: `${l.producto} · lote ${l.lote}`.slice(0, 250), cantidad: String(l.cantidad) })),
   }
 }
 
-/** Respuesta de Nubefact ya normalizada. `ok` = la guía existe; si SUNAT la rechazó, `error` va en lenguaje humano y no se registra nada. */
+export const construirConsulta = (serie: string, numero: number): PayloadConsulta => ({ operacion: 'consultar_guia', tipo_de_comprobante: 7, serie, numero })
+
+/** «TTT1-00000057» → { serie, numero: 57 }. */
+export function partirNumeroGuia(n: string): { serie: string; numero: number } {
+  const [serie, num] = n.split('-')
+  return { serie, numero: Number(num) }
+}
+export const formatoNumeroGuia = (serie: string, numero: number) => `${serie}-${String(numero).padStart(8, '0')}`
+
+/** Respuesta del paso 1 («generar_guia»): Nubefact recibió la guía y la mandó a SUNAT. El PDF y el XML llegan recién con el paso 2.
+ *  Si Nubefact ya la devuelve aceptada, trae los enlaces; si no, quedan PENDIENTES hasta consultar. */
 export type RespuestaEmision =
-  | { ok: true; numero: string; enlace: string; enlaceXml?: string; hash: string; estadoSunat: EstadoSunat; entorno: ModoNubefact; cruda: unknown }
+  | { ok: true; numero: string; enlace?: string; enlaceXml?: string; enlaceCdr?: string; hash: string; estadoSunat: EstadoSunat; entorno: ModoNubefact; cruda: unknown }
+  | { ok: false; error: string; reintentable: boolean }
+
+/** Respuesta del paso 2 («consultar_guia»). RECHAZADA trae el motivo en lenguaje humano. */
+export type RespuestaConsulta =
+  | { ok: true; estadoSunat: EstadoSunat; enlace?: string; enlaceXml?: string; enlaceCdr?: string; hash?: string; error?: string; cruda: unknown }
   | { ok: false; error: string; reintentable: boolean }
 
 /** Los errores de SUNAT/Nubefact más comunes, dichos para quien emite (el texto original se conserva en el detalle). */

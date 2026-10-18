@@ -1,14 +1,16 @@
 import 'server-only'
 
 import { modoDemoActivo } from '@/lib/demo'
-import type { ModoNubefact, PayloadNubefact, RespuestaEmision } from '@/domain/guia-electronica'
+import type { ModoNubefact, PayloadConsulta, PayloadNubefact, RespuestaConsulta, RespuestaEmision } from '@/domain/guia-electronica'
 import { ClienteNubefactHttp } from './http'
 import { SimuladorNubefact } from './simulador'
 
-/** El puerto con Nubefact: emitir la guía de remisión remitente. La baja ante SUNAT no se cablea hasta validar la regla con Contabilidad y Nubefact (D-90). */
+/** El puerto con Nubefact, en sus dos pasos: generar la guía (la manda a SUNAT) y consultarla (trae PDF, XML y CDR cuando SUNAT la acepta).
+ *  La baja ante SUNAT no se cablea: Nubefact solo la permite desde el portal de SUNAT con Clave SOL (D-90). */
 export interface ClienteNubefact {
   readonly modo: ModoNubefact
   emitirGuia(payload: PayloadNubefact): Promise<RespuestaEmision>
+  consultarGuia(consulta: PayloadConsulta): Promise<RespuestaConsulta>
 }
 
 export class NubefactNoConfigurado extends Error {}

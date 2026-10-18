@@ -62,9 +62,10 @@ async function aRuta(salida: string, completa = true) {
   await base.admin.query(`insert into wms.ruta_paradas (ruta_id, secuencia, pedido_id, pedido_despacho_id, salida_id) values ($1, 1, $2, $3, $4)`, [r, ped, pd, salida])
   return { ruta: r, pedido: ped }
 }
-const emitir = (quien: string, salida: string, numero?: string) => como(quien, async (c) =>
-  (await c.query('select wms.registrar_guia_electronica($1, $2, $3, $4, $5, current_date, 12.5, $6::jsonb, $7::jsonb, $8, $9) id',
-    [salida, numero ?? `T001-${String(++nGuia).padStart(8, '0')}`, 'https://simulador.nubefact.test/guia.pdf', 'abc123', 'SIMULADOR', JSON.stringify({ operacion: 'generar_guia' }), JSON.stringify({ aceptada: true }), 'https://simulador.nubefact.test/guia.xml', 'ACEPTADA'])).rows[0].id as string)
+const emitir = (quien: string, salida: string, numero?: string, estadoSunat = 'ACEPTADA') => como(quien, async (c) =>
+  (await c.query('select wms.registrar_guia_electronica($1, $2, $3, current_date, 12.5, $4::jsonb, $5::jsonb, $6, $7, $8, $9, $10) id',
+    [salida, numero ?? `TTT1-${String(++nGuia).padStart(8, '0')}`, 'SIMULADOR', JSON.stringify({ operacion: 'generar_guia' }), JSON.stringify({ aceptada: true }), estadoSunat,
+      estadoSunat === 'ACEPTADA' ? 'https://simulador.nubefact.test/guia.pdf' : null, estadoSunat === 'ACEPTADA' ? 'https://simulador.nubefact.test/guia.xml' : null, null, 'abc123'])).rows[0].id as string)
 const anular = (quien: string, guia: string, caso: number, motivo = 'Error de digitación') =>
   como(quien, async (c) => (await c.query('select wms.anular_guia($1, $2, $3) r', [guia, caso, motivo])).rows[0].r as Record<string, unknown>)
 const eventos = (guia: string) => q(`select tipo, estado, intentos, payload from wms.eventos_pedidos where guia_id = $1 order by creado_en, id`, [guia])
@@ -90,16 +91,16 @@ describe('emitir la guía electrónica (se registra lo que devolvió Nubefact)',
     await base.admin.query(`update wms.ruta_paradas set activa = false where ruta_id = $1`, [sinConductor.ruta])
     await aRuta(o.salida)
     expect((await falla(emitir(aux1, o.salida))).message).toMatch(/No tienes permiso/)
-    const id = await emitir(jt, o.salida, 'T001-00000501')
+    const id = await emitir(jt, o.salida, 'TTT1-00000501')
     const g = await uno('select * from wms.guias_remision where id = $1', [id])
-    expect(g).toMatchObject({ origen: 'NUBEFACT', entorno: 'SIMULADOR', numero: 'T001-00000501', estado: 'VIGENTE', bultos: 2 })
+    expect(g).toMatchObject({ origen: 'NUBEFACT', entorno: 'SIMULADOR', numero: 'TTT1-00000501', estado: 'VIGENTE', bultos: 2 })
     expect(g).toMatchObject({ estado_sunat: 'ACEPTADA', enlace_xml: 'https://simulador.nubefact.test/guia.xml' })
     expect(g.placa).toBeTruthy()
     expect((g.lineas as { cantidad: number }[])[0].cantidad).toBe(10)
     const ev = await eventos(id)
     expect(ev).toHaveLength(1)
     expect(ev[0]).toMatchObject({ tipo: 'GUIA_EMITIDA', estado: 'PENDIENTE' })
-    expect(ev[0].payload).toMatchObject({ guia: 'T001-00000501', bultos: 2, salida: o.numero })
+    expect(ev[0].payload).toMatchObject({ guia: 'TTT1-00000501', bultos: 2, salida: o.numero })
     expect((ev[0].payload as { lineas: { lote: string; vence: string }[] }).lineas[0]).toMatchObject({ vence: '2030-06-30' })
     expect((await falla(emitir(jt, o.salida))).message).toMatch(/ya tiene una guía/)
   })
@@ -230,5 +231,38 @@ describe('la migración 0024', () => {
     await base.admin.query(SQL.m0024())
     await base.admin.query(SQL.m0024())
     expect((await uno(`select to_regprocedure('wms.registrar_gre(uuid,text,text)') f`)).f).toBeNull()
+  })
+})
+
+describe('flujo en dos pasos con Nubefact (generar y luego consultar)', () => {
+  it('el número sale del correlativo de la serie y solo lo pide quien puede emitir', async () => {
+    const a = await como(jt, async (c) => Number((await c.query(`select wms.siguiente_numero_guia('ttt1') n`)).rows[0].n))
+    const b = await como(jt, async (c) => Number((await c.query(`select wms.siguiente_numero_guia('TTT1') n`)).rows[0].n))
+    expect(b).toBe(a + 1)
+    expect((await falla(como(aux1, (c) => c.query(`select wms.siguiente_numero_guia('TTT1')`)))).message).toMatch(/No tienes permiso/)
+    expect((await falla(como(jt, (c) => c.query(`select wms.siguiente_numero_guia('XXX9')`)))).message).toMatch(/no está configurada/)
+  })
+
+  it('una guía pendiente pasa a aceptada con su enlace y recién entonces se avisa a Pedidos', async () => {
+    const o = await orden('F-8.1', 5)
+    await conformar(sandra, o.op); await aRuta(o.salida)
+    const id = await emitir(jt, o.salida, undefined, 'PENDIENTE')
+    expect(await eventos(id)).toHaveLength(0)
+    const r = await como(jt, async (c) => (await c.query(`select wms.actualizar_estado_guia($1, 'ACEPTADA', 'https://x.test/g.pdf', 'https://x.test/g.xml', null, 'h1') r`, [id])).rows[0].r)
+    expect(r).toBe('ACEPTADA')
+    expect(await uno('select estado_sunat, enlace from wms.guias_remision where id = $1', [id])).toMatchObject({ estado_sunat: 'ACEPTADA', enlace: 'https://x.test/g.pdf' })
+    expect(await eventos(id)).toHaveLength(1)
+    const otra = await como(jt, async (c) => (await c.query(`select wms.actualizar_estado_guia($1, 'RECHAZADA', null, null, null, null, null, 'x') r`, [id])).rows[0].r)
+    expect(otra).toBe('ACEPTADA')
+  })
+
+  it('si SUNAT la rechaza, la guía queda anulada con el motivo y el pedido puede emitir otra', async () => {
+    const o = await orden('F-8.2', 5)
+    await conformar(sandra, o.op); await aRuta(o.salida)
+    const id = await emitir(jt, o.salida, undefined, 'PENDIENTE')
+    expect((await falla(como(jt, (c) => c.query(`select wms.actualizar_estado_guia($1, 'RECHAZADA')`, [id])))).message).toMatch(/por qué SUNAT rechazó/)
+    await como(jt, (c) => c.query(`select wms.actualizar_estado_guia($1, 'RECHAZADA', null, null, null, null, null, 'RUC del destinatario inválido')`, [id]))
+    expect(await uno('select estado, estado_sunat, motivo_anulacion from wms.guias_remision where id = $1', [id])).toMatchObject({ estado: 'ANULADA', estado_sunat: 'RECHAZADA' })
+    await emitir(jt, o.salida)
   })
 })

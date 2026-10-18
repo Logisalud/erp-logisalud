@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { mensajeHumanoSunat, type ModoNubefact, type PayloadNubefact, type RespuestaEmision } from '@/domain/guia-electronica'
+import { mensajeHumanoSunat, type ModoNubefact, type PayloadConsulta, type PayloadNubefact, type RespuestaConsulta, type RespuestaEmision } from '@/domain/guia-electronica'
 import type { ClienteNubefact } from './cliente'
 
 export interface OpcionesNubefactHttp {
@@ -26,7 +26,7 @@ export class ClienteNubefactHttp implements ClienteNubefact {
     try {
       const r = await (this.o.fetchFn ?? fetch)(this.o.url, {
         method: 'POST', cache: 'no-store', signal: control.signal,
-        headers: { 'content-type': 'application/json', accept: 'application/json', authorization: `Token token="${this.o.token}"` },
+        headers: { 'content-type': 'application/json', accept: 'application/json', authorization: this.o.token },
         body: JSON.stringify(cuerpo),
       })
       let json: Record<string, unknown> = {}
@@ -46,15 +46,35 @@ export class ClienteNubefactHttp implements ClienteNubefact {
     const r = await this.post(payload)
     if (!r.ok) return r
     const j = r.json
-    const numero = `${String(j.serie ?? payload.serie)}-${String(j.numero ?? '').padStart(8, '0')}`
+    const rechazo = this.rechazo(j)
+    if (rechazo) return { ok: false, error: rechazo, reintentable: false }
+    if (!j.numero) return { ok: false, error: 'La respuesta de Nubefact no trae el número de la guía. No se registró nada: revisa en Nubefact si la guía se emitió.', reintentable: false }
     const aceptada = j.aceptada_por_sunat === true
-    const rechazadaPorSunat = !aceptada && !!j.sunat_soap_error && String(j.sunat_soap_error).trim() !== ''
-    if (rechazadaPorSunat) return { ok: false, error: mensajeHumanoSunat(j.sunat_responsecode as string | undefined, String(j.sunat_description ?? j.sunat_soap_error)), reintentable: false }
-    const enlace = String(j.enlace_del_pdf ?? j.enlace ?? '')
-    if (!enlace || !j.numero) return { ok: false, error: 'La respuesta de Nubefact no trae el número ni el PDF de la guía. No se registró nada: revisa en Nubefact si la guía se emitió.', reintentable: false }
     return {
-      ok: true, numero, enlace, enlaceXml: j.enlace_del_xml ? String(j.enlace_del_xml) : undefined, hash: String(j.codigo_hash ?? ''),
-      estadoSunat: aceptada ? 'ACEPTADA' : 'PENDIENTE', entorno: this.modo, cruda: j,
+      ok: true, numero: `${String(j.serie ?? payload.serie)}-${String(j.numero).padStart(8, '0')}`,
+      enlace: texto(j.enlace_del_pdf), enlaceXml: texto(j.enlace_del_xml), enlaceCdr: texto(j.enlace_del_cdr), hash: String(j.codigo_hash ?? ''),
+      estadoSunat: aceptada && texto(j.enlace_del_pdf) ? 'ACEPTADA' : 'PENDIENTE', entorno: this.modo, cruda: j,
     }
   }
+
+  async consultarGuia(consulta: PayloadConsulta): Promise<RespuestaConsulta> {
+    const r = await this.post(consulta)
+    if (!r.ok) return r
+    const j = r.json
+    const rechazo = this.rechazo(j)
+    if (rechazo) return { ok: true, estadoSunat: 'RECHAZADA', error: rechazo, cruda: j }
+    if (j.aceptada_por_sunat === true && texto(j.enlace_del_pdf)) {
+      return { ok: true, estadoSunat: 'ACEPTADA', enlace: texto(j.enlace_del_pdf), enlaceXml: texto(j.enlace_del_xml), enlaceCdr: texto(j.enlace_del_cdr), hash: texto(j.codigo_hash), cruda: j }
+    }
+    return { ok: true, estadoSunat: 'PENDIENTE', cruda: j }
+  }
+
+  /** Un error de SUNAT en la respuesta (no del transporte). */
+  private rechazo(j: Record<string, unknown>): string | null {
+    const soap = texto(j.sunat_soap_error)
+    if (j.aceptada_por_sunat === true || !soap) return null
+    return mensajeHumanoSunat(j.sunat_responsecode as string | undefined, texto(j.sunat_description) ?? soap)
+  }
 }
+
+const texto = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined)

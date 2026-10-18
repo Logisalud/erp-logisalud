@@ -12,6 +12,7 @@ import type { Rol } from '@/domain/tipos'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 import { AnularGuia } from './anular-guia'
+import { ConsultarGuia } from './consultar-guia'
 import { EmitirGuia } from './emitir-guia'
 import { CHIP_AVISO, CHIP_NEUTRO, CHIP_OK } from '../estilos-opcion'
 
@@ -53,6 +54,7 @@ export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos }
               {paquete.guia.enlaceXml && <Link href={paquete.guia.enlaceXml} target="_blank" className="underline">Ver el XML</Link>}
             </p>
             <ul className="text-sm text-gray-800" data-testid="guia-lineas">{paquete.guia.lineas.map((l, k) => <li key={k} className="tabular">{l.productoCodigo} · lote {l.lote} · vence {l.vence ? mesAnio(l.vence) : '—'} · {l.cantidad.toLocaleString('es-PE')} u</li>)}</ul>
+            {paquete.guia.estadoSunat === 'PENDIENTE' && !bloqueo?.startsWith('No tienes') && <ConsultarGuia guiaId={paquete.guia.id} numero={paquete.guia.numero} salidaId={paquete.salidaId} alConsultar={setResultado} />}
             {!bloqueo?.startsWith('No tienes') && <AnularGuia guiaId={paquete.guia.id} alAnular={setResultado} />}
             <p className="text-xs text-gray-600">Una guía no se edita: si hay un error, se anula con el motivo y se emite la correcta.</p>
           </div>
