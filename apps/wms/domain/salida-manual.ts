@@ -1,7 +1,7 @@
 // Nueva Orden de Salida manual (SA-2): los tres tipos que se inician a mano (A venta manual, B por cuenta de un cliente, C sin venta), quién puede crear cada uno, el número de
 // pedido de la venta manual, los datos del cliente mientras no exista la conexión con Pedidos (D-80) y la validación inmediata de cada línea.
 // Todo puro. Espejo de la función `wms.crear_orden_salida_manual` (migración 0028): la base de datos manda y dice lo mismo con las mismas palabras.
-import { normalizar } from './busqueda'
+import { normalizar, puntaje } from './busqueda'
 import { validarNumeroGre } from './documentacion'
 import { loteApto, origenDelStock, validarMotivoSalida, ETIQUETA_MOTIVO_SALIDA, type MotivoSalida, type PoliticaCanje, type TipoSalida, POLITICA_CANJE_INICIAL } from './salidas'
 import { puede } from './permisos'
@@ -253,3 +253,47 @@ export const ETIQUETA_TIPO_SALIDA: Record<TipoSalida, string> = {
 }
 
 export const resumenMotivo = (m: MotivoSalida) => ETIQUETA_MOTIVO_SALIDA[m]
+
+// ── Productos y sus códigos ───────────────────────────────────────────────────────────────────────────────────────────────
+
+export type TipoCodigoProducto = 'BARRAS' | 'CLIENTE' | 'PROVEEDOR' | 'OTRO'
+export const ETIQUETA_CODIGO: Record<TipoCodigoProducto, string> = { BARRAS: 'código de barras', CLIENTE: 'código del cliente', PROVEEDOR: 'código del proveedor', OTRO: 'otro código' }
+export interface CodigoProducto { productoId: string; tipo: TipoCodigoProducto; codigo: string; propietarioId?: string }
+
+/** Un producto hallado al escribir en la tabla de líneas: por su código interno, su nombre o cualquier otro de sus códigos (barras, del cliente, del proveedor). */
+export interface ProductoHallado {
+  id: string
+  codigo: string
+  descripcion: string
+  presentacion?: string
+  /** Por cuál código se encontró cuando no fue el interno: «código del cliente DIPH-0042». */
+  coincidencia?: string
+}
+
+/**
+ * Busca por nombre, código interno o cualquier otro código del producto. El código propio de un cliente de almacenamiento solo cuenta cuando la orden es de ese cliente
+ * (con `propietarioId`); los demás códigos valen para todos.
+ */
+export function buscarProductosPorCodigos(
+  productos: readonly { id: string; codigo: string; descripcion: string; presentacion?: string; principioActivo?: string; estado?: string }[],
+  codigos: readonly CodigoProducto[], consulta: string, propietarioId?: string, limite = 12,
+): ProductoHallado[] {
+  const q = consulta.trim()
+  if (q.length < 2) return []
+  const porProducto = new Map<string, CodigoProducto[]>()
+  for (const c of codigos) {
+    if (c.tipo === 'CLIENTE' && c.propietarioId !== propietarioId) continue
+    porProducto.set(c.productoId, [...(porProducto.get(c.productoId) ?? []), c])
+  }
+  const out: (ProductoHallado & { sc: number })[] = []
+  for (const p of productos) {
+    if (p.estado === 'inactivo') continue
+    const propio = Math.max(puntaje(q, p.codigo) + 5, puntaje(q, p.descripcion), puntaje(q, `${p.descripcion} ${p.presentacion ?? ''}`), puntaje(q, p.principioActivo ?? ''))
+    let mejor: CodigoProducto | undefined; let scAlt = 0
+    for (const c of porProducto.get(p.id) ?? []) { const sc = puntaje(q, c.codigo) + 5; if (sc > scAlt) { scAlt = sc; mejor = c } }
+    const sc = Math.max(propio > 5 ? propio : 0, scAlt > 5 ? scAlt : 0)
+    if (sc === 0) continue
+    out.push({ id: p.id, codigo: p.codigo, descripcion: p.descripcion, presentacion: p.presentacion, coincidencia: scAlt > 5 && scAlt >= propio && mejor ? `${ETIQUETA_CODIGO[mejor.tipo]} ${mejor.codigo}` : undefined, sc })
+  }
+  return out.sort((a, b) => b.sc - a.sc || a.descripcion.localeCompare(b.descripcion, 'es')).slice(0, limite).map(({ sc: _sc, ...x }) => x)
+}

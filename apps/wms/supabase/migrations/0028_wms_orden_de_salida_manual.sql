@@ -256,6 +256,34 @@ begin
 end $$;
 
 
+-- Cancelar una orden que todavía no salió del rack (por ejemplo, un número de pedido mal digitado): libera lo reservado, queda con su motivo y el pedido de la bandeja vuelve a
+-- estar «por planificar». Una orden que está en una ruta no se cancela desde aquí: primero se quita el pedido de la ruta. Nada se borra.
+create or replace function wms.cancelar_orden_salida(p_salida uuid, p_motivo text) returns void
+language plpgsql security definer set search_path = wms, pg_temp as $$
+declare v_ruta text;
+begin
+  perform wms._exigir_accion('preparar_salidas', 'No tienes permiso para preparar salidas');
+  select r.numero into v_ruta from wms.ruta_paradas pa join wms.rutas r on r.id = pa.ruta_id where pa.salida_id = p_salida and pa.activa and r.estado <> 'CANCELADA' limit 1;
+  if v_ruta is not null then raise exception 'La orden está en la ruta %: quita el pedido de la ruta antes de cancelarla', v_ruta using errcode = 'P0001'; end if;
+  perform wms.cancelar_salida(p_salida, p_motivo);
+  update wms.pedidos_despacho set salida_id = null where salida_id = p_salida;
+end $$;
+
+-- «¿Este número de pedido ya tiene orden?» para el aviso inmediato de la pantalla: la orden viva con ese número (mayúsculas y espacios no cuentan) o, si no hay, el pedido que
+-- ya llegó por la bandeja sin orden. Solo lectura, para el personal.
+create or replace function wms.orden_del_pedido(p_numero text) returns jsonb
+language plpgsql stable security definer set search_path = wms, pg_temp as $$
+declare v_norm text := wms._numero_pedido_norm(p_numero); s wms.salidas; pd wms.pedidos_despacho;
+begin
+  if not coalesce(wms.es_usuario(), false) then raise exception 'Sin acceso' using errcode = '42501'; end if;
+  if v_norm is null then return null; end if;
+  select * into s from wms.salidas where estado <> 'CANCELADA' and wms._numero_pedido_norm(pedido_numero) = v_norm limit 1;
+  if found then return jsonb_build_object('tipo', 'ORDEN', 'id', s.id, 'numero', s.numero, 'estado', s.estado); end if;
+  select * into pd from wms.pedidos_despacho where vigente and wms._numero_pedido_norm(numero) = v_norm limit 1;
+  if found then return jsonb_build_object('tipo', 'EN_BANDEJA', 'pedido_numero', pd.numero); end if;
+  return null;
+end $$;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. Nueva Orden de Salida manual (tipos A, B y C)
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -594,7 +622,7 @@ end $$;
 -- ─────────────────────────────────────────────────────────────────────────────
 
 grant execute on function
-  wms.crear_orden_de_pedido(text), wms.crear_ordenes_pendientes(), wms.agregar_codigo_producto(uuid, text, text, uuid),
+  wms.crear_orden_de_pedido(text), wms.crear_ordenes_pendientes(), wms.orden_del_pedido(text), wms.cancelar_orden_salida(uuid, text), wms.agregar_codigo_producto(uuid, text, text, uuid),
   wms.crear_orden_salida_manual(text, text, uuid, jsonb, text, jsonb, text, text, text),
   wms.planificar_ruta(uuid, date, uuid, uuid, uuid, jsonb, text), wms.cancelar_ruta(uuid, text)
   to authenticated;

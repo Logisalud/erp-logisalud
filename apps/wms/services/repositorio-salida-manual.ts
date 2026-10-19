@@ -1,16 +1,7 @@
-import type { EntradaOrdenManual, LoteParaSalida } from '@/domain/salida-manual'
+import type { EntradaOrdenManual, LoteParaSalida, ProductoHallado } from '@/domain/salida-manual'
+export type { ProductoHallado } from '@/domain/salida-manual'
 import type { MotivoSalida } from '@/domain/salidas'
 import type { Actor, ResultadoAccion } from './repositorio'
-
-/** Un producto hallado al escribir en la tabla de líneas: por su código interno, su nombre o cualquier otro de sus códigos (barras, del cliente, del proveedor). */
-export interface ProductoHallado {
-  id: string
-  codigo: string
-  descripcion: string
-  presentacion?: string
-  /** Por cuál código se encontró cuando no fue el interno: «código del cliente DIPH-0042». */
-  coincidencia?: string
-}
 
 /** Lo que el WMS responde cuando se pregunta «¿este número de pedido ya tiene orden?» (el aviso inmediato de la pantalla). */
 export type OrdenDelPedido =
@@ -45,6 +36,8 @@ export interface RepositorioSalidaManual {
   crearOrdenManual(entrada: EntradaOrdenManual, actor: Actor): Promise<ResultadoAccion<{ ordenes: OrdenCreada[] }>>
   /** El botón «Crear orden de salida» de un pedido de la bandeja (idempotente: si ya tiene orden, devuelve esa). */
   crearOrdenDePedido(pedidoId: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string; yaExistia: boolean; faltaStock: boolean }>>
+  /** Cancela una orden que todavía no salió del rack (libera lo reservado); nada se borra: queda con su motivo. La usa quien se equivocó de número de pedido o de cliente. */
+  cancelarOrden(salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   /** «Crear las órdenes de todos los pedidos por planificar». */
   crearOrdenesPendientes(actor: Actor): Promise<ResultadoAccion<{ resumen: ResumenOrdenesPendientes }>>
 }

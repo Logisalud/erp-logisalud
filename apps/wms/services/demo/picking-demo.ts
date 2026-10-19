@@ -6,7 +6,7 @@ import {
 } from '@/domain/despacho'
 import { loteApto, seApartaDeFefo, validarEdicionAsignacion, type AsignacionLote, type LoteDisponible } from '@/domain/salidas'
 import { mensajeLoteEnReserva } from '@/domain/reserva'
-import { PERSONAS_DEMO } from '@/lib/sesion-demo'
+import { PERSONAS_DEMO, nombrePersonaDemo } from '@/lib/sesion-demo'
 import type { Posicion } from '@/domain/tipos'
 import { registrar, type EstadoDemo } from './estado'
 import { ahora, estadoE, falla, nuevoId } from './entradas-demo'
@@ -90,19 +90,26 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
   // ── Vistas ─────────────────────────────────────────────────────────────────────────────────────────────────────
   protected ordenDe(e: EstadoDemo, salidaId: string) { return pk(e).ordenes.find((o) => o.salidaId === salidaId && o.estado !== 'CANCELADA') }
 
-  private contexto(e: EstadoDemo, s: SalidaDemo) {
+  protected contexto(e: EstadoDemo, s: SalidaDemo) {
     const fila = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === s.pedidoId)
     const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
-    return { pedidoNumero: fila?.snapshot.numero, cliente: fila?.snapshot.cliente.nombre, rutaNumero: ruta?.numero }
+    // Una orden manual muestra lo que se escribió: el cliente de la venta manual o el propietario de la salida por cuenta de un cliente (SA-2)
+    const propietario = e.panorama.propietarios.find((p) => p.id === s.propietarioId)?.razonSocial
+    const cliente = fila?.snapshot.cliente.nombre ?? s.clienteManual?.razonSocial ?? (s.tipo === 'CLIENTE' ? propietario : undefined)
+    return { pedidoNumero: fila?.snapshot.numero ?? s.pedidoNumero, cliente, rutaNumero: ruta?.numero }
   }
 
   protected resumenSalida(e: EstadoDemo, s: SalidaDemo): SalidaResumen {
     const o = this.ordenDe(e, s.id)
     const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null })
-    return { id: s.id, numero: s.numero, ...this.contexto(e, s), fecha: s.creadaEn.slice(0, 10), unidades: s.lineas.reduce((t, l) => t + l.cantidad, 0), lineas: s.lineas.length, etapa, ordenNumero: o?.numero }
+    return {
+      id: s.id, numero: s.numero, ...this.contexto(e, s), fecha: s.creadaEn.slice(0, 10), unidades: s.lineas.reduce((t, l) => t + l.cantidad, 0), lineas: s.lineas.length, etapa, ordenNumero: o?.numero,
+      tipo: s.tipo ?? 'DISTRIBUCION', motivo: s.motivo ?? 'VENTA', origen: s.origen ?? 'PEDIDO', creadaDesde: s.creadaDesde, porConciliar: !!s.porConciliar, creadaPor: nombrePersonaDemo(s.creadaPor),
+      enNombreDe: s.enNombreDe ? e.panorama.propietarios.find((p) => p.id === s.enNombreDe)?.razonSocial : undefined,
+    }
   }
 
-  private vistaLinea(e: EstadoDemo, l: LineaSalidaDemo): LineaSalidaVista {
+  private vistaLinea(e: EstadoDemo, l: LineaSalidaDemo, s: SalidaDemo): LineaSalidaVista {
     const p = prod(e, l.productoId)
     const o = pk(e).ordenes.find((x) => x.estado !== 'CANCELADA' && x.lineas.some((y) => y.lineaId === l.id))
     const fefo: AsignacionVista[] = l.fefo.map((f) => ({ loteId: f.loteId, lote: lote(e, f.loteId)?.codigo ?? f.loteId, vence: lote(e, f.loteId)?.vence ?? null, cantidad: f.cantidad, ubicaciones: [] }))
@@ -110,7 +117,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     const empezo = !!o?.lineas.some((y) => y.lineaId === l.id && y.picking !== 'PENDIENTE')
     return {
       id: l.id, productoId: l.productoId, producto: p?.descripcion ?? l.productoId, productoCodigo: p?.codigo ?? '', cantidad: l.cantidad, estado: l.estado, fefo, asignacion,
-      apartadaDeFefo: asignacion.length > 0 && l.fefo.length > 0 && seApartaDeFefo(l.fefo, aLoteCantidad(asignacion)), nota: l.nota, editable: (l.estado === 'ASIGNADA' || l.estado === 'EN_PICKING') && !empezo,
+      apartadaDeFefo: asignacion.length > 0 && l.fefo.length > 0 && seApartaDeFefo(l.fefo, aLoteCantidad(asignacion)), nota: l.nota, editable: (l.estado === 'ASIGNADA' || l.estado === 'EN_PICKING') && !empezo && (s.tipo ?? 'DISTRIBUCION') === 'DISTRIBUCION',
     }
   }
 
@@ -126,7 +133,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     const cambios: CambioFefoVista[] = pk(e).cambios.filter((c) => s.lineas.some((l) => l.id === c.lineaId)).map((c) => ({
       lineaId: c.lineaId, en: c.en, por: c.por, anterior: nombreLoteCantidad(e, c.anterior), nueva: nombreLoteCantidad(e, c.nueva), distintoDeFefo: c.distinto, motivo: c.motivo,
     })).sort((a, b) => b.en.localeCompare(a.en))
-    return structuredClone({ ...this.resumenSalida(e, s), estado: s.estado, requiereEmbalaje: s.requiereEmbalaje, creadaPor: s.creadaPor, lineasDetalle: s.lineas.map((l) => this.vistaLinea(e, l)), ordenPickingId: this.ordenDe(e, s.id)?.id, cambios })
+    return structuredClone({ ...this.resumenSalida(e, s), estado: s.estado, requiereEmbalaje: s.requiereEmbalaje, creadaPor: nombrePersonaDemo(s.creadaPor), lineasDetalle: s.lineas.map((l) => this.vistaLinea(e, l, s)), clienteManual: s.clienteManual, greNumero: s.greNumero, greArchivo: s.greArchivo, ordenPickingId: this.ordenDe(e, s.id)?.id, cambios })
   }
 
   async lotesParaEditar(lineaId: string): Promise<LoteEditable[]> {
@@ -161,6 +168,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     const x = lineaDe(e, lineaId)
     if (!x) return falla('No encontramos esa línea')
     const { s, l } = x
+    if ((s.tipo ?? 'DISTRIBUCION') !== 'DISTRIBUCION') return falla('Los lotes solo se editan en un pedido de venta: en una salida de cliente el lote lo indica el cliente')
     if (l.estado !== 'ASIGNADA' && l.estado !== 'EN_PICKING') return falla('La línea no está asignada o ya salió del picking: no se editan los lotes')
     const o = this.ordenDe(e, s.id)
     if (o?.lineas.some((y) => y.lineaId === l.id && y.picking !== 'PENDIENTE')) return falla('Ya empezó el picking de esta línea: no se editan los lotes')

@@ -11,7 +11,7 @@ export const puedePrepararSalidas = (roles: readonly Rol[]) => puede(roles, 'pre
 export const puedePickear = (roles: readonly Rol[]) => puede(roles, 'ejecutar')
 export const puedeDarConformidad = (roles: readonly Rol[]) => puede(roles, 'dar_conformidad')
 export const puedeCambiarLote = (roles: readonly Rol[]) => puede(roles, 'cambiar_lote_asignado')
-export const puedeVerSalidas = (roles: readonly Rol[]) => roles.some((r) => ['jefe_transporte', 'jefe_almacen', 'auxiliar', 'asistente_dt', 'conformidad_despacho', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))
+export const puedeVerSalidas = (roles: readonly Rol[]) => roles.some((r) => ['jefe_transporte', 'jefe_almacen', 'auxiliar', 'asistente_dt', 'conformidad_despacho', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura', 'autoriza_salidas_sin_venta'].includes(r))
 export const puedeVerCambiosFefo = (roles: readonly Rol[]) => roles.some((r) => ['jefe_almacen', 'jefe_transporte', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))
 
 // ── Estados ───────────────────────────────────────────────────────────────────────────────────────────────────────

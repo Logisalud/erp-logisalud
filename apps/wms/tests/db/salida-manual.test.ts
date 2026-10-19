@@ -140,6 +140,17 @@ describe('tipo A: venta manual de distribución', () => {
     expect(nueva).not.toBe(id)
   })
 
+  it('«¿este número ya tiene orden?»: la orden viva, el pedido que ya está en la bandeja o nada; solo para el personal', async () => {
+    const p = await producto(); await stock(p.id, 'A-ORD', en(300), 50)
+    const id = await manual(jt, 'A', null, null, [{ producto_id: p.id, cantidad: 2 }], { pedido: 'PED-ORD-1', cliente: CLIENTE })
+    const consulta = (quien: string, n: string) => como(quien, async (c) => (await c.query('select wms.orden_del_pedido($1) r', [n])).rows[0].r as Record<string, unknown> | null)
+    expect(await consulta(ja, ' ped-ord-1')).toMatchObject({ tipo: 'ORDEN', id, estado: 'ABIERTA' })
+    expect(await consulta(ja, 'PED-ORD-NO')).toBeNull()
+    const ped = pedido(p.codigo, 1); await importar([ped])
+    expect(await consulta(ja, ped.numero)).toEqual({ tipo: 'EN_BANDEJA', pedido_numero: ped.numero })
+    expect((await falla(consulta(base.personas.sinRol.id, 'PED-ORD-1'))).message).toBe('Sin acceso')
+  })
+
   it('el mismo token devuelve la misma orden (idempotente)', async () => {
     const p = await producto(); await stock(p.id, 'A-TOK', en(300), 50)
     const t = randomUUID()
@@ -218,6 +229,25 @@ describe('desde la bandeja y desde la ruta', () => {
     expect((await delPedido(ped)).salida_id).toBe(s.id)
     expect(await deBandeja(jt, ped)).toMatchObject({ salida_id: s.id, ya_existia: true })
     expect((await uno('select count(*)::int n from wms.salidas where pedido_numero = $1', [ped.numero])).n).toBe(1)
+  })
+
+  it('cancelar una orden con motivo: libera el stock y el pedido vuelve a «por planificar»; si está en una ruta, primero se quita de la ruta', async () => {
+    const p = await producto(); await stock(p.id, 'B-CAN', en(300), 100)
+    const ped = pedido(p.codigo, 6); await importar([ped])
+    const { salida_id } = await deBandeja(jt, ped)
+    const cancelar = (quien: string, id: string, motivo: string) => como(quien, (c) => c.query('select wms.cancelar_orden_salida($1, $2)', [id, motivo]))
+    expect((await falla(cancelar(aux, salida_id as string, 'x'))).message).toMatch(/No tienes permiso para preparar salidas/)
+    expect((await falla(cancelar(jt, salida_id as string, ' '))).message).toMatch(/La cancelación necesita un motivo/)
+    const { ruta, plan } = await rutaCon([ped])
+    expect((await falla(cancelar(jt, salida_id as string, 'Me equivoqué'))).message).toMatch(/La orden está en la ruta RUT-\d{4}-\d{5}: quita el pedido de la ruta antes de cancelarla/)
+    await plan([], 'Sale de la ruta')
+    await cancelar(jt, salida_id as string, 'Me equivoqué de pedido')
+    expect((await salida(salida_id as string)).estado).toBe('CANCELADA')
+    expect((await delPedido(ped)).salida_id).toBeNull()
+    expect(ruta).toBeTruthy()
+    expect((await uno(`select coalesce(sum(r.cantidad), 0)::int n from wms.reservas r join wms.salida_lineas sl on sl.id = r.linea_id where sl.salida_id = $1 and r.estado = 'ACTIVA'`, [salida_id])).n).toBe(0)
+    // el pedido puede volver a tener su orden
+    expect(await deBandeja(jt, ped)).toMatchObject({ ya_existia: false })
   })
 
   it('exige preparar salidas y no crea la orden de un pedido que cambió', async () => {

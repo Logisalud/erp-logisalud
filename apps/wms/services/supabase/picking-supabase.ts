@@ -7,6 +7,7 @@ import {
 } from '@/domain/despacho'
 import type { PedidoSnapshot } from '@/domain/pedidos-despacho'
 import { seApartaDeFefo, type AsignacionLote } from '@/domain/salidas'
+import type { ClienteManual } from '@/domain/salida-manual'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioPicking } from '../repositorio-picking'
 import { ReservasSupabase } from './reservas-supabase'
@@ -19,18 +20,22 @@ import { mensajeHumano, rpc, s, traerTodo, type Fila } from './util'
 const sch = () => crearClienteServidor().schema('wms')
 const mal = (error: { code?: string; message: string }) => ({ ok: false as const, mensaje: mensajeHumano(error) })
 const dia = (v: unknown) => String(v).slice(0, 10)
+const clienteDeJson = (j: Record<string, unknown>): ClienteManual => ({ ruc: String(j.ruc ?? ''), razonSocial: String(j.razon_social ?? ''), direccion: String(j.direccion ?? ''), ubigeo: String(j.ubigeo ?? ''), vendedor: s(j.vendedor) })
 
 interface Contexto {
   salidas: Fila[]; lineas: Fila[]; reservas: Fila[]; ordenes: Fila[]; ordenLineas: Fila[]; lotes: Map<string, Fila>; posiciones: Map<string, Fila>; productos: Map<string, Fila>
   pedidoPorSalida: Map<string, PedidoSnapshot & { numero: string }>; rutaPorSalida: Map<string, string>
+  /** SA-2: razón social de cada propietario y nombre de quien creó cada orden manual. */
+  propietarios: Map<string, string>; creadores: Map<string, string>
 }
 
 export class PickingSupabase extends ReservasSupabase implements RepositorioPicking {
   protected async contexto(): Promise<Contexto> {
-    const [salidas, lineas, reservas, ordenes, ordenLineas, lotes, posiciones, productos, pedidos, paradas, rutas] = await Promise.all([
+    const [salidas, lineas, reservas, ordenes, ordenLineas, lotes, posiciones, productos, pedidos, paradas, rutas, props] = await Promise.all([
       traerTodo('salidas', 'wms', '*', ['numero']), traerTodo('salida_lineas', 'wms', '*'), traerTodo('reservas', 'wms', '*'), traerTodo('ordenes_picking', 'wms', '*', ['numero']),
       traerTodo('ordenes_picking_lineas', 'wms', '*'), traerTodo('lotes', 'wms', 'id, codigo, vence, producto_id'), traerTodo('posiciones', 'wms', 'id, codigo, orden_recorrido'),
       traerTodo('productos', 'catalogo', 'id, codigo, descripcion'), traerTodo('pedidos_despacho', 'wms', '*', ['fecha']), traerTodo('ruta_paradas', 'wms', '*'), traerTodo('rutas', 'wms', 'id, numero, estado'),
+      traerTodo('propietarios', 'wms', 'id, razon_social'),
     ])
     const numeroRuta = new Map(rutas.filter((r) => r.estado !== 'CANCELADA').map((r) => [String(r.id), String(r.numero)]))
     const pedidoPorSalida = new Map<string, PedidoSnapshot & { numero: string }>()
@@ -38,7 +43,8 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     const rutaPorSalida = new Map<string, string>()
     for (const pa of paradas) if (pa.activa && pa.salida_id && numeroRuta.has(String(pa.ruta_id))) rutaPorSalida.set(String(pa.salida_id), numeroRuta.get(String(pa.ruta_id))!)
     const mapa = (f: Fila[]) => new Map(f.map((x) => [String(x.id), x]))
-    return { salidas, lineas, reservas, ordenes, ordenLineas, lotes: mapa(lotes), posiciones: mapa(posiciones), productos: mapa(productos), pedidoPorSalida, rutaPorSalida }
+    const creadores = await nombresDe([...new Set(salidas.filter((x) => x.origen === 'MANUAL').map((x) => String(x.creada_por)))])
+    return { salidas, lineas, reservas, ordenes, ordenLineas, lotes: mapa(lotes), posiciones: mapa(posiciones), productos: mapa(productos), pedidoPorSalida, rutaPorSalida, propietarios: new Map(props.map((x) => [String(x.id), String(x.razon_social)])), creadores }
   }
 
   private asignacion(c: Contexto, lineaId: string, estados: string[] = ['ACTIVA', 'EN_TRANSITO', 'EN_STAGING']): AsignacionVista[] {
@@ -54,7 +60,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     return [...por.values()].sort((a, b) => (a.vence ?? '9999').localeCompare(b.vence ?? '9999') || a.lote.localeCompare(b.lote))
   }
 
-  private lineaVista(c: Contexto, l: Fila): LineaSalidaVista {
+  private lineaVista(c: Contexto, l: Fila, tipo: string): LineaSalidaVista {
     const p = c.productos.get(String(l.producto_id))
     const fefoCrudo = (Array.isArray(l.asignacion_fefo) ? l.asignacion_fefo : []) as { lote_id: string; lote?: string; vence?: string; cantidad: number }[]
     const fefo: AsignacionVista[] = fefoCrudo.map((f) => ({ loteId: f.lote_id, lote: f.lote ?? String(c.lotes.get(f.lote_id)?.codigo ?? '?'), vence: f.vence ?? null, cantidad: f.cantidad, ubicaciones: [] }))
@@ -64,7 +70,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     return {
       id: String(l.id), productoId: String(l.producto_id), producto: String(p?.descripcion ?? ''), productoCodigo: String(p?.codigo ?? ''), cantidad: Number(l.cantidad), estado, fefo, asignacion,
       apartadaDeFefo: asignacion.length > 0 && fefo.length > 0 && seApartaDeFefo(fefo.map((f) => ({ loteId: f.loteId, cantidad: f.cantidad })), asignacion.map((a) => ({ loteId: a.loteId, cantidad: a.cantidad }))),
-      nota: s(l.nota_stock), editable: (estado === 'ASIGNADA' || estado === 'EN_PICKING') && !empezo,
+      nota: s(l.nota_stock), editable: (estado === 'ASIGNADA' || estado === 'EN_PICKING') && !empezo && tipo === 'DISTRIBUCION',
     }
   }
 
@@ -85,8 +91,14 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     const orden = c.ordenes.find((o) => String(o.salida_id) === String(sal.id) && o.estado !== 'CANCELADA')
     const ol = orden ? c.ordenLineas.filter((x) => String(x.orden_id) === String(orden.id)).map((x) => ({ picking: x.picking as ResultadoPicking, conformidad: x.conformidad as ResultadoConformidad })) : null
     const ped = c.pedidoPorSalida.get(String(sal.id))
+    // SA-2: una orden manual muestra lo que se escribió (cliente de la venta manual) o el propietario (por cuenta de un cliente)
+    const manual = (sal.cliente_manual ?? null) as { razon_social?: string } | null
+    const propietario = c.propietarios.get(String(sal.propietario_id))
     return {
-      id: String(sal.id), numero: String(sal.numero), pedidoNumero: ped?.numero, cliente: ped?.cliente?.nombre, rutaNumero: c.rutaPorSalida.get(String(sal.id)), fecha: dia(sal.creada_en),
+      id: String(sal.id), numero: String(sal.numero), pedidoNumero: ped?.numero ?? s(sal.pedido_numero), cliente: ped?.cliente?.nombre ?? s(manual?.razon_social) ?? (sal.tipo === 'CLIENTE' ? propietario : undefined),
+      rutaNumero: c.rutaPorSalida.get(String(sal.id)), fecha: dia(sal.creada_en),
+      tipo: s(sal.tipo) as SalidaResumen['tipo'], motivo: s(sal.motivo) as SalidaResumen['motivo'], origen: (s(sal.origen) ?? 'PEDIDO') as SalidaResumen['origen'], creadaDesde: s(sal.creada_desde) as SalidaResumen['creadaDesde'],
+      porConciliar: Boolean(sal.por_conciliar), creadaPor: c.creadores.get(String(sal.creada_por)), enNombreDe: sal.creada_en_nombre_de ? c.propietarios.get(String(sal.creada_en_nombre_de)) : undefined,
       unidades: ls.reduce((t, l) => t + Number(l.cantidad), 0), lineas: ls.length, ordenNumero: orden ? String(orden.numero) : undefined,
       etapa: etapaDeSalida({ estado: sal.estado as 'ABIERTA', lineas: ls.map((l) => ({ estado: l.estado as EstadoLineaSalida })), orden: ol ? { lineas: ol } : null }),
     }
@@ -109,7 +121,8 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     const cambios: CambioFefoVista[] = filas.map((f) => ({ lineaId: String(f.linea_id), en: String(f.en), por: nombres.get(String(f.por)) ?? 'Usuario', anterior: texto(f.asignacion_anterior), nueva: texto(f.asignacion_nueva), distintoDeFefo: Boolean(f.distinto_de_fefo), motivo: s(f.motivo) }))
     return {
       ...this.resumenSalida(c, sal), estado: sal.estado as SalidaVista['estado'], requiereEmbalaje: sal.requiere_embalaje !== false, creadaPor: nombres.get(String(sal.creada_por)) ?? 'Usuario',
-      lineasDetalle: c.lineas.filter((l) => String(l.salida_id) === id).map((l) => this.lineaVista(c, l)),
+      lineasDetalle: c.lineas.filter((l) => String(l.salida_id) === id).map((l) => this.lineaVista(c, l, String(sal.tipo))),
+      clienteManual: sal.cliente_manual ? clienteDeJson(sal.cliente_manual as Record<string, unknown>) : undefined, greNumero: s(sal.gre_numero), greArchivo: s(sal.gre_archivo),
       ordenPickingId: s(c.ordenes.find((o) => String(o.salida_id) === id && o.estado !== 'CANCELADA')?.id), cambios,
     }
   }
