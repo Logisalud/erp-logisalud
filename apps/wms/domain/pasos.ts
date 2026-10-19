@@ -8,7 +8,12 @@ export type EstadoPaso = 'HECHO' | 'ACTUAL' | 'PENDIENTE'
 export interface Paso { clave: string; etiqueta: string; estado: EstadoPaso }
 
 /** Quién hace el siguiente paso: los roles que pueden y el nombre que se ve en pantalla. */
-export interface Responsable { roles: readonly Rol[]; etiqueta: string }
+export interface Responsable {
+  roles: readonly Rol[]
+  etiqueta: string
+  /** Quien decide no es del WMS (el vendedor del pedido decide en Pedidos): no tiene rol aquí y no aparece en «Mis tareas». */
+  externo?: boolean
+}
 export interface SiguientePaso {
   /** Lo que hay que hacer, en una frase con verbo. */
   texto: string
@@ -29,8 +34,13 @@ const R = {
   embalaje: { roles: ['auxiliar', 'jefe_almacen', 'jefe_transporte'], etiqueta: 'auxiliar de almacén' },
   carga: { roles: ['auxiliar', 'jefe_almacen', 'jefe_transporte'], etiqueta: 'auxiliar de almacén o Jefe de Transporte' },
   dt: { roles: ['direccion_tecnica', 'asistente_dt'], etiqueta: 'Dirección Técnica o su asistente' },
+  devuelve: { roles: ['auxiliar', 'jefe_almacen'], etiqueta: 'auxiliar de almacén (y otra persona lo verifica)' },
+  verificaDevolucion: { roles: ['auxiliar', 'jefe_almacen'], etiqueta: 'otra persona de almacén (no quien devolvió)' },
   nadie: { roles: [], etiqueta: 'nadie: no queda nada pendiente' },
 } satisfies Record<string, Responsable>
+
+/** El vendedor del pedido: decide con el cliente, en Pedidos. No es un rol del WMS (SA-3, D-124). Sin nombre conocido se dice «el vendedor del pedido». */
+export const responsableVendedor = (nombre?: string): Responsable => ({ roles: [], etiqueta: nombre?.trim() ? `Vendedor ${nombre.trim()}` : 'Vendedor del pedido', externo: true })
 
 const ORDEN_SALIDA = [
   ['stock', 'Stock asignado'], ['picking', 'Picking'], ['conformidad', 'Conformidad'], ['documentos', 'Guía y documentos'],
@@ -40,7 +50,7 @@ const ORDEN_SALIDA = [
 /** Cuántos pasos de ORDEN_SALIDA ya están hechos en cada etapa. */
 const HECHOS: Record<EtapaSalida, number> = {
   SIN_STOCK: 0, ASIGNADA: 1, EN_PICKING: 1, CON_DISCREPANCIA: 1, PENDIENTE_CONFORMIDAD: 2, OBSERVADA: 2,
-  CONFORME: 3, DOCUMENTACION_COMPLETA: 3, EMBALADA: 3, LISTA_PARA_CARGA: 5, CARGADA: 6, CONFIRMADA: 7, CANCELADA: 0,
+  CONFORME: 3, DOCUMENTACION_COMPLETA: 3, EMBALADA: 3, LISTA_PARA_CARGA: 5, CARGADA: 6, CONFIRMADA: 7, CANCELADA: 0, POR_DEVOLVER_PICKING: 1,
 }
 
 export interface ExtrasSalida {
@@ -50,6 +60,14 @@ export interface ExtrasSalida {
   guiaEnEspera?: boolean
   /** Falta la guía (con la conformidad completa). */
   sinGuia?: boolean
+  /** Con falta de stock decide el vendedor del pedido; este es su nombre (dato `vendedor` del snapshot de Pedidos). Sin nombre se dice «el vendedor del pedido». */
+  vendedor?: string
+  /** Una orden que no nace de un pedido (muestra de Logissa) no tiene vendedor: el faltante lo resuelve el Jefe de Transporte. */
+  sinPedido?: boolean
+  /** Por devolver lo picado: si el auxiliar todavía no lo devolvió o ya lo devolvió y falta que otra persona lo verifique. */
+  devolucion?: 'POR_EJECUTAR' | 'POR_VERIFICAR'
+  /** Dónde se hace la devolución (el movimiento interno enlazado), si ya existe. */
+  devolucionHref?: string
 }
 
 const pasosDe = <T extends readonly (readonly [string, string])[]>(lista: T, hechos: number, terminada = false): Paso[] =>
@@ -58,7 +76,13 @@ const pasosDe = <T extends readonly (readonly [string, string])[]>(lista: T, hec
 /** El siguiente paso de cada etapa de una Orden de Salida. `id` es el de la orden para armar el enlace. */
 function siguienteDeSalida(etapa: EtapaSalida, id: string, x: ExtrasSalida): SiguientePaso {
   switch (etapa) {
-    case 'SIN_STOCK': return { texto: 'Esperar stock o ajustar la cantidad: este pedido no tiene stock suficiente', responsable: R.jefeTransporte, href: `/salidas/${id}`, boton: 'Ver la orden' }
+    case 'SIN_STOCK':
+      // Con falta de stock decide el VENDEDOR con el cliente, en Pedidos: quitar o reducir lo que falta, o cancelar el pedido. El Jefe de Transporte lo ve, no cambia cantidades.
+      if (x.sinPedido) return { texto: 'Esperar stock o cambiar la cantidad de la orden: no hay stock suficiente', responsable: R.jefeTransporte, href: `/salidas/${id}`, boton: 'Ver la orden' }
+      return { texto: `el vendedor ${x.vendedor?.trim() || 'del pedido'} decide con el cliente si se quita lo que falta o se cancela el pedido`, responsable: responsableVendedor(x.vendedor), href: `/salidas/${id}#falta-stock`, boton: 'Ver por qué falta y copiar el aviso' }
+    case 'POR_DEVOLVER_PICKING': return x.devolucion === 'POR_VERIFICAR'
+      ? { texto: 'otra persona verifica que lo picado volvió a su ubicación (no quien lo devolvió)', responsable: R.verificaDevolucion, href: x.devolucionHref ?? `/salidas/${id}`, boton: 'Verificar la devolución' }
+      : { texto: 'el auxiliar devuelve lo picado a su ubicación y otra persona lo verifica', responsable: R.devuelve, href: x.devolucionHref ?? `/salidas/${id}`, boton: 'Devolver lo picado' }
     case 'ASIGNADA': return { texto: 'Designar a quien hace el picking y generar la hoja de picking', responsable: R.jefeTransporte, href: `/salidas/${id}`, boton: 'Generar el picking' }
     case 'EN_PICKING': return { texto: 'Hacer el picking siguiendo el recorrido de la hoja', responsable: R.picker, href: `/picking/${id}`, boton: 'Ir al picking' }
     case 'CON_DISCREPANCIA': return { texto: 'Resolver la discrepancia del picking: elegir el lote de reemplazo o ajustar la cantidad', responsable: R.jefeTransporte, href: `/salidas/${id}`, boton: 'Resolver la discrepancia' }
@@ -131,13 +155,13 @@ export interface TareaPendiente {
 /** Lo que le toca a una persona según sus roles: el siguiente paso de cada orden o ingreso que ella puede hacer. Las más adelantadas primero (cerca de salir). */
 export function misTareas(
   roles: readonly Rol[],
-  salidas: readonly { id: string; numero: string; cliente?: string; etapa: EtapaSalida; requiereEmbalaje?: boolean; guiaEnEspera?: boolean }[],
+  salidas: readonly { id: string; numero: string; cliente?: string; etapa: EtapaSalida; requiereEmbalaje?: boolean; guiaEnEspera?: boolean; devolucion?: 'POR_EJECUTAR' | 'POR_VERIFICAR'; devolucionHref?: string; sinPedido?: boolean }[],
   ingresos: readonly { id: string; numero: string; estado: EstadoSolicitud; etiquetaTipo: string; etiquetaEstado: string }[],
   etiquetaEtapa: Record<EtapaSalida, string>,
 ): TareaPendiente[] {
   const tareas: (TareaPendiente & { orden: number })[] = []
   for (const s of salidas) {
-    const a = avanceDeSalida(s.etapa, s.id, { sinEmbalaje: s.requiereEmbalaje === false, guiaEnEspera: s.guiaEnEspera })
+    const a = avanceDeSalida(s.etapa, s.id, { sinEmbalaje: s.requiereEmbalaje === false, guiaEnEspera: s.guiaEnEspera, devolucion: s.devolucion, devolucionHref: s.devolucionHref, sinPedido: s.sinPedido })
     if (esMiTarea(roles, a.siguiente)) tareas.push({ clave: `s-${s.id}`, tipo: 'SALIDA', titulo: `${s.numero}${s.cliente ? ` · ${s.cliente}` : ''}`, donde: etiquetaEtapa[s.etapa], siguiente: a.siguiente, orden: -HECHOS[s.etapa] })
   }
   for (const i of ingresos) {

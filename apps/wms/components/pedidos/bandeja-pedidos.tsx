@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, CircleDashed, FileCheck2, History, Inbox, RefreshCw, SearchX, TriangleAlert, X } from 'lucide-react'
+import { Ban, ChevronDown, ChevronRight, CircleDashed, FileCheck2, History, Inbox, RefreshCw, SearchX, TriangleAlert, X } from 'lucide-react'
 import { actualizarBandejaAccion, revisarCambioPedidoAccion } from '@/app/acciones-pedidos'
 import {
   ETIQUETA_ESTADO_BANDEJA, FILTROS_BANDEJA_VACIOS, contarPorEstado, filtrarBandeja, hace,
@@ -14,7 +14,8 @@ import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 import { Buscador } from '../inventario/mover/piezas'
 
-const ESTADOS: EstadoBandeja[] = ['CAMBIO_POR_REVISAR', 'POR_PLANIFICAR', 'EN_SALIDA']
+const ESTADOS: EstadoBandeja[] = ['CAMBIO_POR_REVISAR', 'POR_PLANIFICAR', 'EN_SALIDA', 'CANCELADO_EN_PEDIDOS']
+const ROJO = 'border-red-200 bg-red-50 text-red-800'
 const base = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap'
 
 /** El estado siempre con texto + ícono (nunca solo color). */
@@ -23,6 +24,7 @@ function ChipBandeja({ estado }: { estado: EstadoBandeja }) {
     POR_PLANIFICAR: { cls: CHIP_NEUTRO, Icono: CircleDashed },
     EN_SALIDA: { cls: CHIP_OK, Icono: FileCheck2 },
     CAMBIO_POR_REVISAR: { cls: CHIP_AVISO, Icono: TriangleAlert },
+    CANCELADO_EN_PEDIDOS: { cls: ROJO, Icono: Ban },
   }[estado]
   return <span className={`${base} ${m.cls}`} data-testid="chip-estado-pedido"><m.Icono className="h-3.5 w-3.5" aria-hidden />{ETIQUETA_ESTADO_BANDEJA[estado]}</span>
 }
