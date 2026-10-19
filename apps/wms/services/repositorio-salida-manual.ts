@@ -1,0 +1,50 @@
+import type { EntradaOrdenManual, LoteParaSalida } from '@/domain/salida-manual'
+import type { MotivoSalida } from '@/domain/salidas'
+import type { Actor, ResultadoAccion } from './repositorio'
+
+/** Un producto hallado al escribir en la tabla de líneas: por su código interno, su nombre o cualquier otro de sus códigos (barras, del cliente, del proveedor). */
+export interface ProductoHallado {
+  id: string
+  codigo: string
+  descripcion: string
+  presentacion?: string
+  /** Por cuál código se encontró cuando no fue el interno: «código del cliente DIPH-0042». */
+  coincidencia?: string
+}
+
+/** Lo que el WMS responde cuando se pregunta «¿este número de pedido ya tiene orden?» (el aviso inmediato de la pantalla). */
+export type OrdenDelPedido =
+  | { tipo: 'ORDEN'; id: string; numero: string; estado: 'ABIERTA' | 'CONFIRMADA' }
+  | { tipo: 'EN_BANDEJA'; pedidoNumero: string }
+
+export interface OrdenCreada { id: string; numero: string; motivo?: MotivoSalida }
+
+export interface ResumenOrdenesPendientes {
+  creadas: number
+  /** Pedidos que ya tenían una orden manual y se unieron a ella (sin crear otra). */
+  unidas: number
+  conFaltaStock: number
+  errores: { pedido: string; motivo: string }[]
+  ordenes: { pedido: string; orden: string; faltaStock: boolean; unida: boolean }[]
+}
+
+/**
+ * SA-2: cómo iniciar una Orden de Salida. Tres formas: desde la bandeja de pedidos (un pedido o todos los pendientes), desde la ruta (ya existía) y a mano
+ * (venta manual A, por cuenta de un cliente B, sin venta C). Un pedido nunca tiene dos órdenes vivas.
+ */
+export interface RepositorioSalidaManual {
+  /** Busca por nombre, código interno o cualquier otro código del producto; con propietario, también el código propio de ese cliente. */
+  buscarProductosParaSalida(consulta: string, propietarioId?: string): Promise<ProductoHallado[]>
+  /** Los lotes de un producto de un propietario con lo que tienen para sacar (Aprobado) y lo que ya está en Bajas. Sirve para proponer FEFO y para validar. */
+  lotesParaSalida(propietarioId: string, productoId: string): Promise<LoteParaSalida[]>
+  /** Los lotes que llevan ese código (de cualquier propietario): así se distingue «no existe» de «es de otro propietario». */
+  lotesPorCodigo(codigo: string, productoId: string): Promise<LoteParaSalida[]>
+  /** ¿Este número de pedido ya tiene una orden (o ya llegó por la bandeja sin orden)? */
+  ordenDelPedido(numeroPedido: string): Promise<OrdenDelPedido | null>
+  /** Crea la orden manual. Una guía de cliente con motivos mezclados se parte en una orden por motivo (devuelve todas). */
+  crearOrdenManual(entrada: EntradaOrdenManual, actor: Actor): Promise<ResultadoAccion<{ ordenes: OrdenCreada[] }>>
+  /** El botón «Crear orden de salida» de un pedido de la bandeja (idempotente: si ya tiene orden, devuelve esa). */
+  crearOrdenDePedido(pedidoId: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string; yaExistia: boolean; faltaStock: boolean }>>
+  /** «Crear las órdenes de todos los pedidos por planificar». */
+  crearOrdenesPendientes(actor: Actor): Promise<ResultadoAccion<{ resumen: ResumenOrdenesPendientes }>>
+}

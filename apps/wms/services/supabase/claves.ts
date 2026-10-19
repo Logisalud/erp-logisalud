@@ -51,6 +51,7 @@ export const CLAVES_UNICAS: Readonly<Record<string, readonly string[]>> = {
   'wms.parametros': ['clave'],
   'wms.personal_transporte': ['id'],
   'wms.pedidos_despacho': ['id'],
+  'wms.producto_codigos': ['id'],
   'wms.perfil_documental_cliente': ['ruc'],
   'wms.posiciones': ['id'],
   'wms.producto_regulatorio': ['producto_id'],
