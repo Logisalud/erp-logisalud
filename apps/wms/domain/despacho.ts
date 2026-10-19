@@ -2,6 +2,8 @@
 // wms.registrar_picking, wms.dar_conformidad, wms.resolver_discrepancia_picking). Las etapas siguientes (documentos, embalaje, carga, salida) extienden `EtapaSalida`.
 import { normalizar } from './busqueda'
 import { puede } from './permisos'
+import type { CreadaDesde, ClienteManual, OrigenOrden } from './salida-manual'
+import type { MotivoSalida, TipoSalida } from './salidas'
 import type { Rol } from './tipos'
 
 // ── Permisos ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -103,6 +105,16 @@ export interface SalidaResumen {
   /** N.° de la guía de remisión vigente y documentos exigidos que faltan o están vencidos (S6b). */
   guia?: string
   documentosFaltantes?: number
+  /** SA-2: de dónde nació la orden y quién la creó (las órdenes viejas no traen estos datos: son de un pedido). */
+  tipo?: TipoSalida
+  motivo?: MotivoSalida
+  origen?: OrigenOrden
+  creadaDesde?: CreadaDesde
+  /** Orden manual de venta cuyo pedido todavía no se comprobó contra Pedidos (D-80). */
+  porConciliar?: boolean
+  creadaPor?: string
+  /** Tipo B: el cliente de almacenamiento a cuyo nombre se creó. */
+  enNombreDe?: string
 }
 
 export interface SalidaVista extends SalidaResumen {
@@ -110,6 +122,10 @@ export interface SalidaVista extends SalidaResumen {
   /** Un pedido a provincia se embala; uno a Lima queda con los bultos de la conformidad. */
   requiereEmbalaje: boolean
   creadaPor: string
+  /** SA-2: lo que se ingresó a mano en la venta manual y la GRE que trajo el cliente (tipo B). */
+  clienteManual?: ClienteManual
+  greNumero?: string
+  greArchivo?: string
   lineasDetalle: LineaSalidaVista[]
   ordenPickingId?: string
   cambios: CambioFefoVista[]

@@ -39,6 +39,29 @@ describe('Orden de Salida: siempre hay siguiente paso y responsable', () => {
   })
 })
 
+describe('Órdenes manuales (SA-2): siempre hay siguiente paso y responsable, en todas las etapas y los tres tipos', () => {
+  for (const tipo of ['DISTRIBUCION', 'CLIENTE', 'MUESTRA', 'PROVEEDOR'] as const) {
+    for (const etapa of ETAPAS_SALIDA) {
+      it(`${tipo} · ${etapa}`, () => {
+        const a = avanceDeSalida(etapa, 'abc', { tipo })
+        expect(a.siguiente.texto.length).toBeGreaterThan(10)
+        expect(a.siguiente.responsable.etiqueta.length).toBeGreaterThan(3)
+        if (!a.siguiente.fin) expect(a.siguiente.responsable.roles.length).toBeGreaterThan(0)
+      })
+    }
+  }
+
+  it('por cuenta de un cliente (B) no se emite guía: el paso es registrar la GRE del cliente; los demás tipos la emiten', () => {
+    expect(avanceDeSalida('CONFORME', 'x', { tipo: 'CLIENTE' }).siguiente.boton).toBe('Registrar la GRE del cliente')
+    expect(avanceDeSalida('CONFORME', 'x', { tipo: 'DISTRIBUCION' }).siguiente.boton).toBe('Emitir la guía')
+    expect(avanceDeSalida('CONFORME', 'x', { tipo: 'MUESTRA' }).siguiente.boton).toBe('Emitir la guía')
+  })
+
+  it('la destrucción sin stock en los racks no dice «esperar stock»: dice que sale desde Bajas', () => {
+    expect(avanceDeSalida('SIN_STOCK', 'x', { tipo: 'CLIENTE', destruccion: true }).siguiente.texto).toMatch(/Bajas/)
+  })
+})
+
 describe('Ingreso: siempre hay siguiente paso y responsable', () => {
   for (const estado of ESTADOS_INGRESO) {
     it(`estado ${estado}`, () => {
