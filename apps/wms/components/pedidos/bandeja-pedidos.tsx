@@ -213,12 +213,12 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, demo = false }: 
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {visibles.map((p) => {
-                      const on = abierto === p.id
+                      const on = abierto === p.pedidoId
                       return (
-                        <Fragment key={p.id}>
-                          <tr className={`cursor-pointer hover:bg-gray-50 ${on ? 'bg-gray-50' : ''}`} onClick={() => toggle(p.id)} data-testid="fila-pedido">
+                        <Fragment key={p.pedidoId}>
+                          <tr className={`cursor-pointer hover:bg-gray-50 ${on ? 'bg-gray-50' : ''}`} onClick={() => toggle(p.pedidoId)} data-testid="fila-pedido">
                             <td className="px-2 py-3">
-                              <button type="button" aria-expanded={on} aria-controls={`det-${p.id}`} onClick={(e) => { e.stopPropagation(); toggle(p.id) }} className="inline-flex h-10 w-10 items-center justify-center rounded hover:bg-gray-100" aria-label={`${on ? 'Cerrar' : 'Abrir'} el detalle de ${p.numero}`} data-testid="abrir-pedido">
+                              <button type="button" aria-expanded={on} aria-controls={`det-${p.pedidoId}`} onClick={(e) => { e.stopPropagation(); toggle(p.pedidoId) }} className="inline-flex h-10 w-10 items-center justify-center rounded hover:bg-gray-100" aria-label={`${on ? 'Cerrar' : 'Abrir'} el detalle de ${p.numero}`} data-testid="abrir-pedido">
                                 {on ? <ChevronDown className="h-5 w-5" aria-hidden /> : <ChevronRight className="h-5 w-5" aria-hidden />}
                               </button>
                             </td>
@@ -229,7 +229,7 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, demo = false }: 
                             <td className="tabular whitespace-nowrap px-2 py-3 text-gray-800">{fechaDia(p.fecha)}</td>
                             <td className="px-2 py-3"><ChipBandeja estado={p.estado} />{p.salida && <span className="tabular mt-1 block text-xs text-gray-600">{p.salida}</span>}</td>
                           </tr>
-                          {on && <tr id={`det-${p.id}`}><td colSpan={7} className="bg-white p-0"><Detalle p={p} puedeRevisar={puedeActualizar} demo={demo} /></td></tr>}
+                          {on && <tr id={`det-${p.pedidoId}`}><td colSpan={7} className="bg-white p-0"><Detalle p={p} puedeRevisar={puedeActualizar} demo={demo} /></td></tr>}
                         </Fragment>
                       )
                     })}
@@ -240,10 +240,10 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, demo = false }: 
               {/* Teléfono: una fila compacta por pedido; el detalle se abre debajo, sin desplazamiento horizontal */}
               <ul className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white md:hidden" data-testid="lista-pedidos-movil">
                 {visibles.map((p) => {
-                  const on = abierto === p.id
+                  const on = abierto === p.pedidoId
                   return (
-                    <li key={p.id} data-testid="fila-pedido-movil">
-                      <button type="button" onClick={() => toggle(p.id)} aria-expanded={on} className="block w-full space-y-1 px-4 py-3 text-left active:bg-gray-50" data-testid="abrir-pedido-movil">
+                    <li key={p.pedidoId} data-testid="fila-pedido-movil">
+                      <button type="button" onClick={() => toggle(p.pedidoId)} aria-expanded={on} className="block w-full space-y-1 px-4 py-3 text-left active:bg-gray-50" data-testid="abrir-pedido-movil">
                         <span className="flex items-center justify-between gap-2"><span className="tabular font-heading text-lg font-semibold tracking-wide text-gray-900">{p.numero}{p.version > 1 && <span className="ml-2 text-sm font-normal text-gray-600">v{p.version}</span>}</span><ChipBandeja estado={p.estado} /></span>
                         <span className="block font-medium text-gray-900">{p.cliente}</span>
                         <span className="tabular block text-sm text-gray-700">{p.lineas.length} {p.lineas.length === 1 ? 'línea' : 'líneas'} · {p.unidades.toLocaleString('es-PE')} u · {fechaDia(p.fecha)}{p.distrito ? ` · ${p.distrito}` : ''}</span>

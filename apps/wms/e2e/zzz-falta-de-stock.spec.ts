@@ -30,7 +30,8 @@ test.describe('cuando falta stock (SA-3)', () => {
     await expect(page.getByTestId('bandeja-resumen')).toBeVisible()
     // una ruta nueva con el pedido 104 (no hay stock para 250.000 unidades)
     await page.goto('/wms/rutas')
-    await page.getByTestId('nueva-ruta-fecha').fill(new Date().toISOString().slice(0, 10)) // hoy: lo importado hoy llegó después del corte de la víspera
+    // una fecha lejana: el vehículo y el conductor están libres aunque otras pruebas hayan armado rutas de hoy o de mañana, y no aplica el corte de la víspera
+    await page.getByTestId('nueva-ruta-fecha').fill(new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10))
     await page.getByTestId('nueva-ruta').click()
     await expect(page.getByTestId('editor-ruta')).toBeVisible()
     await page.getByTestId('ruta-vehiculo').selectOption({ label: 'BKW-757 — Camioneta cerrada · calificado' })
