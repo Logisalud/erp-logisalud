@@ -15,7 +15,7 @@ export function pedidosDemo(productos: readonly ProductoDemo[], consulta: number
   const clinica = { id: 'cli-demo-3', nombre: 'Clínica San Marcos SA', ruc: '20456789123', direccion: 'Av. Brasil 2100, Jesús María', distrito: 'Jesús María', ubigeo: '150113', ventanaCita: 'L-V 7:00-10:00', vehiculoCalificado: 'Furgón refrigerado' }
   const base = (n: number, version: number, cliente: object, lineas: object[], extra: object = {}) => ({
     pedidoId: `ped-demo-${n}`, numero: `PED-DEMO-${n}`, version, estado: 'READY_FOR_OPERATIONS', fecha: hoy, modificadoEn: `${hoy}T08:00:00Z`,
-    cliente, vendedor: 'Vendedor demo', condicionPago: 'Contado', lineas, ...extra,
+    cliente, vendedor: 'Rosa Paredes', condicionPago: 'Contado', lineas, ...extra,
   })
   const lista: unknown[] = [
     base(101, 1, botica, [linea('l-1', p(0), 20), linea('l-2', p(1), 6)]),
@@ -60,7 +60,7 @@ export function simularCambio(actual: Crudo, cambio: CambioSimulado, o: { prefer
       n.lineas.push({ lineaId: `l-sim-${n.version}`, productoCodigo: p.codigo, descripcion: p.descripcion, cantidad: 5 }); break
     }
     case 'CANCELAR':
-      n.estado = 'CANCELLED'; n.motivoCancelacion = 'El cliente ya no lo necesita (simulado en la demostración)'; n.canceladoPor = n.vendedor ?? 'Vendedor demo'; break
+      n.estado = 'CANCELLED'; n.motivoCancelacion = 'El cliente ya no lo necesita (simulado en la demostración)'; n.canceladoPor = n.vendedor ?? 'Rosa Paredes'; break
     case 'FACTURAR':
       n.factura = `F001-${String(43 + n.version).padStart(5, '0')}`; break
   }

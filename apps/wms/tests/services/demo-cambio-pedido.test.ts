@@ -35,12 +35,12 @@ describe('con falta de stock (demo)', () => {
     expect(v.etapa).toBe('SIN_STOCK')
     expect(v.faltantes).toHaveLength(1)
     expect(v.faltantes![0].explicacion.texto).toMatch(/^Stock insuficiente: pide 250000 y hay \d+ disponibles\. Faltan \d+: .*sin stock\.$/)
-    expect(v.vendedor).toBe('Vendedor demo')
+    expect(v.vendedor).toBe('Rosa Paredes')
     const a = (await alertas('STOCK_INSUFICIENTE'))[0]
     expect(a.mensaje).toContain(v.faltantes![0].explicacion.texto)
     expect(a.mensaje).toContain('Decide el vendedor del pedido, en Pedidos')
     const sig = avanceDeSalida(v.etapa, v.id, { vendedor: v.vendedor }).siguiente
-    expect(sig.texto).toBe('el vendedor Vendedor demo decide con el cliente si se quita lo que falta o se cancela el pedido')
+    expect(sig.texto).toBe('el vendedor Rosa Paredes decide con el cliente si se quita lo que falta o se cancela el pedido')
     const quiebres = await repo.listarQuiebresStock()
     expect(quiebres.every((q) => q.origen === 'DETECCION' && q.salidaNumero === v.numero && q.cantidadPedida === 250000)).toBe(true)
     expect(quiebres.reduce((t, q) => t + q.cantidadCausa, 0)).toBe(quiebres[0].cantidadFaltante)
@@ -51,7 +51,7 @@ describe('con falta de stock (demo)', () => {
     const v = (await repo.obtenerSalida(id))!
     const ped = (await repo.bandejaPedidos()).pedidos.find((p) => p.numero === 'PED-DEMO-104')!
     expect(ped.avisoVendedor).toBe(v.avisoVendedor)
-    expect(v.avisoVendedor).toMatch(/^Hola Vendedor demo, no podemos despachar completo el pedido PED-DEMO-104 de Botica Salud Total SAC: falta stock\./)
+    expect(v.avisoVendedor).toMatch(/^Hola Rosa Paredes, no podemos despachar completo el pedido PED-DEMO-104 de Botica Salud Total SAC: falta stock\./)
     expect(v.avisoVendedor).toMatch(/Faltan \d+: .*sin stock\./)
     expect(v.avisoVendedor).toContain('1) Quitar o reducir la línea: lo que falta se cancela y no queda pendiente.')
     expect(v.avisoVendedor).toContain('2) Cancelar el pedido.')
@@ -70,7 +70,7 @@ describe('con falta de stock (demo)', () => {
     expect(v.etapa).toBe('ASIGNADA')
     const al = (await alertas('PEDIDO_CAMBIADO')).find((x) => x.mensaje.includes('PED-DEMO-104'))!
     expect(al.mensaje).toMatch(/se redujo .* de 250000 a \d+; se liberaron 0 unidades|se redujo .* de 250000 a \d+\. Ya no falta stock: la orden sigue su flujo\./)
-    expect((await repo.listarQuiebresStock()).some((q) => q.causa === 'LINEA_REDUCIDA_POR_VENDEDOR' && q.origen === 'PEDIDOS' && q.vendedor === 'Vendedor demo')).toBe(true)
+    expect((await repo.listarQuiebresStock()).some((q) => q.causa === 'LINEA_REDUCIDA_POR_VENDEDOR' && q.origen === 'PEDIDOS' && q.vendedor === 'Rosa Paredes')).toBe(true)
     expect((await repo.bandejaPedidos()).pedidos.find((p) => p.numero === 'PED-DEMO-104')).toMatchObject({ version: 2, estado: 'EN_SALIDA' })
   })
 
@@ -116,7 +116,7 @@ describe('el pedido cambia (sin picking)', () => {
     const v = (await repo.obtenerSalida(s.id))!
     expect(v).toMatchObject({ estado: 'CANCELADA', etapa: 'CANCELADA' })
     expect(v.lineasDetalle.every((l) => l.estado === 'CANCELADA' && l.asignacion.length === 0)).toBe(true)
-    expect((await repo.bandejaPedidos()).pedidos.find((p) => p.numero === 'PED-DEMO-101')).toMatchObject({ estado: 'CANCELADO_EN_PEDIDOS', canceladoPor: 'Vendedor demo' })
+    expect((await repo.bandejaPedidos()).pedidos.find((p) => p.numero === 'PED-DEMO-101')).toMatchObject({ estado: 'CANCELADO_EN_PEDIDOS', canceladoPor: 'Rosa Paredes' })
     expect(await repo.simularCambioEnPedidos('ped-demo-101', 'QUITAR', JT)).toMatchObject({ ok: false, mensaje: 'Pedidos ya canceló ese pedido' })
   })
 

@@ -29,3 +29,13 @@ Respuesta: `2xx` = recibido. Cualquier otro código (o sin respuesta) deja el av
 ## `GUIA_ANULADA`
 
 Mismos campos más `caso` (1, 2 o 3), `motivo`, `baja_sunat` (`PENDIENTE`, `NO_APLICA` o `HECHA`) y un `aviso`. **El WMS no modifica la factura**: Contabilidad decide si se anula o si corresponde una nota de crédito. Después de un caso 2 llegará un nuevo `GUIA_EMITIDA` para el mismo pedido con otro número.
+
+## Factura: quién la emite y cómo vuelve (SA-3, D-130)
+
+La factura la emite **Pedidos** (dueño de precios, descuentos, IGV, condiciones y crédito; Cobranzas depende de ella). El WMS **no factura** y **nadie digita la factura a mano**:
+
+1. Cuando SUNAT **acepta** la guía, el WMS envía `GUIA_EMITIDA` (arriba) con el **número de guía** (`guia`) y las **líneas con lote, vencimiento y cantidad** (`lineas[].lote`, `vence`, `cantidad`, salidas de lo confirmado en la conformidad), más `pedido_id` y `pedido_numero` para ligarlo. Eso es todo lo que Pedidos necesita para generar la factura automáticamente. (Verificado: el evento lleva exactamente eso; en simulador y pruebas el `entorno` lo marca y Pedidos no debe facturar.)
+2. Pedidos factura y devuelve el estado al WMS **dentro del contrato `pedidos-listos`**: el campo `factura` del pedido (p. ej. `"F001-00045"`) llega en la siguiente versión del pedido. Un cambio de versión que solo trae la factura no cambia la Orden de Salida.
+3. La Orden de Salida muestra «Factura: pendiente / facturada F001-00045» **solo como lectura**. Una orden sin pedido vinculado (o por conciliar): «Pendiente».
+
+**La parte de Pedidos (consumir `GUIA_EMITIDA`, facturar y publicar `factura`) queda solo documentada**: se implementa con la aprobación de Sebas (D-49). Mientras tanto, los avisos esperan en la bandeja del WMS (`eventos_pedidos`) y se reintentan.
