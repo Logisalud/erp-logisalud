@@ -42,7 +42,7 @@ Reglas del contrato (las valida el dominio del WMS y otra vez la base de datos, 
 
 - `pedidoId` y `lineaId` son **estables** entre versiones (así el WMS sabe qué línea cambió de cantidad, cuál se agregó y cuál se quitó).
 - `productoCodigo` es el **código de producto que ya comparten Compras y el WMS**. Un código que el WMS no tiene se importa igual y se marca «No está en el catálogo del WMS».
-- `cantidad` entera mayor que cero; `version` entera desde 1; `estado` solo `READY_FOR_OPERATIONS`.
+- `cantidad` entera mayor que cero; `version` entera desde 1; `estado` es `READY_FOR_OPERATIONS` o `CANCELLED` (ver abajo).
 - Un pedido mal formado se **descarta con su motivo** y no tumba a los demás.
 - No hay precios ni importes: el WMS no calcula ni valida lo tributario.
 
@@ -67,11 +67,27 @@ en ambos lados. La implementación de referencia (y su verificador, que Pedidos 
 | `WMS_PEDIDOS_URL` | Base de la API de Pedidos, sin la ruta (p. ej. `https://pedidos.logisalud.pe/api`) |
 | `WMS_PEDIDOS_SECRETO` | El secreto compartido de la firma |
 
+## Pedido cancelado (SA-3, D-128 y D-129)
+
+Cuando el vendedor cancela un pedido en Pedidos (por ejemplo, porque no hay stock y el cliente no quiere esperar), Pedidos lo entrega como **una versión nueva** con `estado: "CANCELLED"`:
+
+```json
+{ "pedidoId": "uuid", "numero": "PED-2026-00123", "version": 3, "estado": "CANCELLED", "fecha": "2026-10-13", "modificadoEn": "2026-10-15T09:00:00Z",
+  "motivoCancelacion": "El cliente prefiere esperar al próximo mes", "canceladoPor": "Rosa Paredes",
+  "cliente": { "id": "…", "nombre": "…" }, "lineas": [ { "lineaId": "…", "productoCodigo": "…", "descripcion": "…", "cantidad": 20 } ] }
+```
+
+- `motivoCancelacion` es **obligatorio** (sin él el pedido se descarta con su motivo); `canceladoPor` es opcional. El pedido trae sus líneas como estaban.
+- La misma regla de versión: tiene que ser mayor que la vigente (o el pedido llega cancelado por primera vez).
+- Efecto en el WMS: si el pedido tenía una Orden de Salida, **se cancela y libera todo** (reservas y asignaciones). Si el picking ya había empezado, primero se devuelve lo picado a su ubicación con un movimiento verificado por otra persona y recién entonces se cierra. El pedido queda en la bandeja como «Cancelado en Pedidos» con su motivo, no se puede planificar y los datos del quiebre de stock quedan para el reporte futuro. Una orden que ya salió no se toca: se avisa al Jefe de Transporte.
+- **Versión nueva sin cancelar:** el WMS ya no solo avisa: actualiza solo la Orden de Salida (línea quitada → se cancela y libera; cantidad reducida → libera lo sobrante; línea agregada o aumentada → se asigna por FEFO) y no deja pendientes: **lo que Pedidos quita o reduce se cancela**. Por eso `lineaId` debe ser estable.
+- **Factura (solo lectura):** el campo `factura` del pedido (p. ej. `F001-00045`) lo muestra la Orden de Salida como «facturada F001-00045»; mientras falte, «pendiente». Nadie la digita en el WMS. Ver `../contrato-pedidos-guia.md`.
+
 ## Cómo se comporta el WMS
 
 - **Idempotente:** importar dos veces lo mismo no duplica; una versión más vieja que la vigente no pisa nada.
 - **Versión nueva:** la anterior queda como historia, el pedido pasa a «Cambió: revisar» con lo que cambió en palabras y se crea la alerta
-  `PEDIDO_CAMBIADO` para el Jefe de Transporte (si el pedido ya tenía una salida, la alerta la nombra). Nadie pisa nada en silencio.
+  `PEDIDO_CAMBIADO` para el Jefe de Transporte (si el pedido ya tenía una salida, la alerta cuenta qué se hizo con ella, SA-3). Nadie pisa nada en silencio.
 - **Si Pedidos no responde** (o rechaza la firma, o contesta algo inválido): queda el intento fallido, la bandeja sigue con lo ya importado y muestra
   «Última actualización hace X».
 - **Cuándo se importa:** hoy, al pulsar «Actualizar desde Pedidos» (Jefe de Transporte o Jefe de Almacén). La importación programada (Vercel Cron) llega con la

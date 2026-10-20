@@ -178,8 +178,7 @@ describe('modo A: FEFO entre lotes aptos', () => {
     const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 50 }])
     const r1 = await asignar(jt, s)
     expect(r1[0].estado).toBe('SIN_STOCK')
-    expect(r1[0].mensaje).toMatch(/hay 510 en total/)
-    expect(r1[0].mensaje).toMatch(/500 de lotes que no cumplen vencimiento o vida útil/)
+    expect(r1[0].mensaje).toBe('Stock insuficiente: pide 50 y hay 10 disponibles. Faltan 40: 40 con vencimiento menor a 60 días.') // SA-3: el aviso explica por qué falta
     await asignar(jt, s) // reintentar no duplica la alerta
     const alertas = await q(`select * from wms.alertas where tipo = 'STOCK_INSUFICIENTE' and producto_id = $1`, [p])
     expect(alertas).toHaveLength(1)
@@ -198,7 +197,7 @@ describe('modo A: FEFO entre lotes aptos', () => {
     const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 50 }])
     const r = await asignar(jt, s)
     expect(r[0].estado).toBe('SIN_STOCK')
-    expect(r[0].mensaje).toMatch(/Stock insuficiente: la línea pide 50 y, sumando todos los lotes aptos, hay 35/)
+    expect(r[0].mensaje).toBe('Stock insuficiente: pide 50 y hay 35 disponibles. Faltan 15: 15 con vencimiento menor a 60 días.')
     expect(await reservas((await lineas(s))[0].id)).toHaveLength(0) // todo o nada: no queda una reserva parcial
     const d = await disp(jt, logissa, p)
     expect(d.find((x) => x.lote === 'P1')).toMatchObject({ comprometido: 0, disponible: 20 })

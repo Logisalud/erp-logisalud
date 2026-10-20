@@ -45,9 +45,9 @@ describe('menú lateral por rol (D-131 a D-133)', () => {
     for (const x of ['/salidas/nueva', '/picking', '/conformidad', '/embalaje', '/carga', '/retornos', '/carga-inicial']) expect(h, x).not.toContain(x)
   })
 
-  it('«Autoriza salidas sin venta» ve lo suyo (Nueva salida) y nada de las colas ni de la bandeja', () => {
+  it('«Autoriza salidas sin venta» ve lo suyo (Nueva salida y las órdenes, para seguir su muestra: SA-2) y nada de las colas ni de la bandeja', () => {
     const sec = construirMenu(persona('autoriza_salidas_sin_venta'))
-    expect(sec.find((s) => s.id === 'salidas')!.items.map((i) => i.etiqueta)).toEqual(['Nueva salida'])
+    expect(sec.find((s) => s.id === 'salidas')!.items.map((i) => i.etiqueta)).toEqual(['Órdenes de salida', 'Nueva salida'])
     expect(sec.some((s) => s.id === 'despacho')).toBe(false)
     expect(hrefs(persona('autoriza_salidas_sin_venta'))).not.toContain('/pedidos')
     for (const x of ['/entradas', '/movimientos', '/conteos', '/bajas', '/propietarios']) expect(hrefs(persona('autoriza_salidas_sin_venta')), x).not.toContain(x)

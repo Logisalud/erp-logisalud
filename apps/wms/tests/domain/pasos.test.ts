@@ -10,7 +10,9 @@ describe('Orden de Salida: siempre hay siguiente paso y responsable', () => {
       expect(a.siguiente.responsable.etiqueta.length).toBeGreaterThan(3)
       if (a.siguiente.fin) expect(a.siguiente.responsable.roles).toEqual([])
       else {
-        expect(a.siguiente.responsable.roles.length).toBeGreaterThan(0)
+        // quien decide con falta de stock es el vendedor del pedido: no tiene rol en el WMS, pero siempre hay un responsable con nombre
+        if (a.siguiente.responsable.externo) expect(a.siguiente.responsable.roles).toEqual([])
+        else expect(a.siguiente.responsable.roles.length).toBeGreaterThan(0)
         expect(a.siguiente.href).toMatch(/^\//)
         expect(a.siguiente.boton).toBeTruthy()
         expect(a.pasos.some((p) => p.estado === 'ACTUAL')).toBe(true)
@@ -46,7 +48,10 @@ describe('Órdenes manuales (SA-2): siempre hay siguiente paso y responsable, en
         const a = avanceDeSalida(etapa, 'abc', { tipo })
         expect(a.siguiente.texto.length).toBeGreaterThan(10)
         expect(a.siguiente.responsable.etiqueta.length).toBeGreaterThan(3)
-        if (!a.siguiente.fin) expect(a.siguiente.responsable.roles.length).toBeGreaterThan(0)
+        if (!a.siguiente.fin) {
+          if (a.siguiente.responsable.externo) expect(a.siguiente.responsable.roles).toEqual([])
+          else expect(a.siguiente.responsable.roles.length).toBeGreaterThan(0)
+        }
       })
     }
   }
@@ -59,6 +64,55 @@ describe('Órdenes manuales (SA-2): siempre hay siguiente paso y responsable, en
 
   it('la destrucción sin stock en los racks no dice «esperar stock»: dice que sale desde Bajas', () => {
     expect(avanceDeSalida('SIN_STOCK', 'x', { tipo: 'CLIENTE', destruccion: true }).siguiente.texto).toMatch(/Bajas/)
+  })
+
+  it('sin stock: una orden manual sin pedido (B/C o sin pedido en la bandeja) la resuelve el Jefe de Transporte; una con pedido (A), el vendedor', () => {
+    expect(avanceDeSalida('SIN_STOCK', 'x', { tipo: 'CLIENTE' }).siguiente.responsable.roles).toEqual(['jefe_transporte'])
+    expect(avanceDeSalida('SIN_STOCK', 'x', { tipo: 'DISTRIBUCION', sinPedido: true }).siguiente.responsable.roles).toEqual(['jefe_transporte'])
+    expect(avanceDeSalida('SIN_STOCK', 'x', { tipo: 'DISTRIBUCION', sinPedido: false, vendedor: 'Rosa' }).siguiente.responsable.externo).toBe(true)
+  })
+})
+
+describe('Orden de Salida con falta de stock (SA-3): decide el vendedor, no el Jefe de Transporte', () => {
+  it('«Sigue: el vendedor [nombre] decide con el cliente si se quita lo que falta o se cancela el pedido»; lo hace el Vendedor y es externo al WMS', () => {
+    const a = avanceDeSalida('SIN_STOCK', 'x', { vendedor: 'Rosa Paredes' })
+    expect(a.siguiente.texto).toBe('el vendedor Rosa Paredes decide con el cliente si se quita lo que falta o se cancela el pedido')
+    expect(a.siguiente.responsable).toEqual({ roles: [], etiqueta: 'Vendedor Rosa Paredes', externo: true })
+    expect(a.siguiente.href).toBe('/salidas/x#falta-stock')
+    expect(a.pasos.find((p) => p.estado === 'ACTUAL')?.clave).toBe('stock')
+  })
+  it('si no se conoce el vendedor, lo dice: «el vendedor del pedido»', () => {
+    const a = avanceDeSalida('SIN_STOCK', 'x')
+    expect(a.siguiente.texto).toBe('el vendedor del pedido decide con el cliente si se quita lo que falta o se cancela el pedido')
+    expect(a.siguiente.responsable).toMatchObject({ etiqueta: 'Vendedor del pedido', externo: true })
+  })
+  it('nadie del WMS lo tiene en «Mis tareas»: ni el Jefe de Transporte (lo ve, no lo decide) ni Dirección Técnica', () => {
+    const s = avanceDeSalida('SIN_STOCK', 'x', { vendedor: 'Rosa' }).siguiente
+    for (const rol of ['jefe_transporte', 'direccion_tecnica', 'jefe_almacen', 'auxiliar', 'asistente_dt', 'admin_wms'] as const) expect(esMiTarea([rol], s), rol).toBe(false)
+  })
+  it('una orden sin pedido (muestra de Logissa) no tiene vendedor: sigue siendo del Jefe de Transporte', () => {
+    const s = avanceDeSalida('SIN_STOCK', 'x', { sinPedido: true }).siguiente
+    expect(s.responsable.roles).toEqual(['jefe_transporte'])
+    expect(esMiTarea(['jefe_transporte'], s)).toBe(true)
+  })
+  it('por devolver lo picado: el auxiliar devuelve y otra persona verifica; después, solo la verificación', () => {
+    const d = avanceDeSalida('POR_DEVOLVER_PICKING', 'x', { devolucionHref: '/movimientos/m1' })
+    expect(d.siguiente.texto).toBe('el auxiliar devuelve lo picado a su ubicación y otra persona lo verifica')
+    expect(d.siguiente.responsable.roles).toEqual(['auxiliar', 'jefe_almacen'])
+    expect(d.siguiente.href).toBe('/movimientos/m1')
+    expect(d.pasos.find((p) => p.clave === 'stock')?.estado).toBe('HECHO')
+    expect(d.pasos.find((p) => p.clave === 'picking')?.estado).toBe('ACTUAL')
+    const v = avanceDeSalida('POR_DEVOLVER_PICKING', 'x', { devolucion: 'POR_VERIFICAR' })
+    expect(v.siguiente.texto).toMatch(/otra persona verifica que lo picado volvió a su ubicación/)
+    expect(esMiTarea(['auxiliar'], v.siguiente)).toBe(true)
+    expect(esMiTarea(['jefe_transporte'], v.siguiente)).toBe(false)
+  })
+  it('«Mis tareas» del Jefe de Almacén incluye la devolución pendiente y no la falta de stock', async () => {
+    const { misTareas } = await import('@/domain/pasos')
+    const salidas = [{ id: 's1', numero: 'OS-1', etapa: 'POR_DEVOLVER_PICKING' as const }, { id: 's2', numero: 'OS-2', etapa: 'SIN_STOCK' as const }]
+    const etiquetas = { POR_DEVOLVER_PICKING: 'Por devolver', SIN_STOCK: 'Sin stock' } as never
+    expect(misTareas(['jefe_almacen'], salidas, [], etiquetas).map((t) => t.clave)).toEqual(['s-s1'])
+    expect(misTareas(['jefe_transporte'], salidas, [], etiquetas)).toEqual([])
   })
 })
 

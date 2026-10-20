@@ -1,6 +1,7 @@
 // Salidas por pedido (S5 en adelante): asignación de lotes, picking, conformidad. Vistas, permisos y reglas puras (la base de datos manda: wms.editar_asignacion,
 // wms.registrar_picking, wms.dar_conformidad, wms.resolver_discrepancia_picking). Las etapas siguientes (documentos, embalaje, carga, salida) extienden `EtapaSalida`.
 import { normalizar } from './busqueda'
+import type { FaltanteLineaVista } from './faltante'
 import { puede } from './permisos'
 import type { CreadaDesde, ClienteManual, OrigenOrden } from './salida-manual'
 import type { MotivoSalida, TipoSalida } from './salidas'
@@ -24,10 +25,12 @@ export type ResultadoConformidad = 'PENDIENTE' | 'CONFORME' | 'OBSERVADA'
 export type EtapaSalida =
   | 'SIN_STOCK' | 'ASIGNADA' | 'EN_PICKING' | 'CON_DISCREPANCIA' | 'PENDIENTE_CONFORMIDAD' | 'OBSERVADA' | 'CONFORME' | 'DOCUMENTACION_COMPLETA' | 'EMBALADA'
   | 'LISTA_PARA_CARGA' | 'CARGADA' | 'CONFIRMADA' | 'CANCELADA'
+  /** SA-3: llegó un cambio o una cancelación del pedido con el picking ya iniciado: hay que devolver lo picado a su ubicación (movimiento verificado) antes de seguir o cerrar. */
+  | 'POR_DEVOLVER_PICKING'
 export const ETIQUETA_ETAPA: Record<EtapaSalida, string> = {
   SIN_STOCK: 'Sin stock suficiente', ASIGNADA: 'Stock asignado', EN_PICKING: 'En picking', CON_DISCREPANCIA: 'Picking con discrepancia', PENDIENTE_CONFORMIDAD: 'Pendiente de conformidad',
   OBSERVADA: 'Observada', CONFORME: 'Conforme: falta la documentación', DOCUMENTACION_COMPLETA: 'Documentación completa: falta embalar', EMBALADA: 'Embalada: falta la documentación',
-  LISTA_PARA_CARGA: 'Lista para carga', CARGADA: 'Cargada: falta liberar la unidad', CONFIRMADA: 'Salida confirmada', CANCELADA: 'Cancelada',
+  LISTA_PARA_CARGA: 'Lista para carga', CARGADA: 'Cargada: falta liberar la unidad', CONFIRMADA: 'Salida confirmada', CANCELADA: 'Cancelada', POR_DEVOLVER_PICKING: 'Por devolver lo picado',
 }
 
 /** Las etapas en las que todo el pedido ya tiene la conformidad. */
@@ -46,9 +49,12 @@ export function etapaDeSalida(s: {
   estado: 'ABIERTA' | 'CONFIRMADA' | 'CANCELADA'
   lineas: readonly { estado: EstadoLineaSalida }[]
   orden?: { lineas: readonly { picking: ResultadoPicking; conformidad: ResultadoConformidad }[] } | null
+  /** Hay unidades picadas por devolver a su ubicación (por un cambio o una cancelación del pedido) y la devolución todavía no está verificada. */
+  devolucionPendiente?: boolean
 }, avance: AvanceSalida = {}): EtapaSalida {
   if (s.estado === 'CANCELADA') return 'CANCELADA'
   if (s.estado === 'CONFIRMADA') return 'CONFIRMADA'
+  if (s.devolucionPendiente) return 'POR_DEVOLVER_PICKING'
   if (s.lineas.some((l) => l.estado === 'SIN_STOCK' || l.estado === 'PENDIENTE')) return 'SIN_STOCK'
   const o = s.orden
   if (!o) return 'ASIGNADA'
@@ -87,6 +93,8 @@ export interface LineaSalidaVista {
   nota?: string
   /** Se pueden editar los lotes mientras no haya empezado el picking de la línea. */
   editable: boolean
+  /** La línea queda en esta cantidad (0 = se quita) cuando se verifique la devolución de lo picado. */
+  cantidadNueva?: number
 }
 
 export interface CambioFefoVista { lineaId: string; en: string; por: string; anterior: string; nueva: string; distintoDeFefo: boolean; motivo?: string }
@@ -115,6 +123,22 @@ export interface SalidaResumen {
   creadaPor?: string
   /** Tipo B: el cliente de almacenamiento a cuyo nombre se creó. */
   enNombreDe?: string
+  /** SA-3: el vendedor del pedido (decide con falta de stock); una orden sin pedido (muestra de Logissa) no tiene vendedor. */
+  vendedor?: string
+  sinPedido?: boolean
+  /** Lo picado por devolver: si falta devolverlo o falta que otra persona lo verifique, y dónde (el movimiento interno). */
+  devolucion?: 'POR_EJECUTAR' | 'POR_VERIFICAR'
+  devolucionHref?: string
+}
+
+/** Lo picado (o en Despacho) que un cambio o la cancelación del pedido dejó sin pedido y vuelve a su ubicación con un movimiento verificado. */
+export interface DevolucionPickingVista {
+  id: string; producto: string; productoCodigo: string; lote: string; cantidad: number
+  estado: 'POR_DEVOLVER' | 'DEVUELTA' | 'VERIFICADA'
+  estadoReserva: 'EN_TRANSITO' | 'EN_STAGING'
+  desde: string; hasta: string
+  causa: 'CAMBIO_PEDIDO' | 'PEDIDO_CANCELADO'
+  movimientoId?: string; movimientoNumero?: string; devueltaPor?: string; verificadaPor?: string
 }
 
 export interface SalidaVista extends SalidaResumen {
@@ -129,6 +153,19 @@ export interface SalidaVista extends SalidaResumen {
   lineasDetalle: LineaSalidaVista[]
   ordenPickingId?: string
   cambios: CambioFefoVista[]
+  /** SA-3: la orden nace de un pedido (en la demo y en la base: bandeja o manual tipo A). */
+  conPedido?: boolean
+  vendedor?: string
+  /** Las líneas que faltan, con POR QUÉ falta y cuánto de cada causa, y el aviso listo para copiarle al vendedor. */
+  faltantes?: FaltanteLineaVista[]
+  avisoVendedor?: string
+  /** Estado de la factura (solo lectura: la emite Pedidos). */
+  factura?: string
+  facturaEstado?: 'PENDIENTE' | 'FACTURADA'
+  pedidoCancelado?: { motivo: string; por?: string }
+  motivoCancelacion?: string
+  cancelacionPendiente?: boolean
+  devoluciones?: DevolucionPickingVista[]
 }
 
 /** Un lote que se puede elegir en la celda: vencimiento, ubicación y disponible a la vista; el FEFO marcado como «sugerido». */

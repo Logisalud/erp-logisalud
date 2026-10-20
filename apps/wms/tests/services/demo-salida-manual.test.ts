@@ -131,13 +131,55 @@ describe('el pedido que llega después por la bandeja se une a la orden manual, 
     expect(ok(await repo.crearOrdenDePedido(b.pedidoId, JT))).toMatchObject({ id: r.ordenes[0].id, yaExistia: true })
   })
 
-  it('si la orden ya está en picking, la unión no la reinicia', async () => {
+  it('si la orden ya está en picking, la unión no la reinicia: conserva su hoja de picking y se actualiza a lo que dice el pedido', async () => {
     const s = await conStock('LOGISSA')
     const r = ok(await repo.crearOrdenManual(A(s.productoId, 4, 'PED-DEMO-104', { cliente: { ...CLIENTE, ruc: '20512345671' } }), JT))
     const g = ok(await repo.generarOrdenPicking(r.ordenes[0].id, JT))
     ok(await repo.actualizarBandeja(JT))
     const v = (await repo.obtenerSalida(r.ordenes[0].id))!
-    expect(v).toMatchObject({ ordenPickingId: g.id, porConciliar: false, etapa: 'EN_PICKING' })
+    // PED-DEMO-104 pide 250.000 unidades de otro producto: la línea que el pedido no trae se quita y se agrega la suya, que no tiene stock (SA-3: decide el vendedor)
+    expect(v).toMatchObject({ ordenPickingId: g.id, porConciliar: false, etapa: 'SIN_STOCK', vendedor: 'Rosa Paredes', conPedido: true })
+    expect(v.lineasDetalle.filter((l) => l.estado !== 'CANCELADA').map((l) => [l.cantidad, l.estado])).toEqual([[250_000, 'SIN_STOCK']])
+  })
+
+  /** PED-DEMO-104 como lo trae Pedidos (versión 1), con las líneas que se pidan, en vez de las 250.000 unidades de siempre. */
+  async function pedido104Con(lineas: { productoId: string; cantidad: number }[]) {
+    await repo.bandejaPedidos()
+    const e = estadoE()
+    const prod = (id: string) => e.panorama.productos.find((p) => p.id === id)!
+    const e2 = e.pedidos!
+    e2.simulados = { 'ped-demo-104': {
+      pedidoId: 'ped-demo-104', numero: 'PED-DEMO-104', version: 1, estado: 'READY_FOR_OPERATIONS', fecha: e.panorama.hoy, modificadoEn: `${e.panorama.hoy}T08:00:00Z`,
+      cliente: { id: 'cli-demo-1', nombre: 'Botica Salud Total SAC', ruc: '20512345671', direccion: 'Av. Giraldez 480, Huancayo', distrito: 'Huancayo', ubigeo: '120101' },
+      vendedor: 'Rosa Paredes', condicionPago: 'Contado',
+      lineas: lineas.map((l, i) => ({ lineaId: `l-${i + 1}`, productoCodigo: prod(l.productoId).codigo, descripcion: prod(l.productoId).descripcion, cantidad: l.cantidad })),
+    } }
+  }
+
+  it('al unirse, el pedido se aplica a la orden como una versión nueva: sus líneas y cantidades pasan a ser las del pedido (SA-2 + SA-3)', async () => {
+    const s = await conStock('LOGISSA')
+    const otro = (await repo.panorama()).productos.find((p) => p.estado === 'activo' && p.id !== s.productoId)!
+    const r = ok(await repo.crearOrdenManual(A(s.productoId, 3, 'PED-DEMO-104', { cliente: { ...CLIENTE, ruc: '20512345671' } }), JT))
+    // el pedido pide más de lo mismo (3 → 8) y una línea más que la orden no tenía
+    await pedido104Con([{ productoId: s.productoId, cantidad: 8 }, { productoId: otro.id, cantidad: 2 }])
+    ok(await repo.actualizarBandeja(JT))
+    const v = (await repo.obtenerSalida(r.ordenes[0].id))!
+    expect(v).toMatchObject({ porConciliar: false, origen: 'MANUAL', conPedido: true, vendedor: 'Rosa Paredes' })
+    expect(v.lineasDetalle.filter((l) => l.estado !== 'CANCELADA').map((l) => l.cantidad)).toEqual([8, 2])
+    expect(v.lineasDetalle[0].asignacion.reduce((t, a) => t + a.cantidad, 0)).toBe(8)
+    expect((await repo.listarAlertas()).some((a) => a.tipo === 'PEDIDO_CAMBIADO' && a.mensaje.includes('PED-DEMO-104'))).toBe(true)
+  })
+
+  it('si el producto y la cantidad coinciden con el pedido, la unión no cambia nada de la orden', async () => {
+    const s = await conStock('LOGISSA')
+    const r = ok(await repo.crearOrdenManual(A(s.productoId, 6, 'PED-DEMO-104', { cliente: { ...CLIENTE, ruc: '20512345671' } }), JT))
+    const antes = (await repo.obtenerSalida(r.ordenes[0].id))!.lineasDetalle.map((l) => [l.id, l.cantidad, l.estado])
+    await pedido104Con([{ productoId: s.productoId, cantidad: 6 }])
+    ok(await repo.actualizarBandeja(JT))
+    const v = (await repo.obtenerSalida(r.ordenes[0].id))!
+    expect(v).toMatchObject({ porConciliar: false, conPedido: true })
+    expect(v.lineasDetalle.map((l) => [l.id, l.cantidad, l.estado])).toEqual(antes)
+    expect((await repo.listarAlertas()).some((a) => a.tipo === 'PEDIDO_CAMBIADO' && a.mensaje.includes('PED-DEMO-104'))).toBe(false)
   })
 
   it('avisa si el cliente del pedido no es el de la orden', async () => {

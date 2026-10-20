@@ -20,3 +20,8 @@ export async function actualizarBandejaAccion(): Promise<ResultadoAccion<{ resum
 export async function revisarCambioPedidoAccion(pedidoId: string): Promise<ResultadoAccion> {
   return repositorio().revisarCambioPedido(pedidoId, await quien())
 }
+
+/** Solo en la demostración: «Pedidos» cambia el pedido (reducir, quitar, agregar, cancelar, facturar) y la bandeja lo importa. */
+export async function simularCambioEnPedidosAccion(pedidoId: string, cambio: import('@/services/repositorio-cambio-pedido').CambioSimulado) {
+  return repositorio().simularCambioEnPedidos(pedidoId, cambio, await quien())
+}

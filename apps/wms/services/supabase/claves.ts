@@ -17,7 +17,9 @@ export const CLAVES_UNICAS: Readonly<Record<string, readonly string[]>> = {
   'wms.actas_recepcion': ['id'],
   'wms.alertas': ['id'],
   'wms.antecedentes_calidad': ['id'],
+  'wms.devoluciones_picking': ['id'],
   'wms.dictamenes_cliente': ['id'],
+  'wms.quiebres_stock': ['id'],
   'wms.observaciones_liberacion': ['id'],
   'wms.tablas_muestreo': ['id'],
   'wms.tablas_muestreo_tramos': ['tabla_id', 'regimen', 'desde'],
@@ -76,6 +78,8 @@ export const CLAVES_UNICAS: Readonly<Record<string, readonly string[]>> = {
   'wms.vehiculos': ['id'],
   // Stock en estado Bajas/Rechazados (OS-6): una fila por ubicación y lote.
   'wms.v_stock_en_bajas': ['posicion_id', 'lote_id'],
+  // Quiebres de stock (SA-3): una fila por línea, causa y momento (la vista del reporte futuro).
+  'wms.v_quiebres_stock': ['id'],
   // Vistas sobre Compras (solo existen si Compras está en la misma base): una fila por línea de OC.
   'wms.v_oc_items': ['oc_item_id'],
   'wms.v_oc_lineas': ['oc_item_id'],

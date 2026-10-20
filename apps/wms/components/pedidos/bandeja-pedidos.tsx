@@ -2,9 +2,11 @@
 
 import Link from 'next/link'
 import { Fragment, useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, CircleDashed, FilePlus2, FileCheck2, History, Inbox, ListPlus, RefreshCw, SearchX, TriangleAlert, X } from 'lucide-react'
-import { actualizarBandejaAccion, revisarCambioPedidoAccion } from '@/app/acciones-pedidos'
+import { Ban, ChevronDown, ChevronRight, CircleDashed, FilePlus2, FileCheck2, History, Inbox, ListPlus, RefreshCw, SearchX, TriangleAlert, X } from 'lucide-react'
+import { actualizarBandejaAccion, revisarCambioPedidoAccion, simularCambioEnPedidosAccion } from '@/app/acciones-pedidos'
 import { crearOrdenDePedidoAccion, crearOrdenesPendientesAccion } from '@/app/acciones-salida-manual'
+import type { CambioSimulado } from '@/services/repositorio-cambio-pedido'
+import { BotonCopiarAviso } from '../salidas/boton-copiar-aviso'
 import {
   ETIQUETA_ESTADO_BANDEJA, FILTROS_BANDEJA_VACIOS, contarPorEstado, filtrarBandeja, hace,
   type EstadoBandeja, type FiltrosBandeja, type PedidoBandeja,
@@ -16,7 +18,8 @@ import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 import { Buscador } from '../inventario/mover/piezas'
 
-const ESTADOS: EstadoBandeja[] = ['CAMBIO_POR_REVISAR', 'POR_PLANIFICAR', 'EN_SALIDA']
+const ESTADOS: EstadoBandeja[] = ['CAMBIO_POR_REVISAR', 'POR_PLANIFICAR', 'EN_SALIDA', 'CANCELADO_EN_PEDIDOS']
+const ROJO = 'border-red-200 bg-red-50 text-red-800'
 const base = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap'
 
 /** El estado siempre con texto + ícono (nunca solo color). */
@@ -25,18 +28,55 @@ function ChipBandeja({ estado }: { estado: EstadoBandeja }) {
     POR_PLANIFICAR: { cls: CHIP_NEUTRO, Icono: CircleDashed },
     EN_SALIDA: { cls: CHIP_OK, Icono: FileCheck2 },
     CAMBIO_POR_REVISAR: { cls: CHIP_AVISO, Icono: TriangleAlert },
+    CANCELADO_EN_PEDIDOS: { cls: ROJO, Icono: Ban },
   }[estado]
   return <span className={`${base} ${m.cls}`} data-testid="chip-estado-pedido"><m.Icono className="h-3.5 w-3.5" aria-hidden />{ETIQUETA_ESTADO_BANDEJA[estado]}</span>
 }
 
 const fechaDia = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
-function Detalle({ p, puedeRevisar, puedeCrear, creando, crear }: { p: PedidoBandeja; puedeRevisar: boolean; puedeCrear: boolean; creando: boolean; crear: (p: PedidoBandeja) => void }) {
+const SIMULACIONES: { cambio: CambioSimulado; texto: string }[] = [
+  { cambio: 'REDUCIR', texto: 'Reducir una línea' }, { cambio: 'QUITAR', texto: 'Quitar una línea' }, { cambio: 'AGREGAR', texto: 'Agregar una línea' },
+  { cambio: 'CANCELAR', texto: 'Cancelar el pedido' }, { cambio: 'FACTURAR', texto: 'Registrar la factura' },
+]
+
+/** Controles de la fuente demo: «Pedidos» cambia el pedido para ver cómo la Orden de Salida se actualiza sola. Solo existen en la demostración. */
+function SimularEnPedidos({ p }: { p: PedidoBandeja }) {
+  const { pendiente, mensaje, ejecutar } = useAccion()
+  if (p.estado === 'CANCELADO_EN_PEDIDOS') return null
+  return (
+    <div className="space-y-2 rounded-md border border-dashed border-gray-300 bg-gray-50 p-3" data-testid="simular-en-pedidos">
+      <p className="text-sm font-medium text-gray-900">Probar como si fueras Pedidos <span className="font-normal text-gray-600">(solo en la demostración)</span></p>
+      <div className="flex flex-wrap gap-2">
+        {SIMULACIONES.map((x) => (
+          <button key={x.cambio} type="button" className="btn-secondary btn-sm" disabled={pendiente} onClick={() => ejecutar(() => simularCambioEnPedidosAccion(p.pedidoId, x.cambio), { exito: `Pedidos cambió el pedido (${x.texto.toLowerCase()}). La orden de salida se actualizó sola.` })} data-testid={`simular-${x.cambio}`}>{x.texto}</button>
+        ))}
+      </div>
+      {mensaje?.tipo === 'error' && <Aviso tipo="error" testid="simular-error">{mensaje.texto}</Aviso>}
+      {mensaje?.tipo === 'ok' && <Aviso tipo="ok" testid="simular-ok">{mensaje.texto}</Aviso>}
+    </div>
+  )
+}
+
+function Detalle({ p, puedeRevisar, puedeCrear, creando, crear, demo }: { p: PedidoBandeja; puedeRevisar: boolean; puedeCrear: boolean; creando: boolean; crear: (p: PedidoBandeja) => void; demo: boolean }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const sinCatalogo = p.lineas.filter((l) => !l.enCatalogo)
   const dato = (titulo: string, valor?: string) => valor ? <div><dt className="text-xs font-medium text-gray-600">{titulo}</dt><dd className="text-sm text-gray-900">{valor}</dd></div> : null
   return (
     <div className="space-y-4 px-4 py-4 md:px-6" data-testid="detalle-pedido">
+      {p.estado === 'CANCELADO_EN_PEDIDOS' && (
+        <Aviso tipo="error" testid="pedido-cancelado">
+          <p className="font-medium">Pedidos canceló este pedido.</p>
+          <p>Motivo: {p.motivoCancelacion ?? 'sin motivo'}{p.canceladoPor ? ` · lo canceló ${p.canceladoPor}` : ''}.{p.salida ? ` Su orden de salida ${p.salida} se canceló y liberó todo (si ya había picking, primero se devuelve lo picado).` : ''}</p>
+        </Aviso>
+      )}
+      {p.avisoVendedor && (
+        <Aviso tipo="atencion" testid="pedido-falta-stock">
+          <p className="font-medium">Falta stock en este pedido: decide el vendedor{p.vendedor ? ` ${p.vendedor}` : ''}, en Pedidos.</p>
+          <p className="mt-1">Quitar o reducir la línea (lo que falta se cancela) o cancelar el pedido.</p>
+          <div className="mt-2"><BotonCopiarAviso texto={p.avisoVendedor} testid="copiar-aviso-bandeja" /></div>
+        </Aviso>
+      )}
       {p.estado === 'CAMBIO_POR_REVISAR' && (
         <Aviso tipo="atencion" testid="pedido-cambio">
           <p className="font-medium">Este pedido cambió en Pedidos (versión {p.version}).</p>
@@ -82,13 +122,14 @@ function Detalle({ p, puedeRevisar, puedeCrear, creando, crear }: { p: PedidoBan
           </tbody>
         </table>
       </div>
+      {demo && <SimularEnPedidos p={p} />}
       {sinCatalogo.length > 0 && <p className="text-sm text-gray-700">Hay {sinCatalogo.length === 1 ? 'un producto' : `${sinCatalogo.length} productos`} que el WMS no conoce: no se podrá asignar stock hasta que Dirección Técnica lo dé de alta.</p>}
     </div>
   )
 }
 
 /** La bandeja de pedidos por despachar: tabla en PC y tablet, filas compactas en el teléfono; el detalle se abre en la misma fila. */
-export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdenes = false }: { bandeja: BandejaPedidos; puedeActualizar: boolean; puedeCrearOrdenes?: boolean }) {
+export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdenes = false, demo = false }: { bandeja: BandejaPedidos; puedeActualizar: boolean; puedeCrearOrdenes?: boolean; demo?: boolean }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const unica = useAccion()
   const todas = useAccion()
@@ -233,12 +274,12 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {visibles.map((p) => {
-                      const on = abierto === p.id
+                      const on = abierto === p.pedidoId
                       return (
-                        <Fragment key={p.id}>
-                          <tr className={`cursor-pointer hover:bg-gray-50 ${on ? 'bg-gray-50' : ''}`} onClick={() => toggle(p.id)} data-testid="fila-pedido">
+                        <Fragment key={p.pedidoId}>
+                          <tr className={`cursor-pointer hover:bg-gray-50 ${on ? 'bg-gray-50' : ''}`} onClick={() => toggle(p.pedidoId)} data-testid="fila-pedido">
                             <td className="px-2 py-3">
-                              <button type="button" aria-expanded={on} aria-controls={`det-${p.id}`} onClick={(e) => { e.stopPropagation(); toggle(p.id) }} className="inline-flex h-10 w-10 items-center justify-center rounded hover:bg-gray-100" aria-label={`${on ? 'Cerrar' : 'Abrir'} el detalle de ${p.numero}`} data-testid="abrir-pedido">
+                              <button type="button" aria-expanded={on} aria-controls={`det-${p.pedidoId}`} onClick={(e) => { e.stopPropagation(); toggle(p.pedidoId) }} className="inline-flex h-10 w-10 items-center justify-center rounded hover:bg-gray-100" aria-label={`${on ? 'Cerrar' : 'Abrir'} el detalle de ${p.numero}`} data-testid="abrir-pedido">
                                 {on ? <ChevronDown className="h-5 w-5" aria-hidden /> : <ChevronRight className="h-5 w-5" aria-hidden />}
                               </button>
                             </td>
@@ -254,7 +295,7 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
                                 : <span className="text-xs text-gray-500">—</span>}
                             </td>
                           </tr>
-                          {on && <tr id={`det-${p.id}`}><td colSpan={8} className="bg-white p-0"><Detalle p={p} puedeRevisar={puedeActualizar} puedeCrear={puedeCrearOrdenes} creando={creando === p.pedidoId && unica.pendiente} crear={crearUna} /></td></tr>}
+                          {on && <tr id={`det-${p.pedidoId}`}><td colSpan={8} className="bg-white p-0"><Detalle p={p} puedeRevisar={puedeActualizar} puedeCrear={puedeCrearOrdenes} creando={creando === p.pedidoId && unica.pendiente} crear={crearUna} demo={demo} /></td></tr>}
                         </Fragment>
                       )
                     })}
@@ -265,15 +306,15 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
               {/* Teléfono: una fila compacta por pedido; el detalle se abre debajo, sin desplazamiento horizontal */}
               <ul className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white md:hidden" data-testid="lista-pedidos-movil">
                 {visibles.map((p) => {
-                  const on = abierto === p.id
+                  const on = abierto === p.pedidoId
                   return (
-                    <li key={p.id} data-testid="fila-pedido-movil">
-                      <button type="button" onClick={() => toggle(p.id)} aria-expanded={on} className="block w-full space-y-1 px-4 py-3 text-left active:bg-gray-50" data-testid="abrir-pedido-movil">
+                    <li key={p.pedidoId} data-testid="fila-pedido-movil">
+                      <button type="button" onClick={() => toggle(p.pedidoId)} aria-expanded={on} className="block w-full space-y-1 px-4 py-3 text-left active:bg-gray-50" data-testid="abrir-pedido-movil">
                         <span className="flex items-center justify-between gap-2"><span className="tabular font-heading text-lg font-semibold tracking-wide text-gray-900">{p.numero}{p.version > 1 && <span className="ml-2 text-sm font-normal text-gray-600">v{p.version}</span>}</span><ChipBandeja estado={p.estado} /></span>
                         <span className="block font-medium text-gray-900">{p.cliente}</span>
                         <span className="tabular block text-sm text-gray-700">{p.lineas.length} {p.lineas.length === 1 ? 'línea' : 'líneas'} · {p.unidades.toLocaleString('es-PE')} u · {fechaDia(p.fecha)}{p.distrito ? ` · ${p.distrito}` : ''}</span>
                       </button>
-                      {on && <div className="border-t border-gray-100 bg-gray-50/50"><Detalle p={p} puedeRevisar={puedeActualizar} puedeCrear={puedeCrearOrdenes} creando={creando === p.pedidoId && unica.pendiente} crear={crearUna} /></div>}
+                      {on && <div className="border-t border-gray-100 bg-gray-50/50"><Detalle p={p} puedeRevisar={puedeActualizar} puedeCrear={puedeCrearOrdenes} creando={creando === p.pedidoId && unica.pendiente} crear={crearUna} demo={demo} /></div>}
                     </li>
                   )
                 })}

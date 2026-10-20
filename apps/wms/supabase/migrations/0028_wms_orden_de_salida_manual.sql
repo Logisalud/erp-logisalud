@@ -144,6 +144,11 @@ begin
     jsonb_build_object('pedido_id', p_pd.pedido_id, 'pedido', p_pd.numero, 'version', p_pd.version), 'El pedido llegó por la bandeja y se unió a la orden manual');
   perform wms._alertar('ORDEN_MANUAL_UNIDA', 'jefe_transporte', null, null, 'orden-manual-unida:' || p_salida.id,
     format('El pedido %s llegó por la bandeja y se unió a la orden manual %s: no se creó otra orden.%s', p_pd.numero, p_salida.numero, v_aviso));
+  -- SA-3 (0029): el pedido que llega se aplica a la orden como si fuera una versión nueva (líneas, cantidades, stock y falta de stock quedan como los del pedido).
+  -- La 0029 define `_aplicar_pedido_a_orden_manual`; si todavía no está aplicada (o se re-ejecuta esta migración antes que ella), solo se vincula.
+  if to_regproc('wms._aplicar_pedido_a_orden_manual') is not null then
+    perform wms._aplicar_pedido_a_orden_manual(p_pd, p_salida.id);
+  end if;
 end $$;
 
 create or replace function wms.trg_unir_pedido_a_orden_manual() returns trigger

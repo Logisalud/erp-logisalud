@@ -23,6 +23,8 @@ import { EtiquetasOrigen } from './etiquetas-origen'
 import { CancelarOrden } from './cancelar-orden'
 import { ETIQUETA_CREADA_DESDE } from '@/domain/salida-manual'
 import { ETIQUETA_MOTIVO_SALIDA } from '@/domain/salidas'
+import { FaltaDeStock } from './falta-de-stock'
+import { DevolverPicado } from './devolver-picado'
 
 const Lotes = ({ l }: { l: LineaSalidaVista }) => l.asignacion.length === 0
   ? <span className="text-gray-500">Sin lotes</span>
@@ -35,7 +37,7 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
   const [editando, setEditando] = useState<string | null>(null)
   const lineas = salida.lineasDetalle
   const actual = lineas.find((l) => l.id === editando)
-  const puedeGenerar = puedePreparar && salida.estado === 'ABIERTA' && !salida.ordenPickingId && lineas.length > 0 && lineas.every((l) => l.estado === 'ASIGNADA')
+  const puedeGenerar = puedePreparar && salida.estado === 'ABIERTA' && !salida.ordenPickingId && lineas.some((l) => l.estado === 'ASIGNADA') && lineas.every((l) => l.estado === 'ASIGNADA' || l.estado === 'CANCELADA')
   const generar = () => ejecutar(() => generarOrdenPickingAccion(salida.id), { refrescar: false, alExito: (r) => router.push(`/picking/${r.id}`) })
   const cerrar = () => setEditando(null)
   const editor = (l: LineaSalidaVista) => <EditorLotes key={l.id} linea={l} cerrar={cerrar} />
@@ -48,11 +50,15 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
           <h1 className="tabular font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">{salida.numero}</h1>
           <p className="text-gray-700">Pedido {salida.pedidoNumero ?? '—'} · {salida.cliente ?? 'Sin cliente'}{salida.rutaNumero ? ` · Ruta ${salida.rutaNumero}` : ''}</p>
           <EtiquetasOrigen datos={salida} conTipo />
+          <p className="text-sm text-gray-800" data-testid="factura-estado">
+            Factura: {salida.facturaEstado === 'FACTURADA' ? <strong>facturada {salida.factura}</strong> : <strong>pendiente</strong>}
+            <span className="text-gray-600"> · la emite Pedidos; aquí solo se mira</span>
+          </p>
         </div>
         <ChipEtapa etapa={salida.etapa} />
       </header>
 
-      <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE', tipo: salida.tipo, destruccion: salida.motivo === 'DESTRUCCION' })} roles={roles} />
+      <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE', tipo: salida.tipo, destruccion: salida.motivo === 'DESTRUCCION', vendedor: salida.vendedor, sinPedido: salida.conPedido === false, devolucion: salida.devolucion, devolucionHref: salida.devoluciones?.find((d) => d.movimientoId)?.movimientoId ? `/movimientos/${salida.devoluciones.find((d) => d.movimientoId)!.movimientoId}` : undefined })} roles={roles} />
 
       {(salida.origen === 'MANUAL' || salida.creadaDesde === 'BANDEJA') && (
         <section className="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby="h-origen" data-testid="origen-orden">
@@ -73,7 +79,10 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
       )}
 
       {lineas.some((l) => l.apartadaDeFefo) && <Aviso tipo="atencion" testid="aviso-fuera-fefo">Algún lote se apartó de la propuesta FEFO. Queda registrado con tu nombre; no necesitas explicar el motivo.</Aviso>}
-      {lineas.some((l) => l.estado === 'SIN_STOCK') && <Aviso tipo="error">Hay líneas sin stock suficiente. Mientras falte, no se puede generar el picking.</Aviso>}
+      {salida.pedidoCancelado && <Aviso tipo="error" testid="pedido-cancelado-aviso"><p className="font-medium">Pedidos canceló este pedido.</p><p>Motivo: {salida.pedidoCancelado.motivo || 'sin motivo'}{salida.pedidoCancelado.por ? ` · lo canceló ${salida.pedidoCancelado.por}` : ''}.{salida.estado === 'CANCELADA' ? ' La orden se canceló y todo quedó libre.' : ''}</p></Aviso>}
+      {lineas.some((l) => l.estado === 'SIN_STOCK') && <Aviso tipo="error">Hay líneas sin stock suficiente. Mientras falte, no se puede generar el picking: abajo dice por qué falta y quién decide.</Aviso>}
+      {(salida.faltantes?.length ?? 0) > 0 && <FaltaDeStock faltantes={salida.faltantes!} vendedor={salida.vendedor} aviso={salida.avisoVendedor} pedidoNumero={salida.pedidoNumero} />}
+      {(salida.devoluciones?.length ?? 0) > 0 && <DevolverPicado salidaId={salida.id} devoluciones={salida.devoluciones!} roles={roles} cancelacionPendiente={salida.cancelacionPendiente} motivo={salida.pedidoCancelado?.motivo ?? salida.motivoCancelacion} />}
       {mensaje?.tipo === 'error' && <Aviso tipo="error">{mensaje.texto}</Aviso>}
 
       <section aria-labelledby="h-lineas">
@@ -141,7 +150,7 @@ function FilaTabla({ l, puedeEditar, abierta, abrir, editor }: { l: LineaSalidaV
         <td className="px-3 py-3"><strong className="block text-gray-900">{l.producto}</strong><span className="tabular text-gray-600">{l.productoCodigo}</span></td>
         <td className="tabular px-3 py-3 text-right text-gray-900">{l.cantidad.toLocaleString('es-PE')} u</td>
         <td className="px-3 py-3 text-gray-800"><Lotes l={l} />{l.apartadaDeFefo && <span className="mt-1 inline-flex items-center gap-1 text-xs text-amber-900" data-testid="fuera-fefo"><TriangleAlert className="h-3.5 w-3.5" aria-hidden />Fuera de FEFO</span>}</td>
-        <td className="px-3 py-3 text-gray-700">{l.estado === 'SIN_STOCK' ? 'Sin stock' : l.editable ? 'Lista para picking' : l.estado === 'ASIGNADA' ? 'Asignada' : 'En proceso'}</td>
+        <td className="px-3 py-3 text-gray-700">{l.estado === 'CANCELADA' ? 'Quitada por el pedido' : l.cantidadNueva === 0 ? 'Se quita: falta devolver lo picado' : l.estado === 'SIN_STOCK' ? 'Sin stock' : l.editable ? 'Lista para picking' : l.estado === 'ASIGNADA' ? 'Asignada' : 'En proceso'}</td>
         <td className="px-3 py-3 text-right">{puedeEditar && l.editable && !abierta && <button type="button" className="btn-secondary btn-sm" onClick={abrir} data-testid="editar-lotes"><Pencil className="h-4 w-4" aria-hidden />Cambiar lotes</button>}</td>
       </tr>
       {abierta && <tr className="bg-gray-50" data-testid="fila-editor"><td colSpan={5} className="px-4 py-4"><div className="max-w-3xl">{editor(l)}</div></td></tr>}

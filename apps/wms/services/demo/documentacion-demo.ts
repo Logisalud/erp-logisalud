@@ -1,4 +1,5 @@
 // S6b en memoria (modo demostración): guía de remisión registrada a mano y paquete documental. Mismas reglas que la migración 0019.
+import { guardiaDeOrden } from './cambio-pedido-demo'
 import {
   faltantesDelPaquete, motivoNoPuedeRegistrarGuia, normalizarNumeroGre, paqueteDeItemsCompleto, validarNumeroGre, puedeRegistrarDocumentacion,
   type GuiaVista, type ItemPaquete, type LineaGuia, type PaqueteSalida,
@@ -88,6 +89,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const e = estadoE(); await this.sembrarDespacho(e)
     const s = desp(e).salidas.find((x) => x.id === salidaId)
     if (!s) return falla('No encontramos esa salida')
+    const bloqueado = guardiaDeOrden(e, s.id); if (bloqueado) return falla(bloqueado)
     const bloqueo = motivoNoPuedeRegistrarGuia(actor.roles, { conforme: salidaConforme(e, s.id), guia: this.guiaVigente(e, s.id) })
     if (bloqueo) return falla(bloqueo)
     if (s.estado !== 'ABIERTA') return falla('La salida ya no está abierta')
@@ -153,6 +155,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const s = desp(e).salidas.find((x) => x.id === salidaId)
     if (!s) return falla('No encontramos esa salida')
     if (s.estado !== 'ABIERTA') return falla('La salida ya no está abierta')
+    const bloqueado = guardiaDeOrden(e, s.id); if (bloqueado) return falla(bloqueado)
     if (!salidaConforme(e, s.id)) return falla('La guía se emite cuando todo el pedido tiene la conformidad: sus lotes salen de lo confirmado')
     if (this.guiaVigente(e, s.id)) return falla('Este pedido ya tiene una guía. Para cambiarla, anúlala con el motivo y emite la nueva')
     if (guias(e).some((g) => g.guia.estado === 'VIGENTE' && g.guia.numero === r.numero)) return falla(`La guía ${r.numero} ya está registrada en otra salida`)
@@ -254,7 +257,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       faltantes = this.faltantesSync(e, s, ctx.ruc, ctx.entrega)
     }
     const o = this.ordenDe(e, s.id)
-    const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null }, { guia: !!guia, paquete: faltantes === 0, ...this.avanceExtra(e, s) })
+    const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null, devolucionPendiente: base.etapa === 'POR_DEVOLVER_PICKING' }, { guia: !!guia, paquete: faltantes === 0, ...this.avanceExtra(e, s) })
     return { ...base, etapa, guia: guia?.numero, documentosFaltantes: faltantes }
   }
 

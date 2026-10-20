@@ -231,7 +231,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     if (o.estado === 'CANCELADA') return falla('Esa orden está cancelada')
     const p = this.personaPicking(pickerId)
     if (!p) return falla('Quien pica tiene que ser auxiliar, Jefe de Almacén o Jefe de Transporte')
-    if (o.lineas.some((l) => l.conformidad !== 'PENDIENTE')) return falla('La conformidad ya empezó: quien pica no se cambia')
+    if (o.lineas.some((l) => l.conformidad !== 'PENDIENTE' && l.cantidad > 0)) return falla('La conformidad ya empezó: quien pica no se cambia')
     o.pickerId = pickerId; o.picker = p.nombre
     registrar(e, actor, 'picker_designado', 'ordenes_picking', o.numero, `Pica ${p.nombre}`)
     return { ok: true }

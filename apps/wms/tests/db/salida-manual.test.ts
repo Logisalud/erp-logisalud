@@ -201,6 +201,47 @@ describe('el pedido que llega después por la bandeja se une a la orden manual, 
     expect((await salida(id)).por_conciliar).toBe(false)
   })
 
+  it('SA-3: el pedido se aplica a la orden como una versión nueva: se enlazan las líneas, se aumenta, se agrega y lo que el pedido no trae se quita', async () => {
+    const p = await producto(); const q2 = await producto(); const r = await producto()
+    await stock(p.id, 'AP-1', en(300), 100); await stock(q2.id, 'AP-2', en(300), 100); await stock(r.id, 'AP-3', en(300), 100)
+    const id = await manual(jt, 'A', null, null, [{ producto_id: p.id, cantidad: 12 }, { producto_id: r.id, cantidad: 3 }], { pedido: 'PED-APL-1', cliente: CLIENTE })
+    const ped = pedido(p.codigo, 20, { numero: 'PED-APL-1', vendedor: 'Rosa Paredes', lineas: [
+      { lineaId: 'l-1', productoCodigo: p.codigo, descripcion: 'Producto P', cantidad: 20 }, { lineaId: 'l-2', productoCodigo: q2.codigo, descripcion: 'Producto Q', cantidad: 5 }] })
+    await importar([ped])
+    const ls = await lineasDe(id)
+    const viva = (cod: string) => ls.find((l) => l.producto_id === ({ [p.codigo]: p.id, [q2.codigo]: q2.id, [r.codigo]: r.id } as Record<string, string>)[cod] && l.estado !== 'CANCELADA')
+    expect(viva(p.codigo)).toMatchObject({ cantidad: 20, estado: 'ASIGNADA', pedido_linea_id: 'l-1' })
+    expect(viva(q2.codigo)).toMatchObject({ cantidad: 5, estado: 'ASIGNADA', pedido_linea_id: 'l-2' })
+    expect(viva(r.codigo)).toBeUndefined()          // la línea que el pedido no trae se quitó
+    expect((await uno(`select coalesce(sum(r2.cantidad), 0)::int n from wms.reservas r2 join wms.salida_lineas sl on sl.id = r2.linea_id where sl.salida_id = $1 and sl.producto_id = $2 and r2.estado = 'ACTIVA'`, [id, p.id])).n).toBe(20)
+    expect((await uno(`select coalesce(sum(r2.cantidad), 0)::int n from wms.reservas r2 join wms.salida_lineas sl on sl.id = r2.linea_id where sl.salida_id = $1 and sl.producto_id = $2 and r2.estado = 'ACTIVA'`, [id, r.id])).n).toBe(0)
+    expect(await salida(id)).toMatchObject({ por_conciliar: false, estado: 'ABIERTA', referencia_id: ped.pedidoId })
+    expect((await delPedido(ped))).toMatchObject({ salida_id: id, cambio_pendiente: false })
+    expect((await uno(`select mensaje from wms.alertas where tipo = 'PEDIDO_CAMBIADO' and mensaje like '%PED-APL-1%'`)).mensaje).toMatch(/PED-APL-1/)
+    expect((await uno(`select count(*)::int n from wms.audit_events where evento = 'pedido_cambio_aplicado' and entidad_id = $1`, [id])).n).toBe(1)
+  })
+
+  it('SA-3: con el pedido igual a la orden, la unión no cambia las líneas ni avisa de ningún cambio', async () => {
+    const p = await producto(); await stock(p.id, 'AP-4', en(300), 100)
+    const id = await manual(jt, 'A', null, null, [{ producto_id: p.id, cantidad: 7 }], { pedido: 'PED-APL-2', cliente: CLIENTE })
+    const antes = await lineasDe(id)
+    await importar([pedido(p.codigo, 7, { numero: 'PED-APL-2' })])
+    const despues = await lineasDe(id)
+    expect(despues.map((l) => [l.id, l.cantidad, l.estado])).toEqual(antes.map((l) => [l.id, l.cantidad, l.estado]))
+    expect(despues[0].pedido_linea_id).toBe('l-1')
+    expect((await uno(`select count(*)::int n from wms.alertas where tipo = 'PEDIDO_CAMBIADO' and mensaje like '%PED-APL-2%'`)).n).toBe(0)
+  })
+
+  it('SA-3: con la hoja de picking ya hecha y el pedido pidiendo menos, la unión reduce la línea, libera lo que sobra y conserva la misma hoja', async () => {
+    const p = await producto(); await stock(p.id, 'AP-5', en(300), 100)
+    const id = await manual(jt, 'A', null, null, [{ producto_id: p.id, cantidad: 10 }], { pedido: 'PED-APL-3', cliente: CLIENTE })
+    const orden = await como(jt, async (c) => (await c.query('select wms.generar_orden_picking($1) id', [id])).rows[0].id as string)
+    await importar([pedido(p.codigo, 6, { numero: 'PED-APL-3' })])
+    expect((await lineasDe(id))[0]).toMatchObject({ cantidad: 6, pedido_linea_id: 'l-1' })
+    expect((await q(`select id from wms.ordenes_picking where salida_id = $1 and estado <> 'CANCELADA'`, [id])).map((x) => x.id)).toEqual([orden])
+    expect((await uno(`select coalesce(sum(r.cantidad), 0)::int n from wms.reservas r where r.linea_id = $1 and r.estado in ('ACTIVA','EN_TRANSITO','EN_STAGING')`, [(await lineasDe(id))[0].id])).n).toBe(6)
+  })
+
   it('avisa si el cliente del pedido no es el de la orden (RUC distinto)', async () => {
     const p = await producto(); await stock(p.id, 'U-3', en(300), 80)
     await manual(jt, 'A', null, null, [{ producto_id: p.id, cantidad: 2 }], { pedido: 'PED-UNE-3', cliente: CLIENTE })
@@ -466,6 +507,10 @@ describe('permisos, códigos de producto y re-ejecución', () => {
     expect(avisos.filter((a) => /does not exist/i.test(a))).toEqual([])  // (los «already exists, skipping» son lo esperado al repetir)
     // sigue funcionando
     const p = await producto(); await stock(p.id, 'RE-1', en(300), 10)
-    expect(await manual(jt, 'A', null, null, [{ producto_id: p.id, cantidad: 1 }], { pedido: 'PED-RE-1', cliente: CLIENTE })).toBeTruthy()
+    const id = await manual(jt, 'A', null, null, [{ producto_id: p.id, cantidad: 4 }], { pedido: 'PED-RE-1', cliente: CLIENTE })
+    expect(id).toBeTruthy()
+    // la 0028 re-ejecutada después de la 0029 conserva la unión que aplica el pedido a la orden (SA-3)
+    await importar([pedido(p.codigo, 2, { numero: 'PED-RE-1' })])
+    expect((await lineasDe(id))[0]).toMatchObject({ cantidad: 2, pedido_linea_id: 'l-1' })
   })
 })
