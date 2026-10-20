@@ -1,7 +1,8 @@
 // La bandeja de pedidos (S3), en memoria (modo demostración). Aplica las mismas reglas que la migración 0014 (planificarImportacion es el mismo cálculo).
 import {
-  bandejaDeFila, planificarImportacion, puedeActualizarBandeja, type ImportacionVista, type PedidoSnapshot, type ResumenImportacion,
+  bandejaDeFila, planificarImportacion, puedeActualizarBandeja, requiereEmbalaje, type ImportacionVista, type PedidoSnapshot, type ResumenImportacion,
 } from '@/domain/pedidos-despacho'
+import { normalizarNumeroPedido } from '@/domain/salida-manual'
 import { traerPedidos } from '../pedidos/importar'
 import { FuenteDemo } from '../pedidos/fuente-demo'
 import { registrar, type EstadoDemo } from './estado'
@@ -10,7 +11,7 @@ import { OperacionDemo } from './operacion-demo'
 import type { BandejaPedidos, RepositorioPedidos } from '../repositorio-pedidos'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
-interface FilaPedidoDemo {
+export interface FilaPedidoDemo {
   id: string
   snapshot: PedidoSnapshot
   cambios: string[]
@@ -27,6 +28,23 @@ function ped(e: EstadoDemo): PedidosDemoEstado {
   return e.pedidos
 }
 
+/**
+ * Une la orden manual con el pedido que llegó por la bandeja (espejo de `wms._vincular_orden_manual`): el pedido toma la orden, la referencia pasa al id real, se quita
+ * «por conciliar» y queda en auditoría. No toca lo ya avanzado (picking, conformidad…) y no crea otra orden.
+ */
+export function unirOrdenManual(e: EstadoDemo, fila: FilaPedidoDemo, salida: NonNullable<EstadoDemo['desp']>['salidas'][number]) {
+  const p = fila.snapshot
+  fila.salida = salida.numero
+  salida.pedidoId = p.pedidoId
+  salida.porConciliar = false
+  if (salida.bultosConformidad === undefined) salida.requiereEmbalaje = requiereEmbalaje(p.cliente.ubigeo)
+  let aviso = ''
+  if (salida.clienteManual && p.cliente.ruc && salida.clienteManual.ruc !== p.cliente.ruc) aviso += ` OJO: el RUC del cliente no coincide (orden ${salida.clienteManual.ruc}, pedido ${p.cliente.ruc}).`
+  if (salida.lineas.filter((l) => l.estado !== 'CANCELADA').length !== p.lineas.length) aviso += ' OJO: la cantidad de líneas del pedido no es la de la orden.'
+  registrar(e, { id: 'demo:sistema', nombre: 'WMS (unión automática)', roles: [] }, 'orden_manual_unida_a_pedido', 'salidas', salida.numero, `El pedido ${p.numero} llegó por la bandeja y se unió a la orden manual`, `Pedido ${p.numero} versión ${p.version}`)
+  alertar(e, 'ORDEN_MANUAL_UNIDA', 'jefe_transporte', `El pedido ${p.numero} llegó por la bandeja y se unió a la orden manual ${salida.numero}: no se creó otra orden.${aviso}`, `orden-manual-unida:${salida.id}`)
+}
+
 const productosDemo = (e: EstadoDemo) => e.panorama.productos.filter((p) => p.estado === 'activo').slice(0, 6).map((p) => ({ codigo: p.codigo, descripcion: p.descripcion }))
 
 /** Aplica lo traído a la bandeja en memoria (mismo cálculo que `registrar_importacion_pedidos`). */
@@ -37,7 +55,14 @@ function aplicar(e: EstadoDemo, pedidos: PedidoSnapshot[], cuando: string): Omit
   for (const x of insertar) {
     const previa = s.filas.find((f) => f.vigente && f.snapshot.pedidoId === x.pedido.pedidoId)
     if (previa) previa.vigente = false
-    s.filas.push({ id: nuevoId(), snapshot: x.pedido, cambios: x.cambios, vigente: true, cambioPendiente: !!previa, salida: previa?.salida, importadoEn: cuando })
+    const nueva: FilaPedidoDemo = { id: nuevoId(), snapshot: x.pedido, cambios: x.cambios, vigente: true, cambioPendiente: !!previa, salida: previa?.salida, importadoEn: cuando }
+    s.filas.push(nueva)
+    // SA-2: si ya hay una orden manual abierta con ese número de pedido, el pedido se une a ella (no se crea otra)
+    if (!nueva.salida) {
+      const numero = normalizarNumeroPedido(x.pedido.numero)
+      const manual = e.desp?.salidas.find((o) => o.origen === 'MANUAL' && o.porConciliar && o.estado !== 'CANCELADA' && normalizarNumeroPedido(o.pedidoNumero) === numero)
+      if (manual) unirOrdenManual(e, nueva, manual)
+    }
     if (previa) {
       const detalle = x.cambios.length ? `: ${x.cambios.join('; ')}` : ''
       alertar(e, 'PEDIDO_CAMBIADO', 'jefe_transporte', `El pedido ${x.pedido.numero} cambió en Pedidos (versión ${x.pedido.version})${detalle}${previa.salida ? `. Ya tiene la salida ${previa.salida}: revísala antes del picking.` : '.'}`, `pedido-cambiado:${x.pedido.pedidoId}:${x.pedido.version}`)
@@ -64,7 +89,8 @@ export class PedidosDemo extends OperacionDemo implements RepositorioPedidos {
     await this.asegurarSiembra(e)
     const s = ped(e)
     const codigos = new Set(e.panorama.productos.map((p) => p.codigo))
-    const pedidos = s.filas.filter((f) => f.vigente).map((f) => bandejaDeFila({ id: f.id, snapshot: f.snapshot, cambios: f.cambios, cambioPendiente: f.cambioPendiente, salida: f.salida, importadoEn: f.importadoEn, codigosEnCatalogo: codigos }))
+    const idDe = new Map((e.desp?.salidas ?? []).map((x) => [x.numero, x.id]))
+    const pedidos = s.filas.filter((f) => f.vigente).map((f) => bandejaDeFila({ id: f.id, snapshot: f.snapshot, cambios: f.cambios, cambioPendiente: f.cambioPendiente, salida: f.salida, salidaId: f.salida ? idDe.get(f.salida) : undefined, importadoEn: f.importadoEn, codigosEnCatalogo: codigos }))
     return structuredClone({ pedidos, ultimoIntento: s.importaciones[0] ?? null, ultimaExitosa: s.importaciones.find((i) => i.ok) ?? null })
   }
 

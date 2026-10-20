@@ -5,7 +5,7 @@ import {
 } from '@/domain/documentacion'
 import { etapaDeSalida, type SalidaResumen } from '@/domain/despacho'
 import {
-  motivoNoPuedeAnular, puedeEmitirGuia,
+  motivoDeTraslado, motivoNoPuedeAnular, puedeEmitirGuia,
   type CasoAnulacion, type DatosGuia, type EstadoSunat, type EventoPedidos, type RespuestaConsulta, type RespuestaEmision, type TipoEventoPedidos, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 import { registrar, type EstadoDemo } from './estado'
@@ -34,7 +34,12 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
   private rucYEntrega(e: EstadoDemo, s: SalidaDemo) {
     const fila = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === s.pedidoId)
     const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
-    return { ruc: fila?.snapshot.cliente.ruc || undefined, entrega: ruta?.fecha, pedidoNumero: fila?.snapshot.numero, cliente: fila?.snapshot.cliente.nombre }
+    // SA-2: en una orden manual el cliente es el que se escribió (venta) o el propietario (por cuenta de un cliente)
+    const prop = s.tipo === 'CLIENTE' ? e.panorama.propietarios.find((p) => p.id === s.propietarioId) : undefined
+    return {
+      ruc: fila?.snapshot.cliente.ruc || s.clienteManual?.ruc || prop?.ruc || undefined, entrega: ruta?.fecha, pedidoNumero: fila?.snapshot.numero ?? s.pedidoNumero,
+      cliente: fila?.snapshot.cliente.nombre ?? s.clienteManual?.razonSocial ?? prop?.razonSocial,
+    }
   }
 
   private async itemsDe(e: EstadoDemo, s: SalidaDemo, ruc: string | undefined, entrega: string | undefined): Promise<ItemPaquete[]> {
@@ -92,7 +97,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     if (guias(e).some((g) => g.guia.estado === 'VIGENTE' && g.guia.numero === n)) return falla(`La guía ${n} ya está registrada en otra salida`, { numero: 'Ese número ya está en otra salida.' })
     const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
     const placa = ruta?.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId)?.placa : undefined
-    const guia: GuiaVista = { id: nuevoId(), numero: n, estado: 'VIGENTE', lineas: this.lineasDeGuia(e, s.id), placa, fechaTraslado: ruta?.fecha, nota: nota?.trim() || undefined, registradaPor: actor.nombre, registradaEn: ahora(), origen: 'MANUAL', bultos: s.bultosConformidad }
+    const guia: GuiaVista = { id: nuevoId(), numero: n, estado: 'VIGENTE', lineas: this.lineasDeGuia(e, s.id), placa, fechaTraslado: ruta?.fecha, nota: nota?.trim() || undefined, registradaPor: actor.nombre, registradaEn: ahora(), origen: s.tipo === 'CLIENTE' ? 'CLIENTE' : 'MANUAL', bultos: s.bultosConformidad }
     guias(e).push({ id: guia.id, salidaId: s.id, guia })
     this.encolarEvento(e, s, guia, 'GUIA_EMITIDA')
     registrar(e, actor, 'gre_registrada', 'guias_remision', guia.id, `Guía ${n} · ${s.numero}`)
@@ -107,10 +112,12 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
   // ── OS-3: guía electrónica, anulación por casos y avisos a Pedidos ─────────────────────────────────────────────────────────
 
   private encolarEvento(e: EstadoDemo, s: SalidaDemo, guia: GuiaVista, tipo: TipoEventoPedidos) {
+    // SA-2: a Pedidos solo se le avisa de una venta (con esa guía factura); una muestra, una devolución al proveedor o la GRE de un cliente no se facturan
+    if ((s.tipo ?? 'DISTRIBUCION') !== 'DISTRIBUCION') return
     const ped = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === s.pedidoId)
     const payload: Record<string, unknown> = {
       guia: guia.numero, origen: guia.origen, entorno: guia.entorno, enlace: guia.enlace, enlace_xml: guia.enlaceXml, estado_sunat: guia.estadoSunat, salida: s.numero,
-      pedido_id: s.pedidoId, pedido_numero: ped?.snapshot.numero, fecha_traslado: guia.fechaInicio ?? guia.fechaTraslado, bultos: guia.bultos ?? s.bultosConformidad,
+      pedido_id: ped ? s.pedidoId : undefined, pedido_numero: ped?.snapshot.numero ?? s.pedidoNumero, por_conciliar: !!s.porConciliar, fecha_traslado: guia.fechaInicio ?? guia.fechaTraslado, bultos: guia.bultos ?? s.bultosConformidad,
       lineas: guia.lineas.map((l) => ({ producto_codigo: l.productoCodigo, producto: l.producto, lote: l.lote, vence: l.vence, cantidad: l.cantidad })),
     }
     if (tipo === 'GUIA_ANULADA') Object.assign(payload, { caso: guia.casoAnulacion, motivo: guia.anuladaMotivo, baja_sunat: guia.bajaSunat, aviso: 'El WMS no modifica la factura: Contabilidad decide si se anula o si corresponde una nota de crédito' })
@@ -122,18 +129,20 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const s = desp(e).salidas.find((x) => x.id === salidaId)
     if (!s) return null
     const fila = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === s.pedidoId)
-    const cliente = fila?.snapshot.cliente
+    const cm = s.clienteManual
+    const prop = s.tipo === 'CLIENTE' ? e.panorama.propietarios.find((p) => p.id === s.propietarioId) : undefined
+    const cliente = fila?.snapshot.cliente ?? (cm ? { nombre: cm.razonSocial, ruc: cm.ruc, direccion: cm.direccion, ubigeo: cm.ubigeo, distrito: undefined } : prop ? { nombre: prop.razonSocial, ruc: prop.ruc, direccion: undefined, ubigeo: undefined, distrito: undefined } : undefined)
     const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
     const veh = ruta?.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId) : undefined
     const cond = ruta?.conductorId ? desp(e).personal.find((p) => p.id === ruta.conductorId) : undefined
     const aux = ruta?.auxiliarId ? desp(e).personal.find((p) => p.id === ruta.auxiliarId) : undefined
     return structuredClone<DatosGuia>({
-      salidaId: s.id, salidaNumero: s.numero, tipo: 'DISTRIBUCION', conforme: salidaConforme(e, s.id), pedidoNumero: fila?.snapshot.numero,
+      salidaId: s.id, salidaNumero: s.numero, tipo: s.tipo ?? 'DISTRIBUCION', conforme: salidaConforme(e, s.id), pedidoNumero: fila?.snapshot.numero ?? s.pedidoNumero,
       destinatario: { nombre: cliente?.nombre, ruc: cliente?.ruc || undefined, direccion: cliente?.direccion, ubigeo: cliente?.ubigeo, distrito: cliente?.distrito },
       lineas: this.lineasDeGuia(e, s.id), bultos: s.bultosConformidad ?? bultosDeSalida(e, s.id),
       ruta: ruta ? { id: ruta.id, numero: ruta.numero, fecha: ruta.fecha, placa: veh?.placa, conductor: cond?.nombre, conductorDni: cond?.dni, conductorLicencia: cond?.licencia, auxiliar: aux?.nombre } : undefined,
       partida: { ubigeo: '150119', direccion: 'Almacén Logisalud, Lurín (dirección de demostración)' },
-      motivoTraslado: 'VENTA', modalidad: 'TRANSPORTE PRIVADO', serie: 'TTT1',
+      motivoTraslado: motivoDeTraslado(s.tipo ?? 'DISTRIBUCION').texto, modalidad: 'TRANSPORTE PRIVADO', serie: 'TTT1',
       reglasBaja: { plazoHoras: 'PENDIENTE', trasInicioTraslado: 'PENDIENTE', soportadaPorApi: 'PENDIENTE' },
     })
   }

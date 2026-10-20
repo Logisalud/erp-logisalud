@@ -77,3 +77,11 @@ en ambos lados. La implementación de referencia (y su verificador, que Pedidos 
 - **Cuándo se importa:** hoy, al pulsar «Actualizar desde Pedidos» (Jefe de Transporte o Jefe de Almacén). La importación programada (Vercel Cron) llega con la
   planificación de rutas (S4); no necesita nada nuevo del contrato.
 - **Para consolidar Pedidos con este proyecto:** se cambia el adaptador (`services/pedidos/fuente-pedidos.ts`) por uno SQL; el dominio y la base de datos no cambian.
+
+## Ventas manuales «por conciliar» (SA-2, tipo A)
+Una venta que no llegó por la bandeja se crea en el WMS con el **número de pedido** y los datos del cliente escritos a mano (RUC, razón social, dirección, ubigeo); queda `por_conciliar`. Cuando exista la conexión real (D-80), el WMS hará esto al importar o al consultar ese número en Pedidos (punto de enganche: el puerto `FuentePedidos`, `services/pedidos/fuente-pedidos.ts`; hoy lo reemplaza la unión por número de pedido en `wms.trg_unir_pedido_a_orden_manual`):
+1. **El pedido existe** y está `READY_FOR_OPERATIONS`; si no, la orden sigue «por conciliar» con el aviso.
+2. **El cliente coincide** (RUC); si no, aviso al Jefe de Transporte (hoy ya lo avisa la unión). Los datos del cliente se toman del pedido y reemplazan lo escrito a mano.
+3. **Las líneas** de la orden se comparan con las del pedido; las diferencias las decide el vendedor del pedido (SA-3).
+4. Al conciliar: `por_conciliar = false`, la referencia pasa a `pedido_id` y se vincula `pedidos_despacho.salida_id`.
+El aviso de guía emitida a Pedidos lleva `pedido_numero` aunque la orden siga por conciliar (campo `por_conciliar`): con él Pedidos encuentra su pedido y factura. A Pedidos solo se le avisa de ventas.

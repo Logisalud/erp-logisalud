@@ -459,7 +459,7 @@ export type TipoAlerta =
   | 'MOVIMIENTO_CON_DIFERENCIA' | 'MOVIMIENTO_SIN_VERIFICAR' | 'CONTEO_CON_DIFERENCIA' | 'AJUSTE_POR_AUTORIZAR' | 'PENDIENTE_AFECTA_PRODUCTO'
   | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO' | 'DOCUMENTACION_INCOMPLETA' | 'LOTE_EN_RESERVA'
   | 'BAJA_POR_AUTORIZAR' | 'BAJA_POR_TRASLADAR'
-  | 'RETORNO_POR_AUTORIZAR' | 'DICTAMEN_POR_CONFIRMAR'
+  | 'RETORNO_POR_AUTORIZAR' | 'DICTAMEN_POR_CONFIRMAR' | 'ORDEN_MANUAL_UNIDA'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
 
@@ -488,6 +488,7 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   BAJA_POR_TRASLADAR: 'Baja por trasladar a Bajas',
   RETORNO_POR_AUTORIZAR: 'Retorno de una Orden de Salida por autorizar',
   DICTAMEN_POR_CONFIRMAR: 'Dictamen del DT del cliente por confirmar',
+  ORDEN_MANUAL_UNIDA: 'El pedido llegó y se unió a una orden manual',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -524,6 +525,8 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   // OS-5: quien registra el retorno no siempre puede autorizarlo; Sandra y Katia lo autorizan. El dictamen del DT del cliente lo confirma el otro.
   RETORNO_POR_AUTORIZAR: 'asistente_dt',
   DICTAMEN_POR_CONFIRMAR: 'asistente_dt',
+  // SA-2: el pedido de una venta manual llegó por la bandeja y se unió a su orden (sin crear otra); el Jefe de Transporte lo sabe.
+  ORDEN_MANUAL_UNIDA: 'jefe_transporte',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {

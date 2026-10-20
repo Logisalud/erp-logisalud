@@ -2,6 +2,7 @@
 // Puro: lo usan la ficha de la orden, la lista, «Mis tareas» de Inicio y la prueba que exige que toda etapa tenga siguiente paso y responsable.
 import type { EstadoSolicitud } from './entradas'
 import type { EtapaSalida } from './despacho'
+import type { TipoSalida } from './salidas'
 import type { Rol } from './tipos'
 
 export type EstadoPaso = 'HECHO' | 'ACTUAL' | 'PENDIENTE'
@@ -50,6 +51,10 @@ export interface ExtrasSalida {
   guiaEnEspera?: boolean
   /** Falta la guía (con la conformidad completa). */
   sinGuia?: boolean
+  /** SA-2: orden por cuenta de un cliente (tipo B): no lleva guía del WMS, se registra la GRE que trae el cliente. */
+  tipo?: TipoSalida
+  /** SA-2: salida por destrucción: el stock sale de Bajas, no se asigna desde los racks. */
+  destruccion?: boolean
 }
 
 const pasosDe = <T extends readonly (readonly [string, string])[]>(lista: T, hechos: number, terminada = false): Paso[] =>
@@ -58,7 +63,9 @@ const pasosDe = <T extends readonly (readonly [string, string])[]>(lista: T, hec
 /** El siguiente paso de cada etapa de una Orden de Salida. `id` es el de la orden para armar el enlace. */
 function siguienteDeSalida(etapa: EtapaSalida, id: string, x: ExtrasSalida): SiguientePaso {
   switch (etapa) {
-    case 'SIN_STOCK': return { texto: 'Esperar stock o ajustar la cantidad: este pedido no tiene stock suficiente', responsable: R.jefeTransporte, href: `/salidas/${id}`, boton: 'Ver la orden' }
+    case 'SIN_STOCK':
+      if (x.destruccion) return { texto: 'Preparar la destrucción desde Bajas: se retira del área de Bajas lo que el cliente indicó en su guía', responsable: R.jefeTransporte, href: `/salidas/${id}`, boton: 'Ver la orden' }
+      return { texto: 'Esperar stock o ajustar la cantidad: este pedido no tiene stock suficiente', responsable: R.jefeTransporte, href: `/salidas/${id}`, boton: 'Ver la orden' }
     case 'ASIGNADA': return { texto: 'Designar a quien hace el picking y generar la hoja de picking', responsable: R.jefeTransporte, href: `/salidas/${id}`, boton: 'Generar el picking' }
     case 'EN_PICKING': return { texto: 'Hacer el picking siguiendo el recorrido de la hoja', responsable: R.picker, href: `/picking/${id}`, boton: 'Ir al picking' }
     case 'CON_DISCREPANCIA': return { texto: 'Resolver la discrepancia del picking: elegir el lote de reemplazo o ajustar la cantidad', responsable: R.jefeTransporte, href: `/salidas/${id}`, boton: 'Resolver la discrepancia' }
@@ -67,6 +74,7 @@ function siguienteDeSalida(etapa: EtapaSalida, id: string, x: ExtrasSalida): Sig
     case 'CONFORME': case 'EMBALADA': case 'DOCUMENTACION_COMPLETA': {
       if (x.guiaEnEspera) return { texto: 'Consultar si SUNAT ya aceptó la guía: sin eso no hay PDF ni se avisa a Pedidos', responsable: R.documentos, href: `/salidas/${id}`, boton: 'Consultar estado en SUNAT' }
       const sinDoc = etapa !== 'DOCUMENTACION_COMPLETA'
+      if (sinDoc && x.tipo === 'CLIENTE') return { texto: 'Registrar la guía de remisión del cliente (su número y el PDF que adjuntó) y completar el paquete documental: el WMS no emite guía en esta orden', responsable: R.documentos, href: `/salidas/${id}`, boton: 'Registrar la GRE del cliente' }
       if (sinDoc) return { texto: 'Emitir la guía de remisión (con la ruta ya asignada) y completar el paquete documental', responsable: R.documentos, href: `/salidas/${id}`, boton: 'Emitir la guía' }
       return { texto: 'Embalar el pedido en bultos y imprimir las etiquetas', responsable: R.embalaje, href: `/embalaje/${id}`, boton: 'Ir al embalaje' }
     }
@@ -131,13 +139,13 @@ export interface TareaPendiente {
 /** Lo que le toca a una persona según sus roles: el siguiente paso de cada orden o ingreso que ella puede hacer. Las más adelantadas primero (cerca de salir). */
 export function misTareas(
   roles: readonly Rol[],
-  salidas: readonly { id: string; numero: string; cliente?: string; etapa: EtapaSalida; requiereEmbalaje?: boolean; guiaEnEspera?: boolean }[],
+  salidas: readonly { id: string; numero: string; cliente?: string; etapa: EtapaSalida; requiereEmbalaje?: boolean; guiaEnEspera?: boolean; tipo?: TipoSalida; motivo?: string }[],
   ingresos: readonly { id: string; numero: string; estado: EstadoSolicitud; etiquetaTipo: string; etiquetaEstado: string }[],
   etiquetaEtapa: Record<EtapaSalida, string>,
 ): TareaPendiente[] {
   const tareas: (TareaPendiente & { orden: number })[] = []
   for (const s of salidas) {
-    const a = avanceDeSalida(s.etapa, s.id, { sinEmbalaje: s.requiereEmbalaje === false, guiaEnEspera: s.guiaEnEspera })
+    const a = avanceDeSalida(s.etapa, s.id, { sinEmbalaje: s.requiereEmbalaje === false, guiaEnEspera: s.guiaEnEspera, tipo: s.tipo, destruccion: s.motivo === 'DESTRUCCION' })
     if (esMiTarea(roles, a.siguiente)) tareas.push({ clave: `s-${s.id}`, tipo: 'SALIDA', titulo: `${s.numero}${s.cliente ? ` · ${s.cliente}` : ''}`, donde: etiquetaEtapa[s.etapa], siguiente: a.siguiente, orden: -HECHOS[s.etapa] })
   }
   for (const i of ingresos) {

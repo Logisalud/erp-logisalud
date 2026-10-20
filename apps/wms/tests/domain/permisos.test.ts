@@ -67,6 +67,10 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
     expect(puede(['autoriza_salidas_sin_venta'], 'autorizar_salida_sin_venta')).toBe(true)
     for (const r of ['direccion_tecnica', 'jefe_almacen', 'jefe_transporte', 'admin_wms'] as const) expect(puede([r], 'autorizar_salida_sin_venta'), r).toBe(false)
   })
+  it('la venta manual (tipo A) la crea solo el Jefe de Transporte', () => {
+    expect(puede(['jefe_transporte'], 'crear_orden_venta_manual')).toBe(true)
+    for (const r of ['jefe_almacen', 'auxiliar', 'direccion_tecnica', 'asistente_dt', 'admin_wms', 'autoriza_salidas_sin_venta', 'usuario_cliente'] as const) expect(puede([r], 'crear_orden_venta_manual'), r).toBe(false)
+  })
   it('el usuario de cliente y los roles de campo no tienen ningún permiso ni cuentan como personal', () => {
     for (const r of ['usuario_cliente', 'conductor', 'auxiliar_transporte'] as const) {
       for (const a of ['ver', 'ejecutar', 'verificar', 'exportar', 'auditar', 'dar_conformidad'] as const) expect(puede([r], a), `${r}/${a}`).toBe(false)

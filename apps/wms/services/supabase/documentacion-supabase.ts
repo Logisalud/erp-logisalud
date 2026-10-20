@@ -5,7 +5,7 @@ import {
   type GuiaVista, type ItemPaquete, type LineaGuia, type PaqueteSalida,
 } from '@/domain/documentacion'
 import {
-  type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type RespuestaConsulta, type ModoNubefact, type OrigenGuia, type RespuestaEmision, type TrasladoGuia,
+  motivoDeTraslado, type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type RespuestaConsulta, type ModoNubefact, type OrigenGuia, type RespuestaEmision, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 import { etapaConAvance, type SalidaResumen, type SalidaVista } from '@/domain/despacho'
 import type { EstadoRequisito, TipoDocumento } from '@/domain/documentos'
@@ -71,6 +71,11 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
   async registrarGre(salidaId: string, numero: string, nota: string | undefined, _actor: Actor, archivoRef?: string): Promise<ResultadoAccion<{ id: string }>> {
     const bloqueo = validarNumeroGre(numero)
     if (bloqueo) return { ok: false, mensaje: bloqueo, errores: { numero: bloqueo } }
+    // SA-2: la GRE de un cliente de almacenamiento ya vino con su PDF al crear la orden: se guarda junto al número
+    if (!archivoRef) {
+      const { data: sal } = await sch().from('salidas').select('tipo, gre_archivo').eq('id', salidaId).maybeSingle()
+      if ((sal as Fila | null)?.tipo === 'CLIENTE') archivoRef = s((sal as Fila).gre_archivo)
+    }
     const { data, error } = await rpc('registrar_gre', { p_salida: salidaId, p_numero: normalizarNumeroGre(numero), p_nota: nota?.trim() || null, p_archivo_ref: archivoRef ?? null })
     return error ? mal(error) : { ok: true, id: String(data) }
   }
@@ -84,17 +89,20 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     const { data, error } = await rpc('contexto_guia', { p_salida: salidaId })
     if (error || !data) return null
     const c = data as Record<string, any>
-    const cli = (c.pedido?.snapshot?.cliente ?? {}) as Record<string, unknown>
+    // SA-2: en una venta manual todavía sin pedido en la bandeja, el cliente es el que se escribió en la orden
+    const { data: sal } = await sch().from('salidas').select('cliente_manual, pedido_numero').eq('id', salidaId).maybeSingle()
+    const cm = ((sal as Fila | null)?.cliente_manual ?? null) as Record<string, unknown> | null
+    const cli = (c.pedido?.snapshot?.cliente ?? (cm ? { nombre: cm.razon_social, ruc: cm.ruc, direccion: cm.direccion, ubigeo: cm.ubigeo } : {})) as Record<string, unknown>
     const par = (c.parametros ?? {}) as Record<string, string>
     return {
-      salidaId, salidaNumero: String(c.salida.numero), tipo: c.salida.tipo, conforme: Boolean(c.salida.conforme), pedidoNumero: s(c.pedido?.numero),
+      salidaId, salidaNumero: String(c.salida.numero), tipo: c.salida.tipo, conforme: Boolean(c.salida.conforme), pedidoNumero: s(c.pedido?.numero) ?? s((sal as Fila | null)?.pedido_numero),
       destinatario: { nombre: s(c.pedido?.cliente) ?? s(cli.nombre), ruc: s(c.pedido?.ruc) ?? s(cli.ruc), direccion: s(cli.direccion), ubigeo: s(cli.ubigeo), distrito: s(cli.distrito) },
       lineas: ((c.lineas ?? []) as { producto_codigo: string; producto: string; lote: string; vence: string | null; cantidad: number }[])
         .map((l): LineaGuia => ({ productoCodigo: l.producto_codigo, producto: l.producto, lote: l.lote, vence: l.vence ? dia(l.vence) : null, cantidad: Number(l.cantidad) })),
       bultos: Number(c.bultos ?? 0),
       ruta: c.ruta ? { id: String(c.ruta.id), numero: String(c.ruta.numero), fecha: dia(c.ruta.fecha), placa: s(c.ruta.placa), conductor: s(c.ruta.conductor), conductorDni: s(c.ruta.conductor_dni), conductorLicencia: s(c.ruta.conductor_licencia), auxiliar: s(c.ruta.auxiliar) } : undefined,
       partida: { ubigeo: par.guia_partida_ubigeo ?? '', direccion: par.guia_partida_direccion ?? '' },
-      motivoTraslado: par.guia_motivo_traslado ?? 'VENTA', modalidad: par.guia_modalidad_transporte ?? 'TRANSPORTE PRIVADO', serie: par.guia_serie ?? 'TTT1',
+      motivoTraslado: c.salida.tipo === 'DISTRIBUCION' ? (par.guia_motivo_traslado ?? 'VENTA') : motivoDeTraslado(c.salida.tipo).texto, modalidad: par.guia_modalidad_transporte ?? 'TRANSPORTE PRIVADO', serie: par.guia_serie ?? 'TTT1',
       reglasBaja: { plazoHoras: par.sunat_baja_plazo_horas ?? 'PENDIENTE', trasInicioTraslado: par.sunat_baja_tras_inicio_traslado ?? 'PENDIENTE', soportadaPorApi: par.nubefact_baja_soportada ?? 'PENDIENTE' },
     }
   }

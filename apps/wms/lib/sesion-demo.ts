@@ -23,7 +23,7 @@ export const PERSONAS_DEMO: PersonaDemo[] = [
   { clave: 'jefe_transporte', nombre: 'Jefe de Transporte (demo)', cargo: 'Jefe de Transporte', roles: ['jefe_transporte', 'jefe_almacen'], descripcion: 'Como Roberto: planifica las salidas y la bandeja de pedidos, y también opera el almacén (roles Jefe de Transporte y Jefe de Almacén).' },
   { clave: 'reemplazante_jefe', nombre: 'Reemplazante del Jefe (demo)', cargo: 'Reemplazante del Jefe de Almacén', roles: ['jefe_almacen'], descripcion: 'Como Jasury: rol Jefe de Almacén con todos sus permisos. Sirve para probar que nadie verifica lo que hizo otra persona con el mismo rol.' },
   { clave: 'auxiliar', nombre: 'Auxiliar de almacén (demo)', cargo: 'Auxiliar de almacén', roles: ['auxiliar'], descripcion: 'Prepara, mueve y cuenta; consulta ubicaciones y stock desde el celular.' },
-  { clave: 'autoriza_salidas_sin_venta', nombre: 'Autoriza salidas sin venta (demo)', cargo: 'Autoriza salidas sin venta', roles: ['autoriza_salidas_sin_venta'], descripcion: 'Autoriza las muestras de Logissa (salidas sin venta). Solo ve lo suyo.' },
+  { clave: 'autoriza_salidas_sin_venta', nombre: 'Autoriza salidas sin venta (demo)', cargo: 'Autoriza salidas sin venta', roles: ['autoriza_salidas_sin_venta'], descripcion: 'Autoriza las muestras de Logissa: es el único rol que puede crear una salida de muestra.' },
   { clave: 'admin_wms', nombre: 'Administración del WMS (demo)', cargo: 'Administración del WMS', roles: ['admin_wms'], descripcion: 'Revisa propietarios, asignaciones y topología.' },
   { clave: 'auditoria_lectura', nombre: 'Auditoría (demo)', cargo: 'Auditoría', roles: ['auditoria_lectura'], descripcion: 'Lee la auditoría: quién, qué, cuándo y por qué.' },
 ]

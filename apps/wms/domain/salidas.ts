@@ -7,6 +7,9 @@ export type MotivoSalida = 'VENTA' | 'PESQUISA_DIGEMID' | 'DESTRUCCION' | 'DEVOL
 /** Días mínimos de vida útil de un pedido de venta de Logissa (parámetro `vida_util_minima_venta_dias`). */
 export const VIDA_UTIL_MINIMA_VENTA_DIAS = 60
 
+/** El tipo de salida que lleva este motivo cuando la línea trae lote indicado (la devolución al proveedor es del stock de Logissa; el resto, de un cliente). */
+export const tipoDeMotivo = (m: MotivoSalida): TipoSalida => (m === 'DEVOLUCION_PROVEEDOR' ? 'PROVEEDOR' : 'CLIENTE')
+
 /** Motivos de cada tipo de salida (DT 2026-10-17 §7; espejo de `wms.crear_salida`). La devolución al proveedor es solo de Logissa. */
 export const MOTIVOS_DE_TIPO: Record<TipoSalida, readonly MotivoSalida[]> = {
   DISTRIBUCION: ['VENTA'],

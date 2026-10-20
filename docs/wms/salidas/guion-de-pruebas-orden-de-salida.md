@@ -69,3 +69,11 @@ El menú de la izquierda (en el teléfono, la barra de abajo y el botón **Más*
 7. **Tablet (1024 px)**: solo íconos, con una raya entre secciones; deja el cursor sobre un ícono para ver su nombre.
 Evidencia: `docs/wms/ux-menu-lateral.md` (antes y después, con capturas por rol).
 
+## 9. Cómo iniciar cada tipo de salida (SA-2)
+Entra como **Jefe de Transporte** (demo) salvo que se diga otro.
+1. **Desde la bandeja.** `Pedidos`: lee «Cómo se inicia una orden de salida». Abre PED-DEMO-102 y pulsa **Crear orden de salida**: aparece el mensaje con el número de la orden y qué sigue; el pedido pasa a «Con salida». Pulsa **Crear las órdenes de todos los pedidos por planificar**: PED-DEMO-103 no se crea y dice por qué (producto que el WMS no conoce).
+2. **Tipo A (venta manual).** `Salidas` → **Nueva Orden de Salida** → Tipo A. Escribe un N.° de pedido (por ejemplo PED-DEMO-104), RUC de 11 números, razón social, dirección y ubigeo de 6 números; busca un producto por nombre o por código de barras y escribe la cantidad: ves la propuesta por vencimiento y puedes preferir otro lote. Crea la orden: queda «Manual» y «Por conciliar con Pedidos». Repite el mismo número: avisa al instante con enlace a esa orden. Luego en `Pedidos` pulsa **Actualizar desde Pedidos**: llega PED-DEMO-104 y se une a la orden manual (no se crea otra; hay un aviso).
+3. **Tipo B (por cuenta de un cliente).** Entra como Jefe de Almacén. Tipo B → elige Diphasac, escribe el N.° de la guía (T001-00001234) y adjunta un PDF. En la tabla elige un producto, escribe un lote que no existe (error al instante), luego un lote de Diphasac (sirve, completa el vencimiento) y un motivo. Crea: en el detalle ves «creada por … en nombre de DIPHASAC» y el enlace al PDF de la guía; el paso siguiente es registrar la GRE del cliente. Prueba también un lote de otro propietario, más cantidad que la disponible y destrucción de algo que no está en Bajas.
+4. **Tipo C (sin venta).** Entra como «Autoriza salidas sin venta»: solo ve el tipo C y puede crear la muestra. El Jefe de Almacén ve la muestra apagada y puede crear la devolución al proveedor (solo lotes que no vencieron).
+5. **Cancelar.** En una orden manual o creada desde la bandeja, sin picking: **Cancelar la orden** con motivo (para un número de pedido mal escrito).
+No hay todavía ruta para las órdenes manuales ni picking desde Bajas (D-122).

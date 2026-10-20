@@ -310,6 +310,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'avisos_fefo', 'lotes_para_editar', 'reporte_cambios_fefo',
     // S3 (0014)
     'registrar_importacion_pedidos', 'revisar_cambio_pedido',
+    // SA-2 (0028)
+    'agregar_codigo_producto', 'crear_orden_de_pedido', 'crear_orden_salida_manual', 'crear_ordenes_pendientes', 'orden_del_pedido', 'cancelar_orden_salida',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {

@@ -67,6 +67,7 @@ export type Accion =
   | 'registrar_dictamen_cliente'
   | 'marcar_antecedentes_calidad'
   | 'liberar_stock_propietario'
+  | 'crear_orden_venta_manual'
 
 export interface Propietario {
   id: string

@@ -2,6 +2,7 @@
 // Espejo de la migración 0024 (la base de datos manda). Todo lo tributario que no está confirmado queda como PENDIENTE: no se inventa la regla.
 import { puede } from './permisos'
 import type { LineaGuia } from './documentacion'
+import type { TipoSalida } from './salidas'
 import type { Rol } from './tipos'
 
 export type ModoNubefact = 'SIMULADOR' | 'PRUEBA' | 'PRODUCCION'
@@ -22,11 +23,24 @@ export const puedeAnularGuia = (roles: readonly Rol[]) => puede(roles, 'anular_g
 export type OrigenGuia = 'MANUAL' | 'NUBEFACT' | 'CLIENTE'
 export const ETIQUETA_ORIGEN: Record<OrigenGuia, string> = { NUBEFACT: 'Emitida con Nubefact', MANUAL: 'Registrada a mano', CLIENTE: 'GRE que trajo el cliente' }
 
+/**
+ * El motivo de traslado de la guía según el tipo de salida (Catálogo 20 de SUNAT). Una venta lleva 01; la devolución al proveedor, 06; la muestra sin venta, 13 (otros, anotando
+ * «muestra sin valor comercial»). PENDIENTE de confirmar con Contabilidad (D-121): el código sale de un solo lugar, para cambiarlo sin tocar nada más.
+ * Una orden por cuenta de un cliente no lleva guía del WMS: usa la GRE del cliente.
+ */
+export const MOTIVO_TRASLADO_POR_TIPO: Record<TipoSalida, { codigo: '01' | '06' | '13'; texto: string }> = {
+  DISTRIBUCION: { codigo: '01', texto: 'VENTA' },
+  PROVEEDOR: { codigo: '06', texto: 'DEVOLUCION' },
+  MUESTRA: { codigo: '13', texto: 'OTROS (MUESTRA SIN VALOR COMERCIAL)' },
+  CLIENTE: { codigo: '01', texto: 'VENTA (la guía la trae el cliente)' },
+}
+export const motivoDeTraslado = (tipo: TipoSalida) => MOTIVO_TRASLADO_POR_TIPO[tipo]
+
 /** Todo lo que la guía toma del WMS (nada se vuelve a escribir). */
 export interface DatosGuia {
   salidaId: string
   salidaNumero: string
-  tipo: 'DISTRIBUCION' | 'CLIENTE' | 'MUESTRA'
+  tipo: TipoSalida
   conforme: boolean
   pedidoNumero?: string
   destinatario: { nombre?: string; ruc?: string; direccion?: string; ubigeo?: string; distrito?: string }
@@ -71,7 +85,7 @@ const faltaTexto = (v: string | undefined) => !v || v.trim() === '' || v.trim().
 /** Por qué todavía no se puede emitir, en palabras (vacío = se puede). Primero lo del flujo; luego lo que falta en los datos. */
 export function faltantesDeGuia(d: DatosGuia, t: TrasladoGuia, _modo?: ModoNubefact): string[] {
   const f: string[] = []
-  if (d.tipo !== 'DISTRIBUCION') return ['La guía de una orden de un cliente de almacenamiento la trae el cliente: el WMS no la emite']
+  if (d.tipo === 'CLIENTE') return ['La guía de una orden de un cliente de almacenamiento la trae el cliente: el WMS no la emite']
   if (!d.conforme) f.push('Falta la conformidad de toda la Orden de Salida')
   if (!d.ruta) f.push('Asigna el pedido a una ruta: la guía toma el vehículo, el conductor y la fecha de la ruta')
   else {
@@ -109,7 +123,7 @@ export interface PayloadNubefact {
   cliente_direccion: string
   fecha_de_emision: string
   observaciones: string
-  motivo_de_traslado: '01'
+  motivo_de_traslado: '01' | '06' | '13'
   peso_bruto_total: string
   peso_bruto_unidad_de_medida: 'KGM'
   numero_de_bultos: string
@@ -146,7 +160,7 @@ export function construirPayloadNubefact(d: DatosGuia, t: TrasladoGuia, hoy: str
     operacion: 'generar_guia', tipo_de_comprobante: 7, serie: d.serie, numero,
     cliente_tipo_de_documento: 6, cliente_numero_de_documento: sinEspacios(d.destinatario.ruc), cliente_denominacion: sinEspacios(d.destinatario.nombre).slice(0, 100),
     cliente_direccion: sinEspacios(d.destinatario.direccion).slice(0, 100), fecha_de_emision: ddmmaaaa(hoy), observaciones: observacionDeGuia(d),
-    motivo_de_traslado: '01', peso_bruto_total: t.pesoKg.toFixed(2), peso_bruto_unidad_de_medida: 'KGM', numero_de_bultos: String(d.bultos), tipo_de_transporte: '02',
+    motivo_de_traslado: motivoDeTraslado(d.tipo).codigo, peso_bruto_total: t.pesoKg.toFixed(2), peso_bruto_unidad_de_medida: 'KGM', numero_de_bultos: String(d.bultos), tipo_de_transporte: '02',
     fecha_de_inicio_de_traslado: ddmmaaaa(t.fechaInicio),
     transportista_placa_numero: placaParaSunat(d.ruta?.placa), conductor_documento_tipo: '1', conductor_documento_numero: sinEspacios(d.ruta?.conductorDni),
     conductor_nombre: nombre, conductor_apellidos: apellidos, conductor_numero_licencia: licenciaDeGuia(d, t),

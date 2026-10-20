@@ -1,6 +1,8 @@
 // Rutas y salidas por pedido en memoria (modo demostración). Aplica las mismas reglas que las migraciones 0012 (asignación FEFO, reservas) y 0017 (rutas).
 // Las siguientes etapas (picking, conformidad, documentos, embalaje, carga y salida) se apilan sobre esta clase.
-import { asignarLinea, type AsignacionLote, type LoteDisponible } from '@/domain/salidas'
+import { asignarLinea, type AsignacionLote, type LoteDisponible, type MotivoSalida, type TipoSalida } from '@/domain/salidas'
+import type { ClienteManual, CreadaDesde, OrigenOrden } from '@/domain/salida-manual'
+import { normalizarNumeroPedido } from '@/domain/salida-manual'
 import {
   RUTA_EDITABLE, puedePlanificarRutas, validarPlan, totalUnidades,
   type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
@@ -11,7 +13,7 @@ import { PARAMETROS_LS_FR_POR_DEFECTO, PENDIENTES_LS_FR, armarRegistroLsFr, pued
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
 import { numeroDe } from './libro'
-import { PedidosDemo } from './pedidos-demo'
+import { PedidosDemo, unirOrdenManual } from './pedidos-demo'
 import type { RepositorioRutas } from '../repositorio-rutas'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
@@ -25,12 +27,21 @@ export interface LineaSalidaDemo {
   /** La asignación FEFO original (no cambia nunca) y la vigente. */
   fefo: AsignacionLote[]
   nota?: string
+  /** Tipo B y devolución al proveedor: el lote que indica el cliente o la guía. */
+  loteIndicadoId?: string
 }
 export interface SalidaDemo {
   id: string; numero: string; pedidoId: string; propietarioId: string; estado: 'ABIERTA' | 'CONFIRMADA' | 'CANCELADA'
   /** Un pedido a provincia se embala; uno a Lima queda con los bultos de la conformidad. */
   requiereEmbalaje: boolean; bultosConformidad?: number
   lineas: LineaSalidaDemo[]; creadaEn: string; creadaPor: string
+  /** SA-2: de dónde nació la orden. Lo anterior (sin estos datos) es una venta de distribución de un pedido. */
+  tipo?: TipoSalida; motivo?: MotivoSalida; origen?: OrigenOrden; creadaDesde?: CreadaDesde
+  pedidoNumero?: string; porConciliar?: boolean; clienteManual?: ClienteManual
+  /** Tipo B: la GRE del cliente (número y PDF) y a nombre de qué propietario se creó. */
+  greNumero?: string; greArchivo?: string; enNombreDe?: string
+  /** Repetir el mismo envío no crea otra orden. */
+  token?: string
 }
 export interface ParadaDemo { id: string; secuencia: number; pedidoId: string; salidaId?: string; excepcionCorte: boolean; motivoExcepcion?: string; activa: boolean }
 export interface RutaDemo {
@@ -126,11 +137,12 @@ export function reservarEnLote(e: EstadoDemo, salida: SalidaDemo, linea: LineaSa
 
 /** Asigna una línea por FEFO (distribución). Sin stock: queda SIN_STOCK y se avisa al Jefe de Transporte; nunca falla. */
 export function asignarLineaDemo(e: EstadoDemo, salida: SalidaDemo, linea: LineaSalidaDemo): string | null {
-  const r = asignarLinea({ tipo: 'DISTRIBUCION', motivo: 'VENTA', cantidad: linea.cantidad, hoy: e.panorama.hoy, lotes: lotesDisponibles(e, linea.productoId, salida.propietarioId) })
+  const tipo = salida.tipo ?? 'DISTRIBUCION'
+  const r = asignarLinea({ tipo, motivo: salida.motivo ?? 'VENTA', cantidad: linea.cantidad, hoy: e.panorama.hoy, lotes: lotesDisponibles(e, linea.productoId, salida.propietarioId), loteIndicadoId: linea.loteIndicadoId })
   if (!r.ok) {
     linea.estado = 'SIN_STOCK'; linea.nota = r.mensaje
     const prod = e.panorama.productos.find((p) => p.id === linea.productoId)
-    alertar(e, 'STOCK_INSUFICIENTE', 'jefe_transporte', `Falta stock para ${prod?.codigo ?? 'un producto'} en la salida ${salida.numero}: ${r.mensaje}`, `stock:${linea.id}`, undefined, linea.productoId)
+    if (tipo !== 'CLIENTE') alertar(e, 'STOCK_INSUFICIENTE', 'jefe_transporte', `Falta stock para ${prod?.codigo ?? 'un producto'} en la salida ${salida.numero}: ${r.mensaje}`, `stock:${linea.id}`, undefined, linea.productoId)
     return r.mensaje
   }
   for (const a of r.asignaciones) reservarEnLote(e, salida, linea, a.loteId, a.cantidad)
@@ -139,18 +151,34 @@ export function asignarLineaDemo(e: EstadoDemo, salida: SalidaDemo, linea: Linea
   return null
 }
 
-export function crearSalidaDePedido(e: EstadoDemo, pedidoId: string, actor: Actor): SalidaDemo | string {
+/**
+ * La orden de un pedido de la bandeja (espejo de `wms._orden_del_pedido`): la que ya tiene; si no, la orden manual con ese número de pedido (se une, sin crear otra);
+ * si no, una nueva con el stock asignado por FEFO. `desde` = BANDEJA (el botón) o RUTA (al armar la ruta).
+ */
+export function ordenDelPedido(e: EstadoDemo, pedidoId: string, actor: Actor, desde: 'BANDEJA' | 'RUTA'): SalidaDemo | string {
   const fila = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === pedidoId)
   if (!fila) return 'No encontramos uno de los pedidos en la bandeja'
+  const d = desp(e)
+  const viva = fila.salida ? d.salidas.find((s) => s.numero === fila.salida && s.estado !== 'CANCELADA') : undefined
+  if (viva) return viva
+  const numero = normalizarNumeroPedido(fila.snapshot.numero)
+  const manual = d.salidas.find((s) => s.origen === 'MANUAL' && s.estado !== 'CANCELADA' && normalizarNumeroPedido(s.pedidoNumero) === numero)
+  if (manual) { unirOrdenManual(e, fila, manual); return manual }
+  const otra = d.salidas.find((s) => s.estado !== 'CANCELADA' && normalizarNumeroPedido(s.pedidoNumero) === numero)
+  if (otra) return `El pedido ${fila.snapshot.numero} ya tiene una Orden de Salida`
   const lineas: LineaSalidaDemo[] = []
   for (const l of fila.snapshot.lineas) {
     const prod = e.panorama.productos.find((p) => p.codigo.toUpperCase() === l.productoCodigo.toUpperCase())
     if (!prod) return `El pedido ${fila.snapshot.numero} trae un producto que el WMS no conoce (${l.productoCodigo}): Dirección Técnica debe darlo de alta`
     lineas.push({ id: nuevoId(), productoId: prod.id, cantidad: l.cantidad, estado: 'PENDIENTE', fefo: [] })
   }
-  const salida: SalidaDemo = { id: nuevoId(), numero: numeroDe(e.inv, 'OS', e.panorama.hoy.slice(0, 4)), pedidoId, requiereEmbalaje: requiereEmbalaje(fila.snapshot.cliente.ubigeo), propietarioId: duenoDelAlmacen(e), estado: 'ABIERTA', lineas, creadaEn: ahora(), creadaPor: actor.id }
-  desp(e).salidas.push(salida)
+  const salida: SalidaDemo = {
+    id: nuevoId(), numero: numeroDe(e.inv, 'OS', e.panorama.hoy.slice(0, 4)), pedidoId, requiereEmbalaje: requiereEmbalaje(fila.snapshot.cliente.ubigeo), propietarioId: duenoDelAlmacen(e), estado: 'ABIERTA', lineas,
+    creadaEn: ahora(), creadaPor: actor.id, tipo: 'DISTRIBUCION', motivo: 'VENTA', origen: 'PEDIDO', creadaDesde: desde, pedidoNumero: fila.snapshot.numero,
+  }
+  d.salidas.push(salida)
   for (const l of salida.lineas) asignarLineaDemo(e, salida, l)
+  fila.salida = salida.numero
   return salida
 }
 
@@ -311,8 +339,12 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     // Los que salen del plan liberan su salida (si no tienen picking)
     const quedan = new Set(plan.paradas.map((p) => p.pedidoId))
     for (const p of r.paradas.filter((x) => x.activa && !quedan.has(x.pedidoId))) {
-      if (p.salidaId) { const m = liberarSalida(e, p.salidaId, motivo ?? 'El pedido salió de la ruta'); if (m) return falla(m) }
-      const fila = e.pedidos!.filas.find((f) => f.vigente && f.snapshot.pedidoId === p.pedidoId); if (fila) fila.salida = undefined
+      // SA-2: solo se libera la orden si nació en esta ruta; la creada desde la bandeja o a mano sigue viva (el pedido sale de la ruta, no se cancela su orden)
+      const nacioAqui = (d.salidas.find((x) => x.id === p.salidaId)?.creadaDesde ?? 'RUTA') === 'RUTA'
+      if (p.salidaId && nacioAqui) {
+        const m = liberarSalida(e, p.salidaId, motivo ?? 'El pedido salió de la ruta'); if (m) return falla(m)
+        const fila = e.pedidos!.filas.find((f) => f.vigente && f.snapshot.pedidoId === p.pedidoId); if (fila) fila.salida = undefined
+      }
       p.activa = false
     }
     const previas = new Map(r.paradas.filter((x) => x.activa).map((x) => [x.pedidoId, x]))
@@ -323,7 +355,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
       const fila = e.pedidos!.filas.find((f) => f.vigente && f.snapshot.pedidoId === pp.pedidoId)!
       let salidaId = previas.get(pp.pedidoId)?.salidaId
       if (!salidaId) {
-        const s = crearSalidaDePedido(e, pp.pedidoId, actor)
+        const s = ordenDelPedido(e, pp.pedidoId, actor, 'RUTA')
         if (typeof s === 'string') return falla(s)
         salidaId = s.id; fila.salida = s.numero
       }
@@ -365,8 +397,10 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     if (!r) return falla('No encontramos esa ruta')
     if (!RUTA_EDITABLE.includes(r.estado)) return falla('La ruta ya está en ejecución: no se cancela desde aquí')
     for (const p of r.paradas.filter((x) => x.activa)) {
-      if (p.salidaId) { const m = liberarSalida(e, p.salidaId, motivo); if (m) return falla(m) }
-      const fila = e.pedidos!.filas.find((f) => f.vigente && f.snapshot.pedidoId === p.pedidoId); if (fila) fila.salida = undefined
+      if (p.salidaId && (d.salidas.find((x) => x.id === p.salidaId)?.creadaDesde ?? 'RUTA') === 'RUTA') {
+        const m = liberarSalida(e, p.salidaId, motivo); if (m) return falla(m)
+        const fila = e.pedidos!.filas.find((f) => f.vigente && f.snapshot.pedidoId === p.pedidoId); if (fila) fila.salida = undefined
+      }
       p.activa = false
     }
     r.estado = 'CANCELADA'; r.motivoCancelacion = motivo.trim(); r.version += 1
