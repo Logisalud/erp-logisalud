@@ -43,12 +43,14 @@ const SIMULACIONES: { cambio: CambioSimulado; texto: string }[] = [
 /** Controles de la fuente demo: «Pedidos» cambia el pedido para ver cómo la Orden de Salida se actualiza sola. Solo existen en la demostración. */
 function SimularEnPedidos({ p }: { p: PedidoBandeja }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
-  if (p.estado === 'CANCELADO_EN_PEDIDOS') return null
+  // Un pedido cancelado ya no se puede cambiar, pero el resultado de lo que se acaba de hacer (la cancelación misma) sigue a la vista: al refrescarse los datos no desaparece de golpe.
+  const cancelado = p.estado === 'CANCELADO_EN_PEDIDOS'
+  if (cancelado && !mensaje) return null
   return (
     <div className="space-y-2 rounded-md border border-dashed border-gray-300 bg-gray-50 p-3" data-testid="simular-en-pedidos">
       <p className="text-sm font-medium text-gray-900">Probar como si fueras Pedidos <span className="font-normal text-gray-600">(solo en la demostración)</span></p>
       <div className="flex flex-wrap gap-2">
-        {SIMULACIONES.map((x) => (
+        {!cancelado && SIMULACIONES.map((x) => (
           <button key={x.cambio} type="button" className="btn-secondary btn-sm" disabled={pendiente} onClick={() => ejecutar(() => simularCambioEnPedidosAccion(p.pedidoId, x.cambio), { exito: `Pedidos cambió el pedido (${x.texto.toLowerCase()}). La orden de salida se actualizó sola.` })} data-testid={`simular-${x.cambio}`}>{x.texto}</button>
         ))}
       </div>
