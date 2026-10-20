@@ -1,6 +1,7 @@
 // Rutas y salidas por pedido en memoria (modo demostración). Aplica las mismas reglas que las migraciones 0012 (asignación FEFO, reservas) y 0017 (rutas).
 // Las siguientes etapas (picking, conformidad, documentos, embalaje, carga y salida) se apilan sobre esta clase.
 import { asignarLinea, type AsignacionLote, type LoteDisponible } from '@/domain/salidas'
+import { explicarFaltante, type CausaFaltante, type CausaQuiebre, type ExistenciaLote, type ExplicacionFaltante } from '@/domain/faltante'
 import {
   RUTA_EDITABLE, puedePlanificarRutas, validarPlan, totalUnidades,
   type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
@@ -21,6 +22,10 @@ export interface ReservaDemo {
 }
 export interface LineaSalidaDemo {
   id: string; productoId: string; cantidad: number
+  /** SA-3: de qué línea del pedido viene (para saber cuál quitó, redujo o agregó Pedidos). */
+  pedidoLineaId?: string
+  /** SA-3: lo picado por devolver; al verificarse la línea queda en esta cantidad (0 = se quitó la línea). */
+  cantidadNueva?: number
   estado: 'PENDIENTE' | 'ASIGNADA' | 'SIN_STOCK' | 'EN_PICKING' | 'PICKEADA' | 'CONFORME' | 'OBSERVADA' | 'CONFIRMADA' | 'CANCELADA'
   /** La asignación FEFO original (no cambia nunca) y la vigente. */
   fefo: AsignacionLote[]
@@ -31,6 +36,26 @@ export interface SalidaDemo {
   /** Un pedido a provincia se embala; uno a Lima queda con los bultos de la conformidad. */
   requiereEmbalaje: boolean; bultosConformidad?: number
   lineas: LineaSalidaDemo[]; creadaEn: string; creadaPor: string
+  /** SA-3: el pedido se canceló en Pedidos; mientras falte devolver lo picado, la orden sigue abierta con `cancelacionPendiente`. */
+  motivoCancelacion?: string; canceladaEn?: string; cancelacionPendiente?: boolean
+}
+
+/** SA-3: lo picado (o en Despacho) que un cambio o la cancelación del pedido dejó sin pedido: se devuelve a su ubicación con un movimiento verificado. */
+export interface DevolucionDemo {
+  id: string; salidaId: string; lineaId: string; reservaId: string; cantidad: number
+  estadoReserva: 'EN_TRANSITO' | 'EN_STAGING'
+  desdePosicionId: string; hastaPosicionId: string
+  causa: 'CAMBIO_PEDIDO' | 'PEDIDO_CANCELADO'; pedidoVersion?: number
+  estado: 'POR_DEVOLVER' | 'DEVUELTA' | 'VERIFICADA'
+  ordenMovimientoId?: string; ordenMovimientoLineaId?: string
+  creadaEn: string; devueltaPorId?: string; devueltaPor?: string; devueltaEn?: string; verificadaPorId?: string; verificadaPor?: string; verificadaEn?: string
+}
+
+/** SA-3: un quiebre de stock (append-only): lo que faltó o lo que decidió Pedidos. Alimenta el reporte futuro. */
+export interface QuiebreDemo {
+  id: string; en: string; origen: 'DETECCION' | 'PEDIDOS'; causa: CausaQuiebre
+  salidaId: string; salidaNumero: string; pedidoId?: string; pedidoNumero?: string; lineaId: string; productoId: string
+  cantidadPedida: number; cantidadFaltante: number; cantidadCausa: number; vendedor?: string; detalle: Record<string, unknown>; por: string
 }
 export interface ParadaDemo { id: string; secuencia: number; pedidoId: string; salidaId?: string; excepcionCorte: boolean; motivoExcepcion?: string; activa: boolean }
 export interface RutaDemo {
@@ -56,6 +81,9 @@ export interface DespachoDemoEstado {
   reservasLote?: import('@/domain/reserva').ReservaLoteVista[]
   /** S8: carga por ruta (checklist, bultos cargados, exclusiones, liberación y salida). */
   carga?: Record<string, CargaDemo>
+  /** SA-3: devoluciones de lo picado y quiebres de stock. */
+  devoluciones?: DevolucionDemo[]
+  quiebres?: QuiebreDemo[]
   /** OS-7: impresiones, escaneo firmado y cierre de cada ruta (LS-FR.43.03). */
   lsFr?: Record<string, import('./cierre-ruta-demo').LsFrDemo>
 }
@@ -124,19 +152,82 @@ export function reservarEnLote(e: EstadoDemo, salida: SalidaDemo, linea: LineaSa
   }
 }
 
-/** Asigna una línea por FEFO (distribución). Sin stock: queda SIN_STOCK y se avisa al Jefe de Transporte; nunca falla. */
+export const devolucionesDe = (e: EstadoDemo) => (desp(e).devoluciones ??= [])
+export const quiebresDe = (e: EstadoDemo) => (desp(e).quiebres ??= [])
+/** ¿Hay lo picado por devolver sin verificar? (la etapa de la orden pasa a «Por devolver lo picado»). */
+export const hayDevolucionPendiente = (e: EstadoDemo, salidaId: string) => devolucionesDe(e).some((d) => d.salidaId === salidaId && d.estado !== 'VERIFICADA')
+
+/** Lo que existe de un producto del propietario, lote por lote: Aprobado (libre de lo comprometido) y Cuarentena. Lo que alimenta `explicarFaltante`. */
+export function existenciasDe(e: EstadoDemo, productoId: string, propietarioId: string): ExistenciaLote[] {
+  const out: ExistenciaLote[] = lotesDisponibles(e, productoId, propietarioId).map((l) => ({ loteId: l.loteId, codigo: l.codigo, vence: l.vence, estado: 'APROBADO' as const, cantidad: l.disponible, reservado: !!l.bloqueado }))
+  const lotes = new Map(e.panorama.lotes.map((l) => [l.id, l]))
+  const cuar = new Map<string, number>()
+  for (const s of e.panorama.saldos) if (s.productoId === productoId && s.propietarioId === propietarioId && s.estado === 'CUARENTENA' && s.cantidad > 0) cuar.set(s.loteId, (cuar.get(s.loteId) ?? 0) + s.cantidad)
+  for (const [loteId, cantidad] of cuar) out.push({ loteId, codigo: lotes.get(loteId)?.codigo ?? loteId, vence: lotes.get(loteId)?.vence ?? null, estado: 'CUARENTENA', cantidad })
+  return out
+}
+
+/** Cuántas unidades de la línea ya están cubiertas por una reserva viva (activa, picada o en Despacho). */
+export const reservadoDeLinea = (e: EstadoDemo, lineaId: string) => desp(e).reservas.filter((r) => r.lineaId === lineaId && (r.estado === 'ACTIVA' || r.estado === 'EN_TRANSITO' || r.estado === 'EN_STAGING')).reduce((t, r) => t + r.cantidad, 0)
+
+/** Por qué falta, con cantidades (espejo de `wms._explicar_faltante`): sobre lo que todavía falta asignar de la línea. */
+export function explicarLineaDemo(e: EstadoDemo, salida: SalidaDemo, linea: LineaSalidaDemo, pendiente?: number): ExplicacionFaltante {
+  return explicarFaltante({ pedido: Math.max(1, pendiente ?? (linea.cantidad - reservadoDeLinea(e, linea.id))), hoy: e.panorama.hoy, existencias: existenciasDe(e, linea.productoId, salida.propietarioId) })
+}
+
+/** Escribe un quiebre de stock. Los de detección no se repiten si nada cambió desde el último de esa línea y causa (mismo criterio que la base). */
+export function registrarQuiebreDemo(e: EstadoDemo, salida: SalidaDemo, linea: LineaSalidaDemo, q: { causa: CausaQuiebre; origen: 'DETECCION' | 'PEDIDOS'; pedido: number; faltante: number; cantidadCausa: number; detalle: Record<string, unknown>; por?: string }) {
+  const lista = quiebresDe(e)
+  if (q.origen === 'DETECCION') {
+    const ultDecision = [...lista].reverse().find((x) => x.lineaId === linea.id && x.origen === 'PEDIDOS')
+    if (lista.some((x) => x.lineaId === linea.id && x.causa === q.causa && x.origen === 'DETECCION' && x.cantidadPedida === q.pedido && x.cantidadCausa === q.cantidadCausa && (!ultDecision || x.en > ultDecision.en))) return
+  }
+  const fila = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === salida.pedidoId)
+  lista.push({
+    id: nuevoId(), en: ahora(), origen: q.origen, causa: q.causa, salidaId: salida.id, salidaNumero: salida.numero, pedidoId: fila?.snapshot.pedidoId, pedidoNumero: fila?.snapshot.numero, lineaId: linea.id,
+    productoId: linea.productoId, cantidadPedida: q.pedido, cantidadFaltante: q.faltante, cantidadCausa: q.cantidadCausa, vendedor: fila?.snapshot.vendedor, detalle: q.detalle, por: q.por ?? 'Sistema',
+  })
+}
+
+const CAUSAS_ORDEN: CausaFaltante[] = ['CUARENTENA', 'RESERVA', 'VENCIMIENTO_MENOR_60', 'SIN_STOCK']
+export function registrarQuiebresDeExplicacion(e: EstadoDemo, salida: SalidaDemo, linea: LineaSalidaDemo, x: ExplicacionFaltante) {
+  for (const c of CAUSAS_ORDEN) if (x.causas[c] > 0) registrarQuiebreDemo(e, salida, linea, { causa: c, origen: 'DETECCION', pedido: x.pedido, faltante: x.faltan, cantidadCausa: x.causas[c], detalle: { pedido: x.pedido, disponibles: x.disponibles, faltan: x.faltan, causas: x.causas, existentes: x.existentes, hayFaltante: x.hayFaltante } })
+}
+
+/**
+ * Asigna una línea por FEFO (distribución): solo lo que falta asignar (con reservas previas por un aumento del pedido; sin ellas, toda la cantidad). Todo o nada.
+ * Sin stock: queda SIN_STOCK, se explica POR QUÉ falta (D-125), se registra el quiebre y se avisa al Jefe de Transporte; nunca falla.
+ */
 export function asignarLineaDemo(e: EstadoDemo, salida: SalidaDemo, linea: LineaSalidaDemo): string | null {
-  const r = asignarLinea({ tipo: 'DISTRIBUCION', motivo: 'VENTA', cantidad: linea.cantidad, hoy: e.panorama.hoy, lotes: lotesDisponibles(e, linea.productoId, salida.propietarioId) })
+  const falta = linea.cantidad - reservadoDeLinea(e, linea.id)
+  if (falta <= 0) {
+    if (linea.estado === 'SIN_STOCK' || linea.estado === 'PENDIENTE') { linea.estado = 'ASIGNADA'; linea.nota = undefined }
+    atenderAlertaStock(e, linea, 'La línea quedó asignada')
+    return null
+  }
+  const r = asignarLinea({ tipo: 'DISTRIBUCION', motivo: 'VENTA', cantidad: falta, hoy: e.panorama.hoy, lotes: lotesDisponibles(e, linea.productoId, salida.propietarioId) })
   if (!r.ok) {
-    linea.estado = 'SIN_STOCK'; linea.nota = r.mensaje
+    const x = explicarLineaDemo(e, salida, linea, falta)
+    linea.estado = 'SIN_STOCK'; linea.nota = x.texto
+    registrarQuiebresDeExplicacion(e, salida, linea, x)
     const prod = e.panorama.productos.find((p) => p.id === linea.productoId)
-    alertar(e, 'STOCK_INSUFICIENTE', 'jefe_transporte', `Falta stock para ${prod?.codigo ?? 'un producto'} en la salida ${salida.numero}: ${r.mensaje}`, `stock:${linea.id}`, undefined, linea.productoId)
-    return r.mensaje
+    const texto = `Salida ${salida.numero}, producto ${prod?.codigo ?? 'un producto'}: ${x.texto} Decide el vendedor del pedido, en Pedidos: quitar o reducir la línea, o cancelar el pedido. Copia el aviso para el vendedor en la orden.`
+    alertar(e, 'STOCK_INSUFICIENTE', 'jefe_transporte', texto, `stock:${linea.id}`, undefined, linea.productoId)
+    const a = e.alertas.find((y) => y.estado === 'ABIERTA' && (y as { clave?: string }).clave === `stock:${linea.id}`)
+    if (a) a.mensaje = texto
+    return x.texto
   }
   for (const a of r.asignaciones) reservarEnLote(e, salida, linea, a.loteId, a.cantidad)
   linea.fefo = r.asignaciones.map((a) => ({ loteId: a.loteId, cantidad: a.cantidad }))
   linea.estado = 'ASIGNADA'; linea.nota = undefined
+  atenderAlertaStock(e, linea, 'La línea quedó asignada')
   return null
+}
+
+/** Cierra la alerta de falta de stock de una línea (se asignó, se quitó o se canceló la orden). */
+export function atenderAlertaStock(e: EstadoDemo, linea: LineaSalidaDemo, nota: string) {
+  const a = e.alertas.find((y) => y.estado === 'ABIERTA' && (y as { clave?: string }).clave === `stock:${linea.id}`)
+  if (a) { a.estado = 'ATENDIDA'; a.atendidaEn = ahora(); a.nota = nota }
 }
 
 export function crearSalidaDePedido(e: EstadoDemo, pedidoId: string, actor: Actor): SalidaDemo | string {
@@ -146,7 +237,7 @@ export function crearSalidaDePedido(e: EstadoDemo, pedidoId: string, actor: Acto
   for (const l of fila.snapshot.lineas) {
     const prod = e.panorama.productos.find((p) => p.codigo.toUpperCase() === l.productoCodigo.toUpperCase())
     if (!prod) return `El pedido ${fila.snapshot.numero} trae un producto que el WMS no conoce (${l.productoCodigo}): Dirección Técnica debe darlo de alta`
-    lineas.push({ id: nuevoId(), productoId: prod.id, cantidad: l.cantidad, estado: 'PENDIENTE', fefo: [] })
+    lineas.push({ id: nuevoId(), productoId: prod.id, cantidad: l.cantidad, pedidoLineaId: l.lineaId, estado: 'PENDIENTE', fefo: [] })
   }
   const salida: SalidaDemo = { id: nuevoId(), numero: numeroDe(e.inv, 'OS', e.panorama.hoy.slice(0, 4)), pedidoId, requiereEmbalaje: requiereEmbalaje(fila.snapshot.cliente.ubigeo), propietarioId: duenoDelAlmacen(e), estado: 'ABIERTA', lineas, creadaEn: ahora(), creadaPor: actor.id }
   desp(e).salidas.push(salida)

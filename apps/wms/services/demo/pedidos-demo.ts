@@ -10,7 +10,7 @@ import { OperacionDemo } from './operacion-demo'
 import type { BandejaPedidos, RepositorioPedidos } from '../repositorio-pedidos'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
-interface FilaPedidoDemo {
+export interface FilaPedidoDemo {
   id: string
   snapshot: PedidoSnapshot
   cambios: string[]
@@ -19,7 +19,11 @@ interface FilaPedidoDemo {
   salida?: string
   importadoEn: string
 }
-export interface PedidosDemoEstado { filas: FilaPedidoDemo[]; importaciones: ImportacionVista[]; consultas: number; sembrado: boolean }
+export interface PedidosDemoEstado {
+  filas: FilaPedidoDemo[]; importaciones: ImportacionVista[]; consultas: number; sembrado: boolean
+  /** SA-3: los cambios que «Pedidos» hizo en la demostración (reducir, quitar, agregar, cancelar, facturar), por pedido: la versión nueva que la fuente demo entrega. */
+  simulados?: Record<string, unknown>
+}
 
 
 function ped(e: EstadoDemo): PedidosDemoEstado {
@@ -29,16 +33,24 @@ function ped(e: EstadoDemo): PedidosDemoEstado {
 
 const productosDemo = (e: EstadoDemo) => e.panorama.productos.filter((p) => p.estado === 'activo').slice(0, 6).map((p) => ({ codigo: p.codigo, descripcion: p.descripcion }))
 
-/** Aplica lo traído a la bandeja en memoria (mismo cálculo que `registrar_importacion_pedidos`). */
-function aplicar(e: EstadoDemo, pedidos: PedidoSnapshot[], cuando: string): Omit<ResumenImportacion, 'descartados'> {
+/**
+ * Aplica lo traído a la bandeja en memoria (mismo cálculo que `registrar_importacion_pedidos`). Cada versión nueva (o cancelación) se la pasa a `alVersionNueva` (SA-3), que
+ * la aplica a la Orden de Salida y devuelve el texto de la alerta; si no la aplica, la alerta es la de siempre.
+ */
+export function aplicar(
+  e: EstadoDemo, pedidos: PedidoSnapshot[], cuando: string,
+  alVersionNueva?: (previa: FilaPedidoDemo | undefined, fila: FilaPedidoDemo) => string | undefined,
+): Omit<ResumenImportacion, 'descartados'> {
   const s = ped(e)
   const vigentes = new Map(s.filas.filter((f) => f.vigente).map((f) => [f.snapshot.pedidoId, f.snapshot]))
   const { insertar, resumen } = planificarImportacion(vigentes, pedidos)
   for (const x of insertar) {
     const previa = s.filas.find((f) => f.vigente && f.snapshot.pedidoId === x.pedido.pedidoId)
     if (previa) previa.vigente = false
-    s.filas.push({ id: nuevoId(), snapshot: x.pedido, cambios: x.cambios, vigente: true, cambioPendiente: !!previa, salida: previa?.salida, importadoEn: cuando })
-    if (previa) {
+    const fila: FilaPedidoDemo = { id: nuevoId(), snapshot: x.pedido, cambios: x.cambios, vigente: true, cambioPendiente: !!previa, salida: previa?.salida, importadoEn: cuando }
+    s.filas.push(fila)
+    const aplicado = alVersionNueva?.(previa, fila)
+    if (previa && !aplicado) {
       const detalle = x.cambios.length ? `: ${x.cambios.join('; ')}` : ''
       alertar(e, 'PEDIDO_CAMBIADO', 'jefe_transporte', `El pedido ${x.pedido.numero} cambió en Pedidos (versión ${x.pedido.version})${detalle}${previa.salida ? `. Ya tiene la salida ${previa.salida}: revísala antes del picking.` : '.'}`, `pedido-cambiado:${x.pedido.pedidoId}:${x.pedido.version}`)
     }
@@ -47,6 +59,9 @@ function aplicar(e: EstadoDemo, pedidos: PedidoSnapshot[], cuando: string): Omit
 }
 
 export class PedidosDemo extends OperacionDemo implements RepositorioPedidos {
+  /** SA-3: una versión nueva (o la cancelación) de un pedido ya importado. Las clases de más abajo la aplican a su Orden de Salida. Devuelve el texto de la alerta si la aplicó. */
+  protected alAplicarNuevaVersion(_e: EstadoDemo, _previa: FilaPedidoDemo | undefined, _fila: FilaPedidoDemo, _actor: Actor): string | undefined { return undefined }
+
   protected async asegurarSiembra(e: EstadoDemo) {
     const s = ped(e)
     if (s.sembrado) return
@@ -74,13 +89,19 @@ export class PedidosDemo extends OperacionDemo implements RepositorioPedidos {
     if (!puedeActualizarBandeja(actor.roles)) return falla('No tienes permiso para actualizar la bandeja de pedidos')
     const s = ped(e)
     s.consultas += 1
-    const r = await traerPedidos(new FuenteDemo(productosDemo(e), s.consultas, e.panorama.hoy))
+    return this.traerYAplicar(e, actor, new FuenteDemo(productosDemo(e), s.consultas, e.panorama.hoy, s.simulados))
+  }
+
+  /** Trae de la fuente, valida y aplica a la bandeja (y, con SA-3, a las órdenes de salida de los pedidos que cambiaron). */
+  protected async traerYAplicar(e: EstadoDemo, actor: Actor, fuente: FuenteDemo): Promise<ResultadoAccion<{ resumen: ResumenImportacion }>> {
+    const s = ped(e)
+    const r = await traerPedidos(fuente)
     if (!r.ok) {
       s.importaciones.unshift({ id: nuevoId(), en: ahora(), por: actor.nombre, origen: r.origen, ok: false, mensaje: r.mensaje })
       return falla(r.mensaje)
     }
     const cuando = ahora()
-    const resumen = aplicar(e, r.pedidos, cuando)
+    const resumen = aplicar(e, r.pedidos, cuando, (previa, fila) => this.alAplicarNuevaVersion(e, previa, fila, actor))
     s.importaciones.unshift({ id: nuevoId(), en: cuando, por: actor.nombre, origen: r.origen, ok: true, resumen: { ...resumen, descartados: r.descartados.length } })
     registrar(e, actor, 'pedidos_importados', 'importaciones_pedidos', r.origen, `Bandeja actualizada: ${resumen.nuevos} nuevos, ${resumen.nuevasVersiones} con versión nueva`)
     return { ok: true, resumen: { ...resumen, descartados: r.descartados } }

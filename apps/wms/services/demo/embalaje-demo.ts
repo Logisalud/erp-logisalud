@@ -1,4 +1,5 @@
 // S7 en memoria (modo demostración): embalaje en bultos. Mismas reglas que la migración 0020.
+import { guardiaDeOrden } from './cambio-pedido-demo'
 import { codigoDeBulto, puedeEmbalar, validarReparto, type BultoVista, type EmbalajeResumen, type EmbalajeVista, type PendienteEmbalar, type RepartoBulto } from '@/domain/embalaje'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { registrar, type EstadoDemo } from './estado'
@@ -52,6 +53,7 @@ export class EmbalajeDemo extends DocumentacionDemo implements RepositorioEmbala
     if (!puedeEmbalar(actor.roles)) return falla('No tienes permiso para embalar')
     const s = desp(e).salidas.find((x) => x.id === salidaId)
     if (!s) return falla('No encontramos esa salida')
+    const bloqueado = guardiaDeOrden(e, s.id); if (bloqueado) return falla(bloqueado)
     if (s.estado !== 'ABIERTA') return falla('La salida ya no está abierta')
     if (!salidaConforme(e, s.id)) return falla('El embalaje empieza cuando todo el pedido tiene la conformidad')
     if (bultosVigentes(e, s.id).length) return falla('Este pedido ya está embalado. Para rehacerlo, reabre el embalaje con el motivo')

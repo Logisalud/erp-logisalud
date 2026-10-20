@@ -139,6 +139,7 @@ export function resumirCambios(anterior: PedidoSnapshot, nuevo: PedidoSnapshot):
   if ((anterior.cliente.ventanaCita ?? '') !== (nuevo.cliente.ventanaCita ?? '')) cambios.push('Cambió la ventana de cita')
   if ((anterior.cliente.vehiculoCalificado ?? '') !== (nuevo.cliente.vehiculoCalificado ?? '')) cambios.push('Cambió el vehículo calificado')
   if ((anterior.condicionPago ?? '') !== (nuevo.condicionPago ?? '')) cambios.push('Cambió la condición de pago')
+  if (nuevo.factura && (anterior.factura ?? '') !== nuevo.factura) cambios.push(`Pedidos registró la factura ${nuevo.factura}`)
   return cambios
 }
 

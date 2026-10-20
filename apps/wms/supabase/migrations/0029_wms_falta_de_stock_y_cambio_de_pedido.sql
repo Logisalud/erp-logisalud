@@ -389,6 +389,7 @@ begin
   if coalesce(p_antes->'cliente'->>'ventanaCita', '') <> coalesce(p_nuevo->'cliente'->>'ventanaCita', '') then r := r || to_jsonb('Cambió la ventana de cita'::text); end if;
   if coalesce(p_antes->'cliente'->>'vehiculoCalificado', '') <> coalesce(p_nuevo->'cliente'->>'vehiculoCalificado', '') then r := r || to_jsonb('Cambió el vehículo calificado'::text); end if;
   if coalesce(p_antes->>'condicionPago', '') <> coalesce(p_nuevo->>'condicionPago', '') then r := r || to_jsonb('Cambió la condición de pago'::text); end if;
+  if coalesce(p_antes->>'factura', '') <> coalesce(p_nuevo->>'factura', '') and coalesce(p_nuevo->>'factura', '') <> '' then r := r || to_jsonb(format('Pedidos registró la factura %s', p_nuevo->>'factura')); end if;
   return r;
 end $$;
 
@@ -883,6 +884,13 @@ begin
       else
         update wms.salidas set cancelacion_pendiente = true, motivo_cancelacion = 'Pedidos quitó todas las líneas del pedido' where id = p_salida;
       end if;
+    end if;
+    if coalesce(array_length(v_cambios, 1), 0) = 0 then
+      -- solo cambió algo que no son líneas (dirección, cita, factura…): la orden no cambia; si fue solo la factura no hay nada que revisar
+      if jsonb_array_length(p_pedido.cambios) = 1 and (p_pedido.cambios->>0) like 'Pedidos registró la factura%' then
+        update wms.pedidos_despacho set cambio_pendiente = false where id = p_pedido.id;
+      end if;
+      return jsonb_build_object('aplicado', true, 'sin_cambios_de_lineas', true);
     end if;
     select count(*)::integer into v_con from wms.salida_lineas where salida_id = p_salida and estado = 'SIN_STOCK';
     select count(*)::integer into v_ya_no from wms.salida_lineas where id = any (v_antes_sin) and estado <> 'SIN_STOCK';
