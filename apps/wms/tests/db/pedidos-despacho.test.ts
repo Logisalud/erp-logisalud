@@ -81,18 +81,18 @@ describe('importar pedidos (idempotente)', () => {
     expect((await q('select count(*)::int n from wms.pedidos_despacho where pedido_id = $1', [v1.pedidoId]))[0].n).toBe(2) // v1 y v3
   })
 
-  it('si el pedido ya tiene una salida, la versión nueva la conserva, queda por revisar y la alerta nombra la salida', async () => {
+  it('si el pedido ya tiene una salida que ya salió, la versión nueva la conserva, queda por revisar y la alerta lo dice', async () => {
     const v1 = pedido()
     await importar(jt, [v1])
     const dueno = (await uno(`select id from wms.propietarios where codigo = 'LOGISSA'`)).id
     const salida = await como(jt, async (c) => (await c.query(`select * from wms.crear_salida('DISTRIBUCION', 'VENTA', $1, '[]'::jsonb, 'pedido', $2, null)`, [dueno, v1.pedidoId]).catch(() => ({ rows: [] }))).rows)
     void salida
-    const s = await uno(`insert into wms.salidas (numero, tipo, motivo, propietario_id, referencia_tipo, referencia_id, creada_por)
-       values ('SAL-9999-00001', 'DISTRIBUCION', 'VENTA', $1, 'pedido', $2, $3) returning id`, [dueno, v1.pedidoId, jt])
+    const s = await uno(`insert into wms.salidas (numero, tipo, motivo, propietario_id, referencia_tipo, referencia_id, estado, creada_por)
+       values ('SAL-9999-00001', 'DISTRIBUCION', 'VENTA', $1, 'pedido', $2, 'CONFIRMADA', $3) returning id`, [dueno, v1.pedidoId, jt])
     await q('update wms.pedidos_despacho set salida_id = $1 where pedido_id = $2 and vigente', [s.id, v1.pedidoId])
     await importar(jt, [{ ...v1, version: 2, lineas: [{ ...v1.lineas[0], cantidad: 1 }, v1.lineas[1]] }])
     expect(await vigente(v1.pedidoId)).toMatchObject({ version: 2, salida_id: s.id, cambio_pendiente: true })
-    expect((await uno(`select mensaje from wms.alertas where clave = $1`, [`pedido-cambiado:${v1.pedidoId}:2`])).mensaje).toMatch(/Ya tiene la salida SAL-9999-00001: revísala antes del picking\.$/)
+    expect((await uno(`select mensaje from wms.alertas where clave = $1`, [`pedido-cambiado:${v1.pedidoId}:2`])).mensaje).toMatch(/El pedido .* cambió en Pedidos, pero su orden SAL-9999-00001 ya salió: coordina el cambio con el transportista\.$/)
   })
 
   it('un pedido mal formado se descarta con su motivo y los demás entran', async () => {

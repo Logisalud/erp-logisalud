@@ -96,6 +96,8 @@ export interface ResumenAplicacion {
   cancelado?: { motivo: string; por?: string }
   /** Ya salió o está cargada: no se toca, se avisa. */
   yaSalio?: boolean
+  /** La hoja de picking ya estaba impresa: cambió y hay que volver a imprimirla. */
+  hojaImpresa?: boolean
 }
 
 /** La alerta para el Jefe de Transporte: «El pedido PED-… cambió: se quitó X; se liberaron N unidades.» */
@@ -114,5 +116,6 @@ export function textoAlertaCambio(r: ResumenAplicacion): string {
   if (r.porDevolver > 0) t += ` Hay ${r.porDevolver} unidades ya picadas que se devuelven a su ubicación: otra persona lo verifica antes de seguir.`
   if (r.yaNoFalta > 0 && r.conFalta === 0) t += ' Ya no falta stock: la orden sigue su flujo.'
   else if (r.conFalta > 0) t += ' Todavía falta stock en alguna línea: el vendedor decide en Pedidos.'
+  if (r.hojaImpresa) t += ' Vuelve a imprimir la hoja de picking.'
   return t
 }

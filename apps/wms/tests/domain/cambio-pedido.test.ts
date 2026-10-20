@@ -49,6 +49,10 @@ describe('textoAlertaCambio', () => {
     expect(textoAlertaCambio({ ...base, cambios, liberadas: 0, yaNoFalta: 1 })).toMatch(/Ya no falta stock: la orden sigue su flujo\.$/)
     expect(textoAlertaCambio({ ...base, cambios, conFalta: 1 })).toMatch(/el vendedor decide en Pedidos\.$/)
   })
+  it('si la hoja de picking ya estaba impresa, pide volver a imprimirla', () => {
+    const cambios = diferenciasDeLineas([l('a', 'Paracetamol', 40)], [l('a', 'Paracetamol', 30)])
+    expect(textoAlertaCambio({ ...base, cambios, liberadas: 10, hojaImpresa: true })).toBe('El pedido PED-0104 cambió: se redujo Paracetamol de 40 a 30; se liberaron 10 unidades. Vuelve a imprimir la hoja de picking.')
+  })
   it('con picking iniciado pide devolver lo picado y que otra persona lo verifique', () => {
     const cambios = diferenciasDeLineas([l('a', 'Paracetamol', 40)], [])
     expect(textoAlertaCambio({ ...base, cambios, liberadas: 10, porDevolver: 30 })).toMatch(/30 unidades ya picadas que se devuelven a su ubicación: otra persona lo verifica antes de seguir\./)

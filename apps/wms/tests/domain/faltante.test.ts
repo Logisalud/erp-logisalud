@@ -64,6 +64,7 @@ describe('explicarFaltante', () => {
   it('las unidades en una ubicación en conteo no se usan: quedan como «sin stock» y se anotan aparte', () => {
     const r = explicar(10, [ex('A', 6), ex('K', 6, { enConteo: true })])
     expect(r).toMatchObject({ disponibles: 6, faltan: 4, existentes: { enConteo: 6 }, causas: { SIN_STOCK: 4 } })
+    expect(r.texto).toBe('Stock insuficiente: pide 10 y hay 6 disponibles. Faltan 4: 4 sin stock. Hay 6 en ubicaciones en conteo: no se usan hasta cerrar el conteo.')
   })
 
   it('si la línea indica su lote (cliente de almacenamiento), solo cuenta ese lote', () => {

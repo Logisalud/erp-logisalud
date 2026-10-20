@@ -67,7 +67,7 @@ export interface ExplicacionFaltante {
   /** Lo que existe pero no es utilizable, completo (puede ser más que lo que falta): para el detalle. */
   existentes: { cuarentena: number; reserva: number; vencimiento: number; enConteo: number }
   hayFaltante: boolean
-  /** El aviso, en una frase: «Stock insuficiente: pide 50 y hay 35 disponibles. Faltan 15: 10 en Cuarentena y 5 sin stock.» */
+  /** El aviso, en una frase: «Stock insuficiente: pide 50 y hay 35 disponibles. Faltan 15: 10 en Cuarentena y 5 sin stock.» (si hay unidades en conteo, lo dice al final) */
   texto: string
 }
 
@@ -83,9 +83,10 @@ export function listarCausas(causas: Record<CausaFaltante, number>): string {
 const ORDEN_TEXTO: readonly CausaFaltante[] = ['CUARENTENA', 'RESERVA', 'VENCIMIENTO_MENOR_60', 'SIN_STOCK']
 
 /** El texto del aviso. Lo arma también la base de datos (mismo orden y mismas palabras). */
-export function textoFaltante(pedido: number, disponibles: number, faltan: number, causas: Record<CausaFaltante, number>): string {
+export function textoFaltante(pedido: number, disponibles: number, faltan: number, causas: Record<CausaFaltante, number>, enConteo = 0): string {
   if (faltan <= 0) return `Hay stock suficiente: pide ${pedido} y hay ${disponibles} disponibles.`
   return `Stock insuficiente: pide ${pedido} y hay ${disponibles} disponibles. Faltan ${faltan}: ${listarCausas(causas)}.`
+    + (enConteo > 0 ? ` Hay ${enConteo} en ubicaciones en conteo: no se usan hasta cerrar el conteo.` : '')
 }
 
 /**
@@ -118,7 +119,7 @@ export function explicarFaltante(e: EntradaFaltante): ExplicacionFaltante {
   const pool: Record<Exclude<CausaFaltante, 'SIN_STOCK'>, number> = { CUARENTENA: existentes.cuarentena, RESERVA: existentes.reserva, VENCIMIENTO_MENOR_60: existentes.vencimiento }
   for (const c of ORDEN_DE_ATRIBUCION) { const t = Math.min(resto, pool[c]); causas[c] = t; resto -= t }
   causas.SIN_STOCK = resto
-  return { pedido: e.pedido, disponibles, faltan, causas, existentes, hayFaltante: faltan > 0, texto: textoFaltante(e.pedido, disponibles, faltan, causas) }
+  return { pedido: e.pedido, disponibles, faltan, causas, existentes, hayFaltante: faltan > 0, texto: textoFaltante(e.pedido, disponibles, faltan, causas, existentes.enConteo) }
 }
 
 /** Una línea con falta, lista para mostrarse en el detalle de la orden y en el aviso al vendedor. */

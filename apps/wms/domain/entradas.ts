@@ -460,6 +460,7 @@ export type TipoAlerta =
   | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO' | 'DOCUMENTACION_INCOMPLETA' | 'LOTE_EN_RESERVA'
   | 'BAJA_POR_AUTORIZAR' | 'BAJA_POR_TRASLADAR'
   | 'RETORNO_POR_AUTORIZAR' | 'DICTAMEN_POR_CONFIRMAR'
+  | 'PEDIDO_CANCELADO' | 'DEVOLUCION_PICKING'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
 
@@ -488,6 +489,8 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   BAJA_POR_TRASLADAR: 'Baja por trasladar a Bajas',
   RETORNO_POR_AUTORIZAR: 'Retorno de una Orden de Salida por autorizar',
   DICTAMEN_POR_CONFIRMAR: 'Dictamen del DT del cliente por confirmar',
+  PEDIDO_CANCELADO: 'Pedido cancelado en Pedidos',
+  DEVOLUCION_PICKING: 'Lo picado por devolver a su ubicación',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -524,6 +527,9 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   // OS-5: quien registra el retorno no siempre puede autorizarlo; Sandra y Katia lo autorizan. El dictamen del DT del cliente lo confirma el otro.
   RETORNO_POR_AUTORIZAR: 'asistente_dt',
   DICTAMEN_POR_CONFIRMAR: 'asistente_dt',
+  // SA-3: el Jefe de Transporte se entera de la cancelación; el Jefe de Almacén coordina a quien devuelve y a quien verifica.
+  PEDIDO_CANCELADO: 'jefe_transporte',
+  DEVOLUCION_PICKING: 'jefe_almacen',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {
