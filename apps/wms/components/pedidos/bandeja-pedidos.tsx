@@ -2,7 +2,9 @@
 
 import { Fragment, useMemo, useState } from 'react'
 import { Ban, ChevronDown, ChevronRight, CircleDashed, FileCheck2, History, Inbox, RefreshCw, SearchX, TriangleAlert, X } from 'lucide-react'
-import { actualizarBandejaAccion, revisarCambioPedidoAccion } from '@/app/acciones-pedidos'
+import { actualizarBandejaAccion, revisarCambioPedidoAccion, simularCambioEnPedidosAccion } from '@/app/acciones-pedidos'
+import type { CambioSimulado } from '@/services/repositorio-cambio-pedido'
+import { BotonCopiarAviso } from '../salidas/boton-copiar-aviso'
 import {
   ETIQUETA_ESTADO_BANDEJA, FILTROS_BANDEJA_VACIOS, contarPorEstado, filtrarBandeja, hace,
   type EstadoBandeja, type FiltrosBandeja, type PedidoBandeja,
@@ -31,12 +33,48 @@ function ChipBandeja({ estado }: { estado: EstadoBandeja }) {
 
 const fechaDia = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
-function Detalle({ p, puedeRevisar }: { p: PedidoBandeja; puedeRevisar: boolean }) {
+const SIMULACIONES: { cambio: CambioSimulado; texto: string }[] = [
+  { cambio: 'REDUCIR', texto: 'Reducir una línea' }, { cambio: 'QUITAR', texto: 'Quitar una línea' }, { cambio: 'AGREGAR', texto: 'Agregar una línea' },
+  { cambio: 'CANCELAR', texto: 'Cancelar el pedido' }, { cambio: 'FACTURAR', texto: 'Registrar la factura' },
+]
+
+/** Controles de la fuente demo: «Pedidos» cambia el pedido para ver cómo la Orden de Salida se actualiza sola. Solo existen en la demostración. */
+function SimularEnPedidos({ p }: { p: PedidoBandeja }) {
+  const { pendiente, mensaje, ejecutar } = useAccion()
+  if (p.estado === 'CANCELADO_EN_PEDIDOS') return null
+  return (
+    <div className="space-y-2 rounded-md border border-dashed border-gray-300 bg-gray-50 p-3" data-testid="simular-en-pedidos">
+      <p className="text-sm font-medium text-gray-900">Probar como si fueras Pedidos <span className="font-normal text-gray-600">(solo en la demostración)</span></p>
+      <div className="flex flex-wrap gap-2">
+        {SIMULACIONES.map((x) => (
+          <button key={x.cambio} type="button" className="btn-secondary btn-sm" disabled={pendiente} onClick={() => ejecutar(() => simularCambioEnPedidosAccion(p.pedidoId, x.cambio), { exito: `Pedidos cambió el pedido (${x.texto.toLowerCase()}). La orden de salida se actualizó sola.` })} data-testid={`simular-${x.cambio}`}>{x.texto}</button>
+        ))}
+      </div>
+      {mensaje?.tipo === 'error' && <Aviso tipo="error" testid="simular-error">{mensaje.texto}</Aviso>}
+      {mensaje?.tipo === 'ok' && <Aviso tipo="ok" testid="simular-ok">{mensaje.texto}</Aviso>}
+    </div>
+  )
+}
+
+function Detalle({ p, puedeRevisar, demo }: { p: PedidoBandeja; puedeRevisar: boolean; demo: boolean }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const sinCatalogo = p.lineas.filter((l) => !l.enCatalogo)
   const dato = (titulo: string, valor?: string) => valor ? <div><dt className="text-xs font-medium text-gray-600">{titulo}</dt><dd className="text-sm text-gray-900">{valor}</dd></div> : null
   return (
     <div className="space-y-4 px-4 py-4 md:px-6" data-testid="detalle-pedido">
+      {p.estado === 'CANCELADO_EN_PEDIDOS' && (
+        <Aviso tipo="error" testid="pedido-cancelado">
+          <p className="font-medium">Pedidos canceló este pedido.</p>
+          <p>Motivo: {p.motivoCancelacion ?? 'sin motivo'}{p.canceladoPor ? ` · lo canceló ${p.canceladoPor}` : ''}.{p.salida ? ` Su orden de salida ${p.salida} se canceló y liberó todo (si ya había picking, primero se devuelve lo picado).` : ''}</p>
+        </Aviso>
+      )}
+      {p.avisoVendedor && (
+        <Aviso tipo="atencion" testid="pedido-falta-stock">
+          <p className="font-medium">Falta stock en este pedido: decide el vendedor{p.vendedor ? ` ${p.vendedor}` : ''}, en Pedidos.</p>
+          <p className="mt-1">Quitar o reducir la línea (lo que falta se cancela) o cancelar el pedido.</p>
+          <div className="mt-2"><BotonCopiarAviso texto={p.avisoVendedor} testid="copiar-aviso-bandeja" /></div>
+        </Aviso>
+      )}
       {p.estado === 'CAMBIO_POR_REVISAR' && (
         <Aviso tipo="atencion" testid="pedido-cambio">
           <p className="font-medium">Este pedido cambió en Pedidos (versión {p.version}).</p>
@@ -75,13 +113,14 @@ function Detalle({ p, puedeRevisar }: { p: PedidoBandeja; puedeRevisar: boolean 
           </tbody>
         </table>
       </div>
+      {demo && <SimularEnPedidos p={p} />}
       {sinCatalogo.length > 0 && <p className="text-sm text-gray-700">Hay {sinCatalogo.length === 1 ? 'un producto' : `${sinCatalogo.length} productos`} que el WMS no conoce: no se podrá asignar stock hasta que Dirección Técnica lo dé de alta.</p>}
     </div>
   )
 }
 
 /** La bandeja de pedidos por despachar: tabla en PC y tablet, filas compactas en el teléfono; el detalle se abre en la misma fila. */
-export function BandejaPedidosVista({ bandeja, puedeActualizar }: { bandeja: BandejaPedidos; puedeActualizar: boolean }) {
+export function BandejaPedidosVista({ bandeja, puedeActualizar, demo = false }: { bandeja: BandejaPedidos; puedeActualizar: boolean; demo?: boolean }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [f, setF] = useState<FiltrosBandeja>(FILTROS_BANDEJA_VACIOS)
   const [abierto, setAbierto] = useState<string | null>(null)
@@ -190,7 +229,7 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar }: { bandeja: Ban
                             <td className="tabular whitespace-nowrap px-2 py-3 text-gray-800">{fechaDia(p.fecha)}</td>
                             <td className="px-2 py-3"><ChipBandeja estado={p.estado} />{p.salida && <span className="tabular mt-1 block text-xs text-gray-600">{p.salida}</span>}</td>
                           </tr>
-                          {on && <tr id={`det-${p.id}`}><td colSpan={7} className="bg-white p-0"><Detalle p={p} puedeRevisar={puedeActualizar} /></td></tr>}
+                          {on && <tr id={`det-${p.id}`}><td colSpan={7} className="bg-white p-0"><Detalle p={p} puedeRevisar={puedeActualizar} demo={demo} /></td></tr>}
                         </Fragment>
                       )
                     })}
@@ -209,7 +248,7 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar }: { bandeja: Ban
                         <span className="block font-medium text-gray-900">{p.cliente}</span>
                         <span className="tabular block text-sm text-gray-700">{p.lineas.length} {p.lineas.length === 1 ? 'línea' : 'líneas'} · {p.unidades.toLocaleString('es-PE')} u · {fechaDia(p.fecha)}{p.distrito ? ` · ${p.distrito}` : ''}</span>
                       </button>
-                      {on && <div className="border-t border-gray-100 bg-gray-50/50"><Detalle p={p} puedeRevisar={puedeActualizar} /></div>}
+                      {on && <div className="border-t border-gray-100 bg-gray-50/50"><Detalle p={p} puedeRevisar={puedeActualizar} demo={demo} /></div>}
                     </li>
                   )
                 })}

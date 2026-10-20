@@ -47,3 +47,7 @@ export async function emitirGuiaElectronicaAccion(salidaId: string, traslado: Tr
 export async function consultarEstadoGuiaAccion(guiaId: string, numero: string, salidaId: string) { return consultarEstadoGuia(guiaId, numero, salidaId, await quien()) }
 export async function anularGuiaAccion(guiaId: string, caso: CasoAnulacion, motivo: string) { return anularGuiaConCaso(guiaId, caso, motivo, await quien()) }
 export async function reenviarAvisosPedidosAccion(salidaId?: string) { return enviarEventosPedidos(await quien(), salidaId) }
+
+// SA-3: devolver lo picado (cambio o cancelación del pedido) y los controles de la fuente demo
+export async function ejecutarDevolucionPickingAccion(salidaId: string) { return repositorio().ejecutarDevolucionPicking(salidaId, await quien()) }
+export async function verificarDevolucionPickingAccion(salidaId: string) { return repositorio().verificarDevolucionPicking(salidaId, await quien()) }

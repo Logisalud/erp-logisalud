@@ -8,6 +8,7 @@ import { ChipEtapa } from './chip-etapa'
 import { avanceDeSalida } from '@/domain/pasos'
 
 const ETAPAS = Object.keys(ETIQUETA_ETAPA) as EtapaSalida[]
+const extrasDe = (s: SalidaResumen) => ({ vendedor: s.vendedor, sinPedido: s.sinPedido, devolucion: s.devolucion, devolucionHref: s.devolucionHref })
 
 export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]; verCambios: boolean }) {
   const [q, setQ] = useState('')
@@ -58,7 +59,7 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
                     <td className="tabular px-3 py-3 text-right">{s.lineas}</td>
                     <td className="tabular px-3 py-3 text-right">{s.unidades.toLocaleString('es-PE')} u</td>
                     <td className="px-3 py-3"><ChipEtapa etapa={s.etapa} /></td>
-                    <td className="max-w-[18rem] px-3 py-3 text-xs text-gray-800" data-testid="siguiente-salida">{(() => { const x = avanceDeSalida(s.etapa, s.id).siguiente; return <><span className="block text-gray-900">{x.texto}</span><span className="block text-gray-600">{x.fin ? '' : `Lo hace: ${x.responsable.etiqueta}`}</span></> })()}</td>
+                    <td className="max-w-[18rem] px-3 py-3 text-xs text-gray-800" data-testid="siguiente-salida">{(() => { const x = avanceDeSalida(s.etapa, s.id, extrasDe(s)).siguiente; return <><span className="block text-gray-900 first-letter:uppercase">{x.texto}</span><span className="block text-gray-600">{x.fin ? '' : `Lo hace: ${x.responsable.etiqueta}`}</span></> })()}</td>
                     <td className="px-3 py-3 text-right"><Link href={`/salidas/${s.id}`} className="btn-secondary btn-sm" aria-label={`Abrir ${s.numero}`}>Abrir</Link></td>
                   </tr>
                 ))}
@@ -72,7 +73,7 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center justify-between gap-2"><span className="tabular font-heading text-sm font-semibold tracking-wide text-gray-900">{s.pedidoNumero ?? s.numero}</span><ChipEtapa etapa={s.etapa} /></div>
                     <p className="truncate text-sm text-gray-700">{s.cliente ?? 'Sin cliente'} · {s.unidades.toLocaleString('es-PE')} u</p>
-                    <p className="text-xs text-gray-600">Sigue: {avanceDeSalida(s.etapa, s.id).siguiente.texto}</p>
+                    <p className="text-xs text-gray-600">Sigue: {avanceDeSalida(s.etapa, s.id, extrasDe(s)).siguiente.texto}</p>
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />
                 </Link>
