@@ -57,3 +57,15 @@ Igual que en el guion del bloque A (`guion-de-pruebas-bloque-a.md`, pasos 6 y 7)
 - **No hay conexión real con Pedidos**: los avisos van a una bandeja y se envían cuando Pedidos tenga su receptor (es requisito de producción, D-80).
 - La **baja ante SUNAT** de una guía no la hace el WMS: según Nubefact solo se hace desde el portal de SUNAT con Clave SOL; las reglas (plazo, después de iniciado el traslado) están **pendientes** de Contabilidad.
 - Pendientes de Katia y Contabilidad: ver `decisiones-pendientes.md` (política de canje, datos del formato LS-FR.56.01, formato del data logger, serie y último número de guía, licencias y DNI de conductores).
+
+## 11. Por dónde empezar: el menú
+El menú de la izquierda (en el teléfono, la barra de abajo y el botón **Más**) sigue el orden del trabajo: **Inicio, Entradas, Almacén, Salidas, Despacho y transporte, Control**. Cada persona ve solo lo que usa. Usa «Probar como» (barra negra de arriba) para cambiar de rol.
+1. **Jefe de Transporte** (PC): en **Salidas** hay cuatro opciones, en este orden: **Pedidos por despachar** (los pedidos que llegan de Pedidos), **Órdenes de salida** (las salidas ya creadas), **Nueva salida** (verde, para crear una salida a mano) y **Rutas**. Entra a cada una. *Mientras la pantalla de Nueva salida no esté integrada en tu Preview, ese enlace puede dar «página no encontrada»: es esperado.*
+2. Debajo, **Despacho y transporte** trae los pasos de piso con verbo: **Preparar pedidos (picking)**, **Embalar**, **Cargar la unidad** (y **Dar conformidad** para quien la da, como Sandra).
+3. **Almacén** y **Control** arrancan cerrados para el Jefe de Transporte: toca el encabezado para abrirlos (se recuerda). Si Control está cerrado y hay alertas, el encabezado muestra cuántas.
+4. **Auxiliar de almacén**: no ve Pedidos por despachar, Nueva salida ni Rutas; ve Órdenes de salida (solo para mirar) y sus pasos: Preparar pedidos, Embalar, Cargar la unidad.
+5. **Auditoría**: solo lectura (pedidos, órdenes, rutas, auditoría), sin Nueva salida ni pasos de piso. **Autoriza salidas sin venta**: ve Nueva salida y lo básico, sin la bandeja.
+6. **Teléfono (390 px)**: la barra de abajo muestra lo principal de tu rol (el Jefe de Transporte: Inicio, Órdenes y Rutas; el Auxiliar: Inicio, Picking y Almacén), más Buscar y **Más**. «Más» agrupa por las mismas secciones, con encabezados que se abren y cierran.
+7. **Tablet (1024 px)**: solo íconos, con una raya entre secciones; deja el cursor sobre un ícono para ver su nombre.
+Evidencia: `docs/wms/ux-menu-lateral.md` (antes y después, con capturas por rol).
+
