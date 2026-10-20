@@ -3,22 +3,16 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeftRight, BadgeCheck, Package, PackageOpen, PackageX, ScanLine, Bell, Truck, BarChart3, Boxes, CalendarClock, ClipboardCheck, FileSpreadsheet, FileText, FolderOpen, History, Home, Inbox, ListChecks, Map, MoreHorizontal, Route, Search, ShieldCheck, Undo2, Upload, Users, X } from 'lucide-react'
+import { ArrowLeftRight, BadgeCheck, ChevronDown, ClipboardList, Package, PackageOpen, PackagePlus, PackageX, ScanLine, Bell, Truck, BarChart3, Boxes, CalendarClock, ClipboardCheck, FileSpreadsheet, FileText, FolderOpen, History, Home, Inbox, ListChecks, Map, MoreHorizontal, Route, Search, ShieldCheck, Undo2, Upload, Users, X } from 'lucide-react'
 import { Marca, MarcaIcono } from './marca'
 import { PaletaBusqueda } from './paleta-busqueda'
 import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
 
-export interface ItemNav {
-  href: string
-  etiqueta: string
-  icono: 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos' | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'picking' | 'conformidad' | 'embalaje' | 'cargaunidad' | 'bajas' | 'retornos'
-  /** Cantidad que se muestra como insignia (alertas abiertas). */
-  insignia?: number
-}
+import { hrefActivo, type IconoNav, type ItemMenu, type SeccionMenu } from '@/domain/menu'
 
-const ICONOS = { inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload, revision: ListChecks, reportes: BarChart3, pedidos: Truck, rutas: Route, documentos: FileText, salidas: PackageOpen, picking: ScanLine, conformidad: BadgeCheck, embalaje: Package, cargaunidad: Truck, bajas: PackageX, retornos: Undo2 }
+export type ItemNav = ItemMenu
 
-const PRINCIPALES = ['inicio', 'almacen', 'entradas']
+const ICONOS: Record<IconoNav, typeof Home> = { nuevasalida: PackagePlus, inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload, revision: ListChecks, reportes: BarChart3, pedidos: ClipboardList, rutas: Route, documentos: FileText, salidas: PackageOpen, picking: ScanLine, conformidad: BadgeCheck, embalaje: Package, cargaunidad: Truck, bajas: PackageX, retornos: Undo2 }
 
 /** Punto de aviso sobre el ícono (la cantidad exacta va en texto en la barra ancha y en el menú «Más»). */
 function Punto({ n }: { n?: number }) {
@@ -26,12 +20,16 @@ function Punto({ n }: { n?: number }) {
   return <span aria-hidden className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-amber-500" />
 }
 
-const activo = (pathname: string, href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href))
+const CLAVE_COLAPSADAS = 'wms.menu.colapsadas'
 
 export function Shell({
-  items, nombre, rol, salir, children,
+  secciones, principales: hrefsPrincipales, cerradas: cerradasInicio, nombre, rol, salir, children,
 }: {
-  items: ItemNav[]
+  secciones: SeccionMenu[]
+  /** Enlaces de la barra inferior del teléfono (lo principal de cada rol). */
+  principales: string[]
+  /** Secciones que arrancan cerradas para este rol (D-132). */
+  cerradas: string[]
   nombre: string
   rol: string
   salir: ReactNode
@@ -40,6 +38,9 @@ export function Shell({
   const pathname = usePathname()
   const [buscando, setBuscando] = useState(false)
   const [mas, setMas] = useState(false)
+  // null = nadie ha tocado los encabezados: valen los cerrados por defecto del rol.
+  const [elegidas, setElegidas] = useState<string[] | null>(null)
+  const colapsadas = elegidas ?? cerradasInicio
 
   // Ctrl/Cmd+K abre la búsqueda universal desde cualquier pantalla.
   useEffect(() => {
@@ -55,8 +56,21 @@ export function Shell({
 
   useEffect(() => setMas(false), [pathname])
 
-  const principales = items.filter((i) => PRINCIPALES.includes(i.icono))
-  const secundarios = items.filter((i) => !PRINCIPALES.includes(i.icono))
+  // Las secciones que el usuario cerró en la barra ancha se recuerdan en este navegador (si no se puede guardar, todo queda abierto).
+  useEffect(() => {
+    try { const g = localStorage.getItem(CLAVE_COLAPSADAS); if (g) setElegidas(JSON.parse(g)) } catch { /* sin almacenamiento: valen los de por defecto */ }
+  }, [])
+  const alternar = (id: string) => {
+    const n = colapsadas.includes(id) ? colapsadas.filter((x) => x !== id) : [...colapsadas, id]
+    setElegidas(n)
+    try { localStorage.setItem(CLAVE_COLAPSADAS, JSON.stringify(n)) } catch { /* idem */ }
+  }
+  const estaCerrada = (sec: SeccionMenu) => colapsadas.includes(sec.id) && !sec.items.some((i) => i.href === actual)
+
+  const todos = secciones.flatMap((s) => s.items)
+  const actual = hrefActivo(pathname, todos.map((i) => i.href))
+  const principales = hrefsPrincipales.map((h) => todos.find((i) => i.href === h)).filter((i): i is ItemMenu => !!i)
+  const alertasAbiertas = todos.reduce((n, i) => n + (i.insignia ?? 0), 0)
 
   return (
     <div className="flex min-h-screen">
@@ -69,26 +83,53 @@ export function Shell({
             <span className="mt-1 block font-heading text-sm uppercase tracking-widest text-gray-500">Almacén</span>
           </span>
         </div>
-        <nav aria-label="Principal" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 xl:px-3">
-          {items.map((i) => {
-            const Icono = ICONOS[i.icono]
-            const on = activo(pathname, i.href)
+        <nav aria-label="Principal" className="min-h-0 flex-1 overflow-y-auto px-2">
+          {secciones.map((sec, n) => {
+            // La sección donde estás nunca se oculta, aunque la hayas cerrado.
+            const cerrada = estaCerrada(sec)
+            const pendientes = sec.items.reduce((t, i) => t + (i.insignia ?? 0), 0)
             return (
-              <Link
-                key={i.href}
-                href={i.href}
-                aria-current={on ? 'page' : undefined}
-                title={i.etiqueta}
-                className={`flex min-h-11 items-center justify-center gap-3 rounded-md px-3 text-sm font-medium transition duration-fast xl:justify-start ${
-                  on ? NAV_ACTIVO : NAV_INACTIVO
-                }`}
-              >
-                <span className="relative shrink-0"><Icono className="h-5 w-5" aria-hidden /><Punto n={i.insignia} /></span>
-                <span className="hidden xl:inline">{i.etiqueta}</span>
-                <span className="sr-only xl:hidden">{i.etiqueta}</span>
-                {i.insignia ? <span className="ml-auto hidden rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 xl:inline">{i.insignia}</span> : null}
-                {i.insignia ? <span className="sr-only">, {i.insignia} abiertas</span> : null}
-              </Link>
+              <div key={sec.id} data-seccion={sec.id} className={n > 0 ? 'mt-2 border-t border-gray-200 pt-2 xl:mt-3 xl:border-t-0 xl:pt-0' : ''}>
+                {sec.titulo && (
+                  <button
+                    type="button"
+                    onClick={() => alternar(sec.id)}
+                    aria-expanded={!cerrada}
+                    aria-controls={`menu-${sec.id}`}
+                    data-testid={`seccion-${sec.id}`}
+                    className="hidden min-h-8 w-full items-center gap-2 rounded-md px-2.5 text-left font-heading text-xs font-medium uppercase tracking-widest text-gray-600 hover:bg-gray-100 xl:flex"
+                  >
+                    <span className="flex-1">{sec.titulo}</span>
+                    {cerrada && pendientes > 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-amber-900">{pendientes}</span> : null}
+                    <ChevronDown className={`h-4 w-4 transition-transform duration-fast ${cerrada ? '-rotate-90' : ''}`} aria-hidden />
+                  </button>
+                )}
+                <ul id={`menu-${sec.id}`} className={`space-y-0.5 ${cerrada ? 'xl:hidden' : ''}`}>
+                  {sec.items.map((i) => {
+                    const Icono = ICONOS[i.icono]
+                    const on = i.href === actual
+                    return (
+                      <li key={i.href}>
+                        <Link
+                          href={i.href}
+                          aria-current={on ? 'page' : undefined}
+                          title={i.etiqueta}
+                          data-testid={`nav-${i.href === '/' ? 'inicio' : i.href.slice(1).replace(/\//g, '-')}`}
+                          className={`flex min-h-10 items-center justify-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition duration-fast xl:justify-start ${
+                            i.destacado ? (on ? 'bg-green-800 text-white' : 'bg-green-700 text-white hover:bg-green-800') : on ? NAV_ACTIVO : NAV_INACTIVO
+                          }`}
+                        >
+                          <span className="relative shrink-0"><Icono className="h-5 w-5" aria-hidden /><Punto n={i.insignia} /></span>
+                          <span className="hidden xl:inline">{i.etiqueta}</span>
+                          <span className="sr-only xl:hidden">{i.etiqueta}</span>
+                          {i.insignia ? <span className="ml-auto hidden rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 xl:inline">{i.insignia}</span> : null}
+                          {i.insignia ? <span className="sr-only">, {i.insignia} abiertas</span> : null}
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
             )
           })}
         </nav>
@@ -134,16 +175,17 @@ export function Shell({
       >
         {principales.map((i) => {
           const Icono = ICONOS[i.icono]
-          const on = activo(pathname, i.href)
+          const on = i.href === actual
           return (
             <Link
               key={i.href}
               href={i.href}
               aria-current={on ? 'page' : undefined}
+              data-testid={`inferior-${i.href === '/' ? 'inicio' : i.href.slice(1).replace(/\//g, '-')}`}
               className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${on ? 'text-green-700' : 'text-gray-600'}`}
             >
               <Icono className="h-5 w-5" aria-hidden />
-              {i.etiqueta}
+              {i.corta ?? i.etiqueta}
             </Link>
           )
         })}
@@ -161,15 +203,16 @@ export function Shell({
           aria-expanded={mas}
           className="flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-gray-600"
         >
-          <MoreHorizontal className="h-5 w-5" aria-hidden />
+          <span className="relative"><MoreHorizontal className="h-5 w-5" aria-hidden /><Punto n={alertasAbiertas} /></span>
           Más
+          {alertasAbiertas ? <span className="sr-only">, {alertasAbiertas} alertas abiertas</span> : null}
         </button>
       </nav>
 
       {mas && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Más opciones">
           <button type="button" className="absolute inset-0 bg-gray-900/40" aria-label="Cerrar" onClick={() => setMas(false)} />
-          <div className="hoja-entra absolute inset-x-0 bottom-0 rounded-t-xl bg-white p-4 pb-8 shadow-xl">
+          <div className="hoja-entra absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col rounded-t-xl bg-white p-4 pb-8 shadow-xl">
             <div className="mb-2 flex items-center justify-between">
               <div>
                 <p className="font-medium text-gray-900">{nombre}</p>
@@ -179,23 +222,42 @@ export function Shell({
                 <X className="h-5 w-5" aria-hidden />
               </button>
             </div>
-            <ul className="divide-y divide-gray-100">
-              {secundarios.map((i) => {
-                const Icono = ICONOS[i.icono]
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {secciones.map((sec) => {
+                const cerrada = estaCerrada(sec)
+                const pendientes = sec.items.reduce((t, i) => t + (i.insignia ?? 0), 0)
                 return (
-                  <li key={i.href}>
-                    <Link href={i.href} className="flex min-h-14 items-center gap-3 text-gray-900">
-                      <span className="relative"><Icono className="h-5 w-5 text-gray-600" aria-hidden /></span>
-                      {i.etiqueta}
-                      {i.insignia ? <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{i.insignia} {i.insignia === 1 ? 'abierta' : 'abiertas'}</span> : null}
-                    </Link>
-                  </li>
+                  <section key={sec.id} aria-label={sec.titulo ?? 'Inicio'} data-seccion={sec.id} className="mt-1">
+                    {sec.titulo && (
+                      <h2>
+                        <button type="button" onClick={() => alternar(sec.id)} aria-expanded={!cerrada} data-testid={`seccion-mas-${sec.id}`} className="flex min-h-11 w-full items-center gap-2 px-1 text-left font-heading text-xs font-medium uppercase tracking-widest text-gray-600">
+                          <span className="flex-1">{sec.titulo}</span>
+                          {cerrada && pendientes > 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-amber-900">{pendientes}</span> : null}
+                          <ChevronDown className={`h-4 w-4 transition-transform duration-fast ${cerrada ? '-rotate-90' : ''}`} aria-hidden />
+                        </button>
+                      </h2>
+                    )}
+                    <ul className={`divide-y divide-gray-100 ${cerrada ? 'hidden' : ''}`}>
+                      {sec.items.map((i) => {
+                        const Icono = ICONOS[i.icono]
+                        return (
+                          <li key={i.href}>
+                            <Link href={i.href} aria-current={i.href === actual ? 'page' : undefined} className={`flex min-h-12 items-center gap-3 ${i.destacado ? 'font-medium text-green-800' : 'text-gray-900'}`}>
+                              <span className="relative"><Icono className={`h-5 w-5 ${i.destacado ? 'text-green-700' : 'text-gray-600'}`} aria-hidden /></span>
+                              {i.etiqueta}
+                              {i.insignia ? <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{i.insignia} {i.insignia === 1 ? 'abierta' : 'abiertas'}</span> : null}
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </section>
                 )
               })}
-              <li className="[&_button]:flex [&_button]:min-h-14 [&_button]:w-full [&_button]:items-center [&_button]:gap-3 [&_button]:text-left [&_button]:text-gray-900">
+              <div className="mt-2 border-t border-gray-100 [&_button]:flex [&_button]:min-h-14 [&_button]:w-full [&_button]:items-center [&_button]:gap-3 [&_button]:text-left [&_button]:text-gray-900">
                 {salir}
-              </li>
-            </ul>
+              </div>
+            </div>
           </div>
         </div>
       )}
