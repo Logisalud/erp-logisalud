@@ -6,6 +6,7 @@ import { ChevronRight, PackageSearch, Search } from 'lucide-react'
 import { ETIQUETA_ETAPA, filtrarSalidas, type EtapaSalida, type SalidaResumen } from '@/domain/despacho'
 import { ChipEtapa } from './chip-etapa'
 import { avanceDeSalida } from '@/domain/pasos'
+import { EtiquetasOrigen } from './etiquetas-origen'
 
 const ETAPAS = Object.keys(ETIQUETA_ETAPA) as EtapaSalida[]
 
@@ -50,7 +51,7 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
               <tbody className="divide-y divide-gray-100">
                 {vistas.map((s) => (
                   <tr key={s.id} className="hover:bg-gray-50" data-testid="fila-salida">
-                    <td className="px-3 py-3"><Link href={`/salidas/${s.id}`} className="tabular font-heading text-sm font-semibold tracking-wide text-green-800 underline">{s.numero}</Link></td>
+                    <td className="px-3 py-3"><Link href={`/salidas/${s.id}`} className="tabular font-heading text-sm font-semibold tracking-wide text-green-800 underline">{s.numero}</Link><span className="mt-1 block"><EtiquetasOrigen datos={s} conTipo /></span></td>
                     <td className="tabular px-3 py-3 text-gray-900">{s.pedidoNumero ?? '—'}</td>
                     <td className="px-3 py-3 text-gray-800">{s.cliente ?? '—'}</td>
                     <td className="tabular px-3 py-3 text-gray-800">{s.rutaNumero ?? <span className="text-gray-500">Sin ruta</span>}</td>
@@ -72,6 +73,7 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center justify-between gap-2"><span className="tabular font-heading text-sm font-semibold tracking-wide text-gray-900">{s.pedidoNumero ?? s.numero}</span><ChipEtapa etapa={s.etapa} /></div>
                     <p className="truncate text-sm text-gray-700">{s.cliente ?? 'Sin cliente'} · {s.unidades.toLocaleString('es-PE')} u</p>
+                    <EtiquetasOrigen datos={s} conTipo />
                     <p className="text-xs text-gray-600">Sigue: {avanceDeSalida(s.etapa, s.id).siguiente.texto}</p>
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />

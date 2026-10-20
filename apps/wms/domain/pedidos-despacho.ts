@@ -199,6 +199,8 @@ export interface PedidoBandeja {
   importadoEn: string
   /** Número de la salida que lo tomó, si la hay. */
   salida?: string
+  /** Id de esa salida (para abrirla). */
+  salidaId?: string
   texto: string
 }
 
@@ -245,7 +247,7 @@ export const puedeActualizarBandeja = (roles: readonly string[]) => roles.some((
 
 /** Arma la fila de la bandeja desde lo guardado (la usan la demo y el adaptador de Supabase, para que digan lo mismo). */
 export function bandejaDeFila(f: {
-  id: string; snapshot: PedidoSnapshot; cambios: string[]; cambioPendiente: boolean; salida?: string; importadoEn: string; codigosEnCatalogo: ReadonlySet<string>
+  id: string; snapshot: PedidoSnapshot; cambios: string[]; cambioPendiente: boolean; salida?: string; salidaId?: string; importadoEn: string; codigosEnCatalogo: ReadonlySet<string>
 }): PedidoBandeja {
   const p = f.snapshot
   return armarBandeja({
@@ -254,6 +256,6 @@ export function bandejaDeFila(f: {
     vendedor: p.vendedor, condicionPago: p.condicionPago, factura: p.factura, observaciones: p.observaciones,
     lineas: p.lineas.map((l) => ({ ...l, enCatalogo: f.codigosEnCatalogo.has(l.productoCodigo) })),
     estado: f.cambioPendiente ? 'CAMBIO_POR_REVISAR' : f.salida ? 'EN_SALIDA' : 'POR_PLANIFICAR',
-    cambios: f.cambios, importadoEn: f.importadoEn, salida: f.salida,
+    cambios: f.cambios, importadoEn: f.importadoEn, salida: f.salida, salidaId: f.salidaId,
   })
 }

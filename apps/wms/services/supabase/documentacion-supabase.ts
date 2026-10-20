@@ -71,6 +71,11 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
   async registrarGre(salidaId: string, numero: string, nota: string | undefined, _actor: Actor, archivoRef?: string): Promise<ResultadoAccion<{ id: string }>> {
     const bloqueo = validarNumeroGre(numero)
     if (bloqueo) return { ok: false, mensaje: bloqueo, errores: { numero: bloqueo } }
+    // SA-2: la GRE de un cliente de almacenamiento ya vino con su PDF al crear la orden: se guarda junto al número
+    if (!archivoRef) {
+      const { data: sal } = await sch().from('salidas').select('tipo, gre_archivo').eq('id', salidaId).maybeSingle()
+      if ((sal as Fila | null)?.tipo === 'CLIENTE') archivoRef = s((sal as Fila).gre_archivo)
+    }
     const { data, error } = await rpc('registrar_gre', { p_salida: salidaId, p_numero: normalizarNumeroGre(numero), p_nota: nota?.trim() || null, p_archivo_ref: archivoRef ?? null })
     return error ? mal(error) : { ok: true, id: String(data) }
   }

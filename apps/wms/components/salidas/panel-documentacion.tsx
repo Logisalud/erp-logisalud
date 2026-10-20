@@ -25,10 +25,10 @@ const ChipRequisito = ({ r }: { r: RequisitoDocumental }) => {
 }
 
 /** Después de la conformidad: la guía de remisión (se registra su número a mano) y el paquete documental de los lotes que salen. */
-export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos }: { paquete: PaqueteSalida; roles: readonly Rol[]; datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[] }) {
+export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos, greCliente }: { paquete: PaqueteSalida; roles: readonly Rol[]; datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[]; greCliente?: { numero?: string; salidaId: string; conArchivo: boolean } }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [resultado, setResultado] = useState<string | null>(null)
-  const [numero, setNumero] = useState('')
+  const [numero, setNumero] = useState(greCliente?.numero ?? '')
   const [nota, setNota] = useState('')
   const bloqueo = motivoNoPuedeRegistrarGuia(roles, paquete)
   const errorNumero = numero.trim() ? validarNumeroGre(numero) : null
@@ -42,7 +42,8 @@ export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos }
       {!paquete.conforme && !paquete.guia && <Aviso tipo="info">La guía se registra cuando todo el pedido tiene la conformidad: sus lotes salen de lo confirmado, sin volver a escribirlos.</Aviso>}
 
       <div className="rounded-lg border border-gray-200 bg-white p-4" data-testid="bloque-guia">
-        <h3 className="font-medium text-gray-900">Guía de remisión</h3>
+        <h3 className="font-medium text-gray-900">{greCliente ? 'Guía de remisión del cliente (GRE)' : 'Guía de remisión'}</h3>
+        {greCliente && !paquete.guia && <p className="mt-1 text-sm text-gray-700" data-testid="gre-cliente-explica">El WMS no emite guía en esta orden: se despacha con la GRE que trajo el cliente{greCliente.numero ? <> (<span className="tabular font-medium">{greCliente.numero}</span>)</> : null}. Cuando todo esté conforme, registra su número aquí.</p>}
         {paquete.guia ? (
           <div className="mt-2 space-y-2">
             <p className="text-gray-900"><strong className="tabular" data-testid="guia-numero">{paquete.guia.numero}</strong> <span className="text-sm text-gray-700">· registrada por {paquete.guia.registradaPor}{paquete.guia.placa ? ` · placa ${paquete.guia.placa}` : ''}</span></p>
@@ -60,9 +61,9 @@ export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos }
           </div>
         ) : (
           <div className="mt-2 space-y-3">
-            {paquete.conforme && datos && puedeEmitirGuia(roles) && <EmitirGuia datos={datos} modo={modo} hoy={hoy} alEmitir={setResultado} />}
-            <details className="rounded-md border border-gray-200 p-3" data-testid="gre-manual">
-              <summary className="cursor-pointer text-sm font-medium text-gray-900" data-testid="abrir-gre-manual">Registrar una guía a mano (contingencia, o la GRE que trae el cliente)</summary>
+            {paquete.conforme && datos && datos.tipo !== 'CLIENTE' && puedeEmitirGuia(roles) && <EmitirGuia datos={datos} modo={modo} hoy={hoy} alEmitir={setResultado} />}
+            <details className="rounded-md border border-gray-200 p-3" data-testid="gre-manual" open={!!greCliente}>
+              <summary className="cursor-pointer text-sm font-medium text-gray-900" data-testid="abrir-gre-manual">{greCliente ? 'Registrar la GRE del cliente' : 'Registrar una guía a mano (contingencia, o la GRE que trae el cliente)'}</summary>
               <div className="mt-3 space-y-3">
                 <p className="text-sm text-gray-700">Aquí registras el número de una guía emitida fuera del WMS; sus líneas salen de lo que confirmó la conformidad.</p>
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,16rem)_1fr]">

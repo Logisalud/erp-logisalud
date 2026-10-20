@@ -111,7 +111,8 @@ export class SalidaManualSupabase extends LiberacionSupabase implements Reposito
       }
       const id = String(data)
       const { data: fila } = await sch().from('salidas').select('numero, motivo').eq('id', id).maybeSingle()
-      creadas.push({ id, numero: String((fila as Fila | null)?.numero ?? ''), motivo: (s((fila as Fila | null)?.motivo) ?? g.motivo) as OrdenCreada['motivo'] })
+      const { count } = await sch().from('salida_lineas').select('id', { count: 'exact', head: true }).eq('salida_id', id).eq('estado', 'SIN_STOCK')
+      creadas.push({ id, numero: String((fila as Fila | null)?.numero ?? ''), motivo: (s((fila as Fila | null)?.motivo) ?? g.motivo) as OrdenCreada['motivo'], faltaStock: (count ?? 0) > 0 })
     }
     return { ok: true, ordenes: creadas }
   }

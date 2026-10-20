@@ -8,7 +8,13 @@ export type OrdenDelPedido =
   | { tipo: 'ORDEN'; id: string; numero: string; estado: 'ABIERTA' | 'CONFIRMADA' }
   | { tipo: 'EN_BANDEJA'; pedidoNumero: string }
 
-export interface OrdenCreada { id: string; numero: string; motivo?: MotivoSalida }
+export interface OrdenCreada {
+  id: string
+  numero: string
+  motivo?: MotivoSalida
+  /** Alguna línea no tiene stock suficiente: decide el vendedor del pedido (A) o se espera el ingreso. */
+  faltaStock?: boolean
+}
 
 export interface ResumenOrdenesPendientes {
   creadas: number

@@ -3,7 +3,7 @@
 // Todo puro. Espejo de la función `wms.crear_orden_salida_manual` (migración 0028): la base de datos manda y dice lo mismo con las mismas palabras.
 import { normalizar, puntaje } from './busqueda'
 import { validarNumeroGre } from './documentacion'
-import { loteApto, origenDelStock, validarMotivoSalida, ETIQUETA_MOTIVO_SALIDA, type MotivoSalida, type PoliticaCanje, type TipoSalida, POLITICA_CANJE_INICIAL } from './salidas'
+import { asignarLinea, loteApto, origenDelStock, validarMotivoSalida, ETIQUETA_MOTIVO_SALIDA, type MotivoSalida, type PoliticaCanje, type TipoSalida, POLITICA_CANJE_INICIAL } from './salidas'
 import { puede } from './permisos'
 import type { Rol } from './tipos'
 
@@ -92,6 +92,17 @@ export function validarClienteManual(c: Partial<ClienteManual>): Record<string, 
   if (!(c.direccion ?? '').trim()) e.direccion = 'Escribe la dirección de entrega'
   const ub = validarUbigeo(c.ubigeo ?? ''); if (ub) e.ubigeo = ub
   return e
+}
+
+// ── La GRE del cliente (tipo B) ─────────────────────────────────────────────────────────────────────────────────────────────
+
+export const MAXIMO_GRE_BYTES = 10 * 1024 * 1024
+/** El PDF de la guía del cliente: solo PDF y hasta 10 MB. */
+export function validarPdfGre(nombre: string, bytes: number): string | null {
+  if (!nombre.toLowerCase().endsWith('.pdf')) return 'La guía del cliente se adjunta en PDF.'
+  if (bytes <= 0) return 'El archivo está vacío.'
+  if (bytes > MAXIMO_GRE_BYTES) return 'El archivo pesa más de 10 MB. Reduce su tamaño y vuelve a subirlo.'
+  return null
 }
 
 // ── Líneas con lote indicado (tipo B y devolución al proveedor) ─────────────────────────────────────────────────────────────
@@ -296,4 +307,26 @@ export function buscarProductosPorCodigos(
     out.push({ id: p.id, codigo: p.codigo, descripcion: p.descripcion, presentacion: p.presentacion, coincidencia: scAlt > 5 && scAlt >= propio && mejor ? `${ETIQUETA_CODIGO[mejor.tipo]} ${mejor.codigo}` : undefined, sc })
   }
   return out.sort((a, b) => b.sc - a.sc || a.descripcion.localeCompare(b.descripcion, 'es')).slice(0, limite).map(({ sc: _sc, ...x }) => x)
+}
+
+// ── La propuesta de lote (tipo A y muestra) ────────────────────────────────────────────────────────────────────────────────
+
+export type PropuestaFefo =
+  | { ok: true; asignaciones: { loteId: string; codigo: string; vence: string | null; cantidad: number }[] }
+  | { ok: false; mensaje: string }
+
+const aDisponible = (l: LoteParaSalida) => ({ loteId: l.loteId, codigo: l.codigo, vence: l.vence, disponible: l.disponibleAprobado, bloqueado: l.enReserva })
+
+/** El lote y el vencimiento que propone el sistema por FEFO (las reglas de S2b: 60 días en una venta, Aprobado, sin Reserva, nunca más de lo disponible). */
+export function propuestaFefo(tipo: 'DISTRIBUCION' | 'MUESTRA', cantidad: number, hoy: string, lotes: readonly LoteParaSalida[]): PropuestaFefo {
+  if (!Number.isInteger(cantidad) || cantidad <= 0) return { ok: false, mensaje: 'Escribe la cantidad' }
+  const r = asignarLinea({ tipo, motivo: tipo === 'DISTRIBUCION' ? 'VENTA' : 'MUESTRA', cantidad, hoy, lotes: lotes.map(aDisponible) })
+  return r.ok ? { ok: true, asignaciones: r.asignaciones } : { ok: false, mensaje: r.mensaje }
+}
+
+/** Los lotes que se pueden preferir en una venta manual: aptos, sin Reserva y con la cantidad completa (un solo lote por línea), en orden FEFO. */
+export function lotesPreferibles(cantidad: number, hoy: string, lotes: readonly LoteParaSalida[]): LoteParaSalida[] {
+  return lotes
+    .filter((l) => !l.enReserva && l.disponibleAprobado >= cantidad && loteApto(l.vence, 'DISTRIBUCION', 'VENTA', hoy).apto)
+    .sort((a, b) => (a.vence ?? '9999-12-31').localeCompare(b.vence ?? '9999-12-31') || a.codigo.localeCompare(b.codigo))
 }

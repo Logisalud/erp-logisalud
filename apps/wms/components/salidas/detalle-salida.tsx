@@ -19,6 +19,10 @@ import { avanceDeSalida } from '@/domain/pasos'
 import { PanelDocumentacion } from './panel-documentacion'
 import type { DatosGuia, EventoPedidos, ModoNubefact } from '@/domain/guia-electronica'
 import { EditorLotes } from './editor-lotes'
+import { EtiquetasOrigen } from './etiquetas-origen'
+import { CancelarOrden } from './cancelar-orden'
+import { ETIQUETA_CREADA_DESDE } from '@/domain/salida-manual'
+import { ETIQUETA_MOTIVO_SALIDA } from '@/domain/salidas'
 
 const Lotes = ({ l }: { l: LineaSalidaVista }) => l.asignacion.length === 0
   ? <span className="text-gray-500">Sin lotes</span>
@@ -40,14 +44,33 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
     <div className="space-y-5" data-testid="detalle-salida">
       <div><Link href="/salidas" className="inline-flex items-center gap-1.5 text-sm text-gray-700 underline"><ArrowLeft className="h-4 w-4" aria-hidden />Todas las salidas</Link></div>
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="space-y-1.5">
           <h1 className="tabular font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">{salida.numero}</h1>
-          <p className="mt-1 text-gray-700">Pedido {salida.pedidoNumero ?? '—'} · {salida.cliente ?? 'Sin cliente'}{salida.rutaNumero ? ` · Ruta ${salida.rutaNumero}` : ''}</p>
+          <p className="text-gray-700">Pedido {salida.pedidoNumero ?? '—'} · {salida.cliente ?? 'Sin cliente'}{salida.rutaNumero ? ` · Ruta ${salida.rutaNumero}` : ''}</p>
+          <EtiquetasOrigen datos={salida} conTipo />
         </div>
         <ChipEtapa etapa={salida.etapa} />
       </header>
 
-      <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE' })} roles={roles} />
+      <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE', tipo: salida.tipo, destruccion: salida.motivo === 'DESTRUCCION' })} roles={roles} />
+
+      {(salida.origen === 'MANUAL' || salida.creadaDesde === 'BANDEJA') && (
+        <section className="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby="h-origen" data-testid="origen-orden">
+          <h2 id="h-origen" className="font-heading text-xl font-medium tracking-wide text-gray-900">De dónde viene esta orden</h2>
+          <dl className="mt-2 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+            <div><dt className="text-gray-600">Cómo nació</dt><dd className="text-gray-900">{salida.creadaDesde ? ETIQUETA_CREADA_DESDE[salida.creadaDesde] : '—'}</dd></div>
+            <div><dt className="text-gray-600">Creada por</dt><dd className="text-gray-900">{salida.creadaPor}{salida.enNombreDe ? ` en nombre de ${salida.enNombreDe}` : ''}</dd></div>
+            {salida.motivo && <div><dt className="text-gray-600">Motivo</dt><dd className="text-gray-900">{ETIQUETA_MOTIVO_SALIDA[salida.motivo]}</dd></div>}
+            {salida.clienteManual && <>
+              <div><dt className="text-gray-600">Cliente (escrito a mano)</dt><dd className="text-gray-900">{salida.clienteManual.razonSocial} · RUC <span className="tabular">{salida.clienteManual.ruc}</span></dd></div>
+              <div><dt className="text-gray-600">Entrega</dt><dd className="text-gray-900">{salida.clienteManual.direccion} · ubigeo <span className="tabular">{salida.clienteManual.ubigeo}</span></dd></div>
+              {salida.clienteManual.vendedor && <div><dt className="text-gray-600">Vendedor del pedido</dt><dd className="text-gray-900">{salida.clienteManual.vendedor}</dd></div>}
+            </>}
+            {salida.greNumero && <div><dt className="text-gray-600">Guía del cliente (GRE)</dt><dd className="text-gray-900"><span className="tabular" data-testid="gre-del-cliente">{salida.greNumero}</span>{salida.greArchivo && <> · <Link href={`/salidas/${salida.id}/gre`} target="_blank" className="underline" data-testid="ver-gre-cliente">Ver el PDF</Link></>}</dd></div>}
+          </dl>
+          {salida.porConciliar && <div className="mt-3"><Aviso tipo="info" testid="aviso-por-conciliar">Esta orden está <strong>por conciliar con Pedidos</strong>: cuando Pedidos y el WMS estén conectados, se comprobará que el pedido existe y que el cliente coincide. Si el pedido llega por la bandeja, se une a esta orden sin crear otra.</Aviso></div>}
+        </section>
+      )}
 
       {lineas.some((l) => l.apartadaDeFefo) && <Aviso tipo="atencion" testid="aviso-fuera-fefo">Algún lote se apartó de la propuesta FEFO. Queda registrado con tu nombre; no necesitas explicar el motivo.</Aviso>}
       {lineas.some((l) => l.estado === 'SIN_STOCK') && <Aviso tipo="error">Hay líneas sin stock suficiente. Mientras falte, no se puede generar el picking.</Aviso>}
@@ -92,9 +115,10 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
         {salida.ordenPickingId && <Link href={`/picking/${salida.ordenPickingId}`} className="btn-secondary" data-testid="ir-picking">Ver el picking ({salida.ordenNumero})</Link>}
         {salida.ordenPickingId && <Link href={`/conformidad/${salida.ordenPickingId}`} className="btn-secondary" data-testid="ir-conformidad">Ver la conformidad</Link>}
         {ETAPAS_CONFORMES.includes(salida.etapa) && <Link href={`/embalaje/${salida.id}`} className="btn-secondary" data-testid="ir-embalaje">Embalaje y bultos</Link>}
+        {puedePreparar && salida.estado === 'ABIERTA' && !salida.ordenPickingId && (salida.origen === 'MANUAL' || salida.creadaDesde === 'BANDEJA') && <CancelarOrden salidaId={salida.id} numero={salida.numero} />}
       </section>
 
-      {paquete && (paquete.conforme || paquete.guia || paquete.guiasAnuladas.length > 0) && <PanelDocumentacion paquete={paquete} roles={roles} datos={guia.datos} modo={guia.modo} hoy={guia.hoy} eventos={guia.eventos} />}
+      {paquete && (paquete.conforme || paquete.guia || paquete.guiasAnuladas.length > 0) && <PanelDocumentacion paquete={paquete} roles={roles} datos={guia.datos} modo={guia.modo} hoy={guia.hoy} eventos={guia.eventos} greCliente={salida.tipo === 'CLIENTE' ? { numero: salida.greNumero, salidaId: salida.id, conArchivo: !!salida.greArchivo } : undefined} />}
 
       {salida.cambios.length > 0 && (
         <section aria-labelledby="h-cambios" data-testid="cambios-salida">

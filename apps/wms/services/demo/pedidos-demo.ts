@@ -89,7 +89,8 @@ export class PedidosDemo extends OperacionDemo implements RepositorioPedidos {
     await this.asegurarSiembra(e)
     const s = ped(e)
     const codigos = new Set(e.panorama.productos.map((p) => p.codigo))
-    const pedidos = s.filas.filter((f) => f.vigente).map((f) => bandejaDeFila({ id: f.id, snapshot: f.snapshot, cambios: f.cambios, cambioPendiente: f.cambioPendiente, salida: f.salida, importadoEn: f.importadoEn, codigosEnCatalogo: codigos }))
+    const idDe = new Map((e.desp?.salidas ?? []).map((x) => [x.numero, x.id]))
+    const pedidos = s.filas.filter((f) => f.vigente).map((f) => bandejaDeFila({ id: f.id, snapshot: f.snapshot, cambios: f.cambios, cambioPendiente: f.cambioPendiente, salida: f.salida, salidaId: f.salida ? idDe.get(f.salida) : undefined, importadoEn: f.importadoEn, codigosEnCatalogo: codigos }))
     return structuredClone({ pedidos, ultimoIntento: s.importaciones[0] ?? null, ultimaExitosa: s.importaciones.find((i) => i.ok) ?? null })
   }
 

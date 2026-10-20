@@ -185,7 +185,7 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
         registrar(e, actor, 'orden_manual_creada', 'salidas', s.numero, `Orden manual ${s.numero} (${entrada.clase})`,
           entrada.clase === 'A' ? 'Venta manual por conciliar con Pedidos' : entrada.clase === 'B' ? 'Por cuenta de un cliente de almacenamiento' : 'Salida sin venta de Logissa')
       }
-      creadas.push({ id: s.id, numero: s.numero, motivo: s.motivo })
+      creadas.push({ id: s.id, numero: s.numero, motivo: s.motivo, faltaStock: s.lineas.some((l) => l.estado === 'SIN_STOCK') })
     }
     return { ok: true, ordenes: creadas }
   }
