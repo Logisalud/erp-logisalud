@@ -230,3 +230,45 @@ export async function getStockResumen(): Promise<StockResumen> {
     ultimaActualizacion: filas.map((f) => f.fecha_actualizacion).sort().at(-1) ?? null,
   };
 }
+
+/**
+ * Cuánto hay de cada producto, para armar el pedido.
+ *
+ * Es el stock FÍSICO que cargó el almacén, sin descontar lo que ya se pidió
+ * y todavía no se despachó. Decisión de negocio (2026-10-22): el archivo
+ * diario es un conteo real del almacén, así que lo que ya salió por la
+ * puerta ya está descontado ahí; restar además los pedidos pendientes —hoy
+ * 330, porque el despacho no se marca al día en el ERP— restaría dos veces
+ * lo mismo y frenaría ventas de mercadería que está en el estante.
+ *
+ * Un producto que no aparece devuelve 0: no tener fila en el archivo del
+ * almacén y tener cero son lo mismo para quien vende.
+ *
+ * Se suma por producto, no por producto+fuente: al vendedor le importa
+ * cuánto hay, no en qué almacén está.
+ */
+export async function stockDisponiblePorProducto(): Promise<Map<string, number>> {
+  const supabase = createClient();
+  const disponible = new Map<string, number>();
+
+  // Paginado y no un `limit` grande: la vista tiene hoy una fila por
+  // producto con stock (266), pero crece con el catálogo y con cada fuente
+  // nueva, y un tope silencioso haría desaparecer stock real sin aviso.
+  const PAGINA = 1000;
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data, error } = await supabase
+      .from("stock_levels")
+      .select("product_id, cantidad_disponible")
+      .range(desde, desde + PAGINA - 1);
+    if (error) throw new Error(error.message);
+
+    const filas = (data ?? []) as unknown as Array<{
+      product_id: string;
+      cantidad_disponible: number | string;
+    }>;
+    for (const f of filas) {
+      disponible.set(f.product_id, (disponible.get(f.product_id) ?? 0) + Number(f.cantidad_disponible));
+    }
+    if (filas.length < PAGINA) return disponible;
+  }
+}

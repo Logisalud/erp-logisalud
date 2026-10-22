@@ -8,7 +8,7 @@ import {
   type NotifyResult,
 } from "./order-notifications";
 import { calculateLineItem, canEditPaymentTerms } from "@/domain/orders";
-import { admitePrecioCero } from "@/domain/products";
+import { admitePrecioCero, hayStockParaPedir } from "@/domain/products";
 import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
 import { evaluarCambioDeCliente, type ConflictoDePrecio } from "@/domain/order-header";
 
@@ -273,7 +273,7 @@ async function resolverUbigeo(
 
 export type AddOrderItemResult =
   | { ok: true; itemId: string }
-  | { ok: false; reason: "NO_PRICE" | "NO_TAX_PROFILE" | "NO_CHANNEL" | "PRODUCTO_INACTIVO" };
+  | { ok: false; reason: "NO_PRICE" | "NO_TAX_PROFILE" | "NO_CHANNEL" | "PRODUCTO_INACTIVO" | "SIN_STOCK" };
 
 /**
  * Agrega una línea al pedido en DRAFT. El precio mostrado acá es solo
@@ -300,6 +300,51 @@ export async function aplicarPromociones(orderId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Los productos del pedido que hoy no tienen stock, por su código.
+ *
+ * Se usa para frenar el envío: una línea puede haber entrado cuando había
+ * stock y quedarse en cero con la carga del día siguiente, y despachar eso
+ * es prometerle al cliente algo que no existe.
+ */
+export async function lineasSinStockDelPedido(orderId: string): Promise<string[]> {
+  const supabase = createClient();
+
+  const { data: items, error: itemsError } = await supabase
+    .from("order_items")
+    .select("product_id, product:products(codigo_interno)")
+    .eq("order_id", orderId);
+  if (itemsError) throw new Error(itemsError.message);
+
+  const lineas = (items ?? []) as unknown as Array<{
+    product_id: string;
+    product: { codigo_interno: string } | null;
+  }>;
+  if (lineas.length === 0) return [];
+
+  const { data: niveles, error: nivelesError } = await supabase
+    .from("stock_levels")
+    .select("product_id, cantidad_disponible")
+    .in("product_id", Array.from(new Set(lineas.map((l) => l.product_id))));
+  if (nivelesError) throw new Error(nivelesError.message);
+
+  const disponible = new Map<string, number>();
+  for (const n of (niveles ?? []) as unknown as Array<{
+    product_id: string;
+    cantidad_disponible: number | string;
+  }>) {
+    disponible.set(n.product_id, (disponible.get(n.product_id) ?? 0) + Number(n.cantidad_disponible));
+  }
+
+  return Array.from(
+    new Set(
+      lineas
+        .filter((l) => !hayStockParaPedir(disponible.get(l.product_id) ?? 0))
+        .map((l) => l.product?.codigo_interno ?? "—"),
+    ),
+  );
+}
+
 export async function addOrderItem(input: {
   orderId: string;
   customerId: string;
@@ -320,6 +365,19 @@ export async function addOrderItem(input: {
   if (productError) throw new Error(productError.message);
   if (!product) throw new Error("El producto no existe o no es visible.");
   if (product.estado !== "activo") return { ok: false, reason: "PRODUCTO_INACTIVO" };
+
+  // Lo que el almacén no tiene no se vende. La pantalla ya no deja elegirlo
+  // —lo muestra como "Sin stock" y sin botón—, pero la Server Action recibe
+  // un productId cualquiera, y el stock puede haberse ido a cero entre que
+  // se cargó la pantalla y se agregó la línea.
+  const { data: nivel, error: nivelError } = await supabase
+    .from("stock_levels")
+    .select("cantidad_disponible")
+    .eq("product_id", input.productId);
+  if (nivelError) throw new Error(nivelError.message);
+  const disponible = ((nivel ?? []) as unknown as Array<{ cantidad_disponible: number | string }>)
+    .reduce((acc, n) => acc + Number(n.cantidad_disponible), 0);
+  if (!hayStockParaPedir(disponible)) return { ok: false, reason: "SIN_STOCK" };
 
   const { data: customer, error: customerError } = await supabase
     .from("customers")

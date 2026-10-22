@@ -7,6 +7,7 @@ import {
   addOrderItem,
   changeOrderCustomer,
   deleteDraftOrder,
+  lineasSinStockDelPedido,
   marcarBonificacionManual,
   quitarBonificacionManual,
   removeOrderItem,
@@ -55,6 +56,8 @@ export async function agregarProducto(
         NO_CHANNEL: "El cliente no tiene canal de venta asignado.",
         PRODUCTO_INACTIVO:
           "Ese producto está inactivo y no se puede facturar, así que no se puede agregar al pedido.",
+        SIN_STOCK:
+          "No hay stock de ese producto (0 unidades), así que no se puede agregar al pedido.",
       };
       throw new Error(messages[result.reason]);
     }
@@ -121,6 +124,19 @@ export async function enviarPedido(
 ): Promise<ResultadoAccion<{ resultado: SubmitOrderResult }>> {
   try {
     const userId = await requireUserId();
+
+    // Stock cero frena el envío. No está en submit_order —que vive en SQL—
+    // porque el stock es un archivo que carga el almacén todos los días y
+    // la regla se decide acá, con el mensaje escrito para el vendedor.
+    const sinStock = await lineasSinStockDelPedido(orderId);
+    if (sinStock.length > 0) {
+      throw new Error(
+        sinStock.length === 1
+          ? `No hay stock de ${sinStock[0]}. Quitá esa línea para poder enviar el pedido.`
+          : `No hay stock de estos productos: ${sinStock.join(", ")}. Quitá esas líneas para poder enviar el pedido.`,
+      );
+    }
+
     const resultado = await submitOrder(orderId, userId);
     revalidatePath(`/pedidos/${orderId}`);
     return { ok: true, resultado };
