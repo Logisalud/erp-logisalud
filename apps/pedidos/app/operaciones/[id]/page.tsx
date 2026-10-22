@@ -81,6 +81,36 @@ export default async function DespachoPage({ params }: { params: { id: string } 
         </dl>
       </section>
 
+      {/*
+        Las observaciones del vendedor van ANTES del formulario de despacho
+        y no al pie: son instrucciones para armar esta caja —el horario en
+        que el cliente recibe, un producto que hay que retirar, el día de
+        entrega— y leerlas después de haberla preparado no sirve de nada.
+        Salían por correo desde la 1025, pero quien despacha trabaja en
+        esta pantalla.
+      */}
+      {order.observaciones.length > 0 && (
+        <section className="card-highlight p-5">
+          <h3 className="font-heading text-base uppercase tracking-wide text-gray-900">
+            Observaciones del vendedor
+          </h3>
+          <p className="mt-1 text-sm text-gray-600">
+            Lo que pidió quien tomó el pedido. Tenerlas en cuenta antes de preparar el despacho.
+          </p>
+          <ul className="mt-3 flex flex-col gap-2 text-sm">
+            {order.observaciones.map((o) => (
+              <li
+                key={o.id}
+                className="rounded-r-lg border-l-[3px] border-logisalud-teal bg-slate-50 px-3 py-2"
+              >
+                <p className="whitespace-pre-line text-gray-900">{o.comentario}</p>
+                <p className="mt-0.5 text-xs text-gray-600">{fechaHora(o.fecha)}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {!permiso.ok && order.estado !== "DISPATCHED" && (
         <p className="rounded-lg border-2 border-amber-300 bg-amber-50 px-3 py-3 text-sm font-medium text-amber-900">
           ⚠ {permiso.motivo}

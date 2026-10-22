@@ -65,6 +65,12 @@ export type FulfillmentItemRow = {
   controla_vencimiento: boolean;
 };
 
+export type ObservacionDelPedido = {
+  id: string;
+  comentario: string;
+  fecha: string;
+};
+
 export type OrderForFulfillment = {
   id: string;
   numero: number;
@@ -79,6 +85,13 @@ export type OrderForFulfillment = {
   vendedor: string | null;
   condicionPago: string | null;
   items: FulfillmentItemRow[];
+  /**
+   * Lo que escribió el vendedor para este pedido, de la más vieja a la más
+   * nueva. Va en la pantalla de despacho porque es ahí donde se decide
+   * cuándo y cómo sale la caja: salía por correo, pero quien arma el
+   * pedido trabaja mirando esta pantalla y no la bandeja.
+   */
+  observaciones: ObservacionDelPedido[];
 };
 
 function num(v: number | string | null | undefined): number {
@@ -117,7 +130,7 @@ export async function getOrderForFulfillment(orderId: string): Promise<OrderForF
     payment_terms: { nombre: string } | null;
   };
 
-  const [itemsResult, addressResult] = await Promise.all([
+  const [itemsResult, addressResult, observacionesResult] = await Promise.all([
     supabase
       .from("order_items")
       .select(
@@ -131,10 +144,16 @@ export async function getOrderForFulfillment(orderId: string): Promise<OrderForF
       .select("id, estado")
       .eq("id", o.customer_address_id)
       .maybeSingle(),
+    supabase
+      .from("order_observations")
+      .select("id, comentario, fecha")
+      .eq("order_id", orderId)
+      .order("fecha", { ascending: true }),
   ]);
 
   if (itemsResult.error) throw new Error(itemsResult.error.message);
   if (addressResult.error) throw new Error(addressResult.error.message);
+  if (observacionesResult.error) throw new Error(observacionesResult.error.message);
 
   const items: FulfillmentItemRow[] = (
     (itemsResult.data ?? []) as unknown as Array<{
@@ -174,6 +193,7 @@ export async function getOrderForFulfillment(orderId: string): Promise<OrderForF
     vendedor: o.vendedor_snapshot,
     condicionPago: o.payment_terms?.nombre ?? null,
     items,
+    observaciones: (observacionesResult.data ?? []) as unknown as ObservacionDelPedido[],
   };
 }
 
