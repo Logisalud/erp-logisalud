@@ -5,6 +5,7 @@ import { getFulfillmentForOrder } from "@/services/fulfillments";
 import { requireSession } from "@/lib/auth/session";
 import { listProducts } from "@/services/products";
 import { listPaymentTerms } from "@/services/catalog";
+import { stockDisponiblePorProducto } from "@/services/stock";
 import { formatSoles } from "@/domain/order-email";
 import { displayRazonSocial } from "@/domain/customer-search";
 import { esCelularValido } from "@/domain/celular";
@@ -52,9 +53,12 @@ export default async function OrderDetailPage({
 
   const isDraft = order.estado === "DRAFT";
 
-  const [products, paymentTerms] = await Promise.all([
+  const [products, paymentTerms, stock] = await Promise.all([
     isDraft ? listProducts() : Promise.resolve([]),
     listPaymentTerms(),
+    // El stock del almacén, para que el vendedor vea cuánto hay ANTES de
+    // ofrecerlo. Solo hace falta mientras se arma el pedido.
+    isDraft ? stockDisponiblePorProducto() : Promise.resolve(new Map<string, number>()),
   ]);
 
   // La regla vive en domain/products.ts para poder probarla; acá solo se
@@ -67,6 +71,9 @@ export default async function OrderDetailPage({
       descripcion: p.descripcion,
       codigo_interno: p.codigo_interno,
       presentacion: p.presentacion,
+      // Sin fila en el archivo del almacén y en cero son lo mismo para
+      // quien vende: las dos cosas significan que no hay nada que mandar.
+      stock: stock.get(p.id) ?? 0,
     }));
 
   // Los que existen y están activos pero todavía no se pueden pedir. No van
@@ -121,6 +128,9 @@ export default async function OrderDetailPage({
             items={order.items}
             products={activeProducts}
             sinPrecio={sinPrecio}
+            stockPorProducto={Object.fromEntries(
+              order.items.map((i) => [i.product_id, stock.get(i.product_id) ?? 0]),
+            )}
             observaciones={order.observations}
             esAdmin={currentUser?.roles.includes("administrador") ?? false}
             celularOk={celularOk}

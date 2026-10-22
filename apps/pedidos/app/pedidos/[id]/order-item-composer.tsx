@@ -21,7 +21,13 @@ import {
   quitarProducto,
   solicitarDescuento,
 } from "./actions";
-import { displayNombreProducto, displayProductoConPresentacion } from "@/domain/products";
+import {
+  displayNombreProducto,
+  displayProductoConPresentacion,
+  etiquetaDeStock,
+  excedeElStock,
+  hayStockParaPedir,
+} from "@/domain/products";
 import { ObservationForm } from "./observation-form";
 
 type Product = {
@@ -29,6 +35,8 @@ type Product = {
   descripcion: string;
   codigo_interno: string;
   presentacion?: string | null;
+  /** Unidades en el almacén, de la última carga de stock. */
+  stock: number;
 };
 type OrderItem = {
   id: string;
@@ -69,6 +77,7 @@ export function OrderItemComposer({
   items,
   products,
   sinPrecio,
+  stockPorProducto,
   observaciones,
   esAdmin,
   celularOk,
@@ -84,6 +93,13 @@ export function OrderItemComposer({
    * acá no salga nada, sin explicación, parecía una falla del sistema.
    */
   sinPrecio: Array<{ descripcion: string; codigo_interno: string }>;
+  /**
+   * Stock de los productos que YA están en el pedido. Va aparte de
+   * `products` porque una línea puede ser de un producto que el buscador no
+   * ofrece —se desactivó, o se quedó sin precio, después de agregarlo— y
+   * aun así hay que poder decir cuánto queda de él.
+   */
+  stockPorProducto: Record<string, number>;
   /**
    * Las que ya tiene el pedido. Se muestran acá y no sólo al pie de la
    * página porque el vendedor manda el pedido desde esta pantalla: lo que
@@ -138,8 +154,25 @@ export function OrderItemComposer({
     // la ampolla, y en el buscador se veían idénticos. La bonificación se
     // marca por el mismo motivo: su par regular trae la MISMA descripción.
     label: displayProductoConPresentacion(p.descripcion, p.codigo_interno, p.presentacion),
-    description: p.codigo_interno,
+    // El stock va en el buscador y no solo al elegir: la decisión de
+    // ofrecerle algo al cliente se toma acá, no después.
+    description: `${p.codigo_interno} · ${etiquetaDeStock(p.stock)}`,
   }));
+
+  const stockDelElegido = productoElegido
+    ? (products.find((p) => p.id === productoElegido.id)?.stock ?? 0)
+    : null;
+  const elegidoSinStock = stockDelElegido !== null && !hayStockParaPedir(stockDelElegido);
+
+  /**
+   * Líneas que quedaron sin stock. Puede pasar aunque el buscador bloquee:
+   * el producto se agregó cuando había, y el almacén cargó el archivo de
+   * hoy con cero. El pedido no sale así — despacharlo sería prometerle al
+   * cliente algo que no existe.
+   */
+  const lineasSinStock = items.filter(
+    (i) => !hayStockParaPedir(stockPorProducto[i.product_id] ?? 0),
+  );
 
   async function buscarProducto(term: string): Promise<ComboboxOption[]> {
     const q = normalize(term);
@@ -171,6 +204,12 @@ export function OrderItemComposer({
     setError(null);
     if (!productoElegido) {
       setError("Elige un producto.");
+      return;
+    }
+    if (elegidoSinStock) {
+      setError(
+        "No hay stock de ese producto (0 unidades). No se puede agregar al pedido hasta que el almacén lo reponga.",
+      );
       return;
     }
     const n = Number(cantidad);
@@ -411,6 +450,17 @@ export function OrderItemComposer({
                 </div>
               )}
 
+              {elegidoSinStock && (
+                <p className="aviso-bloqueo" role="alert">
+                  <span aria-hidden>!</span>
+                  <span>
+                    <strong>Sin stock.</strong> El almacén no tiene unidades de este producto, así
+                    que no se puede agregar al pedido. Elegí otro o avisá a la oficina para que lo
+                    repongan.
+                  </span>
+                </p>
+              )}
+
               <div className="flex items-end gap-2">
                 <div className="w-32">
                   <label className="etiqueta" htmlFor="cantidad-nueva">
@@ -438,7 +488,7 @@ export function OrderItemComposer({
                   type="button"
                   onClick={agregar}
                   className="btn-primary flex-1 sm:flex-none sm:px-8"
-                  disabled={isPending}
+                  disabled={isPending || elegidoSinStock}
                 >
                   {isPending ? (
                     <IconSpinner className="h-5 w-5" />
@@ -508,6 +558,32 @@ export function OrderItemComposer({
                         : ""}
                       {formatSoles(item.precio_unitario)} c/u
                     </p>
+                    {/*
+                      El stock de ESA línea, al lado del precio: es donde el
+                      vendedor mira antes de confirmarle una cantidad al
+                      cliente. Cero bloquea el pedido; pedir de más no lo
+                      frena —el archivo del almacén es la foto del día— pero
+                      tiene que verse.
+                    */}
+                    {(() => {
+                      const disponible = stockPorProducto[item.product_id] ?? 0;
+                      const sinStock = !hayStockParaPedir(disponible);
+                      const deMas = excedeElStock(item.cantidad, disponible);
+                      if (!sinStock && !deMas) {
+                        return (
+                          <p className="cifra mt-0.5 text-sm text-slate-600">
+                            {etiquetaDeStock(disponible)}
+                          </p>
+                        );
+                      }
+                      return (
+                        <p className="mt-0.5 text-sm font-medium text-red-700">
+                          {sinStock
+                            ? "Sin stock — el almacén no tiene unidades. Quitá esta línea para poder enviar el pedido."
+                            : `${etiquetaDeStock(disponible)} — estás pidiendo ${item.cantidad}. Operaciones va a despachar lo que haya.`}
+                        </p>
+                      );
+                    })()}
                     {item.es_linea_gratis &&
                       item.origen_precio === "BONIFICACION_MANUAL" && (
                         <div className="mt-1">
@@ -831,7 +907,7 @@ export function OrderItemComposer({
             type="button"
             onClick={enviar}
             className="btn-primary min-w-[9rem]"
-            disabled={isPending || items.length === 0 || !celularOk}
+            disabled={isPending || items.length === 0 || !celularOk || lineasSinStock.length > 0}
           >
             {isPending ? <IconSpinner className="h-5 w-5" /> : null}
             Enviar pedido
@@ -840,6 +916,17 @@ export function OrderItemComposer({
         {items.length === 0 && (
           <p className="mx-auto max-w-4xl px-4 pt-1.5 text-sm text-slate-600 sm:px-6">
             Agrega al menos un producto para poder enviarlo.
+          </p>
+        )}
+        {lineasSinStock.length > 0 && (
+          <p className="mx-auto max-w-4xl px-4 pt-1.5 text-sm font-medium text-red-700 sm:px-6">
+            {lineasSinStock.length === 1
+              ? "Hay una línea sin stock: "
+              : `Hay ${lineasSinStock.length} líneas sin stock: `}
+            {lineasSinStock
+              .map((i) => i.product?.codigo_interno ?? "—")
+              .join(", ")}
+            . Quitalas para poder enviar el pedido.
           </p>
         )}
         {items.length > 0 && !celularOk && (
