@@ -40,3 +40,11 @@ begin
     raise notice 'btree_gist se conserva (no existe o hay objetos que dependen de ella).';
   end if;
 end $$;
+
+-- 4. El historial de migraciones: se quitan SOLO las filas del WMS (nombres wms_…), para que quede igual que antes de la aplicación.
+do $$
+begin
+  if to_regclass('supabase_migrations.schema_migrations') is not null then
+    delete from supabase_migrations.schema_migrations where name like 'wms\_%';
+  end if;
+end $$;
