@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
-import { generarPlantillaLetra } from '@/lib/plantillaLetra';
+import { domicilioParaLetra, generarPlantillaLetra } from '@/lib/plantillaLetra';
 
 export async function GET(
   _req: NextRequest,
@@ -42,7 +42,7 @@ export async function GET(
   const clienteRuc = docs[0].cliente_ruc as string;
   const { data: cliente, error: errCliente } = await db
     .from('clientes')
-    .select('razon_social')
+    .select('ruc, razon_social, direccion, departamento, provincia, distrito')
     .eq('ruc', clienteRuc)
     .single();
   if (errCliente || !cliente) return NextResponse.json({ error: 'No se encontró el cliente de la letra' }, { status: 500 });
@@ -58,6 +58,8 @@ export async function GET(
     fechaVencimiento: letra.fecha_vencimiento,
     importe: Number(letra.importe),
     aceptante: cliente.razon_social,
+    aceptanteRuc: String(cliente.ruc ?? clienteRuc).trim(),
+    aceptanteDomicilio: domicilioParaLetra(cliente),
   });
 
   return new NextResponse(new Uint8Array(buffer), {
