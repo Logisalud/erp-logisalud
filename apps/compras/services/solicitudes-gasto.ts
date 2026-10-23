@@ -1,6 +1,6 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
-import { normalizarNumeroFactura, TASA_IGV } from '@/domain/obligacion'
+import { normalizarNumeroFactura } from '@/domain/obligacion'
 import {
   calcularLiquidacion,
   estadoTrasPago,
@@ -85,6 +85,7 @@ export async function crearSolicitud(borrador: BorradorSolicitud): Promise<{ id:
       // Pieza H: la fecha del comprobante real. Un anticipo todavía no tiene
       // comprobante, así que ahí no aplica.
       fecha_factura: borrador.tipo === 'anticipo' ? null : borrador.fechaFactura ?? null,
+      tipo_cambio: borrador.moneda === 'USD' ? borrador.tipoCambio ?? null : null,
       // Explícito además del default de la columna — ver
       // ESTADO_INICIAL_SOLICITUD en domain/gasto.ts.
       estado: ESTADO_INICIAL_SOLICITUD,
@@ -258,7 +259,7 @@ export async function obtenerSolicitud(id: string): Promise<SolicitudDetalle | n
     .select(`id, codigo, tipo, estado, moneda, monto_solicitado, descripcion, area, created_at,
              destino, fecha_inicio, fecha_fin, categoria_id, asignado_a, asignado_persona_id, obligacion_id,
              cotizacion_storage_path, quien_autoriza, fecha_factura, rechazo_motivo,
-             fecha_requerida, anulado_motivo, editado_por, editado_en,
+             fecha_requerida, anulado_motivo, editado_por, editado_en, tipo_cambio,
              comprobantes:solicitud_comprobantes(id, fase, tipo_comprobante, numero, monto, sustentable, storage_path)`)
     .eq('id', id)
     .maybeSingle()
@@ -350,6 +351,7 @@ export async function editarSolicitud(
       asignado_persona_id: borrador.tipo === 'anticipo' ? borrador.asignadoPersonaId ?? null : null,
       quien_autoriza: borrador.tipo === 'gasto_directo' ? null : borrador.quienAutoriza ?? null,
       fecha_factura: borrador.tipo === 'anticipo' ? null : borrador.fechaFactura ?? null,
+      tipo_cambio: borrador.moneda === 'USD' ? borrador.tipoCambio ?? null : null,
       editado_por: usuario.id,
       editado_en: new Date().toISOString(),
     })
@@ -466,7 +468,7 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
   const { data: solicitud, error } = await supabase
     .schema('gastos')
     .from('solicitudes_gasto')
-    .select(`id, tipo, solicitante_id, asignado_a, asignado_persona_id, moneda, monto_solicitado, base_imponible, igv, estado,
+    .select(`id, tipo, solicitante_id, asignado_a, asignado_persona_id, moneda, tipo_cambio, monto_solicitado, base_imponible, igv, estado,
              fecha_factura, fecha_requerida,
              solicitud_comprobantes(fase, numero)`)
     .eq('id', id)
@@ -482,10 +484,22 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
     throw new Error(ERROR_AUTO_APROBACION)
   }
 
+  // Un anticipo es plata que se le adelanta a una persona, no una compra:
+  // no hay comprobante y no hay IGV (Sebas, 2026-10-23: "en viáticos no hay
+  // IGV"). Antes se partía el monto en base + 18% "por si acaso", y la deuda
+  // mostraba un IGV que nadie iba a poder sustentar. Lo que se rinda después
+  // trae su propio comprobante, con su propio IGV.
   const { baseImponible, igv } =
     solicitud.tipo === 'anticipo'
-      ? reversarBaseEIgv(Number(solicitud.monto_solicitado))
+      ? { baseImponible: Number(solicitud.monto_solicitado), igv: 0 }
       : { baseImponible: Number(solicitud.base_imponible), igv: Number(solicitud.igv) }
+
+  // La base exige tipo de cambio en toda deuda en dólares
+  // (`tipo_cambio_requerido`). Las solicitudes viejas no lo pedían: el error
+  // crudo de Postgres no le decía a Contabilidad qué hacer.
+  if (solicitud.moneda !== 'PEN' && !(Number((solicitud as any).tipo_cambio) > 0)) {
+    throw new Error('Está en dólares y no tiene tipo de cambio — edítala, agrégalo y vuelve a aprobarla.')
+  }
 
   // El N° y la fecha del comprobante, y el vencimiento del pago.
   //
@@ -522,6 +536,8 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
       moneda: solicitud.moneda,
       base_imponible: baseImponible,
       igv,
+      sin_igv: solicitud.tipo === 'anticipo',
+      tipo_cambio: solicitud.moneda === 'PEN' ? null : (solicitud as any).tipo_cambio,
       // Un reembolso no tiene proveedor, así que los índices únicos de
       // factura (que exigen proveedor_id o proveedor_servicio_id) no aplican
       // y esto no puede chocar con otra obligación.
@@ -654,7 +670,7 @@ export async function liquidarAnticipo(solicitudId: string): Promise<void> {
   const { data: solicitud, error } = await supabase
     .schema('gastos')
     .from('solicitudes_gasto')
-    .select('id, tipo, estado, moneda, solicitante_id, asignado_a, asignado_persona_id, monto_solicitado, solicitud_comprobantes(fase, monto, sustentable)')
+    .select('id, tipo, estado, moneda, tipo_cambio, solicitante_id, asignado_a, asignado_persona_id, monto_solicitado, solicitud_comprobantes(fase, monto, sustentable)')
     .eq('id', solicitudId)
     .maybeSingle()
   if (error || !solicitud) throw new Error('No se encontró la solicitud.')
@@ -677,11 +693,10 @@ export async function liquidarAnticipo(solicitudId: string): Promise<void> {
   if (errLiq) throw new Error(`No se pudo registrar la liquidación: ${errLiq.message}`)
 
   if (liquidacion.resultado === 'reembolso_adicional') {
-    // Mismo artefacto que en aprobarPorContabilidad para un anticipo: los
-    // comprobantes de rendición no capturan un desglose base/IGV por línea
-    // (solo `monto`), así que no hay nada real que transcribir todavía.
+    // Lo que la persona puso de su bolsillo de más: se le devuelve tal cual,
+    // sin IGV — mismo criterio que el anticipo (ver aprobarPorContabilidad).
+    // El IGV de lo gastado está en los comprobantes de la rendición.
     const montoAdicional = Math.abs(liquidacion.diferencia)
-    const { baseImponible, igv } = reversarBaseEIgv(montoAdicional)
     const { data: obligacion, error: errOb } = await supabase
       .schema('cuentas_x_pagar')
       .from('obligaciones')
@@ -690,8 +705,10 @@ export async function liquidarAnticipo(solicitudId: string): Promise<void> {
         ...beneficiarioDeSolicitud(solicitud as any),
         solicitud_gasto_id: solicitudId,
         moneda: solicitud.moneda,
-        base_imponible: baseImponible,
-        igv,
+        base_imponible: montoAdicional,
+        igv: 0,
+        sin_igv: true,
+        tipo_cambio: solicitud.moneda === 'PEN' ? null : (solicitud as any).tipo_cambio ?? null,
         estado: 'registrada',
         created_by: usuario.id,
       })
@@ -709,19 +726,6 @@ export async function liquidarAnticipo(solicitudId: string): Promise<void> {
   await cambiarEstado(solicitudId, ['pendiente_rendicion'], 'rendida')
 }
 
-/**
- * Desglosa un monto total en base + IGV asumiendo 18% — SOLO para los dos
- * casos donde no existe ningún comprobante real que transcribir (un
- * anticipo antes de rendirse, y el reembolso adicional que sale de rendir
- * comprobantes que no capturan su propio desglose). Para gasto_directo y
- * reembolso normales, `aprobarPorContabilidad()` usa el valor que la
- * persona transcribió de su comprobante — esto NO se usa ahí.
- */
-function reversarBaseEIgv(montoTotal: number): { baseImponible: number; igv: number } {
-  const baseImponible = Math.round((montoTotal / (1 + TASA_IGV)) * 100) / 100
-  const igv = Math.round((montoTotal - baseImponible) * 100) / 100
-  return { baseImponible, igv }
-}
 
 
 /**

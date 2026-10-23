@@ -42,6 +42,7 @@ export async function editarSolicitudAction(
     quienAutoriza: tipo === 'gasto_directo' ? null : textoONull(form.get('quienAutoriza')),
     fechaFactura: tipo === 'anticipo' ? null : textoONull(form.get('fechaFactura')),
     tipoComprobante: tipo === 'anticipo' ? null : tipoComprobante,
+    tipoCambio: String(form.get('moneda') ?? 'PEN') === 'USD' ? Number(form.get('tipoCambio') ?? 0) || null : null,
   }
 
   const errores = validarSolicitud(borrador)

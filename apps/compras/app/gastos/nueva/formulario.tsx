@@ -59,6 +59,7 @@ export function FormularioSolicitud({
   const sucio = useMarcarSucioAlEditar(estado)
   const [tipo, setTipo] = useState<TipoSolicitud>(inicial?.tipo ?? tipoPreseleccionado ?? 'gasto_directo')
   const [categoriaId, setCategoriaId] = useState(inicial?.categoriaId ?? '')
+  const [moneda, setMoneda] = useState(inicial?.moneda ?? 'PEN')
   const [base, setBase] = useState(inicial?.baseImponible ?? '')
   const [igv, setIgv] = useState(inicial?.igv ?? '')
   // Al editar, el IGV guardado se respeta tal cual: recalcularlo al 18%
@@ -130,11 +131,27 @@ export function FormularioSolicitud({
         </Campo>
 
         <Campo etiqueta="Moneda *" error={errorDe('moneda')}>
-          <select name="moneda" defaultValue={inicial?.moneda ?? 'PEN'} className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+          <select
+            name="moneda" value={moneda} onChange={(e) => setMoneda(e.target.value)}
+            className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
+          >
             <option value="PEN">PEN — Soles</option>
             <option value="USD">USD — Dólares</option>
           </select>
         </Campo>
+
+        {moneda === 'USD' ? (
+          <Campo etiqueta="Tipo de cambio *" error={errorDe('tipoCambio')}>
+            <input
+              type="number" name="tipoCambio" min="0" step="0.0001" inputMode="decimal"
+              defaultValue={inicial?.tipoCambio} placeholder="Ej. 3.7520"
+              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Soles por dólar del día de tu comprobante (o de hoy, si es un anticipo).
+            </p>
+          </Campo>
+        ) : null}
 
         <Campo etiqueta="Descripción *" error={errorDe('descripcion')}>
           <textarea name="descripcion" rows={3} defaultValue={inicial?.descripcion} className="w-full rounded-md border border-gray-300 px-3 py-2" />
@@ -173,7 +190,7 @@ export function FormularioSolicitud({
                 <input type="number" name="montoAnticipo" min="0" step="0.01" defaultValue={inicial?.montoAnticipo} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
               </Campo>
               {usuarios.length > 1 || personas.length > 0 ? (
-                <Campo etiqueta="Vendedor o persona asignada">
+                <Campo etiqueta="Vendedor o persona asignada" grupo>
                   <BuscadorPersona name="asignado" opciones={opcionesAsignado} valorInicial={inicial?.asignado ?? ''} />
                   <p className="mt-1 text-xs text-gray-500">
                     Si estás armando el anticipo para otra persona (ej. viáticos de un vendedor),
@@ -310,14 +327,21 @@ function BotonGuardar({ texto, textoEnviando }: { texto: string; textoEnviando: 
   )
 }
 
+/**
+ * `grupo`: para un campo cuyo control es un buscador (combobox) y no un
+ * input suelto. Va en un <div> y no en un <label> porque en el iPhone tocar
+ * una opción DENTRO de un label le devuelve el foco al input y la opción no
+ * se elige (reportado por Sebas en Pago Directo, 2026-10-23).
+ */
 function Campo({
-  etiqueta, error, children,
-}: { etiqueta: string; error?: string; children: React.ReactNode }) {
+  etiqueta, error, children, grupo = false,
+}: { etiqueta: string; error?: string; children: React.ReactNode; grupo?: boolean }) {
+  const Contenedor = grupo ? 'div' : 'label'
   return (
-    <label className="block text-sm">
+    <Contenedor className="block text-sm" {...(grupo ? { role: 'group', 'aria-label': etiqueta } : {})}>
       <span className="font-medium text-gray-800">{etiqueta}</span>
       <div className="mt-1">{children}</div>
       {error ? <p className="mt-1 text-red-700">{error}</p> : null}
-    </label>
+    </Contenedor>
   )
 }

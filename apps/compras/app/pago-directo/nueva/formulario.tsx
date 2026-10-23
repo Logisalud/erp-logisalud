@@ -147,7 +147,7 @@ export function FormularioPagoDirecto({
       <input type="hidden" name="categoriaNombre" value={categorias.find((c) => c.id === categoriaId)?.nombre ?? ''} />
 
       <section className="card space-y-3">
-        <Campo etiqueta="Proveedor *" error={errorDe('proveedorId')}>
+        <Campo etiqueta="Proveedor *" error={errorDe('proveedorId')} grupo>
           <BuscadorProveedor valor={proveedor} onElegir={setProveedor} />
           <input type="hidden" name="proveedorId" value={proveedor?.id ?? ''} />
           <input type="hidden" name="proveedorFuente" value={proveedor?.fuente ?? 'compra'} />
@@ -453,14 +453,21 @@ function BotonGuardar({
   )
 }
 
+/**
+ * `grupo`: para un campo cuyo control es un buscador (combobox) y no un
+ * input suelto. Va en un <div> y no en un <label> porque en el iPhone tocar
+ * una opción DENTRO de un label le devuelve el foco al input y la opción no
+ * se elige (reportado por Sebas en Pago Directo, 2026-10-23).
+ */
 function Campo({
-  etiqueta, error, children,
-}: { etiqueta: string; error?: string; children: React.ReactNode }) {
+  etiqueta, error, children, grupo = false,
+}: { etiqueta: string; error?: string; children: React.ReactNode; grupo?: boolean }) {
+  const Contenedor = grupo ? 'div' : 'label'
   return (
-    <label className="block text-sm">
+    <Contenedor className="block text-sm" {...(grupo ? { role: 'group', 'aria-label': etiqueta } : {})}>
       <span className="font-medium text-gray-800">{etiqueta}</span>
       <div className="mt-1">{children}</div>
       {error ? <p className="mt-1 text-red-700">{error}</p> : null}
-    </label>
+    </Contenedor>
   )
 }
