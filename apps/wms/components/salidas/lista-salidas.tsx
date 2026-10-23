@@ -2,16 +2,17 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { ChevronRight, PackageSearch, Search } from 'lucide-react'
+import { ChevronRight, Search } from 'lucide-react'
 import { ETIQUETA_ETAPA, filtrarSalidas, type EtapaSalida, type SalidaResumen } from '@/domain/despacho'
 import { ChipEtapa } from './chip-etapa'
 import { avanceDeSalida } from '@/domain/pasos'
 import { EtiquetasOrigen } from './etiquetas-origen'
+import { SalidasSinCoincidencias, SalidasVacio } from './salidas-vacio'
 
 const ETAPAS = Object.keys(ETIQUETA_ETAPA) as EtapaSalida[]
-const extrasDe = (s: SalidaResumen) => ({ vendedor: s.vendedor, sinPedido: s.sinPedido, devolucion: s.devolucion, devolucionHref: s.devolucionHref })
+const extrasDe = (s: SalidaResumen) => ({ tipo: s.tipo, vendedor: s.vendedor, sinPedido: s.sinPedido, devolucion: s.devolucion, devolucionHref: s.devolucionHref })
 
-export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]; verCambios: boolean }) {
+export function ListaSalidas({ salidas, verCambios, puedeTraer = false, puedeCrear = false }: { salidas: SalidaResumen[]; verCambios: boolean; puedeTraer?: boolean; puedeCrear?: boolean }) {
   const [q, setQ] = useState('')
   const [etapa, setEtapa] = useState<'' | EtapaSalida>('')
   const vistas = useMemo(() => filtrarSalidas(salidas, { q, etapa }), [salidas, q, etapa])
@@ -34,16 +35,14 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
       </div>
 
       {vistas.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white px-6 py-14 text-center" data-testid="salidas-vacio">
-          <PackageSearch className="mx-auto h-10 w-10 text-gray-400" aria-hidden />
-          <p className="mt-3 font-medium text-gray-900">{salidas.length === 0 ? 'Todavía no hay salidas' : 'Ninguna salida coincide'}</p>
-          <p className="mx-auto mt-1 max-w-md text-sm text-gray-600">{salidas.length === 0 ? 'Las salidas nacen cuando un pedido entra a una ruta: el WMS le asigna el stock por vencimiento.' : 'Cambia la búsqueda o la etapa.'}</p>
-        </div>
+        salidas.length === 0
+          ? <SalidasVacio puedeTraer={puedeTraer} puedeCrear={puedeCrear} />
+          : <SalidasSinCoincidencias alQuitar={() => { setQ(''); setEtapa('') }} />
       ) : (
         <>
           <div className="hidden overflow-x-auto rounded-lg border border-gray-200 bg-white md:block">
             <table className="w-full text-[13px] xl:text-sm" data-testid="tabla-salidas">
-              <caption className="sr-only">Salidas por pedido</caption>
+              <caption className="sr-only">Órdenes de salida</caption>
               <thead className="border-b border-gray-200 bg-gray-50 text-left text-gray-700"><tr>
                 <th scope="col" className="px-3 py-2 font-medium">Salida</th><th scope="col" className="px-3 py-2 font-medium">Pedido</th><th scope="col" className="px-3 py-2 font-medium">Cliente</th>
                 <th scope="col" className="px-3 py-2 font-medium">Ruta</th><th scope="col" className="px-3 py-2 font-medium">Guía</th><th scope="col" className="px-3 py-2 text-right font-medium">Líneas</th><th scope="col" className="px-3 py-2 text-right font-medium">Unidades</th>

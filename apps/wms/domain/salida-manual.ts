@@ -248,14 +248,17 @@ export interface DatosOrigenOrden {
   porConciliar?: boolean
   creadaPor?: string
   enNombreDe?: string
+  /** SA-1: orden de ejemplo de la demostración. */
+  ejemplo?: boolean
 }
 
-/** Las etiquetas cortas de la lista: «Manual», «Por conciliar» y «Creada por X en nombre de Y». */
-export function etiquetasDeOrigen(d: DatosOrigenOrden): { clave: 'MANUAL' | 'POR_CONCILIAR' | 'EN_NOMBRE_DE'; texto: string }[] {
-  const out: { clave: 'MANUAL' | 'POR_CONCILIAR' | 'EN_NOMBRE_DE'; texto: string }[] = []
+/** Las etiquetas cortas de la lista: «Manual», «Por conciliar», «Creada por X en nombre de Y» y «Ejemplo» (las órdenes sembradas de la demostración). */
+export function etiquetasDeOrigen(d: DatosOrigenOrden): { clave: 'MANUAL' | 'POR_CONCILIAR' | 'EN_NOMBRE_DE' | 'EJEMPLO'; texto: string }[] {
+  const out: { clave: 'MANUAL' | 'POR_CONCILIAR' | 'EN_NOMBRE_DE' | 'EJEMPLO'; texto: string }[] = []
   if (d.origen === 'MANUAL') out.push({ clave: 'MANUAL', texto: 'Manual' })
   if (d.porConciliar) out.push({ clave: 'POR_CONCILIAR', texto: 'Por conciliar con Pedidos' })
   if (d.enNombreDe) out.push({ clave: 'EN_NOMBRE_DE', texto: `Creada por ${d.creadaPor ?? 'el equipo'} en nombre de ${d.enNombreDe}` })
+  if (d.ejemplo) out.push({ clave: 'EJEMPLO', texto: 'Ejemplo' })
   return out
 }
 

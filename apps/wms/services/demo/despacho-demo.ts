@@ -11,6 +11,7 @@ import {
 import { AREAS_DE_SALIDA } from '@/domain/zonas'
 import { requiereEmbalaje } from '@/domain/pedidos-despacho'
 import { PARAMETROS_LS_FR_POR_DEFECTO, PENDIENTES_LS_FR, armarRegistroLsFr, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
+import { modoEjemplos } from '@/lib/demo'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
 import { numeroDe } from './libro'
@@ -47,6 +48,8 @@ export interface SalidaDemo {
   greNumero?: string; greArchivo?: string; enNombreDe?: string
   /** Repetir el mismo envío no crea otra orden. */
   token?: string
+  /** SA-1: orden de ejemplo de la demostración (lleva la etiqueta «Ejemplo»). */
+  ejemplo?: boolean
   /** SA-3: el pedido se canceló en Pedidos; mientras falte devolver lo picado, la orden sigue abierta con `cancelacionPendiente`. */
   motivoCancelacion?: string; canceladaEn?: string; cancelacionPendiente?: boolean
 }
@@ -310,6 +313,8 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     )
     // Una ruta de mañana ya planificada, con el pedido PED-DEMO-101 (así hay una salida y una ruta para ver)
     const sistema: Actor = { id: 'demo:jefe_transporte', nombre: 'Jefe de Transporte (demo)', roles: ['jefe_transporte'] }
+    // SA-1: con WMS_DEMO_EJEMPLOS=vacio no hay ninguna salida (sirve para ver la pantalla vacía real)
+    if (modoEjemplos() === 'vacio') return
     const creada = await this.crearRuta({ fecha: sumarDias(e.panorama.hoy, 1), vehiculoId: 'veh-1', conductorId: 'per-1', auxiliarId: 'per-3' }, sistema)
     if (creada.ok) {
       const plan = await this.planificarRuta(creada.id, { fecha: sumarDias(e.panorama.hoy, 1), vehiculoId: 'veh-1', conductorId: 'per-1', auxiliarId: 'per-3', paradas: [{ pedidoId: 'ped-demo-101' }] }, sistema)

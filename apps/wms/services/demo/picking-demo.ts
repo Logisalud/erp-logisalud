@@ -104,7 +104,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null })
     return {
       id: s.id, numero: s.numero, ...this.contexto(e, s), fecha: s.creadaEn.slice(0, 10), unidades: s.lineas.reduce((t, l) => t + l.cantidad, 0), lineas: s.lineas.length, etapa, ordenNumero: o?.numero,
-      tipo: s.tipo ?? 'DISTRIBUCION', motivo: s.motivo ?? 'VENTA', origen: s.origen ?? 'PEDIDO', creadaDesde: s.creadaDesde, porConciliar: !!s.porConciliar, creadaPor: nombrePersonaDemo(s.creadaPor),
+      tipo: s.tipo ?? 'DISTRIBUCION', motivo: s.motivo ?? 'VENTA', origen: s.origen ?? 'PEDIDO', creadaDesde: s.creadaDesde, porConciliar: !!s.porConciliar, creadaPor: nombrePersonaDemo(s.creadaPor), ejemplo: s.ejemplo,
       enNombreDe: s.enNombreDe ? e.panorama.propietarios.find((p) => p.id === s.enNombreDe)?.razonSocial : undefined,
     }
   }

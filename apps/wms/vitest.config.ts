@@ -14,7 +14,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     // Las pruebas usan los datos sintéticos de la demo (casos fijos); la demo real usa los de Odoo (services/demo/datos.ts).
-    env: { WMS_DEMO_DATOS: 'sintetico' },
+    env: { WMS_DEMO_DATOS: 'sintetico', WMS_DEMO_EJEMPLOS: '0' },
     setupFiles: ['./tests/setup-jsdom.ts'],
     // Los tests de e2e/ los corre Playwright, no Vitest.
     include: ['tests/**/*.test.{ts,tsx}'],

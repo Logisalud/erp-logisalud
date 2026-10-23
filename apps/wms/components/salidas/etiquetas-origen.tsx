@@ -1,10 +1,10 @@
-import { Hand, Link2Off, UserRound } from 'lucide-react'
+import { FlaskConical, Hand, Link2Off, UserRound } from 'lucide-react'
 import { etiquetasDeOrigen, ETIQUETA_TIPO_SALIDA, type DatosOrigenOrden } from '@/domain/salida-manual'
 import { ETIQUETA_MOTIVO_SALIDA } from '@/domain/salidas'
 import { CHIP_AVISO, CHIP_NEUTRO } from '../estilos-opcion'
 
 const base = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none'
-const ICONO = { MANUAL: Hand, POR_CONCILIAR: Link2Off, EN_NOMBRE_DE: UserRound }
+const ICONO = { MANUAL: Hand, POR_CONCILIAR: Link2Off, EN_NOMBRE_DE: UserRound, EJEMPLO: FlaskConical }
 
 /**
  * De dónde nació la orden, siempre con texto e ícono: «Manual», «Por conciliar con Pedidos» y «Creada por X en nombre de Y». Una venta de un pedido de la bandeja no lleva etiquetas.
