@@ -3,7 +3,7 @@ import { etiquetasDeOrigen, ETIQUETA_TIPO_SALIDA, type DatosOrigenOrden } from '
 import { ETIQUETA_MOTIVO_SALIDA } from '@/domain/salidas'
 import { CHIP_AVISO, CHIP_NEUTRO } from '../estilos-opcion'
 
-const base = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none'
+const base = 'inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-medium leading-tight'
 const ICONO = { MANUAL: Hand, POR_CONCILIAR: Link2Off, EN_NOMBRE_DE: UserRound, EJEMPLO: FlaskConical }
 
 /**
