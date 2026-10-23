@@ -39,3 +39,7 @@ La factura la emite **Pedidos** (dueño de precios, descuentos, IGV, condiciones
 3. La Orden de Salida muestra «Factura: pendiente / facturada F001-00045» **solo como lectura**. Una orden sin pedido vinculado (o por conciliar): «Pendiente».
 
 **La parte de Pedidos (consumir `GUIA_EMITIDA`, facturar y publicar `factura`) queda solo documentada**: se implementa con la aprobación de Sebas (D-49). Mientras tanto, los avisos esperan en la bandeja del WMS (`eventos_pedidos`) y se reintentan.
+
+## Seguimiento para el cliente (PLAN, S9b — no implementado; D-141 a D-148)
+
+Para el seguimiento público de un pedido, el WMS enviará a Pedidos tres eventos más por este mismo transporte firmado: `SEGUIMIENTO` (el enlace del pedido; también al revocarlo o regenerarlo), `ESTADO_LOGISTICO` (`RECIBIDO`, `PREPARANDO`, `EN_RUTA`, `LLEGO`, `ENTREGADO`, `NO_ENTREGADO`, `CANCELADO`) y `ENCUESTA_ENTREGA` (valor 1–3 de la carita). Todos idempotentes por `evento_id`. El WMS no necesita el teléfono del cliente. Formato, qué cambiaría en Pedidos (botón «Copiar seguimiento», campo del enlace, respuesta de satisfacción) y cómo se prueba que Pedidos sigue funcionando: `salidas/seguimiento-de-pedidos.md`. **Nada en Pedidos sin la aprobación de Sebas (D-49).**
