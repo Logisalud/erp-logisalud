@@ -6,13 +6,16 @@ import {
 } from '@/domain/productos'
 import { estado, registrar } from './estado'
 import { estadoE } from './entradas-demo'
-import { SalidaManualDemo } from './salida-manual-demo'
+import { modoEjemplos } from '@/lib/demo'
+import { EjemplosDemo } from './ejemplos-demo'
 import { sembrarInventario } from './inventario-demo'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 
-export class RepositorioDemo extends SalidaManualDemo implements Repositorio {
+export class RepositorioDemo extends EjemplosDemo implements Repositorio {
   async panorama(): Promise<Panorama> {
     // El historial de conteos y ajustes de la demo se siembra antes de leer el stock, para que todo sea consistente
+    // SA-1: con las órdenes de ejemplo encendidas, el stock ya refleja lo que ellas movieron (una salida confirmada baja stock)
+    if (modoEjemplos() === 'si') await this.sembrarDespacho(estadoE())
     sembrarInventario(estadoE())
     return structuredClone(estado().panorama)
   }

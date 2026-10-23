@@ -4,9 +4,10 @@ import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { puedeVerCambiosFefo, puedeVerSalidas } from '@/domain/despacho'
 import { ListaSalidas } from '@/components/salidas/lista-salidas'
+import { puedeActualizarBandeja } from '@/domain/pedidos-despacho'
 import { puedeCrearOrdenManual } from '@/domain/salida-manual'
 
-export const metadata = { title: 'Salidas — WMS LOGISALUD' }
+export const metadata = { title: 'Órdenes de salida — WMS LOGISALUD' }
 
 const SinPermisoSalidas = () => (
   <div className="mx-auto max-w-2xl rounded-lg border border-gray-200 bg-white px-6 py-12 text-center" data-testid="salidas-sin-permiso">
@@ -23,12 +24,12 @@ export default async function Salidas() {
     <div className="mx-auto max-w-7xl space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Salidas por pedido</h1>
-          <p className="mt-1 max-w-3xl text-gray-600">Cada pedido en ruta tiene su salida: stock asignado por vencimiento, picking y conformidad. Aquí puedes cambiar los lotes antes de que empiece el picking.</p>
+          <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Órdenes de salida</h1>
+          <p className="mt-1 max-w-3xl text-gray-600">Cada orden nace de un pedido (de la bandeja, de una ruta o de uno que crees a mano) y lleva el stock asignado por vencimiento, el picking y la conformidad. Aquí sigues cada una y, antes del picking, cambias sus lotes.</p>
         </div>
         {puedeCrearOrdenManual(ctx.roles) && <Link href="/salidas/nueva" className="btn-primary" data-testid="nueva-orden-salida"><Plus className="h-5 w-5" aria-hidden />Nueva Orden de Salida</Link>}
       </header>
-      <ListaSalidas salidas={salidas} verCambios={puedeVerCambiosFefo(ctx.roles)} />
+      <ListaSalidas salidas={salidas} verCambios={puedeVerCambiosFefo(ctx.roles)} puedeTraer={puedeActualizarBandeja(ctx.roles)} puedeCrear={puedeCrearOrdenManual(ctx.roles)} />
     </div>
   )
 }

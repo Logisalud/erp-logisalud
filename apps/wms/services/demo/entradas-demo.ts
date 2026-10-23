@@ -38,6 +38,12 @@ const SOLO_MES_ANIO = /^\d{1,2}\/\d{4}$|^\d{4}-\d{2}$/
 // con ids aleatorios, un enlace generado por una instancia daba "No encontramos eso" en otra.
 let sembrando = false
 let contadorSiembra = 0
+/** Corre `fn` con ids deterministas (SA-1: las órdenes de ejemplo tienen el mismo id en todas las instancias). Los contadores propios no chocan con los de la siembra inicial. */
+export async function conIdsDeterministas<T>(base: number, fn: () => Promise<T>): Promise<T> {
+  const antes = { sembrando, contadorSiembra }
+  sembrando = true; contadorSiembra = base
+  try { return await fn() } finally { sembrando = antes.sembrando; contadorSiembra = antes.contadorSiembra }
+}
 export const nuevoId = () => (sembrando ? `00000000-0000-4000-8000-${String(++contadorSiembra).padStart(12, '0')}` : randomUUID())
 
 /** Las alertas se crean al abrir la pantalla (no en la siembra): su id sale de su clave para ser igual en todas las instancias. */

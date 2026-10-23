@@ -128,6 +128,8 @@ export interface SalidaResumen {
   /** Orden manual de venta cuyo pedido todavía no se comprobó contra Pedidos (D-80). */
   porConciliar?: boolean
   creadaPor?: string
+  /** SA-1: orden de ejemplo de la demostración. */
+  ejemplo?: boolean
   /** Tipo B: el cliente de almacenamiento a cuyo nombre se creó. */
   enNombreDe?: string
   /** SA-3: el vendedor del pedido (decide con falta de stock); una orden sin pedido (muestra de Logissa) no tiene vendedor. */

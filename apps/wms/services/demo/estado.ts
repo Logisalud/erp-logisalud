@@ -127,6 +127,8 @@ export interface EstadoDemo {
   /** Días antes del vencimiento de un lote en que se alerta (D-30). */
   diasAlertaVencimiento: number
   sembrado?: boolean
+  /** SA-1: las órdenes de ejemplo ya se sembraron (o se empezó a sembrarlas). */
+  ejemplosSembrados?: boolean
 }
 
 export type { FirmaVista }
