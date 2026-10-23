@@ -91,14 +91,14 @@ export interface CierreRutaVista {
 
 /** Lo que registran las etapas siguientes y que el formato pide (todo opcional: sin dato, la celda queda en blanco para anotarla a mano). */
 export interface ExtrasLsFr {
-  /** pedidoId → N.° de guía (S6b). */
+  /** clave de la parada (pedidoId, u «orden:<id>» en una parada por orden) → N.° de guía (S6b). */
   guias?: Record<string, string>
-  /** pedidoId → cantidad de bultos (S7). */
+  /** clave de la parada → cantidad de bultos (S7). */
   cajas?: Record<string, number>
   /** Hora real de salida (S8) y de llegada de la unidad (retorno). ISO. */
   horaSalida?: string
   horaLlegada?: string
-  /** pedidoId → hora de entrega y observaciones (S9, fuera de este bloque). */
+  /** clave de la parada → hora de entrega y observaciones (S9, fuera de este bloque). */
   horaEntrega?: Record<string, string>
   temperatura?: Record<string, string>
   observaciones?: Record<string, string>
@@ -182,8 +182,8 @@ export const COD_POE_LS_FR = 'LS-POE.07.05'
 export function armarRegistroLsFr(ruta: RutaVista, params: ParametrosLsFr = PARAMETROS_LS_FR_POR_DEFECTO, extras: ExtrasLsFr = {}): RegistroLsFrVista {
   const cierre = extras.cierres?.find((c) => c.vigente)
   const filas: FilaLsFr[] = ruta.paradas.map((p, i) => ({
-    n: i + 1, cliente: p.cliente, guia: extras.guias?.[p.pedidoId], cajas: extras.cajas?.[p.pedidoId], detalle: 'ENTREGA',
-    temperatura: extras.temperatura?.[p.pedidoId] ?? (cierre ? textoTemperatura(cierre.tempMin, cierre.tempMax) : undefined), horaEntrega: extras.horaEntrega?.[p.pedidoId], observaciones: extras.observaciones?.[p.pedidoId],
+    n: i + 1, cliente: p.cliente, guia: extras.guias?.[p.clave], cajas: extras.cajas?.[p.clave], detalle: 'ENTREGA',
+    temperatura: extras.temperatura?.[p.clave] ?? (cierre ? textoTemperatura(cierre.tempMin, cierre.tempMax) : undefined), horaEntrega: extras.horaEntrega?.[p.clave], observaciones: extras.observaciones?.[p.clave],
   }))
   return {
     rutaId: ruta.id, rutaNumero: ruta.numero, codigo: params.codigo, version: params.version, vigenteDesde: params.vigenteDesde, vigenteHasta: params.vigenteHasta, poe: COD_POE_LS_FR,

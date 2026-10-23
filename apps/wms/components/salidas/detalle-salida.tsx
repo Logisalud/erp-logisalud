@@ -25,12 +25,13 @@ import { ETIQUETA_CREADA_DESDE } from '@/domain/salida-manual'
 import { ETIQUETA_MOTIVO_SALIDA } from '@/domain/salidas'
 import { FaltaDeStock } from './falta-de-stock'
 import { DevolverPicado } from './devolver-picado'
+import { EntregaTransportista } from './entrega-transportista'
 
 const Lotes = ({ l }: { l: LineaSalidaVista }) => l.asignacion.length === 0
   ? <span className="text-gray-500">Sin lotes</span>
   : <ul className="space-y-0.5">{l.asignacion.map((a) => <li key={a.loteId} className="tabular"><Link href={`/lotes/${a.loteId}`} className="underline underline-offset-2" data-testid="lote-enlace">{a.lote}</Link> <span className="text-gray-600">· vence {a.vence ? mesAnio(a.vence) : '—'}</span> × <strong>{a.cantidad.toLocaleString('es-PE')}</strong></li>)}</ul>
 
-export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, guia, roles }: { salida: SalidaVista; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; guia: { datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[] }; roles: readonly Rol[] }) {
+export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, guia, roles, usuario = '' }: { salida: SalidaVista; usuario?: string; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; guia: { datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[] }; roles: readonly Rol[] }) {
   const router = useRouter()
   const movil = useEsMovil()
   const { pendiente, mensaje, ejecutar } = useAccion()
@@ -58,7 +59,7 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
         <ChipEtapa etapa={salida.etapa} />
       </header>
 
-      <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE', tipo: salida.tipo, destruccion: salida.motivo === 'DESTRUCCION', vendedor: salida.vendedor, sinPedido: salida.conPedido === false, devolucion: salida.devolucion, devolucionHref: salida.devoluciones?.find((d) => d.movimientoId)?.movimientoId ? `/movimientos/${salida.devoluciones.find((d) => d.movimientoId)!.movimientoId}` : undefined })} roles={roles} />
+      <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE', tipo: salida.tipo, destruccion: salida.motivo === 'DESTRUCCION', sinRuta: salida.tipo === 'CLIENTE' ? undefined : !salida.rutaNumero, porRuta: salida.origen === 'MANUAL' && salida.tipo !== 'CLIENTE', vendedor: salida.vendedor, sinPedido: salida.conPedido === false, devolucion: salida.devolucion, devolucionHref: salida.devoluciones?.find((d) => d.movimientoId)?.movimientoId ? `/movimientos/${salida.devoluciones.find((d) => d.movimientoId)!.movimientoId}` : undefined })} roles={roles} />
 
       {(salida.origen === 'MANUAL' || salida.creadaDesde === 'BANDEJA') && (
         <section className="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby="h-origen" data-testid="origen-orden">
@@ -128,6 +129,8 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
       </section>
 
       {paquete && (paquete.conforme || paquete.guia || paquete.guiasAnuladas.length > 0) && <PanelDocumentacion paquete={paquete} roles={roles} datos={guia.datos} modo={guia.modo} hoy={guia.hoy} eventos={guia.eventos} greCliente={salida.tipo === 'CLIENTE' ? { numero: salida.greNumero, salidaId: salida.id, conArchivo: !!salida.greArchivo } : undefined} />}
+
+      <EntregaTransportista salida={salida} roles={roles} usuario={usuario} />
 
       {salida.cambios.length > 0 && (
         <section aria-labelledby="h-cambios" data-testid="cambios-salida">

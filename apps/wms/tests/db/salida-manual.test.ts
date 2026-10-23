@@ -441,14 +441,14 @@ describe('tipo C: sin venta de Logissa', () => {
     const p = await producto(); await stock(p.id, 'C-M1', en(300), 20)
     const e = await falla(manual(jt, 'C', 'MUESTRA', null, [{ producto_id: p.id, cantidad: 2 }]))
     expect(e.message).toBe('Solo quien autoriza salidas sin venta registra una muestra')
-    const id = await manual(muestras, 'C', 'MUESTRA', null, [{ producto_id: p.id, cantidad: 2 }])
+    const id = await manual(muestras, 'C', 'MUESTRA', null, [{ producto_id: p.id, cantidad: 2 }], { cliente: CLIENTE })
     expect(await salida(id)).toMatchObject({ tipo: 'MUESTRA', motivo: 'MUESTRA', propietario_id: logissa, origen: 'MANUAL', autorizada_por: muestras, creada_en_nombre_de: null })
     expect((await lineasDe(id))[0]).toMatchObject({ estado: 'ASIGNADA', lote_codigo: 'C-M1' })
   })
 
   it('la devolución al proveedor es de los jefes, con lote indicado y solo antes del vencimiento', async () => {
     const p = await producto(); const bueno = await stock(p.id, 'C-D1', en(90), 30); const vencido = await stock(p.id, 'C-D2', en(-2), 30)
-    const dev = (quien: string, lote: string, cantidad = 5) => manual(quien, 'C', 'DEVOLUCION_PROVEEDOR', null, [{ producto_id: p.id, cantidad, lote_id: lote }])
+    const dev = (quien: string, lote: string, cantidad = 5) => manual(quien, 'C', 'DEVOLUCION_PROVEEDOR', null, [{ producto_id: p.id, cantidad, lote_id: lote }], { cliente: CLIENTE })
     expect((await falla(dev(muestras, bueno.loteId))).message).toMatch(/No tienes permiso para preparar salidas/)
     expect((await falla(dev(ja, vencido.loteId))).message).toMatch(/Lote C-D2: El lote está vencido: no se devuelve vencido a nadie/)
     const id = await dev(ja, bueno.loteId)
@@ -462,8 +462,8 @@ describe('la guía de una salida sin venta lleva guía del WMS; la del cliente, 
   const emitir = (quien: string, salidaId: string) => como(quien, (c) => c.query(`select wms.registrar_guia_electronica($1, 'TTT1-00000001', 'SIMULADOR', current_date, 12, null, null, 'PENDIENTE')`, [salidaId]))
   it('una muestra y una devolución al proveedor pasan la condición del tipo (siguen los demás requisitos); una orden de cliente dice que la trae el cliente', async () => {
     const p = await producto(); await stock(p.id, 'G-1', en(300), 20); const lt = await stock(p.id, 'G-2', en(90), 20); const cl = await stock(p.id, 'G-3', en(300), 20, 'DIPHASAC')
-    const muestra = await manual(muestras, 'C', 'MUESTRA', null, [{ producto_id: p.id, cantidad: 1 }])
-    const devol = await manual(jt, 'C', 'DEVOLUCION_PROVEEDOR', null, [{ producto_id: p.id, cantidad: 1, lote_id: lt.loteId }])
+    const muestra = await manual(muestras, 'C', 'MUESTRA', null, [{ producto_id: p.id, cantidad: 1 }], { cliente: CLIENTE })
+    const devol = await manual(jt, 'C', 'DEVOLUCION_PROVEEDOR', null, [{ producto_id: p.id, cantidad: 1, lote_id: lt.loteId }], { cliente: CLIENTE })
     const deCliente = await manual(jt, 'B', 'VENTA', diph, [{ producto_id: p.id, cantidad: 1, lote_id: cl.loteId }], { gre: 'T001-00000077', archivo: 'x.pdf' })
     expect((await falla(emitir(jt, muestra))).message).toBe('La guía se emite cuando todo el pedido tiene la conformidad: sus lotes salen de lo confirmado')
     expect((await falla(emitir(jt, devol))).message).toBe('La guía se emite cuando todo el pedido tiene la conformidad: sus lotes salen de lo confirmado')

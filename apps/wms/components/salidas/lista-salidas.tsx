@@ -10,7 +10,7 @@ import { EtiquetasOrigen } from './etiquetas-origen'
 import { SalidasSinCoincidencias, SalidasVacio } from './salidas-vacio'
 
 const ETAPAS = Object.keys(ETIQUETA_ETAPA) as EtapaSalida[]
-const extrasDe = (s: SalidaResumen) => ({ tipo: s.tipo, vendedor: s.vendedor, sinPedido: s.sinPedido, devolucion: s.devolucion, devolucionHref: s.devolucionHref })
+const extrasDe = (s: SalidaResumen) => ({ vendedor: s.vendedor, sinPedido: s.sinPedido, devolucion: s.devolucion, devolucionHref: s.devolucionHref, tipo: s.tipo, destruccion: s.motivo === 'DESTRUCCION', sinRuta: s.tipo === 'CLIENTE' ? undefined : !s.rutaNumero, porRuta: s.origen === 'MANUAL' && s.tipo !== 'CLIENTE' })
 
 /** «Qué sigue y quién lo hace» de una orden (la misma frase en la columna propia y, en pantallas medianas, debajo de la etapa). */
 function Siguiente({ s }: { s: SalidaResumen }) {

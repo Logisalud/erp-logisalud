@@ -94,6 +94,19 @@ export function validarClienteManual(c: Partial<ClienteManual>): Record<string, 
   return e
 }
 
+/**
+ * Tipo C (SA-6): a quién va la salida. En una muestra, el destinatario (botica, clínica, médico con RUC); en una devolución, el proveedor. La guía exige RUC, nombre, dirección y
+ * ubigeo. Mismos mensajes que `wms.crear_orden_salida_manual`. Se guarda en el mismo lugar que el cliente de la venta manual.
+ */
+export function validarDestinatarioC(c: Partial<ClienteManual>, motivo?: MotivoSalida): Record<string, string> {
+  const e: Record<string, string> = {}
+  if (!(c.razonSocial ?? '').trim()) e.razonSocial = motivo === 'DEVOLUCION_PROVEEDOR' ? 'Escribe el nombre del proveedor' : 'Escribe a quién va la muestra'
+  const ruc = validarRuc(c.ruc ?? ''); if (ruc) e.ruc = ruc
+  if (!(c.direccion ?? '').trim()) e.direccion = 'Escribe la dirección de entrega'
+  const ub = validarUbigeo(c.ubigeo ?? ''); if (ub) e.ubigeo = ub
+  return e
+}
+
 // ── La GRE del cliente (tipo B) ─────────────────────────────────────────────────────────────────────────────────────────────
 
 export const MAXIMO_GRE_BYTES = 10 * 1024 * 1024
@@ -188,6 +201,7 @@ export interface EntradaOrdenManual {
   /** Tipo B: el cliente de almacenamiento. En A y C el propietario es Logissa (lo pone el sistema). */
   propietarioId?: string
   pedidoNumero?: string
+  /** Tipo A: el cliente de la venta. Tipo C (SA-6): el destinatario de la muestra o el proveedor de la devolución. */
   cliente?: ClienteManual
   greNumero?: string
   /** La referencia del PDF de la GRE ya guardada en el almacenamiento de archivos. */
@@ -223,6 +237,7 @@ export function validarOrdenManual(e: EntradaOrdenManual, esDeCliente?: (propiet
   } else {
     if (!e.motivo || !MOTIVOS_C.includes(e.motivo)) errores.motivo = 'Elige si es una muestra o una devolución al proveedor'
     if (e.motivo === 'DEVOLUCION_PROVEEDOR' && e.lineas.some((l) => !l.loteId)) errores.lineas = 'Indica el lote de cada línea'
+    Object.assign(errores, validarDestinatarioC(e.cliente ?? {}, e.motivo))
   }
   return errores
 }

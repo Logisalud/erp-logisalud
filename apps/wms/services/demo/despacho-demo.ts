@@ -5,8 +5,8 @@ import type { ClienteManual, CreadaDesde, OrigenOrden } from '@/domain/salida-ma
 import { normalizarNumeroPedido } from '@/domain/salida-manual'
 import { explicarFaltante, type CausaFaltante, type CausaQuiebre, type ExistenciaLote, type ExplicacionFaltante } from '@/domain/faltante'
 import {
-  RUTA_EDITABLE, puedePlanificarRutas, validarPlan, totalUnidades,
-  type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
+  RUTA_EDITABLE, claveDeOrden, clavePlanParada, puedePlanificarRutas, validarPlan, totalUnidades,
+  type OrdenPlanificable, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanParada, type PlanRuta, type RutaVista, type VehiculoVista,
 } from '@/domain/rutas'
 import { AREAS_DE_SALIDA } from '@/domain/zonas'
 import { requiereEmbalaje } from '@/domain/pedidos-despacho'
@@ -46,6 +46,8 @@ export interface SalidaDemo {
   pedidoNumero?: string; porConciliar?: boolean; clienteManual?: ClienteManual
   /** Tipo B: la GRE del cliente (número y PDF) y a nombre de qué propietario se creó. */
   greNumero?: string; greArchivo?: string; enNombreDe?: string
+  /** SA-6, tipo B: la entrega al transportista del cliente (la salida se confirma al registrarla). */
+  entrega?: import('@/domain/entrega-transportista').EntregaTransportistaVista
   /** Repetir el mismo envío no crea otra orden. */
   token?: string
   /** SA-1: orden de ejemplo de la demostración (lleva la etiqueta «Ejemplo»). */
@@ -71,7 +73,8 @@ export interface QuiebreDemo {
   salidaId: string; salidaNumero: string; pedidoId?: string; pedidoNumero?: string; lineaId: string; productoId: string
   cantidadPedida: number; cantidadFaltante: number; cantidadCausa: number; vendedor?: string; detalle: Record<string, unknown>; por: string
 }
-export interface ParadaDemo { id: string; secuencia: number; pedidoId: string; salidaId?: string; excepcionCorte: boolean; motivoExcepcion?: string; activa: boolean }
+/** Una parada es de un pedido de la bandeja (`pedidoId`) o, en una orden manual sin pedido todavía, solo de la orden (`salidaId`). SA-6. */
+export interface ParadaDemo { id: string; secuencia: number; pedidoId?: string; salidaId?: string; excepcionCorte: boolean; motivoExcepcion?: string; activa: boolean }
 export interface RutaDemo {
   id: string; numero: string; fecha: string; estado: RutaVista['estado']; version: number
   vehiculoId?: string; conductorId?: string; auxiliarId?: string; paradas: ParadaDemo[]
@@ -115,6 +118,8 @@ export function desp(e: EstadoDemo): DespachoDemoEstado {
 }
 
 const sumarDias = (fecha: string, n: number) => new Date(Date.parse(`${fecha}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
+/** Cómo se reconoce una parada en el plan y en las tablas de la ruta: el pedido o `orden:<id>`. */
+export const claveDeParada = (p: ParadaDemo) => p.pedidoId ?? claveDeOrden(p.salidaId ?? '')
 export const duenoDelAlmacen = (e: EstadoDemo) => e.panorama.propietarios.find((p) => p.esDuenoAlmacen)?.id ?? ''
 
 /** Lo comprometido de una celda: reservas de salidas vivas y movimientos internos todavía sin verificar (una sola fuente, como wms._comprometido). */
@@ -328,13 +333,23 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
   // ── Vistas ────────────────────────────────────────────────────────────────────────────────────────────────────
   private vistaParada(e: EstadoDemo, p: ParadaDemo): ParadaVista {
     const d = desp(e)
-    const fila = e.pedidos!.filas.find((f) => f.snapshot.pedidoId === p.pedidoId && f.vigente)!
     const s = d.salidas.find((x) => x.id === p.salidaId)
     const stock = !s ? 'PENDIENTE' : s.lineas.some((l) => l.estado === 'SIN_STOCK') ? 'SIN_STOCK' : 'ASIGNADA'
-    const c = fila.snapshot.cliente
+    const fila = p.pedidoId ? e.pedidos!.filas.find((f) => f.snapshot.pedidoId === p.pedidoId && f.vigente) : undefined
+    if (!fila && s) {
+      // parada por orden (SA-6): el destinatario sale de lo escrito en la orden
+      const cm = s.clienteManual
+      const lineas = s.lineas.filter((l) => l.estado !== 'CANCELADA')
+      return {
+        id: p.id, secuencia: p.secuencia, clave: claveDeParada(p), origen: 'ORDEN', salidaId: s.id, tipoOrden: s.tipo, pedidoNumero: s.pedidoNumero ?? s.numero, cliente: cm?.razonSocial ?? '', ruc: cm?.ruc,
+        direccion: cm?.direccion, lineas: lineas.length, unidades: lineas.reduce((t, l) => t + l.cantidad, 0), salidaNumero: s.numero, stock, excepcionCorte: p.excepcionCorte, motivoExcepcion: p.motivoExcepcion,
+      }
+    }
+    const f = fila!
+    const c = f.snapshot.cliente
     return {
-      id: p.id, secuencia: p.secuencia, pedidoId: p.pedidoId, pedidoNumero: fila.snapshot.numero, cliente: c.nombre, ruc: c.ruc, direccion: c.direccion, distrito: c.distrito,
-      ventanaCita: c.ventanaCita, vehiculoCalificado: c.vehiculoCalificado, lineas: fila.snapshot.lineas.length, unidades: fila.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0),
+      id: p.id, secuencia: p.secuencia, clave: claveDeParada(p), origen: 'PEDIDO', pedidoId: f.snapshot.pedidoId, salidaId: s?.id, tipoOrden: s?.tipo, pedidoNumero: f.snapshot.numero, cliente: c.nombre, ruc: c.ruc, direccion: c.direccion, distrito: c.distrito,
+      ventanaCita: c.ventanaCita, vehiculoCalificado: c.vehiculoCalificado, lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0),
       salidaNumero: s?.numero, stock, excepcionCorte: p.excepcionCorte, motivoExcepcion: p.motivoExcepcion,
     }
   }
@@ -353,7 +368,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
   private pedidosPlanificables(e: EstadoDemo): PedidoPlanificable[] {
     const d = desp(e)
     const enRuta = new Map<string, string>()
-    for (const r of d.rutas.filter((x) => x.estado !== 'CANCELADA' && x.estado !== 'CERRADA')) for (const p of r.paradas.filter((x) => x.activa)) enRuta.set(p.pedidoId, r.numero)
+    for (const r of d.rutas.filter((x) => x.estado !== 'CANCELADA' && x.estado !== 'CERRADA')) for (const p of r.paradas.filter((x) => x.activa)) if (p.pedidoId) enRuta.set(p.pedidoId, r.numero)
     const codigos = new Set(e.panorama.productos.map((p) => p.codigo.toUpperCase()))
     return e.pedidos!.filas.filter((f) => f.vigente).map((f) => ({
       pedidoId: f.snapshot.pedidoId, numero: f.snapshot.numero, cliente: f.snapshot.cliente.nombre, ruc: f.snapshot.cliente.ruc, direccion: f.snapshot.cliente.direccion,
@@ -364,12 +379,29 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     }))
   }
 
+  /** SA-6: órdenes manuales (A sin pedido en la bandeja, muestra y devolución al proveedor) abiertas y que todavía no están en una ruta viva. */
+  private ordenesPlanificables(e: EstadoDemo): OrdenPlanificable[] {
+    const d = desp(e)
+    const enRuta = new Map<string, string>()
+    for (const r of d.rutas.filter((x) => x.estado !== 'CANCELADA' && x.estado !== 'CERRADA')) for (const p of r.paradas.filter((x) => x.activa)) if (p.salidaId) enRuta.set(p.salidaId, r.numero)
+    return d.salidas
+      .filter((s) => s.origen === 'MANUAL' && s.estado === 'ABIERTA' && (s.tipo ?? 'DISTRIBUCION') !== 'CLIENTE' && !!s.clienteManual && !e.pedidos?.filas.some((f) => f.vigente && f.salida === s.numero))
+      .map((s): OrdenPlanificable => {
+        const lineas = s.lineas.filter((l) => l.estado !== 'CANCELADA')
+        const cm = s.clienteManual!
+        return {
+          salidaId: s.id, clave: claveDeOrden(s.id), numero: s.numero, tipo: s.tipo ?? 'DISTRIBUCION', pedidoNumero: s.pedidoNumero, cliente: cm.razonSocial, ruc: cm.ruc, direccion: cm.direccion,
+          lineas: lineas.length, unidades: lineas.reduce((t, l) => t + l.cantidad, 0), creadaEn: s.creadaEn, enRuta: enRuta.get(s.id), sinStock: lineas.some((l) => l.estado === 'SIN_STOCK' || l.estado === 'PENDIENTE'),
+        }
+      })
+  }
+
   async panoramaRutas(): Promise<PanoramaRutas> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const d = desp(e)
     return structuredClone({
       hoy: e.panorama.hoy, corte: d.corte, rutas: [...d.rutas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)).map((r) => this.vistaRuta(e, r)),
-      vehiculos: d.vehiculos, personal: d.personal, pedidos: this.pedidosPlanificables(e),
+      vehiculos: d.vehiculos, personal: d.personal, pedidos: this.pedidosPlanificables(e), ordenes: this.ordenesPlanificables(e),
     })
   }
 
@@ -430,37 +462,64 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     if (plan.conductorId && otra.some((x) => x.conductorId === plan.conductorId || x.auxiliarId === plan.conductorId)) return falla('El conductor ya está en otra ruta de ese día')
     if (plan.auxiliarId && otra.some((x) => x.conductorId === plan.auxiliarId || x.auxiliarId === plan.auxiliarId)) return falla('El auxiliar ya está en otra ruta de ese día')
 
+    // Una orden manual que ya tiene su pedido en la bandeja se planifica como pedido (la parada usa los datos del pedido ya conciliado)
+    const paradasPlan: PlanParada[] = plan.paradas.map((pp) => {
+      if (pp.pedidoId || !pp.salidaId) return pp
+      const s = d.salidas.find((x) => x.id === pp.salidaId)
+      const fila = s ? e.pedidos!.filas.find((f) => f.vigente && f.salida === s.numero) : undefined
+      return fila ? { ...pp, pedidoId: fila.snapshot.pedidoId } : pp
+    })
+    const planNormal: PlanRuta = { ...plan, paradas: paradasPlan }
     const planificables = new Map(this.pedidosPlanificables(e).map((p) => [p.pedidoId, p]))
+    const ordenes = new Map(this.ordenesPlanificables(e).map((o) => [o.clave, o]))
+    const esDeEstaRuta = (x: ParadaDemo) => r.paradas.some((y) => y.activa && claveDeParada(y) === claveDeParada(x))
     const enOtraRuta = new Map([...planificables].filter(([, p]) => p.enRuta && !r.paradas.some((x) => x.activa && x.pedidoId === p.pedidoId)).map(([k, p]) => [k, p.enRuta!]))
-    const errores = validarPlan({ hoy: e.panorama.hoy, corte: d.corte, plan, vehiculo, pedidos: planificables, enOtraRuta })
+    void esDeEstaRuta
+    const ordenesEnOtraRuta = new Map([...ordenes].filter(([, o]) => o.enRuta && !r.paradas.some((x) => x.activa && x.salidaId === o.salidaId)).map(([k, o]) => [k, o.enRuta!]))
+    // una orden que no es manual (nace de un pedido de la bandeja) o que ya no está abierta no se planifica por orden
+    for (const pp of paradasPlan) {
+      if (pp.pedidoId || !pp.salidaId) continue
+      const s = d.salidas.find((x) => x.id === pp.salidaId)
+      if (!s) return falla('No encontramos una de las órdenes')
+      if (s.estado !== 'ABIERTA') return falla(`La orden ${s.numero} ya no está abierta (está ${s.estado.toLowerCase()})`)
+      if (s.tipo === 'CLIENTE') return falla(`La orden ${s.numero} es por cuenta de un cliente de almacenamiento: no va en una ruta de Logisalud, se entrega al transportista del cliente`)
+      if (s.origen !== 'MANUAL') return falla(`La orden ${s.numero} nace de un pedido de la bandeja: agrégala a la ruta desde «Pedidos por despachar»`)
+    }
+    const errores = validarPlan({ hoy: e.panorama.hoy, corte: d.corte, plan: planNormal, vehiculo, pedidos: planificables, enOtraRuta, ordenes, ordenesEnOtraRuta })
     if (errores.length) return falla(errores[0], { plan: errores.join(' ') })
 
-    // Los que salen del plan liberan su salida (si no tienen picking)
-    const quedan = new Set(plan.paradas.map((p) => p.pedidoId))
-    for (const p of r.paradas.filter((x) => x.activa && !quedan.has(x.pedidoId))) {
-      // SA-2: solo se libera la orden si nació en esta ruta; la creada desde la bandeja o a mano sigue viva (el pedido sale de la ruta, no se cancela su orden)
+    // Las paradas que salen del plan: la orden se libera solo si nació en esta ruta (y tiene pedido); una orden manual o de la bandeja sigue viva, solo se libera la parada
+    const quedan = new Set(paradasPlan.map((p) => clavePlanParada(p)))
+    const salidasQuedan = new Set(paradasPlan.map((p) => p.salidaId).filter(Boolean))
+    for (const p of r.paradas.filter((x) => x.activa && !quedan.has(claveDeParada(x)) && !(x.salidaId && salidasQuedan.has(x.salidaId)))) {
       const nacioAqui = (d.salidas.find((x) => x.id === p.salidaId)?.creadaDesde ?? 'RUTA') === 'RUTA'
-      if (p.salidaId && nacioAqui) {
+      if (p.salidaId && p.pedidoId && nacioAqui) {
         const m = liberarSalida(e, p.salidaId, motivo ?? 'El pedido salió de la ruta'); if (m) return falla(m)
         const fila = e.pedidos!.filas.find((f) => f.vigente && f.snapshot.pedidoId === p.pedidoId); if (fila) fila.salida = undefined
       }
       p.activa = false
     }
-    const previas = new Map(r.paradas.filter((x) => x.activa).map((x) => [x.pedidoId, x]))
+    const previas = new Map(r.paradas.filter((x) => x.activa).flatMap((x) => [[claveDeParada(x), x] as const, ...(x.salidaId ? [[claveDeOrden(x.salidaId), x] as const] : [])]))
     for (const p of r.paradas) p.activa = false
     const nuevas: ParadaDemo[] = []
     const bloqueados: string[] = []
-    for (const [i, pp] of plan.paradas.entries()) {
-      const fila = e.pedidos!.filas.find((f) => f.vigente && f.snapshot.pedidoId === pp.pedidoId)!
-      let salidaId = previas.get(pp.pedidoId)?.salidaId
-      if (!salidaId) {
-        const s = ordenDelPedido(e, pp.pedidoId, actor, 'RUTA')
-        if (typeof s === 'string') return falla(s)
-        salidaId = s.id; fila.salida = s.numero
+    for (const [i, pp] of paradasPlan.entries()) {
+      if (pp.pedidoId) {
+        const fila = e.pedidos!.filas.find((f) => f.vigente && f.snapshot.pedidoId === pp.pedidoId)!
+        let salidaId = previas.get(pp.pedidoId)?.salidaId ?? (pp.salidaId)
+        if (!salidaId) {
+          const s = ordenDelPedido(e, pp.pedidoId, actor, 'RUTA')
+          if (typeof s === 'string') return falla(s)
+          salidaId = s.id; fila.salida = s.numero
+        }
+        const salida = d.salidas.find((x) => x.id === salidaId)!
+        if (salida.lineas.some((l) => l.estado === 'SIN_STOCK')) bloqueados.push(fila.snapshot.numero)
+        nuevas.push({ id: nuevoId(), secuencia: i + 1, pedidoId: pp.pedidoId, salidaId, excepcionCorte: !!pp.excepcionCorte, motivoExcepcion: pp.excepcionCorte ? pp.motivoExcepcion?.trim() : undefined, activa: true })
+      } else {
+        const salida = d.salidas.find((x) => x.id === pp.salidaId)!
+        if (salida.lineas.some((l) => l.estado === 'SIN_STOCK' || l.estado === 'PENDIENTE')) bloqueados.push(salida.pedidoNumero ?? salida.numero)
+        nuevas.push({ id: nuevoId(), secuencia: i + 1, salidaId: salida.id, excepcionCorte: !!pp.excepcionCorte, motivoExcepcion: pp.excepcionCorte ? pp.motivoExcepcion?.trim() : undefined, activa: true })
       }
-      const salida = d.salidas.find((x) => x.id === salidaId)!
-      if (salida.lineas.some((l) => l.estado === 'SIN_STOCK')) bloqueados.push(fila.snapshot.numero)
-      nuevas.push({ id: nuevoId(), secuencia: i + 1, pedidoId: pp.pedidoId, salidaId, excepcionCorte: !!pp.excepcionCorte, motivoExcepcion: pp.excepcionCorte ? pp.motivoExcepcion?.trim() : undefined, activa: true })
     }
     r.paradas.push(...nuevas)
     r.fecha = plan.fecha; r.vehiculoId = plan.vehiculoId; r.conductorId = plan.conductorId; r.auxiliarId = plan.auxiliarId; r.version += 1
@@ -480,7 +539,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     if (!r.conductorId) return falla('Elige el conductor')
     const vivas = r.paradas.filter((p) => p.activa)
     if (!vivas.length) return falla('La ruta no tiene pedidos')
-    const sin = vivas.filter((p) => d.salidas.find((s) => s.id === p.salidaId)?.lineas.some((l) => l.estado === 'SIN_STOCK')).map((p) => e.pedidos!.filas.find((f) => f.snapshot.pedidoId === p.pedidoId && f.vigente)!.snapshot.numero)
+    const sin = vivas.filter((p) => d.salidas.find((s) => s.id === p.salidaId)?.lineas.some((l) => l.estado === 'SIN_STOCK')).map((p) => (p.pedidoId ? e.pedidos!.filas.find((f) => f.snapshot.pedidoId === p.pedidoId && f.vigente)?.snapshot.numero : undefined) ?? d.salidas.find((s) => s.id === p.salidaId)?.pedidoNumero ?? d.salidas.find((s) => s.id === p.salidaId)!.numero)
     if (sin.length) return falla(`Estos pedidos no tienen stock suficiente: ${sin.join(', ')}. Quítalos de la ruta o espera el ingreso de stock`)
     r.estado = 'PLANIFICADA'; r.confirmadaEn = ahora(); r.registroLsFr = 'BASE'
     registrar(e, actor, 'ruta_confirmada', 'rutas', r.numero, 'Ruta confirmada: nace el registro LS-FR.43.03')

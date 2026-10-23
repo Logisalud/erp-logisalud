@@ -1,5 +1,6 @@
 // OS-5 en memoria (modo demostración): muestreo LS-TB.02.02 (antecedentes de calidad), liberación LS-POE.04.05 (observación reversible y dictamen del DT del cliente)
 // y retornos (recepción tipo devolución). Mismas reglas y mismos mensajes que la migración 0025.
+import { esSalidaConfirmada } from '@/domain/despacho'
 import { ESTADO_INICIAL } from '@/domain/entradas'
 import { MotorEntradas, alertar, ahora, estadoE, falla, nuevoId, vistaOrganoleptica } from './entradas-demo'
 import { antecedenteVigente, TABLA_LS_TB_02_02, tablaRige, type AntecedenteCalidadVista, type PanoramaMuestreo } from '@/domain/muestreo'
@@ -259,7 +260,7 @@ export class LiberacionDemo extends CierreRutaDemo implements RepositorioLiberac
   async salidasConRetorno(): Promise<ResumenSalidaRetorno[]> {
     const e = estadoE(); await this.sembrarDespacho(e); sembrarSalidaDespachada(e)
     const salidas = await this.listarSalidas()
-    return structuredClone(salidas.filter((s) => s.etapa === 'CONFIRMADA').map((s): ResumenSalidaRetorno => ({
+    return structuredClone(salidas.filter((s) => esSalidaConfirmada(s.etapa)).map((s): ResumenSalidaRetorno => ({
       salidaId: s.id, numero: s.numero, pedidoNumero: s.pedidoNumero, cliente: s.cliente, fecha: s.fecha, unidades: s.unidades, retornos: retornosDe(e, s.id),
     })))
   }

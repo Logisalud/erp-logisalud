@@ -18,6 +18,7 @@ export const CLAVES_UNICAS: Readonly<Record<string, readonly string[]>> = {
   'wms.alertas': ['id'],
   'wms.antecedentes_calidad': ['id'],
   'wms.devoluciones_picking': ['id'],
+  'wms.entregas_transportista_cliente': ['id'],
   'wms.dictamenes_cliente': ['id'],
   'wms.quiebres_stock': ['id'],
   'wms.observaciones_liberacion': ['id'],

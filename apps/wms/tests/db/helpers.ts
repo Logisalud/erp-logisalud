@@ -44,6 +44,7 @@ export const SQL = {
   m0025: () => leer('supabase/migrations/0025_wms_retornos_liberacion_muestreo.sql'),
   m0028: () => leer('supabase/migrations/0028_wms_orden_de_salida_manual.sql'),
   m0029: () => leer('supabase/migrations/0029_wms_falta_de_stock_y_cambio_de_pedido.sql'),
+  m0030: () => leer('supabase/migrations/0030_wms_rutas_para_ordenes_sin_pedido.sql'),
   seed: () => leer('supabase/seeds/0001_topologia.sql'),
 }
 
@@ -106,6 +107,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0027())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0028())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0029())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0030())
   if (opciones.conSeed !== false) await admin.query(SQL.seed())
 
   const personas = {

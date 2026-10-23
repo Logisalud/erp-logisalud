@@ -111,8 +111,12 @@ describe('la orden manual completa', () => {
   })
   it('C: muestra o devolución; la devolución exige el lote', () => {
     expect(validarOrdenManual({ clase: 'C', lineas: [{ productoId: 'p1', cantidad: 1 }] }).motivo).toBeTruthy()
-    expect(validarOrdenManual({ clase: 'C', motivo: 'MUESTRA', lineas: [{ productoId: 'p1', cantidad: 1 }] })).toEqual({})
-    expect(validarOrdenManual({ clase: 'C', motivo: 'DEVOLUCION_PROVEEDOR', lineas: [{ productoId: 'p1', cantidad: 1 }] }).lineas).toBe('Indica el lote de cada línea')
+    const dest = { ruc: '20123456789', razonSocial: 'Clínica Destino', direccion: 'Av. Lima 123', ubigeo: '150101' }
+    expect(validarOrdenManual({ clase: 'C', motivo: 'MUESTRA', cliente: dest, lineas: [{ productoId: 'p1', cantidad: 1 }] })).toEqual({})
+    expect(validarOrdenManual({ clase: 'C', motivo: 'DEVOLUCION_PROVEEDOR', cliente: dest, lineas: [{ productoId: 'p1', cantidad: 1 }] }).lineas).toBe('Indica el lote de cada línea')
+    // SA-6: el destinatario es obligatorio (a quién va la muestra o qué proveedor recibe la devolución)
+    expect(validarOrdenManual({ clase: 'C', motivo: 'MUESTRA', lineas: [{ productoId: 'p1', cantidad: 1 }] })).toMatchObject({ razonSocial: 'Escribe a quién va la muestra', ruc: 'El RUC tiene 11 números', direccion: 'Escribe la dirección de entrega' })
+    expect(validarOrdenManual({ clase: 'C', motivo: 'DEVOLUCION_PROVEEDOR', cliente: { ...dest, razonSocial: ' ', ubigeo: '12' }, lineas: [{ productoId: 'p1', cantidad: 1, loteId: 'l' }] })).toMatchObject({ razonSocial: 'Escribe el nombre del proveedor', ubigeo: 'El ubigeo tiene 6 números (el código del distrito de entrega)' })
   })
   it('una guía con motivos mezclados se parte en una orden por motivo', () => {
     const p = partirPorMotivo([{ productoId: 'a', cantidad: 1, motivo: 'VENTA' }, { productoId: 'b', cantidad: 1, motivo: 'DESTRUCCION' }, { productoId: 'c', cantidad: 1, motivo: 'VENTA' }])

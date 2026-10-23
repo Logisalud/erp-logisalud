@@ -68,6 +68,7 @@ export type Accion =
   | 'marcar_antecedentes_calidad'
   | 'liberar_stock_propietario'
   | 'crear_orden_venta_manual'
+  | 'entregar_al_transportista_cliente'
 
 export interface Propietario {
   id: string

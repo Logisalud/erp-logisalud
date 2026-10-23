@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { armarRegistroLsFr, cierreVigente, conservarHasta, faltaImprimir, fueraDeRangoTemperatura, textoTemperatura, paginarFilas, parametrosDesdeClaves, puedeImprimirLsFr, type FilaLsFr } from '@/domain/ls-fr-43-03'
 import type { ParadaVista, RutaVista } from '@/domain/rutas'
 
-const parada = (n: number): ParadaVista => ({ id: `p${n}`, secuencia: n, pedidoId: `ped-${n}`, pedidoNumero: `PED-${n}`, cliente: `Cliente ${n}`, lineas: 1, unidades: 10, stock: 'ASIGNADA', excepcionCorte: false })
+const parada = (n: number): ParadaVista => ({ id: `p${n}`, secuencia: n, clave: `ped-${n}`, origen: 'PEDIDO', pedidoId: `ped-${n}`, pedidoNumero: `PED-${n}`, cliente: `Cliente ${n}`, lineas: 1, unidades: 10, stock: 'ASIGNADA', excepcionCorte: false })
 const ruta = (n: number, extra: Partial<RutaVista> = {}): RutaVista => ({
   id: 'r1', numero: 'RUT-2026-00001', fecha: '2026-10-15', estado: 'PLANIFICADA', version: 2, paradas: Array.from({ length: n }, (_, i) => parada(i + 1)), versiones: [], registroLsFr: 'BASE',
   creadaPor: 'x', creadaEn: '2026-10-14T10:00:00Z', unidades: n * 10, vehiculo: { id: 'v', placa: 'BKW-757', tipo: 'PROPIO', calificado: true, aptoCadenaFrio: false, activo: true },

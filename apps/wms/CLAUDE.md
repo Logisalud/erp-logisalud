@@ -115,6 +115,6 @@ Mientras tanto, verificar con Playwright directo.
 - **E2E en 4 viewports + capturas:** `npm run build:wms` y luego
   `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium apps/wms/scripts/e2e-por-viewport.sh` (reinicia el servidor entre viewports).
   Las capturas quedan en `docs/wms/screenshots/<pantalla>/<viewport>.png`.
-- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0029; el 0010 está reservado; la 0028 es de SA-2 y la 0029 de SA-3), re-ejecutables, **se aplican a mano**; seed de topología generado con
+- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0030; el 0010 está reservado; la 0028 es de SA-2, la 0029 de SA-3 y la 0030 de SA-6), re-ejecutables, **se aplican a mano**; seed de topología generado con
   `npm run seed:topologia --workspace erp-logisalud-wms`. Ver `docs/wms/aplicar-migraciones.md`.
 - Diseño: `PRODUCT.md` y `DESIGN.md` de esta carpeta; ADR en `docs/wms/adr/`.

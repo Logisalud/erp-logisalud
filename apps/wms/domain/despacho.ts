@@ -25,13 +25,18 @@ export type ResultadoConformidad = 'PENDIENTE' | 'CONFORME' | 'OBSERVADA'
 export type EtapaSalida =
   | 'SIN_STOCK' | 'ASIGNADA' | 'EN_PICKING' | 'CON_DISCREPANCIA' | 'PENDIENTE_CONFORMIDAD' | 'OBSERVADA' | 'CONFORME' | 'DOCUMENTACION_COMPLETA' | 'EMBALADA'
   | 'LISTA_PARA_CARGA' | 'CARGADA' | 'CONFIRMADA' | 'CANCELADA'
+  /** SA-6: orden por cuenta de un cliente (B) ya entregada al transportista del cliente: la salida está confirmada y el stock bajó. */
+  | 'ENTREGADA_AL_TRANSPORTISTA'
   /** SA-3: llegó un cambio o una cancelación del pedido con el picking ya iniciado: hay que devolver lo picado a su ubicación (movimiento verificado) antes de seguir o cerrar. */
   | 'POR_DEVOLVER_PICKING'
 export const ETIQUETA_ETAPA: Record<EtapaSalida, string> = {
   SIN_STOCK: 'Sin stock suficiente', ASIGNADA: 'Stock asignado', EN_PICKING: 'En picking', CON_DISCREPANCIA: 'Picking con discrepancia', PENDIENTE_CONFORMIDAD: 'Pendiente de conformidad',
   OBSERVADA: 'Observada', CONFORME: 'Conforme: falta la documentación', DOCUMENTACION_COMPLETA: 'Documentación completa: falta embalar', EMBALADA: 'Embalada: falta la documentación',
-  LISTA_PARA_CARGA: 'Lista para carga', CARGADA: 'Cargada: falta liberar la unidad', CONFIRMADA: 'Salida confirmada', CANCELADA: 'Cancelada', POR_DEVOLVER_PICKING: 'Por devolver lo picado',
+  LISTA_PARA_CARGA: 'Lista para carga', CARGADA: 'Cargada: falta liberar la unidad', CONFIRMADA: 'Salida confirmada', CANCELADA: 'Cancelada', POR_DEVOLVER_PICKING: 'Por devolver lo picado', ENTREGADA_AL_TRANSPORTISTA: 'Entregada al transportista',
 }
+
+/** La salida ya se confirmó (el stock bajó): por una ruta o por la entrega al transportista del cliente. */
+export const esSalidaConfirmada = (e: EtapaSalida) => e === 'CONFIRMADA' || e === 'ENTREGADA_AL_TRANSPORTISTA'
 
 /** Las etapas en las que todo el pedido ya tiene la conformidad. */
 export const ETAPAS_CONFORMES: readonly EtapaSalida[] = ['CONFORME', 'DOCUMENTACION_COMPLETA', 'EMBALADA', 'LISTA_PARA_CARGA', 'CARGADA']
@@ -51,9 +56,11 @@ export function etapaDeSalida(s: {
   orden?: { lineas: readonly { picking: ResultadoPicking; conformidad: ResultadoConformidad }[] } | null
   /** Hay unidades picadas por devolver a su ubicación (por un cambio o una cancelación del pedido) y la devolución todavía no está verificada. */
   devolucionPendiente?: boolean
+  /** SA-6: la salida se confirmó con la entrega al transportista del cliente (tipo B). */
+  entregadaAlTransportista?: boolean
 }, avance: AvanceSalida = {}): EtapaSalida {
   if (s.estado === 'CANCELADA') return 'CANCELADA'
-  if (s.estado === 'CONFIRMADA') return 'CONFIRMADA'
+  if (s.estado === 'CONFIRMADA') return s.entregadaAlTransportista ? 'ENTREGADA_AL_TRANSPORTISTA' : 'CONFIRMADA'
   if (s.devolucionPendiente) return 'POR_DEVOLVER_PICKING'
   if (s.lineas.some((l) => l.estado === 'SIN_STOCK' || l.estado === 'PENDIENTE')) return 'SIN_STOCK'
   const o = s.orden
@@ -168,6 +175,9 @@ export interface SalidaVista extends SalidaResumen {
   motivoCancelacion?: string
   cancelacionPendiente?: boolean
   devoluciones?: DevolucionPickingVista[]
+  /** SA-6: la entrega al transportista del cliente (tipo B), si ya se registró. */
+  entrega?: import('./entrega-transportista').EntregaTransportistaVista
+  /** SA-6: el destinatario (cliente de la venta manual, destino de la muestra o proveedor) también para el tipo C. */
 }
 
 /** Un lote que se puede elegir en la celda: vencimiento, ubicación y disponible a la vista; el FEFO marcado como «sugerido». */
