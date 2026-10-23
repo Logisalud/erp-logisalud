@@ -1,6 +1,7 @@
 // Cómo iniciar una Orden de Salida (SA-2), en memoria (modo demostración): desde la bandeja, y a mano (tipos A, B y C). Aplica las mismas reglas que la migración 0028
 // (`crear_orden_salida_manual`, `crear_orden_de_pedido`, `crear_ordenes_pendientes`) y dice lo mismo con las mismas palabras.
 import { puedePrepararSalidas } from '@/domain/despacho'
+import { MENSAJE_SIN_PERMISO_ENTREGA, puedeEntregarAlTransportistaCliente, validarEntrega, type EntradaEntrega } from '@/domain/entrega-transportista'
 import {
   ETIQUETA_CODIGO, buscarProductosPorCodigos, motivoNoPuedeCrear, normalizarNumeroPedido, mensajePedidoConOrden, mensajePedidoEnBandeja, partirPorMotivo, tipoDeClase, validarLineaSalidaCliente, validarOrdenManual,
   type CodigoProducto, type EntradaOrdenManual, type LineaOrdenManual, type LoteParaSalida, type ProductoHallado,
@@ -33,8 +34,10 @@ export function codigosDemo(e: EstadoDemo): CodigoProducto[] {
 }
 
 const PRIORIDAD_ERROR = ['pedidoNumero', 'ruc', 'razonSocial', 'direccion', 'ubigeo', 'propietarioId', 'motivo', 'greNumero', 'greArchivo', 'lineas']
-const primerError = (errores: Record<string, string>) => {
-  const k = PRIORIDAD_ERROR.find((x) => errores[x]) ?? Object.keys(errores)[0]
+const primerError = (errores: Record<string, string>, clase?: string) => {
+  // en el tipo C la base pide primero a quién va (nombre) y después el RUC
+  const orden = clase === 'C' ? ['razonSocial', 'ruc', ...PRIORIDAD_ERROR.filter((x) => x !== 'razonSocial' && x !== 'ruc')] : PRIORIDAD_ERROR
+  const k = orden.find((x) => errores[x]) ?? Object.keys(errores)[0]
   return errores[k]
 }
 
@@ -190,6 +193,32 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
     return { ok: true, ordenes: creadas }
   }
 
+  // ── Tipo B: entrega al transportista del cliente (SA-6) ──────────────────────────────────────────────────────────
+
+  async registrarEntregaTransportistaCliente(entrada: EntradaEntrega, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedeEntregarAlTransportistaCliente(actor.roles)) return falla(MENSAJE_SIN_PERMISO_ENTREGA)
+    const s = desp(e).salidas.find((x) => x.id === entrada.salidaId)
+    if (!s) return falla('No encontramos esa orden')
+    if ((s.tipo ?? 'DISTRIBUCION') !== 'CLIENTE') return falla('La entrega al transportista del cliente es solo para una orden por cuenta de un cliente de almacenamiento')
+    if (s.entrega) return { ok: true, id: s.entrega.id }                                   // repetir devuelve la misma entrega
+    if (s.estado === 'CANCELADA') return falla('La orden está cancelada')
+    if (s.estado !== 'ABIERTA') return falla('La orden ya salió')
+    const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
+    if (ruta) return falla(`La orden está en la ruta ${ruta.numero}: esta orden se entrega al transportista del cliente, no va en una ruta de Logisalud`)
+    const errores = validarEntrega(entrada, new Date().toISOString())
+    if (Object.keys(errores).length) return falla(Object.values(errores)[0], errores)
+    if (this.resumenSalida(e, s).etapa !== 'LISTA_PARA_CARGA') return falla('La orden todavía no está lista para entregarse: faltan la conformidad, la GRE del cliente registrada, el paquete documental completo o el embalaje')
+    const id = nuevoId()
+    this.descontar(e, s, actor)
+    s.entrega = {
+      id, transportista: entrada.transportista.trim(), placa: entrada.placa?.trim().toUpperCase() || undefined, documentoRecoge: entrada.documento?.trim() || undefined, entregadoEn: entrada.hora,
+      entregaAlmacen: entrada.entregaAlmacen.trim(), cargoArchivo: entrada.cargoRef, cargoNombre: entrada.cargoNombre, nota: entrada.nota?.trim() || undefined, registradaPor: actor.nombre, registradaEn: ahora(),
+    }
+    registrar(e, actor, 'entrega_transportista_cliente', 'salidas', s.numero, `Entregada al transportista ${s.entrega.transportista}: la salida ${s.numero} quedó confirmada`, entrada.nota?.trim())
+    return { ok: true, id }
+  }
+
   /** Lo que haría la transacción de la base si algo falla a medias: no queda nada. */
   private deshacer(e: EstadoDemo, salidas: SalidaDemo[]) {
     const d = desp(e)
@@ -206,7 +235,7 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
     const no = motivoNoPuedeCrear(actor.roles, entrada.clase, entrada.motivo)
     if (no) return { error: no }
     const errores = validarOrdenManual(entrada, (id) => propietarios.some((p) => p.id === id && !p.esDuenoAlmacen))
-    if (Object.keys(errores).length) return { error: primerError(errores), errores }
+    if (Object.keys(errores).length) return { error: primerError(errores, entrada.clase), errores }
     const tipo = tipoDeClase(entrada.clase, entrada.motivo)
     const motivo: MotivoSalida = entrada.clase === 'A' ? 'VENTA' : entrada.motivo!
     const dueno = duenoDelAlmacen(e)
@@ -240,10 +269,10 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
       }
     }
     const cm = entrada.cliente
-    const cliente = entrada.clase === 'A' && cm ? { ruc: cm.ruc.trim(), razonSocial: cm.razonSocial.trim(), direccion: cm.direccion.trim(), ubigeo: cm.ubigeo.trim(), vendedor: cm.vendedor?.trim() || undefined } : undefined
+    const cliente = (entrada.clase === 'A' || entrada.clase === 'C') && cm ? { ruc: cm.ruc.trim(), razonSocial: cm.razonSocial.trim(), direccion: cm.direccion.trim(), ubigeo: cm.ubigeo.trim(), vendedor: cm.vendedor?.trim() || undefined } : undefined
     const salida: SalidaDemo = {
       id: nuevoId(), numero: '', pedidoId: entrada.clase === 'A' ? `manual:${numeroNorm}` : '', propietarioId, estado: 'ABIERTA', lineas, creadaEn: ahora(), creadaPor: actor.id,
-      requiereEmbalaje: entrada.clase === 'A' && cliente ? requiereEmbalaje(cliente.ubigeo) : true,
+      requiereEmbalaje: cliente ? requiereEmbalaje(cliente.ubigeo) : true,
       tipo, motivo, origen: 'MANUAL', creadaDesde: 'MANUAL', token,
       pedidoNumero: entrada.clase === 'A' ? (entrada.pedidoNumero ?? '').trim() : undefined, porConciliar: entrada.clase === 'A', clienteManual: cliente,
       greNumero: entrada.clase === 'B' ? (entrada.greNumero ?? '').trim().toUpperCase() : undefined, greArchivo: entrada.clase === 'B' ? entrada.greArchivo : undefined,

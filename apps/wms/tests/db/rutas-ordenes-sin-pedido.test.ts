@@ -301,7 +301,7 @@ describe('tipo B: entrega al transportista del cliente', () => {
 describe('re-ejecución y permisos', () => {
   it('la migración 0030 se puede volver a aplicar sola y en cadena (0028, 0029, 0030) sin romper nada ni dejar avisos de objetos inexistentes', async () => {
     const avisos: string[] = []
-    base.admin.on('notice', (m) => avisos.push(m.message))
+    base.admin.on('notice', (m) => avisos.push(String(m.message)))
     await base.admin.query(SQL.m0030())
     await base.admin.query(SQL.m0028()); await base.admin.query(SQL.m0029()); await base.admin.query(SQL.m0030())
     base.admin.removeAllListeners('notice')

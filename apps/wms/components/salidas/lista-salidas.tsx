@@ -9,7 +9,7 @@ import { avanceDeSalida } from '@/domain/pasos'
 import { EtiquetasOrigen } from './etiquetas-origen'
 
 const ETAPAS = Object.keys(ETIQUETA_ETAPA) as EtapaSalida[]
-const extrasDe = (s: SalidaResumen) => ({ vendedor: s.vendedor, sinPedido: s.sinPedido, devolucion: s.devolucion, devolucionHref: s.devolucionHref })
+const extrasDe = (s: SalidaResumen) => ({ vendedor: s.vendedor, sinPedido: s.sinPedido, devolucion: s.devolucion, devolucionHref: s.devolucionHref, tipo: s.tipo, destruccion: s.motivo === 'DESTRUCCION', sinRuta: s.tipo === 'CLIENTE' ? undefined : !s.rutaNumero, porRuta: s.origen === 'MANUAL' && s.tipo !== 'CLIENTE' })
 
 export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]; verCambios: boolean }) {
   const [q, setQ] = useState('')

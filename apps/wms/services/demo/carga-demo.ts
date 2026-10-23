@@ -158,7 +158,7 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
   }
 
   /** El stock SALE: cada reserva en la zona de conformidad baja del saldo y queda en el libro como SALIDA. */
-  private descontar(e: EstadoDemo, s: SalidaDemo, actor: Actor): number {
+  protected descontar(e: EstadoDemo, s: SalidaDemo, actor: Actor): number {
     let n = 0
     for (const rv of desp(e).reservas.filter((x) => x.estado === 'EN_STAGING' && s.lineas.some((l) => l.id === x.lineaId))) {
       const lt = e.panorama.lotes.find((l) => l.id === rv.loteId)!

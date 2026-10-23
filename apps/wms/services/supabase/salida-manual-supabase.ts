@@ -2,6 +2,7 @@ import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { puedePrepararSalidas } from '@/domain/despacho'
+import { MENSAJE_SIN_PERMISO_ENTREGA, puedeEntregarAlTransportistaCliente, validarEntrega, type EntradaEntrega } from '@/domain/entrega-transportista'
 import { buscarProductosPorCodigos, partirPorMotivo, type CodigoProducto, type EntradaOrdenManual, type LoteParaSalida, type ProductoHallado, type TipoCodigoProducto } from '@/domain/salida-manual'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { OrdenCreada, OrdenDelPedido, RepositorioSalidaManual, ResumenOrdenesPendientes } from '../repositorio-salida-manual'
@@ -143,5 +144,16 @@ export class SalidaManualSupabase extends LiberacionSupabase implements Reposito
     if (!motivo.trim()) return { ok: false, mensaje: 'La cancelación necesita un motivo', errores: { motivo: 'Escribe el motivo.' } }
     const { error } = await rpc('cancelar_orden_salida', { p_salida: salidaId, p_motivo: motivo.trim() })
     return error ? mal(error) : { ok: true }
+  }
+
+  async registrarEntregaTransportistaCliente(entrada: EntradaEntrega, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+    if (!puedeEntregarAlTransportistaCliente(actor.roles)) return { ok: false, mensaje: MENSAJE_SIN_PERMISO_ENTREGA }
+    const errores = validarEntrega(entrada, new Date().toISOString())
+    if (Object.keys(errores).length) return { ok: false, mensaje: Object.values(errores)[0], errores }
+    const { data, error } = await rpc('registrar_entrega_transportista_cliente', {
+      p_salida: entrada.salidaId, p_transportista: entrada.transportista.trim(), p_placa: entrada.placa?.trim() || null, p_documento: entrada.documento?.trim() || null, p_hora: entrada.hora,
+      p_entrega_almacen: entrada.entregaAlmacen.trim(), p_cargo_ref: entrada.cargoRef ?? null, p_cargo_nombre: entrada.cargoNombre ?? null, p_nota: entrada.nota?.trim() || null,
+    })
+    return error ? mal(error) : { ok: true, id: String(data) }
   }
 }

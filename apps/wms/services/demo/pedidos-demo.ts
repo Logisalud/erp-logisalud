@@ -47,6 +47,8 @@ export function unirOrdenManual(e: EstadoDemo, fila: FilaPedidoDemo, salida: Non
   fila.salida = salida.numero
   salida.pedidoId = p.pedidoId
   salida.porConciliar = false
+  // SA-6 (0030): si la orden ya estaba en una ruta (parada por orden), la parada pasa a ser también del pedido: la ruta, la carga y la guía siguen valiendo
+  for (const r of e.desp?.rutas ?? []) for (const pa of r.paradas) if (pa.activa && pa.salidaId === salida.id && !pa.pedidoId) pa.pedidoId = p.pedidoId
   if (salida.bultosConformidad === undefined) salida.requiereEmbalaje = requiereEmbalaje(p.cliente.ubigeo)
   let aviso = ''
   if (salida.clienteManual && p.cliente.ruc && salida.clienteManual.ruc !== p.cliente.ruc) aviso += ` OJO: el RUC del cliente no coincide (orden ${salida.clienteManual.ruc}, pedido ${p.cliente.ruc}).`

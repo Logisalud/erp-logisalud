@@ -118,7 +118,7 @@ export class EmbalajeSupabase extends DocumentacionSupabase implements Repositor
     const n = new Map<string, number>()
     for (const b of (bs ?? []) as Fila[]) n.set(String(b.salida_id), (n.get(String(b.salida_id)) ?? 0) + 1)
     const cajas: Record<string, number> = {}
-    for (const p of ps) { const c = n.get(String(p.salida_id)); if (c) cajas[String(p.pedido_id)] = c }
+    for (const p of ps) { const c = n.get(String(p.salida_id)); if (c) cajas[String(p.pedido_id ?? `orden:${p.salida_id}`)] = c }
     return { ...base, cajas }
   }
 }

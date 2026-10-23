@@ -17,5 +17,5 @@ export default async function Salida({ params }: { params: { id: string } }) {
   const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
   const guia = paquete?.conforme && !paquete.guia ? await repo.datosGuia(params.id) : null
   const eventos = await repo.eventosPedidos({ salidaId: params.id })
-  return <div className="mx-auto max-w-6xl"><DetalleSalida salida={salida} puedeEditar={puedeCambiarLote(ctx.roles)} puedePreparar={puedePrepararSalidas(ctx.roles)} paquete={paquete} guia={{ datos: guia, modo: modoNubefactActual(), hoy, eventos }} roles={ctx.roles} /></div>
+  return <div className="mx-auto max-w-6xl"><DetalleSalida salida={salida} puedeEditar={puedeCambiarLote(ctx.roles)} puedePreparar={puedePrepararSalidas(ctx.roles)} paquete={paquete} guia={{ datos: guia, modo: modoNubefactActual(), hoy, eventos }} roles={ctx.roles} usuario={ctx.usuario.nombre} /></div>
 }

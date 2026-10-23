@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowUp, Ban, CheckCircle2, FileText, History, ListOrdered, Plus, Save, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Ban, CheckCircle2, ClipboardList, FileText, History, ListOrdered, Plus, Save, Trash2, TriangleAlert } from 'lucide-react'
 import { cancelarRutaAccion, confirmarRutaAccion, planificarRutaAccion } from '@/app/acciones-rutas'
 import {
-  ETIQUETA_ESTADO_RUTA, RUTA_EDITABLE, filtrarPedidosPlanificables, fueraDeCorte, ordenSugerido, validarPlan,
-  type PanoramaRutas, type PedidoPlanificable, type PlanParada, type RutaVista,
+  ETIQUETA_ESTADO_RUTA, RUTA_EDITABLE, clavePlanParada, filtrarOrdenesPlanificables, filtrarPedidosPlanificables, fueraDeCorte, ordenSugerido, validarPlan,
+  type OrdenPlanificable, type PanoramaRutas, type PedidoPlanificable, type PlanParada, type RutaVista,
 } from '@/domain/rutas'
 import { formatoFechaHora } from '@/domain/fechas'
+import { ETIQUETA_TIPO_SALIDA } from '@/domain/salida-manual'
 import type { RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import { CHIP_AVISO } from '../estilos-opcion'
 import { useAccion } from '../usar-accion'
@@ -57,7 +58,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const [vehiculoId, setVehiculoId] = useState(ruta.vehiculo?.id ?? '')
   const [conductorId, setConductorId] = useState(ruta.conductor?.id ?? '')
   const [auxiliarId, setAuxiliarId] = useState(ruta.auxiliar?.id ?? '')
-  const [paradas, setParadas] = useState<PlanParada[]>(ruta.paradas.map((p) => ({ pedidoId: p.pedidoId, excepcionCorte: p.excepcionCorte, motivoExcepcion: p.motivoExcepcion })))
+  const [paradas, setParadas] = useState<PlanParada[]>(ruta.paradas.map((p) => ({ ...(p.pedidoId ? { pedidoId: p.pedidoId } : { salidaId: p.salidaId }), excepcionCorte: p.excepcionCorte, motivoExcepcion: p.motivoExcepcion })))
   const [motivo, setMotivo] = useState('')
   const [q, setQ] = useState('')
   const [cancelando, setCancelando] = useState(false)
@@ -66,11 +67,19 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
 
   const pedido = useMemo(() => new Map(panorama.pedidos.map((p) => [p.pedidoId, p])), [panorama.pedidos])
   const vehiculo = panorama.vehiculos.find((v) => v.id === vehiculoId)
-  const guardadas = ruta.paradas.map((p) => p.pedidoId)
+  const ordenMap = useMemo(() => new Map(panorama.ordenes.map((o) => [o.clave, o])), [panorama.ordenes])
+  const guardadas = ruta.paradas.map((p) => p.clave)
+  /** Lo que se muestra de cada parada, sea de un pedido de la bandeja o de una orden manual (SA-6). */
+  const info = (pp: PlanParada) => {
+    if (pp.pedidoId) { const p = pedido.get(pp.pedidoId); return p ? { cliente: p.cliente, numero: p.numero, distrito: p.distrito, ventanaCita: p.ventanaCita, unidades: p.unidades, llegada: p.importadoEn, vehiculoCalificado: p.vehiculoCalificado, tipo: undefined as string | undefined } : null }
+    const o = ordenMap.get(clavePlanParada(pp))
+    return o ? { cliente: o.cliente, numero: o.pedidoNumero ?? o.numero, distrito: o.distrito, ventanaCita: undefined, unidades: o.unidades, llegada: o.creadaEn, vehiculoCalificado: undefined, tipo: ETIQUETA_TIPO_SALIDA[o.tipo] as string | undefined } : null
+  }
   const sucio = fecha !== ruta.fecha || vehiculoId !== (ruta.vehiculo?.id ?? '') || conductorId !== (ruta.conductor?.id ?? '') || auxiliarId !== (ruta.auxiliar?.id ?? '')
-    || paradas.length !== guardadas.length || paradas.some((p, i) => p.pedidoId !== guardadas[i] || !!p.excepcionCorte !== !!ruta.paradas[i]?.excepcionCorte || (p.motivoExcepcion ?? '') !== (ruta.paradas[i]?.motivoExcepcion ?? ''))
+    || paradas.length !== guardadas.length || paradas.some((p, i) => clavePlanParada(p) !== guardadas[i] || !!p.excepcionCorte !== !!ruta.paradas[i]?.excepcionCorte || (p.motivoExcepcion ?? '') !== (ruta.paradas[i]?.motivoExcepcion ?? ''))
   const enOtraRuta = useMemo(() => new Map(panorama.pedidos.filter((p) => p.enRuta && !guardadas.includes(p.pedidoId)).map((p) => [p.pedidoId, p.enRuta!])), [panorama.pedidos, guardadas])
-  const errores = useMemo(() => validarPlan({ hoy: panorama.hoy, corte: panorama.corte, plan: { fecha, vehiculoId, conductorId, auxiliarId, paradas }, vehiculo, pedidos: pedido, enOtraRuta }), [panorama, fecha, vehiculoId, conductorId, auxiliarId, paradas, vehiculo, pedido, enOtraRuta])
+  const ordenesEnOtraRuta = useMemo(() => new Map(panorama.ordenes.filter((o) => o.enRuta && !guardadas.includes(o.clave)).map((o) => [o.clave, o.enRuta!])), [panorama.ordenes, guardadas])
+  const errores = useMemo(() => validarPlan({ hoy: panorama.hoy, corte: panorama.corte, plan: { fecha, vehiculoId, conductorId, auxiliarId, paradas }, vehiculo, pedidos: pedido, enOtraRuta, ordenes: ordenMap, ordenesEnOtraRuta }), [panorama, fecha, vehiculoId, conductorId, auxiliarId, paradas, vehiculo, pedido, enOtraRuta, ordenMap, ordenesEnOtraRuta])
   const requiereMotivo = ruta.estado === 'PLANIFICADA' && sucio
 
   if (!editable) return <VistaRuta ruta={ruta} registro={registro} permisos={permisos} />
@@ -78,8 +87,9 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const mover = (i: number, d: -1 | 1) => setParadas((a) => { const b = [...a]; const j = i + d; if (j < 0 || j >= b.length) return a; [b[i], b[j]] = [b[j], b[i]]; return b })
   const quitar = (i: number) => setParadas((a) => a.filter((_, k) => k !== i))
   const agregar = (p: PedidoPlanificable) => setParadas((a) => [...a, { pedidoId: p.pedidoId }])
+  const agregarOrden = (o: OrdenPlanificable) => setParadas((a) => [...a, { salidaId: o.salidaId }])
   const marcar = (i: number, cambio: Partial<PlanParada>) => setParadas((a) => a.map((x, k) => (k === i ? { ...x, ...cambio } : x)))
-  const sugerir = () => setParadas((a) => ordenSugerido(a.map((p) => ({ ...p, ...pedido.get(p.pedidoId)!, cliente: pedido.get(p.pedidoId)?.cliente ?? '' }))).map((p) => ({ pedidoId: p.pedidoId, excepcionCorte: p.excepcionCorte, motivoExcepcion: p.motivoExcepcion })))
+  const sugerir = () => setParadas((a) => ordenSugerido(a.map((p) => ({ p, cliente: info(p)?.cliente ?? '', distrito: info(p)?.distrito, ventanaCita: info(p)?.ventanaCita }))).map(({ p }) => p))
 
   const guardar = () => { setAviso(null); ejecutar(() => planificarRutaAccion(ruta.id, { fecha, vehiculoId: vehiculoId || undefined, conductorId: conductorId || undefined, auxiliarId: auxiliarId || undefined, paradas, motivo: motivo || undefined }), {
     exito: 'Plan guardado.', alExito: (r) => { setMotivo(''); if (r.bloqueadosPorStock.length) setAviso(`No hay stock suficiente para: ${r.bloqueadosPorStock.join(', ')}. Quítalos de la ruta o espera el ingreso de stock antes de confirmarla.`) },
@@ -88,6 +98,8 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const cancelar = () => ejecutar(() => cancelarRutaAccion(ruta.id, motivoCancelar), { refrescar: false, alExito: () => router.push('/rutas') })
 
   const disponibles = filtrarPedidosPlanificables(panorama.pedidos.filter((p) => !paradas.some((x) => x.pedidoId === p.pedidoId)), q)
+  const ordenesDisponibles = filtrarOrdenesPlanificables(panorama.ordenes.filter((o) => !paradas.some((x) => clavePlanParada(x) === o.clave)), q)
+  const motivoBloqueoOrden = (o: OrdenPlanificable) => o.enRuta ? `Ya está en ${o.enRuta}` : o.sinStock ? 'Sin stock suficiente: decide quién resuelve la falta' : null
   const motivoBloqueo = (p: PedidoPlanificable) => p.enRuta ? `Ya está en ${p.enRuta}` : p.cambioPorRevisar ? 'Cambió en Pedidos: revísalo primero' : p.sinCatalogo.length ? `Producto desconocido (${p.sinCatalogo[0]})` : null
 
   return (
@@ -125,27 +137,29 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
           {paradas.length > 1 && <button type="button" className="btn-secondary btn-sm" onClick={sugerir} data-testid="ordenar-zona"><ListOrdered className="h-4 w-4" aria-hidden />Ordenar por zona</button>}
         </div>
         {paradas.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-700" data-testid="sin-paradas">Todavía no hay pedidos en la ruta. Agrégalos desde la lista de abajo.</p>
+          <p className="rounded-lg border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-700" data-testid="sin-paradas">Todavía no hay pedidos ni órdenes en la ruta. Agrégalos desde las listas de abajo.</p>
         ) : (
           <ol className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white" data-testid="lista-paradas">
             {paradas.map((pp, i) => {
-              const p = pedido.get(pp.pedidoId)
-              if (!p) return <li key={pp.pedidoId} className="px-4 py-3 text-sm text-red-800">Un pedido ya no está en la bandeja.</li>
-              const guardada = ruta.paradas.find((x) => x.pedidoId === pp.pedidoId)
-              const tarde = fueraDeCorte(p.importadoEn, fecha, panorama.corte)
+              const clave = clavePlanParada(pp)
+              const p = info(pp)
+              if (!p) return <li key={clave} className="px-4 py-3 text-sm text-red-800">{pp.pedidoId ? 'Un pedido ya no está en la bandeja.' : 'Una orden ya no se puede planificar.'}</li>
+              const guardada = ruta.paradas.find((x) => x.clave === clave)
+              const tarde = fueraDeCorte(p.llegada, fecha, panorama.corte)
               const alertas = [vehiculo && p.vehiculoCalificado && !vehiculo.calificado ? 'Exige vehículo calificado' : (!vehiculo && p.vehiculoCalificado ? 'Exige vehículo calificado' : '')].filter(Boolean)
               return (
-                <li key={pp.pedidoId} className="space-y-2 px-3 py-3 md:px-4" data-testid="parada">
+                <li key={clave} className="space-y-2 px-3 py-3 md:px-4" data-testid="parada">
                   <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
                     <span className="tabular mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-50 text-sm font-semibold text-green-900" aria-label={`Parada ${i + 1}`}>{i + 1}</span>
                     <div className="min-w-0 flex-1 basis-48">
                       <p className="font-medium text-gray-900">{p.cliente} <span className="tabular text-sm font-normal text-gray-600">· {p.numero}</span></p>
                       <p className="text-sm text-gray-700">{[p.distrito, p.ventanaCita, `${p.unidades.toLocaleString('es-PE')} u`].filter(Boolean).join(' · ')}</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        {p.tipo && <span className={`${base} border-teal-200 bg-teal-50 text-teal-900`} data-testid="chip-orden-manual"><ClipboardList className="h-3.5 w-3.5" aria-hidden />Orden manual · {p.tipo}</span>}
                         {guardada ? <ChipStockParada stock={guardada.stock} /> : <span className={`${base} border-gray-300 bg-gray-100 text-gray-800`}>Stock se asigna al guardar</span>}
                         {guardada?.salidaNumero && <span className="tabular text-xs text-gray-600">{guardada.salidaNumero}</span>}
                         {alertas.map((a) => <span key={a} className={`${base} ${CHIP_AVISO}`}><TriangleAlert className="h-3.5 w-3.5" aria-hidden />{a}</span>)}
-                        {tarde && <span className={`${base} ${CHIP_AVISO}`} data-testid="chip-corte"><TriangleAlert className="h-3.5 w-3.5" aria-hidden />Llegó después del corte</span>}
+                        {tarde && <span className={`${base} ${CHIP_AVISO}`} data-testid="chip-corte"><TriangleAlert className="h-3.5 w-3.5" aria-hidden />{pp.pedidoId ? 'Llegó' : 'Se creó'} después del corte</span>}
                       </div>
                     </div>
                     <div className="ml-11 flex shrink-0 gap-1 sm:ml-0">
@@ -157,7 +171,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
                   {tarde && (
                     <div className="ml-11 space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
                       <label className="flex min-h-11 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!pp.excepcionCorte} onChange={(e) => marcar(i, { excepcionCorte: e.target.checked, motivoExcepcion: e.target.checked ? pp.motivoExcepcion : undefined })} data-testid="excepcion-corte" />Incluirlo con excepción (llegó después de las {panorama.corte} de la víspera)</label>
-                      {pp.excepcionCorte && <div><label htmlFor={`mot-${pp.pedidoId}`} className="etiqueta">Motivo de la excepción</label><input id={`mot-${pp.pedidoId}`} className="campo" value={pp.motivoExcepcion ?? ''} onChange={(e) => marcar(i, { motivoExcepcion: e.target.value })} data-testid="excepcion-motivo" /></div>}
+                      {pp.excepcionCorte && <div><label htmlFor={`mot-${clave}`} className="etiqueta">Motivo de la excepción</label><input id={`mot-${clave}`} className="campo" value={pp.motivoExcepcion ?? ''} onChange={(e) => marcar(i, { motivoExcepcion: e.target.value })} data-testid="excepcion-motivo" /></div>}
                     </div>
                   )}
                 </li>
@@ -204,6 +218,28 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
                     {bloqueo && <p className={`${base} ${CHIP_AVISO} mt-1`}><TriangleAlert className="h-3.5 w-3.5" aria-hidden />{bloqueo}</p>}
                   </div>
                   <button type="button" className="btn-secondary" onClick={() => agregar(p)} disabled={!!bloqueo} aria-label={`Agregar ${p.numero} a la ruta`} data-testid="agregar-pedido"><Plus className="h-5 w-5" aria-hidden />Agregar</button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="t-ordenes" className="space-y-3" data-testid="ordenes-por-despachar">
+        <h2 id="t-ordenes" className="font-heading text-xl font-semibold uppercase tracking-wide text-gray-900">Órdenes manuales por despachar</h2>
+        <p className="text-sm text-gray-700">Ventas manuales que aún no llegaron por la bandeja, muestras y devoluciones al proveedor. Ya tienen su orden y su stock. Las que son por cuenta de un cliente de almacenamiento no van aquí: se entregan al transportista del cliente.</p>
+        {ordenesDisponibles.length === 0 ? <p className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-700" data-testid="sin-ordenes-disponibles">No hay órdenes manuales para despachar.</p> : (
+          <ul className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white" data-testid="lista-ordenes-disponibles">
+            {ordenesDisponibles.map((o) => {
+              const bloqueo = motivoBloqueoOrden(o)
+              return (
+                <li key={o.salidaId} className="flex flex-wrap items-center gap-3 px-3 py-3 md:px-4" data-testid="orden-disponible">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-gray-900">{o.cliente} <span className="tabular text-sm font-normal text-gray-600">· {o.numero}{o.pedidoNumero ? ` · pedido ${o.pedidoNumero}` : ''}</span></p>
+                    <p className="text-sm text-gray-700">{[ETIQUETA_TIPO_SALIDA[o.tipo], o.direccion, `${o.lineas} ${o.lineas === 1 ? 'línea' : 'líneas'}`, `${o.unidades.toLocaleString('es-PE')} u`].filter(Boolean).join(' · ')}</p>
+                    {bloqueo && <p className={`${base} ${CHIP_AVISO} mt-1`}><TriangleAlert className="h-3.5 w-3.5" aria-hidden />{bloqueo}</p>}
+                  </div>
+                  <button type="button" className="btn-secondary" onClick={() => agregarOrden(o)} disabled={!!bloqueo} aria-label={`Agregar la orden ${o.numero} a la ruta`} data-testid="agregar-orden"><Plus className="h-5 w-5" aria-hidden />Agregar</button>
                 </li>
               )
             })}

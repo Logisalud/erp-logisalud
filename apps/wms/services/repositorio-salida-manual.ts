@@ -1,5 +1,6 @@
 import type { EntradaOrdenManual, LoteParaSalida, ProductoHallado } from '@/domain/salida-manual'
 export type { ProductoHallado } from '@/domain/salida-manual'
+import type { EntradaEntrega } from '@/domain/entrega-transportista'
 import type { MotivoSalida } from '@/domain/salidas'
 import type { Actor, ResultadoAccion } from './repositorio'
 
@@ -46,4 +47,9 @@ export interface RepositorioSalidaManual {
   cancelarOrden(salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   /** «Crear las órdenes de todos los pedidos por planificar». */
   crearOrdenesPendientes(actor: Actor): Promise<ResultadoAccion<{ resumen: ResumenOrdenesPendientes }>>
+  /**
+   * SA-6, tipo B: registra la entrega al transportista del cliente (nombre o placa y DNI, hora y quién entrega por el almacén; el cargo es opcional) y confirma la salida: el stock baja.
+   * La orden pasa a «Entregada al transportista». Repetir el envío devuelve la misma entrega.
+   */
+  registrarEntregaTransportistaCliente(entrada: EntradaEntrega, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
 }

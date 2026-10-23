@@ -116,6 +116,81 @@ describe('Orden de Salida con falta de stock (SA-3): decide el vendedor, no el J
   })
 })
 
+describe('Órdenes manuales hasta el despacho (SA-6): ruta de Logisalud o entrega al transportista del cliente', () => {
+  const sigue = (etapa: Parameters<typeof avanceDeSalida>[0], extras: Parameters<typeof avanceDeSalida>[2]) => avanceDeSalida(etapa, 'x', extras).siguiente
+
+  it('A y C sin ruta: el siguiente paso es planificar la ruta, lo hace el Jefe de Transporte y se hace en Rutas', () => {
+    for (const tipo of ['DISTRIBUCION', 'MUESTRA', 'PROVEEDOR'] as const) {
+      for (const etapa of ['CONFORME', 'EMBALADA', 'LISTA_PARA_CARGA'] as const) {
+        const s = sigue(etapa, { tipo, sinRuta: true, porRuta: true })
+        expect(s.texto, `${tipo} ${etapa}`).toMatch(/^Planificar la ruta de Logisalud/)
+        expect(s.responsable.roles).toEqual(['jefe_transporte'])
+        expect(s.href).toBe('/rutas'); expect(s.boton).toBe('Planificar la ruta')
+      }
+    }
+  })
+  it('con la ruta ya asignada (o sin saberlo) todo sigue como antes: guía y carga', () => {
+    expect(sigue('CONFORME', { tipo: 'DISTRIBUCION', sinRuta: false }).boton).toBe('Emitir la guía')
+    expect(sigue('CONFORME', { tipo: 'MUESTRA' }).boton).toBe('Emitir la guía')
+    expect(sigue('LISTA_PARA_CARGA', { tipo: 'DISTRIBUCION', sinRuta: false }).boton).toBe('Ir a la carga')
+    // la guía ya enviada y en espera de SUNAT tiene su propio paso, ruta o no
+    expect(sigue('CONFORME', { tipo: 'DISTRIBUCION', sinRuta: true, guiaEnEspera: true }).boton).toBe('Consultar estado en SUNAT')
+  })
+  it('el paso «Ruta planificada» aparece en la lista de una orden manual y se marca hecho cuando entra a una ruta', () => {
+    const sin = avanceDeSalida('CONFORME', 'x', { tipo: 'DISTRIBUCION', sinRuta: true, porRuta: true })
+    expect(sin.pasos.map((p) => p.clave)).toEqual(['stock', 'picking', 'conformidad', 'ruta', 'documentos', 'embalaje', 'carga', 'salida'])
+    expect(sin.pasos.find((p) => p.estado === 'ACTUAL')?.clave).toBe('ruta')
+    const con = avanceDeSalida('CONFORME', 'x', { tipo: 'DISTRIBUCION', sinRuta: false, porRuta: true })
+    expect(con.pasos.find((p) => p.clave === 'ruta')?.estado).toBe('HECHO')
+    expect(con.pasos.find((p) => p.estado === 'ACTUAL')?.clave).toBe('documentos')
+    expect(Object.values(avanceDeSalida('CONFIRMADA', 'x', { tipo: 'MUESTRA', sinRuta: false, porRuta: true }).pasos).every((p) => p.estado === 'HECHO')).toBe(true)
+    // una orden de la bandeja no lleva el paso (nace con su ruta o se planifica desde Pedidos por despachar)
+    expect(avanceDeSalida('CONFORME', 'x', { tipo: 'DISTRIBUCION', sinRuta: true }).pasos.map((p) => p.clave)).not.toContain('ruta')
+  })
+  it('B: sin ruta ni guía del WMS; el último paso es «Entrega al transportista del cliente», lo hacen el Jefe de Transporte o el Jefe de Almacén', () => {
+    const lista = sigue('LISTA_PARA_CARGA', { tipo: 'CLIENTE', sinRuta: undefined })
+    expect(lista.texto).toMatch(/^Entregar la mercadería al transportista del cliente/)
+    expect(lista.responsable.roles).toEqual(['jefe_transporte', 'jefe_almacen'])
+    expect(lista.href).toBe('/salidas/x#entrega-transportista'); expect(lista.boton).toBe('Registrar la entrega')
+    expect(esMiTarea(['jefe_almacen'], lista)).toBe(true); expect(esMiTarea(['auxiliar'], lista)).toBe(false)
+    // aunque no tenga ruta, B nunca pide planificarla
+    expect(sigue('CONFORME', { tipo: 'CLIENTE', sinRuta: true }).boton).toBe('Registrar la GRE del cliente')
+    const a = avanceDeSalida('LISTA_PARA_CARGA', 'x', { tipo: 'CLIENTE' })
+    expect(a.pasos.map((p) => p.clave)).toEqual(['stock', 'picking', 'conformidad', 'documentos', 'embalaje', 'entrega'])
+    expect(a.pasos.find((p) => p.estado === 'ACTUAL')?.clave).toBe('entrega')
+  })
+  it('entregada al transportista: todo hecho y nada pendiente; sigue habiendo siguiente paso y responsable', () => {
+    const a = avanceDeSalida('ENTREGADA_AL_TRANSPORTISTA', 'x', { tipo: 'CLIENTE' })
+    expect(a.pasos.every((p) => p.estado === 'HECHO')).toBe(true)
+    expect(a.siguiente).toMatchObject({ fin: true, texto: expect.stringMatching(/entregó al transportista del cliente y el stock ya bajó/) })
+    expect(a.siguiente.responsable.roles).toEqual([])
+  })
+  it('toda orden A, B o C, en cualquier etapa y con o sin ruta, muestra siempre el siguiente paso y su responsable hasta el cierre', () => {
+    for (const tipo of ['DISTRIBUCION', 'CLIENTE', 'MUESTRA', 'PROVEEDOR'] as const) {
+      for (const sinRuta of [true, false, undefined]) {
+        for (const etapa of ETAPAS_SALIDA) {
+          const a = avanceDeSalida(etapa, 'abc', { tipo, sinRuta, porRuta: tipo !== 'CLIENTE' })
+          expect(a.siguiente.texto.length, `${tipo} ${etapa}`).toBeGreaterThan(10)
+          expect(a.siguiente.responsable.etiqueta.length).toBeGreaterThan(3)
+          if (!a.siguiente.fin && !a.siguiente.responsable.externo) expect(a.siguiente.responsable.roles.length, `${tipo} ${etapa}`).toBeGreaterThan(0)
+          if (!a.siguiente.fin) expect(a.pasos.some((p) => p.estado === 'ACTUAL'), `${tipo} ${etapa}`).toBe(true)
+        }
+      }
+    }
+  })
+  it('«Mis tareas»: planificar la ruta le toca al Jefe de Transporte y la entrega al transportista del cliente, también al Jefe de Almacén', async () => {
+    const { misTareas } = await import('@/domain/pasos')
+    const etiquetas = { CONFORME: 'Conforme', LISTA_PARA_CARGA: 'Lista', ENTREGADA_AL_TRANSPORTISTA: 'Entregada' } as never
+    const salidas = [
+      { id: 'a', numero: 'OS-A', etapa: 'CONFORME' as const, tipo: 'DISTRIBUCION' as const, origen: 'MANUAL' as const },
+      { id: 'b', numero: 'OS-B', etapa: 'LISTA_PARA_CARGA' as const, tipo: 'CLIENTE' as const, origen: 'MANUAL' as const },
+      { id: 'c', numero: 'OS-C', etapa: 'ENTREGADA_AL_TRANSPORTISTA' as const, tipo: 'CLIENTE' as const, origen: 'MANUAL' as const },
+    ]
+    expect(misTareas(['jefe_transporte'], salidas, [], etiquetas).map((t) => t.clave).sort()).toEqual(['s-a', 's-b'])
+    expect(misTareas(['jefe_almacen'], salidas, [], etiquetas).map((t) => t.clave)).toEqual(['s-b'])
+  })
+})
+
 describe('Ingreso: siempre hay siguiente paso y responsable', () => {
   for (const estado of ESTADOS_INGRESO) {
     it(`estado ${estado}`, () => {
@@ -131,7 +206,7 @@ describe('Ingreso: siempre hay siguiente paso y responsable', () => {
 describe('Mis tareas', () => {
   const salidas = [
     { id: 's1', numero: 'OS-2026-00001', cliente: 'Botica A', etapa: 'PENDIENTE_CONFORMIDAD' as const },
-    { id: 's2', numero: 'OS-2026-00002', cliente: 'Botica B', etapa: 'CONFORME' as const },
+    { id: 's2', numero: 'OS-2026-00002', cliente: 'Botica B', etapa: 'CONFORME' as const, rutaNumero: 'RUT-2026-00001' },
     { id: 's3', numero: 'OS-2026-00003', etapa: 'CONFIRMADA' as const },
   ]
   const ingresos = [{ id: 'i1', numero: 'IN-1', estado: 'ENVIADA' as const, etiquetaTipo: 'Compra local', etiquetaEstado: 'Por autorizar' }]
