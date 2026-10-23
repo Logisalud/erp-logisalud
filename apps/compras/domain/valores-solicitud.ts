@@ -26,6 +26,7 @@ export type ValoresSolicitud = {
   quienAutoriza: string
   fechaFactura: string
   tipoComprobante: string
+  tipoCambio: string
 }
 
 type FilaSolicitud = {
@@ -44,6 +45,7 @@ type FilaSolicitud = {
   asignado_persona_id?: string | null
   quien_autoriza: string | null
   fecha_factura: string | null
+  tipo_cambio?: number | string | null
 }
 
 /**
@@ -74,5 +76,6 @@ export function valoresDeSolicitud(fila: FilaSolicitud): ValoresSolicitud {
     // 'boleta' es el default del alta; una solicitud vieja sin el dato
     // guardado cae ahí igual que caería una nueva.
     tipoComprobante: 'boleta',
+    tipoCambio: numero(fila.tipo_cambio),
   }
 }
