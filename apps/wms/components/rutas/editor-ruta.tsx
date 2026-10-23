@@ -170,7 +170,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
                   </div>
                   {tarde && (
                     <div className="ml-11 space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-                      <label className="flex min-h-11 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!pp.excepcionCorte} onChange={(e) => marcar(i, { excepcionCorte: e.target.checked, motivoExcepcion: e.target.checked ? pp.motivoExcepcion : undefined })} data-testid="excepcion-corte" />Incluirlo con excepción (llegó después de las {panorama.corte} de la víspera)</label>
+                      <label className="flex min-h-11 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!pp.excepcionCorte} onChange={(e) => marcar(i, { excepcionCorte: e.target.checked, motivoExcepcion: e.target.checked ? pp.motivoExcepcion : undefined })} data-testid="excepcion-corte" />Incluirlo con excepción ({pp.pedidoId ? 'llegó' : 'se creó'} después de las {panorama.corte} de la víspera)</label>
                       {pp.excepcionCorte && <div><label htmlFor={`mot-${clave}`} className="etiqueta">Motivo de la excepción</label><input id={`mot-${clave}`} className="campo" value={pp.motivoExcepcion ?? ''} onChange={(e) => marcar(i, { motivoExcepcion: e.target.value })} data-testid="excepcion-motivo" /></div>}
                     </div>
                   )}

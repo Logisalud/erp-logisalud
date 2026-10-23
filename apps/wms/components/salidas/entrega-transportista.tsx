@@ -84,7 +84,7 @@ export function EntregaTransportista({ salida, roles, usuario }: { salida: Salid
   const campo = (id: string, etiqueta: string, k: string, valor: string, set: (v: string) => void, extra: { ayuda?: string; type?: string; inputMode?: 'numeric'; maxLength?: number; tabular?: boolean; testid: string }) => (
     <div>
       <label htmlFor={id} className="etiqueta">{etiqueta}</label>
-      <input id={id} type={extra.type ?? 'text'} inputMode={extra.inputMode} maxLength={extra.maxLength} className={`campo ${extra.tabular ? 'tabular' : ''} ${err(k) ? '!border-red-500' : ''}`} value={valor} onChange={(ev) => set(ev.target.value)} autoComplete="off" data-testid={extra.testid} aria-invalid={!!err(k)} aria-describedby={err(k) ? `${id}-error` : undefined} />
+      <input id={id} type={extra.type ?? 'text'} inputMode={extra.inputMode} maxLength={extra.maxLength} className={`campo ${extra.tabular ? 'tabular' : ''} ${err(k) ? '!border-red-500' : ''}`} value={valor} onChange={(ev) => { set(ev.target.value); if (errores[k] || (k === 'placa' && errores.documento)) setErrores((x) => ({ ...x, [k]: '', ...(k === 'documento' ? { placa: '' } : {}), ...(k === 'placa' ? { documento: '' } : {}) })) }} autoComplete="off" data-testid={extra.testid} aria-invalid={!!err(k)} aria-describedby={err(k) ? `${id}-error` : undefined} />
       {extra.ayuda && !err(k) && <p className="mt-1 text-xs text-gray-600">{extra.ayuda}</p>}
       {err(k) && <p id={`${id}-error`} role="alert" className="mt-1 text-sm text-red-700">{err(k)}</p>}
     </div>

@@ -9,7 +9,9 @@ import { capturar, entrarComo, esTelefono, sinDesborde } from './ayudas'
 test.describe.configure({ mode: 'serial' })
 
 const pdfReal = async (t: string) => { const d = await PDFDocument.create(); d.addPage().drawText(t); return Buffer.from(await d.save()) }
-const estado: Record<string, { numero: string; url: string; picking?: string }> = {}
+/** Cómo se reconoce una orden en la lista: su N.° (PC y tablet) o lo que muestra la fila del teléfono (el pedido, o el cliente si no hay pedido). */
+interface Ref { numero: string; movil: string }
+const estado: Record<string, Ref> = {}
 let rutaId = ''
 let rutaNumero = ''
 
@@ -21,27 +23,28 @@ async function elegirProducto(page: Page, consulta: string) {
 }
 
 /** Abre el detalle de una orden desde la lista de Salidas (por su N.° de orden o de pedido). */
-async function abrirOrden(page: Page, info: TestInfo, clave: string) {
+async function abrirOrden(page: Page, info: TestInfo, o: Ref) {
   await page.goto('/wms/salidas')
   const todas = page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida')
-  const fila = todas.filter({ hasText: clave }).first()
+  const fila = todas.filter({ hasText: esTelefono(info) ? o.movil : o.numero }).first()
   await expect(fila).toBeVisible()
   await (esTelefono(info) ? fila : fila.getByRole('link', { name: /^Abrir/ })).click()
   await expect(page.getByTestId('detalle-salida')).toBeVisible()
 }
 
 /** Picking (auxiliar) y conformidad (otra persona) de una orden ya creada. Devuelve la URL de su hoja de picking. */
-async function pickearYConformar(page: Page, info: TestInfo, clave: string, bultos = '1') {
+async function pickearYConformar(page: Page, info: TestInfo, o: Ref, bultos = '1') {
   await entrarComo(page, 'jefe_transporte')
-  await abrirOrden(page, info, clave)
+  await abrirOrden(page, info, o)
   await page.getByTestId('generar-picking').click()
   await expect(page.getByTestId('orden-picking')).toBeVisible()
   const url = page.url()
   await entrarComo(page, 'auxiliar')
   await page.goto(url)
-  for (let i = 0; i < 6 && (await page.getByTestId('pickeado').count()) > 0; i++) {
-    await page.getByTestId('pickeado').first().click()
-    await page.waitForTimeout(250)
+  const lineas = await page.getByTestId('linea-picking').count()
+  for (let i = 0; i < lineas; i++) {
+    await page.locator('[data-testid="pickeado"]:not([disabled])').first().click()
+    await expect(page.getByTestId('estado-pickeado')).toHaveCount(i + 1)
   }
   await expect(page.getByTestId('avance-picking')).toContainText('Picking completo')
   await entrarComo(page, 'asistente_dt')
@@ -53,16 +56,16 @@ async function pickearYConformar(page: Page, info: TestInfo, clave: string, bult
 }
 
 /** Carga los COA que le faltan al paquete de la orden (como Sandra) y deja el paquete completo. */
-async function completarPaquete(page: Page, info: TestInfo, clave: string) {
+async function completarPaquete(page: Page, info: TestInfo, o: Ref) {
   await entrarComo(page, 'asistente_dt')
-  await abrirOrden(page, info, clave)
+  await abrirOrden(page, info, o)
   const texto = (await page.getByTestId('paquete-incompleto').count()) ? (await page.getByTestId('paquete-incompleto').textContent()) ?? '' : ''
   const lotes = [...texto.matchAll(/COA del lote (\S+) \(falta\)/g)].map((m) => m[1])
   if (lotes.length) {
     await page.goto('/wms/documentos/carga')
     await page.getByTestId('carga-archivos').setInputFiles(await Promise.all(lotes.map(async (l) => ({ name: `COA_${l}.pdf`, mimeType: 'application/pdf', buffer: await pdfReal(`COA ${l}`) }))))
     await expect(page.getByTestId('carga-resumen')).toContainText('quedaron como COA vigente')
-    await abrirOrden(page, info, clave)
+    await abrirOrden(page, info, o)
   }
   await expect(page.getByTestId('paquete-completo')).toBeVisible()
 }
@@ -83,7 +86,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await expect(page.getByTestId('propuesta-fefo')).toBeVisible()
     await page.getByTestId('crear-orden-manual').click()
     await expect(page.getByTestId('orden-creada')).toContainText('quedó creada')
-    estado.A = { numero: ((await page.getByTestId('orden-creada').textContent()) ?? '').match(/OS-\d{4}-\d{5}/)![0], url: '' }
+    estado.A = { numero: ((await page.getByTestId('orden-creada').textContent()) ?? '').match(/OS-\d{4}-\d{5}/)![0], movil: 'PED-RUTA-001' }
 
     // la muestra: quien autoriza salidas sin venta; ahora pide a quién va (la guía y la ruta lo necesitan)
     await entrarComo(page, 'autoriza_salidas_sin_venta')
@@ -102,11 +105,11 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await page.getByTestId('dest-ubigeo').fill('150101')
     await page.getByTestId('crear-orden-manual').click()
     await expect(page.getByTestId('orden-creada')).toContainText('quedó creada')
-    estado.C = { numero: ((await page.getByTestId('orden-creada').textContent()) ?? '').match(/OS-\d{4}-\d{5}/)![0], url: '' }
+    estado.C = { numero: ((await page.getByTestId('orden-creada').textContent()) ?? '').match(/OS-\d{4}-\d{5}/)![0], movil: 'Clínica Destino SAC' }
 
     // el detalle de A cuenta el camino con el paso «Ruta planificada»
     await entrarComo(page, 'jefe_transporte')
-    await abrirOrden(page, info, estado.A.numero)
+    await abrirOrden(page, info, estado.A)
     await expect(page.getByTestId('chip-etapa')).toContainText('Stock asignado')
     await expect(page.getByTestId('avance-pasos')).toContainText('Ruta planificada')
     await sinDesborde(page)
@@ -153,21 +156,22 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await page.getByTestId('confirmar-ruta').click()
     await expect(page.getByTestId('ruta-ok')).toContainText('Ruta confirmada')
     // las órdenes ya no se ofrecen para otra ruta
-    await expect(page.getByTestId('orden-disponible')).toHaveCount(0)
+    await expect(page.getByTestId('orden-disponible').filter({ hasText: estado.A.numero })).toHaveCount(0)
+    await expect(page.getByTestId('orden-disponible').filter({ hasText: estado.C.numero })).toHaveCount(0)
     await capturar(page, info, 'rutas-ordenes-manuales-confirmada', { completa: true })
     // y sus órdenes muestran la ruta y que lo siguiente es la guía
-    await abrirOrden(page, info, estado.A.numero)
+    await abrirOrden(page, info, estado.A)
     await expect(page.getByTestId('detalle-salida')).toContainText(rutaNumero)
   })
 
   test('picking y conformidad de A y C; con la ruta ya asignada la guía electrónica toma placa, conductor y fecha de la ruta', async ({ page }, info) => {
     test.setTimeout(150_000)
-    await pickearYConformar(page, info, estado.A.numero)
-    await pickearYConformar(page, info, estado.C.numero)
+    await pickearYConformar(page, info, estado.A)
+    await pickearYConformar(page, info, estado.C)
     for (const t of ['A', 'C'] as const) {
-      await completarPaquete(page, info, estado[t].numero)
+      await completarPaquete(page, info, estado[t])
       await entrarComo(page, 'jefe_transporte')
-      await abrirOrden(page, info, estado[t].numero)
+      await abrirOrden(page, info, estado[t])
       await expect(page.getByTestId('modo-nubefact')).toContainText('Simulador')
       await expect(page.getByTestId('guia-ruta')).toContainText(rutaNumero)
       await expect(page.getByTestId('guia-ruta')).toContainText('D4F-318')
@@ -195,7 +199,11 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await page.getByTestId('punto-si').first().click()
     await page.getByTestId('guardar-checklist').click()
     await expect(page.getByTestId('checklist-guardado')).toBeVisible()
-    for (let i = 0; i < 6 && (await page.getByTestId('marcar-cargado').count()) > 0; i++) { await page.getByTestId('marcar-cargado').first().click(); await page.waitForTimeout(250) }
+    const porCargar = await page.getByTestId('marcar-cargado').count()
+    for (let i = 0; i < porCargar; i++) {
+      await page.locator('[data-testid="marcar-cargado"]:not([disabled])').first().click()
+      await expect(page.locator('[data-testid="bulto-carga"][data-cargado="si"]')).toHaveCount(i + 1)
+    }
     await expect(page.getByTestId('liberar-unidad')).toBeEnabled()
     await sinDesborde(page)
     await capturar(page, info, 'rutas-ordenes-manuales-carga', { completa: true })
@@ -206,7 +214,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await expect(page.getByTestId('salida-confirmada')).toBeVisible()
     await capturar(page, info, 'rutas-ordenes-manuales-salida', { completa: true })
     for (const t of ['A', 'C'] as const) {
-      await abrirOrden(page, info, estado[t].numero)
+      await abrirOrden(page, info, estado[t])
       await expect(page.getByTestId('chip-etapa')).toContainText('Salida confirmada')
     }
     // el formato LS-FR.43.03 de la ruta sale en PDF con las dos paradas
@@ -230,6 +238,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await page.getByTestId('crear-orden-manual').click()
     await expect(page.getByTestId('orden-creada')).toContainText('quedó creada')
     const numero = ((await page.getByTestId('orden-creada').textContent()) ?? '').match(/OS-\d{4}-\d{5}/)![0]
+    const ref: Ref = { numero, movil: 'PED-RUTA-002' }
     await page.goto('/wms/rutas')
     await page.getByTestId('nueva-ruta').click()
     await expect(page.getByTestId('editor-ruta')).toBeVisible()
@@ -247,7 +256,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await expect(page.getByTestId('sin-paradas')).toBeVisible()
     // la orden sigue viva, con su stock asignado, y vuelve a ofrecerse
     await expect(page.getByTestId('orden-disponible').filter({ hasText: numero })).toBeVisible()
-    await abrirOrden(page, info, numero)
+    await abrirOrden(page, info, ref)
     await expect(page.getByTestId('chip-etapa')).toContainText('Stock asignado')
     await expect(page.getByTestId('chip-etapa')).not.toContainText('Cancelada')
     await expect(page.getByTestId('avance-pasos-texto')).toContainText('Designar a quien hace el picking')
@@ -271,35 +280,36 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await page.getByTestId('crear-orden-manual').click()
     await expect(page.getByTestId('orden-creada')).toContainText('quedó creada')
     const numero = ((await page.getByTestId('orden-creada').textContent()) ?? '').match(/OS-\d{4}-\d{5}/)![0]
+    const ref: Ref = { numero, movil: 'DIPHASAC' }
     // no aparece entre lo que se despacha en una ruta de Logisalud
     await entrarComo(page, 'jefe_transporte')
     await page.goto('/wms/rutas')
     await page.getByTestId('nueva-ruta').click()
     await expect(page.getByTestId('ordenes-por-despachar')).not.toContainText(numero)
     // la orden explica que no va en ruta y qué sigue
-    await abrirOrden(page, info, numero)
+    await abrirOrden(page, info, ref)
     await expect(page.getByTestId('avance-pasos')).toContainText('Entrega al transportista del cliente')
     await expect(page.getByTestId('avance-pasos')).not.toContainText('Ruta planificada')
     await expect(page.getByTestId('entrega-pendiente')).toContainText('no va en una ruta de Logisalud')
     await sinDesborde(page)
     await capturar(page, info, 'rutas-B-entrega-pendiente', { completa: true })
     // picking, conformidad, GRE del cliente, paquete y embalaje
-    await pickearYConformar(page, info, numero, '1')
-    await completarPaquete(page, info, numero)
+    await pickearYConformar(page, info, ref, '1')
+    await completarPaquete(page, info, ref)
     await entrarComo(page, 'jefe_transporte')
-    await abrirOrden(page, info, numero)
-    await page.getByTestId('abrir-gre-manual').click()
-    await page.getByTestId('numero-gre').fill('T001-00004321')
+    await abrirOrden(page, info, ref)
+    // la GRE del cliente ya viene escrita (se pidió al crear la orden): el formulario está abierto
+    await expect(page.getByTestId('numero-gre')).toHaveValue('T001-00004321')
     await page.getByTestId('registrar-gre').click()
     await expect(page.getByTestId('guia-numero')).toHaveText('T001-00004321')
     await entrarComo(page, 'auxiliar')
-    await abrirOrden(page, info, numero)
+    await abrirOrden(page, info, ref)
     await page.getByTestId('ir-embalaje').click()
     await page.getByTestId('confirmar-embalaje').click()
     await expect(page.getByTestId('embalaje-hecho')).toBeVisible()
     // lista: el paso que sigue es la entrega, que hace el Jefe de Almacén o el de Transporte
     await entrarComo(page, 'jefe_almacen')
-    await abrirOrden(page, info, numero)
+    await abrirOrden(page, info, ref)
     await expect(page.getByTestId('chip-etapa')).toContainText('Lista para carga')
     await expect(page.getByTestId('entrega-form')).toBeVisible()
     await expect(page.getByTestId('entrega-form')).toContainText('no lleva ruta ni guía del WMS')
@@ -318,6 +328,6 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await capturar(page, info, 'rutas-B-entregada', { completa: true })
     // el auxiliar no puede registrar entregas: no ve el formulario
     await page.goto('/wms/salidas')
-    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: numero })).toContainText('Entregada al transportista')
+    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: esTelefono(info) ? ref.movil : numero }).first()).toContainText('Entregada al transportista')
   })
 })
