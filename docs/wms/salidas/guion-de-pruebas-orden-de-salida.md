@@ -5,6 +5,13 @@ Entra por `/wms/login`. Arriba de todas las pantallas hay un selector «Probar c
 
 > **Cómo leerlo.** Cada paso dice **con quién entrar**, **qué hacer** y **qué deberías ver**. Además, en cada orden y en cada ingreso hay un cuadro **«Dónde va y qué sigue»** que dice qué paso toca, **quién** lo hace y trae el botón directo: si en algún momento no sabes qué hacer, ese cuadro te lo dice. En **Inicio**, «Mis tareas» lista lo que le toca a la persona con la que entraste.
 
+## Empieza aquí: cómo se inicia una salida
+- **Lo más rápido para probar:** entra a **Salidas** («Órdenes de salida»). La demo ya trae **órdenes de ejemplo en cada etapa y de los tres tipos** (stock asignado, picking, conformidad, guía emitida, embalaje, carga, salida confirmada, con falta de stock, cancelada); cada una lleva la etiqueta «Ejemplo». La tabla de la **sección 13** dice qué orden abrir, con quién entrar y qué probar.
+- **Una orden nace de tres maneras** (detalle en la sección 9): (1) en **Pedidos por despachar**, botón «Crear orden de salida» sobre un pedido que llegó de Pedidos; (2) con **Nueva Orden de Salida** (A: venta manual con n.º de pedido; B: por cuenta de un cliente de almacenamiento; C: muestra o devolución al proveedor); (3) al planificar una ruta con un pedido que aún no tiene orden.
+- **Si la lista de Salidas está vacía** dice «Las salidas nacen de los pedidos. Trae los pedidos nuevos o crea una salida manual», con los dos botones.
+- **Dónde está cada cosa:** el menú lateral sigue el orden del trabajo (sección 11). Cada orden dice **qué sigue y quién lo hace** (cuadro «Dónde va y qué sigue»); en Inicio, «Mis tareas».
+- **Después de iniciar,** las tres clases siguen el flujo normal: picking, conformidad, bultos, guía (A y C) y ruta de Logisalud o, en la B, entrega al transportista del cliente (sección 12). Cuando falta stock o el pedido cambia, ver la sección 10.
+
 ## 0. Primera vez (cualquier persona)
 1. Entra a **Inicio**. Se abre solo un **recorrido de 5 pantallas** (Siguiente / Anterior / Cerrar). Ciérralo: al recargar **no** vuelve a abrirse solo, pero el botón **«Ver el recorrido»** lo abre cuando quieras.
 2. Entra como **Auditoría (solo lectura)**: **Mis tareas** dice «No tienes tareas pendientes».
