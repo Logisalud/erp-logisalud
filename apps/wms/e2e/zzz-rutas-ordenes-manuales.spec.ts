@@ -242,12 +242,16 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await page.goto('/wms/rutas')
     await page.getByTestId('nueva-ruta').click()
     await expect(page.getByTestId('editor-ruta')).toBeVisible()
-    await page.getByTestId('ruta-fecha').fill((await page.getByTestId('ruta-fecha').getAttribute('min'))!)
+    // fecha propia (hoy + 3): otros specs arman rutas de hoy con los mismos vehículos y conductores, y un vehículo no puede estar en dos rutas del mismo día
+    const hoy = (await page.getByTestId('ruta-fecha').getAttribute('min'))!
+    await page.getByTestId('ruta-fecha').fill(new Date(Date.parse(`${hoy}T12:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10))
     await page.getByTestId('ruta-vehiculo').selectOption({ label: 'AXL-204 — Moto furgón' })
     await page.getByTestId('ruta-conductor').selectOption({ label: 'Luis Quispe' })
     await page.getByTestId('orden-disponible').filter({ hasText: numero }).getByTestId('agregar-orden').click()
-    await page.getByTestId('excepcion-corte').check()
-    await page.getByTestId('excepcion-motivo').fill('Se despacha hoy')
+    if (await page.getByTestId('excepcion-corte').count()) {
+      await page.getByTestId('excepcion-corte').check()
+      await page.getByTestId('excepcion-motivo').fill('Se despacha pronto')
+    }
     await page.getByTestId('guardar-plan').click()
     await expect(page.getByTestId('ruta-ok')).toContainText('Plan guardado')
     await page.getByTestId('parada-quitar').click()
