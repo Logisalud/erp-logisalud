@@ -17,7 +17,31 @@ export type DatosPlantillaLetra = {
   fechaVencimiento: string;   // 'YYYY-MM-DD'
   importe: number;
   aceptante: string;          // razón social del cliente (girado)
+  aceptanteRuc: string;       // RUC (o DNI) del cliente
+  aceptanteDomicilio: string; // ver domicilioParaLetra; '' si no se conoce
 };
+
+// El domicilio del aceptante como lo imprime la letra: la dirección y, al
+// final, "DEPARTAMENTO - PROVINCIA - DISTRITO" (el formato de SUNAT que traía
+// la plantilla original). Si la dirección ya trae la ubicación al final
+// —algunas vienen así de SUNAT— no se repite. Sin dirección cargada (son la
+// mayoría de los clientes) queda solo la ubicación, o vacío para llenarlo a
+// mano: nunca el domicilio de otro cliente.
+export function domicilioParaLetra(c: {
+  direccion?: string | null;
+  departamento?: string | null;
+  provincia?: string | null;
+  distrito?: string | null;
+}): string {
+  const limpio = (v?: string | null) => (v ?? '').trim();
+  const direccion = limpio(c.direccion);
+  const partes = [c.departamento, c.provincia, c.distrito].map(limpio).filter(Boolean);
+  const ubicacion = partes.join(' - ');
+  if (!direccion) return ubicacion;
+  const dirMayus = direccion.toUpperCase();
+  const yaTraeUbicacion = partes.length > 0 && partes.slice(0, 2).every((p) => dirMayus.includes(p.toUpperCase()));
+  return yaTraeUbicacion || !ubicacion ? direccion : `${direccion} ${ubicacion}`;
+}
 
 const EXCEL_EPOCH = Date.UTC(1899, 11, 30);
 
@@ -72,11 +96,20 @@ function reemplazarValorNumerico(xml: string, celda: string, nuevoValor: number)
 //   11 -> ref. del girador (celda E7)
 //   18 -> monto en palabras (celda E11)
 //   21 -> "Aceptante: <razón social>\r\n" (celda D13)
+//   28 -> "DNI/RUC: <ruc>\r\n" (celda D15)
+//   30 -> "Domicilio: <dirección>" (celda D17)
+//
+// 28 y 30 traían el RUC y el domicilio del cliente de ejemplo de la
+// plantilla (BVC FARMA, Trujillo) y NO se reemplazaban: todas las letras
+// salían con el nombre correcto y el RUC/domicilio de otro (Sebas,
+// 2026-10-23, letra L00098 de BOTICA EL SAMARITANO).
 const IDX_TITULO = 1;
 const IDX_NUMERO_LETRA = 10;
 const IDX_REF_GIRADOR = 11;
 const IDX_MONTO_PALABRAS = 18;
 const IDX_ACEPTANTE = 21;
+const IDX_ACEPTANTE_RUC = 28;
+const IDX_ACEPTANTE_DOMICILIO = 30;
 
 export async function generarPlantillaLetra(datos: DatosPlantillaLetra): Promise<Buffer> {
   const templatePath = path.join(process.cwd(), 'templates', 'FORMATO_LETRA_LOGISALUD.xlsx');
@@ -89,6 +122,8 @@ export async function generarPlantillaLetra(datos: DatosPlantillaLetra): Promise
   sharedStrings = reemplazarSharedString(sharedStrings, IDX_REF_GIRADOR, datos.referenciaGirador);
   sharedStrings = reemplazarSharedString(sharedStrings, IDX_MONTO_PALABRAS, montoEnPalabrasSoles(datos.importe));
   sharedStrings = reemplazarSharedString(sharedStrings, IDX_ACEPTANTE, `Aceptante: ${datos.aceptante}\r\n`);
+  sharedStrings = reemplazarSharedString(sharedStrings, IDX_ACEPTANTE_RUC, `DNI/RUC: ${datos.aceptanteRuc}\r\n`);
+  sharedStrings = reemplazarSharedString(sharedStrings, IDX_ACEPTANTE_DOMICILIO, `Domicilio: ${datos.aceptanteDomicilio}`);
   zip.file('xl/sharedStrings.xml', sharedStrings);
 
   let sheet = await zip.file('xl/worksheets/sheet1.xml')!.async('string');
