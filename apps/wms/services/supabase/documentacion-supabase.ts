@@ -164,7 +164,7 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     const { data: gs } = await sch().from('guias_remision').select('salida_id, numero').eq('estado', 'VIGENTE').in('salida_id', salidas.length ? salidas.map((p) => String(p.salida_id)) : ['00000000-0000-0000-0000-000000000000'])
     const numero = new Map(((gs ?? []) as Fila[]).map((g) => [String(g.salida_id), String(g.numero)]))
     const guias: Record<string, string> = {}
-    for (const p of salidas) { const n = numero.get(String(p.salida_id)); if (n) guias[String(p.pedido_id)] = n }
+    for (const p of salidas) { const n = numero.get(String(p.salida_id)); if (n) guias[String(p.pedido_id ?? `orden:${p.salida_id}`)] = n }
     return { ...base, guias }
   }
 

@@ -1,3 +1,4 @@
+import { esSalidaConfirmada } from '@/domain/despacho'
 import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
@@ -113,7 +114,7 @@ export class LiberacionSupabase extends CierreRutaSupabase implements Repositori
   }
 
   async salidasConRetorno(): Promise<ResumenSalidaRetorno[]> {
-    const confirmadas = (await this.listarSalidas()).filter((x) => x.etapa === 'CONFIRMADA')
+    const confirmadas = (await this.listarSalidas()).filter((x) => esSalidaConfirmada(x.etapa))
     const retornos = await this.retornosDe(confirmadas.map((x) => x.id))
     return confirmadas.map((x) => ({ salidaId: x.id, numero: x.numero, pedidoNumero: x.pedidoNumero, cliente: x.cliente, fecha: x.fecha, unidades: x.unidades, retornos: retornos.get(x.id) ?? [] }))
   }

@@ -191,11 +191,19 @@ describe('tipo B: cliente de almacenamiento, GRE y validación inmediata por lí
   })
 })
 
+async function llenarDestinatario() {
+  await userEvent.type(screen.getByTestId('dest-razon-social'), 'Clínica Destino SAC')
+  await userEvent.type(screen.getByTestId('dest-ruc'), '20123456789')
+  await userEvent.type(screen.getByTestId('dest-direccion'), 'Av. Lima 123')
+  await userEvent.type(screen.getByTestId('dest-ubigeo'), '150101')
+}
+
 describe('la orden creada y los errores', () => {
   it('una guía con motivos mezclados dice cuántas órdenes se crearon', async () => {
     acc.crearOrdenManualAccion.mockImplementation(async () => ({ ok: true, ordenes: [{ id: 'o1', numero: 'OS-2026-00050', motivo: 'VENTA' }, { id: 'o2', numero: 'OS-2026-00051', motivo: 'DESTRUCCION' }] }))
     render(<FormOrdenManual {...props} clasesPermitidas={['C']} motivosCPermitidos={['MUESTRA']} />)
     await userEvent.click(screen.getByTestId('motivo-C-MUESTRA'))
+    await llenarDestinatario()
     await elegirProducto()
     fireEvent.change(screen.getByTestId('cantidad-linea-orden'), { target: { value: '2' } })
     await screen.findByTestId('propuesta-fefo')
@@ -210,6 +218,7 @@ describe('la orden creada y los errores', () => {
     acc.crearOrdenManualAccion.mockImplementation(async () => ({ ok: false, mensaje: 'Solo quien autoriza salidas sin venta registra una muestra' }))
     render(<FormOrdenManual {...props} clasesPermitidas={['C']} motivosCPermitidos={['MUESTRA']} />)
     await userEvent.click(screen.getByTestId('motivo-C-MUESTRA'))
+    await llenarDestinatario()
     await elegirProducto()
     fireEvent.change(screen.getByTestId('cantidad-linea-orden'), { target: { value: '2' } })
     await screen.findByTestId('propuesta-fefo')

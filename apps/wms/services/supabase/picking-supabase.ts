@@ -22,20 +22,27 @@ const mal = (error: { code?: string; message: string }) => ({ ok: false as const
 const dia = (v: unknown) => String(v).slice(0, 10)
 const clienteDeJson = (j: Record<string, unknown>): ClienteManual => ({ ruc: String(j.ruc ?? ''), razonSocial: String(j.razon_social ?? ''), direccion: String(j.direccion ?? ''), ubigeo: String(j.ubigeo ?? ''), vendedor: s(j.vendedor) })
 
+const vistaEntrega = (f: Fila, nombres: Map<string, string>): NonNullable<SalidaVista['entrega']> => ({
+  id: String(f.id), transportista: String(f.transportista), placa: s(f.placa), documentoRecoge: s(f.documento_recoge), entregadoEn: String(f.entregado_en), entregaAlmacen: String(f.entrega_almacen),
+  cargoArchivo: s(f.cargo_archivo), cargoNombre: s(f.cargo_nombre), nota: s(f.nota), registradaPor: nombres.get(String(f.registrada_por)) ?? 'Usuario', registradaEn: String(f.registrada_en),
+})
+
 interface Contexto {
   salidas: Fila[]; lineas: Fila[]; reservas: Fila[]; ordenes: Fila[]; ordenLineas: Fila[]; lotes: Map<string, Fila>; posiciones: Map<string, Fila>; productos: Map<string, Fila>
   pedidoPorSalida: Map<string, PedidoSnapshot & { numero: string }>; rutaPorSalida: Map<string, string>
   /** SA-2: razón social de cada propietario y nombre de quien creó cada orden manual. */
   propietarios: Map<string, string>; creadores: Map<string, string>
+  /** SA-6: la entrega al transportista del cliente de cada orden tipo B (salida_id → fila). */
+  entregas: Map<string, Fila>
 }
 
 export class PickingSupabase extends ReservasSupabase implements RepositorioPicking {
   protected async contexto(): Promise<Contexto> {
-    const [salidas, lineas, reservas, ordenes, ordenLineas, lotes, posiciones, productos, pedidos, paradas, rutas, props] = await Promise.all([
+    const [salidas, lineas, reservas, ordenes, ordenLineas, lotes, posiciones, productos, pedidos, paradas, rutas, props, entregas] = await Promise.all([
       traerTodo('salidas', 'wms', '*', ['numero']), traerTodo('salida_lineas', 'wms', '*'), traerTodo('reservas', 'wms', '*'), traerTodo('ordenes_picking', 'wms', '*', ['numero']),
       traerTodo('ordenes_picking_lineas', 'wms', '*'), traerTodo('lotes', 'wms', 'id, codigo, vence, producto_id'), traerTodo('posiciones', 'wms', 'id, codigo, orden_recorrido'),
       traerTodo('productos', 'catalogo', 'id, codigo, descripcion'), traerTodo('pedidos_despacho', 'wms', '*', ['fecha']), traerTodo('ruta_paradas', 'wms', '*'), traerTodo('rutas', 'wms', 'id, numero, estado'),
-      traerTodo('propietarios', 'wms', 'id, razon_social'),
+      traerTodo('propietarios', 'wms', 'id, razon_social'), traerTodo('entregas_transportista_cliente', 'wms', '*'),
     ])
     const numeroRuta = new Map(rutas.filter((r) => r.estado !== 'CANCELADA').map((r) => [String(r.id), String(r.numero)]))
     const pedidoPorSalida = new Map<string, PedidoSnapshot & { numero: string }>()
@@ -44,7 +51,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     for (const pa of paradas) if (pa.activa && pa.salida_id && numeroRuta.has(String(pa.ruta_id))) rutaPorSalida.set(String(pa.salida_id), numeroRuta.get(String(pa.ruta_id))!)
     const mapa = (f: Fila[]) => new Map(f.map((x) => [String(x.id), x]))
     const creadores = await nombresDe([...new Set(salidas.filter((x) => x.origen === 'MANUAL').map((x) => String(x.creada_por)))])
-    return { salidas, lineas, reservas, ordenes, ordenLineas, lotes: mapa(lotes), posiciones: mapa(posiciones), productos: mapa(productos), pedidoPorSalida, rutaPorSalida, propietarios: new Map(props.map((x) => [String(x.id), String(x.razon_social)])), creadores }
+    return { salidas, lineas, reservas, ordenes, ordenLineas, lotes: mapa(lotes), posiciones: mapa(posiciones), productos: mapa(productos), pedidoPorSalida, rutaPorSalida, propietarios: new Map(props.map((x) => [String(x.id), String(x.razon_social)])), creadores, entregas: new Map(entregas.map((x) => [String(x.salida_id), x])) }
   }
 
   private asignacion(c: Contexto, lineaId: string, estados: string[] = ['ACTIVA', 'EN_TRANSITO', 'EN_STAGING']): AsignacionVista[] {
@@ -100,7 +107,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
       tipo: s(sal.tipo) as SalidaResumen['tipo'], motivo: s(sal.motivo) as SalidaResumen['motivo'], origen: (s(sal.origen) ?? 'PEDIDO') as SalidaResumen['origen'], creadaDesde: s(sal.creada_desde) as SalidaResumen['creadaDesde'],
       porConciliar: Boolean(sal.por_conciliar), creadaPor: c.creadores.get(String(sal.creada_por)), enNombreDe: sal.creada_en_nombre_de ? c.propietarios.get(String(sal.creada_en_nombre_de)) : undefined,
       unidades: ls.reduce((t, l) => t + Number(l.cantidad), 0), lineas: ls.length, ordenNumero: orden ? String(orden.numero) : undefined,
-      etapa: etapaDeSalida({ estado: sal.estado as 'ABIERTA', lineas: ls.map((l) => ({ estado: l.estado as EstadoLineaSalida })), orden: ol ? { lineas: ol } : null }),
+      etapa: etapaDeSalida({ estado: sal.estado as 'ABIERTA', lineas: ls.map((l) => ({ estado: l.estado as EstadoLineaSalida })), orden: ol ? { lineas: ol } : null, entregadaAlTransportista: c.entregas.has(String(sal.id)) }),
     }
   }
 
@@ -116,13 +123,14 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     const ids = c.lineas.filter((l) => String(l.salida_id) === id).map((l) => String(l.id))
     const { data } = await sch().from('cambios_lote_asignado').select('*').in('linea_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']).order('en', { ascending: false })
     const filas = (data ?? []) as Fila[]
-    const nombres = await nombresDe([...filas.map((f) => String(f.por)), String(sal.creada_por)])
+    const nombres = await nombresDe([...filas.map((f) => String(f.por)), String(sal.creada_por), ...(c.entregas.has(id) ? [String(c.entregas.get(id)!.registrada_por)] : [])])
     const texto = (v: unknown) => ((Array.isArray(v) ? v : []) as { lote?: string; cantidad: number }[]).map((x) => `${x.lote ?? '?'} × ${x.cantidad}`).join(' + ')
     const cambios: CambioFefoVista[] = filas.map((f) => ({ lineaId: String(f.linea_id), en: String(f.en), por: nombres.get(String(f.por)) ?? 'Usuario', anterior: texto(f.asignacion_anterior), nueva: texto(f.asignacion_nueva), distintoDeFefo: Boolean(f.distinto_de_fefo), motivo: s(f.motivo) }))
     return {
       ...this.resumenSalida(c, sal), estado: sal.estado as SalidaVista['estado'], requiereEmbalaje: sal.requiere_embalaje !== false, creadaPor: nombres.get(String(sal.creada_por)) ?? 'Usuario',
       lineasDetalle: c.lineas.filter((l) => String(l.salida_id) === id).map((l) => this.lineaVista(c, l, String(sal.tipo))),
       clienteManual: sal.cliente_manual ? clienteDeJson(sal.cliente_manual as Record<string, unknown>) : undefined, greNumero: s(sal.gre_numero), greArchivo: s(sal.gre_archivo),
+      entrega: c.entregas.has(id) ? vistaEntrega(c.entregas.get(id)!, nombres) : undefined,
       ordenPickingId: s(c.ordenes.find((o) => String(o.salida_id) === id && o.estado !== 'CANCELADA')?.id), cambios,
     }
   }

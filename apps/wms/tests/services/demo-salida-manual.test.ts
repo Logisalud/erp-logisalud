@@ -322,10 +322,12 @@ describe('tipo B: por cuenta de un cliente de almacenamiento (demo)', () => {
   })
 })
 
+const DEST = { ruc: '20123456789', razonSocial: 'Clínica Destino SAC', direccion: 'Av. Lima 123, Lima', ubigeo: '150101' }
+
 describe('tipo C: sin venta de Logissa (demo)', () => {
   it('la muestra solo la crea quien autoriza salidas sin venta; el sistema la asigna por FEFO', async () => {
     const s = await conStock('LOGISSA')
-    const e: EntradaOrdenManual = { clase: 'C', motivo: 'MUESTRA', lineas: [{ productoId: s.productoId, cantidad: 2 }] }
+    const e: EntradaOrdenManual = { clase: 'C', motivo: 'MUESTRA', cliente: DEST, lineas: [{ productoId: s.productoId, cantidad: 2 }] }
     expect(await repo.crearOrdenManual(e, JT)).toMatchObject({ ok: false, mensaje: 'Solo quien autoriza salidas sin venta registra una muestra' })
     expect(await repo.crearOrdenManual(e, JA)).toMatchObject({ ok: false, mensaje: 'Solo quien autoriza salidas sin venta registra una muestra' })
     const r = ok(await repo.crearOrdenManual(e, MUESTRAS))
@@ -336,7 +338,7 @@ describe('tipo C: sin venta de Logissa (demo)', () => {
   it('la devolución al proveedor es de los jefes, con lote indicado y solo antes del vencimiento', async () => {
     const s = await conStock('LOGISSA')
     const vencido = enBajas(s.propietarioId, s.productoId, 'VENC-DEV', 3)
-    const e = (loteId: string): EntradaOrdenManual => ({ clase: 'C', motivo: 'DEVOLUCION_PROVEEDOR', lineas: [{ productoId: s.productoId, cantidad: 2, loteId }] })
+    const e = (loteId: string): EntradaOrdenManual => ({ clase: 'C', motivo: 'DEVOLUCION_PROVEEDOR', cliente: DEST, lineas: [{ productoId: s.productoId, cantidad: 2, loteId }] })
     expect(await repo.crearOrdenManual(e(s.loteId), MUESTRAS)).toMatchObject({ ok: false, mensaje: 'No tienes permiso para preparar salidas' })
     expect(await repo.crearOrdenManual(e(vencido), JA)).toMatchObject({ ok: false, mensaje: expect.stringContaining('El lote está vencido: no se devuelve vencido a nadie') })
     const r = ok(await repo.crearOrdenManual(e(s.loteId), JA))

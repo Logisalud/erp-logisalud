@@ -1,6 +1,7 @@
 // Rutas de distribución (S4): estados, vistas y las reglas puras de planificación (espejo de wms.planificar_ruta; la base de datos manda).
 // Lo usan la demo y las pantallas para explicar y previsualizar: vehículo calificado, corte de planificación, un pedido en una sola ruta.
 import { normalizar } from './busqueda'
+import type { TipoSalida } from './salidas'
 import type { Rol } from './tipos'
 
 export type EstadoRuta = 'BORRADOR' | 'PLANIFICADA' | 'LISTA_PARA_CARGA' | 'LIBERADA' | 'EN_RUTA' | 'PENDIENTE_CIERRE' | 'CERRADA' | 'CANCELADA'
@@ -25,7 +26,15 @@ export const ETIQUETA_STOCK_PARADA: Record<EstadoStockParada, string> = { ASIGNA
 export interface ParadaVista {
   id: string
   secuencia: number
-  pedidoId: string
+  /** Cómo se reconoce la parada en el plan: el id del pedido o, en una parada por orden, `orden:<id de la orden>` (SA-6). */
+  clave: string
+  /** Vacío en una parada por orden cuyo pedido todavía no llegó por la bandeja (venta manual, muestra, devolución al proveedor). */
+  pedidoId?: string
+  /** La orden de la parada (siempre existe una vez planificada). */
+  salidaId?: string
+  /** PEDIDO = parada de un pedido de la bandeja; ORDEN = parada por orden manual (SA-6). */
+  origen: 'PEDIDO' | 'ORDEN'
+  tipoOrden?: TipoSalida
   pedidoNumero: string
   cliente: string
   ruc?: string
@@ -83,6 +92,30 @@ export interface PedidoPlanificable {
   sinCatalogo: string[]
 }
 
+/** SA-6: una orden manual (venta A sin pedido en la bandeja, muestra o devolución al proveedor C) que se puede meter en una ruta. */
+export interface OrdenPlanificable {
+  salidaId: string
+  /** `orden:<salidaId>` (la misma clave que usa la parada). */
+  clave: string
+  numero: string
+  tipo: TipoSalida
+  /** Número de pedido de la venta manual (A); vacío en C. */
+  pedidoNumero?: string
+  cliente: string
+  ruc?: string
+  direccion?: string
+  distrito?: string
+  lineas: number
+  unidades: number
+  /** Creada después del corte (de la víspera de la fecha elegida): necesita excepción. */
+  creadaEn: string
+  enRuta?: string
+  /** Alguna línea no tiene stock: no se puede confirmar la ruta con ella. */
+  sinStock: boolean
+}
+
+export const claveDeOrden = (salidaId: string) => `orden:${salidaId}`
+
 export interface PanoramaRutas {
   hoy: string
   corte: string
@@ -90,9 +123,13 @@ export interface PanoramaRutas {
   vehiculos: VehiculoVista[]
   personal: PersonalTransporte[]
   pedidos: PedidoPlanificable[]
+  /** SA-6: órdenes manuales por despachar (A y C sin ruta, ya con su orden y su stock). */
+  ordenes: OrdenPlanificable[]
 }
 
-export interface PlanParada { pedidoId: string; excepcionCorte?: boolean; motivoExcepcion?: string }
+/** Una parada del plan: un pedido de la bandeja (`pedidoId`) o una orden manual (`salidaId`). */
+export interface PlanParada { pedidoId?: string; salidaId?: string; excepcionCorte?: boolean; motivoExcepcion?: string }
+export const clavePlanParada = (p: PlanParada) => p.pedidoId ?? (p.salidaId ? claveDeOrden(p.salidaId) : '')
 export interface PlanRuta {
   fecha: string
   vehiculoId?: string
@@ -131,6 +168,10 @@ export interface EntradaValidacion {
   pedidos: ReadonlyMap<string, PedidoPlanificable>
   /** Pedidos que ya están en otra ruta viva (pedidoId → número de ruta). */
   enOtraRuta: ReadonlyMap<string, string>
+  /** SA-6: órdenes manuales (clave `orden:<id>`). */
+  ordenes?: ReadonlyMap<string, OrdenPlanificable>
+  /** SA-6: órdenes que ya están en otra ruta viva (clave → número de ruta). */
+  ordenesEnOtraRuta?: ReadonlyMap<string, string>
 }
 
 /** Motivos por los que el plan no vale (vacío = vale). */
@@ -141,8 +182,19 @@ export function validarPlan(e: EntradaValidacion): string[] {
   if (e.vehiculo && !e.vehiculo.activo) errores.push(`El vehículo ${e.vehiculo.placa} está inactivo.`)
   const vistos = new Set<string>()
   for (const p of e.plan.paradas) {
-    if (vistos.has(p.pedidoId)) { errores.push('Hay un pedido repetido en la ruta.'); continue }
-    vistos.add(p.pedidoId)
+    const clave = clavePlanParada(p)
+    if (!clave || vistos.has(clave)) { errores.push('Hay un pedido o una orden repetida en la ruta.'); continue }
+    vistos.add(clave)
+    if (!p.pedidoId) {
+      const ord = e.ordenes?.get(clave)
+      if (!ord) { errores.push('Una de las órdenes ya no se puede planificar.'); continue }
+      if (ord.tipo === 'CLIENTE') { errores.push(`La orden ${ord.numero} es por cuenta de un cliente de almacenamiento: no va en una ruta de Logisalud, se entrega al transportista del cliente.`); continue }
+      const otraO = e.ordenesEnOtraRuta?.get(clave)
+      if (otraO) errores.push(`La orden ${ord.numero} ya está en la ruta ${otraO}.`)
+      if (fueraDeCorte(ord.creadaEn, e.plan.fecha, e.corte) && !p.excepcionCorte) errores.push(`La orden ${ord.numero} se creó después del corte de las ${e.corte} de la víspera: marca la excepción y escribe el motivo.`)
+      if (p.excepcionCorte && !p.motivoExcepcion?.trim()) errores.push(`La excepción de la orden ${ord.numero} necesita un motivo.`)
+      continue
+    }
     const ped = e.pedidos.get(p.pedidoId)
     if (!ped) { errores.push('Uno de los pedidos ya no está en la bandeja.'); continue }
     if (ped.cambioPorRevisar) errores.push(`El pedido ${ped.numero} cambió en Pedidos: revisa el cambio antes de planificarlo.`)
@@ -160,6 +212,12 @@ export function validarPlan(e: EntradaValidacion): string[] {
 /** Sugerencia simple de orden: por distrito y, dentro de cada uno, por cita y cliente. El Jefe de Transporte lo ajusta. */
 export function ordenSugerido<T extends { distrito?: string; ventanaCita?: string; cliente: string }>(paradas: readonly T[]): T[] {
   return [...paradas].sort((a, b) => normalizar(a.distrito ?? 'zzz').localeCompare(normalizar(b.distrito ?? 'zzz')) || (a.ventanaCita ?? '').localeCompare(b.ventanaCita ?? '') || a.cliente.localeCompare(b.cliente))
+}
+
+export function filtrarOrdenesPlanificables(ordenes: readonly OrdenPlanificable[], q: string): OrdenPlanificable[] {
+  const t = normalizar(q.trim())
+  if (!t) return [...ordenes]
+  return ordenes.filter((o) => t.split(/\s+/).every((x) => normalizar(`${o.numero} ${o.pedidoNumero ?? ''} ${o.cliente} ${o.ruc ?? ''} ${o.distrito ?? ''} ${o.direccion ?? ''}`).includes(x)))
 }
 
 export function filtrarPedidosPlanificables(pedidos: readonly PedidoPlanificable[], q: string): PedidoPlanificable[] {

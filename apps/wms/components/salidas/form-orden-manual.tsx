@@ -108,7 +108,7 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
     }))
     return {
       clase, motivo: clase === 'C' ? (motivoC || undefined) : undefined, propietarioId: clase === 'B' ? propietarioId : undefined,
-      pedidoNumero: clase === 'A' ? pedidoNumero : undefined, cliente: clase === 'A' ? cliente : undefined,
+      pedidoNumero: clase === 'A' ? pedidoNumero : undefined, cliente: clase === 'A' || (clase === 'C' && motivoC) ? cliente : undefined,
       greNumero: clase === 'B' ? greNumero : undefined, greArchivo: clase === 'B' ? gre?.ref : undefined, lineas: ls, token,
     }
   }
@@ -239,9 +239,22 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
         </fieldset>
       )}
 
+      {clase === 'C' && motivoC && (
+        <fieldset className="space-y-4" data-testid="destinatario-C">
+          <legend className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">{motivoC === 'DEVOLUCION_PROVEEDOR' ? '3. ¿A qué proveedor se devuelve?' : '3. ¿A quién va la muestra?'}</legend>
+          <Aviso tipo="info">La guía de remisión necesita estos datos y la ruta de Logisalud los usa para llevar la salida. {motivoC === 'DEVOLUCION_PROVEEDOR' ? 'Escribe los datos del proveedor.' : 'Escribe los datos de quien recibe la muestra (botica, clínica o consultorio con RUC).'}</Aviso>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Campo id="dest-razon-social" etiqueta={motivoC === 'DEVOLUCION_PROVEEDOR' ? 'Nombre o razón social del proveedor' : 'Nombre o razón social de quien recibe'} error={err('razonSocial')}><input id="dest-razon-social" className={`campo ${err('razonSocial') ? '!border-red-500' : ''}`} value={cliente.razonSocial} onChange={(e) => setCliente({ ...cliente, razonSocial: e.target.value })} autoComplete="off" data-testid="dest-razon-social" /></Campo>
+            <Campo id="dest-ruc" etiqueta="RUC (11 números)" error={err('ruc')}><input id="dest-ruc" className={`campo tabular ${err('ruc') ? '!border-red-500' : ''}`} inputMode="numeric" maxLength={11} value={cliente.ruc} onChange={(e) => setCliente({ ...cliente, ruc: e.target.value.replace(/\D/g, '') })} autoComplete="off" data-testid="dest-ruc" /></Campo>
+            <Campo id="dest-direccion" etiqueta="Dirección de entrega" error={err('direccion')}><input id="dest-direccion" className={`campo ${err('direccion') ? '!border-red-500' : ''}`} value={cliente.direccion} onChange={(e) => setCliente({ ...cliente, direccion: e.target.value })} autoComplete="off" data-testid="dest-direccion" /></Campo>
+            <Campo id="dest-ubigeo" etiqueta="Ubigeo del distrito (6 números)" error={err('ubigeo')} ayuda={AYUDA_UBIGEO}><input id="dest-ubigeo" className={`campo tabular ${err('ubigeo') ? '!border-red-500' : ''}`} inputMode="numeric" maxLength={6} value={cliente.ubigeo} onChange={(e) => setCliente({ ...cliente, ubigeo: e.target.value.replace(/\D/g, '') })} autoComplete="off" data-testid="dest-ubigeo" /></Campo>
+          </div>
+        </fieldset>
+      )}
+
       {clase && modo && (
         <fieldset className="space-y-3" data-testid="productos-orden">
-          <legend className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">3. Productos y cantidades</legend>
+          <legend className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">{clase === 'C' ? '4' : '3'}. Productos y cantidades</legend>
           <p className="text-sm text-gray-600">
             {modo === 'A' || modo === 'MUESTRA' ? 'Busca el producto por su nombre o por cualquiera de sus códigos y escribe la cantidad. El sistema propone el lote y el vencimiento por FEFO: lo que vence primero, sin lotes vencidos ni en Reserva.'
               : modo === 'B' ? 'Busca el producto por su nombre o por cualquiera de sus códigos (también el del cliente). Escribe el lote como está en su guía: el vencimiento se completa solo y revisamos cada línea al instante. La destrucción sale solo desde Bajas.'

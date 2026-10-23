@@ -330,7 +330,7 @@ export class CambioPedidoDemo extends PickingDemo implements RepositorioCambioPe
     const vivas = s.lineas.filter((l) => l.estado !== 'CANCELADA')
     const o = this.ordenDe(e, s.id)
     const fase = faseDeDevolucion(e, s.id)
-    const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null, devolucionPendiente: !!fase || (s.cancelacionPendiente && s.estado === 'ABIERTA') })
+    const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null, devolucionPendiente: !!fase || (s.cancelacionPendiente && s.estado === 'ABIERTA'), entregadaAlTransportista: !!s.entrega })
     const mi = devolucionesDe(e).find((d) => d.salidaId === s.id && d.estado === 'DEVUELTA' && d.ordenMovimientoId)?.ordenMovimientoId
     return {
       ...base, etapa, lineas: vivas.length, unidades: vivas.reduce((t, l) => t + l.cantidad, 0), vendedor: fila?.snapshot.vendedor, sinPedido: !fila,

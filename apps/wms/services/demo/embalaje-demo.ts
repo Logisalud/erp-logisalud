@@ -4,7 +4,7 @@ import { codigoDeBulto, puedeEmbalar, validarReparto, type BultoVista, type Emba
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { registrar, type EstadoDemo } from './estado'
 import { ahora, estadoE, falla, nuevoId } from './entradas-demo'
-import { desp, type RutaDemo, type SalidaDemo } from './despacho-demo'
+import { claveDeParada, desp, type RutaDemo, type SalidaDemo } from './despacho-demo'
 import { pk } from './picking-demo'
 import { DocumentacionDemo, salidaConforme } from './documentacion-demo'
 import type { RepositorioEmbalaje } from '../repositorio-embalaje'
@@ -105,7 +105,7 @@ export class EmbalajeDemo extends DocumentacionDemo implements RepositorioEmbala
   protected override extrasLsFr(e: EstadoDemo, r: RutaDemo): ExtrasLsFr {
     const base = super.extrasLsFr(e, r)
     const cajas: Record<string, number> = {}
-    for (const p of r.paradas) { if (!p.activa || !p.salidaId) continue; const n = bultosVigentes(e, p.salidaId).length; if (n) cajas[p.pedidoId] = n }
+    for (const p of r.paradas) { if (!p.activa || !p.salidaId) continue; const n = bultosVigentes(e, p.salidaId).length; if (n) cajas[claveDeParada(p)] = n }
     return { ...base, cajas }
   }
 }

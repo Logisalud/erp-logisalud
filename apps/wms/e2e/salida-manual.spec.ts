@@ -104,6 +104,11 @@ test.describe('Nueva Orden de Salida', () => {
     await page.goto('/wms/salidas/nueva')
     await expect(page.getByTestId('datos-C')).toBeVisible() // es su único tipo: ya viene elegido
     await page.getByTestId('motivo-C-MUESTRA').click()
+    // SA-6: una salida sin venta pide a quién va (la guía y la ruta lo necesitan)
+    await page.getByTestId('dest-razon-social').fill('Clínica Destino SAC')
+    await page.getByTestId('dest-ruc').fill('20987654321')
+    await page.getByTestId('dest-direccion').fill('Jr. Cusco 45, Lima')
+    await page.getByTestId('dest-ubigeo').fill('150101')
     await elegirProducto(page, 0)
     await page.getByTestId('cantidad-linea-orden').fill('2')
     await expect(page.getByTestId('propuesta-fefo')).toBeVisible()

@@ -101,7 +101,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
 
   protected resumenSalida(e: EstadoDemo, s: SalidaDemo): SalidaResumen {
     const o = this.ordenDe(e, s.id)
-    const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null })
+    const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null, entregadaAlTransportista: !!s.entrega })
     return {
       id: s.id, numero: s.numero, ...this.contexto(e, s), fecha: s.creadaEn.slice(0, 10), unidades: s.lineas.reduce((t, l) => t + l.cantidad, 0), lineas: s.lineas.length, etapa, ordenNumero: o?.numero,
       tipo: s.tipo ?? 'DISTRIBUCION', motivo: s.motivo ?? 'VENTA', origen: s.origen ?? 'PEDIDO', creadaDesde: s.creadaDesde, porConciliar: !!s.porConciliar, creadaPor: nombrePersonaDemo(s.creadaPor),
@@ -133,7 +133,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     const cambios: CambioFefoVista[] = pk(e).cambios.filter((c) => s.lineas.some((l) => l.id === c.lineaId)).map((c) => ({
       lineaId: c.lineaId, en: c.en, por: c.por, anterior: nombreLoteCantidad(e, c.anterior), nueva: nombreLoteCantidad(e, c.nueva), distintoDeFefo: c.distinto, motivo: c.motivo,
     })).sort((a, b) => b.en.localeCompare(a.en))
-    return structuredClone({ ...this.resumenSalida(e, s), estado: s.estado, requiereEmbalaje: s.requiereEmbalaje, creadaPor: nombrePersonaDemo(s.creadaPor), lineasDetalle: s.lineas.map((l) => this.vistaLinea(e, l, s)), clienteManual: s.clienteManual, greNumero: s.greNumero, greArchivo: s.greArchivo, ordenPickingId: this.ordenDe(e, s.id)?.id, cambios })
+    return structuredClone({ ...this.resumenSalida(e, s), estado: s.estado, requiereEmbalaje: s.requiereEmbalaje, creadaPor: nombrePersonaDemo(s.creadaPor), entrega: s.entrega, lineasDetalle: s.lineas.map((l) => this.vistaLinea(e, l, s)), clienteManual: s.clienteManual, greNumero: s.greNumero, greArchivo: s.greArchivo, ordenPickingId: this.ordenDe(e, s.id)?.id, cambios })
   }
 
   async lotesParaEditar(lineaId: string): Promise<LoteEditable[]> {

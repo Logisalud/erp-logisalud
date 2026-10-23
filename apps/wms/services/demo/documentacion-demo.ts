@@ -11,7 +11,7 @@ import {
 } from '@/domain/guia-electronica'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
-import { desp, type RutaDemo, type SalidaDemo } from './despacho-demo'
+import { claveDeParada, desp, type RutaDemo, type SalidaDemo } from './despacho-demo'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { pk } from './picking-demo'
 import { DocumentosDemo } from './documentos-demo'
@@ -257,14 +257,14 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       faltantes = this.faltantesSync(e, s, ctx.ruc, ctx.entrega)
     }
     const o = this.ordenDe(e, s.id)
-    const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null, devolucionPendiente: base.etapa === 'POR_DEVOLVER_PICKING' }, { guia: !!guia, paquete: faltantes === 0, ...this.avanceExtra(e, s) })
+    const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null, devolucionPendiente: base.etapa === 'POR_DEVOLVER_PICKING', entregadaAlTransportista: !!s.entrega }, { guia: !!guia, paquete: faltantes === 0, ...this.avanceExtra(e, s) })
     return { ...base, etapa, guia: guia?.numero, documentosFaltantes: faltantes }
   }
 
   /** El formato LS-FR.43.03 toma el N.° de guía de lo registrado (nada se copia: se lee de la guía vigente de cada pedido). */
   protected override extrasLsFr(e: EstadoDemo, r: RutaDemo): ExtrasLsFr {
     const guiasPorPedido: Record<string, string> = {}
-    for (const p of r.paradas) { if (!p.activa || !p.salidaId) continue; const g = this.guiaVigente(e, p.salidaId); if (g) guiasPorPedido[p.pedidoId] = g.numero }
+    for (const p of r.paradas) { if (!p.activa || !p.salidaId) continue; const g = this.guiaVigente(e, p.salidaId); if (g) guiasPorPedido[claveDeParada(p)] = g.numero }
     return { ...super.extrasLsFr(e, r), guias: guiasPorPedido }
   }
 
