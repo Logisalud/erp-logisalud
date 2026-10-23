@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearSolicitudAction, type EstadoFormulario } from './actions'
@@ -60,12 +60,38 @@ export function FormularioSolicitud({
   const [tipo, setTipo] = useState<TipoSolicitud>(inicial?.tipo ?? tipoPreseleccionado ?? 'gasto_directo')
   const [categoriaId, setCategoriaId] = useState(inicial?.categoriaId ?? '')
   const [moneda, setMoneda] = useState(inicial?.moneda ?? 'PEN')
+  const [fechaFactura, setFechaFactura] = useState(inicial?.fechaFactura ?? '')
+  // Tipo de cambio: SUNAT por defecto, editable (Sebas, 2026-10-23). Si la
+  // persona lo escribe a mano, ya no se pisa al cambiar la fecha. Al editar
+  // una solicitud que ya lo tiene, se respeta el guardado.
+  const [tipoCambio, setTipoCambio] = useState(inicial?.tipoCambio ?? '')
+  const [tcAMano, setTcAMano] = useState(!!inicial?.tipoCambio)
+  const [tcEstado, setTcEstado] = useState<'' | 'buscando' | 'sunat' | 'sin_dato'>('')
   const [base, setBase] = useState(inicial?.baseImponible ?? '')
   const [igv, setIgv] = useState(inicial?.igv ?? '')
   // Al editar, el IGV guardado se respeta tal cual: recalcularlo al 18%
   // porque alguien tocó la base pisaría un valor que ya estaba revisado.
   const [igvEditadoAMano, setIgvEditadoAMano] = useState(!!inicial)
   const [tipoComprobante, setTipoComprobante] = useState(inicial?.tipoComprobante ?? 'boleta')
+
+  // La fecha que manda: la del comprobante; en un anticipo (que no tiene),
+  // la de hoy en Lima.
+  const fechaTc = tipo === 'anticipo' || !fechaFactura
+    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date())
+    : fechaFactura
+  useEffect(() => {
+    if (moneda !== 'USD' || tcAMano) return
+    let vigente = true
+    setTcEstado('buscando')
+    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/api/tipo-cambio?fecha=${fechaTc}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vigente) return
+        if (j?.venta) { setTipoCambio(String(j.venta)); setTcEstado('sunat') } else setTcEstado('sin_dato')
+      })
+      .catch(() => vigente && setTcEstado('sin_dato'))
+    return () => { vigente = false }
+  }, [moneda, fechaTc, tcAMano])
 
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
   // El formulario es largo y el botón está al final: sin esto, un error de
@@ -144,11 +170,23 @@ export function FormularioSolicitud({
           <Campo etiqueta="Tipo de cambio *" error={errorDe('tipoCambio')}>
             <input
               type="number" name="tipoCambio" min="0" step="0.0001" inputMode="decimal"
-              defaultValue={inicial?.tipoCambio} placeholder="Ej. 3.7520"
+              value={tipoCambio} placeholder="Ej. 3.4500"
+              onChange={(e) => { setTipoCambio(e.target.value); setTcAMano(true) }}
               className="min-h-12 w-full rounded-md border border-gray-300 px-3"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Soles por dólar del día de tu comprobante (o de hoy, si es un anticipo).
+              {tcEstado === 'buscando'
+                ? 'Buscando el tipo de cambio SUNAT…'
+                : tcEstado === 'sunat' && !tcAMano
+                  ? `Tipo de cambio SUNAT (venta) del ${fechaTc.split('-').reverse().join('/')}. Puedes cambiarlo.`
+                  : tcEstado === 'sin_dato' && !tcAMano
+                    ? 'No se pudo traer el de SUNAT ahora — escríbelo.'
+                    : 'Soles por dólar. Se paga en dólares; esto es para la contabilidad.'}
+              {tcAMano ? (
+                <button type="button" onClick={() => setTcAMano(false)} className="ml-1 text-logisalud-teal underline">
+                  Usar el de SUNAT
+                </button>
+              ) : null}
             </p>
           </Campo>
         ) : null}
@@ -269,7 +307,8 @@ export function FormularioSolicitud({
                 error={errorDe('fechaFactura')}
               >
                 <input
-                  type="date" name="fechaFactura" required={exigeFechaComprobante} defaultValue={inicial?.fechaFactura}
+                  type="date" name="fechaFactura" required={exigeFechaComprobante} value={fechaFactura}
+                  onChange={(e) => setFechaFactura(e.target.value)}
                   className="min-h-12 w-full rounded-md border border-gray-300 px-3"
                 />
                 <p className="mt-1 text-xs text-gray-500">
