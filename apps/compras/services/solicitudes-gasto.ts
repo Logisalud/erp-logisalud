@@ -1,6 +1,7 @@
 import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import { normalizarNumeroFactura } from '@/domain/obligacion'
+import { tipoCambioSunat } from '@/services/tipo-cambio-sunat'
 import {
   calcularLiquidacion,
   estadoTrasPago,
@@ -22,7 +23,7 @@ import {
 } from '@/domain/auto-aprobacion'
 import { formatoMonto } from '@/domain/aviso-email'
 import { ERROR_EDITAR_TARDE, puedeEditarseSolicitud } from '@/domain/edicion'
-import { anioMesStorageLima } from '@/domain/fecha'
+import { anioMesStorageLima, hoyLima } from '@/domain/fecha'
 
 export type CategoriaGasto = { id: string; nombre: string; cuenta_contable: string | null }
 
@@ -497,8 +498,16 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
   // La base exige tipo de cambio en toda deuda en dólares
   // (`tipo_cambio_requerido`). Las solicitudes viejas no lo pedían: el error
   // crudo de Postgres no le decía a Contabilidad qué hacer.
-  if (solicitud.moneda !== 'PEN' && !(Number((solicitud as any).tipo_cambio) > 0)) {
-    throw new Error('Está en dólares y no tiene tipo de cambio — edítala, agrégalo y vuelve a aprobarla.')
+  // Si no lo tiene (solicitudes de antes de que el formulario lo pidiera),
+  // se usa el de SUNAT de la fecha del comprobante — el mismo valor por
+  // defecto que propone el formulario — y queda guardado en la solicitud.
+  let tipoCambio: number | null = solicitud.moneda === 'PEN' ? null : Number((solicitud as any).tipo_cambio) || null
+  if (solicitud.moneda !== 'PEN' && !tipoCambio) {
+    tipoCambio = await tipoCambioSunat((solicitud as any).fecha_factura ?? hoyLima())
+    if (!tipoCambio) {
+      throw new Error('Está en dólares y no tiene tipo de cambio, y no se pudo traer el de SUNAT — edítala, agrégalo y vuelve a aprobarla.')
+    }
+    await supabase.schema('gastos').from('solicitudes_gasto').update({ tipo_cambio: tipoCambio }).eq('id', id)
   }
 
   // El N° y la fecha del comprobante, y el vencimiento del pago.
@@ -537,7 +546,7 @@ export async function aprobarPorContabilidad(id: string): Promise<void> {
       base_imponible: baseImponible,
       igv,
       sin_igv: solicitud.tipo === 'anticipo',
-      tipo_cambio: solicitud.moneda === 'PEN' ? null : (solicitud as any).tipo_cambio,
+      tipo_cambio: tipoCambio,
       // Un reembolso no tiene proveedor, así que los índices únicos de
       // factura (que exigen proveedor_id o proveedor_servicio_id) no aplican
       // y esto no puede chocar con otra obligación.
