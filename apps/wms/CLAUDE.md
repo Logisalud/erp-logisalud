@@ -110,6 +110,7 @@ Mientras tanto, verificar con Playwright directo.
 - **Modo demostración local:** `WMS_DEMO_LOCAL=1 npm run dev:wms` (datos de prueba en memoria, banner DEMO, sin base real).
   Usa por defecto los datos de prueba de Odoo (`docs/wms/demo-odoo.md`); `WMS_DEMO_DATOS=sintetico` los cambia por los sintéticos (lo fijan vitest, Playwright y `e2e-por-viewport.sh`).
   En Vercel solo se activa en Preview con `WMS_DEMO=1`; en producción la app **se niega a arrancar** si hay una bandera puesta.
+- **Órdenes de ejemplo (SA-1):** en demo/Preview la demo siembra 24 órdenes de ejemplo en cada etapa y tipo (lista en `domain/ejemplos.ts`). `WMS_DEMO_EJEMPLOS=0` las apaga (vitest, Playwright y `e2e-por-viewport.sh` lo hacen para la suite de siempre); `WMS_DEMO_EJEMPLOS=vacio` deja la demo sin ninguna salida. Los E2E de los ejemplos y del vacío corren en servidores propios (ver `e2e-por-viewport.sh`).
 - **Pruebas de base de datos:** `npm run test:db:wms` levanta el Postgres 16 local (`scripts/db-local.sh`; en CI corre en Postgres 17, la versión de producción) y corre las migraciones
   contra un schema `auth` simulado. No cubre PostgREST, GoTrue ni Storage (docs/wms/gate-0.md §G.1).
 - **E2E en 4 viewports + capturas:** `npm run build:wms` y luego

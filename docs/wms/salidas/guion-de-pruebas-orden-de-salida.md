@@ -98,3 +98,34 @@ Antes de empezar crea las órdenes de la sección 9: una **venta manual (A)** co
 7. **B: entrega al transportista del cliente.** La orden B no lleva ruta ni guía del WMS. Haz picking, conformidad, registra la **GRE del cliente**, completa el paquete y el embalaje. Cuando está «Lista para carga», el siguiente paso es **«Entregar la mercadería al transportista del cliente»** (lo hacen el Jefe de Transporte o el Jefe de Almacén). En el bloque «Entrega al transportista del cliente» escribe el transportista (o quién recoge), la placa o el DNI (8 números), la hora y quién entrega por el almacén; adjunta, si quieres, la foto o el PDF del cargo. Al registrar, la orden pasa a **«Entregada al transportista»**, la salida se confirma y el stock baja. Repetirlo no baja el stock dos veces. El auxiliar no ve el formulario.
 8. **Toda orden A, B o C muestra siempre qué sigue y quién lo hace**, desde el stock asignado hasta «Terminada».
 Pendiente de Sebas: si B puede ir en una ruta propia de Logisalud cuando un cliente lo pide (hoy no; D-135).
+
+## 13. Órdenes de ejemplo: recorre cualquier etapa sin crearla
+
+En la demostración, **Órdenes de salida** ya trae 24 órdenes de ejemplo (con la etiqueta «Ejemplo») además de PED-DEMO-101. Entra con la persona indicada y prueba lo que dice la última columna. Las órdenes de tipo B y C no tienen número de pedido: búscalas por su tipo en la lista. Para ver la pantalla vacía real o la suite de siempre se apagan con `WMS_DEMO_EJEMPLOS=0` (o `vacio`). La lista completa y qué se prueba en cada una está en `apps/wms/domain/ejemplos.ts`.
+
+| Orden de ejemplo | Etapa | Con quién entrar | Qué probar |
+|---|---|---|---|
+| PED-DEMO-201 | Stock asignado | Jefe de Transporte | Designar a quien pica y generar la hoja de picking; cambiar un lote. |
+| PED-DEMO-202 | En picking | Auxiliar | Seguir el picking de la hoja (una línea ya está pickeada). |
+| PED-DEMO-203 | Pendiente de conformidad | Asistente de Dirección Técnica | Dar la conformidad y contar bultos; quien pickeó no puede darla. |
+| PED-DEMO-204 | Conforme | Jefe de Transporte | Armar una ruta con este pedido y emitir la guía (simulador). |
+| PED-DEMO-205 | Documentación completa (guía emitida) | Auxiliar | Ver la guía y su PDF simulado; embalar en bultos. |
+| PED-DEMO-206 | Embalada, falta la documentación | Jefe de Transporte | Reabrir el embalaje con motivo; completar guía y documentos. |
+| PED-DEMO-207 | Lista para carga | Auxiliar | Escanear bultos, checklist del vehículo y liberar la unidad. |
+| PED-DEMO-208 | Salida confirmada | Jefe de Transporte | Ver el stock ya descontado y el LS-FR.43.03; crear un retorno. |
+| PED-DEMO-209 | Sin stock suficiente | Jefe de Transporte | Leer por qué falta y copiar el aviso para el vendedor. |
+| PED-DEMO-210 | Cancelada | Jefe de Transporte | Ver la cancelación con motivo y el stock liberado. |
+| PED-DEMO-211 | Cancelada porque Pedidos canceló el pedido | Jefe de Transporte | En Pedidos por despachar figura «Cancelado en Pedidos». |
+| PED-DEMO-212 | Por devolver lo picado (el pedido cambió) | Auxiliar y otra persona | Devolver lo picado con un movimiento verificado. |
+| PED-DEMO-221 | Manual por conciliar, stock asignado | Jefe de Transporte | Si el pedido llega por la bandeja se une a esta orden sin duplicarla. |
+| PED-DEMO-222 | Manual por conciliar, conforme | Jefe de Transporte | Planificar su ruta (parada por orden) y emitir la guía. |
+| PED-DEMO-223 | Manual por conciliar, lista para carga | Auxiliar / Jefe de Transporte | Cargar la unidad de su ruta. |
+| PED-DEMO-224 | Manual por conciliar, salida confirmada | Jefe de Transporte | Ver la salida terminada de una venta manual. |
+| B · Diphasac (stock asignado) | Por cuenta de un cliente, stock asignado | Jefe de Transporte o Jefe de Almacén | Solo su stock, lote de su guía, «creada por … en nombre de …». |
+| B · AJR (conforme) | Por cuenta de un cliente, GRE registrada | Jefe de Transporte | GRE del cliente registrada; no hay guía del WMS. |
+| B · Triamed (lista) | Lista para entregar | Jefe de Transporte o Jefe de Almacén | Registrar la entrega al transportista del cliente. |
+| B · Medic Pharma (entregada) | Entregada al transportista | Jefe de Transporte o Jefe de Almacén | Ver la entrega ya registrada y el stock descontado. |
+| C · Muestra (conforme) | Muestra de Logissa, conforme | Autoriza salidas sin venta / Jefe de Transporte | Planificar su ruta y emitir la guía con motivo «otros». |
+| C · Devolución al proveedor (conforme) | Devolución, conforme | Jefe de Transporte | Lote indicado y antes de su vencimiento; guía de devolución. |
+| C · Muestra con ruta | Lista para carga | Auxiliar | Cargar la unidad de su ruta. |
+| C · Devolución que ya salió | Salida confirmada | Jefe de Transporte | Ver la salida confirmada de una devolución al proveedor. |

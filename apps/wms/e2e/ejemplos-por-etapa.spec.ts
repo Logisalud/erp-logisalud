@@ -21,19 +21,20 @@ test.describe('órdenes de ejemplo (SA-1)', () => {
     await expect(page.getByTestId('lista-salidas')).toBeVisible()
     await expect(page.getByTestId('salidas-vacio')).toHaveCount(0)
     const filas = filaDe(page, info)
-    await expect(filas).toHaveCount(19)    // la de siempre (PED-DEMO-101) + 18 de ejemplo
+    await expect(filas).toHaveCount(25)    // la de siempre (PED-DEMO-101) + 24 de ejemplo
     for (const [pedido, etapa] of [
       ['PED-DEMO-201', 'Stock asignado'], ['PED-DEMO-202', 'En picking'], ['PED-DEMO-203', 'Pendiente de conformidad'], ['PED-DEMO-204', 'Conforme'],
       ['PED-DEMO-205', 'Documentación completa'], ['PED-DEMO-206', 'Embalada'], ['PED-DEMO-207', 'Lista para carga'], ['PED-DEMO-208', 'Salida confirmada'],
-      ['PED-DEMO-209', 'Sin stock suficiente'], ['PED-DEMO-210', 'Cancelada'], ['PED-DEMO-212', 'Por devolver lo picado'],
+      ['PED-DEMO-209', 'Sin stock suficiente'], ['PED-DEMO-223', 'Lista para carga'], ['PED-DEMO-224', 'Salida confirmada'], ['PED-DEMO-210', 'Cancelada'], ['PED-DEMO-212', 'Por devolver lo picado'],
     ]) await expect(filas.filter({ hasText: pedido }), pedido).toContainText(etapa)
     // cada orden dice qué sigue (en el teléfono, «Sigue: …»; en pantalla grande, además, quién lo hace)
     const n = await filas.count()
     for (let i = 0; i < n; i++) await expect(filas.nth(i)).toContainText(esTelefono(info) ? 'Sigue:' : /Lo hace:|Terminada|Cancelada: no se hace nada/)
     // las de ejemplo llevan la etiqueta; la de siempre no
-    await expect(filas.getByTestId('etiqueta-EJEMPLO')).toHaveCount(18)
+    await expect(filas.getByTestId('etiqueta-EJEMPLO')).toHaveCount(24)
     await expect(filas.filter({ hasText: 'PED-DEMO-101' }).getByTestId('etiqueta-EJEMPLO')).toHaveCount(0)
-    // los tres tipos
+    // los tres tipos (B llega hasta la entrega al transportista del cliente)
+    await expect(filas.filter({ hasText: 'Entregada al transportista' })).toHaveCount(1)
     await expect(filas.getByTestId('etiqueta-tipo').filter({ hasText: 'Por cuenta de un cliente' }).first()).toBeVisible()
     await expect(filas.getByTestId('etiqueta-tipo').filter({ hasText: 'Muestra de Logissa' }).first()).toBeVisible()
     await expect(filas.getByTestId('etiqueta-tipo').filter({ hasText: 'Devolución al proveedor' }).first()).toBeVisible()
@@ -55,7 +56,7 @@ test.describe('órdenes de ejemplo (SA-1)', () => {
     await capturar(page, info, 'salidas-sin-coincidencias')
     await page.getByTestId('quitar-filtros-salidas').click()
     await expect(page.getByTestId('lista-salidas')).toBeVisible()
-    await expect(filaDe(page, info)).toHaveCount(19)
+    await expect(filaDe(page, info)).toHaveCount(25)
   })
 
   test('la orden con falta de stock explica por qué falta y deja copiar el aviso para el vendedor; la salida confirmada está terminada', async ({ page }, info) => {
