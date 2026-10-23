@@ -1,7 +1,7 @@
 // SA-1: las órdenes de ejemplo de la demostración. Cada etapa y tipo esperado, determinista, sin romper invariantes y siempre con «Dónde va y qué sigue».
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
-import { EJEMPLOS_SALIDA, EJEMPLOS_PENDIENTES_TIEMPO_2, esPedidoDeEjemplo } from '@/domain/ejemplos'
+import { EJEMPLOS_SALIDA, esPedidoDeEjemplo } from '@/domain/ejemplos'
 import { avanceDeSalida } from '@/domain/pasos'
 import { ETAPAS_SALIDA } from '@/domain/pasos'
 import { comprometidoEn } from '@/services/demo/despacho-demo'
@@ -47,7 +47,9 @@ for (const datos of ['sintetico', 'odoo']) {
       expect(todas[0].pedidoNumero).toBe('PED-DEMO-101')
       expect(ejemplos).toHaveLength(EJEMPLOS_SALIDA.length)
       EJEMPLOS_SALIDA.forEach((ej, i) => {
-        expect(ejemplos[i].etapa, ej.clave).toBe(ej.etapa)
+        // con la GRE del cliente registrada, según el juego de datos el paquete documental ya puede estar completo (no pide nada más): las dos etapas son válidas
+        const validas = ej.clave === 'b-conforme' ? ['CONFORME', 'DOCUMENTACION_COMPLETA'] : [ej.etapa]
+        expect(validas, `${ej.clave}: ${ejemplos[i].etapa}`).toContain(ejemplos[i].etapa)
         if (ej.pedido) expect(ejemplos[i].pedidoNumero, ej.clave).toBe(ej.pedido)
       })
     })
@@ -55,11 +57,11 @@ for (const datos of ['sintetico', 'odoo']) {
     it('cubre cada etapa pedida y los tres tipos', async () => {
       const { ejemplos } = await ordenes()
       const etapas = new Set(ejemplos.map((s) => s.etapa))
-      for (const e of ['ASIGNADA', 'EN_PICKING', 'PENDIENTE_CONFORMIDAD', 'CONFORME', 'DOCUMENTACION_COMPLETA', 'EMBALADA', 'LISTA_PARA_CARGA', 'CONFIRMADA', 'SIN_STOCK', 'CANCELADA', 'POR_DEVOLVER_PICKING'] as const) expect(etapas.has(e), e).toBe(true)
+      for (const e of ['ASIGNADA', 'EN_PICKING', 'PENDIENTE_CONFORMIDAD', 'CONFORME', 'DOCUMENTACION_COMPLETA', 'EMBALADA', 'LISTA_PARA_CARGA', 'CONFIRMADA', 'ENTREGADA_AL_TRANSPORTISTA', 'SIN_STOCK', 'CANCELADA', 'POR_DEVOLVER_PICKING'] as const) expect(etapas.has(e), e).toBe(true)
       expect(new Set(ejemplos.map((s) => s.tipo))).toEqual(new Set(['DISTRIBUCION', 'CLIENTE', 'MUESTRA', 'PROVEEDOR']))
       expect(ejemplos.filter((s) => s.origen === 'PEDIDO').length).toBeGreaterThan(0)
       expect(ejemplos.filter((s) => s.origen === 'MANUAL' && s.tipo === 'DISTRIBUCION').every((s) => s.porConciliar)).toBe(true)
-      expect(ejemplos.filter((s) => s.origen === 'MANUAL' && s.tipo === 'DISTRIBUCION')).toHaveLength(2)
+      expect(ejemplos.filter((s) => s.origen === 'MANUAL' && s.tipo === 'DISTRIBUCION')).toHaveLength(4)
       expect(ejemplos.some((s) => s.tipo === 'CLIENTE' && s.enNombreDe)).toBe(true)
     })
 
@@ -141,11 +143,10 @@ for (const datos of ['sintetico', 'odoo']) {
 }
 
 describe('la lista declarativa', () => {
-  it('claves únicas y números de pedido únicos; los ejemplos pendientes del Tiempo 2 no están en la lista', () => {
+  it('claves únicas y números de pedido únicos', () => {
     expect(new Set(EJEMPLOS_SALIDA.map((x) => x.clave)).size).toBe(EJEMPLOS_SALIDA.length)
     const peds = EJEMPLOS_SALIDA.filter((x) => x.pedido).map((x) => x.pedido)
     expect(new Set(peds).size).toBe(peds.length)
-    expect(EJEMPLOS_PENDIENTES_TIEMPO_2.length).toBeGreaterThan(0)
     expect(EJEMPLOS_SALIDA.every((x) => x.conQuien && x.probar)).toBe(true)
   })
 })

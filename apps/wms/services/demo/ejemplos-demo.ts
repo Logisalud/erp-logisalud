@@ -22,6 +22,7 @@ const JT = actor('jefe_transporte', 'jefe_transporte', 'jefe_almacen')
 const DT = actor('direccion_tecnica', 'direccion_tecnica')
 const AUX = actor('auxiliar', 'auxiliar')
 const CONFORMIDAD = actor('asistente_dt', 'asistente_dt', 'conformidad_despacho')
+const JA = actor('jefe_almacen', 'jefe_almacen', 'jefe_transporte')
 const MUESTRAS = actor('autoriza_salidas_sin_venta', 'autoriza_salidas_sin_venta')
 const CHECKLIST = [{ item: 'Vehículo limpio', ok: true, nota: '' }, { item: 'Termómetro', ok: true, nota: '' }]
 
@@ -42,7 +43,14 @@ const RUTAS: Record<string, { dias: number; vehiculoId: string; conductorId: str
   'a-guia': { dias: 2, vehiculoId: 'veh-1', conductorId: 'per-1', auxiliarId: 'per-3' },
   'a-lista-carga': { dias: 3, vehiculoId: 'veh-1', conductorId: 'per-1', auxiliarId: 'per-3' },
   'a-confirmada': { dias: 0, vehiculoId: 'veh-2', conductorId: 'per-2', auxiliarId: 'per-4' },
+  'a-manual-lista-carga': { dias: 4, vehiculoId: 'veh-1', conductorId: 'per-1', auxiliarId: 'per-3' },
+  'c-muestra-lista-carga': { dias: 5, vehiculoId: 'veh-1', conductorId: 'per-1', auxiliarId: 'per-3' },
+  'a-manual-confirmada': { dias: 1, vehiculoId: 'veh-2', conductorId: 'per-2', auxiliarId: 'per-4' },
+  'c-proveedor-confirmada': { dias: 2, vehiculoId: 'veh-2', conductorId: 'per-2', auxiliarId: 'per-4' },
 }
+
+/** Cada orden por cuenta de un cliente trae su propia GRE (el mismo número no se repite entre órdenes). */
+const GRE_DE: Record<string, string> = { 'b-asignada': 'EG01-00000200', 'b-conforme': 'EG01-00000201', 'b-embalada': 'EG01-00000202', 'b-entregada': 'EG01-00000203' }
 
 const CLIENTES: Record<string, { ruc: string; direccion: string; distrito: string; ubigeo: string }> = {
   lima: { ruc: '20100000011', direccion: 'Av. de Ejemplo 100, Lima', distrito: 'Lima', ubigeo: '150101' },
@@ -157,6 +165,7 @@ export class EjemplosDemo extends SalidaManualDemo {
 
   /** Lleva una orden con stock asignado hasta donde dice `hasta` (picking, conformidad, guía, embalaje, carga, salida). Las mismas acciones de las pantallas. */
   private async ej_avanzar(e: EstadoDemo, ej: EjemploSalida, salida: SalidaDemo) {
+    if (ej.hasta === 'ASIGNADA') return
     const g = exigir(await this.generarOrdenPicking(salida.id, JT, AUX.id), ej.clave)
     let orden = (await this.obtenerOrdenPicking(g.id))!
     if (ej.hasta === 'EN_PICKING') {
@@ -167,6 +176,8 @@ export class EjemplosDemo extends SalidaManualDemo {
     if (ej.hasta === 'PENDIENTE_CONFORMIDAD') return
     if (ej.hasta === 'CAMBIO_CON_PICKING') { exigir(await this.simularCambioEnPedidos(`ped-demo-${ej.pedido!.slice(-3)}`, 'REDUCIR', JT), ej.clave); return }
     exigir(await this.conformarOrden(orden.id, [], 2, undefined, CONFORMIDAD), ej.clave)
+    // por cuenta de un cliente (B): no hay guía del WMS ni ruta; se registra la GRE que trajo el cliente
+    if (salida.tipo === 'CLIENTE') { await this.ej_cierreB(salida, ej); return }
     if (ej.hasta === 'CONFORME') return
     if (ej.hasta === 'EMBALADA') { await this.ej_embalar(salida, ej); return }
     // desde aquí hace falta una ruta (la guía la toma de la ruta: vehículo y conductor)
@@ -184,11 +195,26 @@ export class EjemplosDemo extends SalidaManualDemo {
     void orden
   }
 
+  /** B: GRE del cliente registrada → COA → embalaje → entrega al transportista del cliente. */
+  private async ej_cierreB(salida: SalidaDemo, ej: EjemploSalida) {
+    exigir(await this.registrarGre(salida.id, salida.greNumero!, 'Ejemplo: GRE del cliente', JT, salida.greArchivo), ej.clave)
+    if (ej.hasta === 'CONFORME') return
+    // el cliente de almacenamiento pide solo el COA de cada lote (como los clientes de ejemplo de distribución)
+    const ruc = estadoE().panorama.propietarios.find((p) => p.id === salida.propietarioId)?.ruc
+    if (ruc) exigir(await this.guardarPerfilDocumental({ ruc, exigeCoa: true, exigeRegistroSanitario: false, exigeBpm: false, copias: 1, nota: 'Cliente de ejemplo: solo COA por lote' }, DT), ej.clave)
+    await this.ej_cargarCoa(salida, ej)
+    await this.ej_embalar(salida, ej)
+    if (ej.hasta === 'LISTA_PARA_CARGA') return
+    exigir(await this.registrarEntregaTransportistaCliente({
+      salidaId: salida.id, transportista: 'Transportes Ejemplo del Cliente SAC', placa: 'ABC123', hora: new Date().toISOString(), entregaAlmacen: 'Jefe de Almacén (demo)', nota: 'Ejemplo: entrega con la GRE del cliente',
+    }, JA), ej.clave)
+  }
+
   private async ej_armarRuta(e: EstadoDemo, ej: EjemploSalida, salida: SalidaDemo): Promise<string> {
     const r = RUTAS[ej.clave]
     const fecha = sumarDias(e.panorama.hoy, r.dias)
     const c = exigir(await this.crearRuta({ fecha, vehiculoId: r.vehiculoId, conductorId: r.conductorId, auxiliarId: r.auxiliarId }, JT), ej.clave)
-    exigir(await this.planificarRuta(c.id, { fecha, vehiculoId: r.vehiculoId, conductorId: r.conductorId, auxiliarId: r.auxiliarId, paradas: [{ pedidoId: salida.pedidoId }] }, JT), ej.clave)
+    exigir(await this.planificarRuta(c.id, { fecha, vehiculoId: r.vehiculoId, conductorId: r.conductorId, auxiliarId: r.auxiliarId, paradas: [salida.origen === 'MANUAL' ? { salidaId: salida.id } : { pedidoId: salida.pedidoId }] }, JT), ej.clave)
     exigir(await this.confirmarRuta(c.id, JT), ej.clave)
     return c.id
   }
@@ -219,8 +245,10 @@ export class EjemplosDemo extends SalidaManualDemo {
     const pq = (await this.paqueteSalida(salida.id))!
     const hoy = estadoE().panorama.hoy
     for (const i of pq.items) {
-      if (!i.requisitos.some((r) => r.tipo === 'COA' && r.exigido && r.estado !== 'OK')) continue
-      exigir(await this.subirDocumento({ tipo: 'COA', alcanceId: i.loteId, nombreArchivo: `COA_${i.lote}.pdf`, archivoRef: `demo/ejemplo-COA-${i.loteId}.pdf`, hash: `h-ejemplo-${i.loteId}`, bytes: 1000, vigenteDesde: sumarDias(hoy, -30) }, CONFORMIDAD), ej.clave)
+      const falta = (tipo: string) => i.requisitos.some((r) => r.tipo === tipo && r.exigido && r.estado !== 'OK')
+      if (falta('COA')) exigir(await this.subirDocumento({ tipo: 'COA', alcanceId: i.loteId, nombreArchivo: `COA_${i.lote}.pdf`, archivoRef: `demo/ejemplo-COA-${i.loteId}.pdf`, hash: `h-ejemplo-${i.loteId}`, bytes: 1000, vigenteDesde: sumarDias(hoy, -30) }, CONFORMIDAD), ej.clave)
+      // un propietario sin RUC en los datos de prueba no tiene perfil: se le cumple también el registro sanitario del producto
+      if (falta('REGISTRO_SANITARIO')) exigir(await this.subirDocumento({ tipo: 'REGISTRO_SANITARIO', alcanceId: i.productoId, nombreArchivo: `RS-${i.productoCodigo}.pdf`, archivoRef: `demo/ejemplo-RS-${i.productoId}.pdf`, hash: `h-ejemplo-rs-${i.productoId}`, bytes: 1000, vigenteDesde: sumarDias(hoy, -300), vigenteHasta: sumarDias(hoy, 400) }, DT), ej.clave)
     }
   }
 
@@ -235,17 +263,6 @@ export class EjemplosDemo extends SalidaManualDemo {
 
   // ── Las manuales ──────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Termina una orden sin pedido en la bandeja hasta la conformidad (hasta donde hoy llega: la ruta y la guía de estas órdenes las completa SA-6). */
-  private async ej_hastaConformidad(e: EstadoDemo, ej: EjemploSalida, salida: SalidaDemo) {
-    if (ej.hasta === 'ASIGNADA') return
-    const g = exigir(await this.generarOrdenPicking(salida.id, JT, AUX.id), ej.clave)
-    const orden = (await this.obtenerOrdenPicking(g.id))!
-    for (const l of orden.lineasDetalle) exigir(await this.registrarPicking(l.id, 'PICKEADA', undefined, AUX), ej.clave)
-    if (ej.hasta === 'PENDIENTE_CONFORMIDAD') return
-    exigir(await this.conformarOrden(orden.id, [], 2, undefined, CONFORMIDAD), ej.clave)
-    void e
-  }
-
   private async ej_sembrarManualA(e: EstadoDemo, ej: EjemploSalida, indice: number, pool: ProductoStock[]): Promise<SalidaDemo> {
     const c = CLIENTES[ej.provincia ? 'provincia' : 'lima']
     const n = Math.max(1, pool.length)
@@ -256,7 +273,7 @@ export class EjemplosDemo extends SalidaManualDemo {
     }
     const r = exigir(await this.crearOrdenManual(entrada, JT), ej.clave)
     const salida = desp(e).salidas.find((s) => s.id === r.ordenes[0].id)!
-    await this.ej_hastaConformidad(e, ej, salida)
+    await this.ej_avanzar(e, ej, salida)
     return salida
   }
 
@@ -272,31 +289,32 @@ export class EjemplosDemo extends SalidaManualDemo {
     if (!prop || !hallado) throw new Falla(`Ejemplo «${ej.clave}»: ningún cliente de almacenamiento tiene un lote apto`)
     const { producto, lote } = hallado
     const entrada: EntradaOrdenManual = {
-      clase: 'B', propietarioId: prop.id, greNumero: ej.clave === 'b-conforme' ? 'EG01-00000201' : 'EG01-00000200', greArchivo: `demo/gre-ejemplo-${ej.clave}.pdf`,
+      clase: 'B', propietarioId: prop.id, greNumero: GRE_DE[ej.clave] ?? 'EG01-00000299', greArchivo: `demo/gre-ejemplo-${ej.clave}.pdf`,
       lineas: [{ productoId: producto, cantidad: 5, loteId: lote, motivo: 'VENTA' }], token: `ejemplo:${ej.clave}`,
     }
     const r = exigir(await this.crearOrdenManual(entrada, JT), ej.clave)
     const salida = desp(e).salidas.find((s) => s.id === r.ordenes[0].id)!
-    await this.ej_hastaConformidad(e, ej, salida)
-    // la GRE del cliente se registra (número y PDF) en lugar de emitir guía del WMS
-    if (ej.hasta === 'CONFORME') exigir(await this.registrarGre(salida.id, salida.greNumero!, 'Ejemplo: GRE del cliente', JT, salida.greArchivo), ej.clave)
+    await this.ej_avanzar(e, ej, salida)
     return salida
   }
 
   private async ej_sembrarSinVenta(e: EstadoDemo, ej: EjemploSalida): Promise<SalidaDemo> {
     const dueno = duenoDelAlmacen(e)
     let entrada: EntradaOrdenManual
+    // desde SA-6 una salida sin venta dice a quién va (RUC, dirección y ubigeo): es el destinatario de su guía y de su parada en la ruta
+    const c = CLIENTES[ej.provincia ? 'provincia' : 'lima']
+    const cliente = { ruc: c.ruc, razonSocial: ej.cliente, direccion: c.direccion, ubigeo: c.ubigeo }
     if (ej.clase === 'C_MUESTRA') {
       const p = productosConStock(e, dueno, 60)
       const prod = p[p.length > 6 ? 6 : 0]
-      entrada = { clase: 'C', motivo: 'MUESTRA', lineas: [{ productoId: prod.id, cantidad: 3 }], token: `ejemplo:${ej.clave}` }
+      entrada = { clase: 'C', motivo: 'MUESTRA', lineas: [{ productoId: prod.id, cantidad: 6 }], cliente, token: `ejemplo:${ej.clave}` }
     } else {
       const { producto, lote } = await this.ej_loteParaCliente(e, dueno, 'DEVOLUCION_PROVEEDOR', 10)
-      entrada = { clase: 'C', motivo: 'DEVOLUCION_PROVEEDOR', lineas: [{ productoId: producto, cantidad: 4, loteId: lote }], token: `ejemplo:${ej.clave}` }
+      entrada = { clase: 'C', motivo: 'DEVOLUCION_PROVEEDOR', lineas: [{ productoId: producto, cantidad: 4, loteId: lote }], cliente, token: `ejemplo:${ej.clave}` }
     }
     const r = exigir(await this.crearOrdenManual(entrada, ej.clase === 'C_MUESTRA' ? MUESTRAS : JT), ej.clave)
     const salida = desp(e).salidas.find((s) => s.id === r.ordenes[0].id)!
-    await this.ej_hastaConformidad(e, ej, salida)
+    await this.ej_avanzar(e, ej, salida)
     return salida
   }
 

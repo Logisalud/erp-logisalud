@@ -13,6 +13,7 @@ export type HastaEjemplo =
   | 'EMBALADA'              // conforme y embalada en bultos, todavía sin guía
   | 'LISTA_PARA_CARGA'      // guía + documentos + embalaje, en una ruta por cargar
   | 'CONFIRMADA'            // ruta cargada, unidad liberada y salida confirmada: el stock ya bajó
+  | 'ENTREGADA'             // tipo B: entregada al transportista del cliente (con su GRE); el stock ya bajó
   | 'SIN_STOCK'             // falta stock (con el aviso de por qué falta)
   | 'CANCELADA'             // cancelada por el Jefe de Transporte
   | 'PEDIDO_CANCELADO'      // el pedido se canceló en Pedidos
@@ -47,7 +48,7 @@ const CONF = 'Asistente de Dirección Técnica (da la conformidad)'
 const AUX = 'Auxiliar de almacén'
 
 /**
- * Tiempo 1: lo que esta rama sabe llevar de punta a punta. El orden de la lista es el orden de siembra (y el de los números de orden OS-AAAA-NNNNN).
+ * Todo lo que la demo sabe llevar de punta a punta (Tiempo 1 y Tiempo 2, ya con las rutas, la carga y la entrega de las órdenes manuales de SA-6). El orden de la lista es el orden de siembra (y el de los números de orden OS-AAAA-NNNNN).
  * Los pedidos de la bandeja (201…212) y los manuales (221…) se llaman PED-DEMO-2xx para distinguirlos de los pedidos de siempre (101…104).
  */
 export const EJEMPLOS_SALIDA: readonly EjemploSalida[] = [
@@ -64,23 +65,17 @@ export const EJEMPLOS_SALIDA: readonly EjemploSalida[] = [
   { clave: 'a-pedido-cancelado', clase: 'A_BANDEJA', hasta: 'PEDIDO_CANCELADO', etapa: 'CANCELADA', pedido: 'PED-DEMO-211', cliente: 'Farmacia Ejemplo Desiste EIRL', conQuien: JT, probar: 'En «Pedidos por despachar» el pedido figura «Cancelado en Pedidos»; la orden se canceló sola y liberó todo.' },
   { clave: 'a-cambio-con-picking', clase: 'A_BANDEJA', hasta: 'CAMBIO_CON_PICKING', etapa: 'POR_DEVOLVER_PICKING', pedido: 'PED-DEMO-212', cliente: 'Droguería Ejemplo Cambia SAC', conQuien: AUX, probar: 'Pedidos redujo una línea con el picking hecho: devolver lo picado a su ubicación (movimiento) y que otra persona lo verifique.' },
   { clave: 'a-manual-asignada', clase: 'A_MANUAL', hasta: 'ASIGNADA', etapa: 'ASIGNADA', pedido: 'PED-DEMO-221', cliente: 'Botica Ejemplo Manual SAC', conQuien: JT, probar: 'Orden manual «por conciliar con Pedidos». Si el pedido llega después por la bandeja se une a esta orden sin duplicarla.' },
-  { clave: 'a-manual-conforme', clase: 'A_MANUAL', hasta: 'CONFORME', etapa: 'CONFORME', pedido: 'PED-DEMO-222', cliente: 'Farmacia Ejemplo Manual EIRL', provincia: true, conQuien: JT, probar: 'Orden manual ya conforme: hasta aquí llega hoy (la ruta y la guía de una venta manual sin pedido en la bandeja se completan en SA-6).' },
+  { clave: 'a-manual-conforme', clase: 'A_MANUAL', hasta: 'CONFORME', etapa: 'CONFORME', pedido: 'PED-DEMO-222', cliente: 'Farmacia Ejemplo Manual EIRL', provincia: true, conQuien: JT, probar: 'Orden manual ya conforme: aún sin ruta: planificarla es su siguiente paso.' },
   { clave: 'b-asignada', clase: 'B', hasta: 'ASIGNADA', etapa: 'ASIGNADA', cliente: 'Diphasac', conQuien: `${JT} o Jefe de Almacén`, probar: 'Una salida por cuenta de un cliente de almacenamiento: solo su stock, con el lote que indicó en su guía y «creada por … en nombre de …».' },
   { clave: 'b-conforme', clase: 'B', hasta: 'CONFORME', etapa: 'CONFORME', cliente: 'AJR Labs', conQuien: JT, probar: 'La GRE del cliente ya está registrada (número y PDF): no se emite guía del WMS. Ver el paquete documental.' },
   { clave: 'c-muestra', clase: 'C_MUESTRA', hasta: 'CONFORME', etapa: 'CONFORME', cliente: 'Muestra de Logissa', conQuien: 'Autoriza salidas sin venta (la crea) y Jefe de Transporte', probar: 'Una muestra sin venta autorizada por el rol que corresponde; lleva guía con el motivo «otros» (no se factura).' },
   { clave: 'c-proveedor', clase: 'C_PROVEEDOR', hasta: 'CONFORME', etapa: 'CONFORME', cliente: 'Devolución al proveedor', conQuien: JT, probar: 'Una devolución al proveedor con el lote indicado y antes de su vencimiento; la guía lleva el motivo de devolución.' },
-]
-
-/**
- * Tiempo 2 (cuando se integre SA-6, que deja avanzar hasta ruta, carga y entrega a las órdenes sin pedido en la bandeja, a las de tipo C y a la entrega al transportista del
- * cliente): estos ejemplos se agregan a la lista de arriba con su `hasta` y no existen todavía.
- */
-export const EJEMPLOS_PENDIENTES_TIEMPO_2: readonly { clase: ClaseEjemplo; hasta: HastaEjemplo; nota: string }[] = [
-  { clase: 'A_MANUAL', hasta: 'LISTA_PARA_CARGA', nota: 'venta manual por conciliar con guía, embalaje y ruta' },
-  { clase: 'A_MANUAL', hasta: 'CONFIRMADA', nota: 'venta manual por conciliar con salida confirmada' },
-  { clase: 'B', hasta: 'CONFIRMADA', nota: 'por cuenta de un cliente entregada al transportista del cliente (con su GRE)' },
-  { clase: 'C_MUESTRA', hasta: 'LISTA_PARA_CARGA', nota: 'muestra de Logissa con guía y ruta' },
-  { clase: 'C_PROVEEDOR', hasta: 'CONFIRMADA', nota: 'devolución al proveedor con salida confirmada' },
+  { clave: 'a-manual-lista-carga', clase: 'A_MANUAL', hasta: 'LISTA_PARA_CARGA', etapa: 'LISTA_PARA_CARGA', pedido: 'PED-DEMO-223', cliente: 'Botica Ejemplo Manual Ruta SAC', provincia: true, conQuien: JT, probar: 'Venta manual por conciliar que ya está en una ruta de Logisalud (parada por orden), con guía, documentos y embalaje: cargar la unidad.' },
+  { clave: 'a-manual-confirmada', clase: 'A_MANUAL', hasta: 'CONFIRMADA', etapa: 'CONFIRMADA', pedido: 'PED-DEMO-224', cliente: 'Farmacia Ejemplo Manual Salió EIRL', provincia: true, conQuien: JT, probar: 'Venta manual cuya ruta ya salió: el stock bajó y la orden sigue «por conciliar con Pedidos».' },
+  { clave: 'b-embalada', clase: 'B', hasta: 'LISTA_PARA_CARGA', etapa: 'LISTA_PARA_CARGA', cliente: 'Triamed', conQuien: 'Jefe de Transporte o Jefe de Almacén', probar: 'Por cuenta de un cliente, lista para entregar: registrar la entrega al transportista del cliente (nombre, placa o DNI, hora y quién entrega).' },
+  { clave: 'b-entregada', clase: 'B', hasta: 'ENTREGADA', etapa: 'ENTREGADA_AL_TRANSPORTISTA', cliente: 'Medic Pharma', conQuien: 'Jefe de Transporte o Jefe de Almacén', probar: 'Ver la entrega al transportista del cliente ya registrada: la orden terminó y el stock bajó; si algo vuelve, entra como devolución.' },
+  { clave: 'c-muestra-lista-carga', clase: 'C_MUESTRA', hasta: 'LISTA_PARA_CARGA', etapa: 'LISTA_PARA_CARGA', cliente: 'Muestra de Logissa con ruta', provincia: true, conQuien: JT, probar: 'Una muestra con su parada por orden en una ruta de Logisalud, con guía y embalaje: cargar la unidad.' },
+  { clave: 'c-proveedor-confirmada', clase: 'C_PROVEEDOR', hasta: 'CONFIRMADA', etapa: 'CONFIRMADA', cliente: 'Devolución al proveedor que ya salió', provincia: true, conQuien: JT, probar: 'Una devolución al proveedor con la ruta ya cerrada en carga y la salida confirmada.' },
 ]
 
 export const PREFIJO_PEDIDO_EJEMPLO = 'PED-DEMO-2'
