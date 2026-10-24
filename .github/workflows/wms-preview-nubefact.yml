@@ -1,0 +1,46 @@
+name: WMS — Nubefact en la Preview
+
+# Prueba MANUAL (SB-F, D-211): desde la Preview desplegada entra como Jefe de Transporte, usa «Probar conexión con Nubefact»,
+# emite una guía de prueba y la consulta. REPORTA en el resumen del run y en el log (modo que muestra la pantalla, mensajes exactos,
+# serie-número emitida para anularla en el panel de Nubefact). No falla por un error de negocio de Nubefact; solo por infraestructura.
+# No escribe nunca la ruta ni el token (viven solo en Vercel Preview).
+# Secreto OPCIONAL: VERCEL_AUTOMATION_BYPASS_SECRET (solo si la Preview tiene «Vercel Authentication»), igual que wms-preview-pdf.yml.
+# Cómo dispararlo: Actions → «WMS — Nubefact en la Preview» → Run workflow, o `gh workflow run wms-preview-nubefact.yml --ref <rama> -f url=<url>`.
+# OJO: un workflow_dispatch solo aparece si el archivo existe en la rama por defecto; para dispararlo con --ref <rama> por la API basta que el
+# archivo esté en esa rama (la API acepta cualquier ref que lo contenga) y que la rama esté subida.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: URL de la Preview (https://…vercel.app)
+        required: false
+        default: https://erp-logisalud-wms-git-feat-wms-os-int-logisalud.vercel.app
+
+permissions:
+  contents: read
+
+jobs:
+  nubefact:
+    name: Nubefact (cuenta DEMO) desde la Preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Instalar Chromium (solo en el runner)
+        working-directory: apps/wms
+        run: npx playwright install --with-deps chromium
+      - name: Probar Nubefact en la Preview
+        working-directory: apps/wms
+        env:
+          WMS_PREVIEW_URL: ${{ github.event.inputs.url }}
+          WMS_NUBEFACT_PREVIEW: '1'
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          echo "Probando ${WMS_PREVIEW_URL}"
+          npx playwright test -c playwright.preview.config.ts nubefact-preview

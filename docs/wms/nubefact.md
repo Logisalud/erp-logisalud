@@ -10,7 +10,7 @@ Estado: **simulador listo, escrito contra el manual oficial «API Nubefact – G
 | `NUBEFACT_URL`, `NUBEFACT_TOKEN` | Credenciales de Nubefact. **Solo variables de entorno**: no van en el código ni en la base. |
 | `NUBEFACT_PRODUCCION_APROBADA` | Debe valer `SI` para que `PRODUCCION` emita. El candado: lo pone Sebas cuando lo apruebe. |
 
-Pantalla: antes de emitir se ve el entorno («Simulador: la guía no existe ante SUNAT», «Entorno de pruebas de Nubefact» o «Producción: la guía es real»).
+Pantalla: antes de emitir se ve el entorno («Simulador · la guía no existe ante SUNAT», «Entorno de pruebas de Nubefact» o «Nubefact (producción) · la guía es real»).
 
 ## Cómo funciona con Nubefact (dos pasos)
 
@@ -59,4 +59,9 @@ La serie es **TTT1, la del mismo RUC**: el panel de Nubefact y el WMS numeran so
 
 ## Cuenta DEMO de Nubefact en la Preview (D-167)
 
-La cuenta DEMO **no envía a SUNAT** y no puede simular aceptada ni rechazada. Con `WMS_DEMO=1` en Vercel (solo Preview) y las variables **`NUBEFACT_RUTA`** y **`NUBEFACT_TOKEN`**, la demo usa el cliente real (modo «Entorno de pruebas de Nubefact: la guía no llega a SUNAT»); sin ellas, el simulador. Local y tests: siempre el simulador. Producción **no arranca** con banderas de demo ni con `NUBEFACT_RUTA`. Los valores no se imprimen ni se registran. «Probar conexión con Nubefact» está en la sección «Numeración de guías» de una orden con guía. Rechazo y aceptación de SUNAT se prueban solo en el simulador.
+La cuenta DEMO **no envía a SUNAT** y no puede simular aceptada ni rechazada. Con `WMS_DEMO=1` en Vercel (solo Preview) y las variables **`NUBEFACT_RUTA`** y **`NUBEFACT_TOKEN`**, la demo usa el cliente real (modo «Nubefact (modo prueba) · la guía no llega a SUNAT»); sin ellas, el simulador. Local y tests: siempre el simulador. Producción **no arranca** con banderas de demo ni con `NUBEFACT_RUTA`. Los valores no se imprimen ni se registran. «Probar conexión con Nubefact» está en la sección «Numeración de guías» de una orden con guía. Rechazo y aceptación de SUNAT se prueban solo en el simulador.
+
+
+## Cómo se ve el modo en pantalla (D-210) y cómo verificar la Preview (D-211)
+
+Tres nombres fijos: **«Simulador»**, **«Nubefact (modo prueba)»** y **«Nubefact (producción)»** (nunca la ruta ni el token). «Probar conexión» está siempre en «Numeración de guías». Para verificar la cuenta DEMO desde la Preview: workflow manual `.github/workflows/wms-preview-nubefact.yml` (corre `e2e-preview/nubefact-preview.spec.ts` y escribe el resultado en el resumen del run; no falla por errores de negocio de Nubefact).
