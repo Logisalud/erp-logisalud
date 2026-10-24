@@ -106,6 +106,14 @@ export class EjemplosDemo extends SalidaManualDemo {
       for (const s of desp(e).salidas) if (!antes.has(s.id)) s.ejemplo = true
       void salida
     }
+    await this.ej_sembrarBaja(dueno)
+  }
+
+  /** Una solicitud de baja de ejemplo (borrador de la Orden LS-FR.56.01), para que haya un PDF de baja que abrir (D-177). Si no hay stock bajable, no se siembra. */
+  private async ej_sembrarBaja(propietarioId: string) {
+    const [fila] = await this.stockParaBaja(propietarioId, '', 1)
+    if (!fila) return
+    exigir(await this.solicitarBaja({ propietarioId, nota: 'Ejemplo de la demostración', lineas: [{ loteId: fila.loteId, posicionId: fila.posicionId, estado: fila.estado, cantidad: 1, motivo: fila.vencido ? 'VENCIDO' : 'DETERIORO_DANO', detalle: fila.vencido ? undefined : 'Caja golpeada (ejemplo)' }] }, JA), 'baja de ejemplo')
   }
 
   // ── Los pedidos de la bandeja ───────────────────────────────────────────────────────────────────────────────

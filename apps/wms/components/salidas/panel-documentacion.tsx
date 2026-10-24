@@ -94,7 +94,7 @@ export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos, 
       <div className="rounded-lg border border-gray-200 bg-white p-4" data-testid="bloque-paquete">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h3 className="font-medium text-gray-900">Paquete documental</h3><p className="text-sm text-gray-700">Los documentos de los lotes exactos que salen en este pedido.</p></div>
-          {puedeImprimir && <Link href={`/salidas/${paquete.salidaId}/paquete`} target="_blank" className="btn-secondary btn-sm" data-testid="imprimir-paquete"><FileDown className="h-4 w-4" aria-hidden />Imprimir paquete (un solo PDF)</Link>}
+          {puedeImprimir && <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/salidas/${paquete.salidaId}/paquete`} target="_blank" rel="noopener" className="btn-secondary btn-sm" data-testid="imprimir-paquete"><FileDown className="h-4 w-4" aria-hidden />Imprimir paquete (un solo PDF)</a>}
         </div>
         {paquete.completo
           ? <p className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-green-800" data-testid="paquete-completo"><CheckCircle2 className="h-4 w-4" aria-hidden />Paquete completo</p>

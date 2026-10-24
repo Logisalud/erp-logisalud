@@ -30,7 +30,7 @@ export function OrdenPicking({ orden, puedePickear, puedeResolver }: { orden: Or
           <h1 className="tabular font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">{orden.pedidoNumero ?? orden.salidaNumero}</h1>
           <p className="mt-1 text-gray-700">{orden.cliente ?? 'Sin cliente'} · {orden.numero}</p>
         </div>
-        <Link href={`/picking/${orden.id}/hoja`} target="_blank" className="btn-secondary btn-sm" data-testid="hoja-picking"><FileDown className="h-4 w-4" aria-hidden />Hoja para imprimir</Link>
+        <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/picking/${orden.id}/hoja`} target="_blank" rel="noopener" className="btn-secondary btn-sm" data-testid="hoja-picking"><FileDown className="h-4 w-4" aria-hidden />Hoja para imprimir</a>
       </header>
       <p className="text-sm text-gray-700" role="status" data-testid="avance-picking">{completa ? 'Picking completo. Ahora la conformidad la da otra persona.' : `${restantes} ${restantes === 1 ? 'línea por pickear' : 'líneas por pickear'}, en el orden del recorrido.`}</p>
       {mensaje?.tipo === 'error' && <Aviso tipo="error">{mensaje.texto}</Aviso>}

@@ -1,0 +1,57 @@
+name: WMS — PDF en la Preview
+
+# Prueba de humo de todos los PDF del WMS contra la Preview ya desplegada en Vercel (D-177).
+# La CI normal prueba `next start` local, donde los PDF siempre funcionaron; lo que se rompió fue lo desplegado
+# (faltaban archivos de pdfkit en la función serverless). Esta prueba abre cada PDF en la URL real.
+#
+# Cuándo corre: cuando Vercel avisa (deployment_status) que el despliegue del proyecto erp-logisalud-wms quedó listo.
+# No hay que esperar con sleeps: GitHub nos llama recién cuando el despliegue terminó con éxito.
+# A mano: «Run workflow» con la URL de la Preview.
+#
+# Secreto OPCIONAL (Settings → Secrets → Actions): VERCEL_AUTOMATION_BYPASS_SECRET.
+#   Solo hace falta si la Preview tiene «Vercel Authentication» activa. Se saca de Vercel → proyecto erp-logisalud-wms →
+#   Settings → Deployment Protection → «Protection Bypass for Automation». Sin el secreto y con protección activa, la prueba
+#   falla con un mensaje que lo explica. No se escribe nunca en el repo.
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: URL de la Preview (https://…vercel.app)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  pdf:
+    name: PDF del WMS en la Preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Solo despliegues exitosos del proyecto WMS (el monorepo tiene otros proyectos Vercel que también avisan) y solo Preview.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       contains(github.event.deployment_status.environment, 'Preview') &&
+       contains(github.event.deployment_status.environment, 'erp-logisalud-wms'))
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Probar los PDF en la Preview
+        working-directory: apps/wms
+        env:
+          WMS_PREVIEW_URL: ${{ github.event.inputs.url || github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          echo "Probando $WMS_PREVIEW_URL"
+          npm run test:preview-pdf

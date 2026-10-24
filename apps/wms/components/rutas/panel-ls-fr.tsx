@@ -123,8 +123,8 @@ export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar 
           {puedeRegistrar && (
             <button type="button" className="btn-primary" onClick={imprimir} disabled={impresion.pendiente} data-testid="imprimir-lsfr"><Printer className="h-5 w-5" aria-hidden />{impresion.pendiente ? 'Registrando…' : 'Imprimir la copia del conductor'}</button>
           )}
-          <Link href={`/rutas/${ruta.id}/pdf`} target="_blank" className="btn-secondary" data-testid="ver-lsfr"><FileText className="h-5 w-5" aria-hidden />Ver el PDF</Link>
-          <Link href={`/rutas/${ruta.id}/paquete`} target="_blank" className="btn-secondary" data-testid="paquete-ruta"><FileText className="h-5 w-5" aria-hidden />Imprimir el paquete documental de la ruta</Link>
+          <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/pdf`} target="_blank" rel="noopener" className="btn-secondary" data-testid="ver-lsfr"><FileText className="h-5 w-5" aria-hidden />Ver el PDF</a>
+          <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/paquete`} target="_blank" rel="noopener" className="btn-secondary" data-testid="paquete-ruta"><FileText className="h-5 w-5" aria-hidden />Imprimir el paquete documental de la ruta</a>
         </div>
       </div>
       {impresion.mensaje?.tipo === 'error' && <Aviso tipo="error" testid="impresion-error">{impresion.mensaje.texto}</Aviso>}
