@@ -159,6 +159,8 @@ export interface SalidaVista extends SalidaResumen {
   clienteManual?: ClienteManual
   greNumero?: string
   greArchivo?: string
+  /** D-161: el motivo escrito para continuar una devolución al proveedor con menos de 90 días para vencer. */
+  devolucionAvisoMotivo?: string
   lineasDetalle: LineaSalidaVista[]
   ordenPickingId?: string
   cambios: CambioFefoVista[]

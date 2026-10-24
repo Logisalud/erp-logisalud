@@ -15,6 +15,8 @@ import { AnularGuia } from './anular-guia'
 import { ConsultarGuia } from './consultar-guia'
 import { EmitirGuia } from './emitir-guia'
 import { CHIP_AVISO, CHIP_NEUTRO, CHIP_OK } from '../estilos-opcion'
+import { NumeracionGuias } from './numeracion-guias'
+import { puedeAdministrarNumeracion, type EstadoCorrelativo } from '@/domain/numeracion-guias'
 
 const ROJO = 'border-red-200 bg-red-50 text-red-800'
 const chip = (e: EstadoRequisito) => e === 'OK' ? { cls: CHIP_OK, I: CheckCircle2 } : e === 'FALTA' || e === 'VENCIDO' ? { cls: ROJO, I: XCircle } : e === 'VENCE_ANTES_DE_ENTREGA' ? { cls: CHIP_AVISO, I: CircleAlert } : { cls: CHIP_NEUTRO, I: Hourglass }
@@ -25,7 +27,7 @@ const ChipRequisito = ({ r }: { r: RequisitoDocumental }) => {
 }
 
 /** Después de la conformidad: la guía de remisión (se registra su número a mano) y el paquete documental de los lotes que salen. */
-export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos, greCliente }: { paquete: PaqueteSalida; roles: readonly Rol[]; datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[]; greCliente?: { numero?: string; salidaId: string; conArchivo: boolean } }) {
+export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos, numeracion, greCliente }: { paquete: PaqueteSalida; roles: readonly Rol[]; datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[]; numeracion?: EstadoCorrelativo | null; greCliente?: { numero?: string; salidaId: string; conArchivo: boolean } }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [resultado, setResultado] = useState<string | null>(null)
   const [numero, setNumero] = useState(greCliente?.numero ?? '')
@@ -55,7 +57,7 @@ export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos, 
               {paquete.guia.enlaceXml && <Link href={paquete.guia.enlaceXml} target="_blank" className="underline">Ver el XML</Link>}
             </p>
             <ul className="text-sm text-gray-800" data-testid="guia-lineas">{paquete.guia.lineas.map((l, k) => <li key={k} className="tabular">{l.productoCodigo} · lote {l.lote} · vence {l.vence ? mesAnio(l.vence) : '—'} · {l.cantidad.toLocaleString('es-PE')} u</li>)}</ul>
-            {paquete.guia.estadoSunat === 'PENDIENTE' && !bloqueo?.startsWith('No tienes') && <ConsultarGuia guiaId={paquete.guia.id} numero={paquete.guia.numero} salidaId={paquete.salidaId} alConsultar={setResultado} />}
+            {paquete.guia.origen === 'NUBEFACT' && paquete.guia.estadoSunat && !bloqueo?.startsWith('No tienes') && <ConsultarGuia guiaId={paquete.guia.id} numero={paquete.guia.numero} salidaId={paquete.salidaId} estadoSunat={paquete.guia.estadoSunat} alConsultar={setResultado} />}
             {!bloqueo?.startsWith('No tienes') && <AnularGuia guiaId={paquete.guia.id} alAnular={setResultado} />}
             <p className="text-xs text-gray-600">Una guía no se edita: si hay un error, se anula con el motivo y se emite la correcta.</p>
           </div>
@@ -83,6 +85,7 @@ export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos, 
             </details>
           </div>
         )}
+        {numeracion && paquete.guia?.origen !== 'CLIENTE' && !greCliente && (puedeEmitirGuia(roles) || puedeAdministrarNumeracion(roles)) && <div className="mt-3"><NumeracionGuias estado={numeracion} modo={modo} roles={roles} /></div>}
         {paquete.guiasAnuladas.length > 0 && (
           <details className="mt-3 text-sm text-gray-700" data-testid="guias-anuladas"><summary className="cursor-pointer">Guías anuladas ({paquete.guiasAnuladas.length})</summary>
             <ul className="mt-1 space-y-1">{paquete.guiasAnuladas.map((g) => <li key={g.id} className="tabular">{g.numero}{g.casoAnulacion ? ` (caso ${g.casoAnulacion})` : ''} — {g.anuladaMotivo}</li>)}</ul></details>

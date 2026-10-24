@@ -8,7 +8,7 @@ import type { RepartoBulto } from '@/domain/embalaje'
 import type { ItemChecklist } from '@/domain/carga'
 import type { Actor } from '@/services/repositorio'
 import type { CasoAnulacion, TrasladoGuia } from '@/domain/guia-electronica'
-import { anularGuiaConCaso, consultarEstadoGuia, emitirGuiaElectronica, enviarEventosPedidos } from '@/services/guia-electronica'
+import { anularGuiaConCaso, consultarEstadoGuia, emitirGuiaElectronica, enviarEventosPedidos, probarConexionNubefact } from '@/services/guia-electronica'
 
 async function quien(): Promise<Actor> {
   const ctx = await exigirContexto()
@@ -46,6 +46,10 @@ export async function confirmarSalidaRutaAccion(rutaId: string) { return reposit
 export async function emitirGuiaElectronicaAccion(salidaId: string, traslado: TrasladoGuia) { return emitirGuiaElectronica(salidaId, traslado, await quien()) }
 export async function consultarEstadoGuiaAccion(guiaId: string, numero: string, salidaId: string) { return consultarEstadoGuia(guiaId, numero, salidaId, await quien()) }
 export async function anularGuiaAccion(guiaId: string, caso: CasoAnulacion, motivo: string) { return anularGuiaConCaso(guiaId, caso, motivo, await quien()) }
+/** D-162 a D-164: confirmar y corregir el correlativo de la serie; D-167: probar la conexión con Nubefact. */
+export async function confirmarCorrelativoGuiaAccion(serie: string, inicial: number, nota?: string) { return repositorio().confirmarCorrelativoGuia(serie, inicial, nota, await quien()) }
+export async function corregirCorrelativoGuiaAccion(serie: string, ultimo: number, motivo: string) { return repositorio().corregirCorrelativoGuia(serie, ultimo, motivo, await quien()) }
+export async function probarConexionNubefactAccion() { await exigirContexto(); return probarConexionNubefact() }
 export async function reenviarAvisosPedidosAccion(salidaId?: string) { return enviarEventosPedidos(await quien(), salidaId) }
 
 // SA-3: devolver lo picado (cambio o cancelación del pedido) y los controles de la fuente demo

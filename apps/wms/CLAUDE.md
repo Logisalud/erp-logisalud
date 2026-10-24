@@ -116,6 +116,7 @@ Mientras tanto, verificar con Playwright directo.
 - **E2E en 4 viewports + capturas:** `npm run build:wms` y luego
   `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium apps/wms/scripts/e2e-por-viewport.sh` (reinicia el servidor entre viewports).
   Las capturas quedan en `docs/wms/screenshots/<pantalla>/<viewport>.png`.
-- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0030; el 0010 está reservado; la 0028 es de SA-2, la 0029 de SA-3 y la 0030 de SA-6), re-ejecutables, **se aplican a mano**; seed de topología generado con
+- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0030 y 0032; el 0010 está reservado; la 0028 es de SA-2, la 0029 de SA-3, la 0030 de SA-6 y la 0032 de SB-B), re-ejecutables, **se aplican a mano**; seed de topología generado con
   `npm run seed:topologia --workspace erp-logisalud-wms`. Ver `docs/wms/aplicar-migraciones.md`.
+- **Nubefact en la Preview (SB-B, D-167):** con `WMS_DEMO=1` en Vercel, `NUBEFACT_RUTA` + `NUBEFACT_TOKEN` (solo Preview) hacen que la demo use la cuenta DEMO de Nubefact; sin ellas, el simulador. Nunca imprimas ni registres sus valores. Producción rechaza `NUBEFACT_RUTA`. La serie de guías es TTT1 y no se emite una guía real sin correlativo inicial confirmado (`docs/wms/nubefact.md`).
 - Diseño: `PRODUCT.md` y `DESIGN.md` de esta carpeta; ADR en `docs/wms/adr/`.

@@ -3,12 +3,12 @@
 import { puedePrepararSalidas } from '@/domain/despacho'
 import { MENSAJE_SIN_PERMISO_ENTREGA, puedeEntregarAlTransportistaCliente, validarEntrega, type EntradaEntrega } from '@/domain/entrega-transportista'
 import {
-  ETIQUETA_CODIGO, buscarProductosPorCodigos, motivoNoPuedeCrear, normalizarNumeroPedido, mensajePedidoConOrden, mensajePedidoEnBandeja, partirPorMotivo, tipoDeClase, validarLineaSalidaCliente, validarOrdenManual,
+  ETIQUETA_CODIGO, buscarProductosPorCodigos, mensajeAvisoSinMotivo, motivoNoPuedeCrear, normalizarNumeroPedido, mensajePedidoConOrden, mensajePedidoEnBandeja, partirPorMotivo, tipoDeClase, validarLineaSalidaCliente, validarOrdenManual,
   type CodigoProducto, type EntradaOrdenManual, type LineaOrdenManual, type LoteParaSalida, type ProductoHallado,
 } from '@/domain/salida-manual'
 import { requiereEmbalaje } from '@/domain/pedidos-despacho'
 import { normalizar } from '@/domain/busqueda'
-import type { MotivoSalida } from '@/domain/salidas'
+import { DIAS_AVISO_DEVOLUCION_DEFECTO, type MotivoSalida } from '@/domain/salidas'
 import { registrar, type EstadoDemo } from './estado'
 import { ahora, estadoE, falla, nuevoId } from './entradas-demo'
 import { asignarLineaDemo, desp, duenoDelAlmacen, liberarSalida, loteEnReserva, lotesDisponibles, ordenDelPedido, type LineaSalidaDemo, type SalidaDemo } from './despacho-demo'
@@ -33,7 +33,7 @@ export function codigosDemo(e: EstadoDemo): CodigoProducto[] {
   return out
 }
 
-const PRIORIDAD_ERROR = ['pedidoNumero', 'ruc', 'razonSocial', 'direccion', 'ubigeo', 'propietarioId', 'motivo', 'greNumero', 'greArchivo', 'lineas']
+const PRIORIDAD_ERROR = ['avisoMotivo', 'pedidoNumero', 'ruc', 'razonSocial', 'direccion', 'ubigeo', 'propietarioId', 'motivo', 'greNumero', 'greArchivo', 'lineas']
 const primerError = (errores: Record<string, string>, clase?: string) => {
   // en el tipo C la base pide primero a quién va (nombre) y después el RUC
   const orden = clase === 'C' ? ['razonSocial', 'ruc', ...PRIORIDAD_ERROR.filter((x) => x !== 'razonSocial' && x !== 'ruc')] : PRIORIDAD_ERROR
@@ -75,6 +75,8 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
     const e = estadoE(); await this.sembrarDespacho(e)
     return structuredClone(this.lotesDe(e, e.panorama.lotes.filter((l) => l.propietarioId === propietarioId && l.productoId === productoId).map((l) => l.id)))
   }
+
+  async diasAvisoDevolucion(): Promise<number> { return DIAS_AVISO_DEVOLUCION_DEFECTO }
 
   async lotesPorCodigo(codigo: string, _productoId: string): Promise<LoteParaSalida[]> {
     const e = estadoE(); await this.sembrarDespacho(e)
@@ -254,6 +256,7 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
     // Líneas con lote indicado (B y devolución al proveedor): se valida cada una; un mismo lote en varias líneas no se pasa del disponible
     const acumulado = new Map<string, number>()
     const lineas: LineaSalidaDemo[] = []
+    let conAviso = 0
     for (const l of entrada.lineas) {
       if (!e.panorama.productos.some((p) => p.id === l.productoId)) return { error: 'No encontramos uno de los productos' }
       if (tipo === 'CLIENTE' || tipo === 'PROVEEDOR') {
@@ -262,14 +265,18 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
         const delCodigo = this.lotesDe(e, e.panorama.lotes.filter((x) => normalizar(x.codigo) === normalizar(lote.codigo)).map((x) => x.id))
         const r = validarLineaSalidaCliente({ tipo, motivo, propietarioId, productoId: l.productoId, loteCodigo: lote.codigo, cantidad: l.cantidad, hoy: e.panorama.hoy, lotes: delCodigo, yaPedidoDelLote: acumulado.get(lote.id) ?? 0 })
         if (!r.ok) return { error: r.mensaje, errores: { lineas: r.mensaje } }
+        if (r.aviso) conAviso += 1
         acumulado.set(lote.id, (acumulado.get(lote.id) ?? 0) + l.cantidad)
         lineas.push({ id: nuevoId(), productoId: l.productoId, cantidad: l.cantidad, estado: 'PENDIENTE', fefo: [], loteIndicadoId: lote.id })
       } else {
         lineas.push({ id: nuevoId(), productoId: l.productoId, cantidad: l.cantidad, estado: 'PENDIENTE', fefo: [] })
       }
     }
+    // D-161: una devolución con líneas a menos de 90 días de vencer avisa; se crea si quien la crea escribe el motivo (igual que la base)
+    if (conAviso > 0 && !entrada.avisoMotivo?.trim()) { const m = mensajeAvisoSinMotivo(conAviso, DIAS_AVISO_DEVOLUCION_DEFECTO); return { error: m, errores: { avisoMotivo: m } } }
     const cm = entrada.cliente
-    const cliente = (entrada.clase === 'A' || entrada.clase === 'C') && cm ? { ruc: cm.ruc.trim(), razonSocial: cm.razonSocial.trim(), direccion: cm.direccion.trim(), ubigeo: cm.ubigeo.trim(), vendedor: cm.vendedor?.trim() || undefined } : undefined
+    const esDni = entrada.clase === 'C' && entrada.motivo === 'MUESTRA' && cm?.tipoDocumento === 'DNI'
+    const cliente = (entrada.clase === 'A' || entrada.clase === 'C') && cm ? { ruc: cm.ruc.trim(), razonSocial: cm.razonSocial.trim(), direccion: cm.direccion.trim(), ubigeo: cm.ubigeo.trim(), vendedor: cm.vendedor?.trim() || undefined, tipoDocumento: esDni ? ('DNI' as const) : ('RUC' as const) } : undefined
     const salida: SalidaDemo = {
       id: nuevoId(), numero: '', pedidoId: entrada.clase === 'A' ? `manual:${numeroNorm}` : '', propietarioId, estado: 'ABIERTA', lineas, creadaEn: ahora(), creadaPor: actor.id,
       requiereEmbalaje: cliente ? requiereEmbalaje(cliente.ubigeo) : true,
@@ -277,6 +284,7 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
       pedidoNumero: entrada.clase === 'A' ? (entrada.pedidoNumero ?? '').trim() : undefined, porConciliar: entrada.clase === 'A', clienteManual: cliente,
       greNumero: entrada.clase === 'B' ? (entrada.greNumero ?? '').trim().toUpperCase() : undefined, greArchivo: entrada.clase === 'B' ? entrada.greArchivo : undefined,
       enNombreDe: entrada.clase === 'B' ? propietarioId : undefined,
+      devolucionAvisoMotivo: conAviso > 0 ? entrada.avisoMotivo!.trim() : undefined,
     }
     return { salida }
   }

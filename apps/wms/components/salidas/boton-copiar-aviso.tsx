@@ -22,7 +22,7 @@ async function copiar(texto: string): Promise<boolean> {
  * «Copiar aviso para el vendedor» (D-126): el mensaje ya armado, listo para pegarlo en WhatsApp, con confirmación visual «Copiado».
  * Mientras no exista la conexión con Pedidos (D-80) es la forma de avisarle.
  */
-export function BotonCopiarAviso({ texto, testid = 'copiar-aviso', pequeno = false }: { texto: string; testid?: string; pequeno?: boolean }) {
+export function BotonCopiarAviso({ texto, testid = 'copiar-aviso', pequeno = false, etiqueta = 'Copiar aviso para el vendedor', pegarEn = 'WhatsApp' }: { texto: string; testid?: string; pequeno?: boolean; etiqueta?: string; pegarEn?: string }) {
   const [estado, setEstado] = useState<'reposo' | 'copiado' | 'error'>('reposo')
   async function alClick() {
     const ok = await copiar(texto)
@@ -33,10 +33,10 @@ export function BotonCopiarAviso({ texto, testid = 'copiar-aviso', pequeno = fal
     <span className="inline-flex flex-col items-start gap-1">
       <button type="button" onClick={alClick} className={`btn-secondary ${pequeno ? 'btn-sm' : ''}`} data-testid={testid} data-copiado={estado === 'copiado'}>
         {estado === 'copiado' ? <Check className="h-5 w-5 text-green-800" aria-hidden /> : <ClipboardCopy className="h-5 w-5" aria-hidden />}
-        {estado === 'copiado' ? 'Copiado' : 'Copiar aviso para el vendedor'}
+        {estado === 'copiado' ? 'Copiado' : etiqueta}
       </button>
       <span role="status" aria-live="polite" className="text-xs text-gray-700" data-testid={`${testid}-estado`}>
-        {estado === 'copiado' ? 'Listo: pégalo en WhatsApp.' : estado === 'error' ? 'No se pudo copiar. Selecciona el mensaje y cópialo a mano.' : ''}
+        {estado === 'copiado' ? `Listo: pégalo en ${pegarEn}.` : estado === 'error' ? 'No se pudo copiar. Selecciona el mensaje y cópialo a mano.' : ''}
       </span>
     </span>
   )

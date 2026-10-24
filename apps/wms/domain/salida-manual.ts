@@ -3,7 +3,7 @@
 // Todo puro. Espejo de la función `wms.crear_orden_salida_manual` (migración 0028): la base de datos manda y dice lo mismo con las mismas palabras.
 import { normalizar, puntaje } from './busqueda'
 import { validarNumeroGre } from './documentacion'
-import { asignarLinea, loteApto, origenDelStock, validarMotivoSalida, ETIQUETA_MOTIVO_SALIDA, type MotivoSalida, type PoliticaCanje, type TipoSalida, POLITICA_CANJE_INICIAL } from './salidas'
+import { asignarLinea, avisoDevolucionCercana, loteApto, origenDelStock, validarMotivoSalida, ETIQUETA_MOTIVO_SALIDA, type MotivoSalida, type PoliticaCanje, type TipoSalida, POLITICA_CANJE_INICIAL } from './salidas'
 import { puede } from './permisos'
 import type { Rol } from './tipos'
 
@@ -78,11 +78,22 @@ export const mensajePedidoEnBandeja = (numeroPedido: string) => `El pedido ${num
 
 // ── Cliente (tipo A, mientras no exista la conexión con Pedidos) ──────────────────────────────────────────────────────────
 
-export interface ClienteManual { ruc: string; razonSocial: string; direccion: string; ubigeo: string; vendedor?: string }
+/** D-165: una muestra sin venta puede ir a nombre de un trabajador (DNI de 8 números). Todo lo demás lleva RUC. Sin indicar, es RUC. */
+export type TipoDocumentoDestinatario = 'RUC' | 'DNI'
+export interface ClienteManual {
+  /** El número del documento del destinatario: el RUC (11 números) o, en una muestra a un trabajador, su DNI (8). El nombre del campo se mantiene por compatibilidad (la guía y la ruta ya lo leen). */
+  ruc: string
+  razonSocial: string
+  direccion: string
+  ubigeo: string
+  vendedor?: string
+  tipoDocumento?: TipoDocumentoDestinatario
+}
 export const AYUDA_UBIGEO = 'El ubigeo es el código de 6 números del distrito de entrega (por ejemplo 150101 es Lima). La guía de remisión lo exige y SUNAT la rechaza si falta.'
 export const AYUDA_CONCILIAR = 'Cuando Pedidos y el WMS estén conectados, el WMS comprobará que el pedido existe y que el cliente coincide. Hasta entonces la orden queda «por conciliar con Pedidos».'
 
 export const validarRuc = (ruc: string) => (/^\d{11}$/.test(ruc.trim()) ? null : 'El RUC tiene 11 números')
+export const validarDni = (dni: string) => (/^\d{8}$/.test(dni.trim()) ? null : 'El DNI tiene 8 números')
 export const validarUbigeo = (u: string) => (/^\d{6}$/.test(u.trim()) ? null : 'El ubigeo tiene 6 números (el código del distrito de entrega)')
 
 export function validarClienteManual(c: Partial<ClienteManual>): Record<string, string> {
@@ -101,11 +112,16 @@ export function validarClienteManual(c: Partial<ClienteManual>): Record<string, 
 export function validarDestinatarioC(c: Partial<ClienteManual>, motivo?: MotivoSalida): Record<string, string> {
   const e: Record<string, string> = {}
   if (!(c.razonSocial ?? '').trim()) e.razonSocial = motivo === 'DEVOLUCION_PROVEEDOR' ? 'Escribe el nombre del proveedor' : 'Escribe a quién va la muestra'
-  const ruc = validarRuc(c.ruc ?? ''); if (ruc) e.ruc = ruc
+  const dni = motivo === 'MUESTRA' && c.tipoDocumento === 'DNI'
+  const doc = dni ? validarDni(c.ruc ?? '') : validarRuc(c.ruc ?? ''); if (doc) e.ruc = doc
   if (!(c.direccion ?? '').trim()) e.direccion = 'Escribe la dirección de entrega'
   const ub = validarUbigeo(c.ubigeo ?? ''); if (ub) e.ubigeo = ub
   return e
 }
+
+/** D-161: lo que se dice cuando una devolución al proveedor tiene líneas con poco tiempo por delante y no se escribió el motivo. */
+export const mensajeAvisoSinMotivo = (lineas: number, diasAviso: number) =>
+  `${lineas === 1 ? 'Una línea tiene' : `${lineas} líneas tienen`} menos de ${diasAviso} días para vencer: escribe el motivo para continuar con la devolución`
 
 // ── La GRE del cliente (tipo B) ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -146,9 +162,12 @@ export interface EntradaValidacionLinea {
   /** Lo que ya piden otras líneas de esta misma orden del mismo lote (para no pasarse entre todas). */
   yaPedidoDelLote?: number
   canje?: PoliticaCanje
+  /** D-161: desde cuántos días antes del vencimiento NO hay aviso en una devolución al proveedor (parámetro; 90 por defecto). */
+  diasAvisoDevolucion?: number
 }
 
-export type ResultadoLinea = { ok: true; lote: LoteParaSalida; vence: string | null } | { ok: false; campo: 'producto' | 'lote' | 'cantidad' | 'motivo'; mensaje: string }
+/** `aviso` solo en una devolución al proveedor con menos de los días de aviso (no bloquea: la orden pide el motivo para continuar). */
+export type ResultadoLinea = { ok: true; lote: LoteParaSalida; vence: string | null; aviso?: string } | { ok: false; campo: 'producto' | 'lote' | 'cantidad' | 'motivo'; mensaje: string }
 
 /**
  * La validación inmediata de una línea con lote indicado (tipo B o devolución al proveedor): producto, lote existente, del propietario y del producto, apto para el
@@ -180,7 +199,8 @@ export function validarLineaSalidaCliente(e: EntradaValidacionLinea): ResultadoL
   if (lt.enReserva) return malo('lote', `El lote ${lt.codigo} está en Reserva: no sale hasta que se quite la Reserva`)
   const hay = Math.max(lt.disponibleAprobado - yaPedido, 0)
   if (hay < e.cantidad) return malo('cantidad', `No hay en el lote ${lt.codigo} con ${e.cantidad} unidades disponibles (hay ${hay})`)
-  return { ok: true, lote: lt, vence: lt.vence }
+  const aviso = e.tipo === 'PROVEEDOR' ? avisoDevolucionCercana(lt.vence, e.hoy, e.diasAvisoDevolucion) : null
+  return aviso ? { ok: true, lote: lt, vence: lt.vence, aviso } : { ok: true, lote: lt, vence: lt.vence }
 }
 
 // ── La orden completa ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -206,6 +226,8 @@ export interface EntradaOrdenManual {
   greNumero?: string
   /** La referencia del PDF de la GRE ya guardada en el almacenamiento de archivos. */
   greArchivo?: string
+  /** D-161, devolución al proveedor con líneas a menos de 90 días de vencer: el motivo para continuar (la base y la demo recalculan si hace falta; no se confía en la pantalla). */
+  avisoMotivo?: string
   lineas: LineaOrdenManual[]
   /** Evita crear dos veces la misma orden si se reintenta. */
   token?: string

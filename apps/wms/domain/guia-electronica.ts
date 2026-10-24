@@ -4,11 +4,12 @@ import { puede } from './permisos'
 import type { LineaGuia } from './documentacion'
 import type { TipoSalida } from './salidas'
 import type { Rol } from './tipos'
+import { MENSAJE_SIN_CORRELATIVO, type CausaNubefact } from './numeracion-guias'
 
 export type ModoNubefact = 'SIMULADOR' | 'PRUEBA' | 'PRODUCCION'
 export const ETIQUETA_MODO: Record<ModoNubefact, string> = {
   SIMULADOR: 'Simulador: la guía no existe ante SUNAT',
-  PRUEBA: 'Entorno de pruebas de Nubefact',
+  PRUEBA: 'Entorno de pruebas de Nubefact: la guía no llega a SUNAT',
   PRODUCCION: 'Producción: la guía es real',
 }
 export type EstadoSunat = 'ACEPTADA' | 'PENDIENTE' | 'RECHAZADA'
@@ -25,7 +26,8 @@ export const ETIQUETA_ORIGEN: Record<OrigenGuia, string> = { NUBEFACT: 'Emitida 
 
 /**
  * El motivo de traslado de la guía según el tipo de salida (Catálogo 20 de SUNAT). Una venta lleva 01; la devolución al proveedor, 06; la muestra sin venta, 13 (otros, anotando
- * «muestra sin valor comercial»). PENDIENTE de confirmar con Contabilidad (D-121): el código sale de un solo lugar, para cambiarlo sin tocar nada más.
+ * «muestra sin valor comercial»). Confirmado por Sebas (D-121, D-165): estos son los valores POR DEFECTO; el código vigente se lee de los parámetros
+ * `guia_motivo_codigo_venta`, `guia_motivo_codigo_devolucion` y `guia_motivo_codigo_muestra` (`DatosGuia.motivoCodigo`), así que se cambia sin tocar el código.
  * Una orden por cuenta de un cliente no lleva guía del WMS: usa la GRE del cliente.
  */
 export const MOTIVO_TRASLADO_POR_TIPO: Record<TipoSalida, { codigo: '01' | '06' | '13'; texto: string }> = {
@@ -36,6 +38,22 @@ export const MOTIVO_TRASLADO_POR_TIPO: Record<TipoSalida, { codigo: '01' | '06' 
 }
 export const motivoDeTraslado = (tipo: TipoSalida) => MOTIVO_TRASLADO_POR_TIPO[tipo]
 
+/** El código del Catálogo 20 de SUNAT: dos dígitos. Un parámetro mal escrito no llega a Nubefact: se usa el de la tabla. */
+export const codigoMotivoValido = (c: string | undefined | null) => /^\d{2}$/.test((c ?? '').trim())
+/** D-165: con el motivo 13 (OTROS) Nubefact pide `motivo_de_traslado_otros_descripcion`, máximo 70 caracteres. Confirmado por Sebas: devolución al proveedor = 06 DEVOLUCION; muestra sin venta y retorno de rechazo = 13 OTROS. */
+export const MAXIMO_DESCRIPCION_OTROS = 70
+export const DESCRIPCION_OTROS_POR_DEFECTO = { MUESTRA: 'MUESTRA SIN VALOR COMERCIAL', RETORNO: 'RETORNO DE RECHAZO' } as const
+export const parametroDescripcionOtros = (tipo: TipoSalida): string => (tipo === 'MUESTRA' ? 'guia_motivo_otros_descripcion_muestra' : 'guia_motivo_otros_descripcion_retorno')
+/** La descripción de «otros» (solo cuando el código es 13): el parámetro si trae texto; si no, la de la tabla. Máximo 70 caracteres. */
+export function descripcionOtrosDeGuia(d: Pick<DatosGuia, 'tipo' | 'motivoCodigo' | 'motivoOtrosDescripcion'>): string | undefined {
+  if (codigoMotivoDeGuia(d) !== '13') return undefined
+  const t = (d.motivoOtrosDescripcion ?? '').trim() || (d.tipo === 'MUESTRA' ? DESCRIPCION_OTROS_POR_DEFECTO.MUESTRA : DESCRIPCION_OTROS_POR_DEFECTO.RETORNO)
+  return t.slice(0, MAXIMO_DESCRIPCION_OTROS)
+}
+export const parametroMotivoDeTipo = (tipo: TipoSalida): string => (tipo === 'PROVEEDOR' ? 'guia_motivo_codigo_devolucion' : tipo === 'MUESTRA' ? 'guia_motivo_codigo_muestra' : 'guia_motivo_codigo_venta')
+/** El código que lleva la guía: el parámetro si es válido; si no, el de la tabla. */
+export const codigoMotivoDeGuia = (d: Pick<DatosGuia, 'tipo' | 'motivoCodigo'>): string => (codigoMotivoValido(d.motivoCodigo) ? d.motivoCodigo!.trim() : motivoDeTraslado(d.tipo).codigo)
+
 /** Todo lo que la guía toma del WMS (nada se vuelve a escribir). */
 export interface DatosGuia {
   salidaId: string
@@ -43,7 +61,8 @@ export interface DatosGuia {
   tipo: TipoSalida
   conforme: boolean
   pedidoNumero?: string
-  destinatario: { nombre?: string; ruc?: string; direccion?: string; ubigeo?: string; distrito?: string }
+  /** `ruc` es el número del documento: el RUC o, en una muestra a nombre de un trabajador, su DNI (`tipoDocumento: 'DNI'`, D-165). */
+  destinatario: { nombre?: string; ruc?: string; direccion?: string; ubigeo?: string; distrito?: string; tipoDocumento?: 'RUC' | 'DNI' }
   /** Lo confirmado en la conformidad, línea por lote. */
   lineas: LineaGuia[]
   bultos: number
@@ -52,6 +71,12 @@ export interface DatosGuia {
   motivoTraslado: string
   modalidad: string
   serie: string
+  /** El código del motivo de traslado que dice el parámetro de la base (vacío = el de la tabla). Confirmado por Sebas. */
+  motivoCodigo?: string
+  /** Texto de «otros» (motivo 13) del parámetro; vacío = el de la tabla. */
+  motivoOtrosDescripcion?: string
+  /** ¿Alguien confirmó el correlativo inicial de la serie? Sin eso no se emite una guía REAL (D-163). */
+  correlativoConfirmado?: boolean
   /** Reglas de SUNAT para la baja: PENDIENTE hasta que Contabilidad y Nubefact las validen. */
   reglasBaja: { plazoHoras: string; trasInicioTraslado: string; soportadaPorApi: string }
 }
@@ -83,9 +108,11 @@ const PENDIENTE = 'PENDIENTE'
 const faltaTexto = (v: string | undefined) => !v || v.trim() === '' || v.trim().toUpperCase() === PENDIENTE
 
 /** Por qué todavía no se puede emitir, en palabras (vacío = se puede). Primero lo del flujo; luego lo que falta en los datos. */
-export function faltantesDeGuia(d: DatosGuia, t: TrasladoGuia, _modo?: ModoNubefact): string[] {
+export function faltantesDeGuia(d: DatosGuia, t: TrasladoGuia, modo?: ModoNubefact): string[] {
   const f: string[] = []
   if (d.tipo === 'CLIENTE') return ['La guía de una orden de un cliente de almacenamiento la trae el cliente: el WMS no la emite']
+  // D-163: una guía REAL no se emite hasta que alguien confirme con qué número empieza la serie (la base lo exige igual)
+  if (modo === 'PRODUCCION' && d.correlativoConfirmado !== true) f.push(MENSAJE_SIN_CORRELATIVO(d.serie))
   if (!d.conforme) f.push('Falta la conformidad de toda la Orden de Salida')
   if (!d.ruta) f.push('Asigna el pedido a una ruta: la guía toma el vehículo, el conductor y la fecha de la ruta')
   else {
@@ -94,7 +121,7 @@ export function faltantesDeGuia(d: DatosGuia, t: TrasladoGuia, _modo?: ModoNubef
     else if (!d.ruta.conductorDni) f.push('Falta el DNI del conductor')
   }
   if (faltaTexto(d.destinatario.nombre)) f.push('Falta el nombre del cliente')
-  if (faltaTexto(d.destinatario.ruc)) f.push('Falta el RUC del cliente')
+  if (faltaTexto(d.destinatario.ruc)) f.push(d.destinatario.tipoDocumento === 'DNI' ? 'Falta el DNI de quien recibe' : 'Falta el RUC del cliente')
   if (faltaTexto(d.destinatario.direccion)) f.push('Falta la dirección de entrega')
   if (faltaTexto(d.destinatario.ubigeo)) f.push('Falta el ubigeo de la dirección de entrega: lo trae el pedido')
   if (faltaTexto(d.partida.direccion)) f.push('Falta la dirección del almacén de Lurín (punto de partida): la confirma Charlie o Katia')
@@ -117,13 +144,17 @@ export interface PayloadNubefact {
   serie: string
   /** Entero sin ceros a la izquierda: Nubefact no lo asigna, lo lleva el WMS (tabla guia_correlativos). */
   numero: number
-  cliente_tipo_de_documento: 6
+  /** 6 = RUC; 1 = DNI (una muestra a nombre de un trabajador). */
+  cliente_tipo_de_documento: 1 | 6
   cliente_numero_de_documento: string
   cliente_denominacion: string
   cliente_direccion: string
   fecha_de_emision: string
   observaciones: string
-  motivo_de_traslado: '01' | '06' | '13'
+  /** Catálogo 20 de SUNAT (dos dígitos): sale del parámetro de la base (confirmado por Sebas). */
+  motivo_de_traslado: string
+  /** Solo con el motivo 13 (OTROS): máximo 70 caracteres. */
+  motivo_de_traslado_otros_descripcion?: string
   peso_bruto_total: string
   peso_bruto_unidad_de_medida: 'KGM'
   numero_de_bultos: string
@@ -151,16 +182,17 @@ export interface PayloadConsulta { operacion: 'consultar_guia'; tipo_de_comproba
 /** Observación de almacenamiento: el pedido, la Orden de Salida y los lotes con su vencimiento (línea por lote en BX). */
 export function observacionDeGuia(d: DatosGuia): string {
   const lotes = d.lineas.map((l) => `${l.productoCodigo} lote ${l.lote}${l.vence ? ` vence ${ddmmaaaa(l.vence).slice(3)}` : ''}`).join('; ')
-  return `Almacenamiento y distribución. ${d.pedidoNumero ? `Pedido ${d.pedidoNumero}. ` : ''}Orden de Salida ${d.salidaNumero}. ${lotes}`.slice(0, 500)
+  const clase = d.tipo === 'MUESTRA' ? 'Muestra sin valor comercial. ' : d.tipo === 'PROVEEDOR' ? 'Devolución al proveedor. ' : ''
+  return `Almacenamiento y distribución. ${clase}${d.pedidoNumero ? `Pedido ${d.pedidoNumero}. ` : ''}Orden de Salida ${d.salidaNumero}. ${lotes}`.slice(0, 500)
 }
 
 export function construirPayloadNubefact(d: DatosGuia, t: TrasladoGuia, hoy: string, numero: number): PayloadNubefact {
   const { nombre, apellidos } = separarNombre(d.ruta?.conductor)
   return {
     operacion: 'generar_guia', tipo_de_comprobante: 7, serie: d.serie, numero,
-    cliente_tipo_de_documento: 6, cliente_numero_de_documento: sinEspacios(d.destinatario.ruc), cliente_denominacion: sinEspacios(d.destinatario.nombre).slice(0, 100),
+    cliente_tipo_de_documento: d.destinatario.tipoDocumento === 'DNI' ? 1 : 6, cliente_numero_de_documento: sinEspacios(d.destinatario.ruc), cliente_denominacion: sinEspacios(d.destinatario.nombre).slice(0, 100),
     cliente_direccion: sinEspacios(d.destinatario.direccion).slice(0, 100), fecha_de_emision: ddmmaaaa(hoy), observaciones: observacionDeGuia(d),
-    motivo_de_traslado: motivoDeTraslado(d.tipo).codigo, peso_bruto_total: t.pesoKg.toFixed(2), peso_bruto_unidad_de_medida: 'KGM', numero_de_bultos: String(d.bultos), tipo_de_transporte: '02',
+    motivo_de_traslado: codigoMotivoDeGuia(d), ...(descripcionOtrosDeGuia(d) ? { motivo_de_traslado_otros_descripcion: descripcionOtrosDeGuia(d) } : {}), peso_bruto_total: t.pesoKg.toFixed(2), peso_bruto_unidad_de_medida: 'KGM', numero_de_bultos: String(d.bultos), tipo_de_transporte: '02',
     fecha_de_inicio_de_traslado: ddmmaaaa(t.fechaInicio),
     transportista_placa_numero: placaParaSunat(d.ruta?.placa), conductor_documento_tipo: '1', conductor_documento_numero: sinEspacios(d.ruta?.conductorDni),
     conductor_nombre: nombre, conductor_apellidos: apellidos, conductor_numero_licencia: licenciaDeGuia(d, t),
@@ -184,18 +216,20 @@ export const formatoNumeroGuia = (serie: string, numero: number) => `${serie}-${
  *  Si Nubefact ya la devuelve aceptada, trae los enlaces; si no, quedan PENDIENTES hasta consultar. */
 export type RespuestaEmision =
   | { ok: true; numero: string; enlace?: string; enlaceXml?: string; enlaceCdr?: string; hash: string; estadoSunat: EstadoSunat; entorno: ModoNubefact; cruda: unknown }
-  | { ok: false; error: string; reintentable: boolean }
+  /** `causa`: si el error es de la numeración (el número ya existe o no sigue al último), el WMS lo reconcilia en vez de solo mostrarlo (D-164). `numeroEsperado`: si Nubefact lo dice. */
+  | { ok: false; error: string; reintentable: boolean; causa?: CausaNubefact; numeroEsperado?: number }
 
 /** Respuesta del paso 2 («consultar_guia»). RECHAZADA trae el motivo en lenguaje humano. */
 export type RespuestaConsulta =
-  | { ok: true; estadoSunat: EstadoSunat; enlace?: string; enlaceXml?: string; enlaceCdr?: string; hash?: string; error?: string; cruda: unknown }
-  | { ok: false; error: string; reintentable: boolean }
+  /** `anuladaEnNubefact`: la guía se dio de baja en el panel de Nubefact (D-166): el WMS la anula también y la orden vuelve a necesitar guía. */
+  | { ok: true; estadoSunat: EstadoSunat; enlace?: string; enlaceXml?: string; enlaceCdr?: string; hash?: string; error?: string; anuladaEnNubefact?: boolean; cruda: unknown }
+  | { ok: false; error: string; reintentable: boolean; causa?: CausaNubefact }
 
 /** Los errores de SUNAT/Nubefact más comunes, dichos para quien emite (el texto original se conserva en el detalle). */
 export function mensajeHumanoSunat(codigo: string | number | undefined, textoOriginal: string): string {
   const c = String(codigo ?? '')
   const tabla: Record<string, string> = {
-    '1033': 'SUNAT ya tiene una guía con ese número: pide a Nubefact el siguiente correlativo y vuelve a enviar',
+    '1033': 'SUNAT ya tiene una guía con ese número (el número ya estaba usado)',
     '2325': 'El RUC del cliente no es válido o no está activo en SUNAT: corrígelo en el pedido',
     '2329': 'La placa del vehículo no tiene el formato que pide SUNAT: corrígela en el vehículo de la ruta',
     '2338': 'Falta la licencia de conducir del conductor',

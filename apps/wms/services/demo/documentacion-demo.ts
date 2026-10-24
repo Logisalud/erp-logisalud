@@ -7,11 +7,14 @@ import {
 import { etapaDeSalida, type SalidaResumen } from '@/domain/despacho'
 import {
   motivoDeTraslado, motivoNoPuedeAnular, puedeEmitirGuia,
-  type CasoAnulacion, type DatosGuia, type EstadoSunat, type EventoPedidos, type RespuestaConsulta, type RespuestaEmision, type TipoEventoPedidos, type TrasladoGuia,
+  type CasoAnulacion, type DatosGuia, type EstadoSunat, type EventoPedidos, type ModoNubefact, type RespuestaConsulta, type RespuestaEmision, type TipoEventoPedidos, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
-import { claveDeParada, desp, type RutaDemo, type SalidaDemo } from './despacho-demo'
+import { claveDeParada, desp, type NumeracionSerieDemo, type RutaDemo, type SalidaDemo } from './despacho-demo'
+import {
+  MENSAJE_SIN_CORRELATIVO, MENSAJE_SIN_PERMISO_NUMERACION, mensajeGuiaEnCurso, mensajeSerieConfirmada, puedeAdministrarNumeracion, validarCorrelativoInicial, type EstadoCorrelativo,
+} from '@/domain/numeracion-guias'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { pk } from './picking-demo'
 import { DocumentosDemo } from './documentos-demo'
@@ -140,11 +143,11 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const aux = ruta?.auxiliarId ? desp(e).personal.find((p) => p.id === ruta.auxiliarId) : undefined
     return structuredClone<DatosGuia>({
       salidaId: s.id, salidaNumero: s.numero, tipo: s.tipo ?? 'DISTRIBUCION', conforme: salidaConforme(e, s.id), pedidoNumero: fila?.snapshot.numero ?? s.pedidoNumero,
-      destinatario: { nombre: cliente?.nombre, ruc: cliente?.ruc || undefined, direccion: cliente?.direccion, ubigeo: cliente?.ubigeo, distrito: cliente?.distrito },
+      destinatario: { nombre: cliente?.nombre, ruc: cliente?.ruc || undefined, direccion: cliente?.direccion, ubigeo: cliente?.ubigeo, distrito: cliente?.distrito, tipoDocumento: !fila && cm?.tipoDocumento === 'DNI' ? 'DNI' : undefined },
       lineas: this.lineasDeGuia(e, s.id), bultos: s.bultosConformidad ?? bultosDeSalida(e, s.id),
       ruta: ruta ? { id: ruta.id, numero: ruta.numero, fecha: ruta.fecha, placa: veh?.placa, conductor: cond?.nombre, conductorDni: cond?.dni, conductorLicencia: cond?.licencia, auxiliar: aux?.nombre } : undefined,
       partida: { ubigeo: '150119', direccion: 'Almacén Logisalud, Lurín (dirección de demostración)' },
-      motivoTraslado: motivoDeTraslado(s.tipo ?? 'DISTRIBUCION').texto, modalidad: 'TRANSPORTE PRIVADO', serie: 'TTT1',
+      motivoTraslado: motivoDeTraslado(s.tipo ?? 'DISTRIBUCION').texto, modalidad: 'TRANSPORTE PRIVADO', serie: 'TTT1', correlativoConfirmado: this.numeracionDe(e, 'TTT1')?.confirmado ?? false,
       reglasBaja: { plazoHoras: 'PENDIENTE', trasInicioTraslado: 'PENDIENTE', soportadaPorApi: 'PENDIENTE' },
     })
   }
@@ -169,28 +172,117 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       origen: 'NUBEFACT', entorno: r.entorno, enlace: r.enlace, enlaceXml: r.enlaceXml, estadoSunat: r.estadoSunat, bultos: s.bultosConformidad, pesoKg: t.pesoKg, fechaInicio: t.fechaInicio,
     }
     guias(e).push({ id: guia.id, salidaId: s.id, guia })
+    // D-162: el número reservado pasa a USADO (y una guía real exige el correlativo confirmado)
+    const [serieG, numG] = r.numero.split('-')
+    const numeracion = this.numeracionDe(e, serieG)
+    if (r.entorno === 'PRODUCCION' && !numeracion?.confirmado) { guias(e).pop(); return falla(MENSAJE_SIN_CORRELATIVO(serieG)) }
+    const reservado = numeracion?.numeros.find((x) => x.numero === Number(numG) && x.estado === 'RESERVADO')
+    if (reservado) reservado.estado = 'USADO'
     if (r.estadoSunat === 'ACEPTADA') this.encolarEvento(e, s, guia, 'GUIA_EMITIDA')
     registrar(e, actor, 'guia_electronica_emitida', 'guias_remision', guia.id, `Guía ${r.numero} · ${s.numero} (${r.entorno})`)
     return { ok: true, id: guia.id, numero: r.numero }
   }
 
-  async siguienteNumeroGuia(serie: string): Promise<ResultadoAccion<{ numero: number }>> {
-    const e = estadoE(); await this.sembrarDespacho(e)
-    const c = (desp(e).correlativosGuia ??= {})
+  /** La serie en la demostración (la misma regla que `wms.guia_correlativos` y `wms.guia_numeros`). La serie TTT1 es la única configurada. */
+  private numeracionDe(e: EstadoDemo, serie: string): NumeracionSerieDemo | null {
     const k = serie.trim().toUpperCase()
-    if (!/^T[A-Z0-9]{3}$/.test(k)) return falla(`La serie ${k} de guías no está configurada`)
-    c[k] = (c[k] ?? 0) + 1
-    return { ok: true, numero: c[k] }
+    if (k !== 'TTT1') return null
+    const m = (desp(e).numeracionGuia ??= {})
+    return (m[k] ??= { ultimo: 0, confirmado: false, numeros: [] })
   }
 
-  async actualizarEstadoGuia(guiaId: string, c: Extract<RespuestaConsulta, { ok: true }>, actor: Actor): Promise<ResultadoAccion<{ estadoSunat: EstadoSunat }>> {
+  async reservarNumeroGuia(serie: string, entorno: ModoNubefact, salidaId: string): Promise<ResultadoAccion<{ numero: number; reintento: boolean }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const k = serie.trim().toUpperCase()
+    const n = this.numeracionDe(e, k)
+    if (!n) return falla(`La serie ${k} de guías no está configurada`)
+    if (entorno === 'PRODUCCION' && !n.confirmado) return falla(MENSAJE_SIN_CORRELATIVO(k))
+    if (entorno !== 'PRODUCCION' && n.confirmado) return falla(mensajeSerieConfirmada(k))
+    const abierto = n.numeros.find((x) => x.estado === 'RESERVADO')
+    if (abierto) {
+      if (abierto.salidaId === salidaId) return { ok: true, numero: abierto.numero, reintento: true }
+      return falla(mensajeGuiaEnCurso(abierto.numero, k, desp(e).salidas.find((s) => s.id === abierto.salidaId)?.numero))
+    }
+    const libre = n.numeros.filter((x) => x.estado === 'LIBERADO').sort((a, b) => a.numero - b.numero)[0]
+    if (libre) { Object.assign(libre, { estado: 'RESERVADO', salidaId, entorno }); return { ok: true, numero: libre.numero, reintento: false } }
+    n.ultimo += 1
+    n.numeros.push({ numero: n.ultimo, estado: 'RESERVADO', salidaId, entorno })
+    return { ok: true, numero: n.ultimo, reintento: false }
+  }
+
+  async liberarNumeroGuia(serie: string, numero: number, _motivo?: string): Promise<ResultadoAccion> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const x = this.numeracionDe(e, serie)?.numeros.find((y) => y.numero === numero)
+    if (x?.estado === 'RESERVADO') x.estado = 'LIBERADO'
+    return { ok: true }
+  }
+
+  async marcarNumeroGuiaOcupado(serie: string, numero: number, _detalle?: string): Promise<ResultadoAccion> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const x = this.numeracionDe(e, serie)?.numeros.find((y) => y.numero === numero)
+    if (x?.estado === 'RESERVADO') x.estado = 'OCUPADO'
+    return { ok: true }
+  }
+
+  async estadoNumeracionGuia(serie: string): Promise<EstadoCorrelativo | null> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const n = this.numeracionDe(e, serie)
+    if (!n) return null
+    const abierto = n.numeros.find((x) => x.estado === 'RESERVADO')
+    const libre = n.numeros.filter((x) => x.estado === 'LIBERADO').sort((a, b) => a.numero - b.numero)[0]
+    return {
+      serie: serie.toUpperCase(), ultimo: n.ultimo, confirmado: n.confirmado, proximo: libre?.numero ?? abierto?.numero ?? n.ultimo + 1,
+      enCurso: abierto ? { numero: abierto.numero, salidaNumero: desp(e).salidas.find((s) => s.id === abierto.salidaId)?.numero, incierta: true } : undefined,
+    }
+  }
+
+  async confirmarCorrelativoGuia(serie: string, inicial: number, nota: string | undefined, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedeAdministrarNumeracion(actor.roles)) return falla(MENSAJE_SIN_PERMISO_NUMERACION)
+    const malo = validarCorrelativoInicial(inicial); if (malo) return falla(malo)
+    const k = serie.trim().toUpperCase()
+    const n = this.numeracionDe(e, k)
+    if (!n) return falla(`La serie ${k} de guías no está configurada`)
+    if (guias(e).some((g) => g.guia.origen === 'NUBEFACT' && g.guia.entorno === 'PRODUCCION' && g.guia.numero.startsWith(`${k}-`)))
+      return falla(`El WMS ya emitió guías reales de la serie ${k}: el correlativo no se cambia aquí, se corrige con «Corregir el correlativo» y un motivo`)
+    if (n.numeros.some((x) => x.estado === 'RESERVADO')) return falla(`Hay una guía en curso en la serie ${k}: espera a que termine para confirmar el correlativo`)
+    n.numeros = []; n.ultimo = inicial - 1; n.confirmado = true
+    registrar(e, actor, 'guia_correlativo_confirmado', 'guia_correlativos', k, `El correlativo de ${k} empieza en ${inicial}`, nota?.trim() || undefined)
+    return { ok: true }
+  }
+
+  async corregirCorrelativoGuia(serie: string, ultimo: number, motivo: string, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedeAdministrarNumeracion(actor.roles)) return falla(MENSAJE_SIN_PERMISO_NUMERACION)
+    if (!Number.isInteger(ultimo) || ultimo < 0 || ultimo > 99_999_999) return falla('Escribe el último número que muestra Nubefact (un entero de 0 a 99 999 999)')
+    if (!motivo.trim()) return falla('Cuenta por qué se corrige el correlativo')
+    const k = serie.trim().toUpperCase()
+    const n = this.numeracionDe(e, k)
+    if (!n) return falla(`La serie ${k} de guías no está configurada`)
+    if (!n.confirmado) return falla(`Primero confirma con qué número empieza la serie ${k}`)
+    if (n.numeros.some((x) => x.estado === 'RESERVADO')) return falla(`Hay una guía en curso en la serie ${k}: espera a que termine para corregir el correlativo`)
+    if (n.numeros.some((x) => x.estado === 'USADO' && x.numero > ultimo)) return falla(`Una guía del WMS ya usó un número mayor que ${ultimo}: el último de Nubefact no puede ser menor`)
+    n.numeros = n.numeros.filter((x) => x.estado === 'USADO'); n.ultimo = ultimo
+    registrar(e, actor, 'guia_correlativo_corregido', 'guia_correlativos', k, `El último número de ${k} pasó a ${ultimo}`, motivo.trim())
+    return { ok: true }
+  }
+
+  async actualizarEstadoGuia(guiaId: string, c: Extract<RespuestaConsulta, { ok: true }>, actor: Actor): Promise<ResultadoAccion<{ estadoSunat: EstadoSunat | 'ANULADA' }>> {
     const e = estadoE(); await this.sembrarDespacho(e)
     if (!puedeEmitirGuia(actor.roles)) return falla('No tienes permiso para actualizar la guía de remisión')
     const g = guias(e).find((x) => x.id === guiaId)
     if (!g) return falla('No encontramos esa guía')
     if (g.guia.origen !== 'NUBEFACT') return falla('Solo las guías emitidas con Nubefact tienen estado de SUNAT')
-    if (g.guia.estado !== 'VIGENTE' || g.guia.estadoSunat !== 'PENDIENTE') return { ok: true, estadoSunat: g.guia.estadoSunat ?? 'PENDIENTE' }
     const s = desp(e).salidas.find((x) => x.id === g.salidaId)!
+    // D-166: la guía se dio de baja en el panel de Nubefact (la baja ya está hecha ante SUNAT)
+    if (c.anuladaEnNubefact) {
+      if (g.guia.estado === 'ANULADA') return { ok: true, estadoSunat: 'ANULADA' }
+      Object.assign(g.guia, { estado: 'ANULADA', anuladaMotivo: 'Se dio de baja en el panel de Nubefact', anuladaEn: ahora(), bajaSunat: 'HECHA' })
+      this.encolarEvento(e, s, g.guia, 'GUIA_ANULADA')
+      registrar(e, actor, 'guia_anulada_en_nubefact', 'guias_remision', guiaId, `Guía ${g.guia.numero} dada de baja en el panel de Nubefact`)
+      return { ok: true, estadoSunat: 'ANULADA' }
+    }
+    if (g.guia.estado !== 'VIGENTE' || g.guia.estadoSunat !== 'PENDIENTE') return { ok: true, estadoSunat: g.guia.estadoSunat ?? 'PENDIENTE' }
     if (c.estadoSunat === 'ACEPTADA') {
       if (!c.enlace) return falla('Falta el enlace de la guía que devolvió Nubefact')
       Object.assign(g.guia, { estadoSunat: 'ACEPTADA', enlace: c.enlace, enlaceXml: c.enlaceXml })

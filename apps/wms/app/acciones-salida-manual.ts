@@ -26,7 +26,8 @@ export async function ordenDelPedidoAccion(numeroPedido: string) { await exigirC
 export async function validarLineaConLoteAccion(e: { propietarioId: string; productoId?: string; loteCodigo: string; cantidad: number; motivo: MotivoSalida; yaPedidoDelLote?: number }) {
   await exigirContexto()
   const lotes = e.productoId && e.loteCodigo.trim() ? await repositorio().lotesPorCodigo(e.loteCodigo, e.productoId) : []
-  return validarLineaSalidaCliente({ tipo: tipoDeMotivo(e.motivo), propietarioId: e.propietarioId, productoId: e.productoId, loteCodigo: e.loteCodigo, cantidad: e.cantidad, motivo: e.motivo, yaPedidoDelLote: e.yaPedidoDelLote, hoy: hoyEnLima(), lotes })
+  const diasAvisoDevolucion = e.motivo === 'DEVOLUCION_PROVEEDOR' ? await repositorio().diasAvisoDevolucion() : undefined
+  return validarLineaSalidaCliente({ tipo: tipoDeMotivo(e.motivo), propietarioId: e.propietarioId, productoId: e.productoId, loteCodigo: e.loteCodigo, cantidad: e.cantidad, motivo: e.motivo, yaPedidoDelLote: e.yaPedidoDelLote, hoy: hoyEnLima(), lotes, diasAvisoDevolucion })
 }
 
 /** Guarda el PDF de la GRE del cliente y devuelve su referencia (el mismo almacenamiento de archivos que los documentos y el COA). */

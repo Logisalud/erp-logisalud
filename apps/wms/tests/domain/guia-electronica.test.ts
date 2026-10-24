@@ -18,7 +18,7 @@ describe('qué falta para emitir la guía', () => {
   it('con todo completo no falta nada; sin licencia (ni guardada ni escrita) no se puede emitir', () => {
     expect(faltantesDeGuia(datos(), traslado, 'SIMULADOR')).toEqual([])
     expect(faltantesDeGuia(datos({ ruta: { ...datos().ruta!, conductorLicencia: undefined } }), traslado, 'PRUEBA')).toEqual(['Falta la licencia de conducir del conductor (9 o 10 letras y números)'])
-    expect(faltantesDeGuia(datos(), { ...traslado, licenciaConductor: 'Q40123456' }, 'PRODUCCION')).toEqual([])
+    expect(faltantesDeGuia(datos({ correlativoConfirmado: true }), { ...traslado, licenciaConductor: 'Q40123456' }, 'PRODUCCION')).toEqual([])
   })
 
   it('dice en palabras lo que falta: conformidad, ruta, vehículo, conductor, datos del cliente y punto de partida', () => {
