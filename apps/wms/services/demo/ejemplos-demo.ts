@@ -232,7 +232,7 @@ export class EjemplosDemo extends SalidaManualDemo {
     const traslado = { fechaInicio: e.panorama.hoy, pesoKg: 12 }
     const faltan = faltantesDeGuia(datos, traslado, 'SIMULADOR')
     if (faltan.length) throw new Falla(`Ejemplo «${ej.clave}»: a la guía le falta ${faltan.join('; ')}`)
-    const n = exigir(await this.siguienteNumeroGuia(datos.serie), ej.clave)
+    const n = exigir(await this.reservarNumeroGuia(datos.serie, 'SIMULADOR', salida.id), ej.clave)
     const payload = construirPayloadNubefact(datos, traslado, e.panorama.hoy, n.numero)
     const sim = SimuladorNubefact.compartido()
     const r = await sim.emitirGuia(payload)

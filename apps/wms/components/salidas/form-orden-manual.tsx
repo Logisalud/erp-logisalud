@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight, Building2, CircleDot, FileUp, FlaskConical, HandCoins, Loader2, Truck, X } from 'lucide-react'
 import { crearOrdenManualAccion, ordenDelPedidoAccion, subirGreClienteAccion } from '@/app/acciones-salida-manual'
 import {
-  AYUDA_CONCILIAR, AYUDA_UBIGEO, INFO_CLASE, MOTIVOS_C, normalizarNumeroPedido, validarOrdenManual, type ClaseOrdenManual, type ClienteManual, type EntradaOrdenManual, type LineaOrdenManual,
+  AYUDA_CONCILIAR, AYUDA_UBIGEO, INFO_CLASE, MOTIVOS_C, normalizarNumeroPedido, type TipoDocumentoDestinatario, validarOrdenManual, type ClaseOrdenManual, type ClienteManual, type EntradaOrdenManual, type LineaOrdenManual,
 } from '@/domain/salida-manual'
 import { ETIQUETA_MOTIVO_SALIDA, type MotivoSalida } from '@/domain/salidas'
 import { avanceDeSalida } from '@/domain/pasos'
@@ -57,6 +57,8 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
   const [propietarioId, setPropietarioId] = useState(propietarioFijo ?? '')
   const [pedidoNumero, setPedidoNumero] = useState('')
   const [cliente, setCliente] = useState<ClienteManual>({ ruc: '', razonSocial: '', direccion: '', ubigeo: '', vendedor: '' })
+  const [tipoDoc, setTipoDoc] = useState<TipoDocumentoDestinatario>('RUC')
+  const [avisoMotivo, setAvisoMotivo] = useState('')
   const [greNumero, setGreNumero] = useState('')
   const [gre, setGre] = useState<{ ref: string; nombre: string } | null>(null)
   const [subiendo, setSubiendo] = useState(false)
@@ -68,10 +70,12 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
   useEffect(() => { setToken(typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `t-${Date.now()}-${Math.random().toString(36).slice(2)}`) }, [])
 
   const modo: ModoLinea | null = clase === 'A' ? 'A' : clase === 'B' ? 'B' : clase === 'C' ? (motivoC === 'DEVOLUCION_PROVEEDOR' ? 'DEVOLUCION' : motivoC === 'MUESTRA' ? 'MUESTRA' : null) : null
+  // D-161: líneas de una devolución con poco plazo por delante (avisa; pide el motivo para continuar)
+  const avisos = modo === 'DEVOLUCION' ? lineas.filter((l) => l.validacion.estado === 'ok' && l.validacion.aviso).length : 0
   const propietarioDeLineas = clase === 'B' ? propietarioId : (dueno?.id ?? '')
 
   const elegirClase = (c: ClaseOrdenManual) => {
-    setClase(c); setErrores({}); setLineas([lineaVacia(1)]); setDuplicado(null)
+    setClase(c); setErrores({}); setLineas([lineaVacia(1)]); setDuplicado(null); setTipoDoc('RUC'); setAvisoMotivo('')
     if (c === 'C') setMotivoC(motivosCPermitidos.length === 1 ? motivosCPermitidos[0] : '')
   }
   const actualizar = useCallback((clave: number, parche: Partial<LineaForm>) => setLineas((x) => x.map((l) => (l.clave === clave ? { ...l, ...parche } : l))), [])
@@ -108,7 +112,8 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
     }))
     return {
       clase, motivo: clase === 'C' ? (motivoC || undefined) : undefined, propietarioId: clase === 'B' ? propietarioId : undefined,
-      pedidoNumero: clase === 'A' ? pedidoNumero : undefined, cliente: clase === 'A' || (clase === 'C' && motivoC) ? cliente : undefined,
+      pedidoNumero: clase === 'A' ? pedidoNumero : undefined, cliente: clase === 'A' ? cliente : clase === 'C' && motivoC ? { ...cliente, tipoDocumento: motivoC === 'MUESTRA' ? tipoDoc : 'RUC' } : undefined,
+      avisoMotivo: clase === 'C' && motivoC === 'DEVOLUCION_PROVEEDOR' && avisos > 0 ? avisoMotivo : undefined,
       greNumero: clase === 'B' ? greNumero : undefined, greArchivo: clase === 'B' ? gre?.ref : undefined, lineas: ls, token,
     }
   }
@@ -124,6 +129,7 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
       if ((modo === 'B' || modo === 'DEVOLUCION') && l.validacion.estado === 'validando') errs.lineas = 'Espera un momento: todavía estamos revisando un lote.'
       else if ((modo === 'B' || modo === 'DEVOLUCION') && l.validacion.estado !== 'ok') errs.lineas = 'Corrige o completa las líneas marcadas antes de crear la orden.'
     })
+    if (avisos > 0 && !avisoMotivo.trim()) errs.avisoMotivo = 'Escribe el motivo para continuar con la devolución.'
     if (duplicado?.tipo === 'ORDEN') errs.pedidoNumero = `El pedido ${pedidoNumero.trim()} ya tiene la Orden de Salida ${duplicado.numero}. Un pedido no puede tener dos órdenes`
     if (duplicado?.tipo === 'EN_BANDEJA') errs.pedidoNumero = `El pedido ${duplicado.pedidoNumero} ya llegó por la bandeja: créale la orden desde «Pedidos por despachar»`
     setErrores(errs)
@@ -226,7 +232,7 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
             {MOTIVOS_C.map((m) => {
               const permitido = motivosCPermitidos.includes(m); const on = motivoC === m
               return (
-                <button key={m} type="button" role="radio" aria-checked={on} disabled={!permitido} data-testid={`motivo-C-${m}`} onClick={() => { setMotivoC(m); setLineas([lineaVacia(1)]) }}
+                <button key={m} type="button" role="radio" aria-checked={on} disabled={!permitido} data-testid={`motivo-C-${m}`} onClick={() => { setMotivoC(m); setLineas([lineaVacia(1)]); setTipoDoc('RUC'); setAvisoMotivo('') }}
                   className={`flex min-h-20 flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition duration-fast ${on ? 'border-logisalud-green bg-green-50' : permitido ? 'border-gray-200 bg-white hover:border-gray-300' : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-500'}`}>
                   <span className="flex items-center gap-2 font-medium">{ETIQUETA_MOTIVO_SALIDA[m]}{on && <CircleDot className="h-4 w-4 text-green-700" aria-hidden />}</span>
                   <span className="text-sm text-gray-700">{m === 'MUESTRA' ? 'Una muestra sin venta. La autoriza quien tiene el rol «autoriza salidas sin venta». El sistema propone el lote por vencimiento.' : 'Devolver mercadería a su proveedor, solo antes de que venza y según la política de canje. Indicas el lote.'}</span>
@@ -242,10 +248,18 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
       {clase === 'C' && motivoC && (
         <fieldset className="space-y-4" data-testid="destinatario-C">
           <legend className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">{motivoC === 'DEVOLUCION_PROVEEDOR' ? '3. ¿A qué proveedor se devuelve?' : '3. ¿A quién va la muestra?'}</legend>
-          <Aviso tipo="info">La guía de remisión necesita estos datos y la ruta de Logisalud los usa para llevar la salida. {motivoC === 'DEVOLUCION_PROVEEDOR' ? 'Escribe los datos del proveedor.' : 'Escribe los datos de quien recibe la muestra (botica, clínica o consultorio con RUC).'}</Aviso>
+          <Aviso tipo="info">La guía de remisión necesita estos datos y la ruta de Logisalud los usa para llevar la salida. {motivoC === 'DEVOLUCION_PROVEEDOR' ? 'Escribe los datos del proveedor.' : 'Escribe los datos de quien recibe la muestra: una empresa (botica, clínica o consultorio, con RUC) o un trabajador (con DNI).'}</Aviso>
+          {motivoC === 'MUESTRA' && (
+            <div role="radiogroup" aria-label="Quién recibe la muestra" className="flex flex-wrap gap-3" data-testid="tipo-documento-muestra">
+              {([['RUC', 'Una empresa (RUC)'], ['DNI', 'Un trabajador (DNI)']] as const).map(([v, t]) => (
+                <button key={v} type="button" role="radio" aria-checked={tipoDoc === v} data-testid={`recibe-${v}`} onClick={() => { setTipoDoc(v); setCliente({ ...cliente, ruc: '' }) }}
+                  className={`min-h-12 rounded-lg border-2 px-4 text-sm font-medium transition duration-fast ${tipoDoc === v ? 'border-logisalud-green bg-green-50 text-gray-900' : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'}`}>{t}</button>
+              ))}
+            </div>
+          )}
           <div className="grid gap-4 md:grid-cols-2">
-            <Campo id="dest-razon-social" etiqueta={motivoC === 'DEVOLUCION_PROVEEDOR' ? 'Nombre o razón social del proveedor' : 'Nombre o razón social de quien recibe'} error={err('razonSocial')}><input id="dest-razon-social" className={`campo ${err('razonSocial') ? '!border-red-500' : ''}`} value={cliente.razonSocial} onChange={(e) => setCliente({ ...cliente, razonSocial: e.target.value })} autoComplete="off" data-testid="dest-razon-social" /></Campo>
-            <Campo id="dest-ruc" etiqueta="RUC (11 números)" error={err('ruc')}><input id="dest-ruc" className={`campo tabular ${err('ruc') ? '!border-red-500' : ''}`} inputMode="numeric" maxLength={11} value={cliente.ruc} onChange={(e) => setCliente({ ...cliente, ruc: e.target.value.replace(/\D/g, '') })} autoComplete="off" data-testid="dest-ruc" /></Campo>
+            <Campo id="dest-razon-social" etiqueta={motivoC === 'DEVOLUCION_PROVEEDOR' ? 'Nombre o razón social del proveedor' : tipoDoc === 'DNI' ? 'Nombre y apellidos del trabajador' : 'Nombre o razón social de quien recibe'} error={err('razonSocial')}><input id="dest-razon-social" className={`campo ${err('razonSocial') ? '!border-red-500' : ''}`} value={cliente.razonSocial} onChange={(e) => setCliente({ ...cliente, razonSocial: e.target.value })} autoComplete="off" data-testid="dest-razon-social" /></Campo>
+            <Campo id="dest-ruc" etiqueta={motivoC === 'MUESTRA' && tipoDoc === 'DNI' ? 'DNI (8 números)' : 'RUC (11 números)'} error={err('ruc')}><input id="dest-ruc" className={`campo tabular ${err('ruc') ? '!border-red-500' : ''}`} inputMode="numeric" maxLength={motivoC === 'MUESTRA' && tipoDoc === 'DNI' ? 8 : 11} value={cliente.ruc} onChange={(e) => setCliente({ ...cliente, ruc: e.target.value.replace(/\D/g, '') })} autoComplete="off" data-testid="dest-ruc" /></Campo>
             <Campo id="dest-direccion" etiqueta="Dirección de entrega" error={err('direccion')}><input id="dest-direccion" className={`campo ${err('direccion') ? '!border-red-500' : ''}`} value={cliente.direccion} onChange={(e) => setCliente({ ...cliente, direccion: e.target.value })} autoComplete="off" data-testid="dest-direccion" /></Campo>
             <Campo id="dest-ubigeo" etiqueta="Ubigeo del distrito (6 números)" error={err('ubigeo')} ayuda={AYUDA_UBIGEO}><input id="dest-ubigeo" className={`campo tabular ${err('ubigeo') ? '!border-red-500' : ''}`} inputMode="numeric" maxLength={6} value={cliente.ubigeo} onChange={(e) => setCliente({ ...cliente, ubigeo: e.target.value.replace(/\D/g, '') })} autoComplete="off" data-testid="dest-ubigeo" /></Campo>
           </div>
@@ -258,7 +272,7 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
           <p className="text-sm text-gray-600">
             {modo === 'A' || modo === 'MUESTRA' ? 'Busca el producto por su nombre o por cualquiera de sus códigos y escribe la cantidad. El sistema propone el lote y el vencimiento por FEFO: lo que vence primero, sin lotes vencidos ni en Reserva.'
               : modo === 'B' ? 'Busca el producto por su nombre o por cualquiera de sus códigos (también el del cliente). Escribe el lote como está en su guía: el vencimiento se completa solo y revisamos cada línea al instante. La destrucción sale solo desde Bajas.'
-              : 'Indica el lote que se devuelve. Se revisa al instante: solo sale lo que aún no venció y que cumple la política de canje.'}
+              : 'Indica el lote que se devuelve. Se revisa al instante: solo sale lo que aún no venció y que cumple la política de canje. Si a un lote le faltan menos de 3 meses, te avisamos y puedes continuar escribiendo el motivo.'}
           </p>
           {clase === 'B' && !propietarioId
             ? <Aviso tipo="info">Elige primero el cliente de almacenamiento: así solo ves y usas su stock.</Aviso>
@@ -266,6 +280,15 @@ export function FormOrdenManual({ clasesPermitidas, motivosCPermitidos, propieta
         </fieldset>
       )}
 
+      {avisos > 0 && (
+        <fieldset className="space-y-3" data-testid="aviso-devolucion">
+          <legend className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Poco tiempo antes de vencer</legend>
+          <Aviso tipo="atencion"><p className="font-medium">{avisos === 1 ? 'Una línea tiene' : `${avisos} líneas tienen`} menos de 3 meses para vencer.</p><p className="mt-1">El proveedor suele pedir al menos 3 meses. No te lo impedimos: escribe el motivo para continuar y queda registrado.</p></Aviso>
+          <Campo id="aviso-motivo" etiqueta="Motivo para continuar" error={err('avisoMotivo')}>
+            <textarea id="aviso-motivo" className={`campo min-h-20 ${err('avisoMotivo') ? '!border-red-500' : ''}`} value={avisoMotivo} onChange={(e) => setAvisoMotivo(e.target.value)} data-testid="aviso-motivo" placeholder="Por ejemplo: el proveedor aceptó recibirlo por correo" />
+          </Campo>
+        </fieldset>
+      )}
       {mensaje?.tipo === 'error' && <Aviso tipo="error" testid="error-crear-orden">{mensaje.texto}</Aviso>}
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" className="btn-primary" disabled={!modo || pendiente} data-testid="crear-orden-manual">{pendiente ? 'Creando la orden…' : 'Crear la orden de salida'}</button>

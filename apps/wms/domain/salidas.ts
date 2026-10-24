@@ -46,6 +46,12 @@ export const emiteGuiaDelWms = (tipo: TipoSalida) => tipo !== 'CLIENTE'
 export interface PoliticaCanje { diasMinimos: number; diasMaximos: number | null }
 export const POLITICA_CANJE_INICIAL: PoliticaCanje = { diasMinimos: 0, diasMaximos: null }
 
+/**
+ * D-161: el proveedor recibe una devolución con al menos 3 meses antes del vencimiento. Es un AVISO, no un bloqueo: si faltan menos días, quien crea la orden puede
+ * continuar escribiendo el motivo. Parámetro `devolucion_proveedor_aviso_dias` (90). Lo que sí bloquea sigue igual: lote vencido y la política de canje de arriba.
+ */
+export const DIAS_AVISO_DEVOLUCION_DEFECTO = 90
+
 export interface LoteDisponible {
   loteId: string
   codigo: string
@@ -84,6 +90,14 @@ export function loteApto(vence: string | null, tipo: TipoSalida, motivo: MotivoS
     if (canje.diasMaximos !== null && faltan > canje.diasMaximos) return { apto: false, requiereAprobacionDt: false, razon: `Según la política de canje, el proveedor recibe el lote cuando faltan ${canje.diasMaximos} días o menos para vencer; a este le faltan ${faltan}.` }
   }
   return { apto: true, requiereAprobacionDt: false }
+}
+
+/** El aviso de una devolución al proveedor con poco tiempo por delante (null = sin aviso). Mismo texto que `wms.crear_orden_salida_manual`. */
+export function avisoDevolucionCercana(vence: string | null, hoy: string, diasAviso: number = DIAS_AVISO_DEVOLUCION_DEFECTO): string | null {
+  if (!vence || vence < hoy) return null
+  const faltan = dias(hoy, vence)
+  if (faltan >= diasAviso) return null
+  return `Al lote le faltan ${faltan} días para vencer y el proveedor pide al menos ${diasAviso} días (${Math.round(diasAviso / 30)} meses). Puedes continuar si escribes el motivo.`
 }
 
 export interface Asignacion { loteId: string; codigo: string; vence: string | null; cantidad: number }

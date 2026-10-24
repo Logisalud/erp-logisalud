@@ -318,6 +318,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'registrar_entrega_transportista_cliente',
     // SB-A (0031): conductor en documentos (temporal) y documento de identidad del personal de transporte; `_conductor_para_documentos`, `_auditar_uso_conductor` y los disparadores son internos
     'cambiar_conductor_en_documentos', 'guardar_documentos_personal',
+    // SB-B (0032): numeración atómica de las guías
+    'reservar_numero_guia', 'liberar_numero_guia', 'marcar_numero_guia_ocupado', 'confirmar_correlativo_guia', 'corregir_correlativo_guia',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {

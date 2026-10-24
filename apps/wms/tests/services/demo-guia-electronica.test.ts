@@ -25,7 +25,7 @@ async function salidaConforme(conformar = true) {
 async function emitir(id: string, actorEmite: Actor = JT) {
   const datos = (await repo.datosGuia(id))!
   expect(faltantesDeGuia(datos, traslado, 'SIMULADOR')).toEqual([])
-  const n = await repo.siguienteNumeroGuia(datos.serie)
+  const n = await repo.reservarNumeroGuia(datos.serie, 'SIMULADOR', id)
   if (!n.ok) throw new Error(n.mensaje)
   const payload = construirPayloadNubefact(datos, traslado, '2026-10-19', n.numero)
   const sim = new SimuladorNubefact()

@@ -37,6 +37,9 @@ export interface LineaSalidaDemo {
   /** Tipo B y devolución al proveedor: el lote que indica el cliente o la guía. */
   loteIndicadoId?: string
 }
+/** El estado de una serie de guías en la demostración. */
+export interface NumeracionSerieDemo { ultimo: number; confirmado: boolean; numeros: { numero: number; estado: 'RESERVADO' | 'USADO' | 'LIBERADO' | 'OCUPADO'; salidaId?: string; entorno?: string }[] }
+
 export interface SalidaDemo {
   id: string; numero: string; pedidoId: string; propietarioId: string; estado: 'ABIERTA' | 'CONFIRMADA' | 'CANCELADA'
   /** Un pedido a provincia se embala; uno a Lima queda con los bultos de la conformidad. */
@@ -47,6 +50,8 @@ export interface SalidaDemo {
   pedidoNumero?: string; porConciliar?: boolean; clienteManual?: ClienteManual
   /** Tipo B: la GRE del cliente (número y PDF) y a nombre de qué propietario se creó. */
   greNumero?: string; greArchivo?: string; enNombreDe?: string
+  /** D-161: motivo escrito para continuar una devolución al proveedor con menos de 90 días para vencer. */
+  devolucionAvisoMotivo?: string
   /** SA-6, tipo B: la entrega al transportista del cliente (la salida se confirma al registrarla). */
   entrega?: import('@/domain/entrega-transportista').EntregaTransportistaVista
   /** Repetir el mismo envío no crea otra orden. */
@@ -92,7 +97,8 @@ export interface DespachoDemoEstado {
   guias?: GuiaDemo[]
   /** OS-3: avisos hacia Pedidos (guía emitida / anulada). */
   eventosPedidos?: import('@/domain/guia-electronica').EventoPedidos[]
-  correlativosGuia?: Record<string, number>
+  /** D-162: la numeración de las guías por serie (último número, correlativo confirmado y el estado de cada número), igual que `wms.guia_correlativos` y `wms.guia_numeros`. */
+  numeracionGuia?: Record<string, NumeracionSerieDemo>
   /** S7: bultos (los vigentes y los anulados al reabrir el embalaje). */
   bultos?: import('@/domain/embalaje').BultoVista[]
   /** OS-1: Reservas de lote (la historia completa; la vigente es la que no tiene `quitadaEn`). */

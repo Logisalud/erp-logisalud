@@ -20,7 +20,7 @@ import { mensajeHumano, rpc, s, traerTodo, type Fila } from './util'
 const sch = () => crearClienteServidor().schema('wms')
 const mal = (error: { code?: string; message: string }) => ({ ok: false as const, mensaje: mensajeHumano(error) })
 const dia = (v: unknown) => String(v).slice(0, 10)
-const clienteDeJson = (j: Record<string, unknown>): ClienteManual => ({ ruc: String(j.ruc ?? ''), razonSocial: String(j.razon_social ?? ''), direccion: String(j.direccion ?? ''), ubigeo: String(j.ubigeo ?? ''), vendedor: s(j.vendedor) })
+const clienteDeJson = (j: Record<string, unknown>): ClienteManual => ({ ruc: String(j.ruc ?? ''), razonSocial: String(j.razon_social ?? ''), direccion: String(j.direccion ?? ''), ubigeo: String(j.ubigeo ?? ''), vendedor: s(j.vendedor), tipoDocumento: j.tipo_documento === 'DNI' ? 'DNI' : undefined })
 
 const vistaEntrega = (f: Fila, nombres: Map<string, string>): NonNullable<SalidaVista['entrega']> => ({
   id: String(f.id), transportista: String(f.transportista), placa: s(f.placa), documentoRecoge: s(f.documento_recoge), entregadoEn: String(f.entregado_en), entregaAlmacen: String(f.entrega_almacen),
@@ -129,7 +129,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     return {
       ...this.resumenSalida(c, sal), estado: sal.estado as SalidaVista['estado'], requiereEmbalaje: sal.requiere_embalaje !== false, creadaPor: nombres.get(String(sal.creada_por)) ?? 'Usuario',
       lineasDetalle: c.lineas.filter((l) => String(l.salida_id) === id).map((l) => this.lineaVista(c, l, String(sal.tipo))),
-      clienteManual: sal.cliente_manual ? clienteDeJson(sal.cliente_manual as Record<string, unknown>) : undefined, greNumero: s(sal.gre_numero), greArchivo: s(sal.gre_archivo),
+      clienteManual: sal.cliente_manual ? clienteDeJson(sal.cliente_manual as Record<string, unknown>) : undefined, greNumero: s(sal.gre_numero), greArchivo: s(sal.gre_archivo), devolucionAvisoMotivo: s(sal.devolucion_aviso_motivo),
       entrega: c.entregas.has(id) ? vistaEntrega(c.entregas.get(id)!, nombres) : undefined,
       ordenPickingId: s(c.ordenes.find((o) => String(o.salida_id) === id && o.estado !== 'CANCELADA')?.id), cambios,
     }

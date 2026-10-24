@@ -3,6 +3,7 @@ import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { puedePrepararSalidas } from '@/domain/despacho'
 import { MENSAJE_SIN_PERMISO_ENTREGA, puedeEntregarAlTransportistaCliente, validarEntrega, type EntradaEntrega } from '@/domain/entrega-transportista'
+import { DIAS_AVISO_DEVOLUCION_DEFECTO } from '@/domain/salidas'
 import { buscarProductosPorCodigos, partirPorMotivo, type CodigoProducto, type EntradaOrdenManual, type LoteParaSalida, type ProductoHallado, type TipoCodigoProducto } from '@/domain/salida-manual'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { OrdenCreada, OrdenDelPedido, RepositorioSalidaManual, ResumenOrdenesPendientes } from '../repositorio-salida-manual'
@@ -76,6 +77,12 @@ export class SalidaManualSupabase extends LiberacionSupabase implements Reposito
     return this.armarLotes((data ?? []) as Fila[])
   }
 
+  async diasAvisoDevolucion(): Promise<number> {
+    const { data } = await sch().from('parametros').select('valor').eq('clave', 'devolucion_proveedor_aviso_dias').maybeSingle()
+    const n = Number(String((data as Fila | null)?.valor ?? '').trim())
+    return Number.isInteger(n) && n > 0 ? n : DIAS_AVISO_DEVOLUCION_DEFECTO
+  }
+
   async lotesPorCodigo(codigo: string, _productoId: string): Promise<LoteParaSalida[]> {
     const c = codigo.trim()
     if (!c) return []
@@ -102,7 +109,7 @@ export class SalidaManualSupabase extends LiberacionSupabase implements Reposito
         p_clase: entrada.clase, p_motivo: g.motivo ?? null, p_propietario: entrada.propietarioId ?? null,
         p_lineas: g.lineas.map((l) => ({ producto_id: l.productoId, cantidad: l.cantidad, lote_id: l.loteId ?? null })),
         p_pedido_numero: entrada.pedidoNumero?.trim() || null,
-        p_cliente: entrada.cliente ? { ruc: entrada.cliente.ruc.trim(), razon_social: entrada.cliente.razonSocial.trim(), direccion: entrada.cliente.direccion.trim(), ubigeo: entrada.cliente.ubigeo.trim(), vendedor: entrada.cliente.vendedor?.trim() || null } : null,
+        p_cliente: entrada.cliente ? { ruc: entrada.cliente.ruc.trim(), razon_social: entrada.cliente.razonSocial.trim(), direccion: entrada.cliente.direccion.trim(), ubigeo: entrada.cliente.ubigeo.trim(), vendedor: entrada.cliente.vendedor?.trim() || null, tipo_documento: entrada.cliente.tipoDocumento ?? 'RUC', aviso_motivo: entrada.avisoMotivo?.trim() || null } : null,
         p_gre_numero: entrada.greNumero?.trim() || null, p_gre_archivo: entrada.greArchivo ?? null,
         p_token: entrada.token ? (grupos.length > 1 ? `${entrada.token}:${g.motivo}` : entrada.token) : null,
       })

@@ -35,6 +35,8 @@ export interface RepositorioSalidaManual {
   buscarProductosParaSalida(consulta: string, propietarioId?: string): Promise<ProductoHallado[]>
   /** Los lotes de un producto de un propietario con lo que tienen para sacar (Aprobado) y lo que ya está en Bajas. Sirve para proponer FEFO y para validar. */
   lotesParaSalida(propietarioId: string, productoId: string): Promise<LoteParaSalida[]>
+  /** D-161: desde cuántos días antes del vencimiento una devolución al proveedor NO avisa (parámetro `devolucion_proveedor_aviso_dias`, 90). */
+  diasAvisoDevolucion(): Promise<number>
   /** Los lotes que llevan ese código (de cualquier propietario): así se distingue «no existe» de «es de otro propietario». */
   lotesPorCodigo(codigo: string, productoId: string): Promise<LoteParaSalida[]>
   /** ¿Este número de pedido ya tiene una orden (o ya llegó por la bandeja sin orden)? */

@@ -9,7 +9,7 @@ import { SelectorProductoSalida } from './selector-producto-salida'
 
 export type ModoLinea = 'A' | 'B' | 'MUESTRA' | 'DEVOLUCION'
 
-export interface ValidacionLinea { estado: 'pendiente' | 'validando' | 'ok' | 'error'; mensaje?: string; campo?: string; vence?: string | null; loteId?: string }
+export interface ValidacionLinea { estado: 'pendiente' | 'validando' | 'ok' | 'error'; mensaje?: string; campo?: string; vence?: string | null; loteId?: string; /** D-161: devolución con poco plazo (avisa, no bloquea). */ aviso?: string }
 export interface LineaForm {
   clave: number
   producto: ProductoHallado | null
@@ -39,6 +39,7 @@ export function yaPedidoDelLote(lineas: readonly LineaForm[], indice: number): n
 
 function Estado({ v }: { v: ValidacionLinea }) {
   if (v.estado === 'validando') return <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-600" role="status" data-testid="validacion-linea" data-estado="validando"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />Revisando el lote…</p>
+  if (v.estado === 'ok' && v.aviso) return <p className="mt-1 flex items-start gap-1.5 text-xs font-medium text-amber-900" role="status" data-testid="validacion-linea" data-estado="aviso"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /><span>{v.aviso}</span></p>
   if (v.estado === 'ok') return <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-green-800" role="status" data-testid="validacion-linea" data-estado="ok"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden />El lote sirve para esta salida</p>
   if (v.estado === 'error') return <p className="mt-1 flex items-start gap-1.5 text-xs font-medium text-red-800" role="alert" data-testid="validacion-linea" data-estado="error"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /><span>{v.mensaje}</span></p>
   return null
@@ -72,7 +73,7 @@ function FilaLinea({ l, i, ctx, ya, actualizar, quitar, puedeQuitar }: {
     actualizar(l.clave, { validacion: { estado: 'validando' } })
     const t = setTimeout(async () => {
       const r = await validarLineaConLoteAccion({ propietarioId, productoId: l.producto!.id, loteCodigo: l.loteCodigo, cantidad, motivo: motivoEfectivo, yaPedidoDelLote: ya })
-      if (n === version.current) actualizar(l.clave, { validacion: r.ok ? { estado: 'ok', vence: r.vence, loteId: r.lote.loteId } : { estado: 'error', mensaje: r.mensaje, campo: r.campo } })
+      if (n === version.current) actualizar(l.clave, { validacion: r.ok ? { estado: 'ok', vence: r.vence, loteId: r.lote.loteId, aviso: r.aviso } : { estado: 'error', mensaje: r.mensaje, campo: r.campo } })
     }, 350)
     return () => clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps

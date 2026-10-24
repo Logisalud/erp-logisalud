@@ -1,5 +1,6 @@
 import type { PaqueteSalida } from '@/domain/documentacion'
-import type { CasoAnulacion, DatosGuia, EstadoSunat, EventoPedidos, RespuestaConsulta, RespuestaEmision, TrasladoGuia } from '@/domain/guia-electronica'
+import type { CasoAnulacion, DatosGuia, EstadoSunat, EventoPedidos, ModoNubefact, RespuestaConsulta, RespuestaEmision, TrasladoGuia } from '@/domain/guia-electronica'
+import type { EstadoCorrelativo } from '@/domain/numeracion-guias'
 import type { Actor, ResultadoAccion } from './repositorio'
 
 /** S6b + OS-3: guía de remisión (electrónica con Nubefact, a mano o la GRE del cliente) y paquete documental de una salida. */
@@ -16,12 +17,25 @@ export interface RepositorioDocumentacion {
 
   /** Todo lo que la guía electrónica toma del WMS (destinatario, líneas por lote, ruta, vehículo, conductor, bultos, punto de partida). */
   datosGuia(salidaId: string): Promise<DatosGuia | null>
-  /** El siguiente número de la serie (Nubefact no lo asigna: el WMS lleva el correlativo). Se pide justo antes de enviar. */
-  siguienteNumeroGuia(serie: string): Promise<ResultadoAccion<{ numero: number }>>
+  /**
+   * Reserva el número de la próxima guía de la serie, de forma atómica (D-162): una sola guía en curso por serie, y una guía REAL no se reserva hasta que alguien confirme el
+   * correlativo inicial. `reintento`: ese número ya estaba reservado para esta misma orden (un envío anterior no terminó): se pregunta a Nubefact antes de volver a enviar.
+   */
+  reservarNumeroGuia(serie: string, entorno: ModoNubefact, salidaId: string): Promise<ResultadoAccion<{ numero: number; reintento: boolean }>>
+  /** Nubefact no recibió la guía: el número queda libre y la siguiente guía lo usa primero (la API no admite saltos). */
+  liberarNumeroGuia(serie: string, numero: number, motivo?: string): Promise<ResultadoAccion>
+  /** «Ya existe»: alguien emitió ese número desde el panel de Nubefact; se da por usado y se sigue con el siguiente. */
+  marcarNumeroGuiaOcupado(serie: string, numero: number, detalle?: string): Promise<ResultadoAccion>
+  /** Cómo está la serie: último número, si el correlativo inicial está confirmado y si hay una guía en curso. */
+  estadoNumeracionGuia(serie: string): Promise<EstadoCorrelativo | null>
+  /** Confirma el PRIMER número que usará el WMS (lo indica Sebas al salir a producción). Solo el Jefe de Transporte o la administración. */
+  confirmarCorrelativoGuia(serie: string, inicial: number, nota: string | undefined, actor: Actor): Promise<ResultadoAccion>
+  /** Fija el último número que muestra Nubefact (tras un «salto»), con motivo. */
+  corregirCorrelativoGuia(serie: string, ultimo: number, motivo: string, actor: Actor): Promise<ResultadoAccion>
   /** Guarda lo que devolvió Nubefact. La ruta va antes que la guía; solo pedidos (el tipo B usa la GRE del cliente). Deja el aviso para Pedidos en la bandeja. */
   registrarGuiaElectronica(salidaId: string, resultado: Extract<RespuestaEmision, { ok: true }>, traslado: TrasladoGuia, payload: unknown, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
   /** Paso 2 de Nubefact: anota lo que SUNAT respondió. Aceptada → enlaces y aviso a Pedidos; rechazada → la guía queda anulada con el motivo. */
-  actualizarEstadoGuia(guiaId: string, consulta: Extract<RespuestaConsulta, { ok: true }>, actor: Actor): Promise<ResultadoAccion<{ estadoSunat: EstadoSunat }>>
+  actualizarEstadoGuia(guiaId: string, consulta: Extract<RespuestaConsulta, { ok: true }>, actor: Actor): Promise<ResultadoAccion<{ estadoSunat: EstadoSunat | 'ANULADA' }>>
   /** Anula con uno de los tres casos (solo el Jefe de Transporte, con motivo). El caso 2 reabre la conformidad y devuelve el stock de Despacho al rack. */
   anularGuia(guiaId: string, caso: CasoAnulacion, motivo: string, actor: Actor): Promise<ResultadoAccion<{ caso: CasoAnulacion; conformidadReabierta: boolean; bajaSunat: 'PENDIENTE' | 'NO_APLICA' }>>
   /** La bandeja de avisos hacia Pedidos (guía emitida / anulada), con su estado de envío. */

@@ -133,7 +133,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     const cambios: CambioFefoVista[] = pk(e).cambios.filter((c) => s.lineas.some((l) => l.id === c.lineaId)).map((c) => ({
       lineaId: c.lineaId, en: c.en, por: c.por, anterior: nombreLoteCantidad(e, c.anterior), nueva: nombreLoteCantidad(e, c.nueva), distintoDeFefo: c.distinto, motivo: c.motivo,
     })).sort((a, b) => b.en.localeCompare(a.en))
-    return structuredClone({ ...this.resumenSalida(e, s), estado: s.estado, requiereEmbalaje: s.requiereEmbalaje, creadaPor: nombrePersonaDemo(s.creadaPor), entrega: s.entrega, lineasDetalle: s.lineas.map((l) => this.vistaLinea(e, l, s)), clienteManual: s.clienteManual, greNumero: s.greNumero, greArchivo: s.greArchivo, ordenPickingId: this.ordenDe(e, s.id)?.id, cambios })
+    return structuredClone({ ...this.resumenSalida(e, s), estado: s.estado, requiereEmbalaje: s.requiereEmbalaje, creadaPor: nombrePersonaDemo(s.creadaPor), entrega: s.entrega, lineasDetalle: s.lineas.map((l) => this.vistaLinea(e, l, s)), clienteManual: s.clienteManual, greNumero: s.greNumero, greArchivo: s.greArchivo, devolucionAvisoMotivo: s.devolucionAvisoMotivo, ordenPickingId: this.ordenDe(e, s.id)?.id, cambios })
   }
 
   async lotesParaEditar(lineaId: string): Promise<LoteEditable[]> {

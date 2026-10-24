@@ -5,8 +5,9 @@ import {
   type GuiaVista, type ItemPaquete, type LineaGuia, type PaqueteSalida,
 } from '@/domain/documentacion'
 import {
-  motivoDeTraslado, type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type RespuestaConsulta, type ModoNubefact, type OrigenGuia, type RespuestaEmision, type TrasladoGuia,
+  motivoDeTraslado, parametroDescripcionOtros, parametroMotivoDeTipo, type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type RespuestaConsulta, type ModoNubefact, type OrigenGuia, type RespuestaEmision, type TrasladoGuia,
 } from '@/domain/guia-electronica'
+import type { EstadoCorrelativo } from '@/domain/numeracion-guias'
 import { etapaConAvance, type SalidaResumen, type SalidaVista } from '@/domain/despacho'
 import type { EstadoRequisito, TipoDocumento } from '@/domain/documentos'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
@@ -93,10 +94,11 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     const { data: sal } = await sch().from('salidas').select('cliente_manual, pedido_numero').eq('id', salidaId).maybeSingle()
     const cm = ((sal as Fila | null)?.cliente_manual ?? null) as Record<string, unknown> | null
     const cli = (c.pedido?.snapshot?.cliente ?? (cm ? { nombre: cm.razon_social, ruc: cm.ruc, direccion: cm.direccion, ubigeo: cm.ubigeo } : {})) as Record<string, unknown>
+    const tipoDocumento = !c.pedido?.snapshot?.cliente && cm?.tipo_documento === 'DNI' ? ('DNI' as const) : undefined
     const par = (c.parametros ?? {}) as Record<string, string>
     return {
       salidaId, salidaNumero: String(c.salida.numero), tipo: c.salida.tipo, conforme: Boolean(c.salida.conforme), pedidoNumero: s(c.pedido?.numero) ?? s((sal as Fila | null)?.pedido_numero),
-      destinatario: { nombre: s(c.pedido?.cliente) ?? s(cli.nombre), ruc: s(c.pedido?.ruc) ?? s(cli.ruc), direccion: s(cli.direccion), ubigeo: s(cli.ubigeo), distrito: s(cli.distrito) },
+      destinatario: { nombre: s(c.pedido?.cliente) ?? s(cli.nombre), ruc: s(c.pedido?.ruc) ?? s(cli.ruc), direccion: s(cli.direccion), ubigeo: s(cli.ubigeo), distrito: s(cli.distrito), tipoDocumento },
       lineas: ((c.lineas ?? []) as { producto_codigo: string; producto: string; lote: string; vence: string | null; cantidad: number }[])
         .map((l): LineaGuia => ({ productoCodigo: l.producto_codigo, producto: l.producto, lote: l.lote, vence: l.vence ? dia(l.vence) : null, cantidad: Number(l.cantidad) })),
       bultos: Number(c.bultos ?? 0),
@@ -104,6 +106,7 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
         conductorLicencia: s(c.ruta.conductor_licencia), auxiliar: s(c.ruta.auxiliar), conductorReal: s(c.ruta.conductor_real) } : undefined,
       partida: { ubigeo: par.guia_partida_ubigeo ?? '', direccion: par.guia_partida_direccion ?? '' },
       motivoTraslado: c.salida.tipo === 'DISTRIBUCION' ? (par.guia_motivo_traslado ?? 'VENTA') : motivoDeTraslado(c.salida.tipo).texto, modalidad: par.guia_modalidad_transporte ?? 'TRANSPORTE PRIVADO', serie: par.guia_serie ?? 'TTT1',
+      motivoCodigo: s(par[parametroMotivoDeTipo(c.salida.tipo)]), motivoOtrosDescripcion: s(par[parametroDescripcionOtros(c.salida.tipo)]), correlativoConfirmado: Boolean(c.correlativo?.confirmado),
       reglasBaja: { plazoHoras: par.sunat_baja_plazo_horas ?? 'PENDIENTE', trasInicioTraslado: par.sunat_baja_tras_inicio_traslado ?? 'PENDIENTE', soportadaPorApi: par.nubefact_baja_soportada ?? 'PENDIENTE' },
     }
   }
@@ -117,17 +120,54 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     return error ? mal(error) : { ok: true, id: String(data), numero: r.numero }
   }
 
-  async siguienteNumeroGuia(serie: string): Promise<ResultadoAccion<{ numero: number }>> {
-    const { data, error } = await rpc('siguiente_numero_guia', { p_serie: serie })
-    return error ? mal(error) : { ok: true, numero: Number(data) }
+  async reservarNumeroGuia(serie: string, entorno: ModoNubefact, salidaId: string): Promise<ResultadoAccion<{ numero: number; reintento: boolean }>> {
+    const { data, error } = await rpc('reservar_numero_guia', { p_serie: serie, p_entorno: entorno, p_salida: salidaId })
+    if (error) return mal(error)
+    const r = (data ?? {}) as { numero?: number; reintento?: boolean }
+    return { ok: true, numero: Number(r.numero), reintento: Boolean(r.reintento) }
   }
 
-  async actualizarEstadoGuia(guiaId: string, c: Extract<RespuestaConsulta, { ok: true }>, _actor: Actor): Promise<ResultadoAccion<{ estadoSunat: EstadoSunat }>> {
+  async liberarNumeroGuia(serie: string, numero: number, motivo?: string): Promise<ResultadoAccion> {
+    const { error } = await rpc('liberar_numero_guia', { p_serie: serie, p_numero: numero, p_motivo: motivo ?? null })
+    return error ? mal(error) : { ok: true }
+  }
+
+  async marcarNumeroGuiaOcupado(serie: string, numero: number, detalle?: string): Promise<ResultadoAccion> {
+    const { error } = await rpc('marcar_numero_guia_ocupado', { p_serie: serie, p_numero: numero, p_detalle: detalle ?? null })
+    return error ? mal(error) : { ok: true }
+  }
+
+  async estadoNumeracionGuia(serie: string): Promise<EstadoCorrelativo | null> {
+    const { data: c } = await sch().from('guia_correlativos').select('serie, ultimo, confirmado').eq('serie', serie.toUpperCase()).maybeSingle()
+    if (!c) return null
+    const { data: r } = await sch().from('guia_numeros').select('numero, salida_id').eq('serie', serie.toUpperCase()).eq('estado', 'RESERVADO').eq('archivado', false).order('numero').limit(1).maybeSingle()
+    let salidaNumero: string | undefined
+    if (r && (r as Fila).salida_id) salidaNumero = s(((await sch().from('salidas').select('numero').eq('id', String((r as Fila).salida_id)).maybeSingle()).data as Fila | null)?.numero)
+    const { data: libre } = await sch().from('guia_numeros').select('numero').eq('serie', serie.toUpperCase()).eq('estado', 'LIBERADO').eq('archivado', false).order('numero').limit(1).maybeSingle()
+    const fila = c as Fila
+    return {
+      serie: String(fila.serie), ultimo: Number(fila.ultimo), confirmado: Boolean(fila.confirmado),
+      proximo: libre ? Number((libre as Fila).numero) : r ? Number((r as Fila).numero) : Number(fila.ultimo) + 1,
+      enCurso: r ? { numero: Number((r as Fila).numero), salidaNumero, incierta: true } : undefined,
+    }
+  }
+
+  async confirmarCorrelativoGuia(serie: string, inicial: number, nota: string | undefined, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('confirmar_correlativo_guia', { p_serie: serie, p_inicial: inicial, p_nota: nota?.trim() || null })
+    return error ? mal(error) : { ok: true }
+  }
+
+  async corregirCorrelativoGuia(serie: string, ultimo: number, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('corregir_correlativo_guia', { p_serie: serie, p_ultimo: ultimo, p_motivo: motivo })
+    return error ? mal(error) : { ok: true }
+  }
+
+  async actualizarEstadoGuia(guiaId: string, c: Extract<RespuestaConsulta, { ok: true }>, _actor: Actor): Promise<ResultadoAccion<{ estadoSunat: EstadoSunat | 'ANULADA' }>> {
     const { data, error } = await rpc('actualizar_estado_guia', {
-      p_guia: guiaId, p_estado: c.estadoSunat, p_enlace: c.enlace ?? null, p_enlace_xml: c.enlaceXml ?? null, p_enlace_cdr: c.enlaceCdr ?? null, p_hash: c.hash ?? null,
+      p_guia: guiaId, p_estado: c.anuladaEnNubefact ? 'ANULADA' : c.estadoSunat, p_enlace: c.enlace ?? null, p_enlace_xml: c.enlaceXml ?? null, p_enlace_cdr: c.enlaceCdr ?? null, p_hash: c.hash ?? null,
       p_respuesta: c.cruda ?? null, p_error: c.error ?? null,
     })
-    return error ? mal(error) : { ok: true, estadoSunat: String(data) as EstadoSunat }
+    return error ? mal(error) : { ok: true, estadoSunat: String(data) as EstadoSunat | 'ANULADA' }
   }
 
   async anularGuia(guiaId: string, caso: CasoAnulacion, motivo: string, _actor: Actor): Promise<ResultadoAccion<{ caso: CasoAnulacion; conformidadReabierta: boolean; bajaSunat: 'PENDIENTE' | 'NO_APLICA' }>> {
