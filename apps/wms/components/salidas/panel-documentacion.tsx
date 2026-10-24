@@ -27,7 +27,7 @@ const ChipRequisito = ({ r }: { r: RequisitoDocumental }) => {
 }
 
 /** Después de la conformidad: la guía de remisión (se registra su número a mano) y el paquete documental de los lotes que salen. */
-export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos, numeracion, greCliente }: { paquete: PaqueteSalida; roles: readonly Rol[]; datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[]; numeracion?: EstadoCorrelativo | null; greCliente?: { numero?: string; salidaId: string; conArchivo: boolean } }) {
+export function PanelDocumentacion({ salioYa, paquete, roles, datos, modo, hoy, eventos, numeracion, greCliente }: { salioYa?: boolean; paquete: PaqueteSalida; roles: readonly Rol[]; datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[]; numeracion?: EstadoCorrelativo | null; greCliente?: { numero?: string; salidaId: string; conArchivo: boolean } }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [resultado, setResultado] = useState<string | null>(null)
   const [numero, setNumero] = useState(greCliente?.numero ?? '')
@@ -38,7 +38,7 @@ export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos, 
   const exigidos = (i: ItemPaquete) => i.requisitos.filter((r) => r.exigido)
 
   return (
-    <section aria-labelledby="h-doc" className="space-y-4" data-testid="panel-documentacion">
+    <section id="panel-documentacion" aria-labelledby="h-doc" className="space-y-4" data-testid="panel-documentacion">
       <h2 id="h-doc" className="font-heading text-xl font-medium tracking-wide text-gray-900">Documentación final</h2>
       {resultado && <Aviso tipo="ok" testid="resultado-guia">{resultado}</Aviso>}
       {!paquete.conforme && !paquete.guia && <Aviso tipo="info">La guía se registra cuando todo el pedido tiene la conformidad: sus lotes salen de lo confirmado, sin volver a escribirlos.</Aviso>}
@@ -58,8 +58,8 @@ export function PanelDocumentacion({ paquete, roles, datos, modo, hoy, eventos, 
             </p>
             <ul className="text-sm text-gray-800" data-testid="guia-lineas">{paquete.guia.lineas.map((l, k) => <li key={k} className="tabular">{l.productoCodigo} · lote {l.lote} · vence {l.vence ? mesAnio(l.vence) : '—'} · {l.cantidad.toLocaleString('es-PE')} u</li>)}</ul>
             {paquete.guia.origen === 'NUBEFACT' && paquete.guia.estadoSunat && !bloqueo?.startsWith('No tienes') && <ConsultarGuia guiaId={paquete.guia.id} numero={paquete.guia.numero} salidaId={paquete.salidaId} estadoSunat={paquete.guia.estadoSunat} alConsultar={setResultado} />}
-            {!bloqueo?.startsWith('No tienes') && <AnularGuia guiaId={paquete.guia.id} alAnular={setResultado} />}
-            <p className="text-xs text-gray-600">Una guía no se edita: si hay un error, se anula con el motivo y se emite la correcta.</p>
+            {!bloqueo?.startsWith('No tienes') && <AnularGuia guiaId={paquete.guia.id} salioYa={!!salioYa} alAnular={setResultado} />}
+            <p className="text-xs text-gray-600">Una guía no se edita: si hay un error, se anula con el motivo y se emite la correcta. Se puede anular también después de la salida: el stock no se toca.</p>
           </div>
         ) : (
           <div className="mt-2 space-y-3">

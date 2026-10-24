@@ -10,7 +10,7 @@ describe('permisos del cierre de ruta', () => {
     expect(puedeCerrarRuta(['auxiliar'])).toBe(false)
     for (const r of ['jefe_transporte', 'jefe_almacen', 'direccion_tecnica', 'asistente_dt'] as const) expect(puedeRegistrarLsFr([r]), r).toBe(true)
     expect(puedeRegistrarLsFr(['auxiliar'])).toBe(false)
-    expect(puedeRegistrarLsFr(['admin_wms'])).toBe(false)
+    expect(puedeRegistrarLsFr(['auditoria_lectura'])).toBe(false)
   })
 })
 

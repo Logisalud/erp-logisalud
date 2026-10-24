@@ -6,7 +6,7 @@ import {
 } from '@/domain/documentacion'
 import { etapaDeSalida, type SalidaResumen } from '@/domain/despacho'
 import {
-  motivoDeTraslado, motivoNoPuedeAnular, puedeEmitirGuia,
+  FACTURA_ANULACION_DIRECTA_DIAS, motivoDeTraslado, motivoNoPuedeAnular, puedeEmitirGuia,
   type CasoAnulacion, type DatosGuia, type EstadoSunat, type EventoPedidos, type ModoNubefact, type RespuestaConsulta, type RespuestaEmision, type TipoEventoPedidos, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 import { registrar, type EstadoDemo } from './estado'
@@ -96,7 +96,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const bloqueado = guardiaDeOrden(e, s.id); if (bloqueado) return falla(bloqueado)
     const bloqueo = motivoNoPuedeRegistrarGuia(actor.roles, { conforme: salidaConforme(e, s.id), guia: this.guiaVigente(e, s.id) })
     if (bloqueo) return falla(bloqueo)
-    if (s.estado !== 'ABIERTA') return falla('La salida ya no está abierta')
+    if (s.estado !== 'ABIERTA' && !this.guiaDeReemplazoPosible(e, s)) return falla('La salida ya no está abierta')
     const err = validarNumeroGre(numero)
     if (err) return falla(err, { numero: err })
     const n = normalizarNumeroGre(numero)
@@ -108,6 +108,16 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     this.encolarEvento(e, s, guia, 'GUIA_EMITIDA')
     registrar(e, actor, 'gre_registrada', 'guias_remision', guia.id, `Guía ${n} · ${s.numero}`)
     return { ok: true, id: guia.id }
+  }
+
+  /** D-191 (espejo de `wms._guia_de_reemplazo_posible`): una salida ya confirmada acepta una guía nueva solo si tuvo una guía y ninguna está vigente. */
+  private guiaDeReemplazoPosible(e: EstadoDemo, s: SalidaDemo): boolean {
+    return s.estado === 'CONFIRMADA' && guias(e).some((g) => g.salidaId === s.id && g.guia.estado === 'ANULADA') && !this.guiaVigente(e, s.id)
+  }
+
+  /** D-191: la orden ya salió, su guía se anuló y no hay otra vigente. */
+  private faltaGuiaVigente(e: EstadoDemo, s: SalidaDemo): boolean {
+    return s.estado === 'CONFIRMADA' && guias(e).some((g) => g.salidaId === s.id && g.guia.estado === 'ANULADA') && !this.guiaVigente(e, s.id)
   }
 
   async anularGre(guiaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {
@@ -126,7 +136,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       pedido_id: ped ? s.pedidoId : undefined, pedido_numero: ped?.snapshot.numero ?? s.pedidoNumero, por_conciliar: !!s.porConciliar, fecha_traslado: guia.fechaInicio ?? guia.fechaTraslado, bultos: guia.bultos ?? s.bultosConformidad,
       lineas: guia.lineas.map((l) => ({ producto_codigo: l.productoCodigo, producto: l.producto, lote: l.lote, vence: l.vence, cantidad: l.cantidad })),
     }
-    if (tipo === 'GUIA_ANULADA') Object.assign(payload, { caso: guia.casoAnulacion, motivo: guia.anuladaMotivo, baja_sunat: guia.bajaSunat, aviso: 'El WMS no modifica la factura: Contabilidad decide si se anula o si corresponde una nota de crédito' })
+    if (tipo === 'GUIA_ANULADA') Object.assign(payload, { caso: guia.casoAnulacion, motivo: guia.anuladaMotivo, baja_sunat: guia.bajaSunat, salida_confirmada: s.estado === 'CONFIRMADA', falta_guia_vigente: true, factura_anulacion_directa_dias: FACTURA_ANULACION_DIRECTA_DIAS, aviso: `El WMS no modifica la factura: Pedidos decide si se anula directo en Nubefact (hasta ${FACTURA_ANULACION_DIRECTA_DIAS} días después de emitida) o si corresponde una nota de crédito` })
     ;(desp(e).eventosPedidos ??= []).push({ id: nuevoId(), tipo, estado: 'PENDIENTE', intentos: 0, creadoEn: ahora(), salidaId: s.id, guiaId: guia.id, payload })
   }
 
@@ -160,7 +170,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     if (!puedeEmitirGuia(actor.roles)) return falla('No tienes permiso para emitir la guía de remisión')
     const s = desp(e).salidas.find((x) => x.id === salidaId)
     if (!s) return falla('No encontramos esa salida')
-    if (s.estado !== 'ABIERTA') return falla('La salida ya no está abierta')
+    if (s.estado !== 'ABIERTA' && !this.guiaDeReemplazoPosible(e, s)) return falla('La salida ya no está abierta')
     const bloqueado = guardiaDeOrden(e, s.id); if (bloqueado) return falla(bloqueado)
     if (!salidaConforme(e, s.id)) return falla('La guía se emite cuando todo el pedido tiene la conformidad: sus lotes salen de lo confirmado')
     if (this.guiaVigente(e, s.id)) return falla('Este pedido ya tiene una guía. Para cambiarla, anúlala con el motivo y emite la nueva')
@@ -306,7 +316,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const g = guias(e).find((x) => x.id === guiaId)
     if (!g) return falla('No encontramos esa guía')
     const s = desp(e).salidas.find((x) => x.id === g.salidaId)!
-    const bloqueo = motivoNoPuedeAnular(actor.roles, caso, { salidaAbierta: s.estado === 'ABIERTA', guiaVigente: g.guia.estado === 'VIGENTE', motivo })
+    const bloqueo = motivoNoPuedeAnular(actor.roles, caso, { salidaAbierta: s.estado === 'ABIERTA', salidaConfirmada: s.estado === 'CONFIRMADA', guiaVigente: g.guia.estado === 'VIGENTE', motivo })
     if (bloqueo) return falla(bloqueo, bloqueo === 'Cuenta por qué se anula la guía' ? { motivo: 'Cuenta por qué se anula la guía.' } : undefined)
     if (caso === 2) {
       const cargados = desp(e).carga ? Object.values(desp(e).carga!).some((c) => c.cargados.some((x) => x.estado === 'CARGADO' && bultosCodigos(e, s.id).includes(x.codigo))) : false
@@ -317,7 +327,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const baja = g.guia.origen === 'NUBEFACT' ? 'PENDIENTE' : 'NO_APLICA'
     Object.assign(g.guia, { estado: 'ANULADA', anuladaMotivo: motivo.trim(), anuladaEn: ahora(), casoAnulacion: caso, bajaSunat: baja })
     this.encolarEvento(e, s, g.guia, 'GUIA_ANULADA')
-    registrar(e, actor, 'gre_anulada', 'guias_remision', guiaId, `Guía ${g.guia.numero} anulada (caso ${caso})`, motivo.trim())
+    registrar(e, actor, 'gre_anulada', 'guias_remision', guiaId, `Guía ${g.guia.numero} anulada (caso ${caso}${caso === 3 ? ', después de la salida: el stock no se toca' : ''})`, motivo.trim())
     return { ok: true, caso, conformidadReabierta: caso === 2, bajaSunat: baja }
   }
 
@@ -355,7 +365,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     }
     const o = this.ordenDe(e, s.id)
     const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null, devolucionPendiente: base.etapa === 'POR_DEVOLVER_PICKING', entregadaAlTransportista: !!s.entrega }, { guia: !!guia, paquete: faltantes === 0, ...this.avanceExtra(e, s) })
-    return { ...base, etapa, guia: guia?.numero, documentosFaltantes: faltantes }
+    return { ...base, etapa, guia: guia?.numero, documentosFaltantes: faltantes, faltaGuiaVigente: this.faltaGuiaVigente(e, s) || undefined }
   }
 
   /** El formato LS-FR.43.03 toma el N.° de guía de lo registrado (nada se copia: se lee de la guía vigente de cada pedido). */

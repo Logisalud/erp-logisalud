@@ -39,7 +39,7 @@ describe('validarRetorno', () => {
 describe('permiso y textos', () => {
   it('originan un retorno Sandra, Katia y los dos jefes; el auxiliar y la auditoría no', () => {
     for (const r of ['asistente_dt', 'direccion_tecnica', 'jefe_almacen', 'jefe_transporte'] as const) expect(puedeOriginarRetorno([r]), r).toBe(true)
-    for (const r of ['auxiliar', 'auditoria_lectura', 'admin_wms', 'conformidad_despacho'] as const) expect(puedeOriginarRetorno([r]), r).toBe(false)
+    for (const r of ['auxiliar', 'auditoria_lectura', 'conformidad_despacho'] as const) expect(puedeOriginarRetorno([r]), r).toBe(false)
   })
   it('deja escrito que un pedido que se reprograma es una nueva Orden de Salida', () => {
     expect(AYUDA_REPROGRAMAR).toMatch(/nueva Orden de Salida/)

@@ -81,3 +81,17 @@ export const EJEMPLOS_SALIDA: readonly EjemploSalida[] = [
 export const PREFIJO_PEDIDO_EJEMPLO = 'PED-DEMO-2'
 /** ¿Es un número de pedido de los ejemplos? */
 export const esPedidoDeEjemplo = (numero: string | undefined | null) => !!numero && numero.toUpperCase().startsWith(PREFIJO_PEDIDO_EJEMPLO)
+
+// ── Devoluciones de ejemplo (SB-D, D-193) ───────────────────────────────────────────────────────────────────────────
+// Lo que sale y vuelve entra como una recepción tipo Devolución (D-95, OS-5). La demo siembra una en cada etapa de ese camino, de órdenes de ejemplo que ya salieron.
+
+export type EtapaDevolucionEjemplo = 'POR_AUTORIZAR' | 'AUTORIZADA' | 'EN_RECEPCION' | 'ACTA_POR_DECIDIR' | 'APROBADA' | 'A_BAJAS'
+export interface EjemploDevolucion { clave: string; etapa: EtapaDevolucionEjemplo; etiqueta: string; motivo: 'RECHAZADO_CLIENTE' | 'NO_ENTREGADO'; conQuien: string; probar: string }
+export const EJEMPLOS_DEVOLUCION: readonly EjemploDevolucion[] = [
+  { clave: 'dev-por-autorizar', etapa: 'POR_AUTORIZAR', etiqueta: 'Por autorizar', motivo: 'RECHAZADO_CLIENTE', conQuien: 'Asistente de Dirección Técnica', probar: 'Autorizar la solicitud para que el almacén la reciba como devolución.' },
+  { clave: 'dev-autorizada', etapa: 'AUTORIZADA', etiqueta: 'Autorizada: falta recibirla', motivo: 'NO_ENTREGADO', conQuien: 'Auxiliar de almacén o Jefe de Almacén', probar: 'Registrar la recepción: se cuenta al 100 % y queda en el área de Devoluciones.' },
+  { clave: 'dev-en-recepcion', etapa: 'EN_RECEPCION', etiqueta: 'En recepción', motivo: 'RECHAZADO_CLIENTE', conQuien: 'Jefe de Almacén y Dirección Técnica', probar: 'Completar los datos de la recepción, generar el acta y firmarla.' },
+  { clave: 'dev-acta-por-decidir', etapa: 'ACTA_POR_DECIDIR', etiqueta: 'Acta organoléptica por decidir', motivo: 'NO_ENTREGADO', conQuien: 'Dirección Técnica', probar: 'Decidir si lo devuelto va a Aprobado o a Bajas/Rechazados (solo Dirección Técnica firma).' },
+  { clave: 'dev-aprobada', etapa: 'APROBADA', etiqueta: 'Cerrada: volvió a Aprobado', motivo: 'RECHAZADO_CLIENTE', conQuien: 'Cualquiera (lectura)', probar: 'Ver el kardex: el stock volvió de Devoluciones a Aprobado.' },
+  { clave: 'dev-a-bajas', etapa: 'A_BAJAS', etiqueta: 'Cerrada: fue a Bajas/Rechazados', motivo: 'RECHAZADO_CLIENTE', conQuien: 'Cualquiera (lectura)', probar: 'Ver que lo rechazado quedó en Bajas/Rechazados y se da de baja desde «Dar de baja».' },
+]

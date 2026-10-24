@@ -69,6 +69,8 @@ export interface ExtrasSalida {
   guiaEnEspera?: boolean
   /** Falta la guía (con la conformidad completa). */
   sinGuia?: boolean
+  /** D-191: la orden ya salió, su guía se anuló y no hay otra vigente: el stock no se toca y falta emitir la guía nueva. */
+  faltaGuiaVigente?: boolean
   /** SA-2: orden por cuenta de un cliente (tipo B): no lleva guía del WMS, se registra la GRE que trae el cliente. */
   tipo?: TipoSalida
   /** SA-2: salida por destrucción: el stock sale de Bajas, no se asigna desde los racks. */
@@ -126,8 +128,12 @@ function siguienteDeSalida(etapa: EtapaSalida, id: string, x: ExtrasSalida): Sig
       if (x.sinRuta) return siguientePlanificarRuta()
       return { texto: 'Cargar los bultos en el vehículo escaneando su QR y liberar la unidad', responsable: R.carga, href: '/carga', boton: 'Ir a la carga' }
     case 'CARGADA': return { texto: 'Liberar la unidad y confirmar la salida: ahí recién baja el stock', responsable: R.jefeTransporte, href: '/carga', boton: 'Liberar la unidad' }
-    case 'CONFIRMADA': return { texto: 'Terminada: la orden salió y el stock ya bajó', responsable: R.nadie, fin: true }
-    case 'ENTREGADA_AL_TRANSPORTISTA': return { texto: 'Terminada: la mercadería se entregó al transportista del cliente y el stock ya bajó', responsable: R.nadie, fin: true }
+    case 'CONFIRMADA':
+      if (x.faltaGuiaVigente) return { texto: 'Guía anulada, falta guía vigente: emite la guía nueva (el stock no se toca porque la orden ya salió). Si la mercadería vuelve al almacén, entra como devolución', responsable: R.jefeTransporte, href: `/salidas/${id}#panel-documentacion`, boton: 'Emitir la guía nueva' }
+      return { texto: 'Terminada: la orden salió y el stock ya bajó', responsable: R.nadie, fin: true }
+    case 'ENTREGADA_AL_TRANSPORTISTA':
+      if (x.faltaGuiaVigente) return { texto: 'GRE anulada, falta una guía vigente: registra la GRE nueva del cliente (el stock no se toca porque la orden ya salió)', responsable: R.documentos, href: `/salidas/${id}#panel-documentacion`, boton: 'Registrar la GRE nueva' }
+      return { texto: 'Terminada: la mercadería se entregó al transportista del cliente y el stock ya bajó', responsable: R.nadie, fin: true }
     case 'CANCELADA': return { texto: 'Cancelada: no se hace nada más con esta orden', responsable: R.nadie, fin: true }
   }
 }
@@ -139,7 +145,7 @@ export function avanceDeSalida(etapa: EtapaSalida, id: string, extras: ExtrasSal
   let hechos = HECHOS[etapa]
   // Documentación completa sin embalaje: la guía y el paquete están hechos, falta embalar.
   if (etapa === 'DOCUMENTACION_COMPLETA') hechos = 4
-  const terminada = etapa === 'CONFIRMADA' || etapa === 'ENTREGADA_AL_TRANSPORTISTA'
+  const terminada = (etapa === 'CONFIRMADA' || etapa === 'ENTREGADA_AL_TRANSPORTISTA') && !extras.faltaGuiaVigente
   let pasos: Paso[]
   if (esB) pasos = pasosDe(ORDEN_SALIDA_B, Math.min(hechos, 5), terminada)
   else {
@@ -200,13 +206,13 @@ export interface TareaPendiente {
 /** Lo que le toca a una persona según sus roles: el siguiente paso de cada orden o ingreso que ella puede hacer. Las más adelantadas primero (cerca de salir). */
 export function misTareas(
   roles: readonly Rol[],
-  salidas: readonly { id: string; numero: string; cliente?: string; etapa: EtapaSalida; requiereEmbalaje?: boolean; guiaEnEspera?: boolean; tipo?: TipoSalida; motivo?: string; devolucion?: 'POR_EJECUTAR' | 'POR_VERIFICAR'; devolucionHref?: string; sinPedido?: boolean; origen?: 'PEDIDO' | 'MANUAL'; rutaNumero?: string }[],
+  salidas: readonly { id: string; numero: string; cliente?: string; faltaGuiaVigente?: boolean; etapa: EtapaSalida; requiereEmbalaje?: boolean; guiaEnEspera?: boolean; tipo?: TipoSalida; motivo?: string; devolucion?: 'POR_EJECUTAR' | 'POR_VERIFICAR'; devolucionHref?: string; sinPedido?: boolean; origen?: 'PEDIDO' | 'MANUAL'; rutaNumero?: string }[],
   ingresos: readonly { id: string; numero: string; estado: EstadoSolicitud; etiquetaTipo: string; etiquetaEstado: string }[],
   etiquetaEtapa: Record<EtapaSalida, string>,
 ): TareaPendiente[] {
   const tareas: (TareaPendiente & { orden: number })[] = []
   for (const s of salidas) {
-    const a = avanceDeSalida(s.etapa, s.id, { sinEmbalaje: s.requiereEmbalaje === false, guiaEnEspera: s.guiaEnEspera, tipo: s.tipo, destruccion: s.motivo === 'DESTRUCCION', devolucion: s.devolucion, devolucionHref: s.devolucionHref, sinPedido: s.sinPedido, sinRuta: s.tipo === 'CLIENTE' ? undefined : !s.rutaNumero, porRuta: s.origen === 'MANUAL' && s.tipo !== 'CLIENTE' })
+    const a = avanceDeSalida(s.etapa, s.id, { sinEmbalaje: s.requiereEmbalaje === false, guiaEnEspera: s.guiaEnEspera, tipo: s.tipo, destruccion: s.motivo === 'DESTRUCCION', devolucion: s.devolucion, devolucionHref: s.devolucionHref, faltaGuiaVigente: s.faltaGuiaVigente, sinPedido: s.sinPedido, sinRuta: s.tipo === 'CLIENTE' ? undefined : !s.rutaNumero, porRuta: s.origen === 'MANUAL' && s.tipo !== 'CLIENTE' })
     if (esMiTarea(roles, a.siguiente)) tareas.push({ clave: `s-${s.id}`, tipo: 'SALIDA', titulo: `${s.numero}${s.cliente ? ` · ${s.cliente}` : ''}`, donde: etiquetaEtapa[s.etapa], siguiente: a.siguiente, orden: -HECHOS[s.etapa] })
   }
   for (const i of ingresos) {

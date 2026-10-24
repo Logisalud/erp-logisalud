@@ -162,3 +162,10 @@ La ruta guarda siempre al conductor real (Hans o Michele). Mientras exista el pa
 6. **Archivo que no se lee:** sube un archivo cualquiera: el aviso dice por qué y que puedes cerrar la ruta anotando la mínima y la máxima a mano.
 7. **Cruce con el cierre:** si lo que anotaste no coincide con el archivo, la pantalla muestra «No coincide con el cierre» con las dos cifras.
 
+
+## 15. Baja de una guía tras la salida, devoluciones de ejemplo y el Administrador (SB-D)
+**Guía que ya salió (Jefe de Transporte).** Abre una orden ya confirmada con guía (ej. «PED-DEMO-208») → «Documentación final» → «Anular la guía». Solo vale «La guía ya salió» (los otros dos casos aparecen apagados y dicen por qué). Escribe el motivo y confirma. Debe verse: el aviso «Guía anulada, falta guía vigente», el siguiente paso «Emitir la guía nueva», **el stock sin cambios** y el aviso a Pedidos (`GUIA_ANULADA`) en la bandeja. Emite la guía nueva con el simulador: el aviso desaparece. Antes de la salida, el caso «La guía ya salió» aparece apagado.
+
+**Devoluciones de ejemplo.** Menú Entradas → Devoluciones / Recepciones: hay seis devoluciones, una por etapa (por autorizar, autorizada, en recepción, acta por decidir, cerrada a Aprobado, cerrada a Bajas). Entra como Asistente de DT para autorizar la primera, como Jefe de Almacén para recibir la segunda y como Dirección Técnica para decidir el acta de la cuarta. Falta (S9 a S11): que «Rechazado» / «No entregado» en la ruta genere el retorno solo.
+
+**Administrador.** «Probar como» → Administrador. Ve todo el menú y puede configurar y operar; en cambio, el botón de aprobar un lote o autorizar una baja no aparece (solo Dirección Técnica). Cualquier cambio de parámetros queda en Auditoría.

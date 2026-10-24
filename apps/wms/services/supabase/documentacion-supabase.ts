@@ -215,14 +215,15 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
   /** La lista de salidas suma lo de la documentación: la guía vigente y cuántos documentos exigidos faltan. */
   private async conDocumentacion<T extends SalidaResumen>(salidas: T[]): Promise<T[]> {
     if (salidas.length === 0) return salidas
-    const [res, gs, extra] = await Promise.all([sch().rpc('documentacion_resumen'), sch().from('guias_remision').select('salida_id, numero').eq('estado', 'VIGENTE'), this.avancePorSalida()])
+    const [res, gs, extra, anuladas] = await Promise.all([sch().rpc('documentacion_resumen'), sch().from('guias_remision').select('salida_id, numero').eq('estado', 'VIGENTE'), this.avancePorSalida(), sch().from('guias_remision').select('salida_id').eq('estado', 'ANULADA')])
     const falta = new Map(((res.data ?? []) as Fila[]).map((r) => [String(r.salida_id), Number(r.faltantes)]))
     const guia = new Map(((gs.data ?? []) as Fila[]).map((g) => [String(g.salida_id), String(g.numero)]))
+    const conAnulada = new Set(((anuladas.data ?? []) as Fila[]).map((g) => String(g.salida_id)))
     return salidas.map((x) => {
       const conforme = x.etapa === 'CONFORME'
       const faltantes = conforme ? falta.get(x.id) : undefined
       const numero = guia.get(x.id)
-      return { ...x, guia: numero, documentosFaltantes: faltantes, etapa: etapaConAvance(x.etapa, { guia: !!numero, paquete: faltantes === 0, ...extra.get(x.id) }) }
+      return { ...x, guia: numero, documentosFaltantes: faltantes, faltaGuiaVigente: (x.etapa === 'CONFIRMADA' || x.etapa === 'ENTREGADA_AL_TRANSPORTISTA') && !numero && conAnulada.has(x.id) ? true : undefined, etapa: etapaConAvance(x.etapa, { guia: !!numero, paquete: faltantes === 0, ...extra.get(x.id) }) }
     })
   }
 

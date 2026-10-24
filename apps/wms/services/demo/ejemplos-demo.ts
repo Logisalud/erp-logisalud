@@ -1,7 +1,7 @@
 // Órdenes de ejemplo de la demostración (SA-1): al abrir Salidas (o cualquier pantalla de despacho) la demo ya trae una orden en cada etapa y de cada tipo, para recorrer
 // todos los flujos sin generarlos uno por uno. NO inventa estados: llama a las mismas acciones que usan las pantallas (asignar, designar picker, picking, conformidad, guía con el
 // simulador, COA, embalaje, ruta, carga, liberar y confirmar salida, cancelar). Qué se siembra lo dice la lista declarativa `EJEMPLOS_SALIDA` (domain/ejemplos.ts).
-import { EJEMPLOS_SALIDA, type EjemploSalida } from '@/domain/ejemplos'
+import { EJEMPLOS_DEVOLUCION, EJEMPLOS_SALIDA, type EjemploSalida } from '@/domain/ejemplos'
 import { validarPedidos, type PedidoSnapshot } from '@/domain/pedidos-despacho'
 import { construirConsulta, construirPayloadNubefact, faltantesDeGuia } from '@/domain/guia-electronica'
 import { loteApto } from '@/domain/salidas'
@@ -10,7 +10,7 @@ import { modoEjemplos } from '@/lib/demo'
 import { SimuladorNubefact, reiniciarSimuladorNubefact } from '../nubefact/simulador'
 import { NotificadorDemo } from '../pedidos/notificar'
 import { aplicar } from './pedidos-demo'
-import { estadoE, conIdsDeterministas } from './entradas-demo'
+import { estadoE, conIdsDeterministas, checklistConforme } from './entradas-demo'
 import { desp, duenoDelAlmacen, lotesDisponibles, type SalidaDemo } from './despacho-demo'
 import { sembrarInventario } from './inventario-demo'
 import type { EstadoDemo } from './estado'
@@ -107,6 +107,7 @@ export class EjemplosDemo extends SalidaManualDemo {
       void salida
     }
     await this.ej_sembrarBaja(dueno)
+    await this.ej_sembrarDevoluciones(e)
   }
 
   /** Una solicitud de baja de ejemplo (borrador de la Orden LS-FR.56.01), para que haya un PDF de baja que abrir (D-177). Si no hay stock bajable, no se siembra. */
@@ -114,6 +115,55 @@ export class EjemplosDemo extends SalidaManualDemo {
     const [fila] = await this.stockParaBaja(propietarioId, '', 1)
     if (!fila) return
     exigir(await this.solicitarBaja({ propietarioId, nota: 'Ejemplo de la demostración', lineas: [{ loteId: fila.loteId, posicionId: fila.posicionId, estado: fila.estado, cantidad: 1, motivo: fila.vencido ? 'VENCIDO' : 'DETERIORO_DANO', detalle: fila.vencido ? undefined : 'Caja golpeada (ejemplo)' }] }, JA), 'baja de ejemplo')
+  }
+
+  /**
+   * Una devolución de ejemplo en cada etapa (D-193): se crean con las mismas acciones que las pantallas (originar el retorno desde una orden que ya salió, autorizar, recibir al 100 %,
+   * acta organoléptica y decisión de Dirección Técnica). Si no hay una orden que ya salió, no se siembra nada.
+   */
+  private async ej_sembrarDevoluciones(e: EstadoDemo) {
+    const ROBERTO = JT; const SANDRA = CONFORMIDAD; const CHARLIE = JA
+    e.os5Sembrado = true   // las órdenes de ejemplo que ya salieron reemplazan a la orden de apoyo de los retornos (no se agrega otra a la lista)
+    const confirmadas: { id: string; loteId: string }[] = []
+    // solo de las órdenes de ejemplo que ya salieron (no de `salidasConRetorno`, que arma una orden de apoyo si no hay)
+    for (const r of desp(e).salidas.filter((x) => x.ejemplo && x.estado === 'CONFIRMADA' && (x.tipo ?? 'DISTRIBUCION') === 'DISTRIBUCION')) {
+      const s = await this.salidaParaRetorno(r.id)
+      const l = s?.lineas.find((x) => x.retornable >= 3)
+      if (s && s.confirmada && l && s.propietarioId) confirmadas.push({ id: s.salidaId, loteId: l.loteId })
+    }
+    if (confirmadas.length === 0) return
+    const docs = { docOriginalTipo: 'FACTURA' as const, docOriginalNumero: 'F001-9001' }
+    const pos = async () => (await this.posicionesDestino('DEVOLUCION'))[0]?.id
+    const recibir = async (id: string, destino: string) => {
+      exigir(await this.iniciarRecepcion(id, CHARLIE), 'dev-recepcion')
+      const sol = (await this.obtenerSolicitud(id))!
+      for (const l of sol.lineas) exigir(await this.verificarLinea(id, l.id, { coincide: true, posicionId: destino }, CHARLIE), 'dev-verificar')
+    }
+    const cerrar = async (id: string, destino: string) => {
+      await recibir(id, destino)
+      exigir(await this.editarRecepcion(id, { temperaturaC: 20, bultos: 1, paletas: 1, placa: 'DEV-001', tipoConteo: 'TOTAL' }, CHARLIE), 'dev-datos')
+      const g = exigir(await this.generarActa(id, CHARLIE), 'dev-acta')
+      exigir(await this.firmarActa(g.actaId, { rol: 'JEFE_ALMACEN' }, CHARLIE), 'dev-firma-1')
+      exigir(await this.firmarActa(g.actaId, { rol: 'DIRECCION_TECNICA' }, DT), 'dev-firma-2')
+      exigir(await this.firmarActa(g.actaId, { rol: 'RESPONSABLE_CONTEO' }, AUX), 'dev-firma-3')
+      exigir(await this.firmarActa(g.actaId, { rol: 'TRANSPORTISTA', nombre: 'Transportista de ejemplo', dni: '45678912', placa: 'DEV-001', imagen: 'data:image/png;base64,' + 'A'.repeat(200) }, CHARLIE), 'dev-firma-4')
+      exigir(await this.confirmarIngreso(id, CHARLIE), 'dev-confirmar')
+      return (await this.obtenerSolicitud(id))!.organolepticas[0]
+    }
+    for (const [i, ej] of EJEMPLOS_DEVOLUCION.entries()) {
+      try {
+        const base = confirmadas[i % confirmadas.length]
+        const r = exigir(await this.crearRetorno({ salidaId: base.id, motivo: ej.motivo, ...docs, observaciones: `Devolución de ejemplo: ${ej.etiqueta}`, lineas: [{ loteId: base.loteId, cantidad: 1 }] }, ej.etapa !== 'POR_AUTORIZAR', SANDRA), ej.clave)
+        const destino = await pos()
+        if (!destino || ej.etapa === 'POR_AUTORIZAR' || ej.etapa === 'AUTORIZADA') continue
+        if (ej.etapa === 'EN_RECEPCION') { await recibir(r.id, destino); continue }
+        const o = await cerrar(r.id, destino)
+        if (ej.etapa === 'ACTA_POR_DECIDIR') continue
+        const aprobada = ej.etapa === 'APROBADA'
+        exigir(await this.guardarOrganoleptica(o.id, { certAnalisis: true, checklist: checklistConforme(), destinoSugerido: aprobada ? 'APROBADO' : 'BAJA', conclusion: aprobada ? 'CONFORME' : 'NO_CONFORME' }, true, SANDRA), ej.clave)
+        exigir(await this.decidirOrganoleptica(o.id, aprobada ? 'APROBADO' : 'BAJAS_RECHAZADOS', aprobada ? undefined : 'Envase dañado al volver', DT), ej.clave)
+      } catch (err) { console.error('[demo] devolución de ejemplo', ej.clave, err instanceof Error ? err.message : err) }
+    }
   }
 
   // ── Los pedidos de la bandeja ───────────────────────────────────────────────────────────────────────────────

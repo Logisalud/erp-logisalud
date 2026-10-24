@@ -28,7 +28,13 @@ Respuesta: `2xx` = recibido. Cualquier otro código (o sin respuesta) deja el av
 
 ## `GUIA_ANULADA`
 
-Mismos campos más `caso` (1, 2 o 3), `motivo`, `baja_sunat` (`PENDIENTE`, `NO_APLICA` o `HECHA`) y un `aviso`. **El WMS no modifica la factura**: Contabilidad decide si se anula o si corresponde una nota de crédito. Después de un caso 2 llegará un nuevo `GUIA_EMITIDA` para el mismo pedido con otro número.
+Mismos campos más `caso` (1, 2 o 3), `motivo`, `baja_sunat` (`PENDIENTE`, `NO_APLICA` o `HECHA`) y un `aviso`. **El WMS no modifica la factura**: Pedidos decide si se anula o si corresponde una nota de crédito. Después de un caso 2 llegará un nuevo `GUIA_EMITIDA` para el mismo pedido con otro número.
+
+**Caso 3 (SB-D, D-191): la guía ya salió.** La baja **no se bloquea** después de la salida (SUNAT no fija plazo; a confirmar con la contadora). Se da de baja en el panel de Nubefact y se marca en el WMS; **el stock no se toca** y la orden queda «guía anulada, falta guía vigente»: llegará un nuevo `GUIA_EMITIDA` para el mismo pedido con otro número. Campos extra del aviso: `salida_confirmada` (true si la orden ya había salido), `falta_guia_vigente` (true) y `factura_anulacion_directa_dias` (ver abajo). Si la mercadería vuelve físicamente, entra como recepción tipo devolución (no genera evento hacia Pedidos).
+
+## Factura: anulación directa o nota de crédito (SB-D, D-192 — dato informativo)
+
+Una factura se anula **directo en Nubefact hasta 7 días después de emitida** (parámetro `factura_anulacion_directa_dias` = 7, también en `GUIA_ANULADA.factura_anulacion_directa_dias`); **pasado el plazo corresponde una nota de crédito**. Es **decisión de Pedidos**: el WMS no anula, no emite ni toca la factura, solo avisa que la guía se anuló.
 
 ## Factura: quién la emite y cómo vuelve (SA-3, D-130)
 

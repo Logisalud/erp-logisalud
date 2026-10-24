@@ -120,6 +120,8 @@ export interface SalidaResumen {
   /** N.° de la guía de remisión vigente y documentos exigidos que faltan o están vencidos (S6b). */
   guia?: string
   documentosFaltantes?: number
+  /** D-191: la orden ya salió, su guía se anuló y no hay otra vigente (el stock no se toca; falta emitir la nueva). */
+  faltaGuiaVigente?: boolean
   /** SA-2: de dónde nació la orden y quién la creó (las órdenes viejas no traen estos datos: son de un pedido). */
   tipo?: TipoSalida
   motivo?: MotivoSalida

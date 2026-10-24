@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  CASOS_ANULACION, MENSAJE_CASO_3, bajaSunatDefinida, construirPayloadNubefact, faltantesDeGuia, mensajeHumanoSunat, motivoNoPuedeAnular, observacionDeGuia, puedeAnularGuia, puedeEmitirGuia,
+  CASOS_ANULACION, MENSAJE_CASO_1_2_DESPUES_DE_SALIR, MENSAJE_CASO_3_ANTES_DE_SALIR, errorCodigoMotivo, errorDescripcionOtros, bajaSunatDefinida, construirPayloadNubefact, faltantesDeGuia, mensajeHumanoSunat, motivoNoPuedeAnular, observacionDeGuia, puedeAnularGuia, puedeEmitirGuia,
   type DatosGuia, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 
@@ -70,10 +70,10 @@ describe('el mensaje a Nubefact', () => {
 
 describe('anular la guía por casos', () => {
   const ok = { salidaAbierta: true, guiaVigente: true, motivo: 'Error' }
-  it('hay tres casos y el 3 explica el retorno como devolución', () => {
+  it('hay tres casos y el 3 (después de la salida) deja el stock quieto y explica el retorno como devolución', () => {
     expect(CASOS_ANULACION.map((c) => c.caso)).toEqual([1, 2, 3])
     expect(CASOS_ANULACION[1].sigue).toMatch(/stock regresa de Despacho/)
-    expect(CASOS_ANULACION[2].sigue).toMatch(/devolución.*nueva Orden de Salida/)
+    expect(CASOS_ANULACION[2].sigue).toMatch(/stock NO se toca.*guía nueva.*devolución/)
   })
   it('solo el Jefe de Transporte; con caso y motivo; el caso 3 o una salida confirmada no se anulan desde el WMS', () => {
     expect(puedeAnularGuia(['jefe_transporte'])).toBe(true)
@@ -82,8 +82,14 @@ describe('anular la guía por casos', () => {
     expect(motivoNoPuedeAnular(['asistente_dt'], 1, ok)).toBe('Solo el Jefe de Transporte puede anular una guía')
     expect(motivoNoPuedeAnular(['jefe_transporte'], null, ok)).toMatch(/Elige qué se equivocó/)
     expect(motivoNoPuedeAnular(['jefe_transporte'], 1, { ...ok, motivo: ' ' })).toBe('Cuenta por qué se anula la guía')
-    expect(motivoNoPuedeAnular(['jefe_transporte'], 3, ok)).toBe(MENSAJE_CASO_3)
-    expect(motivoNoPuedeAnular(['jefe_transporte'], 2, { ...ok, salidaAbierta: false })).toBe(MENSAJE_CASO_3)
+    expect(motivoNoPuedeAnular(['jefe_transporte'], 3, ok)).toBe(MENSAJE_CASO_3_ANTES_DE_SALIR)
+    // SB-D (D-191): después de la salida la baja NO se bloquea (caso 3); los casos 1 y 2 ya no valen
+    expect(motivoNoPuedeAnular(['jefe_transporte'], 3, { ...ok, salidaAbierta: false, salidaConfirmada: true })).toBeNull()
+    expect(motivoNoPuedeAnular(['jefe_transporte'], 3, { ...ok, salidaAbierta: false, salidaConfirmada: true, motivo: '' })).toBe('Cuenta por qué se anula la guía')
+    expect(motivoNoPuedeAnular(['jefe_transporte'], 2, { ...ok, salidaAbierta: false, salidaConfirmada: true })).toBe(MENSAJE_CASO_1_2_DESPUES_DE_SALIR)
+    expect(motivoNoPuedeAnular(['jefe_transporte'], 1, { ...ok, salidaAbierta: false, salidaConfirmada: false })).toMatch(/cancelada/)
+    expect(errorDescripcionOtros('x'.repeat(70))).toBeNull(); expect(errorDescripcionOtros('x'.repeat(71))).toMatch(/entre 1 y 70/); expect(errorDescripcionOtros('  ')).toMatch(/entre 1 y 70/)
+    expect(errorCodigoMotivo('06')).toBeNull(); expect(errorCodigoMotivo('6')).toMatch(/2 números/)
     expect(motivoNoPuedeAnular(['jefe_transporte'], 1, { ...ok, guiaVigente: false })).toBe('Esa guía ya está anulada')
     expect(motivoNoPuedeAnular(['jefe_transporte'], 2, ok)).toBeNull()
   })
