@@ -28,6 +28,8 @@ const CHECKLIST = [{ item: 'Vehículo limpio', ok: true, nota: '' }, { item: 'Te
 
 /** Los ids de las órdenes de ejemplo no chocan con los de la siembra inicial (que empiezan en 1). */
 const BASE_IDS = 500_000
+/** La siembra de siempre (PED-DEMO-101…104 y su ruta) también lleva ids deterministas: si no, la orden OS-2026-00001 tenía un id distinto en cada instancia de Vercel y «Abrir» daba «No encontramos eso». */
+const BASE_IDS_DESPACHO = 400_000
 
 let enBase = false
 class Falla extends Error {}
@@ -77,7 +79,7 @@ export class EjemplosDemo extends SalidaManualDemo {
     // la ruta de siempre (PED-DEMO-101) se arma dentro de `super` y vuelve a pasar por aquí: los ejemplos esperan a que termine para conservar su numeración
     if (enBase) return super.sembrarDespacho(e)
     enBase = true
-    try { await super.sembrarDespacho(e) } finally { enBase = false }
+    try { await conIdsDeterministas(BASE_IDS_DESPACHO, () => super.sembrarDespacho(e)) } finally { enBase = false }
     if (e.ejemplosSembrados) return
     e.ejemplosSembrados = true
     if (modoEjemplos() !== 'si') return
