@@ -71,8 +71,8 @@ describe('productos de clientes: libera el DT del cliente; Sandra o Katia regist
     const x = await deCliente(100, 'CL-2')
     const d = await registrar(sandra(), x.org, 90, 10)
     expect(await estados(x.ing)).toEqual([['CUARENTENA', 100]])
-    expect(await a.q(`select tipo, destinatario_rol, estado from wms.alertas where clave = $1`, ['dictamen:' + d])).toEqual([{ tipo: 'DICTAMEN_POR_CONFIRMAR', destinatario_rol: 'direccion_tecnica', estado: 'ABIERTA' }])
-    await confirmar(katia(), d)
+    expect(await a.q(`select tipo, destinatario_rol, estado from wms.alertas where clave = $1`, ['dictamen:' + d])).toEqual([{ tipo: 'DICTAMEN_POR_CONFIRMAR', destinatario_rol: 'asistente_dt', estado: 'ABIERTA' }])
+    await confirmar(katia(), d) // SB-C (D-169): el recordatorio es de quien registró (Sandra); lo confirma ella o Katia, sin segunda firma
     expect(await estados(x.ing)).toEqual([['APROBADO', 90], ['BAJAS_RECHAZADOS', 10]])
     const ac = await a.acta(x.org)
     expect(ac).toMatchObject({ estado: 'FIRMADA', decision: 'APROBADO' })
@@ -127,13 +127,13 @@ describe('productos de clientes: libera el DT del cliente; Sandra o Katia regist
     expect((await falla(base.como(sandra(), (c) => c.query(`select wms.anular_dictamen_cliente($1, 'Tarde')`, [d2])))).message).toMatch(/ya cambió el estado/)
   })
 
-  it('con el parámetro «dos personas» en sí, quien registró no confirma', async () => {
+  it('una sola persona: quien registró el dictamen lo confirma (D-169, el parámetro «dos personas» ya no se consulta)', async () => {
     const x = await deCliente(50, 'CL-8')
     await base.admin.query(`update wms.parametros set valor = 'si' where clave = 'dictamen_cliente_dos_personas'`)
     try {
       const d = await registrar(sandra(), x.org, 50, 0)
-      expect((await falla(confirmar(sandra(), d))).message).toMatch(/otra persona/)
-      await confirmar(katia(), d)
+      await confirmar(sandra(), d)
+      expect(await estados(x.ing)).toEqual([['APROBADO', 50]])
     } finally { await base.admin.query(`update wms.parametros set valor = 'no' where clave = 'dictamen_cliente_dos_personas'`) }
   })
 

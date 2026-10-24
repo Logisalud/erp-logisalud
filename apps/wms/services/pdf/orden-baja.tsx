@@ -104,7 +104,7 @@ function OrdenBajaPdf({ c, borrador, estado, hash }: { c: ContenidoOrdenBaja; bo
 
           {pi === paginas.length - 1 && (
             <View style={{ marginTop: 52, alignItems: 'center' }} wrap={false}>
-              <View style={{ width: 200, alignItems: 'center' }}><Text>………………………………..</Text><Text style={{ fontFamily: 'Helvetica-Bold', marginTop: 2 }}>V°/B°</Text></View>
+              <View style={{ width: 220, alignItems: 'center' }}><Text>………………………………..</Text><Text style={{ fontFamily: 'Helvetica-Bold', marginTop: 2 }}>V°/B°</Text><Text style={{ marginTop: 2 }}>{c.vistoBueno.nombre}</Text><Text style={{ fontSize: 8, color: '#374151' }}>{c.vistoBueno.cargo}</Text></View>
             </View>
           )}
 

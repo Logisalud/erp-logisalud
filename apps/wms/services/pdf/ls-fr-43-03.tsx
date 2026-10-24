@@ -51,7 +51,7 @@ function LsFrPdf({ r }: { r: RegistroLsFrVista }) {
             <Dato k="USUARIO:" v={r.usuario} w="38%" /><Dato k="HORA SALIDA:" v={hora(r.horaSalida)} w="31%" /><Dato k="FECHA:" v={formatoFecha(r.fecha)} w="31%" />
             <Dato k="PLACA VEHÍCULO:" v={r.placa} w="38%" /><Dato k="LLEGADA:" v={hora(r.horaLlegada)} w="31%" /><Dato k="N° PAG.:" v={`${pi + 1} de ${paginas.length}`} w="31%" />
             <Dato k="CONDUCTOR:" v={r.conductor} w="38%" /><Dato k="AUX. TRANSPORTE:" v={r.auxiliar} w="62%" />
-            <Dato k="TEMP. REGISTRADA:" v={cierre ? `${textoTemperatura(cierre.tempMin, cierre.tempMax)} (data logger Elitech GSP-6)${cierre.fueraDeRango ? ' · fuera del rango del formato' : ''}` : ''} w="100%" />
+            <Dato k="TEMP. REGISTRADA:" v={cierre ? `${textoTemperatura(cierre.tempMin, cierre.tempMax)} (data logger Elitech RC-61)${cierre.fueraDeRango ? ' · fuera del rango del formato' : ''}` : ''} w="100%" />
           </View>
 
           <View style={{ border: '1pt solid #000', marginTop: 6 }}>

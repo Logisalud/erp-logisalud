@@ -54,6 +54,14 @@ describe('muestreo LS-TB.02.02 en la demo', () => {
     expect(p.tablas[0].normal.map((t) => t.muestra)).toEqual([50, 150, 300, 500])
   })
 
+  it('D-169: quien registró el dictamen lo confirma él mismo, sin segunda firma', async () => {
+    const id = await ingresoDeCliente(60, 'CL-1P')
+    const il = (await acta(id)).ingresoLoteId
+    const d = exito(await repo.registrarDictamen(id, { liberada: 60, rechazada: 0, fechaDictamen: '2026-10-15', documento: DOC }, SANDRA))
+    expect(exito(await repo.confirmarDictamen(d.id, SANDRA)).firmada).toBe(true)
+    expect(await estados(il)).toEqual([['APROBADO', 60]])
+  })
+
   it('un lote de menos de 100 unidades se evalúa al 100 % y el acta guarda su régimen y su tabla', async () => {
     const o = await acta(await ingresoDeCliente(4, 'M-4'))
     expect(o).toMatchObject({ cantidadLote: 4, cantidadMuestra: 4, regimenMuestreo: 'LOTE_MENOR', tablaMuestreo: 'LS-TB.02.02' })
@@ -99,7 +107,7 @@ describe('liberación LS-POE.04.05 en la demo', () => {
     const il = (await acta(id)).ingresoLoteId
     const d = exito(await repo.registrarDictamen(id, { liberada: 90, rechazada: 10, fechaDictamen: '2026-10-15', documento: DOC }, SANDRA))
     expect(await estados(il)).toEqual([['CUARENTENA', 100]])
-    expect((await repo.listarAlertas()).some((a) => a.tipo === 'DICTAMEN_POR_CONFIRMAR' && a.destinatario === 'direccion_tecnica' && a.estado === 'ABIERTA')).toBe(true)
+    expect((await repo.listarAlertas()).some((a) => a.tipo === 'DICTAMEN_POR_CONFIRMAR' && a.destinatario === 'asistente_dt' && a.estado === 'ABIERTA')).toBe(true) // D-169: el recordatorio es de quien registró
     expect(exito(await repo.confirmarDictamen(d.id, KATIA)).firmada).toBe(true)
     expect(await estados(il)).toEqual([['APROBADO', 90], ['BAJAS_RECHAZADOS', 10]])
     expect(await acta(id)).toMatchObject({ estado: 'FIRMADA', decision: 'APROBADO', pendienteDecision: 0 })

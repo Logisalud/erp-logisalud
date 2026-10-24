@@ -125,7 +125,7 @@ export function PanelLiberacion({ acta, puedeObservar, puedeDictaminar, soyAsist
                 {errores.documento && <p className="mt-1 text-sm text-red-800">{errores.documento}</p>}
               </div>
               <div><label htmlFor="d-obs" className="etiqueta">Observación (opcional)</label><input id="d-obs" name="observacion" className="campo" autoComplete="off" data-testid="dictamen-observacion" /></div>
-              <p className="text-sm text-gray-700">Registrar no cambia el estado todavía: {soyAsistente ? 'Katia o Sandra confirman' : 'Sandra confirma'} el cambio en el paso siguiente.</p>
+              <p className="text-sm text-gray-700">Registrar no cambia el estado todavía: en el paso siguiente confirmas el cambio tú misma o tú mismo, sin segunda firma.</p>
               <button type="submit" className="btn-primary" disabled={pendiente} data-testid="registrar-dictamen">{pendiente ? 'Registrando…' : 'Registrar el dictamen'}</button>
             </form>
           )}

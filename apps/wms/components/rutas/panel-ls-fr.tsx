@@ -3,13 +3,15 @@
 import Link from 'next/link'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Archive, CheckCircle2, Clock, FileText, Info, Printer, ScanLine, Thermometer, TriangleAlert, Upload } from 'lucide-react'
-import { corregirCierreRutaAccion, cerrarRutaAccion, registrarImpresionLsFrAccion, subirEscaneoLsFrAccion } from '@/app/acciones-rutas'
-import { motivoNoSeCierra, motivoNoSeEscanea, tamanoLegible } from '@/domain/cierre-ruta'
+import { corregirCierreRutaAccion, cerrarRutaAccion, leerLoggerAccion, registrarImpresionLsFrAccion, subirEscaneoLsFrAccion, type ResultadoLogger } from '@/app/acciones-rutas'
+import { AYUDA_TEMPERATURA_RUTA, LIMITE_TEMPERATURA_RUTA_C, type ResumenLeido } from '@/domain/data-logger'
+import { leerTemperatura, motivoNoSeCierra, motivoNoSeEscanea, tamanoLegible } from '@/domain/cierre-ruta'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { PENDIENTES_LS_FR, cierreVigente, escaneoVigente, textoTemperatura, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import type { RutaVista } from '@/domain/rutas'
 import { Aviso } from '../entradas/aviso'
 import { useAccion } from '../usar-accion'
+import { PanelLecturasLogger, ResumenLecturaLeida } from './lecturas-logger'
 
 const chip = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap'
 const CHIP_OK = 'border-green-200 bg-green-50 text-green-800'
@@ -40,6 +42,16 @@ function Campo({ id, etiqueta, ayuda, error, children }: { id: string; etiqueta:
   )
 }
 
+/** Lo que pasó con las lecturas del archivo al cerrar o corregir, en una frase que termina en espacio (o vacía). `maxima` es lo que se anotó a mano. */
+function textoLogger(r: ResultadoLogger | undefined, maxima: number | null): string {
+  const aviso = (excede: boolean) => (excede ? ` Pasó el límite de ${String(LIMITE_TEMPERATURA_RUTA_C).replace('.', ',')} °C: avisamos a Dirección Técnica y al Jefe de Transporte; Dirección Técnica decide qué se hace con la mercadería.` : '')
+  if (!r) return ''
+  if (r.estado === 'GUARDADO') {
+    return `Leímos el archivo y guardamos sus lecturas.${aviso(r.excede)}${r.coincide === false ? ' La mínima o la máxima que anotaste no coincide con el archivo: revísalo en «Lecturas del data logger».' : ''}${r.dentroDeFecha ? '' : ' Las lecturas no son del día de la ruta: revisa que sea el archivo de este viaje.'} `
+  }
+  return `No pudimos leer las lecturas del archivo (${r.motivo.replace(/\.$/, '')}); quedó guardado tal cual y vale lo que anotaste.${maxima !== null && maxima > LIMITE_TEMPERATURA_RUTA_C ? aviso(true) : ''} `
+}
+
 /**
  * El formato LS-FR.43.03 de la ruta: lo genera el WMS desde la ruta. Aquí se IMPRIME la copia que viaja con el conductor (queda registrado quién y cuándo),
  * se sube el ESCANEO firmado (conductor y Dirección Técnica; se conserva 5 años) y se CIERRA la ruta con el archivo del data logger y la temperatura mínima y máxima.
@@ -54,6 +66,7 @@ export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar 
   const [historial, setHistorial] = useState(false)
   const [okImpresion, setOkImpresion] = useState<string | null>(null)
   const [okCierre, setOkCierre] = useState<string | null>(null)
+  const [okCorreccion, setOkCorreccion] = useState<string | null>(null)
 
   if (!registro) {
     return (
@@ -98,15 +111,17 @@ export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar 
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     fd.set('rutaId', ruta.id)
+    const maxima = leerTemperatura(String(fd.get('tempMax') ?? ''))
     cierre.ejecutar(() => cerrarRutaAccion(fd), {
-      alExito: (r) => setOkCierre(`Ruta cerrada. Guardamos el archivo del data logger${r.fueraDeRango ? ' y marcamos que la temperatura salió del rango del formato' : ''}. ${escaneoActual ? 'El formato quedó archivado.' : 'Siguiente: sube el escaneo del formato firmado.'}`),
+      alExito: (r) => setOkCierre(`Ruta cerrada. Guardamos el archivo del data logger${r.fueraDeRango ? ' y marcamos que la temperatura salió del rango del formato' : ''}. ${textoLogger(r.logger, maxima)}${escaneoActual ? 'El formato quedó archivado.' : 'Siguiente: sube el escaneo del formato firmado.'}`),
     })
   }
   const alCorregir = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     fd.set('rutaId', ruta.id)
-    correccion.ejecutar(() => corregirCierreRutaAccion(fd), { exito: 'Cierre corregido. Guardamos la versión nueva y la anterior queda en el historial.', alExito: () => setCorrigiendo(false) })
+    const maxima = leerTemperatura(String(fd.get('tempMax') ?? ''))
+    correccion.ejecutar(() => corregirCierreRutaAccion(fd), { alExito: (r) => { setOkCorreccion(`Cierre corregido. Guardamos la versión nueva y la anterior queda en el historial. ${textoLogger(r.logger, maxima)}`.trim()); setCorrigiendo(false) } })
   }
   const errCierre = cierre.mensaje?.errores ?? {}
   const errCorreccion = correccion.mensaje?.errores ?? {}
@@ -207,27 +222,29 @@ export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar 
                 <div className="flex flex-wrap gap-2"><button type="submit" className="btn-primary" disabled={correccion.pendiente} data-testid="corr-guardar">{correccion.pendiente ? 'Guardando…' : 'Guardar la corrección'}</button><button type="button" className="btn-secondary" onClick={() => setCorrigiendo(false)}>Cancelar</button></div>
               </form>
             )}
-            {correccion.mensaje?.tipo === 'ok' && <Aviso tipo="ok" testid="correccion-ok">{correccion.mensaje.texto}</Aviso>}
+            {okCorreccion && !corrigiendo && <Aviso tipo="ok" testid="correccion-ok">{okCorreccion}</Aviso>}
             {registro.cierres.length > 1 && (
               <details className="text-sm text-gray-700" data-testid="cierre-historial">
                 <summary className="min-h-11 cursor-pointer py-2 font-medium text-gray-900">Versiones anteriores del cierre ({registro.cierres.length - 1})</summary>
                 <ul className="space-y-1 pl-1">{registro.cierres.filter((x) => !x.vigente).map((x) => <li key={x.version}>Versión {x.version}: {textoTemperatura(x.tempMin, x.tempMax)} · <Link href={`/rutas/${ruta.id}/archivo/data-logger?v=${x.version}`} target="_blank" className="font-medium text-green-800 underline">{x.archivoNombre}</Link> · {x.cerradoPor} · {formatoFechaHora(x.cerradoEn)}</li>)}</ul>
               </details>
             )}
+            <PanelLecturasLogger rutaId={ruta.id} logger={registro.logger ?? []} fechaRuta={ruta.fecha} puedeImportar={puedeCerrar} cerrada sinSalir={false} />
           </div>
         ) : sinCierre ? (
-          <p className="text-sm text-gray-700" data-testid="cierre-aun-no">Se cierra cuando la unidad salió: ahí adjuntas el archivo que descargas del data logger (Elitech GSP-6) y anotas la temperatura mínima y la máxima.</p>
+          <p className="text-sm text-gray-700" data-testid="cierre-aun-no">Se cierra cuando la unidad salió: ahí adjuntas el informe del data logger (Elitech RC-61, PDF o CSV), lo leemos por ti y revisas la temperatura mínima y la máxima.</p>
         ) : !puedeCerrar ? (
           <p className="text-sm text-gray-700" data-testid="cierre-solo-jt">La unidad ya salió. La ruta la cierra el Jefe de Transporte, con el archivo del data logger y la temperatura mínima y máxima.</p>
         ) : (
           <form onSubmit={alCerrar} className="space-y-3" data-testid="form-cierre">
-            <p className="text-sm text-gray-700">La unidad ya salió. Descarga el archivo del data logger (Elitech GSP-6), súbelo aquí tal cual y anota la temperatura mínima y la máxima que marcó.</p>
+            <p className="text-sm text-gray-700">La unidad ya salió. Descarga el informe del data logger (Elitech RC-61, PDF o CSV) y súbelo aquí tal cual: lo leemos, llenamos la mínima y la máxima y avisamos si pasó el límite de 24,9 °C. Si no se puede leer, anótalas a mano.</p>
             <FormularioCierre prefijo="cierre" errores={errCierre} />
             {cierre.mensaje?.tipo === 'error' && !cierre.mensaje.errores && <Aviso tipo="error" testid="cierre-error">{cierre.mensaje.texto}</Aviso>}
             <button type="submit" className="btn-primary" disabled={cierre.pendiente} data-testid="cerrar-ruta"><CheckCircle2 className="h-5 w-5" aria-hidden />{cierre.pendiente ? 'Cerrando…' : 'Cerrar la ruta'}</button>
           </form>
         )}
-        {okCierre && cerrada && !correccion.mensaje && <Aviso tipo="ok" testid="cierre-ok">{okCierre}</Aviso>}
+        <p className="text-xs text-gray-600" data-testid="ayuda-temperatura">{AYUDA_TEMPERATURA_RUTA}</p>
+        {okCierre && cerrada && !okCorreccion && <Aviso tipo="ok" testid="cierre-ok">{okCierre}</Aviso>}
       </Paso>
 
       {registro.pendientes.length > 0 && (
@@ -241,19 +258,40 @@ export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar 
   )
 }
 
-/** Archivo del data logger, mínima, máxima y observaciones (los usan el cierre y su corrección). */
+/**
+ * Archivo del data logger, mínima, máxima y observaciones (los usan el cierre y su corrección). Al elegir el archivo (PDF o CSV del RC-61) se lee en el servidor, se muestra lo que
+ * se encontró y se llenan la mínima y la máxima; siguen siendo editables. Si no se puede leer, se anotan a mano.
+ */
 function FormularioCierre({ prefijo, errores, valores }: { prefijo: string; errores: Record<string, string>; valores?: { min: number; max: number } }) {
+  const [min, setMin] = useState(valores ? String(valores.min).replace('.', ',') : '')
+  const [max, setMax] = useState(valores ? String(valores.max).replace('.', ',') : '')
+  const [lectura, setLectura] = useState<{ estado: 'leyendo' } | { estado: 'ok'; resumen: ResumenLeido } | { estado: 'no'; mensaje: string } | null>(null)
+  const leer = async (archivo: File | undefined) => {
+    if (!archivo) { setLectura(null); return }
+    setLectura({ estado: 'leyendo' })
+    const fd = new FormData(); fd.set('archivo', archivo)
+    const r = await leerLoggerAccion(fd)
+    if (r.ok) {
+      setLectura({ estado: 'ok', resumen: r.resumen })
+      setMin(r.resumen.estadisticas.min.toFixed(1).replace('.', ',')); setMax(r.resumen.estadisticas.max.toFixed(1).replace('.', ','))
+    } else setLectura({ estado: 'no', mensaje: r.errores?.archivo ?? r.mensaje })
+  }
   return (
     <>
-      <Campo id={`${prefijo}-archivo`} etiqueta="Archivo del data logger" ayuda="(tal cual lo descargaste, hasta 10 MB)" error={errores.archivo}>
-        <input id={`${prefijo}-archivo`} name="archivo" type="file" className="campo" required aria-invalid={!!errores.archivo} data-testid={`${prefijo}-archivo`} />
+      <Campo id={`${prefijo}-archivo`} etiqueta="Archivo del data logger" ayuda="(PDF o CSV del Elitech RC-61, tal cual lo descargaste, hasta 10 MB)" error={errores.archivo}>
+        <input id={`${prefijo}-archivo`} name="archivo" type="file" className="campo" required aria-invalid={!!errores.archivo} onChange={(e) => void leer(e.target.files?.[0])} data-testid={`${prefijo}-archivo`} />
       </Campo>
+      <div aria-live="polite" data-testid={`${prefijo}-lectura`}>
+        {lectura?.estado === 'leyendo' && <p className="flex items-center gap-2 text-sm text-gray-700" data-testid={`${prefijo}-leyendo`}><Clock className="h-4 w-4" aria-hidden />Leyendo el archivo…</p>}
+        {lectura?.estado === 'ok' && <ResumenLecturaLeida resumen={lectura.resumen} />}
+        {lectura?.estado === 'no' && <Aviso tipo="info" testid={`${prefijo}-no-leido`}><p>{lectura.mensaje}</p><p className="mt-1">Puedes cerrar la ruta igual: anota la mínima y la máxima a mano y guardamos el archivo tal cual.</p></Aviso>}
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Campo id={`${prefijo}-min`} etiqueta="Temperatura mínima (°C)" error={errores.tempMin}>
-          <input id={`${prefijo}-min`} name="tempMin" inputMode="decimal" autoComplete="off" placeholder="17,5" defaultValue={valores ? String(valores.min).replace('.', ',') : undefined} className="campo tabular" required aria-invalid={!!errores.tempMin} data-testid={`${prefijo}-min`} />
+          <input id={`${prefijo}-min`} name="tempMin" inputMode="decimal" autoComplete="off" placeholder="17,5" value={min} onChange={(e) => setMin(e.target.value)} className="campo tabular" required aria-invalid={!!errores.tempMin} data-testid={`${prefijo}-min`} />
         </Campo>
         <Campo id={`${prefijo}-max`} etiqueta="Temperatura máxima (°C)" error={errores.tempMax}>
-          <input id={`${prefijo}-max`} name="tempMax" inputMode="decimal" autoComplete="off" placeholder="22,8" defaultValue={valores ? String(valores.max).replace('.', ',') : undefined} className="campo tabular" required aria-invalid={!!errores.tempMax} data-testid={`${prefijo}-max`} />
+          <input id={`${prefijo}-max`} name="tempMax" inputMode="decimal" autoComplete="off" placeholder="22,8" value={max} onChange={(e) => setMax(e.target.value)} className="campo tabular" required aria-invalid={!!errores.tempMax} data-testid={`${prefijo}-max`} />
         </Campo>
       </div>
       <Campo id={`${prefijo}-obs`} etiqueta="Observaciones" ayuda="(opcional)">

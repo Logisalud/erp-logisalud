@@ -48,7 +48,7 @@ test.describe('rutas (S4)', () => {
     await expect(page.getByTestId('lsfr-conductor-documentos')).toContainText('El formato lleva a Michele Yermain Mauriello Diaz')
     await expect(page.getByTestId('lsfr-conductor-documentos')).toContainText('El conductor real de la ruta es Luis Quispe')
     await page.getByTestId('lsfr-definiciones').locator('summary').click()
-    await expect(page.getByTestId('lsfr-definiciones')).toContainText('formato del archivo que descarga el data logger')
+    await expect(page.getByTestId('lsfr-definiciones')).toContainText('Qué se hace con la mercadería cuando el data logger supera el límite')
     await sinDesborde(page)
     await capturar(page, info, 'rutas-lsfr-panel', { completa: true })
     const href = await page.getByTestId('ver-lsfr').getAttribute('href')

@@ -101,5 +101,6 @@ export function validarDictamenCliente(d: DatosDictamen, pendiente: number): { o
 /** La decisión con la que queda firmada el acta cuando todo el lote ya tiene dictamen: Aprobado si se liberó algo; si no, Bajas/Rechazados. */
 export const decisionTrasDictamenes = (liberadas: number): 'APROBADO' | 'BAJAS_RECHAZADOS' => (liberadas > 0 ? 'APROBADO' : 'BAJAS_RECHAZADOS')
 
-export const textoTrasRegistrarDictamen = (registro: 'asistente_dt' | 'direccion_tecnica') =>
-  `Dictamen registrado. Siguiente: ${registro === 'asistente_dt' ? 'Katia o Sandra' : 'Sandra'} confirma el cambio de estado.`
+/** D-169: una sola persona, sin segunda firma. Quien registra el dictamen lo confirma él mismo. */
+export const textoTrasRegistrarDictamen = (_registro?: 'asistente_dt' | 'direccion_tecnica') =>
+  'Dictamen registrado. Siguiente: confirma el cambio de estado (lo confirmas tú; no hace falta una segunda firma).'

@@ -1,3 +1,4 @@
+import type { InformeLogger, LecturasLoggerVista } from '@/domain/data-logger'
 import type { Actor, ResultadoAccion } from './repositorio'
 
 /** Un archivo ya guardado en el almacenamiento privado (la acción del servidor lo sube y aquí solo se registra su referencia). */
@@ -7,7 +8,7 @@ export interface DatosCierreRuta {
   tempMin: number
   tempMax: number
   observaciones?: string
-  /** El archivo que se descargó del data logger (Elitech GSP-6), tal cual. */
+  /** El archivo que se descargó del data logger (Elitech RC-61), tal cual. */
   archivo: ArchivoGuardado
 }
 
@@ -23,4 +24,11 @@ export interface RepositorioCierreRuta {
   corregirCierreRuta(rutaId: string, datos: DatosCierreRuta, motivo: string, actor: Actor): Promise<ResultadoAccion<{ version: number; fueraDeRango: boolean }>>
   /** El archivo guardado (para descargarlo): la versión pedida o la vigente. */
   archivoLsFr(rutaId: string, que: 'ESCANEO' | 'DATA_LOGGER', version?: number): Promise<{ ref: string; nombre: string; tipo?: string } | null>
+  /**
+   * SB-C: guarda las lecturas leídas del informe del data logger (PDF o CSV del Elitech RC-61). La base recalcula mínima, máxima y minutos sobre el límite de 24,9 °C, cruza con el cierre vigente de la
+   * ruta (si ya está cerrada) y con su fecha, y alerta a Dirección Técnica y al Jefe de Transporte si supera el límite. Una importación nueva reemplaza a la vigente y la anterior queda.
+   */
+  importarLecturasLogger(rutaId: string, informe: InformeLogger, archivo: { nombre: string; hash: string; ref?: string }, actor: Actor): Promise<ResultadoAccion<{ excede: boolean; coincide: boolean | null; dentroDeFecha: boolean }>>
+  /** Las importaciones de la ruta, la más nueva primero; solo la vigente trae las lecturas. */
+  lecturasLogger(rutaId: string): Promise<LecturasLoggerVista[]>
 }

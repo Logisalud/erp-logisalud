@@ -57,3 +57,12 @@ describe('permisos de liberación', () => {
     expect(esPersonal(['dt_cliente'])).toBe(false)
   })
 })
+
+describe('SB-C (D-169): dictamen sin segunda firma', () => {
+  it('el texto tras registrar dice que lo confirma quien lo registró, para Sandra y para Katia', async () => {
+    const { textoTrasRegistrarDictamen } = await import('@/domain/liberacion')
+    for (const quien of ['asistente_dt', 'direccion_tecnica'] as const) {
+      expect(textoTrasRegistrarDictamen(quien)).toBe('Dictamen registrado. Siguiente: confirma el cambio de estado (lo confirmas tú; no hace falta una segunda firma).')
+    }
+  })
+})

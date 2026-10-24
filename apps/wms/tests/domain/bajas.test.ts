@@ -108,6 +108,13 @@ describe('siguiente paso y documento LS-FR.56.01', () => {
     expect(c.lineas[0].sustento).toMatch(/Venció el 30\/06\/2026/)
     expect(PARAMETROS_FORMATO_BAJA.formato).toBe(c.formato)
   })
+  it('SB-C (D-170): el código oficial es LS-FR.56.01 y Katia Zapata firma el Visto Bueno; el nombre y el cargo del V°/B° vienen de la base', () => {
+    const c = contenidoDeOrden(orden(), '2026-10-23')
+    expect(c.formato).toBe('LS-FR.56.01')
+    expect(c.formato).not.toMatch(/POE/)
+    expect(c.vistoBueno).toEqual({ nombre: 'Katia Zapata', cargo: 'Dirección Técnica' })
+    expect(contenidoDeOrden(orden(), '2026-10-23', { ...PARAMETROS_FORMATO_BAJA, vistoBuenoNombre: 'Otra Persona', vistoBuenoCargo: 'Otro cargo' }).vistoBueno).toEqual({ nombre: 'Otra Persona', cargo: 'Otro cargo' })
+  })
   it('los parámetros del formato vienen de la base (los pendientes de Katia no están escritos en el PDF)', () => {
     const c = contenidoDeOrden(orden(), '2026-10-17', { ...PARAMETROS_FORMATO_BAJA, solicitanteNombre: 'Katia Zapata Rojas', solicitanteCargo: 'Directora Técnica' })
     expect(c.solicitante).toEqual({ nombre: 'Katia Zapata Rojas', cargo: 'Directora Técnica' })

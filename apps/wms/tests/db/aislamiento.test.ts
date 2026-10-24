@@ -320,6 +320,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'cambiar_conductor_en_documentos', 'guardar_documentos_personal',
     // SB-B (0032): numeración atómica de las guías
     'reservar_numero_guia', 'liberar_numero_guia', 'marcar_numero_guia_ocupado', 'confirmar_correlativo_guia', 'corregir_correlativo_guia',
+    // SB-C (0033): lecturas del data logger (las funciones `es_producto_nuevo` y `es_proveedor_nuevo` son internas)
+    'registrar_lecturas_logger',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {

@@ -63,6 +63,8 @@ export const CLAVES_UNICAS: Readonly<Record<string, readonly string[]>> = {
   'wms.ruta_cierres': ['id'],
   'wms.ls_fr_impresiones': ['id'],
   'wms.ls_fr_escaneos': ['id'],
+  'wms.ruta_logger_importes': ['id'],
+  'wms.ruta_logger_lecturas': ['id'],
   'wms.cargas_iniciales': ['id'],
   'wms.cargas_iniciales_lineas': ['id'],
   'wms.reservas': ['id'],
