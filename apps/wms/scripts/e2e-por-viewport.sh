@@ -15,7 +15,8 @@ if curl -s -o /dev/null "http://localhost:${PUERTO}/wms/login"; then
   echo "El puerto ${PUERTO} ya está ocupado (¿un servidor viejo?). Detén ese servidor y vuelve a correr." >&2
   exit 1
 fi
-for proyecto in desktop-1440x900 laptop-1280x800 tablet-1024x768 telefono-390x844; do
+# WMS_E2E_VIEWPORTS (opcional, separados por espacio) limita los tamaños; la CI de un PR usa solo escritorio 1440x900, main corre los 4.
+for proyecto in ${WMS_E2E_VIEWPORTS:-desktop-1440x900 laptop-1280x800 tablet-1024x768 telefono-390x844}; do
   cleanup
   sleep 1
   WMS_DEMO_LOCAL=1 WMS_DEMO_DATOS=sintetico PORT="$PUERTO" setsid npx next start -p "$PUERTO" >/dev/null 2>&1 &
