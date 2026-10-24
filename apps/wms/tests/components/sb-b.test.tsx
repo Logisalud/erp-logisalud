@@ -131,7 +131,8 @@ describe('«Numeración de guías»', () => {
     expect(screen.getByTestId('numeracion-bloqueo')).toHaveTextContent('Una guía real no sale')
     expect(screen.getByTestId('numeracion-proximo')).toHaveTextContent('TTT1-00002888')
     expect(screen.getByTestId('regla-panel')).toHaveTextContent('el panel de Nubefact solo se usa para dar de baja')
-    expect(screen.queryByTestId('probar-conexion')).toBeNull()                      // el simulador no tiene conexión que probar
+    expect(screen.getByTestId('conexion-destino')).toHaveTextContent('Simulador')   // D-210: siempre dice a qué está conectada
+    expect(screen.getByTestId('conexion-destino')).not.toHaveTextContent('Nubefact')
     expect(screen.getByTestId('confirmar-correlativo')).toBeDisabled()
     await userEvent.type(screen.getByTestId('correlativo-inicial'), '0')
     expect(await screen.findByTestId('error-correlativo-inicial')).toHaveTextContent('entero de 1 a 99 999 999')
@@ -157,6 +158,8 @@ describe('«Numeración de guías»', () => {
     await userEvent.type(screen.getByTestId('correlativo-motivo'), 'Alguien emitió desde el panel')
     await userEvent.click(screen.getByTestId('corregir-correlativo-boton'))
     await waitFor(() => expect(num.corregirCorrelativoGuiaAccion).toHaveBeenCalledWith('TTT1', 2905, 'Alguien emitió desde el panel'))
+    expect(screen.getByTestId('conexion-destino')).toHaveTextContent('Nubefact (modo prueba)')
+    expect(screen.getByTestId('numeracion-entorno')).toHaveTextContent('Nubefact (modo prueba)')
     await userEvent.click(screen.getByTestId('probar-conexion-boton'))
     expect(await screen.findByTestId('probar-conexion-resultado')).toHaveTextContent('Nubefact respondió y aceptó el token.')
   })

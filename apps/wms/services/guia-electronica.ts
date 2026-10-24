@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { construirConsulta, construirPayloadNubefact, faltantesDeGuia, partirNumeroGuia, type CasoAnulacion, type EstadoSunat, type RespuestaEmision, type TrasladoGuia } from '@/domain/guia-electronica'
+import { NOMBRE_MODO, construirConsulta, construirPayloadNubefact, faltantesDeGuia, partirNumeroGuia, type CasoAnulacion, type EstadoSunat, type RespuestaEmision, type TrasladoGuia } from '@/domain/guia-electronica'
 import { MENSAJE_RESULTADO_INCIERTO, mensajeNumeroOcupado, mensajeSalto, numeroConSerie } from '@/domain/numeracion-guias'
 import { repositorio } from './repositorio-actual'
 import { clienteNubefact, modoNubefactActual, nubefactDemoIncompleto, NubefactNoConfigurado, type ResultadoPruebaConexion } from './nubefact/cliente'
@@ -146,6 +146,6 @@ export async function probarConexionNubefact(): Promise<{ ok: boolean; modo: str
   let cliente
   try { cliente = clienteNubefact() } catch (e) { return { ok: false, modo: modoNubefactActual(), mensaje: e instanceof NubefactNoConfigurado ? e.message : 'No se pudo conectar con Nubefact' } }
   const r: ResultadoPruebaConexion = await cliente.probarConexion()
-  const base = r.ok ? r.detalle : r.error
+  const base = `${NOMBRE_MODO[cliente.modo]}: ${r.ok ? r.detalle : r.error}`
   return { ok: r.ok, modo: cliente.modo, mensaje: incompleto ? `${incompleto} ${base}` : base }
 }

@@ -144,7 +144,7 @@ test.describe('excepciones del flujo de salida', () => {
     await expect(page.getByTestId('numeracion-guias')).toContainText('Falta confirmar el correlativo inicial')
     await expect(page.getByTestId('numeracion-ultimo')).toContainText('TTT1-00000001')
     await expect(page.getByTestId('regla-panel')).toContainText('el panel de Nubefact solo se usa para dar de baja')
-    await expect(page.getByTestId('probar-conexion')).toHaveCount(0)
+    await expect(page.getByTestId('conexion-destino')).toContainText('Simulador')
     await capturar(page, info, 'guia-numeracion', { completa: true })
 
     // error en el contenido (caso 2): el Jefe de Transporte anula, la Orden vuelve a conformidad, otra persona confirma de nuevo y se emite otra guía

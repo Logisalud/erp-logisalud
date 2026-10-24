@@ -125,3 +125,11 @@ describe('numeración de las guías', () => {
     expect(numeroConSerie('TTT1', 2888)).toBe('TTT1-00002888')
   })
 })
+
+describe('D-210: nombres del modo de Nubefact en pantalla', () => {
+  it('cada modo tiene un nombre claro y ninguna etiqueta lleva ruta ni token', async () => {
+    const { NOMBRE_MODO, ETIQUETA_MODO } = await import('@/domain/guia-electronica')
+    expect(NOMBRE_MODO).toEqual({ SIMULADOR: 'Simulador', PRUEBA: 'Nubefact (modo prueba)', PRODUCCION: 'Nubefact (producción)' })
+    for (const m of ['SIMULADOR', 'PRUEBA', 'PRODUCCION'] as const) { expect(ETIQUETA_MODO[m].startsWith(NOMBRE_MODO[m])).toBe(true); expect(ETIQUETA_MODO[m]).not.toMatch(/https?:|token/i) }
+  })
+})

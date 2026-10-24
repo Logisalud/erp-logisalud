@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { FlaskConical, Send, ShieldAlert, Truck, TriangleAlert } from 'lucide-react'
 import { emitirGuiaElectronicaAccion } from '@/app/acciones-picking'
-import { ETIQUETA_MODO, PESO_BRUTO_DEFECTO_KG, faltantesDeGuia, type DatosGuia, type ModoNubefact } from '@/domain/guia-electronica'
+import { ETIQUETA_MODO, NOMBRE_MODO, PESO_BRUTO_DEFECTO_KG, faltantesDeGuia, type DatosGuia, type ModoNubefact } from '@/domain/guia-electronica'
 import { mesAnio } from '@/domain/salidas'
 import { numeroConSerie } from '@/domain/numeracion-guias'
 import { useAccion } from '../usar-accion'
@@ -65,7 +65,7 @@ export function EmitirGuia({ datos, modo, hoy, alEmitir }: { datos: DatosGuia; m
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" className="btn-primary" disabled={pendiente || faltan.length > 0} data-testid="emitir-guia-boton"
           onClick={() => ejecutar(() => emitirGuiaElectronicaAccion(d.salidaId, traslado), {
-            alExito: (r) => alEmitir(`Guía ${r.numero} emitida (${ETIQUETA_MODO[r.entorno as ModoNubefact]}). ${r.saltados.length ? `Los números ${r.saltados.map((n) => numeroConSerie(d.serie, n)).join(', ')} ya existían en Nubefact (alguien emitió desde el panel): se saltaron. Recuerda: el panel solo se usa para dar de baja. ` : ''}${r.adoptada ? 'Nubefact ya tenía esta guía de un intento anterior: se registró sin duplicarla. ' : ''}${r.estadoSunat === 'ACEPTADA' ? `SUNAT la aceptó. ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje si va a provincia y la carga.` : 'SUNAT todavía no responde. Siguiente: pulsa «Consultar estado en SUNAT» en unos minutos; cuando la acepte, Pedidos recibe el número y podrás cargar.'}`),
+            alExito: (r) => alEmitir(`Guía ${r.numero} emitida en ${NOMBRE_MODO[r.entorno as ModoNubefact]}. ${r.saltados.length ? `Los números ${r.saltados.map((n) => numeroConSerie(d.serie, n)).join(', ')} ya existían en Nubefact (alguien emitió desde el panel): se saltaron. Recuerda: el panel solo se usa para dar de baja. ` : ''}${r.adoptada ? 'Nubefact ya tenía esta guía de un intento anterior: se registró sin duplicarla. ' : ''}${r.estadoSunat === 'ACEPTADA' ? `SUNAT la aceptó. ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje si va a provincia y la carga.` : 'SUNAT todavía no responde. Siguiente: pulsa «Consultar estado en SUNAT» en unos minutos; cuando la acepte, Pedidos recibe el número y podrás cargar.'}`),
           })}>
           <Send className="h-5 w-5" aria-hidden />{pendiente ? 'Emitiendo…' : 'Emitir guía'}
         </button>

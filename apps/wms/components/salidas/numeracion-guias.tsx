@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { CheckCircle2, Hourglass, Plug, ShieldAlert } from 'lucide-react'
 import { confirmarCorrelativoGuiaAccion, corregirCorrelativoGuiaAccion, probarConexionNubefactAccion } from '@/app/acciones-picking'
-import { ETIQUETA_MODO, type ModoNubefact } from '@/domain/guia-electronica'
+import { ETIQUETA_MODO, NOMBRE_MODO, type ModoNubefact } from '@/domain/guia-electronica'
 import { REGLA_PANEL_NUBEFACT, numeroConSerie, puedeAdministrarNumeracion, validarCorrelativoInicial, type EstadoCorrelativo } from '@/domain/numeracion-guias'
 import type { Rol } from '@/domain/tipos'
 import { useAccion } from '../usar-accion'
@@ -80,12 +80,11 @@ export function NumeracionGuias({ estado, modo, roles }: { estado: EstadoCorrela
         </details>
       )}
 
-      {real && (
-        <div className="space-y-2" data-testid="probar-conexion">
-          <button type="button" className="btn-secondary btn-sm" onClick={probar} disabled={probando} data-testid="probar-conexion-boton"><Plug className="h-4 w-4" aria-hidden />{probando ? 'Probando…' : 'Probar conexión con Nubefact'}</button>
-          {conexion && <Aviso tipo={conexion.ok ? 'ok' : 'error'} testid="probar-conexion-resultado">{conexion.texto}</Aviso>}
-        </div>
-      )}
+      <div className="space-y-2" data-testid="probar-conexion">
+        <p className="text-sm text-gray-800" data-testid="conexion-destino" data-modo={modo}>Esta guía se emite en: <strong className="font-medium text-gray-900">{NOMBRE_MODO[modo]}</strong></p>
+        <button type="button" className="btn-secondary btn-sm" onClick={probar} disabled={probando} data-testid="probar-conexion-boton"><Plug className="h-4 w-4" aria-hidden />{probando ? 'Probando…' : real ? 'Probar conexión con Nubefact' : 'Ver a qué estoy conectado'}</button>
+        {conexion && <Aviso tipo={conexion.ok ? 'ok' : 'error'} testid="probar-conexion-resultado">{conexion.texto}</Aviso>}
+      </div>
     </section>
   )
 }

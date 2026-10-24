@@ -79,5 +79,5 @@ export class SimuladorNubefact implements ClienteNubefact {
     }
   }
 
-  async probarConexion(): Promise<ResultadoPruebaConexion> { return { ok: true, detalle: 'El simulador siempre responde: no hay conexión real que probar.' } }
+  async probarConexion(): Promise<ResultadoPruebaConexion> { return { ok: true, detalle: 'No hay conexión real con Nubefact: las guías no existen ante SUNAT.' } }
 }

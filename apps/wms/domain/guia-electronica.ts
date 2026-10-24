@@ -9,10 +9,12 @@ import { MENSAJE_SIN_CORRELATIVO, type CausaNubefact } from './numeracion-guias'
 
 export type ModoNubefact = 'SIMULADOR' | 'PRUEBA' | 'PRODUCCION'
 export const ETIQUETA_MODO: Record<ModoNubefact, string> = {
-  SIMULADOR: 'Simulador: la guía no existe ante SUNAT',
-  PRUEBA: 'Entorno de pruebas de Nubefact: la guía no llega a SUNAT',
-  PRODUCCION: 'Producción: la guía es real',
+  SIMULADOR: 'Simulador · la guía no existe ante SUNAT',
+  PRUEBA: 'Nubefact (modo prueba) · la guía no llega a SUNAT',
+  PRODUCCION: 'Nubefact (producción) · la guía es real',
 }
+/** El nombre corto con que la pantalla dice a qué está conectada la guía (D-210). Nunca lleva la ruta ni el token. */
+export const NOMBRE_MODO: Record<ModoNubefact, string> = { SIMULADOR: 'Simulador', PRUEBA: 'Nubefact (modo prueba)', PRODUCCION: 'Nubefact (producción)' }
 export type EstadoSunat = 'ACEPTADA' | 'PENDIENTE' | 'RECHAZADA'
 export const ETIQUETA_ESTADO_SUNAT: Record<EstadoSunat, string> = { ACEPTADA: 'Aceptada por SUNAT', PENDIENTE: 'SUNAT todavía no responde', RECHAZADA: 'Rechazada por SUNAT' }
 
