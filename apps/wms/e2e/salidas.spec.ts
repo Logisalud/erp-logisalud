@@ -142,8 +142,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     // una guía no se edita: se anula con motivo y se registra la correcta
     await page.getByTestId('anular-gre').click()
     await expect(page.getByTestId('confirmar-anular-gre')).toBeDisabled()          // primero se elige qué se equivocó
-    await page.getByTestId('caso-3').check({ force: true })
-    await expect(page.getByTestId('aviso-caso-3')).toContainText('retorno como devolución')
+    await expect(page.getByTestId('caso-3')).toBeDisabled()                        // «la guía ya salió» solo vale después de la salida (SB-D)
     await page.getByTestId('caso-1').check({ force: true })
     await expect(page.getByTestId('que-sigue-anulacion')).toContainText('La Orden de Salida no cambia')
     await page.getByTestId('motivo-anular-gre').fill('Error de digitación')
