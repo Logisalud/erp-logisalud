@@ -33,7 +33,8 @@ servir() {
   until curl -s -o /dev/null "http://localhost:${1}/wms/login"; do sleep 1; done
 }
 
-for proyecto in desktop-1440x900 laptop-1280x800 tablet-1024x768 telefono-390x844; do
+# WMS_E2E_VIEWPORTS (opcional, separados por espacio) limita los tamaños; la CI de un PR usa solo el teléfono, main corre los 4.
+for proyecto in ${WMS_E2E_VIEWPORTS:-desktop-1440x900 laptop-1280x800 tablet-1024x768 telefono-390x844}; do
   echo "── $proyecto"
   servir "$BASE" 0
   WMS_E2E_MODO=principal WMS_E2E_PUERTO="$BASE" npx playwright test --project="$proyecto" || resultado=1
