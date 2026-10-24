@@ -227,9 +227,10 @@ describe('temperatura en ruta: límite de 24.9 °C (D-173, D-174)', () => {
 })
 
 describe('importar las lecturas del data logger (D-175, D-176)', () => {
+  // el Administrador (SB-D, D-190…) cuenta como Jefe de Transporte: importa igual que él
   it('solo el Jefe de Transporte importa, y solo desde que la unidad salió', async () => {
     const r = await ruta('EN_RUTA')
-    for (const quien of [base.personas.aux.id, base.personas.charlie.id, katia(), sandra(), base.personas.admin.id, base.personas.sinRol.id]) {
+    for (const quien of [base.personas.aux.id, base.personas.charlie.id, katia(), sandra(), base.personas.sinRol.id]) {
       expect((await falla(importar(quien, r, lecturas([22, 23])))).code, quien).toBe('42501')
     }
     for (const e of ['BORRADOR', 'PLANIFICADA', 'LISTA_PARA_CARGA', 'LIBERADA', 'CANCELADA']) {
