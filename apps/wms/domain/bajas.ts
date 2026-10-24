@@ -367,6 +367,8 @@ export interface ContenidoOrdenBaja {
   fecha: string
   reemite?: string
   solicitante: { nombre: string; cargo: string }
+  /** Quien firma el V°/B° (DT 2026-10-23, D-170): Katia Zapata, Dirección Técnica. */
+  vistoBueno: { nombre: string; cargo: string }
   motivoTraslado: string
   propietario: { codigo: string; razonSocial: string }
   lineas: LineaContenidoBaja[]
@@ -378,13 +380,15 @@ export interface ParametrosFormatoBaja {
   vigencia: string
   solicitanteNombre: string
   solicitanteCargo: string
+  vistoBuenoNombre: string
+  vistoBuenoCargo: string
   motivoTraslado: string
 }
 
-/** Lo mismo que los parámetros de la migración 0026 (los datos pendientes de Katia quedan aquí, no en el código del PDF). */
+/** Lo mismo que los parámetros de las migraciones 0026 y 0033 (código oficial LS-FR.56.01; Katia Zapata firma el V°/B°): quedan aquí, no en el código del PDF. */
 export const PARAMETROS_FORMATO_BAJA: ParametrosFormatoBaja = {
   formato: 'LS-FR.56.01', poe: 'LS-POE.11.01', vigencia: 'Desde 01.09.2026 hasta 01.09.2028',
-  solicitanteNombre: 'Katia Zapata', solicitanteCargo: 'Dirección Técnica', motivoTraslado: 'Traslado al área de baja',
+  solicitanteNombre: 'Katia Zapata', solicitanteCargo: 'Dirección Técnica', vistoBuenoNombre: 'Katia Zapata', vistoBuenoCargo: 'Dirección Técnica', motivoTraslado: 'Traslado al área de baja',
 }
 
 export function textoSustentoLinea(l: LineaBajaVista): string | undefined {
@@ -398,7 +402,7 @@ export function textoSustentoLinea(l: LineaBajaVista): string | undefined {
 export function contenidoDeOrden(o: OrdenBajaVista, fecha: string, params: ParametrosFormatoBaja = PARAMETROS_FORMATO_BAJA): ContenidoOrdenBaja {
   return {
     formato: params.formato, poe: params.poe, vigencia: params.vigencia, numero: o.numero, fecha, reemite: o.reemiteDe?.numero,
-    solicitante: { nombre: params.solicitanteNombre, cargo: params.solicitanteCargo }, motivoTraslado: params.motivoTraslado,
+    solicitante: { nombre: params.solicitanteNombre, cargo: params.solicitanteCargo }, vistoBueno: { nombre: params.vistoBuenoNombre, cargo: params.vistoBuenoCargo }, motivoTraslado: params.motivoTraslado,
     propietario: { codigo: o.propietarioCodigo, razonSocial: o.propietario },
     lineas: o.lineas.map((l): LineaContenidoBaja => ({
       n: l.n, productoCodigo: l.productoCodigo, producto: l.producto, presentacion: l.presentacion, registroSanitario: l.registroSanitario, lote: l.lote, vence: l.vence,

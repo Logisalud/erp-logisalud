@@ -180,8 +180,8 @@ export class LiberacionDemo extends CierreRutaDemo implements RepositorioLiberac
     }
     ;(o.dictamenes ??= []).unshift(d)
     // El otro de los dos confirma: si lo registró Katia, avisa a Sandra; si lo registró Sandra, a Katia.
-    alertar(e, 'DICTAMEN_POR_CONFIRMAR', actor.roles.includes('direccion_tecnica') ? 'asistente_dt' : 'direccion_tecnica',
-      `Se registró el dictamen del DT del cliente para ${o.producto} (lote ${o.lote}): ${datos.liberada} liberadas y ${datos.rechazada} rechazadas. Falta confirmar el cambio de estado.`, `dictamen:${d.id}`, o.solicitudId, o.productoId, o.lote)
+    alertar(e, 'DICTAMEN_POR_CONFIRMAR', actor.roles.includes('direccion_tecnica') ? 'direccion_tecnica' : 'asistente_dt', // D-169: el recordatorio es de quien lo registró (sin segunda firma)
+      `Registraste el dictamen del DT del cliente para ${o.producto} (lote ${o.lote}): ${datos.liberada} liberadas y ${datos.rechazada} rechazadas. Falta confirmar el cambio de estado.`, `dictamen:${d.id}`, o.solicitudId, o.productoId, o.lote)
     registrar(e, actor, 'dictamen_cliente_registrado', 'actas_organolepticas', o.numero, `${datos.liberada} liberadas y ${datos.rechazada} rechazadas · ${datos.documento.nombre}`, datos.observacion)
     return { ok: true, id: d.id }
   }

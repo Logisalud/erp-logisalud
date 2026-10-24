@@ -6,7 +6,9 @@ import type { PersonalTransporte, PlanRuta, VehiculoVista } from '@/domain/rutas
 import type { Actor, ResultadoAccion } from '@/services/repositorio'
 import type { DatosCierreRuta } from '@/services/repositorio-cierre-ruta'
 import { guardarArchivo } from '@/services/archivos'
-import { leerTemperatura, validarArchivoLogger, validarCierre, validarEscaneo } from '@/domain/cierre-ruta'
+import { leerInforme } from '@/services/logger/leer-informe'
+import { resumenDeInforme, type ResumenLeido } from '@/domain/data-logger'
+import { leerTemperatura, puedeCerrarRuta, validarArchivoLogger, validarCierre, validarEscaneo } from '@/domain/cierre-ruta'
 
 async function quien(): Promise<Actor> {
   const ctx = await exigirContexto()
@@ -49,18 +51,64 @@ async function datosCierre(f: FormData): Promise<{ datos: DatosCierreRuta } | { 
   return { datos: { tempMin: tempMin!, tempMax: tempMax!, observaciones: texto(f, 'observaciones') || undefined, archivo: { ref: g.ref, nombre: archivo!.name, hash: g.hash, bytes: archivo!.size, tipo: archivo!.type || undefined } } }
 }
 
-/** Cierra la ruta: guarda el archivo del data logger tal cual (sin leerlo) y registra la temperatura mínima y máxima. */
-export async function cerrarRutaAccion(f: FormData): Promise<ResultadoAccion<{ fueraDeRango: boolean }>> {
-  const d = await datosCierre(f)
-  if ('error' in d) return d.error
-  return repositorio().cerrarRuta(texto(f, 'rutaId'), d.datos, await quien())
+/** Lo que pasó con las lecturas del archivo del data logger al cerrar o corregir: se guardaron (con su cruce) o no se pudieron leer (y por qué). */
+export type ResultadoLogger =
+  | { estado: 'GUARDADO'; excede: boolean; coincide: boolean | null; dentroDeFecha: boolean }
+  | { estado: 'NO_LEIDO'; motivo: string }
+
+/** Lee el archivo del cierre y guarda sus lecturas. Si no se puede leer o guardar, el cierre sigue valiendo: se dice por qué y se puede anotar a mano. */
+async function guardarLecturas(f: FormData, d: DatosCierreRuta, actor: Actor): Promise<ResultadoLogger> {
+  const archivo = archivoDe(f)
+  if (!archivo) return { estado: 'NO_LEIDO', motivo: 'Sin archivo.' }
+  const lectura = leerInforme(archivo.name, archivo.type, Buffer.from(await archivo.arrayBuffer()))
+  if (!lectura.ok) return { estado: 'NO_LEIDO', motivo: lectura.mensaje }
+  const r = await repositorio().importarLecturasLogger(texto(f, 'rutaId'), lectura.informe, { nombre: d.archivo.nombre, hash: d.archivo.hash, ref: d.archivo.ref }, actor)
+  return r.ok ? { estado: 'GUARDADO', excede: r.excede, coincide: r.coincide, dentroDeFecha: r.dentroDeFecha } : { estado: 'NO_LEIDO', motivo: r.mensaje }
 }
 
-/** Corrige el cierre de una ruta cerrada (versión nueva con su motivo; la anterior queda). */
-export async function corregirCierreRutaAccion(f: FormData): Promise<ResultadoAccion<{ version: number; fueraDeRango: boolean }>> {
+/** Solo lee el archivo (no guarda nada): la pantalla muestra lo que encontró y rellena la mínima y la máxima. */
+export async function leerLoggerAccion(f: FormData): Promise<ResultadoAccion<{ resumen: ResumenLeido }>> {
+  const ctx = await exigirContexto()
+  if (!puedeCerrarRuta(ctx.roles)) return falla('Solo el Jefe de Transporte lee el archivo del data logger.')
+  const archivo = archivoDe(f)
+  if (!archivo) return falla('Falta el archivo.', { archivo: 'Adjunta el archivo que descargaste del data logger.' })
+  const malo = validarArchivoLogger({ nombre: archivo.name, bytes: archivo.size })
+  if (malo) return falla(malo, { archivo: malo })
+  const lectura = leerInforme(archivo.name, archivo.type, Buffer.from(await archivo.arrayBuffer()))
+  return lectura.ok ? { ok: true, resumen: resumenDeInforme(lectura.informe) } : falla(lectura.mensaje, { archivo: lectura.mensaje })
+}
+
+/** Cierra la ruta: guarda el archivo del data logger tal cual, registra la mínima y la máxima y, si es un informe del RC-61 (PDF o CSV), guarda sus lecturas y las cruza con el cierre. */
+export async function cerrarRutaAccion(f: FormData): Promise<ResultadoAccion<{ fueraDeRango: boolean; logger: ResultadoLogger }>> {
+  const d = await datosCierre(f)
+  if ('error' in d) return d.error
+  const actor = await quien()
+  const r = await repositorio().cerrarRuta(texto(f, 'rutaId'), d.datos, actor)
+  if (!r.ok) return r
+  return { ...r, logger: await guardarLecturas(f, d.datos, actor) }
+}
+
+/** Corrige el cierre de una ruta cerrada (versión nueva con su motivo; la anterior queda) y vuelve a leer el archivo si es un informe del RC-61. */
+export async function corregirCierreRutaAccion(f: FormData): Promise<ResultadoAccion<{ version: number; fueraDeRango: boolean; logger: ResultadoLogger }>> {
   const motivo = texto(f, 'motivo')
   if (!motivo) return falla('Cuenta por qué se corrige el cierre.', { motivo: 'Cuenta por qué se corrige el cierre.' })
   const d = await datosCierre(f)
   if ('error' in d) return d.error
-  return repositorio().corregirCierreRuta(texto(f, 'rutaId'), d.datos, motivo, await quien())
+  const actor = await quien()
+  const r = await repositorio().corregirCierreRuta(texto(f, 'rutaId'), d.datos, motivo, actor)
+  if (!r.ok) return r
+  return { ...r, logger: await guardarLecturas(f, d.datos, actor) }
+}
+
+/** Importa las lecturas de un archivo suelto en una ruta que ya salió o ya se cerró (por ejemplo, una cerrada antes de que el WMS leyera el informe). No cambia el cierre. */
+export async function importarLoggerAccion(f: FormData): Promise<ResultadoAccion<{ excede: boolean; coincide: boolean | null; dentroDeFecha: boolean }>> {
+  const archivo = archivoDe(f)
+  if (!archivo) return falla('Falta el archivo.', { archivo: 'Adjunta el archivo que descargaste del data logger.' })
+  const malo = validarArchivoLogger({ nombre: archivo.name, bytes: archivo.size })
+  if (malo) return falla(malo, { archivo: malo })
+  const bytes = new Uint8Array(await archivo.arrayBuffer())
+  const lectura = leerInforme(archivo.name, archivo.type, Buffer.from(bytes))
+  if (!lectura.ok) return falla(lectura.mensaje, { archivo: lectura.mensaje })
+  const g = await guardarArchivo('DATA_LOGGER', archivo.name, bytes, archivo.type || 'application/octet-stream')
+  return repositorio().importarLecturasLogger(texto(f, 'rutaId'), lectura.informe, { nombre: archivo.name, hash: g.hash, ref: g.ref }, await quien())
 }

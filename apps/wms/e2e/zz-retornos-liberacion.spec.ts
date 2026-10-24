@@ -253,7 +253,7 @@ test.describe('liberación LS-POE.04.05 de un producto de un cliente de almacena
     await sinDesborde(page)
     await capturar(page, info, 'liberacion-dictamen-formulario', { completa: true })
     await page.getByTestId('registrar-dictamen').click()
-    await expect(page.getByTestId('aviso-ok')).toContainText('Dictamen registrado. Siguiente: Katia o Sandra confirma el cambio de estado.')
+    await expect(page.getByTestId('aviso-ok')).toContainText('Dictamen registrado. Siguiente: confirma el cambio de estado (lo confirmas tú; no hace falta una segunda firma).')
     const fila = page.getByTestId('dictamen-fila')
     await expect(fila).toContainText('Por confirmar')
     await expect(fila).toContainText('90')

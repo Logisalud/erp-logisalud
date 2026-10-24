@@ -55,10 +55,10 @@ describe('LS-FR.43.03: lo que DT resolvió deja de estar pendiente', () => {
     const p = Object.fromEntries((await q(`select clave, valor from wms.parametros where clave like 'ls_fr_43_03_%' or clave = 'cajas_equivale_a_bultos'`)).map((x) => [x.clave, x.valor]))
     expect(p.ls_fr_43_03_usuario_significado).toMatch(/Jefe de Transporte/)
     expect(p.cajas_equivale_a_bultos).toBe('SI')
-    expect(p.ls_fr_43_03_temperatura_metodo).toMatch(/Elitech GSP-6/)
+    expect(p.ls_fr_43_03_temperatura_metodo).toMatch(/Elitech RC-61/) // SB-C (0033): el equipo real es el RC-61
     expect(p.ls_fr_43_03_copia_fisica).toBe('SI')
     expect(p.ls_fr_43_03_conservacion_anios).toBe('5')
-    expect(p.ls_fr_43_03_logger_formato).toBe('PENDIENTE')
+    expect(p.ls_fr_43_03_logger_formato).toBe('RC-61 (PDF o CSV)') // SB-C (0033)
     expect(p.ls_fr_43_03_temperatura_fuera_de_rango).toBe('PENDIENTE')
   })
 })

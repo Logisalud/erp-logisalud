@@ -107,3 +107,63 @@ describe('LS-FR.43.03: impresión, escaneo y cierre (demo)', () => {
     expect((await repo.archivoLsFr(rutaId, 'DATA_LOGGER', 1))!.nombre).toBe('gsp6.csv')
   })
 })
+
+// ── SB-C: lecturas del data logger, cruce con el cierre y alerta sobre 24,9 °C (D-173 a D-176) ──────────────────────────────────────────
+import { parsearCsv, type InformeLogger } from '@/domain/data-logger'
+
+describe('SB-C: lecturas del data logger (demo)', () => {
+  const rutaLogger = async () => (ultimaRuta = await rutaEnRuta())
+  const hash = 'a'.repeat(64)
+  const informe = async (temps: number[], dia?: string, rutaId?: string): Promise<InformeLogger> => {
+    const hoy = dia ?? (await repo.obtenerRuta(rutaId ?? ultimaRuta))!.fecha
+    const csv = 'Tiempo,°C,%RH\n' + temps.map((t, i) => `${hoy} ${String(9 + Math.floor((24 + i * 5) / 60)).padStart(2, '0')}:${String((24 + i * 5) % 60).padStart(2, '0')}:34,${t},NC`).join('\n')
+    const r = parsearCsv(csv); if (!r.ok) throw new Error(r.mensaje); return r.informe
+  }
+  let ultimaRuta = ''
+  const alertasTemp = async () => (await repo.listarAlertas()).filter((a) => a.tipo === 'TEMPERATURA' && a.estado === 'ABIERTA' && a.mensaje.startsWith('Ruta RUT'))
+
+  it('solo el Jefe de Transporte importa y solo desde que la unidad salió', async () => {
+    const rutaId = await rutaListaParaCarga()
+    expect(await repo.importarLecturasLogger(rutaId, await informe([22, 23], '2026-10-20'), { nombre: 'i.csv', hash }, JT)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/todavía no salió/) })
+    const en = await rutaLogger()
+    expect(await repo.importarLecturasLogger(en, await informe([22, 23], '2026-10-20'), { nombre: 'i.csv', hash }, AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Solo el Jefe de Transporte/) })
+    expect(await repo.importarLecturasLogger(en, await informe([22, 23], '2026-10-20'), { nombre: 'i.csv', hash: 'corto' }, JT)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Falta el archivo/) })
+  })
+
+  it('con todas las lecturas hasta 24,9 no hay alerta; con una sobre el límite avisa a Dirección Técnica y al Jefe de Transporte, una sola vez', async () => {
+    const rutaId = await rutaLogger()
+    const ok = exito(await repo.importarLecturasLogger(rutaId, await informe([22, 24.9, 24.7]), { nombre: 'i.csv', hash }, JT))
+    expect(ok).toMatchObject({ excede: false, coincide: null, dentroDeFecha: true })
+    expect(await alertasTemp()).toEqual([])
+    exito(await repo.importarLecturasLogger(rutaId, await informe([22, 25.3, 25]), { nombre: 'j.csv', hash }, JT))
+    exito(await repo.importarLecturasLogger(rutaId, await informe([22, 25.3, 25]), { nombre: 'k.csv', hash }, JT))
+    const a = await alertasTemp()
+    expect(a.map((x) => x.destinatario).sort()).toEqual(['direccion_tecnica', 'jefe_transporte'])
+    expect(a[0].mensaje).toMatch(/sobre el límite de 24,9 °C \(estuvo 10 min por encima\)/)
+  })
+
+  it('la importación nueva reemplaza a la vigente y la anterior queda, solo la vigente con lecturas', async () => {
+    const rutaId = await rutaLogger()
+    exito(await repo.importarLecturasLogger(rutaId, await informe([22, 23]), { nombre: 'a.csv', hash }, JT))
+    exito(await repo.importarLecturasLogger(rutaId, await informe([21, 24]), { nombre: 'b.csv', hash }, JT))
+    const l = await repo.lecturasLogger(rutaId)
+    expect(l.map((x) => [x.archivoNombre, x.vigente, x.lecturas.length])).toEqual([['b.csv', true, 2], ['a.csv', false, 0]])
+    expect((await repo.registroLsFr(rutaId))!.logger).toHaveLength(2)
+  })
+
+  it('cruce con el cierre: coincide o no según la mínima y la máxima anotadas; las lecturas de otro día quedan marcadas', async () => {
+    const rutaId = await rutaLogger()
+    exito(await repo.cerrarRuta(rutaId, { tempMin: 22, tempMax: 24, archivo: archivo() }, JT))
+    expect(exito(await repo.importarLecturasLogger(rutaId, await informe([22, 23, 24]), { nombre: 'a.csv', hash }, JT)).coincide).toBe(true)
+    expect(exito(await repo.importarLecturasLogger(rutaId, await informe([20, 23, 24]), { nombre: 'b.csv', hash }, JT)).coincide).toBe(false)
+    expect(exito(await repo.importarLecturasLogger(rutaId, await informe([22, 24], '2026-01-05'), { nombre: 'c.csv', hash }, JT)).dentroDeFecha).toBe(false)
+  })
+
+  it('cerrar la ruta con una máxima sobre 24,9 alerta aunque no se lea ningún archivo; con 24,9 no', async () => {
+    const rutaId = await rutaLogger()
+    exito(await repo.cerrarRuta(rutaId, { tempMin: 18, tempMax: 24.9, archivo: archivo() }, JT))
+    expect(await alertasTemp()).toEqual([])
+    exito(await repo.corregirCierreRuta(rutaId, { tempMin: 18, tempMax: 25.1, archivo: archivo('b.csv') }, 'Error de digitación', JT))
+    expect((await alertasTemp()).map((x) => x.destinatario).sort()).toEqual(['direccion_tecnica', 'jefe_transporte'])
+  })
+})

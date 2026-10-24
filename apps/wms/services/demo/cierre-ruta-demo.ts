@@ -2,9 +2,10 @@
 import {
   conservarHasta, CONSERVACION_ANIOS_POR_DEFECTO, fueraDeRangoTemperatura, type CierreRutaVista, type EscaneoLsFr, type ExtrasLsFr, type ImpresionLsFr,
 } from '@/domain/ls-fr-43-03'
+import { LIMITE_TEMPERATURA_RUTA_C, cruzarConCierre, estadisticas, textoAlertaTemperatura, type InformeLogger, type LecturasLoggerVista } from '@/domain/data-logger'
 import { motivoNoSeCierra, motivoNoSeEscanea, puedeCerrarRuta, puedeRegistrarLsFr, validarCierre } from '@/domain/cierre-ruta'
 import { registrar, type EstadoDemo } from './estado'
-import { ahora, estadoE, falla } from './entradas-demo'
+import { ahora, alertar, estadoE, falla } from './entradas-demo'
 import { desp, type RutaDemo } from './despacho-demo'
 import { BajasDemo } from './bajas-demo'
 import type { ArchivoGuardado, DatosCierreRuta, RepositorioCierreRuta } from '../repositorio-cierre-ruta'
@@ -14,9 +15,16 @@ export interface LsFrDemo {
   impresiones: ImpresionLsFr[]
   escaneos: (EscaneoLsFr & { ref: string })[]
   cierres: (CierreRutaVista & { ref: string })[]
+  /** SB-C: lecturas importadas del data logger (la más nueva primero). */
+  loggers?: LecturasLoggerVista[]
 }
 const lsfr = (e: EstadoDemo, rutaId: string): LsFrDemo => ((desp(e).lsFr ??= {})[rutaId] ??= { impresiones: [], escaneos: [], cierres: [] })
 const nuevasPrimero = <T extends { version: number }>(l: T[]) => [...l].sort((a, b) => b.version - a.version)
+/** Alerta sobre el límite de temperatura de la ruta: una sola abierta por destinatario (como la base). */
+function alertarTemperatura(e: EstadoDemo, r: RutaDemo, maxima: number, origen: 'el data logger' | 'el cierre', minutos?: number) {
+  const msg = textoAlertaTemperatura(r.numero, maxima, LIMITE_TEMPERATURA_RUTA_C, origen, minutos)
+  for (const rol of ['direccion_tecnica', 'jefe_transporte'] as const) alertar(e, 'TEMPERATURA', rol, msg, `temp-ruta:${r.id}:${rol}`)
+}
 const hoyLima = (iso: string) => new Date(Date.parse(iso) - 5 * 3_600_000).toISOString().slice(0, 10)
 void hoyLima
 
@@ -38,6 +46,7 @@ export class CierreRutaDemo extends BajasDemo implements RepositorioCierreRuta {
     return {
       ...super.extrasLsFr(e, r), usuario: r.creadaPor, impresiones: [...l.impresiones].reverse(),
       escaneos: nuevasPrimero(l.escaneos).map(sinRef) as EscaneoLsFr[], cierres: nuevasPrimero(l.cierres).map(sinRef) as CierreRutaVista[],
+      logger: structuredClone(l.loggers ?? []),
     }
   }
 
@@ -95,6 +104,7 @@ export class CierreRutaDemo extends BajasDemo implements RepositorioCierreRuta {
       observaciones: datos.observaciones?.trim() || undefined, cerradoPor: actor.nombre, cerradoEn: ahora(), vigente: true, ref: datos.archivo.ref,
     })
     r.estado = 'CERRADA'
+    if (datos.tempMax > LIMITE_TEMPERATURA_RUTA_C) alertarTemperatura(e, r, datos.tempMax, 'el cierre')
     this.sincronizar(e, r)
     registrar(e, actor, 'ruta_cerrada', 'rutas', r.numero, `Ruta cerrada: ${datos.tempMin} – ${datos.tempMax} °C${fuera ? ' (fuera del rango del formato)' : ''}`, datos.observaciones?.trim() || undefined)
     return { ok: true, fueraDeRango: fuera }
@@ -118,8 +128,40 @@ export class CierreRutaDemo extends BajasDemo implements RepositorioCierreRuta {
       version, tempMin: datos.tempMin, tempMax: datos.tempMax, fueraDeRango: fuera, archivoNombre: datos.archivo.nombre, archivoBytes: datos.archivo.bytes, archivoTipo: datos.archivo.tipo,
       observaciones: datos.observaciones?.trim() || undefined, motivo: motivo.trim(), cerradoPor: actor.nombre, cerradoEn: ahora(), vigente: true, ref: datos.archivo.ref,
     })
+    if (datos.tempMax > LIMITE_TEMPERATURA_RUTA_C) alertarTemperatura(e, r, datos.tempMax, 'el cierre')
     registrar(e, actor, 'cierre_de_ruta_corregido', 'rutas', r.numero, `Cierre corregido (versión ${version})`, motivo.trim())
     return { ok: true, version, fueraDeRango: fuera }
+  }
+
+  async importarLecturasLogger(rutaId: string, informe: InformeLogger, archivo: { nombre: string; hash: string; ref?: string }, actor: Actor): Promise<ResultadoAccion<{ excede: boolean; coincide: boolean | null; dentroDeFecha: boolean }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedeCerrarRuta(actor.roles)) return falla('Solo el Jefe de Transporte importa las lecturas del data logger')
+    const r = this.rutaDe(e, rutaId)
+    if (!r) return falla('No encontramos esa ruta')
+    if (!['EN_RUTA', 'PENDIENTE_CIERRE', 'CERRADA'].includes(r.estado)) return falla(`La ruta todavía no salió (está ${r.estado.toLowerCase().replace(/_/g, ' ')}): el data logger se lee cuando la unidad ya salió`)
+    if (!/^[0-9a-f]{64}$/.test(archivo.hash) || !archivo.nombre.trim()) return falla('Falta el archivo del data logger')
+    if (!informe.lecturas.length) return falla('No encontramos lecturas en el archivo del data logger')
+    const est = estadisticas(informe.lecturas, LIMITE_TEMPERATURA_RUTA_C, informe.intervaloMin ?? 5)
+    const l = lsfr(e, rutaId)
+    const cierre = l.cierres.find((c) => c.vigente)
+    const cruce = cruzarConCierre(est, r.fecha, cierre ? { tempMin: cierre.tempMin, tempMax: cierre.tempMax } : null)
+    for (const x of l.loggers ?? []) { x.vigente = false; x.lecturas = [] }
+    const lista = (l.loggers ??= [])
+    lista.unshift({
+      id: `logger-${r.id}-${lista.length + 1}`, archivoNombre: archivo.nombre.trim(), formato: informe.formato, modelo: informe.modelo, serie: informe.serie, intervaloMin: informe.intervaloMin,
+      umbralEquipoAlto: informe.umbralAlto, umbralEquipoBajo: informe.umbralBajo, primera: est.primera, ultima: est.ultima, puntos: est.puntos, tempMin: est.min, tempMax: est.max, tempProm: est.promedio,
+      limite: est.limite, excede: est.excede, lecturasSobreLimite: est.sobreLimite, minutosSobreLimite: est.minutosSobreLimite, primeraExcedencia: est.primeraExcedencia,
+      coincideConCierre: cruce.coincide, cierreMin: cierre?.tempMin, cierreMax: cierre?.tempMax, dentroDeFecha: cruce.dentroDeFecha, importadoPor: actor.nombre, importadoEn: ahora(), vigente: true,
+      lecturas: informe.lecturas.map((x) => ({ momento: x.momento, temperatura: x.temperatura, ...(x.humedad !== undefined ? { humedad: x.humedad } : {}) })),
+    })
+    if (est.excede) alertarTemperatura(e, r, est.max, 'el data logger', est.minutosSobreLimite)
+    registrar(e, actor, 'lecturas_logger_importadas', 'rutas', r.numero, `${est.puntos} lecturas: ${est.min} – ${est.max} °C${est.excede ? ' (sobre el límite)' : ''}`)
+    return { ok: true, excede: est.excede, coincide: cruce.coincide, dentroDeFecha: cruce.dentroDeFecha }
+  }
+
+  async lecturasLogger(rutaId: string): Promise<LecturasLoggerVista[]> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    return structuredClone(lsfr(e, rutaId).loggers ?? [])
   }
 
   async archivoLsFr(rutaId: string, que: 'ESCANEO' | 'DATA_LOGGER', version?: number): Promise<{ ref: string; nombre: string; tipo?: string } | null> {

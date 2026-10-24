@@ -27,7 +27,7 @@ describe('registro LS-FR.43.03', () => {
     expect((pags[0][0] as FilaLsFr).cliente).toBe('Cliente 1')
   })
   it('los parámetros pendientes de Dirección Técnica se listan; al definirlos salen de la lista; el formato lo trae de parámetros', () => {
-    expect(parametrosDesdeClaves({}).pendientes).toEqual(['ls_fr_43_03_logger_formato', 'ls_fr_43_03_temperatura_fuera_de_rango'])
+    expect(parametrosDesdeClaves({}).pendientes).toEqual(['ls_fr_43_03_temperatura_fuera_de_rango'])
     const p = parametrosDesdeClaves({ ls_fr_43_03_codigo: 'LS-FR.43.03', ls_fr_43_03_version: '02', ls_fr_43_03_usuario_significado: 'Quien arma la ruta', cajas_equivale_a_bultos: 'SI', ls_fr_43_03_logger_formato: 'CSV Elitech', ls_fr_43_03_temperatura_fuera_de_rango: 'PENDIENTE', ls_fr_43_03_filas_por_pagina: '8' })
     expect(p).toMatchObject({ version: '02', filasPorPagina: 8, pendientes: ['ls_fr_43_03_temperatura_fuera_de_rango'], conservacionAnios: 5, tempMin: 15, tempMax: 25 })
     expect(armarRegistroLsFr(ruta(9), p).paginas).toBe(2)

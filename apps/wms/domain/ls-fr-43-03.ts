@@ -2,8 +2,9 @@
 // las etapas siguientes van registrando (N.° de guía, bultos, hora real de salida): nada se copia. Puro: lo usan la demo, el adaptador de Supabase y el PDF.
 //
 // OS-7 (respuestas de DT 2026-10-17, §9): USUARIO = el Jefe de Transporte que prepara la ruta; «N.° de cajas» = bultos (caja master); la temperatura sale del
-// data logger Elitech GSP-6 (al cerrar la ruta se adjunta su archivo y se registran mínima y máxima); se imprime una copia antes de la salida (queda registrada);
+// data logger Elitech RC-61 (al cerrar la ruta se adjunta su archivo y se registran mínima y máxima); se imprime una copia antes de la salida (queda registrada);
 // las firmas físicas (conductor y DT) se suben como escaneo y se conservan 5 años.
+import type { LecturasLoggerVista } from './data-logger'
 import type { RutaVista } from './rutas'
 
 export const FILAS_POR_PAGINA = 10
@@ -37,8 +38,7 @@ export const PARAMETROS_LS_FR_POR_DEFECTO: ParametrosLsFr = {
  * (USUARIO, cajas = bultos, temperatura y copia física) ya se cerraron en OS-7 y salieron de esta lista.
  */
 export const PENDIENTES_LS_FR: Record<string, string> = {
-  ls_fr_43_03_logger_formato: 'El formato del archivo que descarga el data logger Elitech GSP-6 (Sebas lo pasa después): hoy el archivo se guarda tal cual y la mínima y la máxima se escriben a mano.',
-  ls_fr_43_03_temperatura_fuera_de_rango: 'Qué se hace cuando la temperatura del data logger sale del rango del formato (hoy solo se marca; no bloquea ni avisa a nadie).',
+  ls_fr_43_03_temperatura_fuera_de_rango: 'Qué se hace con la mercadería cuando el data logger supera el límite de 24,9 °C (lo decide Katia). Hoy solo avisamos a Dirección Técnica y al Jefe de Transporte; la ruta no se bloquea ni se aparta nada.',
 }
 
 export function parametrosDesdeClaves(valores: Record<string, string | undefined>): ParametrosLsFr {
@@ -108,6 +108,8 @@ export interface ExtrasLsFr {
   impresiones?: ImpresionLsFr[]
   escaneos?: EscaneoLsFr[]
   cierres?: CierreRutaVista[]
+  /** SB-C: lecturas importadas del informe del data logger (la más nueva primero). */
+  logger?: LecturasLoggerVista[]
 }
 
 export interface FilaLsFr {
@@ -146,6 +148,8 @@ export interface RegistroLsFrVista {
   impresiones: ImpresionLsFr[]
   escaneos: EscaneoLsFr[]
   cierres: CierreRutaVista[]
+  /** SB-C: las lecturas del data logger importadas para esta ruta (la más nueva primero; solo la vigente trae las lecturas). */
+  logger?: LecturasLoggerVista[]
   conservacionAnios: number
   /** Rango de temperatura del formato. */
   tempRango: { min: number; max: number }
@@ -189,7 +193,7 @@ export function armarRegistroLsFr(ruta: RutaVista, params: ParametrosLsFr = PARA
     rutaId: ruta.id, rutaNumero: ruta.numero, codigo: params.codigo, version: params.version, vigenteDesde: params.vigenteDesde, vigenteHasta: params.vigenteHasta, poe: COD_POE_LS_FR,
     estado: ruta.registroLsFr ?? 'BASE', fecha: ruta.fecha, usuario: extras.usuario ?? ruta.creadaPor, placa: ruta.vehiculo?.placa, conductor: ruta.conductor?.nombre, auxiliar: ruta.auxiliar?.nombre,
     horaSalida: extras.horaSalida, horaLlegada: extras.horaLlegada, filas, paginas: Math.max(1, Math.ceil(filas.length / params.filasPorPagina)), filasPorPagina: params.filasPorPagina, pendientes: params.pendientes,
-    impresiones: extras.impresiones ?? [], escaneos: extras.escaneos ?? [], cierres: extras.cierres ?? [], conservacionAnios: params.conservacionAnios,
+    impresiones: extras.impresiones ?? [], escaneos: extras.escaneos ?? [], cierres: extras.cierres ?? [], logger: extras.logger ?? [], conservacionAnios: params.conservacionAnios,
     tempRango: { min: params.tempMin, max: params.tempMax },
   }
 }

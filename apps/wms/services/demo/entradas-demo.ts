@@ -5,6 +5,7 @@
 // prellenada → confirmar (nace el inventario) → Acta Organoléptica. La integración con Compras es MANUAL:
 // el WMS muestra la "Cantidad física confirmada" para copiarla; aquí solo se lee lo que Compras tiene registrado.
 
+import { esProductoNuevo, esProveedorNuevo, type LineaOcCompras } from '@/domain/producto-nuevo'
 import { createHash, randomUUID } from 'node:crypto'
 import { hashDe } from '@/lib/hash'
 import {
@@ -450,10 +451,15 @@ function problemaParaActa(e: EstadoDemo, s: SolicitudDemo): string | null {
 /** El plan de muestreo de un lote recibido (LS-TB.02.02), con las mismas reglas que `wms.plan_muestreo`: devolución, antecedentes de calidad, lote pequeño, producto o proveedor nuevo. */
 function planDeLote(e: EstadoDemo, s: SolicitudDemo, l: LineaSolicitudDemo, lotesDeEstaRecepcion: ReadonlySet<string>) {
   const tabla = tablaVigente([TABLA_LS_TB_02_02], e.panorama.hoy) ?? TABLA_LS_TB_02_02
-  const productoNuevo = !e.panorama.lotes.some((x) => x.productoId === l.productoId && !lotesDeEstaRecepcion.has(x.id))
-  const clave = s.contraparteRuc?.trim() || s.contraparteNombre?.trim()
-  const proveedorNuevo = s.tipo === 'COMPRA_LOCAL' && !!clave
-    && !e.solicitudes.some((x) => x.id !== s.id && x.tipo === 'COMPRA_LOCAL' && x.estado === 'CERRADA' && (s.contraparteRuc ? x.contraparteRuc === s.contraparteRuc : x.contraparteNombre === s.contraparteNombre))
+  // D-171/D-172: nuevo = sin recepciones históricas. Historia: lotes del WMS (incluida la carga inicial de Odoo) y recepciones previas de Compras; la propia recepción no cuenta.
+  const lineasOc: LineaOcCompras[] = e.compras.flatMap((oc) => oc.items.map((it) => ({ ocItemId: it.ocItemId, productoId: it.productoId, proveedorRuc: oc.proveedorRuc, proveedorNombre: oc.proveedorNombre, recibida: it.recibida })))
+  const propias = new Map<string, number>(s.lineas.filter((x) => x.ocItemId).map((x) => [x.ocItemId!, x.comprasRecibidaAntes ?? 0]))
+  const historiaWms = e.panorama.lotes.some((x) => x.productoId === l.productoId && !lotesDeEstaRecepcion.has(x.id))
+  const productoNuevo = esProductoNuevo({ productoId: l.productoId, historiaWms, lineasOc, propias })
+  const proveedorNuevo = esProveedorNuevo({
+    esCompraLocal: s.tipo === 'COMPRA_LOCAL', ruc: s.contraparteRuc, nombre: s.contraparteNombre, lineasOc, propias,
+    otrasCompras: e.solicitudes.filter((x) => x.id !== s.id && x.tipo === 'COMPRA_LOCAL' && x.estado === 'CERRADA').map((x) => ({ ruc: x.contraparteRuc, nombre: x.contraparteNombre })),
+  })
   const antecedentesCalidad = (e.antecedentes ?? []).some((a) => a.productoId === l.productoId && antecedenteVigente(a))
   return planDeMuestreo({ unidades: l.cantidad, esDevolucion: s.tipo === 'DEVOLUCION', antecedentesCalidad, productoNuevo, proveedorNuevo }, tabla)
 }

@@ -136,3 +136,13 @@ En la demostración, **Órdenes de salida** ya trae 24 órdenes de ejemplo (con 
 | C · Devolución al proveedor (conforme) | Devolución, conforme | Jefe de Transporte | Lote indicado y antes de su vencimiento; guía de devolución. |
 | C · Muestra con ruta | Lista para carga | Auxiliar | Cargar la unidad de su ruta. |
 | C · Devolución que ya salió | Salida confirmada | Jefe de Transporte | Ver la salida confirmada de una devolución al proveedor. |
+
+## 14. Dictamen, Orden de Baja, producto nuevo y temperatura (SB-C)
+1. **Dictamen sin segunda firma** (Sandra o Katia): en Calidad, un lote de un cliente de almacenamiento → «Registrar el dictamen» (adjunta el documento) → «Confirmar». Lo confirmas tú misma o tú mismo; no hace falta otra persona. Esperado: el stock pasa a Aprobado / Bajas y el acta queda firmada.
+2. **Orden de Baja:** en Bajas, emite una orden. Abre el PDF: el código del formato dice **LS-FR.56.01** y bajo la línea del V°/B° aparece **Katia Zapata, Dirección Técnica**.
+3. **Producto nuevo:** recibe un producto que ya tiene stock inicial (de la carga de Odoo) o que Compras ya recibió: el acta organoléptica sale con evaluación **simplificada**; uno que nunca se recibió, **normal**.
+4. **Cerrar una ruta con el informe del data logger** (Jefe de Transporte): una ruta «En ruta» → «Cierre de la ruta y temperatura» → sube `docs/wms/referencias/19-10-2026.pdf`. Esperado: «Leímos 104 lecturas… Mínima 22,0 °C, máxima 24,1 °C. Ninguna pasa el límite de 24,9 °C» y la mínima y la máxima llenas. Cierra la ruta: aparece «Lecturas del data logger» con el gráfico y el chip «Dentro del límite».
+5. **Sobre el límite:** en una ruta cerrada, «Leer otro archivo» con un CSV (`Tiempo,°C,%RH` y una lectura de 25,3). Esperado: chip rojo «Superó el límite de 24,9 °C», cuántas lecturas y cuántos minutos, y una alerta en Alertas para Dirección Técnica y el Jefe de Transporte. **No se bloquea nada**: qué hacer con la mercadería lo decidirá Katia (pendiente).
+6. **Archivo que no se lee:** sube un archivo cualquiera: el aviso dice por qué y que puedes cerrar la ruta anotando la mínima y la máxima a mano.
+7. **Cruce con el cierre:** si lo que anotaste no coincide con el archivo, la pantalla muestra «No coincide con el cierre» con las dos cifras.
+

@@ -27,7 +27,7 @@ function validarTamano(a: Adjunto): string | null {
   return null
 }
 
-/** El archivo que descargas del data logger (Elitech GSP-6): lo que sea, hasta 10 MB; se guarda tal cual. */
+/** El archivo que descargas del data logger (Elitech RC-61): lo que sea, hasta 10 MB; se guarda tal cual. */
 export const validarArchivoLogger = (a: Adjunto): string | null => validarTamano(a)
 
 /** El formato firmado, escaneado: PDF o foto. */

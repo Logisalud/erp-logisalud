@@ -35,11 +35,14 @@ async function hijasDe(tabla: string, ids: string[]): Promise<Fila[]> {
 
 function mapearContenido(j: Record<string, unknown>): ContenidoOrdenBaja {
   const sol = (j.solicitante ?? {}) as Record<string, string>
+  const vb = (j.visto_bueno ?? {}) as Record<string, string>
   const prop = (j.propietario ?? {}) as Record<string, string>
   return {
     formato: String(j.formato ?? PARAMETROS_FORMATO_BAJA.formato), poe: String(j.poe ?? PARAMETROS_FORMATO_BAJA.poe), vigencia: String(j.vigencia ?? PARAMETROS_FORMATO_BAJA.vigencia),
     numero: String(j.numero), fecha: String(j.fecha).slice(0, 10), reemite: j.reemite ? String(j.reemite) : undefined,
-    solicitante: { nombre: String(sol.nombre ?? ''), cargo: String(sol.cargo ?? '') }, motivoTraslado: String(j.motivo_traslado ?? PARAMETROS_FORMATO_BAJA.motivoTraslado),
+    solicitante: { nombre: String(sol.nombre ?? ''), cargo: String(sol.cargo ?? '') },
+    // Las Órdenes emitidas antes de la 0033 no traen `visto_bueno`: se imprime el vigente (Katia Zapata).
+    vistoBueno: { nombre: String(vb.nombre ?? PARAMETROS_FORMATO_BAJA.vistoBuenoNombre), cargo: String(vb.cargo ?? PARAMETROS_FORMATO_BAJA.vistoBuenoCargo) }, motivoTraslado: String(j.motivo_traslado ?? PARAMETROS_FORMATO_BAJA.motivoTraslado),
     propietario: { codigo: String(prop.codigo ?? ''), razonSocial: String(prop.razon_social ?? '') },
     lineas: ((j.lineas ?? []) as Record<string, unknown>[]).map((l) => ({
       n: Number(l.n), productoCodigo: String(l.producto_codigo ?? ''), producto: String(l.producto ?? ''), presentacion: s(l.presentacion), registroSanitario: s(l.registro_sanitario), lote: String(l.lote ?? ''),
@@ -147,7 +150,7 @@ export class BajasSupabase extends CargaSupabase implements RepositorioBajas {
     const d = PARAMETROS_FORMATO_BAJA
     return {
       formato: v('baja_codigo_formato', d.formato), poe: v('baja_codigo_poe', d.poe), vigencia: v('baja_vigencia_formato', d.vigencia), solicitanteNombre: v('baja_solicitante_nombre', d.solicitanteNombre),
-      solicitanteCargo: v('baja_solicitante_cargo', d.solicitanteCargo), motivoTraslado: v('baja_motivo_traslado', d.motivoTraslado),
+      solicitanteCargo: v('baja_solicitante_cargo', d.solicitanteCargo), vistoBuenoNombre: v('baja_vb_nombre', d.vistoBuenoNombre), vistoBuenoCargo: v('baja_vb_cargo', d.vistoBuenoCargo), motivoTraslado: v('baja_motivo_traslado', d.motivoTraslado),
     }
   }
 
