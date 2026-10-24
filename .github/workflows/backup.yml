@@ -1,141 +1,179 @@
 name: Database Backup
 
+# Respaldo diario y cifrado de las dos bases que están en producción:
+#   - consolidado (Cobranzas + Compras; en el futuro también WMS): proyecto qpkigzniatidsvnxikox
+#   - pedidos: proyecto dfqhxwkdflnkcjnysbwu
+# Cada respaldo se PRUEBA restaurándolo en un Postgres 17 desechable antes de subirse.
+# Qué guarda, dónde, quién accede y cómo restaurar: docs/respaldos/README.md
 on:
-  # Backup automático diario a las 5:00 AM UTC (medianoche Perú, UTC-5)
   schedule:
-    - cron: '0 5 * * *'
-
-  # Snapshot manual bajo demanda
+    - cron: '17 5 * * *'   # 05:17 UTC = medianoche en Perú
   workflow_dispatch:
     inputs:
       reason:
-        description: 'Motivo del snapshot (opcional)'
+        description: 'Motivo del respaldo (opcional)'
         required: false
-        default: 'Snapshot manual'
+        default: 'manual'
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
   backup:
-    name: pg_dump → Artifact
+    name: respaldo ${{ matrix.proyecto.nombre }}
     runs-on: ubuntu-latest
-
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        proyecto:
+          - { nombre: consolidado, ref: qpkigzniatidsvnxikox, secreto: DB_PASSWORD_CONSOLIDADO }
+          - { nombre: pedidos, ref: dfqhxwkdflnkcjnysbwu, secreto: DB_PASSWORD_PEDIDOS }
+    services:
+      # Postgres 17 desechable: solo sirve para probar la restauración.
+      restauracion:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      REF: ${{ matrix.proyecto.ref }}
+      NOMBRE: ${{ matrix.proyecto.nombre }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PGPASSWORD: ${{ matrix.proyecto.nombre == 'pedidos' && secrets.SUPABASE_DB_PASSWORD_PEDIDOS || secrets.SUPABASE_DB_PASSWORD }}
+      AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
     steps:
-      - name: Instalar cliente PostgreSQL
+      - uses: actions/checkout@v4
+
+      # pg_dump tiene que ser de la misma versión que la base o mayor. Supabase corre Postgres 17 y el
+      # runner trae el cliente 16: con ese, pg_dump se niega ("server version mismatch"). Se instala el 17.
+      - name: Instalar cliente PostgreSQL 17 y age
         run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y -qq postgresql-client-17 age
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
-      - name: Obtener configuración de conexión desde API de Supabase
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      - name: Comprobar que están los secretos
         run: |
-          # /v1/projects/{ref}/config/database devuelve el host del pooler exacto del proyecto
-          CONFIG=$(curl -sf \
-            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            "https://api.supabase.com/v1/projects/qpkigzniatidsvnxikox/config/database")
+          faltan=0
+          for v in SUPABASE_ACCESS_TOKEN PGPASSWORD AGE_PUBLIC_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::Falta el secreto de $v (ver docs/respaldos/README.md)"; faltan=1; fi
+          done
+          exit $faltan
 
-          echo "Config recibida:"
-          echo "$CONFIG" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d, indent=2))" 2>/dev/null || echo "$CONFIG"
-
-          # Extraer el host del pooler (campo pool_host o similar)
-          POOL_HOST=$(echo "$CONFIG" | python3 -c "
-          import sys, json
-          d = json.load(sys.stdin)
-          # Intentar varios campos conocidos de la API
-          for key in ('pool_host', 'pooler_host', 'host'):
-              if key in d and d[key]:
-                  print(d[key])
-                  break
-          " 2>/dev/null || true)
-
-          # Fallback: construir desde región si no vino en el config
-          if [ -z "$POOL_HOST" ]; then
-            REGION=$(curl -sf \
-              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-              "https://api.supabase.com/v1/projects/qpkigzniatidsvnxikox" \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['region'])")
-            POOL_HOST="aws-0-${REGION}.pooler.supabase.com"
-            echo "Pool host construido desde región: $POOL_HOST"
-          else
-            echo "Pool host desde API: $POOL_HOST"
-          fi
-
-          echo "POOL_HOST=$POOL_HOST" >> "$GITHUB_ENV"
-
-      - name: Generar dump
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # El host del pooler (IPv4; el directo de Supabase es solo IPv6 y los runners no lo alcanzan)
+      # se pregunta a la API de Supabase. Los errores dicen el código HTTP, no se esconden.
+      - name: Buscar la dirección de conexión del proyecto
         run: |
-          TIMESTAMP=$(date -u +%Y%m%d_%H%M%S)
-          REASON="${{ github.event.inputs.reason || 'automatico-diario' }}"
-          FILENAME="logisalud_${TIMESTAMP}.sql"
-
-          # Usuario del pooler: postgres.PROJECT_REF (incluye el ref en el nombre de usuario)
-          DB_SESSION="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@${{ env.POOL_HOST }}:5432/postgres?sslmode=require"
-          DB_TRANSACTION="postgresql://postgres.qpkigzniatidsvnxikox:${SUPABASE_DB_PASSWORD}@${{ env.POOL_HOST }}:6543/postgres?sslmode=require"
-
-          echo "Iniciando pg_dump — $REASON"
-          echo "Pool host: ${{ env.POOL_HOST }}"
-
-          # Intento 1: session pooler (puerto 5432)
-          echo "--- Intento 1: session pooler (5432) ---"
-          if pg_dump "$DB_SESSION" \
-              --no-owner \
-              --no-acl \
-              --schema=public \
-              --format=plain \
-              --file="$FILENAME"; then
-            echo "POOL_MODE=session:5432" >> "$GITHUB_ENV"
-          else
-            # Intento 2: transaction pooler (puerto 6543)
-            echo "Session pooler falló. Intentando transaction pooler (6543)..."
-            echo "--- Intento 2: transaction pooler (6543) ---"
-            pg_dump "$DB_TRANSACTION" \
-              --no-owner \
-              --no-acl \
-              --schema=public \
-              --format=plain \
-              --file="$FILENAME"
-            echo "POOL_MODE=transaction:6543" >> "$GITHUB_ENV"
-          fi
-
-          # Verificar que el dump no está vacío
-          LINES=$(wc -l < "$FILENAME")
-          echo "Líneas en el dump: $LINES"
-          if [ "$LINES" -lt 50 ]; then
-            echo "ERROR: El dump parece estar vacío o incompleto ($LINES líneas)."
+          code=$(curl -sS -o pooler.json -w '%{http_code}' -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$REF/config/database/pooler" || true)
+          if [ "$code" != "200" ]; then
+            echo "::error::La API de Supabase respondió HTTP $code al pedir el pooler de $NOMBRE. 401/403 = token vencido o sin acceso al proyecto: cargar un token nuevo en SUPABASE_ACCESS_TOKEN."
             exit 1
           fi
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import json
+          d = json.load(open('pooler.json'))
+          items = d if isinstance(d, list) else [d]
+          items = [i for i in items if i.get('db_host')]
+          # Preferir el pooler en modo sesión (5432, sirve para pg_dump)
+          items.sort(key=lambda i: (i.get('pool_mode') != 'session', i.get('database_type') != 'PRIMARY'))
+          if not items:
+              raise SystemExit('::error::La API no devolvió ningún pooler para el proyecto')
+          i = items[0]
+          print(f"DB_HOST={i['db_host']}")
+          print(f"DB_USER={i.get('db_user') or 'postgres.' + __import__('os').environ['REF']}")
+          PY
+          rm -f pooler.json
 
-          # Comprimir
-          gzip "$FILENAME"
+      - name: Respaldar
+        run: |
+          URL="postgresql://${DB_USER}@${DB_HOST}:5432/postgres?sslmode=require"
+          FECHA=$(date -u +%Y%m%d_%H%M%S)
+          ARCH="respaldo-${NOMBRE}-${FECHA}.dump"
+          for intento in 1 2 3; do
+            if bash scripts/respaldos/dump.sh "$URL" "$ARCH"; then ok=1; break; fi
+            echo "Intento $intento falló"; sleep $((intento * 20))
+          done
+          [ "${ok:-0}" = "1" ] || { echo "::error::pg_dump falló 3 veces para $NOMBRE"; exit 1; }
+          echo "ARCH=$ARCH" >> "$GITHUB_ENV"
+          echo "FECHA=$FECHA" >> "$GITHUB_ENV"
 
-          SIZE=$(du -sh "${FILENAME}.gz" | cut -f1)
-          echo "BACKUP_FILE=${FILENAME}.gz" >> "$GITHUB_ENV"
-          echo "BACKUP_SIZE=$SIZE"          >> "$GITHUB_ENV"
-          echo "TIMESTAMP=$TIMESTAMP"       >> "$GITHUB_ENV"
-          echo "REASON=$REASON"             >> "$GITHUB_ENV"
-          echo "Dump completado: ${FILENAME}.gz ($SIZE)"
+      # Si la restauración no cuadra, el respaldo NO se sube y el flujo falla (y avisa).
+      - name: Probar la restauración (Postgres 17 desechable)
+        run: bash scripts/respaldos/verificar.sh "$ARCH" "postgresql://postgres:postgres@localhost:5432/postgres" | tee verificacion.txt
+        env:
+          PGPASSWORD: postgres
 
-      - name: Subir artifact (retención 90 días)
+      - name: Cifrar y firmar con suma de control
+        run: |
+          age -r "$AGE_PUBLIC_KEY" -o "$ARCH.age" "$ARCH"
+          rm -f "$ARCH"
+          sha256sum "$ARCH.age" > "$ARCH.age.sha256"
+          echo "TAMANO=$(du -h "$ARCH.age" | cut -f1)" >> "$GITHUB_ENV"
+
+      - name: Subir (cifrado, 90 días)
         uses: actions/upload-artifact@v4
         with:
-          name: logisalud-backup-${{ env.TIMESTAMP }}
-          path: "*.sql.gz"
+          name: respaldo-${{ matrix.proyecto.nombre }}-${{ env.FECHA }}
+          path: |
+            ${{ env.ARCH }}.age
+            ${{ env.ARCH }}.age.sha256
           retention-days: 90
+          if-no-files-found: error
 
       - name: Resumen
         if: always()
         run: |
           {
-            echo "## Backup completado"
-            echo "| Campo       | Valor |"
-            echo "|-------------|-------|"
-            echo "| Archivo     | \`${{ env.BACKUP_FILE }}\` |"
-            echo "| Tamaño      | ${{ env.BACKUP_SIZE }} |"
-            echo "| Pool host   | ${{ env.POOL_HOST }} |"
-            echo "| Modo        | ${{ env.POOL_MODE }} |"
-            echo "| Motivo      | ${{ env.REASON }} |"
-            echo "| Retención   | 90 días |"
-            echo ""
-            echo "Descarga desde **Summary → Artifacts** de este run."
+            echo "## Respaldo $NOMBRE"
+            echo "- Archivo: \`${ARCH:-no se generó}.age\` (${TAMANO:-—})"
+            echo "- Prueba de restauración: $(cat verificacion.txt 2>/dev/null || echo 'no llegó a correr')"
+            echo "- Retención: 90 días · cifrado con age (solo la llave privada de Sebas lo abre)"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  avisar:
+    name: avisar por correo si falló
+    needs: backup
+    if: failure()
+    runs-on: ubuntu-latest
+    env:
+      SMTP_HOST: ${{ secrets.BACKUP_SMTP_HOST }}
+    steps:
+      # GitHub manda correo a quien tiene asignada la incidencia: es el aviso que no necesita ninguna cuenta extra.
+      - name: Abrir (o actualizar) la incidencia
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const titulo = '🔴 El respaldo diario falló'
+            const cuerpo = `El respaldo programado falló.\n\nCorrida: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nQué revisar primero: docs/respaldos/README.md, sección «Si falla».`
+            const { data: abiertas } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: 'respaldo', per_page: 20 })
+            const previa = abiertas.find(i => i.title === titulo)
+            if (previa) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: previa.number, body: cuerpo })
+            } else {
+              await github.rest.issues.create({ ...context.repo, title: titulo, body: cuerpo, labels: ['respaldo'], assignees: ['sebastiangonzalesm'] })
+            }
+
+      # Correo directo opcional: solo si se cargan los secretos BACKUP_SMTP_*.
+      - name: Enviar correo (SMTP)
+        if: env.SMTP_HOST != ''
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.BACKUP_SMTP_HOST }}
+          server_port: ${{ secrets.BACKUP_SMTP_PORT }}
+          secure: true
+          username: ${{ secrets.BACKUP_SMTP_USER }}
+          password: ${{ secrets.BACKUP_SMTP_PASSWORD }}
+          subject: '🔴 El respaldo diario de Logisalud falló'
+          to: ${{ secrets.BACKUP_AVISO_CORREO }}
+          from: Respaldos Logisalud <${{ secrets.BACKUP_SMTP_USER }}>
+          body: |
+            El respaldo programado falló.
+            Corrida: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

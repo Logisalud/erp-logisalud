@@ -1,0 +1,59 @@
+name: Vigía de respaldos
+
+# Si el respaldo no corre o no termina bien, el propio flujo de respaldo no puede avisar (no llegó a
+# arrancar). Este vigía revisa una vez al día que haya un respaldo de cada base de menos de 30 horas.
+on:
+  schedule:
+    - cron: '41 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  issues: write
+
+jobs:
+  vigia:
+    runs-on: ubuntu-latest
+    env:
+      SMTP_HOST: ${{ secrets.BACKUP_SMTP_HOST }}
+    steps:
+      - name: Buscar el último respaldo de cada base
+        id: revisar
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const arts = await github.paginate(github.rest.actions.listArtifactsForRepo, { ...context.repo, per_page: 100 })
+            const limite = Date.now() - 30 * 3600 * 1000
+            const problemas = []
+            for (const base of ['consolidado', 'pedidos']) {
+              const ult = arts.filter(a => a.name.startsWith(`respaldo-${base}-`) && !a.expired)
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+              if (!ult) problemas.push(`No hay ningún respaldo vigente de «${base}».`)
+              else if (new Date(ult.created_at).getTime() < limite) problemas.push(`El último respaldo de «${base}» es del ${ult.created_at}: tiene más de 30 horas.`)
+            }
+            core.setOutput('problemas', problemas.join('\n'))
+            if (problemas.length) {
+              const titulo = '🔴 Falta un respaldo reciente'
+              const cuerpo = `${problemas.join('\n')}\n\nVer docs/respaldos/README.md, sección «Si falla».`
+              const { data: abiertas } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: 'respaldo', per_page: 20 })
+              const previa = abiertas.find(i => i.title === titulo)
+              if (previa) await github.rest.issues.createComment({ ...context.repo, issue_number: previa.number, body: cuerpo })
+              else await github.rest.issues.create({ ...context.repo, title: titulo, body: cuerpo, labels: ['respaldo'], assignees: ['sebastiangonzalesm'] })
+              core.setFailed(cuerpo)
+            }
+
+      - name: Enviar correo (SMTP)
+        if: failure() && env.SMTP_HOST != ''
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.BACKUP_SMTP_HOST }}
+          server_port: ${{ secrets.BACKUP_SMTP_PORT }}
+          secure: true
+          username: ${{ secrets.BACKUP_SMTP_USER }}
+          password: ${{ secrets.BACKUP_SMTP_PASSWORD }}
+          subject: '🔴 Falta un respaldo reciente de Logisalud'
+          to: ${{ secrets.BACKUP_AVISO_CORREO }}
+          from: Respaldos Logisalud <${{ secrets.BACKUP_SMTP_USER }}>
+          body: |
+            ${{ steps.revisar.outputs.problemas }}
+            Ver ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
