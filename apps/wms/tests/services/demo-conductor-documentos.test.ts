@@ -39,7 +39,7 @@ describe('el interruptor temporal en la demostración', () => {
     const d = (await repo.datosGuia(res.id))!
     expect(d.ruta).toMatchObject({ conductor: 'Michele Yermain Mauriello Diaz', conductorReal: 'Luis Quispe', conductorDocumentoTipo: 'CE', conductorDni: '004780086', conductorLicencia: 'Q004780086' })
     expect(faltantesDeGuia(d, traslado, 'SIMULADOR')).toEqual([])
-    const n = await repo.siguienteNumeroGuia(d.serie)
+    const n = await repo.reservarNumeroGuia(d.serie, 'SIMULADOR', res.id)
     if (!n.ok) throw new Error(n.mensaje)
     const payload = construirPayloadNubefact(d, traslado, '2026-10-19', n.numero)
     expect(payload).toMatchObject({ conductor_documento_tipo: '4', conductor_documento_numero: '004780086', conductor_nombre: 'Michele Yermain', conductor_apellidos: 'Mauriello Diaz', conductor_numero_licencia: 'Q004780086' })
