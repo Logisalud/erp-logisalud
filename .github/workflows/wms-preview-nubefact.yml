@@ -10,6 +10,9 @@ name: WMS — Nubefact en la Preview
 # archivo esté en esa rama (la API acepta cualquier ref que lo contenga) y que la rama esté subida.
 
 on:
+  # Un push a esta rama dedicada lo dispara aunque el archivo aún no esté en la rama por defecto (el workflow_dispatch no existe hasta entonces).
+  push:
+    branches: ['ci/nubefact-preview']
   workflow_dispatch:
     inputs:
       url:
@@ -38,7 +41,7 @@ jobs:
       - name: Probar Nubefact en la Preview
         working-directory: apps/wms
         env:
-          WMS_PREVIEW_URL: ${{ github.event.inputs.url }}
+          WMS_PREVIEW_URL: ${{ github.event.inputs.url || 'https://erp-logisalud-wms-git-feat-wms-os-int-logisalud.vercel.app' }}
           WMS_NUBEFACT_PREVIEW: '1'
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
