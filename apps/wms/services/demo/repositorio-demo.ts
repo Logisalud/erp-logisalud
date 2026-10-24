@@ -4,15 +4,19 @@ import {
   autorizarAltaProducto, autorizarEdicionRegulatoria, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio,
   type DatosRegulatorios, type EntradaProducto,
 } from '@/domain/productos'
+import { puedeValidarProducto } from '@/domain/permisos'
 import { estado, registrar } from './estado'
 import { estadoE } from './entradas-demo'
-import { CargaDemo_ } from './carga-demo'
+import { modoEjemplos } from '@/lib/demo'
+import { EjemplosDemo } from './ejemplos-demo'
 import { sembrarInventario } from './inventario-demo'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 
-export class RepositorioDemo extends CargaDemo_ implements Repositorio {
+export class RepositorioDemo extends EjemplosDemo implements Repositorio {
   async panorama(): Promise<Panorama> {
     // El historial de conteos y ajustes de la demo se siembra antes de leer el stock, para que todo sea consistente
+    // SA-1: con las órdenes de ejemplo encendidas, el stock ya refleja lo que ellas movieron (una salida confirmada baja stock)
+    if (modoEjemplos() === 'si') await this.sembrarDespacho(estadoE())
     sembrarInventario(estadoE())
     return structuredClone(estado().panorama)
   }
@@ -40,11 +44,11 @@ export class RepositorioDemo extends CargaDemo_ implements Repositorio {
         productoId: id, registroSanitario: entrada.registroSanitario?.trim() || undefined, rsVence: v.rsVence,
         fabricante: entrada.fabricante?.trim() || undefined, formaPresentacion: entrada.formaPresentacion?.trim() || undefined,
         concentracion: entrada.concentracion?.trim() || undefined, condicionAlmacenamiento: entrada.condicionAlmacenamiento?.trim() || undefined,
-        creadoPor: actor.id,
+        creadoPor: actor.id, estadoValidacion: puedeValidarProducto(actor.roles) ? 'VALIDADO' : 'PENDIENTE',
       },
     }
     e.panorama.productos.push(prod)
-    registrar(e, actor, 'producto_creado', 'productos', codigo, 'Alta de producto')
+    registrar(e, actor, 'producto_creado', 'productos', codigo, prod.reg!.estadoValidacion === 'PENDIENTE' ? 'Alta de producto (por validar por Dirección Técnica)' : 'Alta de producto')
     for (const c of CAMPOS_REGULATORIOS) {
       const valor = prod.reg![c.clave]
       if (valor) e.cambiosRegulatorios.unshift({ id: `${id}:${c.campo}:${e.cambiosRegulatorios.length}`, productoId: id, campo: c.campo, despues: valor, usuario: actor.nombre, ts: new Date().toISOString(), motivo: 'Alta del producto' })
@@ -84,10 +88,25 @@ export class RepositorioDemo extends CargaDemo_ implements Repositorio {
       prod[c.clave] = despues
       cambios.push({ id: `${id}:${c.campo}:${e.cambiosRegulatorios.length + cambios.length}`, productoId: id, campo: c.campo, antes, despues, usuario: actor.nombre, ts: new Date().toISOString(), motivo: motivo.trim() })
     }
+    // D-196: quien valida (DT o su asistente) deja el producto validado; si edita el Administrador y cambia algo, queda por validar.
+    if (puedeValidarProducto(actor.roles)) nuevo.estadoValidacion = 'VALIDADO'
+    else if (cambios.length) nuevo.estadoValidacion = 'PENDIENTE'
     prod.reg = nuevo
     e.cambiosRegulatorios.unshift(...cambios.reverse())
     if (cambios.length) registrar(e, actor, 'regulatorio_editado', 'producto_regulatorio', prod.codigo, `Datos regulatorios actualizados (${cambios.length})`, motivo.trim())
     return { ok: true, cambios: cambios.length }
+  }
+
+  async validarProducto(id: string, actor: Actor): Promise<ResultadoAccion> {
+    if (!puedeValidarProducto(actor.roles)) return { ok: false, mensaje: 'Solo Dirección Técnica o su asistente validan productos.' }
+    const e = estado()
+    const prod = e.panorama.productos.find((p) => p.id === id)
+    if (!prod?.reg) return { ok: false, mensaje: 'El producto no tiene datos regulatorios cargados.' }
+    if (prod.reg.estadoValidacion !== 'PENDIENTE' && prod.reg.estadoValidacion !== 'OBSERVADO') return { ok: true }
+    if (!prod.reg.registroSanitario || !prod.reg.rsVence) return { ok: false, mensaje: 'Para validar hacen falta el registro sanitario y su vencimiento.' }
+    prod.reg = { ...prod.reg, estadoValidacion: 'VALIDADO' }
+    registrar(e, actor, 'producto_validado', 'producto_regulatorio', prod.codigo, 'Producto validado')
+    return { ok: true }
   }
 
   async historialRegulatorio(id: string): Promise<CambioRegulatorio[]> {

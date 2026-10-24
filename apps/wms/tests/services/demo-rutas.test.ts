@@ -18,8 +18,8 @@ describe('rutas (demo)', () => {
     const p = await repo.panoramaRutas()
     expect(p.rutas).toHaveLength(1)
     expect(p.rutas[0]).toMatchObject({ estado: 'PLANIFICADA', registroLsFr: 'BASE', version: 3 - 1 })
-    expect(p.rutas[0].paradas).toEqual([expect.objectContaining({ pedidoNumero: 'PED-DEMO-101', stock: 'ASIGNADA', salidaNumero: expect.stringMatching(/^SAL-/) })])
-    expect(p.vehiculos.filter((v) => v.activo)).toHaveLength(3)
+    expect(p.rutas[0].paradas).toEqual([expect.objectContaining({ pedidoNumero: 'PED-DEMO-101', stock: 'ASIGNADA', salidaNumero: expect.stringMatching(/^OS-/) })])
+    expect(p.vehiculos.filter((v) => v.activo)).toHaveLength(4)   // incluye BWO-902, el vehículo de Hans (SB-A)
     expect(p.pedidos.find((x) => x.numero === 'PED-DEMO-101')!.enRuta).toBe(p.rutas[0].numero)
     expect(p.corte).toBe('16:00')
   })
@@ -29,12 +29,11 @@ describe('rutas (demo)', () => {
     expect(await repo.crearRuta({ fecha: manana() }, JEFE)).toMatchObject({ ok: false })
   })
 
-  it('crear, agregar un pedido, ver el vehículo calificado exigido, guardar y confirmar; el pedido pasa a «Con salida»', async () => {
+  it('crear, agregar un pedido, guardar y confirmar; el pedido pasa a «Con salida»', async () => {
     const r = await repo.crearRuta({ fecha: manana() }, JT)
     if (!r.ok) throw new Error(r.mensaje)
     // el 103 trae un producto que el WMS no conoce: no entra
     expect(await repo.planificarRuta(r.id, { fecha: manana(), paradas: [{ pedidoId: 'ped-demo-103' }] }, JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('no conoce') })
-    // el 102 no exige vehículo calificado
     const plan = await repo.planificarRuta(r.id, { fecha: manana(), vehiculoId: 'veh-2', conductorId: 'per-2', auxiliarId: 'per-4', paradas: [{ pedidoId: 'ped-demo-102' }] }, JT)
     expect(plan).toMatchObject({ ok: true, bloqueadosPorStock: [] })
     expect(await repo.confirmarRuta(r.id, JT)).toMatchObject({ ok: true })
@@ -45,11 +44,12 @@ describe('rutas (demo)', () => {
     expect(await repo.planificarRuta(r2.id, { fecha: manana(), paradas: [{ pedidoId: 'ped-demo-102' }] }, JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya está en la ruta') })
   })
 
-  it('un vehículo común no atiende al cliente que exige calificado; un vehículo o conductor no repite el mismo día', async () => {
+  it('un vehículo común sí atiende a cualquier cliente (el vehículo calificado ya no se valida, D-153); un vehículo o conductor no repite el mismo día', async () => {
     const r = await repo.crearRuta({ fecha: manana() }, JT)
     if (!r.ok) throw new Error(r.mensaje)
-    await repo.actualizarBandeja(JT) // llega el 104 (botica: exige vehículo calificado)
-    expect(await repo.planificarRuta(r.id, { fecha: manana(), vehiculoId: 'veh-3', paradas: [{ pedidoId: 'ped-demo-104' }] }, JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('exige un vehículo calificado') })
+    await repo.actualizarBandeja(JT) // llega el 104 (botica; antes exigía vehículo calificado)
+    expect(await repo.planificarRuta(r.id, { fecha: manana(), vehiculoId: 'veh-3', paradas: [{ pedidoId: 'ped-demo-104' }] }, JT)).toMatchObject({ ok: true })
+    expect(JSON.stringify(await repo.panoramaRutas())).not.toMatch(/vehiculoCalificado|calificado\b.*exige/)
     const otra = await repo.crearRuta({ fecha: manana() }, JT)
     if (!otra.ok) throw new Error(otra.mensaje)
     await repo.planificarRuta(r.id, { fecha: manana(), vehiculoId: 'veh-3', conductorId: 'per-2', paradas: [] }, JT)

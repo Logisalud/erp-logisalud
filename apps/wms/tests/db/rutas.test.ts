@@ -1,4 +1,4 @@
-// S4 (migración 0017): rutas — planificación con vehículo y personal, salida y asignación FEFO por pedido, versiones, corte, vehículo calificado y confirmación.
+// S4 (migración 0017): rutas — planificación con vehículo y personal, salida y asignación FEFO por pedido, versiones, corte, confirmación (el vehículo calificado se quitó en la 0031).
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { PedidoSnapshot } from '@/domain/pedidos-despacho'
@@ -101,7 +101,9 @@ describe('planificar una ruta', () => {
     await confirmar(jt, ruta)
     expect(await uno('select estado, confirmada_por from wms.rutas where id = $1', [ruta])).toMatchObject({ estado: 'PLANIFICADA', confirmada_por: jt })
     expect(await uno('select estado, codigo, version_formato from wms.registros_ls_fr_43_03 where ruta_id = $1', [ruta])).toMatchObject({ estado: 'BASE', codigo: 'LS-FR.43.03', version_formato: '01' })
-    expect((await q('select clave from wms.parametros where clave = $1 and valor = $2', ['ls_fr_43_03_usuario_significado', 'PENDIENTE'])).length).toBe(1)
+    // OS-7 (0027): las definiciones de DT del formato ya no están pendientes; el formato del archivo del data logger también desde SB-C
+    expect((await q('select clave from wms.parametros where clave = $1 and valor = $2', ['ls_fr_43_03_usuario_significado', 'PENDIENTE'])).length).toBe(0)
+    expect((await q('select clave from wms.parametros where clave = $1 and valor = $2', ['ls_fr_43_03_logger_formato', 'PENDIENTE'])).length).toBe(0) // SB-C (0033): el informe RC-61 ya se lee (PDF o CSV)
   })
 
   it('solo el Jefe de Transporte planifica: un Jefe de Almacén «solo», un auxiliar o una persona sin rol no', async () => {
@@ -128,13 +130,12 @@ describe('planificar una ruta', () => {
     expect((await falla(planificar(jt, r2, en(3), inactivo, null, null, []))).message).toMatch(/está inactivo/)
   })
 
-  it('el cliente que exige vehículo calificado bloquea un vehículo común; con uno calificado entra', async () => {
-    const { ped } = await pedidoConStock(5, { cliente: { id: 'cc', nombre: 'Clínica Frío', vehiculoCalificado: 'Furgón con termo' } })
-    const comun = await vehiculo(false); const calif = await vehiculo(true)
+  it('el vehículo calificado ya no se valida (D-153): un pedido de un cliente que antes lo exigía entra con un vehículo común, o sin vehículo', async () => {
+    const { ped } = await pedidoConStock(5, { cliente: { id: 'cc', nombre: 'Clínica Frío', ...({ vehiculoCalificado: 'Furgón con termo' } as object) } })
+    const comun = await vehiculo(false)
     const ruta = await crearRuta(jt, en(4))
-    expect((await falla(planificar(jt, ruta, en(4), comun, null, null, [{ pedido_id: ped.pedidoId }]))).message).toBe(`El cliente de ${ped.numero} exige un vehículo calificado`)
-    expect((await falla(planificar(jt, ruta, en(4), null, null, null, [{ pedido_id: ped.pedidoId }]))).message).toMatch(/exige un vehículo calificado/)
-    expect((await planificar(jt, ruta, en(4), calif, null, null, [{ pedido_id: ped.pedidoId }])).paradas).toBe(1)
+    expect((await planificar(jt, ruta, en(4), comun, null, null, [{ pedido_id: ped.pedidoId }])).paradas).toBe(1)
+    expect((await planificar(jt, ruta, en(4), null, null, null, [{ pedido_id: ped.pedidoId }])).paradas).toBe(1)
   })
 
   it('un pedido no puede estar en dos rutas vivas, y uno que cambió en Pedidos no entra hasta revisarlo', async () => {

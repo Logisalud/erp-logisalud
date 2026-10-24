@@ -1,9 +1,11 @@
+import { FiltroProducto } from '@/components/inventario/filtro-producto'
 import Link from 'next/link'
-import { Download, FileSpreadsheet, History, SearchX } from 'lucide-react'
+import { Download, FileSpreadsheet, History, Info, SearchX } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { filtroDesdeUrl, consultaDe } from '@/lib/filtro-kardex'
 import { repositorio } from '@/services/repositorio-actual'
 import { totalesKardex } from '@/domain/inventario'
+import { NOTA_RECORRIDO_KARDEX } from '@/domain/carga-inicial'
 import { formatoFecha } from '@/domain/fechas'
 
 export const metadata = { title: 'Kardex — WMS LOGISALUD' }
@@ -31,10 +33,7 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
       <form method="get" className="card grid gap-3 md:grid-cols-6 md:items-end" data-testid="filtros-kardex">
         <div className="md:col-span-2">
           <label htmlFor="k-producto" className="etiqueta">Producto</label>
-          <select id="k-producto" name="producto" className="campo" defaultValue={filtro?.productoId ?? ''} required>
-            <option value="" disabled>Elige un producto…</option>
-            {[...p.productos].sort((a, b) => a.descripcion.localeCompare(b.descripcion, 'es')).map((x) => <option key={x.id} value={x.id}>{x.codigo} · {x.descripcion}</option>)}
-          </select>
+          <FiltroProducto inicial={prod ? { id: prod.id, codigo: prod.codigo, descripcion: prod.descripcion, presentacion: prod.presentacion } : null} />
         </div>
         <div>
           <label htmlFor="k-lote" className="etiqueta">Lote</label>
@@ -126,6 +125,9 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
                   </li>
                 ))}
               </ul>
+              {filas.some((f) => f.tipoDocumento === 'Carga inicial') && (
+                <p className="flex items-start gap-2 text-sm text-gray-600" data-testid="nota-carga-inicial"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{NOTA_RECORRIDO_KARDEX}</p>
+              )}
             </>
           )}
         </>

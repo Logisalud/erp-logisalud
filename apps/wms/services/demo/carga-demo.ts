@@ -38,7 +38,7 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
   private resumenCarga(e: EstadoDemo, r: RutaDemo): CargaResumen {
     const c = cargaDe(e, r.id); const ps = this.pedidosDe(e, r).filter((p) => !p.excluida)
     return {
-      rutaId: r.id, rutaNumero: r.numero, fecha: r.fecha, estado: r.estado === 'EN_RUTA' ? 'EN_RUTA' : r.estado === 'LIBERADA' ? 'LIBERADA' : 'EN_CARGA', placa: desp(e).vehiculos.find((v) => v.id === r.vehiculoId)?.placa,
+      rutaId: r.id, rutaNumero: r.numero, fecha: r.fecha, estado: ['EN_RUTA', 'PENDIENTE_CIERRE', 'CERRADA'].includes(r.estado) ? 'EN_RUTA' : r.estado === 'LIBERADA' ? 'LIBERADA' : 'EN_CARGA', placa: desp(e).vehiculos.find((v) => v.id === r.vehiculoId)?.placa,
       pedidos: ps.length, bultosEsperados: ps.reduce((t, p) => t + p.bultos.length, 0), bultosCargados: ps.reduce((t, p) => t + p.bultos.filter((b) => b.cargado).length, 0),
     }
   }
@@ -158,7 +158,7 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
   }
 
   /** El stock SALE: cada reserva en la zona de conformidad baja del saldo y queda en el libro como SALIDA. */
-  private descontar(e: EstadoDemo, s: SalidaDemo, actor: Actor): number {
+  protected descontar(e: EstadoDemo, s: SalidaDemo, actor: Actor): number {
     let n = 0
     for (const rv of desp(e).reservas.filter((x) => x.estado === 'EN_STAGING' && s.lineas.some((l) => l.id === x.lineaId))) {
       const lt = e.panorama.lotes.find((l) => l.id === rv.loteId)!
@@ -177,7 +177,7 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
     return Object.values(cargas(e)).some((c) => vivos(c).some((x) => codigos.has(x.codigo))) ? 'Hay bultos de este pedido cargados en una ruta: retíralos de la carga antes de reabrir el embalaje' : null
   }
 
-  protected override avanceExtra(e: EstadoDemo, s: SalidaDemo): { embalada?: boolean; cargada?: boolean } {
+  protected override avanceExtra(e: EstadoDemo, s: SalidaDemo): { embalada?: boolean; cargada?: boolean; sinEmbalaje?: boolean } {
     const b = bultosVigentes(e, s.id)
     const cargada = b.length > 0 && b.every((x) => Object.values(cargas(e)).some((c) => vivos(c).some((y) => y.codigo === x.codigo)))
     return { ...super.avanceExtra(e, s), cargada }

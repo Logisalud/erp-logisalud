@@ -9,6 +9,7 @@
     "test": "vitest run --exclude \"tests/db/**\"",
     "test:e2e": "./scripts/e2e-por-viewport.sh",
     "test:e2e:un-servidor": "playwright test",
+    "test:preview-pdf": "playwright test -c playwright.preview.config.ts",
     "seed:topologia": "tsx scripts/generar-seed-topologia.ts",
     "datos:demo-odoo": "tsx scripts/generar-datos-demo-odoo.ts",
     "test:db": "./scripts/db-local.sh && vitest run tests/db"

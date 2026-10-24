@@ -1,9 +1,10 @@
 // S7 en memoria (modo demostración): embalaje en bultos. Mismas reglas que la migración 0020.
+import { guardiaDeOrden } from './cambio-pedido-demo'
 import { codigoDeBulto, puedeEmbalar, validarReparto, type BultoVista, type EmbalajeResumen, type EmbalajeVista, type PendienteEmbalar, type RepartoBulto } from '@/domain/embalaje'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { registrar, type EstadoDemo } from './estado'
 import { ahora, estadoE, falla, nuevoId } from './entradas-demo'
-import { desp, type RutaDemo, type SalidaDemo } from './despacho-demo'
+import { claveDeParada, desp, type RutaDemo, type SalidaDemo } from './despacho-demo'
 import { pk } from './picking-demo'
 import { DocumentacionDemo, salidaConforme } from './documentacion-demo'
 import type { RepositorioEmbalaje } from '../repositorio-embalaje'
@@ -18,7 +19,7 @@ export class EmbalajeDemo extends DocumentacionDemo implements RepositorioEmbala
     const o = pk(e).ordenes.find((x) => x.salidaId === s.id && x.estado !== 'CANCELADA')
     const por = new Map<string, PendienteEmbalar>()
     for (const l of o?.lineas ?? []) {
-      if (l.conformidad !== 'CONFORME') continue
+      if (l.conformidad !== 'CONFORME' || l.cantidad <= 0) continue
       const k = `${l.lineaId}|${l.loteId}`
       const lt = e.panorama.lotes.find((x) => x.id === l.loteId); const p = e.panorama.productos.find((x) => x.id === l.productoId)
       const a = por.get(k) ?? { lineaId: l.lineaId, productoCodigo: p?.codigo ?? '', producto: p?.descripcion ?? '', loteId: l.loteId, lote: lt?.codigo ?? '', vence: lt?.vence ?? null, cantidad: 0 }
@@ -34,7 +35,7 @@ export class EmbalajeDemo extends DocumentacionDemo implements RepositorioEmbala
 
   async colaEmbalaje(): Promise<EmbalajeResumen[]> {
     const e = estadoE(); await this.sembrarDespacho(e)
-    return structuredClone(desp(e).salidas.filter((s) => s.estado === 'ABIERTA' && salidaConforme(e, s.id)).map((s) => this.resumen(e, s)).sort((a, b) => a.bultos - b.bultos || a.salidaNumero.localeCompare(b.salidaNumero)))
+    return structuredClone(desp(e).salidas.filter((s) => s.estado === 'ABIERTA' && s.requiereEmbalaje && salidaConforme(e, s.id)).map((s) => this.resumen(e, s)).sort((a, b) => a.bultos - b.bultos || a.salidaNumero.localeCompare(b.salidaNumero)))
   }
 
   async embalajeSalida(salidaId: string): Promise<EmbalajeVista | null> {
@@ -52,12 +53,15 @@ export class EmbalajeDemo extends DocumentacionDemo implements RepositorioEmbala
     if (!puedeEmbalar(actor.roles)) return falla('No tienes permiso para embalar')
     const s = desp(e).salidas.find((x) => x.id === salidaId)
     if (!s) return falla('No encontramos esa salida')
+    const bloqueado = guardiaDeOrden(e, s.id); if (bloqueado) return falla(bloqueado)
     if (s.estado !== 'ABIERTA') return falla('La salida ya no está abierta')
     if (!salidaConforme(e, s.id)) return falla('El embalaje empieza cuando todo el pedido tiene la conformidad')
     if (bultosVigentes(e, s.id).length) return falla('Este pedido ya está embalado. Para rehacerlo, reabre el embalaje con el motivo')
     const pend = this.pendientes(e, s)
     const err = validarReparto(pend, reparto)
     if (err) return falla(err)
+    if (!s.requiereEmbalaje) return falla('Este pedido va a Lima: no necesita embalaje, sus bultos ya quedaron registrados en la conformidad')
+    if (s.bultosConformidad && reparto.length !== s.bultosConformidad) return falla(`La conformidad registró ${s.bultosConformidad} bultos: el embalaje tiene que repartir lo confirmado en esos ${s.bultosConformidad}`)
     const total = reparto.length; const cuando = ahora()
     reparto.forEach((b, i) => {
       const contenido = b.contenido.map((c) => { const p = pend.find((x) => x.lineaId === c.lineaId && x.loteId === c.loteId)!; return { lineaId: c.lineaId, productoCodigo: p.productoCodigo, producto: p.producto, loteId: c.loteId, lote: p.lote, vence: p.vence, cantidad: c.cantidad } })
@@ -76,6 +80,7 @@ export class EmbalajeDemo extends DocumentacionDemo implements RepositorioEmbala
     if (s.estado !== 'ABIERTA') return falla('La salida ya no está abierta')
     const vigentes = bultosVigentes(e, s.id)
     if (!vigentes.length) return falla('Este pedido no está embalado')
+    if (!s.requiereEmbalaje) return falla('Este pedido va a Lima: sus bultos son los de la conformidad y no se reabren desde el embalaje')
     const bloqueo = this.bloqueoReabrir(e, s)
     if (bloqueo) return falla(bloqueo)
     for (const b of vigentes) { b.estado = 'ANULADO'; b.anuladoMotivo = motivo.trim(); b.anuladoEn = ahora() }
@@ -92,15 +97,15 @@ export class EmbalajeDemo extends DocumentacionDemo implements RepositorioEmbala
   }
 
   // ── Efectos sobre lo ya existente ───────────────────────────────────────────────────────────────────────────────
-  protected override avanceExtra(e: EstadoDemo, s: SalidaDemo): { embalada?: boolean; cargada?: boolean } {
-    return { ...super.avanceExtra(e, s), embalada: bultosVigentes(e, s.id).length > 0 }
+  protected override avanceExtra(e: EstadoDemo, s: SalidaDemo): { embalada?: boolean; cargada?: boolean; sinEmbalaje?: boolean } {
+    return { ...super.avanceExtra(e, s), embalada: bultosVigentes(e, s.id).length > 0, sinEmbalaje: !s.requiereEmbalaje }
   }
 
   /** La columna «N.° cajas» del LS-FR.43.03 muestra los bultos del pedido (rotulados «bultos» mientras Dirección Técnica define si cajas = bultos). */
   protected override extrasLsFr(e: EstadoDemo, r: RutaDemo): ExtrasLsFr {
     const base = super.extrasLsFr(e, r)
     const cajas: Record<string, number> = {}
-    for (const p of r.paradas) { if (!p.activa || !p.salidaId) continue; const n = bultosVigentes(e, p.salidaId).length; if (n) cajas[p.pedidoId] = n }
+    for (const p of r.paradas) { if (!p.activa || !p.salidaId) continue; const n = bultosVigentes(e, p.salidaId).length; if (n) cajas[claveDeParada(p)] = n }
     return { ...base, cajas }
   }
 }

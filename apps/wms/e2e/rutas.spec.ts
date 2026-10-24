@@ -1,4 +1,4 @@
-// S4: rutas de distribución en los 4 viewports: lista, armado (vehículo, personal, pedidos, orden), corte, vehículo calificado, sin stock, versiones y permisos.
+// S4: rutas de distribución en los 4 viewports: lista, armado (vehículo, personal, pedidos, orden), corte, sin stock, versiones y permisos.
 import { expect, test, type Page } from '@playwright/test'
 import { capturar, entrarComo, esTelefono, sinDesborde } from './ayudas'
 
@@ -44,8 +44,11 @@ test.describe('rutas (S4)', () => {
     const planificada = page.getByTestId(esTelefono(info) ? 'fila-ruta-movil' : 'fila-ruta').filter({ hasText: 'Planificada' }).first()
     await (esTelefono(info) ? planificada : planificada.getByRole('link', { name: /^Abrir/ })).click()
     await expect(page.getByTestId('lsfr-panel')).toContainText('LS-FR.43.03')
+    // D-155: el formato lleva a quien figura en documentos (por ahora Michele) y deja claro quién es el conductor real
+    await expect(page.getByTestId('lsfr-conductor-documentos')).toContainText('El formato lleva a Michele Yermain Mauriello Diaz')
+    await expect(page.getByTestId('lsfr-conductor-documentos')).toContainText('El conductor real de la ruta es Luis Quispe')
     await page.getByTestId('lsfr-definiciones').locator('summary').click()
-    await expect(page.getByTestId('lsfr-definiciones')).toContainText('Qué significa la columna USUARIO')
+    await expect(page.getByTestId('lsfr-definiciones')).toContainText('Qué se hace con la mercadería cuando el data logger supera el límite')
     await sinDesborde(page)
     await capturar(page, info, 'rutas-lsfr-panel', { completa: true })
     const href = await page.getByTestId('ver-lsfr').getAttribute('href')
@@ -71,7 +74,7 @@ test.describe('rutas (S4)', () => {
     await expect(page.getByTestId('editor-ruta')).toBeVisible()
     await expect(page.getByTestId('sin-paradas')).toBeVisible()
     await expect(page.getByTestId('confirmar-ruta')).toBeDisabled()
-    await page.getByTestId('ruta-vehiculo').selectOption({ label: 'D4F-318 — Furgón con termo · calificado · frío' })
+    await page.getByTestId('ruta-vehiculo').selectOption({ label: 'D4F-318 — Furgón con termo · frío' })
     await page.getByTestId('ruta-conductor').selectOption({ label: 'Marco Huamán' })
     await page.getByTestId('ruta-auxiliar').selectOption({ label: 'Pedro Soto' })
     await page.getByTestId('agregar-buscar').fill('angeles')
@@ -91,7 +94,7 @@ test.describe('rutas (S4)', () => {
     await expect(page.getByTestId('historial-ruta')).toContainText('Versión 2')
   })
 
-  test('el vehículo común no atiende al cliente que exige calificado, y un pedido sin stock deja guardar pero no confirmar; sacarlo lo libera', async ({ page }, info) => {
+  test('un vehículo común atiende a cualquier cliente (el vehículo calificado ya no se valida), y un pedido sin stock deja guardar pero no confirmar; sacarlo lo libera', async ({ page }, info) => {
     await entrarComo(page, 'jefe_transporte')
     await page.goto('/wms/rutas')
     await page.getByTestId('nueva-ruta-fecha').fill(new Date().toISOString().slice(0, 10)) // hoy: lo importado hoy llegó después del corte de la víspera
@@ -101,10 +104,9 @@ test.describe('rutas (S4)', () => {
     await page.getByTestId('ruta-conductor').selectOption({ label: 'Luis Quispe' })
     await page.getByTestId('agregar-buscar').fill('PED-DEMO-104')
     await page.getByTestId('pedido-disponible').filter({ hasText: 'PED-DEMO-104' }).getByTestId('agregar-pedido').click()
-    await expect(page.getByTestId('errores-plan')).toContainText('exige un vehículo calificado')
     await expect(page.getByTestId('errores-plan')).toContainText('llegó después del corte')
+    await expect(page.getByTestId('errores-plan')).not.toContainText('calificado')   // D-153: el WMS ya no exige vehículo calificado
     await expect(page.getByTestId('guardar-plan')).toBeDisabled()
-    await page.getByTestId('ruta-vehiculo').selectOption({ label: 'BKW-757 — Camioneta cerrada · calificado' })
     await page.getByTestId('excepcion-corte').check()
     await page.getByTestId('excepcion-motivo').fill('Cliente urgente')
     await expect(page.getByTestId('errores-plan')).toHaveCount(0)

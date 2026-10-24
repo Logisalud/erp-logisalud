@@ -47,6 +47,7 @@ describe('migraciones aplicables a mano', () => {
     avisos.length = 0
     for (const f of archivos) await admin.query(readFileSync(resolve(dir, f), 'utf8'))
     await admin.query(SQL.seed())
+    await admin.query(SQL.seedTransporte())
     expect(avisos.filter((a) => /does not exist|skipping/i.test(a))).toEqual([])
   }, 60_000)
 })

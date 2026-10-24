@@ -218,14 +218,15 @@ describe('cambio de estado sanitario', () => {
     expect(e.message).toMatch(/no se revierte/i)
   })
 
-  it('Aprobado → Bajas/Rechazados lo registra Katia con sustento', async () => {
+  it('Aprobado → Bajas/Rechazados solo con una Orden de Baja (OS-6): el «sustento» suelto ya no basta, aunque lo registre Katia', async () => {
     const x = await ingresarACuarentena('CE-8')
     await aprobar(x)
-    await base.como(P().katia.id, (c) => postear(c, 'CAMBIO_ESTADO', [
+    const e = await falla(base.como(P().katia.id, (c) => postear(c, 'CAMBIO_ESTADO', [
       { posicion_id: x.a6, producto_id: x.producto, lote_id: x.lote, propietario_id: x.logissa, estado: 'APROBADO', origen: 'COMPRA_LOCAL', procedencia_id: x.proc, delta: -2 },
       { posicion_id: x.a6, producto_id: x.producto, lote_id: x.lote, propietario_id: x.logissa, estado: 'BAJAS_RECHAZADOS', origen: 'COMPRA_LOCAL', procedencia_id: x.proc, delta: 2 },
-    ], { sustentoId: 'BAJA-1' }))
-    expect(await saldoDe(base.admin, { lote_id: x.lote, estado: 'BAJAS_RECHAZADOS' })).toBe(2)
+    ], { sustentoId: 'BAJA-1' })))
+    expect(e.message).toMatch(/necesita su Orden de Baja/)
+    expect(await saldoDe(base.admin, { lote_id: x.lote, estado: 'BAJAS_RECHAZADOS' })).toBe(0) // el camino correcto está en tests/db/bajas.test.ts
   })
 })
 

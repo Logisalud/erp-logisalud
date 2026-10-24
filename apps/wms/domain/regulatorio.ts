@@ -21,7 +21,7 @@ export function situacionRS(rsVence: string | undefined | null, hoy: string): Si
 
 export type BloqueoAprobacion =
   | { puede: true }
-  | { puede: false; motivo: 'SIN_REGISTRO' | 'RS_VENCIDO'; mensaje: string }
+  | { puede: false; motivo: 'SIN_REGISTRO' | 'RS_VENCIDO' | 'SIN_VALIDAR'; mensaje: string }
 
 /** Un lote solo puede aprobarse con el registro sanitario y su vencimiento cargados, y vigente (D-37: sin segunda validación). */
 export function puedeAprobarse(reg: Regulatorio | undefined, hoy: string): BloqueoAprobacion {
@@ -31,6 +31,9 @@ export function puedeAprobarse(reg: Regulatorio | undefined, hoy: string): Bloqu
       motivo: 'SIN_REGISTRO',
       mensaje: 'El producto no tiene cargados su registro sanitario y su vencimiento. Dirección Técnica debe completarlos.',
     }
+  }
+  if (reg.estadoValidacion === 'PENDIENTE' || reg.estadoValidacion === 'OBSERVADO') {
+    return { puede: false, motivo: 'SIN_VALIDAR', mensaje: 'El producto todavía no está validado. Dirección Técnica debe validarlo antes de aprobar sus lotes.' }
   }
   if (situacionRS(reg.rsVence, hoy) === 'VENCIDO') {
     return {

@@ -4,11 +4,14 @@ import { ArrowLeft, ArrowRight, Download, FolderOpen, ShieldAlert } from 'lucide
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { puede } from '@/domain/permisos'
+import { ETIQUETA_MOTIVO_RETORNO } from '@/domain/retornos'
 import { ETIQUETA_TIPO_INGRESO, puedeGenerarActa, puedePrepararSolicitud } from '@/domain/entradas'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { ChipEstado } from '@/components/chips'
 import { AccionesSolicitud } from '@/components/entradas/acciones-solicitud'
 import { Aviso } from '@/components/entradas/aviso'
+import { AvancePasos } from '@/components/guia/avance-pasos'
+import { avanceDeIngreso } from '@/domain/pasos'
 import { BloqueCantidadFisica } from '@/components/entradas/bloque-fisico'
 import { TablaCantidades } from '@/components/entradas/cantidades'
 import { ChipActa, ChipAlerta, ChipPaso, ChipTipoIngreso } from '@/components/entradas/chips-entradas'
@@ -18,13 +21,6 @@ import { LineasSolicitud } from '@/components/entradas/lineas-solicitud'
 import { PanelActa } from '@/components/entradas/panel-acta'
 
 export const metadata = { title: 'Solicitud de ingreso — WMS LOGISALUD' }
-
-const PASOS = [
-  { id: 'solicitud', t: 'Solicitud' },
-  { id: 'recepcion', t: 'Recepción' },
-  { id: 'firmas', t: 'Acta y firmas' },
-  { id: 'calidad', t: 'Calidad' },
-] as const
 
 export default async function DetalleSolicitud({ params }: { params: { id: string } }) {
   const ctx = await exigirContexto()
@@ -46,7 +42,6 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
   }) : null
   const titulo = sol.numero
   const prefijo = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
-  const idxPaso = sol.estado === 'CERRADA' ? 3 : sol.paso === 'FIRMAS' || sol.paso === 'CONFIRMAR' ? 2 : enRecepcion ? 1 : 0
   const alertasAbiertas = sol.alertas.filter((a) => a.estado === 'ABIERTA')
   const referencia = sol.tipo === 'COMPRA_LOCAL' ? sol.ocCodigo : sol.tipo === 'DEVOLUCION' ? `${sol.docOriginalTipo === 'BOLETA' ? 'Boleta' : 'Factura'} original ${sol.docOriginalNumero}` : sol.guiaNumero ? `Guía ${sol.guiaNumero}` : undefined
   const destino = sol.estadoInicial === 'DEVOLUCIONES' ? 'Devoluciones' : 'Cuarentena'
@@ -64,16 +59,11 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
           <a className="btn-secondary btn-sm" href={`${prefijo}/entradas/${sol.id}/pdf`} target="_blank" rel="noopener" data-testid="pdf-solicitud"><Download className="h-4 w-4" aria-hidden />Solicitud en PDF</a>
           <a className="btn-secondary btn-sm" href={`${prefijo}/entradas/${sol.id}/xlsx`} download data-testid="xlsx-solicitud"><Download className="h-4 w-4" aria-hidden />Solicitud en Excel</a>
         </div>
+        {sol.retorno && <div className="mt-3"><Aviso tipo="info" testid="aviso-retorno"><strong>Es el retorno de la Orden de Salida {sol.retorno.salidaNumero}</strong> ({ETIQUETA_MOTIVO_RETORNO[sol.retorno.motivo].toLowerCase()}{sol.retorno.guiaNumero ? `, guía ${sol.retorno.guiaNumero}` : ''}). Se cuenta al 100 %: no puede volver más de lo que salió. Si el pedido se reprograma, se prepara desde cero con una nueva Orden de Salida.</Aviso></div>}
         {sol.tipo === 'DEVOLUCION' && <p className="mt-1 text-sm text-gray-700">Se deja en el Área de Devoluciones y no pasa por Cuarentena: su acta organoléptica decide si va a Aprobado o a Bajas/Rechazados.</p>}
       </header>
 
-      <ol className="grid grid-cols-4 gap-2" aria-label="Avance del ingreso">
-        {PASOS.map((p, i) => (
-          <li key={p.id} aria-current={i === idxPaso ? 'step' : undefined} className={`border-t-4 px-2 pb-1 pt-2 text-xs font-medium sm:text-sm ${i < idxPaso ? 'border-logisalud-green text-green-900' : i === idxPaso ? 'border-logisalud-teal text-gray-900' : 'border-gray-200 text-gray-500'}`}>
-            <span className="tabular text-[11px] text-gray-500">{i + 1}</span> {p.t}
-          </li>
-        ))}
-      </ol>
+      <AvancePasos avance={avanceDeIngreso(sol.estado, sol.id)} roles={ctx.roles} titulo="Dónde va este ingreso y qué sigue" testid="avance-ingreso" />
 
       {sol.estado === 'CERRADA' && sol.tipo === 'COMPRA_LOCAL' && <BloqueCantidadFisica bloques={sol.cantidadFisica} ocId={sol.ocId} ocCodigo={sol.ocCodigo} solicitudNumero={sol.numero} />}
 
@@ -118,7 +108,7 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
             {sol.organolepticas.map((o) => (
               <li key={o.id}>
                 <Link href={`/calidad/${o.id}`} className="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5 hover:bg-gray-50">
-                  <span className="min-w-0"><span className="block truncate font-medium text-gray-900">{o.producto}</span><span className="block text-sm text-gray-600">Lote {o.lote} · vence {formatoFecha(o.vence)} · {o.cantidadLote.toLocaleString('es-PE')} und. · muestra de {o.cantidadMuestra}</span></span>
+                  <span className="min-w-0"><span className="block truncate font-medium text-gray-900">{o.producto}</span><span className="block text-sm text-gray-600">Lote {o.lote} · vence {formatoFecha(o.vence)} · {o.cantidadLote.toLocaleString('es-PE')} und. · muestra de {o.cantidadMuestra.toLocaleString('es-PE')}</span></span>
                   <span className="flex items-center gap-2">{o.decision ? <ChipEstado estado={o.decision} /> : <ChipActa estado={o.estado === 'PENDIENTE_DT' ? 'PENDIENTE_DT' : 'BORRADOR'} />}<ArrowRight className="h-4 w-4 text-gray-400" aria-hidden /></span>
                 </Link>
               </li>

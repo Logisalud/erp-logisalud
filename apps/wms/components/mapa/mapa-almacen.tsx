@@ -32,8 +32,8 @@ const COLOR_ESTADO: Record<Estado, { fondo: string; borde: string; letra: string
   BAJAS_RECHAZADOS: { fondo: '#FEE2E2', borde: '#B91C1C', letra: 'B' },
 }
 
-const AREA_COMPARTIDA = new Set(['RECEPCION', 'CUARENTENA', 'EMBALAJE', 'DESPACHO'])
-const AREA_ETIQUETA_CORTA: Record<string, string> = { RECEPCION: 'Recep.', CUARENTENA: 'Cuar.', EMBALAJE: 'Emb.', DESPACHO: 'Desp.' }
+const AREA_COMPARTIDA = new Set(['RECEPCION', 'CUARENTENA', 'DESPACHO'])
+const AREA_ETIQUETA_CORTA: Record<string, string> = { RECEPCION: 'Recep.', CUARENTENA: 'Cuar.', DESPACHO: 'Desp.' }
 
 /** Estado que "gana" en una celda con varios: Cuarentena y Devoluciones (piden acción) > Bajas > Aprobado. */
 function estadoDominante(c: CeldaVista): Estado | null {

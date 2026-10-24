@@ -4,6 +4,8 @@
 import { normalizar } from './busqueda'
 
 export const ESTADO_PEDIDO_LISTO = 'READY_FOR_OPERATIONS'
+/** Pedidos avisa que el pedido se canceló (SA-3, D-128): llega como una versión nueva, con su motivo; la Orden de Salida se cancela y libera todo. */
+export const ESTADO_PEDIDO_CANCELADO = 'CANCELLED'
 
 export interface LineaPedido { lineaId: string; productoCodigo: string; descripcion: string; cantidad: number }
 
@@ -13,11 +15,12 @@ export interface ClientePedido {
   ruc?: string
   direccion?: string
   distrito?: string
+  /** Ubigeo de entrega (6 dígitos): decide si el pedido va a Lima Metropolitana o a provincia (y entonces se embala). */
+  ubigeo?: string
   coordenadas?: { lat: number; lng: number }
   /** Ventana de cita de entrega, tal como la dio el cliente (texto: «L-V 8:00–12:00»). */
   ventanaCita?: string
-  /** Tipo de vehículo calificado para entregarle (texto). */
-  vehiculoCalificado?: string
+  // «Vehículo calificado» ya no se trae de Pedidos (D-153): el Jefe de Transporte decide el vehículo por experiencia. Si un pedido viejo trae el dato, se ignora.
 }
 
 /** Lo que Pedidos entrega por cada pedido listo (el snapshot): el WMS lo guarda tal cual, para que el historial no cambie si el maestro cambia. */
@@ -26,7 +29,7 @@ export interface PedidoSnapshot {
   numero: string
   /** Sube cada vez que el pedido se modifica en Pedidos después de quedar listo. */
   version: number
-  estado: typeof ESTADO_PEDIDO_LISTO
+  estado: typeof ESTADO_PEDIDO_LISTO | typeof ESTADO_PEDIDO_CANCELADO
   /** AAAA-MM-DD del pedido. */
   fecha: string
   modificadoEn: string
@@ -35,10 +38,22 @@ export interface PedidoSnapshot {
   condicionPago?: string
   factura?: string
   observaciones?: string
+  /** Solo en un pedido cancelado: por qué se canceló y quién lo hizo en Pedidos (SA-3). */
+  motivoCancelacion?: string
+  canceladoPor?: string
   lineas: LineaPedido[]
 }
 
 export interface PedidoDescartado { indice: number; referencia?: string; motivo: string }
+
+/** Prefijos de ubigeo que se entregan en Lima Metropolitana y Callao: no necesitan embalaje (parámetro `ubigeos_lima_metropolitana`). */
+export const PREFIJOS_LIMA = ['1501', '0701'] as const
+/** Un pedido a provincia se embala; uno a Lima queda con los bultos de la conformidad. Sin ubigeo se embala (lo más prudente). Espejo de `wms._requiere_embalaje`. */
+export function requiereEmbalaje(ubigeo: string | undefined | null, prefijosLima: readonly string[] = PREFIJOS_LIMA): boolean {
+  const u = ubigeo?.trim()
+  if (!u) return true
+  return !prefijosLima.some((p) => u.startsWith(p))
+}
 
 const texto = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
 const esObjeto = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -59,7 +74,9 @@ export function validarPedidos(entrada: unknown): { pedidos: PedidoSnapshot[]; d
     if (!numero) return malo('Falta el número del pedido.', ref)
     const version = Number(crudo.version)
     if (!Number.isInteger(version) || version < 1) return malo('La versión debe ser un entero desde 1.', ref)
-    if (crudo.estado !== ESTADO_PEDIDO_LISTO) return malo(`Solo se importan pedidos ${ESTADO_PEDIDO_LISTO}.`, ref)
+    if (crudo.estado !== ESTADO_PEDIDO_LISTO && crudo.estado !== ESTADO_PEDIDO_CANCELADO) return malo(`Solo se importan pedidos ${ESTADO_PEDIDO_LISTO} o ${ESTADO_PEDIDO_CANCELADO}.`, ref)
+    const motivoCancelacion = texto(crudo.motivoCancelacion) ?? texto(crudo.motivo_cancelacion)
+    if (crudo.estado === ESTADO_PEDIDO_CANCELADO && !motivoCancelacion) return malo('Un pedido cancelado trae el motivo de la cancelación (motivoCancelacion).', ref)
     if (!esFecha(crudo.fecha)) return malo('Falta la fecha del pedido (AAAA-MM-DD).', ref)
     const c = crudo.cliente
     if (!esObjeto(c) || !texto(c.id) || !texto(c.nombre)) return malo('Falta el cliente (id y nombre).', ref)
@@ -78,13 +95,14 @@ export function validarPedidos(entrada: unknown): { pedidos: PedidoSnapshot[]; d
     const coord = esObjeto(c.coordenadas) && Number.isFinite(Number(c.coordenadas.lat)) && Number.isFinite(Number(c.coordenadas.lng))
       ? { lat: Number(c.coordenadas.lat), lng: Number(c.coordenadas.lng) } : undefined
     pedidos.push({
-      pedidoId, numero, version, estado: ESTADO_PEDIDO_LISTO, fecha: String(crudo.fecha).slice(0, 10),
+      pedidoId, numero, version, estado: crudo.estado, fecha: String(crudo.fecha).slice(0, 10),
       modificadoEn: esFecha(crudo.modificadoEn) ? String(crudo.modificadoEn) : String(crudo.fecha).slice(0, 10) + 'T00:00:00Z',
       cliente: {
-        id: texto(c.id)!, nombre: texto(c.nombre)!, ruc: texto(c.ruc), direccion: texto(c.direccion), distrito: texto(c.distrito), coordenadas: coord,
-        ventanaCita: texto(c.ventanaCita), vehiculoCalificado: texto(c.vehiculoCalificado),
+        id: texto(c.id)!, nombre: texto(c.nombre)!, ruc: texto(c.ruc), direccion: texto(c.direccion), distrito: texto(c.distrito), ubigeo: texto(c.ubigeo), coordenadas: coord,
+        ventanaCita: texto(c.ventanaCita),
       },
-      vendedor: texto(crudo.vendedor), condicionPago: texto(crudo.condicionPago), factura: texto(crudo.factura), observaciones: texto(crudo.observaciones), lineas,
+      vendedor: texto(crudo.vendedor), condicionPago: texto(crudo.condicionPago), factura: texto(crudo.factura), observaciones: texto(crudo.observaciones),
+      ...(crudo.estado === ESTADO_PEDIDO_CANCELADO ? { motivoCancelacion, canceladoPor: texto(crudo.canceladoPor) ?? texto(crudo.cancelado_por) } : {}), lineas,
     })
   })
   const vistos = new Set<string>()
@@ -106,6 +124,7 @@ export function compararVersion(vigente: number | undefined, recibida: number): 
 /** Lo que cambió entre dos versiones del mismo pedido, en palabras (para la alerta y para la bandeja). */
 export function resumirCambios(anterior: PedidoSnapshot, nuevo: PedidoSnapshot): string[] {
   const cambios: string[] = []
+  if (nuevo.estado === ESTADO_PEDIDO_CANCELADO && anterior.estado !== ESTADO_PEDIDO_CANCELADO) return [`El pedido se canceló en Pedidos: ${nuevo.motivoCancelacion ?? 'sin motivo'}`]
   const antes = new Map(anterior.lineas.map((l) => [l.lineaId, l]))
   const despues = new Map(nuevo.lineas.map((l) => [l.lineaId, l]))
   for (const l of nuevo.lineas) {
@@ -117,8 +136,8 @@ export function resumirCambios(anterior: PedidoSnapshot, nuevo: PedidoSnapshot):
   if (anterior.cliente.nombre !== nuevo.cliente.nombre) cambios.push('Cambió el nombre del cliente')
   if ((anterior.cliente.direccion ?? '') !== (nuevo.cliente.direccion ?? '')) cambios.push('Cambió la dirección de entrega')
   if ((anterior.cliente.ventanaCita ?? '') !== (nuevo.cliente.ventanaCita ?? '')) cambios.push('Cambió la ventana de cita')
-  if ((anterior.cliente.vehiculoCalificado ?? '') !== (nuevo.cliente.vehiculoCalificado ?? '')) cambios.push('Cambió el vehículo calificado')
   if ((anterior.condicionPago ?? '') !== (nuevo.condicionPago ?? '')) cambios.push('Cambió la condición de pago')
+  if (nuevo.factura && (anterior.factura ?? '') !== nuevo.factura) cambios.push(`Pedidos registró la factura ${nuevo.factura}`)
   return cambios
 }
 
@@ -154,12 +173,13 @@ export function planificarImportacion(vigentes: ReadonlyMap<string, PedidoSnapsh
 // ── La bandeja ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Por planificar: nadie lo ha llevado a una ruta. En salida: ya se creó su salida. Cambió: llegó una versión nueva después de importarse. */
-export type EstadoBandeja = 'POR_PLANIFICAR' | 'EN_SALIDA' | 'CAMBIO_POR_REVISAR'
+export type EstadoBandeja = 'POR_PLANIFICAR' | 'EN_SALIDA' | 'CAMBIO_POR_REVISAR' | 'CANCELADO_EN_PEDIDOS'
 
 export const ETIQUETA_ESTADO_BANDEJA: Record<EstadoBandeja, string> = {
   POR_PLANIFICAR: 'Por planificar',
   EN_SALIDA: 'Con salida',
   CAMBIO_POR_REVISAR: 'Cambió: revisar',
+  CANCELADO_EN_PEDIDOS: 'Cancelado en Pedidos',
 }
 
 export interface PedidoBandeja {
@@ -175,7 +195,6 @@ export interface PedidoBandeja {
   direccion?: string
   distrito?: string
   ventanaCita?: string
-  vehiculoCalificado?: string
   vendedor?: string
   condicionPago?: string
   factura?: string
@@ -188,6 +207,13 @@ export interface PedidoBandeja {
   importadoEn: string
   /** Número de la salida que lo tomó, si la hay. */
   salida?: string
+  /** Id de esa salida (para abrirla). */
+  salidaId?: string
+  /** Solo si Pedidos lo canceló: el motivo y quién (SA-3). */
+  motivoCancelacion?: string
+  canceladoPor?: string
+  /** Si su orden de salida tiene falta de stock: el aviso listo para copiar y mandárselo al vendedor por WhatsApp (SA-3, D-126). */
+  avisoVendedor?: string
   texto: string
 }
 
@@ -207,13 +233,14 @@ export function filtrarBandeja(pedidos: readonly PedidoBandeja[], f: FiltrosBand
   return pedidos
     .filter((p) => (!f.estado || p.estado === f.estado) && (!q || q.split(/\s+/).every((t) => p.texto.includes(t))))
     // lo que hay que mirar primero: los que cambiaron, luego los más viejos por planificar
-    .sort((a, b) => Number(b.estado === 'CAMBIO_POR_REVISAR') - Number(a.estado === 'CAMBIO_POR_REVISAR') || a.fecha.localeCompare(b.fecha) || a.numero.localeCompare(b.numero))
+    .sort((a, b) => Number(b.estado === 'CAMBIO_POR_REVISAR') - Number(a.estado === 'CAMBIO_POR_REVISAR') || Number(a.estado === 'CANCELADO_EN_PEDIDOS') - Number(b.estado === 'CANCELADO_EN_PEDIDOS') || a.fecha.localeCompare(b.fecha) || a.numero.localeCompare(b.numero))
 }
 
 export const contarPorEstado = (pedidos: readonly PedidoBandeja[]): Record<EstadoBandeja, number> => ({
   POR_PLANIFICAR: pedidos.filter((p) => p.estado === 'POR_PLANIFICAR').length,
   EN_SALIDA: pedidos.filter((p) => p.estado === 'EN_SALIDA').length,
   CAMBIO_POR_REVISAR: pedidos.filter((p) => p.estado === 'CAMBIO_POR_REVISAR').length,
+  CANCELADO_EN_PEDIDOS: pedidos.filter((p) => p.estado === 'CANCELADO_EN_PEDIDOS').length,
 })
 
 /** «hace 5 min», «hace 3 h», «hace 2 días». */
@@ -234,15 +261,16 @@ export const puedeActualizarBandeja = (roles: readonly string[]) => roles.some((
 
 /** Arma la fila de la bandeja desde lo guardado (la usan la demo y el adaptador de Supabase, para que digan lo mismo). */
 export function bandejaDeFila(f: {
-  id: string; snapshot: PedidoSnapshot; cambios: string[]; cambioPendiente: boolean; salida?: string; importadoEn: string; codigosEnCatalogo: ReadonlySet<string>
+  id: string; snapshot: PedidoSnapshot; cambios: string[]; cambioPendiente: boolean; salida?: string; salidaId?: string; importadoEn: string; codigosEnCatalogo: ReadonlySet<string>; avisoVendedor?: string
 }): PedidoBandeja {
   const p = f.snapshot
   return armarBandeja({
     id: f.id, pedidoId: p.pedidoId, numero: p.numero, version: p.version, fecha: p.fecha, clienteId: p.cliente.id, cliente: p.cliente.nombre, ruc: p.cliente.ruc,
-    direccion: p.cliente.direccion, distrito: p.cliente.distrito, ventanaCita: p.cliente.ventanaCita, vehiculoCalificado: p.cliente.vehiculoCalificado,
+    direccion: p.cliente.direccion, distrito: p.cliente.distrito, ventanaCita: p.cliente.ventanaCita,
     vendedor: p.vendedor, condicionPago: p.condicionPago, factura: p.factura, observaciones: p.observaciones,
     lineas: p.lineas.map((l) => ({ ...l, enCatalogo: f.codigosEnCatalogo.has(l.productoCodigo) })),
-    estado: f.cambioPendiente ? 'CAMBIO_POR_REVISAR' : f.salida ? 'EN_SALIDA' : 'POR_PLANIFICAR',
-    cambios: f.cambios, importadoEn: f.importadoEn, salida: f.salida,
+    estado: p.estado === ESTADO_PEDIDO_CANCELADO ? 'CANCELADO_EN_PEDIDOS' : f.cambioPendiente ? 'CAMBIO_POR_REVISAR' : f.salida ? 'EN_SALIDA' : 'POR_PLANIFICAR',
+    cambios: f.cambios, importadoEn: f.importadoEn, salida: f.salida, salidaId: f.salidaId, avisoVendedor: f.avisoVendedor,
+    ...(p.estado === ESTADO_PEDIDO_CANCELADO ? { motivoCancelacion: p.motivoCancelacion, canceladoPor: p.canceladoPor } : {}),
   })
 }

@@ -54,7 +54,7 @@ export function EditorEmbalaje({ embalaje, puedeEmbalar }: { embalaje: EmbalajeV
         {encabezado}
         <p className="text-sm text-gray-700" role="status" data-testid="resumen-embalaje">Embalado en {embalaje.bultosVigentes.length} {embalaje.bultosVigentes.length === 1 ? 'bulto' : 'bultos'}. Imprime las etiquetas y pégalas en cada bulto.</p>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/embalaje/${embalaje.salidaId}/etiquetas`} target="_blank" className="btn-primary" data-testid="imprimir-etiquetas"><FileDown className="h-5 w-5" aria-hidden />Imprimir las etiquetas</Link>
+          <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/embalaje/${embalaje.salidaId}/etiquetas`} target="_blank" rel="noopener" className="btn-primary" data-testid="imprimir-etiquetas"><FileDown className="h-5 w-5" aria-hidden />Imprimir las etiquetas</a>
           <Link href={`/salidas/${embalaje.salidaId}`} className="btn-secondary" data-testid="ir-salida">Ver la salida y su documentación</Link>
           {puedeEmbalar && !reabriendo && <button type="button" className="btn-secondary" onClick={() => setReabriendo(true)} data-testid="reabrir-embalaje"><RotateCcw className="h-5 w-5" aria-hidden />Reabrir el embalaje</button>}
         </div>

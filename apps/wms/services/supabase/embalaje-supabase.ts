@@ -68,7 +68,9 @@ export class EmbalajeSupabase extends DocumentacionSupabase implements Repositor
   }
 
   async colaEmbalaje(): Promise<EmbalajeResumen[]> {
-    const [salidas, bultos] = await Promise.all([this.listarSalidas(), sch().from('bultos').select('salida_id').eq('estado', 'EMBALADO')])
+    const [todas, bultos, lima] = await Promise.all([this.listarSalidas(), sch().from('bultos').select('salida_id').eq('estado', 'EMBALADO'), sch().from('salidas').select('id').eq('requiere_embalaje', false)])
+    const aLima = new Set(((lima.data ?? []) as Fila[]).map((x) => String(x.id)))    // un pedido a Lima no se embala: sus bultos ya son los de la conformidad
+    const salidas = todas.filter((x) => !aLima.has(x.id))
     const n = new Map<string, number>()
     for (const b of (bultos.data ?? []) as Fila[]) n.set(String(b.salida_id), (n.get(String(b.salida_id)) ?? 0) + 1)
     return salidas.filter((x) => ETAPAS_CONFORMES.includes(x.etapa)).map((x) => ({ salidaId: x.id, salidaNumero: x.numero, pedidoNumero: x.pedidoNumero, cliente: x.cliente, rutaNumero: x.rutaNumero, unidades: x.unidades, lineas: x.lineas, bultos: n.get(x.id) ?? 0 }))
@@ -102,8 +104,9 @@ export class EmbalajeSupabase extends DocumentacionSupabase implements Repositor
 
   protected override async avancePorSalida() {
     const m = await super.avancePorSalida()
-    const { data } = await sch().from('bultos').select('salida_id').eq('estado', 'EMBALADO')
+    const [{ data }, { data: lima }] = await Promise.all([sch().from('bultos').select('salida_id').eq('estado', 'EMBALADO'), sch().from('salidas').select('id').eq('requiere_embalaje', false)])
     for (const b of (data ?? []) as Fila[]) m.set(String(b.salida_id), { ...m.get(String(b.salida_id)), embalada: true })
+    for (const x of (lima ?? []) as Fila[]) m.set(String(x.id), { ...m.get(String(x.id)), sinEmbalaje: true })      // un pedido a Lima no se embala
     return m
   }
 
@@ -115,7 +118,7 @@ export class EmbalajeSupabase extends DocumentacionSupabase implements Repositor
     const n = new Map<string, number>()
     for (const b of (bs ?? []) as Fila[]) n.set(String(b.salida_id), (n.get(String(b.salida_id)) ?? 0) + 1)
     const cajas: Record<string, number> = {}
-    for (const p of ps) { const c = n.get(String(p.salida_id)); if (c) cajas[String(p.pedido_id)] = c }
+    for (const p of ps) { const c = n.get(String(p.salida_id)); if (c) cajas[String(p.pedido_id ?? `orden:${p.salida_id}`)] = c }
     return { ...base, cajas }
   }
 }

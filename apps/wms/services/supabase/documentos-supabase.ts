@@ -1,3 +1,4 @@
+import { CambioPedidoSupabase } from './cambio-pedido-supabase'
 import 'server-only'
 
 import {
@@ -19,7 +20,7 @@ const dia = (v: unknown) => String(v).slice(0, 10)
 const mal = (error: { code?: string; message: string }) => ({ ok: false as const, mensaje: mensajeHumano(error) })
 const sch = () => crearClienteServidor().schema('wms')
 
-export class DocumentosSupabase extends PickingSupabase implements RepositorioDocumentos {
+export class DocumentosSupabase extends CambioPedidoSupabase implements RepositorioDocumentos {
   private async lotesParaRelacionar(): Promise<LoteParaRelacionar[]> {
     const [lotes, prods] = await Promise.all([traerTodo('lotes', 'wms', 'id, codigo, producto_id'), traerTodo('productos', 'catalogo', 'id, codigo, descripcion')])
     const p = new Map(prods.map((x) => [String(x.id), x]))

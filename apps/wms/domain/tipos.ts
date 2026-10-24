@@ -10,11 +10,7 @@ export type TipoArea =
   | 'APROBADOS'
   | 'BAJAS_RECHAZADOS'
   | 'CONTRAMUESTRA'
-  | 'EMBALAJE'
   | 'DESPACHO'
-  | 'PENDIENTE_CONFORMIDAD'
-  | 'OBSERVADO'
-  | 'RETORNO_RESERVADO'
 
 export type Origen =
   | 'COMPRA_LOCAL'
@@ -38,6 +34,7 @@ export type Rol =
   | 'conformidad_despacho'
   | 'autoriza_salidas_sin_venta'
   | 'usuario_cliente'
+  | 'dt_cliente'
 
 export type Accion =
   | 'ver'
@@ -60,6 +57,18 @@ export type Accion =
   | 'embalar'
   | 'cargar_ruta'
   | 'liberar_unidad'
+  | 'reservar_lote'
+  | 'anular_guia'
+  | 'solicitar_baja'
+  | 'autorizar_baja'
+  | 'cerrar_ruta'
+  | 'registrar_ls_fr'
+  | 'originar_retorno'
+  | 'registrar_dictamen_cliente'
+  | 'marcar_antecedentes_calidad'
+  | 'liberar_stock_propietario'
+  | 'crear_orden_venta_manual'
+  | 'entregar_al_transportista_cliente'
 
 export interface Propietario {
   id: string
@@ -124,6 +133,8 @@ export interface Regulatorio {
   fabricante?: string
   condicionAlmacenamiento?: string
   creadoPor?: string
+  /** D-196: un producto que da de alta o edita el Administrador queda PENDIENTE hasta que Dirección Técnica lo valida; sin dato, se toma como validado. */
+  estadoValidacion?: 'PENDIENTE' | 'VALIDADO' | 'OBSERVADO'
 }
 
 /** Un cambio de un dato regulatorio: campo, valor anterior y nuevo, quién, cuándo y por qué. */

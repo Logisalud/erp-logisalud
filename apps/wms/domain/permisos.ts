@@ -6,29 +6,41 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
   jefe_almacen: 'Jefe de Almacén',
   auxiliar: 'Auxiliar de almacén',
   auditoria_lectura: 'Auditoría (solo lectura)',
-  admin_wms: 'Administración del WMS',
+  admin_wms: 'Administrador',
   jefe_transporte: 'Jefe de Transporte',
   conductor: 'Conductor',
   auxiliar_transporte: 'Auxiliar de transporte',
   conformidad_despacho: 'Conformidad de despacho',
   autoriza_salidas_sin_venta: 'Autoriza salidas sin venta',
   usuario_cliente: 'Usuario de cliente',
+  dt_cliente: 'DT de cliente',
 }
 
 /** Espejo de wms.permisos_rol (la base de datos es la que manda; esto solo oculta botones). */
+const PERMISOS_AUXILIAR: readonly Accion[] = ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta']
+/** Los jefes tienen TODO lo del auxiliar (DT, 2026-10-17) además de lo suyo. */
+const conAuxiliar = (...propias: Accion[]): readonly Accion[] => [...new Set<Accion>([...PERMISOS_AUXILIAR, ...propias])]
+
 const PERMISOS: Record<Rol, readonly Accion[]> = {
-  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion'],
-  asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion'],
-  jefe_almacen: ['ver', 'ejecutar', 'verificar', 'exportar', 'cambiar_lote_asignado', 'preparar_salidas', 'embalar', 'cargar_ruta'],
-  auxiliar: ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta'],
+  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote', 'solicitar_baja', 'autorizar_baja', 'registrar_ls_fr', 'originar_retorno', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad'],
+  asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion', 'solicitar_baja', 'registrar_ls_fr', 'originar_retorno', 'registrar_dictamen_cliente'],
+  jefe_almacen: conAuxiliar('exportar', 'preparar_salidas', 'solicitar_baja', 'registrar_ls_fr', 'originar_retorno', 'entregar_al_transportista_cliente'),
+  auxiliar: PERMISOS_AUXILIAR,
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
-  admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],
-  jefe_transporte: ['ver', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad'],
+  // D-194/D-196: el Administrador (Sebastián y Andrés) tiene todo lo operativo y la configuración, también los documentos regulatorios. NO tiene las decisiones sanitarias
+  // (aprobar, ajustar, autorizar_baja, registrar_dictamen_cliente, marcar_antecedentes_calidad, liberar_stock_propietario, validar producto): esas son solo de Dirección Técnica.
+  admin_wms: ['ver', 'ejecutar', 'verificar', 'configurar', 'exportar', 'auditar', 'dar_conformidad', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'autorizar_salida_sin_venta',
+    'preparar_salidas', 'confirmar_salida', 'planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote', 'anular_guia',
+    'solicitar_baja', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente', 'gestionar_documentos_regulatorios'],
+  jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente'),
   conductor: [], // sus permisos llegan con «Mis rutas» (S9)
   auxiliar_transporte: [],
   conformidad_despacho: ['ver', 'dar_conformidad'],
   autoriza_salidas_sin_venta: ['ver', 'autorizar_salida_sin_venta'],
   usuario_cliente: [], // lo suyo (crear órdenes de salida) llega en B2, con validación de propietario en la base
+  // OS-5: un único permiso —liberar o rechazar el stock de SU propietario—. DESHABILITADO hasta SEC1: la base no deja crear la cuenta mientras el interruptor
+  // `acceso_clientes_habilitado` esté apagado, y no es personal (no lee el inventario).
+  dt_cliente: ['liberar_stock_propietario'],
 }
 
 /**
@@ -47,9 +59,12 @@ export function puede(roles: readonly Rol[], accion: Accion): boolean {
 
 /** Quién da de alta un producto y quién lo valida (Sandra crea, Katia valida). */
 export const puedeCrearProducto = (roles: readonly Rol[]) =>
-  roles.includes('asistente_dt') || roles.includes('direccion_tecnica')
+  roles.includes('asistente_dt') || roles.includes('direccion_tecnica') || roles.includes('admin_wms')
+/** D-196: validar un producto (que se puedan aprobar sus lotes) es una decisión sanitaria: solo Dirección Técnica y su asistente. El Administrador da de alta y edita, pero no valida. */
+export const puedeValidarProducto = (roles: readonly Rol[]) => roles.includes('direccion_tecnica') || roles.includes('asistente_dt')
 /** D-37: Katia (direccion_tecnica) y Sandra (asistente_dt) tienen la misma autoridad sobre los datos regulatorios. */
-export const puedeEditarRegulatorio = (roles: readonly Rol[]) => roles.includes('direccion_tecnica') || roles.includes('asistente_dt')
+/** D-196: el Administrador también edita (el producto queda por validar por Dirección Técnica). */
+export const puedeEditarRegulatorio = (roles: readonly Rol[]) => roles.includes('direccion_tecnica') || roles.includes('asistente_dt') || roles.includes('admin_wms')
 
 export function rolesDesdeTexto(valor: string | undefined | null): Rol[] {
   if (!valor) return []
@@ -57,4 +72,16 @@ export function rolesDesdeTexto(valor: string | undefined | null): Rol[] {
     .split(',')
     .map((s) => s.trim())
     .filter((s): s is Rol => s in ETIQUETA_ROL)
+}
+
+/** Las decisiones sanitarias: solo las firma Dirección Técnica (o su asistente donde ya estaba). El Administrador nunca las tiene (D-194). */
+export const ACCIONES_SANITARIAS: readonly Accion[] = ['aprobar', 'ajustar', 'autorizar_baja', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad', 'liberar_stock_propietario']
+
+/**
+ * D-194: espejo de `wms.tiene_rol` (0034). Para las funciones que preguntan por rol, el Administrador cuenta como Jefe de Almacén, Jefe de Transporte y auxiliar
+ * (lo operativo); nunca como Dirección Técnica ni como su asistente. Se aplica una sola vez, al armar la sesión; `rolesAsignados` conserva los reales para mostrarlos.
+ */
+export function rolesEfectivos(roles: readonly Rol[]): Rol[] {
+  if (!roles.includes('admin_wms')) return [...roles]
+  return [...new Set<Rol>([...roles, 'jefe_almacen', 'jefe_transporte', 'auxiliar'])]
 }

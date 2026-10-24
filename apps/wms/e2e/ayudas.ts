@@ -2,7 +2,7 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-export type RolDemo = 'direccion_tecnica' | 'asistente_dt' | 'jefe_almacen' | 'jefe_transporte' | 'reemplazante_jefe' | 'auxiliar' | 'admin_wms' | 'auditoria_lectura'
+export type RolDemo = 'direccion_tecnica' | 'asistente_dt' | 'jefe_almacen' | 'jefe_transporte' | 'reemplazante_jefe' | 'auxiliar' | 'admin_wms' | 'auditoria_lectura' | 'autoriza_salidas_sin_venta'
 
 const CARPETA = resolve(__dirname, '../../../docs/wms/screenshots')
 
@@ -37,4 +37,11 @@ export async function esperarMapa(page: Page) {
     const g = document.querySelector('[data-testid="mapa"] svg > g')
     return !!g && /scale\((?!1\))/.test(g.getAttribute('transform') ?? '')
   })
+}
+
+/** Elige un producto en el buscador del Kardex: escribe y toca la primera opción (por nombre o código). */
+export async function elegirProductoKardex(page: Page, consulta: string) {
+  await page.locator('#k-producto').fill(consulta)
+  await page.locator('[role="option"] button').first().click()
+  await expect(page.getByTestId('k-producto-valor')).not.toHaveValue('')
 }

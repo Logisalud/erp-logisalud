@@ -21,7 +21,7 @@ export const ETIQUETA_TIPO_INGRESO: Record<TipoIngreso, string> = {
 
 export const AYUDA_TIPO_INGRESO: Record<TipoIngreso, string> = {
   COMPRA_LOCAL: 'Una orden de compra que va a llegar. Los productos y las cantidades salen de ella; tú indicas el lote y el vencimiento.',
-  DEVOLUCION: 'Mercadería que vuelve de un cliente. Necesita la factura o boleta original y se deja en el Área de Devoluciones.',
+  DEVOLUCION: 'Mercadería que vuelve de un cliente. Necesita la factura o boleta original, se cuenta al 100 % y se deja en el Área de Devoluciones. Si viene de una Orden de Salida, regístrala desde esa Orden.',
   INGRESO_CLIENTE: 'Mercadería que un cliente nos entrega para guardar. Se cuenta contra su guía.',
 }
 
@@ -40,7 +40,8 @@ export const AREA_DESTINO: Record<TipoIngreso, 'CUARENTENA' | 'DEVOLUCIONES'> = 
 // ── Quién prepara solicitudes (D-32) ────────────────────────────────────────
 
 /** Sandra (asistente de DT) y Katia (Dirección Técnica). Con el portal de clientes, el cliente crea y ellas autorizan. */
-export const puedePrepararSolicitud = (roles: readonly Rol[]) => roles.includes('asistente_dt') || roles.includes('direccion_tecnica')
+/** D-196: el Administrador también prepara y autoriza solicitudes de ingreso (lo operativo). */
+export const puedePrepararSolicitud = (roles: readonly Rol[]) => roles.includes('asistente_dt') || roles.includes('direccion_tecnica') || roles.includes('admin_wms')
 
 // ── Estados de la solicitud ─────────────────────────────────────────────────
 
@@ -240,11 +241,7 @@ export function numeroDeActa(prefijo: 'I' | 'O', fecha: Date | string, correlati
 }
 
 // ── Muestra organoléptica ───────────────────────────────────────────────────
-
-/** techo(√unidades) + constante (1). La muestra vuelve completa a su caja: no descuenta stock. */
-export function muestraOrganoleptica(unidades: number, constante = 1): number {
-  return Math.ceil(Math.sqrt(Math.max(unidades, 0))) + constante
-}
+// El tamaño de la muestra sale de la tabla LS-TB.02.02 (domain/muestreo.ts); la regla anterior techo(√unidades)+1 se retiró (OS-5).
 
 // ── Checklist del Acta de Evaluación Organoléptica (LS-FR.55.02) ────────────
 
@@ -391,10 +388,11 @@ export function faltantesParaEnviar(d: DatosOrganoleptica): string[] {
 
 /** Lo que Dirección Técnica puede decidir según la conclusión del acta. */
 export function validarDecision(
-  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string,
+  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string, productoValidado = true,
 ): { ok: true } | { ok: false; mensaje: string } {
   if (decision === 'APROBADO') {
     if (conclusion !== 'CONFORME') return { ok: false, mensaje: 'El acta concluye NO CONFORME: no se puede aprobar. Decide Bajas/Rechazados o pide que la corrijan.' }
+    if (!productoValidado) return { ok: false, mensaje: 'Este producto todavía no está validado: valídalo en su ficha antes de aprobar sus lotes.' }
     if (rsVence && rsVence < hoy) {
       return { ok: false, mensaje: 'El registro sanitario está vencido: el lote no se puede aprobar hasta que Dirección Técnica lo resuelva.' }
     }
@@ -461,7 +459,10 @@ export type TipoAlerta =
   | 'TEMPERATURA' | 'RS_VENCIDO' | 'DIVERGENCIA_COMPRAS' | 'POR_TRASLADAR_VENCIDO' | 'LOTE_POR_VENCER' | 'LOTE_VENCIDO'
   | 'SOLICITUD_AJUSTADA' | 'EXCEDE_OC' | 'POR_REGISTRAR_EN_COMPRAS' | 'NO_COINCIDE_CON_COMPRAS'
   | 'MOVIMIENTO_CON_DIFERENCIA' | 'MOVIMIENTO_SIN_VERIFICAR' | 'CONTEO_CON_DIFERENCIA' | 'AJUSTE_POR_AUTORIZAR' | 'PENDIENTE_AFECTA_PRODUCTO'
-  | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO' | 'DOCUMENTACION_INCOMPLETA'
+  | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO' | 'DOCUMENTACION_INCOMPLETA' | 'LOTE_EN_RESERVA'
+  | 'BAJA_POR_AUTORIZAR' | 'BAJA_POR_TRASLADAR'
+  | 'RETORNO_POR_AUTORIZAR' | 'DICTAMEN_POR_CONFIRMAR' | 'ORDEN_MANUAL_UNIDA'
+  | 'PEDIDO_CANCELADO' | 'DEVOLUCION_PICKING'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
 
@@ -485,6 +486,14 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   PEDIDO_CAMBIADO: 'El pedido cambió en Pedidos',
   DOCUMENTO_VENCIDO: 'Documento regulatorio vencido o por vencer',
   DOCUMENTACION_INCOMPLETA: 'Pedido conforme con documentos por completar',
+  LOTE_EN_RESERVA: 'Lote en Reserva con pedidos asignados',
+  BAJA_POR_AUTORIZAR: 'Baja por autorizar',
+  BAJA_POR_TRASLADAR: 'Baja por trasladar a Bajas',
+  RETORNO_POR_AUTORIZAR: 'Retorno de una Orden de Salida por autorizar',
+  DICTAMEN_POR_CONFIRMAR: 'Dictamen del DT del cliente por confirmar',
+  ORDEN_MANUAL_UNIDA: 'El pedido llegó y se unió a una orden manual',
+  PEDIDO_CANCELADO: 'Pedido cancelado en Pedidos',
+  DEVOLUCION_PICKING: 'Lo picado por devolver a su ubicación',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -515,10 +524,22 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   PEDIDO_CAMBIADO: 'jefe_transporte',
   DOCUMENTO_VENCIDO: 'direccion_tecnica',
   DOCUMENTACION_INCOMPLETA: 'jefe_transporte',
+  LOTE_EN_RESERVA: 'jefe_transporte',
+  BAJA_POR_AUTORIZAR: 'direccion_tecnica',
+  BAJA_POR_TRASLADAR: 'jefe_almacen',
+  // OS-5: quien registra el retorno no siempre puede autorizarlo; Sandra y Katia lo autorizan. El dictamen del DT del cliente lo confirma el otro.
+  RETORNO_POR_AUTORIZAR: 'asistente_dt',
+  DICTAMEN_POR_CONFIRMAR: 'asistente_dt',
+  // SA-2: el pedido de una venta manual llegó por la bandeja y se unió a su orden (sin crear otra); el Jefe de Transporte lo sabe.
+  ORDEN_MANUAL_UNIDA: 'jefe_transporte',
+  // SA-3: el Jefe de Transporte se entera de la cancelación; el Jefe de Almacén coordina a quien devuelve y a quien verifica.
+  PEDIDO_CANCELADO: 'jefe_transporte',
+  DEVOLUCION_PICKING: 'jefe_almacen',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {
-  return roles.includes('direccion_tecnica') || roles.includes(destinatario)
+  // D-196: el Administrador atiende las alertas de la asistente de DT (no las de Dirección Técnica).
+  return roles.includes('direccion_tecnica') || roles.includes(destinatario) || (destinatario === 'asistente_dt' && roles.includes('admin_wms'))
 }
 
 export const PLAZO_POR_TRASLADAR_HORAS_DEFECTO = 24
@@ -550,7 +571,7 @@ export function porTrasladarVencido(desdeIso: string, ahoraIso: string, plazoHor
 
 export type TipoDocumentoExpediente =
   | 'ACTA_RECEPCION' | 'SOLICITUD_INGRESO' | 'GUIA_REMISION' | 'FACTURA' | 'FACTURA_BOLETA_ORIGINAL'
-  | 'FORMULARIO_DEVOLUCION' | 'ACTA_ORGANOLEPTICA' | 'OTRO'
+  | 'FORMULARIO_DEVOLUCION' | 'ACTA_ORGANOLEPTICA' | 'DICTAMEN_DT_CLIENTE' | 'OTRO'
 
 export const ETIQUETA_DOCUMENTO: Record<TipoDocumentoExpediente, string> = {
   ACTA_RECEPCION: 'Acta de Recepción',
@@ -560,6 +581,7 @@ export const ETIQUETA_DOCUMENTO: Record<TipoDocumentoExpediente, string> = {
   FACTURA_BOLETA_ORIGINAL: 'Factura o boleta original',
   FORMULARIO_DEVOLUCION: 'Formulario de devolución',
   ACTA_ORGANOLEPTICA: 'Acta organoléptica',
+  DICTAMEN_DT_CLIENTE: 'Dictamen del DT del cliente',
   OTRO: 'Otro documento',
 }
 

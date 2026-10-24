@@ -2,9 +2,10 @@ import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
 import {
-  totalUnidades, type EstadoRuta, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
+  claveDeOrden, totalUnidades, type EstadoRuta, type OrdenPlanificable, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type ConductorEnDocumentos, type DocumentoTipo, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
 } from '@/domain/rutas'
 import { armarRegistroLsFr, parametrosDesdeClaves, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
+import { quienFiguraEnDocumentos, CLAVE_CONDUCTOR_EN_DOCUMENTOS } from '@/domain/conductor-documentos'
 import type { PedidoSnapshot } from '@/domain/pedidos-despacho'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioRutas } from '../repositorio-rutas'
@@ -23,34 +24,59 @@ const vehiculoDe = (v: Fila): VehiculoVista => ({
   id: String(v.id), placa: String(v.placa), descripcion: s(v.descripcion), tipo: v.tipo === 'EXTERNO' ? 'EXTERNO' : 'PROPIO', calificado: Boolean(v.calificado),
   aptoCadenaFrio: Boolean(v.apto_cadena_frio), capacidadBultos: v.capacidad_bultos == null ? undefined : Number(v.capacidad_bultos), activo: Boolean(v.activo),
 })
-const personalDe = (p: Fila): PersonalTransporte => ({ id: String(p.id), nombre: String(p.nombre), funcion: p.funcion === 'AUXILIAR' ? 'AUXILIAR' : 'CONDUCTOR', activo: Boolean(p.activo) })
+const personalDe = (p: Fila): PersonalTransporte => ({ id: String(p.id), nombre: String(p.nombre), funcion: p.funcion === 'AUXILIAR' ? 'AUXILIAR' : 'CONDUCTOR', activo: Boolean(p.activo),
+  dni: p.dni ? String(p.dni) : undefined, documentoTipo: p.documento_tipo === 'CE' || p.documento_tipo === 'PASAPORTE' ? p.documento_tipo : 'DNI', licencia: p.licencia ? String(p.licencia) : undefined,
+})
+
+/** D-155: la fila del parámetro «conductor en documentos» (sin fila = el interruptor ya no existe). Su valor es el id del conductor que figura, o vacío. */
+async function leerConductorEnDocumentos(personal: readonly PersonalTransporte[]): Promise<ConductorEnDocumentos | undefined> {
+  const { data } = await sch().from('parametros').select('valor, nota').eq('clave', CLAVE_CONDUCTOR_EN_DOCUMENTOS).maybeSingle()
+  if (!data) return undefined
+  const f = data as Fila
+  const id = s(f.valor)
+  return { personaId: id, nombre: personal.find((p) => p.id === id)?.nombre, cambio: s(f.nota) }
+}
 
 export class DespachoSupabase extends PedidosSupabase implements RepositorioRutas {
-  private async armarRutas(filtroId?: string): Promise<{ rutas: RutaVista[]; vehiculos: VehiculoVista[]; personal: PersonalTransporte[]; planificables: PedidoPlanificable[] }> {
+  private async armarRutas(filtroId?: string): Promise<{ rutas: RutaVista[]; vehiculos: VehiculoVista[]; personal: PersonalTransporte[]; planificables: PedidoPlanificable[]; ordenes: OrdenPlanificable[] }> {
     const [rutas, paradas, versiones, vehiculos, personal, pedidos, salidas, lineas, registros, prods] = await Promise.all([
       traerTodo('rutas', 'wms', '*', ['fecha']), traerTodo('ruta_paradas', 'wms', '*'), traerTodo('ruta_versiones', 'wms', '*', ['version']),
       traerTodo('vehiculos', 'wms', '*', ['placa']), traerTodo('personal_transporte', 'wms', '*', ['nombre']),
-      traerTodo('pedidos_despacho', 'wms', '*', ['fecha']), traerTodo('salidas', 'wms', 'id, numero'), traerTodo('salida_lineas', 'wms', 'id, salida_id, estado'),
+      traerTodo('pedidos_despacho', 'wms', '*', ['fecha']), traerTodo('salidas', 'wms', 'id, numero, tipo, origen, estado, pedido_numero, cliente_manual, creada_en'), traerTodo('salida_lineas', 'wms', 'id, salida_id, estado, cantidad'),
       traerTodo('registros_ls_fr_43_03', 'wms', 'id, ruta_id, estado'), traerTodo('productos', 'catalogo', 'codigo'),
     ])
     const vig = pedidos.filter((p) => p.vigente)
     const pedidoPorId = new Map(vig.map((p) => [String(p.id), p]))
     const veh = vehiculos.map(vehiculoDe); const per = personal.map(personalDe)
     const numSalida = new Map(salidas.map((x) => [String(x.id), String(x.numero)]))
+    const salidaPorId = new Map(salidas.map((x) => [String(x.id), x]))
     const sinStock = new Set(lineas.filter((l) => l.estado === 'SIN_STOCK').map((l) => String(l.salida_id)))
     const nombres = await nombresDe([...rutas.map((r) => s(r.creada_por)), ...versiones.map((v) => s(v.por))])
     const numeroRutaViva = new Map<string, string>()
-    for (const r of rutas) if (r.estado !== 'CANCELADA' && r.estado !== 'CERRADA') for (const pa of paradas.filter((x) => x.activa && String(x.ruta_id) === String(r.id))) numeroRutaViva.set(String(pa.pedido_id), String(r.numero))
+    for (const r of rutas) if (r.estado !== 'CANCELADA' && r.estado !== 'CERRADA') for (const pa of paradas.filter((x) => x.activa && String(x.ruta_id) === String(r.id))) { if (pa.pedido_id) numeroRutaViva.set(String(pa.pedido_id), String(r.numero)); if (pa.salida_id) numeroRutaViva.set(`orden:${pa.salida_id}`, String(r.numero)) }
+    const lineasDe = (salidaId: string) => lineas.filter((l) => String(l.salida_id) === salidaId && l.estado !== 'CANCELADA')
     const vistaParada = (pa: Fila): ParadaVista => {
-      const pd = pedidoPorId.get(String(pa.pedido_despacho_id)) ?? pedidos.find((x) => String(x.id) === String(pa.pedido_despacho_id))
+      const pd = pa.pedido_despacho_id ? (pedidoPorId.get(String(pa.pedido_despacho_id)) ?? pedidos.find((x) => String(x.id) === String(pa.pedido_despacho_id))) : undefined
+      const salidaId = s(pa.salida_id)
+      const so = salidaId ? salidaPorId.get(salidaId) : undefined
+      const stockDe = (): ParadaVista['stock'] => (!salidaId ? 'PENDIENTE' : sinStock.has(salidaId) ? 'SIN_STOCK' : 'ASIGNADA')
+      if (!pd && so) {
+        // parada por orden (SA-6): el destinatario sale de lo escrito en la orden
+        const cm = (so.cliente_manual ?? {}) as { razon_social?: string; ruc?: string; direccion?: string }
+        const ls = lineasDe(salidaId!)
+        return {
+          id: String(pa.id), secuencia: Number(pa.secuencia), clave: claveDeOrden(salidaId!), origen: 'ORDEN', salidaId, tipoOrden: so.tipo as ParadaVista['tipoOrden'], pedidoNumero: s(so.pedido_numero) ?? String(so.numero),
+          cliente: cm.razon_social ?? '', ruc: cm.ruc, direccion: cm.direccion, lineas: ls.length, unidades: ls.reduce((t, l) => t + Number(l.cantidad), 0), salidaNumero: String(so.numero), stock: stockDe(),
+          excepcionCorte: Boolean(pa.excepcion_corte), motivoExcepcion: s(pa.motivo_excepcion),
+        }
+      }
       const snap = (pd?.snapshot ?? {}) as PedidoSnapshot
       const c = snap.cliente
-      const salidaId = s(pa.salida_id)
       return {
-        id: String(pa.id), secuencia: Number(pa.secuencia), pedidoId: String(pa.pedido_id), pedidoNumero: String(pd?.numero ?? '?'), cliente: c?.nombre ?? String(pd?.cliente_nombre ?? ''), ruc: c?.ruc,
-        direccion: c?.direccion, distrito: c?.distrito, ventanaCita: c?.ventanaCita, vehiculoCalificado: c?.vehiculoCalificado, lineas: snap.lineas?.length ?? 0,
+        id: String(pa.id), secuencia: Number(pa.secuencia), clave: String(pa.pedido_id ?? claveDeOrden(salidaId ?? '')), origen: 'PEDIDO', pedidoId: s(pa.pedido_id), salidaId, tipoOrden: so?.tipo as ParadaVista['tipoOrden'], pedidoNumero: String(pd?.numero ?? '?'), cliente: c?.nombre ?? String(pd?.cliente_nombre ?? ''), ruc: c?.ruc,
+        direccion: c?.direccion, distrito: c?.distrito, ventanaCita: c?.ventanaCita, lineas: snap.lineas?.length ?? 0,
         unidades: (snap.lineas ?? []).reduce((t, l) => t + l.cantidad, 0), salidaNumero: salidaId ? numSalida.get(salidaId) : undefined,
-        stock: !salidaId ? 'PENDIENTE' : sinStock.has(salidaId) ? 'SIN_STOCK' : 'ASIGNADA', excepcionCorte: Boolean(pa.excepcion_corte), motivoExcepcion: s(pa.motivo_excepcion),
+        stock: stockDe(), excepcionCorte: Boolean(pa.excepcion_corte), motivoExcepcion: s(pa.motivo_excepcion),
       }
     }
     const vistas: RutaVista[] = rutas.filter((r) => !filtroId || String(r.id) === filtroId).map((r) => {
@@ -70,19 +96,32 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
       const snap = p.snapshot as PedidoSnapshot
       return {
         pedidoId: String(p.pedido_id), numero: String(p.numero), cliente: snap.cliente.nombre, ruc: snap.cliente.ruc, direccion: snap.cliente.direccion, distrito: snap.cliente.distrito,
-        ventanaCita: snap.cliente.ventanaCita, vehiculoCalificado: snap.cliente.vehiculoCalificado, lineas: snap.lineas.length, unidades: snap.lineas.reduce((t, l) => t + l.cantidad, 0),
+        ventanaCita: snap.cliente.ventanaCita, lineas: snap.lineas.length, unidades: snap.lineas.reduce((t, l) => t + l.cantidad, 0),
         importadoEn: String(p.importado_en), enRuta: numeroRutaViva.get(String(p.pedido_id)), cambioPorRevisar: Boolean(p.cambio_pendiente),
         sinCatalogo: snap.lineas.filter((l) => !codigos.has(l.productoCodigo.toUpperCase())).map((l) => l.productoCodigo),
       }
     })
-    return { rutas: vistas, vehiculos: veh, personal: per, planificables }
+    // SA-6: órdenes manuales por despachar (A sin pedido en la bandeja, muestra, devolución al proveedor): abiertas, con destinatario y sin pedido vigente unido
+    const conPedido = new Set(vig.map((p) => s(p.salida_id)).filter(Boolean) as string[])
+    const ordenes: OrdenPlanificable[] = salidas
+      .filter((so) => so.origen === 'MANUAL' && so.estado === 'ABIERTA' && so.tipo !== 'CLIENTE' && so.cliente_manual && !conPedido.has(String(so.id)))
+      .map((so) => {
+        const cm = so.cliente_manual as { razon_social?: string; ruc?: string; direccion?: string }
+        const ls = lineasDe(String(so.id))
+        return {
+          salidaId: String(so.id), clave: claveDeOrden(String(so.id)), numero: String(so.numero), tipo: so.tipo as OrdenPlanificable['tipo'], pedidoNumero: s(so.pedido_numero), cliente: cm.razon_social ?? '', ruc: cm.ruc, direccion: cm.direccion,
+          lineas: ls.length, unidades: ls.reduce((t, l) => t + Number(l.cantidad), 0), creadaEn: String(so.creada_en), enRuta: numeroRutaViva.get(claveDeOrden(String(so.id))), sinStock: ls.some((l) => l.estado === 'SIN_STOCK' || l.estado === 'PENDIENTE'),
+        }
+      })
+    return { rutas: vistas, vehiculos: veh, personal: per, planificables, ordenes }
   }
 
   async panoramaRutas(): Promise<PanoramaRutas> {
-    const [{ rutas, vehiculos, personal, planificables }, param] = await Promise.all([this.armarRutas(), sch().from('parametros').select('valor').eq('clave', 'hora_corte_planificacion').maybeSingle()])
+    const [{ rutas, vehiculos, personal, planificables, ordenes }, param] = await Promise.all([this.armarRutas(), sch().from('parametros').select('valor').eq('clave', 'hora_corte_planificacion').maybeSingle()])
     return {
       hoy: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }), corte: String((param.data as Fila | null)?.valor ?? '16:00'),
-      rutas: rutas.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)), vehiculos, personal, pedidos: planificables,
+      rutas: rutas.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)), vehiculos, personal, pedidos: planificables, ordenes,
+      conductorEnDocumentos: await leerConductorEnDocumentos(personal),
     }
   }
 
@@ -92,7 +131,13 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
   }
 
   /** Lo que las etapas siguientes registran y el formato pide (guías, bultos, horas). Las clases de más abajo lo completan. */
-  protected async extrasLsFr(_rutaId: string): Promise<ExtrasLsFr> { return {} }
+  protected async extrasLsFr(rutaId: string): Promise<ExtrasLsFr> {
+    // D-155: con el interruptor activo, el formato nombra a quien figura en documentos (la base elige igual en wms._conductor_para_documentos)
+    const { rutas, personal } = await this.armarRutas(rutaId)
+    const param = await leerConductorEnDocumentos(personal)
+    if (!param) return {}
+    return { conductorEnDocumentos: quienFiguraEnDocumentos(rutas[0]?.conductor, param, personal).figura?.nombre }
+  }
 
   async registroLsFr(rutaId: string): Promise<RegistroLsFrVista | null> {
     const ruta = await this.obtenerRuta(rutaId)
@@ -113,7 +158,7 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
   async planificarRuta(id: string, plan: PlanRuta, _actor: Actor): Promise<ResultadoAccion<{ version: number; bloqueadosPorStock: string[] }>> {
     const { data, error } = await rpc('planificar_ruta', {
       p_ruta: id, p_fecha: plan.fecha, p_vehiculo: plan.vehiculoId ?? null, p_conductor: plan.conductorId ?? null, p_auxiliar: plan.auxiliarId ?? null,
-      p_paradas: plan.paradas.map((p) => ({ pedido_id: p.pedidoId, excepcion_corte: !!p.excepcionCorte, motivo_excepcion: p.motivoExcepcion ?? null })), p_motivo: plan.motivo ?? null,
+      p_paradas: plan.paradas.map((p) => ({ pedido_id: p.pedidoId ?? null, salida_id: p.salidaId ?? null, excepcion_corte: !!p.excepcionCorte, motivo_excepcion: p.motivoExcepcion ?? null })), p_motivo: plan.motivo ?? null,
     })
     if (error) return mal(error)
     const d = data as { version: number; bloqueados_por_stock: string[] }
@@ -133,6 +178,16 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
   async guardarPersonal(p: { id?: string; nombre: string; funcion: PersonalTransporte['funcion']; activo: boolean }, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
     const { data, error } = await rpc('guardar_personal_transporte', { p_id: p.id ?? null, p_nombre: p.nombre, p_funcion: p.funcion, p_activo: p.activo })
     return error ? mal(error) : { ok: true, id: String(data) }
+  }
+
+  async cambiarConductorEnDocumentos(personaId: string | null, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('cambiar_conductor_en_documentos', { p_persona: personaId, p_motivo: motivo })
+    return error ? mal(error) : { ok: true }
+  }
+
+  async guardarDocumentosPersonal(p: { id: string; documentoTipo: DocumentoTipo; dni: string; licencia?: string }, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('guardar_documentos_personal', { p_id: p.id, p_documento_tipo: p.documentoTipo, p_documento: p.dni, p_licencia: p.licencia ?? '' })
+    return error ? mal(error) : { ok: true }
   }
 
   async guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {

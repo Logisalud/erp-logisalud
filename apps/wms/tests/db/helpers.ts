@@ -36,7 +36,22 @@ export const SQL = {
   m0019: () => leer('supabase/migrations/0019_wms_documentacion_final.sql'),
   m0020: () => leer('supabase/migrations/0020_wms_embalaje_y_bultos.sql'),
   m0021: () => leer('supabase/migrations/0021_wms_carga_y_salida_confirmada.sql'),
+  m0022: () => leer('supabase/migrations/0022_wms_areas_estados_y_reserva.sql'),
+  m0023: () => leer('supabase/migrations/0023_wms_orden_de_salida.sql'),
+  m0024: () => leer('supabase/migrations/0024_wms_guia_electronica_y_anulacion.sql'),
+  m0026: () => leer('supabase/migrations/0026_wms_bajas_y_orden_de_baja.sql'),
+  m0027: () => leer('supabase/migrations/0027_wms_ls_fr_43_03_y_carga_inicial.sql'),
+  m0025: () => leer('supabase/migrations/0025_wms_retornos_liberacion_muestreo.sql'),
+  m0028: () => leer('supabase/migrations/0028_wms_orden_de_salida_manual.sql'),
+  m0029: () => leer('supabase/migrations/0029_wms_falta_de_stock_y_cambio_de_pedido.sql'),
+  m0030: () => leer('supabase/migrations/0030_wms_rutas_para_ordenes_sin_pedido.sql'),
+  m0031: () => leer('supabase/migrations/0031_wms_vehiculo_calificado_y_conductor_en_documentos.sql'),
+  m0032: () => leer('supabase/migrations/0032_wms_devolucion_proveedor_numeracion_de_guias_y_muestras.sql'),
+  m0033: () => leer('supabase/migrations/0033_wms_dictamen_baja_producto_nuevo_y_temperatura.sql'),
+  m0034: () => leer('supabase/migrations/0034_wms_baja_de_guia_tras_la_salida_motivos_y_administrador.sql'),
+  m0035: () => leer('supabase/migrations/0035_wms_administrador_todo_lo_operativo.sql'),
   seed: () => leer('supabase/seeds/0001_topologia.sql'),
+  seedTransporte: () => leer('supabase/seeds/0002_transporte_inicial.sql'),
 }
 
 export interface Persona {
@@ -91,8 +106,19 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   await admin.query(SQL.m0008())
   await admin.query(SQL.m0009())
   await admin.query(SQL.m0011())
-  if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()); await admin.query(SQL.m0014()); await admin.query(SQL.m0016()); await admin.query(SQL.m0017()); await admin.query(SQL.m0018()); await admin.query(SQL.m0019()); await admin.query(SQL.m0020()); await admin.query(SQL.m0021()) }
+  if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()); await admin.query(SQL.m0014()); await admin.query(SQL.m0016()); await admin.query(SQL.m0017()); await admin.query(SQL.m0018()); await admin.query(SQL.m0019()); await admin.query(SQL.m0020()); await admin.query(SQL.m0021()); await admin.query(SQL.m0022()); await admin.query(SQL.m0023()); await admin.query(SQL.m0024()) }
   if (!opciones.sinMigracion0015) await admin.query(SQL.m0015())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0025())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0026())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0027())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0028())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0029())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0030())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0031())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0032())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0033())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0034())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0035())
   if (opciones.conSeed !== false) await admin.query(SQL.seed())
 
   const personas = {

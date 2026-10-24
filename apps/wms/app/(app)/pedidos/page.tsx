@@ -2,7 +2,9 @@ import { Lock } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { puedeActualizarBandeja, puedeVerBandeja } from '@/domain/pedidos-despacho'
+import { modoDemoActivo } from '@/lib/demo'
 import { BandejaPedidosVista } from '@/components/pedidos/bandeja-pedidos'
+import { puedePrepararSalidas } from '@/domain/despacho'
 
 export const metadata = { title: 'Pedidos por despachar — WMS LOGISALUD' }
 
@@ -24,7 +26,7 @@ export default async function Pedidos() {
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Pedidos por despachar</h1>
         <p className="mt-1 max-w-3xl text-gray-600">Los pedidos que Pedidos dejó listos para operaciones, tal como estaban al importarse. Si uno cambia después, llega como una versión nueva y te avisamos: nada se pisa en silencio.</p>
       </header>
-      <BandejaPedidosVista bandeja={bandeja} puedeActualizar={puedeActualizarBandeja(ctx.roles)} />
+      <BandejaPedidosVista bandeja={bandeja} puedeActualizar={puedeActualizarBandeja(ctx.roles)} puedeCrearOrdenes={puedePrepararSalidas(ctx.roles)} demo={modoDemoActivo()} />
     </div>
   )
 }

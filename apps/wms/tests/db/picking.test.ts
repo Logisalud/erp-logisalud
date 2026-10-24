@@ -55,7 +55,8 @@ beforeAll(async () => {
   logissa = await idPropietario(base.admin, 'LOGISSA')
   jt = await persona('jefe_transporte'); jefeAlmacen = await persona('jefe_almacen'); aux1 = await persona('auxiliar'); aux2 = await persona('auxiliar')
   sandra = await persona(['asistente_dt', 'conformidad_despacho'])
-  stg = (await uno(`insert into wms.posiciones (codigo, rack, forma, tipo_area) values ('STG-5', 'S', 'PISO', 'PENDIENTE_CONFORMIDAD') returning id`)).id
+  stg = (await uno(`insert into wms.posiciones (codigo, rack, forma, tipo_area) values ('STG-5', 'S', 'PISO', 'DESPACHO') returning id`)).id
+  await base.admin.query(`update wms.parametros set valor = 'STG-5' where clave = 'posicion_despacho_defecto'`)
 }, 120_000)
 afterAll(async () => { await base?.cerrar() })
 
@@ -149,7 +150,7 @@ describe('conformidad, no conformidades y zona «Observado»', () => {
     expect(await uno('select conformidad, no_conformidad, nota_conformidad, verificador_id from wms.ordenes_picking_lineas where id = $1', [linea.id])).toMatchObject({ conformidad: 'OBSERVADA', no_conformidad: 'DANO', verificador_id: sandra })
     expect((await uno('select estado from wms.salida_lineas where id = $1', [linea.linea_id])).estado).toBe('OBSERVADA')
     // corregir: vuelve a picking y a conformidad
-    expect((await falla(como(jt, (c) => c.query('select wms.reabrir_observada($1, null)', [linea.id])))).message).toBe('No tienes permiso para corregir una línea observada')
+    expect((await falla(como(base.personas.katia.id, (c) => c.query('select wms.reabrir_observada($1, null)', [linea.id])))).message).toBe('No tienes permiso para corregir una línea observada')
     await como(aux1, (c) => c.query('select wms.reabrir_observada($1, $2)', [linea.id, 'Cambié la caja']))
     expect(await uno('select picking, conformidad, no_conformidad, picker_id from wms.ordenes_picking_lineas where id = $1', [linea.id])).toMatchObject({ picking: 'PENDIENTE', conformidad: 'PENDIENTE', no_conformidad: null, picker_id: null })
     expect(await uno('select tipo, nota, observada_por, corregida_por, nota_correccion from wms.observaciones_conformidad where orden_linea_id = $1', [linea.id])).toMatchObject({ tipo: 'DANO', nota: 'La caja llegó rota', observada_por: sandra, corregida_por: aux1, nota_correccion: 'Cambié la caja' })

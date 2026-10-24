@@ -460,15 +460,15 @@ describe('conteos cíclicos y ajustes (INV-05)', () => {
 describe('carga inicial (D-09)', () => {
   const filas = (extra: object[] = []) => [
     { producto: 'T-DAPA', lote: 'CI-L1', vence: '2029-05-31', propietario: 'DIPHASAC', posicion: 'A-18.1', estado: 'APROBADO', cantidad: 25 },
-    { producto: 'T-LIZI', lote: 'CI-L2', vence: '2029-06-30', propietario: 'DIPHASAC', posicion: 'A-19.1', estado: 'APROBADO', cantidad: 12 },
+    { producto: 'T-DAPA', lote: 'CI-L2', vence: '2029-06-30', propietario: 'DIPHASAC', posicion: 'A-19.1', estado: 'APROBADO', cantidad: 12 },
     ...extra,
   ]
 
-  it('la vista previa explica cada fila con error y solo administración la usa', async () => {
+  it('la vista previa explica cada fila con error y solo administración y Dirección Técnica la usan', async () => {
     const r = await rpc<{ fila: number; error: string }>(P().admin.id, 'select * from wms.validar_carga_inicial($1::jsonb)', [JSON.stringify(filas([
-      { producto: 'NO-EXISTE', lote: 'X', propietario: 'DIPHASAC', posicion: 'A-18.1', estado: 'APROBADO', cantidad: 1 },
-      { producto: 'T-DAPA', lote: 'X', propietario: 'DIPHASAC', posicion: 'A-6', estado: 'APROBADO', cantidad: 1 },
-      { producto: 'T-DAPA', lote: 'X', propietario: 'DIPHASAC', posicion: 'A-18.1', estado: 'APROBADO', cantidad: 0 },
+      { producto: 'NO-EXISTE', lote: 'X', vence: '2029-01-01', propietario: 'DIPHASAC', posicion: 'A-18.1', estado: 'APROBADO', cantidad: 1 },
+      { producto: 'T-DAPA', lote: 'X', vence: '2029-01-01', propietario: 'DIPHASAC', posicion: 'A-6', estado: 'APROBADO', cantidad: 1 },
+      { producto: 'T-DAPA', lote: 'X', vence: '2029-01-01', propietario: 'DIPHASAC', posicion: 'A-18.1', estado: 'APROBADO', cantidad: 0 },
     ]))])
     expect(r.map((x) => x.fila)).toEqual([3, 4, 5])
     expect(r[0].error).toMatch(/no existe en el catálogo/)
@@ -477,25 +477,25 @@ describe('carga inicial (D-09)', () => {
     expect((await falla(rpc(P().charlie.id, 'select * from wms.validar_carga_inicial($1::jsonb)', [JSON.stringify(filas())]))).code).toBe('42501')
   })
 
-  it('no se confirma sin la decisión de Dirección Técnica sobre el estado; con ella, deja el saldo y el kardex', async () => {
-    expect((await falla(rpc(P().admin.id, 'select wms.crear_carga_inicial($1::jsonb, null)', [JSON.stringify(filas([{ producto: 'X', lote: 'Y', propietario: 'DIPHASAC', posicion: 'A-18.1', estado: 'APROBADO', cantidad: 1 }]))]))).message).toMatch(/1 filas con errores/)
+  it('Dirección Técnica confirma con UNA sola confirmación (sin decidir un estado aparte); deja el saldo y el kardex', async () => {
+    expect((await falla(rpc(P().admin.id, 'select wms.crear_carga_inicial($1::jsonb, null)', [JSON.stringify(filas([{ producto: 'X', lote: 'Y', vence: '2029-01-01', propietario: 'DIPHASAC', posicion: 'A-18.1', estado: 'APROBADO', cantidad: 1 }]))]))).message).toMatch(/1 filas con errores/)
     const carga = (await rpc<{ id: string }>(P().admin.id, 'select wms.crear_carga_inicial($1::jsonb, $2) as id', [JSON.stringify(filas()), 'Inventario general']))[0].id
-    expect((await falla(rpc(P().admin.id, 'select wms.confirmar_carga_inicial($1)', [carga]))).message).toMatch(/Falta la decisión de Dirección Técnica/)
-    expect((await falla(rpc(P().admin.id, `select wms.decidir_estado_carga_inicial('APROBADO')`))).code).toBe('42501')
-    await rpc(P().katia.id, `select wms.decidir_estado_carga_inicial('APROBADO')`)
-    await rpc(P().admin.id, 'select wms.confirmar_carga_inicial($1)', [carga])
+    expect((await falla(rpc(P().admin.id, 'select wms.confirmar_carga_inicial($1)', [carga]))).code).toBe('42501')
+    expect((await falla(rpc(P().katia.id, `select wms.decidir_estado_carga_inicial('APROBADO')`))).message).toMatch(/ya no existe/)
+    await rpc(P().katia.id, 'select wms.confirmar_carga_inicial($1)', [carga])
     expect((await base.admin.query(`select coalesce(sum(cantidad),0)::int n from wms.saldos s join wms.lotes l on l.id = s.lote_id where l.codigo in ('CI-L1','CI-L2')`)).rows[0].n).toBe(37)
     expect((await base.admin.query('select estado from wms.cargas_iniciales where id = $1', [carga])).rows[0].estado).toBe('CONFIRMADA')
-    expect((await falla(rpc(P().admin.id, 'select wms.confirmar_carga_inicial($1)', [carga]))).message).toMatch(/ya no está en borrador/)
+    expect((await falla(rpc(P().katia.id, 'select wms.confirmar_carga_inicial($1)', [carga]))).message).toMatch(/ya no está en borrador/)
     const v = await base.admin.query('select count(*)::int n from wms.verificar_saldos()')
     expect(v.rows[0].n).toBe(0)
   })
 
-  it('una fila en un estado distinto al decidido se rechaza (salvo lo ya rechazado)', async () => {
+  it('cada fila trae su estado (Aprobado, Cuarentena o Bajas): una en Cuarentena entra a Cuarentena', async () => {
     const carga = (await rpc<{ id: string }>(P().admin.id, 'select wms.crear_carga_inicial($1::jsonb, null) as id', [JSON.stringify([
       { producto: 'T-DAPA', lote: 'CI-L9', vence: '2029-05-31', propietario: 'DIPHASAC', posicion: 'A-6', estado: 'CUARENTENA', cantidad: 3 },
     ])]))[0].id
-    expect((await falla(rpc(P().admin.id, 'select wms.confirmar_carga_inicial($1)', [carga]))).message).toMatch(/decidió APROBADO/)
+    await rpc(P().katia.id, 'select wms.confirmar_carga_inicial($1)', [carga])
+    expect((await base.admin.query(`select coalesce(sum(cantidad),0)::int n from wms.saldos s join wms.lotes l on l.id = s.lote_id join wms.posiciones p on p.id = s.posicion_id where l.codigo = 'CI-L9' and s.estado = 'CUARENTENA' and p.codigo = 'A-6'`)).rows[0].n).toBe(3)
   })
 })
 

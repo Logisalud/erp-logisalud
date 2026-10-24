@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { asignarLinea, loteApto, type LoteDisponible } from '@/domain/salidas'
+import { asignarLinea, emiteGuiaDelWms, loteApto, origenDelStock, validarMotivoSalida, type LoteDisponible } from '@/domain/salidas'
 
 const HOY = '2026-10-14'
 const lote = (codigo: string, vence: string | null, disponible: number, extra: Partial<LoteDisponible> = {}): LoteDisponible => ({ loteId: `l:${codigo}`, codigo, vence, disponible, ...extra })
@@ -13,12 +13,51 @@ describe('aptitud del lote', () => {
     expect(loteApto('2026-12-12', 'DISTRIBUCION', 'VENTA', HOY).apto).toBe(false) // 59
     expect(loteApto('2026-10-20', 'MUESTRA', 'MUESTRA', HOY).apto).toBe(true)
   })
-  it('un cliente solo saca un lote vencido con pesquisa, destrucción o devolución, y con aprobación de Dirección Técnica', () => {
-    expect(loteApto('2026-09-01', 'CLIENTE', 'VENTA', HOY).apto).toBe(false)
-    for (const m of ['PESQUISA_DIGEMID', 'DESTRUCCION', 'DEVOLUCION_PROVEEDOR'] as const) {
-      expect(loteApto('2026-09-01', 'CLIENTE', m, HOY)).toMatchObject({ apto: true, requiereAprobacionDt: true })
-    }
+  it('lo vencido no sale por ninguna salida: ni Logissa ni un cliente (pesquisa, venta, muestra o devolución); va a Bajas', () => {
+    for (const m of ['VENTA', 'PESQUISA_DIGEMID', 'MUESTRA'] as const) expect(loteApto('2026-09-01', 'CLIENTE', m, HOY)).toMatchObject({ apto: false, requiereAprobacionDt: false })
+    expect(loteApto('2026-09-01', 'CLIENTE', 'PESQUISA_DIGEMID', HOY).razon).toMatch(/pesquisa DIGEMID nunca es de lotes vencidos/)
+    expect(loteApto('2026-09-01', 'PROVEEDOR', 'DEVOLUCION_PROVEEDOR', HOY).razon).toMatch(/no se devuelve vencido a nadie/)
+    expect(loteApto('2026-09-01', 'DISTRIBUCION', 'VENTA', HOY).razon).toMatch(/solo va a Bajas/)
     expect(loteApto('2026-10-20', 'CLIENTE', 'VENTA', HOY)).toMatchObject({ apto: true, requiereAprobacionDt: false }) // el mínimo de 60 días no es del cliente
+    expect(loteApto('2026-10-14', 'CLIENTE', 'PESQUISA_DIGEMID', HOY).apto).toBe(true) // vence hoy: todavía no está vencido
+  })
+})
+
+describe('devolución al proveedor (Logissa): solo antes del vencimiento y según la política de canje', () => {
+  it('sin política (valores iniciales) basta con que no esté vencido; sin fecha no se puede evaluar', () => {
+    expect(loteApto('2026-10-14', 'PROVEEDOR', 'DEVOLUCION_PROVEEDOR', HOY, 0).apto).toBe(true)
+    expect(loteApto('2026-10-13', 'PROVEEDOR', 'DEVOLUCION_PROVEEDOR', HOY, 0).apto).toBe(false)
+    expect(loteApto(null, 'PROVEEDOR', 'DEVOLUCION_PROVEEDOR', HOY, 0).razon).toMatch(/sin fecha|no tiene fecha/i)
+  })
+  it('la política de canje es configurable: mínimo y máximo de días antes de vencer', () => {
+    const canje = { diasMinimos: 30, diasMaximos: 180 }
+    expect(loteApto('2026-11-20', 'PROVEEDOR', 'DEVOLUCION_PROVEEDOR', HOY, 0, canje)).toMatchObject({ apto: true }) // faltan 37
+    expect(loteApto('2026-11-01', 'PROVEEDOR', 'DEVOLUCION_PROVEEDOR', HOY, 0, canje).razon).toMatch(/al menos 30 días.*le faltan 18/)
+    expect(loteApto('2027-06-01', 'PROVEEDOR', 'DEVOLUCION_PROVEEDOR', HOY, 0, canje).razon).toMatch(/180 días o menos/)
+  })
+  it('lleva su lote indicado: no se completa con otro lote', () => {
+    const lotes = [lote('X', '2027-01-01', 30), lote('Y', '2027-06-01', 100)]
+    expect(asignarLinea({ tipo: 'PROVEEDOR', motivo: 'DEVOLUCION_PROVEEDOR', cantidad: 50, hoy: HOY, lotes, loteIndicadoId: 'l:X' })).toMatchObject({ ok: false, aptoTotal: 30 })
+    expect(asignarLinea({ tipo: 'PROVEEDOR', motivo: 'DEVOLUCION_PROVEEDOR', cantidad: 20, hoy: HOY, lotes, loteIndicadoId: 'l:Y' })).toMatchObject({ ok: true, asignaciones: [{ codigo: 'Y', cantidad: 20 }] })
+  })
+})
+
+describe('motivos de la salida y de dónde sale el stock', () => {
+  it('tipo B: venta, pesquisa DIGEMID, muestra y destrucción; la devolución al proveedor es solo de Logissa', () => {
+    for (const m of ['VENTA', 'PESQUISA_DIGEMID', 'MUESTRA', 'DESTRUCCION'] as const) expect(validarMotivoSalida('CLIENTE', m)).toBeNull()
+    expect(validarMotivoSalida('CLIENTE', 'DEVOLUCION_PROVEEDOR')).toMatch(/del stock de Logissa/)
+    expect(validarMotivoSalida('PROVEEDOR', 'DEVOLUCION_PROVEEDOR')).toBeNull()
+    expect(validarMotivoSalida('PROVEEDOR', 'VENTA')).toMatch(/no corresponde/)
+    expect(validarMotivoSalida('DISTRIBUCION', 'VENTA')).toBeNull()
+    expect(validarMotivoSalida('MUESTRA', 'DESTRUCCION')).toMatch(/no corresponde/)
+  })
+  it('la destrucción sale solo desde Bajas; lo demás, de Aprobados', () => {
+    expect(origenDelStock('DESTRUCCION')).toBe('BAJAS_RECHAZADOS')
+    for (const m of ['VENTA', 'PESQUISA_DIGEMID', 'MUESTRA', 'DEVOLUCION_PROVEEDOR'] as const) expect(origenDelStock(m)).toBe('APROBADO')
+  })
+  it('la salida tipo B no emite guía del WMS (usa la GRE del cliente)', () => {
+    expect(emiteGuiaDelWms('CLIENTE')).toBe(false)
+    for (const tp of ['DISTRIBUCION', 'MUESTRA', 'PROVEEDOR'] as const) expect(emiteGuiaDelWms(tp)).toBe(true)
   })
 })
 
@@ -64,10 +103,9 @@ describe('asignación de una línea', () => {
     expect(r).toMatchObject({ ok: false, motivo: 'STOCK_INSUFICIENTE', aptoTotal: 30 })
   })
 
-  it('tipo B: un lote vencido solo con los tres motivos; la cantidad debe ser entera y positiva', () => {
+  it('tipo B: un lote vencido no sale de Aprobados con ningún motivo; la cantidad debe ser entera y positiva', () => {
     const lotes = [lote('V', '2026-09-01', 40)]
-    expect(asignarLinea({ tipo: 'CLIENTE', motivo: 'VENTA', cantidad: 10, hoy: HOY, lotes, loteIndicadoId: 'l:V' }).ok).toBe(false)
-    expect(asignarLinea({ tipo: 'CLIENTE', motivo: 'DESTRUCCION', cantidad: 10, hoy: HOY, lotes, loteIndicadoId: 'l:V' }).ok).toBe(true)
+    for (const motivo of ['VENTA', 'PESQUISA_DIGEMID', 'MUESTRA'] as const) expect(asignarLinea({ tipo: 'CLIENTE', motivo, cantidad: 10, hoy: HOY, lotes, loteIndicadoId: 'l:V' }).ok).toBe(false)
     expect(() => venta(0, [])).toThrow()
     expect(() => venta(1.5, [])).toThrow()
   })
