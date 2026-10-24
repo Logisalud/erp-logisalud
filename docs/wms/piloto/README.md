@@ -21,7 +21,7 @@ Marcados «Sebas» cuando necesitan su decisión. Cada uno tiene dueño.
 2. **Aplicar la migración 0036** en la base del piloto (a mano, con respaldo; `docs/wms/aplicar-migraciones.md`) y verificar `guia_modo = PANEL`. Dueño: equipo técnico, con aprobación de **Sebas**.
 3. **Elegir la ruta o el día fijo** de salidas del piloto y quién registra la guía. Dueño: **Roberto** y **Sebas**.
 4. **Confirmar con la contadora:** serie y correlativo de las guías que se emiten en el panel (y que el WMS no vuelva a usar esos números), y la baja de guías ante SUNAT. Dueño: **Sebas**.
-5. **Base del piloto:** crear o designar la base, con RLS, el bucket privado `wms-documentos` y el respaldo diario en verde. Dueño: equipo técnico.
+5. **Base del piloto:** crear o designar la base, con RLS, el bucket privado `wms-documentos` y la copia diaria de Supabase verificada en el panel. Dueño: equipo técnico.
 6. **Usuarios y roles reales** (Katia, Sandra, Charlie, Roberto, auxiliares, Auditoría, Administrador). Hoy el conductor no tiene pantallas. Dueño: Administrador.
 7. **Carga de ensayo:** armar el archivo con datos reales, pasar el **Informe de la carga**, corregir y volver a subir hasta «Lista para cargar». Dueño: **Katia** y el Administrador.
 8. **Registros sanitarios y COA** de los productos del piloto, cargados y vigentes. Dueño: Katia y Sandra.
@@ -29,3 +29,4 @@ Marcados «Sebas» cuando necesitan su decisión. Cada uno tiene dueño.
 10. **Plan de archivo y recreación** de la base (qué se archiva, dónde, con qué respaldo). Dueño: equipo técnico; lo aprueba **Sebas**.
 11. **Registro de incidencias** del piloto (una lista simple con responsable y fecha) y el día de revisión semanal. Dueño: Charlie.
 12. **Respaldo con restauración probada** antes de la primera semana. Dueño: equipo técnico.
+11. **Pendiente de producción: respaldo de los archivos del Storage** (PDF de actas del bucket `wms-documentos`). Supabase respalda la lista de archivos, no su contenido; hay que definir cómo se copian antes de firmar actas reales. Dueño: equipo técnico; lo aprueba **Sebas**.

@@ -11,7 +11,7 @@ Cómo se mide: «Reportes», «Auditoría», `verificar_saldos()` (consulta de l
 | A1 | La **carga de ensayo** sale «Lista para cargar» (cero líneas con error) en el Informe de la carga | Control → Carga inicial → «Armar el informe» | Katia |
 | A2 | `verificar_saldos()` **sin filas** y **cero saldos negativos** tras la carga de ensayo | Consulta del equipo técnico | Equipo técnico |
 | A3 | Las **8 hojas por rol** entregadas y cada persona hizo su recorrido de prueba **una vez** | `docs/wms/piloto/hojas-por-rol/` | Charlie y Roberto |
-| A4 | El **respaldo diario** de la base corre en verde **desde ya** y se probó una **restauración** | Registro del respaldo | Equipo técnico |
+| A4 | El **respaldo de Supabase** está activo en la base del piloto y se **verificó en el panel** que hay una copia del mismo día (no hay respaldo en GitHub: `docs/respaldos/README.md`) | Captura del panel con fecha y hora | Equipo técnico |
 | A5 | La **contadora confirmó** lo pendiente que afecta al piloto (baja de guías ante SUNAT, serie y correlativo de guías del panel) | Respuesta por escrito | Sebas |
 | A6 | Definida **la ruta o el día fijo** de salidas del piloto y quién emite la guía en el panel | Acta corta de acuerdo | Roberto y Sebas |
 | A7 | **Plan de archivo y recreación** de la base (qué se archiva, cómo, con respaldo) escrito y aprobado | Documento del plan | Sebas |
@@ -34,7 +34,9 @@ Se evalúa al **terminar al menos 2 semanas** de piloto.
 | B6 | **Revisión diaria cerrada** al menos **90 %** de los días hábiles del piloto | Almacén → Revisión diaria | Charlie |
 | B7 | **Exactitud de conteos** de al menos **98 %** en los conteos de la semana | Reportes → Exactitud del inventario | Katia |
 | B8 | **Salidas del piloto:** 100 % con número de pedido, guía registrada y salida confirmada; cero guías repetidas | Órdenes de salida y Auditoría | Roberto |
-| B9 | **Respaldo diario en verde ≥ 14 días seguidos** y una **restauración probada** en el período | Registro del respaldo y acta de la prueba | Equipo técnico |
+| B9 | **Copia diaria de Supabase presente los últimos 14 días** y la **reversa de cada migración ensayada** en Postgres 17 (restaurar es del proyecto completo, no de un esquema) | Captura del panel y acta del ensayo | Equipo técnico |
+| B12 | **Verificación del respaldo del día antes de cada ventana** (el mismo día, en el panel de Supabase); sin copia del día no hay ventana | Captura del panel con fecha y hora, adjunta a la guía de la ventana | Equipo técnico |
+| B13 | **Respaldo de los archivos del Storage** (PDF de actas, bucket `wms-documentos`) definido y probado: Supabase no los incluye en la copia de la base | Procedimiento escrito y una restauración de prueba | Equipo técnico |
 | B10 | La **contadora confirmó** lo pendiente (baja de guías ante SUNAT, retenciones y lo que Contabilidad deba validar) | Respuesta por escrito | Sebas |
 | B11 | **Plan de archivo y recreación** aprobado: la información del piloto se archiva y la base del WMS se recrea con la **carga definitiva**, con respaldo previo | Plan firmado por Sebas | Sebas |
 | B12 | **Carga definitiva** probada en un ensayo: informe «Lista para cargar» con los datos de cierre del piloto | Informe de la carga | Katia |
