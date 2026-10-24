@@ -20,8 +20,7 @@ export interface ClientePedido {
   coordenadas?: { lat: number; lng: number }
   /** Ventana de cita de entrega, tal como la dio el cliente (texto: «L-V 8:00–12:00»). */
   ventanaCita?: string
-  /** Tipo de vehículo calificado para entregarle (texto). */
-  vehiculoCalificado?: string
+  // «Vehículo calificado» ya no se trae de Pedidos (D-153): el Jefe de Transporte decide el vehículo por experiencia. Si un pedido viejo trae el dato, se ignora.
 }
 
 /** Lo que Pedidos entrega por cada pedido listo (el snapshot): el WMS lo guarda tal cual, para que el historial no cambie si el maestro cambia. */
@@ -100,7 +99,7 @@ export function validarPedidos(entrada: unknown): { pedidos: PedidoSnapshot[]; d
       modificadoEn: esFecha(crudo.modificadoEn) ? String(crudo.modificadoEn) : String(crudo.fecha).slice(0, 10) + 'T00:00:00Z',
       cliente: {
         id: texto(c.id)!, nombre: texto(c.nombre)!, ruc: texto(c.ruc), direccion: texto(c.direccion), distrito: texto(c.distrito), ubigeo: texto(c.ubigeo), coordenadas: coord,
-        ventanaCita: texto(c.ventanaCita), vehiculoCalificado: texto(c.vehiculoCalificado),
+        ventanaCita: texto(c.ventanaCita),
       },
       vendedor: texto(crudo.vendedor), condicionPago: texto(crudo.condicionPago), factura: texto(crudo.factura), observaciones: texto(crudo.observaciones),
       ...(crudo.estado === ESTADO_PEDIDO_CANCELADO ? { motivoCancelacion, canceladoPor: texto(crudo.canceladoPor) ?? texto(crudo.cancelado_por) } : {}), lineas,
@@ -137,7 +136,6 @@ export function resumirCambios(anterior: PedidoSnapshot, nuevo: PedidoSnapshot):
   if (anterior.cliente.nombre !== nuevo.cliente.nombre) cambios.push('Cambió el nombre del cliente')
   if ((anterior.cliente.direccion ?? '') !== (nuevo.cliente.direccion ?? '')) cambios.push('Cambió la dirección de entrega')
   if ((anterior.cliente.ventanaCita ?? '') !== (nuevo.cliente.ventanaCita ?? '')) cambios.push('Cambió la ventana de cita')
-  if ((anterior.cliente.vehiculoCalificado ?? '') !== (nuevo.cliente.vehiculoCalificado ?? '')) cambios.push('Cambió el vehículo calificado')
   if ((anterior.condicionPago ?? '') !== (nuevo.condicionPago ?? '')) cambios.push('Cambió la condición de pago')
   if (nuevo.factura && (anterior.factura ?? '') !== nuevo.factura) cambios.push(`Pedidos registró la factura ${nuevo.factura}`)
   return cambios
@@ -197,7 +195,6 @@ export interface PedidoBandeja {
   direccion?: string
   distrito?: string
   ventanaCita?: string
-  vehiculoCalificado?: string
   vendedor?: string
   condicionPago?: string
   factura?: string
@@ -269,7 +266,7 @@ export function bandejaDeFila(f: {
   const p = f.snapshot
   return armarBandeja({
     id: f.id, pedidoId: p.pedidoId, numero: p.numero, version: p.version, fecha: p.fecha, clienteId: p.cliente.id, cliente: p.cliente.nombre, ruc: p.cliente.ruc,
-    direccion: p.cliente.direccion, distrito: p.cliente.distrito, ventanaCita: p.cliente.ventanaCita, vehiculoCalificado: p.cliente.vehiculoCalificado,
+    direccion: p.cliente.direccion, distrito: p.cliente.distrito, ventanaCita: p.cliente.ventanaCita,
     vendedor: p.vendedor, condicionPago: p.condicionPago, factura: p.factura, observaciones: p.observaciones,
     lineas: p.lineas.map((l) => ({ ...l, enCatalogo: f.codigosEnCatalogo.has(l.productoCodigo) })),
     estado: p.estado === ESTADO_PEDIDO_CANCELADO ? 'CANCELADO_EN_PEDIDOS' : f.cambioPendiente ? 'CAMBIO_POR_REVISAR' : f.salida ? 'EN_SALIDA' : 'POR_PLANIFICAR',

@@ -2,7 +2,7 @@
 
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
-import type { PersonalTransporte, PlanRuta, VehiculoVista } from '@/domain/rutas'
+import type { DocumentoTipo, PersonalTransporte, PlanRuta, VehiculoVista } from '@/domain/rutas'
 import type { Actor, ResultadoAccion } from '@/services/repositorio'
 import type { DatosCierreRuta } from '@/services/repositorio-cierre-ruta'
 import { guardarArchivo } from '@/services/archivos'
@@ -18,6 +18,9 @@ export async function planificarRutaAccion(id: string, plan: PlanRuta) { return 
 export async function confirmarRutaAccion(id: string) { return repositorio().confirmarRuta(id, await quien()) }
 export async function cancelarRutaAccion(id: string, motivo: string) { return repositorio().cancelarRuta(id, motivo, await quien()) }
 export async function guardarPersonalAccion(p: { id?: string; nombre: string; funcion: PersonalTransporte['funcion']; activo: boolean }) { return repositorio().guardarPersonal(p, await quien()) }
+/** D-155 (temporal): quién figura como conductor en la guía y en el LS-FR.43.03 (`null` = el conductor real de cada ruta). */
+export async function cambiarConductorEnDocumentosAccion(personaId: string | null, motivo: string) { return repositorio().cambiarConductorEnDocumentos(personaId, motivo, await quien()) }
+export async function guardarDocumentosPersonalAccion(p: { id: string; documentoTipo: DocumentoTipo; dni: string; licencia?: string }) { return repositorio().guardarDocumentosPersonal(p, await quien()) }
 export async function guardarVehiculoAccion(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }) { return repositorio().guardarVehiculo(v, await quien()) }
 
 // ── OS-7: LS-FR.43.03 (impresión, escaneo firmado) y cierre de ruta con el data logger ──────────────────────────────────────────────

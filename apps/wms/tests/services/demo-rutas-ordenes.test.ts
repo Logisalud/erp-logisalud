@@ -123,7 +123,7 @@ describe('guía, carga y salida confirmada de una orden manual', () => {
     }
     // la guía ve la ruta de la parada por orden
     const g = (await repo.datosGuia(a.id))!
-    expect(g.ruta).toMatchObject({ numero: (await repo.obtenerRuta(r.id))!.numero, placa: 'BKW-757', conductor: 'Luis Quispe', fecha: r.fecha })
+    expect(g.ruta).toMatchObject({ numero: (await repo.obtenerRuta(r.id))!.numero, placa: 'BKW-757', conductor: 'Michele Yermain Mauriello Diaz', conductorReal: 'Luis Quispe', fecha: r.fecha })   // D-155: la guía nombra a quien figura en documentos
     expect(g.destinatario).toMatchObject({ nombre: 'Botica Salud SAC', ruc: '20123456789', ubigeo: '150101' })
     expect((await repo.datosGuia(c.id))!.destinatario).toMatchObject({ nombre: 'Clínica Destino SAC', ruc: '20987654321' })
     ok(await repo.registrarGre(a.id, 'T001-00000501', undefined, JT)); ok(await repo.registrarGre(c.id, 'T001-00000502', undefined, JT))

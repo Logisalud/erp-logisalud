@@ -104,6 +104,8 @@ export interface ExtrasLsFr {
   observaciones?: Record<string, string>
   /** USUARIO del formato: el Jefe de Transporte que preparó la ruta (OS-7). */
   usuario?: string
+  /** D-155 (temporal): quién figura como CONDUCTOR en el formato cuando no es el conductor real de la ruta. */
+  conductorEnDocumentos?: string
   /** Cierre de la ruta y todo lo que dejó el papel: impresiones, escaneo firmado (de la más nueva a la más vieja). */
   impresiones?: ImpresionLsFr[]
   escaneos?: EscaneoLsFr[]
@@ -135,7 +137,10 @@ export interface RegistroLsFrVista {
   /** El Jefe de Transporte que preparó la ruta (columna USUARIO). */
   usuario?: string
   placa?: string
+  /** Quien figura como CONDUCTOR en el formato (D-155: puede no ser el conductor real mientras exista el parámetro temporal). */
   conductor?: string
+  /** El conductor real de la ruta (el que se guarda y se audita siempre); solo se rellena si es distinto del que figura. */
+  conductorReal?: string
   auxiliar?: string
   horaSalida?: string
   horaLlegada?: string
@@ -187,7 +192,8 @@ export function armarRegistroLsFr(ruta: RutaVista, params: ParametrosLsFr = PARA
   }))
   return {
     rutaId: ruta.id, rutaNumero: ruta.numero, codigo: params.codigo, version: params.version, vigenteDesde: params.vigenteDesde, vigenteHasta: params.vigenteHasta, poe: COD_POE_LS_FR,
-    estado: ruta.registroLsFr ?? 'BASE', fecha: ruta.fecha, usuario: extras.usuario ?? ruta.creadaPor, placa: ruta.vehiculo?.placa, conductor: ruta.conductor?.nombre, auxiliar: ruta.auxiliar?.nombre,
+    estado: ruta.registroLsFr ?? 'BASE', fecha: ruta.fecha, usuario: extras.usuario ?? ruta.creadaPor, placa: ruta.vehiculo?.placa, conductor: extras.conductorEnDocumentos ?? ruta.conductor?.nombre,
+    conductorReal: extras.conductorEnDocumentos && extras.conductorEnDocumentos !== ruta.conductor?.nombre ? ruta.conductor?.nombre : undefined, auxiliar: ruta.auxiliar?.nombre,
     horaSalida: extras.horaSalida, horaLlegada: extras.horaLlegada, filas, paginas: Math.max(1, Math.ceil(filas.length / params.filasPorPagina)), filasPorPagina: params.filasPorPagina, pendientes: params.pendientes,
     impresiones: extras.impresiones ?? [], escaneos: extras.escaneos ?? [], cierres: extras.cierres ?? [], conservacionAnios: params.conservacionAnios,
     tempRango: { min: params.tempMin, max: params.tempMax },

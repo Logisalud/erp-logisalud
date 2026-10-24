@@ -102,7 +102,6 @@ function Detalle({ p, puedeRevisar, puedeCrear, creando, crear, demo }: { p: Ped
       <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
         {dato('Dirección de entrega', p.direccion)}
         {dato('Ventana de cita', p.ventanaCita)}
-        {dato('Vehículo calificado', p.vehiculoCalificado)}
         {dato('Vendedor', p.vendedor)}
         {dato('Condición de pago', p.condicionPago)}
         {dato('Factura', p.factura)}

@@ -103,8 +103,11 @@ describe('versionado: importar es idempotente', () => {
   })
 
   it('resume cambios del cliente, de la cita y de la condición de pago', () => {
-    const nuevo = pedido({ version: 2, condicionPago: '30 días', cliente: { ...pedido().cliente, direccion: 'Jr. Ica 5', ventanaCita: 'L-V 14:00-17:00', vehiculoCalificado: 'Furgón' } })
-    expect(resumirCambios(pedido(), nuevo)).toEqual(['Cambió la dirección de entrega', 'Cambió la ventana de cita', 'Cambió el vehículo calificado', 'Cambió la condición de pago'])
+    const nuevo = pedido({ version: 2, condicionPago: '30 días', cliente: { ...pedido().cliente, direccion: 'Jr. Ica 5', ventanaCita: 'L-V 14:00-17:00' } })
+    expect(resumirCambios(pedido(), nuevo)).toEqual(['Cambió la dirección de entrega', 'Cambió la ventana de cita', 'Cambió la condición de pago'])
+    // D-153: el vehículo calificado ya no se trae ni se compara; un pedido viejo que aún lo mande no genera aviso
+    const conViejo = pedido({ version: 2, cliente: { ...pedido().cliente, ...({ vehiculoCalificado: 'Furgón' } as object) } })
+    expect(resumirCambios(pedido(), conViejo)).toEqual([])
     expect(resumirCambios(pedido(), pedido({ version: 2 }))).toEqual([])
   })
 })

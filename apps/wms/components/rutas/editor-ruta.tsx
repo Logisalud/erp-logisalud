@@ -71,9 +71,9 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const guardadas = ruta.paradas.map((p) => p.clave)
   /** Lo que se muestra de cada parada, sea de un pedido de la bandeja o de una orden manual (SA-6). */
   const info = (pp: PlanParada) => {
-    if (pp.pedidoId) { const p = pedido.get(pp.pedidoId); return p ? { cliente: p.cliente, numero: p.numero, distrito: p.distrito, ventanaCita: p.ventanaCita, unidades: p.unidades, llegada: p.importadoEn, vehiculoCalificado: p.vehiculoCalificado, tipo: undefined as string | undefined } : null }
+    if (pp.pedidoId) { const p = pedido.get(pp.pedidoId); return p ? { cliente: p.cliente, numero: p.numero, distrito: p.distrito, ventanaCita: p.ventanaCita, unidades: p.unidades, llegada: p.importadoEn, tipo: undefined as string | undefined } : null }
     const o = ordenMap.get(clavePlanParada(pp))
-    return o ? { cliente: o.cliente, numero: o.pedidoNumero ?? o.numero, distrito: o.distrito, ventanaCita: undefined, unidades: o.unidades, llegada: o.creadaEn, vehiculoCalificado: undefined, tipo: ETIQUETA_TIPO_SALIDA[o.tipo] as string | undefined } : null
+    return o ? { cliente: o.cliente, numero: o.pedidoNumero ?? o.numero, distrito: o.distrito, ventanaCita: undefined, unidades: o.unidades, llegada: o.creadaEn, tipo: ETIQUETA_TIPO_SALIDA[o.tipo] as string | undefined } : null
   }
   const sucio = fecha !== ruta.fecha || vehiculoId !== (ruta.vehiculo?.id ?? '') || conductorId !== (ruta.conductor?.id ?? '') || auxiliarId !== (ruta.auxiliar?.id ?? '')
     || paradas.length !== guardadas.length || paradas.some((p, i) => clavePlanParada(p) !== guardadas[i] || !!p.excepcionCorte !== !!ruta.paradas[i]?.excepcionCorte || (p.motivoExcepcion ?? '') !== (ruta.paradas[i]?.motivoExcepcion ?? ''))
@@ -116,7 +116,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
           <div><label htmlFor="r-veh" className="etiqueta">Vehículo</label>
             <select id="r-veh" className="campo" value={vehiculoId} onChange={(e) => setVehiculoId(e.target.value)} data-testid="ruta-vehiculo">
               <option value="">Elige el vehículo…</option>
-              {panorama.vehiculos.filter((v) => v.activo || v.id === vehiculoId).map((v) => <option key={v.id} value={v.id}>{v.placa}{v.descripcion ? ` — ${v.descripcion}` : ''}{v.calificado ? ' · calificado' : ''}{v.aptoCadenaFrio ? ' · frío' : ''}</option>)}
+              {panorama.vehiculos.filter((v) => v.activo || v.id === vehiculoId).map((v) => <option key={v.id} value={v.id}>{v.placa}{v.descripcion ? ` — ${v.descripcion}` : ''}{v.aptoCadenaFrio ? ' · frío' : ''}</option>)}
             </select></div>
           <div><label htmlFor="r-cond" className="etiqueta">Conductor</label>
             <select id="r-cond" className="campo" value={conductorId} onChange={(e) => setConductorId(e.target.value)} data-testid="ruta-conductor">
@@ -146,7 +146,6 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
               if (!p) return <li key={clave} className="px-4 py-3 text-sm text-red-800">{pp.pedidoId ? 'Un pedido ya no está en la bandeja.' : 'Una orden ya no se puede planificar.'}</li>
               const guardada = ruta.paradas.find((x) => x.clave === clave)
               const tarde = fueraDeCorte(p.llegada, fecha, panorama.corte)
-              const alertas = [vehiculo && p.vehiculoCalificado && !vehiculo.calificado ? 'Exige vehículo calificado' : (!vehiculo && p.vehiculoCalificado ? 'Exige vehículo calificado' : '')].filter(Boolean)
               return (
                 <li key={clave} className="space-y-2 px-3 py-3 md:px-4" data-testid="parada">
                   <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
@@ -158,7 +157,6 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
                         {p.tipo && <span className={`${base} border-teal-200 bg-teal-50 text-teal-900`} data-testid="chip-orden-manual"><ClipboardList className="h-3.5 w-3.5" aria-hidden />Orden manual · {p.tipo}</span>}
                         {guardada ? <ChipStockParada stock={guardada.stock} /> : <span className={`${base} border-gray-300 bg-gray-100 text-gray-800`}>Stock se asigna al guardar</span>}
                         {guardada?.salidaNumero && <span className="tabular text-xs text-gray-600">{guardada.salidaNumero}</span>}
-                        {alertas.map((a) => <span key={a} className={`${base} ${CHIP_AVISO}`}><TriangleAlert className="h-3.5 w-3.5" aria-hidden />{a}</span>)}
                         {tarde && <span className={`${base} ${CHIP_AVISO}`} data-testid="chip-corte"><TriangleAlert className="h-3.5 w-3.5" aria-hidden />{pp.pedidoId ? 'Llegó' : 'Se creó'} después del corte</span>}
                       </div>
                     </div>
@@ -214,7 +212,6 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-gray-900">{p.cliente} <span className="tabular text-sm font-normal text-gray-600">· {p.numero}</span></p>
                     <p className="text-sm text-gray-700">{[p.distrito, p.ventanaCita, `${p.lineas} ${p.lineas === 1 ? 'línea' : 'líneas'}`, `${p.unidades.toLocaleString('es-PE')} u`].filter(Boolean).join(' · ')}</p>
-                    {p.vehiculoCalificado && <p className="text-xs text-gray-600">Pide vehículo: {p.vehiculoCalificado}</p>}
                     {bloqueo && <p className={`${base} ${CHIP_AVISO} mt-1`}><TriangleAlert className="h-3.5 w-3.5" aria-hidden />{bloqueo}</p>}
                   </div>
                   <button type="button" className="btn-secondary" onClick={() => agregar(p)} disabled={!!bloqueo} aria-label={`Agregar ${p.numero} a la ruta`} data-testid="agregar-pedido"><Plus className="h-5 w-5" aria-hidden />Agregar</button>

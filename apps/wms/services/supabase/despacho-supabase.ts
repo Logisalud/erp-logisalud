@@ -2,9 +2,10 @@ import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
 import {
-  claveDeOrden, totalUnidades, type EstadoRuta, type OrdenPlanificable, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
+  claveDeOrden, totalUnidades, type EstadoRuta, type OrdenPlanificable, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type ConductorEnDocumentos, type DocumentoTipo, type PersonalTransporte, type PlanRuta, type RutaVista, type VehiculoVista,
 } from '@/domain/rutas'
 import { armarRegistroLsFr, parametrosDesdeClaves, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
+import { quienFiguraEnDocumentos, CLAVE_CONDUCTOR_EN_DOCUMENTOS } from '@/domain/conductor-documentos'
 import type { PedidoSnapshot } from '@/domain/pedidos-despacho'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioRutas } from '../repositorio-rutas'
@@ -23,7 +24,18 @@ const vehiculoDe = (v: Fila): VehiculoVista => ({
   id: String(v.id), placa: String(v.placa), descripcion: s(v.descripcion), tipo: v.tipo === 'EXTERNO' ? 'EXTERNO' : 'PROPIO', calificado: Boolean(v.calificado),
   aptoCadenaFrio: Boolean(v.apto_cadena_frio), capacidadBultos: v.capacidad_bultos == null ? undefined : Number(v.capacidad_bultos), activo: Boolean(v.activo),
 })
-const personalDe = (p: Fila): PersonalTransporte => ({ id: String(p.id), nombre: String(p.nombre), funcion: p.funcion === 'AUXILIAR' ? 'AUXILIAR' : 'CONDUCTOR', activo: Boolean(p.activo), dni: p.dni ? String(p.dni) : undefined })
+const personalDe = (p: Fila): PersonalTransporte => ({ id: String(p.id), nombre: String(p.nombre), funcion: p.funcion === 'AUXILIAR' ? 'AUXILIAR' : 'CONDUCTOR', activo: Boolean(p.activo),
+  dni: p.dni ? String(p.dni) : undefined, documentoTipo: p.documento_tipo === 'CE' || p.documento_tipo === 'PASAPORTE' ? p.documento_tipo : 'DNI', licencia: p.licencia ? String(p.licencia) : undefined,
+})
+
+/** D-155: la fila del parámetro «conductor en documentos» (sin fila = el interruptor ya no existe). Su valor es el id del conductor que figura, o vacío. */
+async function leerConductorEnDocumentos(personal: readonly PersonalTransporte[]): Promise<ConductorEnDocumentos | undefined> {
+  const { data } = await sch().from('parametros').select('valor, nota').eq('clave', CLAVE_CONDUCTOR_EN_DOCUMENTOS).maybeSingle()
+  if (!data) return undefined
+  const f = data as Fila
+  const id = s(f.valor)
+  return { personaId: id, nombre: personal.find((p) => p.id === id)?.nombre, cambio: s(f.nota) }
+}
 
 export class DespachoSupabase extends PedidosSupabase implements RepositorioRutas {
   private async armarRutas(filtroId?: string): Promise<{ rutas: RutaVista[]; vehiculos: VehiculoVista[]; personal: PersonalTransporte[]; planificables: PedidoPlanificable[]; ordenes: OrdenPlanificable[] }> {
@@ -62,7 +74,7 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
       const c = snap.cliente
       return {
         id: String(pa.id), secuencia: Number(pa.secuencia), clave: String(pa.pedido_id ?? claveDeOrden(salidaId ?? '')), origen: 'PEDIDO', pedidoId: s(pa.pedido_id), salidaId, tipoOrden: so?.tipo as ParadaVista['tipoOrden'], pedidoNumero: String(pd?.numero ?? '?'), cliente: c?.nombre ?? String(pd?.cliente_nombre ?? ''), ruc: c?.ruc,
-        direccion: c?.direccion, distrito: c?.distrito, ventanaCita: c?.ventanaCita, vehiculoCalificado: c?.vehiculoCalificado, lineas: snap.lineas?.length ?? 0,
+        direccion: c?.direccion, distrito: c?.distrito, ventanaCita: c?.ventanaCita, lineas: snap.lineas?.length ?? 0,
         unidades: (snap.lineas ?? []).reduce((t, l) => t + l.cantidad, 0), salidaNumero: salidaId ? numSalida.get(salidaId) : undefined,
         stock: stockDe(), excepcionCorte: Boolean(pa.excepcion_corte), motivoExcepcion: s(pa.motivo_excepcion),
       }
@@ -84,7 +96,7 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
       const snap = p.snapshot as PedidoSnapshot
       return {
         pedidoId: String(p.pedido_id), numero: String(p.numero), cliente: snap.cliente.nombre, ruc: snap.cliente.ruc, direccion: snap.cliente.direccion, distrito: snap.cliente.distrito,
-        ventanaCita: snap.cliente.ventanaCita, vehiculoCalificado: snap.cliente.vehiculoCalificado, lineas: snap.lineas.length, unidades: snap.lineas.reduce((t, l) => t + l.cantidad, 0),
+        ventanaCita: snap.cliente.ventanaCita, lineas: snap.lineas.length, unidades: snap.lineas.reduce((t, l) => t + l.cantidad, 0),
         importadoEn: String(p.importado_en), enRuta: numeroRutaViva.get(String(p.pedido_id)), cambioPorRevisar: Boolean(p.cambio_pendiente),
         sinCatalogo: snap.lineas.filter((l) => !codigos.has(l.productoCodigo.toUpperCase())).map((l) => l.productoCodigo),
       }
@@ -109,6 +121,7 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
     return {
       hoy: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }), corte: String((param.data as Fila | null)?.valor ?? '16:00'),
       rutas: rutas.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)), vehiculos, personal, pedidos: planificables, ordenes,
+      conductorEnDocumentos: await leerConductorEnDocumentos(personal),
     }
   }
 
@@ -118,7 +131,13 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
   }
 
   /** Lo que las etapas siguientes registran y el formato pide (guías, bultos, horas). Las clases de más abajo lo completan. */
-  protected async extrasLsFr(_rutaId: string): Promise<ExtrasLsFr> { return {} }
+  protected async extrasLsFr(rutaId: string): Promise<ExtrasLsFr> {
+    // D-155: con el interruptor activo, el formato nombra a quien figura en documentos (la base elige igual en wms._conductor_para_documentos)
+    const { rutas, personal } = await this.armarRutas(rutaId)
+    const param = await leerConductorEnDocumentos(personal)
+    if (!param) return {}
+    return { conductorEnDocumentos: quienFiguraEnDocumentos(rutas[0]?.conductor, param, personal).figura?.nombre }
+  }
 
   async registroLsFr(rutaId: string): Promise<RegistroLsFrVista | null> {
     const ruta = await this.obtenerRuta(rutaId)
@@ -159,6 +178,16 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
   async guardarPersonal(p: { id?: string; nombre: string; funcion: PersonalTransporte['funcion']; activo: boolean }, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
     const { data, error } = await rpc('guardar_personal_transporte', { p_id: p.id ?? null, p_nombre: p.nombre, p_funcion: p.funcion, p_activo: p.activo })
     return error ? mal(error) : { ok: true, id: String(data) }
+  }
+
+  async cambiarConductorEnDocumentos(personaId: string | null, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('cambiar_conductor_en_documentos', { p_persona: personaId, p_motivo: motivo })
+    return error ? mal(error) : { ok: true }
+  }
+
+  async guardarDocumentosPersonal(p: { id: string; documentoTipo: DocumentoTipo; dni: string; licencia?: string }, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('guardar_documentos_personal', { p_id: p.id, p_documento_tipo: p.documentoTipo, p_documento: p.dni, p_licencia: p.licencia ?? '' })
+    return error ? mal(error) : { ok: true }
   }
 
   async guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
