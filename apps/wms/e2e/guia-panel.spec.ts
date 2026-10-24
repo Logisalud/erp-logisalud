@@ -17,7 +17,10 @@ test.describe('guía emitida en el panel (piloto)', () => {
     await entrarComo(page, 'auxiliar')
     await page.goto(urlOrden)
     await expect(page.getByTestId('linea-picking').first()).toBeVisible()
-    for (let i = 0; i < 10 && (await page.getByTestId('pickeado').count()) > 0; i++) await page.getByTestId('pickeado').first().click()
+    for (let n = await page.getByTestId('pickeado').count(); n > 0; n--) {
+      await page.getByTestId('pickeado').first().click()
+      await expect(page.getByTestId('pickeado')).toHaveCount(n - 1)      // espera a que la pantalla se refresque antes del siguiente clic
+    }
     await expect(page.getByTestId('avance-picking')).toContainText('Picking completo')
 
     await entrarComo(page, 'asistente_dt')

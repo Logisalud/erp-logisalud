@@ -69,6 +69,8 @@ export interface ExtrasSalida {
   guiaEnEspera?: boolean
   /** Falta la guía (con la conformidad completa). */
   sinGuia?: boolean
+  /** Piloto (0036): la guía se emite en el panel de Nubefact (o en Odoo) y el WMS solo la registra. Solo la ficha de la orden lo sabe; la lista y «Mis tareas» dicen «emitir». */
+  guiaPanel?: boolean
   /** D-191: la orden ya salió, su guía se anuló y no hay otra vigente: el stock no se toca y falta emitir la guía nueva. */
   faltaGuiaVigente?: boolean
   /** SA-2: orden por cuenta de un cliente (tipo B): no lleva guía del WMS, se registra la GRE que trae el cliente. */
@@ -120,6 +122,7 @@ function siguienteDeSalida(etapa: EtapaSalida, id: string, x: ExtrasSalida): Sig
       if (x.guiaEnEspera) return { texto: 'Consultar si SUNAT ya aceptó la guía: sin eso no hay PDF ni se avisa a Pedidos', responsable: R.documentos, href: `/salidas/${id}`, boton: 'Consultar estado en SUNAT' }
       const sinDoc = etapa !== 'DOCUMENTACION_COMPLETA'
       if (sinDoc && x.tipo === 'CLIENTE') return { texto: 'Registrar la guía de remisión del cliente (su número y el PDF que adjuntó) y completar el paquete documental: el WMS no emite guía en esta orden', responsable: R.documentos, href: `/salidas/${id}`, boton: 'Registrar la GRE del cliente' }
+      if (sinDoc && x.guiaPanel) return { texto: 'Emitir la guía en el panel de Nubefact (o en Odoo), registrarla aquí con su número y completar el paquete documental', responsable: R.documentos, href: `/salidas/${id}`, boton: 'Registrar la guía emitida' }
       if (sinDoc) return { texto: 'Emitir la guía de remisión (con la ruta ya asignada) y completar el paquete documental', responsable: R.documentos, href: `/salidas/${id}`, boton: 'Emitir la guía' }
       return { texto: 'Embalar el pedido en bultos y imprimir las etiquetas', responsable: R.embalaje, href: `/embalaje/${id}`, boton: 'Ir al embalaje' }
     }

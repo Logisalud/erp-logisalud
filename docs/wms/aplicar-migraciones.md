@@ -88,12 +88,14 @@ Storage, RLS real de Compras (`acceso_abierto_temporal`).
 (3) Carga inicial: `validar_carga_inicial` (todo lote con código y vencimiento; Aprobado exige registro sanitario vigente), `crear_carga_inicial`, `confirmar_carga_inicial` (**una sola confirmación de Dirección Técnica**; en una transacción deja ingreso en Cuarentena → liberación o baja → ubicación final) y `decidir_estado_carga_inicial` (queda solo para rechazar con un mensaje). **Redefine `postear_movimiento` parchando su cuerpo vigente por reemplazo de texto** y se detiene con un mensaje claro si ese cuerpo cambió.
 **Antes de aplicarla en producción:** (a) confirmar que existe al menos una ubicación de Cuarentena por propietario que va a cargar; (b) crear en Storage el bucket que ya usan los demás adjuntos (no hace falta uno nuevo); (c) verificar que la lista de funciones expuestas a `authenticated` coincide con la de `tests/db/aislamiento.test.ts` (suma las 8 funciones públicas de esta migración); (d) la columna nueva `cargas_iniciales_lineas.estado` se valida solo para filas nuevas (`NOT VALID`).
 
+**0036** (Piloto «como real», PIL-1; requiere la 0034 por `_guia_de_reemplazo_posible`): parámetro `guia_modo` (`PANEL` sembrado; solo admite `WMS` o `PANEL`), origen `PANEL` en `guias_remision` (se amplía el check; las filas viejas lo cumplen), columna `fecha_emision`, `_guia_inmutable` con esa columna y `wms.registrar_guia_panel(...)` (permiso `registrar_documentacion`, solo con `guia_modo = PANEL`; no repite número ni con una guía anulada; deja el aviso `GUIA_EMITIDA` para Pedidos y audita). Redefine `trg_validar_parametro` (la de la 0034 más `guia_modo`). No toca datos existentes; re-ejecutable. Si se aplica con el piloto en marcha, `guia_modo` queda en `PANEL`: para que el WMS siga emitiendo con Nubefact, cambiarlo a `WMS` después de aplicarla.
+
 ## Ensayo de la ventana en Postgres 17 (2026-10-24)
 
-`apps/wms/scripts/ensayo-migraciones.sh <url-de-un-Postgres-17-desechable>` aplica la cadena **0001 a 0035** sobre una base nueva
+`apps/wms/scripts/ensayo-migraciones.sh <url-de-un-Postgres-17-desechable>` aplica la cadena **0001 a 0036** sobre una base nueva
 (cada migración dos veces seguidas, para probar que son re-ejecutables), carga las semillas de topología y transporte y comprueba:
 `verificar_saldos()` sin filas, ninguna función de `wms` con EXECUTE para PUBLIC y RLS en todas las tablas.
-Resultado del ensayo local en **Postgres 17.5**: 34 migraciones × 2 aplicaciones sin errores en ~6 s; 98 tablas de `wms` con RLS;
-176 funciones expuestas a `authenticated`, ninguna a PUBLIC; y las **638 pruebas de `tests/db` pasan** en esa versión.
+Resultado del ensayo local en **Postgres 17.5**: 35 migraciones × 2 aplicaciones sin errores en ~5 s (con la 0036); 98 tablas de `wms` con RLS;
+177 funciones expuestas a `authenticated`, ninguna a PUBLIC; y las **638 pruebas de `tests/db` pasan** en esa versión.
 Lo que el ensayo **no** cubre: PostgREST, GoTrue, Storage, la RLS real de Compras (las pruebas usan stubs; ver `gate-0.md` §G.1).
 Repetir toda la cadena desde 0001 no se prueba a propósito: la 0005 retira objetos de la 0004 y ese caso no existe.

@@ -219,3 +219,14 @@ describe('Mis tareas', () => {
     expect(misTareas(['auditoria_lectura'], salidas, ingresos, etiquetas)).toEqual([])
   })
 })
+
+describe('piloto: guía emitida en el panel', () => {
+  it('con la guía en el panel, el paso de documentos dice «registrar» y sigue teniendo responsable y enlace', () => {
+    const a = avanceDeSalida('CONFORME', 'abc', { guiaPanel: true, sinRuta: false })
+    expect(a.siguiente.boton).toBe('Registrar la guía emitida')
+    expect(a.siguiente.texto).toMatch(/panel de Nubefact/)
+    expect(a.siguiente.responsable.roles).toContain('jefe_transporte')
+    expect(a.siguiente.href).toBe('/salidas/abc')
+    expect(avanceDeSalida('CONFORME', 'abc', { sinRuta: false }).siguiente.boton).toBe('Emitir la guía')
+  })
+})
