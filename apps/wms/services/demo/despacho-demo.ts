@@ -95,6 +95,8 @@ export interface DespachoDemoEstado {
   picking?: import('./picking-demo').PickingDemoEstado
   /** S6b: guías de remisión registradas a mano (nunca se editan: se anulan con motivo). */
   guias?: GuiaDemo[]
+  /** Piloto (0036): quién emite la guía. Sin dato = `WMS` (o lo que diga `WMS_DEMO_GUIA_MODO`). */
+  guiaModo?: import('@/domain/guia-electronica').GuiaModo
   /** OS-3: avisos hacia Pedidos (guía emitida / anulada). */
   eventosPedidos?: import('@/domain/guia-electronica').EventoPedidos[]
   /** D-162: la numeración de las guías por serie (último número, correlativo confirmado y el estado de cada número), igual que `wms.guia_correlativos` y `wms.guia_numeros`. */

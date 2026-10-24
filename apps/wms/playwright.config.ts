@@ -17,10 +17,12 @@ export const VIEWPORTS = {
 //   principal → la suite de siempre, con las órdenes de ejemplo APAGADAS (WMS_DEMO_EJEMPLOS=0): varias pruebas suponen una sola salida (PED-DEMO-101).
 //   ejemplos  → solo e2e/ejemplos-por-etapa.spec.ts, con los ejemplos encendidos (puerto +1).
 //   vacio     → solo e2e/salidas-vacio.spec.ts, con la demo sin ninguna salida (WMS_DEMO_EJEMPLOS=vacio, puerto +2).
-const MODO = (process.env.WMS_E2E_MODO ?? 'principal') as 'principal' | 'ejemplos' | 'vacio'
-const ESPECIFICAS = { ejemplos: 'ejemplos-por-etapa.spec.ts', vacio: 'salidas-vacio.spec.ts' } as const
-const PUERTO = Number(process.env.WMS_E2E_PUERTO ?? 3100) + (MODO === 'ejemplos' ? 1 : MODO === 'vacio' ? 2 : 0)
+//   panel     → solo e2e/guia-panel.spec.ts, con la guía emitida en el panel de Nubefact (WMS_DEMO_GUIA_MODO=PANEL, puerto +3).
+const MODO = (process.env.WMS_E2E_MODO ?? 'principal') as 'principal' | 'ejemplos' | 'vacio' | 'panel'
+const ESPECIFICAS = { ejemplos: 'ejemplos-por-etapa.spec.ts', vacio: 'salidas-vacio.spec.ts', panel: 'guia-panel.spec.ts' } as const
+const PUERTO = Number(process.env.WMS_E2E_PUERTO ?? 3100) + (MODO === 'ejemplos' ? 1 : MODO === 'vacio' ? 2 : MODO === 'panel' ? 3 : 0)
 const EJEMPLOS = MODO === 'ejemplos' ? '1' : MODO === 'vacio' ? 'vacio' : '0'
+const GUIA_MODO = MODO === 'panel' ? 'PANEL' : 'WMS'
 
 export default defineConfig({
   testDir: './e2e',
@@ -47,6 +49,6 @@ export default defineConfig({
     url: `http://localhost:${PUERTO}/wms/login`,
     reuseExistingServer: true,
     timeout: 60_000,
-    env: { WMS_DEMO_LOCAL: '1', WMS_DEMO_DATOS: 'sintetico', WMS_DEMO_EJEMPLOS: EJEMPLOS, PORT: String(PUERTO) },
+    env: { WMS_DEMO_LOCAL: '1', WMS_DEMO_DATOS: 'sintetico', WMS_DEMO_EJEMPLOS: EJEMPLOS, WMS_DEMO_GUIA_MODO: GUIA_MODO, PORT: String(PUERTO) },
   },
 })

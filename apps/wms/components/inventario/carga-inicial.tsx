@@ -7,6 +7,7 @@ import { confirmarCargaInicialAccion, crearCargaInicialAccion, validarCargaInici
 import { parsearCargaInicial, type CargaInicialVista, type ErrorFilaCarga, type FilaCargaInicial } from '@/domain/inventario'
 import { formatoFechaHora } from '@/domain/fechas'
 import { ETIQUETA_ESTADO_CARGA, resumenCarga } from '@/domain/carga-inicial'
+import { InformeCarga } from './informe-carga'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 import { CHIP_NEUTRO, CHIP_OK } from '@/components/estilos-opcion'
@@ -99,6 +100,7 @@ export function CargaInicial({ cargas, puedeCargar, puedeConfirmar }: { cargas: 
                   </table>
                 </div>
               )}
+              <InformeCarga key={texto} texto={texto} />
               {errores.filter((e) => e.fila === 0).map((e, i) => <p key={i} role="alert" className="text-sm text-red-800">{e.error}</p>)}
               <div>
                 <label htmlFor="nota-carga" className="etiqueta">Nota (opcional)</label>

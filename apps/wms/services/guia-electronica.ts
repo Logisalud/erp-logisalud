@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { NOMBRE_MODO, construirConsulta, construirPayloadNubefact, faltantesDeGuia, partirNumeroGuia, type CasoAnulacion, type EstadoSunat, type RespuestaEmision, type TrasladoGuia } from '@/domain/guia-electronica'
+import { NOMBRE_MODO, construirConsulta, construirPayloadNubefact, faltantesDeGuia, partirNumeroGuia, type CasoAnulacion, type EstadoSunat, type RegistroGuiaPanel, type RespuestaEmision, type TrasladoGuia } from '@/domain/guia-electronica'
 import { MENSAJE_RESULTADO_INCIERTO, mensajeNumeroOcupado, mensajeSalto, numeroConSerie } from '@/domain/numeracion-guias'
 import { repositorio } from './repositorio-actual'
 import { clienteNubefact, modoNubefactActual, nubefactDemoIncompleto, NubefactNoConfigurado, type ResultadoPruebaConexion } from './nubefact/cliente'
@@ -39,6 +39,7 @@ export async function emitirGuiaElectronica(salidaId: string, traslado: Traslado
   const repo = repositorio()
   const datos = await repo.datosGuia(salidaId)
   if (!datos) return falla('No encontramos esa salida')
+  if (datos.guiaModo === 'PANEL') return falla('En el piloto la guía se emite en el panel de Nubefact (o en Odoo): aquí solo se registra con su número')
   const faltan = faltantesDeGuia(datos, traslado, modoNubefactActual())
   if (faltan.length) return falla(faltan.length === 1 ? faltan[0] : `Falta completar: ${faltan.join('; ')}.`)
   let cliente
@@ -100,6 +101,14 @@ export async function emitirGuiaElectronica(salidaId: string, traslado: Traslado
   }
   const envio = estado === 'ACEPTADA' ? await enviarEventosPedidos(actor, salidaId) : { pendientes: 0 }
   return { ok: true, id: reg.id, numero: reg.numero, entorno: r.entorno, estadoSunat: estado, saltados, adoptada, pedidos: estado !== 'ACEPTADA' ? 'NO_AUN' : envio.pendientes === 0 ? 'ENVIADO' : 'PENDIENTE' }
+}
+
+/** Piloto (0036): registra la guía que ya se emitió en el panel y avisa a Pedidos igual que con una guía emitida por el WMS. */
+export async function registrarGuiaPanel(salidaId: string, registro: RegistroGuiaPanel, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string; pedidos: 'ENVIADO' | 'PENDIENTE' }>> {
+  const r = await repositorio().registrarGuiaPanel(salidaId, registro, actor)
+  if (!r.ok) return r
+  const envio = await enviarEventosPedidos(actor, salidaId)
+  return { ...r, pedidos: envio.pendientes === 0 ? 'ENVIADO' : 'PENDIENTE' }
 }
 
 /** «Consultar estado en SUNAT» para una guía que quedó en espera. */

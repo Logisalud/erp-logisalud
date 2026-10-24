@@ -14,6 +14,7 @@ import { Aviso } from '../entradas/aviso'
 import { AnularGuia } from './anular-guia'
 import { ConsultarGuia } from './consultar-guia'
 import { EmitirGuia } from './emitir-guia'
+import { RegistrarGuiaPanel } from './registrar-guia-panel'
 import { CHIP_AVISO, CHIP_NEUTRO, CHIP_OK } from '../estilos-opcion'
 import { NumeracionGuias } from './numeracion-guias'
 import { puedeAdministrarNumeracion, type EstadoCorrelativo } from '@/domain/numeracion-guias'
@@ -53,17 +54,21 @@ export function PanelDocumentacion({ salioYa, paquete, roles, datos, modo, hoy, 
               <span className={`rounded-full border px-2.5 py-1 ${CHIP_NEUTRO}`}>{ETIQUETA_ORIGEN[paquete.guia.origen]}</span>
               {paquete.guia.entorno && <span className={`rounded-full border px-2.5 py-1 ${CHIP_NEUTRO}`}>{ETIQUETA_MODO[paquete.guia.entorno]}</span>}
               {paquete.guia.estadoSunat && <span className={`rounded-full border px-2.5 py-1 ${paquete.guia.estadoSunat === 'ACEPTADA' ? CHIP_OK : CHIP_AVISO}`}>{ETIQUETA_ESTADO_SUNAT[paquete.guia.estadoSunat]}</span>}
+              {paquete.guia.fechaEmision && <span className={`rounded-full border px-2.5 py-1 ${CHIP_NEUTRO}`} data-testid="guia-fecha-emision">Emitida el {paquete.guia.fechaEmision.split('-').reverse().join('/')}</span>}
               {paquete.guia.enlace && <Link href={paquete.guia.enlace} target="_blank" className="underline" data-testid="guia-pdf">Ver el PDF</Link>}
               {paquete.guia.enlaceXml && <Link href={paquete.guia.enlaceXml} target="_blank" className="underline">Ver el XML</Link>}
             </p>
             <ul className="text-sm text-gray-800" data-testid="guia-lineas">{paquete.guia.lineas.map((l, k) => <li key={k} className="tabular">{l.productoCodigo} · lote {l.lote} · vence {l.vence ? mesAnio(l.vence) : '—'} · {l.cantidad.toLocaleString('es-PE')} u</li>)}</ul>
             {paquete.guia.origen === 'NUBEFACT' && paquete.guia.estadoSunat && !bloqueo?.startsWith('No tienes') && <ConsultarGuia guiaId={paquete.guia.id} numero={paquete.guia.numero} salidaId={paquete.salidaId} estadoSunat={paquete.guia.estadoSunat} alConsultar={setResultado} />}
             {!bloqueo?.startsWith('No tienes') && <AnularGuia guiaId={paquete.guia.id} salioYa={!!salioYa} alAnular={setResultado} />}
+            {paquete.guia.origen === 'PANEL' && <p className="text-xs text-gray-600" data-testid="guia-panel-baja">Esta guía se emitió en el panel: si hay que darla de baja ante SUNAT, se hace allá. Aquí solo se anula el registro, con su motivo.</p>}
             <p className="text-xs text-gray-600">Una guía no se edita: si hay un error, se anula con el motivo y se emite la correcta. Se puede anular también después de la salida: el stock no se toca.</p>
           </div>
         ) : (
           <div className="mt-2 space-y-3">
-            {paquete.conforme && datos && datos.tipo !== 'CLIENTE' && puedeEmitirGuia(roles) && <EmitirGuia datos={datos} modo={modo} hoy={hoy} alEmitir={setResultado} />}
+            {paquete.conforme && datos && datos.tipo !== 'CLIENTE' && puedeEmitirGuia(roles) && (datos.guiaModo === 'PANEL'
+              ? <RegistrarGuiaPanel salidaId={paquete.salidaId} hoy={hoy} lineas={datos.lineas} alRegistrar={setResultado} />
+              : <EmitirGuia datos={datos} modo={modo} hoy={hoy} alEmitir={setResultado} />)}
             <details className="rounded-md border border-gray-200 p-3" data-testid="gre-manual" open={!!greCliente}>
               <summary className="cursor-pointer text-sm font-medium text-gray-900" data-testid="abrir-gre-manual">{greCliente ? 'Registrar la GRE del cliente' : 'Registrar una guía a mano (contingencia, o la GRE que trae el cliente)'}</summary>
               <div className="mt-3 space-y-3">
@@ -85,7 +90,7 @@ export function PanelDocumentacion({ salioYa, paquete, roles, datos, modo, hoy, 
             </details>
           </div>
         )}
-        {numeracion && paquete.guia?.origen !== 'CLIENTE' && !greCliente && (puedeEmitirGuia(roles) || puedeAdministrarNumeracion(roles)) && <div className="mt-3"><NumeracionGuias estado={numeracion} modo={modo} roles={roles} /></div>}
+        {numeracion && paquete.guia?.origen !== 'CLIENTE' && paquete.guia?.origen !== 'PANEL' && datos?.guiaModo !== 'PANEL' && !greCliente && (puedeEmitirGuia(roles) || puedeAdministrarNumeracion(roles)) && <div className="mt-3"><NumeracionGuias estado={numeracion} modo={modo} roles={roles} /></div>}
         {paquete.guiasAnuladas.length > 0 && (
           <details className="mt-3 text-sm text-gray-700" data-testid="guias-anuladas"><summary className="cursor-pointer">Guías anuladas ({paquete.guiasAnuladas.length})</summary>
             <ul className="mt-1 space-y-1">{paquete.guiasAnuladas.map((g) => <li key={g.id} className="tabular">{g.numero}{g.casoAnulacion ? ` (caso ${g.casoAnulacion})` : ''} — {g.anuladaMotivo}</li>)}</ul></details>

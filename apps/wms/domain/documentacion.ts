@@ -38,6 +38,8 @@ export interface GuiaVista {
   bultos?: number
   pesoKg?: number
   fechaInicio?: string
+  /** Piloto (0036): la fecha de emisión que muestra el panel de Nubefact, cuando la guía se registró desde el panel. */
+  fechaEmision?: string
   /** Anulación: qué caso fue (1, 2 o 3) y cómo va la baja ante SUNAT. */
   casoAnulacion?: 1 | 2 | 3
   bajaSunat?: 'PENDIENTE' | 'NO_APLICA' | 'HECHA'

@@ -324,6 +324,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'registrar_lecturas_logger',
     // SB-E (0035): validar un producto (solo DT y su asistente); `_puede_validar` y el parche son internos
     'validar_producto',
+    // Piloto (0036): registrar una guía emitida en el panel de Nubefact
+    'registrar_guia_panel',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {

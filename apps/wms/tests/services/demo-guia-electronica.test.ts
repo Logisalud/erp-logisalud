@@ -167,3 +167,45 @@ describe('bandeja de avisos a Pedidos (demo)', () => {
     expect((await repo.eventosPedidos({ salidaId: id }))[0]).toMatchObject({ estado: 'ENVIADO', intentos: 2 })
   })
 })
+
+describe('piloto: guía emitida en el panel (demo, espejo de la 0036)', () => {
+  const reg = (numero: string, extra: object = {}) => ({ numero, fechaEmision: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }), estado: 'ACEPTADA' as const, enlace: 'https://panel.nubefact.test/g.pdf', ...extra })
+
+  it('sin el parámetro la demo emite como siempre (WMS) y se niega a registrar una guía del panel', async () => {
+    const { id } = await salidaConforme()
+    expect((await repo.datosGuia(id))!.guiaModo).toBe('WMS')
+    expect(await repo.registrarGuiaPanel(id, reg('TTT1-00000012'), JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('el WMS emite las guías con Nubefact') })
+  })
+
+  it('en modo PANEL pide permiso y conformidad, valida, registra con origen PANEL, avisa a Pedidos y audita', async () => {
+    ;(repo as unknown as { fijarGuiaModo(m: 'PANEL'): void }).fijarGuiaModo('PANEL')
+    const { id: sinId } = await salidaConforme(false)
+    expect(await repo.registrarGuiaPanel(sinId, reg('TTT1-00000012'), JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('conformidad') })
+    expect(await repo.conformarOrden((await repo.obtenerSalida(sinId))!.ordenPickingId!, [], 2, undefined, SANDRA)).toMatchObject({ ok: true })
+    const res = { id: sinId }
+    expect((await repo.datosGuia(res.id))!.guiaModo).toBe('PANEL')
+    expect(await repo.registrarGuiaPanel(res.id, reg('TTT1-00000012'), AUX)).toMatchObject({ ok: false, mensaje: 'No tienes permiso para registrar la guía de remisión' })
+    expect(await repo.registrarGuiaPanel(res.id, reg('1234'), JT)).toMatchObject({ ok: false, errores: { numero: expect.stringContaining('serie, guion y número') } })
+    expect(await repo.registrarGuiaPanel(res.id, reg('TTT1-00000012', { fechaEmision: '2999-01-01' }), JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('mañana') })
+    const r = await repo.registrarGuiaPanel(res.id, reg(' ttt1-00000012 '), JT)
+    expect(r, JSON.stringify(r)).toMatchObject({ ok: true, numero: 'TTT1-00000012' })
+    const g = (await repo.paqueteSalida(res.id))!.guia!
+    expect(g).toMatchObject({ origen: 'PANEL', estadoSunat: 'ACEPTADA', enlace: 'https://panel.nubefact.test/g.pdf', estado: 'VIGENTE' })
+    expect(g.fechaEmision).toBeTruthy()
+    const ev = await repo.eventosPedidos({ salidaId: res.id })
+    expect(ev).toHaveLength(1)
+    expect(ev[0]).toMatchObject({ tipo: 'GUIA_EMITIDA', estado: 'PENDIENTE' })
+    expect(ev[0].payload).toMatchObject({ guia: 'TTT1-00000012', origen: 'PANEL' })
+    expect(await repo.registrarGuiaPanel(res.id, reg('TTT1-00000013'), JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya tiene una guía registrada') })
+  })
+
+  it('un número no se repite ni siquiera anulado', async () => {
+    ;(repo as unknown as { fijarGuiaModo(m: 'PANEL'): void }).fijarGuiaModo('PANEL')
+    const { id } = await salidaConforme()
+    const r = await repo.registrarGuiaPanel(id, reg('TTT1-00000020'), JT)
+    if (!r.ok) throw new Error(r.mensaje)
+    expect(await repo.anularGuia(r.id, 1, 'Número mal copiado', JT)).toMatchObject({ ok: true })
+    expect(await repo.registrarGuiaPanel(id, reg('TTT1-00000020'), JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('vigente o anulada') })
+    expect(await repo.registrarGuiaPanel(id, reg('TTT1-00000021'), JT)).toMatchObject({ ok: true })
+  })
+})

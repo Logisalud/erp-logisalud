@@ -5,7 +5,7 @@ import {
   type GuiaVista, type ItemPaquete, type LineaGuia, type PaqueteSalida,
 } from '@/domain/documentacion'
 import {
-  motivoDeTraslado, parametroDescripcionOtros, parametroMotivoDeTipo, type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type RespuestaConsulta, type ModoNubefact, type OrigenGuia, type RespuestaEmision, type TrasladoGuia,
+  motivoDeTraslado, normalizarGuiaModo, validarRegistroGuiaPanel, parametroDescripcionOtros, parametroMotivoDeTipo, type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type RespuestaConsulta, type ModoNubefact, type OrigenGuia, type RegistroGuiaPanel, type RespuestaEmision, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 import type { EstadoCorrelativo } from '@/domain/numeracion-guias'
 import { etapaConAvance, type SalidaResumen, type SalidaVista } from '@/domain/despacho'
@@ -34,6 +34,7 @@ function guiaVista(g: Fila, nombres: Map<string, string>): GuiaVista {
     anuladaMotivo: s(g.motivo_anulacion), anuladaEn: g.anulada_en ? String(g.anulada_en) : undefined,
     origen: (s(g.origen) ?? 'MANUAL') as OrigenGuia, entorno: s(g.entorno) as ModoNubefact | undefined, enlace: s(g.enlace), enlaceXml: s(g.enlace_xml), estadoSunat: s(g.estado_sunat) as EstadoSunat | undefined,
     bultos: g.bultos == null ? undefined : Number(g.bultos), pesoKg: g.peso_kg == null ? undefined : Number(g.peso_kg), fechaInicio: g.fecha_inicio_traslado ? dia(g.fecha_inicio_traslado) : undefined,
+    fechaEmision: g.fecha_emision ? dia(g.fecha_emision) : undefined,
     casoAnulacion: g.caso_anulacion == null ? undefined : (Number(g.caso_anulacion) as CasoAnulacion), bajaSunat: s(g.baja_sunat) as GuiaVista['bajaSunat'],
   }
 }
@@ -81,6 +82,17 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     return error ? mal(error) : { ok: true, id: String(data) }
   }
 
+  async registrarGuiaPanel(salidaId: string, r: RegistroGuiaPanel, _actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+    const errores = validarRegistroGuiaPanel(r, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }))
+    const [campo, mensaje] = Object.entries(errores)[0] ?? []
+    if (campo) return { ok: false, mensaje: mensaje!, errores }
+    const numero = normalizarNumeroGre(r.numero)
+    const { data, error } = await rpc('registrar_guia_panel', {
+      p_salida: salidaId, p_numero: numero, p_fecha_emision: r.fechaEmision, p_estado: r.estado, p_enlace: r.enlace?.trim() || null, p_archivo_ref: r.archivoRef ?? null, p_nota: r.nota?.trim() || null,
+    })
+    return error ? mal(error) : { ok: true, id: String(data), numero }
+  }
+
   async anularGre(guiaId: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
     const { error } = await rpc('anular_gre', { p_guia: guiaId, p_motivo: motivo })
     return error ? mal(error) : { ok: true }
@@ -106,6 +118,7 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
         conductorLicencia: s(c.ruta.conductor_licencia), auxiliar: s(c.ruta.auxiliar), conductorReal: s(c.ruta.conductor_real) } : undefined,
       partida: { ubigeo: par.guia_partida_ubigeo ?? '', direccion: par.guia_partida_direccion ?? '' },
       motivoTraslado: c.salida.tipo === 'DISTRIBUCION' ? (par.guia_motivo_traslado ?? 'VENTA') : motivoDeTraslado(c.salida.tipo).texto, modalidad: par.guia_modalidad_transporte ?? 'TRANSPORTE PRIVADO', serie: par.guia_serie ?? 'TTT1',
+      guiaModo: normalizarGuiaModo(par.guia_modo),
       motivoCodigo: s(par[parametroMotivoDeTipo(c.salida.tipo)]), motivoOtrosDescripcion: s(par[parametroDescripcionOtros(c.salida.tipo)]), correlativoConfirmado: Boolean(c.correlativo?.confirmado),
       reglasBaja: { plazoHoras: par.sunat_baja_plazo_horas ?? 'PENDIENTE', trasInicioTraslado: par.sunat_baja_tras_inicio_traslado ?? 'PENDIENTE', soportadaPorApi: par.nubefact_baja_soportada ?? 'PENDIENTE' },
     }

@@ -1,6 +1,7 @@
 // Guía de remisión electrónica (OS-3): lo que la guía toma del WMS, lo que completa el Jefe de Transporte, el mensaje a Nubefact y la anulación por casos.
 // Espejo de la migración 0024 (la base de datos manda). Todo lo tributario que no está confirmado queda como PENDIENTE: no se inventa la regla.
 import { puede } from './permisos'
+import { validarNumeroGre } from './documentacion'
 import type { LineaGuia } from './documentacion'
 import type { TipoSalida } from './salidas'
 import type { DocumentoTipo } from './rutas'
@@ -24,8 +25,34 @@ export const PESO_BRUTO_DEFECTO_KG = 12
 export const puedeEmitirGuia = (roles: readonly Rol[]) => puede(roles, 'registrar_documentacion')
 export const puedeAnularGuia = (roles: readonly Rol[]) => puede(roles, 'anular_guia')
 
-export type OrigenGuia = 'MANUAL' | 'NUBEFACT' | 'CLIENTE'
-export const ETIQUETA_ORIGEN: Record<OrigenGuia, string> = { NUBEFACT: 'Emitida con Nubefact', MANUAL: 'Registrada a mano', CLIENTE: 'GRE que trajo el cliente' }
+export type OrigenGuia = 'MANUAL' | 'NUBEFACT' | 'CLIENTE' | 'PANEL'
+export const ETIQUETA_ORIGEN: Record<OrigenGuia, string> = { NUBEFACT: 'Emitida con Nubefact', MANUAL: 'Registrada a mano', CLIENTE: 'GRE que trajo el cliente', PANEL: 'Emitida en el panel de Nubefact (o en Odoo)' }
+
+/**
+ * Piloto «como real» (migración 0036): quién emite la guía. `WMS` = el WMS la emite con Nubefact (lo de siempre). `PANEL` = se emite en el panel de Nubefact (o en Odoo) y el WMS solo
+ * la registra. El parámetro `guia_modo` lo decide; sin él, el comportamiento es el de siempre (`WMS`). La migración lo siembra en `PANEL` para el piloto.
+ */
+export type GuiaModo = 'WMS' | 'PANEL'
+export const normalizarGuiaModo = (v: string | undefined | null): GuiaModo => ((v ?? '').trim().toUpperCase() === 'PANEL' ? 'PANEL' : 'WMS')
+/** Lo que se puede decir del estado de una guía emitida en el panel (una rechazada no se registra: se corrige allá y se registra la buena). */
+export const ESTADOS_GUIA_PANEL = ['ACEPTADA', 'PENDIENTE'] as const satisfies readonly EstadoSunat[]
+export type EstadoGuiaPanel = (typeof ESTADOS_GUIA_PANEL)[number]
+export const ETIQUETA_ESTADO_PANEL: Record<EstadoGuiaPanel, string> = { ACEPTADA: 'Aceptada por SUNAT', PENDIENTE: 'SUNAT todavía no responde' }
+
+/** Lo que se escribe al registrar una guía que ya se emitió en el panel. */
+export interface RegistroGuiaPanel { numero: string; fechaEmision: string; estado: EstadoGuiaPanel; enlace?: string; archivoRef?: string; nota?: string }
+export type ErroresGuiaPanel = Partial<Record<'numero' | 'fechaEmision' | 'estado' | 'enlace', string>>
+/** Espejo de `wms.registrar_guia_panel` (0036). `hoy` = la fecha de hoy en Lima (AAAA-MM-DD). Vacío = todo bien. */
+export function validarRegistroGuiaPanel(r: RegistroGuiaPanel, hoy: string): ErroresGuiaPanel {
+  const e: ErroresGuiaPanel = {}
+  const n = validarNumeroGre(r.numero); if (n) e.numero = n
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(r.fechaEmision ?? '')) e.fechaEmision = 'Escribe la fecha en que se emitió la guía'
+  else if (r.fechaEmision > hoy) e.fechaEmision = 'La guía no puede tener fecha de mañana'
+  if (!(ESTADOS_GUIA_PANEL as readonly string[]).includes(r.estado)) e.estado = 'Elige cómo está la guía en el panel: aceptada o sin respuesta todavía'
+  const l = (r.enlace ?? '').trim()
+  if (l && !/^https?:\/\/\S+$/i.test(l)) e.enlace = 'El enlace empieza con https:// (cópialo tal cual del panel)'
+  return e
+}
 
 /**
  * El motivo de traslado de la guía según el tipo de salida (Catálogo 20 de SUNAT). Una venta lleva 01; la devolución al proveedor, 06; la muestra sin venta, 13 (otros, anotando
@@ -68,6 +95,8 @@ export const codigoMotivoDeGuia = (d: Pick<DatosGuia, 'tipo' | 'motivoCodigo'>):
 
 /** Todo lo que la guía toma del WMS (nada se vuelve a escribir). */
 export interface DatosGuia {
+  /** 0036: quién emite la guía durante el piloto. Sin dato = `WMS`. */
+  guiaModo?: GuiaModo
   salidaId: string
   salidaNumero: string
   tipo: TipoSalida
