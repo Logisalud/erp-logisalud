@@ -1,7 +1,7 @@
 // SA-1: las órdenes de ejemplo de la demostración. Cada etapa y tipo esperado, determinista, sin romper invariantes y siempre con «Dónde va y qué sigue».
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
-import { EJEMPLOS_SALIDA, esPedidoDeEjemplo } from '@/domain/ejemplos'
+import { EJEMPLOS_DEVOLUCION, EJEMPLOS_SALIDA, esPedidoDeEjemplo } from '@/domain/ejemplos'
 import { avanceDeSalida } from '@/domain/pasos'
 import { ETAPAS_SALIDA } from '@/domain/pasos'
 import { comprometidoEn } from '@/services/demo/despacho-demo'
@@ -150,3 +150,29 @@ describe('la lista declarativa', () => {
     expect(EJEMPLOS_SALIDA.every((x) => x.conQuien && x.probar)).toBe(true)
   })
 })
+
+for (const datos of ['sintetico', 'odoo']) {
+  describe(`devoluciones de ejemplo (SB-D, datos ${datos})`, () => {
+    it('hay una devolución en cada etapa: por autorizar, autorizada, en recepción, acta por decidir, aprobada y a Bajas', async () => {
+      usar('1', datos)
+      const repo = new RepositorioDemo()
+      await repo.listarSalidas()
+      const todas = await Promise.all((await repo.listarSolicitudes()).map(async (x) => (await repo.obtenerSolicitud(x.id))!))
+      const lista = todas.filter((x) => x.tipo === 'DEVOLUCION' && x.retorno)
+      expect(lista).toHaveLength(EJEMPLOS_DEVOLUCION.length)
+      expect(lista.map((x) => x.estado).sort()).toEqual(['CERRADA', 'CERRADA', 'CERRADA', 'ENVIADA', 'EN_RECEPCION', 'PROGRAMADA'])
+      const cola = await repo.colaDireccionTecnica()
+      expect(cola.organolepticas.some((o) => o.estado === 'PENDIENTE_DT')).toBe(true)
+      const saldos = (await repo.panorama()).saldos.map((s) => s.estado)
+      expect(saldos).toContain('DEVOLUCIONES')
+      expect(saldos).toContain('BAJAS_RECHAZADOS')
+    })
+    it('apagados los ejemplos no hay devoluciones', async () => {
+      usar('0', datos)
+      const repo = new RepositorioDemo()
+      await repo.listarSalidas()
+      const todas = await Promise.all((await repo.listarSolicitudes()).map(async (x) => (await repo.obtenerSolicitud(x.id))!))
+      expect(todas.filter((x) => x.retorno)).toHaveLength(0)
+    })
+  })
+}
