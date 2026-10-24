@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { FlaskConical, Send, ShieldAlert, Truck } from 'lucide-react'
+import { FlaskConical, Send, ShieldAlert, Truck, TriangleAlert } from 'lucide-react'
 import { emitirGuiaElectronicaAccion } from '@/app/acciones-picking'
 import { ETIQUETA_MODO, PESO_BRUTO_DEFECTO_KG, faltantesDeGuia, type DatosGuia, type ModoNubefact } from '@/domain/guia-electronica'
 import { mesAnio } from '@/domain/salidas'
@@ -31,6 +31,9 @@ export function EmitirGuia({ datos, modo, hoy, alEmitir }: { datos: DatosGuia; m
         <div><dt className="text-gray-600">Sale de</dt><dd className="text-gray-900">{d.partida.direccion || '—'} (ubigeo {d.partida.ubigeo})</dd></div>
         <div><dt className="text-gray-600">Motivo y transporte</dt><dd className="text-gray-900">{d.motivoTraslado} · {d.modalidad}</dd></div>
         <div><dt className="text-gray-600">Ruta</dt><dd className="text-gray-900" data-testid="guia-ruta">{d.ruta ? <><Truck className="mr-1 inline h-4 w-4" aria-hidden />{d.ruta.numero} · {d.ruta.fecha} · {d.ruta.placa ?? 'sin vehículo'} · {d.ruta.conductor ?? 'sin conductor'}</> : 'Sin ruta todavía'}</dd></div>
+        {d.ruta?.conductorReal && d.ruta.conductorReal !== d.ruta.conductor && (
+          <div className="sm:col-span-2" data-testid="guia-conductor-documentos"><dt className="text-gray-600">Conductor en la guía</dt><dd className="flex items-start gap-2 text-gray-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" aria-hidden />La guía lleva a {d.ruta.conductor}. El conductor real de la ruta es {d.ruta.conductorReal} y así queda registrado junto con la guía.</dd></div>
+        )}
         <div><dt className="text-gray-600">Bultos</dt><dd className="tabular text-gray-900">{d.bultos}</dd></div>
       </dl>
       <ul className="text-sm text-gray-800" data-testid="guia-lineas-previa">

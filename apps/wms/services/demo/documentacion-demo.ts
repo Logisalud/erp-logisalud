@@ -13,6 +13,7 @@ import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
 import { claveDeParada, desp, type RutaDemo, type SalidaDemo } from './despacho-demo'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
+import { detalleUsoConductor } from '@/domain/conductor-documentos'
 import { pk } from './picking-demo'
 import { DocumentosDemo } from './documentos-demo'
 import type { RepositorioDocumentacion } from '../repositorio-documentacion'
@@ -136,13 +137,15 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const cliente = fila?.snapshot.cliente ?? (cm ? { nombre: cm.razonSocial, ruc: cm.ruc, direccion: cm.direccion, ubigeo: cm.ubigeo, distrito: undefined } : prop ? { nombre: prop.razonSocial, ruc: prop.ruc, direccion: undefined, ubigeo: undefined, distrito: undefined } : undefined)
     const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
     const veh = ruta?.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId) : undefined
-    const cond = ruta?.conductorId ? desp(e).personal.find((p) => p.id === ruta.conductorId) : undefined
+    // D-155: la guía nombra a quien figura en documentos (temporal); el conductor real de la ruta se guarda aparte
+    const quien = this.quienFigura(e, ruta?.conductorId)
+    const cond = quien.figura
     const aux = ruta?.auxiliarId ? desp(e).personal.find((p) => p.id === ruta.auxiliarId) : undefined
     return structuredClone<DatosGuia>({
       salidaId: s.id, salidaNumero: s.numero, tipo: s.tipo ?? 'DISTRIBUCION', conforme: salidaConforme(e, s.id), pedidoNumero: fila?.snapshot.numero ?? s.pedidoNumero,
       destinatario: { nombre: cliente?.nombre, ruc: cliente?.ruc || undefined, direccion: cliente?.direccion, ubigeo: cliente?.ubigeo, distrito: cliente?.distrito },
       lineas: this.lineasDeGuia(e, s.id), bultos: s.bultosConformidad ?? bultosDeSalida(e, s.id),
-      ruta: ruta ? { id: ruta.id, numero: ruta.numero, fecha: ruta.fecha, placa: veh?.placa, conductor: cond?.nombre, conductorDni: cond?.dni, conductorLicencia: cond?.licencia, auxiliar: aux?.nombre } : undefined,
+      ruta: ruta ? { id: ruta.id, numero: ruta.numero, fecha: ruta.fecha, placa: veh?.placa, conductor: cond?.nombre, conductorDni: cond?.dni, conductorDocumentoTipo: cond?.documentoTipo, conductorLicencia: cond?.licencia, auxiliar: aux?.nombre, conductorReal: quien.real?.nombre } : undefined,
       partida: { ubigeo: '150119', direccion: 'Almacén Logisalud, Lurín (dirección de demostración)' },
       motivoTraslado: motivoDeTraslado(s.tipo ?? 'DISTRIBUCION').texto, modalidad: 'TRANSPORTE PRIVADO', serie: 'TTT1',
       reglasBaja: { plazoHoras: 'PENDIENTE', trasInicioTraslado: 'PENDIENTE', soportadaPorApi: 'PENDIENTE' },
@@ -171,6 +174,8 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     guias(e).push({ id: guia.id, salidaId: s.id, guia })
     if (r.estadoSunat === 'ACEPTADA') this.encolarEvento(e, s, guia, 'GUIA_EMITIDA')
     registrar(e, actor, 'guia_electronica_emitida', 'guias_remision', guia.id, `Guía ${r.numero} · ${s.numero} (${r.entorno})`)
+    // D-156: cada uso del conductor en documentos se audita junto al conductor real
+    registrar(e, actor, 'conductor_en_documento', 'guias_remision', guia.id, detalleUsoConductor(`Guía ${r.numero}`, this.quienFigura(e, ruta.conductorId)))
     return { ok: true, id: guia.id, numero: r.numero }
   }
 

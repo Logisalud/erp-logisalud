@@ -136,3 +136,14 @@ En la demostración, **Órdenes de salida** ya trae 24 órdenes de ejemplo (con 
 | C · Devolución al proveedor (conforme) | Devolución, conforme | Jefe de Transporte | Lote indicado y antes de su vencimiento; guía de devolución. |
 | C · Muestra con ruta | Lista para carga | Auxiliar | Cargar la unidad de su ruta. |
 | C · Devolución que ya salió | Salida confirmada | Jefe de Transporte | Ver la salida confirmada de una devolución al proveedor. |
+
+## 14. Conductor real y «conductor en documentos» (SB-A)
+La ruta guarda siempre al conductor real (Hans o Michele). Mientras exista el parámetro temporal, la guía electrónica y el LS-FR.43.03 llevan a Michele.
+1. **Ver quién figura.** Entra como Jefe de Transporte → Rutas → Personal y vehículos. Arriba, «Conductor que figura en los documentos» dice quién sale en la guía y en el formato, y que es temporal.
+2. **Cambiarlo.** Elige otra persona, escribe el motivo y guarda. Sin motivo no deja. Los documentos nuevos llevan a esa persona; los ya emitidos no cambian. «El conductor real de cada ruta» deja los documentos con quien maneja.
+3. **Verlo en la guía.** En una orden con ruta, antes de emitir, el panel dice «La guía lleva a … El conductor real de la ruta es …». La guía sale con el carné de extranjería de Michele (tipo 4 de SUNAT).
+4. **Verlo en el LS-FR.43.03.** En la ruta, el panel del formato dice lo mismo, y el PDF lleva a quien figura.
+5. **Auditoría.** Cada guía registrada y cada impresión del formato dejan el evento «conductor en documento» con el conductor real y el que figuró.
+6. **Documento pendiente.** En cada conductor, «Documento y licencia»: Hans aparece como «Documento pendiente». Prueba un DNI de menos de 8 números: la pantalla lo explica.
+7. **Sin vehículo calificado.** En Planificar ruta, cualquier vehículo sirve para cualquier cliente: ya no sale «exige vehículo calificado».
+8. Solo el Jefe de Transporte cambia estos datos; los demás roles los ven.

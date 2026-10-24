@@ -34,7 +34,7 @@ test.describe('cuando falta stock (SA-3)', () => {
     await page.getByTestId('nueva-ruta-fecha').fill(new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10))
     await page.getByTestId('nueva-ruta').click()
     await expect(page.getByTestId('editor-ruta')).toBeVisible()
-    await page.getByTestId('ruta-vehiculo').selectOption({ label: 'BKW-757 — Camioneta cerrada · calificado' })
+    await page.getByTestId('ruta-vehiculo').selectOption({ label: 'BKW-757 — Camioneta cerrada' })
     await page.getByTestId('ruta-conductor').selectOption({ label: 'Luis Quispe' })
     await page.getByTestId('agregar-buscar').fill('PED-DEMO-104')
     await page.getByTestId('pedido-disponible').filter({ hasText: 'PED-DEMO-104' }).getByTestId('agregar-pedido').click()

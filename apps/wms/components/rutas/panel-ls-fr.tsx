@@ -127,6 +127,11 @@ export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar 
           <Link href={`/rutas/${ruta.id}/paquete`} target="_blank" className="btn-secondary" data-testid="paquete-ruta"><FileText className="h-5 w-5" aria-hidden />Imprimir el paquete documental de la ruta</Link>
         </div>
       </div>
+      {registro.conductorReal && (
+        <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="lsfr-conductor-documentos">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />El formato lleva a {registro.conductor}. El conductor real de la ruta es {registro.conductorReal} y así queda registrado, junto con cada impresión.
+        </p>
+      )}
       {impresion.mensaje?.tipo === 'error' && <Aviso tipo="error" testid="impresion-error">{impresion.mensaje.texto}</Aviso>}
       {okImpresion && impresion.mensaje?.tipo !== 'error' && <Aviso tipo="ok" testid="impresion-ok">{okImpresion}</Aviso>}
 

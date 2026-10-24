@@ -3,6 +3,7 @@ import {
   conservarHasta, CONSERVACION_ANIOS_POR_DEFECTO, fueraDeRangoTemperatura, type CierreRutaVista, type EscaneoLsFr, type ExtrasLsFr, type ImpresionLsFr,
 } from '@/domain/ls-fr-43-03'
 import { motivoNoSeCierra, motivoNoSeEscanea, puedeCerrarRuta, puedeRegistrarLsFr, validarCierre } from '@/domain/cierre-ruta'
+import { detalleUsoConductor } from '@/domain/conductor-documentos'
 import { registrar, type EstadoDemo } from './estado'
 import { ahora, estadoE, falla } from './entradas-demo'
 import { desp, type RutaDemo } from './despacho-demo'
@@ -51,6 +52,8 @@ export class CierreRutaDemo extends BajasDemo implements RepositorioCierreRuta {
     l.impresiones.push({ por: actor.nombre, en: ahora(), antesDeSalir: ['PLANIFICADA', 'LISTA_PARA_CARGA', 'LIBERADA'].includes(r.estado) })
     this.sincronizar(e, r)
     registrar(e, actor, 'ls_fr_impreso', 'rutas', r.numero, `Formato LS-FR.43.03 impreso (${l.impresiones.length})`)
+    // D-156: cada uso del conductor en documentos se audita junto al conductor real
+    registrar(e, actor, 'conductor_en_documento', 'rutas', r.numero, detalleUsoConductor(`LS-FR.43.03 impreso (${l.impresiones.length})`, this.quienFigura(e, r.conductorId)))
     return { ok: true, impresiones: l.impresiones.length }
   }
 

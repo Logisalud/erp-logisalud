@@ -125,7 +125,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     rutaId = page.url().split('/').pop()!
     rutaNumero = ((await page.getByTestId('ruta-numero').textContent()) ?? '').trim()
     await page.getByTestId('ruta-fecha').fill((await page.getByTestId('ruta-fecha').getAttribute('min'))!)
-    await page.getByTestId('ruta-vehiculo').selectOption({ label: 'D4F-318 — Furgón con termo · calificado · frío' })
+    await page.getByTestId('ruta-vehiculo').selectOption({ label: 'D4F-318 — Furgón con termo · frío' })
     await page.getByTestId('ruta-conductor').selectOption({ label: 'Marco Huamán' })
     // las órdenes manuales por despachar: A y C; el tipo B nunca aparece aquí
     const lista = page.getByTestId('ordenes-por-despachar')
@@ -175,7 +175,8 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
       await expect(page.getByTestId('modo-nubefact')).toContainText('Simulador')
       await expect(page.getByTestId('guia-ruta')).toContainText(rutaNumero)
       await expect(page.getByTestId('guia-ruta')).toContainText('D4F-318')
-      await expect(page.getByTestId('guia-ruta')).toContainText('Marco Huamán')
+      await expect(page.getByTestId('guia-ruta')).toContainText('Michele Yermain')   // D-155: la guía nombra a quien figura en documentos
+      await expect(page.getByTestId('guia-conductor-documentos')).toContainText('Marco Huamán')   // y deja claro quién es el conductor real
       if (t === 'A') {
         await expect(page.getByTestId('datos-guia')).toContainText('Botica Rutas SAC')
         await sinDesborde(page)

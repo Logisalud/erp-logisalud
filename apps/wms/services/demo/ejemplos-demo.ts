@@ -40,7 +40,7 @@ const sumarDias = (fecha: string, n: number) => new Date(Date.parse(`${fecha}T12
 
 /** Una ruta por ejemplo que llega a carga (cada una lleva solo su pedido): fecha, vehículo y personal distintos para no chocar con la ruta de siempre ni entre sí. */
 const RUTAS: Record<string, { dias: number; vehiculoId: string; conductorId: string; auxiliarId: string }> = {
-  'a-guia': { dias: 2, vehiculoId: 'veh-1', conductorId: 'per-1', auxiliarId: 'per-3' },
+  'a-guia': { dias: 2, vehiculoId: 'veh-5', conductorId: 'per-6', auxiliarId: 'per-3' },
   'a-lista-carga': { dias: 3, vehiculoId: 'veh-1', conductorId: 'per-1', auxiliarId: 'per-3' },
   'a-confirmada': { dias: 0, vehiculoId: 'veh-2', conductorId: 'per-2', auxiliarId: 'per-4' },
   'a-manual-lista-carga': { dias: 4, vehiculoId: 'veh-1', conductorId: 'per-1', auxiliarId: 'per-3' },

@@ -316,6 +316,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'ejecutar_devolucion_picking', 'explicar_faltante', 'verificar_devolucion_picking',
     // SA-6 (0030): entrega al transportista del cliente (tipo B); `confirmar_salida` ya era API, `_confirmar_salida_nucleo` es interna
     'registrar_entrega_transportista_cliente',
+    // SB-A (0031): conductor en documentos (temporal) y documento de identidad del personal de transporte; `_conductor_para_documentos`, `_auditar_uso_conductor` y los disparadores son internos
+    'cambiar_conductor_en_documentos', 'guardar_documentos_personal',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {

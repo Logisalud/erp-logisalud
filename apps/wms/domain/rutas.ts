@@ -1,5 +1,5 @@
 // Rutas de distribución (S4): estados, vistas y las reglas puras de planificación (espejo de wms.planificar_ruta; la base de datos manda).
-// Lo usan la demo y las pantallas para explicar y previsualizar: vehículo calificado, corte de planificación, un pedido en una sola ruta.
+// Lo usan la demo y las pantallas para explicar y previsualizar: corte de planificación y un pedido en una sola ruta (el vehículo calificado ya no se valida: D-153).
 import { normalizar } from './busqueda'
 import type { TipoSalida } from './salidas'
 import type { Rol } from './tipos'
@@ -13,10 +13,17 @@ export const ETIQUETA_ESTADO_RUTA: Record<EstadoRuta, string> = {
 export const RUTA_EDITABLE: readonly EstadoRuta[] = ['BORRADOR', 'PLANIFICADA']
 
 export type FuncionTransporte = 'CONDUCTOR' | 'AUXILIAR'
-export interface PersonalTransporte { id: string; nombre: string; funcion: FuncionTransporte; activo: boolean; dni?: string; licencia?: string }
+/** Documento de identidad de quien conduce: así lo pide la guía de SUNAT (D-158). Sin dato = DNI. */
+export type DocumentoTipo = 'DNI' | 'CE' | 'PASAPORTE'
+export const ETIQUETA_DOCUMENTO: Record<DocumentoTipo, string> = { DNI: 'DNI', CE: 'Carné de extranjería', PASAPORTE: 'Pasaporte' }
+export interface PersonalTransporte {
+  id: string; nombre: string; funcion: FuncionTransporte; activo: boolean
+  /** Número del documento de identidad (el campo se llama `dni` por historia; con `documentoTipo` puede ser un carné de extranjería o un pasaporte). */
+  dni?: string; documentoTipo?: DocumentoTipo; licencia?: string
+}
 export interface VehiculoVista {
   id: string; placa: string; descripcion?: string; tipo: 'PROPIO' | 'EXTERNO'
-  /** Atiende a los clientes que exigen «vehículo calificado» (D-58 define cuáles). */
+  /** Solo informativo (D-153): el WMS ya no valida ni exige «vehículo calificado»; lo decide el Jefe de Transporte por experiencia. */
   calificado: boolean; aptoCadenaFrio: boolean; capacidadBultos?: number; activo: boolean
 }
 
@@ -41,7 +48,6 @@ export interface ParadaVista {
   direccion?: string
   distrito?: string
   ventanaCita?: string
-  vehiculoCalificado?: string
   lineas: number
   unidades: number
   salidaNumero?: string
@@ -81,7 +87,6 @@ export interface PedidoPlanificable {
   direccion?: string
   distrito?: string
   ventanaCita?: string
-  vehiculoCalificado?: string
   lineas: number
   unidades: number
   /** Importado en Pedidos después del corte (de la víspera de la fecha elegida): necesita excepción. */
@@ -125,6 +130,17 @@ export interface PanoramaRutas {
   pedidos: PedidoPlanificable[]
   /** SA-6: órdenes manuales por despachar (A y C sin ruta, ya con su orden y su stock). */
   ordenes: OrdenPlanificable[]
+  /** D-155: el interruptor temporal «conductor en documentos». Ausente = el interruptor ya no existe y los documentos llevan al conductor real. */
+  conductorEnDocumentos?: ConductorEnDocumentos
+}
+
+/** D-155 (temporal): quién figura como conductor en la guía electrónica y en el LS-FR.43.03, sea cual sea el conductor real de la ruta. */
+export interface ConductorEnDocumentos {
+  /** La persona que figura en los documentos; vacío = los documentos llevan al conductor real de cada ruta. */
+  personaId?: string
+  nombre?: string
+  /** Última vez que se cambió, en palabras (quién, cuándo y por qué; queda también en la auditoría). */
+  cambio?: string
 }
 
 /** Una parada del plan: un pedido de la bandeja (`pedidoId`) o una orden manual (`salidaId`). */
@@ -201,7 +217,6 @@ export function validarPlan(e: EntradaValidacion): string[] {
     const otra = e.enOtraRuta.get(p.pedidoId)
     if (otra) errores.push(`El pedido ${ped.numero} ya está en la ruta ${otra}.`)
     if (ped.sinCatalogo.length) errores.push(`El pedido ${ped.numero} trae un producto que el WMS no conoce (${ped.sinCatalogo[0]}): Dirección Técnica debe darlo de alta.`)
-    if (ped.vehiculoCalificado && !e.vehiculo?.calificado) errores.push(`El cliente de ${ped.numero} exige un vehículo calificado.`)
     if (fueraDeCorte(ped.importadoEn, e.plan.fecha, e.corte) && !p.excepcionCorte) errores.push(`El pedido ${ped.numero} llegó después del corte de las ${e.corte} de la víspera: marca la excepción y escribe el motivo.`)
     if (p.excepcionCorte && !p.motivoExcepcion?.trim()) errores.push(`La excepción del pedido ${ped.numero} necesita un motivo.`)
   }

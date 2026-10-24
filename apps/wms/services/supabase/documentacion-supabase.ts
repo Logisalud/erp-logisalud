@@ -100,7 +100,8 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
       lineas: ((c.lineas ?? []) as { producto_codigo: string; producto: string; lote: string; vence: string | null; cantidad: number }[])
         .map((l): LineaGuia => ({ productoCodigo: l.producto_codigo, producto: l.producto, lote: l.lote, vence: l.vence ? dia(l.vence) : null, cantidad: Number(l.cantidad) })),
       bultos: Number(c.bultos ?? 0),
-      ruta: c.ruta ? { id: String(c.ruta.id), numero: String(c.ruta.numero), fecha: dia(c.ruta.fecha), placa: s(c.ruta.placa), conductor: s(c.ruta.conductor), conductorDni: s(c.ruta.conductor_dni), conductorLicencia: s(c.ruta.conductor_licencia), auxiliar: s(c.ruta.auxiliar) } : undefined,
+      ruta: c.ruta ? { id: String(c.ruta.id), numero: String(c.ruta.numero), fecha: dia(c.ruta.fecha), placa: s(c.ruta.placa), conductor: s(c.ruta.conductor), conductorDni: s(c.ruta.conductor_dni), conductorDocumentoTipo: c.ruta.conductor_documento_tipo === 'CE' || c.ruta.conductor_documento_tipo === 'PASAPORTE' ? c.ruta.conductor_documento_tipo : 'DNI',
+        conductorLicencia: s(c.ruta.conductor_licencia), auxiliar: s(c.ruta.auxiliar), conductorReal: s(c.ruta.conductor_real) } : undefined,
       partida: { ubigeo: par.guia_partida_ubigeo ?? '', direccion: par.guia_partida_direccion ?? '' },
       motivoTraslado: c.salida.tipo === 'DISTRIBUCION' ? (par.guia_motivo_traslado ?? 'VENTA') : motivoDeTraslado(c.salida.tipo).texto, modalidad: par.guia_modalidad_transporte ?? 'TRANSPORTE PRIVADO', serie: par.guia_serie ?? 'TTT1',
       reglasBaja: { plazoHoras: par.sunat_baja_plazo_horas ?? 'PENDIENTE', trasInicioTraslado: par.sunat_baja_tras_inicio_traslado ?? 'PENDIENTE', soportadaPorApi: par.nubefact_baja_soportada ?? 'PENDIENTE' },

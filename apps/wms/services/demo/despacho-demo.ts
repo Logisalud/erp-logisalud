@@ -6,11 +6,12 @@ import { normalizarNumeroPedido } from '@/domain/salida-manual'
 import { explicarFaltante, type CausaFaltante, type CausaQuiebre, type ExistenciaLote, type ExplicacionFaltante } from '@/domain/faltante'
 import {
   RUTA_EDITABLE, claveDeOrden, clavePlanParada, puedePlanificarRutas, validarPlan, totalUnidades,
-  type OrdenPlanificable, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanParada, type PlanRuta, type RutaVista, type VehiculoVista,
+  type ConductorEnDocumentos, type DocumentoTipo, type OrdenPlanificable, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanParada, type PlanRuta, type RutaVista, type VehiculoVista,
 } from '@/domain/rutas'
 import { AREAS_DE_SALIDA } from '@/domain/zonas'
 import { requiereEmbalaje } from '@/domain/pedidos-despacho'
 import { PARAMETROS_LS_FR_POR_DEFECTO, PENDIENTES_LS_FR, armarRegistroLsFr, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
+import { errorDocumentoPersonal, quienFiguraEnDocumentos, type QuienFigura } from '@/domain/conductor-documentos'
 import { modoEjemplos } from '@/lib/demo'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
@@ -103,6 +104,8 @@ export interface DespachoDemoEstado {
   quiebres?: QuiebreDemo[]
   /** OS-7: impresiones, escaneo firmado y cierre de cada ruta (LS-FR.43.03). */
   lsFr?: Record<string, import('./cierre-ruta-demo').LsFrDemo>
+  /** SB-A (D-155, temporal): el interruptor «conductor en documentos». Sin esta propiedad el interruptor ya no existe y los documentos llevan al conductor real. */
+  conductorEnDocumentos?: ConductorEnDocumentos
 }
 export interface CargaDemo {
   checklist?: import('@/domain/carga').ItemChecklist[]; checklistPor?: string
@@ -309,13 +312,19 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
       { id: 'per-1', nombre: 'Luis Quispe', funcion: 'CONDUCTOR', activo: true, dni: '40123456', licencia: 'Q40123456' }, { id: 'per-2', nombre: 'Marco Huamán', funcion: 'CONDUCTOR', activo: true, dni: '41234567', licencia: 'Q41234567' },
       { id: 'per-3', nombre: 'Ana Ríos', funcion: 'AUXILIAR', activo: true }, { id: 'per-4', nombre: 'Pedro Soto', funcion: 'AUXILIAR', activo: true },
       { id: 'per-5', nombre: 'Raúl Díaz (de vacaciones)', funcion: 'CONDUCTOR', activo: false },
+      // SB-A: los dos conductores reales de hoy (D-159). Hans: su documento de identidad está pendiente. Michele: datos de la guía GALAPHARMA TTT1-2887 (carné de extranjería).
+      { id: 'per-6', nombre: 'Hans', funcion: 'CONDUCTOR', activo: true, licencia: 'Q75084250' },
+      { id: 'per-7', nombre: 'Michele Yermain Mauriello Diaz', funcion: 'CONDUCTOR', activo: true, dni: '004780086', documentoTipo: 'CE', licencia: 'Q004780086' },
     )
     d.vehiculos.push(
       { id: 'veh-1', placa: 'BKW-757', descripcion: 'Camioneta cerrada', tipo: 'PROPIO', calificado: true, aptoCadenaFrio: false, capacidadBultos: 60, activo: true },
       { id: 'veh-2', placa: 'D4F-318', descripcion: 'Furgón con termo', tipo: 'PROPIO', calificado: true, aptoCadenaFrio: true, capacidadBultos: 90, activo: true },
       { id: 'veh-3', placa: 'AXL-204', descripcion: 'Moto furgón', tipo: 'PROPIO', calificado: false, aptoCadenaFrio: false, capacidadBultos: 20, activo: true },
       { id: 'veh-4', placa: 'T9K-551', descripcion: 'Camión (en taller)', tipo: 'EXTERNO', calificado: false, aptoCadenaFrio: false, activo: false },
+      { id: 'veh-5', placa: 'BWO-902', descripcion: 'DFSK K05S', tipo: 'PROPIO', calificado: false, aptoCadenaFrio: false, activo: true },
     )
+    // D-155: por ahora los documentos llevan a Michele, sea cual sea el conductor real de la ruta
+    d.conductorEnDocumentos = { personaId: 'per-7' }
     // Una ruta de mañana ya planificada, con el pedido PED-DEMO-101 (así hay una salida y una ruta para ver)
     const sistema: Actor = { id: 'demo:jefe_transporte', nombre: 'Jefe de Transporte (demo)', roles: ['jefe_transporte'] }
     // SA-1: con WMS_DEMO_EJEMPLOS=vacio no hay ninguna salida (sirve para ver la pantalla vacía real)
@@ -349,7 +358,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     const c = f.snapshot.cliente
     return {
       id: p.id, secuencia: p.secuencia, clave: claveDeParada(p), origen: 'PEDIDO', pedidoId: f.snapshot.pedidoId, salidaId: s?.id, tipoOrden: s?.tipo, pedidoNumero: f.snapshot.numero, cliente: c.nombre, ruc: c.ruc, direccion: c.direccion, distrito: c.distrito,
-      ventanaCita: c.ventanaCita, vehiculoCalificado: c.vehiculoCalificado, lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0),
+      ventanaCita: c.ventanaCita, lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0),
       salidaNumero: s?.numero, stock, excepcionCorte: p.excepcionCorte, motivoExcepcion: p.motivoExcepcion,
     }
   }
@@ -372,7 +381,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     const codigos = new Set(e.panorama.productos.map((p) => p.codigo.toUpperCase()))
     return e.pedidos!.filas.filter((f) => f.vigente).map((f) => ({
       pedidoId: f.snapshot.pedidoId, numero: f.snapshot.numero, cliente: f.snapshot.cliente.nombre, ruc: f.snapshot.cliente.ruc, direccion: f.snapshot.cliente.direccion,
-      distrito: f.snapshot.cliente.distrito, ventanaCita: f.snapshot.cliente.ventanaCita, vehiculoCalificado: f.snapshot.cliente.vehiculoCalificado,
+      distrito: f.snapshot.cliente.distrito, ventanaCita: f.snapshot.cliente.ventanaCita,
       lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0), importadoEn: f.importadoEn,
       enRuta: enRuta.get(f.snapshot.pedidoId), cambioPorRevisar: f.cambioPendiente,
       sinCatalogo: f.snapshot.lineas.filter((l) => !codigos.has(l.productoCodigo.toUpperCase())).map((l) => l.productoCodigo),
@@ -402,6 +411,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     return structuredClone({
       hoy: e.panorama.hoy, corte: d.corte, rutas: [...d.rutas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)).map((r) => this.vistaRuta(e, r)),
       vehiculos: d.vehiculos, personal: d.personal, pedidos: this.pedidosPlanificables(e), ordenes: this.ordenesPlanificables(e),
+      conductorEnDocumentos: this.vistaConductorEnDocumentos(e),
     })
   }
 
@@ -412,7 +422,23 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
   }
 
   /** Lo que las etapas siguientes registran y el formato pide (guías, bultos, horas). Las clases de más abajo lo completan. */
-  protected extrasLsFr(_e: EstadoDemo, _r: RutaDemo): ExtrasLsFr { return {} }
+  protected extrasLsFr(e: EstadoDemo, r: RutaDemo): ExtrasLsFr {
+    // D-155: con el interruptor activo, el formato nombra a quien figura en documentos (el conductor real se guarda aparte)
+    return desp(e).conductorEnDocumentos ? { conductorEnDocumentos: this.quienFigura(e, r.conductorId).figura?.nombre } : {}
+  }
+
+  /** D-155: a quién nombran los documentos de una ruta y quién es el conductor real. */
+  protected quienFigura(e: EstadoDemo, conductorRealId: string | undefined): QuienFigura {
+    const d = desp(e)
+    return quienFiguraEnDocumentos(d.personal.find((p) => p.id === conductorRealId), d.conductorEnDocumentos, d.personal)
+  }
+
+  private vistaConductorEnDocumentos(e: EstadoDemo): ConductorEnDocumentos | undefined {
+    const d = desp(e)
+    const c = d.conductorEnDocumentos
+    if (!c) return undefined
+    return { personaId: c.personaId, nombre: d.personal.find((p) => p.id === c.personaId)?.nombre, cambio: c.cambio }
+  }
 
   async registroLsFr(rutaId: string): Promise<RegistroLsFrVista | null> {
     const e = estadoE(); await this.sembrarDespacho(e)
@@ -580,6 +606,34 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     if (previo) Object.assign(previo, { nombre, funcion: p.funcion, activo: p.activo }); else d.personal.push({ id, nombre, funcion: p.funcion, activo: p.activo })
     registrar(e, actor, 'personal_transporte_guardado', 'personal_transporte', id, nombre)
     return { ok: true, id }
+  }
+
+  async cambiarConductorEnDocumentos(personaId: string | null, motivo: string, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedePlanificarRutas(actor.roles)) return falla('No tienes permiso para cambiar el conductor que figura en los documentos')
+    const d = desp(e)
+    if (!d.conductorEnDocumentos) return falla('Esta opción ya no existe: los documentos llevan al conductor real de la ruta')
+    const m = motivo.trim()
+    if (!m) return falla('Cuenta por qué cambia el conductor que figura en los documentos', { motivo: 'Escribe el motivo.' })
+    const persona = personaId ? d.personal.find((p) => p.id === personaId) : undefined
+    if (personaId && (!persona || persona.funcion !== 'CONDUCTOR' || !persona.activo)) return falla('Elige un conductor disponible')
+    const antes = d.personal.find((p) => p.id === d.conductorEnDocumentos!.personaId)?.nombre
+    d.conductorEnDocumentos = { personaId: persona?.id, cambio: `Lo cambió ${actor.nombre} el ${ahora().slice(0, 10).split('-').reverse().join('/')}: ${m}` }
+    registrar(e, actor, 'conductor_en_documentos_cambiado', 'parametros', 'conductor_en_documentos', `De ${antes ?? 'el conductor real'} a ${persona?.nombre ?? 'el conductor real de cada ruta'}`, m)
+    return { ok: true }
+  }
+
+  async guardarDocumentosPersonal(p: { id: string; documentoTipo: DocumentoTipo; dni: string; licencia?: string }, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedePlanificarRutas(actor.roles)) return falla('No tienes permiso para administrar el personal de transporte')
+    const previo = desp(e).personal.find((x) => x.id === p.id)
+    if (!previo) return falla('No encontramos a esa persona')
+    const dni = p.dni.trim().toUpperCase(); const lic = (p.licencia ?? '').trim().toUpperCase()
+    const malo = errorDocumentoPersonal(p.documentoTipo, dni, lic)
+    if (malo) return falla(malo.mensaje, malo.errores)
+    Object.assign(previo, { documentoTipo: p.documentoTipo, dni: dni || undefined, licencia: lic || undefined })
+    registrar(e, actor, 'personal_documentos_guardados', 'personal_transporte', previo.id, previo.nombre)
+    return { ok: true }
   }
 
   async guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {

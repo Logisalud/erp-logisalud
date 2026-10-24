@@ -32,7 +32,7 @@ test.describe('excepciones del flujo de salida', () => {
     await page.goto('/wms/rutas')
     await page.getByTestId('nueva-ruta').click()
     await expect(page.getByTestId('editor-ruta')).toBeVisible()
-    await page.getByTestId('ruta-vehiculo').selectOption({ label: 'D4F-318 — Furgón con termo · calificado · frío' })
+    await page.getByTestId('ruta-vehiculo').selectOption({ label: 'D4F-318 — Furgón con termo · frío' })
     await page.getByTestId('ruta-conductor').selectOption({ label: 'Marco Huamán' })
     await page.getByTestId('agregar-buscar').fill('angeles')
     await page.getByTestId('pedido-disponible').filter({ hasText: 'PED-DEMO-102' }).getByTestId('agregar-pedido').click()

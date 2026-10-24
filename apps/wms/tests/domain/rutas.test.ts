@@ -22,13 +22,14 @@ describe('validarPlan', () => {
     const e = validarPlan({ ...base([ped('1')]), plan: { fecha: '2026-10-13', conductorId: 'x', auxiliarId: 'x', paradas: [{ pedidoId: '1' }, { pedidoId: '1' }] }, vehiculo: veh({ activo: false }) })
     expect(e).toEqual(expect.arrayContaining(['La fecha de la ruta no puede ser anterior a hoy.', 'El conductor y el auxiliar deben ser personas distintas.', 'El vehículo ABC-123 está inactivo.', 'Hay un pedido o una orden repetida en la ruta.']))
   })
-  it('vehículo calificado, cambio por revisar, otra ruta y producto desconocido', () => {
-    const e = validarPlan(base([ped('1', { vehiculoCalificado: 'Furgón' }), ped('2', { cambioPorRevisar: true }), ped('3'), ped('4', { sinCatalogo: ['X-9'] })], { enOtraRuta: new Map([['3', 'RUT-2026-00001']]) }))
+  it('cambio por revisar, otra ruta y producto desconocido (el vehículo calificado ya no se valida: D-153)', () => {
+    const e = validarPlan(base([ped('1'), ped('2', { cambioPorRevisar: true }), ped('3'), ped('4', { sinCatalogo: ['X-9'] })], { enOtraRuta: new Map([['3', 'RUT-2026-00001']]) }))
     expect(e).toEqual(expect.arrayContaining([
-      'El cliente de PED-1 exige un vehículo calificado.', 'El pedido PED-2 cambió en Pedidos: revisa el cambio antes de planificarlo.',
+      'El pedido PED-2 cambió en Pedidos: revisa el cambio antes de planificarlo.',
       'El pedido PED-3 ya está en la ruta RUT-2026-00001.', 'El pedido PED-4 trae un producto que el WMS no conoce (X-9): Dirección Técnica debe darlo de alta.',
     ]))
-    expect(validarPlan(base([ped('1', { vehiculoCalificado: 'Furgón' })], { vehiculo: veh({ calificado: true }) }))).toEqual([])
+    expect(e.some((m) => /calificado/.test(m))).toBe(false)
+    expect(validarPlan(base([ped('1')], { vehiculo: veh({ calificado: false }) }))).toEqual([])
   })
   it('fuera del corte pide excepción con motivo', () => {
     const tarde = ped('1', { importadoEn: '2026-10-14T22:00:00Z' })

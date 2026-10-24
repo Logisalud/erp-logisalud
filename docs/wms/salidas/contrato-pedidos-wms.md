@@ -27,7 +27,7 @@ vez que el pedido se modifica después de quedar listo. Sin service role del otr
         "id": "uuid-del-cliente", "nombre": "Botica Salud Total SAC", "ruc": "20512345671",
         "direccion": "Av. Arequipa 1450, Lince", "distrito": "Lince",
         "coordenadas": { "lat": -12.0867, "lng": -77.0336 },
-        "ventanaCita": "L-V 8:00-12:00", "vehiculoCalificado": "Camioneta"
+        "ventanaCita": "L-V 8:00-12:00"
       },
       "vendedor": "Nombre del vendedor", "condicionPago": "Contado", "factura": "F001-00045", "observaciones": "Entrega con cadena de frío.",
       "lineas": [

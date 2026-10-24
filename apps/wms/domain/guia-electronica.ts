@@ -3,6 +3,7 @@
 import { puede } from './permisos'
 import type { LineaGuia } from './documentacion'
 import type { TipoSalida } from './salidas'
+import type { DocumentoTipo } from './rutas'
 import type { Rol } from './tipos'
 
 export type ModoNubefact = 'SIMULADOR' | 'PRUEBA' | 'PRODUCCION'
@@ -47,7 +48,14 @@ export interface DatosGuia {
   /** Lo confirmado en la conformidad, línea por lote. */
   lineas: LineaGuia[]
   bultos: number
-  ruta?: { id: string; numero: string; fecha: string; placa?: string; conductor?: string; conductorDni?: string; conductorLicencia?: string; auxiliar?: string }
+  /**
+   * `conductor*` es quien figura en la guía (D-155: puede no ser el conductor real mientras exista el parámetro temporal «conductor en documentos»);
+   * `conductorReal` es el de la ruta, el que se guarda y se audita siempre.
+   */
+  ruta?: {
+    id: string; numero: string; fecha: string; placa?: string; conductor?: string; conductorDni?: string; conductorDocumentoTipo?: DocumentoTipo; conductorLicencia?: string; auxiliar?: string
+    conductorReal?: string
+  }
   partida: { ubigeo: string; direccion: string }
   motivoTraslado: string
   modalidad: string
@@ -63,6 +71,9 @@ export interface TrasladoGuia {
   /** Si el conductor ya tiene licencia guardada se usa esa; si no, se escribe aquí y vale solo para esta guía. */
   licenciaConductor?: string
 }
+
+/** Catálogo 06 de SUNAT para la persona que conduce: 1 = DNI, 4 = carné de extranjería, 7 = pasaporte. */
+export const CODIGO_DOCUMENTO_SUNAT: Record<DocumentoTipo, '1' | '4' | '7'> = { DNI: '1', CE: '4', PASAPORTE: '7' }
 
 /** La licencia que va en la guía: la que se escribió al emitir o, si no, la del conductor. */
 export const licenciaDeGuia = (d: DatosGuia, t: TrasladoGuia) => (t.licenciaConductor?.trim() || d.ruta?.conductorLicencia?.trim() || '').toUpperCase()
@@ -91,7 +102,7 @@ export function faltantesDeGuia(d: DatosGuia, t: TrasladoGuia, _modo?: ModoNubef
   else {
     if (!d.ruta.placa) f.push('La ruta no tiene vehículo')
     if (!d.ruta.conductor) f.push('La ruta no tiene conductor')
-    else if (!d.ruta.conductorDni) f.push('Falta el DNI del conductor')
+    else if (!d.ruta.conductorDni) f.push(`Falta el documento de identidad de ${d.ruta.conductor} (DNI o carné de extranjería): se completa en Rutas, Conductores`)
   }
   if (faltaTexto(d.destinatario.nombre)) f.push('Falta el nombre del cliente')
   if (faltaTexto(d.destinatario.ruc)) f.push('Falta el RUC del cliente')
@@ -130,7 +141,7 @@ export interface PayloadNubefact {
   tipo_de_transporte: '02'
   fecha_de_inicio_de_traslado: string
   transportista_placa_numero: string
-  conductor_documento_tipo: '1'
+  conductor_documento_tipo: '1' | '4' | '7'
   conductor_documento_numero: string
   conductor_nombre: string
   conductor_apellidos: string
@@ -162,7 +173,7 @@ export function construirPayloadNubefact(d: DatosGuia, t: TrasladoGuia, hoy: str
     cliente_direccion: sinEspacios(d.destinatario.direccion).slice(0, 100), fecha_de_emision: ddmmaaaa(hoy), observaciones: observacionDeGuia(d),
     motivo_de_traslado: motivoDeTraslado(d.tipo).codigo, peso_bruto_total: t.pesoKg.toFixed(2), peso_bruto_unidad_de_medida: 'KGM', numero_de_bultos: String(d.bultos), tipo_de_transporte: '02',
     fecha_de_inicio_de_traslado: ddmmaaaa(t.fechaInicio),
-    transportista_placa_numero: placaParaSunat(d.ruta?.placa), conductor_documento_tipo: '1', conductor_documento_numero: sinEspacios(d.ruta?.conductorDni),
+    transportista_placa_numero: placaParaSunat(d.ruta?.placa), conductor_documento_tipo: CODIGO_DOCUMENTO_SUNAT[d.ruta?.conductorDocumentoTipo ?? 'DNI'], conductor_documento_numero: sinEspacios(d.ruta?.conductorDni),
     conductor_nombre: nombre, conductor_apellidos: apellidos, conductor_numero_licencia: licenciaDeGuia(d, t),
     punto_de_partida_ubigeo: d.partida.ubigeo, punto_de_partida_direccion: d.partida.direccion.slice(0, 150), punto_de_partida_codigo_establecimiento_sunat: '0000',
     punto_de_llegada_ubigeo: sinEspacios(d.destinatario.ubigeo), punto_de_llegada_direccion: sinEspacios(d.destinatario.direccion).slice(0, 150), punto_de_llegada_codigo_establecimiento_sunat: '0000',
