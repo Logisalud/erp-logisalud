@@ -23,6 +23,7 @@ export function mapearRegulatorio(r: Fila): Regulatorio {
     productoId: String(r.producto_id), registroSanitario: s(r.registro_sanitario), rsVence: s(r.rs_vence),
     formaPresentacion: s(r.forma_presentacion), concentracion: s(r.concentracion), fabricante: s(r.fabricante),
     condicionAlmacenamiento: s(r.condicion_almacenamiento), creadoPor: s(r.creado_por),
+    estadoValidacion: r.por_validar === true ? 'PENDIENTE' : 'VALIDADO',
   }
 }
 
@@ -97,6 +98,12 @@ export class RepositorioSupabase extends SalidaManualSupabase implements Reposit
     })
     if (error) return { ok: false, mensaje: mensajeHumano(error) }
     return { ok: true, id: String(data) }
+  }
+
+  async validarProducto(id: string, _actor: Actor): Promise<ResultadoAccion> {
+    const supabase = crearClienteServidor()
+    const { error } = await supabase.schema('wms').rpc('validar_producto', { p_producto: id })
+    return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
   }
 
   async editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, _actor: Actor): Promise<ResultadoAccion<{ cambios: number }>> {

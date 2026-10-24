@@ -298,7 +298,7 @@ export class LiberacionDemo extends CierreRutaDemo implements RepositorioLiberac
     const sol = e.solicitudes.find((x) => x.id === r.id)!
     sol.creadoPor = actor.nombre
     sol.retorno = { salidaId: s.id, salidaNumero: s.numero, motivo: entrada.motivo as 'RECHAZADO_CLIENTE' | 'NO_ENTREGADO', guiaNumero: guia }
-    const puedeAutorizar = actor.roles.includes('asistente_dt') || actor.roles.includes('direccion_tecnica')
+    const puedeAutorizar = actor.roles.includes('asistente_dt') || actor.roles.includes('direccion_tecnica') || actor.roles.includes('admin_wms')
     const autorizada = autorizar && puedeAutorizar
     if (autorizada) motor.autorizarSolicitud(r.id, actor)
     else { sol.estado = 'ENVIADA'; alertar(e, 'RETORNO_POR_AUTORIZAR', 'asistente_dt', `La Orden de Salida ${s.numero} tiene un retorno por autorizar (${r.numero}): ${entrada.motivo === 'RECHAZADO_CLIENTE' ? 'rechazado por el cliente' : 'no entregado'}. Autoriza la solicitud para que el almacén la reciba como devolución.`, `retorno:${r.id}`, r.id) }

@@ -133,6 +133,8 @@ export interface Regulatorio {
   fabricante?: string
   condicionAlmacenamiento?: string
   creadoPor?: string
+  /** D-196: un producto que da de alta o edita el Administrador queda PENDIENTE hasta que Dirección Técnica lo valida; sin dato, se toma como validado. */
+  estadoValidacion?: 'PENDIENTE' | 'VALIDADO' | 'OBSERVADO'
 }
 
 /** Un cambio de un dato regulatorio: campo, valor anterior y nuevo, quién, cuándo y por qué. */

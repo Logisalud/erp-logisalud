@@ -17,7 +17,7 @@ export default async function ActaOrganoleptica({ params }: { params: { id: stri
   const id = decodeURIComponent(params.id)
   const [acta, panorama] = await Promise.all([repo.obtenerOrganoleptica(id), repo.panorama()])
   if (!acta) notFound()
-  const puedeEditar = ctx.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica')
+  const puedeEditar = ctx.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica' || r === 'admin_wms')
   const puedeDecidir = ctx.roles.includes('direccion_tecnica')
   const prefijo = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
   return (

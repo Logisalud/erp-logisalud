@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { puedeAtenderAlerta, puedeFirmarComo, puedePrepararSolicitud } from '@/domain/entradas'
+import { puedeAutorizarBaja, puedeEvaluarBaja } from '@/domain/bajas'
+import { puedeDecidirAjuste } from '@/domain/inventario'
+import type { Accion } from '@/domain/tipos'
+import { puedeValidarProducto } from '@/domain/permisos'
 import { ACCIONES_SANITARIAS, rolesEfectivos, ETIQUETA_ROL, ROLES_DE_PERSONAL, esPersonal, puede, puedeCrearProducto, puedeEditarRegulatorio, rolesDesdeTexto } from '@/domain/permisos'
 
 describe('permisos por rol', () => {
@@ -59,9 +64,10 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
     for (const r of ['jefe_transporte', 'direccion_tecnica'] as const) expect(puede([r], 'reservar_lote'), r).toBe(true)
     for (const r of ['jefe_almacen', 'auxiliar', 'asistente_dt', 'conformidad_despacho'] as const) expect(puede([r], 'reservar_lote'), r).toBe(false)
   })
-  it('solo Dirección Técnica gestiona los documentos regulatorios', () => {
+  it('Dirección Técnica y el Administrador (D-196) gestionan los documentos regulatorios; nadie más', () => {
     expect(puede(['direccion_tecnica'], 'gestionar_documentos_regulatorios')).toBe(true)
-    for (const r of ['asistente_dt', 'jefe_almacen', 'jefe_transporte', 'admin_wms'] as const) expect(puede([r], 'gestionar_documentos_regulatorios'), r).toBe(false)
+    expect(puede(['admin_wms'], 'gestionar_documentos_regulatorios')).toBe(true)
+    for (const r of ['asistente_dt', 'jefe_almacen', 'jefe_transporte'] as const) expect(puede([r], 'gestionar_documentos_regulatorios'), r).toBe(false)
   })
   it('las salidas sin venta las autoriza solo su rol', () => {
     expect(puede(['autoriza_salidas_sin_venta'], 'autorizar_salida_sin_venta')).toBe(true)
@@ -86,6 +92,44 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
   })
 })
 
+
+describe('rol Administrador (SB-E, D-196): todo lo operativo y de configuración', () => {
+  const efectivos = rolesEfectivos(['admin_wms'])
+  it('da de alta y edita productos, prepara solicitudes, atiende alertas de la asistente y gestiona documentos; pero no valida productos', () => {
+    expect(puedeCrearProducto(efectivos)).toBe(true)
+    expect(puedeEditarRegulatorio(efectivos)).toBe(true)
+    expect(puedePrepararSolicitud(efectivos)).toBe(true)
+    expect(puedeAtenderAlerta(efectivos, 'asistente_dt')).toBe(true)
+    expect(puedeAtenderAlerta(efectivos, 'direccion_tecnica')).toBe(false)
+    expect(puedeValidarProducto(efectivos)).toBe(false)
+    expect(puedeValidarProducto(['direccion_tecnica'])).toBe(true)
+    expect(puedeValidarProducto(['asistente_dt'])).toBe(true)
+  })
+  it('firma el acta de recepción como Jefe de Almacén, pero no como Dirección Técnica', () => {
+    expect(puedeFirmarComo(efectivos, 'JEFE_ALMACEN')).toBe(true)
+    expect(puedeFirmarComo(efectivos, 'DIRECCION_TECNICA')).toBe(false)
+  })
+  it('las decisiones sanitarias siguen siendo solo de Dirección Técnica: aprobar, dar de baja, autorizar ajustes y decidir el acta', () => {
+    expect(puedeAutorizarBaja(efectivos)).toBe(false)
+    expect(puedeDecidirAjuste(efectivos)).toBe(false)
+    expect(puedeEvaluarBaja(efectivos)).toBe(false)
+    expect(puede(efectivos, 'aprobar')).toBe(false)
+    expect(puede(efectivos, 'ajustar')).toBe(false)
+    expect(puede(efectivos, 'autorizar_baja')).toBe(false)
+  })
+  it('puede hacer cada acción operativa y de configuración que existe fuera de las sanitarias', () => {
+    // Clasificación exhaustiva: si aparece una acción nueva en el dominio, TypeScript obliga a decidir aquí si el Administrador la tiene.
+    const clasificacion: Record<Accion, 'admin' | 'sanitaria'> = {
+      ver: 'admin', ejecutar: 'admin', verificar: 'admin', configurar: 'admin', exportar: 'admin', auditar: 'admin', dar_conformidad: 'admin', cambiar_lote_asignado: 'admin',
+      imprimir_paquete_documental: 'admin', gestionar_documentos_regulatorios: 'admin', autorizar_salida_sin_venta: 'admin', preparar_salidas: 'admin', confirmar_salida: 'admin',
+      planificar_ruta: 'admin', registrar_documentacion: 'admin', embalar: 'admin', cargar_ruta: 'admin', liberar_unidad: 'admin', reservar_lote: 'admin', anular_guia: 'admin',
+      solicitar_baja: 'admin', cerrar_ruta: 'admin', registrar_ls_fr: 'admin', originar_retorno: 'admin', crear_orden_venta_manual: 'admin', entregar_al_transportista_cliente: 'admin',
+      aprobar: 'sanitaria', ajustar: 'sanitaria', autorizar_baja: 'sanitaria', registrar_dictamen_cliente: 'sanitaria', marcar_antecedentes_calidad: 'sanitaria', liberar_stock_propietario: 'sanitaria',
+    }
+    for (const [a, clase] of Object.entries(clasificacion) as [Accion, string][]) expect(puede(efectivos, a), a).toBe(clase === 'admin')
+    expect([...ACCIONES_SANITARIAS].sort()).toEqual(Object.entries(clasificacion).filter(([, c]) => c === 'sanitaria').map(([a]) => a).sort())
+  })
+})
 
 describe('rol Administrador (SB-D, D-194)', () => {
   it('se llama Administrador y tiene todo lo operativo y la configuración', () => {

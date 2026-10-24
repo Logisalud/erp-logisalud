@@ -40,7 +40,8 @@ export const AREA_DESTINO: Record<TipoIngreso, 'CUARENTENA' | 'DEVOLUCIONES'> = 
 // ── Quién prepara solicitudes (D-32) ────────────────────────────────────────
 
 /** Sandra (asistente de DT) y Katia (Dirección Técnica). Con el portal de clientes, el cliente crea y ellas autorizan. */
-export const puedePrepararSolicitud = (roles: readonly Rol[]) => roles.includes('asistente_dt') || roles.includes('direccion_tecnica')
+/** D-196: el Administrador también prepara y autoriza solicitudes de ingreso (lo operativo). */
+export const puedePrepararSolicitud = (roles: readonly Rol[]) => roles.includes('asistente_dt') || roles.includes('direccion_tecnica') || roles.includes('admin_wms')
 
 // ── Estados de la solicitud ─────────────────────────────────────────────────
 
@@ -387,10 +388,11 @@ export function faltantesParaEnviar(d: DatosOrganoleptica): string[] {
 
 /** Lo que Dirección Técnica puede decidir según la conclusión del acta. */
 export function validarDecision(
-  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string,
+  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string, productoValidado = true,
 ): { ok: true } | { ok: false; mensaje: string } {
   if (decision === 'APROBADO') {
     if (conclusion !== 'CONFORME') return { ok: false, mensaje: 'El acta concluye NO CONFORME: no se puede aprobar. Decide Bajas/Rechazados o pide que la corrijan.' }
+    if (!productoValidado) return { ok: false, mensaje: 'Este producto todavía no está validado: valídalo en su ficha antes de aprobar sus lotes.' }
     if (rsVence && rsVence < hoy) {
       return { ok: false, mensaje: 'El registro sanitario está vencido: el lote no se puede aprobar hasta que Dirección Técnica lo resuelva.' }
     }
@@ -536,7 +538,8 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {
-  return roles.includes('direccion_tecnica') || roles.includes(destinatario)
+  // D-196: el Administrador atiende las alertas de la asistente de DT (no las de Dirección Técnica).
+  return roles.includes('direccion_tecnica') || roles.includes(destinatario) || (destinatario === 'asistente_dt' && roles.includes('admin_wms'))
 }
 
 export const PLAZO_POR_TRASLADAR_HORAS_DEFECTO = 24

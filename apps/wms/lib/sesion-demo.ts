@@ -24,7 +24,7 @@ export const PERSONAS_DEMO: PersonaDemo[] = [
   { clave: 'reemplazante_jefe', nombre: 'Reemplazante del Jefe (demo)', cargo: 'Reemplazante del Jefe de Almacén', roles: ['jefe_almacen'], descripcion: 'Como Jasury: rol Jefe de Almacén con todos sus permisos. Sirve para probar que nadie verifica lo que hizo otra persona con el mismo rol.' },
   { clave: 'auxiliar', nombre: 'Auxiliar de almacén (demo)', cargo: 'Auxiliar de almacén', roles: ['auxiliar'], descripcion: 'Prepara, mueve y cuenta; consulta ubicaciones y stock desde el celular.' },
   { clave: 'autoriza_salidas_sin_venta', nombre: 'Autoriza salidas sin venta (demo)', cargo: 'Autoriza salidas sin venta', roles: ['autoriza_salidas_sin_venta'], descripcion: 'Autoriza las muestras de Logissa: es el único rol que puede crear una salida de muestra.' },
-  { clave: 'admin_wms', nombre: 'Sebastián (Administrador, demo)', cargo: 'Administrador', roles: ['admin_wms'], descripcion: 'Como Sebastián o Andrés: todo lo operativo y la configuración (usuarios, roles, parámetros, maestros, documentos). No firma decisiones sanitarias: aprobar, dar de baja y autorizar ajustes son solo de Dirección Técnica.' },
+  { clave: 'admin_wms', nombre: 'Sebastián (Administrador, demo)', cargo: 'Administrador', roles: ['admin_wms'], descripcion: 'Como Sebastián o Andrés: todo lo operativo y la configuración (usuarios, roles, parámetros, maestros, documentos), incluida la firma de actas como Jefe de Almacén. No firma decisiones sanitarias: aprobar, dar de baja, autorizar ajustes y validar productos son solo de Dirección Técnica.' },
   { clave: 'auditoria_lectura', nombre: 'Auditoría (demo)', cargo: 'Auditoría', roles: ['auditoria_lectura'], descripcion: 'Lee la auditoría: quién, qué, cuándo y por qué.' },
 ]
 

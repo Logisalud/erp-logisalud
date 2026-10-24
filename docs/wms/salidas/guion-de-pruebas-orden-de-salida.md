@@ -146,7 +146,8 @@ La ruta guarda siempre al conductor real (Hans o Michele). Mientras exista el pa
 5. **Auditoría.** Cada guía registrada y cada impresión del formato dejan el evento «conductor en documento» con el conductor real y el que figuró.
 6. **Documento pendiente.** En cada conductor, «Documento y licencia»: Hans aparece como «Documento pendiente». Prueba un DNI de menos de 8 números: la pantalla lo explica.
 7. **Sin vehículo calificado.** En Planificar ruta, cualquier vehículo sirve para cualquier cliente: ya no sale «exige vehículo calificado».
-8. Solo el Jefe de Transporte cambia estos datos; los demás roles los ven.
+8. Solo el Jefe de Transporte (y el Administrador) cambia estos datos; los demás roles los ven.
+9. **Recomendación pendiente (D-160):** el aviso de arriba ahora dice también que conviene pedirle a la contadora la confirmación escrita de que SUNAT acepta una guía con un conductor distinto del que hace el traslado, y por cuánto tiempo. No bloquea nada.
 ## 14. Devolución al proveedor, numeración de guías, muestra a un trabajador y Nubefact DEMO (SB-B)
 1. **Devolución con poco plazo** (Jefe de Transporte): Nueva salida → Tipo C → «Devolución al proveedor». Escribe el proveedor, el producto `DEMO-003` y el lote `L-VENCE-PRONTO` (vence en unos 38 días). Sale el aviso «Al lote le faltan N días… Puedes continuar si escribes el motivo» y aparece «Motivo para continuar». Sin motivo no se crea; con motivo sí. Con un lote que vence en más de 3 meses no pide nada. Un lote vencido sigue bloqueado.
 2. **Copiar correo al proveedor:** en esa orden, sección «Correo al proveedor»: el texto trae producto, lote, vencimiento y cantidad. «Copiar correo al proveedor» lo copia (dice «Copiado»). El WMS no manda correos: lo pegas en tu correo.
@@ -168,4 +169,15 @@ La ruta guarda siempre al conductor real (Hans o Michele). Mientras exista el pa
 
 **Devoluciones de ejemplo.** Menú Entradas → Devoluciones / Recepciones: hay seis devoluciones, una por etapa (por autorizar, autorizada, en recepción, acta por decidir, cerrada a Aprobado, cerrada a Bajas). Entra como Asistente de DT para autorizar la primera, como Jefe de Almacén para recibir la segunda y como Dirección Técnica para decidir el acta de la cuarta. Falta (S9 a S11): que «Rechazado» / «No entregado» en la ruta genere el retorno solo.
 
-**Administrador.** «Probar como» → Administrador. Ve todo el menú y puede configurar y operar; en cambio, el botón de aprobar un lote o autorizar una baja no aparece (solo Dirección Técnica). Cualquier cambio de parámetros queda en Auditoría.
+**Administrador.** «Probar como» → Administrador. Ve todo el menú y puede configurar y operar; en cambio, el botón de aprobar un lote o autorizar una baja no aparece (solo Dirección Técnica). Cualquier cambio de parámetros queda en Auditoría. *(Ampliado en SB-E: ver la sección 16.)*
+
+## 16. El Administrador hace todo lo operativo (SB-E)
+«Probar como» → Administrador (Sebastián o Andrés).
+1. **Firma de actas.** Entra a una recepción con el acta lista → «Firmar como Jefe de Almacén»: el botón aparece y firma. «Firmar como Dirección Técnica» no le aparece.
+2. **Productos.** Productos → «Dar de alta un producto» (ahora lo ve). Llena código, nombre, registro sanitario y vencimiento. Al guardar, la ficha dice «Falta que Dirección Técnica valide este producto» y en Inicio sale «Productos por validar». Entra como Dirección Técnica (o Asistente de DT), abre la ficha → «Validar este producto»: queda validado y sus lotes ya se pueden aprobar. El Administrador no ve ese botón.
+3. **Editar un producto.** Como Administrador, cambia un dato regulatorio con su motivo: el producto vuelve a «por validar» hasta que Dirección Técnica lo valide.
+4. **Documentos.** Documentos regulatorios: puede subir y reemplazar el COA, el registro sanitario y el BPM, y crear un fabricante.
+5. **Entradas.** Recepciones → «Nueva solicitud de ingreso»: la prepara y la autoriza. En el acta organoléptica llena el checklist y la envía; **Aprobado o Bajas/Rechazados no le aparece** (solo Dirección Técnica). En Alertas atiende las de la asistente, no las de Dirección Técnica.
+6. **Sigue reservado a Dirección Técnica:** aprobar, dar de baja, autorizar ajustes y validar productos.
+7. **Conductor en documentos (D-160):** el parámetro sigue; el aviso en Personal y vehículos recomienda pedir a la contadora la confirmación escrita.
+8. **Temperatura:** en stand-by por indicación de Sebas (24-oct); no hay pantallas nuevas.

@@ -27,11 +27,11 @@ const PERMISOS: Record<Rol, readonly Accion[]> = {
   jefe_almacen: conAuxiliar('exportar', 'preparar_salidas', 'solicitar_baja', 'registrar_ls_fr', 'originar_retorno', 'entregar_al_transportista_cliente'),
   auxiliar: PERMISOS_AUXILIAR,
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
-  // D-194: el Administrador (Sebastián y Andrés) tiene todo lo operativo y la configuración. NO tiene las decisiones sanitarias (aprobar, ajustar, autorizar_baja,
-  // registrar_dictamen_cliente, marcar_antecedentes_calidad, gestionar_documentos_regulatorios, liberar_stock_propietario): esas son solo de Dirección Técnica.
+  // D-194/D-196: el Administrador (Sebastián y Andrés) tiene todo lo operativo y la configuración, también los documentos regulatorios. NO tiene las decisiones sanitarias
+  // (aprobar, ajustar, autorizar_baja, registrar_dictamen_cliente, marcar_antecedentes_calidad, liberar_stock_propietario, validar producto): esas son solo de Dirección Técnica.
   admin_wms: ['ver', 'ejecutar', 'verificar', 'configurar', 'exportar', 'auditar', 'dar_conformidad', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'autorizar_salida_sin_venta',
     'preparar_salidas', 'confirmar_salida', 'planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote', 'anular_guia',
-    'solicitar_baja', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente'],
+    'solicitar_baja', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente', 'gestionar_documentos_regulatorios'],
   jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente'),
   conductor: [], // sus permisos llegan con «Mis rutas» (S9)
   auxiliar_transporte: [],
@@ -59,9 +59,12 @@ export function puede(roles: readonly Rol[], accion: Accion): boolean {
 
 /** Quién da de alta un producto y quién lo valida (Sandra crea, Katia valida). */
 export const puedeCrearProducto = (roles: readonly Rol[]) =>
-  roles.includes('asistente_dt') || roles.includes('direccion_tecnica')
+  roles.includes('asistente_dt') || roles.includes('direccion_tecnica') || roles.includes('admin_wms')
+/** D-196: validar un producto (que se puedan aprobar sus lotes) es una decisión sanitaria: solo Dirección Técnica y su asistente. El Administrador da de alta y edita, pero no valida. */
+export const puedeValidarProducto = (roles: readonly Rol[]) => roles.includes('direccion_tecnica') || roles.includes('asistente_dt')
 /** D-37: Katia (direccion_tecnica) y Sandra (asistente_dt) tienen la misma autoridad sobre los datos regulatorios. */
-export const puedeEditarRegulatorio = (roles: readonly Rol[]) => roles.includes('direccion_tecnica') || roles.includes('asistente_dt')
+/** D-196: el Administrador también edita (el producto queda por validar por Dirección Técnica). */
+export const puedeEditarRegulatorio = (roles: readonly Rol[]) => roles.includes('direccion_tecnica') || roles.includes('asistente_dt') || roles.includes('admin_wms')
 
 export function rolesDesdeTexto(valor: string | undefined | null): Rol[] {
   if (!valor) return []
@@ -72,7 +75,7 @@ export function rolesDesdeTexto(valor: string | undefined | null): Rol[] {
 }
 
 /** Las decisiones sanitarias: solo las firma Dirección Técnica (o su asistente donde ya estaba). El Administrador nunca las tiene (D-194). */
-export const ACCIONES_SANITARIAS: readonly Accion[] = ['aprobar', 'ajustar', 'autorizar_baja', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad', 'gestionar_documentos_regulatorios', 'liberar_stock_propietario']
+export const ACCIONES_SANITARIAS: readonly Accion[] = ['aprobar', 'ajustar', 'autorizar_baja', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad', 'liberar_stock_propietario']
 
 /**
  * D-194: espejo de `wms.tiene_rol` (0034). Para las funciones que preguntan por rol, el Administrador cuenta como Jefe de Almacén, Jefe de Transporte y auxiliar

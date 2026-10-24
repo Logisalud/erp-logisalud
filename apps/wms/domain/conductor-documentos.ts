@@ -45,7 +45,7 @@ export function detalleUsoConductor(documento: string, q: QuienFigura): string {
 }
 
 export const AVISO_TEMPORAL_CONDUCTOR_DOCUMENTOS =
-  'Esto es temporal. Cuando se avise, los documentos llevarán al conductor real de cada ruta. La ruta y el registro siempre guardan al conductor real.'
+  'Esto es temporal. Cuando se avise, los documentos llevarán al conductor real de cada ruta. La ruta y el registro siempre guardan al conductor real. Recomendación: pídele a la contadora que confirme por escrito si SUNAT acepta una guía con un conductor distinto del que hace el traslado, y por cuánto tiempo.'
 
 /**
  * Valida el documento de identidad y la licencia de quien conduce (lo mismo que exige la base de datos). DNI: 8 números; carné de extranjería: 9 a 12 letras

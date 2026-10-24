@@ -23,13 +23,15 @@ describe('estado de un documento', () => {
 
 describe('quién puede subir qué (espejo de la base de datos)', () => {
   it('el COA lo adjunta quien recibe; reemplazarlo y el registro sanitario y el BPM, solo Dirección Técnica', () => {
-    for (const r of ['jefe_almacen', 'auxiliar', 'asistente_dt', 'direccion_tecnica'] as const) expect(motivoNoPuedeSubir([r], 'COA', false), r).toBeNull()
-    for (const r of ['jefe_transporte', 'auditoria_lectura', 'admin_wms'] as const) expect(motivoNoPuedeSubir([r], 'COA', false), r).toMatch(/No tienes permiso/)
-    expect(motivoNoPuedeSubir(['jefe_almacen'], 'COA', true)).toMatch(/solo Dirección Técnica lo reemplaza/)
+    for (const r of ['jefe_almacen', 'auxiliar', 'asistente_dt', 'direccion_tecnica', 'admin_wms'] as const) expect(motivoNoPuedeSubir([r], 'COA', false), r).toBeNull()
+    for (const r of ['jefe_transporte', 'auditoria_lectura'] as const) expect(motivoNoPuedeSubir([r], 'COA', false), r).toMatch(/No tienes permiso/)
+    expect(motivoNoPuedeSubir(['jefe_almacen'], 'COA', true)).toMatch(/solo Dirección Técnica y el Administrador lo reemplazan/)
     expect(motivoNoPuedeSubir(['direccion_tecnica'], 'COA', true)).toBeNull()
+    expect(motivoNoPuedeSubir(['admin_wms'], 'COA', true)).toBeNull() // D-196
     for (const t of ['REGISTRO_SANITARIO', 'BPM'] as const) {
       expect(motivoNoPuedeSubir(['asistente_dt', 'jefe_almacen'], t, false)).toMatch(/Solo Dirección Técnica/)
       expect(motivoNoPuedeSubir(['direccion_tecnica'], t, false)).toBeNull()
+      expect(motivoNoPuedeSubir(['admin_wms'], t, false)).toBeNull() // D-196: el Administrador gestiona documentos
     }
   })
 })

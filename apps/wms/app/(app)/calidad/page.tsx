@@ -38,7 +38,7 @@ export default async function Calidad() {
   const repo = repositorio()
   const [cola, panorama] = await Promise.all([repo.colaDireccionTecnica(), repo.panorama()])
   const esDT = ctx.roles.includes('direccion_tecnica')
-  const esSandra = ctx.roles.includes('asistente_dt')
+  const esSandra = ctx.roles.includes('asistente_dt') || ctx.roles.includes('admin_wms')
 
   return (
     <div className="space-y-8">

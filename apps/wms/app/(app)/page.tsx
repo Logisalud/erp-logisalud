@@ -117,6 +117,10 @@ function avisosPara(roles: Rol[], p: Panorama, e: DatosEntradas): Aviso[] {
   if (puedeEditarRegulatorio(roles) && a.sinRegistro.length > 0) {
     avisos.push({ clave: 'sin-registro', Icono: FilePlus2, texto: 'Productos sin registro sanitario cargado', cantidad: a.sinRegistro.length, unidad: pl(a.sinRegistro.length, 'producto', 'productos'), href: '/productos?rs=SIN_DATO', tono: 'atencion' })
   }
+  const porValidar = p.productos.filter((x) => x.reg?.estadoValidacion === 'PENDIENTE' || x.reg?.estadoValidacion === 'OBSERVADO').length
+  if (porValidar > 0 && roles.some((r) => ['direccion_tecnica', 'asistente_dt', 'admin_wms'].includes(r))) {
+    avisos.push({ clave: 'por-validar', Icono: ShieldAlert, texto: 'Productos por validar', detalle: 'Hasta que Dirección Técnica los valide, sus lotes no se pueden aprobar.', cantidad: porValidar, unidad: pl(porValidar, 'producto', 'productos'), href: '/productos', tono: 'atencion' })
+  }
   if (roles.some((r) => ['jefe_almacen', 'auxiliar', 'direccion_tecnica'].includes(r)) && trasladar > 0) {
     avisos.push({ clave: 'trasladar', Icono: ShieldCheck, texto: 'Aprobados esperando su traslado a un rack', detalle: 'Siguen en la zona de Cuarentena.', cantidad: trasladar, unidad: pl(trasladar, 'unidad', 'unidades'), href: '/almacen?capa=estado', tono: 'atencion' })
   }
