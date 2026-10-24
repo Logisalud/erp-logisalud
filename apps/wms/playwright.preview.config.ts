@@ -25,5 +25,6 @@ export default defineConfig({
       ...(secreto ? { 'x-vercel-protection-bypass': secreto } : {}),
     },
     locale: 'es-PE',
+    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined },
   },
 })
