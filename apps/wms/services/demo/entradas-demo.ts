@@ -72,7 +72,7 @@ export function estadoE(): EstadoDemo {
 }
 
 const sinPermiso = (actor: Actor) => (puede(actor.roles, 'ejecutar') ? null : 'No tienes permiso para registrar entradas.')
-const sinPermisoPreparar = (actor: Actor) => (puedePrepararSolicitud(actor.roles) ? null : 'Solo Sandra (Asistente de Dirección Técnica) y Dirección Técnica preparan solicitudes de ingreso.')
+const sinPermisoPreparar = (actor: Actor) => (puedePrepararSolicitud(actor.roles) ? null : 'Solo Sandra (Asistente de Dirección Técnica), Dirección Técnica y el Administrador preparan solicitudes de ingreso.')
 
 function siguienteCorrelativo(e: EstadoDemo, prefijo: 'I' | 'O'): string {
   const d = new Date()
@@ -853,7 +853,7 @@ export class MotorEntradas {
 
   guardarOrganoleptica(id: string, d: DatosOrganolepticaGuardar, enviar: boolean, actor: Actor): ResultadoAccion {
     const e = estadoE()
-    if (!actor.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica')) return falla('Solo Dirección Técnica y su asistente llenan el acta organoléptica')
+    if (!actor.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica' || r === 'admin_wms')) return falla('Solo Dirección Técnica, su asistente y el Administrador llenan el acta organoléptica')
     const o = e.organolepticas.find((x) => x.id === id)
     if (!o) return falla('Acta inexistente')
     if (o.estado === 'FIRMADA') return falla('El acta ya está firmada')
@@ -880,7 +880,7 @@ export class MotorEntradas {
     if (o.estado !== 'PENDIENTE_DT') return falla('El acta todavía no está completa: falta que la envíen a Dirección Técnica')
     if (vistaOrganoleptica(e, o).esDeCliente) return falla('Este producto es de un cliente de almacenamiento: lo libera el DT del cliente, no Dirección Técnica de Logissa. Registra su dictamen y confirma el cambio de estado.')
     const p = producto(e, o.productoId)
-    const v = validarDecision(decision, o.datos.conclusion, p?.reg?.rsVence, e.panorama.hoy)
+    const v = validarDecision(decision, o.datos.conclusion, p?.reg?.rsVence, e.panorama.hoy, p?.reg?.estadoValidacion !== 'PENDIENTE' && p?.reg?.estadoValidacion !== 'OBSERVADO')
     if (!v.ok) return falla(v.mensaje)
     // Solo las unidades de ESTA entrega que siguen esperando su decisión (la aprobación no se hereda).
     const desde = ESTADO_INICIAL[o.ingresoTipo]
@@ -1020,7 +1020,7 @@ export class MotorEntradas {
 
   cerrarExpediente(expedienteId: string, actor: Actor): ResultadoAccion {
     const e = estadoE()
-    if (!actor.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica')) return falla('Solo Sandra (Asistente de Dirección Técnica) o Dirección Técnica cierran el expediente')
+    if (!actor.roles.some((r) => r === 'asistente_dt' || r === 'direccion_tecnica' || r === 'admin_wms')) return falla('Solo Sandra (Asistente de Dirección Técnica), Dirección Técnica o el Administrador cierran el expediente')
     const x = e.expedientes.find((y) => y.id === expedienteId)
     if (!x) return falla('Expediente inexistente')
     const abiertos = x.faltantes.filter((f) => f.estado === 'ABIERTO').length

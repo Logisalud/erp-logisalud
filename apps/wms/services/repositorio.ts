@@ -46,6 +46,8 @@ export interface Repositorio extends RepositorioInventario, RepositorioOperacion
   crearProducto(entrada: EntradaProducto, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
   /** D-37: Katia o Sandra editan los datos regulatorios; rige de inmediato y cada cambio queda con su motivo. Devuelve cuántos campos cambiaron. */
   editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, actor: Actor): Promise<ResultadoAccion<{ cambios: number }>>
+  /** D-196: Dirección Técnica (o su asistente) valida un producto dado de alta o editado por el Administrador; sin eso no se aprueban sus lotes. */
+  validarProducto(id: string, actor: Actor): Promise<ResultadoAccion>
   /** Historial de cambios regulatorios de un producto, del más reciente al más antiguo. */
   historialRegulatorio(id: string): Promise<CambioRegulatorio[]>
 

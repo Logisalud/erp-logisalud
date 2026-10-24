@@ -7,6 +7,7 @@ import {
   type LoteParaRelacionar, type OpcionAlcance, type PanoramaDocumentos, type PerfilDocumental, type RequisitoDocumental, type ResumenCargaCoa, type TipoDocumento,
 } from '@/domain/documentos'
 import { normalizar } from '@/domain/busqueda'
+import { puede } from '@/domain/permisos'
 import { sumarDias } from './datos'
 import { registrar, type EstadoDemo } from './estado'
 import { ahora, estadoE, falla, nuevoId } from './entradas-demo'
@@ -130,7 +131,7 @@ export class DocumentosDemo extends CambioPedidoDemo implements RepositorioDocum
     if (no) return falla(no)
     if (!entrada.reemplazaA && vigente) return falla('Ya hay un documento vigente: se reemplaza (solo Dirección Técnica), no se sube otro')
     if (entrada.reemplazaA) {
-      if (!actor.roles.includes('direccion_tecnica')) return falla('Solo Dirección Técnica reemplaza un documento')
+      if (!puede(actor.roles, 'gestionar_documentos_regulatorios')) return falla('Solo Dirección Técnica y el Administrador reemplazan un documento')
       if (vigente?.id !== entrada.reemplazaA) return falla('Ese documento ya fue reemplazado: reemplaza la versión vigente')
       if (!entrada.motivo?.trim()) return falla('Indica el motivo del reemplazo')
     }
@@ -149,7 +150,7 @@ export class DocumentosDemo extends CambioPedidoDemo implements RepositorioDocum
 
   async crearFabricante(nombre: string, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
     const e = estadoE(); const d = docs(e)
-    if (!actor.roles.includes('direccion_tecnica')) return falla('Solo Dirección Técnica crea fabricantes')
+    if (!puede(actor.roles, 'gestionar_documentos_regulatorios')) return falla('Solo Dirección Técnica y el Administrador crean fabricantes')
     const n = nombre.trim()
     if (n.length < 2 || n.length > 120) return falla('El nombre del fabricante debe tener entre 2 y 120 caracteres')
     const ya = d.fabricantes.find((f) => f.nombre.toLowerCase() === n.toLowerCase())

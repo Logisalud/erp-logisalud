@@ -74,6 +74,14 @@ export async function editarRegulatorioAccion(_prev: EstadoFormulario, formData:
   return { ok: true, mensaje: r.cambios === 0 ? 'No hubo nada que cambiar.' : `Listo. Guardamos ${r.cambios} ${r.cambios === 1 ? 'cambio' : 'cambios'} y quedaron en el historial.` }
 }
 
+/** D-196: Dirección Técnica (o su asistente) valida un producto que dio de alta o editó el Administrador. */
+export async function validarProductoAccion(id: string): Promise<ResultadoAccion> {
+  const ctx = await exigirContexto()
+  const r = await repositorio().validarProducto(id, { id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles })
+  if (r.ok) revalidatePath(`/productos/${id}`)
+  return r
+}
+
 /** Para pantallas que solo necesitan saber si hay sesión sin redirigir. */
 export async function haySesion(): Promise<boolean> {
   return (await obtenerContexto()) !== null

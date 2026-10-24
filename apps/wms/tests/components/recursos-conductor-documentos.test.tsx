@@ -30,6 +30,7 @@ describe('«Conductor que figura en los documentos» (temporal)', () => {
     expect(within(p).getByTestId('conductor-en-documentos-actual')).toHaveTextContent('llevan a Michele Yermain Mauriello Diaz')
     expect(p).toHaveTextContent('siempre guardan al conductor real')
     expect(p).toHaveTextContent('Esto es temporal')
+    expect(p).toHaveTextContent('confirme por escrito si SUNAT acepta') // D-160: recomendación, no bloqueo
   })
 
   it('el Jefe de Transporte cambia la persona con motivo; sin cambio o sin motivo no guarda', async () => {

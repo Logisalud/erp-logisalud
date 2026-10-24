@@ -4,12 +4,13 @@ import { ArrowLeft, CheckCircle2, MapPin } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { filasDeStock } from '@/domain/panorama'
-import { puedeEditarRegulatorio } from '@/domain/permisos'
+import { puedeEditarRegulatorio, puedeValidarProducto } from '@/domain/permisos'
 import { etiquetaCampo } from '@/domain/tipos'
 import { diasHasta, situacionRS } from '@/domain/regulatorio'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { ChipEstado, ChipPorTrasladar, ChipRS } from '@/components/chips'
 import { FormRegulatorio } from '@/components/form-regulatorio'
+import { PanelValidarProducto } from '@/components/panel-validar-producto'
 import { vistaPropietario } from '@/components/propietarios-color'
 
 export const metadata = { title: 'Producto — WMS LOGISALUD' }
@@ -43,10 +44,12 @@ export default async function DetalleProducto({ params, searchParams }: { params
           <CheckCircle2 className="h-6 w-6 shrink-0" aria-hidden />
           <div>
             <p className="font-medium">Listo. El producto quedó dado de alta.</p>
-            <p className="text-sm">Sus datos regulatorios ya rigen. Cualquier cambio posterior queda en el historial con su motivo.</p>
+            <p className="text-sm">{reg?.estadoValidacion === 'PENDIENTE' ? 'Sigue: Dirección Técnica lo valida para que se puedan aprobar sus lotes. Cualquier cambio posterior queda en el historial con su motivo.' : 'Sus datos regulatorios ya rigen. Cualquier cambio posterior queda en el historial con su motivo.'}</p>
           </div>
         </div>
       )}
+
+      {(reg?.estadoValidacion === 'PENDIENTE' || reg?.estadoValidacion === 'OBSERVADO') && <PanelValidarProducto productoId={prod.id} puedeValidar={puedeValidarProducto(ctx.roles)} />}
 
       <header>
         <p className="text-sm text-gray-600">{prod.codigo}</p>
@@ -88,7 +91,7 @@ export default async function DetalleProducto({ params, searchParams }: { params
       {puedeEditar && (
         <section className="card border-2 border-teal-400" aria-labelledby="editar" data-testid="panel-regulatorio">
           <h2 id="editar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Editar datos regulatorios y del producto</h2>
-          <p className="mb-3 mt-1 text-sm text-gray-600">Katia y Sandra tienen la misma autoridad. El cambio rige de inmediato y queda registrado con tu nombre, la fecha y el motivo.</p>
+          <p className="mb-3 mt-1 text-sm text-gray-600">Katia y Sandra tienen la misma autoridad. El cambio rige de inmediato (si lo haces como Administrador, Dirección Técnica lo valida después) y queda registrado con tu nombre, la fecha y el motivo.</p>
           <FormRegulatorio productoId={prod.id} reg={reg} presentacion={prod.presentacion} principioActivo={prod.principioActivo} />
         </section>
       )}

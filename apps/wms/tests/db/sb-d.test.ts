@@ -50,7 +50,8 @@ describe('rol Administrador (D-194)', () => {
   const tiene = (id: string, accion: string) => como(id, async (c) => (await c.query('select wms.tiene_permiso($1) v', [accion])).rows[0].v as boolean)
   it('tiene lo operativo y de configuración, y no las decisiones sanitarias', async () => {
     for (const a of ['configurar', 'preparar_salidas', 'confirmar_salida', 'anular_guia', 'registrar_documentacion', 'originar_retorno', 'crear_orden_venta_manual', 'embalar', 'cerrar_ruta', 'dar_conformidad']) expect(await tiene(admin, a), a).toBe(true)
-    for (const a of ['aprobar', 'ajustar', 'autorizar_baja', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad', 'gestionar_documentos_regulatorios', 'liberar_stock_propietario']) expect(await tiene(admin, a), a).toBe(false)
+    for (const a of ['aprobar', 'ajustar', 'autorizar_baja', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad', 'liberar_stock_propietario']) expect(await tiene(admin, a), a).toBe(false)
+    expect(await tiene(admin, 'gestionar_documentos_regulatorios')).toBe(true) // D-196: la 0035 se lo da
   })
   it('cuenta como jefe o auxiliar para tiene_rol, pero nunca como Dirección Técnica ni su asistente', async () => {
     const r = (id: string, ...roles: string[]) => como(id, async (c) => (await c.query('select wms.tiene_rol(variadic $1::text[]) v', [roles])).rows[0].v as boolean)
