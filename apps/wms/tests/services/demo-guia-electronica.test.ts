@@ -5,6 +5,8 @@ import { SimuladorNubefact, reiniciarSimuladorNubefact } from '@/services/nubefa
 import { construirConsulta, construirPayloadNubefact, faltantesDeGuia, type TrasladoGuia } from '@/domain/guia-electronica'
 import type { Actor } from '@/services/repositorio'
 import { imprimirYConformar } from './ayudas-orden'
+import { estadoE } from '@/services/demo/entradas-demo'
+import { desp } from '@/services/demo/despacho-demo'
 
 const actor = (id: string, ...roles: Actor['roles']): Actor => ({ id: `demo:${id}`, nombre: `${id} (demo)`, roles })
 const JT = actor('jefe_transporte', 'jefe_transporte', 'jefe_almacen'); const AUX = actor('auxiliar', 'auxiliar'); const SANDRA = actor('asistente_dt', 'asistente_dt', 'conformidad_despacho')
@@ -119,12 +121,29 @@ describe('anular la guía (demo)', () => {
     expect((await emitir(id)).reg).toMatchObject({ ok: true })
   })
 
-  it('caso 3 y una salida ya confirmada no se anulan desde el WMS', async () => {
+  it('caso 3 (SB-D): antes de la salida se pide el 1 o el 2; después, la baja no se bloquea, no toca el stock y deja la orden sin guía vigente', async () => {
     const { id } = await salidaConforme()
     const { reg } = await emitir(id)
     const guia = reg.ok ? reg.id : ''
-    expect(await repo.anularGuia(guia, 3, 'Ya salió', JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('retorno como devolución') })
-    expect((await repo.paqueteSalida(id))!.guia).toBeDefined()
+    expect(await repo.anularGuia(guia, 3, 'Ya salió', JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('todavía no salió') })
+    // la orden sale (se confirma)
+    const e = estadoE(); desp(e).salidas.find((x) => x.id === id)!.estado = 'CONFIRMADA'
+    expect(await repo.anularGuia(guia, 1, 'Dato', JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('la guía ya salió') })
+    const stock = async () => (await repo.listarSalidas()).length
+    const antes = await stock()
+    expect(await repo.anularGuia(guia, 3, '', JT)).toMatchObject({ ok: false })
+    expect(await repo.anularGuia(guia, 3, 'La contadora pidió otra serie', { ...JT, roles: ['asistente_dt'] })).toMatchObject({ ok: false })
+    expect(await repo.anularGuia(guia, 3, 'La contadora pidió otra serie', JT)).toMatchObject({ ok: true, caso: 3, conformidadReabierta: false })
+    expect(await stock()).toBe(antes)
+    const res = (await repo.listarSalidas()).find((x) => x.id === id)!
+    expect(res.faltaGuiaVigente).toBe(true); expect(res.etapa).toBe('CONFIRMADA')
+    const ev = (await repo.eventosPedidos({ salidaId: id })).filter((x) => x.tipo === 'GUIA_ANULADA')
+    expect(ev).toHaveLength(1)
+    expect(ev[0].payload).toMatchObject({ caso: 3, salida_confirmada: true, falta_guia_vigente: true, factura_anulacion_directa_dias: 7, baja_sunat: 'PENDIENTE' })
+    // se emite la guía nueva aunque la orden ya salió; con una vigente no se acepta otra
+    expect((await emitir(id)).reg).toMatchObject({ ok: true })
+    expect((await repo.listarSalidas()).find((x) => x.id === id)!.faltaGuiaVigente).toBeUndefined()
+    expect(await repo.registrarGre(id, 'T001-00009999', undefined, JT)).toMatchObject({ ok: false })
   })
 
   it('la anulación vieja (S6b) sigue siendo el caso 1', async () => {

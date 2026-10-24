@@ -6,7 +6,7 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
   jefe_almacen: 'Jefe de Almacén',
   auxiliar: 'Auxiliar de almacén',
   auditoria_lectura: 'Auditoría (solo lectura)',
-  admin_wms: 'Administración del WMS',
+  admin_wms: 'Administrador',
   jefe_transporte: 'Jefe de Transporte',
   conductor: 'Conductor',
   auxiliar_transporte: 'Auxiliar de transporte',
@@ -27,7 +27,11 @@ const PERMISOS: Record<Rol, readonly Accion[]> = {
   jefe_almacen: conAuxiliar('exportar', 'preparar_salidas', 'solicitar_baja', 'registrar_ls_fr', 'originar_retorno', 'entregar_al_transportista_cliente'),
   auxiliar: PERMISOS_AUXILIAR,
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
-  admin_wms: ['ver', 'configurar', 'exportar', 'auditar'],
+  // D-194: el Administrador (Sebastián y Andrés) tiene todo lo operativo y la configuración. NO tiene las decisiones sanitarias (aprobar, ajustar, autorizar_baja,
+  // registrar_dictamen_cliente, marcar_antecedentes_calidad, gestionar_documentos_regulatorios, liberar_stock_propietario): esas son solo de Dirección Técnica.
+  admin_wms: ['ver', 'ejecutar', 'verificar', 'configurar', 'exportar', 'auditar', 'dar_conformidad', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'autorizar_salida_sin_venta',
+    'preparar_salidas', 'confirmar_salida', 'planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote', 'anular_guia',
+    'solicitar_baja', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente'],
   jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente'),
   conductor: [], // sus permisos llegan con «Mis rutas» (S9)
   auxiliar_transporte: [],
@@ -65,4 +69,16 @@ export function rolesDesdeTexto(valor: string | undefined | null): Rol[] {
     .split(',')
     .map((s) => s.trim())
     .filter((s): s is Rol => s in ETIQUETA_ROL)
+}
+
+/** Las decisiones sanitarias: solo las firma Dirección Técnica (o su asistente donde ya estaba). El Administrador nunca las tiene (D-194). */
+export const ACCIONES_SANITARIAS: readonly Accion[] = ['aprobar', 'ajustar', 'autorizar_baja', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad', 'gestionar_documentos_regulatorios', 'liberar_stock_propietario']
+
+/**
+ * D-194: espejo de `wms.tiene_rol` (0034). Para las funciones que preguntan por rol, el Administrador cuenta como Jefe de Almacén, Jefe de Transporte y auxiliar
+ * (lo operativo); nunca como Dirección Técnica ni como su asistente. Se aplica una sola vez, al armar la sesión; `rolesAsignados` conserva los reales para mostrarlos.
+ */
+export function rolesEfectivos(roles: readonly Rol[]): Rol[] {
+  if (!roles.includes('admin_wms')) return [...roles]
+  return [...new Set<Rol>([...roles, 'jefe_almacen', 'jefe_transporte', 'auxiliar'])]
 }

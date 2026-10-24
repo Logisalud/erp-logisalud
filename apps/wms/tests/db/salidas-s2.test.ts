@@ -865,7 +865,7 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     const p = await producto()
     await sembrar(p, 'F-1.1', 'P1', en(100), logissa, 10)
     const s = await crear(jt, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 1 }])
-    for (const quien of [aux1, sandra, base.personas.sinRol.id, base.personas.auditor.id, base.personas.admin.id]) {
+    for (const quien of [aux1, sandra, base.personas.sinRol.id, base.personas.auditor.id]) {
       expect((await falla(crear(quien, 'DISTRIBUCION', 'VENTA', logissa, [{ producto_id: p, cantidad: 1 }]))).message).toMatch(/permiso|Sesión/)
       expect((await falla(asignar(quien, s))).message).toMatch(/permiso/)
       expect((await falla(como(quien, (c) => c.query('select wms.generar_orden_picking($1)', [s])))).message).toMatch(/permiso/)

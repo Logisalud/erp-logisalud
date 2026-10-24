@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ETIQUETA_ROL, ROLES_DE_PERSONAL, esPersonal, puede, puedeCrearProducto, puedeEditarRegulatorio, rolesDesdeTexto } from '@/domain/permisos'
+import { ACCIONES_SANITARIAS, rolesEfectivos, ETIQUETA_ROL, ROLES_DE_PERSONAL, esPersonal, puede, puedeCrearProducto, puedeEditarRegulatorio, rolesDesdeTexto } from '@/domain/permisos'
 
 describe('permisos por rol', () => {
   it('solo Dirección Técnica aprueba y ajusta', () => {
@@ -57,7 +57,7 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
   })
   it('la Reserva de un lote la aplican y la quitan solo el Jefe de Transporte y Dirección Técnica', () => {
     for (const r of ['jefe_transporte', 'direccion_tecnica'] as const) expect(puede([r], 'reservar_lote'), r).toBe(true)
-    for (const r of ['jefe_almacen', 'auxiliar', 'asistente_dt', 'conformidad_despacho', 'admin_wms'] as const) expect(puede([r], 'reservar_lote'), r).toBe(false)
+    for (const r of ['jefe_almacen', 'auxiliar', 'asistente_dt', 'conformidad_despacho'] as const) expect(puede([r], 'reservar_lote'), r).toBe(false)
   })
   it('solo Dirección Técnica gestiona los documentos regulatorios', () => {
     expect(puede(['direccion_tecnica'], 'gestionar_documentos_regulatorios')).toBe(true)
@@ -65,11 +65,11 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
   })
   it('las salidas sin venta las autoriza solo su rol', () => {
     expect(puede(['autoriza_salidas_sin_venta'], 'autorizar_salida_sin_venta')).toBe(true)
-    for (const r of ['direccion_tecnica', 'jefe_almacen', 'jefe_transporte', 'admin_wms'] as const) expect(puede([r], 'autorizar_salida_sin_venta'), r).toBe(false)
+    for (const r of ['direccion_tecnica', 'jefe_almacen', 'jefe_transporte'] as const) expect(puede([r], 'autorizar_salida_sin_venta'), r).toBe(false)
   })
   it('la venta manual (tipo A) la crea solo el Jefe de Transporte', () => {
     expect(puede(['jefe_transporte'], 'crear_orden_venta_manual')).toBe(true)
-    for (const r of ['jefe_almacen', 'auxiliar', 'direccion_tecnica', 'asistente_dt', 'admin_wms', 'autoriza_salidas_sin_venta', 'usuario_cliente'] as const) expect(puede([r], 'crear_orden_venta_manual'), r).toBe(false)
+    for (const r of ['jefe_almacen', 'auxiliar', 'direccion_tecnica', 'asistente_dt', 'autoriza_salidas_sin_venta', 'usuario_cliente'] as const) expect(puede([r], 'crear_orden_venta_manual'), r).toBe(false)
   })
   it('el usuario de cliente y los roles de campo no tienen ningún permiso ni cuentan como personal', () => {
     for (const r of ['usuario_cliente', 'conductor', 'auxiliar_transporte'] as const) {
@@ -86,3 +86,23 @@ describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
   })
 })
 
+
+describe('rol Administrador (SB-D, D-194)', () => {
+  it('se llama Administrador y tiene todo lo operativo y la configuración', () => {
+    expect(ETIQUETA_ROL.admin_wms).toBe('Administrador')
+    for (const a of ['configurar', 'preparar_salidas', 'confirmar_salida', 'anular_guia', 'registrar_documentacion', 'originar_retorno', 'crear_orden_venta_manual', 'embalar', 'cerrar_ruta', 'dar_conformidad', 'autorizar_salida_sin_venta', 'auditar'] as const)
+      expect(puede(['admin_wms'], a), a).toBe(true)
+  })
+  it('nunca firma decisiones sanitarias: esas son solo de Dirección Técnica', () => {
+    for (const a of ACCIONES_SANITARIAS) expect(puede(['admin_wms'], a), a).toBe(false)
+    expect(puede(['admin_wms'], 'aprobar')).toBe(false)
+    expect(puede(['direccion_tecnica'], 'aprobar')).toBe(true)
+    expect(puede(rolesEfectivos(['admin_wms']), 'autorizar_baja')).toBe(false)
+  })
+  it('para las funciones que preguntan por rol cuenta como jefe y auxiliar, nunca como Dirección Técnica ni su asistente', () => {
+    const r = rolesEfectivos(['admin_wms'])
+    expect(r).toEqual(expect.arrayContaining(['admin_wms', 'jefe_almacen', 'jefe_transporte', 'auxiliar']))
+    expect(r).not.toContain('direccion_tecnica'); expect(r).not.toContain('asistente_dt')
+    expect(rolesEfectivos(['auxiliar'])).toEqual(['auxiliar'])
+  })
+})

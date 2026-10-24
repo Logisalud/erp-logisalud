@@ -203,6 +203,6 @@ describe('migración 0021', () => {
   it('es re-ejecutable', async () => {
     const { SQL } = await import('./helpers')
     await base.admin.query(SQL.m0021()); await base.admin.query(SQL.m0021())
-    expect((await uno(`select count(*)::int n from wms.permisos_rol where accion in ('cargar_ruta', 'liberar_unidad')`)).n).toBe(4)
+    expect((await uno(`select count(*)::int n from wms.permisos_rol where accion in ('cargar_ruta', 'liberar_unidad')`)).n).toBe(6)
   })
 })

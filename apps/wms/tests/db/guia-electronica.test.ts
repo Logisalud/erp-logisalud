@@ -187,14 +187,37 @@ describe('anular la guía por casos', () => {
     expect((await uno('select estado from wms.guias_remision where id = $1', [id])).estado).toBe('VIGENTE')
   })
 
-  it('caso 3: después de la salida confirmada no se anula desde el WMS', async () => {
+  it('caso 3 (SB-D): antes de la salida se pide el 1 o el 2; después de la salida se marca la guía anulada SIN tocar el stock y se emite una nueva', async () => {
     const o = await orden('F-7.3', 5)
     await conformar(sandra, o.op, 1); await aRuta(o.salida)
     const id = await emitir(jt, o.salida)
-    expect((await falla(anular(jt, id, 3))).message).toMatch(/Después de la salida confirmada.*retorno como devolución/)
+    expect((await falla(anular(jt, id, 3))).message).toMatch(/todavía no salió/)
     await base.admin.query(`update wms.salidas set estado = 'CONFIRMADA' where id = $1`, [o.salida])
-    expect((await falla(anular(jt, id, 1))).message).toMatch(/Después de la salida confirmada/)
+    expect((await falla(anular(jt, id, 1))).message).toMatch(/ya salió: elige «la guía ya salió»/)
     expect((await uno('select estado from wms.guias_remision where id = $1', [id])).estado).toBe('VIGENTE')
+    const partidas = async () => Number((await uno('select coalesce(sum(delta),0)::int n from wms.partidas')).n)
+    const antes = await partidas()
+    expect((await falla(anular(jt, id, 3, ''))).message).toMatch(/por qué se anula/)
+    const r = await como(jt, async (c) => (await c.query('select wms.anular_guia($1, 3, $2) r', [id, 'La contadora pidió otra serie'])).rows[0].r)
+    expect(r).toMatchObject({ caso: 3, conformidad_reabierta: false })
+    expect(await partidas()).toBe(antes)
+    expect(await uno('select estado, caso_anulacion from wms.guias_remision where id = $1', [id])).toMatchObject({ estado: 'ANULADA', caso_anulacion: 3 })
+    expect((await uno('select estado from wms.salidas where id = $1', [o.salida])).estado).toBe('CONFIRMADA')
+    const ev = (await eventos(id)).filter((e) => e.tipo === 'GUIA_ANULADA')
+    expect(ev).toHaveLength(1)
+    expect(ev[0].payload).toMatchObject({ salida_confirmada: true, falta_guia_vigente: true, factura_anulacion_directa_dias: 7 })
+    // la orden queda sin guía vigente: se registra una nueva aunque la salida ya salió
+    const nueva = await como(jt, async (c) => (await c.query('select wms.registrar_gre($1, $2, null) id', [o.salida, `T002-${String(++nGuia).padStart(8, '0')}`])).rows[0].id as string)
+    expect((await uno('select estado from wms.guias_remision where id = $1', [nueva])).estado).toBe('VIGENTE')
+    // con una guía vigente no se puede registrar otra
+    expect((await falla(como(jt, (c) => c.query('select wms.registrar_gre($1, $2, null)', [o.salida, `T002-${String(++nGuia).padStart(8, '0')}`])))).message).toMatch(/ya no está abierta/)
+  })
+
+  it('una salida confirmada que nunca tuvo guía no acepta una guía nueva', async () => {
+    const o = await orden('F-10.1', 2)
+    await conformar(sandra, o.op, 1)
+    await base.admin.query(`update wms.salidas set estado = 'CONFIRMADA' where id = $1`, [o.salida])
+    expect((await falla(como(jt, (c) => c.query('select wms.registrar_gre($1, $2, null)', [o.salida, `T002-${String(++nGuia).padStart(8, '0')}`])))).message).toMatch(/ya no está abierta/)
   })
 
   it('anular_gre de la S6b sigue funcionando como el caso 1', async () => {

@@ -43,6 +43,15 @@ export const motivoDeTraslado = (tipo: TipoSalida) => MOTIVO_TRASLADO_POR_TIPO[t
 export const codigoMotivoValido = (c: string | undefined | null) => /^\d{2}$/.test((c ?? '').trim())
 /** D-165: con el motivo 13 (OTROS) Nubefact pide `motivo_de_traslado_otros_descripcion`, máximo 70 caracteres. Confirmado por Sebas: devolución al proveedor = 06 DEVOLUCION; muestra sin venta y retorno de rechazo = 13 OTROS. */
 export const MAXIMO_DESCRIPCION_OTROS = 70
+/** D-190: espejo del trigger `validar_parametro` (0034). null = válido. */
+export function errorDescripcionOtros(texto: string | undefined | null): string | null {
+  const n = (texto ?? '').trim().length
+  return n >= 1 && n <= MAXIMO_DESCRIPCION_OTROS ? null : `La descripción del motivo «otros» lleva entre 1 y ${MAXIMO_DESCRIPCION_OTROS} caracteres (Nubefact no acepta más)`
+}
+/** D-190: el código del motivo son 2 números (Catálogo 20 de SUNAT): 01 venta, 06 devolución, 13 otros. null = válido. */
+export const errorCodigoMotivo = (c: string | undefined | null): string | null => (codigoMotivoValido(c) ? null : 'El código del motivo de traslado son 2 números (Catálogo 20 de SUNAT), por ejemplo 01, 06 o 13')
+/** D-192: plazo informativo para anular una factura directo en Nubefact; pasado el plazo corresponde una nota de crédito. Lo decide Pedidos. */
+export const FACTURA_ANULACION_DIRECTA_DIAS = 7
 export const DESCRIPCION_OTROS_POR_DEFECTO = { MUESTRA: 'MUESTRA SIN VALOR COMERCIAL', RETORNO: 'RETORNO DE RECHAZO' } as const
 export const parametroDescripcionOtros = (tipo: TipoSalida): string => (tipo === 'MUESTRA' ? 'guia_motivo_otros_descripcion_muestra' : 'guia_motivo_otros_descripcion_retorno')
 /** La descripción de «otros» (solo cuando el código es 13): el parámetro si trae texto; si no, la de la tabla. Máximo 70 caracteres. */
@@ -259,17 +268,25 @@ export const CASOS_ANULACION: readonly DescripcionCaso[] = [
     sigue: 'La Orden de Salida no cambia. Corrige el dato y emite otra guía.' },
   { caso: 2, titulo: 'Me equivoqué en el contenido', detalle: 'Un lote o una cantidad, antes de que el vehículo salga.',
     sigue: 'La Orden vuelve a conformidad: el stock regresa de Despacho a su ubicación, otra persona confirma de nuevo y emites otra guía.' },
-  { caso: 3, titulo: 'La guía ya salió', detalle: 'Después de la salida confirmada.',
-    sigue: 'No se anula desde el WMS: el retorno entra como devolución y se crea una nueva Orden de Salida con su guía.' },
+  { caso: 3, titulo: 'La guía ya salió', detalle: 'Después de la salida confirmada. No hay plazo para darla de baja (a confirmar con Contabilidad).',
+    sigue: 'El stock NO se toca: la salida sigue confirmada. La orden queda «guía anulada, falta guía vigente» y emites una guía nueva. Si la mercadería vuelve al almacén, entra como una devolución.' },
 ]
-export const MENSAJE_CASO_3 = 'Después de la salida confirmada la guía no se anula desde el WMS: se corrige con el retorno como devolución y una nueva Orden de Salida con su guía'
+/** Un caso solo vale antes (1 y 2) o solo después (3) de la salida confirmada. */
+export const MENSAJE_CASO_3_ANTES_DE_SALIR = 'La orden todavía no salió: elige «me equivoqué en los datos» o «me equivoqué en el contenido»'
+export const MENSAJE_CASO_1_2_DESPUES_DE_SALIR = 'La orden ya salió: elige «la guía ya salió». El stock no se toca y se emite una guía nueva'
+/** @deprecated D-191: la baja después de la salida ya no se bloquea; se mantiene el nombre para quien lo importe. */
+export const MENSAJE_CASO_3 = MENSAJE_CASO_3_ANTES_DE_SALIR
+/** Texto de «Qué pasa con la baja» ante SUNAT (D-191). */
+export const TEXTO_BAJA_EN_NUBEFACT = 'Dala de baja también en el panel de Nubefact: SUNAT no fija un plazo (se confirma con Contabilidad). Si ya la diste de baja allá, usa «Verificar en Nubefact».'
 
-/** Por qué no se puede anular con ese caso (null = se puede). Espejo de wms.anular_guia. */
-export function motivoNoPuedeAnular(roles: readonly Rol[], caso: CasoAnulacion | null, o: { salidaAbierta: boolean; guiaVigente: boolean; motivo: string }): string | null {
+/** Por qué no se puede anular con ese caso (null = se puede). Espejo de wms.anular_guia (0034). */
+export function motivoNoPuedeAnular(roles: readonly Rol[], caso: CasoAnulacion | null, o: { salidaAbierta: boolean; guiaVigente: boolean; motivo: string; salidaConfirmada?: boolean }): string | null {
   if (!puedeAnularGuia(roles)) return 'Solo el Jefe de Transporte puede anular una guía'
   if (!o.guiaVigente) return 'Esa guía ya está anulada'
   if (caso === null) return 'Elige qué se equivocó: los datos del traslado, el contenido, o la guía ya salió'
-  if (caso === 3 || !o.salidaAbierta) return MENSAJE_CASO_3
+  const confirmada = o.salidaConfirmada ?? !o.salidaAbierta
+  if (caso === 3 && !confirmada) return MENSAJE_CASO_3_ANTES_DE_SALIR
+  if (caso !== 3 && !o.salidaAbierta) return confirmada ? MENSAJE_CASO_1_2_DESPUES_DE_SALIR : 'La orden está cancelada: no hay nada que anular'
   if (!o.motivo.trim()) return 'Cuenta por qué se anula la guía'
   return null
 }

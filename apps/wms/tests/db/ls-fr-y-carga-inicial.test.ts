@@ -66,7 +66,7 @@ describe('LS-FR.43.03: lo que DT resolvió deja de estar pendiente', () => {
 describe('cerrar la ruta (data logger, mínima y máxima)', () => {
   it('solo el Jefe de Transporte cierra', async () => {
     const r = await ruta('EN_RUTA')
-    for (const quien of [aux, jefeAlmacen, dtId, asistente, admin]) expect((await falla(cerrar(quien, r, 17, 22))).code).toBe('42501')
+    for (const quien of [aux, jefeAlmacen, dtId, asistente]) expect((await falla(cerrar(quien, r, 17, 22))).code).toBe('42501')
     expect(await estadoRuta(r)).toBe('EN_RUTA')
     await cerrar(jt, r, 17, 22)
     expect(await estadoRuta(r)).toBe('CERRADA')

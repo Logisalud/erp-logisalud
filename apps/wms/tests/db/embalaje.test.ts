@@ -171,6 +171,6 @@ describe('migración 0020', () => {
   it('es re-ejecutable', async () => {
     const { SQL } = await import('./helpers')
     await base.admin.query(SQL.m0020()); await base.admin.query(SQL.m0020())
-    expect((await uno(`select count(*)::int n from wms.permisos_rol where accion = 'embalar'`)).n).toBe(3)
+    expect((await uno(`select count(*)::int n from wms.permisos_rol where accion = 'embalar'`)).n).toBe(4)
   })
 })
