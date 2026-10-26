@@ -35,6 +35,7 @@ export default function EfectivoPorDepositarPage() {
   const [referenciaDep, setReferenciaDep] = useState('');
   const [subiendo, setSubiendo]     = useState(false);
   const [guardando, setGuardando]   = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [msg, setMsg]               = useState<{ texto: string; ok: boolean } | null>(null);
 
   const cargar = useCallback(async () => {
@@ -50,6 +51,32 @@ export default function EfectivoPorDepositarPage() {
   }, [verDepositados]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  // El Excel trae SIEMPRE todo el efectivo —depositado o no— aunque la
+  // pantalla esté mostrando solo lo pendiente: la pregunta que contesta es
+  // "quién pagó en efectivo", no "qué falta llevar al banco". El botón lo
+  // dice, para que nadie lo lea como un export de lo que está viendo.
+  const exportar = async () => {
+    setExportando(true);
+    try {
+      const res = await fetch('/api/exportar/efectivo');
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? 'No se pudo generar el Excel.');
+      }
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `efectivo-cobrado-${hoy()}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch (e) {
+      setMsg({ texto: String(e instanceof Error ? e.message : e), ok: false });
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const verVoucher = async (path: string) => {
     const res = await fetch(`/api/pagos/voucher-url?path=${encodeURIComponent(path)}`);
@@ -132,10 +159,22 @@ export default function EfectivoPorDepositarPage() {
           </div>
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer mb-4">
-          <input type="checkbox" checked={verDepositados} onChange={e => setVerDepositados(e.target.checked)} className="accent-logisalud-teal" />
-          Incluir ya depositados (historial completo)
-        </label>
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+            <input type="checkbox" checked={verDepositados} onChange={e => setVerDepositados(e.target.checked)} className="accent-logisalud-teal" />
+            Incluir ya depositados (historial completo)
+          </label>
+
+          <button
+            onClick={exportar}
+            disabled={exportando}
+            title="Incluye todos los cobros en efectivo, depositados y pendientes"
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 flex items-center gap-2"
+          >
+            <span style={{ color: '#4BB168' }}>↓</span>
+            {exportando ? 'Generando…' : 'Exportar todo el efectivo a Excel'}
+          </button>
+        </div>
 
         {msg && (
           <div className={`p-3 rounded-lg text-sm mb-4 ${msg.ok ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
