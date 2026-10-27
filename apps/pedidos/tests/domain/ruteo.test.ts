@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { armarHojaDeRuta, diaSemanaISO, type ParaPreparar } from "@/domain/ruteo";
+import {
+  armarHojaDeRuta,
+  diaAnterior,
+  diaSemanaISO,
+  hoyEnLima,
+  type ParaPreparar,
+} from "@/domain/ruteo";
 
 function pedido(p: Partial<ParaPreparar> & { numero: number }): ParaPreparar {
   return {
@@ -64,5 +70,20 @@ describe("diaSemanaISO", () => {
     expect(diaSemanaISO(new Date(2026, 9, 26))).toBe(1); // lunes
     expect(diaSemanaISO(new Date(2026, 9, 30))).toBe(5); // viernes
     expect(diaSemanaISO(new Date(2026, 10, 1))).toBe(7); // domingo
+  });
+});
+
+describe("el corte de 'desde ayer'", () => {
+  it("toma el día de Perú, no el del servidor en UTC", () => {
+    // 27/10 a las 00:30 UTC es todavía el 26 en Lima (UTC-5). Sin esto, un
+    // pedido enviado a las 7 de la noche quedaría del día siguiente y el
+    // corte lo dejaría afuera.
+    expect(hoyEnLima(new Date("2026-10-27T00:30:00Z"))).toBe("2026-10-26");
+    expect(hoyEnLima(new Date("2026-10-27T05:00:00Z"))).toBe("2026-10-27");
+
+    expect(diaAnterior("2026-10-27")).toBe("2026-10-26");
+    // Cruza el fin de mes sin pedir ayuda a ninguna librería.
+    expect(diaAnterior("2026-11-01")).toBe("2026-10-31");
+    expect(diaAnterior("2026-01-01")).toBe("2025-12-31");
   });
 });

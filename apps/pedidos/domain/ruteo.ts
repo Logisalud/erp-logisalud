@@ -105,3 +105,21 @@ export function armarHojaDeRuta(pedidos: ParaPreparar[]): HojaDeRuta {
     distritos: new Set(ordenados.map((p) => p.distrito ?? "—")).size,
   };
 }
+
+/**
+ * El día de hoy en Perú, como YYYY-MM-DD.
+ *
+ * Perú no tiene horario de verano, así que es UTC-5 fijo todo el año: no
+ * hace falta una librería de zonas horarias para esto, y usar la hora del
+ * servidor (UTC) correría el corte cinco horas — un pedido enviado a las
+ * 8 de la noche caería en el día siguiente.
+ */
+export function hoyEnLima(ahora = new Date()): string {
+  return new Date(ahora.getTime() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** El día anterior a una fecha YYYY-MM-DD. */
+export function diaAnterior(fecha: string): string {
+  const [a, m, d] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10);
+}
