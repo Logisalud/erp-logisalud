@@ -19,7 +19,8 @@ describe("stock al armar el pedido", () => {
   it("un producto que no está en el archivo del almacén cuenta como cero", () => {
     // La pantalla resuelve el faltante con `?? 0`: no tener fila y tener
     // cero son lo mismo para quien vende.
-    expect(hayStockParaPedir(Number(undefined ?? 0))).toBe(false);
+    const sinFila: Record<string, number> = {};
+    expect(hayStockParaPedir(sinFila["PRODUCTO-QUE-NO-ESTA"] ?? 0)).toBe(false);
   });
 
   it("un stock negativo —dato sucio— se trata como sin stock, no como disponible", () => {

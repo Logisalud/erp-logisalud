@@ -22,6 +22,24 @@ export default async function OperacionesPage() {
         </p>
       </div>
 
+      {cola.length > 0 && (
+        <Link
+          href="/operaciones/ruta"
+          className="card-highlight flex items-center justify-between gap-3 p-4 hover:shadow-md"
+        >
+          <span>
+            <span className="font-heading text-base">Armar la ruta del día</span>
+            <span className="mt-0.5 block text-sm text-gray-600">
+              Elegí qué pedidos salen hoy y sale la hoja de ruta ordenada por zona y distrito,
+              lista para imprimir.
+            </span>
+          </span>
+          <span aria-hidden className="text-xl text-logisalud-green">
+            →
+          </span>
+        </Link>
+      )}
+
       <section>
         <h3 className="font-heading text-lg">
           Por preparar {cola.length > 0 && <span className="text-gray-500">({cola.length})</span>}
