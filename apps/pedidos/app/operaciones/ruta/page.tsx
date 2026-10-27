@@ -21,7 +21,7 @@ export default async function RutaDelDiaPage({
     ? searchParams?.desde
     : undefined;
 
-  const { zonas, pendientes, diaSemana, desde, anteriores } =
+  const { zonas, pendientes, diaSemana, plan, desde, anteriores } =
     await cargarDatosDeRuteo(desdePedido);
 
   return (
@@ -72,7 +72,12 @@ export default async function RutaDelDiaPage({
         </p>
       </form>
 
-      <ArmadorDeRuta zonas={zonas} pendientes={pendientes} diaSemana={diaSemana} />
+      <ArmadorDeRuta
+        zonas={zonas}
+        pendientes={pendientes}
+        diaSemana={diaSemana}
+        plan={plan}
+      />
     </div>
   );
 }

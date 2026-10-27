@@ -123,3 +123,75 @@ export function diaAnterior(fecha: string): string {
   const [a, m, d] = fecha.split("-").map(Number);
   return new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10);
 }
+
+/** Qué zonas se visitan cada día, como lo declara el plan semanal. */
+export type PlanSemanal = Array<{ dia: number; zonaIds: number[] }>;
+
+export type DiaDeLaSemana = {
+  dia: number;
+  nombre: string;
+  zonaIds: number[];
+  pedidos: ParaPreparar[];
+  /** Destinos distintos: dos pedidos de la misma botica son una parada. */
+  destinos: number;
+};
+
+export type SemanaDeReparto = {
+  dias: DiaDeLaSemana[];
+  /** Los que no caen en ningún día: su zona no está en el plan, o no tienen zona. */
+  sinDia: ParaPreparar[];
+};
+
+/**
+ * Reparte los pedidos pendientes en los días de la semana.
+ *
+ * Un pedido va al **próximo día en que se visita su zona**, contando desde
+ * hoy y dando la vuelta a la semana si hace falta. Por eso cada pedido
+ * aparece UNA sola vez aunque su zona se visite dos veces: si apareciera en
+ * los dos días, la carga diaria se vería al doble y el cuadro dejaría de
+ * servir para lo único que sirve, que es saber cuánto sale cada día.
+ *
+ * Lo que no tiene día —una zona fuera del plan, o un destino de provincia—
+ * no se descarta: se devuelve aparte. Un pedido que desaparece de la
+ * pantalla es un pedido que nadie reclama hasta que llama el cliente.
+ */
+export function repartirEnLaSemana(
+  pedidos: ParaPreparar[],
+  plan: PlanSemanal,
+  hoy: number,
+): SemanaDeReparto {
+  const dias: DiaDeLaSemana[] = plan
+    .slice()
+    .sort((a, b) => a.dia - b.dia)
+    .map((p) => ({
+      dia: p.dia,
+      nombre: NOMBRE_DIA[p.dia] ?? String(p.dia),
+      zonaIds: p.zonaIds,
+      pedidos: [],
+      destinos: 0,
+    }));
+
+  const sinDia: ParaPreparar[] = [];
+
+  for (const pedido of pedidos) {
+    const destino =
+      pedido.zonaId === null
+        ? undefined
+        : // Desde hoy hacia adelante, dando la vuelta: si hoy es jueves y
+          // la zona se visita lunes y miércoles, le toca el lunes.
+          dias
+            .map((d) => ({ d, distancia: (d.dia - hoy + 7) % 7 }))
+            .sort((a, b) => a.distancia - b.distancia)
+            .find((x) => x.d.zonaIds.includes(pedido.zonaId as number))?.d;
+
+    if (destino) destino.pedidos.push(pedido);
+    else sinDia.push(pedido);
+  }
+
+  for (const d of dias) {
+    d.pedidos = armarHojaDeRuta(d.pedidos).grupos.flatMap((g) => g.paradas);
+    d.destinos = new Set(d.pedidos.map((p) => `${p.razonSocial}|${p.direccion ?? ""}`)).size;
+  }
+
+  return { dias, sinDia };
+}
