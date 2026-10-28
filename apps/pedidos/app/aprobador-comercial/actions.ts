@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUserId } from "@/lib/auth/session";
 import { decideApprovalRequest, type ApprovalDecision } from "@/services/approvals";
+import { decidirBloqueoDeCredito } from "@/services/credito";
 import { falloDe, type ResultadoAccion } from "@/domain/acciones";
 
 /**
@@ -29,5 +30,32 @@ export async function decidirSolicitud(
     return { ok: true };
   } catch (err) {
     return falloDe(err, "No se pudo resolver la solicitud.");
+  }
+}
+
+/**
+ * Levantar (o confirmar) el freno por deuda de un pedido.
+ *
+ * Aprobar reevalúa el pedido: si no le queda ninguna otra excepción, sale a
+ * operaciones. Rechazar lo deja frenado — el pedido no se borra, queda para
+ * cuando el cliente pague.
+ */
+export async function decidirBloqueo(
+  orderId: string,
+  decision: "aprobado" | "rechazado",
+  motivo: string | undefined,
+): Promise<ResultadoAccion> {
+  try {
+    const userId = await requireUserId();
+    await decidirBloqueoDeCredito({
+      orderId,
+      decision,
+      motivo: motivo?.trim() ? motivo.trim() : null,
+      actor: userId,
+    });
+    revalidatePath("/aprobador-comercial");
+    return { ok: true };
+  } catch (err) {
+    return falloDe(err, "No se pudo resolver el bloqueo por deuda.");
   }
 }

@@ -59,6 +59,12 @@ const SECTIONS = [
       "Escalas y bonificaciones por producto y canal, desde el archivo de Diphasac. Se aplican solas al pedido.",
   },
   {
+    href: "/admin/credito",
+    title: "Crédito del cliente",
+    description:
+      "La deuda que trae el ERP de cobranzas y la regla que frena un pedido a crédito cuando el cliente está vencido.",
+  },
+  {
     href: "/admin/maestros/despacho",
     title: "Despacho",
     description: "Fuentes de stock, almacenes, vehículos, choferes y transportistas.",
