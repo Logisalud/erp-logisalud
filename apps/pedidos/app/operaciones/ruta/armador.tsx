@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { armarHojaDeRuta, NOMBRE_DIA, type ParaPreparar } from "@/domain/ruteo";
+import {
+  armarHojaDeRuta,
+  NOMBRE_DIA,
+  repartirEnLaSemana,
+  type ParaPreparar,
+  type PlanSemanal,
+} from "@/domain/ruteo";
 import type { ZonaDeReparto } from "@/services/ruteo";
 
 const fecha = (iso: string | null) =>
@@ -21,11 +27,14 @@ export function ArmadorDeRuta({
   zonas,
   pendientes,
   diaSemana,
+  plan,
 }: {
   zonas: ZonaDeReparto[];
   pendientes: ParaPreparar[];
   diaSemana: number;
+  plan: PlanSemanal;
 }) {
+  const [vista, setVista] = useState<"hoy" | "semana">("hoy");
   const zonasDeHoy = useMemo(
     () => new Set(zonas.filter((z) => z.esDeHoy).map((z) => z.id)),
     [zonas],
@@ -71,12 +80,89 @@ export function ArmadorDeRuta({
     [pendientes, elegidos],
   );
 
+  const semana = useMemo(
+    () => repartirEnLaSemana(pendientes, plan, diaSemana),
+    [pendientes, plan, diaSemana],
+  );
+
+  const nombreZona = (id: number) => zonas.find((z) => z.id === id)?.nombre ?? "—";
+
   if (pendientes.length === 0) {
     return <p className="card p-5 text-sm text-gray-600">No hay pedidos esperando despacho.</p>;
   }
 
+  if (vista === "semana") {
+    return (
+      <div className="flex flex-col gap-4">
+        <Pestanias vista={vista} cambiar={setVista} />
+
+        <p className="text-sm text-gray-600">
+          Cada pedido cae en el <strong>próximo día en que se visita su zona</strong>, contando
+          desde hoy. Aparece una sola vez aunque su zona se visite dos veces por semana: si
+          saliera en los dos días, la carga diaria se vería al doble.
+        </p>
+
+        {semana.dias.map((d) => (
+          <section key={d.dia} className={`card p-4 ${d.dia === diaSemana ? "card-highlight" : ""}`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-heading text-base capitalize">
+                {d.nombre}
+                {d.dia === diaSemana && (
+                  <span className="ml-2 rounded-full bg-logisalud-green/10 px-2 py-0.5 text-xs font-medium text-logisalud-green">
+                    hoy
+                  </span>
+                )}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {d.zonaIds.map(nombreZona).join(" + ")} · {d.pedidos.length}{" "}
+                {d.pedidos.length === 1 ? "pedido" : "pedidos"} · {d.destinos}{" "}
+                {d.destinos === 1 ? "destino" : "destinos"}
+              </p>
+            </div>
+
+            {d.pedidos.length === 0 ? (
+              <p className="mt-2 text-sm text-gray-500">Sin pedidos para este día.</p>
+            ) : (
+              <ul className="mt-2 flex flex-col gap-1 text-sm">
+                {d.pedidos.map((p) => (
+                  <li key={p.id} className="flex flex-wrap gap-x-2 text-gray-700">
+                    <span className="cifra text-gray-600">#{p.numero}</span>
+                    <span className="font-medium text-gray-900">{p.razonSocial}</span>
+                    <span className="text-gray-600">
+                      {p.distrito ?? "—"} · {p.zonaNombre ?? "sin zona"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+
+        {semana.sinDia.length > 0 && (
+          <section className="card p-4">
+            <h3 className="font-heading text-base">Sin día asignado</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              Su destino está fuera de las zonas de reparto —provincia, casi siempre—, así que no
+              entra en la ruta de Lima. Van por agencia.
+            </p>
+            <ul className="mt-2 flex flex-col gap-1 text-sm">
+              {semana.sinDia.map((p) => (
+                <li key={p.id} className="flex flex-wrap gap-x-2 text-gray-700">
+                  <span className="cifra text-gray-600">#{p.numero}</span>
+                  <span className="font-medium text-gray-900">{p.razonSocial}</span>
+                  <span className="text-gray-600">{p.distrito ?? "—"}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      <Pestanias vista={vista} cambiar={setVista} />
       <section className="no-imprimir flex flex-col gap-3">
         {porZona.map((grupo) => {
           const ids = grupo.paradas.map((p) => p.id);
@@ -214,6 +300,30 @@ export function ArmadorDeRuta({
           ))}
         </section>
       )}
+    </div>
+  );
+}
+
+function Pestanias({
+  vista,
+  cambiar,
+}: {
+  vista: "hoy" | "semana";
+  cambiar: (v: "hoy" | "semana") => void;
+}) {
+  const clase = (activa: boolean) =>
+    `rounded-lg px-3 py-2 text-sm font-medium ${
+      activa ? "bg-logisalud-green text-white" : "bg-white text-gray-700 border border-gray-200"
+    }`;
+
+  return (
+    <div className="no-imprimir flex gap-2">
+      <button type="button" className={clase(vista === "hoy")} onClick={() => cambiar("hoy")}>
+        Armar la ruta de hoy
+      </button>
+      <button type="button" className={clase(vista === "semana")} onClick={() => cambiar("semana")}>
+        Ver la semana
+      </button>
     </div>
   );
 }

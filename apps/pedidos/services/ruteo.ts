@@ -1,6 +1,12 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { diaAnterior, diaSemanaISO, hoyEnLima, type ParaPreparar } from "@/domain/ruteo";
+import {
+  diaAnterior,
+  diaSemanaISO,
+  hoyEnLima,
+  type ParaPreparar,
+  type PlanSemanal,
+} from "@/domain/ruteo";
 
 /**
  * Lo que hace falta para armar la ruta del día.
@@ -24,6 +30,8 @@ export type DatosDeRuteo = {
   zonas: ZonaDeReparto[];
   pendientes: ParaPreparar[];
   diaSemana: number;
+  /** El plan completo de la semana, no sólo el de hoy. */
+  plan: PlanSemanal;
   /** Desde qué día de envío se están mostrando los pedidos (YYYY-MM-DD). */
   desde: string;
   /** Pendientes más viejos que ese corte. No se muestran, pero se dicen. */
@@ -56,7 +64,9 @@ export async function cargarDatosDeRuteo(
       .select("id, codigo, nombre, orden_ruta")
       .eq("estado", "activo")
       .order("orden_ruta"),
-    supabase.from("plan_semanal_reparto").select("zona_reparto_id").eq("dia_semana", diaSemana),
+    // La semana entera: el cuadro por día la necesita, y filtrar por hoy
+    // obligaría a una segunda consulta igual.
+    supabase.from("plan_semanal_reparto").select("dia_semana, zona_reparto_id"),
     supabase
       .from("orders")
       .select(
@@ -83,8 +93,21 @@ export async function cargarDatosDeRuteo(
   if (ubigeosRes.error) throw new Error(ubigeosRes.error.message);
   if (anterioresRes.error) throw new Error(anterioresRes.error.message);
 
+  const filasPlan = (planRes.data ?? []) as Array<{ dia_semana: number; zona_reparto_id: number }>;
+
+  const plan: PlanSemanal = [];
+  for (const fila of filasPlan) {
+    let dia = plan.find((d) => d.dia === fila.dia_semana);
+    if (!dia) {
+      dia = { dia: fila.dia_semana, zonaIds: [] };
+      plan.push(dia);
+    }
+    dia.zonaIds.push(fila.zona_reparto_id);
+  }
+  plan.sort((a, b) => a.dia - b.dia);
+
   const deHoy = new Set(
-    ((planRes.data ?? []) as Array<{ zona_reparto_id: number }>).map((p) => p.zona_reparto_id),
+    filasPlan.filter((p) => p.dia_semana === diaSemana).map((p) => p.zona_reparto_id),
   );
 
   const zonas: ZonaDeReparto[] = (
@@ -159,5 +182,12 @@ export async function cargarDatosDeRuteo(
     };
   });
 
-  return { zonas, pendientes, diaSemana, desde: corte, anteriores: anterioresRes.count ?? 0 };
+  return {
+    zonas,
+    pendientes,
+    diaSemana,
+    plan,
+    desde: corte,
+    anteriores: anterioresRes.count ?? 0,
+  };
 }

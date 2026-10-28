@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   armarHojaDeRuta,
+  repartirEnLaSemana,
   diaAnterior,
   diaSemanaISO,
   hoyEnLima,
@@ -85,5 +86,62 @@ describe("el corte de 'desde ayer'", () => {
     // Cruza el fin de mes sin pedir ayuda a ninguna librería.
     expect(diaAnterior("2026-11-01")).toBe("2026-10-31");
     expect(diaAnterior("2026-01-01")).toBe("2025-12-31");
+  });
+});
+
+describe("repartirEnLaSemana", () => {
+  // El plan real: cada zona dos veces por semana, dos zonas por día.
+  const PLAN = [
+    { dia: 1, zonaIds: [5, 3] },
+    { dia: 2, zonaIds: [1, 2] },
+    { dia: 3, zonaIds: [4, 3] },
+    { dia: 4, zonaIds: [5, 4] },
+    { dia: 5, zonaIds: [1, 2] },
+  ];
+
+  const sur = (numero: number) => pedido({ numero, zonaId: 1, zonaNombre: "Sur", ordenZona: 1 });
+  const centro = (numero: number) =>
+    pedido({ numero, zonaId: 3, zonaNombre: "Centro", ordenZona: 3, distrito: "LIMA" });
+
+  it("manda cada pedido al próximo día en que se visita su zona", () => {
+    // Lunes: Sur se visita martes y viernes, así que le toca el martes.
+    const semana = repartirEnLaSemana([sur(1), centro(2)], PLAN, 1);
+
+    const porDia = Object.fromEntries(semana.dias.map((d) => [d.dia, d.pedidos.map((p) => p.numero)]));
+    expect(porDia[2]).toEqual([1]);
+    expect(porDia[1]).toEqual([2]); // Centro se visita hoy mismo
+    expect(porDia[5]).toEqual([]);
+  });
+
+  it("da la vuelta a la semana cuando la zona ya pasó", () => {
+    // Jueves: Centro se visita lunes y miércoles, los dos ya pasaron esta
+    // semana, así que le toca el lunes que viene.
+    const semana = repartirEnLaSemana([centro(7)], PLAN, 4);
+    expect(semana.dias.find((d) => d.dia === 1)?.pedidos.map((p) => p.numero)).toEqual([7]);
+  });
+
+  it("cuenta cada pedido una sola vez aunque su zona se visite dos veces", () => {
+    const semana = repartirEnLaSemana([sur(1), sur(2), sur(3)], PLAN, 1);
+    const total = semana.dias.reduce((acc, d) => acc + d.pedidos.length, 0);
+    expect(total).toBe(3);
+  });
+
+  it("cuenta destinos, no pedidos: dos del mismo cliente son una parada", () => {
+    const semana = repartirEnLaSemana(
+      [sur(1), pedido({ numero: 2, razonSocial: "BOTICA X" }), pedido({ numero: 3, razonSocial: "OTRA" })],
+      PLAN,
+      1,
+    );
+    const martes = semana.dias.find((d) => d.dia === 2);
+    expect(martes?.pedidos.length).toBe(3);
+    expect(martes?.destinos).toBe(2);
+  });
+
+  it("aparta lo que no tiene día en vez de perderlo", () => {
+    const provincia = pedido({ numero: 9, zonaId: null, zonaNombre: null, ordenZona: null, distrito: "TRUJILLO" });
+    const semana = repartirEnLaSemana([sur(1), provincia], PLAN, 1);
+
+    expect(semana.sinDia.map((p) => p.numero)).toEqual([9]);
+    expect(semana.dias.reduce((acc, d) => acc + d.pedidos.length, 0)).toBe(1);
   });
 });
