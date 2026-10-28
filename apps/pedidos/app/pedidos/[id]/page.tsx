@@ -6,11 +6,13 @@ import { requireSession } from "@/lib/auth/session";
 import { listProducts } from "@/services/products";
 import { listPaymentTerms } from "@/services/catalog";
 import { stockDisponiblePorProducto } from "@/services/stock";
+import { deudaDelCliente } from "@/services/credito";
 import { formatSoles } from "@/domain/order-email";
 import { displayRazonSocial } from "@/domain/customer-search";
 import { esCelularValido } from "@/domain/celular";
 import { OrderItemComposer } from "./order-item-composer";
 import { CelularDelCliente } from "./celular-cliente";
+import { DeudaDelClienteAviso } from "./deuda-del-cliente";
 import { OrderHeader } from "./order-header";
 import { ObservationForm } from "./observation-form";
 import { DeleteDraftButton } from "./delete-draft-button";
@@ -53,12 +55,15 @@ export default async function OrderDetailPage({
 
   const isDraft = order.estado === "DRAFT";
 
-  const [products, paymentTerms, stock] = await Promise.all([
+  const [products, paymentTerms, stock, deuda] = await Promise.all([
     isDraft ? listProducts() : Promise.resolve([]),
     listPaymentTerms(),
     // El stock del almacén, para que el vendedor vea cuánto hay ANTES de
     // ofrecerlo. Solo hace falta mientras se arma el pedido.
     isDraft ? stockDisponiblePorProducto() : Promise.resolve(new Map<string, number>()),
+    // La deuda se mira mientras se arma el pedido, que es cuando todavía se
+    // puede decidir otra cosa.
+    isDraft ? deudaDelCliente(order.customer?.ruc_o_documento ?? null) : Promise.resolve(null),
   ]);
 
   // La regla vive en domain/products.ts para poder probarla; acá solo se
@@ -113,6 +118,8 @@ export default async function OrderDetailPage({
             currentDiasCredito={order.dias_credito_solicitados}
             tieneLineas={order.items.length > 0}
           />
+
+          {deuda && <DeudaDelClienteAviso deuda={deuda} />}
 
           <CelularDelCliente
             orderId={order.id}

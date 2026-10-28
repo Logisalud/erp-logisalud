@@ -65,10 +65,11 @@ export async function getEstadoDelCredito(): Promise<EstadoDelCredito> {
 
   const { data, error } = await supabase
     .from("credito_clientes")
-    .select("vencido, dias_atraso, actualizado_en");
+    .select("saldo, vencido, dias_atraso, actualizado_en");
   if (error) throw new Error(error.message);
 
   const filas = (data ?? []) as Array<{
+    saldo: number | string;
     vencido: number | string;
     dias_atraso: number;
     actualizado_en: string;
@@ -80,7 +81,12 @@ export async function getEstadoDelCredito(): Promise<EstadoDelCredito> {
 
   return {
     config,
-    clientes: filas.length,
+    // Las filas en cero no son clientes con deuda: son los que terminaron
+    // de pagar. La sincronización las deja en cero en vez de borrarlas
+    // —para no perder la fecha de la última actualización—, así que acá hay
+    // que descontarlas o el número crece solo con cada cliente que se pone
+    // al día, que es exactamente al revés de lo que pasó.
+    clientes: filas.filter((f) => Number(f.saldo) > 0).length,
     conVencido: filas.filter((f) => Number(f.vencido) > 0).length,
     bloqueados: bloqueables.length,
     vencidoBloqueado: bloqueables.reduce((acc, f) => acc + Number(f.vencido), 0),
@@ -302,4 +308,64 @@ export async function decidirBloqueoDeCredito(
     entidadId: input.orderId,
     datosDespues: { decision: input.decision, motivo: input.motivo },
   });
+}
+
+export type DeudaDelCliente = {
+  saldo: number;
+  vencido: number;
+  diasAtraso: number;
+  documentosVencidos: number;
+  actualizadoEn: string;
+  /** Con la regla y la tolerancia de hoy, este cliente frena el pedido. */
+  frenaElPedido: boolean;
+  /** La regla está apagada: se muestra la deuda, pero no frena nada. */
+  reglaApagada: boolean;
+};
+
+/**
+ * La deuda de UN cliente, para avisarle al vendedor mientras arma el pedido.
+ *
+ * Se muestra aunque la regla esté apagada: saber que el cliente debe hace
+ * falta para decidir si conviene venderle, y enterarse recién al apretar
+ * "Enviar" es enterarse tarde —con el cliente adelante.
+ *
+ * Devuelve null si el cliente no está en la copia: no tener deuda y no
+ * estar son lo mismo para esta pantalla.
+ */
+export async function deudaDelCliente(ruc: string | null): Promise<DeudaDelCliente | null> {
+  if (!ruc) return null;
+  const supabase = createClient();
+
+  const [deudaRes, config] = await Promise.all([
+    supabase
+      .from("credito_clientes")
+      .select("saldo, vencido, dias_atraso, documentos_vencidos, actualizado_en")
+      .eq("ruc", ruc)
+      .maybeSingle(),
+    getConfigCredito(),
+  ]);
+
+  if (deudaRes.error) throw new Error(deudaRes.error.message);
+  const fila = deudaRes.data as {
+    saldo: number | string;
+    vencido: number | string;
+    dias_atraso: number;
+    documentos_vencidos: number;
+    actualizado_en: string;
+  } | null;
+
+  if (!fila || Number(fila.saldo) <= 0) return null;
+
+  const vencido = Number(fila.vencido);
+  const pasaTolerancia = vencido > 0 && fila.dias_atraso > config.diasTolerancia;
+
+  return {
+    saldo: Number(fila.saldo),
+    vencido,
+    diasAtraso: fila.dias_atraso,
+    documentosVencidos: fila.documentos_vencidos,
+    actualizadoEn: fila.actualizado_en,
+    frenaElPedido: config.activo && pasaTolerancia,
+    reglaApagada: !config.activo && pasaTolerancia,
+  };
 }

@@ -14,6 +14,7 @@ const db = {
   escrituras: [] as Array<{ tabla: string; filas: unknown }>,
   actualizaciones: [] as Array<{ tabla: string; cambios: unknown; rucs: string[] }>,
   conSaldo: [] as Array<{ ruc: string }>,
+  filasCredito: [] as Array<Record<string, unknown>>,
 };
 
 function tabla(nombre: string): any {
@@ -22,9 +23,15 @@ function tabla(nombre: string): any {
       db.escrituras.push({ tabla: nombre, filas });
       return { error: null };
     },
+    // Thenable y no async: `await select()` tiene que devolver las filas, y
+    // `select().gt(...)` tiene que seguir siendo encadenable. Un `async`
+    // devuelve una Promise y se pierde el encadenado.
     select: () => ({
       gt: async () => ({ data: db.conSaldo, error: null }),
-      eq: () => ({ maybeSingle: async () => ({ data: { activo: false, dias_tolerancia: 30 }, error: null }) }),
+      eq: () => ({
+        maybeSingle: async () => ({ data: { activo: false, dias_tolerancia: 30 }, error: null }),
+      }),
+      then: (resolver: (r: unknown) => unknown) => resolver({ data: db.filasCredito, error: null }),
     }),
     update: (cambios: unknown) => ({
       in: async (_col: string, rucs: string[]) => {
@@ -102,5 +109,27 @@ describe("sincronizarCredito", () => {
 
     await expect(sincronizarCredito("u-1")).rejects.toThrow(/COBRANZAS_SUPABASE_URL/);
     expect(db.escrituras).toHaveLength(0);
+  });
+});
+
+describe("el contador de la pantalla", () => {
+  it("no cuenta como deudor al que ya terminó de pagar", async () => {
+    // La sincronización deja en cero al que pagó en vez de borrarlo, para
+    // no perder la fecha de actualización. Si esas filas se contaran, el
+    // número de deudores crecería con cada cliente que se pone al día.
+    const { getEstadoDelCredito } = await import("@/services/credito");
+
+    db.filasCredito = [
+      { saldo: "1000", vencido: "800", dias_atraso: 45, actualizado_en: "2026-10-28T12:00:00Z" },
+      { saldo: "500", vencido: "0", dias_atraso: 0, actualizado_en: "2026-10-28T12:00:00Z" },
+      { saldo: "0", vencido: "0", dias_atraso: 0, actualizado_en: "2026-10-28T12:00:00Z" },
+    ];
+
+    const estado = await getEstadoDelCredito();
+
+    expect(estado.clientes).toBe(2);
+    expect(estado.conVencido).toBe(1);
+    expect(estado.bloqueados).toBe(1);
+    expect(estado.vencidoBloqueado).toBe(800);
   });
 });
