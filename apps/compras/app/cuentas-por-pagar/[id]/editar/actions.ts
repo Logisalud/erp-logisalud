@@ -11,6 +11,7 @@ import {
 import { avisarCreacionSinRomper } from '@/services/avisos'
 import { formatoMonto } from '@/domain/aviso-email'
 import { cambioExigeAviso } from '@/domain/edicion'
+import { leerTipoComprobante } from '@/domain/retencion-4ta'
 import type { EstadoFormulario } from '@/app/pago-directo/nueva/actions'
 
 /**
@@ -44,6 +45,8 @@ export async function editarPagoDirectoAction(
     tipoCambio: tipoCambioRaw ? Number(tipoCambioRaw) : null,
     baseImponible: Number(form.get('baseImponible') ?? 0),
     sinIgv: form.get('sinIgv') === 'true',
+    tipoComprobante: leerTipoComprobante(form.get('tipoComprobante')),
+    noRetenerPorMonto: form.get('noRetenerPorMonto') === 'si',
     tieneDetraccion: leerTieneDetraccion(form.get('tieneDetraccion')),
     porcentajeDetraccion: form.get('porcentajeDetraccion') ? Number(form.get('porcentajeDetraccion')) : null,
     montoDetraccion: form.get('montoDetraccion') ? Number(form.get('montoDetraccion')) : null,

@@ -11,6 +11,8 @@
  * modelo de datos.
  */
 
+import type { TipoComprobante } from './retencion-4ta'
+
 export const ESTADOS_OBLIGACION = [
   'pendiente_factura',
   'registrada',
@@ -516,6 +518,13 @@ export type BorradorPagoDirecto = BorradorObligacion & {
    * saltarse el tope escribiendo el nombre correcto en el HTML.
    */
   categoriaNombre?: string | null
+  /** Factura (default), boleta o Recibo por Honorarios (0084). Un RxH se
+   * registra por su monto BRUTO en `baseImponible`, sin IGV ni detracción;
+   * el 8% de 4ta lo separa el servidor (services/retencion-4ta.ts). */
+  tipoComprobante?: TipoComprobante
+  /** Solo RxH ≤ S/ 1,500: quien registra decidió no retener. Nunca se aplica
+   * solo (Sebas, 2026-10-28) — ver domain/retencion-4ta.ts. */
+  noRetenerPorMonto?: boolean
 }
 
 /**
@@ -552,6 +561,17 @@ export function totalSegun(baseImponible: number, sinIgv: boolean | undefined): 
 
 export function validarPagoDirecto(b: BorradorPagoDirecto): ErrorValidacion[] {
   const errores = b.pendienteFactura ? validarObligacionSinFactura(b) : validarObligacion(b)
+  if (b.tipoComprobante === 'rxh') {
+    // Un RxH se registra con el recibo en la mano: sin "pendiente de
+    // factura" (el 8% depende de la fecha del recibo) y sin detracción ni
+    // IGV, que no aplican a la renta de 4ta.
+    if (b.pendienteFactura) {
+      errores.push({ campo: 'tipoComprobante', mensaje: 'Un Recibo por Honorarios se registra cuando ya está emitido — no como pendiente.' })
+    }
+    if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elige una categoría.' })
+    if (!b.descripcion.trim()) errores.push({ campo: 'descripcion', mensaje: 'Cuenta para qué es este gasto.' })
+    return errores
+  }
   if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elige una categoría.' })
   if (b.condicionPagoDias != null && !CONDICIONES_PAGO_DIAS.includes(b.condicionPagoDias as (typeof CONDICIONES_PAGO_DIAS)[number])) {
     errores.push({ campo: 'condicionPagoDias', mensaje: 'Elige una condición de pago de la lista.' })

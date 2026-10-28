@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarPagoDirectoAction, type EstadoFormulario } from './actions'
@@ -20,6 +20,10 @@ import { subirVoucherAltaAction } from './actions'
 import { hoyLima } from '@/domain/fecha'
 import { CampoCuentaEmpresa } from '@/components/campo-cuenta-empresa'
 import type { CuentaEmpresa } from '@/domain/cuenta-empresa'
+import {
+  calcularRxh, explicarRetencion, noSuperaUmbral, ETIQUETA_TIPO_COMPROBANTE,
+  type TipoComprobante,
+} from '@/domain/retencion-4ta'
 
 type CategoriaOpcion = { id: string; nombre: string }
 
@@ -60,6 +64,17 @@ export function FormularioPagoDirecto({
   // que además recalcula el vencimiento (ver services/obligaciones.ts).
   const [pendienteFactura, setPendienteFactura] = useState(inicial?.pendienteFactura ?? false)
   const [sinIgv, setSinIgv] = useState(inicial?.sinIgv ?? false)
+  // Recibo por Honorarios (0084): sin IGV ni detracción, y el 8% de 4ta se
+  // separa solo según la constancia de suspensión del profesional.
+  const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>(inicial?.tipoComprobante ?? 'factura')
+  const esRxh = tipoComprobante === 'rxh'
+  const [noRetenerPorMonto, setNoRetenerPorMonto] = useState(inicial?.noRetenerPorMonto ?? false)
+  const [fechaFactura, setFechaFactura] = useState(inicial?.fechaFactura || hoyLima())
+  const [tipoCambioTexto, setTipoCambioTexto] = useState(inicial?.tipoCambio ?? '')
+  const [situacion, setSituacion] = useState<{
+    personaNatural: boolean
+    constancia: { numero: string; ejercicio: number } | null
+  } | null>(null)
   const [condicionPagoDias, setCondicionPagoDias] = useState<number | null>(
     inicial?.condicionPagoDias ?? null
   )
@@ -74,6 +89,19 @@ export function FormularioPagoDirecto({
   const [errorVoucher, setErrorVoucher] = useState<string | null>(null)
 
   const categoriaNombre = categorias.find((c) => c.id === categoriaId)?.nombre ?? null
+
+  // Solo para MOSTRAR el desglose: el servidor busca la constancia de nuevo
+  // al guardar, así que esto nunca decide cuánto se retiene.
+  useEffect(() => {
+    if (!esRxh || !proveedor?.id) { setSituacion(null); return }
+    let vigente = true
+    const params = new URLSearchParams({ id: proveedor.id, fuente: proveedor.fuente ?? 'compra', fecha: fechaFactura })
+    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/api/proveedores/retencion-4ta?${params}`)
+      .then((r) => r.json())
+      .then((j) => { if (vigente) setSituacion({ personaNatural: !!j.personaNatural, constancia: j.constancia ?? null }) })
+      .catch(() => { if (vigente) setSituacion(null) })
+    return () => { vigente = false }
+  }, [esRxh, proveedor?.id, proveedor?.fuente, fechaFactura])
   const esBacklog = esCategoriaDeBacklog(categoriaNombre)
 
   const elegirVoucher = async (archivo: File | undefined) => {
@@ -109,13 +137,20 @@ export function FormularioPagoDirecto({
   // escribe la base — antes había que guardar para descubrir el total.
   // Con "Sin IGV" marcado vale 0 y el total es la base sola (migración 0046).
   const base = Number(baseImponible) || 0
-  const igv = igvSegun(base, sinIgv)
-  const total = totalSegun(base, sinIgv)
+  const igv = esRxh ? 0 : igvSegun(base, sinIgv)
+  const total = esRxh ? base : totalSegun(base, sinIgv)
+  const rxh = esRxh
+    ? calcularRxh({
+        monto: base, moneda, tipoCambio: Number(tipoCambioTexto) || null,
+        constanciaVigente: !!situacion?.constancia, noRetenerPorMonto,
+      })
+    : null
+  const puedeNoRetenerPorMonto = esRxh && !situacion?.constancia && noSuperaUmbral(base, moneda, Number(tipoCambioTexto) || null)
 
   // Avisos que NO bloquean (hoy: el tope de S/5,000). Se calculan en cada
   // render, así que aparecen mientras se escribe el monto y no al enviar: un
   // aviso que no frena nada y llega al final ya no cambia ninguna decisión.
-  const avisos = advertenciasPagoDirecto({ moneda, baseImponible: base, sinIgv })
+  const avisos = advertenciasPagoDirecto({ moneda, baseImponible: base, sinIgv: esRxh || sinIgv })
 
   // Pieza F: se propone la condición del proveedor y se puede ajustar. El
   // `??` mira el estado local primero para no pisar lo que la persona eligió
@@ -172,13 +207,33 @@ export function FormularioPagoDirecto({
       </section>
 
       <section className="card space-y-3">
+        <Campo etiqueta="Tipo de comprobante *" error={errorDe('tipoComprobante')} grupo>
+          <div className="flex flex-wrap gap-2">
+            {(['factura', 'boleta', 'rxh'] as const).map((t) => (
+              <button
+                key={t} type="button"
+                onClick={() => { setTipoComprobante(t); if (t === 'rxh') setPendienteFactura(false) }}
+                aria-pressed={tipoComprobante === t}
+                className={`min-h-12 flex-1 rounded-md border px-3 text-sm font-medium ${
+                  tipoComprobante === t
+                    ? 'border-logisalud-green bg-logisalud-green text-white'
+                    : 'border-gray-300 bg-white text-gray-700'
+                }`}
+              >
+                {ETIQUETA_TIPO_COMPROBANTE[t]}
+              </button>
+            ))}
+          </div>
+          <input type="hidden" name="tipoComprobante" value={tipoComprobante} />
+        </Campo>
+
         {editando ? (
           <p className="text-sm text-gray-600">
             {pendienteFactura
               ? 'Pendiente de factura — para cargar los datos reales del comprobante usa "Completar factura" desde la ficha, que además recalcula el vencimiento.'
               : 'Con factura registrada.'}
           </p>
-        ) : (
+        ) : esRxh ? null : (
           <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox" name="pendienteFactura" value="si"
@@ -221,18 +276,18 @@ export function FormularioPagoDirecto({
         ) : (
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Campo etiqueta="N° de factura *" error={errorDe('numeroFactura')}>
+              <Campo etiqueta={esRxh ? 'N° de recibo *' : tipoComprobante === 'boleta' ? 'N° de boleta *' : 'N° de factura *'} error={errorDe('numeroFactura')}>
                 <input type="text" name="numeroFactura" required defaultValue={inicial?.numeroFactura} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
               </Campo>
-              <Campo etiqueta="Fecha de factura *" error={errorDe('fechaFactura')}>
+              <Campo etiqueta={esRxh ? 'Fecha del recibo *' : 'Fecha del comprobante *'} error={errorDe('fechaFactura')}>
                 <input
                   type="date" name="fechaFactura" required
-                  defaultValue={inicial?.fechaFactura ?? hoyLima()}
+                  value={fechaFactura} onChange={(e) => setFechaFactura(e.target.value)}
                   className="min-h-12 w-full rounded-md border border-gray-300 px-3"
                 />
               </Campo>
             </div>
-            <Campo etiqueta={editando ? '📎 Reemplazar la factura escaneada' : '📎 Factura escaneada (opcional)'}>
+            <Campo etiqueta={editando ? '📎 Reemplazar el comprobante escaneado' : '📎 Comprobante escaneado (opcional)'}>
               <CampoArchivo
                 nombre="factura" accept="application/pdf,image/jpeg,image/png,image/webp"
                 className="block w-full text-sm file:mr-3 file:min-h-12 file:rounded-md file:border-0 file:bg-logisalud-green file:px-3 file:text-white"
@@ -286,11 +341,15 @@ export function FormularioPagoDirecto({
 
         {moneda === 'USD' ? (
           <Campo etiqueta="Tipo de cambio *" error={errorDe('tipoCambio')}>
-            <input type="number" name="tipoCambio" min="0" step="0.0001" required defaultValue={inicial?.tipoCambio} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
+            <input
+              type="number" name="tipoCambio" min="0" step="0.0001" required
+              value={tipoCambioTexto} onChange={(e) => setTipoCambioTexto(e.target.value)}
+              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+            />
           </Campo>
         ) : null}
 
-        <Campo etiqueta="Base imponible (sin IGV) *" error={errorDe('baseImponible')}>
+        <Campo etiqueta={esRxh ? 'Monto del recibo (bruto, como figura en el RxH) *' : 'Base imponible (sin IGV) *'} error={errorDe('baseImponible')}>
           <input
             type="number" name="baseImponible" min="0" step="0.01" required
             value={baseImponible}
@@ -300,7 +359,7 @@ export function FormularioPagoDirecto({
           {/* Aplica a todas las categorías por igual: lo que decide si hay
               IGV es la operación real (ej. un alquiler a persona natural),
               no en qué casillero del catálogo cayó el gasto. */}
-          <label className="mt-2 flex items-start gap-2 text-sm">
+          {esRxh ? null : <label className="mt-2 flex items-start gap-2 text-sm">
             <input
               type="checkbox" name="sinIgv" value="true" checked={sinIgv}
               onChange={(e) => setSinIgv(e.target.checked)}
@@ -313,10 +372,16 @@ export function FormularioPagoDirecto({
                 natural. El IGV queda en 0 y el total es la base sola.
               </span>
             </span>
-          </label>
+          </label>}
         </Campo>
 
-        <div className="sm:col-span-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+        {rxh ? (
+          <DesgloseRxh
+            rxh={rxh} moneda={moneda} situacion={situacion} proveedorElegido={!!proveedor}
+            puedeNoRetenerPorMonto={puedeNoRetenerPorMonto}
+            noRetenerPorMonto={noRetenerPorMonto} onNoRetenerPorMonto={setNoRetenerPorMonto}
+          />
+        ) : <div className="sm:col-span-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
           <div className="flex justify-between"><span className="text-gray-600">Base imponible</span><span className="tabular-nums">{fmt(base)}</span></div>
           <div className="flex justify-between">
             <span className="text-gray-600">{sinIgv ? 'IGV (no aplica)' : 'IGV (18%)'}</span>
@@ -325,7 +390,7 @@ export function FormularioPagoDirecto({
           <div className="mt-1 flex justify-between border-t border-gray-200 pt-1 font-semibold">
             <span>Total</span><span className="tabular-nums">{fmt(total)}</span>
           </div>
-        </div>
+        </div>}
 
         {/* Pegado al total y no arriba del botón: es sobre el monto, así que
             va donde se está mirando el monto. Ámbar y no rojo — no es un
@@ -340,7 +405,7 @@ export function FormularioPagoDirecto({
         ))}
       </section>
 
-      <CampoDetraccion
+      {esRxh ? null : <CampoDetraccion
         total={total}
         moneda={moneda}
         tieneDetraccion={tieneDetraccion}
@@ -352,7 +417,7 @@ export function FormularioPagoDirecto({
         errorTieneDetraccion={errorDe('tieneDetraccion')}
         errorPorcentaje={errorDe('porcentajeDetraccion')}
         errorMonto={errorDe('montoDetraccion')}
-      />
+      />}
 
       {/* Solo en la categoría del backlog: ahí el pago SIEMPRE es del
           pasado y el archivo no es una factura pendiente sino la constancia
@@ -431,6 +496,69 @@ export function FormularioPagoDirecto({
         bloqueado={subiendoVoucher}
       />
     </form>
+  )
+}
+
+/**
+ * El 92%/8% de un RxH, a la vista ANTES de confirmar, con la razón de lo que
+ * se decidió (Sebas, 2026-10-28). El monto que se le paga al profesional es
+ * el que manda en la deuda.
+ */
+function DesgloseRxh({
+  rxh, moneda, situacion, proveedorElegido, puedeNoRetenerPorMonto, noRetenerPorMonto, onNoRetenerPorMonto,
+}: {
+  rxh: ReturnType<typeof calcularRxh>
+  moneda: 'PEN' | 'USD'
+  situacion: { personaNatural: boolean; constancia: { numero: string; ejercicio: number } | null } | null
+  proveedorElegido: boolean
+  puedeNoRetenerPorMonto: boolean
+  noRetenerPorMonto: boolean
+  onNoRetenerPorMonto: (v: boolean) => void
+}) {
+  const simbolo = moneda === 'USD' ? 'US$' : 'S/'
+  return (
+    <div className="sm:col-span-2 space-y-2">
+      <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+        <div className="flex justify-between"><span className="text-gray-600">Recibo por Honorarios</span><span className="tabular-nums">{simbolo} {fmt(rxh.monto)}</span></div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">Retención 4ta categoría (8%) — va a SUNAT</span>
+          <span className="tabular-nums">− {simbolo} {fmt(rxh.retencion)}</span>
+        </div>
+        <div className="mt-1 flex justify-between border-t border-gray-200 pt-1 font-semibold">
+          <span>A pagar al profesional</span><span className="tabular-nums">{simbolo} {fmt(rxh.neto)}</span>
+        </div>
+        {proveedorElegido && situacion ? (
+          <p className="mt-1 text-xs text-gray-600">{explicarRetencion(rxh.motivo, situacion.constancia)}</p>
+        ) : (
+          <p className="mt-1 text-xs text-gray-500">Elige al profesional para ver si tiene constancia de suspensión.</p>
+        )}
+      </div>
+
+      {proveedorElegido && situacion && !situacion.personaNatural ? (
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
+          Este proveedor no tiene RUC 10: un Recibo por Honorarios solo lo emite una persona natural. Revisa el
+          proveedor o el tipo de comprobante.
+        </p>
+      ) : null}
+
+      {/* Ley: un recibo de S/ 1,500 o menos no está obligado a retención. NO
+          se aplica solo (Sebas, 2026-10-28): se avisa y decide quien registra. */}
+      {puedeNoRetenerPorMonto ? (
+        <label className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+          <input
+            type="checkbox" name="noRetenerPorMonto" value="si" checked={noRetenerPorMonto}
+            onChange={(e) => onNoRetenerPorMonto(e.target.checked)}
+            className="mt-0.5 h-5 w-5"
+          />
+          <span>
+            <span className="font-medium">No retener: el recibo no supera S/ 1,500</span>
+            <span className="mt-0.5 block text-xs">
+              La ley no obliga a retener un recibo de este monto. Márcalo solo si corresponde — si no, se retiene el 8%.
+            </span>
+          </span>
+        </label>
+      ) : null}
+    </div>
   )
 }
 
