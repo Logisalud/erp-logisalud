@@ -35,7 +35,7 @@ export async function registrarPagoDirectoAction(_previo: EstadoFormulario, form
     baseImponible: Number(form.get('baseImponible') ?? 0),
     sinIgv: form.get('sinIgv') === 'true',
     tipoComprobante: leerTipoComprobante(form.get('tipoComprobante')),
-    noRetenerPorMonto: form.get('noRetenerPorMonto') === 'si',
+    retenerIgual: form.get('retenerIgual') === 'si',
     tieneDetraccion: leerTieneDetraccion(form.get('tieneDetraccion')),
     porcentajeDetraccion: form.get('porcentajeDetraccion') ? Number(form.get('porcentajeDetraccion')) : null,
     montoDetraccion: form.get('montoDetraccion') ? Number(form.get('montoDetraccion')) : null,

@@ -10,9 +10,11 @@
  *    que Contabilidad registra (`constancias_suspension_4ta`, una por año).
  *    Si un profesional prefiere que se le retenga aunque califique, no se
  *    registra su constancia y listo.
- *  - Un recibo de S/ 1,500 o menos no está obligado a retención. Es una
- *    regla de la ley, por recibo — pero Sebas pidió NO aplicarla sola: el
- *    sistema avisa y la persona decide. Por defecto se retiene.
+ *  - Un recibo de S/ 1,500 o menos no está obligado a retención (regla de
+ *    la ley, por recibo). Mariela confirmó (2026-10-29) que SE PUEDE
+ *    retener, pero lo normal es no hacerlo: por defecto NO se retiene, y
+ *    quien registra puede marcar "Retener igual" si el profesional lo
+ *    prefiere.
  *  - La retención vive en la propia obligación del profesional, como la
  *    detracción: `neto_a_pagar` ya la descuenta. No hay una deuda aparte por
  *    cada 8% — eso se consolida por mes en Impuestos.
@@ -81,22 +83,22 @@ export type CalculoRxh = {
 }
 
 /**
- * Cuánto se retiene de un RxH y por qué. `noRetenerPorMonto` es la decisión
- * EXPLÍCITA de quien registra (ver arriba): solo tiene efecto si el recibo
- * de verdad no supera el umbral — si lo supera, se ignora y se retiene.
+ * Cuánto se retiene de un RxH y por qué. `retenerIgual` es la decisión
+ * EXPLÍCITA de quien registra de retener un recibo ≤ S/ 1,500 (ver arriba).
+ * Un recibo que supera el umbral se retiene siempre, salvo constancia.
  */
 export function calcularRxh(input: {
   monto: number
   moneda: string
   tipoCambio?: number | null
   constanciaVigente: boolean
-  noRetenerPorMonto?: boolean
+  retenerIgual?: boolean
 }): CalculoRxh {
   const monto = redondear2(Number(input.monto) || 0)
   if (input.constanciaVigente) {
     return { monto, retencion: 0, neto: monto, motivo: 'constancia_suspension' }
   }
-  if (input.noRetenerPorMonto && noSuperaUmbral(monto, input.moneda, input.tipoCambio)) {
+  if (!input.retenerIgual && noSuperaUmbral(monto, input.moneda, input.tipoCambio)) {
     return { monto, retencion: 0, neto: monto, motivo: 'no_supera_1500' }
   }
   const retencion = redondear2(monto * TASA_RETENCION_4TA)
@@ -104,16 +106,23 @@ export function calcularRxh(input: {
 }
 
 /** La frase que explica la decisión, para la pantalla y la ficha. */
-export function explicarRetencion(motivo: MotivoRetencion4ta, constancia?: Pick<Constancia4ta, 'numero' | 'ejercicio'> | null): string {
+export function explicarRetencion(
+  motivo: MotivoRetencion4ta,
+  constancia?: Pick<Constancia4ta, 'numero' | 'ejercicio'> | null,
+  /** El recibo no supera S/ 1,500: si igual se retuvo, fue a pedido. */
+  noSupera?: boolean,
+): string {
   switch (motivo) {
     case 'retenido':
-      return 'Se retiene el 8%: no tiene constancia de suspensión vigente.'
+      return noSupera
+        ? 'Se retiene el 8% aunque el recibo no supera S/ 1,500: el profesional lo prefiere.'
+        : 'Se retiene el 8%: no tiene constancia de suspensión vigente.'
     case 'constancia_suspension':
       return constancia
         ? `No se retiene: constancia de suspensión ${constancia.ejercicio} N° ${constancia.numero}.`
         : 'No se retiene: tiene constancia de suspensión vigente.'
     case 'no_supera_1500':
-      return 'No se retiene: el recibo no supera S/ 1,500 (decidido al registrarlo).'
+      return 'No se retiene: el recibo no supera S/ 1,500.'
   }
 }
 

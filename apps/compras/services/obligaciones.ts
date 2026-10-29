@@ -1078,7 +1078,7 @@ async function columnasDeComprobante(borrador: BorradorPagoDirecto, pendienteFac
       monto: borrador.baseImponible,
       moneda: borrador.moneda,
       tipoCambio: borrador.tipoCambio,
-      noRetenerPorMonto: borrador.noRetenerPorMonto,
+      retenerIgual: borrador.retenerIgual,
     })
     return {
       tipo_comprobante: 'rxh' as const,

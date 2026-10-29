@@ -1,4 +1,4 @@
-import { leerTipoComprobante, type TipoComprobante } from './retencion-4ta'
+import { leerTipoComprobante, noSuperaUmbral, type TipoComprobante } from './retencion-4ta'
 
 /**
  * Los valores guardados de un Pago Directo con la forma que necesita el
@@ -31,9 +31,9 @@ export type ValoresPagoDirecto = {
   porcentajeDetraccion: string
   montoDetraccion: string
   tipoComprobante: TipoComprobante
-  /** El RxH se guardó sin retener por ser ≤ S/ 1,500 — decisión que se
-   * respeta al editar, no se vuelve a preguntar desde cero. */
-  noRetenerPorMonto: boolean
+  /** Un RxH ≤ S/ 1,500 que se guardó CON retención: fue "Retener igual"
+   * (por defecto no se retiene). Se respeta al editar. */
+  retenerIgual: boolean
 }
 
 type FilaObligacionPD = {
@@ -81,6 +81,8 @@ export function valoresDePagoDirecto(
     porcentajeDetraccion: tieneDetraccion ? numero(fila.porcentaje_detraccion) : '',
     montoDetraccion: tieneDetraccion ? numero(fila.monto_detraccion) : '',
     tipoComprobante: leerTipoComprobante(fila.tipo_comprobante),
-    noRetenerPorMonto: fila.motivo_retencion_4ta === 'no_supera_1500',
+    retenerIgual:
+      fila.motivo_retencion_4ta === 'retenido' &&
+      noSuperaUmbral(Number(fila.base_imponible) || 0, fila.moneda ?? 'PEN', Number(fila.tipo_cambio) || null),
   }
 }

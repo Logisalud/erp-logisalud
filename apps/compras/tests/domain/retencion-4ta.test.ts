@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { validarPagoDirecto } from '@/domain/obligacion'
+import { valoresDePagoDirecto } from '@/domain/valores-pago-directo'
 import {
   calcularRxh, constanciaVencidaAlPagar, constanciaVigentePara, esRucDePersonaNatural,
   explicarRetencion, noSuperaUmbral,
@@ -23,19 +24,26 @@ describe('cuánto se retiene', () => {
       .toEqual({ monto: 3228.74, retencion: 0, neto: 3228.74, motivo: 'constancia_suspension' })
   })
 
-  it('S/ 1,500 o menos: por defecto SE RETIENE — no se aplica solo', () => {
-    expect(calcularRxh({ monto: 600, moneda: 'PEN', constanciaVigente: false }).retencion).toBe(48)
-  })
-
-  it('S/ 1,500 o menos y quien registra decide no retener', () => {
-    expect(calcularRxh({ monto: 600, moneda: 'PEN', constanciaVigente: false, noRetenerPorMonto: true }))
+  // Mariela, 2026-10-29: en un recibo de S/ 1,500 o menos SE PUEDE retener,
+  // pero lo normal es no hacerlo.
+  it('S/ 1,500 o menos: por defecto NO se retiene (E001-48, S/ 600)', () => {
+    expect(calcularRxh({ monto: 600, moneda: 'PEN', constanciaVigente: false }))
       .toEqual({ monto: 600, retencion: 0, neto: 600, motivo: 'no_supera_1500' })
-    expect(calcularRxh({ monto: 1500, moneda: 'PEN', constanciaVigente: false, noRetenerPorMonto: true }).retencion).toBe(0)
+    expect(calcularRxh({ monto: 1500, moneda: 'PEN', constanciaVigente: false }).retencion).toBe(0)
   })
 
-  it('pedir "no retener" en un recibo que supera el umbral no tiene efecto', () => {
-    expect(calcularRxh({ monto: 1500.01, moneda: 'PEN', constanciaVigente: false, noRetenerPorMonto: true }).motivo)
-      .toBe('retenido')
+  it('S/ 1,500 o menos y el profesional prefiere que se le retenga: "Retener igual"', () => {
+    expect(calcularRxh({ monto: 600, moneda: 'PEN', constanciaVigente: false, retenerIgual: true }))
+      .toEqual({ monto: 600, retencion: 48, neto: 552, motivo: 'retenido' })
+  })
+
+  it('un céntimo por encima del umbral ya se retiene, sin preguntar', () => {
+    expect(calcularRxh({ monto: 1500.01, moneda: 'PEN', constanciaVigente: false }).motivo).toBe('retenido')
+  })
+
+  it('con constancia vigente no se retiene aunque se marque "Retener igual"', () => {
+    expect(calcularRxh({ monto: 600, moneda: 'PEN', constanciaVigente: true, retenerIgual: true }).motivo)
+      .toBe('constancia_suspension')
   })
 
   it('en dólares el umbral se compara convertido', () => {
@@ -72,9 +80,12 @@ it('solo una persona natural (RUC 10) emite RxH', () => {
   expect(esRucDePersonaNatural('20604137510')).toBe(false)
 })
 
-it('la explicación nombra la constancia', () => {
+it('la explicación nombra la constancia, y distingue la retención a pedido', () => {
   expect(explicarRetencion('constancia_suspension', { ejercicio: 2026, numero: '0123' }))
     .toBe('No se retiene: constancia de suspensión 2026 N° 0123.')
+  expect(explicarRetencion('retenido', null, true))
+    .toBe('Se retiene el 8% aunque el recibo no supera S/ 1,500: el profesional lo prefiere.')
+  expect(explicarRetencion('no_supera_1500')).toBe('No se retiene: el recibo no supera S/ 1,500.')
 })
 
 describe('Pago Directo con Recibo por Honorarios', () => {
@@ -91,5 +102,22 @@ describe('Pago Directo con Recibo por Honorarios', () => {
   it('un RxH no se registra como pendiente de comprobante', () => {
     expect(validarPagoDirecto({ ...base, tipoComprobante: 'rxh', pendienteFactura: true }).map((e) => e.campo))
       .toContain('tipoComprobante')
+  })
+})
+
+describe('al editar un RxH guardado', () => {
+  const fila = {
+    estado: 'registrada', categoria_pago_directo_id: 'c', observaciones: 'x', moneda: 'PEN', tipo_cambio: null,
+    sin_igv: true, condicion_pago_dias: 0, numero_factura: 'E001-48', fecha_factura: '2026-10-28',
+    porcentaje_detraccion: null, monto_detraccion: 0, tipo_comprobante: 'rxh',
+  }
+
+  it('un recibo chico que se guardó CON retención vuelve con "Retener igual" marcado', () => {
+    expect(valoresDePagoDirecto({ ...fila, base_imponible: 600, motivo_retencion_4ta: 'retenido' }, null).retenerIgual).toBe(true)
+  })
+
+  it('uno chico sin retención, o uno grande retenido, vuelven sin marcar', () => {
+    expect(valoresDePagoDirecto({ ...fila, base_imponible: 600, motivo_retencion_4ta: 'no_supera_1500' }, null).retenerIgual).toBe(false)
+    expect(valoresDePagoDirecto({ ...fila, base_imponible: 3228.74, motivo_retencion_4ta: 'retenido' }, null).retenerIgual).toBe(false)
   })
 })

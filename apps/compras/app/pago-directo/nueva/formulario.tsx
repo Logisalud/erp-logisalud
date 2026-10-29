@@ -68,7 +68,7 @@ export function FormularioPagoDirecto({
   // separa solo según la constancia de suspensión del profesional.
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>(inicial?.tipoComprobante ?? 'factura')
   const esRxh = tipoComprobante === 'rxh'
-  const [noRetenerPorMonto, setNoRetenerPorMonto] = useState(inicial?.noRetenerPorMonto ?? false)
+  const [retenerIgual, setRetenerIgual] = useState(inicial?.retenerIgual ?? false)
   const [fechaFactura, setFechaFactura] = useState(inicial?.fechaFactura || hoyLima())
   const [tipoCambioTexto, setTipoCambioTexto] = useState(inicial?.tipoCambio ?? '')
   const [situacion, setSituacion] = useState<{
@@ -142,10 +142,10 @@ export function FormularioPagoDirecto({
   const rxh = esRxh
     ? calcularRxh({
         monto: base, moneda, tipoCambio: Number(tipoCambioTexto) || null,
-        constanciaVigente: !!situacion?.constancia, noRetenerPorMonto,
+        constanciaVigente: !!situacion?.constancia, retenerIgual,
       })
     : null
-  const puedeNoRetenerPorMonto = esRxh && !situacion?.constancia && noSuperaUmbral(base, moneda, Number(tipoCambioTexto) || null)
+  const noSupera = esRxh && !situacion?.constancia && noSuperaUmbral(base, moneda, Number(tipoCambioTexto) || null)
 
   // Avisos que NO bloquean (hoy: el tope de S/5,000). Se calculan en cada
   // render, así que aparecen mientras se escribe el monto y no al enviar: un
@@ -378,8 +378,8 @@ export function FormularioPagoDirecto({
         {rxh ? (
           <DesgloseRxh
             rxh={rxh} moneda={moneda} situacion={situacion} proveedorElegido={!!proveedor}
-            puedeNoRetenerPorMonto={puedeNoRetenerPorMonto}
-            noRetenerPorMonto={noRetenerPorMonto} onNoRetenerPorMonto={setNoRetenerPorMonto}
+            noSupera={noSupera}
+            retenerIgual={retenerIgual} onRetenerIgual={setRetenerIgual}
           />
         ) : <div className="sm:col-span-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
           <div className="flex justify-between"><span className="text-gray-600">Base imponible</span><span className="tabular-nums">{fmt(base)}</span></div>
@@ -505,15 +505,16 @@ export function FormularioPagoDirecto({
  * el que manda en la deuda.
  */
 function DesgloseRxh({
-  rxh, moneda, situacion, proveedorElegido, puedeNoRetenerPorMonto, noRetenerPorMonto, onNoRetenerPorMonto,
+  rxh, moneda, situacion, proveedorElegido, noSupera, retenerIgual, onRetenerIgual,
 }: {
   rxh: ReturnType<typeof calcularRxh>
   moneda: 'PEN' | 'USD'
   situacion: { personaNatural: boolean; constancia: { numero: string; ejercicio: number } | null } | null
   proveedorElegido: boolean
-  puedeNoRetenerPorMonto: boolean
-  noRetenerPorMonto: boolean
-  onNoRetenerPorMonto: (v: boolean) => void
+  /** Recibo ≤ S/ 1,500 sin constancia: por defecto no se retiene. */
+  noSupera: boolean
+  retenerIgual: boolean
+  onRetenerIgual: (v: boolean) => void
 }) {
   const simbolo = moneda === 'USD' ? 'US$' : 'S/'
   return (
@@ -528,7 +529,7 @@ function DesgloseRxh({
           <span>A pagar al profesional</span><span className="tabular-nums">{simbolo} {fmt(rxh.neto)}</span>
         </div>
         {proveedorElegido && situacion ? (
-          <p className="mt-1 text-xs text-gray-600">{explicarRetencion(rxh.motivo, situacion.constancia)}</p>
+          <p className="mt-1 text-xs text-gray-600">{explicarRetencion(rxh.motivo, situacion.constancia, noSupera)}</p>
         ) : (
           <p className="mt-1 text-xs text-gray-500">Elige al profesional para ver si tiene constancia de suspensión.</p>
         )}
@@ -541,19 +542,21 @@ function DesgloseRxh({
         </p>
       ) : null}
 
-      {/* Ley: un recibo de S/ 1,500 o menos no está obligado a retención. NO
-          se aplica solo (Sebas, 2026-10-28): se avisa y decide quien registra. */}
-      {puedeNoRetenerPorMonto ? (
-        <label className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+      {/* Un recibo de S/ 1,500 o menos no está obligado a retención: por
+          defecto NO se retiene. Mariela confirmó (2026-10-29) que se puede
+          retener igual si el profesional lo prefiere — eso es esta casilla. */}
+      {noSupera ? (
+        <label className="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800">
           <input
-            type="checkbox" name="noRetenerPorMonto" value="si" checked={noRetenerPorMonto}
-            onChange={(e) => onNoRetenerPorMonto(e.target.checked)}
+            type="checkbox" name="retenerIgual" value="si" checked={retenerIgual}
+            onChange={(e) => onRetenerIgual(e.target.checked)}
             className="mt-0.5 h-5 w-5"
           />
           <span>
-            <span className="font-medium">No retener: el recibo no supera S/ 1,500</span>
-            <span className="mt-0.5 block text-xs">
-              La ley no obliga a retener un recibo de este monto. Márcalo solo si corresponde — si no, se retiene el 8%.
+            <span className="font-medium">Retener igual (el profesional lo prefiere)</span>
+            <span className="mt-0.5 block text-xs text-gray-500">
+              Este recibo no supera S/ 1,500, así que normalmente no se retiene. Márcalo solo si el profesional pidió
+              que se le retenga el 8%.
             </span>
           </span>
         </label>

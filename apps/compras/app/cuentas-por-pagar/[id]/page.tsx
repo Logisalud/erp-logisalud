@@ -23,7 +23,7 @@ import { BotonPagoHistorico } from './pago-historico'
 import { listarCuentasEmpresa } from '@/services/cuentas-empresa'
 import { etiquetaCuentaEmpresa } from '@/domain/cuenta-empresa'
 import { BotonReemplazarConstancia } from './reemplazar-constancia'
-import { constanciaVencidaAlPagar, explicarRetencion } from '@/domain/retencion-4ta'
+import { constanciaVencidaAlPagar, explicarRetencion, noSuperaUmbral } from '@/domain/retencion-4ta'
 import { BotonCorregirFechaPago } from './corregir-fecha-pago'
 import { etiquetaReemplazo, puedeReemplazarConstancia } from '@/domain/reemplazo-constancia'
 import { etiquetaCorreccion, puedeCorregirFechaDePago } from '@/domain/correccion-fecha-pago'
@@ -361,7 +361,11 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
         </dl>
         {obligacion.tipo_comprobante === 'rxh' && obligacion.motivo_retencion_4ta ? (
           <p className="mt-2 text-xs text-gray-600">
-            Recibo por Honorarios. {explicarRetencion(obligacion.motivo_retencion_4ta)}
+            Recibo por Honorarios.{' '}
+            {explicarRetencion(
+              obligacion.motivo_retencion_4ta, null,
+              obligacion.moneda === 'PEN' && noSuperaUmbral(obligacion.base_imponible, 'PEN'),
+            )}
           </p>
         ) : null}
         {constanciaVencidaAlPagar({

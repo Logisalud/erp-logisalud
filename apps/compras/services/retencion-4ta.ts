@@ -70,9 +70,9 @@ export async function situacionRetencion(fuente: FuenteProveedor, proveedorId: s
 
 /**
  * El cálculo de un RxH que se GUARDA: la constancia se busca acá, en la
- * base, nunca se toma del formulario. Del formulario solo viene la decisión
- * explícita de no retener por monto (≤ S/ 1,500), que `calcularRxh` ignora
- * si el recibo supera el umbral.
+ * base, nunca se toma del formulario. Del formulario solo viene "Retener
+ * igual" (un recibo ≤ S/ 1,500 que el profesional prefiere que se le
+ * retenga), que no cambia nada en un recibo que supera el umbral.
  */
 export async function calcularRxhParaGuardar(input: {
   fuente: FuenteProveedor
@@ -81,7 +81,7 @@ export async function calcularRxhParaGuardar(input: {
   monto: number
   moneda: string
   tipoCambio?: number | null
-  noRetenerPorMonto?: boolean
+  retenerIgual?: boolean
 }): Promise<CalculoRxh> {
   const situacion = await situacionRetencion(input.fuente, input.proveedorId, input.fechaRecibo)
   if (!situacion.personaNatural) {
@@ -92,7 +92,7 @@ export async function calcularRxhParaGuardar(input: {
     moneda: input.moneda,
     tipoCambio: input.tipoCambio,
     constanciaVigente: !!situacion.constancia,
-    noRetenerPorMonto: input.noRetenerPorMonto,
+    retenerIgual: input.retenerIgual,
   })
 }
 

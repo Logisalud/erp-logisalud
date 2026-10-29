@@ -522,9 +522,10 @@ export type BorradorPagoDirecto = BorradorObligacion & {
    * registra por su monto BRUTO en `baseImponible`, sin IGV ni detracción;
    * el 8% de 4ta lo separa el servidor (services/retencion-4ta.ts). */
   tipoComprobante?: TipoComprobante
-  /** Solo RxH ≤ S/ 1,500: quien registra decidió no retener. Nunca se aplica
-   * solo (Sebas, 2026-10-28) — ver domain/retencion-4ta.ts. */
-  noRetenerPorMonto?: boolean
+  /** Solo RxH ≤ S/ 1,500, que por defecto NO se retiene: quien registra
+   * marcó "Retener igual" porque el profesional lo prefiere (Mariela,
+   * 2026-10-29) — ver domain/retencion-4ta.ts. */
+  retenerIgual?: boolean
 }
 
 /**
