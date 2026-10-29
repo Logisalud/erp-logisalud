@@ -10,6 +10,7 @@ import {
 import { avisarCreacionSinRomper } from '@/services/avisos'
 import { registrarPagoHistorico, subirVoucherHistoricoSuelto } from '@/services/pago-historico'
 import { formatoMonto } from '@/domain/aviso-email'
+import { leerTipoComprobante } from '@/domain/retencion-4ta'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 
@@ -33,6 +34,8 @@ export async function registrarPagoDirectoAction(_previo: EstadoFormulario, form
     tipoCambio: tipoCambioRaw ? Number(tipoCambioRaw) : null,
     baseImponible: Number(form.get('baseImponible') ?? 0),
     sinIgv: form.get('sinIgv') === 'true',
+    tipoComprobante: leerTipoComprobante(form.get('tipoComprobante')),
+    retenerIgual: form.get('retenerIgual') === 'si',
     tieneDetraccion: leerTieneDetraccion(form.get('tieneDetraccion')),
     porcentajeDetraccion: form.get('porcentajeDetraccion') ? Number(form.get('porcentajeDetraccion')) : null,
     montoDetraccion: form.get('montoDetraccion') ? Number(form.get('montoDetraccion')) : null,
