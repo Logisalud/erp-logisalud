@@ -6,8 +6,14 @@ import { sincronizarContactosACobranzas } from "@/services/contactos-cobranzas";
 export const dynamic = "force-dynamic";
 
 /**
- * Completa cada cierto rato los contactos que faltan en la cartera de
- * cobranzas, con los celulares y direcciones que tiene pedidos.
+ * Completa cada día los contactos que faltan en la cartera de cobranzas,
+ * con los celulares y direcciones que tiene pedidos.
+ *
+ * Una vez por día, a las 10:00 UTC (5 de la mañana en Perú), antes de que
+ * el vendedor abra su cartera. No es cada seis horas porque la cuenta de
+ * Vercel es Hobby y ahí los cron jobs son diarios: un `0 *\/6 * * *` no
+ * falla en ejecución, falla en el deploy y se lleva puesta toda la app.
+ * Si hace falta antes de la hora, está el disparo a mano de acá abajo.
  *
  * Tres puertas, y ninguna más: el cron de Vercel (que manda
  * `Authorization: Bearer <CRON_SECRET>`), un programador externo (que
