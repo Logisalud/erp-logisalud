@@ -15,9 +15,11 @@
 -- ZITROGAL x 3 TAB. REC. (PRD208) viene SIN precio en el Excel: se carga sin
 -- precio y la OC lo pide a mano, en vez de inventar uno.
 --
--- `codigo_proveedor` queda vacío: la columna "CODIGO PHARMED" está vacía en
--- el Excel. La de "CÓDIGO DIMEXA" es el código de otro proveedor (Dimexa,
--- 0083) y no se mezcla.
+-- `codigo_proveedor` sale de la columna "CÓDIGO DIMEXA": aunque se llame
+-- así, es el código con el que se identifica cada producto de Pharmed (Sebas,
+-- 2026-10-30) — la columna "CODIGO PHARMED" del Excel está vacía. Cinco
+-- productos vienen sin ese código (LEVOXIDAL 750, los tres ZITROGAL y
+-- NOCTIUM ZZZ) y quedan sin él. Va en un UPDATE aparte, al final.
 --
 -- Unidades según el vocabulario ya normalizado (0071/0072): "TAB. REC." →
 -- TABLETAS RECUB., "TABLETAS" → TABLETA, "CÁPSULA(S)" → CAPSULA, polvo para
@@ -124,3 +126,44 @@ update catalogo.productos
        updated_at = now()
  where (codigo like 'PRD%' or codigo like 'BOPRD%')
    and proveedor_id is null;
+
+-- ── El código de cada producto (columna "CÓDIGO DIMEXA") ─────────────────
+-- Solo donde todavía no tiene uno: re-ejecutable y no pisa una corrección
+-- hecha a mano después.
+update catalogo.productos p
+   set codigo_proveedor = v.codigo_proveedor,
+       updated_at = now()
+  from (values
+    ('PRD101', '28662'),
+    ('PRD102', '28663'),
+    ('PRD103', '28288'),
+    ('PRD104', '28664'),
+    ('PRD105', '28681'),
+    ('PRD106', '280002'),
+    ('PRD107', '28549'),
+    ('PRD108', '28682'),
+    ('PRD109', '28666'),
+    ('PRD201', '28516'),
+    ('PRD202', '280001'),
+    ('PRD203', '28552'),
+    ('PRD205', '28582'),
+    ('PRD206', '28584'),
+    ('PRD207', '28617'),
+    ('PRD301', '28652'),
+    ('PRD302', '28653'),
+    ('PRD401', '280005'),
+    ('PRD501', '280003'),
+    ('PRD502', '280004'),
+    ('PRD601', '28646'),
+    ('PRD602', '28644'),
+    ('PRD701', '28585'),
+    ('PRD702', '28588'),
+    ('PRD703', '28503'),
+    ('PRD704', '28683'),
+    ('PRD801', '28643'),
+    ('PRD802', '28661'),
+    ('PRD803', '28626'),
+    ('PRD804', '28456')
+  ) as v(codigo, codigo_proveedor)
+ where p.codigo = v.codigo
+   and p.codigo_proveedor is null;
