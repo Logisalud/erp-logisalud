@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { registrarPagoDirectoAction, type EstadoFormulario } from './actions'
@@ -71,6 +72,9 @@ export function FormularioPagoDirecto({
   const [retenerIgual, setRetenerIgual] = useState(inicial?.retenerIgual ?? false)
   const [fechaFactura, setFechaFactura] = useState(inicial?.fechaFactura || hoyLima())
   const [tipoCambioTexto, setTipoCambioTexto] = useState(inicial?.tipoCambio ?? '')
+  // Sube cada vez que se pide "Volver a verificar" (después de registrar la
+  // constancia en la ficha del profesional, en otra pestaña).
+  const [verificacion, setVerificacion] = useState(0)
   const [situacion, setSituacion] = useState<{
     personaNatural: boolean
     constancia: { numero: string; ejercicio: number } | null
@@ -101,7 +105,7 @@ export function FormularioPagoDirecto({
       .then((j) => { if (vigente) setSituacion({ personaNatural: !!j.personaNatural, constancia: j.constancia ?? null }) })
       .catch(() => { if (vigente) setSituacion(null) })
     return () => { vigente = false }
-  }, [esRxh, proveedor?.id, proveedor?.fuente, fechaFactura])
+  }, [esRxh, proveedor?.id, proveedor?.fuente, fechaFactura, verificacion])
   const esBacklog = esCategoriaDeBacklog(categoriaNombre)
 
   const elegirVoucher = async (archivo: File | undefined) => {
@@ -380,6 +384,8 @@ export function FormularioPagoDirecto({
             rxh={rxh} moneda={moneda} situacion={situacion} proveedorElegido={!!proveedor}
             noSupera={noSupera}
             retenerIgual={retenerIgual} onRetenerIgual={setRetenerIgual}
+            fichaProveedor={proveedor ? (proveedor.fuente === 'servicio' ? `/proveedores/servicio/${proveedor.id}` : `/proveedores/${proveedor.id}`) : null}
+            onVolverAVerificar={() => setVerificacion((v) => v + 1)}
           />
         ) : <div className="sm:col-span-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
           <div className="flex justify-between"><span className="text-gray-600">Base imponible</span><span className="tabular-nums">{fmt(base)}</span></div>
@@ -506,6 +512,7 @@ export function FormularioPagoDirecto({
  */
 function DesgloseRxh({
   rxh, moneda, situacion, proveedorElegido, noSupera, retenerIgual, onRetenerIgual,
+  fichaProveedor, onVolverAVerificar,
 }: {
   rxh: ReturnType<typeof calcularRxh>
   moneda: 'PEN' | 'USD'
@@ -515,6 +522,8 @@ function DesgloseRxh({
   noSupera: boolean
   retenerIgual: boolean
   onRetenerIgual: (v: boolean) => void
+  fichaProveedor: string | null
+  onVolverAVerificar: () => void
 }) {
   const simbolo = moneda === 'USD' ? 'US$' : 'S/'
   return (
@@ -534,6 +543,23 @@ function DesgloseRxh({
           <p className="mt-1 text-xs text-gray-500">Elige al profesional para ver si tiene constancia de suspensión.</p>
         )}
       </div>
+
+      {/* Se le va a retener porque no hay constancia registrada: atajo a la
+          ficha del profesional para cargarla (Sebas, 2026-10-30). En otra
+          pestaña, para no perder lo que ya se llenó aquí. */}
+      {rxh.motivo === 'retenido' && situacion?.personaNatural && !situacion.constancia && fichaProveedor ? (
+        <p className="text-xs text-gray-600">
+          ¿Tiene constancia de suspensión de retenciones?{' '}
+          <Link href={fichaProveedor} target="_blank" className="text-logisalud-teal underline">
+            Regístrala en su ficha
+          </Link>{' '}
+          y luego{' '}
+          <button type="button" onClick={onVolverAVerificar} className="text-logisalud-teal underline">
+            vuelve a verificar
+          </button>
+          .
+        </p>
+      ) : null}
 
       {proveedorElegido && situacion && !situacion.personaNatural ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
