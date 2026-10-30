@@ -21,10 +21,16 @@ export type ConstanciaGuardada = Constancia4ta & {
 const columnaProveedor = (fuente: FuenteProveedor) =>
   fuente === 'servicio' ? 'proveedor_servicio_id' : 'proveedor_id'
 
-/** Quien registra o anula una constancia — misma regla que la RLS de 0084. */
+/**
+ * Quien registra o anula una constancia — misma regla que la RLS (0084 y
+ * 0085). Contabilidad, y Gestión Humana desde el 2026-10-30 (Sebas): es
+ * Arlette quien recibe la constancia del profesional al registrar su RxH.
+ */
+export const AREAS_GESTIONAN_CONSTANCIAS = ['contabilidad', 'gestion_humana', 'admin'] as const
+
 export async function puedeGestionarConstancias(): Promise<boolean> {
   const perfil = await perfilActual()
-  return perfil?.area === 'contabilidad' || perfil?.area === 'admin'
+  return (AREAS_GESTIONAN_CONSTANCIAS as readonly string[]).includes(perfil?.area ?? '')
 }
 
 export async function listarConstancias(fuente: FuenteProveedor, proveedorId: string): Promise<ConstanciaGuardada[]> {
@@ -103,7 +109,7 @@ export async function registrarConstancia(input: {
   fechaEmision: string
   archivo: File
 }): Promise<void> {
-  if (!(await puedeGestionarConstancias())) throw new Error('Solo Contabilidad registra constancias de suspensión.')
+  if (!(await puedeGestionarConstancias())) throw new Error('Solo Contabilidad o Gestión Humana registran constancias de suspensión.')
   if (!input.numero.trim()) throw new Error('Falta el número de la constancia.')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.fechaEmision)) throw new Error('Falta la fecha de emisión.')
   if (!input.archivo || input.archivo.size === 0) {
@@ -139,7 +145,7 @@ export async function registrarConstancia(input: {
 }
 
 export async function anularConstancia(id: string, motivo: string): Promise<void> {
-  if (!(await puedeGestionarConstancias())) throw new Error('Solo Contabilidad anula constancias de suspensión.')
+  if (!(await puedeGestionarConstancias())) throw new Error('Solo Contabilidad o Gestión Humana anulan constancias de suspensión.')
   if (!motivo.trim()) throw new Error('Cuenta por qué se anula.')
   const usuario = await exigirUsuario()
   const supabase = crearClienteServidor()

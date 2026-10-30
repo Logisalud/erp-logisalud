@@ -9,7 +9,8 @@ import { FormularioConstancia, BotonAnularConstancia, BotonVerConstancia } from 
  *
  * Se le retiene el 8% a cada Recibo por Honorarios salvo que tenga una
  * Constancia de Suspensión de Retenciones vigente para ese año. La registra
- * Contabilidad, con el documento adjunto: es el respaldo ante SUNAT.
+ * Contabilidad o Gestión Humana, con el documento adjunto: es el respaldo
+ * ante SUNAT.
  */
 export async function RetencionCuartaProveedor({
   fuente, proveedorId, ruc,
@@ -54,7 +55,7 @@ export async function RetencionCuartaProveedor({
       {puedeGestionar ? (
         <FormularioConstancia fuente={fuente} proveedorId={proveedorId} />
       ) : (
-        <p className="text-xs text-gray-500">Solo Contabilidad registra constancias de suspensión.</p>
+        <p className="text-xs text-gray-500">Solo Contabilidad o Gestión Humana registran constancias de suspensión.</p>
       )}
     </section>
   )
