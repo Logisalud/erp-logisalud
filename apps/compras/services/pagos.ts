@@ -8,6 +8,7 @@ import { marcarServicioPagado } from '@/services/servicios'
 import { anioMesStorageLima } from '@/domain/fecha'
 import { propuestaVigente } from '@/domain/propuesta'
 import { exigirCuentaEmpresaActiva } from '@/services/cuentas-empresa'
+import { avisarPagoSinRomper } from '@/services/aviso-pago'
 
 export type BorradorPago = {
   obligacionId: string
@@ -148,6 +149,16 @@ export async function ejecutarPago(borrador: BorradorPago): Promise<{ id: string
   // la orden queda cerrada (no hace nada si la obligación no es de origen
   // 'servicio').
   await marcarServicioPagado(borrador.obligacionId)
+
+  // Quien pidió el pago se entera sin tener que preguntar (Sebas,
+  // 2026-10-30), con el voucher adjunto. Nunca rompe el pago.
+  await avisarPagoSinRomper({
+    obligacionId: borrador.obligacionId,
+    montoPagado: Number(detalle.montoAPagar),
+    fechaPago: borrador.fechaPago,
+    numeroVoucher: borrador.numeroVoucher,
+    storagePathVoucher,
+  })
 
   return { id: pago.id }
 }
