@@ -23,9 +23,8 @@
 -- TABLETAS RECUB., "TABLETAS" → TABLETA, "CÁPSULA(S)" → CAPSULA, polvo para
 -- suspensión → POLVO SUSPENSIÓN.
 --
--- El proveedor y el vínculo producto → proveedor van en cuanto llegue el RUC
--- de Pharmed (no se inventa). La búsqueda de productos de la OC no filtra
--- por proveedor, así que los productos ya se pueden usar.
+-- El proveedor y el vínculo producto → proveedor van al final (RUC pasado
+-- por Sebas el 2026-10-30).
 --
 -- Re-ejecutable: `on conflict (codigo) do nothing`.
 
@@ -110,3 +109,18 @@ values
   ('BOPRD804', 'MIDOL EXTRA FUERTE x 100 TAB. REC.', 'Caja x 100 Tab. Rec.', 'IBUPROFENO 200 MG + PARACETAMOL 500 MG', 'TABLETAS RECUB.'),
   ('BOPRD905', 'NOCTIUM ZZZ x 30 TAB. REC.', 'Caja x 30 Tab. Rec.', 'CLORHIDRATO DE DIFENHIDRAMINA 50 MG', 'TABLETAS RECUB.')
 on conflict (codigo) do nothing;
+
+-- ── El proveedor, y el vínculo ───────────────────────────────────────────
+-- RUC pasado por Sebas el 2026-10-30. La razón social va como "PHARMED", el
+-- nombre con el que lo pasó: si en SUNAT figura distinto (ej. con S.A.C.),
+-- se corrige desde la ficha del proveedor. `condicion_pago_dias` queda en
+-- el default (30) — la lista de precios no dice el plazo pactado.
+insert into compras.proveedores (ruc, razon_social, tipo)
+select '20505578806', 'PHARMED', 'mercaderia'
+where not exists (select 1 from compras.proveedores where ruc = '20505578806');
+
+update catalogo.productos
+   set proveedor_id = (select id from compras.proveedores where ruc = '20505578806'),
+       updated_at = now()
+ where (codigo like 'PRD%' or codigo like 'BOPRD%')
+   and proveedor_id is null;
