@@ -72,7 +72,15 @@ export function BloqueosDeCredito({ bloqueos }: { bloqueos: BloqueoPendiente[] }
             <span className="text-gray-600"> · deuda total {soles(b.saldo)}</span>
           </p>
 
-          {abierto === b.orderId ? (
+          {!b.liberable && (
+            <p className="mt-2 text-sm text-red-700">
+              Este cliente pasó el tope de atraso: el pedido <strong>no se puede liberar desde
+              acá</strong>. Aunque se apruebe, vuelve a quedar frenado. Se destraba cuando pague y
+              Cobranzas lo refleje.
+            </p>
+          )}
+
+          {!b.liberable ? null : abierto === b.orderId ? (
             <div className="mt-3 flex flex-col gap-2">
               <label className="etiqueta" htmlFor={`motivo-${b.orderId}`}>
                 Por qué (queda guardado)

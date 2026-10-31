@@ -715,7 +715,9 @@ export async function submitOrder(orderId: string, actor: string): Promise<Submi
   // recibe no tiene que deducir del cuerpo que hay algo que decidir.
   //
   // - Excepción comercial: se pide en borrador, así que el pedido "entra"
-  //   exactamente acá y el aviso es el de descuento por aprobar.
+  //   exactamente acá y el aviso es el de descuento por aprobar. El motivo
+  //   que calculó `submit_order` puede traer más de una razón (un descuento
+  //   y la deuda del cliente), y el correo las dice todas.
   // - Excepción administrativa: el aviso pide aprobar el plazo, con el
   //   motivo que calculó `submit_order` (cuántos días se pidieron contra
   //   cuántos hay aprobados).
@@ -724,7 +726,7 @@ export async function submitOrder(orderId: string, actor: string): Promise<Submi
   //   hace falta un aviso aparte.
   const notificacion =
     data.estadoResultado === "COMMERCIAL_EXCEPTION"
-      ? await notifyDiscountRequested(orderId, data.estadoResultado, actor)
+      ? await notifyDiscountRequested(orderId, data.estadoResultado, actor, data.motivo ?? null)
       : data.estadoResultado === "ADMINISTRATIVE_EXCEPTION"
         ? await notifyPaymentTermsApprovalRequested(
             orderId,

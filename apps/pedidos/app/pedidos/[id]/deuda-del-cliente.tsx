@@ -16,10 +16,11 @@ const cuando = (iso: string) =>
  */
 export function DeudaDelClienteAviso({ deuda }: { deuda: DeudaDelCliente }) {
   const hayVencido = deuda.vencido > 0;
+  const grave = deuda.nivel === "bloqueo";
 
   return (
     <section
-      className={`card p-4 ${deuda.frenaElPedido ? "border-red-300 bg-red-50/40" : hayVencido ? "border-amber-300 bg-amber-50/40" : ""}`}
+      className={`card p-4 ${deuda.nivel !== "ninguno" ? "border-red-300 bg-red-50/40" : hayVencido ? "border-amber-300 bg-amber-50/40" : ""}`}
     >
       <h3 className="font-heading text-base text-gray-900">Deuda del cliente</h3>
 
@@ -35,7 +36,14 @@ export function DeudaDelClienteAviso({ deuda }: { deuda: DeudaDelCliente }) {
         <span className="text-gray-600"> · deuda total {soles(deuda.saldo)}</span>
       </p>
 
-      {deuda.frenaElPedido && (
+      {grave && (
+        <p className="mt-2 text-sm text-red-700">
+          Con este atraso el pedido <strong>no se puede enviar</strong>. No es algo que se apruebe:
+          hay que regularizar la deuda con Cobranzas y volver a intentarlo.
+        </p>
+      )}
+
+      {deuda.nivel === "alerta" && (
         <p className="mt-2 text-sm text-red-700">
           Con esta deuda el pedido <strong>no va a salir a operaciones</strong>: al enviarlo queda
           esperando que el aprobador comercial lo autorice.
