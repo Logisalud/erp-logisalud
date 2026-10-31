@@ -17,15 +17,45 @@ import { logAudit } from "./audit-log";
 
 export type ConfigCredito = {
   activo: boolean;
+  /** Pasado este atraso el pedido pasa, pero frenado esperando aprobación. */
   diasTolerancia: number;
+  /** Desde este atraso el pedido directamente no se puede enviar. */
+  diasBloqueo: number;
 };
+
+/**
+ * Qué le va a pasar a un pedido a crédito de este cliente.
+ *
+ * - `ninguno`: sale derecho.
+ * - `alerta`: sale, pero queda esperando que alguien lo apruebe, con la
+ *   deuda escrita en el correo.
+ * - `bloqueo`: no se envía. No hay bandeja ni aprobación — se levanta
+ *   pagando, no aprobando.
+ */
+export type NivelCredito = "ninguno" | "alerta" | "bloqueo";
+
+/** El mismo cálculo que hace `pedidos.credito_nivel` en la base. */
+export function nivelDeCredito(
+  deuda: { vencido: number; diasAtraso: number },
+  config: ConfigCredito,
+): NivelCredito {
+  if (!config.activo) return "ninguno";
+  if (deuda.vencido <= 0) return "ninguno";
+  if (deuda.diasAtraso >= config.diasBloqueo) return "bloqueo";
+  if (deuda.diasAtraso > config.diasTolerancia) return "alerta";
+  return "ninguno";
+}
 
 export type EstadoDelCredito = {
   config: ConfigCredito;
   clientes: number;
   conVencido: number;
+  /** Pasan la tolerancia: el pedido pasa pero queda esperando aprobación. */
   bloqueados: number;
   vencidoBloqueado: number;
+  /** Pasan el tope duro: a estos no se les puede enviar un pedido a crédito. */
+  sinVenta: number;
+  vencidoSinVenta: number;
   ultimaActualizacion: string | null;
   /** Falta configurar el acceso a cobranzas: sin esto no se puede sincronizar. */
   sinConfigurar: boolean;
@@ -51,12 +81,16 @@ export async function getConfigCredito(): Promise<ConfigCredito> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("credito_config")
-    .select("activo, dias_tolerancia")
+    .select("activo, dias_tolerancia, dias_bloqueo")
     .eq("id", 1)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  const fila = data as { activo: boolean; dias_tolerancia: number } | null;
-  return { activo: fila?.activo ?? false, diasTolerancia: fila?.dias_tolerancia ?? 30 };
+  const fila = data as { activo: boolean; dias_tolerancia: number; dias_bloqueo: number } | null;
+  return {
+    activo: fila?.activo ?? false,
+    diasTolerancia: fila?.dias_tolerancia ?? 30,
+    diasBloqueo: fila?.dias_bloqueo ?? 60,
+  };
 }
 
 export async function getEstadoDelCredito(): Promise<EstadoDelCredito> {
@@ -78,6 +112,9 @@ export async function getEstadoDelCredito(): Promise<EstadoDelCredito> {
   const bloqueables = filas.filter(
     (f) => Number(f.vencido) > 0 && f.dias_atraso > config.diasTolerancia,
   );
+  const sinVenta = filas.filter(
+    (f) => Number(f.vencido) > 0 && f.dias_atraso >= config.diasBloqueo,
+  );
 
   return {
     config,
@@ -90,6 +127,8 @@ export async function getEstadoDelCredito(): Promise<EstadoDelCredito> {
     conVencido: filas.filter((f) => Number(f.vencido) > 0).length,
     bloqueados: bloqueables.length,
     vencidoBloqueado: bloqueables.reduce((acc, f) => acc + Number(f.vencido), 0),
+    sinVenta: sinVenta.length,
+    vencidoSinVenta: sinVenta.reduce((acc, f) => acc + Number(f.vencido), 0),
     ultimaActualizacion: filas.map((f) => f.actualizado_en).sort().at(-1) ?? null,
     sinConfigurar: accesoACobranzas() === null,
   };
@@ -194,7 +233,7 @@ export async function sincronizarCredito(actor: string): Promise<ResultadoSincro
 }
 
 export async function guardarConfigCredito(
-  input: { activo: boolean; diasTolerancia: number },
+  input: { activo: boolean; diasTolerancia: number; diasBloqueo: number },
   actor: string,
 ): Promise<void> {
   const supabase = createClient();
@@ -205,6 +244,7 @@ export async function guardarConfigCredito(
     .update({
       activo: input.activo,
       dias_tolerancia: input.diasTolerancia,
+      dias_bloqueo: input.diasBloqueo,
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", 1);
@@ -230,11 +270,18 @@ export type BloqueoPendiente = {
   diasAtraso: number;
   creadoEn: string;
   vendedor: string | null;
+  /**
+   * Si el cliente ya pasó el tope duro, aprobar no sirve de nada:
+   * `reevaluate_order` lo va a volver a frenar. Mejor decirlo acá que
+   * dejar que alguien apriete el botón y no pase nada.
+   */
+  liberable: boolean;
 };
 
 /** Los pedidos frenados por deuda que esperan una decisión. */
 export async function listarBloqueosPendientes(): Promise<BloqueoPendiente[]> {
   const supabase = createClient();
+  const config = await getConfigCredito();
   const { data, error } = await supabase
     .from("bloqueos_credito")
     .select(
@@ -244,6 +291,24 @@ export async function listarBloqueosPendientes(): Promise<BloqueoPendiente[]> {
     .eq("estado", "pendiente")
     .order("creado_en");
   if (error) throw new Error(error.message);
+
+  // La deuda de HOY, no la del momento del bloqueo: `reevaluate_order`
+  // decide con la de hoy, así que la pantalla tiene que mirar lo mismo o
+  // va a ofrecer un botón que no hace nada.
+  const rucs = ((data ?? []) as Array<{ ruc: string }>)
+    .map((b) => b.ruc)
+    .filter((ruc, i, todos) => todos.indexOf(ruc) === i);
+  const alDia = new Map<string, { vencido: number; diasAtraso: number }>();
+  if (rucs.length > 0) {
+    const { data: hoy, error: errorHoy } = await supabase
+      .from("credito_clientes")
+      .select("ruc, vencido, dias_atraso")
+      .in("ruc", rucs);
+    if (errorHoy) throw new Error(errorHoy.message);
+    for (const c of (hoy ?? []) as Array<{ ruc: string; vencido: number | string; dias_atraso: number }>) {
+      alDia.set(c.ruc, { vencido: Number(c.vencido), diasAtraso: c.dias_atraso });
+    }
+  }
 
   return (
     (data ?? []) as unknown as Array<{
@@ -265,6 +330,11 @@ export async function listarBloqueosPendientes(): Promise<BloqueoPendiente[]> {
     diasAtraso: b.dias_atraso,
     creadoEn: b.creado_en,
     vendedor: b.order?.vendedor_snapshot ?? null,
+    liberable:
+      nivelDeCredito(
+        alDia.get(b.ruc) ?? { vencido: Number(b.vencido), diasAtraso: b.dias_atraso },
+        config,
+      ) !== "bloqueo",
   }));
 }
 
@@ -316,9 +386,13 @@ export type DeudaDelCliente = {
   diasAtraso: number;
   documentosVencidos: number;
   actualizadoEn: string;
-  /** Con la regla y la tolerancia de hoy, este cliente frena el pedido. */
-  frenaElPedido: boolean;
-  /** La regla está apagada: se muestra la deuda, pero no frena nada. */
+  /** Qué le va a pasar al pedido con la regla de hoy. */
+  nivel: NivelCredito;
+  /**
+   * Pasa la tolerancia pero la regla está apagada: se muestra la deuda y
+   * no frena nada. `nivel` es "ninguno" en ese caso, así que sin este
+   * campo la pantalla no podría distinguir "no debe" de "debe y no importa".
+   */
   reglaApagada: boolean;
 };
 
@@ -357,6 +431,7 @@ export async function deudaDelCliente(ruc: string | null): Promise<DeudaDelClien
   if (!fila || Number(fila.saldo) <= 0) return null;
 
   const vencido = Number(fila.vencido);
+  const deuda = { vencido, diasAtraso: fila.dias_atraso };
   const pasaTolerancia = vencido > 0 && fila.dias_atraso > config.diasTolerancia;
 
   return {
@@ -365,7 +440,7 @@ export async function deudaDelCliente(ruc: string | null): Promise<DeudaDelClien
     diasAtraso: fila.dias_atraso,
     documentosVencidos: fila.documentos_vencidos,
     actualizadoEn: fila.actualizado_en,
-    frenaElPedido: config.activo && pasaTolerancia,
+    nivel: nivelDeCredito(deuda, config),
     reglaApagada: !config.activo && pasaTolerancia,
   };
 }

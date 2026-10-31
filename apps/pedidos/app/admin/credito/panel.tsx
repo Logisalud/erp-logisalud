@@ -65,6 +65,8 @@ export function PanelDeCredito({ estado }: { estado: EstadoDelCredito }) {
           <Dato titulo="Con algo vencido" valor={String(estado.conVencido)} />
           <Dato titulo="Pasan la tolerancia" valor={String(estado.bloqueados)} />
           <Dato titulo="Vencido de esos" valor={soles(estado.vencidoBloqueado)} />
+          <Dato titulo="Sin venta a crédito" valor={String(estado.sinVenta)} />
+          <Dato titulo="Vencido de esos" valor={soles(estado.vencidoSinVenta)} />
         </dl>
 
         <button type="button" className="btn-secondary mt-4" onClick={actualizar} disabled={pendiente}>
@@ -89,10 +91,10 @@ export function PanelDeCredito({ estado }: { estado: EstadoDelCredito }) {
           <span>
             <span className="font-medium text-gray-900">Frenar pedidos por deuda vencida</span>
             <span className="block text-gray-600">
-              Apagado, la deuda se ve pero no frena nada. Encendido, el pedido a crédito de un
-              cliente pasado de tolerancia va a aprobación comercial —no se pierde: lo decide una
-              persona—. Los pedidos de contado nunca se frenan: pagar contra entrega no agranda la
-              deuda.
+              Apagado, la deuda se ve pero no frena nada. Encendido, hay dos escalones: pasada la
+              tolerancia el pedido va a aprobación comercial —no se pierde: lo decide una persona—,
+              y pasado el tope de abajo no se puede enviar. Los pedidos de contado nunca se frenan:
+              pagar contra entrega no agranda la deuda.
             </span>
           </span>
         </label>
@@ -111,8 +113,28 @@ export function PanelDeCredito({ estado }: { estado: EstadoDelCredito }) {
             className="campo cifra w-32"
           />
           <p className="mt-1 text-sm text-gray-600">
-            Se frena al cliente cuyo documento vencido más antiguo pase este número. Con 0 frena a
-            cualquiera con algo vencido.
+            El pedido del cliente cuyo documento vencido más antiguo pase este número sale igual,
+            pero queda esperando aprobación comercial, con la deuda escrita en el correo.
+          </p>
+        </div>
+
+        <div>
+          <label className="etiqueta" htmlFor="diasBloqueo">
+            Días de atraso sin venta a crédito
+          </label>
+          <input
+            id="diasBloqueo"
+            name="diasBloqueo"
+            type="number"
+            min={0}
+            step={1}
+            defaultValue={estado.config.diasBloqueo}
+            className="campo cifra w-32"
+          />
+          <p className="mt-1 text-sm text-gray-600">
+            Desde este atraso el vendedor directamente no puede enviar el pedido, y nadie lo puede
+            aprobar: se destraba cuando el cliente paga. No puede ser menor que el número de
+            arriba.
           </p>
         </div>
 

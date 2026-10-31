@@ -34,7 +34,22 @@ export async function guardarReglaDeCredito(formData: FormData): Promise<Resulta
     if (!Number.isInteger(dias) || dias < 0) {
       throw new Error("Los días de tolerancia tienen que ser un número entero de 0 o más.");
     }
-    await guardarConfigCredito({ activo: formData.get("activo") === "on", diasTolerancia: dias }, actor);
+    const tope = Number(formData.get("diasBloqueo"));
+    if (!Number.isInteger(tope) || tope < 0) {
+      throw new Error("Los días del tope tienen que ser un número entero de 0 o más.");
+    }
+    // El tope duro por debajo de la tolerancia dejaría al escalón de alerta
+    // sin rango: todo saltaría directo a "no se puede enviar". La base tiene
+    // el mismo check, pero su error no se le puede mostrar a nadie.
+    if (tope < dias) {
+      throw new Error(
+        "El tope sin venta no puede ser menor que los días tolerados: entre los dos tiene que quedar el rango en que el pedido pasa con aviso.",
+      );
+    }
+    await guardarConfigCredito(
+      { activo: formData.get("activo") === "on", diasTolerancia: dias, diasBloqueo: tope },
+      actor,
+    );
     revalidatePath("/admin/credito");
     return { ok: true };
   } catch (err) {
