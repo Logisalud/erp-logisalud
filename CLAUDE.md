@@ -22,9 +22,14 @@ antes de tocar nada ahí:**
   de auth de las dos). `apps/pedidos` todavía tiene su **proyecto Supabase
   aparte** — consolidarlo es una fase futura y separada. No cruces env vars
   ni migraciones entre `apps/pedidos` y las otras dos mientras siga así.
-- Nada de código compartido entre apps más allá de `packages/auth`. Lo que
-  se comparta a nivel visual va a `packages/design-system` cuando esa etapa
-  arranque; hasta entonces es un placeholder y ninguna app depende de él.
+- Código compartido entre apps: `packages/auth` (login y sesión) y
+  `packages/design-system` (tokens de marca como preset de Tailwind +
+  `BrandMark`). Este último **ya no es un placeholder** — lo consumen
+  `apps/compras` y `apps/wms` vía `presets: [...]`. `apps/cobranzas` no lo
+  usa como preset (ver `apps/cobranzas/DESIGN.md`: comparte build con
+  `/v/[token]`, y el preset pisa la escala por defecto de Tailwind) — en
+  cambio, lee los mismos valores y los expone bajo nombres aditivos.
+  `apps/pedidos` todavía no lo consume.
 - Gestor de paquetes: **npm workspaces**. Un solo `package-lock.json`, en la
   raíz. No agregues lockfiles dentro de `apps/*` ni corras `npm install`
   ahí adentro.
