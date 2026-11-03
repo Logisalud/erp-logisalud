@@ -10,13 +10,29 @@
 -- pasado usa el estado ACTUAL de la letra, no el que tenía en esa fecha
 -- (no hay cómo reconstruirlo sin una tabla de historial que no existe).
 --
+-- Letra PROTESTADA (política por defecto desde 2026-11-03, parametrizable
+-- con p_protestada_usa_fecha_factura): para efectos de "qué fecha cuenta
+-- como vencimiento", una letra protestada usa la fecha_vencimiento
+-- ORIGINAL de la factura, no la suya propia — una letra protestada es un
+-- compromiso ya incumplido, no un plazo vigente, y además su propia fecha
+-- puede haber sido editada/extendida después del protesto. Mismo criterio
+-- que fn_documentos_cobranza (Bloque A). No cambia el SALDO (eso sigue
+-- siendo la suma de monto_aplicado de letras no pagadas, protestada o no
+-- — una letra protestada sigue siendo una deuda real), solo la fecha que
+-- se usa para contar días vencido / ventanas.
+--
 -- Base de documentos: tipo en ('01','03'), no anulado, aceptado_sunat
 -- distinto de false — igual que v_saldos. Importe neto = importe_total +
 -- ND - NC (emitidas <= corte). Tolerancia de céntimos (<=0.09) aplicada
 -- igual que v_cobros. CONTADO emitido antes de 2026-08-11 y no marcado
 -- contado_pendiente = saldo 0, misma regla histórica.
 
-create or replace function fn_saldo_documentos_asof(p_fecha_corte date)
+drop function if exists fn_saldo_documentos_asof(date);
+
+create or replace function fn_saldo_documentos_asof(
+  p_fecha_corte date,
+  p_protestada_usa_fecha_factura boolean default true
+)
 returns table (
   documento_id uuid,
   cliente_ruc text,
@@ -50,10 +66,16 @@ as $$
     group by documento_id
   ), letras_peor as (
     select ld.documento_id,
-      min(l.fecha_vencimiento) as fecha_vencimiento_peor,
+      min(
+        case when p_protestada_usa_fecha_factura and l.estado = 'protestada'
+          then d2.fecha_vencimiento
+          else l.fecha_vencimiento
+        end
+      ) filter (where l.estado <> 'pagada') as fecha_vencimiento_peor,
       sum(ld.monto_aplicado) filter (where l.estado <> 'pagada') as saldo_letras
     from letra_documento ld
     join letras l on l.id = ld.letra_id
+    join documentos d2 on d2.id = ld.documento_id
     group by ld.documento_id
   ), factorizadas as (
     select ff.documento_id
@@ -96,7 +118,7 @@ as $$
     and d.fecha_emision <= p_fecha_corte
 $$;
 
-comment on function fn_saldo_documentos_asof(date) is
+comment on function fn_saldo_documentos_asof(date, boolean) is
   'Base compartida por los indicadores de cobranza: saldo "as-of" fecha_corte, por documento. Aplica tolerancia de céntimos vía greatest/least igual que v_cobros.';
 
-revoke execute on function fn_saldo_documentos_asof(date) from public;
+revoke execute on function fn_saldo_documentos_asof(date, boolean) from public;
