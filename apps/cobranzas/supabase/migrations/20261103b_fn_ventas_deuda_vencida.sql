@@ -35,12 +35,22 @@ as $$
       + coalesce((select sum(nd.importe_total) from documentos nd where nd.documento_relacionado_id = d.id and nd.tipo = '08' and nd.anulado = false and nd.fecha_emision <= p_fecha_corte), 0)
     ) as venta,
     coalesce((
-      select sum(greatest(0,
-        d2.importe_total
-        - coalesce((select sum(nc.importe_total) from documentos nc where nc.documento_relacionado_id = d2.id and nc.tipo = '07' and nc.anulado = false and nc.fecha_emision <= d.fecha_emision), 0)
-        + coalesce((select sum(nd.importe_total) from documentos nd where nd.documento_relacionado_id = d2.id and nd.tipo = '08' and nd.anulado = false and nd.fecha_emision <= d.fecha_emision), 0)
-        - coalesce((select sum(p2.monto) from pagos p2 where p2.documento_id = d2.id and p2.fecha_pago <= d.fecha_emision), 0)
-      ))
+      select sum(
+        -- Tolerancia de céntimos (<=0.09 => 0), igual que v_cobros y
+        -- fn_saldo_documentos_asof — sin esto, residuos de redondeo de
+        -- 1-7 centavos se contaban como "deuda vencida" real.
+        case when greatest(0,
+          d2.importe_total
+          - coalesce((select sum(nc.importe_total) from documentos nc where nc.documento_relacionado_id = d2.id and nc.tipo = '07' and nc.anulado = false and nc.fecha_emision <= d.fecha_emision), 0)
+          + coalesce((select sum(nd.importe_total) from documentos nd where nd.documento_relacionado_id = d2.id and nd.tipo = '08' and nd.anulado = false and nd.fecha_emision <= d.fecha_emision), 0)
+          - coalesce((select sum(p2.monto) from pagos p2 where p2.documento_id = d2.id and p2.fecha_pago <= d.fecha_emision), 0)
+        ) <= 0.09 then 0 else greatest(0,
+          d2.importe_total
+          - coalesce((select sum(nc.importe_total) from documentos nc where nc.documento_relacionado_id = d2.id and nc.tipo = '07' and nc.anulado = false and nc.fecha_emision <= d.fecha_emision), 0)
+          + coalesce((select sum(nd.importe_total) from documentos nd where nd.documento_relacionado_id = d2.id and nd.tipo = '08' and nd.anulado = false and nd.fecha_emision <= d.fecha_emision), 0)
+          - coalesce((select sum(p2.monto) from pagos p2 where p2.documento_id = d2.id and p2.fecha_pago <= d.fecha_emision), 0)
+        ) end
+      )
       from documentos d2
       where d2.cliente_ruc = d.cliente_ruc
         and d2.id <> d.id
@@ -55,12 +65,19 @@ as $$
         and d2.fecha_emision <= d.fecha_emision
     ), 0) as deuda_vencida_30,
     coalesce((
-      select sum(greatest(0,
-        d2.importe_total
-        - coalesce((select sum(nc.importe_total) from documentos nc where nc.documento_relacionado_id = d2.id and nc.tipo = '07' and nc.anulado = false and nc.fecha_emision <= d.fecha_emision), 0)
-        + coalesce((select sum(nd.importe_total) from documentos nd where nd.documento_relacionado_id = d2.id and nd.tipo = '08' and nd.anulado = false and nd.fecha_emision <= d.fecha_emision), 0)
-        - coalesce((select sum(p2.monto) from pagos p2 where p2.documento_id = d2.id and p2.fecha_pago <= d.fecha_emision), 0)
-      ))
+      select sum(
+        case when greatest(0,
+          d2.importe_total
+          - coalesce((select sum(nc.importe_total) from documentos nc where nc.documento_relacionado_id = d2.id and nc.tipo = '07' and nc.anulado = false and nc.fecha_emision <= d.fecha_emision), 0)
+          + coalesce((select sum(nd.importe_total) from documentos nd where nd.documento_relacionado_id = d2.id and nd.tipo = '08' and nd.anulado = false and nd.fecha_emision <= d.fecha_emision), 0)
+          - coalesce((select sum(p2.monto) from pagos p2 where p2.documento_id = d2.id and p2.fecha_pago <= d.fecha_emision), 0)
+        ) <= 0.09 then 0 else greatest(0,
+          d2.importe_total
+          - coalesce((select sum(nc.importe_total) from documentos nc where nc.documento_relacionado_id = d2.id and nc.tipo = '07' and nc.anulado = false and nc.fecha_emision <= d.fecha_emision), 0)
+          + coalesce((select sum(nd.importe_total) from documentos nd where nd.documento_relacionado_id = d2.id and nd.tipo = '08' and nd.anulado = false and nd.fecha_emision <= d.fecha_emision), 0)
+          - coalesce((select sum(p2.monto) from pagos p2 where p2.documento_id = d2.id and p2.fecha_pago <= d.fecha_emision), 0)
+        ) end
+      )
       from documentos d2
       where d2.cliente_ruc = d.cliente_ruc
         and d2.id <> d.id
