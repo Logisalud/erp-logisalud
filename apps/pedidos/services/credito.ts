@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanEnv } from "@/lib/env";
 import { logAudit, ultimaCorrida } from "./audit-log";
+import { claveDeCobranzas } from "@/domain/documentos";
 
 /**
  * El puente de crédito: la deuda del cliente, que vive en el ERP de
@@ -418,14 +419,18 @@ export type DeudaDelCliente = {
  * estar son lo mismo para esta pantalla.
  */
 export async function deudaDelCliente(ruc: string | null): Promise<DeudaDelCliente | null> {
-  if (!ruc) return null;
+  // La copia de la deuda viene de cobranzas y conserva SU forma de la
+  // llave: el DNI relleno con ceros. Buscar con el documento pelado no
+  // encuentra nada y el cliente aparece sin deuda.
+  const llave = claveDeCobranzas(ruc);
+  if (!llave) return null;
   const supabase = createClient();
 
   const [deudaRes, config] = await Promise.all([
     supabase
       .from("credito_clientes")
       .select("saldo, vencido, dias_atraso, documentos_vencidos, actualizado_en")
-      .eq("ruc", ruc)
+      .eq("ruc", llave)
       .maybeSingle(),
     getConfigCredito(),
   ]);

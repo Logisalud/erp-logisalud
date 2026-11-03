@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanEnv } from "@/lib/env";
 import { logAudit, ultimaCorrida } from "./audit-log";
+import { claveDeCobranzas } from "@/domain/documentos";
 
 /**
  * El viaje de vuelta del puente: el contacto del cliente, que lo tiene
@@ -147,8 +148,11 @@ async function contactosDePedidos(): Promise<Map<string, ContactoPedidos>> {
 
   const porRuc = new Map<string, ContactoPedidos>();
   for (const c of filas) {
-    const ruc = (c.ruc_o_documento ?? "").trim();
-    if (ruc === "") continue;
+    // Indexado por la llave que usa cobranzas, no por el documento pelado:
+    // allá el DNI va relleno con ceros y si no se normaliza acá, ningún
+    // cliente con DNI cruza nunca.
+    const ruc = claveDeCobranzas(c.ruc_o_documento);
+    if (ruc === null) continue;
     porRuc.set(ruc, {
       celular: vacio(c.whatsapp) ? null : (c.whatsapp ?? "").trim(),
       direccion: limpiarDireccion(entrega.get(c.id) ?? c.direccion_fiscal),
