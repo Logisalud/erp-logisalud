@@ -62,7 +62,13 @@ export type FilaEfectividadVendedor = { vendedorId: string | null; vendedor: str
 export async function calcularEfectividadCobranza(db: SupabaseClient, fechaCorte: string) {
   const filas = await cargarSaldoAsof(db, fechaCorte);
   const inicioVentana = sumaDias(fechaCorte, -30);
-  const enVentana = filas.filter(f => f.fecha_vencimiento > inicioVentana && f.fecha_vencimiento <= fechaCorte);
+  // Ventana de "vencido" por fecha_vencimiento_efectiva (no la propia del
+  // documento): una letra pendiente vence en su propia fecha, una letra
+  // PROTESTADA vence en la fecha original de la factura (política por
+  // defecto de p_protestada_usa_fecha_factura, igual que Fases/Morosidad
+  // dura). Incluye CONTADO — Finanzas confirmó que su definición de
+  // "vencido" no excluye forma de pago.
+  const enVentana = filas.filter(f => f.fecha_vencimiento_efectiva > inicioVentana && f.fecha_vencimiento_efectiva <= fechaCorte);
 
   const vencido = enVentana.reduce((s, f) => s + Number(f.importe_neto), 0);
   const pendiente = enVentana.reduce((s, f) => s + Number(f.saldo), 0);
@@ -83,7 +89,7 @@ export async function calcularEfectividadCobranza(db: SupabaseClient, fechaCorte
     .filter(f => f.saldo > 0)
     .reduce((acc, f) => {
       const ex = acc.find(x => x.clienteRuc === f.cliente_ruc);
-      const dias = diffDias(fechaCorte, f.fecha_vencimiento);
+      const dias = diffDias(fechaCorte, f.fecha_vencimiento_efectiva);
       if (ex) { ex.pendiente += Number(f.saldo); ex.docs += 1; ex.diasVencido = Math.max(ex.diasVencido, dias); }
       else acc.push({ clienteRuc: f.cliente_ruc, vendedor: f.vendedor_nombre, docs: 1, diasVencido: dias, pendiente: Number(f.saldo) });
       return acc;
