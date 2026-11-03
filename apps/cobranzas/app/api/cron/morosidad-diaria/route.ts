@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { capturarMorosidad } from '@/lib/capturarMorosidad';
+import { capturarIndicadoresSnapshot } from '@/lib/capturarIndicadoresSnapshot';
 
 // Proceso diario (Vercel Cron): captura la foto de morosidad por vendedor.
 // Protegido con CRON_SECRET: Vercel envía "Authorization: Bearer <CRON_SECRET>".
@@ -28,7 +29,24 @@ export async function GET(req: NextRequest) {
   try {
     const fecha = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
     const res = await capturarMorosidad(fecha);
-    return NextResponse.json({ ok: true, ...res }, { headers: { 'Cache-Control': 'no-store' } });
+
+    // Snapshot de los 6 indicadores de cobranza (Bloque B) — se aprovecha
+    // este mismo cron porque Vercel ya tiene 2 crons (el límite de un plan
+    // Hobby). Envuelto en try/catch a propósito: un fallo acá NUNCA debe
+    // tumbar la captura de morosidad de arriba, que ya funcionaba antes.
+    let indicadores: { fecha: string; filas: number } | null = null;
+    let errorIndicadores: string | null = null;
+    try {
+      indicadores = await capturarIndicadoresSnapshot(fecha, 'diario');
+    } catch (err) {
+      errorIndicadores = String(err instanceof Error ? err.message : err);
+      console.error('[cron] capturarIndicadoresSnapshot falló (no afecta morosidad):', errorIndicadores);
+    }
+
+    return NextResponse.json(
+      { ok: true, ...res, indicadores, errorIndicadores },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
