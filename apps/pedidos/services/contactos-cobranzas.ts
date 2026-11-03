@@ -255,3 +255,51 @@ export async function sincronizarContactosACobranzas(actor: string): Promise<Res
 
   return { celulares, direcciones, ubicaciones, soloEnPedidos, cuando };
 }
+
+export type UltimaCorridaDeContactos = {
+  cuando: string;
+  celulares: number;
+  direcciones: number;
+  ubicaciones: number;
+  soloEnPedidos: number;
+} | null;
+
+/**
+ * Cuándo se completaron los contactos por última vez, y con qué resultado.
+ *
+ * Sale de la auditoría, que es el único lugar donde queda registro: el sync
+ * no guarda estado propio. Sirve para contestar de un vistazo la pregunta
+ * que de verdad se hace quien entra a esta pantalla —"¿esto ya corrió
+ * alguna vez?"— sin tener que mirar la cartera de cobranzas a ver si
+ * cambió.
+ */
+export async function ultimaCorridaDeContactos(): Promise<UltimaCorridaDeContactos> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("audit_logs")
+    .select("fecha, datos_despues")
+    .eq("accion", "sincronizar_contactos_cobranzas")
+    .order("fecha", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const fila = data as {
+    fecha: string;
+    datos_despues: {
+      celulares?: number;
+      direcciones?: number;
+      ubicaciones?: number;
+      soloEnPedidos?: number;
+    } | null;
+  };
+  const d = fila.datos_despues ?? {};
+  return {
+    cuando: fila.fecha,
+    celulares: d.celulares ?? 0,
+    direcciones: d.direcciones ?? 0,
+    ubicaciones: d.ubicaciones ?? 0,
+    soloEnPedidos: d.soloEnPedidos ?? 0,
+  };
+}
