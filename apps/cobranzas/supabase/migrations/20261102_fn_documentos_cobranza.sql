@@ -6,19 +6,37 @@
 -- un parámetro p_fecha_corte (por defecto hoy):
 --
 --   - Documento SIN letras: su propia fecha_vencimiento.
---   - Documento CON letras: la fecha_vencimiento de su letra pendiente
---     MÁS ANTIGUA (la que ya está en v_saldos/v_cobros determinando su
---     saldo — mismo criterio, solo que acá se recalculan los días contra
---     p_fecha_corte en vez de CURRENT_DATE, porque v_saldos.dias_retraso
---     no admite parámetro). Si todas sus letras ya están pagadas, el
---     documento no aparece (su saldo_pendiente ya es 0 en v_saldos).
+--   - Documento CON letras: por cada letra NO pagada, se usa su propia
+--     fecha_vencimiento — EXCEPTO si está PROTESTADA, en cuyo caso se usa
+--     la fecha_vencimiento ORIGINAL de la factura (política por defecto
+--     desde 2026-11-03, parametrizable con p_protestada_usa_fecha_factura
+--     — ver abajo). Se toma el mínimo (la peor) entre todas. Si todas sus
+--     letras ya están pagadas, el documento no aparece (su saldo_pendiente
+--     ya es 0 en v_saldos).
+--
+-- Por qué: una letra protestada es un compromiso YA incumplido — dejarla
+-- "reiniciar" el aging con su propia fecha (que además puede haber sido
+-- editada/extendida después del protesto, ver ADRIXEL S.A.C. en el
+-- historial de esta sesión) esconde morosidad real. Verificado con la
+-- muestra de 35 clientes contra el Excel de Finanzas (corte 26/10/2026):
+-- de los 5 que no coincidían por la regla de letras, 3 (ADRIXEL, GRUPO
+-- KORMED, *ELMEKS PERU) tenían TODAS sus letras remanentes protestadas, y
+-- esta política los hace coincidir exacto con el Excel.
 --
 -- El saldo en sí (`saldo`) es el de v_saldos tal cual está HOY — estas
 -- vistas no recalculan el saldo a una fecha pasada, así que con un
 -- p_fecha_corte distinto de hoy los días vencido se recalculan pero el
 -- monto sigue siendo el saldo actual. Documentado también en
 -- apps/cobranzas/lib/fasesCobranza.ts.
-create or replace function fn_documentos_cobranza(p_fecha_corte date default current_date)
+-- Se agrega un parámetro nuevo (p_protestada_usa_fecha_factura): Postgres
+-- lo trata como una función distinta (otra firma), así que hay que borrar
+-- la versión vieja de un solo parámetro antes de crear esta.
+drop function if exists fn_documentos_cobranza(date);
+
+create or replace function fn_documentos_cobranza(
+  p_fecha_corte date default current_date,
+  p_protestada_usa_fecha_factura boolean default true
+)
 returns table (
   documento_id uuid,
   cliente_ruc text,
@@ -47,7 +65,12 @@ as $$
     s.tiene_letras
   from v_saldos s
   left join lateral (
-    select min(l.fecha_vencimiento) as fecha_vencimiento_peor
+    select min(
+      case when p_protestada_usa_fecha_factura and l.estado = 'protestada'
+        then s.fecha_vencimiento
+        else l.fecha_vencimiento
+      end
+    ) as fecha_vencimiento_peor
     from letra_documento ld
     join letras l on l.id = ld.letra_id
     where ld.documento_id = s.id and l.estado <> 'pagada'
@@ -55,4 +78,4 @@ as $$
   where s.saldo_pendiente > 0
 $$;
 
-revoke execute on function fn_documentos_cobranza(date) from public;
+revoke execute on function fn_documentos_cobranza(date, boolean) from public;
