@@ -18,18 +18,19 @@ export const FASE_NOMBRE: Record<NumeroFase, string> = {
   6: 'Legal',
 };
 
-// Texto de "Acción" por fase: no viene del Excel de Mariela (no se pudo
-// leer en esta sesión) — es una propuesta razonable de playbook de
-// cobranza estándar. CONFIRMAR/reemplazar por el texto real de la
-// pestaña RESUMEN antes de darlo por definitivo.
+// Texto oficial de la pestaña RESUMEN del Excel de Finanzas (corte
+// 26/10/2026), confirmado por Sebastián. La lámina 10 del PPT redacta
+// distinto las fases 0 y 5 (agrega carta preventiva a MOROSOS en fase 0;
+// carta de aviso Equifax + notarial en fase 5) — se usa el texto del
+// Excel, que es la fuente indicada.
 export const FASE_ACCION: Record<NumeroFase, string> = {
-  0: 'Recordatorio preventivo antes del vencimiento (WhatsApp o llamada).',
-  1: 'Recordatorio de pago — contacto directo con el cliente.',
-  2: 'Gestión de cobranza activa — seguimiento telefónico y acuerdo de pago.',
-  3: 'Alerta a vendedor y supervisor — evaluar condiciones de crédito.',
-  4: 'Bloqueo de nuevos pedidos a crédito hasta regularizar.',
-  5: 'Notificación formal de pre-cobranza — última gestión antes de legal.',
-  6: 'Derivar a gestión legal / cobranza especializada.',
+  0: 'Recordatorio: correo/mensaje confirmando fecha y monto',
+  1: 'Mensaje o correo automático de cobranza',
+  2: 'Llamada y visita del vendedor',
+  3: 'Cobranzas llama; nuevos pedidos solo con aprobación',
+  4: 'Crédito suspendido; solo contado',
+  5: 'Carta notarial y reporte a Infocorp',
+  6: 'Abogado o provisión como incobrable',
 };
 
 export function faseDeDiasVencido(diasVencido: number): NumeroFase {
