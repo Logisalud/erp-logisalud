@@ -39,6 +39,7 @@ export async function crearSolicitudAction(_previo: EstadoFormulario, form: Form
     // Pieza H: fecha del comprobante real (no aplica a un anticipo).
     fechaFactura: tipo === 'anticipo' ? null : textoONull(form.get('fechaFactura')),
     tipoComprobante: tipo === 'anticipo' ? null : tipoComprobante,
+    tipoCambio: String(form.get('moneda') ?? 'PEN') === 'USD' ? Number(form.get('tipoCambio') ?? 0) || null : null,
   }
 
   const errores = validarSolicitud(borrador)

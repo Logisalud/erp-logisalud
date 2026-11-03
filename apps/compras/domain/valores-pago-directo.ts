@@ -1,3 +1,5 @@
+import { leerTipoComprobante, noSuperaUmbral, type TipoComprobante } from './retencion-4ta'
+
 /**
  * Los valores guardados de un Pago Directo con la forma que necesita el
  * formulario. Puro — mismo patrón que domain/valores-solicitud.ts.
@@ -28,6 +30,10 @@ export type ValoresPagoDirecto = {
   tieneDetraccion: boolean | null
   porcentajeDetraccion: string
   montoDetraccion: string
+  tipoComprobante: TipoComprobante
+  /** Un RxH ≤ S/ 1,500 que se guardó CON retención: fue "Retener igual"
+   * (por defecto no se retiene). Se respeta al editar. */
+  retenerIgual: boolean
 }
 
 type FilaObligacionPD = {
@@ -43,6 +49,8 @@ type FilaObligacionPD = {
   fecha_factura: string | null
   porcentaje_detraccion: number | string | null
   monto_detraccion: number | string | null
+  tipo_comprobante?: string | null
+  motivo_retencion_4ta?: string | null
 }
 
 export function valoresDePagoDirecto(
@@ -72,5 +80,9 @@ export function valoresDePagoDirecto(
     tieneDetraccion,
     porcentajeDetraccion: tieneDetraccion ? numero(fila.porcentaje_detraccion) : '',
     montoDetraccion: tieneDetraccion ? numero(fila.monto_detraccion) : '',
+    tipoComprobante: leerTipoComprobante(fila.tipo_comprobante),
+    retenerIgual:
+      fila.motivo_retencion_4ta === 'retenido' &&
+      noSuperaUmbral(Number(fila.base_imponible) || 0, fila.moneda ?? 'PEN', Number(fila.tipo_cambio) || null),
   }
 }

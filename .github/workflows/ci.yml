@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
 
+# Ahorro de minutos: al subir otro cambio a un PR, la corrida anterior de ese PR se cancela (en main nunca se cancela).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pedidos:
     name: apps/pedidos — lint, test, build
@@ -117,6 +122,8 @@ jobs:
       # con un solo servidor para los 4, los viewports posteriores al primero fallaban (rojo desde el 8-oct).
       - run: npx playwright install --with-deps chromium
 
+      # Ahorro de minutos: en un PR se corre un solo tamaño (escritorio 1440x900); los 4 tamaños corren al mergear a main.
       - run: npm run test:e2e --workspace erp-logisalud-wms
         env:
+          WMS_E2E_VIEWPORTS: ${{ github.event_name == 'pull_request' && 'desktop-1440x900' || '' }}
           WMS_DEMO_LOCAL: '1'

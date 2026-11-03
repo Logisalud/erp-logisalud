@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { useMarcarSucioAlEditar } from '@/components/formulario-sucio-provider'
 import { crearSolicitudAction, type EstadoFormulario } from './actions'
@@ -59,12 +59,39 @@ export function FormularioSolicitud({
   const sucio = useMarcarSucioAlEditar(estado)
   const [tipo, setTipo] = useState<TipoSolicitud>(inicial?.tipo ?? tipoPreseleccionado ?? 'gasto_directo')
   const [categoriaId, setCategoriaId] = useState(inicial?.categoriaId ?? '')
+  const [moneda, setMoneda] = useState(inicial?.moneda ?? 'PEN')
+  const [fechaFactura, setFechaFactura] = useState(inicial?.fechaFactura ?? '')
+  // Tipo de cambio: SUNAT por defecto, editable (Sebas, 2026-10-23). Si la
+  // persona lo escribe a mano, ya no se pisa al cambiar la fecha. Al editar
+  // una solicitud que ya lo tiene, se respeta el guardado.
+  const [tipoCambio, setTipoCambio] = useState(inicial?.tipoCambio ?? '')
+  const [tcAMano, setTcAMano] = useState(!!inicial?.tipoCambio)
+  const [tcEstado, setTcEstado] = useState<'' | 'buscando' | 'sunat' | 'sin_dato'>('')
   const [base, setBase] = useState(inicial?.baseImponible ?? '')
   const [igv, setIgv] = useState(inicial?.igv ?? '')
   // Al editar, el IGV guardado se respeta tal cual: recalcularlo al 18%
   // porque alguien tocó la base pisaría un valor que ya estaba revisado.
   const [igvEditadoAMano, setIgvEditadoAMano] = useState(!!inicial)
   const [tipoComprobante, setTipoComprobante] = useState(inicial?.tipoComprobante ?? 'boleta')
+
+  // La fecha que manda: la del comprobante; en un anticipo (que no tiene),
+  // la de hoy en Lima.
+  const fechaTc = tipo === 'anticipo' || !fechaFactura
+    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date())
+    : fechaFactura
+  useEffect(() => {
+    if (moneda !== 'USD' || tcAMano) return
+    let vigente = true
+    setTcEstado('buscando')
+    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/api/tipo-cambio?fecha=${fechaTc}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vigente) return
+        if (j?.venta) { setTipoCambio(String(j.venta)); setTcEstado('sunat') } else setTcEstado('sin_dato')
+      })
+      .catch(() => vigente && setTcEstado('sin_dato'))
+    return () => { vigente = false }
+  }, [moneda, fechaTc, tcAMano])
 
   const errorDe = (campo: string) => estado?.errores.find((e) => e.campo === campo)?.mensaje
   // El formulario es largo y el botón está al final: sin esto, un error de
@@ -130,11 +157,39 @@ export function FormularioSolicitud({
         </Campo>
 
         <Campo etiqueta="Moneda *" error={errorDe('moneda')}>
-          <select name="moneda" defaultValue={inicial?.moneda ?? 'PEN'} className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3">
+          <select
+            name="moneda" value={moneda} onChange={(e) => setMoneda(e.target.value)}
+            className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3"
+          >
             <option value="PEN">PEN — Soles</option>
             <option value="USD">USD — Dólares</option>
           </select>
         </Campo>
+
+        {moneda === 'USD' ? (
+          <Campo etiqueta="Tipo de cambio *" error={errorDe('tipoCambio')}>
+            <input
+              type="number" name="tipoCambio" min="0" step="0.0001" inputMode="decimal"
+              value={tipoCambio} placeholder="Ej. 3.4500"
+              onChange={(e) => { setTipoCambio(e.target.value); setTcAMano(true) }}
+              className="min-h-12 w-full rounded-md border border-gray-300 px-3"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {tcEstado === 'buscando'
+                ? 'Buscando el tipo de cambio SUNAT…'
+                : tcEstado === 'sunat' && !tcAMano
+                  ? `Tipo de cambio SUNAT (venta) del ${fechaTc.split('-').reverse().join('/')}. Puedes cambiarlo.`
+                  : tcEstado === 'sin_dato' && !tcAMano
+                    ? 'No se pudo traer el de SUNAT ahora — escríbelo.'
+                    : 'Soles por dólar. Se paga en dólares; esto es para la contabilidad.'}
+              {tcAMano ? (
+                <button type="button" onClick={() => setTcAMano(false)} className="ml-1 text-logisalud-teal underline">
+                  Usar el de SUNAT
+                </button>
+              ) : null}
+            </p>
+          </Campo>
+        ) : null}
 
         <Campo etiqueta="Descripción *" error={errorDe('descripcion')}>
           <textarea name="descripcion" rows={3} defaultValue={inicial?.descripcion} className="w-full rounded-md border border-gray-300 px-3 py-2" />
@@ -173,7 +228,7 @@ export function FormularioSolicitud({
                 <input type="number" name="montoAnticipo" min="0" step="0.01" defaultValue={inicial?.montoAnticipo} className="min-h-12 w-full rounded-md border border-gray-300 px-3" />
               </Campo>
               {usuarios.length > 1 || personas.length > 0 ? (
-                <Campo etiqueta="Vendedor o persona asignada">
+                <Campo etiqueta="Vendedor o persona asignada" grupo>
                   <BuscadorPersona name="asignado" opciones={opcionesAsignado} valorInicial={inicial?.asignado ?? ''} />
                   <p className="mt-1 text-xs text-gray-500">
                     Si estás armando el anticipo para otra persona (ej. viáticos de un vendedor),
@@ -252,7 +307,8 @@ export function FormularioSolicitud({
                 error={errorDe('fechaFactura')}
               >
                 <input
-                  type="date" name="fechaFactura" required={exigeFechaComprobante} defaultValue={inicial?.fechaFactura}
+                  type="date" name="fechaFactura" required={exigeFechaComprobante} value={fechaFactura}
+                  onChange={(e) => setFechaFactura(e.target.value)}
                   className="min-h-12 w-full rounded-md border border-gray-300 px-3"
                 />
                 <p className="mt-1 text-xs text-gray-500">
@@ -310,14 +366,21 @@ function BotonGuardar({ texto, textoEnviando }: { texto: string; textoEnviando: 
   )
 }
 
+/**
+ * `grupo`: para un campo cuyo control es un buscador (combobox) y no un
+ * input suelto. Va en un <div> y no en un <label> porque en el iPhone tocar
+ * una opción DENTRO de un label le devuelve el foco al input y la opción no
+ * se elige (reportado por Sebas en Pago Directo, 2026-10-23).
+ */
 function Campo({
-  etiqueta, error, children,
-}: { etiqueta: string; error?: string; children: React.ReactNode }) {
+  etiqueta, error, children, grupo = false,
+}: { etiqueta: string; error?: string; children: React.ReactNode; grupo?: boolean }) {
+  const Contenedor = grupo ? 'div' : 'label'
   return (
-    <label className="block text-sm">
+    <Contenedor className="block text-sm" {...(grupo ? { role: 'group', 'aria-label': etiqueta } : {})}>
       <span className="font-medium text-gray-800">{etiqueta}</span>
       <div className="mt-1">{children}</div>
       {error ? <p className="mt-1 text-red-700">{error}</p> : null}
-    </label>
+    </Contenedor>
   )
 }

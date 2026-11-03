@@ -11,6 +11,17 @@ vi.mock("@/app/pedidos/[id]/actions", () => ({
 
 import { OrderItemComposer } from "@/app/pedidos/[id]/order-item-composer";
 
+/**
+ * Stock de sobra para cualquier producto: estos tests son sobre otra cosa
+ * (bonificaciones y mensajes de error), y sin stock el composer bloquea el
+ * envío y tapa justo lo que se está probando.
+ */
+const stockDeSobra: Record<string, number> = new Proxy(
+  {},
+  { get: () => 999 },
+) as Record<string, number>;
+
+
 const items = [
   {
     id: "60e1d156-547b-4e2d-8612-fd32e1abc038",
@@ -45,6 +56,7 @@ describe("la línea bonificada en la pantalla del pedido", () => {
         items={items}
         products={[]}
         sinPrecio={[]}
+        stockPorProducto={stockDeSobra}
         observaciones={[]}
         esAdmin={false}
       />,
@@ -69,6 +81,7 @@ describe("la línea bonificada en la pantalla del pedido", () => {
         items={items}
         products={[]}
         sinPrecio={[]}
+        stockPorProducto={stockDeSobra}
         observaciones={[]}
         esAdmin={false}
       />,
@@ -85,6 +98,7 @@ describe("la línea bonificada en la pantalla del pedido", () => {
         items={[{ ...items[1], cantidad: 1 }]}
         products={[]}
         sinPrecio={[]}
+        stockPorProducto={stockDeSobra}
         observaciones={[]}
         esAdmin={false}
       />,
@@ -120,6 +134,7 @@ function renderConItems(items: typeof manuales, esAdmin: boolean) {
       items={items}
       products={[]}
       sinPrecio={[]}
+        stockPorProducto={stockDeSobra}
       observaciones={[]}
       esAdmin={esAdmin}
     />,

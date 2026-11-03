@@ -8,7 +8,7 @@ import {
   type NotifyResult,
 } from "./order-notifications";
 import { calculateLineItem, canEditPaymentTerms } from "@/domain/orders";
-import { admitePrecioCero } from "@/domain/products";
+import { admitePrecioCero, hayStockParaPedir } from "@/domain/products";
 import { MENSAJE_SIN_DIRECCION } from "@/domain/customers";
 import { evaluarCambioDeCliente, type ConflictoDePrecio } from "@/domain/order-header";
 
@@ -273,7 +273,12 @@ async function resolverUbigeo(
 
 export type AddOrderItemResult =
   | { ok: true; itemId: string }
-  | { ok: false; reason: "NO_PRICE" | "NO_TAX_PROFILE" | "NO_CHANNEL" | "PRODUCTO_INACTIVO" };
+  | {
+      ok: false;
+      reason: "NO_PRICE" | "NO_TAX_PROFILE" | "NO_CHANNEL" | "PRODUCTO_INACTIVO" | "SIN_STOCK" | "FUERA_DE_ZONA";
+      /** El texto exacto para mostrar, cuando el motivo lo trae la base. */
+      detalle?: string;
+    };
 
 /**
  * Agrega una línea al pedido en DRAFT. El precio mostrado acá es solo
@@ -300,6 +305,90 @@ export async function aplicarPromociones(orderId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Los productos del pedido que hoy no tienen stock, por su código.
+ *
+ * Se usa para frenar el envío: una línea puede haber entrado cuando había
+ * stock y quedarse en cero con la carga del día siguiente, y despachar eso
+ * es prometerle al cliente algo que no existe.
+ */
+export async function lineasSinStockDelPedido(orderId: string): Promise<string[]> {
+  const supabase = createClient();
+
+  const { data: items, error: itemsError } = await supabase
+    .from("order_items")
+    .select("product_id, product:products(codigo_interno)")
+    .eq("order_id", orderId);
+  if (itemsError) throw new Error(itemsError.message);
+
+  const lineas = (items ?? []) as unknown as Array<{
+    product_id: string;
+    product: { codigo_interno: string } | null;
+  }>;
+  if (lineas.length === 0) return [];
+
+  const { data: niveles, error: nivelesError } = await supabase
+    .from("stock_levels")
+    .select("product_id, cantidad_disponible")
+    .in("product_id", Array.from(new Set(lineas.map((l) => l.product_id))));
+  if (nivelesError) throw new Error(nivelesError.message);
+
+  const disponible = new Map<string, number>();
+  for (const n of (niveles ?? []) as unknown as Array<{
+    product_id: string;
+    cantidad_disponible: number | string;
+  }>) {
+    disponible.set(n.product_id, (disponible.get(n.product_id) ?? 0) + Number(n.cantidad_disponible));
+  }
+
+  return Array.from(
+    new Set(
+      lineas
+        .filter((l) => !hayStockParaPedir(disponible.get(l.product_id) ?? 0))
+        .map((l) => l.product?.codigo_interno ?? "—"),
+    ),
+  );
+}
+
+/**
+ * El motivo por el que ese producto no se puede entregar en la dirección
+ * del pedido, o null si sí se puede.
+ *
+ * Un pedido sin dirección elegida todavía no se veta: la pregunta no se
+ * puede contestar, y frenar por falta de dato es frenar ventas de más. El
+ * envío sí exige dirección, así que el caso se cierra ahí.
+ */
+async function motivoFueraDeZona(
+  supabase: ReturnType<typeof createClient>,
+  orderId: string,
+  productId: string,
+): Promise<string | null> {
+  const { data: order, error } = await supabase
+    .from("orders")
+    .select("customer_address_id")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const direccionId = (order as { customer_address_id: string | null } | null)?.customer_address_id;
+  if (!direccionId) return null;
+
+  const { data: direccion, error: errorDireccion } = await supabase
+    .from("customer_addresses")
+    .select("ubigeo")
+    .eq("id", direccionId)
+    .maybeSingle();
+  if (errorDireccion) throw new Error(errorDireccion.message);
+  const ubigeo = (direccion as { ubigeo: string | null } | null)?.ubigeo;
+  if (!ubigeo) return null;
+
+  const { data, error: errorVeto } = await supabase.rpc("producto_vetado_en", {
+    p_product_id: productId,
+    p_ubigeo: ubigeo,
+  });
+  if (errorVeto) throw new Error(errorVeto.message);
+  return (data as string | null) ?? null;
+}
+
 export async function addOrderItem(input: {
   orderId: string;
   customerId: string;
@@ -320,6 +409,29 @@ export async function addOrderItem(input: {
   if (productError) throw new Error(productError.message);
   if (!product) throw new Error("El producto no existe o no es visible.");
   if (product.estado !== "activo") return { ok: false, reason: "PRODUCTO_INACTIVO" };
+
+  // Lo que el almacén no tiene no se vende. La pantalla ya no deja elegirlo
+  // —lo muestra como "Sin stock" y sin botón—, pero la Server Action recibe
+  // un productId cualquiera, y el stock puede haberse ido a cero entre que
+  // se cargó la pantalla y se agregó la línea.
+  const { data: nivel, error: nivelError } = await supabase
+    .from("stock_levels")
+    .select("cantidad_disponible")
+    .eq("product_id", input.productId);
+  if (nivelError) throw new Error(nivelError.message);
+  const disponible = ((nivel ?? []) as unknown as Array<{ cantidad_disponible: number | string }>)
+    .reduce((acc, n) => acc + Number(n.cantidad_disponible), 0);
+  if (!hayStockParaPedir(disponible)) return { ok: false, reason: "SIN_STOCK" };
+
+  // Territorio del proveedor: hay líneas que no se pueden entregar en el
+  // distrito al que va el pedido. Se avisa acá, al agregar, y no recién al
+  // enviar: el vendedor suele estar con el cliente adelante, y enterarse
+  // después de armar todo el pedido es enterarse tarde.
+  //
+  // `submit_order` lo vuelve a chequear igual, porque la dirección de
+  // entrega se puede cambiar DESPUÉS de cargar las líneas.
+  const vetado = await motivoFueraDeZona(supabase, input.orderId, input.productId);
+  if (vetado) return { ok: false, reason: "FUERA_DE_ZONA", detalle: vetado };
 
   const { data: customer, error: customerError } = await supabase
     .from("customers")
@@ -657,7 +769,9 @@ export async function submitOrder(orderId: string, actor: string): Promise<Submi
   // recibe no tiene que deducir del cuerpo que hay algo que decidir.
   //
   // - Excepción comercial: se pide en borrador, así que el pedido "entra"
-  //   exactamente acá y el aviso es el de descuento por aprobar.
+  //   exactamente acá y el aviso es el de descuento por aprobar. El motivo
+  //   que calculó `submit_order` puede traer más de una razón (un descuento
+  //   y la deuda del cliente), y el correo las dice todas.
   // - Excepción administrativa: el aviso pide aprobar el plazo, con el
   //   motivo que calculó `submit_order` (cuántos días se pidieron contra
   //   cuántos hay aprobados).
@@ -666,7 +780,7 @@ export async function submitOrder(orderId: string, actor: string): Promise<Submi
   //   hace falta un aviso aparte.
   const notificacion =
     data.estadoResultado === "COMMERCIAL_EXCEPTION"
-      ? await notifyDiscountRequested(orderId, data.estadoResultado, actor)
+      ? await notifyDiscountRequested(orderId, data.estadoResultado, actor, data.motivo ?? null)
       : data.estadoResultado === "ADMINISTRATIVE_EXCEPTION"
         ? await notifyPaymentTermsApprovalRequested(
             orderId,
