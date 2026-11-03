@@ -2,7 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanEnv } from "@/lib/env";
-import { logAudit } from "./audit-log";
+import { logAudit, ultimaCorrida } from "./audit-log";
 
 /**
  * El puente de crédito: la deuda del cliente, que vive en el ERP de
@@ -57,6 +57,8 @@ export type EstadoDelCredito = {
   sinVenta: number;
   vencidoSinVenta: number;
   ultimaActualizacion: string | null;
+  /** Si la última sincronización la disparó el cron o una persona. Null si nunca corrió. */
+  ultimaPorElCron: boolean | null;
   /** Falta configurar el acceso a cobranzas: sin esto no se puede sincronizar. */
   sinConfigurar: boolean;
 };
@@ -95,7 +97,10 @@ export async function getConfigCredito(): Promise<ConfigCredito> {
 
 export async function getEstadoDelCredito(): Promise<EstadoDelCredito> {
   const supabase = createClient();
-  const config = await getConfigCredito();
+  const [config, ultima] = await Promise.all([
+    getConfigCredito(),
+    ultimaCorrida("sincronizar_credito"),
+  ]);
 
   const { data, error } = await supabase
     .from("credito_clientes")
@@ -130,6 +135,7 @@ export async function getEstadoDelCredito(): Promise<EstadoDelCredito> {
     sinVenta: sinVenta.length,
     vencidoSinVenta: sinVenta.reduce((acc, f) => acc + Number(f.vencido), 0),
     ultimaActualizacion: filas.map((f) => f.actualizado_en).sort().at(-1) ?? null,
+    ultimaPorElCron: ultima ? ultima.porElCron : null,
     sinConfigurar: accesoACobranzas() === null,
   };
 }
@@ -151,7 +157,7 @@ export type ResultadoSincronizacion = {
  * de ayer es mucho mejor que quedarse sin dato: sin dato, la regla deja de
  * frenar a todo el mundo y nadie se entera.
  */
-export async function sincronizarCredito(actor: string): Promise<ResultadoSincronizacion> {
+export async function sincronizarCredito(actor: string | null): Promise<ResultadoSincronizacion> {
   const acceso = accesoACobranzas();
   if (!acceso) {
     throw new Error(
@@ -226,7 +232,12 @@ export async function sincronizarCredito(actor: string): Promise<ResultadoSincro
     accion: "sincronizar_credito",
     entidad: "credito_clientes",
     entidadId: "cartera",
-    datosDespues: { clientes: filas.length, saldados: saldados.length, vencido },
+    datosDespues: {
+      clientes: filas.length,
+      saldados: saldados.length,
+      vencido,
+      origen: actor ? "persona" : "cron",
+    },
   });
 
   return { clientes: filas.length, vencido, cuando };

@@ -51,7 +51,10 @@ async function ejecutar(req: NextRequest) {
   const cabecera = req.headers.get("x-cron-secret") ?? "";
   const esCron = secreto !== "" && (bearer === `Bearer ${secreto}` || cabecera === secreto);
 
-  let actor = "cron";
+  // `audit_logs.actor` es uuid y referencia a una persona: cuando corre
+  // el cron no hay ninguna, y el texto "cron" reventaba el insert. Queda
+  // null, y quién lo disparó se guarda aparte, en los datos del registro.
+  let actor: string | null = null;
   if (!esCron) {
     const user = await getCurrentUser();
     if (!user || !user.roles.includes("administrador")) {

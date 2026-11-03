@@ -45,7 +45,14 @@ function tabla(nombre: string): any {
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: tabla }) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: () => ({ from: tabla }) }));
-vi.mock("@/services/audit-log", () => ({ logAudit: async () => {} }));
+const auditoria: Array<Record<string, unknown>> = [];
+vi.mock("@/services/audit-log", () => ({
+  logAudit: async (entry: Record<string, unknown>) => {
+    auditoria.push(entry);
+  },
+  // La pantalla pregunta cuándo corrió por última vez; acá nunca corrió.
+  ultimaCorrida: async () => null,
+}));
 
 import { sincronizarCredito } from "@/services/credito";
 
@@ -131,5 +138,36 @@ describe("el contador de la pantalla", () => {
     expect(estado.conVencido).toBe(1);
     expect(estado.bloqueados).toBe(1);
     expect(estado.vencidoBloqueado).toBe(800);
+  });
+});
+
+describe("quién disparó la sincronización", () => {
+  /**
+   * `audit_logs.actor` es uuid y apunta a una persona. Cuando corre el cron
+   * no hay ninguna, y durante días las rutas pasaron el texto "cron": el
+   * insert reventaba DESPUÉS de haber hecho todo el trabajo, así que el job
+   * quedaba sin registro y parecía no haber corrido nunca. Se descubrió el
+   * 2026-11-03, con el sync de contactos sin una sola corrida en la
+   * auditoría.
+   */
+  it("el cron no se anota como persona: el actor va vacío", async () => {
+    auditoria.length = 0;
+    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => DEUDA }));
+
+    await sincronizarCredito(null);
+
+    expect(auditoria).toHaveLength(1);
+    expect(auditoria[0].actor).toBeNull();
+    expect(auditoria[0].datosDespues).toMatchObject({ origen: "cron" });
+  });
+
+  it("una persona sí queda anotada, con su id", async () => {
+    auditoria.length = 0;
+    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => DEUDA }));
+
+    await sincronizarCredito("3f1d1d2e-0000-4000-8000-000000000001");
+
+    expect(auditoria[0].actor).toBe("3f1d1d2e-0000-4000-8000-000000000001");
+    expect(auditoria[0].datosDespues).toMatchObject({ origen: "persona" });
   });
 });
