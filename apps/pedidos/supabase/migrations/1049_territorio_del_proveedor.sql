@@ -206,3 +206,73 @@ begin
   execute replace(v_def, v_viejo, v_nuevo);
 end
 $migracion$;
+
+-- ---------------------------------------------------------------------
+-- 5. Y en reevaluate_order
+-- ---------------------------------------------------------------------
+-- Sin esto la regla tiene una puerta de atrás: un pedido que queda detenido
+-- por un descuento, por plazo o por cliente nuevo se libera con
+-- `reevaluate_order`, que no pasa por `submit_order`. Aprobar el descuento
+-- lo mandaría a operaciones con las líneas que el proveedor no distribuye
+-- ahí. No es un caso raro: alrededor de uno de cada seis pedidos pasa por
+-- una cola.
+--
+-- No levanta excepción —eso le rompería la acción al aprobador, que no es
+-- quien se equivocó— sino que lo deja frenado con el motivo escrito, igual
+-- que hace el escalón duro de crédito.
+do $migracion$
+declare
+  v_def text;
+  v_viejo constant text :=
+$viejo$  -- Deuda grave: no vuelve a operaciones aunque se aprueben los descuentos
+$viejo$;
+  v_nuevo constant text :=
+$nuevo$  -- Territorio del proveedor: no vuelve a operaciones con líneas que el
+  -- proveedor no distribuye en el distrito de entrega.
+  if v_estado_resultado = 'READY_FOR_OPERATIONS'
+     and exists (
+       select 1
+         from pedidos.order_items oi
+         join pedidos.products p on p.id = oi.product_id
+         join pedidos.customer_addresses ca on ca.id = v_order.customer_address_id
+         join pedidos.territorio_vetado z
+           on z.supplier_id = p.supplier_id and z.codigo_inei = ca.ubigeo
+        where oi.order_id = p_order_id
+     ) then
+    v_estado_resultado := 'COMMERCIAL_EXCEPTION';
+    v_motivo := (
+      select format('Hay productos que %s no distribuye en %s: %s. El pedido no sale hasta que se saquen esas líneas o cambie la dirección de entrega.',
+        string_agg(distinct s.nombre, ', '),
+        max(u.distrito),
+        string_agg(distinct p.codigo_interno, ', '))
+        from pedidos.order_items oi
+        join pedidos.products p on p.id = oi.product_id
+        join pedidos.suppliers s on s.id = p.supplier_id
+        join pedidos.customer_addresses ca on ca.id = v_order.customer_address_id
+        join pedidos.territorio_vetado z
+          on z.supplier_id = p.supplier_id and z.codigo_inei = ca.ubigeo
+        join pedidos.ubigeos u on u.codigo_inei = ca.ubigeo
+       where oi.order_id = p_order_id);
+  end if;
+
+  -- Deuda grave: no vuelve a operaciones aunque se aprueben los descuentos
+$nuevo$;
+begin
+  select pg_get_functiondef(p.oid) into v_def
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'pedidos' and p.proname = 'reevaluate_order';
+
+  if v_def is null then
+    raise exception 'No existe pedidos.reevaluate_order';
+  end if;
+  if position('pedidos.territorio_vetado' in v_def) > 0 then
+    raise notice 'El territorio del proveedor ya estaba aplicado en reevaluate_order; no se toca nada.';
+    return;
+  end if;
+  if position(v_viejo in v_def) = 0 then
+    raise exception 'reevaluate_order no tiene el bloque de la 1048: revisar antes de aplicar';
+  end if;
+
+  execute replace(v_def, v_viejo, v_nuevo);
+end
+$migracion$;
