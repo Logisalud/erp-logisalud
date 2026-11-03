@@ -100,6 +100,7 @@ function PanelIndicador({ clave, datos, fechaCorte }: { clave: string; datos: Re
         <Ficha etiqueta="Alerta" valor={ficha.alerta} />
         <Ficha etiqueta="Responsable" valor={ficha.responsable} />
         <Ficha etiqueta="Qué debe hacer" valor={ficha.queDebeHacer} />
+        <Ficha etiqueta="Definición usada en el ERP" valor={ficha.definicionUsadaEnElErp} />
       </dl>
 
       {clave === 'morosidad_dura' && (
