@@ -117,6 +117,10 @@ function PanelIndicador({ clave, datos, fechaCorte }: { clave: string; datos: Re
         {clave === 'cobro_vendido' && <TablaCobroVendido datos={datos.cobroVendido} />}
         {clave === 'registro_oportuno' && <TablaRegistroOportuno datos={datos.registroOportuno} fechaCorte={fechaCorte} />}
       </div>
+
+      {(clave === 'efectividad_cobranza' || clave === 'cobro_vendido') && (
+        <DesgloseVendedorSeccion clave={clave} datos={datos} />
+      )}
     </section>
   );
 }
@@ -224,5 +228,84 @@ function TablaRegistroOportuno({ datos, fechaCorte }: { datos: any; fechaCorte: 
         </>
       )}
     </>
+  );
+}
+
+// ---------- Desglose por vendedor (Ind. 1, 2 y 5) ----------
+// Empresa arriba (ya se ve en la tarjeta/tabla de la propia sección);
+// acá solo la tabla "Por vendedor", ordenable, con fila "Total empresa"
+// para reconciliar y Distribuidoras (CODI01) aparte del ranking de
+// personas. Solo AREAS_LECTURA ve esta pantalla entera (la ruta ya lo
+// exige) — los vendedores no tienen acceso.
+
+function DesgloseVendedorSeccion({ clave, datos }: { clave: string; datos: Respuesta }) {
+  if (clave === 'efectividad_cobranza') return <DesgloseEfectividad datos={datos.efectividad} />;
+  if (clave === 'cobro_vendido') return <DesgloseCobroVendido datos={datos.cobroVendido} />;
+  return null;
+}
+
+function filaTotalEmpresa(etiqueta: string) {
+  return { vendedorId: '__total__', vendedor: etiqueta, codigo: null, esDistribuidoras: false, muestraPequena: false };
+}
+
+function DesgloseEfectividad({ datos }: { datos: any }) {
+  const personas = (datos.vendedores as any[]).filter(v => !v.esDistribuidoras);
+  const distribuidoras = (datos.vendedores as any[]).find(v => v.esDistribuidoras);
+  const total = { ...filaTotalEmpresa('Total empresa'), vencido: datos.vencido, cobrado: datos.cobrado, pendiente: datos.pendiente, efectividad: datos.valor, nDocs: personas.reduce((s, v) => s + v.nDocs, 0) + (distribuidoras?.nDocs ?? 0), semaforo: datos.semaforo };
+
+  const cols: Columna<any>[] = [
+    { clave: 'vendedor', titulo: 'Vendedor', render: v => v.vendedor },
+    { clave: 'docs', titulo: 'Docs', align: 'right', valorOrden: v => v.nDocs ?? 0, render: v => v.nDocs ?? '—' },
+    { clave: 'vencido', titulo: 'Vencido', align: 'right', valorOrden: v => v.vencido ?? 0, render: v => fmtMoneda(v.vencido ?? 0) },
+    { clave: 'cobrado', titulo: 'Cobrado', align: 'right', valorOrden: v => v.cobrado ?? 0, render: v => fmtMoneda(v.cobrado ?? 0) },
+    { clave: 'pendiente', titulo: 'Pendiente', align: 'right', valorOrden: v => v.pendiente ?? 0, render: v => fmtMoneda(v.pendiente ?? 0) },
+    { clave: 'efectividad', titulo: 'Efectividad', align: 'right', valorOrden: v => v.efectividad ?? 0, render: v => <Badge tono={v.semaforo ?? 'neutral'}>{fmtPorcentaje(v.efectividad ?? 0)}</Badge> },
+  ];
+
+  return (
+    <section className="mt-6 border-t border-ink-200 pt-5">
+      <h3 className="mb-1 font-oswald text-sm uppercase tracking-widest text-ink-400">Desglose por vendedor</h3>
+      <p className="mb-3 text-xs text-ink-400 font-poppins">Vendedor = vendedor actual del cliente. Ordena por columna. Muestra pequeña (vencido &lt; {fmtMoneda(3000)}) en gris — no se oculta.</p>
+      <DataTable
+        columnas={cols}
+        filas={[...personas, ...(distribuidoras ? [distribuidoras] : [])]}
+        claveFila={v => v.vendedorId ?? v.vendedor}
+        filaAtenuada={v => v.muestraPequena}
+        filaFinal={total}
+        ordenInicial={{ clave: 'efectividad', dir: 'asc' }}
+      />
+    </section>
+  );
+}
+
+function DesgloseCobroVendido({ datos }: { datos: any }) {
+  const personas = (datos.vendedores as any[]).filter(v => !v.esDistribuidoras);
+  const distribuidoras = (datos.vendedores as any[]).find(v => v.esDistribuidoras);
+  const total = { ...filaTotalEmpresa('Total empresa'), vendido: datos.vendidoTotal, cobradoEnPlazo: datos.cobradoTotal, pct: datos.valor, nDocs: personas.reduce((s, v) => s + v.nDocs, 0) + (distribuidoras?.nDocs ?? 0), semaforo: datos.semaforo, morosidadVendedor: null };
+
+  const cols: Columna<any>[] = [
+    { clave: 'vendedor', titulo: 'Vendedor', render: v => v.vendedor },
+    { clave: 'docs', titulo: 'Docs', align: 'right', valorOrden: v => v.nDocs ?? 0, render: v => v.nDocs ?? '—' },
+    { clave: 'vendido', titulo: 'Vendido', align: 'right', valorOrden: v => v.vendido ?? 0, render: v => fmtMoneda(v.vendido ?? 0) },
+    { clave: 'cobrado', titulo: 'Cobrado en plazo', align: 'right', valorOrden: v => v.cobradoEnPlazo ?? 0, render: v => fmtMoneda(v.cobradoEnPlazo ?? 0) },
+    { clave: 'pct', titulo: '% Cobrado', align: 'right', valorOrden: v => v.pct ?? 0, render: v => <Badge tono={v.semaforo ?? 'neutral'}>{fmtPorcentaje(v.pct ?? 0)}</Badge> },
+    { clave: 'morosidad', titulo: 'Morosidad del vendedor', align: 'right', valorOrden: v => v.morosidadVendedor ?? -1, render: v => v.morosidadVendedor != null ? fmtPorcentaje(v.morosidadVendedor) : '—' },
+  ];
+
+  return (
+    <section className="mt-6 border-t border-ink-200 pt-5">
+      <h3 className="mb-1 font-oswald text-sm uppercase tracking-widest text-ink-400">Desglose por vendedor</h3>
+      <p className="mb-3 text-xs text-ink-400 font-poppins">
+        Vendedor = vendedor actual del cliente, no quien vendió. &quot;Morosidad del vendedor&quot; es la misma definición de morosidad_diaria (% vencido de su cartera HOY, no as-of el corte elegido) — se mira junto a este número a propósito. Muestra pequeña (vendido &lt; {fmtMoneda(3000)}) en gris.
+      </p>
+      <DataTable
+        columnas={cols}
+        filas={[...personas, ...(distribuidoras ? [distribuidoras] : [])]}
+        claveFila={v => v.vendedorId ?? v.vendedor}
+        filaAtenuada={v => v.muestraPequena}
+        filaFinal={total}
+        ordenInicial={{ clave: 'pct', dir: 'asc' }}
+      />
+    </section>
   );
 }

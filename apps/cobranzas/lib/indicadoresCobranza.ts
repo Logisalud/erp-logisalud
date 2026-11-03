@@ -1,9 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   UMBRALES, PLAZO_MEDICION_BASE_DIAS, PLAZO_MEDICION_EXTENDIDO_DIAS,
-  PLAZO_FACTURA_UMBRAL_EXTENDIDO, INDICADOR6_INCLUYE_RETENCIONES,
+  PLAZO_FACTURA_UMBRAL_EXTENDIDO, INDICADOR6_INCLUYE_RETENCIONES, UMBRAL_MUESTRA_PEQUENA,
   type UmbralIndicador,
 } from './configIndicadores';
+
+const CODIGO_DISTRIBUIDORAS = 'CODI01';
 
 // Los 6 indicadores de cobranza (Bloque B). Cálculo "as-of fecha_corte":
 // documentos emitidos <= corte, NC/ND <= corte, pagos con fecha_pago <=
@@ -45,6 +47,29 @@ async function cargarSaldoAsof(db: SupabaseClient, fechaCorte: string): Promise<
   return (data ?? []) as FilaSaldoAsof[];
 }
 
+// Código de vendedor (para separar CODI01 "Distribuidoras" del ranking de
+// personas en el desglose por vendedor) y su morosidad del día — misma
+// definición de morosidad_diaria (capturarMorosidad.ts: % vencido de
+// cartera desde v_saldos, calculado a HOY, no "as-of" la fecha_corte
+// elegida — es la única fuente que existe de ese número).
+async function cargarCodigosVendedor(db: SupabaseClient): Promise<Map<string, string>> {
+  const { data } = await db.from('vendedores').select('id, codigo');
+  return new Map((data ?? []).map((v: { id: string; codigo: string }) => [v.id, v.codigo]));
+}
+
+async function cargarMorosidadPorVendedor(db: SupabaseClient): Promise<Map<string, number>> {
+  const { data } = await db
+    .from('morosidad_diaria')
+    .select('vendedor_id, pct_morosidad, fecha')
+    .order('fecha', { ascending: false })
+    .limit(200);
+  const mapa = new Map<string, number>();
+  for (const r of (data ?? []) as { vendedor_id: string; pct_morosidad: number }[]) {
+    if (!mapa.has(r.vendedor_id)) mapa.set(r.vendedor_id, Number(r.pct_morosidad));
+  }
+  return mapa;
+}
+
 function diffDias(a: string, b: string): number {
   return Math.round((new Date(a + 'T00:00:00Z').getTime() - new Date(b + 'T00:00:00Z').getTime()) / 86400000);
 }
@@ -57,10 +82,14 @@ function sumaDias(fecha: string, dias: number): string {
 
 // ---------- 1) Efectividad de cobranza ----------
 
-export type FilaEfectividadVendedor = { vendedorId: string | null; vendedor: string; vencido: number; cobrado: number; pendiente: number; efectividad: number };
+export type FilaEfectividadVendedor = {
+  vendedorId: string | null; vendedor: string; codigo: string | null;
+  vencido: number; cobrado: number; pendiente: number; efectividad: number;
+  nDocs: number; semaforo: Semaforo; muestraPequena: boolean; esDistribuidoras: boolean;
+};
 
 export async function calcularEfectividadCobranza(db: SupabaseClient, fechaCorte: string) {
-  const filas = await cargarSaldoAsof(db, fechaCorte);
+  const [filas, codigos] = await Promise.all([cargarSaldoAsof(db, fechaCorte), cargarCodigosVendedor(db)]);
   const inicioVentana = sumaDias(fechaCorte, -30);
   // Ventana de "vencido" por fecha_vencimiento_efectiva (no la propia del
   // documento): una letra pendiente vence en su propia fecha, una letra
@@ -78,12 +107,24 @@ export async function calcularEfectividadCobranza(db: SupabaseClient, fechaCorte
   const porVendedor = new Map<string, FilaEfectividadVendedor>();
   for (const f of enVentana) {
     const key = f.vendedor_id ?? 'sin-vendedor';
-    const acc = porVendedor.get(key) ?? { vendedorId: f.vendedor_id, vendedor: f.vendedor_nombre, vencido: 0, cobrado: 0, pendiente: 0, efectividad: 0 };
+    const acc = porVendedor.get(key) ?? {
+      vendedorId: f.vendedor_id, vendedor: f.vendedor_nombre, codigo: f.vendedor_id ? (codigos.get(f.vendedor_id) ?? null) : null,
+      vencido: 0, cobrado: 0, pendiente: 0, efectividad: 0, nDocs: 0, semaforo: 'ok' as Semaforo, muestraPequena: false,
+      esDistribuidoras: f.vendedor_id ? codigos.get(f.vendedor_id) === CODIGO_DISTRIBUIDORAS : false,
+    };
     acc.vencido += Number(f.importe_neto);
     acc.pendiente += Number(f.saldo);
+    acc.nDocs += 1;
     porVendedor.set(key, acc);
   }
-  const vendedores = Array.from(porVendedor.values()).map(v => ({ ...v, cobrado: v.vencido - v.pendiente, efectividad: v.vencido > 0 ? ((v.vencido - v.pendiente) / v.vencido) * 100 : 0 }));
+  const vendedores = Array.from(porVendedor.values()).map(v => {
+    const efectividad = v.vencido > 0 ? ((v.vencido - v.pendiente) / v.vencido) * 100 : 0;
+    return {
+      ...v, cobrado: v.vencido - v.pendiente, efectividad,
+      semaforo: semaforoPorUmbral(efectividad, UMBRALES.efectividadCobranza),
+      muestraPequena: v.vencido < UMBRAL_MUESTRA_PEQUENA,
+    };
+  });
 
   const dondeEnfocarse = enVentana
     .filter(f => f.saldo > 0)
@@ -227,6 +268,24 @@ export async function calcularVentaDeudaVencida(db: SupabaseClient, fechaCorte: 
 
 // ---------- 5) Cobro de lo vendido ----------
 
+export type FilaCobroVendedor = {
+  vendedorId: string | null; vendedor: string; codigo: string | null;
+  vendido: number; cobradoEnPlazo: number; pct: number; nDocs: number;
+  semaforo: Semaforo; muestraPequena: boolean; esDistribuidoras: boolean;
+  morosidadVendedor: number | null;
+};
+
+// Fecha de corte de la regla histórica de CONTADO, igual que v_saldos/
+// v_cobros (ver CLAUDE.md): antes de esta fecha, un CONTADO sin
+// contado_pendiente se trata como cobrado "al despacho" aunque no haya un
+// pago real registrado — desde esta fecha, necesita pago real como
+// cualquier documento. Confirmado por Finanzas como el tratamiento
+// correcto también para este indicador (antes este cálculo lo ignoraba
+// por completo: todo CONTADO, pre o post, solo contaba si había un pago
+// real dentro del plazo de medición — subestimaba el % para los CONTADO
+// viejos).
+const FECHA_CORTE_REGLA_CONTADO = '2026-08-11';
+
 export async function calcularCobroDeLoVendido(db: SupabaseClient, fechaCorte: string) {
   // Necesita pagos reales (no solo saldo as-of): "cobrado en plazo" = pagos
   // con fecha_pago <= emision + ventana. Se consulta documentos+pagos
@@ -234,7 +293,7 @@ export async function calcularCobroDeLoVendido(db: SupabaseClient, fechaCorte: s
   // "cobrado dentro de una ventana desde la emisión").
   const { data: docs, error: errDocs } = await db
     .from('documentos')
-    .select('id, cliente_ruc, fecha_emision, fecha_vencimiento, importe_total, forma_pago')
+    .select('id, cliente_ruc, fecha_emision, fecha_vencimiento, importe_total, forma_pago, contado_pendiente')
     .in('tipo', ['01', '03'])
     .eq('anulado', false)
     .not('aceptado_sunat', 'is', false)
@@ -248,6 +307,7 @@ export async function calcularCobroDeLoVendido(db: SupabaseClient, fechaCorte: s
     for (const c of clientesData ?? []) vendedorPorRuc.set(c.ruc, { id: c.vendedor_actual_id, nombre: 'Sin vendedor' });
   }
   const vendedorIds = Array.from(new Set(Array.from(vendedorPorRuc.values()).map(v => v.id).filter(Boolean))) as string[];
+  const [codigos, morosidadPorVendedor] = await Promise.all([cargarCodigosVendedor(db), cargarMorosidadPorVendedor(db)]);
   if (vendedorIds.length) {
     const { data: vendedoresData } = await db.from('vendedores').select('id, nombres, apellidos').in('id', vendedorIds);
     const nombrePorId = new Map((vendedoresData ?? []).map(v => [v.id, `${v.nombres} ${v.apellidos}`]));
@@ -269,7 +329,7 @@ export async function calcularCobroDeLoVendido(db: SupabaseClient, fechaCorte: s
   }
 
   const inicioVentana = sumaDias(fechaCorte, -30);
-  const porVendedor = new Map<string, { vendedorId: string | null; vendedor: string; vendido: number; cobradoEnPlazo: number }>();
+  const porVendedor = new Map<string, FilaCobroVendedor>();
 
   for (const d of docs ?? []) {
     const plazoFactura = d.forma_pago === 'CONTADO' ? 0 : diffDias(d.fecha_vencimiento ?? d.fecha_emision, d.fecha_emision);
@@ -283,18 +343,39 @@ export async function calcularCobroDeLoVendido(db: SupabaseClient, fechaCorte: s
     const vendedorId = vendedorInfo?.id ?? null;
     const vendedorNombre = vendedorInfo?.nombre ?? 'Sin vendedor';
 
-    const pagosDoc = pagosPorDocumento.get(d.id) ?? [];
-    const cobradoEnPlazo = pagosDoc.filter(p => p.fecha_pago <= finVentana).reduce((s, p) => s + Number(p.monto), 0);
-    const cobradoEnPlazoAcotado = Math.min(cobradoEnPlazo, Number(d.importe_total));
+    // Regla híbrida (default, variante iv de la matriz): CONTADO emitido
+    // antes del 2026-08-11 sin contado_pendiente = cobrado al despacho,
+    // igual que v_saldos — no depende de un pago real registrado. Desde
+    // esa fecha (o si contado_pendiente=true), necesita pago real como
+    // cualquier documento.
+    const esContadoHistoricoCobrado = d.forma_pago === 'CONTADO' && !d.contado_pendiente && d.fecha_emision < FECHA_CORTE_REGLA_CONTADO;
+    let cobradoEnPlazoAcotado: number;
+    if (esContadoHistoricoCobrado) {
+      cobradoEnPlazoAcotado = Number(d.importe_total);
+    } else {
+      const pagosDoc = pagosPorDocumento.get(d.id) ?? [];
+      const cobradoEnPlazo = pagosDoc.filter(p => p.fecha_pago <= finVentana).reduce((s, p) => s + Number(p.monto), 0);
+      cobradoEnPlazoAcotado = Math.min(cobradoEnPlazo, Number(d.importe_total));
+    }
 
     const key = vendedorId ?? 'sin-vendedor';
-    const acc = porVendedor.get(key) ?? { vendedorId, vendedor: vendedorNombre, vendido: 0, cobradoEnPlazo: 0 };
+    const codigo = vendedorId ? (codigos.get(vendedorId) ?? null) : null;
+    const acc = porVendedor.get(key) ?? {
+      vendedorId, vendedor: vendedorNombre, codigo,
+      vendido: 0, cobradoEnPlazo: 0, pct: 0, nDocs: 0, semaforo: 'ok' as Semaforo, muestraPequena: false,
+      esDistribuidoras: codigo === CODIGO_DISTRIBUIDORAS,
+      morosidadVendedor: vendedorId ? (morosidadPorVendedor.get(vendedorId) ?? null) : null,
+    };
     acc.vendido += Number(d.importe_total);
     acc.cobradoEnPlazo += cobradoEnPlazoAcotado;
+    acc.nDocs += 1;
     porVendedor.set(key, acc);
   }
 
-  const vendedores = Array.from(porVendedor.values()).map(v => ({ ...v, pct: v.vendido > 0 ? (v.cobradoEnPlazo / v.vendido) * 100 : 0 }));
+  const vendedores = Array.from(porVendedor.values()).map(v => {
+    const pct = v.vendido > 0 ? (v.cobradoEnPlazo / v.vendido) * 100 : 0;
+    return { ...v, pct, semaforo: semaforoPorUmbral(pct, UMBRALES.cobroDeLoVendido), muestraPequena: v.vendido < UMBRAL_MUESTRA_PEQUENA };
+  });
   const vendidoTotal = vendedores.reduce((s, v) => s + v.vendido, 0);
   const cobradoTotal = vendedores.reduce((s, v) => s + v.cobradoEnPlazo, 0);
   const pct = vendidoTotal > 0 ? (cobradoTotal / vendidoTotal) * 100 : 0;

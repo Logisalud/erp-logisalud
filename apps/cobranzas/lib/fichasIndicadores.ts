@@ -32,7 +32,7 @@ export const FICHAS: Record<string, FichaIndicador> = {
     alerta: 'Brecha > 10 días en un vendedor, o DSO que sube 2 meses seguidos.',
     responsable: 'Jefe de créditos y cobranzas',
     queDebeHacer: 'Priorizar deudas grandes y antiguas; dar solo el plazo que corresponde a la categoría del cliente; revisar cada mes la brecha por vendedor; descuento por pronto pago si la empresa lo aprueba.',
-    definicionUsadaEnElErp: 'Ventas de 90 días netas de NC/ND (importe_total + ND − NC), incluyen CONTADO y Distribuidoras (CODI01). Saldo por cobrar = saldo "as-of" el corte de fn_saldo_documentos_asof (mismas 4 ramas que v_saldos).',
+    definicionUsadaEnElErp: 'Ventas de 90 días netas de NC/ND (importe_total + ND − NC), incluyen CONTADO y Distribuidoras (CODI01). Saldo por cobrar = saldo "as-of" el corte de fn_saldo_documentos_asof (mismas 4 ramas que v_saldos). Desglose por "Categoría de cliente" pedido por Finanzas: pendiente — clientes no tiene ninguna columna de categoría hoy; solo existe el desglose por vendedor.',
   },
   morosidad_dura: {
     titulo: 'Morosidad dura (más de 60 días) — ¿Cuánta deuda está en riesgo de no cobrarse?',
@@ -62,7 +62,7 @@ export const FICHAS: Record<string, FichaIndicador> = {
     alerta: 'Ámbar: 75% a 85%. Rojo: < 75%.',
     responsable: 'Vendedor',
     queDebeHacer: 'Vender a clientes que pagan; respetar el plazo autorizado por créditos; cobrar en la siguiente visita. Informativo por ahora — todavía no es base de comisión.',
-    definicionUsadaEnElErp: 'Un CONTADO cuenta como cobrado solo si hay un pago real registrado dentro del plazo de medición — no aplica la regla histórica de v_saldos (CONTADO antes del 2026-08-11 pagado al despacho). Esto puede subestimar el %; ver variantes alternativas documentadas en lib/indicadoresCobranza.ts.',
+    definicionUsadaEnElErp: 'Regla híbrida (default): CONTADO emitido antes del 2026-08-11 sin contado_pendiente = cobrado al despacho, igual que v_saldos; desde esa fecha necesita pago real registrado dentro del plazo de medición, como cualquier documento. En el desglose por vendedor, "vendedor" es el vendedor ACTUAL del cliente, no quien hizo la venta — y se muestra junto a su morosidad (% vencido de cartera, misma definición de morosidad_diaria) a propósito.',
   },
   registro_oportuno: {
     titulo: 'Registro oportuno de cobranzas (apoyo) — ¿Los pagos se registran a tiempo en el ERP?',

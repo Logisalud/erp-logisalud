@@ -32,6 +32,13 @@ export const PLAZO_MEDICION_BASE_DIAS = 60;
 export const PLAZO_MEDICION_EXTENDIDO_DIAS = 120;
 export const PLAZO_FACTURA_UMBRAL_EXTENDIDO = 90;
 
+// Desglose por vendedor (Indicadores 1, 2 y 5): si el denominador de una
+// fila (vencido/ventas90/vendido, según el indicador) es menor a este
+// monto, la fila se marca "muestra pequeña" (atenuada, no oculta) — un
+// semáforo rojo con 2 facturas de S/200 no es la misma señal que uno con
+// 50 facturas de S/80,000.
+export const UMBRAL_MUESTRA_PEQUENA = 3000;
+
 // Indicador 6: qué tipos de pago cuentan. Decisión: solo tipo='pago' (las
 // retenciones no son un depósito que alguien tenga que "registrar rápido"
 // — se insertan junto con el pago real, no por separado en el flujo normal).
