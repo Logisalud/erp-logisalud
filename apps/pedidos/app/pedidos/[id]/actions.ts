@@ -58,8 +58,12 @@ export async function agregarProducto(
           "Ese producto está inactivo y no se puede facturar, así que no se puede agregar al pedido.",
         SIN_STOCK:
           "No hay stock de ese producto (0 unidades), así que no se puede agregar al pedido.",
+        FUERA_DE_ZONA:
+          "Ese producto no se distribuye en el distrito de entrega de este pedido.",
       };
-      throw new Error(messages[result.reason]);
+      // Cuando la base explica el motivo con el distrito y el proveedor
+      // concretos, gana ese texto: es más útil que la frase genérica.
+      throw new Error(result.detalle ?? messages[result.reason]);
     }
 
     revalidatePath(`/pedidos/${orderId}`);
