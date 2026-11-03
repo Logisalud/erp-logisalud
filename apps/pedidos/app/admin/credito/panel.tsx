@@ -79,7 +79,10 @@ export function PanelDeCredito({
       <section className="card p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h3 className="font-heading text-lg">La copia de la deuda</h3>
-          <p className="text-sm text-gray-600">Última actualización: {cuando(estado.ultimaActualizacion)}</p>
+          <p className="text-sm text-gray-600">
+            Última actualización: {cuando(estado.ultimaActualizacion)}
+            {estado.ultimaPorElCron === null ? "" : estado.ultimaPorElCron ? " (automática)" : " (a mano)"}
+          </p>
         </div>
 
         <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -105,6 +108,7 @@ export function PanelDeCredito({
           <h3 className="font-heading text-lg">Contactos hacia cobranzas</h3>
           <p className="text-sm text-gray-600">
             Última vez: {ultimosContactos ? cuando(ultimosContactos.cuando) : "nunca"}
+            {ultimosContactos ? (ultimosContactos.porElCron ? " (automática)" : " (a mano)") : ""}
           </p>
         </div>
 

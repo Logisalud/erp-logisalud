@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanEnv } from "@/lib/env";
-import { logAudit } from "./audit-log";
+import { logAudit, ultimaCorrida } from "./audit-log";
 
 /**
  * El viaje de vuelta del puente: el contacto del cliente, que lo tiene
@@ -168,7 +168,7 @@ async function contactosDePedidos(): Promise<Map<string, ContactoPedidos>> {
  * levanta el error: a medio camino es mejor haber llenado 400 fichas que
  * ninguna, y la próxima corrida retoma lo que quedó.
  */
-export async function sincronizarContactosACobranzas(actor: string): Promise<ResultadoContactos> {
+export async function sincronizarContactosACobranzas(actor: string | null): Promise<ResultadoContactos> {
   const acceso = accesoACobranzas();
   if (!acceso) {
     throw new Error(
@@ -248,7 +248,13 @@ export async function sincronizarContactosACobranzas(actor: string): Promise<Res
     accion: "sincronizar_contactos_cobranzas",
     entidad: "clientes_cobranzas",
     entidadId: "cartera",
-    datosDespues: { celulares, direcciones, ubicaciones, soloEnPedidos },
+    datosDespues: {
+      celulares,
+      direcciones,
+      ubicaciones,
+      soloEnPedidos,
+      origen: actor ? "persona" : "cron",
+    },
   });
 
   if (ultimoError) throw new Error(`${ultimoError}. Se completaron ${celulares + direcciones} datos antes de fallar.`);
@@ -258,48 +264,22 @@ export async function sincronizarContactosACobranzas(actor: string): Promise<Res
 
 export type UltimaCorridaDeContactos = {
   cuando: string;
+  porElCron: boolean;
   celulares: number;
   direcciones: number;
   ubicaciones: number;
-  soloEnPedidos: number;
 } | null;
 
-/**
- * Cuándo se completaron los contactos por última vez, y con qué resultado.
- *
- * Sale de la auditoría, que es el único lugar donde queda registro: el sync
- * no guarda estado propio. Sirve para contestar de un vistazo la pregunta
- * que de verdad se hace quien entra a esta pantalla —"¿esto ya corrió
- * alguna vez?"— sin tener que mirar la cartera de cobranzas a ver si
- * cambió.
- */
+/** Cuándo se completaron los contactos por última vez, y con qué resultado. */
 export async function ultimaCorridaDeContactos(): Promise<UltimaCorridaDeContactos> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("audit_logs")
-    .select("fecha, datos_despues")
-    .eq("accion", "sincronizar_contactos_cobranzas")
-    .order("fecha", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) return null;
-
-  const fila = data as {
-    fecha: string;
-    datos_despues: {
-      celulares?: number;
-      direcciones?: number;
-      ubicaciones?: number;
-      soloEnPedidos?: number;
-    } | null;
-  };
-  const d = fila.datos_despues ?? {};
+  const c = await ultimaCorrida("sincronizar_contactos_cobranzas");
+  if (!c) return null;
+  const n = (k: string) => Number(c.datos[k] ?? 0);
   return {
-    cuando: fila.fecha,
-    celulares: d.celulares ?? 0,
-    direcciones: d.direcciones ?? 0,
-    ubicaciones: d.ubicaciones ?? 0,
-    soloEnPedidos: d.soloEnPedidos ?? 0,
+    cuando: c.cuando,
+    porElCron: c.porElCron,
+    celulares: n("celulares"),
+    direcciones: n("direcciones"),
+    ubicaciones: n("ubicaciones"),
   };
 }
