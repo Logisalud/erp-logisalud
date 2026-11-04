@@ -20,6 +20,8 @@ export type ParamsCuentasPorPagar = {
   categoria?: string
   listas?: string
   avanzado?: string
+  /** Lo que se escribió en el buscador (proveedor, RUC, código, factura). */
+  q?: string
 }
 
 export type FiltroCuentasPorPagar = {
@@ -32,6 +34,20 @@ export type FiltroCuentasPorPagar = {
   /** `undefined` = sin filtro de estado en la consulta (el caso de `soloListas`). */
   estados: EstadoObligacion | readonly EstadoObligacion[] | undefined
   sinFiltro: boolean
+  /** Texto a buscar, ya limpio; null si no se buscó nada. Se combina con el
+   * chip elegido: "DIMEXA" dentro de "Pagada" es DIMEXA pagada. */
+  busqueda: string | null
+}
+
+/**
+ * El texto del buscador, listo para un `ilike` de PostgREST: sin los
+ * caracteres que esa sintaxis usa para separar o agrupar condiciones (`,`
+ * `(` `)`) ni comodines que el usuario no quiso poner. Menos de 2 letras no
+ * busca: traería media base.
+ */
+export function limpiarBusqueda(q: string | undefined | null): string | null {
+  const limpio = (q ?? '').replace(/[,()%*\\"']/g, ' ').replace(/\s+/g, ' ').trim()
+  return limpio.length >= 2 ? limpio.slice(0, 60) : null
 }
 
 export function resolverFiltroCuentasPorPagar(
@@ -58,15 +74,19 @@ export function resolverFiltroCuentasPorPagar(
           ? estadosDeCategoria(categoria)
           : estadosVisiblesPorDefecto(),
     sinFiltro: !soloListas && !estadoExacto && !categoria,
+    busqueda: limpiarBusqueda(params.q),
   }
 }
 
 /** El querystring con el que la descarga reproduce la vista actual. */
 export function querystringDeFiltro(filtro: FiltroCuentasPorPagar): string {
-  if (filtro.soloListas) return '?listas=1'
-  if (filtro.estadoExacto) return `?estado=${filtro.estadoExacto}`
-  if (filtro.categoria) return `?categoria=${filtro.categoria}`
-  return ''
+  const params = new URLSearchParams()
+  if (filtro.soloListas) params.set('listas', '1')
+  else if (filtro.estadoExacto) params.set('estado', filtro.estadoExacto)
+  else if (filtro.categoria) params.set('categoria', filtro.categoria)
+  if (filtro.busqueda) params.set('q', filtro.busqueda)
+  const qs = params.toString()
+  return qs ? `?${qs}` : ''
 }
 
 /** Cómo se llama el recorte en el nombre del archivo y en el título de la hoja. */

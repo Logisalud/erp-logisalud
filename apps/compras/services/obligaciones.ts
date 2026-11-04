@@ -531,9 +531,13 @@ export type ObligacionListada = {
  * domain/categorias-estado-obligacion.ts.
  */
 export async function listarObligaciones(
-  estado?: EstadoObligacion | readonly EstadoObligacion[]
+  estado?: EstadoObligacion | readonly EstadoObligacion[],
+  /** Ya limpia (ver `limpiarBusqueda`). Se resuelve EN LA BASE y no
+   *  filtrando las 200 de abajo: si no, una deuda vieja no aparecería. */
+  busqueda?: string | null
 ): Promise<ObligacionListada[]> {
   const supabase = crearClienteServidor()
+  const condicionBusqueda = busqueda ? await condicionDeBusqueda(busqueda) : null
   let q = supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -547,6 +551,7 @@ export async function listarObligaciones(
   } else if (estado) {
     q = q.eq('estado', estado)
   }
+  if (condicionBusqueda) q = q.or(condicionBusqueda)
 
   const { data, error } = await q
   if (error) throw new Error(`No se pudieron listar las obligaciones: ${error.message}`)
@@ -575,6 +580,36 @@ export async function listarObligaciones(
 }
 
 /**
+ * La condición `or` de PostgREST para el buscador de Cuentas por Pagar: el
+ * código o el N° de factura de la obligación, o un proveedor (de compra o de
+ * servicio, por razón social o RUC) o un beneficiario (usuario o persona sin
+ * usuario) cuyo nombre coincida. Los nombres viven en otras tablas y otros
+ * schemas, así que primero se buscan sus ids.
+ */
+async function condicionDeBusqueda(busqueda: string): Promise<string> {
+  const supabase = crearClienteServidor()
+  const patron = `%${busqueda}%`
+  // Entre comillas dentro del `or`: así un espacio o un punto ("DIMEXA S.A.")
+  // no se confunden con la sintaxis. `limpiarBusqueda` ya sacó las comillas.
+  const enOr = `"${patron}"`
+  const [compra, servicio, perfiles, personas] = await Promise.all([
+    supabase.schema('compras').from('proveedores').select('id')
+      .or(`razon_social.ilike.${enOr},ruc.ilike.${enOr}`).limit(200),
+    supabase.schema('servicios').from('proveedores_servicio').select('id')
+      .or(`razon_social.ilike.${enOr},ruc.ilike.${enOr}`).limit(200),
+    supabase.from('perfiles').select('id').ilike('nombre', patron).limit(200),
+    supabase.from('personas_sin_usuario').select('id').ilike('nombre', patron).limit(200),
+  ])
+  const ids = (r: { data: any[] | null }) => (r.data ?? []).map((x) => x.id as string)
+  const condiciones = [`codigo.ilike.${enOr}`, `numero_factura.ilike.${enOr}`]
+  if (ids(compra).length) condiciones.push(`proveedor_id.in.(${ids(compra).join(',')})`)
+  if (ids(servicio).length) condiciones.push(`proveedor_servicio_id.in.(${ids(servicio).join(',')})`)
+  const beneficiarios = [...ids(perfiles), ...ids(personas)]
+  if (beneficiarios.length) condiciones.push(`beneficiario_id.in.(${beneficiarios.join(',')})`)
+  return condiciones.join(',')
+}
+
+/**
  * La vista de /cuentas-por-pagar resuelta de punta a punta: filtro de
  * estados + el recorte de "listas para pagar", que no se puede hacer en la
  * consulta porque depende del estado de la PROPUESTA, no del de la
@@ -587,7 +622,7 @@ export async function listarObligaciones(
 export async function listarVistaCuentasPorPagar(
   filtro: FiltroCuentasPorPagar
 ): Promise<ObligacionListada[]> {
-  const todas = await listarObligaciones(filtro.estados)
+  const todas = await listarObligaciones(filtro.estados, filtro.busqueda)
   return filtro.soloListas
     ? todas.filter((o) => o.propuesta?.estado === 'aprobada' && !o.yaPagada)
     : todas
