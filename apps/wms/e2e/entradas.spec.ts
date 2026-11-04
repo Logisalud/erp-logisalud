@@ -258,8 +258,12 @@ test.describe('descargas', () => {
     const pdf = await page.request.get((await page.getByTestId('pdf-organoleptica').getAttribute('href'))!)
     expect(pdf.status()).toBe(200)
     expect((await pdf.body()).subarray(0, 4).toString()).toBe('%PDF')
+    // sin la firma de Dirección Técnica, el archivo sale marcado como borrador (el nombre lo dice; la marca va dentro del PDF y del Excel)
+    const esBorrador = (await page.getByTestId('aviso-borrador-organoleptica').count()) > 0
+    expect(pdf.headers()['content-disposition'].includes('(BORRADOR)')).toBe(esBorrador)
     const xlsx = await page.request.get((await page.getByTestId('xlsx-organoleptica').getAttribute('href'))!)
     expect(xlsx.status()).toBe(200)
+    expect(xlsx.headers()['content-disposition'].includes('(BORRADOR)')).toBe(esBorrador)
     expect(xlsx.headers()['content-type']).toContain('spreadsheetml')
     expect((await xlsx.body()).subarray(0, 2).toString()).toBe('PK')
   })

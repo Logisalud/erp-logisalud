@@ -37,9 +37,12 @@ export function ListaProductos({ consulta, alElegir }: { consulta: string; alEle
 }
 
 /** Dónde está el producto: todas sus ubicaciones con lote, vencimiento, estado, propietario y disponible real; primero lo que vence antes. */
-export function ListaOrigenes({ celdas, seleccionada, libreDe, alElegir }: {
+export function ListaOrigenes({ celdas, seleccionada, libreDe, alElegir, hayOtras }: {
   celdas: CeldaDeProducto[]; seleccionada?: string; libreDe: (c: CeldaDeProducto) => number; alElegir: (c: CeldaDeProducto) => void
+  /** El motivo elegido dejó afuera otras ubicaciones del producto (por ejemplo, con «Salida de Cuarentena» solo salen las de Cuarentena). */
+  hayOtras?: boolean
 }) {
+  if (celdas.length === 0 && hayOtras) return <p className="rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-700" data-testid="sin-origenes-motivo">Con este motivo solo se mueve lo que está en Cuarentena, y este producto no tiene nada ahí. Cambia el motivo para ver sus otras ubicaciones.</p>
   if (celdas.length === 0) return <p className="rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-700" data-testid="sin-origenes">Este producto no tiene unidades disponibles para mover.</p>
   return (
     <div className="rounded-lg border border-gray-200 bg-white" data-testid="lista-origenes">
@@ -78,12 +81,12 @@ export function ListaDestinos({ linea, seleccionado, alElegir, autoFoco }: { lin
     void opcionesDestinoAccion('', linea).then((o) => { if (vivo) setSugeridas(o) })
     return () => { vivo = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linea.clave, linea.posicionId, linea.estado, linea.propietarioId])
+  }, [linea.clave, linea.posicionId, linea.estado, linea.propietarioId, linea.motivo])
   const lista = q.trim() ? (r.resultados ?? []) : sugeridas ?? []
   return (
     <div className="space-y-2" data-testid="lista-destinos">
-      <Buscador id={`q-dest-${linea.clave}`} etiqueta="Buscar ubicación de destino" valor={q} onCambio={setQ} testid="destino-buscar" autoFoco={autoFoco} ayuda="Escribe el código o el área. Las que no sirven salen deshabilitadas con su motivo." />
-      {q.trim() && r.resultados && r.resultados.length === 0 && !r.cargando && <p className="text-sm text-gray-700">Ninguna ubicación coincide.</p>}
+      <Buscador id={`q-dest-${linea.clave}`} etiqueta="Buscar ubicación de destino" valor={q} onCambio={setQ} testid="destino-buscar" autoFoco={autoFoco} ayuda="Escribe el código o el área. Solo aparecen las ubicaciones de este propietario y las áreas compartidas; las que no sirven salen deshabilitadas con su motivo." />
+      {q.trim() && r.resultados && r.resultados.length === 0 && !r.cargando && <p className="text-sm text-gray-700" data-testid="destino-sin-resultados">Ninguna ubicación coincide. Solo se muestran las de {linea.propietario} y las áreas compartidas.</p>}
       <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 bg-white">
         {lista.map((o) => (
           <li key={o.posicionId}>

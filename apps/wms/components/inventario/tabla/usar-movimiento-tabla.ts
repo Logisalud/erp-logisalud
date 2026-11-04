@@ -7,6 +7,7 @@ import {
   disponibleReal, evaluarLinea, nuevoBorrador, repartirDestinoDefecto, resumenBarra,
   type BorradorMovimiento, type LineaResuelta, type MensajeLinea, type ResumenBarra,
 } from '@/domain/movimiento-tabla'
+import { celdasParaMotivo, razonOrigenPorMotivo } from '@/domain/regla-motivo'
 import { lineaVacia, type DestinoLinea, type LineaForm } from './tipos'
 
 export interface LineaCalculada {
@@ -19,8 +20,8 @@ export interface LineaCalculada {
   cantidadNum: number
 }
 
-const comoChequeo = (l: LineaForm, clave: string, haciaPosicionId?: string): LineaParaChequear => ({
-  clave, posicionId: l.celda!.posicionId, propietarioId: l.celda!.propietarioId, propietario: l.celda!.propietario, estado: l.celda!.estado, haciaPosicionId,
+const comoChequeo = (l: LineaForm, clave: string, motivo: string, haciaPosicionId?: string): LineaParaChequear => ({
+  clave, posicionId: l.celda!.posicionId, propietarioId: l.celda!.propietarioId, propietario: l.celda!.propietario, estado: l.celda!.estado, haciaPosicionId, motivo: motivo.trim() || undefined,
 })
 
 /** Todo el estado y las reglas del movimiento en modo tabla. Lo comparten la tabla (PC/tablet) y las filas con hoja inferior (teléfono). */
@@ -36,7 +37,7 @@ export function useMovimientoTabla() {
   const ultima = useRef(0)
 
   // ── Validación de cada línea contra SU destino (propietario, área y estado), con descarte de respuestas viejas ─────
-  const paraValidar = useMemo(() => lineas.filter((l) => l.celda && l.destino).map((l) => comoChequeo(l, String(l.id), l.destino!.posicionId)), [lineas])
+  const paraValidar = useMemo(() => lineas.filter((l) => l.celda && l.destino).map((l) => comoChequeo(l, String(l.id), motivo, l.destino!.posicionId)), [lineas, motivo])
   const firma = JSON.stringify(paraValidar)
   useEffect(() => {
     if (paraValidar.length === 0) { setValidacion(new Map()); return }
@@ -53,10 +54,15 @@ export function useMovimientoTabla() {
     const disponible = l.celda ? disponibleReal(l.celda.disponible, l.celda.clave, simples, l.id) : 0
     const v = validacion.get(l.id)
     const sinRespuesta = !!l.celda && !!l.destino && !v
-    let mensaje = evaluarLinea({ tieneProducto: !!l.producto, origen: l.celda?.posicion, disponible, destino: l.destino?.codigo, razonDestino: v && !v.ok ? (v.mensaje ?? 'no sirve') : null, cantidad: l.cantidad })
+    const razonOrigen = l.celda?.tipoArea ? razonOrigenPorMotivo(motivo, l.celda.tipoArea) : null
+    let mensaje = evaluarLinea({
+      tieneProducto: !!l.producto, origen: l.celda?.posicion, disponible, destino: l.destino?.codigo, cantidad: l.cantidad,
+      razonOrigen: razonOrigen ? `${razonOrigen}: ${l.celda!.posicion} es de ${l.celda!.area}` : null,
+      razonDestino: v && !v.ok ? (v.mensaje ?? 'no sirve') : null,
+    })
     if (!mensaje && sinRespuesta) mensaje = { tipo: 'falta', texto: 'Validando el destino…' }
     return { linea: l, num: i + 1, disponible, mensaje, lista: !mensaje, cantidadNum: Number.parseInt(l.cantidad, 10) || 0 }
-  }), [lineas, validacion])
+  }), [lineas, validacion, motivo])
 
   const resumen: ResumenBarra = useMemo(() => resumenBarra(calculadas.map((c): LineaResuelta => ({
     id: c.linea.id, lista: c.lista, cantidad: c.cantidadNum, destino: c.linea.destino?.codigo, producto: c.linea.producto?.descripcion ?? '',
@@ -87,11 +93,11 @@ export function useMovimientoTabla() {
     let elegido: DestinoLinea | undefined
     if (candidatos.length) {
       const base = { ...(actual ?? lineaVacia(id)), celda }
-      const r = await validarLineasAccion(candidatos.map((d, i) => comoChequeo(base, String(i), d.posicionId)))
+      const r = await validarLineasAccion(candidatos.map((d, i) => comoChequeo(base, String(i), motivo, d.posicionId)))
       elegido = candidatos.find((_, i) => r.find((x) => x.clave === String(i))?.ok)
     }
     actualizar(id, { celda, destino: elegido, cantidad: actual?.cantidad || String(libre), abierto: elegido ? null : 'destino' })
-  }, [lineas, destinoDefecto, actualizar])
+  }, [lineas, destinoDefecto, actualizar, motivo])
 
   const elegirDestino = useCallback((id: number, d: DestinoLinea) => actualizar(id, { destino: d, abierto: null }), [actualizar])
   const usarTodo = useCallback((id: number) => {
@@ -102,12 +108,12 @@ export function useMovimientoTabla() {
   /** Destino por defecto de la cabecera: se aplica a las líneas sin destino; las que no pueden ir ahí quedan sin destino y se avisa cuántas. */
   const fijarDestinoDefecto = useCallback(async (d: DestinoLinea) => {
     const candidatas = lineas.filter((l) => l.celda && !l.destino)
-    const r = candidatas.length ? await validarLineasAccion(candidatas.map((l) => comoChequeo(l, String(l.id), d.posicionId))) : []
+    const r = candidatas.length ? await validarLineasAccion(candidatas.map((l) => comoChequeo(l, String(l.id), motivo, d.posicionId))) : []
     const reparto = repartirDestinoDefecto(lineas.map((l) => ({ id: l.id, tieneOrigen: !!l.celda, tieneDestino: !!l.destino })), (id) => !!r.find((x) => x.clave === String(id))?.ok, d.codigo)
     setDestinoDefecto(d)
     setNotaDefecto(reparto.nota)
     setLineas((ls) => ls.map((l) => (reparto.asignar.includes(l.id) ? { ...l, destino: d, abierto: l.abierto === 'destino' ? null : l.abierto } : l)))
-  }, [lineas])
+  }, [lineas, motivo])
   const quitarDestinoDefecto = useCallback(() => { setDestinoDefecto(null); setNotaDefecto('Se aplica a las líneas sin destino. Puedes cambiar cualquier línea.') }, [])
 
   // ── Borrador ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -140,10 +146,12 @@ export function useMovimientoTabla() {
   })), [calculadas])
 
   const libreDe = useCallback((lineaId: number, c: CeldaDeProducto) => disponibleReal(c.disponible, c.clave, lineas.map((x) => ({ id: x.id, celdaClave: x.celda?.clave, cantidad: x.cantidad })), lineaId), [lineas])
-  const chequeo = useCallback((l: LineaForm): LineaParaChequear => comoChequeo(l, String(l.id)), [])
+  const chequeo = useCallback((l: LineaForm): LineaParaChequear => comoChequeo(l, String(l.id), motivo), [motivo])
+  /** Los orígenes que el motivo permite (con «Salida de Cuarentena», solo lo que está en Cuarentena). */
+  const celdasDe = useCallback((l: LineaForm): CeldaDeProducto[] => celdasParaMotivo(l.celdas ?? [], motivo), [motivo])
 
   return {
-    libreDe, comoChequeo: chequeo,
+    libreDe, comoChequeo: chequeo, celdasDe,
     lineas, calculadas, resumen, destinoDefecto, notaDefecto, motivo, setMotivo, token: token.current,
     actualizar, alternar, agregar, quitar, elegirProducto, elegirOrigen, elegirDestino, usarTodo, fijarDestinoDefecto, quitarDestinoDefecto,
     aBorrador, recuperar, lineasParaEjecutar,

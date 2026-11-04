@@ -19,10 +19,11 @@ import { DatosRecepcion } from '@/components/entradas/datos-recepcion'
 import { HistorialSolicitud } from '@/components/entradas/historial-solicitud'
 import { LineasSolicitud } from '@/components/entradas/lineas-solicitud'
 import { PanelActa } from '@/components/entradas/panel-acta'
+import { SinActa } from '@/components/entradas/sin-acta'
 
 export const metadata = { title: 'Solicitud de ingreso — WMS LOGISALUD' }
 
-export default async function DetalleSolicitud({ params }: { params: { id: string } }) {
+export default async function DetalleSolicitud({ params, searchParams }: { params: { id: string }; searchParams?: { acta?: string } }) {
   const ctx = await exigirContexto()
   const repo = repositorio()
   const id = decodeURIComponent(params.id)
@@ -93,10 +94,15 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
         </section>
       )}
 
-      {sol.recepcion && (
+      {sol.recepcion ? (
         <section className="card" aria-labelledby="acta">
           <h2 id="acta" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Acta de Recepción</h2>
           <PanelActa solicitud={sol} roles={ctx.roles} motivoSinActa={motivoSinActa} base={`${prefijo}/entradas/${sol.id}`} />
+        </section>
+      ) : (
+        <section className="card" aria-labelledby="acta">
+          <h2 id="acta" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Acta de Recepción</h2>
+          <SinActa solicitudId={sol.id} estado={sol.estado} puedeRecibir={puedeRecibir} resaltar={searchParams?.acta === 'sin-recepcion'} />
         </section>
       )}
 

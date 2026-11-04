@@ -92,7 +92,9 @@ Storage, RLS real de Compras (`acceso_abierto_temporal`).
 
 ## Ensayo de la ventana en Postgres 17 (2026-10-24)
 
-`apps/wms/scripts/ensayo-migraciones.sh <url-de-un-Postgres-17-desechable>` aplica la cadena **0001 a 0036** sobre una base nueva
+**0037** (Piloto, errores de la demo): reemplaza `wms.ejecutar_movimiento` (la de la 0012) con una regla más: con el motivo «Salida de Cuarentena» el origen es de Cuarentena y el destino de Aprobados (que el destino sea del propietario del lote ya lo exigía `posicion_acepta`); y `wms.registrar_pendiente` (la de la 0009): el responsable del pendiente de la revisión diaria es un auxiliar. No toca datos existentes; re-ejecutable.
+
+`apps/wms/scripts/ensayo-migraciones.sh <url-de-un-Postgres-17-desechable>` aplica la cadena **0001 a 0037** sobre una base nueva
 (cada migración dos veces seguidas, para probar que son re-ejecutables), carga las semillas de topología y transporte y comprueba:
 `verificar_saldos()` sin filas, ninguna función de `wms` con EXECUTE para PUBLIC y RLS en todas las tablas.
 Resultado del ensayo local en **Postgres 17.5**: 35 migraciones × 2 aplicaciones sin errores en ~5 s (con la 0036); 98 tablas de `wms` con RLS;

@@ -9,7 +9,7 @@ import { esProductoNuevo, esProveedorNuevo, type LineaOcCompras } from '@/domain
 import { createHash, randomUUID } from 'node:crypto'
 import { hashDe } from '@/lib/hash'
 import {
-  AREA_DESTINO, CHECKLIST_ORGANOLEPTICO, ESTADO_INICIAL, ETIQUETA_DECISION, ETIQUETA_ROL_FIRMA, ETIQUETA_TIPO_INGRESO,
+  AREA_DESTINO, CHECKLIST_ORGANOLEPTICO, ESTADO_INICIAL, ETIQUETA_DECISION, ETIQUETA_ROL_FIRMA, ETIQUETA_TIPO_INGRESO, MENSAJE_SIN_RECEPCION,
   diasParaVencer, estadoRegistroCompras, faltantesParaEnviar, mensajeTemperatura, numeroDeActa,
   pasoDeSolicitud, porTrasladarVencido, puedeAtenderAlerta, puedeFirmarComo, puedeGenerarActa, puedePrepararSolicitud, ROLES_FIRMA,
   situacionLote, temperaturaFueraDeRango, validarDecision, validarEntradaSolicitud, validarLineaSolicitud, validarTransportista,
@@ -437,7 +437,7 @@ function contenidoActa(e: EstadoDemo, s: SolicitudDemo, numero: string): Conteni
 
 function problemaParaActa(e: EstadoDemo, s: SolicitudDemo): string | null {
   const r = s.recepcion
-  if (!r) return 'Empieza la recepción primero'
+  if (!r) return MENSAJE_SIN_RECEPCION
   const m = puedeGenerarActa({
     tipo: s.tipo, tieneDocOriginal: !!s.docOriginalTipo && !!s.docOriginalNumero?.trim(), tieneTemperatura: r.temperaturaC != null,
     lineas: s.lineas.filter((l) => l.cantidad > 0).sort((a, b) => (producto(e, a.productoId)?.descripcion ?? '').localeCompare(producto(e, b.productoId)?.descripcion ?? '', 'es') || a.lote.localeCompare(b.lote)).map((l) => {
@@ -705,7 +705,7 @@ export class MotorEntradas {
     const perm = sinPermiso(actor)
     if (perm) return falla(perm)
     const s = e.solicitudes.find((x) => x.id === solicitudId)
-    if (!s) return falla('Solicitud inexistente')
+    if (!s) return falla('No encontramos esa solicitud. Vuelve a la lista de entradas y ábrela desde ahí.')
     const motivo = problemaParaActa(e, s)
     if (motivo) return falla(motivo)
     const vigente = actaVigente(e, solicitudId)
@@ -790,7 +790,7 @@ export class MotorEntradas {
     const perm = sinPermiso(actor)
     if (perm) return falla(perm)
     const s = e.solicitudes.find((x) => x.id === solicitudId)
-    if (!s) return falla('Solicitud inexistente')
+    if (!s) return falla('No encontramos esa solicitud. Vuelve a la lista de entradas y ábrela desde ahí.')
     if (s.recepcion?.confirmado) return falla('Este ingreso ya está confirmado')
     const problema = problemaParaActa(e, s)
     if (problema) return falla(problema)

@@ -2,7 +2,7 @@ import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
 import {
-  AREA_DESTINO, ESTADO_INICIAL, ETIQUETA_TIPO_INGRESO, pasoDeSolicitud, ROLES_FIRMA, temperaturaFueraDeRango, validarEntradaSolicitud,
+  AREA_DESTINO, ESTADO_INICIAL, ETIQUETA_TIPO_INGRESO, MENSAJE_SIN_RECEPCION, pasoDeSolicitud, ROLES_FIRMA, temperaturaFueraDeRango, validarEntradaSolicitud,
   validarLineaSolicitud, validarTransportista, type CambioEntrada, type Decision, type EntradaSolicitud, type EstadoRegistroCompras,
   type TipoIngreso,
 } from '@/domain/entradas'
@@ -432,7 +432,7 @@ export class EntradasSupabase {
 
   async generarActa(solicitudId: string, _actor: Actor): Promise<ResultadoAccion<{ actaId: string }>> {
     const ingreso = await ingresoDe(solicitudId)
-    if (!ingreso) return { ok: false, mensaje: 'Empieza la recepción primero' }
+    if (!ingreso) return { ok: false, mensaje: MENSAJE_SIN_RECEPCION }
     const { data, error } = await rpc('generar_acta_recepcion', { p_ingreso: ingreso })
     return error ? mal(error) : { ok: true, actaId: String(data) }
   }
@@ -461,7 +461,7 @@ export class EntradasSupabase {
 
   async confirmarIngreso(solicitudId: string, _actor: Actor): Promise<ResultadoAccion> {
     const ingreso = await ingresoDe(solicitudId)
-    if (!ingreso) return { ok: false, mensaje: 'Empieza la recepción primero' }
+    if (!ingreso) return { ok: false, mensaje: MENSAJE_SIN_RECEPCION }
     const { error } = await rpc('confirmar_ingreso', { p_ingreso: ingreso })
     return error ? mal(error) : ok()
   }

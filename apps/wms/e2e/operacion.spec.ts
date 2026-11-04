@@ -34,6 +34,8 @@ test.describe('revisión diaria (INV-04)', () => {
     await orden.getByTestId('foco-agregar-pendiente').click()
     await page.getByTestId('pendiente-descripcion').fill('Cajas vacías frente al rack C-2')
     await expect(page.getByTestId('pendiente-guardar')).toBeDisabled()
+    // «¿Quién lo resuelve?» ofrece solo auxiliares
+    for (const o of (await page.getByTestId('pendiente-responsable').locator('option').allTextContents()).slice(1)) expect(o).toMatch(/Auxiliar/i)
     await page.getByTestId('pendiente-responsable').selectOption({ label: 'Auxiliar de almacén (demo)' })
     await page.getByTestId('pendiente-ubicacion').fill('C-2')
     await page.getByTestId('pendiente-afecta').check()

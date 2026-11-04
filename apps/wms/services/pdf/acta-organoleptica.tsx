@@ -4,7 +4,9 @@ import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@
 import { CHECKLIST_ORGANOLEPTICO, ETIQUETA_DECISION, ETIQUETA_RESPUESTA } from '@/domain/entradas'
 import type { OrganolepticaVista } from '@/domain/entradas-vistas'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
+import { organolepticaEsBorrador } from '@/domain/borrador-documento'
 import { LOGO_LOGISALUD } from '../pdf-logo'
+import { MarcaBorrador } from './marca-borrador'
 
 // Acta de Análisis Organoléptico — formato LS-FR.55.02 (A4 vertical). La numeración O-AAAAMM-NNNN es
 // interna (D-13: el formato no la trae; por confirmar con Katia).
@@ -34,7 +36,7 @@ function ActaPdf({ a }: { a: OrganolepticaVista }) {
           <View style={{ flex: 1, padding: 6, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#111827' }}>ACTA DE ANÁLISIS ORGANOLÉPTICO</Text></View>
           <View style={{ width: 140, padding: 6, justifyContent: 'center', borderLeft: `1pt solid ${LINEA}` }}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Cód. Formato: LS-FR.55.02</Text><Text>N°: {a.numero}</Text></View>
         </View>
-        {a.estado !== 'FIRMADA' && <Text style={{ color: '#B45309', fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>{a.estado === 'PENDIENTE_DT' ? 'PENDIENTE de la decisión de Dirección Técnica.' : 'BORRADOR sin enviar.'} Este documento todavía no tiene validez.</Text>}
+        {organolepticaEsBorrador(a) && <MarcaBorrador detalle={a.estado === 'PENDIENTE_DT' ? 'Falta la decisión y la firma de Dirección Técnica. Este documento todavía no tiene validez.' : 'Falta llenarla y que la firme Dirección Técnica. Este documento todavía no tiene validez.'} />}
 
         <View style={s.caja}>
           <Text style={s.tit}>I. MOTIVO Y PRODUCTO</Text>
@@ -74,7 +76,7 @@ function ActaPdf({ a }: { a: OrganolepticaVista }) {
           </View>
         </View>
         <View style={{ position: 'absolute', bottom: 16, left: 28, right: 28, fontSize: 6.5, color: '#6B7280' }} fixed>
-          <Text>Acta {a.numero} · {a.estado === 'FIRMADA' ? `firmada electrónicamente · huella SHA-256 ${a.hash}` : 'sin firma'} · {ETIQUETA_RESPUESTA.C}/{ETIQUETA_RESPUESTA.NC}/{ETIQUETA_RESPUESTA.NA}</Text>
+          <Text>Acta {a.numero} · {a.estado === 'FIRMADA' ? `firmada electrónicamente · huella SHA-256 ${a.hash}` : 'borrador, pendiente de firmas'} · {ETIQUETA_RESPUESTA.C}/{ETIQUETA_RESPUESTA.NC}/{ETIQUETA_RESPUESTA.NA}</Text>
         </View>
       </Page>
     </Document>

@@ -435,6 +435,25 @@ export function pasoDeSolicitud(s: {
   }
 }
 
+/** Mensaje cuando se pide el acta (generarla, confirmar el ingreso) de una solicitud cuya recepción todavía no empezó. Lo usan la demo, la base y la pantalla. */
+export const MENSAJE_SIN_RECEPCION = 'Todavía no se inició la recepción de esta solicitud, y el acta sale de lo que verificas al recibir. Usa «Iniciar recepción» para empezar.'
+
+export interface ExplicacionSinActa { texto: string; puedeIniciar: boolean }
+
+/**
+ * Por qué una solicitud no tiene acta todavía y qué hacer. `null` si ya tiene recepción (ahí el acta se maneja en su panel).
+ * El botón «Iniciar recepción» solo existe cuando la solicitud ya está autorizada («por llegar») y quien mira puede recibir.
+ */
+export function explicarSinActa(estado: EstadoSolicitud, puedeRecibir: boolean): ExplicacionSinActa | null {
+  switch (estado) {
+    case 'EN_RECEPCION': case 'CERRADA': return null
+    case 'ANULADA': return { texto: 'Esta solicitud está anulada: no habrá recepción ni acta.', puedeIniciar: false }
+    case 'PROGRAMADA':
+      return { texto: `Todavía no hay acta porque la recepción no se inició. El acta se arma con lo que verificas al recibir el camión. ${puedeRecibir ? 'Cuando llegue, inicia la recepción.' : 'La recepción la inicia el personal de almacén.'}`, puedeIniciar: puedeRecibir }
+    default: return { texto: 'Todavía no hay acta: la solicitud aún no está autorizada, así que no se puede recibir. Primero se autoriza; después se inicia la recepción y recién ahí sale el acta.', puedeIniciar: false }
+  }
+}
+
 /** Lo que falta para generar el acta, en el mismo orden y con los mismos mensajes de la base de datos. */
 export function puedeGenerarActa(i: {
   tipo: TipoIngreso

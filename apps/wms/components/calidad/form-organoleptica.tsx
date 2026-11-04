@@ -1,5 +1,6 @@
 'use client'
 
+import { MARCA_BORRADOR } from '@/domain/borrador-documento'
 import { useMemo, useState, type ReactNode } from 'react'
 import { CheckCheck, Download, Fingerprint, Send } from 'lucide-react'
 import { decidirOrganolepticaAccion, guardarOrganolepticaAccion } from '@/app/acciones-entradas'
@@ -178,7 +179,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
       <section className="flex flex-wrap items-center gap-2" aria-label="Descargar el acta">
         <a className="btn-secondary btn-sm" href={`${base}/pdf`} target="_blank" rel="noopener" data-testid="pdf-organoleptica"><Download className="h-4 w-4" aria-hidden />Ver el PDF</a>
         <a className="btn-secondary btn-sm" href={`${base}/xlsx`} download data-testid="xlsx-organoleptica"><Download className="h-4 w-4" aria-hidden />Descargar Excel</a>
-        {!bloqueada && <span className="text-xs text-gray-600">Mientras no esté firmada, el documento sale marcado como borrador.</span>}
+        {!bloqueada && <span className="text-xs text-gray-600" data-testid="aviso-borrador-organoleptica">Mientras no esté firmada, el PDF y el Excel salen marcados «{MARCA_BORRADOR}».</span>}
       </section>
 
       {mensaje && <Aviso tipo={mensaje.tipo === 'ok' ? 'ok' : 'error'}>{mensaje.texto}</Aviso>}

@@ -1,5 +1,6 @@
 // Motor del inventario en el modo demostración (Batch 3). Aplica las mismas reglas que la migración 0007:
 // Kardex, movimientos internos con D-15, conteos ciegos, ajustes autorizados por Dirección Técnica y carga inicial con D-09.
+import { MENSAJE_DESTINO_SALIDA_CUARENTENA, MENSAJE_ORIGEN_SALIDA_CUARENTENA, razonDestinoPorMotivo, razonOrigenPorMotivo } from '@/domain/regla-motivo'
 import {
   clasificarReconteo, construirKardex, puedeDecidirAjuste, puedeEjecutarMovimiento, puedeProgramarConteo,
   type AjusteVista, type CargaInicialVista, type ConteoVista, type ErrorFilaCarga, type FilaCargaInicial, type FilaHistoriaLote,
@@ -282,6 +283,10 @@ export class InventarioDemo extends EntradasDemo {
       const destino = e.panorama.posiciones.find((p) => p.id === l.haciaPosicionId)
       if (!destino) return falla('No encontramos la ubicación de destino')
       const origen = origenDe(e, l.loteId, l.procedenciaId)
+      // Mismas reglas que la base (0037): con «Salida de Cuarentena» el origen es de Cuarentena y el destino, de Aprobados.
+      const origenPos = e.panorama.posiciones.find((p) => p.id === l.desdePosicionId)
+      if (origenPos && razonOrigenPorMotivo(motivo, origenPos.tipoArea)) return falla(MENSAJE_ORIGEN_SALIDA_CUARENTENA)
+      if (razonDestinoPorMotivo(motivo, destino.tipoArea)) return falla(MENSAJE_DESTINO_SALIDA_CUARENTENA)
       if (AREAS_DE_SALIDA.has(destino.tipoArea)) return falla('Despacho se usa solo en las salidas: no se mueve a mano')
       if (!areaAdmite(destino.tipoArea, l.estado, origen)) return falla(`La zona de destino (${destino.tipoArea}) no admite unidades en estado ${l.estado}`)
       if (!posicionAcepta(destino, lote.propietarioId, e.panorama.asignaciones, e.panorama.hoy)) return falla('La posición de destino no acepta stock de ese propietario (sin asignación vigente)')

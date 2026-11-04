@@ -7,6 +7,7 @@ import {
 } from '@/app/acciones-entradas'
 import { ESTADO_INICIAL, ETIQUETA_ROL_FIRMA, ROLES_FIRMA, puedeFirmarComo, type RolFirma } from '@/domain/entradas'
 import type { ActaRecepcionVista, SolicitudDetalle } from '@/domain/entradas-vistas'
+import { MARCA_BORRADOR } from '@/domain/borrador-documento'
 import { formatoFechaHora } from '@/domain/fechas'
 import type { Rol } from '@/domain/tipos'
 import { useAccion } from '../usar-accion'
@@ -103,6 +104,7 @@ export function PanelActa({ solicitud, roles, motivoSinActa, base }: { solicitud
             </div>
             <div className="flex flex-wrap items-center gap-2"><ChipActa estado={vigente.estado} /><a className="btn-secondary btn-sm" href={`${base}/acta/${vigente.id}/pdf`} target="_blank" rel="noopener" data-testid="pdf-acta"><Download className="h-4 w-4" aria-hidden />Ver el PDF</a><a className="btn-secondary btn-sm" href={`${base}/acta/${vigente.id}/xlsx`} download data-testid="xlsx-acta"><Download className="h-4 w-4" aria-hidden />Descargar Excel</a></div>
           </div>
+          {vigente.estado === 'BORRADOR' && <p className="text-sm text-gray-700" data-testid="aviso-borrador-descarga">Puedes descargarla antes de que esté firmada: el PDF y el Excel salen marcados «{MARCA_BORRADOR}». Con las cuatro firmas, salen sin marca.</p>}
           {vigente.estado === 'BORRADOR' && !ingreso.bloqueadoPorFirmas && <p className="text-sm text-gray-700">Puedes corregir lotes y datos hasta que alguien firme. Con la primera firma, el contenido queda fijo.</p>}
           {vigente.estado === 'BORRADOR' && ingreso.bloqueadoPorFirmas && <Aviso tipo="info">Ya hay firmas: el contenido del acta quedó fijo. Si hay un error, anúlala con motivo y emite otra.</Aviso>}
           <ul className="divide-y divide-gray-100" aria-label="Firmas del acta">
