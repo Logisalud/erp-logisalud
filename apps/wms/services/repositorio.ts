@@ -97,4 +97,15 @@ export interface Repositorio extends RepositorioInventario, RepositorioOperacion
 
   /** OC y actas para la búsqueda universal. */
   buscarEntradas(consulta: string): Promise<ResultadoBusqueda[]>
+
+  // ── Piloto F: vencimiento, proveedores y formatos controlados ───────────────────────────────────
+  /** Proveedores de Compras (solo lectura) con su marca «vencimiento solo mes y año» (tabla propia del WMS). */
+  proveedoresVencimiento(): Promise<{ ruc: string; nombre: string; soloMesAnio: boolean }[]>
+  marcarProveedorVencimiento(ruc: string, nombre: string | undefined, soloMesAnio: boolean, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  /** Corregir la fecha de un lote ya registrado: Jefe de Almacén o Dirección Técnica, con motivo y con historial. */
+  corregirVencimientoLote(loteId: string, fecha: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  historialVencimientoLote(loteId: string): Promise<import('@/domain/vencimiento').CambioVencimientoLote[]>
+  versionesFormato(formato: import('@/domain/formatos').FormatoControlado): Promise<import('@/domain/formatos').VersionFormatoVista[]>
+  /** Solo Dirección Técnica: la versión nueva rige desde que se aprueba. */
+  aprobarVersionFormato(formato: import('@/domain/formatos').FormatoControlado, version: number, actor: Actor): Promise<ResultadoAccion>
 }

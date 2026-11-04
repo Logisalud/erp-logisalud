@@ -88,6 +88,10 @@ export const CLAVES_UNICAS: Readonly<Record<string, readonly string[]>> = {
   'wms.v_oc_lineas': ['oc_item_id'],
   // Copia inmutable de las OC (0038): una fila por versión; la vista, una por OC.
   'wms.oc_versiones': ['id'],
+  'wms.proveedores_config': ['ruc'],
+  'wms.lote_vencimiento_cambios': ['id'],
+  'wms.formatos_versiones': ['formato', 'version'],
+  'wms.v_proveedores': ['proveedor_id'],
   'wms.v_oc_versiones_vigentes': ['oc_id'],
 }
 

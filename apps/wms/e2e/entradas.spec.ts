@@ -22,32 +22,41 @@ async function abrirSolicitud(page: Page, texto: RegExp | string) {
 async function generarYFirmarActa(page: Page, info: Parameters<typeof capturar>[1]) {
   await page.getByTestId('generar-acta').click()
   await expect(page.getByTestId('numero-acta')).toHaveText(/^I-\d{6}-\d{4}$/)
-  await page.getByTestId('firmar-JEFE_ALMACEN').click()
-  await expect(page.getByTestId('firma-JEFE_ALMACEN')).toContainText('Firmó')
-  await expect(page.getByTestId('guardar-datos')).toHaveCount(0) // con la primera firma el contenido queda fijo
-  await cambiarRol(page, 'direccion_tecnica')
-  await page.getByTestId('firmar-DIRECCION_TECNICA').click()
-  await expect(page.getByTestId('firma-DIRECCION_TECNICA')).toContainText('Firmó')
-  await cambiarRol(page, 'auxiliar')
-  await page.getByTestId('firmar-RESPONSABLE_CONTEO').click()
-  await expect(page.getByTestId('firma-RESPONSABLE_CONTEO')).toContainText('Firmó')
+  // Orden: transportista → responsable de conteo → Jefe de Almacén → Dirección Técnica (cada quien con su usuario).
+  await expect(page.getByTestId('le-toca')).toContainText('Transportista')
+  await expect(page.getByTestId('firmar-JEFE_ALMACEN')).toHaveCount(0) // todavía no le toca
   await page.getByTestId('abrir-transportista').click()
   await page.getByLabel('Nombre completo').fill('Pedro Quispe')
   await page.getByLabel('DNI').fill('1234')
-  await page.getByTestId('firmar-transportista').click()
-  await expect(page.getByText('El DNI tiene 8 dígitos.')).toBeVisible()
-  await page.getByLabel('DNI').fill('45678912')
+  await expect(page.getByTestId('firmar-transportista')).toBeDisabled() // falta la firma dibujada y «Listo»
   const lienzo = page.getByTestId('lienzo-firma')
+  await lienzo.scrollIntoViewIfNeeded()
   const caja = (await lienzo.boundingBox())!
   await page.mouse.move(caja.x + 20, caja.y + 40)
   await page.mouse.down()
   await page.mouse.move(caja.x + 90, caja.y + 100, { steps: 6 })
   await page.mouse.move(caja.x + 150, caja.y + 50, { steps: 6 })
   await page.mouse.up()
+  await page.getByTestId('firma-lista').click()
+  await expect(page.getByTestId('estado-firma')).toContainText('Firma lista')
   await capturar(page, info, 'entrada-firma-transportista', { completa: true })
+  await page.getByTestId('firmar-transportista').click()
+  await expect(page.getByText('El DNI tiene 8 dígitos.')).toBeVisible()
+  await page.getByLabel('DNI').fill('45678912')
   await page.getByTestId('firmar-transportista').click()
   await expect(page.getByTestId('firma-TRANSPORTISTA')).toContainText('Firmó')
   await expect(page.getByTestId('firma-TRANSPORTISTA').getByRole('img', { name: /Firma de Pedro Quispe/ })).toBeVisible()
+  await expect(page.getByTestId('firma-TRANSPORTISTA').getByTestId('capturado-por')).toContainText('Registró:')
+  await expect(page.getByTestId('guardar-datos')).toHaveCount(0) // con la primera firma el contenido queda fijo
+  await cambiarRol(page, 'auxiliar')
+  await page.getByTestId('firmar-RESPONSABLE_CONTEO').click()
+  await expect(page.getByTestId('firma-RESPONSABLE_CONTEO')).toContainText('Firmó')
+  await cambiarRol(page, 'jefe_almacen')
+  await page.getByTestId('firmar-JEFE_ALMACEN').click()
+  await expect(page.getByTestId('firma-JEFE_ALMACEN')).toContainText('Firmó')
+  await cambiarRol(page, 'direccion_tecnica')
+  await page.getByTestId('firmar-DIRECCION_TECNICA').click()
+  await expect(page.getByTestId('firma-DIRECCION_TECNICA')).toContainText('Firmó')
 }
 
 test.describe('entradas: la solicitud es lo primero', () => {

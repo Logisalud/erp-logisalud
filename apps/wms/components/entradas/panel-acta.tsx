@@ -5,7 +5,7 @@ import { Ban, CheckCircle2, ClipboardCheck, Download, FilePlus2, Fingerprint, Pe
 import {
   anularActaAccion, confirmarIngresoAccion, firmarActaAccion, generarActaAccion, reemitirActaAccion,
 } from '@/app/acciones-entradas'
-import { ESTADO_INICIAL, ETIQUETA_ROL_FIRMA, ROLES_FIRMA, puedeFirmarComo, type RolFirma } from '@/domain/entradas'
+import { ESTADO_INICIAL, ETIQUETA_ROL_FIRMA, ROLES_FIRMA, puedeFirmarComo, siguienteEnFirmar, type RolFirma } from '@/domain/entradas'
 import type { ActaRecepcionVista, SolicitudDetalle } from '@/domain/entradas-vistas'
 import { MARCA_BORRADOR } from '@/domain/borrador-documento'
 import { formatoFechaHora } from '@/domain/fechas'
@@ -13,7 +13,7 @@ import type { Rol } from '@/domain/tipos'
 import { useAccion } from '../usar-accion'
 import { Aviso } from './aviso'
 import { ChipActa } from './chips-entradas'
-import { FirmaTactil } from './firma-tactil'
+import { CuadroFirma } from '../firma/cuadro-firma'
 
 function PanelTransportista({ actaId, placaInicial, alFirmar }: { actaId: string; placaInicial?: string; alFirmar: () => void }) {
   const { pendiente, mensaje, ejecutar, limpiar } = useAccion()
@@ -22,7 +22,6 @@ function PanelTransportista({ actaId, placaInicial, alFirmar }: { actaId: string
   const [placa, setPlaca] = useState(placaInicial ?? '')
   const [imagen, setImagen] = useState<string | null>(null)
   const e = mensaje?.errores ?? {}
-  // Estable: FirmaTactil se reinicia si cambia esta función.
   const alCambiarFirma = useCallback((img: string | null) => { setImagen(img); if (img) limpiar() }, [limpiar])
   return (
     <div className="mt-3 space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4" data-testid="panel-transportista">
@@ -31,9 +30,14 @@ function PanelTransportista({ actaId, placaInicial, alFirmar }: { actaId: string
         <div><label htmlFor="t-dni" className="etiqueta">DNI</label><input id="t-dni" className={`campo tabular ${e.dni ? '!border-red-500' : ''}`} inputMode="numeric" maxLength={8} value={dni} onChange={(ev) => setDni(ev.target.value.replace(/\D/g, ''))} autoComplete="off" />{e.dni && <p role="alert" className="mt-1 text-xs text-red-700">{e.dni}</p>}</div>
         <div><label htmlFor="t-placa" className="etiqueta">Placa</label><input id="t-placa" className={`campo uppercase ${e.placa ? '!border-red-500' : ''}`} value={placa} onChange={(ev) => setPlaca(ev.target.value)} autoComplete="off" />{e.placa && <p role="alert" className="mt-1 text-xs text-red-700">{e.placa}</p>}</div>
       </div>
-      <div><p className="etiqueta">Firma del transportista</p><FirmaTactil onCambio={alCambiarFirma} />{e.imagen && <p role="alert" className="mt-1 text-xs text-red-700">{e.imagen}</p>}</div>
+      <div>
+        <p className="etiqueta">Firma del transportista</p>
+        <p className="mb-2 text-sm text-gray-700">Entrégale tu celular o tu pantalla: firma con el dedo y pulsa «Listo». Tú registras sus datos con tu usuario y ese registro queda a tu nombre.</p>
+        <CuadroFirma onListo={alCambiarFirma} descripcion="Espacio para la firma del transportista: dibuja con el dedo" />
+        {e.imagen && <p role="alert" className="mt-1 text-xs text-red-700">{e.imagen}</p>}
+      </div>
       {mensaje?.tipo === 'error' && !Object.keys(e).length && <Aviso tipo="error">{mensaje.texto}</Aviso>}
-      <button type="button" className="btn-primary btn-sm" disabled={pendiente} data-testid="firmar-transportista"
+      <button type="button" className="btn-primary btn-sm" disabled={pendiente || !imagen} data-testid="firmar-transportista"
         onClick={() => ejecutar(() => firmarActaAccion(actaId, { rol: 'TRANSPORTISTA', nombre, dni, placa, imagen: imagen ?? '' }), { alExito: alFirmar })}>
         <PenLine className="h-4 w-4" aria-hidden />{pendiente ? 'Registrando…' : 'Registrar la firma del transportista'}
       </button>
@@ -41,26 +45,29 @@ function PanelTransportista({ actaId, placaInicial, alFirmar }: { actaId: string
   )
 }
 
-function FilaFirma({ acta, rol, roles, placa }: { acta: ActaRecepcionVista; rol: RolFirma; roles: Rol[]; placa?: string }) {
+function FilaFirma({ acta, rol, roles, placa, base, toca, solicitudId }: { acta: ActaRecepcionVista; rol: RolFirma; roles: Rol[]; placa?: string; base: string; toca: RolFirma | null; solicitudId: string }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [abierto, setAbierto] = useState(false)
   const f = acta.firmas.find((x) => x.rol === rol)
-  const puede = acta.estado === 'BORRADOR' && !f && puedeFirmarComo(roles, rol)
+  const esMiTurno = toca === rol
+  const puede = acta.estado === 'BORRADOR' && !f && esMiTurno && puedeFirmarComo(roles, rol)
   return (
     <li className="py-3" data-testid={`firma-${rol}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="font-medium text-gray-900">{ETIQUETA_ROL_FIRMA[rol]}</p>
           {f ? <p className="text-sm text-gray-600">{f.nombre}{f.dni ? ` · DNI ${f.dni}` : ''}{f.placa ? ` · ${f.placa}` : ''} · {formatoFechaHora(f.firmadoEn)}</p>
-            : <p className="text-sm text-gray-600">{rol === 'TRANSPORTISTA' ? 'Firma en pantalla, con nombre, DNI y placa.' : 'Firma con tu usuario.'}</p>}
+            : <p className="text-sm text-gray-600">{rol === 'TRANSPORTISTA' ? 'Firma en pantalla, con nombre, DNI y placa.' : 'Firma desde tu celular o tu PC, con tu usuario.'}</p>}
+          {f?.capturadoPor && rol === 'TRANSPORTISTA' && <p className="text-xs text-gray-600" data-testid="capturado-por">Registró: {f.capturadoPor}</p>}
         </div>
         {f ? <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-800"><CheckCircle2 className="h-4 w-4" aria-hidden />Firmó</span>
           : puede ? (rol === 'TRANSPORTISTA'
               ? <button type="button" className="btn-secondary btn-sm" aria-expanded={abierto} onClick={() => setAbierto((x) => !x)} data-testid="abrir-transportista"><PenLine className="h-4 w-4" aria-hidden />{abierto ? 'Cerrar' : 'Firma del transportista'}</button>
               : <button type="button" className="btn-primary btn-sm" disabled={pendiente} onClick={() => ejecutar(() => firmarActaAccion(acta.id, { rol }))} data-testid={`firmar-${rol}`}><PenLine className="h-4 w-4" aria-hidden />{pendiente ? 'Firmando…' : 'Firmar'}</button>)
-          : acta.estado === 'BORRADOR' ? <span className="text-sm text-gray-600">Falta su firma</span> : null}
+          : acta.estado === 'BORRADOR' ? <span className="text-sm text-gray-700" data-testid={`turno-${rol}`}>{esMiTurno ? `Le toca a ${ETIQUETA_ROL_FIRMA[rol]}` : toca ? `Espera su turno: antes firma ${ETIQUETA_ROL_FIRMA[toca]}` : 'Falta su firma'}</span> : null}
       </div>
-      {f?.imagen && <img src={f.imagen} alt={`Firma de ${f.nombre}`} className="mt-2 h-16 rounded border border-gray-200 bg-white p-1" />}
+      {(f?.imagen || f?.imagenRef) && <img src={f.imagen ?? `${base}/entradas/${solicitudId}/acta/${acta.id}/firma`} alt={`Firma de ${f.nombre}`} className="mt-2 h-16 rounded border border-gray-200 bg-white p-1" />}
+      {f?.imagenHash && <p className="mt-1 text-xs text-gray-600">Huella de la firma <code className="tabular">{f.imagenHash.slice(0, 12)}…</code></p>}
       {abierto && puede && rol === 'TRANSPORTISTA' && <PanelTransportista actaId={acta.id} placaInicial={placa} alFirmar={() => setAbierto(false)} />}
       {mensaje?.tipo === 'error' && rol !== 'TRANSPORTISTA' && <div className="mt-2"><Aviso tipo="error">{mensaje.texto}</Aviso></div>}
     </li>
@@ -107,8 +114,9 @@ export function PanelActa({ solicitud, roles, motivoSinActa, base }: { solicitud
           {vigente.estado === 'BORRADOR' && <p className="text-sm text-gray-700" data-testid="aviso-borrador-descarga">Puedes descargarla antes de que esté firmada: el PDF y el Excel salen marcados «{MARCA_BORRADOR}». Con las cuatro firmas, salen sin marca.</p>}
           {vigente.estado === 'BORRADOR' && !ingreso.bloqueadoPorFirmas && <p className="text-sm text-gray-700">Puedes corregir lotes y datos hasta que alguien firme. Con la primera firma, el contenido queda fijo.</p>}
           {vigente.estado === 'BORRADOR' && ingreso.bloqueadoPorFirmas && <Aviso tipo="info">Ya hay firmas: el contenido del acta quedó fijo. Si hay un error, anúlala con motivo y emite otra.</Aviso>}
+          <p className="text-sm text-gray-700" data-testid="orden-firmas">Se firma en este orden: transportista, responsable de conteo, Jefe de Almacén y Dirección Técnica. Cada persona firma desde su propio celular o PC, con su propio usuario.{vigente.estado === 'BORRADOR' && siguienteEnFirmar(vigente.firmas.map((x) => x.rol)) && <> <strong data-testid="le-toca">Ahora le toca a {ETIQUETA_ROL_FIRMA[siguienteEnFirmar(vigente.firmas.map((x) => x.rol))!]}.</strong></>}</p>
           <ul className="divide-y divide-gray-100" aria-label="Firmas del acta">
-            {ROLES_FIRMA.map((r) => <FilaFirma key={r} acta={vigente} rol={r} roles={roles} placa={ingreso.placa} />)}
+            {ROLES_FIRMA.map((r) => <FilaFirma key={r} acta={vigente} rol={r} roles={roles} placa={ingreso.placa} base={base} toca={vigente.estado === 'BORRADOR' ? siguienteEnFirmar(vigente.firmas.map((x) => x.rol)) : null} solicitudId={solicitud.id} />)}
           </ul>
 
           {vigente.estado === 'FIRMADA' && !ingreso.confirmado && (

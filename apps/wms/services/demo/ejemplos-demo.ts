@@ -1,6 +1,7 @@
 // Órdenes de ejemplo de la demostración (SA-1): al abrir Salidas (o cualquier pantalla de despacho) la demo ya trae una orden en cada etapa y de cada tipo, para recorrer
 // todos los flujos sin generarlos uno por uno. NO inventa estados: llama a las mismas acciones que usan las pantallas (asignar, designar picker, picking, conformidad, guía con el
 // simulador, COA, embalaje, ruta, carga, liberar y confirmar salida, cancelar). Qué se siembra lo dice la lista declarativa `EJEMPLOS_SALIDA` (domain/ejemplos.ts).
+import { FIRMA_PNG_EJEMPLO } from '../firma-imagen'
 import { EJEMPLOS_DEVOLUCION, EJEMPLOS_SALIDA, type EjemploSalida } from '@/domain/ejemplos'
 import { validarPedidos, type PedidoSnapshot } from '@/domain/pedidos-despacho'
 import { construirConsulta, construirPayloadNubefact, faltantesDeGuia } from '@/domain/guia-electronica'
@@ -145,10 +146,10 @@ export class EjemplosDemo extends PilotoDemo {
       await recibir(id, destino)
       exigir(await this.editarRecepcion(id, { temperaturaC: 20, bultos: 1, paletas: 1, placa: 'DEV-001', tipoConteo: 'TOTAL' }, CHARLIE), 'dev-datos')
       const g = exigir(await this.generarActa(id, CHARLIE), 'dev-acta')
-      exigir(await this.firmarActa(g.actaId, { rol: 'JEFE_ALMACEN' }, CHARLIE), 'dev-firma-1')
-      exigir(await this.firmarActa(g.actaId, { rol: 'DIRECCION_TECNICA' }, DT), 'dev-firma-2')
-      exigir(await this.firmarActa(g.actaId, { rol: 'RESPONSABLE_CONTEO' }, AUX), 'dev-firma-3')
-      exigir(await this.firmarActa(g.actaId, { rol: 'TRANSPORTISTA', nombre: 'Transportista de ejemplo', dni: '45678912', placa: 'DEV-001', imagen: 'data:image/png;base64,' + 'A'.repeat(200) }, CHARLIE), 'dev-firma-4')
+      exigir(await this.firmarActa(g.actaId, { rol: 'TRANSPORTISTA', nombre: 'Transportista de ejemplo', dni: '45678912', placa: 'DEV-001', imagen: FIRMA_PNG_EJEMPLO }, CHARLIE), 'dev-firma-1')
+      exigir(await this.firmarActa(g.actaId, { rol: 'RESPONSABLE_CONTEO' }, AUX), 'dev-firma-2')
+      exigir(await this.firmarActa(g.actaId, { rol: 'JEFE_ALMACEN' }, CHARLIE), 'dev-firma-3')
+      exigir(await this.firmarActa(g.actaId, { rol: 'DIRECCION_TECNICA' }, DT), 'dev-firma-4')
       exigir(await this.confirmarIngreso(id, CHARLIE), 'dev-confirmar')
       return (await this.obtenerSolicitud(id))!.organolepticas[0]
     }

@@ -6,7 +6,7 @@ import { CheckCircle2, Pencil, RotateCcw, TriangleAlert } from 'lucide-react'
 import { ajustarSolicitudAccion, verificarLineaAccion } from '@/app/acciones-entradas'
 import { textoDiferencia, type CambioEntrada } from '@/domain/entradas'
 import type { LineaSolicitudVista, PosicionDestino, SolicitudDetalle } from '@/domain/entradas-vistas'
-import { formatoFecha, parsearVencimiento } from '@/domain/fechas'
+import { formatoFecha, parsearVencimiento, textoVencimiento } from '@/domain/fechas'
 import { situacionRS } from '@/domain/regulatorio'
 import { ChipRS } from '../chips'
 import { useAccion } from '../usar-accion'
@@ -91,7 +91,8 @@ function TarjetaLinea({ solicitud, linea, posiciones, hoy, verificando, ajustabl
         <div className="min-w-0">
           <h3 className="font-heading text-lg font-medium uppercase tracking-wide text-gray-900">{linea.descripcion}</h3>
           <p className="text-sm text-gray-600">{linea.codigo}{linea.registroSanitario ? ` · RS ${linea.registroSanitario}` : ''}</p>
-          <p className="mt-1 text-sm text-gray-900">Lote <strong>{linea.lote}</strong> · vence {formatoFecha(linea.vence)}{linea.venceTexto ? ` (escrito ${linea.venceTexto})` : ''}</p>
+          <p className="mt-1 text-sm text-gray-900" data-testid="vence-linea">Lote <strong>{linea.lote}</strong> · vence {textoVencimiento(linea.vence, linea.venceTexto)}</p>
+          {linea.avisosVencimiento?.map((a) => <div key={a.tipo} className="mt-1.5"><Aviso tipo="atencion" testid={`aviso-${a.tipo}`}>{a.texto}</Aviso></div>)}
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5"><ChipRS situacion={sit} /><ChipVerificacion v={linea.verificacion} />{linea.estadoLinea !== 'ESPERADA' && <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium leading-none text-amber-900">{retirada ? 'Ya no llega' : 'Ajustada'}</span>}</div>
         </div>
         <div className="text-right" data-testid="cantidad-linea">

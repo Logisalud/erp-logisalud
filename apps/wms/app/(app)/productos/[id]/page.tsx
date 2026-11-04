@@ -74,6 +74,7 @@ export default async function DetalleProducto({ params, searchParams }: { params
           {dato('Concentración', reg?.concentracion)}
           {dato('Fabricante', reg?.fabricante)}
           {dato('Condición de almacenamiento', reg?.condicionAlmacenamiento)}
+          <div data-testid="dato-sin-material-envase">{dato('Material de envase', reg?.sinMaterialEnvase ? 'Sin material de envase (el acta organoléptica no lo pide)' : 'Con material de envase')}</div>
         </dl>
       </section>
 
@@ -92,7 +93,7 @@ export default async function DetalleProducto({ params, searchParams }: { params
         <section className="card border-2 border-teal-400" aria-labelledby="editar" data-testid="panel-regulatorio">
           <h2 id="editar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Editar datos regulatorios y del producto</h2>
           <p className="mb-3 mt-1 text-sm text-gray-600">Katia y Sandra tienen la misma autoridad. El cambio rige de inmediato (si lo haces como Administrador, Dirección Técnica lo valida después) y queda registrado con tu nombre, la fecha y el motivo.</p>
-          <FormRegulatorio productoId={prod.id} reg={reg} presentacion={prod.presentacion} principioActivo={prod.principioActivo} />
+          <FormRegulatorio productoId={prod.id} reg={reg} presentacion={prod.presentacion} principioActivo={prod.principioActivo} puedeMarcarSinEnvase={ctx.roles.includes('direccion_tecnica')} />
         </section>
       )}
 

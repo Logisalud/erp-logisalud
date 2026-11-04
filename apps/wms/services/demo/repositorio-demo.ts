@@ -1,7 +1,7 @@
 import { CAMPOS_CATALOGO, CAMPOS_REGULATORIOS, type CambioRegulatorio, type EventoAuditoria, type Regulatorio } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
 import {
-  autorizarAltaProducto, autorizarEdicionRegulatoria, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio,
+  autorizarAltaProducto, autorizarEdicionRegulatoria, autorizarMarcaSinMaterialEnvase, esSi, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio,
   type DatosRegulatorios, type EntradaProducto,
 } from '@/domain/productos'
 import { puedeValidarProducto } from '@/domain/permisos'
@@ -77,6 +77,17 @@ export class RepositorioDemo extends EjemplosDemo implements Repositorio {
       if (antes === despues) continue
       ;(nuevo as unknown as Record<string, string | undefined>)[c.clave] = despues
       cambios.push({ id: `${id}:${c.campo}:${e.cambiosRegulatorios.length + cambios.length}`, productoId: id, campo: c.campo, antes, despues, usuario: actor.nombre, ts: new Date().toISOString(), motivo: motivo.trim() })
+    }
+    // F3: «sin material de envase» (solo Dirección Técnica), con el mismo historial
+    if (datos.sinMaterialEnvase !== undefined) {
+      const permisoMarca = autorizarMarcaSinMaterialEnvase(actor.roles)
+      if (permisoMarca) return { ok: false, mensaje: permisoMarca }
+      const antesB = !!actual.sinMaterialEnvase
+      const despuesB = esSi(datos.sinMaterialEnvase)
+      if (antesB !== despuesB) {
+        nuevo.sinMaterialEnvase = despuesB
+        cambios.push({ id: `${id}:sin_material_envase:${e.cambiosRegulatorios.length + cambios.length}`, productoId: id, campo: 'sin_material_envase', antes: String(antesB), despues: String(despuesB), usuario: actor.nombre, ts: new Date().toISOString(), motivo: motivo.trim() })
+      }
     }
     // D-38: presentación y principio activo viven en el catálogo, con el mismo historial
     for (const c of CAMPOS_CATALOGO) {

@@ -9,7 +9,8 @@ import {
   type Checklist, type DatosOrganoleptica, type Respuesta,
 } from '@/domain/entradas'
 import type { OrganolepticaVista } from '@/domain/entradas-vistas'
-import { formatoFechaHora } from '@/domain/fechas'
+import { formatoFechaHora, textoVencimiento } from '@/domain/fechas'
+import { CODIGO_FORMATO } from '@/domain/formatos'
 import { ETIQUETA_REGIMEN, explicarRegimen, textoMuestra } from '@/domain/muestreo'
 import { ChipEstado } from '../chips'
 import { useAccion } from '../usar-accion'
@@ -50,7 +51,8 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
   const [obsDt, setObsDt] = useState('')
 
   const datos: DatosOrganoleptica = { certAnalisis: cert, checklist, observacion: obs, destinoSugerido: destino, conclusion }
-  const faltan = useMemo(() => faltantesParaEnviar(datos), [checklist, cert, destino, conclusion]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sinEnvase = !!acta.materialEnvaseOculto
+  const faltan = useMemo(() => faltantesParaEnviar(datos, sinEnvase), [checklist, cert, destino, conclusion, sinEnvase]) // eslint-disable-line react-hooks/exhaustive-deps
   const noConformes = itemsNoConformes(checklist)
   const rsVencido = !!acta.rsVence && acta.rsVence < hoy
   const rotaAprobar = validarDecision('APROBADO', conclusion, acta.rsVence, hoy)
@@ -69,7 +71,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
   const guardar = (enviar: boolean) => ejecutar(() => guardarOrganolepticaAccion(acta.id, { certAnalisis: cert, checklist, observacion: obs, destinoSugerido: destino, conclusion }, enviar),
     { exito: enviar ? 'Enviada a Dirección Técnica.' : 'Borrador guardado.' })
 
-  const grupos = CHECKLIST_ORGANOLEPTICO.filter((g) => !g.opcional || materiales.has(g.id) || bloqueada)
+  const grupos = CHECKLIST_ORGANOLEPTICO.filter((g) => !g.opcional || (!sinEnvase && (materiales.has(g.id) || bloqueada)))
   const opcionales = CHECKLIST_ORGANOLEPTICO.filter((g) => g.opcional)
 
   return (
@@ -78,11 +80,13 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
         <h2 id="datos-producto" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">I. El producto</h2>
         <dl className="mt-2 grid gap-x-8 divide-y divide-gray-100 text-sm sm:grid-cols-2 sm:divide-y-0">
           {[
-            ['Producto', acta.producto], ['Nombre genérico', acta.principioActivo], ['Lote', acta.lote], ['Vence', acta.vence ? new Date(`${acta.vence}T00:00:00Z`).toLocaleDateString('es-PE', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }) : undefined],
+            ['Producto', acta.producto], ['Nombre genérico', acta.principioActivo], ['Lote', acta.lote], ['Vence', acta.vence ? textoVencimiento(acta.vence, acta.venceTexto) : undefined],
             ['Registro sanitario', acta.registroSanitario], ['Vence el registro', acta.rsVence], ['Fabricante', acta.fabricante], ['Forma de presentación', acta.formaPresentacion],
             ['Propietario', acta.propietario], ['Referencia', acta.referencia], ['Cantidad del lote', `${acta.cantidadLote.toLocaleString('es-PE')} unidades`],
           ].map(([k, v]) => <div key={k} className="flex justify-between gap-3 py-2"><dt className="text-gray-600">{k}</dt><dd className="text-right text-gray-900">{v || '—'}</dd></div>)}
         </dl>
+        <p className="mt-2 text-xs text-gray-600" data-testid="version-formato">Formato {CODIGO_FORMATO.ACTA_ORGANOLEPTICA} · versión {acta.formatoVersion ?? 1}</p>
+        {sinEnvase && <div className="mt-3"><Aviso tipo="info" testid="sin-material-envase">Dirección Técnica marcó este producto como «sin material de envase»: el punto «Material del envase» no se pide en esta versión del formato.</Aviso></div>}
         <p className="mt-3 rounded-md bg-teal-50 p-3 text-sm text-teal-950" data-testid="muestra"><strong>{textoMuestra(acta.cantidadMuestra, acta.regimenMuestreo, acta.tablaMuestreo, acta.cantidadLote)}</strong>{acta.regimenMuestreo ? ` ${explicarRegimen(acta.regimenMuestreo)}` : ''} La muestra vuelve completa a su caja: no descuenta stock.</p>
         {acta.regimenMuestreo && <p className="mt-1 text-xs text-gray-600" data-testid="regimen-muestreo">{ETIQUETA_REGIMEN[acta.regimenMuestreo]} · tabla {acta.tablaMuestreo}. La tabla es un parámetro: Dirección Técnica la cambia sin tocar el sistema.</p>}
         {rsVencido && <div className="mt-3"><Aviso tipo="error" testid="aviso-rs-vencido"><strong>El registro sanitario está vencido.</strong> Este lote se puede rechazar, pero no aprobar, hasta que Dirección Técnica resuelva el registro.</Aviso></div>}
@@ -110,7 +114,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
         </section>
       ))}
 
-      {editable && (
+      {editable && !sinEnvase && (
         <fieldset className="card">
           <legend className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">III. Material del envase</legend>
           <p className="text-sm text-gray-600">Marca los materiales que tiene el producto; aparece su checklist.</p>

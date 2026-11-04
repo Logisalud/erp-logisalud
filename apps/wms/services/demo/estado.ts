@@ -4,6 +4,7 @@ import type {
   ActaRecepcionVista, AlertaVista, CambioVista, ExpedienteVista, FirmaVista, OcPendiente, OrganolepticaVista, VersionSolicitud,
 } from '@/domain/entradas-vistas'
 import type { EstadoLineaSolicitud, EstadoSolicitud, TipoIngreso, VerificacionLinea } from '@/domain/entradas'
+import { VERSIONES_ORGANOLEPTICA_INICIALES } from '@/domain/formatos'
 import { construirPanoramaDemo, sumarDias } from './datos'
 import { iniciarInventario, type InvDemo } from './libro'
 import type { Actor } from '../repositorio'
@@ -126,6 +127,12 @@ export interface EstadoDemo {
   plazoRegistroComprasHoras: number
   /** Días antes del vencimiento de un lote en que se alerta (D-30). */
   diasAlertaVencimiento: number
+  /** Piloto F1: proveedores con la marca «vencimiento solo mes y año» (por RUC). */
+  proveedoresVencimiento: Record<string, { ruc: string; nombre?: string; soloMesAnio: boolean }>
+  /** Piloto F1: correcciones auditadas de la fecha de un lote (historial inmutable). */
+  cambiosVencimiento: import('@/domain/vencimiento').CambioVencimientoLote[]
+  /** Piloto F3: versiones de los formatos controlados. */
+  formatos: import('@/domain/formatos').VersionFormatoVista[]
   sembrado?: boolean
   /** SA-1: las órdenes de ejemplo ya se sembraron (o se empezó a sembrarlas). */
   ejemplosSembrados?: boolean
@@ -147,6 +154,8 @@ export function estado(): EstadoDemo {
       cambiosRegulatorios: [],
       inv: iniciarInventario(panorama),
       solicitudes: [], actas: [], organolepticas: [], alertas: [], expedientes: [], compras: [], correlativos: {},
+      proveedoresVencimiento: {}, cambiosVencimiento: [],
+      formatos: VERSIONES_ORGANOLEPTICA_INICIALES.map((v) => ({ formato: 'ACTA_ORGANOLEPTICA' as const, ...v, ...(v.estado === 'APROBADA' ? { aprobadaEn: new Date().toISOString() } : { propuestaEn: new Date().toISOString() }) })),
       aprobadoEn: {}, plazoPorTrasladarHoras: 24, plazoMovSinVerificarHoras: 24, plazoRegistroComprasHoras: 24, diasAlertaVencimiento: 90,
       auditoria: [
         { id: 6, ts: ts(0, '08:12'), actor: 'Dirección Técnica (demo)', evento: 'regulatorio_editado', entidad: 'producto_regulatorio', entidadId: 'DEMO-019', detalle: 'Registro sanitario actualizado', motivo: 'Renovación del registro' },

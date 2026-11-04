@@ -328,6 +328,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'registrar_guia_panel',
     // Piloto (0038): copia inmutable de las órdenes de compra (leen Compras; solo escriben wms.oc_versiones)
     'sincronizar_oc', 'sincronizar_ocs_abiertas',
+    // Piloto (0040): marca de proveedor «vencimiento solo mes y año» y aprobación de una versión de formato (la 0039 no agrega funciones)
+    'marcar_proveedor_vencimiento', 'aprobar_version_formato',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {

@@ -4,6 +4,7 @@ import { inflateSync } from 'node:zlib'
 import ExcelJS from 'exceljs'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
+import { FIRMA_PNG_EJEMPLO } from '@/services/firma-imagen'
 import { renderActaRecepcion } from '@/services/pdf/acta-recepcion'
 import { renderActaOrganoleptica } from '@/services/pdf/acta-organoleptica'
 import { xlsxActaOrganoleptica, xlsxActaRecepcion } from '@/services/xlsx/documentos'
@@ -56,7 +57,7 @@ describe('Acta de Recepción', () => {
     await repo.editarRecepcion(r.id, { temperaturaC: 20, bultos: 3, paletas: 1, placa: 'ABC-123', tipoConteo: 'TOTAL' }, CHARLIE)
     const g = await repo.generarActa(r.id, CHARLIE)
     if (!g.ok) throw new Error(g.mensaje)
-    await repo.firmarActa(g.actaId, { rol: 'JEFE_ALMACEN' }, CHARLIE)   // una sola firma: sigue siendo borrador
+    await repo.firmarActa(g.actaId, { rol: 'TRANSPORTISTA', nombre: 'Pedro Quispe', dni: '45678912', placa: 'ABC-123', imagen: FIRMA_PNG_EJEMPLO }, CHARLIE)   // una sola firma: sigue siendo borrador
     return (await repo.obtenerSolicitud(r.id))!.actas.find((a) => a.id === g.actaId)!
   }
   const firmada = async () => {

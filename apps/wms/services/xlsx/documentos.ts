@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs'
 import { CHECKLIST_ORGANOLEPTICO, ETIQUETA_DECISION, ETIQUETA_TIPO_INGRESO } from '@/domain/entradas'
 import type { ActaRecepcionVista, OrganolepticaVista, SolicitudDetalle } from '@/domain/entradas-vistas'
 import { totalesKardex, type FilaKardex, type FiltroKardex } from '@/domain/inventario'
-import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
+import { formatoFecha, formatoFechaHora, textoVencimiento } from '@/domain/fechas'
 import { MARCA_BORRADOR, actaRecepcionEsBorrador, organolepticaEsBorrador } from '@/domain/borrador-documento'
 
 // Versión Excel de los documentos del ingreso (mismos datos que el PDF). El RUC va siempre como texto.
@@ -119,19 +119,19 @@ export async function xlsxActaRecepcion(acta: ActaRecepcionVista): Promise<Buffe
 }
 
 export async function xlsxActaOrganoleptica(a: OrganolepticaVista): Promise<Buffer> {
-  const { wb, ws } = libro(`Acta de Análisis Organoléptico ${a.numero}`, 'Acta organoléptica', `Formato LS-FR.55.02 · ${a.estado === 'FIRMADA' ? `firmada · huella ${a.hash}` : a.estado === 'PENDIENTE_DT' ? 'pendiente de la decisión de Dirección Técnica' : 'borrador'}`, organolepticaEsBorrador(a))
+  const { wb, ws } = libro(`Acta de Análisis Organoléptico ${a.numero}`, 'Acta organoléptica', `Formato LS-FR.55.02 · versión ${a.formatoVersion ?? 1} · ${a.estado === 'FIRMADA' ? `firmada · huella ${a.hash}` : a.estado === 'PENDIENTE_DT' ? 'pendiente de la decisión de Dirección Técnica' : 'borrador'}`, organolepticaEsBorrador(a))
   ws.columns = [{ width: 34 }, { width: 50 }, { width: 16 }]
   pares(ws, [
     ['Motivo', a.ingresoTipo === 'COMPRA_LOCAL' ? 'Compra' : a.ingresoTipo === 'DEVOLUCION' ? 'Devolución' : 'Otros (ingreso de cliente)'],
     ['Referencia', a.referencia], ['Solicitud', a.solicitudNumero], ['Producto', a.producto], ['Lote', a.lote],
-    ['Nombre genérico', a.principioActivo], ['Vencimiento', a.vence ? formatoFecha(a.vence) : undefined],
+    ['Nombre genérico', a.principioActivo], ['Vencimiento', a.vence ? textoVencimiento(a.vence, a.venceTexto) : undefined],
     ['Cantidad recibida', a.cantidadLote], ['Cantidad de muestra', a.cantidadMuestra], ['Régimen de muestreo', a.regimenMuestreo ? `${ETIQUETA_REGIMEN[a.regimenMuestreo]} (${a.tablaMuestreo ?? 'LS-TB.02.02'})` : ''],
     ['Registro sanitario', a.registroSanitario], ['Vencimiento del R.S.', a.rsVence ? formatoFecha(a.rsVence) : undefined],
     ['Fabricante / proveedor', a.fabricante], ['Forma de presentación', a.formaPresentacion], ['Propietario', a.propietario],
     ['Certificado de análisis / protocolo', a.datos.certAnalisis == null ? undefined : a.datos.certAnalisis ? 'SÍ' : 'NO'],
   ])
   const c = a.datos.checklist
-  for (const g of CHECKLIST_ORGANOLEPTICO.filter((g) => !g.opcional || g.items.some((i) => c[i.id]))) {
+  for (const g of CHECKLIST_ORGANOLEPTICO.filter((g) => !g.opcional || (!a.materialEnvaseOculto && g.items.some((i) => c[i.id])))) {
     titulo(ws, g.titulo.toUpperCase())
     for (const i of g.items) {
       const r = ws.addRow([i.texto, c[i.id] ? (c[i.id] === 'C' ? 'SÍ' : c[i.id] === 'NC' ? 'NO' : 'N.A.') : '—'])

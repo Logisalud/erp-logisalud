@@ -12,11 +12,11 @@ const cliente = { esDuenoAlmacen: false }
 const linea = { lote: 'L1', vence: '30/06/2028', cantidad: 4 }
 
 describe('líneas de la solicitud', () => {
-  it('vencimiento: fecha completa; solo mes y año → último día del mes', () => {
+  it('vencimiento: fecha completa; solo mes y año → primer día del mes', () => {
     const v = (e: Partial<Parameters<typeof validarLineaSolicitud>[0]>) =>
       validarLineaSolicitud({ productoId: 'p', ...linea, ...e }, 'DEVOLUCION', parsearVencimiento)
     expect(v({})).toMatchObject({ ok: true, vence: '2028-06-30', cantidad: 4 })
-    expect(v({ vence: '02/2028' })).toMatchObject({ ok: true, vence: '2028-02-29', venceTexto: '02/2028' })
+    expect(v({ vence: '02/2028' })).toMatchObject({ ok: true, vence: '2028-02-01', venceTexto: '02/2028' })
     expect(v({ vence: 'pronto' })).toMatchObject({ ok: false, errores: { vence: expect.stringMatching(/No entiendo/) } })
     expect(v({ cantidad: 0 })).toMatchObject({ ok: false, errores: { cantidad: expect.any(String) } })
     expect(v({ cantidad: '2,5' })).toMatchObject({ ok: false })

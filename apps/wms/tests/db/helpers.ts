@@ -53,6 +53,8 @@ export const SQL = {
   m0036: () => leer('supabase/migrations/0036_wms_guia_emitida_en_el_panel.sql'),
   m0037: () => leer('supabase/migrations/0037_wms_reglas_de_integridad_del_piloto.sql'),
   m0038: () => leer('supabase/migrations/0038_wms_seguridad_del_piloto.sql'),
+  m0039: () => leer('supabase/migrations/0039_wms_firma_del_acta_en_orden_y_firma_dibujada.sql'),
+  m0040: () => leer('supabase/migrations/0040_wms_vencimiento_vida_util_y_formato_organoleptico.sql'),
   seed: () => leer('supabase/seeds/0001_topologia.sql'),
   seedTransporte: () => leer('supabase/seeds/0002_transporte_inicial.sql'),
 }
@@ -125,6 +127,8 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0036())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0037())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0038())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0039())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0040())
   // La 0038 siembra modo_piloto = si (retiene los avisos a Pedidos). Las pruebas de siempre corren como go-live; las del piloto lo encienden con `piloto: true`.
   if (!opciones.sinMigracion0012 && !opciones.piloto) await admin.query(`update wms.parametros set valor = 'no' where clave = 'modo_piloto'`)
   if (opciones.conSeed !== false) await admin.query(SQL.seed())

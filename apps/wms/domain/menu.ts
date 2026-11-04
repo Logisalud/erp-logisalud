@@ -6,6 +6,7 @@ import { puedeOriginarRetorno } from './retornos'
 import { puedeDarConformidad, puedePickear, puedePrepararSalidas, puedeVerSalidas } from './despacho'
 import { puedeEmbalar } from './embalaje'
 import { puedeCargar } from './carga'
+import { puedeVerProveedores } from './vencimiento'
 
 // Estructura del menú lateral (D-131 a D-133). Dominio puro: el layout solo le pasa los roles y las alertas.
 // Es un ESPEJO de lo que cada rol ya puede hacer: no concede nada, solo decide qué enlaces se muestran.
@@ -96,6 +97,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   ponerSi('control', veCalidadYDocumentos(roles), { href: '/expedientes', etiqueta: 'Expedientes', icono: 'expedientes' })
   ponerSi('control', true, { href: '/reportes', etiqueta: 'Reportes', icono: 'reportes' })
   ponerSi('control', !soloAutoriza && roles.some((r) => r !== 'auxiliar'), { href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })
+  ponerSi('control', puedeVerProveedores(roles), { href: '/proveedores', etiqueta: 'Proveedores', icono: 'propietarios' })
   ponerSi('control', puede(roles, 'auditar'), { href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })
   ponerSi('control', roles.includes('admin_wms') || roles.includes('direccion_tecnica'), { href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
 

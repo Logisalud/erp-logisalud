@@ -24,14 +24,6 @@ async function abrirSolicitud(page: Page, numero: string) {
 async function firmarActa(page: Page) {
   await page.getByTestId('generar-acta').click()
   await expect(page.getByTestId('numero-acta')).toHaveText(/^I-\d{6}-\d{4}$/)
-  await page.getByTestId('firmar-JEFE_ALMACEN').click()
-  await expect(page.getByTestId('firma-JEFE_ALMACEN')).toContainText('Firmó')
-  await cambiarRol(page, 'direccion_tecnica')
-  await page.getByTestId('firmar-DIRECCION_TECNICA').click()
-  await expect(page.getByTestId('firma-DIRECCION_TECNICA')).toContainText('Firmó')
-  await cambiarRol(page, 'auxiliar')
-  await page.getByTestId('firmar-RESPONSABLE_CONTEO').click()
-  await expect(page.getByTestId('firma-RESPONSABLE_CONTEO')).toContainText('Firmó')
   await page.getByTestId('abrir-transportista').click()
   await page.getByLabel('Nombre completo').fill('Pedro Quispe')
   await page.getByLabel('DNI').fill('45678912')
@@ -42,8 +34,18 @@ async function firmarActa(page: Page) {
   await page.mouse.move(caja.x + 90, caja.y + 100, { steps: 6 })
   await page.mouse.move(caja.x + 150, caja.y + 50, { steps: 6 })
   await page.mouse.up()
+  await page.getByTestId('firma-lista').click()
   await page.getByTestId('firmar-transportista').click()
   await expect(page.getByTestId('firma-TRANSPORTISTA')).toContainText('Firmó')
+  await cambiarRol(page, 'auxiliar')
+  await page.getByTestId('firmar-RESPONSABLE_CONTEO').click()
+  await expect(page.getByTestId('firma-RESPONSABLE_CONTEO')).toContainText('Firmó')
+  await cambiarRol(page, 'jefe_almacen')
+  await page.getByTestId('firmar-JEFE_ALMACEN').click()
+  await expect(page.getByTestId('firma-JEFE_ALMACEN')).toContainText('Firmó')
+  await cambiarRol(page, 'direccion_tecnica')
+  await page.getByTestId('firmar-DIRECCION_TECNICA').click()
+  await expect(page.getByTestId('firma-DIRECCION_TECNICA')).toContainText('Firmó')
 }
 
 /** Recibe y confirma una solicitud ya autorizada: verifica las líneas, datos, acta con cuatro firmas y confirmar. */

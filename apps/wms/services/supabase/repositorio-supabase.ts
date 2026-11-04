@@ -5,7 +5,7 @@ import type {
   Asignacion, CambioRegulatorio, CampoRegulatorio, DocumentoSustento, EventoAuditoria, Lote, Posicion, Propietario, Regulatorio, Saldo,
 } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
-import { validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
+import { autorizarMarcaSinMaterialEnvase, esSi, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, n, s, traerTodo, type Fila } from './util'
 import { PilotoSupabase } from './piloto-supabase'
@@ -22,7 +22,7 @@ export function mapearRegulatorio(r: Fila): Regulatorio {
   return {
     productoId: String(r.producto_id), registroSanitario: s(r.registro_sanitario), rsVence: s(r.rs_vence),
     formaPresentacion: s(r.forma_presentacion), concentracion: s(r.concentracion), fabricante: s(r.fabricante),
-    condicionAlmacenamiento: s(r.condicion_almacenamiento), creadoPor: s(r.creado_por),
+    condicionAlmacenamiento: s(r.condicion_almacenamiento), sinMaterialEnvase: r.sin_material_envase === true, creadoPor: s(r.creado_por),
     estadoValidacion: r.por_validar === true ? 'PENDIENTE' : 'VALIDADO',
   }
 }
@@ -63,7 +63,7 @@ export class RepositorioSupabase extends PilotoSupabase implements Repositorio {
       })),
       productos,
       lotes: lotes.map((r): Lote => ({
-        id: String(r.id), productoId: String(r.producto_id), codigo: String(r.codigo), vence: s(r.vence),
+        id: String(r.id), productoId: String(r.producto_id), codigo: String(r.codigo), vence: s(r.vence), venceTexto: s(r.vence_texto_original),
         propietarioId: String(r.propietario_id),
       })),
       saldos: saldos.map((r): Saldo => ({
@@ -109,6 +109,10 @@ export class RepositorioSupabase extends PilotoSupabase implements Repositorio {
   async editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, _actor: Actor): Promise<ResultadoAccion<{ cambios: number }>> {
     const errMotivo = validarMotivoRegulatorio(motivo)
     if (errMotivo) return { ok: false, mensaje: errMotivo, errores: { motivo: errMotivo } }
+    if (datos.sinMaterialEnvase !== undefined) {
+      const permisoMarca = autorizarMarcaSinMaterialEnvase(_actor.roles)
+      if (permisoMarca) return { ok: false, mensaje: permisoMarca }
+    }
     const supabase = crearClienteServidor()
     const { data: act } = await supabase.schema('wms').from('producto_regulatorio').select('registro_sanitario, rs_vence').eq('producto_id', id).maybeSingle()
     const v = validarEdicionRegulatoria(datos, act ? { registroSanitario: s(act.registro_sanitario), rsVence: s(act.rs_vence) } : undefined)
@@ -116,12 +120,13 @@ export class RepositorioSupabase extends PilotoSupabase implements Repositorio {
     const columnas: Record<keyof DatosRegulatorios, string> = {
       registroSanitario: 'registro_sanitario', rsVence: 'rs_vence', formaPresentacion: 'forma_presentacion',
       concentracion: 'concentracion', fabricante: 'fabricante', condicionAlmacenamiento: 'condicion_almacenamiento',
-      presentacion: 'presentacion', principioActivo: 'principio_activo',
+      presentacion: 'presentacion', principioActivo: 'principio_activo', sinMaterialEnvase: 'sin_material_envase',
     }
     const json: Record<string, string> = {}
     for (const [k, col] of Object.entries(columnas)) {
       const x = v.datos[k as keyof DatosRegulatorios]
-      if (x !== undefined) json[col] = x
+      if (x === undefined) continue
+      json[col] = k === 'sinMaterialEnvase' ? String(esSi(x)) : x
     }
     const { data, error } = await supabase.schema('wms').rpc('editar_regulatorio', { p_producto: id, p_datos: json, p_motivo: motivo })
     return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true, cambios: Number(data ?? 0) }

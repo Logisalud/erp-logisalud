@@ -8,6 +8,7 @@ import { repositorio } from '@/services/repositorio-actual'
 import { buscar } from '@/domain/panorama'
 import type { CambioEntrada, Decision, EntradaSolicitud } from '@/domain/entradas'
 import type { DatosEdicionRecepcion, DatosOrganolepticaGuardar, DatosVerificacion, FirmaEntrada } from '@/domain/entradas-vistas'
+import type { FormatoControlado } from '@/domain/formatos'
 import type { Actor, ResultadoAccion } from '@/services/repositorio'
 
 async function quien(): Promise<Actor> {
@@ -112,4 +113,16 @@ export async function cambiarRolDemoAccion(rol: string): Promise<void> {
   const r = personaDemoDesdeCookie(rol)
   if (!r) return
   cookies().set(COOKIE_ROL_DEMO, r.clave, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
+}
+
+// ── Piloto F: proveedor «solo mes y año», fecha de un lote y versiones de formatos ──────────────────────
+
+export async function marcarProveedorVencimientoAccion(ruc: string, nombre: string | undefined, soloMesAnio: boolean, motivo: string): Promise<ResultadoAccion> {
+  return repositorio().marcarProveedorVencimiento(ruc, nombre, soloMesAnio, motivo, await quien())
+}
+export async function corregirVencimientoLoteAccion(loteId: string, fecha: string, motivo: string): Promise<ResultadoAccion> {
+  return repositorio().corregirVencimientoLote(loteId, fecha, motivo, await quien())
+}
+export async function aprobarVersionFormatoAccion(formato: FormatoControlado, version: number): Promise<ResultadoAccion> {
+  return repositorio().aprobarVersionFormato(formato, version, await quien())
 }

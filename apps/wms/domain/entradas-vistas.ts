@@ -31,6 +31,8 @@ export interface LineaSolicitudVista {
   lote: string
   vence: string
   venceTexto?: string
+  /** Piloto F: avisos de vencimiento (proveedor «solo mes y año», vida útil corta). */
+  avisosVencimiento?: import('./vencimiento').AvisoVencimiento[]
   /** Lo que pedía la OC y su saldo cuando se preparó la solicitud. */
   ocPedida?: number
   ocSaldo?: number
@@ -102,8 +104,13 @@ export interface FirmaVista {
   nombre: string
   dni?: string
   placa?: string
-  /** PNG en data URL (solo el transportista). */
+  /** PNG en data URL: solo las firmas viejas, que guardaban la imagen dentro de la fila. */
   imagen?: string
+  /** Piloto C: referencia de la firma dibujada en el Storage (solo el transportista) y su huella SHA-256. */
+  imagenRef?: string
+  imagenHash?: string
+  /** Quién capturó la firma (el usuario que atendía al transportista); `nombre` es quién firmó. */
+  capturadoPor?: string
   firmadoEn: string
   hash: string
 }
@@ -188,6 +195,14 @@ export interface AlertaVista {
 export interface OrganolepticaVista {
   id: string
   numero: string
+  /** Piloto F3: versión del formato LS-FR.55.02 con la que nació el acta (visible en pantalla y PDF). */
+  formatoVersion?: number
+  /** Piloto F3: el producto está marcado «sin material de envase» (lo marca Dirección Técnica). */
+  sinMaterialEnvase?: boolean
+  /** Piloto F3: con esta versión del formato y este producto, el punto «Material del envase» no se muestra. */
+  materialEnvaseOculto?: boolean
+  /** Lo que escribió la persona si el vencimiento era solo mes y año («06/2028»). */
+  venceTexto?: string
   estado: 'BORRADOR' | 'PENDIENTE_DT' | 'FIRMADA'
   solicitudId: string
   solicitudNumero: string

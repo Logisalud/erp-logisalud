@@ -66,6 +66,8 @@ export async function editarRegulatorioAccion(_prev: EstadoFormulario, formData:
   for (const k of ['registroSanitario', 'rsVence', 'formaPresentacion', 'concentracion', 'fabricante', 'condicionAlmacenamiento', 'presentacion', 'principioActivo'] as const) {
     datos[k] = campo(formData, k)
   }
+  // «Sin material de envase» solo lo marca Dirección Técnica (la casilla solo se le muestra a ella).
+  if (ctx.roles.includes('direccion_tecnica') && formData.has('sinMaterialEnvaseEnviado')) datos.sinMaterialEnvase = formData.get('sinMaterialEnvase') === 'si' ? 'si' : 'no'
   const r = await repositorio().editarRegulatorio(id, datos, campo(formData, 'motivo'), {
     id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles,
   })
