@@ -3,9 +3,10 @@ import { notFound } from 'next/navigation'
 import { Encabezado } from '@/components/nav'
 import { obtenerRecepcion } from '@/services/recepciones'
 import { obtenerSaldoPendienteOC } from '@/services/ordenes-compra'
-import { VerVoucher } from '@/app/cuentas-por-pagar/[id]/ver-voucher'
-import { verArchivoGuiaAction } from './actions'
+import { perfilActual } from '@logisalud/auth/server'
+import { puedeCorregirPapeles, ETIQUETA_TIPO_PAPEL } from '@/domain/correccion-papeles-recepcion'
 import { BotonCerrarOCDesdeRecepcion } from './cerrar-oc'
+import { PapelesRecepcion } from './papeles'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ export default async function DetalleRecepcion({ params }: { params: { id: strin
   const recepcion = await obtenerRecepcion(params.id)
   if (!recepcion) notFound()
 
-  const saldo = await obtenerSaldoPendienteOC(recepcion.oc_id)
+  const [saldo, perfil] = await Promise.all([obtenerSaldoPendienteOC(recepcion.oc_id), perfilActual()])
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -43,35 +44,40 @@ export default async function DetalleRecepcion({ params }: { params: { id: strin
         <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
           <Dato termino="Proveedor" valor={recepcion.oc?.proveedor?.razon_social ?? null} />
           <Dato termino="Llegó el" valor={recepcion.fecha_recepcion} />
-          {/* Cada guía con su archivo al lado: es la única forma de ver de
-              un vistazo si el legajo está completo. Antes eran números
-              separados por coma y un solo adjunto, así que faltar un papel
-              no se notaba. */}
-          <div className="flex gap-2 sm:col-span-2">
-            <dt className="text-gray-500">
-              {recepcion.guias.length === 1 ? 'Guía de remisión' : 'Guías de remisión'}:
-            </dt>
-            <dd className="flex flex-wrap gap-x-4 gap-y-1">
-              {recepcion.guias.length === 0 ? (
-                recepcion.guia_remision || '—'
-              ) : (
-                recepcion.guias.map((g) => (
-                  <span key={g.id} className="flex items-center gap-1.5">
-                    <span>{g.numero}</span>
-                    <VerVoucher
-                      storagePath={g.storage_path}
-                      etiqueta="ver"
-                      accion={verArchivoGuiaAction}
-                    />
-                  </span>
-                ))
-              )}
-            </dd>
-          </div>
-          <Dato termino="Factura" valor={recepcion.numero_factura} />
+          {/* Cada guía y cada factura con su archivo al lado: es la única
+              forma de ver de un vistazo si el legajo está completo. Y se
+              corrigen acá mismo, aunque la OC ya esté cerrada (0088). */}
+          <PapelesRecepcion
+            recepcionId={recepcion.id}
+            ocCodigo={recepcion.oc?.codigo ?? 'sin-oc'}
+            guias={recepcion.guias}
+            facturas={recepcion.facturas}
+            puedeCorregir={puedeCorregirPapeles(perfil?.area)}
+          />
           <Dato termino="Estado" valor={ETIQUETA_ESTADO_RECEPCION[recepcion.estado] ?? recepcion.estado} />
         </dl>
       </section>
+
+      {recepcion.cambiosPapeles.length > 0 ? (
+        <section className="card mt-4">
+          <h2 className="font-heading text-base">Papeles corregidos después de registrar</h2>
+          <ul className="mt-2 space-y-1 text-sm text-gray-700">
+            {recepcion.cambiosPapeles.map((c, i) => (
+              <li key={i}>
+                {new Date(c.hecho_en).toLocaleDateString('es-PE', { timeZone: 'America/Lima' })}
+                {' — '}
+                {c.accion === 'agregar'
+                  ? `se agregó la ${ETIQUETA_TIPO_PAPEL[c.tipo as 'guia' | 'factura']} ${c.numero}`
+                  : c.accion === 'quitar'
+                    ? `se quitó la ${ETIQUETA_TIPO_PAPEL[c.tipo as 'guia' | 'factura']} ${c.numero}`
+                    : `${c.numero} pasó a ser ${ETIQUETA_TIPO_PAPEL[c.tipo as 'guia' | 'factura']}`}
+                {c.hecho_por ? ` (${c.hecho_por})` : ''}
+                {c.motivo ? <span className="text-gray-500"> · {c.motivo}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Qué falta para cerrar la orden. El texto sale del dominio, así que
           dice lo mismo que decía la pantalla de recepción antes de guardar. */}

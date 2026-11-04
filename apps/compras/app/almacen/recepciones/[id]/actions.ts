@@ -3,6 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { cerrarOCConSaldoPendiente } from '@/services/ordenes-compra'
 import { obtenerUrlLegajoPagoDirecto } from '@/services/obligaciones'
+import {
+  corregirPapelRecepcion, subirDocumentoRecepcion, type CorreccionPapel,
+} from '@/services/recepciones'
 
 export type EstadoCierre = { error: string } | null
 
@@ -41,4 +44,30 @@ export async function verArchivoGuiaAction(storagePath: string): Promise<{ url: 
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'No se pudo abrir el archivo.' }
   }
+}
+
+/** Sube el archivo de un papel que se agrega después. En su propio request,
+ *  igual que al registrar (ver `subirDocumentoRecepcion`). */
+export async function subirPapelAction(
+  ocCodigo: string,
+  cual: 'guia' | 'factura',
+  form: FormData
+): Promise<{ path: string } | { error: string }> {
+  const archivo = form.get('archivo')
+  if (!(archivo instanceof File)) return { error: 'No llegó ningún archivo.' }
+  return subirDocumentoRecepcion(ocCodigo, cual, archivo)
+}
+
+/** Agrega, quita o reclasifica una guía o factura ya registrada (0088). */
+export async function corregirPapelAction(
+  recepcionId: string,
+  cambio: CorreccionPapel
+): Promise<{ error: string } | null> {
+  try {
+    await corregirPapelRecepcion(recepcionId, cambio)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'No se pudo corregir.' }
+  }
+  revalidatePath(`/almacen/recepciones/${recepcionId}`)
+  return null
 }
