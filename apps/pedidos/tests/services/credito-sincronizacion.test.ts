@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = {
   escrituras: [] as Array<{ tabla: string; filas: unknown }>,
+  borrados: [] as Array<{ tabla: string; antesDe: unknown }>,
   actualizaciones: [] as Array<{ tabla: string; cambios: unknown; rucs: string[] }>,
   conSaldo: [] as Array<{ ruc: string }>,
   filasCredito: [] as Array<Record<string, unknown>>,
@@ -40,6 +41,12 @@ function tabla(nombre: string): any {
       },
       eq: async () => ({ error: null }),
     }),
+    delete: () => ({
+      lt: async (_col: string, valor: unknown) => {
+        db.borrados.push({ tabla: nombre, antesDe: valor });
+        return { error: null };
+      },
+    }),
   };
 }
 
@@ -56,6 +63,20 @@ vi.mock("@/services/audit-log", () => ({
 
 import { sincronizarCredito } from "@/services/credito";
 
+const DOCUMENTOS = [
+  { ruc: "20100047218", comprobante: "F001-123", fecha_vencimiento: "2026-09-20", saldo_vencido: "500.00", saldo_documento: "500.00", dias_atraso: 45, tiene_letras: false },
+  { ruc: "20100047218", comprobante: "F001-456", fecha_vencimiento: "2026-10-01", saldo_vencido: "300.00", saldo_documento: "1200.00", dias_atraso: 12, tiene_letras: true },
+];
+
+/** El sync hace dos lecturas distintas; el stub tiene que distinguirlas. */
+function fetchDeCobranzas(ok = true) {
+  return async (url: string) => ({
+    ok,
+    status: ok ? 200 : 503,
+    json: async () => (String(url).includes("v_documentos_vencidos") ? DOCUMENTOS : DEUDA),
+  });
+}
+
 const DEUDA = [
   { ruc: "20100047218", razon_social: "BOTICA A", saldo: "1200.50", vencido: "800.00", dias_atraso: 45, documentos_vencidos: 2 },
   { ruc: "20515774182", razon_social: "BOTICA B", saldo: "300.00", vencido: "0", dias_atraso: 0, documentos_vencidos: 0 },
@@ -63,6 +84,7 @@ const DEUDA = [
 
 beforeEach(() => {
   db.escrituras = [];
+  db.borrados = [];
   db.actualizaciones = [];
   db.conSaldo = [];
   process.env.COBRANZAS_SUPABASE_URL = "https://cobranzas.example";
@@ -72,7 +94,7 @@ beforeEach(() => {
 
 describe("sincronizarCredito", () => {
   it("copia la deuda tal cual viene, con los números convertidos", async () => {
-    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => DEUDA }));
+    vi.stubGlobal("fetch", fetchDeCobranzas());
 
     const r = await sincronizarCredito("u-1");
 
@@ -86,7 +108,7 @@ describe("sincronizarCredito", () => {
     // Pagó todo: cobranzas ya no lo devuelve. Si su fila vieja quedara, el
     // cliente seguiría bloqueado después de haber pagado.
     db.conSaldo = [{ ruc: "20100047218" }, { ruc: "99999999999" }];
-    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => DEUDA }));
+    vi.stubGlobal("fetch", fetchDeCobranzas());
 
     await sincronizarCredito("u-1");
 
@@ -96,7 +118,7 @@ describe("sincronizarCredito", () => {
   });
 
   it("si cobranzas falla, no toca la copia anterior", async () => {
-    vi.stubGlobal("fetch", async () => ({ ok: false, status: 503, json: async () => ({}) }));
+    vi.stubGlobal("fetch", fetchDeCobranzas(false));
 
     await expect(sincronizarCredito("u-1")).rejects.toThrow(/503/);
     expect(db.escrituras).toHaveLength(0);
@@ -152,7 +174,7 @@ describe("quién disparó la sincronización", () => {
    */
   it("el cron no se anota como persona: el actor va vacío", async () => {
     auditoria.length = 0;
-    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => DEUDA }));
+    vi.stubGlobal("fetch", fetchDeCobranzas());
 
     await sincronizarCredito(null);
 
@@ -163,11 +185,72 @@ describe("quién disparó la sincronización", () => {
 
   it("una persona sí queda anotada, con su id", async () => {
     auditoria.length = 0;
-    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => DEUDA }));
+    vi.stubGlobal("fetch", fetchDeCobranzas());
 
     await sincronizarCredito("3f1d1d2e-0000-4000-8000-000000000001");
 
     expect(auditoria[0].actor).toBe("3f1d1d2e-0000-4000-8000-000000000001");
     expect(auditoria[0].datosDespues).toMatchObject({ origen: "persona" });
+  });
+});
+
+describe("el detalle de facturas vencidas", () => {
+  /**
+   * El resumen dice "S/ X vencidos con N días", y esos dos números son de
+   * cosas distintas: el monto suma TODAS las facturas y los días son los de
+   * la más vieja. Sin el detalle, el vendedor no puede saber cuál cobrar
+   * para que el cliente vuelva a comprar.
+   */
+  it("copia una fila por factura vencida", async () => {
+    vi.stubGlobal("fetch", fetchDeCobranzas());
+
+    const r = await sincronizarCredito(null);
+
+    expect(r.documentos).toBe(2);
+    const detalle = db.escrituras.find((e) => e.tabla === "credito_documentos");
+    expect(detalle).toBeTruthy();
+    const filas = detalle!.filas as Array<Record<string, unknown>>;
+    expect(filas[0]).toMatchObject({
+      ruc: "20100047218",
+      comprobante: "F001-123",
+      saldo_vencido: 500,
+      dias_atraso: 45,
+    });
+  });
+
+  it("guarda lo VENCIDO y aparte el saldo del documento", async () => {
+    // En una factura canjeada por letras el saldo son las letras pendientes
+    // y unas vencieron mientras otras no. Si entrara el saldo entero, el
+    // detalle sumaría más que el total del cliente.
+    vi.stubGlobal("fetch", fetchDeCobranzas());
+
+    await sincronizarCredito(null);
+
+    const filas = db.escrituras.find((e) => e.tabla === "credito_documentos")!
+      .filas as Array<Record<string, unknown>>;
+    const enLetras = filas.find((f) => f.comprobante === "F001-456")!;
+    expect(enLetras.saldo_vencido).toBe(300);
+    expect(enLetras.saldo_documento).toBe(1200);
+    expect(enLetras.tiene_letras).toBe(true);
+  });
+
+  it("borra las facturas que ya se pagaron, en vez de dejarlas en pantalla", async () => {
+    vi.stubGlobal("fetch", fetchDeCobranzas());
+
+    await sincronizarCredito(null);
+
+    const borrado = db.borrados.find((b) => b.tabla === "credito_documentos");
+    expect(borrado).toBeTruthy();
+    // Se borra por fecha: la lista de comprobantes vigentes puede tener
+    // miles de valores y no entra en una URL.
+    expect(typeof borrado!.antesDe).toBe("string");
+  });
+
+  it("si cobranzas falla, no toca ninguna de las dos copias", async () => {
+    vi.stubGlobal("fetch", fetchDeCobranzas(false));
+
+    await expect(sincronizarCredito(null)).rejects.toThrow(/503/);
+    expect(db.escrituras).toHaveLength(0);
+    expect(db.borrados).toHaveLength(0);
   });
 });
