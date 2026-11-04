@@ -9,6 +9,7 @@ import { validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulat
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, n, s, traerTodo, type Fila } from './util'
 import { SalidaManualSupabase } from './salida-manual-supabase'
+import { hoyLima } from '@/lib/hoy-lima'
 
 export function mapearPosicion(r: Fila): Posicion {
   return {
@@ -46,7 +47,7 @@ export class RepositorioSupabase extends SalidaManualSupabase implements Reposit
       estado: r.estado === 'inactivo' ? 'inactivo' : 'activo', reg: regPorProducto.get(String(r.id)),
     }))
     return {
-      hoy: new Date().toISOString().slice(0, 10),
+      hoy: hoyLima(),
       propietarios: props.map((r): Propietario => ({
         id: String(r.id), codigo: String(r.codigo), razonSocial: String(r.razon_social), ruc: s(r.ruc),
         esDuenoAlmacen: Boolean(r.es_dueno_almacen),

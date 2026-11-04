@@ -7,6 +7,7 @@ import type { EstadoLineaSolicitud, EstadoSolicitud, TipoIngreso, VerificacionLi
 import { construirPanoramaDemo, sumarDias } from './datos'
 import { iniciarInventario, type InvDemo } from './libro'
 import type { Actor } from '../repositorio'
+import { hoyLima } from '@/lib/hoy-lima'
 
 export interface LineaSolicitudDemo {
   id: string
@@ -137,7 +138,7 @@ export type { FirmaVista }
 const g = globalThis as unknown as { __wmsDemo?: EstadoDemo }
 
 export function estado(): EstadoDemo {
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
   if (!g.__wmsDemo || g.__wmsDemo.panorama.hoy !== hoy) {
     const panorama = construirPanoramaDemo(hoy)
     const ts = (dias: number, h: string) => `${sumarDias(hoy, dias)}T${h}:00Z`

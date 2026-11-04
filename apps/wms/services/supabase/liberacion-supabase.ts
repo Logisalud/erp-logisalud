@@ -11,6 +11,7 @@ import type { DatosRegistroDictamen, RepositorioLiberacion } from '../repositori
 import { CierreRutaSupabase } from './cierre-ruta-supabase'
 import { nombresDe } from './entradas-supabase'
 import { mensajeHumano, rpc, s, traerTodo, type Fila } from './util'
+import { hoyLima } from '@/lib/hoy-lima'
 
 // ESTE ADAPTADOR NO SE EJECUTÓ CONTRA UNA BASE REAL (misma limitación que los demás). Está verificado contra el contrato de las funciones SQL de la migración
 // 0025 (probada en Postgres local: tests/db/os5-*.test.ts) y por tipos.
@@ -26,7 +27,7 @@ export class LiberacionSupabase extends CierreRutaSupabase implements Repositori
       traerTodo('tablas_muestreo', 'wms'), traerTodo('tablas_muestreo_tramos', 'wms'), traerTodo('antecedentes_calidad', 'wms', '*', ['marcado_en']),
       traerTodo('productos', 'catalogo', 'id, codigo, descripcion, estado'),
     ])
-    const hoy = new Date().toISOString().slice(0, 10)
+    const hoy = hoyLima()
     const nombres = await nombresDe(marcas.flatMap((m) => [s(m.marcado_por), s(m.quitado_por)]))
     const prod = new Map(prods.map((p) => [String(p.id), p]))
     const lista = (tabla: Fila, regimen: string): TramoMuestreo[] => tramos.filter((t) => String(t.tabla_id) === String(tabla.id) && t.regimen === regimen)
