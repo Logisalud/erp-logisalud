@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  nombreDelRecorte, querystringDeFiltro, resolverFiltroCuentasPorPagar,
+  limpiarBusqueda, nombreDelRecorte, querystringDeFiltro, resolverFiltroCuentasPorPagar,
 } from '@/domain/filtros-cuentas-por-pagar'
 import { estadosVisiblesPorDefecto } from '@/domain/categorias-estado-obligacion'
 
@@ -32,5 +32,21 @@ describe('resolverFiltroCuentasPorPagar (Pieza 1 — el Excel baja la vista actu
     expect(f.estadoExacto).toBeUndefined()
     expect(f.categoria).toBeUndefined()
     expect(f.estados).toEqual(estadosVisiblesPorDefecto())
+  })
+})
+
+describe('buscador (Sebas, 2026-11-04)', () => {
+  it('limpia lo que rompería la consulta y no busca con menos de 2 letras', () => {
+    expect(limpiarBusqueda('  DIMEXA   S.A. ')).toBe('DIMEXA S.A.')
+    expect(limpiarBusqueda('a,b(c)%')).toBe('a b c')
+    expect(limpiarBusqueda('x')).toBeNull()
+    expect(limpiarBusqueda(undefined)).toBeNull()
+  })
+
+  it('se combina con el chip y viaja al Excel', () => {
+    const f = resolverFiltroCuentasPorPagar({ categoria: 'pagada', q: 'dimexa' })
+    expect(f.busqueda).toBe('dimexa')
+    expect(querystringDeFiltro(f)).toBe('?categoria=pagada&q=dimexa')
+    expect(querystringDeFiltro(resolverFiltroCuentasPorPagar({ q: 'River Graf' }))).toBe('?q=River+Graf')
   })
 })
