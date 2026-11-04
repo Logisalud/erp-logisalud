@@ -3,10 +3,12 @@
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import type { AsignacionLote } from '@/domain/salidas'
-import type { TipoNoConformidad } from '@/domain/despacho'
+import type { ResultadoLineaConformidad, TipoNoConformidad } from '@/domain/despacho'
 import type { RepartoBulto } from '@/domain/embalaje'
 import type { ItemChecklist } from '@/domain/carga'
 import type { Actor } from '@/services/repositorio'
+import type { CasoAnulacion, TrasladoGuia } from '@/domain/guia-electronica'
+import { anularGuiaConCaso, consultarEstadoGuia, emitirGuiaElectronica, enviarEventosPedidos, probarConexionNubefact } from '@/services/guia-electronica'
 
 async function quien(): Promise<Actor> {
   const ctx = await exigirContexto()
@@ -20,7 +22,12 @@ export async function registrarPickingAccion(ordenLineaId: string, resultado: 'P
 export async function proponerReemplazoAccion(ordenLineaId: string) { await exigirContexto(); return repositorio().proponerReemplazo(ordenLineaId) }
 export async function resolverDiscrepanciaAccion(ordenLineaId: string, loteId: string, posicionId: string | undefined, nota?: string) { return repositorio().resolverDiscrepancia(ordenLineaId, loteId, posicionId, nota, await quien()) }
 export async function darConformidadAccion(ordenLineaId: string, resultado: 'CONFORME' | 'OBSERVADA', nota?: string, tipo?: TipoNoConformidad) { return repositorio().darConformidad(ordenLineaId, resultado, nota, tipo, await quien()) }
+export async function conformarOrdenAccion(ordenId: string, lineas: ResultadoLineaConformidad[], bultos: number, nota?: string) { return repositorio().conformarOrden(ordenId, lineas, bultos, nota, await quien()) }
+export async function designarPickerAccion(ordenId: string, pickerId: string) { return repositorio().designarPicker(ordenId, pickerId, await quien()) }
 export async function reabrirObservadaAccion(ordenLineaId: string, nota?: string) { return repositorio().reabrirObservada(ordenLineaId, nota, await quien()) }
+
+export async function aplicarReservaAccion(loteId: string, motivo: string) { return repositorio().aplicarReserva(loteId, motivo, await quien()) }
+export async function quitarReservaAccion(loteId: string, motivo: string) { return repositorio().quitarReserva(loteId, motivo, await quien()) }
 
 export async function registrarGreAccion(salidaId: string, numero: string, nota?: string) { return repositorio().registrarGre(salidaId, numero, nota, await quien()) }
 export async function anularGreAccion(guiaId: string, motivo: string) { return repositorio().anularGre(guiaId, motivo, await quien()) }
@@ -34,3 +41,17 @@ export async function retirarBultoAccion(rutaId: string, codigo: string, motivo:
 export async function excluirPedidoAccion(rutaId: string, salidaId: string, motivo: string) { return repositorio().excluirPedido(rutaId, salidaId, motivo, await quien()) }
 export async function liberarUnidadAccion(rutaId: string) { return repositorio().liberarUnidad(rutaId, await quien()) }
 export async function confirmarSalidaRutaAccion(rutaId: string) { return repositorio().confirmarSalidaRuta(rutaId, await quien()) }
+
+// ── OS-3: guía electrónica, anulación por casos y avisos a Pedidos ────────────────────────────────────────────────────
+export async function emitirGuiaElectronicaAccion(salidaId: string, traslado: TrasladoGuia) { return emitirGuiaElectronica(salidaId, traslado, await quien()) }
+export async function consultarEstadoGuiaAccion(guiaId: string, numero: string, salidaId: string) { return consultarEstadoGuia(guiaId, numero, salidaId, await quien()) }
+export async function anularGuiaAccion(guiaId: string, caso: CasoAnulacion, motivo: string) { return anularGuiaConCaso(guiaId, caso, motivo, await quien()) }
+/** D-162 a D-164: confirmar y corregir el correlativo de la serie; D-167: probar la conexión con Nubefact. */
+export async function confirmarCorrelativoGuiaAccion(serie: string, inicial: number, nota?: string) { return repositorio().confirmarCorrelativoGuia(serie, inicial, nota, await quien()) }
+export async function corregirCorrelativoGuiaAccion(serie: string, ultimo: number, motivo: string) { return repositorio().corregirCorrelativoGuia(serie, ultimo, motivo, await quien()) }
+export async function probarConexionNubefactAccion() { await exigirContexto(); return probarConexionNubefact() }
+export async function reenviarAvisosPedidosAccion(salidaId?: string) { return enviarEventosPedidos(await quien(), salidaId) }
+
+// SA-3: devolver lo picado (cambio o cancelación del pedido) y los controles de la fuente demo
+export async function ejecutarDevolucionPickingAccion(salidaId: string) { return repositorio().ejecutarDevolucionPicking(salidaId, await quien()) }
+export async function verificarDevolucionPickingAccion(salidaId: string) { return repositorio().verificarDevolucionPicking(salidaId, await quien()) }

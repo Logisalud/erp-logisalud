@@ -33,7 +33,6 @@ export async function cerrarConteoAccion(id: string, causa: string | undefined, 
 // ── Carga inicial ───────────────────────────────────────────────────────────
 export async function validarCargaInicialAccion(filas: FilaCargaInicial[]): Promise<ErrorFilaCarga[]> { return repositorio().validarCargaInicial(filas, await quien()) }
 export async function crearCargaInicialAccion(filas: FilaCargaInicial[], nota: string | undefined): Promise<ResultadoAccion<{ id: string; numero: string }>> { return repositorio().crearCargaInicial(filas, nota, await quien()) }
-export async function decidirEstadoCargaInicialAccion(estado: 'APROBADO' | 'CUARENTENA'): Promise<ResultadoAccion> { return repositorio().decidirEstadoCargaInicial(estado, await quien()) }
 export async function confirmarCargaInicialAccion(id: string): Promise<ResultadoAccion> { return repositorio().confirmarCargaInicial(id, await quien()) }
 
 // ── Flujo «Mover»: búsqueda y validación mientras se escribe ────────────────

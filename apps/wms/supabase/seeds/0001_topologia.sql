@@ -35,7 +35,7 @@ insert into wms.posiciones (codigo, rack, posicion, nivel, subnivel, forma, tipo
   ('K-5', 'K', 5, null, null, 'PISO', 'DESPACHO', false, null),
   ('K-6', 'K', 6, null, null, 'PISO', 'DESPACHO', false, null),
   ('K-7', 'K', 7, null, null, 'PISO', 'DESPACHO', false, null),
-  ('K-M2', 'K', null, null, null, 'MESA', 'EMBALAJE', false, null),
+  ('K-M2', 'K', null, null, null, 'MESA', 'DESPACHO', false, null),
   ('A-10.1', 'A', 10, 1, null, 'RACK', 'DEVOLUCIONES', false, null),
   ('A-10.2', 'A', 10, 2, null, 'RACK', 'APROBADOS', false, null),
   ('A-10.3', 'A', 10, 3, null, 'RACK', 'APROBADOS', false, null),

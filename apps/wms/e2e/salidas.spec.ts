@@ -1,7 +1,7 @@
 // S5: salidas por pedido en los 4 viewports: lista, edición libre de lotes (tabla en PC, hoja inferior en teléfono), orden de picking, picking en celular y conformidad por otra persona.
 import { expect, test, type Page } from '@playwright/test'
 import { PDFDocument } from 'pdf-lib'
-import { capturar, entrarComo, esTelefono, sinDesborde } from './ayudas'
+import { capturar, elegirProductoKardex, entrarComo, esTelefono, sinDesborde } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -91,11 +91,12 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await expect(page.getByTestId('orden-conformidad')).toBeVisible()
     await sinDesborde(page)
     await capturar(page, info, 'conformidad-orden', { completa: true })
-    await page.getByTestId('conforme').first().click()
-    await expect(page.getByTestId('avance-conformidad')).toContainText('1 de 3')
-    await page.getByTestId('conforme').first().click()
-    await page.getByTestId('conforme').first().click()
-    await expect(page.getByTestId('avance-conformidad')).toContainText('Todo conforme')
+    await expect(page.getByTestId('quien-pico')).toContainText('Pickeó')
+    await expect(page.getByTestId('dar-conformidad')).toBeDisabled()          // falta el número de bultos
+    await page.getByTestId('bultos').fill('2')
+    await page.getByTestId('dar-conformidad').click()
+    await expect(page.getByTestId('conformidad-hecha')).toContainText('Conformidad registrada')
+    await expect(page.getByTestId('conformidad-hecha')).toContainText('Siguiente')
 
     await page.goto('/wms/salidas')
     await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Conforme: falta la documentación')
@@ -130,6 +131,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await abrirSalida101(page, info)
     await expect(page.getByTestId('paquete-incompleto')).toContainText(`COA del lote ${lotes.primero} (falta)`)
     await expect(page.getByTestId('items-paquete')).toContainText('Registro sanitario: Listo')
+    await page.getByTestId('abrir-gre-manual').click()
     await page.getByTestId('numero-gre').fill('1234')
     await expect(page.getByTestId('error-numero-gre')).toContainText('T001-00001234')
     await expect(page.getByTestId('registrar-gre')).toBeDisabled()
@@ -139,10 +141,15 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await expect(page.getByTestId('guia-lineas')).toContainText(lotes.primero)
     // una guía no se edita: se anula con motivo y se registra la correcta
     await page.getByTestId('anular-gre').click()
+    await expect(page.getByTestId('confirmar-anular-gre')).toBeDisabled()          // primero se elige qué se equivocó
+    await expect(page.getByTestId('caso-3')).toBeDisabled()                        // «la guía ya salió» solo vale después de la salida (SB-D)
+    await page.getByTestId('caso-1').check({ force: true })
+    await expect(page.getByTestId('que-sigue-anulacion')).toContainText('La Orden de Salida no cambia')
     await page.getByTestId('motivo-anular-gre').fill('Error de digitación')
     await page.getByTestId('confirmar-anular-gre').click()
-    await expect(page.getByTestId('numero-gre')).toBeVisible()
+    await expect(page.getByTestId('resultado-guia')).toContainText('Siguiente')
     await expect(page.getByTestId('guias-anuladas')).toContainText('T001-00000001')
+    await page.getByTestId('abrir-gre-manual').click()
     await page.getByTestId('numero-gre').fill('T001-00001234')
     await page.getByTestId('registrar-gre').click()
     await expect(page.getByTestId('guia-numero')).toHaveText('T001-00001234')
@@ -272,8 +279,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
   const kardex = async (page: Page, producto: string) => {
     await entrarComo(page, 'auditoria_lectura')
     await page.goto('/wms/kardex')
-    const valor = await page.locator('#k-producto option').evaluateAll((os, p) => (os.find((o) => (o.textContent ?? '').includes(p)) as HTMLOptionElement | undefined)?.value ?? '', producto)
-    await page.locator('#k-producto').selectOption(valor)
+    await elegirProductoKardex(page, producto)
     await page.getByTestId('ver-kardex').click()
     await expect(page.getByTestId('kardex-saldo-final')).toBeVisible()
     const saldo = Number(((await page.getByTestId('kardex-saldo-final').textContent()) ?? '').replace(/[^\d]/g, ''))
@@ -292,6 +298,8 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await expect(page.getByTestId('panel-carga')).toBeVisible()
     await expect(page.getByTestId('motivos-no-liberar')).toContainText('Falta el checklist del vehículo')
     await expect(page.getByTestId('liberar-unidad')).toBeDisabled()
+    // OS-7: la copia impresa del LS-FR.43.03 viaja con el conductor; sin imprimir solo se advierte
+    await expect(page.getByTestId('aviso-no-impreso')).toContainText('Todavía no imprimiste el formato LS-FR.43.03')
     // checklist: un punto en «no» pide su nota
     await page.getByTestId('punto-no').first().click()
     await expect(page.getByTestId('guardar-checklist')).toBeDisabled()
@@ -306,9 +314,9 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await page.getByTestId('codigo-bulto').fill('SAL-9999-99999-B1')
     await page.getByTestId('cargar-bulto').click()
     await expect(page.getByText('No encontramos el bulto SAL-9999-99999-B1')).toBeVisible()
-    await page.getByTestId('codigo-bulto').fill('sal-2026-00001-b2')
+    await page.getByTestId('codigo-bulto').fill('os-2026-00001-b2')
     await page.getByTestId('codigo-bulto').press('Enter')
-    await expect(page.getByTestId('aviso-escaneo')).toContainText('SAL-2026-00001-B2 cargado')
+    await expect(page.getByTestId('aviso-escaneo')).toContainText('OS-2026-00001-B2 cargado')
     await expect(page.getByTestId('motivos-no-liberar')).toContainText('Faltan 1 bulto por cargar')
     await expect(page.getByTestId('liberar-unidad')).toBeDisabled()
     await sinDesborde(page)

@@ -1,4 +1,5 @@
 import 'server-only'
+import { ETIQUETA_REGIMEN } from '@/domain/muestreo'
 import ExcelJS from 'exceljs'
 import { CHECKLIST_ORGANOLEPTICO, ETIQUETA_DECISION, ETIQUETA_TIPO_INGRESO } from '@/domain/entradas'
 import type { ActaRecepcionVista, OrganolepticaVista, SolicitudDetalle } from '@/domain/entradas-vistas'
@@ -116,7 +117,7 @@ export async function xlsxActaOrganoleptica(a: OrganolepticaVista): Promise<Buff
     ['Motivo', a.ingresoTipo === 'COMPRA_LOCAL' ? 'Compra' : a.ingresoTipo === 'DEVOLUCION' ? 'Devolución' : 'Otros (ingreso de cliente)'],
     ['Referencia', a.referencia], ['Solicitud', a.solicitudNumero], ['Producto', a.producto], ['Lote', a.lote],
     ['Nombre genérico', a.principioActivo], ['Vencimiento', a.vence ? formatoFecha(a.vence) : undefined],
-    ['Cantidad recibida', a.cantidadLote], ['Cantidad de muestra', a.cantidadMuestra],
+    ['Cantidad recibida', a.cantidadLote], ['Cantidad de muestra', a.cantidadMuestra], ['Régimen de muestreo', a.regimenMuestreo ? `${ETIQUETA_REGIMEN[a.regimenMuestreo]} (${a.tablaMuestreo ?? 'LS-TB.02.02'})` : ''],
     ['Registro sanitario', a.registroSanitario], ['Vencimiento del R.S.', a.rsVence ? formatoFecha(a.rsVence) : undefined],
     ['Fabricante / proveedor', a.fabricante], ['Forma de presentación', a.formaPresentacion], ['Propietario', a.propietario],
     ['Certificado de análisis / protocolo', a.datos.certAnalisis == null ? undefined : a.datos.certAnalisis ? 'SÍ' : 'NO'],

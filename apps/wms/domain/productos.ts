@@ -36,11 +36,11 @@ export function validarEntradaProducto(e: EntradaProducto): { ok: true; rsVence?
 }
 
 export function autorizarAltaProducto(roles: readonly Rol[]): string | null {
-  return puedeCrearProducto(roles) ? null : 'Solo Dirección Técnica y su asistente dan de alta productos.'
+  return puedeCrearProducto(roles) ? null : 'Solo Dirección Técnica, su asistente y el Administrador dan de alta productos.'
 }
 
 export function autorizarEdicionRegulatoria(roles: readonly Rol[]): string | null {
-  return puedeEditarRegulatorio(roles) ? null : 'Solo Dirección Técnica (Katia o Sandra) edita los datos regulatorios.'
+  return puedeEditarRegulatorio(roles) ? null : 'Solo Dirección Técnica (Katia o Sandra) y el Administrador editan los datos regulatorios.'
 }
 
 /** Todo cambio regulatorio lleva su motivo. Devuelve el mensaje de error o null. */

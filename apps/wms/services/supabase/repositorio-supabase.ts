@@ -8,7 +8,8 @@ import type { Panorama, ProductoConReg } from '@/domain/panorama'
 import { validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, n, s, traerTodo, type Fila } from './util'
-import { CargaSupabase } from './carga-supabase'
+import { SalidaManualSupabase } from './salida-manual-supabase'
+import { hoyLima } from '@/lib/hoy-lima'
 
 export function mapearPosicion(r: Fila): Posicion {
   return {
@@ -23,10 +24,11 @@ export function mapearRegulatorio(r: Fila): Regulatorio {
     productoId: String(r.producto_id), registroSanitario: s(r.registro_sanitario), rsVence: s(r.rs_vence),
     formaPresentacion: s(r.forma_presentacion), concentracion: s(r.concentracion), fabricante: s(r.fabricante),
     condicionAlmacenamiento: s(r.condicion_almacenamiento), creadoPor: s(r.creado_por),
+    estadoValidacion: r.por_validar === true ? 'PENDIENTE' : 'VALIDADO',
   }
 }
 
-export class RepositorioSupabase extends CargaSupabase implements Repositorio {
+export class RepositorioSupabase extends SalidaManualSupabase implements Repositorio {
   async panorama(): Promise<Panorama> {
     const [props, poss, asigs, docs, prods, regs, lotes, saldos] = await Promise.all([
       traerTodo('propietarios', 'wms'),
@@ -45,7 +47,7 @@ export class RepositorioSupabase extends CargaSupabase implements Repositorio {
       estado: r.estado === 'inactivo' ? 'inactivo' : 'activo', reg: regPorProducto.get(String(r.id)),
     }))
     return {
-      hoy: new Date().toISOString().slice(0, 10),
+      hoy: hoyLima(),
       propietarios: props.map((r): Propietario => ({
         id: String(r.id), codigo: String(r.codigo), razonSocial: String(r.razon_social), ruc: s(r.ruc),
         esDuenoAlmacen: Boolean(r.es_dueno_almacen),
@@ -97,6 +99,12 @@ export class RepositorioSupabase extends CargaSupabase implements Repositorio {
     })
     if (error) return { ok: false, mensaje: mensajeHumano(error) }
     return { ok: true, id: String(data) }
+  }
+
+  async validarProducto(id: string, _actor: Actor): Promise<ResultadoAccion> {
+    const supabase = crearClienteServidor()
+    const { error } = await supabase.schema('wms').rpc('validar_producto', { p_producto: id })
+    return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
   }
 
   async editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, _actor: Actor): Promise<ResultadoAccion<{ cambios: number }>> {

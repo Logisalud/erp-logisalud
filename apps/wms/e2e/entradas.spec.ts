@@ -290,7 +290,7 @@ test.describe('calidad', () => {
     await entrarComo(page, 'asistente_dt')
     await page.goto('/wms/calidad')
     await page.getByTestId('fila-organoleptica').first().click()
-    await expect(page.getByTestId('muestra')).toContainText(/Toma \d+ unidades de muestra/)
+    await expect(page.getByTestId('muestra')).toContainText(/(Toma [\d.,]+ unidades de muestra|Evalúa las [\d.,]+ unidades del lote)/)
     await expect(page.getByTestId('panel-decision')).toHaveCount(0)
   })
 

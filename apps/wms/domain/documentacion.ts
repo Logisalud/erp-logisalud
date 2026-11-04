@@ -3,6 +3,7 @@
 import { puede } from './permisos'
 import { ETIQUETA_TIPO_DOCUMENTO, paqueteCompleto, type RequisitoDocumental, type TipoDocumento } from './documentos'
 import type { Rol } from './tipos'
+import type { EstadoSunat, ModoNubefact, OrigenGuia } from './guia-electronica'
 
 export const puedeRegistrarDocumentacion = (roles: readonly Rol[]) => puede(roles, 'registrar_documentacion')
 export const puedeImprimirPaquete = (roles: readonly Rol[]) => puede(roles, 'imprimir_paquete_documental')
@@ -28,6 +29,18 @@ export interface GuiaVista {
   registradaEn: string
   anuladaMotivo?: string
   anuladaEn?: string
+  /** OS-3: de dónde viene (Nubefact, a mano o la GRE del cliente) y lo que devolvió Nubefact. */
+  origen: OrigenGuia
+  entorno?: ModoNubefact
+  enlace?: string
+  enlaceXml?: string
+  estadoSunat?: EstadoSunat
+  bultos?: number
+  pesoKg?: number
+  fechaInicio?: string
+  /** Anulación: qué caso fue (1, 2 o 3) y cómo va la baja ante SUNAT. */
+  casoAnulacion?: 1 | 2 | 3
+  bajaSunat?: 'PENDIENTE' | 'NO_APLICA' | 'HECHA'
 }
 
 /** Un lote que sale y los documentos que pide el cliente para él. */

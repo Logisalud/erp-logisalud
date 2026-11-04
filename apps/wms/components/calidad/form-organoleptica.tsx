@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { CheckCheck, Download, Fingerprint, Send } from 'lucide-react'
 import { decidirOrganolepticaAccion, guardarOrganolepticaAccion } from '@/app/acciones-entradas'
 import {
@@ -9,6 +9,7 @@ import {
 } from '@/domain/entradas'
 import type { OrganolepticaVista } from '@/domain/entradas-vistas'
 import { formatoFechaHora } from '@/domain/fechas'
+import { ETIQUETA_REGIMEN, explicarRegimen, textoMuestra } from '@/domain/muestreo'
 import { ChipEstado } from '../chips'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
@@ -17,7 +18,7 @@ import { SEGMENTO_CONFORME, SEGMENTO_NO_CONFORME, SEGMENTO_NO_APLICA, SEGMENTO_I
 const RESPUESTAS: Respuesta[] = ['C', 'NC', 'NA']
 const TXT: Record<Respuesta, string> = { C: 'Conforme', NC: 'No conforme', NA: 'No aplica' }
 
-function Segmentado({ nombre, valor, onCambio, deshabilitado }: { nombre: string; valor?: Respuesta; onCambio: (r: Respuesta) => void; deshabilitado: boolean }) {
+export function Segmentado({ nombre, valor, onCambio, deshabilitado }: { nombre: string; valor?: Respuesta; onCambio: (r: Respuesta) => void; deshabilitado: boolean }) {
   return (
     <div role="radiogroup" aria-label={nombre} className="inline-flex shrink-0 overflow-hidden rounded-full border border-gray-300 bg-white">
       {RESPUESTAS.map((r) => {
@@ -34,7 +35,7 @@ function Segmentado({ nombre, valor, onCambio, deshabilitado }: { nombre: string
   )
 }
 
-export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }: { acta: OrganolepticaVista; puedeEditar: boolean; puedeDecidir: boolean; hoy: string; base: string }) {
+export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, liberacion }: { acta: OrganolepticaVista; puedeEditar: boolean; puedeDecidir: boolean; hoy: string; base: string; liberacion?: ReactNode }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const bloqueada = acta.estado === 'FIRMADA'
   const editable = puedeEditar && !bloqueada
@@ -81,7 +82,8 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
             ['Propietario', acta.propietario], ['Referencia', acta.referencia], ['Cantidad del lote', `${acta.cantidadLote.toLocaleString('es-PE')} unidades`],
           ].map(([k, v]) => <div key={k} className="flex justify-between gap-3 py-2"><dt className="text-gray-600">{k}</dt><dd className="text-right text-gray-900">{v || '—'}</dd></div>)}
         </dl>
-        <p className="mt-3 rounded-md bg-teal-50 p-3 text-sm text-teal-950" data-testid="muestra"><strong>Toma {acta.cantidadMuestra} unidades de muestra.</strong> Es el techo de la raíz de {acta.cantidadLote.toLocaleString('es-PE')} más 1. La muestra vuelve completa a su caja: no descuenta stock.</p>
+        <p className="mt-3 rounded-md bg-teal-50 p-3 text-sm text-teal-950" data-testid="muestra"><strong>{textoMuestra(acta.cantidadMuestra, acta.regimenMuestreo, acta.tablaMuestreo, acta.cantidadLote)}</strong>{acta.regimenMuestreo ? ` ${explicarRegimen(acta.regimenMuestreo)}` : ''} La muestra vuelve completa a su caja: no descuenta stock.</p>
+        {acta.regimenMuestreo && <p className="mt-1 text-xs text-gray-600" data-testid="regimen-muestreo">{ETIQUETA_REGIMEN[acta.regimenMuestreo]} · tabla {acta.tablaMuestreo}. La tabla es un parámetro: Dirección Técnica la cambia sin tocar el sistema.</p>}
         {rsVencido && <div className="mt-3"><Aviso tipo="error" testid="aviso-rs-vencido"><strong>El registro sanitario está vencido.</strong> Este lote se puede rechazar, pero no aprobar, hasta que Dirección Técnica resuelva el registro.</Aviso></div>}
       </section>
 
@@ -148,7 +150,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
         )}
       </section>
 
-      {acta.estado === 'PENDIENTE_DT' && puedeDecidir && (
+      {acta.estado === 'PENDIENTE_DT' && puedeDecidir && !acta.esDeCliente && (
         <section className="card border-2 border-logisalud-teal" aria-labelledby="decision" data-testid="panel-decision">
           <h2 id="decision" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Decisión de Dirección Técnica</h2>
           <p className="mt-1 text-sm text-gray-700">Al firmar, las {acta.cantidadLote.toLocaleString('es-PE')} unidades de este lote cambian de estado en su lugar y quedan por trasladar. Aprobado nunca vuelve a Cuarentena.</p>
@@ -160,6 +162,8 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
           </div>
         </section>
       )}
+
+      {liberacion}
 
       {bloqueada && acta.decision && (
         <section className="card" aria-labelledby="resultado" data-testid="resultado-acta">

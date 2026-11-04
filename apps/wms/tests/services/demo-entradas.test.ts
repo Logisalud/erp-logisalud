@@ -305,7 +305,7 @@ describe('devolución e ingreso de cliente', () => {
   })
 
   it('(D-31) la devolución nace en Devoluciones, nunca en Cuarentena, y su acta organoléptica la lleva a Aprobado', async () => {
-    const dip = await propietario('DIPHASAC')
+    const dip = await propietario('LOGISSA') // OS-5: el stock de un cliente lo libera su DT (demo-liberacion.test.ts); aquí, stock de Logissa
     const r = exito(await repo.crearSolicitud({
       tipo: 'DEVOLUCION', propietarioId: dip, contraparteNombre: 'Clínica', guiaNumero: 'G-2', docOriginalTipo: 'FACTURA', docOriginalNumero: 'F001-1', motivo: 'Sin rotación',
       lineas: [{ productoId: 'prod:1', lote: 'DEV-1', vence: '30/06/2028', cantidad: 5 }],

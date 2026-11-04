@@ -5,6 +5,7 @@ import { puedeVerificar } from './verificacion'
 import { diasHasta } from './regulatorio'
 import type { Panorama } from './panorama'
 import { normalizar, puntaje } from './busqueda'
+import { estadoDeArchivo } from './carga-inicial'
 import { AREAS_DE_SALIDA, areaAdmite, ETIQUETA_AREA, mensajeZonaNoAdmite, posicionAcepta, propietarioVigente } from './zonas'
 
 // ── Libro mayor (lo que el Kardex y la historia leen) ───────────────────────
@@ -416,7 +417,7 @@ export interface AjusteVista {
 
 export const puedeDecidirAjuste = (roles: readonly Rol[]) => roles.includes('direccion_tecnica')
 
-// ── Carga inicial (D-09) ────────────────────────────────────────────────────
+// ── Carga inicial (D-09; cambio de sistema desde OS-7, D-110: ver carga-inicial.ts) ────────────────────────────────────────────────────
 
 export interface FilaCargaInicial {
   producto: string
@@ -438,8 +439,11 @@ export interface CargaInicialVista {
   creadoPor: string
   creadoEn: string
   confirmadoEn?: string
+  confirmadoPor?: string
   filas: number
   unidades: number
+  /** Unidades por estado final (OS-7: cada fila trae el estado de Odoo). */
+  porEstado: { aprobado: number; cuarentena: number; bajas: number }
 }
 
 const COLUMNAS_CARGA = ['producto', 'lote', 'vence', 'propietario', 'posicion', 'estado', 'cantidad'] as const
@@ -475,7 +479,7 @@ export function parsearCargaInicial(texto: string): { filas: FilaCargaInicial[];
     const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(vence)
     if (dmy) vence = `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`
     if (vence && !/^\d{4}-\d{2}-\d{2}$/.test(vence)) errores.push({ fila: k + 1, error: `La fecha «${v('vence')}» no se entiende: usa 31/12/2028 o 2028-12-31` })
-    filas.push({ producto: v('producto'), lote: v('lote'), vence, propietario: v('propietario').toUpperCase(), posicion: v('posicion').toUpperCase(), estado: v('estado').toUpperCase(), cantidad })
+    filas.push({ producto: v('producto'), lote: v('lote'), vence, propietario: v('propietario').toUpperCase(), posicion: v('posicion').toUpperCase(), estado: estadoDeArchivo(v('estado')), cantidad })
   })
   return { filas, errores }
 }

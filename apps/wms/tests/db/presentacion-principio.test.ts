@@ -76,7 +76,7 @@ describe('Katia y Sandra los editan desde el WMS', () => {
   })
   it('otros roles, sin motivo o sobre un producto inexistente: se rechaza', async () => {
     const id = await crearEnCompras('D38-8')
-    for (const quien of [P().charlie, P().aux, P().admin, P().auditor, P().sinRol]) {
+    for (const quien of [P().charlie, P().aux, P().auditor, P().sinRol] /* D-196: el Administrador ya edita (queda por validar) */) {
       expect((await falla(editar(quien.id, id, { presentacion: 'X' }))).code).toBe('42501')
     }
     expect((await falla(editar(P().katia.id, id, { presentacion: 'X' }, '  '))).message).toMatch(/necesita su motivo/)

@@ -7,6 +7,7 @@ import type { EstadoLineaSolicitud, EstadoSolicitud, TipoIngreso, VerificacionLi
 import { construirPanoramaDemo, sumarDias } from './datos'
 import { iniciarInventario, type InvDemo } from './libro'
 import type { Actor } from '../repositorio'
+import { hoyLima } from '@/lib/hoy-lima'
 
 export interface LineaSolicitudDemo {
   id: string
@@ -78,6 +79,8 @@ export interface SolicitudDemo {
   cambios: CambioVista[]
   recepcion?: RecepcionDemo
   expedienteId?: string
+  /** OS-5: si es el retorno de una Orden de Salida (recepción tipo devolución). */
+  retorno?: import('@/domain/entradas-vistas').RetornoDeSalida
 }
 
 export interface ActaDemo extends Omit<ActaRecepcionVista, 'faltan' | 'reemplazaANumero' | 'reemplazadaPorNumero'> {
@@ -104,6 +107,10 @@ export interface EstadoDemo {
   desp?: import('./despacho-demo').DespachoDemoEstado
   /** S6a: documentos regulatorios (se crea al primer uso). */
   docs?: import('./documentos-demo').DocsDemoEstado
+  /** OS-5: productos con antecedentes de calidad (se evalúan al 100 %). */
+  antecedentes?: import('@/domain/muestreo').AntecedenteCalidadVista[]
+  /** OS-5: la Orden de Salida ya despachada de la demostración (para probar el retorno) se creó. */
+  os5Sembrado?: boolean
   solicitudes: SolicitudDemo[]
   actas: ActaDemo[]
   organolepticas: OrganolepticaVista[]
@@ -121,6 +128,8 @@ export interface EstadoDemo {
   /** Días antes del vencimiento de un lote en que se alerta (D-30). */
   diasAlertaVencimiento: number
   sembrado?: boolean
+  /** SA-1: las órdenes de ejemplo ya se sembraron (o se empezó a sembrarlas). */
+  ejemplosSembrados?: boolean
 }
 
 export type { FirmaVista }
@@ -129,7 +138,7 @@ export type { FirmaVista }
 const g = globalThis as unknown as { __wmsDemo?: EstadoDemo }
 
 export function estado(): EstadoDemo {
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
   if (!g.__wmsDemo || g.__wmsDemo.panorama.hoy !== hoy) {
     const panorama = construirPanoramaDemo(hoy)
     const ts = (dias: number, h: string) => `${sumarDias(hoy, dias)}T${h}:00Z`

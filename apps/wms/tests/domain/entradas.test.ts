@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parsearVencimiento } from '@/domain/fechas'
 import {
-  AREA_DESTINO, CHECKLIST_ORGANOLEPTICO, ESTADO_INICIAL, estadoRegistroCompras, faltantesParaEnviar, itemsPendientes, muestraOrganoleptica,
+  AREA_DESTINO, CHECKLIST_ORGANOLEPTICO, ESTADO_INICIAL, estadoRegistroCompras, faltantesParaEnviar, itemsPendientes,
   numeroDeActa, pasoDeSolicitud, porTrasladarVencido, puedeAtenderAlerta, puedeFirmarComo, puedeGenerarActa, puedePrepararSolicitud, rucValido,
   sugerirConclusion, temperaturaFueraDeRango, textoDiferencia, validarDecision, validarEntradaSolicitud, validarLineaSolicitud,
   validarTransportista, situacionLote, diasParaVencer, DESTINATARIO_ALERTA, type Checklist,
@@ -130,13 +130,7 @@ describe('numeración', () => {
   })
 })
 
-describe('muestra organoléptica', () => {
-  it('(6) techo(√unidades) + 1', () => {
-    expect([1, 4, 5, 9, 10, 100, 101, 480].map((n) => muestraOrganoleptica(n))).toEqual([2, 3, 4, 4, 5, 11, 12, 23])
-    expect(muestraOrganoleptica(0)).toBe(1)
-    expect(muestraOrganoleptica(100, 2)).toBe(12)
-  })
-})
+// La muestra ya no es techo(√n)+1: la calcula la tabla LS-TB.02.02 (tests/domain/muestreo.test.ts).
 
 describe('checklist organoléptico', () => {
   const marcarTodo = (r: 'C' | 'NC' | 'NA', excepto: string[] = []): Checklist => {

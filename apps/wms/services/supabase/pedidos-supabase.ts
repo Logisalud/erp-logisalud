@@ -59,7 +59,7 @@ export class PedidosSupabase extends OperacionSupabase implements RepositorioPed
     return {
       pedidos: filas.map((f) => bandejaDeFila({
         id: String(f.id), snapshot: f.snapshot as PedidoSnapshot, cambios: (Array.isArray(f.cambios) ? f.cambios : []) as string[], cambioPendiente: Boolean(f.cambio_pendiente),
-        salida: f.salida_id ? salidas.get(String(f.salida_id)) : undefined, importadoEn: String(f.importado_en), codigosEnCatalogo: enCatalogo,
+        salida: f.salida_id ? salidas.get(String(f.salida_id)) : undefined, salidaId: s(f.salida_id), importadoEn: String(f.importado_en), codigosEnCatalogo: enCatalogo,
       })),
       ultimoIntento: vistas[0] ?? null,
       ultimaExitosa: vistas.find((v) => v.ok) ?? null,

@@ -110,11 +110,14 @@ Mientras tanto, verificar con Playwright directo.
 - **Modo demostración local:** `WMS_DEMO_LOCAL=1 npm run dev:wms` (datos de prueba en memoria, banner DEMO, sin base real).
   Usa por defecto los datos de prueba de Odoo (`docs/wms/demo-odoo.md`); `WMS_DEMO_DATOS=sintetico` los cambia por los sintéticos (lo fijan vitest, Playwright y `e2e-por-viewport.sh`).
   En Vercel solo se activa en Preview con `WMS_DEMO=1`; en producción la app **se niega a arrancar** si hay una bandera puesta.
+- **Órdenes de ejemplo (SA-1):** en demo/Preview la demo siembra 24 órdenes de ejemplo en cada etapa y tipo (lista en `domain/ejemplos.ts`). `WMS_DEMO_EJEMPLOS=0` las apaga (vitest, Playwright y `e2e-por-viewport.sh` lo hacen para la suite de siempre); `WMS_DEMO_EJEMPLOS=vacio` deja la demo sin ninguna salida. Los E2E de los ejemplos y del vacío corren en servidores propios (ver `e2e-por-viewport.sh`).
+- **PDF en la Preview (D-177):** `WMS_PREVIEW_URL=https://… npm run test:preview-pdf --workspace erp-logisalud-wms` abre cada PDF en una URL desplegada (la CI lo corre sola al terminar el despliegue; secreto opcional `VERCEL_AUTOMATION_BYPASS_SECRET`).
 - **Pruebas de base de datos:** `npm run test:db:wms` levanta el Postgres 16 local (`scripts/db-local.sh`; en CI corre en Postgres 17, la versión de producción) y corre las migraciones
   contra un schema `auth` simulado. No cubre PostgREST, GoTrue ni Storage (docs/wms/gate-0.md §G.1).
 - **E2E en 4 viewports + capturas:** `npm run build:wms` y luego
   `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium apps/wms/scripts/e2e-por-viewport.sh` (reinicia el servidor entre viewports).
   Las capturas quedan en `docs/wms/screenshots/<pantalla>/<viewport>.png`.
-- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0021; el 0010 está reservado), re-ejecutables, **se aplican a mano**; seed de topología generado con
+- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0035; el 0010 está reservado; por pieza: 0028 SA-2, 0029 SA-3, 0030 SA-6, 0031 SB-A rutas y conductor, 0032 SB-B proveedor/guías/muestras, 0033 SB-C dictamen/baja/producto nuevo/temperatura, 0034 SB-D baja de guía/motivos/Administrador, 0035 SB-E Administrador todo lo operativo y productos «por validar»), re-ejecutables, **se aplican a mano**; seed de topología generado (y `seeds/0002_transporte_inicial.sql`, escrito a mano: conductores y vehículo, después de la 0031) con
   `npm run seed:topologia --workspace erp-logisalud-wms`. Ver `docs/wms/aplicar-migraciones.md`.
+- **Nubefact en la Preview (SB-B, D-167):** con `WMS_DEMO=1` en Vercel, `NUBEFACT_RUTA` + `NUBEFACT_TOKEN` (solo Preview) hacen que la demo use la cuenta DEMO de Nubefact; sin ellas, el simulador. Nunca imprimas ni registres sus valores. Producción rechaza `NUBEFACT_RUTA`. La serie de guías es TTT1 y no se emite una guía real sin correlativo inicial confirmado (`docs/wms/nubefact.md`).
 - Diseño: `PRODUCT.md` y `DESIGN.md` de esta carpeta; ADR en `docs/wms/adr/`.

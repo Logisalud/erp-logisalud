@@ -2,9 +2,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import type { Actor } from '@/services/repositorio'
+import { imprimirYConformar } from './ayudas-orden'
 
 const actor = (id: string, ...roles: Actor['roles']): Actor => ({ id: `demo:${id}`, nombre: `${id} (demo)`, roles })
-const JT = actor('jt', 'jefe_transporte', 'jefe_almacen'); const AUX = actor('aux', 'auxiliar'); const SANDRA = actor('sandra', 'asistente_dt', 'conformidad_despacho')
+const JT = actor('jt', 'jefe_transporte', 'jefe_almacen'); const AUX = actor('auxiliar', 'auxiliar'); const SANDRA = actor('sandra', 'asistente_dt', 'conformidad_despacho')
 const CHECK = [{ item: 'Vehículo limpio', ok: true, nota: '' }, { item: 'Termómetro', ok: true, nota: '' }]
 
 let repo: RepositorioDemo
@@ -17,11 +18,8 @@ const stockTotal = async () => (await repo.panorama()).saldos.reduce((t, x) => t
 /** El pedido 101 listo para carga: picking, conformidad, COA cargados, guía y embalaje en 2 bultos. */
 async function pedidoListo() {
   const [res] = await repo.listarSalidas()
-  const o = await repo.generarOrdenPicking(res.id, JT)
-  if (!o.ok) throw new Error(o.mensaje)
-  const orden = (await repo.obtenerOrdenPicking(o.id))!
-  for (const l of orden.lineasDetalle) await repo.registrarPicking(l.id, 'PICKEADA', undefined, AUX)
-  for (const l of orden.lineasDetalle) await repo.darConformidad(l.id, 'CONFORME', undefined, undefined, SANDRA)
+  
+  await imprimirYConformar(repo, res.id, { jt: JT, picker: AUX, conforme: SANDRA, bultos: 2 })
   const pq = (await repo.paqueteSalida(res.id))!
   const archivos = pq.items.map((i) => ({ nombre: `COA_${i.lote}.pdf`, hash: `h-${i.lote}`, bytes: 1000, ref: `demo/${i.lote}.pdf` }))
   await repo.cargarCoaEnBloque(archivos, SANDRA)
