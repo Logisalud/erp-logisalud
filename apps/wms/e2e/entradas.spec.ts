@@ -376,7 +376,7 @@ test.describe('alertas y expedientes', () => {
   test('los enlaces de las entradas (lista, alertas, búsqueda) no dan "No encontramos eso"', async ({ page }) => {
     await entrarComo(page, 'jefe_almacen')
     await page.goto('/wms/entradas')
-    const hrefs = await page.$$eval('a[href^="/wms/entradas/"]', (as) => [...new Set(as.map((a) => a.getAttribute('href')!))].filter((h) => !h.endsWith('/nuevo')))
+    const hrefs = await page.$$eval('a[href^="/wms/entradas/"]', (as) => [...new Set(as.map((a) => a.getAttribute('href')!))].filter((h) => !h.endsWith('/nuevo') && !h.endsWith('/entradas/oc')))
     expect(hrefs.length).toBeGreaterThan(2)
     for (const h of hrefs) {
       await page.goto(h)

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { puedeImprimirPaquete } from '@/domain/documentacion'
 import { repositorio } from '@/services/repositorio-actual'
@@ -15,6 +16,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const paquete = await repo.paqueteSalida(params.id)
   if (!paquete) return new NextResponse('No encontramos esa salida.', { status: 404 })
   const docs = (await repo.panoramaDocumentos()).documentos
-  const pdf = await armarPaquetePdf([paquete], (id) => docs.find((d) => d.id === id)?.archivoRef)
+  const pdf = await marcarPiloto(await armarPaquetePdf([paquete], (id) => docs.find((d) => d.id === id)?.archivoRef))
   return new NextResponse(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Paquete ${paquete.salidaNumero}.pdf"`, 'Cache-Control': 'private, no-store' } })
 }

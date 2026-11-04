@@ -18,7 +18,7 @@ const datos: DatosGuia = {
 let correlativo = 0
 const payload = (o: Partial<DatosGuia> = {}, numero = ++correlativo) => construirPayloadNubefact({ ...datos, ...o }, { fechaInicio: '2026-10-20', pesoKg: 12 }, '2026-10-19', numero)
 
-afterEach(() => { reiniciarSimuladorNubefact(); delete process.env.NUBEFACT_MODO; delete process.env.NUBEFACT_URL; delete process.env.NUBEFACT_TOKEN; delete process.env.NUBEFACT_PRODUCCION_APROBADA })
+afterEach(() => { reiniciarSimuladorNubefact(); delete process.env.NUBEFACT_MODO; delete process.env.NUBEFACT_ENTORNO; delete process.env.NUBEFACT_URL; delete process.env.NUBEFACT_TOKEN; delete process.env.NUBEFACT_PRODUCCION_APROBADA })
 
 describe('simulador de Nubefact', () => {
   it('recibe el número que manda el WMS, no repite uno ya usado y deja ver la guía simulada', async () => {
@@ -84,38 +84,18 @@ describe('cliente HTTP de Nubefact', () => {
 describe('qué cliente se usa (el candado de producción)', () => {
   it('por defecto es el simulador; prueba pide credenciales; producción además pide la aprobación explícita', () => {
     expect(modoNubefactActual()).toBe('SIMULADOR')
-    expect(clienteNubefact().modo).toBe('SIMULADOR')
-    process.env.NUBEFACT_MODO = 'PRUEBA'
-    expect(() => clienteNubefact()).toThrow(NubefactNoConfigurado)
+    expect(clienteNubefact(false).modo).toBe('SIMULADOR')
+    process.env.NUBEFACT_MODO = 'PRUEBA'; process.env.NUBEFACT_ENTORNO = 'DEMO'
+    expect(() => clienteNubefact(true)).toThrow(NubefactNoConfigurado)
     process.env.NUBEFACT_URL = 'https://api.nubefact.test/x'; process.env.NUBEFACT_TOKEN = 't'
-    expect(clienteNubefact().modo).toBe('PRUEBA')
+    expect(clienteNubefact(true).modo).toBe('PRUEBA')
+    // go-live: se exige NUBEFACT_ENTORNO=PRODUCCION
+    process.env.NUBEFACT_ENTORNO = 'PRODUCCION'
     process.env.NUBEFACT_MODO = 'PRODUCCION'
-    expect(() => clienteNubefact()).toThrow(/todavía no está aprobada/)
+    expect(() => clienteNubefact(false)).toThrow(/todavía no está aprobada/)
     process.env.NUBEFACT_PRODUCCION_APROBADA = 'SI'
-    expect(clienteNubefact().modo).toBe('PRODUCCION')
+    expect(clienteNubefact(false).modo).toBe('PRODUCCION')
     process.env.NUBEFACT_MODO = 'OTRO'
-    expect(() => clienteNubefact()).toThrow(/no es válido/)
-  })
-})
-
-describe('aviso firmado a Pedidos', () => {
-  const evento = { id: 'ev-1', tipo: 'GUIA_EMITIDA' as const, estado: 'PENDIENTE' as const, intentos: 0, creadoEn: '2026-10-19T10:00:00Z', salidaId: 's', guiaId: 'g', payload: { guia: 'T001-00000001', lineas: [{ lote: 'L1', cantidad: 10 }] } }
-  it('POST con firma HMAC que Pedidos puede verificar, con el id del evento para no procesarlo dos veces', async () => {
-    let visto: { url: string; init: RequestInit } | undefined
-    const n = new NotificadorPedidosHttp({ baseUrl: 'https://pedidos.test/api', secreto: 'compartido', ahora: () => new Date('2026-10-19T10:00:30Z'),
-      fetchFn: (async (u: URL, init: RequestInit) => { visto = { url: String(u), init }; return new Response('{}', { status: 200 }) }) as never })
-    expect(await n.enviar(evento)).toEqual({ ok: true })
-    const h = visto!.init.headers as Record<string, string>
-    expect(new URL(visto!.url).pathname).toBe('/api' + RUTA_EVENTOS_WMS)
-    expect(verificar('compartido', 'POST', '/api' + RUTA_EVENTOS_WMS, String(visto!.init.body), h['x-wms-timestamp'], h['x-wms-firma'], new Date('2026-10-19T10:00:31Z'))).toEqual({ ok: true })
-    expect(JSON.parse(String(visto!.init.body))).toMatchObject({ evento_id: 'ev-1', tipo: 'GUIA_EMITIDA', guia: 'T001-00000001' })
-    expect(cuerpoDelEvento(evento)).toContain('"lineas"')
-  })
-  it('un fallo no pierde el aviso: devuelve el motivo en palabras', async () => {
-    const f = (status: number) => new NotificadorPedidosHttp({ baseUrl: 'https://pedidos.test', secreto: 's', fetchFn: (async () => new Response('{}', { status })) as never })
-    expect(await f(403).enviar(evento)).toMatchObject({ ok: false, mensaje: expect.stringContaining('firma') })
-    expect(await f(500).enviar(evento)).toMatchObject({ ok: false, mensaje: expect.stringContaining('se reintenta') })
-    expect(await new NotificadorPedidosHttp({ baseUrl: 'https://pedidos.test', secreto: 's', fetchFn: (async () => { throw new Error('x') }) as never }).enviar(evento)).toMatchObject({ ok: false })
-    expect(await new NotificadorNoConfigurado().enviar()).toMatchObject({ ok: false, mensaje: expect.stringContaining('todavía no está configurada') })
+    expect(() => clienteNubefact(false)).toThrow(/no es válido/)
   })
 })

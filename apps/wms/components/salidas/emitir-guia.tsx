@@ -6,11 +6,12 @@ import { emitirGuiaElectronicaAccion } from '@/app/acciones-picking'
 import { ETIQUETA_MODO, NOMBRE_MODO, PESO_BRUTO_DEFECTO_KG, faltantesDeGuia, type DatosGuia, type ModoNubefact } from '@/domain/guia-electronica'
 import { mesAnio } from '@/domain/salidas'
 import { numeroConSerie } from '@/domain/numeracion-guias'
+import { TEXTO_PEDIDOS_RETENIDO } from '@/domain/modo-piloto'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 
 /** «Emitir guía»: todo sale solo del WMS; el Jefe de Transporte confirma la fecha de inicio del traslado y el peso bruto (12 kg por defecto). */
-export function EmitirGuia({ datos, modo, hoy, alEmitir }: { datos: DatosGuia; modo: ModoNubefact; hoy: string; alEmitir: (texto: string) => void }) {
+export function EmitirGuia({ datos, modo, bloqueo, hoy, alEmitir }: { datos: DatosGuia; modo: ModoNubefact; bloqueo?: string; hoy: string; alEmitir: (texto: string) => void }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [fecha, setFecha] = useState(hoy)
   const [peso, setPeso] = useState(String(PESO_BRUTO_DEFECTO_KG))
@@ -58,6 +59,7 @@ export function EmitirGuia({ datos, modo, hoy, alEmitir }: { datos: DatosGuia; m
         )}
       </div>
 
+      {bloqueo && <Aviso tipo="atencion" testid="guia-bloqueo-nubefact"><strong>Nubefact no está disponible:</strong> {bloqueo}</Aviso>}
       {faltan.length > 0 && (
         <Aviso tipo="atencion" testid="guia-faltan"><strong>Antes de emitir:</strong> {faltan.join('. ')}.</Aviso>
       )}
@@ -65,7 +67,7 @@ export function EmitirGuia({ datos, modo, hoy, alEmitir }: { datos: DatosGuia; m
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" className="btn-primary" disabled={pendiente || faltan.length > 0} data-testid="emitir-guia-boton"
           onClick={() => ejecutar(() => emitirGuiaElectronicaAccion(d.salidaId, traslado), {
-            alExito: (r) => alEmitir(`Guía ${r.numero} emitida en ${NOMBRE_MODO[r.entorno as ModoNubefact]}. ${r.saltados.length ? `Los números ${r.saltados.map((n) => numeroConSerie(d.serie, n)).join(', ')} ya existían en Nubefact (alguien emitió desde el panel): se saltaron. Recuerda: el panel solo se usa para dar de baja. ` : ''}${r.adoptada ? 'Nubefact ya tenía esta guía de un intento anterior: se registró sin duplicarla. ' : ''}${r.estadoSunat === 'ACEPTADA' ? `SUNAT la aceptó. ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje si va a provincia y la carga.` : 'SUNAT todavía no responde. Siguiente: pulsa «Consultar estado en SUNAT» en unos minutos; cuando la acepte, Pedidos recibe el número y podrás cargar.'}`),
+            alExito: (r) => alEmitir(`Guía ${r.numero} emitida en ${NOMBRE_MODO[r.entorno as ModoNubefact]}. ${r.saltados.length ? `Los números ${r.saltados.map((n) => numeroConSerie(d.serie, n)).join(', ')} ya existían en Nubefact (alguien emitió desde el panel): se saltaron. Recuerda: el panel solo se usa para dar de baja. ` : ''}${r.adoptada ? 'Nubefact ya tenía esta guía de un intento anterior: se registró sin duplicarla. ' : ''}${r.estadoSunat === 'ACEPTADA' ? `SUNAT la aceptó. ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : r.pedidos === 'RETENIDO' ? TEXTO_PEDIDOS_RETENIDO : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje si va a provincia y la carga.` : 'SUNAT todavía no responde. Siguiente: pulsa «Consultar estado en SUNAT» en unos minutos; cuando la acepte, Pedidos recibe el número y podrás cargar.'}`),
           })}>
           <Send className="h-5 w-5" aria-hidden />{pendiente ? 'Emitiendo…' : 'Emitir guía'}
         </button>

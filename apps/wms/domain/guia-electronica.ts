@@ -332,7 +332,8 @@ export type TipoEventoPedidos = 'GUIA_EMITIDA' | 'GUIA_ANULADA'
 export interface EventoPedidos {
   id: string
   tipo: TipoEventoPedidos
-  estado: 'PENDIENTE' | 'ENVIADO'
+  /** `RETENIDO_PILOTO`: en el piloto el aviso se guarda pero no sale (no es entregable). */
+  estado: 'PENDIENTE' | 'ENVIADO' | 'RETENIDO_PILOTO'
   intentos: number
   ultimoError?: string
   creadoEn: string

@@ -7,6 +7,8 @@ import { repositorio } from '@/services/repositorio-actual'
 import { puedeCambiarLote, puedePrepararSalidas, puedeVerSalidas } from '@/domain/despacho'
 import { DetalleSalida } from '@/components/salidas/detalle-salida'
 import { modoNubefactActual } from '@/services/nubefact/cliente'
+import { bloqueoParaPantalla } from '@/services/nubefact/entorno'
+import { modoPilotoActivo } from '@/lib/modo-piloto'
 import { puedeEmitirGuia } from '@/domain/guia-electronica'
 import { SERIE_GUIA_DEFECTO as datosSerie, puedeAdministrarNumeracion } from '@/domain/numeracion-guias'
 
@@ -26,5 +28,5 @@ export default async function Salida({ params }: { params: { id: string } }) {
   const guia = paquete?.conforme && !paquete.guia ? await repo.datosGuia(params.id) : null
   const eventos = await repo.eventosPedidos({ salidaId: params.id })
   const numeracion = paquete?.conforme && salida.tipo !== 'CLIENTE' && (puedeEmitirGuia(ctx.roles) || puedeAdministrarNumeracion(ctx.roles)) ? await repo.estadoNumeracionGuia(datosSerie) : null
-  return <div className="mx-auto max-w-6xl"><DetalleSalida salida={salida} puedeEditar={puedeCambiarLote(ctx.roles)} puedePreparar={puedePrepararSalidas(ctx.roles)} paquete={paquete} guia={{ datos: guia, modo: modoNubefactActual(), hoy, eventos, numeracion }} roles={ctx.roles} usuario={ctx.usuario.nombre} /></div>
+  return <div className="mx-auto max-w-6xl"><DetalleSalida salida={salida} puedeEditar={puedeCambiarLote(ctx.roles)} puedePreparar={puedePrepararSalidas(ctx.roles)} paquete={paquete} guia={{ datos: guia, modo: modoNubefactActual(), bloqueo: modoDemoActivo() ? undefined : bloqueoParaPantalla(await modoPilotoActivo(), modoNubefactActual(), process.env), hoy, eventos, numeracion }} roles={ctx.roles} usuario={ctx.usuario.nombre} /></div>
 }

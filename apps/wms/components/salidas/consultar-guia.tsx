@@ -2,6 +2,7 @@
 
 import { RefreshCw } from 'lucide-react'
 import { consultarEstadoGuiaAccion } from '@/app/acciones-picking'
+import { TEXTO_PEDIDOS_RETENIDO } from '@/domain/modo-piloto'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 
@@ -20,7 +21,7 @@ export function ConsultarGuia({ guiaId, numero, salidaId, estadoSunat = 'PENDIEN
             ? `La guía ${numero} se dio de baja en el panel de Nubefact. Quedó anulada en el WMS y Pedidos ya lo sabe. Siguiente: emite una guía nueva.`
             : estadoSunat === 'ACEPTADA' && r.estadoSunat === 'ACEPTADA' ? `La guía ${numero} sigue vigente en Nubefact y aceptada por SUNAT.`
             : r.estadoSunat === 'ACEPTADA'
-            ? `SUNAT aceptó la guía ${numero}. ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje si va a provincia y la carga.`
+            ? `SUNAT aceptó la guía ${numero}. ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : r.pedidos === 'RETENIDO' ? TEXTO_PEDIDOS_RETENIDO : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje si va a provincia y la carga.`
             : `SUNAT todavía no responde la guía ${numero}. Vuelve a consultar en unos minutos.`),
         })}>
         <RefreshCw className="h-4 w-4" aria-hidden />{pendiente ? 'Consultando…' : estadoSunat === 'PENDIENTE' ? 'Consultar estado en SUNAT' : 'Verificar en Nubefact'}

@@ -86,6 +86,9 @@ export const CLAVES_UNICAS: Readonly<Record<string, readonly string[]>> = {
   // Vistas sobre Compras (solo existen si Compras está en la misma base): una fila por línea de OC.
   'wms.v_oc_items': ['oc_item_id'],
   'wms.v_oc_lineas': ['oc_item_id'],
+  // Copia inmutable de las OC (0038): una fila por versión; la vista, una por OC.
+  'wms.oc_versiones': ['id'],
+  'wms.v_oc_versiones_vigentes': ['oc_id'],
 }
 
 /** Columnas por las que se ordena una lectura paginada: primero las pedidas, siempre cerrando con la clave única. */

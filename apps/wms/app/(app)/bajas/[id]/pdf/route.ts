@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { renderOrdenBaja } from '@/services/pdf/orden-baja'
@@ -12,7 +13,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!ctx || ctx.roles.length === 0) return new NextResponse('Inicia sesión para ver la Orden de Baja.', { status: 401 })
   const r = await repositorio().contenidoBaja(params.id)
   if (!r) return new NextResponse('No encontramos esa Orden de Baja.', { status: 404 })
-  const pdf = await renderOrdenBaja(r.contenido, r.borrador, r.estado, r.hash)
+  const pdf = await marcarPiloto(await renderOrdenBaja(r.contenido, r.borrador, r.estado, r.hash))
   return new NextResponse(new Uint8Array(pdf), {
     headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Orden de baja ${r.contenido.numero}.pdf"`, 'Cache-Control': 'private, no-store' },
   })

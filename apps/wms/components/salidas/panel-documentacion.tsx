@@ -28,7 +28,7 @@ const ChipRequisito = ({ r }: { r: RequisitoDocumental }) => {
 }
 
 /** Después de la conformidad: la guía de remisión (se registra su número a mano) y el paquete documental de los lotes que salen. */
-export function PanelDocumentacion({ salioYa, paquete, roles, datos, modo, hoy, eventos, numeracion, greCliente }: { salioYa?: boolean; paquete: PaqueteSalida; roles: readonly Rol[]; datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[]; numeracion?: EstadoCorrelativo | null; greCliente?: { numero?: string; salidaId: string; conArchivo: boolean } }) {
+export function PanelDocumentacion({ salioYa, paquete, roles, datos, modo, bloqueo: bloqueoNubefact, hoy, eventos, numeracion, greCliente }: { salioYa?: boolean; paquete: PaqueteSalida; roles: readonly Rol[]; datos: DatosGuia | null; modo: ModoNubefact; bloqueo?: string; hoy: string; eventos: EventoPedidos[]; numeracion?: EstadoCorrelativo | null; greCliente?: { numero?: string; salidaId: string; conArchivo: boolean } }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [resultado, setResultado] = useState<string | null>(null)
   const [numero, setNumero] = useState(greCliente?.numero ?? '')
@@ -68,7 +68,7 @@ export function PanelDocumentacion({ salioYa, paquete, roles, datos, modo, hoy, 
           <div className="mt-2 space-y-3">
             {paquete.conforme && datos && datos.tipo !== 'CLIENTE' && puedeEmitirGuia(roles) && (datos.guiaModo === 'PANEL'
               ? <RegistrarGuiaPanel salidaId={paquete.salidaId} hoy={hoy} lineas={datos.lineas} alRegistrar={setResultado} />
-              : <EmitirGuia datos={datos} modo={modo} hoy={hoy} alEmitir={setResultado} />)}
+              : <EmitirGuia datos={datos} modo={modo} bloqueo={bloqueoNubefact} hoy={hoy} alEmitir={setResultado} />)}
             <details className="rounded-md border border-gray-200 p-3" data-testid="gre-manual" open={!!greCliente}>
               <summary className="cursor-pointer text-sm font-medium text-gray-900" data-testid="abrir-gre-manual">{greCliente ? 'Registrar la GRE del cliente' : 'Registrar una guía a mano (contingencia, o la GRE que trae el cliente)'}</summary>
               <div className="mt-3 space-y-3">
@@ -130,7 +130,7 @@ function AvisosPedidos({ eventos }: { eventos: EventoPedidos[] }) {
       <ul className="mt-1 space-y-1">
         {eventos.map((e) => (
           <li key={e.id} className="flex flex-wrap items-center gap-2" data-testid="aviso-pedidos" data-estado={e.estado}>
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${e.estado === 'ENVIADO' ? CHIP_OK : CHIP_AVISO}`}>{e.estado === 'ENVIADO' ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : <Hourglass className="h-3.5 w-3.5" aria-hidden />}{e.estado === 'ENVIADO' ? 'Enviado' : 'Pendiente'}</span>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${e.estado === 'ENVIADO' ? CHIP_OK : CHIP_AVISO}`}>{e.estado === 'ENVIADO' ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : <Hourglass className="h-3.5 w-3.5" aria-hidden />}{e.estado === 'ENVIADO' ? 'Enviado' : e.estado === 'RETENIDO_PILOTO' ? 'Retenido (piloto)' : 'Pendiente'}</span>
             <span>{e.tipo === 'GUIA_EMITIDA' ? 'Guía emitida' : 'Guía anulada'} · {String(e.payload.guia)}{e.ultimoError ? ` · ${e.ultimoError}` : ''}</span>
           </li>
         ))}

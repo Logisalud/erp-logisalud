@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { nombreArchivoActa, actaRecepcionEsBorrador } from '@/domain/borrador-documento'
 import { repositorio } from '@/services/repositorio-actual'
@@ -15,7 +16,7 @@ export async function GET(req: Request, { params }: { params: { id: string; acta
   // La solicitud existe pero todavía no tiene esa acta (por ejemplo, su recepción no empezó): en vez de un error, la pantalla de la solicitud explica qué falta y ofrece «Iniciar recepción».
   if (sol && !acta) return NextResponse.redirect(new URL(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/entradas/${sol.id}?acta=sin-recepcion#acta`, req.url), 303)
   if (!acta) return new NextResponse('No encontramos esa acta.', { status: 404 })
-  const pdf = await renderActaRecepcion(acta)
+  const pdf = await marcarPiloto(await renderActaRecepcion(acta))
   return new NextResponse(new Uint8Array(pdf), {
     headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${nombreArchivoActa(`Acta ${acta.numero}`, actaRecepcionEsBorrador(acta), 'pdf')}"`, 'Cache-Control': 'private, no-store' },
   })

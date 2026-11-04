@@ -19,6 +19,7 @@ import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { detalleUsoConductor } from '@/domain/conductor-documentos'
 import { pk } from './picking-demo'
 import { DocumentosDemo } from './documentos-demo'
+import { modoPilotoDemo } from './piloto-estado'
 import type { RepositorioDocumentacion } from '../repositorio-documentacion'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
@@ -169,7 +170,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       lineas: guia.lineas.map((l) => ({ producto_codigo: l.productoCodigo, producto: l.producto, lote: l.lote, vence: l.vence, cantidad: l.cantidad })),
     }
     if (tipo === 'GUIA_ANULADA') Object.assign(payload, { caso: guia.casoAnulacion, motivo: guia.anuladaMotivo, baja_sunat: guia.bajaSunat, salida_confirmada: s.estado === 'CONFIRMADA', falta_guia_vigente: true, factura_anulacion_directa_dias: FACTURA_ANULACION_DIRECTA_DIAS, aviso: `El WMS no modifica la factura: Pedidos decide si se anula directo en Nubefact (hasta ${FACTURA_ANULACION_DIRECTA_DIAS} días después de emitida) o si corresponde una nota de crédito` })
-    ;(desp(e).eventosPedidos ??= []).push({ id: nuevoId(), tipo, estado: 'PENDIENTE', intentos: 0, creadoEn: ahora(), salidaId: s.id, guiaId: guia.id, payload })
+    ;(desp(e).eventosPedidos ??= []).push({ id: nuevoId(), tipo, estado: modoPilotoDemo(e) === 'si' ? 'RETENIDO_PILOTO' : 'PENDIENTE', intentos: 0, creadoEn: ahora(), salidaId: s.id, guiaId: guia.id, payload })
   }
 
   async datosGuia(salidaId: string): Promise<DatosGuia | null> {
@@ -372,6 +373,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
   async marcarEventoPedidos(id: string, enviado: boolean, error: string | undefined, actor: Actor): Promise<ResultadoAccion> {
     const e = estadoE()
     if (!puedeEmitirGuia(actor.roles)) return falla('No tienes permiso para enviar eventos a Pedidos')
+    if (enviado && modoPilotoDemo(e) === 'si') return falla('En el piloto no se envía nada a Pedidos: los avisos quedan retenidos')
     const ev = (desp(e).eventosPedidos ?? []).find((x) => x.id === id && x.estado === 'PENDIENTE')
     if (!ev) return { ok: true }
     ev.intentos += 1

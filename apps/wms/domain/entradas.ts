@@ -482,6 +482,7 @@ export type TipoAlerta =
   | 'BAJA_POR_AUTORIZAR' | 'BAJA_POR_TRASLADAR'
   | 'RETORNO_POR_AUTORIZAR' | 'DICTAMEN_POR_CONFIRMAR' | 'ORDEN_MANUAL_UNIDA'
   | 'PEDIDO_CANCELADO' | 'DEVOLUCION_PICKING'
+  | 'OC_CAMBIADA'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
 
@@ -513,6 +514,7 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   ORDEN_MANUAL_UNIDA: 'El pedido llegó y se unió a una orden manual',
   PEDIDO_CANCELADO: 'Pedido cancelado en Pedidos',
   DEVOLUCION_PICKING: 'Lo picado por devolver a su ubicación',
+  OC_CAMBIADA: 'La orden de compra cambió en Compras',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -554,6 +556,8 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   // SA-3: el Jefe de Transporte se entera de la cancelación; el Jefe de Almacén coordina a quien devuelve y a quien verifica.
   PEDIDO_CANCELADO: 'jefe_transporte',
   DEVOLUCION_PICKING: 'jefe_almacen',
+  // Piloto (0038): Compras cambió (o borró) una orden que el WMS ya copió; Sandra prepara las solicitudes de ingreso con esa OC.
+  OC_CAMBIADA: 'asistente_dt',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {

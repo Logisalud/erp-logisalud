@@ -10,6 +10,9 @@ export interface EntornoDemo {
   WMS_DEMO_LOCAL?: string
   /** La ruta de la cuenta DEMO de Nubefact (solo Preview, D-167). Su valor nunca se imprime ni se registra: aquí solo importa si existe. */
   NUBEFACT_RUTA?: string
+  /** A.2: en producción la app solo arranca con una de estas dos. `WMS_MODO_PILOTO=1` = piloto de noviembre; `WMS_GO_LIVE=1` = producción real (diciembre). */
+  WMS_MODO_PILOTO?: string
+  WMS_GO_LIVE?: string
 }
 
 export function leerEntorno(): EntornoDemo {
@@ -19,6 +22,8 @@ export function leerEntorno(): EntornoDemo {
     WMS_DEMO: process.env.WMS_DEMO,
     WMS_DEMO_LOCAL: process.env.WMS_DEMO_LOCAL,
     NUBEFACT_RUTA: process.env.NUBEFACT_RUTA,
+    WMS_MODO_PILOTO: process.env.WMS_MODO_PILOTO,
+    WMS_GO_LIVE: process.env.WMS_GO_LIVE,
   }
 }
 
@@ -31,15 +36,28 @@ export function esProduccion(e: EntornoDemo = leerEntorno()): boolean {
   return !!e.VERCEL && e.VERCEL_ENV !== 'preview' && e.VERCEL_ENV !== 'development'
 }
 
-/** Falla cerrada: producción con una bandera de demostración puesta no arranca. Tampoco arranca con la ruta de la cuenta DEMO de Nubefact (D-167): esa cuenta no envía a SUNAT. */
+/**
+ * Falla cerrada: producción con una bandera de demostración puesta no arranca (la regla «producción rechaza demo» no se debilita). Además, en producción la app se niega a
+ * arrancar salvo que diga qué es: `WMS_MODO_PILOTO=1` (piloto) o `WMS_GO_LIVE=1` (producción real), nunca las dos. `NUBEFACT_RUTA` (la cuenta DEMO de Nubefact, que no envía a
+ * SUNAT) solo se permite en producción con `WMS_MODO_PILOTO=1`; con `WMS_GO_LIVE=1` se vuelve a rechazar. Las variables son de entorno (no de la base) para que nadie las cambie desde la aplicación.
+ */
 export function verificarDemoSeguro(e: EntornoDemo = leerEntorno()): void {
-  if (esProduccion(e) && hayBandera(e)) {
+  if (!esProduccion(e)) return
+  if (hayBandera(e)) {
     throw new Error(
       'El modo demostración no puede estar activo en producción. Quita WMS_DEMO / WMS_DEMO_LOCAL del entorno de producción.',
     )
   }
-  if (esProduccion(e) && (e.NUBEFACT_RUTA ?? '').trim() !== '') {
-    throw new Error('NUBEFACT_RUTA es solo para Preview (cuenta DEMO de Nubefact, no envía a SUNAT). Quítala del entorno de producción.')
+  const piloto = e.WMS_MODO_PILOTO === '1'
+  const goLive = e.WMS_GO_LIVE === '1'
+  if (piloto && goLive) {
+    throw new Error('WMS_MODO_PILOTO y WMS_GO_LIVE no pueden estar puestas a la vez en producción: deja solo una (piloto o producción real).')
+  }
+  if (!piloto && !goLive) {
+    throw new Error('En producción el WMS no arranca sin decir qué es: pon WMS_MODO_PILOTO=1 (piloto) o WMS_GO_LIVE=1 (producción real) en el entorno de producción.')
+  }
+  if (goLive && (e.NUBEFACT_RUTA ?? '').trim() !== '') {
+    throw new Error('NUBEFACT_RUTA es solo para el piloto o la Preview (cuenta DEMO de Nubefact, no envía a SUNAT). Quítala del entorno de producción real.')
   }
 }
 

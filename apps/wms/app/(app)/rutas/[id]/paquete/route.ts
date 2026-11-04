@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { puedeImprimirPaquete } from '@/domain/documentacion'
 import { repositorio } from '@/services/repositorio-actual'
@@ -16,6 +17,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (ids.length === 0) return new NextResponse('La ruta todavía no tiene pedidos con salida.', { status: 404 })
   const paquetes = (await Promise.all(ids.map((id) => repo.paqueteSalida(id)))).filter((p): p is NonNullable<typeof p> => !!p)
   const docs = (await repo.panoramaDocumentos()).documentos
-  const pdf = await armarPaquetePdf(paquetes, (id) => docs.find((d) => d.id === id)?.archivoRef)
+  const pdf = await marcarPiloto(await armarPaquetePdf(paquetes, (id) => docs.find((d) => d.id === id)?.archivoRef))
   return new NextResponse(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Paquete ruta.pdf"`, 'Cache-Control': 'private, no-store' } })
 }

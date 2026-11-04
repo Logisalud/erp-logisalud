@@ -30,6 +30,16 @@ export async function anularSolicitudAccion(id: string, motivo: string): Promise
   return repositorio().anularSolicitud(id, motivo, await quien())
 }
 
+// ── Órdenes de compra del piloto (0038): el WMS solo lee Compras y guarda copias ────────────────────
+
+export async function sincronizarOcsAccion(): Promise<ResultadoAccion> {
+  const r = await repositorio().sincronizarOcs(await quien())
+  if (!r.ok) return r
+  const x = r.resumen
+  const partes = [x.nuevas ? `${x.nuevas} ${x.nuevas === 1 ? 'orden copiada por primera vez' : 'órdenes copiadas por primera vez'}` : '', x.cambiadas ? `${x.cambiadas} ${x.cambiadas === 1 ? 'orden cambió' : 'órdenes cambiaron'} (versión nueva y alerta para Sandra)` : '', x.eliminadas ? `${x.eliminadas} ya no ${x.eliminadas === 1 ? 'existe' : 'existen'} en Compras` : ''].filter(Boolean)
+  return { ok: true, mensaje: `Revisamos ${x.revisadas} ${x.revisadas === 1 ? 'orden' : 'órdenes'}: ${partes.length ? partes.join('; ') : 'ninguna cambió'}.` } as ResultadoAccion
+}
+
 // ── Recepción física ────────────────────────────────────────────────────────
 
 export async function iniciarRecepcionAccion(id: string): Promise<ResultadoAccion> {

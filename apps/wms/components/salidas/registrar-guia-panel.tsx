@@ -6,6 +6,7 @@ import { registrarGuiaPanelAccion } from '@/app/acciones-picking'
 import { ESTADOS_GUIA_PANEL, ETIQUETA_ESTADO_PANEL, validarRegistroGuiaPanel, type EstadoGuiaPanel } from '@/domain/guia-electronica'
 import { mesAnio } from '@/domain/salidas'
 import type { LineaGuia } from '@/domain/documentacion'
+import { TEXTO_PEDIDOS_RETENIDO } from '@/domain/modo-piloto'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 
@@ -70,7 +71,7 @@ export function RegistrarGuiaPanel({ salidaId, hoy, lineas, alRegistrar }: { sal
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" className="btn-primary" disabled={pendiente || incompleto} data-testid="registrar-guia-panel-boton"
           onClick={() => { setTocado(true); ejecutar(() => registrarGuiaPanelAccion(salidaId, registro), {
-            alExito: (r) => alRegistrar(`Guía ${r.numero} registrada. ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje y la carga.`),
+            alExito: (r) => alRegistrar(`Guía ${r.numero} registrada. ${r.pedidos === 'ENVIADO' ? 'Pedidos ya tiene el número y los lotes.' : r.pedidos === 'RETENIDO' ? TEXTO_PEDIDOS_RETENIDO : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'} Siguiente: completa el paquete documental, el embalaje y la carga.`),
           }) }}>
           <ExternalLink className="h-5 w-5" aria-hidden />{pendiente ? 'Registrando…' : 'Registrar guía emitida'}
         </button>

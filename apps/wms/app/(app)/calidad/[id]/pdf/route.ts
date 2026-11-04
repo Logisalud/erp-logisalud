@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { nombreArchivoActa, organolepticaEsBorrador } from '@/domain/borrador-documento'
 import { repositorio } from '@/services/repositorio-actual'
@@ -12,7 +13,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!ctx || ctx.roles.length === 0) return new NextResponse('Inicia sesión para ver el acta.', { status: 401 })
   const acta = await repositorio().obtenerOrganoleptica(params.id)
   if (!acta) return new NextResponse('No encontramos esa acta.', { status: 404 })
-  const pdf = await renderActaOrganoleptica(acta)
+  const pdf = await marcarPiloto(await renderActaOrganoleptica(acta))
   return new NextResponse(new Uint8Array(pdf), {
     headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${nombreArchivoActa(`Acta organoléptica ${acta.numero}`, organolepticaEsBorrador(acta), 'pdf')}"`, 'Cache-Control': 'private, no-store' },
   })

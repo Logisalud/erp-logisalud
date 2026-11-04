@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, FilePlus2, Inbox } from 'lucide-react'
+import { ArrowRight, FilePlus2, FileSearch, Inbox } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { ETIQUETA_TIPO_INGRESO, puedePrepararSolicitud } from '@/domain/entradas'
@@ -34,7 +34,10 @@ export default async function Entradas({ searchParams }: { searchParams: { f?: s
           <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Entradas</h1>
           <p className="mt-1 text-gray-700">Primero se anuncia con una solicitud; cuando llega, se verifica contra ella, se firma el acta y recién ahí nace el inventario.</p>
         </div>
+        <div className="flex flex-wrap gap-3">
+        <Link href="/entradas/oc" className="btn-secondary" data-testid="ocs-piloto-enlace"><FileSearch className="h-5 w-5" aria-hidden />Órdenes de compra del piloto</Link>
         {puedeCrear && <Link href="/entradas/nuevo" className="btn-primary" data-testid="nuevo-ingreso"><FilePlus2 className="h-5 w-5" aria-hidden />Nueva solicitud</Link>}
+        </div>
       </header>
 
       <nav aria-label="Filtrar entradas" className="flex flex-wrap gap-2">

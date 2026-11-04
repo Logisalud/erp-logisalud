@@ -1,0 +1,53 @@
+// Piloto (0038): banner «PILOTO, datos de prueba» en cada pantalla y la pantalla «Órdenes de compra del piloto». Corre en su propio servidor de la demo
+// (WMS_DEMO_MODO_PILOTO=1, puerto +4): ver playwright.config.ts y scripts/e2e-por-viewport.sh.
+import { expect, test } from '@playwright/test'
+import { capturar, entrarComo, sinDesborde } from './ayudas'
+
+test.describe.configure({ mode: 'serial' })
+
+test.describe('modo piloto', () => {
+  test('el banner está arriba en el login y en cada pantalla, no tapa nada y no desborda', async ({ page }, info) => {
+    await page.goto('/wms/login')
+    await expect(page.getByTestId('banner-piloto')).toContainText('PILOTO, datos de prueba')
+    await sinDesborde(page)
+    await entrarComo(page, 'jefe_transporte')
+    for (const ruta of ['/wms', '/wms/entradas', '/wms/salidas', '/wms/kardex', '/wms/alertas']) {
+      await page.goto(ruta)
+      const b = page.getByTestId('banner-piloto')
+      await expect(b).toBeVisible()
+      await expect(b).toContainText('PILOTO, datos de prueba')
+      const caja = (await b.boundingBox())!
+      expect(caja.y).toBeGreaterThanOrEqual(0)
+      expect(caja.height).toBeLessThanOrEqual(40)
+      // el banner DEMO queda arriba y el del piloto justo debajo (no se pisan)
+      const demo = (await page.getByTestId('banner-demo').boundingBox())!
+      expect(caja.y).toBeGreaterThanOrEqual(demo.y + demo.height - 1)
+      await sinDesborde(page)
+    }
+    await page.goto('/wms/entradas')
+    await capturar(page, info, 'modo-piloto-banner')
+  })
+
+  test('«Órdenes de compra del piloto»: lista, revisar Compras con resultado y qué sigue, y la versión queda en 1', async ({ page }, info) => {
+    await entrarComo(page, 'asistente_dt')
+    await page.goto('/wms/entradas')
+    await page.getByTestId('ocs-piloto-enlace').click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Órdenes de compra del piloto')
+    await expect(page.getByTestId('oc-situacion').first()).toHaveText('Sin copiar todavía')
+    await sinDesborde(page)
+    await capturar(page, info, 'ocs-piloto-sin-copia')
+    await page.getByTestId('ocs-revisar').click()
+    await expect(page.getByTestId('ocs-exito')).toContainText('copiadas por primera vez')
+    await expect(page.getByTestId('ocs-exito')).toContainText('Siguiente')
+    await expect(page.getByTestId('oc-situacion').first()).toHaveText('Copia al día')
+    await sinDesborde(page)
+    await capturar(page, info, 'ocs-piloto-copiadas')
+  })
+
+  test('quien solo mira (auditoría) ve la lista sin botón de revisar', async ({ page }) => {
+    await entrarComo(page, 'auditoria_lectura')
+    await page.goto('/wms/entradas/oc')
+    await expect(page.getByTestId('ocs-piloto')).toBeVisible()
+    await expect(page.getByTestId('ocs-revisar')).toHaveCount(0)
+  })
+})

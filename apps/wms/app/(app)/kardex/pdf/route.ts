@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { filtroDesdeUrl } from '@/lib/filtro-kardex'
 import { repositorio } from '@/services/repositorio-actual'
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
   const [filas, p, par] = await Promise.all([repo.kardex(filtro), repo.panorama(), repo.parametrosInventario()])
   const prod = p.productos.find((x) => x.id === filtro.productoId)
   const nombre = prod ? `${prod.codigo} · ${prod.descripcion}` : 'Producto'
-  const pdf = await renderKardex(filas, filtro, nombre, par.kardexCodigoFormato)
+  const pdf = await marcarPiloto(await renderKardex(filas, filtro, nombre, par.kardexCodigoFormato))
   return new NextResponse(new Uint8Array(pdf), {
     headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Kardex ${prod?.codigo ?? ''}.pdf"`, 'Cache-Control': 'private, no-store' },
   })

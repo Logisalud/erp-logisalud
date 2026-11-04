@@ -57,3 +57,9 @@ Antes de corregir, reproduzco cada error en demo y en la base de pruebas y te di
 
 ## Pendientes que necesitan tu decisión
 1. Fecha de la ventana (propuesta: jueves 6-nov). 2. Aprobar A.2 (variables, guarda y `vercel.json`). 3. Aprobar la propuesta para Compras (trigger de borrado). 4. Aprobar la lista de reinicio y decidir `audit_events`. 5. Orden de construcción. 6. Mercadería vs «bien» en las OC y cómo se asigna el propietario.
+
+## Avance de B.1 y de la propuesta para Compras (rama `feat/wms-piloto`, migración 0038, sin aplicar)
+- Hecho en el WMS: copia inmutable de cada OC (`wms.oc_versiones`, solo se agregan filas), alerta `OC_CAMBIADA`, pantalla «Órdenes de compra del piloto» y un test que garantiza que el WMS no escribe en Compras. **Hallazgo:** el WMS sí escribe hoy en `catalogo.productos` (alta y corrección de productos): decisión PIL-8, pendiente tuya.
+- **Propuesta para Compras, sin aplicar:** `docs/wms/piloto/propuesta-compras-borrado-oc.sql` — trigger BEFORE DELETE en `ordenes_compra` y `ordenes_compra_items` que rechaza borrar si la OC tiene copia o solicitud en el WMS, y que solo deja borrar borradores. Hoy `authenticated` tiene DELETE y no hay triggers.
+- Durante el piloto «recibido según almacén» no aparece en Compras (Compras no lee nada del WMS) y el WMS no escribe `cantidad_recibida`: ambos quedan cubiertos por el test.
+- Pendiente tuyo: el botón de guías contra la cuenta DEMO real de Nubefact (sin credenciales aquí; listo `apps/wms/e2e-preview/nubefact-preview.spec.ts` y el workflow).

@@ -3,6 +3,8 @@ import { Oswald, Poppins } from 'next/font/google'
 import { modoDemoActivo } from '@/lib/demo'
 import { cookies } from 'next/headers'
 import { BannerDemo } from '@/components/banner-demo'
+import { BannerPiloto } from '@/components/banner-piloto'
+import { modoPilotoActivo } from '@/lib/modo-piloto'
 import { COOKIE_ROL_DEMO, personaDemoDesdeCookie } from '@/lib/sesion-demo'
 import './globals.css'
 
@@ -29,14 +31,16 @@ export const viewport: Viewport = { width: 'device-width', initialScale: 1 }
 const CONTRATO =
   '<!-- WMS Logisalud · modo Operar · mundo de marca heredado · estructura: capas primero (el mapa responde por capas; la leyenda lleva los números) · estado = texto + ícono + color · momento: buscar y ver iluminarse las ubicaciones -->'
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const demo = modoDemoActivo()
+  const piloto = await modoPilotoActivo()
   const rolDemo = demo ? personaDemoDesdeCookie(cookies().get(COOKIE_ROL_DEMO)?.value)?.clave ?? null : null
   return (
     <html lang="es" className={`${oswald.variable} ${poppins.variable}`}>
-      <body className={`min-h-screen bg-gray-50 font-body text-gray-900 ${demo ? 'con-banner' : ''}`}>
+      <body className={`min-h-screen bg-gray-50 font-body text-gray-900 ${demo ? 'con-banner' : ''} ${piloto ? 'con-banner-piloto' : ''}`}>
         <span hidden dangerouslySetInnerHTML={{ __html: CONTRATO }} />
         {demo && <BannerDemo rolActual={rolDemo} />}
+        {piloto && <BannerPiloto bajoDemo={demo} />}
         {children}
       </body>
     </html>

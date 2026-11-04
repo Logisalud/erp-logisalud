@@ -326,6 +326,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'validar_producto',
     // Piloto (0036): registrar una guía emitida en el panel de Nubefact
     'registrar_guia_panel',
+    // Piloto (0038): copia inmutable de las órdenes de compra (leen Compras; solo escriben wms.oc_versiones)
+    'sincronizar_oc', 'sincronizar_ocs_abiertas',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {
