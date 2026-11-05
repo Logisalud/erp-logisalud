@@ -15,7 +15,9 @@
  *     de las letras que siguen sin pagarse. Lo que canceló la factura fueron
  *     las letras pagadas.
  *  3. CONTADO anterior al 2026-08-11: se asume cobrado al despacho, sin pago
- *     registrado.
+ *     registrado. Ojo: esta rama solo puede explicar que FALTE cobro. Si
+ *     sobra —se pagó de más, o llegó una nota de crédito después del pago—
+ *     no es el despacho lo que lo explica, y decirlo esconde el sobrante.
  *  4. Saldo de hasta S/ 0.09: se da por pagado (tolerancia de redondeo).
  *  5. Factorizada: la factura entera se vendió a una empresa de factoring
  *     (ver `factoring_operaciones`/`factoring_facturas`); el saldo baja a 0
@@ -54,6 +56,10 @@ export interface EntradaDesglose {
   incobrable?: boolean;
   /** Por qué se dio de baja. Va a la vista: es toda la explicación que hay. */
   incobrableMotivo?: string | null;
+  /** Fecha del último pago registrado, si hay alguno. */
+  fechaUltimoPago?: string | null;
+  /** Fecha de emisión de la nota de crédito más nueva, si hay alguna. */
+  fechaUltimaNc?: string | null;
 }
 
 export interface Desglose {
@@ -107,7 +113,14 @@ export function calcularDesglose(e: EntradaDesglose): Desglose {
       esProblema: false,
     };
   }
-  if (contadoCobradoAlDespacho) {
+  // Solo cuando falta cobro por explicar. La regla del contado viejo SUMA un
+  // cobro que no está registrado; no puede explicar un sobrante. Sin esta
+  // condición se tragaba los pagos de más de 18 facturas —S/ 69.527,87— y
+  // las mostraba como "cobrado al despacho" teniendo su pago registrado:
+  // FFF1-1879 tenía su pago de S/ 180,00 del 22/07 y una nota de crédito de
+  // S/ 48,00 de septiembre, y la pantalla decía que se había cobrado al
+  // despacho. Lo levantó el usuario mirando esa factura.
+  if (contadoCobradoAlDespacho && sinExplicar > 0) {
     return {
       sinExplicar,
       etiqueta: 'Cobrado al despacho (contado anterior al 11/08/2026)',
@@ -131,14 +144,32 @@ export function calcularDesglose(e: EntradaDesglose): Desglose {
   }
   // Cobrado de más: los pagos superan lo que la factura pedía. v_cobros corta
   // el saldo en cero (`greatest(0, …)`), así que el exceso no se veía en
-  // ningún lado. Sigue marcado para revisar — casi siempre es un pago
-  // imputado a la factura equivocada.
+  // ningún lado.
   if (sinExplicar < 0 && e.saldoPendiente === 0) {
+    // La nota de crédito llegó DESPUÉS de que el cliente pagara. No es un
+    // error de imputación: es plata que se cobró y después se le acreditó,
+    // y que hoy está a su favor. Es el caso de 7 de las 18 facturas que
+    // antes decían "cobrado al despacho", entre ellas FFF1-1704 con
+    // S/ 66.546,92. Hay que devolvérsela o aplicarla a otra factura, así
+    // que se marca igual para revisar, pero con el motivo correcto: quien
+    // lee tiene que saber que el pago está y que lo que sobra es el crédito.
+    const ncDespuesDelPago =
+      e.totalNc > 0 && !!e.fechaUltimaNc && !!e.fechaUltimoPago && e.fechaUltimaNc > e.fechaUltimoPago;
+
+    if (ncDespuesDelPago) {
+      return {
+        sinExplicar,
+        etiqueta: 'Nota de crédito posterior al pago — quedó a favor del cliente',
+        esProblema: true,
+        nota: 'El cliente ya había pagado la factura completa cuando se emitió la nota de crédito. Ese saldo a favor hay que devolvérselo o aplicarlo a otra factura.',
+      };
+    }
+
     return {
       sinExplicar,
       etiqueta: 'Pagado de más (el saldo no baja de cero)',
       esProblema: true,
-      nota: 'Los pagos registrados superan lo que la factura pedía. Casi siempre es un pago imputado a la factura equivocada.',
+      nota: 'Los pagos registrados superan lo que la factura pedía. Casi siempre es un pago imputado a la factura equivocada, o un pago redondeado hacia arriba.',
     };
   }
   return {
