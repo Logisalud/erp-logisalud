@@ -162,6 +162,11 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
   // factura y se edita, porque el cliente suele confirmar dos o tres días
   // más y esa es la fecha con la que trabaja la financiera.
   const [vencimientos, setVencimientos] = useState<Record<string, string>>({});
+  // El mismo vencimiento para todo el canje, arriba junto a la fecha. Es el
+  // caso normal —la entidad fija una fecha para la operación— y además es
+  // donde se lo busca: el campo por factura, metido adentro de la lista, no
+  // se encontraba.
+  const [vencimientoGeneral, setVencimientoGeneral] = useState('');
   const [retenciones, setRetenciones] = useState<Record<string, string>>({});
   const [fechaCanje, setFechaCanje] = useState(hoy());
   const [observaciones, setObservaciones] = useState('');
@@ -198,6 +203,7 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
       setSeleccionadas(new Set());
       setMontosCanje({});
       setVencimientos({});
+      setVencimientoGeneral('');
       setRetenciones({});
     })();
   }, [b.seleccionado]);
@@ -223,7 +229,7 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
         const { [f.id]: _omit, ...resto } = prev;
         return resto;
       }
-      return { ...prev, [f.id]: f.fecha_vencimiento ?? '' };
+      return { ...prev, [f.id]: vencimientoGeneral || f.fecha_vencimiento || '' };
     });
     setRetenciones(prev => {
       const { [f.id]: _omit, ...resto } = prev;
@@ -251,6 +257,11 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
       for (const id of seleccionadas) s[id] = fecha;
       return s;
     });
+  };
+
+  const cambiarVencimientoGeneral = (fecha: string) => {
+    setVencimientoGeneral(fecha);
+    aplicarVencimientoATodas(fecha);
   };
 
   const registrar = async () => {
@@ -289,7 +300,8 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
       // El canje se guardó aunque la retención haya fallado: se avisa, no se
       // esconde detrás del tilde verde.
       if (d.aviso) setErrMsg(d.aviso);
-      setSeleccionadas(new Set()); setMontosCanje({}); setVencimientos({}); setRetenciones({}); setObservaciones(''); b.limpiar();
+      setSeleccionadas(new Set()); setMontosCanje({}); setVencimientos({}); setVencimientoGeneral('');
+      setRetenciones({}); setObservaciones(''); b.limpiar();
       await cargarHistorial();
     } finally { setGuardando(false); }
   };
@@ -404,6 +416,15 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
               <label className="block text-xs text-gray-500 mb-1">Fecha del canje *</label>
               <input type="date" value={fechaCanje} onChange={e => setFechaCanje(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Vencimiento del factoring *</label>
+              <input type="date" value={vencimientoGeneral} onChange={e => cambiarVencimientoGeneral(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal" />
+              <p className="text-[11px] text-gray-400 mt-1">
+                El que toma la entidad financiera, que suele ser el de la factura más dos o tres días.
+                Se aplica a todas las facturas marcadas; si alguna vence distinto, se cambia en su fila.
+              </p>
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Observaciones (opcional)</label>
