@@ -37,3 +37,35 @@ export function formatearFechaProveedor(
   if (!anio || !mes || !dia) return valor
   return `${dia}/${mes}/${anio}`
 }
+
+/**
+ * El nombre de un período '2026-11' → 'Noviembre 2026'.
+ *
+ * El avance de ventas se guarda y se pide por período (`2026-10`,
+ * `2026-11`), que es inequívoco para la base e ilegible en una pestaña:
+ * nadie piensa "estoy mirando 2026-11", piensa "noviembre".
+ *
+ * Se arma con las partes del texto, por lo mismo que
+ * `formatearFechaProveedor`: `new Date('2026-11')` se interpreta en UTC y
+ * en hora de Perú cae en octubre.
+ */
+const MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+export function nombreDeMes(periodo: string): string {
+  const mes = Number(periodo.slice(5, 7))
+  return MESES[mes - 1] ?? periodo
+}
+
+export function anioDePeriodo(periodo: string): string {
+  return periodo.slice(0, 4)
+}
+
+/** 'Noviembre 2026'. */
+export function nombreDePeriodo(periodo: string): string {
+  const mes = MESES[Number(periodo.slice(5, 7)) - 1]
+  if (!mes) return periodo
+  return `${mes} ${anioDePeriodo(periodo)}`
+}
