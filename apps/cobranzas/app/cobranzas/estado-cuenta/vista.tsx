@@ -67,6 +67,12 @@ const fmtFecha = (s: string | null) => {
   return `${d}/${m}/${y}`;
 };
 
+/** 06/11 14:32 — de cuándo es el comentario, que cambia cómo se lee. */
+const fmtFechaHoraCorta = (iso: string) =>
+  new Date(iso).toLocaleString('es-PE', {
+    timeZone: 'America/Lima', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+
 const calcVencido   = (r: HasAging) => r.d0_7 + r.d8_15 + r.d16_30 + r.d31_60 + r.d61_mas;
 const calcMorosidad = (r: HasAging): number | null =>
   r.saldo_total <= 0 ? null : (calcVencido(r) / r.saldo_total) * 100;
@@ -93,7 +99,15 @@ const hoy = new Date().toISOString().slice(0, 10);
 
 // ---- Componente principal -------------------------------------------------
 
-export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarContado: boolean }) {
+interface Comentario {
+  comentario: string;
+  escrito_por: string | null;
+  actualizado_en: string;
+}
+
+export default function EstadoCuentaVista(
+  { puedeEditarContado, puedeComentar }: { puedeEditarContado: boolean; puedeComentar: boolean },
+) {
   const [vista, setVista]             = useState<Vista>('vendedores');
   const [resumen, setResumen]         = useState<VendedorResumen[]>([]);
   const [clientes, setClientes]       = useState<ClienteResumen[]>([]);
@@ -103,6 +117,61 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
   const [vendedorSel, setVendedorSel] = useState<VendedorResumen | null>(null);
   const [clienteSel, setClienteSel]   = useState<ClienteResumen | null>(null);
   const [clienteInfo, setClienteInfo] = useState<{ vendedor_nombre: string | null; vendedor_codigo: string | null; zona_nombre: string | null } | null>(null);
+
+  // Lo que se habló con el cliente. El del cliente vale para toda su
+  // cartera; el de cada factura, para esa factura sola.
+  const [comentarioCliente, setComentarioCliente] = useState<Comentario | null>(null);
+  const [comentariosDoc, setComentariosDoc] = useState<Record<string, Comentario>>({});
+  const [editando, setEditando] = useState<string | null>(null);  // 'cliente' | documento_id
+  const [borrador, setBorrador] = useState('');
+  const [guardandoCom, setGuardandoCom] = useState(false);
+  const [quienComenta, setQuienComenta] = useState('');
+
+  useEffect(() => {
+    const g = localStorage.getItem('registrado_por');
+    if (g) setQuienComenta(g);
+  }, []);
+
+  const cargarComentarios = useCallback(async (ruc: string) => {
+    try {
+      const res = await fetch(`/api/comentarios?cliente_ruc=${encodeURIComponent(ruc)}`, { cache: 'no-store' });
+      const d = await res.json();
+      setComentarioCliente(d.cliente ?? null);
+      setComentariosDoc(d.documentos ?? {});
+    } catch { /* un comentario que no carga no puede romper la cartera */ }
+  }, []);
+
+  const abrirEditor = (clave: string, actual: string) => { setEditando(clave); setBorrador(actual); };
+
+  const guardarComentario = async (clave: string) => {
+    if (!clienteSel) return;
+    setGuardandoCom(true);
+    try {
+      const esDelCliente = clave === 'cliente';
+      const res = await fetch('/api/comentarios', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(esDelCliente ? { cliente_ruc: clienteSel.cliente_ruc } : { documento_id: clave }),
+          comentario: borrador,
+          escrito_por: quienComenta.trim() || undefined,
+        }),
+      });
+      const d = await res.json();
+      if (d.error) { alert(d.error); return; }
+      if (quienComenta.trim()) localStorage.setItem('registrado_por', quienComenta.trim());
+      if (esDelCliente) {
+        setComentarioCliente(d.comentario ?? null);
+      } else {
+        setComentariosDoc(prev => {
+          const next = { ...prev };
+          if (d.comentario) next[clave] = d.comentario; else delete next[clave];
+          return next;
+        });
+      }
+      setEditando(null);
+    } finally { setGuardandoCom(false); }
+  };
   const [busqueda, setBusqueda]       = useState('');
   const [soloDeuda, setSoloDeuda]     = useState(true);
   const [cargando, setCargando]       = useState(true);
@@ -187,6 +256,7 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
         map[l.documento_id].push(l);
       }
       setLetrasMap(map);
+      void cargarComentarios(c.cliente_ruc);
       setVista('facturas');
     } catch (e) { setErrorMsg(String(e)); }
     finally     { setCargando(false); }
@@ -279,7 +349,7 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
     saldo:   facturas.reduce((a, f) => a + Number(f.saldo_pendiente),0),
   };
 
-  const COLS = 14;
+  const COLS = 15;
 
   return (
     <div className="min-h-screen bg-gray-50 font-poppins">
@@ -446,6 +516,68 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
               )}
             </div>
 
+            {/* Lo acordado con el cliente: vale para todas sus facturas, así
+                que va una sola vez y arriba, no repetido en cada fila. */}
+            <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <p className="text-xs uppercase tracking-wide text-gray-400">Comentario del cliente</p>
+                {puedeComentar && editando !== 'cliente' && (
+                  <button
+                    onClick={() => abrirEditor('cliente', comentarioCliente?.comentario ?? '')}
+                    className="text-xs text-logisalud-teal hover:underline font-medium"
+                  >
+                    {comentarioCliente ? 'Editar' : 'Agregar comentario'}
+                  </button>
+                )}
+              </div>
+
+              {editando === 'cliente' ? (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    value={borrador} onChange={e => setBorrador(e.target.value)} rows={2} autoFocus
+                    placeholder="Ej.: Cliente pagará 200 soles diarios"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                  />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="text" value={quienComenta} onChange={e => setQuienComenta(e.target.value)}
+                      placeholder="Tu nombre"
+                      className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm w-40"
+                    />
+                    <button
+                      onClick={() => guardarComentario('cliente')} disabled={guardandoCom}
+                      className="px-4 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                      style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
+                    >
+                      {guardandoCom ? 'Guardando…' : 'Guardar'}
+                    </button>
+                    <button onClick={() => setEditando(null)}
+                      className="px-4 py-1.5 rounded-lg text-sm text-gray-500 border border-gray-200 hover:bg-gray-50">
+                      Cancelar
+                    </button>
+                    {comentarioCliente && (
+                      <button
+                        onClick={() => { setBorrador(''); void guardarComentario('cliente'); }}
+                        className="text-xs text-gray-400 hover:text-red-600 ml-auto"
+                      >
+                        Borrar comentario
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : comentarioCliente ? (
+                <div className="mt-1">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{comentarioCliente.comentario}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {comentarioCliente.escrito_por ? `${comentarioCliente.escrito_por} · ` : ''}
+                    {fmtFechaHoraCorta(comentarioCliente.actualizado_en)}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-1 text-sm text-gray-400">Sin comentarios.</p>
+              )}
+            </div>
+
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
               <table className="w-full text-sm">
                 <thead>
@@ -464,6 +596,7 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
                     <th className="px-3 py-3 text-right">Días</th>
                     <th className="px-3 py-3 text-center">Rango</th>
                     <th className="px-3 py-3 text-center" style={{ color: '#4ABCC2' }}>Próx. Letra</th>
+                    <th className="px-3 py-3 text-left">Comentario</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -542,6 +675,20 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
                               <span className="text-xs text-gray-300">todas pagadas</span>
                             ) : null}
                           </td>
+                          <td className="px-3 py-2 text-xs align-top min-w-[12rem]">
+                            <ComentarioCelda
+                              clave={f.id}
+                              comentario={comentariosDoc[f.id] ?? null}
+                              puedeComentar={puedeComentar}
+                              editando={editando === f.id}
+                              borrador={borrador}
+                              guardando={guardandoCom}
+                              onAbrir={abrirEditor}
+                              onCambiar={setBorrador}
+                              onGuardar={guardarComentario}
+                              onCancelar={() => setEditando(null)}
+                            />
+                          </td>
                         </tr>
 
                         {expanded && (
@@ -567,7 +714,7 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
                     <td className="px-3 py-3 text-right text-orange-500">{fmt(totF.nd)}</td>
                     <td className="px-3 py-3 text-right text-blue-500">{fmt(totF.pagado)}</td>
                     <td className="px-3 py-3 text-right text-gray-900">{fmt(totF.saldo)}</td>
-                    <td colSpan={3} />
+                    <td colSpan={4} />
                   </tr>
                 </tfoot>
               </table>
@@ -580,6 +727,72 @@ export default function EstadoCuentaVista({ puedeEditarContado }: { puedeEditarC
 }
 
 // ---- Sub-componentes ------------------------------------------------------
+
+/**
+ * El comentario de una factura, dentro de su celda.
+ *
+ * Se edita en la misma fila y no en un modal: son notas de dos renglones
+ * que se escriben mientras se mira la tabla, y sacar al que cobra de la
+ * lista para escribir "paga el viernes" es más molesto que útil.
+ */
+function ComentarioCelda({
+  clave, comentario, puedeComentar, editando, borrador, guardando,
+  onAbrir, onCambiar, onGuardar, onCancelar,
+}: {
+  clave: string;
+  comentario: { comentario: string; escrito_por: string | null; actualizado_en: string } | null;
+  puedeComentar: boolean;
+  editando: boolean;
+  borrador: string;
+  guardando: boolean;
+  onAbrir: (clave: string, actual: string) => void;
+  onCambiar: (texto: string) => void;
+  onGuardar: (clave: string) => void;
+  onCancelar: () => void;
+}) {
+  if (editando) {
+    return (
+      <div className="space-y-1.5">
+        <textarea
+          value={borrador} onChange={e => onCambiar(e.target.value)} rows={2} autoFocus
+          placeholder="Ej.: queda en pagar el viernes"
+          className="w-full px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+        />
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => onGuardar(clave)} disabled={guardando}
+            className="px-2 py-1 rounded text-xs font-medium text-white disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
+          >
+            {guardando ? '…' : 'Guardar'}
+          </button>
+          <button onClick={onCancelar} className="px-2 py-1 rounded text-xs text-gray-500 border border-gray-200 hover:bg-gray-50">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!comentario) {
+    return puedeComentar ? (
+      <button onClick={() => onAbrir(clave, '')} className="text-xs text-gray-300 hover:text-logisalud-teal">
+        + comentario
+      </button>
+    ) : <span className="text-xs text-gray-300">—</span>;
+  }
+
+  return (
+    <div className={puedeComentar ? 'cursor-pointer group' : ''}
+         onClick={puedeComentar ? () => onAbrir(clave, comentario.comentario) : undefined}
+         title={puedeComentar ? 'Clic para editar' : undefined}>
+      <p className="text-xs text-gray-700 whitespace-pre-wrap group-hover:text-logisalud-teal">{comentario.comentario}</p>
+      <p className="text-[10px] text-gray-400 mt-0.5">
+        {comentario.escrito_por ? `${comentario.escrito_por} · ` : ''}{fmtFechaHoraCorta(comentario.actualizado_en)}
+      </p>
+    </div>
+  );
+}
 
 interface AgingFila {
   key: string; col1: string; col2: string;
