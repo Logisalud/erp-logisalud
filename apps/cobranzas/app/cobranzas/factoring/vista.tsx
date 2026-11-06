@@ -180,6 +180,40 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
   const [anulandoId, setAnulandoId] = useState<string | null>(null);
   const [motivo, setMotivo] = useState('');
 
+  // Completar el vencimiento de un canje ya registrado. Los de antes del
+  // 05/11/2026 quedaron sin esa fecha porque el campo no existía, y se
+  // necesita igual: es la que tomó la entidad financiera.
+  const [editandoVenc, setEditandoVenc] = useState<string | null>(null);
+  const [vencEdit, setVencEdit] = useState<Record<string, string>>({});
+  const [guardandoVenc, setGuardandoVenc] = useState(false);
+
+  const abrirVencimientos = (c: Canje) => {
+    setEditandoVenc(c.id);
+    setVencEdit(Object.fromEntries(
+      c.facturas.map(f => [f.documento_id, f.fecha_vencimiento ?? f.fecha_vencimiento_factura ?? ''])
+    ));
+  };
+
+  const guardarVencimientos = async (c: Canje) => {
+    setGuardandoVenc(true);
+    try {
+      const res = await fetch(`/api/factoring/canjes/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vencimientos: c.facturas.map(f => ({
+            documento_id: f.documento_id,
+            fecha_vencimiento: vencEdit[f.documento_id] || null,
+          })),
+        }),
+      });
+      const d = await res.json();
+      if (d.error) { alert(d.error); return; }
+      setEditandoVenc(null);
+      await cargarHistorial();
+    } finally { setGuardandoVenc(false); }
+  };
+
   useEffect(() => {
     const g = localStorage.getItem('registrado_por');
     if (g) setRegistradoPor(g);
@@ -478,9 +512,57 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                       f.estado === 'ingresada' ? 'bg-green-100 text-green-700' : f.estado === 'anulada' ? 'bg-gray-100 text-gray-400' : 'bg-amber-100 text-amber-700'
                     }`}>
                       {f.comprobante} · {fmt(f.monto_canje)}
+                      {f.fecha_vencimiento
+                        ? <> · vence {fmtFecha(f.fecha_vencimiento)}</>
+                        : <span className="opacity-60"> · sin vencimiento</span>}
                     </span>
                   ))}
                 </div>
+                {editandoVenc === c.id ? (
+                  <div className="mt-3 p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-2">
+                    <p className="text-xs text-gray-500">
+                      El vencimiento que tomó la entidad financiera. Se propone el de cada factura;
+                      cambialo si el contrato quedó con otra fecha.
+                    </p>
+                    {c.facturas.map(f => (
+                      <div key={f.documento_id} className="flex items-center justify-between gap-3 flex-wrap">
+                        <span className="font-mono text-xs text-gray-600">{f.comprobante}</span>
+                        <input
+                          type="date"
+                          value={vencEdit[f.documento_id] ?? ''}
+                          onChange={e => setVencEdit(prev => ({ ...prev, [f.documento_id]: e.target.value }))}
+                          className="px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                        />
+                      </div>
+                    ))}
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => guardarVencimientos(c)}
+                        disabled={guardandoVenc}
+                        className="px-4 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                        style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
+                      >
+                        {guardandoVenc ? 'Guardando…' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={() => setEditandoVenc(null)}
+                        className="px-4 py-1.5 rounded-lg text-sm text-gray-500 border border-gray-200 hover:bg-gray-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => abrirVencimientos(c)}
+                    className="mt-3 mr-4 text-xs text-logisalud-teal hover:underline font-medium"
+                  >
+                    {c.facturas.some(f => !f.fecha_vencimiento)
+                      ? 'Completar vencimiento'
+                      : 'Editar vencimiento'}
+                  </button>
+                )}
+
                 {puedeAnular && !c.anulado && (
                   anulandoId === c.id ? (
                     <div className="mt-3 p-3 rounded-lg bg-red-50/40 border border-red-100 space-y-2">
