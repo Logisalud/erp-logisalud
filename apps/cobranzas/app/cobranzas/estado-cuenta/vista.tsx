@@ -578,7 +578,7 @@ export default function EstadoCuentaVista(
               )}
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="tabla-scroll rounded-xl border border-gray-200 bg-white shadow-sm">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-xs uppercase tracking-wide text-gray-500 bg-gray-50">
@@ -675,7 +675,7 @@ export default function EstadoCuentaVista(
                               <span className="text-xs text-gray-300">todas pagadas</span>
                             ) : null}
                           </td>
-                          <td className="px-3 py-2 text-xs align-top min-w-[12rem]">
+                          <td className="px-3 py-2 text-xs align-top min-w-[10rem]">
                             <ComentarioCelda
                               clave={f.id}
                               comentario={comentariosDoc[f.id] ?? null}
@@ -823,7 +823,7 @@ function AgingTable({ titulo, col1Header, col2Header, filas, totales }: {
   return (
     <div>
       <h2 className="font-oswald text-lg text-gray-700 mb-4">{titulo}</h2>
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="tabla-scroll rounded-xl border border-gray-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-xs uppercase tracking-wide text-gray-500 bg-gray-50">
