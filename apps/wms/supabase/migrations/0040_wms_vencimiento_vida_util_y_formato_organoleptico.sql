@@ -227,20 +227,23 @@ end $$;
 
 alter table wms.producto_regulatorio add column if not exists sin_material_envase boolean not null default false;
 
+-- Parche sobre la `editar_regulatorio` que exista (la de la 0006, o la de la 0008 si ya se aplicó); no depende del texto de la 0008. Re-ejecutable.
 do $$ begin
-  perform wms._parchar_funcion('editar_regulatorio', $q$'condicion_almacenamiento'];$q$, $q$'condicion_almacenamiento', 'sin_material_envase'];$q$);
-  perform wms._parchar_funcion('editar_regulatorio', $q$    v_despues := nullif(trim(p_datos->>k), '');$q$,
-    $q$    v_despues := nullif(trim(p_datos->>k), '');
+  if position('sin_material_envase' in pg_get_functiondef('wms.editar_regulatorio(uuid, jsonb, text)'::regprocedure)) = 0 then
+    perform wms._parchar_funcion('editar_regulatorio', $q$'condicion_almacenamiento'];$q$, $q$'condicion_almacenamiento', 'sin_material_envase'];$q$);
+    perform wms._parchar_funcion('editar_regulatorio', $q$    v_despues := nullif(trim(p_datos->>k), '');$q$,
+      $q$    v_despues := nullif(trim(p_datos->>k), '');
     if k = 'sin_material_envase' then
       if not wms.tiene_rol('direccion_tecnica') then
         raise exception 'Solo Dirección Técnica marca un producto como «sin material de envase»' using errcode = '42501';
       end if;
       v_despues := case when lower(coalesce(v_despues, 'false')) in ('true', 'si', 'sí', 't', '1') then 'true' else 'false' end;
     end if;$q$);
-  perform wms._parchar_funcion('editar_regulatorio', $q$    elsif k = 'rs_vence' then$q$,
-    $q$    elsif k = 'sin_material_envase' then
+    perform wms._parchar_funcion('editar_regulatorio', $q$k = 'rs_vence' then$q$,
+      $q$k = 'sin_material_envase' then
       execute 'update wms.producto_regulatorio set sin_material_envase = $1::boolean where producto_id = $2' using v_despues, p_producto;
     elsif k = 'rs_vence' then$q$);
+  end if;
 end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────

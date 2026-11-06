@@ -1,8 +1,9 @@
 // Piloto B.1: el WMS solo LEE Compras. Ninguna función del esquema `wms`, ningún disparador, ningún grant y ninguna consulta de la aplicación escribe, actualiza ni borra tablas
 // de `compras.*` (ni de `almacen.*`, donde Compras guarda sus recepciones) ni de `catalogo.*`. Tampoco el WMS escribe `cantidad_recibida`: la integración de lo recibido es manual.
 //
-// Excepción conocida y documentada (decisión pendiente PIL-8): `wms.crear_producto` da de alta un producto en `catalogo.productos` y `wms.editar_regulatorio` corrige su presentación y
-// principio activo. Es una lista CERRADA: cualquier otra escritura nueva hace fallar este test.
+// PIL-8 (DECIDIDO por Sebas, 4-nov): los productos los crea Compras y el WMS los completa. En modo piloto el WMS NO escribe fuera de su esquema (`wms.crear_producto` se rechaza y
+// `wms.editar_regulatorio` rechaza presentación y principio activo; ver tests/db/productos-por-completar.test.ts). En el TEXTO de las funciones solo queda la escritura que se
+// reactiva en el go-live (D-38): `crear_producto` y, con la 0008 al final, `editar_regulatorio`. Lista CERRADA.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -12,9 +13,8 @@ const RAIZ = resolve(__dirname, '../..')
 const MONOREPO = resolve(RAIZ, '../..')
 const ESCRITURA = /\b(insert\s+into|update|delete\s+from|truncate(?:\s+table)?|merge\s+into)\s+(?:only\s+)?(compras|almacen|catalogo)\s*\.\s*([a-z_]+)/gi
 /** Las únicas escrituras permitidas, por función: «operación esquema.tabla». */
-const EXCEPCIONES: Record<string, string[]> = {
+const EXCEPCIONES_GO_LIVE: Record<string, string[]> = {
   crear_producto: ['insert into catalogo.productos'],
-  editar_regulatorio: ['update catalogo.productos'],
 }
 const sinComentarios = (sql: string) => sql.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
 const normalizar = (op: string, esquema: string, tabla: string) => `${op.toLowerCase().replace(/\s+/g, ' ')} ${esquema.toLowerCase()}.${tabla.toLowerCase()}`
@@ -40,7 +40,8 @@ describe('el WMS solo lee Compras (base de datos)', () => {
       const e = [...new Set(escrituras(f.src))]
       if (e.length) halladas[f.n] = [...new Set([...(halladas[f.n] ?? []), ...e])]
     }
-    expect(halladas).toEqual(EXCEPCIONES)
+    // En la ventana del piloto (sin la 0008) `editar_regulatorio` ni siquiera tiene la escritura: la 0008 va al final.
+    expect(halladas).toEqual(EXCEPCIONES_GO_LIVE)
     // nada sobre Compras o Almacén: la excepción es solo del catálogo
     for (const ops of Object.values(halladas)) for (const op of ops) expect(op).toMatch(/ catalogo\.productos$/)
   })
@@ -51,10 +52,10 @@ describe('el WMS solo lee Compras (base de datos)', () => {
     expect(r.rows.map((x) => x.n)).toEqual([])
   })
 
-  it('ni un disparador del WMS sobre tablas de Compras o Almacén; en el catálogo solo el que protege presentación y principio activo', async () => {
+  it('ni un disparador del WMS sobre tablas de Compras, Almacén o el catálogo (el que protege presentación y principio activo es de la 0008, que va al final)', async () => {
     const r = await base.admin.query(`select c.relnamespace::regnamespace::text esquema, c.relname tabla, t.tgname n from pg_trigger t join pg_class c on c.oid = t.tgrelid
       where not t.tgisinternal and c.relnamespace::regnamespace::text in ('compras', 'almacen', 'catalogo')`)
-    expect(r.rows.map((x) => `${x.esquema}.${x.tabla}:${x.n}`)).toEqual(['catalogo.productos:proteger_presentacion_principio'])
+    expect(r.rows.map((x) => `${x.esquema}.${x.tabla}:${x.n}`)).toEqual([])
   })
 
   it('ningún rol del WMS (authenticated, anon) tiene privilegios de escritura sobre compras ni almacen', async () => {

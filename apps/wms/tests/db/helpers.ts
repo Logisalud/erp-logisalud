@@ -83,7 +83,7 @@ export interface BaseDePrueba {
   cerrar: () => Promise<void>
 }
 
-export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigracion0012?: boolean; sinMigracion0015?: boolean; piloto?: boolean } = {}): Promise<BaseDePrueba> {
+export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigracion0012?: boolean; sinMigracion0015?: boolean; piloto?: boolean; con0008?: boolean } = {}): Promise<BaseDePrueba> {
   const nombre = `wms_test_${randomUUID().slice(0, 8).replace(/-/g, '')}`
   const raiz = new Client({ connectionString: url })
   await raiz.connect()
@@ -108,7 +108,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   await admin.query(SQL.m0005())
   await admin.query(SQL.m0006())
   await admin.query(SQL.m0007())
-  await admin.query(SQL.m0008())
+  // La 0008 (D-38) NO va en la ventana del piloto: se aplica al final, en el go-live (`con0008: true` la aplica al final, como en esa ruta).
   await admin.query(SQL.m0009())
   await admin.query(SQL.m0011())
   if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()); await admin.query(SQL.m0014()); await admin.query(SQL.m0016()); await admin.query(SQL.m0017()); await admin.query(SQL.m0018()); await admin.query(SQL.m0019()); await admin.query(SQL.m0020()); await admin.query(SQL.m0021()); await admin.query(SQL.m0022()); await admin.query(SQL.m0023()); await admin.query(SQL.m0024()) }
@@ -132,6 +132,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   // La 0038 siembra modo_piloto = si (retiene los avisos a Pedidos). Las pruebas de siempre corren como go-live; las del piloto lo encienden con `piloto: true`.
   if (!opciones.sinMigracion0012 && !opciones.piloto) await admin.query(`update wms.parametros set valor = 'no' where clave = 'modo_piloto'`)
   if (opciones.conSeed !== false) await admin.query(SQL.seed())
+  if (opciones.con0008) await admin.query(SQL.m0008())   // ruta del go-live: la 0008 va DESPUÉS de todas las demás y no debe borrar lo posterior
 
   const personas = {
     katia: { id: randomUUID(), rol: 'direccion_tecnica' },

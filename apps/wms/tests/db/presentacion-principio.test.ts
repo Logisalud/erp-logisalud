@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type BaseDePrueba, crearBaseDePrueba, falla } from './helpers'
 
 let base: BaseDePrueba
-beforeAll(async () => { base = await crearBaseDePrueba() }, 60_000)
+beforeAll(async () => { base = await crearBaseDePrueba({ con0008: true }) }, 60_000)   // la 0008 va al final (go-live)
 afterAll(async () => { await base?.cerrar() })
 const P = () => base.personas
 

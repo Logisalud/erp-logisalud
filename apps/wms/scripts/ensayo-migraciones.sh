@@ -4,6 +4,10 @@
 # fallo es lo normal: tiene que ser re-ejecutable). Repetir TODA la cadena desde 0001 no se prueba a propósito:
 # la 0005 retira objetos de la 0004 y no es un caso real.
 # Uso: ensayo-migraciones.sh <url-de-un-Postgres-DESECHABLE>   (recomendado: Postgres 17, la versión de producción)
+# Opciones (variables de entorno, listas separadas por comas con el número de la migración):
+#   WMS_OMITIR=0008            no aplica esas migraciones en su lugar (la ventana del piloto aplica todo MENOS la 0008).
+#   WMS_APLICAR_AL_FINAL=0008  las aplica (dos veces) después de todas las demás y de las semillas: la ruta del go-live.
+# Las dos rutas que se ensayan: (1) WMS_OMITIR=0008   (2) WMS_OMITIR=0008 WMS_APLICAR_AL_FINAL=0008. Sin opciones corre la cadena completa en orden.
 # ¡Nunca apuntarlo a una base real! Borra y recrea la base "ensayo_ventana".
 set -euo pipefail
 ADMIN="${1:?falta la URL del Postgres de prueba}"
@@ -16,15 +20,27 @@ echo "Servidor: $(psql "$URL" -tAc 'show server_version')"
 psql "$URL" -v ON_ERROR_STOP=1 -q -f "$AQUI/tests/db/stubs.sql" >/dev/null
 
 n=0; t0=$SECONDS
-for f in $(ls "$AQUI"/supabase/migrations/*.sql | sort); do
+OMITIR=",${WMS_OMITIR:-},"
+aplicar() {
+  local f="$1"
   for pasada in 1 2; do
     psql "$URL" -v ON_ERROR_STOP=1 -q -f "$f" >/dev/null 2>/tmp/ensayo.err || { echo "FALLA en $(basename "$f") (aplicación $pasada):"; grep -E "ERROR|DETAIL|HINT|CONTEXT" -A2 /tmp/ensayo.err | head -8; exit 1; }
   done
   n=$((n + 1))
+}
+for f in $(ls "$AQUI"/supabase/migrations/*.sql | sort); do
+  num="$(basename "$f" | cut -c1-4)"
+  case "$OMITIR" in *",$num,"*) echo "Se omite la $num (WMS_OMITIR)"; continue;; esac
+  aplicar "$f"
 done
 echo "$n migraciones aplicadas (cada una dos veces seguidas) en $((SECONDS - t0)) s"
 for s in 0001_topologia 0002_transporte_inicial; do psql "$URL" -v ON_ERROR_STOP=1 -q -f "$AQUI/supabase/seeds/$s.sql" >/dev/null; done
 echo "Semillas aplicadas (topología y transporte)"
+
+for num in $(echo "${WMS_APLICAR_AL_FINAL:-}" | tr ',' ' '); do
+  f="$(ls "$AQUI"/supabase/migrations/${num}_*.sql)"
+  aplicar "$f"; echo "Se aplicó la $num al final (go-live), dos veces seguidas"
+done
 
 FILAS=$(psql "$URL" -tAc "select count(*) from wms.verificar_saldos()")
 [ "$FILAS" = "0" ] || { echo "verificar_saldos devolvió $FILAS filas"; exit 1; }
