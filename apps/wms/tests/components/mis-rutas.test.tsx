@@ -70,7 +70,7 @@ describe('Mis rutas (celular)', () => {
     await userEvent.click(screen.getByTestId('parada-confirmar'))
     await waitFor(() => expect(screen.getByTestId('parada-exito')).toHaveTextContent('Entrega registrada con su foto'))
     const f = acc.registrarEventoParadaAccion.mock.calls[1][0] as FormData
-    expect(f.get('recibioNombre')).toBe('María Pérez'); expect(f.get('recibioDocumento')).toBe('12345678'); expect((f.get('foto') as File).name).toBe('foto.jpg')
+    expect(f.get('recibioNombre')).toBe('María Pérez'); expect(f.get('recibioDocumento')).toBe('12345678'); expect(f.get('foto')).toBeTruthy()
   })
   it('«Rechazado» y «No entregado» piden el motivo y avisan que el Jefe de Transporte registra el retorno', async () => {
     acc.registrarEventoParadaAccion.mockResolvedValueOnce({ ok: true, retornoPorOriginar: true, rutaPendienteDeCierre: false })

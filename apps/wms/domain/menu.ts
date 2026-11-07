@@ -114,7 +114,8 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
  */
 export function principalesTelefono(roles: readonly Rol[], secciones: readonly SeccionMenu[]): string[] {
   const visibles = new Set(secciones.flatMap((s) => s.items.map((i) => i.href)))
-  const prioridad: string[] = roles.includes('jefe_transporte') ? ['/', '/salidas', '/rutas']
+  const prioridad: string[] = roles.includes('conductor') || roles.includes('auxiliar_transporte') ? ['/', '/mis-rutas']
+    : roles.includes('jefe_transporte') ? ['/', '/salidas', '/rutas']
     : roles.includes('jefe_almacen') || roles.includes('auxiliar') ? ['/', '/picking', '/almacen']
     : roles.includes('conformidad_despacho') ? ['/', '/conformidad', '/almacen']
     : roles.includes('autoriza_salidas_sin_venta') ? ['/', '/salidas/nueva', '/almacen']
