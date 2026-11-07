@@ -46,7 +46,8 @@ test.describe('piloto F: vencimiento y formato', () => {
   test('el acta organoléptica muestra la versión del formato y la versión 2 espera a Dirección Técnica; al aprobarla, el producto «sin material de envase» no lo pide', async ({ page }, info) => {
     await entrarComo(page, 'direccion_tecnica')
     await page.goto('/wms/calidad')
-    await page.locator('a[href*="/calidad/"]:visible').filter({ hasNot: page.locator('a[href*="muestreo"]') }).first().click()
+    await page.locator('a[href*="/calidad/"]:not([href*="muestreo"]):visible').first().click()
+    await expect(page.getByRole('heading', { name: 'Evaluación organoléptica' })).toBeVisible()
     await expect(page.getByTestId('version-formato')).toContainText('LS-FR.55.02 · versión 1')
     await expect(page.getByTestId('panel-formato')).toContainText('Hoy rige la versión 1')
     await expect(page.getByText('III. Material del envase').first()).toBeVisible()
