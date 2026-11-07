@@ -1,4 +1,4 @@
--- Reversa de la ventana del piloto: deja la base como estaba antes de aplicar el WMS (migraciones 0001 a 0045 SIN la 0008, más las semillas de topología y transporte).
+-- Reversa de la ventana del piloto: deja la base como estaba antes de aplicar el WMS (migraciones 0001 a 0046 SIN la 0008, más las semillas de topología y transporte).
 -- SE EJECUTA A MANO, por quien decida Sebas, en la base donde se aplicó la ventana. Es re-ejecutable (una segunda vez no hace nada ni falla).
 -- Probada en Postgres local (tests/db/reversa-ventana.test.ts) y con el modo WMS_PROBAR_REVERSA=1 de scripts/ensayo-migraciones.sh: se aplica la cadena, se aplica esta reversa,
 -- se comprueba que no queda nada del WMS ni cambió nada fuera de él, y se vuelve a aplicar la cadena. NUNCA ejecutarla contra una base real sin la copia del día.

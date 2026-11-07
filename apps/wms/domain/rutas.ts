@@ -1,6 +1,7 @@
 // Rutas de distribución (S4): estados, vistas y las reglas puras de planificación (espejo de wms.planificar_ruta; la base de datos manda).
 // Lo usan la demo y las pantallas para explicar y previsualizar: corte de planificación y un pedido en una sola ruta (el vehículo calificado ya no se valida: D-153).
 import { normalizar } from './busqueda'
+import { ordenarPorRuteo, type ZonaReparto } from './pedidos-despacho'
 import type { TipoSalida } from './salidas'
 import type { Rol } from './tipos'
 
@@ -97,6 +98,10 @@ export interface PedidoPlanificable {
   enRuta?: string
   cambioPorRevisar: boolean
   sinCatalogo: string[]
+  /** P8: el ruteo de Pedidos (zona de reparto, orden del distrito dentro de la zona y día planificado). */
+  zonaReparto?: ZonaReparto
+  ordenDistrito?: number
+  diaPlanificado?: number
 }
 
 /** SA-6: una orden manual (venta A sin pedido en la bandeja, muestra o devolución al proveedor C) que se puede meter en una ruta. */
@@ -229,6 +234,21 @@ export function validarPlan(e: EntradaValidacion): string[] {
 /** Sugerencia simple de orden: por distrito y, dentro de cada uno, por cita y cliente. El Jefe de Transporte lo ajusta. */
 export function ordenSugerido<T extends { distrito?: string; ventanaCita?: string; cliente: string }>(paradas: readonly T[]): T[] {
   return [...paradas].sort((a, b) => normalizar(a.distrito ?? 'zzz').localeCompare(normalizar(b.distrito ?? 'zzz')) || (a.ventanaCita ?? '').localeCompare(b.ventanaCita ?? '') || a.cliente.localeCompare(b.cliente))
+}
+
+/** ¿Se puede meter este pedido a una ruta ahora? (no está en otra, no cambió sin revisar, todos sus productos son conocidos). */
+export const pedidoSeCarga = (p: PedidoPlanificable) => !p.enRuta && !p.cambioPorRevisar && p.sinCatalogo.length === 0
+
+/** Las zonas de reparto que tienen pedidos por cargar, en el orden de ruta de Pedidos, con cuántos. */
+export function zonasConPedidos(pedidos: readonly PedidoPlanificable[], yaEnPlan: ReadonlySet<string> = new Set()): { codigo: string; nombre: string; cantidad: number }[] {
+  const m = new Map<string, { z: ZonaReparto; n: number }>()
+  for (const p of pedidos) if (p.zonaReparto && pedidoSeCarga(p) && !yaEnPlan.has(p.pedidoId)) { const x = m.get(p.zonaReparto.codigo); if (x) x.n += 1; else m.set(p.zonaReparto.codigo, { z: p.zonaReparto, n: 1 }) }
+  return [...m.values()].sort((a, b) => a.z.ordenRuta - b.z.ordenRuta).map(({ z, n }) => ({ codigo: z.codigo, nombre: z.nombre, cantidad: n }))
+}
+
+/** Precarga de las paradas de una zona: sus pedidos cargables, por `orden_ruta` y luego `orden_distrito` (el Jefe de Transporte lo edita después). */
+export function paradasDeZona(pedidos: readonly PedidoPlanificable[], zona: string, yaEnPlan: ReadonlySet<string> = new Set()): PlanParada[] {
+  return ordenarPorRuteo(pedidos.filter((p) => p.zonaReparto?.codigo === zona && pedidoSeCarga(p) && !yaEnPlan.has(p.pedidoId))).map((p) => ({ pedidoId: p.pedidoId }))
 }
 
 export function filtrarOrdenesPlanificables(ordenes: readonly OrdenPlanificable[], q: string): OrdenPlanificable[] {

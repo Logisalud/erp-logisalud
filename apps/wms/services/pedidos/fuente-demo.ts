@@ -17,13 +17,19 @@ export function pedidosDemo(productos: readonly ProductoDemo[], consulta: number
     pedidoId: `ped-demo-${n}`, numero: `PED-DEMO-${n}`, version, estado: 'READY_FOR_OPERATIONS', fecha: hoy, modificadoEn: `${hoy}T08:00:00Z`,
     cliente, vendedor: 'Rosa Paredes', condicionPago: 'Contado', lineas, ...extra,
   })
+  // P8: zonas de reparto sintéticas con la forma de lo que entregará Pedidos (`zona_reparto`, `orden_distrito`, `dia_planificado` ISO 1..7, `fecha_planificada`)
+  const proxima = (dia: number) => { const d = new Date(`${hoy}T12:00:00Z`); const hoyIso = ((d.getUTCDay() + 6) % 7) + 1; d.setUTCDate(d.getUTCDate() + ((dia - hoyIso + 7) % 7)); return d.toISOString().slice(0, 10) }
+  const ruteo = (zona: 'centro' | 'norte' | 'sur', ordenDistrito: number, dia: number) => ({
+    zona_reparto: zona === 'centro' ? { codigo: 'LIMA-CENTRO', nombre: 'Lima Centro', orden_ruta: 1 } : zona === 'norte' ? { codigo: 'LIMA-NORTE', nombre: 'Lima Norte', orden_ruta: 2 } : { codigo: 'LIMA-SUR', nombre: 'Lima Sur', orden_ruta: 3 },
+    orden_distrito: ordenDistrito, dia_planificado: dia, fecha_planificada: proxima(dia),
+  })
   const lista: unknown[] = [
-    base(101, 1, botica, [linea('l-1', p(0), 20), linea('l-2', p(1), 6)]),
+    base(101, 1, botica, [linea('l-1', p(0), 20), linea('l-2', p(1), 6)], ruteo('centro', 2, 2)),
     consulta === 0
-      ? base(102, 1, farmacia, [linea('l-1', p(2), 40)])
-      : base(102, 2, { ...farmacia, ventanaCita: 'L-S 14:00-18:00' }, [linea('l-1', p(2), 60)]),
+      ? base(102, 1, farmacia, [linea('l-1', p(2), 40)], ruteo('centro', 1, 2))
+      : base(102, 2, { ...farmacia, ventanaCita: 'L-S 14:00-18:00' }, [linea('l-1', p(2), 60)], ruteo('centro', 1, 2)),
     // un producto que el WMS no tiene en su catálogo: se avisa en la bandeja
-    base(103, 1, clinica, [linea('l-1', p(0), 100), { lineaId: 'l-2', productoCodigo: 'SIN-CATALOGO-9', descripcion: 'Producto que el WMS no conoce', cantidad: 12 }], { observaciones: 'Entrega con cadena de frío.' }),
+    base(103, 1, clinica, [linea('l-1', p(0), 100), { lineaId: 'l-2', productoCodigo: 'SIN-CATALOGO-9', descripcion: 'Producto que el WMS no conoce', cantidad: 12 }], { observaciones: 'Entrega con cadena de frío.', ...ruteo('norte', 1, 4) }),
   ]
   if (consulta >= 1) {
     lista.push(base(104, 1, botica, [linea('l-1', p(3), 250_000)])) // más de lo que hay en el almacén: sirve para ver «sin stock suficiente»

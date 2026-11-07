@@ -15,7 +15,7 @@ let repo: RepositorioDemo
 /** Una ruta de hoy con una parada, de la que son per-1 (conductor) y per-3 (auxiliar); se deja «en ruta» (el recorrido hasta ahí ya lo prueban demo-carga y demo-cierre-ruta). */
 async function rutaEnRuta(estado: 'EN_RUTA' | 'LIBERADA' = 'EN_RUTA') {
   const pan = await repo.panoramaRutas()
-  const [a] = (await repo.bandejaPedidos()).pedidos.filter((p) => p.estado !== 'CANCELADO_EN_PEDIDOS' && !p.ruta && p.lineas.every((l) => l.enCatalogo))
+  const a = pan.pedidos.find((p) => !p.enRuta && !p.cambioPorRevisar && p.sinCatalogo.length === 0)!
   const creada = exito(await repo.crearRuta({ fecha: pan.hoy, vehiculoId: 'veh-2', conductorId: 'per-1', auxiliarId: 'per-3' }, JT))
   exito(await repo.planificarRuta(creada.id, { fecha: pan.hoy, vehiculoId: 'veh-2', conductorId: 'per-1', auxiliarId: 'per-3', paradas: [{ pedidoId: a.pedidoId }] }, JT))
   desp(estadoE()).rutas.find((r) => r.id === creada.id)!.estado = estado

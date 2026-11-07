@@ -114,10 +114,7 @@ export class PedidosDemo extends OperacionDemo implements RepositorioPedidos {
     const s = ped(e)
     const codigos = new Set(e.panorama.productos.map((p) => p.codigo))
     const idDe = new Map((e.desp?.salidas ?? []).map((x) => [x.numero, x.id]))
-    // La ruta viva del WMS donde está cada pedido (si Pedidos no mandó ruta ni día, se usan estos)
-    const rutaDe = new Map<string, { numero: string; fecha: string }>()
-    for (const r of e.desp?.rutas ?? []) if (r.estado !== 'CANCELADA' && r.estado !== 'CERRADA') for (const pa of r.paradas) if (pa.activa && pa.pedidoId) rutaDe.set(pa.pedidoId, { numero: r.numero, fecha: r.fecha })
-    const pedidos = s.filas.filter((f) => f.vigente).map((f) => bandejaDeFila({ id: f.id, snapshot: f.snapshot, cambios: f.cambios, cambioPendiente: f.cambioPendiente, salida: f.salida, salidaId: f.salida ? idDe.get(f.salida) : undefined, importadoEn: f.importadoEn, codigosEnCatalogo: codigos, rutaWms: rutaDe.get(f.snapshot.pedidoId) }))
+    const pedidos = s.filas.filter((f) => f.vigente).map((f) => bandejaDeFila({ id: f.id, snapshot: f.snapshot, cambios: f.cambios, cambioPendiente: f.cambioPendiente, salida: f.salida, salidaId: f.salida ? idDe.get(f.salida) : undefined, importadoEn: f.importadoEn, codigosEnCatalogo: codigos }))
     return structuredClone({ pedidos, ultimoIntento: s.importaciones[0] ?? null, ultimaExitosa: s.importaciones.find((i) => i.ok) ?? null })
   }
 

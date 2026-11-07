@@ -315,7 +315,7 @@ test.describe('productos y registro sanitario', () => {
     await page.getByTestId('guardar-producto').click()
     await expect(page.getByTestId('producto-creado')).toContainText('Listo')
     await expect(page.getByTestId('historial-regulatorio')).toContainText('Alta del producto')
-    await expect(page.getByText('30 jun 2031')).toBeVisible()
+    await expect(page.getByText(/30 jun\.? 2031/)).toBeVisible()
     await capturar(page, info, 'producto-alta-exito', { completa: true })
 
     await page.goto('/wms/productos/nuevo')

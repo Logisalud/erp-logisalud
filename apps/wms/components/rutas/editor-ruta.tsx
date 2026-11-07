@@ -7,9 +7,10 @@ import { ArrowDown, ArrowLeft, ArrowUp, Ban, CheckCircle2, ClipboardList, FileTe
 import { cancelarRutaAccion, confirmarRutaAccion, planificarRutaAccion } from '@/app/acciones-rutas'
 import {
   ETIQUETA_ESTADO_RUTA, RUTA_EDITABLE, clavePlanParada, filtrarOrdenesPlanificables, filtrarPedidosPlanificables, fueraDeCorte, ordenSugerido, validarPlan,
-  type OrdenPlanificable, type PanoramaRutas, type PedidoPlanificable, type PlanParada, type RutaVista,
+  paradasDeZona, zonasConPedidos, type OrdenPlanificable, type PanoramaRutas, type PedidoPlanificable, type PlanParada, type RutaVista,
 } from '@/domain/rutas'
 import { formatoFechaHora } from '@/domain/fechas'
+import { ordenarPorRuteo } from '@/domain/pedidos-despacho'
 import { ETIQUETA_TIPO_SALIDA } from '@/domain/salida-manual'
 import type { RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import { CHIP_AVISO } from '../estilos-opcion'
@@ -54,6 +55,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const router = useRouter()
   const { pendiente, mensaje, ejecutar } = useAccion()
   const editable = RUTA_EDITABLE.includes(ruta.estado) && !soloLectura
+  const [zonaCarga, setZonaCarga] = useState('')
   const [fecha, setFecha] = useState(ruta.fecha)
   const [vehiculoId, setVehiculoId] = useState(ruta.vehiculo?.id ?? '')
   const [conductorId, setConductorId] = useState(ruta.conductor?.id ?? '')
@@ -89,7 +91,14 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const agregar = (p: PedidoPlanificable) => setParadas((a) => [...a, { pedidoId: p.pedidoId }])
   const agregarOrden = (o: OrdenPlanificable) => setParadas((a) => [...a, { salidaId: o.salidaId }])
   const marcar = (i: number, cambio: Partial<PlanParada>) => setParadas((a) => a.map((x, k) => (k === i ? { ...x, ...cambio } : x)))
-  const sugerir = () => setParadas((a) => ordenSugerido(a.map((p) => ({ p, cliente: info(p)?.cliente ?? '', distrito: info(p)?.distrito, ventanaCita: info(p)?.ventanaCita }))).map(({ p }) => p))
+  const cargarZona = () => { if (zonaCarga) setParadas((a) => [...a, ...paradasDeZona(panorama.pedidos, zonaCarga, new Set(a.map((x) => x.pedidoId).filter((x): x is string => !!x)))]) }
+  const zonasDisponibles = zonasConPedidos(panorama.pedidos, new Set(paradas.map((x) => x.pedidoId).filter((x): x is string => !!x)))
+  /** «Ordenar por zona»: con el ruteo de Pedidos, por zona (`orden_ruta`) y distrito (`orden_distrito`); lo que no trae zona, por distrito como siempre. */
+  const sugerir = () => setParadas((a) => {
+    const conRuteo = a.some((x) => x.pedidoId && pedido.get(x.pedidoId)?.zonaReparto)
+    if (!conRuteo) return ordenSugerido(a.map((p) => ({ p, cliente: info(p)?.cliente ?? '', distrito: info(p)?.distrito, ventanaCita: info(p)?.ventanaCita }))).map(({ p }) => p)
+    return ordenarPorRuteo(a.map((p) => { const ped = p.pedidoId ? pedido.get(p.pedidoId) : undefined; return { p, zonaReparto: ped?.zonaReparto, ordenDistrito: ped?.ordenDistrito, numero: info(p)?.numero ?? '' } })).map(({ p }) => p)
+  })
 
   const guardar = () => { setAviso(null); ejecutar(() => planificarRutaAccion(ruta.id, { fecha, vehiculoId: vehiculoId || undefined, conductorId: conductorId || undefined, auxiliarId: auxiliarId || undefined, paradas, motivo: motivo || undefined }), {
     exito: 'Plan guardado.', alExito: (r) => { setMotivo(''); if (r.bloqueadosPorStock.length) setAviso(`No hay stock suficiente para: ${r.bloqueadosPorStock.join(', ')}. Quítalos de la ruta o espera el ingreso de stock antes de confirmarla.`) },
@@ -134,6 +143,16 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
       <section aria-labelledby="t-paradas" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="t-paradas" className="font-heading text-xl font-semibold uppercase tracking-wide text-gray-900">Paradas <span className="tabular text-gray-600" data-testid="conteo-paradas">({paradas.length})</span></h2>
+          {zonasDisponibles.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2" data-testid="cargar-zona">
+              <label htmlFor="r-zona" className="sr-only">Zona de reparto</label>
+              <select id="r-zona" className="campo !min-h-11 !w-auto" value={zonaCarga} onChange={(e) => setZonaCarga(e.target.value)} data-testid="cargar-zona-elegir">
+                <option value="">Cargar pedidos de una zona…</option>
+                {zonasDisponibles.map((z) => <option key={z.codigo} value={z.codigo}>{z.nombre} ({z.cantidad})</option>)}
+              </select>
+              <button type="button" className="btn-secondary btn-sm" disabled={!zonaCarga} onClick={cargarZona} data-testid="cargar-zona-boton">Cargar, ordenados por la ruta de Pedidos</button>
+            </div>
+          )}
           {paradas.length > 1 && <button type="button" className="btn-secondary btn-sm" onClick={sugerir} data-testid="ordenar-zona"><ListOrdered className="h-4 w-4" aria-hidden />Ordenar por zona</button>}
         </div>
         {paradas.length === 0 ? (

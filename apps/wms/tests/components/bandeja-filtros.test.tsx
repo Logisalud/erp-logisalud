@@ -12,7 +12,7 @@ import { BandejaPedidosVista } from '@/components/pedidos/bandeja-pedidos'
 import { pedidoBandeja } from './ayudas-bandeja'
 
 const bandeja = {
-  pedidos: [pedidoBandeja(1, { ruta: 'Norte', diaDespacho: '2026-11-05' }), pedidoBandeja(2, { ruta: 'Norte', diaDespacho: '2026-11-06' }), pedidoBandeja(3, { ruta: 'Sur', diaDespacho: '2026-11-05' }), pedidoBandeja(4, { ruta: 'Norte', diaDespacho: '2026-11-05', salida: 'OS-9' })],
+  pedidos: [pedidoBandeja(1, { zona: 'norte', dia: 1 }), pedidoBandeja(2, { zona: 'norte', dia: 2 }), pedidoBandeja(3, { zona: 'sur', dia: 1 }), pedidoBandeja(4, { zona: 'norte', dia: 1, salida: 'OS-9' })],
   ultimoIntento: null, ultimaExitosa: null,
 }
 beforeEach(() => {
@@ -20,19 +20,19 @@ beforeEach(() => {
   acc.crearOrdenDePedidoAccion.mockImplementation(async (id: string) => ({ ok: true, id: `s-${id}`, numero: `OS-${id}`, yaExistia: false, faltaStock: false }))
 })
 
-describe('bandeja de pedidos: ruta, día y sin procesar', () => {
+describe('bandeja de pedidos: zona, día y sin procesar', () => {
   it('dice explícitamente que lo importado queda «sin procesar» hasta que alguien pida la orden, y la copia no se borra', () => {
     render(<BandejaPedidosVista bandeja={bandeja} puedeActualizar puedeCrearOrdenes />)
     expect(screen.getByTestId('ped-sin-procesar')).toHaveTextContent('importados, sin procesar')
     expect(screen.getByTestId('ped-sin-procesar')).toHaveTextContent('no se borra nunca')
   })
-  it('filtra por ruta, por día y los dos; «Sin filtro» lo deja todo', async () => {
+  it('filtra por zona de reparto, por día planificado y los dos; «Sin filtro» lo deja todo', async () => {
     render(<BandejaPedidosVista bandeja={bandeja} puedeActualizar puedeCrearOrdenes />)
-    const ruta = screen.getByTestId('ped-filtro-ruta'), dia = screen.getByTestId('ped-filtro-dia')
+    const ruta = screen.getByTestId('ped-filtro-zona'), dia = screen.getByTestId('ped-filtro-dia')
     expect(screen.getByTestId('ped-conteo')).toHaveTextContent('4 pedidos')
-    await userEvent.selectOptions(ruta, 'Sur')
+    await userEvent.selectOptions(ruta, 'LIMA-SUR')
     expect(screen.getByTestId('ped-conteo')).toHaveTextContent('1 de 4 pedidos')
-    await userEvent.selectOptions(ruta, 'Norte'); await userEvent.selectOptions(dia, '2026-11-05')
+    await userEvent.selectOptions(ruta, 'LIMA-NORTE'); await userEvent.selectOptions(dia, '1')
     expect(screen.getByTestId('ped-conteo')).toHaveTextContent('2 de 4 pedidos')
     await userEvent.click(screen.getByTestId('ped-limpiar'))
     expect(screen.getByTestId('ped-conteo')).toHaveTextContent('4 pedidos')
@@ -40,7 +40,7 @@ describe('bandeja de pedidos: ruta, día y sin procesar', () => {
   })
   it('un filtro sin resultados muestra el vacío con «Quitar filtros»', async () => {
     render(<BandejaPedidosVista bandeja={bandeja} puedeActualizar puedeCrearOrdenes />)
-    await userEvent.selectOptions(screen.getByTestId('ped-filtro-ruta'), 'Sur'); await userEvent.selectOptions(screen.getByTestId('ped-filtro-dia'), '2026-11-06')
+    await userEvent.selectOptions(screen.getByTestId('ped-filtro-zona'), 'LIMA-SUR'); await userEvent.selectOptions(screen.getByTestId('ped-filtro-dia'), '2')
     expect(screen.getByTestId('ped-sin-resultados')).toBeInTheDocument()
     expect(screen.getByTestId('filtrados-ninguno')).toHaveTextContent('no hay órdenes que crear')
   })
@@ -49,7 +49,7 @@ describe('bandeja de pedidos: ruta, día y sin procesar', () => {
 describe('Crear órdenes de los pedidos filtrados', () => {
   it('pide confirmación (nada se crea antes), crea solo los marcados que no tienen orden y muestra el resultado de cada uno', async () => {
     render(<BandejaPedidosVista bandeja={bandeja} puedeActualizar puedeCrearOrdenes />)
-    await userEvent.selectOptions(screen.getByTestId('ped-filtro-ruta'), 'Norte')
+    await userEvent.selectOptions(screen.getByTestId('ped-filtro-zona'), 'LIMA-NORTE')
     // Norte tiene 3 pedidos, uno ya con orden: se ofrecen 2
     await userEvent.click(screen.getByTestId('crear-filtrados'))
     expect(acc.crearOrdenDePedidoAccion).not.toHaveBeenCalled()

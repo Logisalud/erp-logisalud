@@ -390,6 +390,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     return e.pedidos!.filas.filter((f) => f.vigente).map((f) => ({
       pedidoId: f.snapshot.pedidoId, numero: f.snapshot.numero, cliente: f.snapshot.cliente.nombre, ruc: f.snapshot.cliente.ruc, direccion: f.snapshot.cliente.direccion,
       distrito: f.snapshot.cliente.distrito, ventanaCita: f.snapshot.cliente.ventanaCita,
+      zonaReparto: f.snapshot.zonaReparto, ordenDistrito: f.snapshot.ordenDistrito, diaPlanificado: f.snapshot.diaPlanificado,
       lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0), importadoEn: f.importadoEn,
       enRuta: enRuta.get(f.snapshot.pedidoId), cambioPorRevisar: f.cambioPendiente,
       sinCatalogo: f.snapshot.lineas.filter((l) => !codigos.has(l.productoCodigo.toUpperCase())).map((l) => l.productoCodigo),

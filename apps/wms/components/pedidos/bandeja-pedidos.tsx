@@ -8,7 +8,7 @@ import { crearOrdenDePedidoAccion, crearOrdenesPendientesAccion } from '@/app/ac
 import type { CambioSimulado } from '@/services/repositorio-cambio-pedido'
 import { BotonCopiarAviso } from '../salidas/boton-copiar-aviso'
 import {
-  ETIQUETA_ESTADO_BANDEJA, FILTROS_BANDEJA_VACIOS, contarPorEstado, filtrarBandeja, hace, opcionesDe, pedidosSinProcesar,
+  ETIQUETA_ESTADO_BANDEJA, FILTROS_BANDEJA_VACIOS, NOMBRE_DIA_ISO, contarPorEstado, filtrarBandeja, hace, opcionesDia, opcionesZona, pedidosSinProcesar,
   type EstadoBandeja, type FiltrosBandeja, type PedidoBandeja,
 } from '@/domain/pedidos-despacho'
 import { formatoFechaHora } from '@/domain/fechas'
@@ -104,6 +104,8 @@ function Detalle({ p, puedeRevisar, puedeCrear, creando, crear, demo, piloto }: 
       <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
         {dato('Dirección de entrega', p.direccion)}
         {dato('Ventana de cita', p.ventanaCita)}
+        {dato('Zona de reparto', p.zonaReparto ? `${p.zonaReparto.nombre}${p.ordenDistrito != null ? ` · distrito n.º ${p.ordenDistrito}` : ''}` : 'Sin zona')}
+        {dato('Día planificado', p.diaPlanificado ? `${NOMBRE_DIA_ISO[p.diaPlanificado] ?? p.diaPlanificado}${p.fechaPlanificada ? ` · ${fechaDia(p.fechaPlanificada)}` : ''}` : 'Sin día')}
         {dato('Vendedor', p.vendedor)}
         {dato('Condición de pago', p.condicionPago)}
         {dato('Factura', p.factura)}
@@ -260,9 +262,9 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
     })
   }
   const toggle = (id: string) => setAbierto((a) => (a === id ? null : id))
-  const hayFiltros = !!f.q || !!f.estado || !!f.ruta || !!f.dia
-  const rutas = useMemo(() => opcionesDe(todos, 'ruta'), [todos])
-  const dias = useMemo(() => opcionesDe(todos, 'diaDespacho'), [todos])
+  const hayFiltros = !!f.q || !!f.estado || !!f.zona || !!f.dia
+  const zonas = useMemo(() => opcionesZona(todos), [todos])
+  const dias = useMemo(() => opcionesDia(todos), [todos])
   const candidatos = useMemo(() => pedidosSinProcesar(visibles), [visibles])
   const crearParaFiltrados = (pedidoId: string) => crearOrdenDePedidoAccion(pedidoId)
 
@@ -325,17 +327,17 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
         <>
           <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
             <Buscador id="q-ped" etiqueta="Buscar pedidos" ayuda="Por número, cliente, RUC, distrito o producto." valor={f.q} onCambio={(q) => setF((a) => ({ ...a, q }))} testid="ped-buscar" />
-            <div className="grid gap-3 sm:grid-cols-2" data-testid="filtros-ruta-dia">
-              <label className="block text-sm font-medium text-gray-900">Ruta
-                <select className="mt-1 block min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base" value={f.ruta} onChange={(e) => setF((a) => ({ ...a, ruta: e.target.value }))} data-testid="ped-filtro-ruta">
-                  <option value="">Sin filtro (todas las rutas)</option>
-                  {rutas.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta} ({o.cantidad})</option>)}
+            <div className="grid gap-3 sm:grid-cols-2" data-testid="filtros-zona-dia">
+              <label className="block text-sm font-medium text-gray-900">Zona de reparto
+                <select className="mt-1 block min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base" value={f.zona} onChange={(e) => setF((a) => ({ ...a, zona: e.target.value }))} data-testid="ped-filtro-zona">
+                  <option value="">Sin filtro (todas las zonas)</option>
+                  {zonas.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta} ({o.cantidad})</option>)}
                 </select>
               </label>
-              <label className="block text-sm font-medium text-gray-900">Día de despacho
+              <label className="block text-sm font-medium text-gray-900">Día planificado
                 <select className="mt-1 block min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base" value={f.dia} onChange={(e) => setF((a) => ({ ...a, dia: e.target.value }))} data-testid="ped-filtro-dia">
                   <option value="">Sin filtro (todos los días)</option>
-                  {dias.map((o) => <option key={o.valor} value={o.valor}>{o.valor === '__sin__' ? o.etiqueta : fechaDia(o.valor)} ({o.cantidad})</option>)}
+                  {dias.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta} ({o.cantidad})</option>)}
                 </select>
               </label>
             </div>
@@ -351,7 +353,7 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
           </div>
 
           <p className="text-sm text-gray-800" data-testid="ped-sin-procesar">Todos los pedidos que deja Pedidos entran aquí. <strong>Se quedan «importados, sin procesar»</strong> (sin orden de salida) hasta que alguien pida su orden: filtra por ruta o por día y elige cuáles procesar. Su copia no se borra nunca.</p>
-          {puedeCrearOrdenes && <div data-testid="crear-filtrados-bloque"><CrearFiltrados key={`${f.ruta}|${f.dia}|${f.estado}|${f.q}`} candidatos={candidatos} crearUna={crearParaFiltrados} /></div>}
+          {puedeCrearOrdenes && <div data-testid="crear-filtrados-bloque"><CrearFiltrados key={`${f.zona}|${f.dia}|${f.estado}|${f.q}`} candidatos={candidatos} crearUna={crearParaFiltrados} /></div>}
           <p className="text-sm text-gray-700" aria-live="polite" data-testid="ped-conteo">{visibles.length === todos.length ? `${todos.length} ${todos.length === 1 ? 'pedido' : 'pedidos'}` : `${visibles.length} de ${todos.length} pedidos`}</p>
 
           {visibles.length === 0 ? (
