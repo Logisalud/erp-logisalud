@@ -275,7 +275,7 @@ export class EjemplosDemo extends SeguimientoDemo {
     const r = RUTAS[ej.clave]
     const fecha = sumarDias(e.panorama.hoy, r.dias)
     const c = exigir(await this.crearRuta({ fecha, vehiculoId: r.vehiculoId, conductorId: r.conductorId, auxiliarId: r.auxiliarId }, JT), ej.clave)
-    exigir(await this.planificarRuta(c.id, { fecha, vehiculoId: r.vehiculoId, conductorId: r.conductorId, auxiliarId: r.auxiliarId, paradas: [salida.origen === 'MANUAL' ? { salidaId: salida.id } : { pedidoId: salida.pedidoId }] }, JT), ej.clave)
+    exigir(await this.planificarRuta(c.id, { fecha, vehiculoId: r.vehiculoId, conductorId: r.conductorId, auxiliarId: r.auxiliarId, paradas: [salida.origen === 'MANUAL' ? { salidaId: salida.id, excepcionCorte: true, motivoExcepcion: 'Venta manual de ejemplo: se creó hoy' } : { pedidoId: salida.pedidoId }] }, JT), ej.clave)
     exigir(await this.confirmarRuta(c.id, JT), ej.clave)
     return c.id
   }

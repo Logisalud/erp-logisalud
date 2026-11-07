@@ -3,12 +3,12 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-/** Lo que se CONSERVA: topología, propietarios, usuarios, roles, parámetros y datos regulatorios (docs/wms/piloto/plan-noviembre.md). `correlativos` y `guia_correlativos` NO se reinician: los números de actas del piloto no se reutilizan. */
+/** Lo que se CONSERVA: topología, propietarios, usuarios, roles, parámetros y datos regulatorios (docs/wms/piloto/plan-noviembre.md). */
 export const CONSERVAR = [
   'area_estado_admitido', 'asignaciones_posicion', 'cargos_usuario', 'documentos_regulatorios', 'documentos_sustento', 'estados_sanitarios', 'fabricantes', 'origenes', 'parametros',
   'perfil_documental_cliente', 'permisos_rol', 'personal_transporte', 'posicion_geometria', 'posiciones', 'producto_codigos', 'producto_regulatorio', 'producto_regulatorio_cambios',
   'propietarios', 'tablas_muestreo', 'tablas_muestreo_tramos', 'tipos_area', 'tipos_movimiento', 'transiciones_estado', 'usuario_roles', 'vehiculos', 'vistas_guardadas',
-  'correlativos', 'guia_correlativos', 'formatos_versiones', 'proveedores_config',
+  'formatos_versiones', 'proveedores_config',
   'oc_sincronizacion', // solo dice cuándo se sincronizó con Compras por última vez: se conserva
   'reinicios',      // el registro de reinicios queda FUERA de lo que se borra
 ]
@@ -23,6 +23,10 @@ export const BORRAR = [
   'ruta_logger_importes', 'ruta_logger_lecturas', 'seguimiento_intentos', 'seguimiento_tokens', 'ruta_paradas', 'ruta_paradas_eventos', 'ruta_versiones', 'rutas', 'saldos', 'salida_lineas', 'salida_movimientos', 'salidas', 'solicitud_ingreso_cambios',
   'solicitud_ingreso_lineas', 'solicitud_ingreso_versiones', 'solicitudes_ingreso',
 ]
+/** Se REINICIAN (decisión de Sebas, 7-nov): la fila se conserva, el contador vuelve a su base. `correlativos` (actas, órdenes, movimientos…) vuelve a 0. `guia_correlativos` NO vuelve a 0: la serie TTT1 es la REAL
+ *  (la comparte el panel de Nubefact), así que vuelve a su valor de siembra y SIN confirmar; la guía real solo arranca cuando se confirma el correlativo (`confirmar_correlativo_guia`). */
+export const REINICIAR = ['correlativos', 'guia_correlativos']
+export const GUIA_ULTIMO_BASE = 2887   // el de la siembra (migración 0024): último número que mostraba Nubefact al 30/09/2026
 /** `audit_events`: se EXPORTA a un archivo fuera de la base y después se vacía. */
 export const AUDITORIA = 'audit_events'
 export const BUCKET = 'wms-documentos'
@@ -58,10 +62,10 @@ export function exigirCopiaDelDia(args, ahora = new Date()) {
 export async function clasificarTablas(c) {
   const { rows } = await c.query(`select tablename from pg_tables where schemaname = 'wms' order by 1`)
   const existentes = rows.map((r) => r.tablename)
-  const conocidas = new Set([...CONSERVAR, ...BORRAR, AUDITORIA])
+  const conocidas = new Set([...CONSERVAR, ...BORRAR, ...REINICIAR, AUDITORIA])
   const sinDecidir = existentes.filter((t) => !conocidas.has(t))
-  if (sinDecidir.length) throw new Error(`Hay tablas de wms sin decidir (agrégalas a CONSERVAR o BORRAR en reinicio-piloto-lib.mjs): ${sinDecidir.join(', ')}`)
-  return { borrar: BORRAR.filter((t) => existentes.includes(t)), conservar: CONSERVAR.filter((t) => existentes.includes(t)), auditoria: existentes.includes(AUDITORIA) }
+  if (sinDecidir.length) throw new Error(`Hay tablas de wms sin decidir (agrégalas a CONSERVAR, BORRAR o REINICIAR en reinicio-piloto-lib.mjs): ${sinDecidir.join(', ')}`)
+  return { borrar: BORRAR.filter((t) => existentes.includes(t)), conservar: CONSERVAR.filter((t) => existentes.includes(t)), reiniciar: REINICIAR.filter((t) => existentes.includes(t)), auditoria: existentes.includes(AUDITORIA) }
 }
 
 async function contar(c, tablas) {
@@ -87,7 +91,7 @@ const prefijoDe = (ruta) => (ruta.includes('/') ? ruta.split('/')[0] : '(raíz)'
  * (salvo los referenciados por documentos regulatorios que se conservan).
  */
 export async function reiniciar(c, { ejecutar = false, almacen = null, salida = 'reinicio-salida', ejecutadoPor = 'script', fechaCopia = null, ahora = new Date() } = {}) {
-  const { borrar, conservar, auditoria } = await clasificarTablas(c)
+  const { borrar, conservar, reiniciar: aReiniciar, auditoria } = await clasificarTablas(c)
   const conteos = await contar(c, borrar)
   const conservadas = await contar(c, conservar)
   const filasAuditoria = auditoria ? Number((await c.query(`select count(*)::bigint n from wms.audit_events`)).rows[0].n) : 0
@@ -104,7 +108,7 @@ export async function reiniciar(c, { ejecutar = false, almacen = null, salida = 
     archivosInfo = { disponible: true, total: todos.length, aBorrar, conservados, prefijos, todos }
   }
   const informe = {
-    modo: ejecutar ? 'EJECUTAR' : 'SIMULAR', tablasABorrar: conteos, tablasConservadas: conservadas, auditoria: { tabla: AUDITORIA, filas: filasAuditoria, destino: 'archivo fuera de la base y luego se vacía' },
+    modo: ejecutar ? 'EJECUTAR' : 'SIMULAR', tablasABorrar: conteos, tablasConservadas: conservadas, correlativosAReiniciar: aReiniciar, auditoria: { tabla: AUDITORIA, filas: filasAuditoria, destino: 'archivo fuera de la base y luego se vacía' },
     documentosRegulatoriosDeLote: regDeLote.n, archivos: { disponible: archivosInfo.disponible, total: archivosInfo.total, aBorrar: archivosInfo.aBorrar.length, conservados: archivosInfo.conservados.length, prefijos: archivosInfo.prefijos },
     filasABorrar: Object.values(conteos).reduce((n, x) => n + x, 0) + filasAuditoria + regDeLote.n, auditoriaArchivo: null, registro: null,
   }
@@ -129,10 +133,16 @@ export async function reiniciar(c, { ejecutar = false, almacen = null, salida = 
     await c.query(`delete from wms.documentos_regulatorios where lote_id is not null`)
     // DELETE (no TRUNCATE): una tabla que se conserva (documentos_regulatorios) apunta a `lotes`, y TRUNCATE no lo permite aunque esté vacía. Con el rol «replica» no se revisan llaves ni triggers.
     for (const t of [...borrar, ...(auditoria ? [AUDITORIA] : [])]) await c.query(`delete from wms.${q(t)}`)
+    // los contadores vuelven a su base (en la misma transacción): actas y demás a 0; la serie de guías a su siembra y sin confirmar
+    if (aReiniciar.includes('correlativos')) await c.query(`update wms.correlativos set ultimo = 0`)
+    if (aReiniciar.includes('guia_correlativos')) {
+      await c.query(`update wms.guia_correlativos set ultimo = $1, confirmado = false, confirmado_por = null, confirmado_en = null, nota = 'Reiniciado tras el piloto: CONFIRMAR con Nubefact el siguiente número antes de emitir una guía real'`, [GUIA_ULTIMO_BASE])
+      await c.query(`update wms.parametros set valor = 'PENDIENTE' where clave = 'guia_correlativo_inicial'`)
+    }
     const archivos = { borrados: listaArchivos.length, conservados: archivosInfo.conservados.length, prefijos: archivosInfo.prefijos }
     const tablas = { ...conteos, [AUDITORIA]: filasAuditoria, documentos_regulatorios_de_lote: regDeLote.n }
     const r = await c.query(`insert into wms.reinicios (fecha_copia, ejecutado_por, tablas, archivos, auditoria_archivo, auditoria_filas, notas) values ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7) returning id`,
-      [fechaCopia ?? hoyLima(ahora), ejecutadoPor, JSON.stringify(tablas), JSON.stringify(archivos), rutaAuditoria, filasAuditoria, 'Correlativos de actas y guías no reiniciados'])
+      [fechaCopia ?? hoyLima(ahora), ejecutadoPor, JSON.stringify(tablas), JSON.stringify(archivos), rutaAuditoria, filasAuditoria, `Correlativos reiniciados: actas y demás a 0; serie de guías devuelta a ${GUIA_ULTIMO_BASE} y sin confirmar`])
     await c.query('commit')
     informe.registro = r.rows[0].id
   } catch (e) { await c.query('rollback'); throw e }
