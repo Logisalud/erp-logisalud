@@ -54,6 +54,18 @@ test.describe('modo piloto', () => {
     await capturar(page, info, 'ocs-piloto-copiadas')
   })
 
+  test('P9: el seguimiento para el cliente está apagado: la página pública dice «Seguimiento aún no disponible» y no lleva banner de empleados ni pide usuario', async ({ page }) => {
+    await page.context().clearCookies()
+    await page.goto('/wms/seguimiento')
+    await expect(page.getByTestId('seguimiento-no-disponible')).toHaveText('Seguimiento aún no disponible')
+    await expect(page.getByTestId('banner-piloto')).toHaveCount(0)
+    await expect(page.getByTestId('banner-demo')).toHaveCount(0)
+    await expect(page.getByTestId('seguimiento-form')).toHaveCount(0)
+    await page.goto('/wms/seguimiento/' + 'a'.repeat(128))
+    await expect(page.getByTestId('seguimiento-no-disponible')).toBeVisible()
+    await sinDesborde(page)
+  })
+
   test('quien solo mira (auditoría) ve la lista sin botón de revisar', async ({ page }) => {
     await entrarComo(page, 'auditoria_lectura')
     await page.goto('/wms/entradas/oc')

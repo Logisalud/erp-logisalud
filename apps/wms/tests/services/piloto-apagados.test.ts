@@ -44,11 +44,14 @@ describe('P1(b): sin enlaces de seguimiento ni correos a clientes', () => {
     const dependencias = JSON.parse(readFileSync(join(RAIZ, 'package.json'), 'utf8')).dependencies as Record<string, string>
     expect(Object.keys(dependencias).filter((d) => /mail|sendgrid|resend|twilio|ses/i.test(d))).toEqual([])
   })
-  it('no existe ninguna ruta pública de seguimiento para clientes y el interruptor de clientes está apagado en la cadena de migraciones', () => {
-    expect(archivos(join(RAIZ, 'app')).filter((f) => /seguimiento|tracking/i.test(f))).toEqual([])
+  it('la única página pública para clientes es /seguimiento (apagada en el piloto: la base responde «no disponible») y el interruptor de clientes está apagado en la cadena de migraciones', () => {
+    const publicas = archivos(join(RAIZ, 'app')).filter((f) => /seguimiento|tracking/i.test(f)).map((f) => f.slice(RAIZ.length + 1).replace(/\\/g, '/')).sort()
+    expect(publicas).toEqual(['app/seguimiento/[token]/page.tsx', 'app/seguimiento/acciones.ts', 'app/seguimiento/page.tsx'])
     const m = archivos(join(RAIZ, 'supabase/migrations')).map((f) => readFileSync(f, 'utf8')).join('\n')
     expect(m).toMatch(/'acceso_clientes_habilitado',\s*'false'/)
-    expect(m).not.toMatch(/update wms\.parametros set valor = 'true' where clave = 'acceso_clientes_habilitado'/i)
+    expect(m).toMatch(/'seguimiento_cliente_habilitado',\s*'false'/)
+    expect(m).not.toMatch(/update wms\.parametros set valor = 'true' where clave = '(acceso_clientes|seguimiento_cliente)_habilitado'/i)
+    expect(m).toMatch(/not coalesce\(wms\._modo_piloto\(\), true\) and coalesce\(\(select valor from wms\.parametros where clave = 'seguimiento_cliente_habilitado'\)/)
   })
 })
 

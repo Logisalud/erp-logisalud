@@ -20,7 +20,7 @@ export const BORRAR = [
   'importaciones_pedidos', 'ingreso_lotes', 'ingresos', 'lote_vencimiento_cambios', 'lotes', 'ls_fr_escaneos', 'ls_fr_impresiones', 'movimientos', 'observaciones_conformidad', 'observaciones_liberacion',
   'oc_versiones', 'ordenes_baja', 'ordenes_baja_evaluaciones', 'ordenes_baja_lineas', 'ordenes_baja_sustentos', 'ordenes_movimiento', 'ordenes_movimiento_lineas', 'ordenes_picking', 'ordenes_picking_lineas',
   'partidas', 'pedidos_despacho', 'programacion_conteos', 'quiebres_stock', 'registros_ls_fr_43_03', 'reservas', 'reservas_lote', 'revision_focos', 'revision_pendientes', 'revisiones_diarias', 'ruta_cierres',
-  'ruta_logger_importes', 'ruta_logger_lecturas', 'ruta_paradas', 'ruta_paradas_eventos', 'ruta_versiones', 'rutas', 'saldos', 'salida_lineas', 'salida_movimientos', 'salidas', 'solicitud_ingreso_cambios',
+  'ruta_logger_importes', 'ruta_logger_lecturas', 'seguimiento_intentos', 'seguimiento_tokens', 'ruta_paradas', 'ruta_paradas_eventos', 'ruta_versiones', 'rutas', 'saldos', 'salida_lineas', 'salida_movimientos', 'salidas', 'solicitud_ingreso_cambios',
   'solicitud_ingreso_lineas', 'solicitud_ingreso_versiones', 'solicitudes_ingreso',
 ]
 /** `audit_events`: se EXPORTA a un archivo fuera de la base y después se vacía. */

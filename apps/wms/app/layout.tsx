@@ -4,6 +4,7 @@ import { modoDemoActivo } from '@/lib/demo'
 import { cookies } from 'next/headers'
 import { BannerDemo } from '@/components/banner-demo'
 import { BannerPiloto } from '@/components/banner-piloto'
+import { OcultarEnPublicas } from '@/components/ocultar-en-publicas'
 import { modoPilotoActivo } from '@/lib/modo-piloto'
 import { COOKIE_ROL_DEMO, personaDemoDesdeCookie } from '@/lib/sesion-demo'
 import './globals.css'
@@ -39,8 +40,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="es" className={`${oswald.variable} ${poppins.variable}`}>
       <body className={`min-h-screen bg-gray-50 font-body text-gray-900 ${demo ? 'con-banner' : ''} ${piloto ? 'con-banner-piloto' : ''}`}>
         <span hidden dangerouslySetInnerHTML={{ __html: CONTRATO }} />
-        {demo && <BannerDemo rolActual={rolDemo} />}
-        {piloto && <BannerPiloto bajoDemo={demo} />}
+        <OcultarEnPublicas>
+          {demo && <BannerDemo rolActual={rolDemo} />}
+          {piloto && <BannerPiloto bajoDemo={demo} />}
+        </OcultarEnPublicas>
         {children}
       </body>
     </html>

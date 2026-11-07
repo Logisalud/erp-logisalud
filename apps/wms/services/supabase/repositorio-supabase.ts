@@ -9,7 +9,7 @@ import { resolverModoPiloto } from '@/domain/modo-piloto'
 import { autorizarEscrituraCatalogo, autorizarMarcaSinMaterialEnvase, esSi, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, n, s, traerTodo, type Fila } from './util'
-import { MisRutasSupabase } from './mis-rutas-supabase'
+import { SeguimientoSupabase } from './seguimiento-supabase'
 import { hoyLima } from '@/lib/hoy-lima'
 
 export function mapearPosicion(r: Fila): Posicion {
@@ -29,7 +29,7 @@ export function mapearRegulatorio(r: Fila): Regulatorio {
   }
 }
 
-export class RepositorioSupabase extends MisRutasSupabase implements Repositorio {
+export class RepositorioSupabase extends SeguimientoSupabase implements Repositorio {
   async panorama(): Promise<Panorama> {
     const [props, poss, asigs, docs, prods, regs, lotes, saldos] = await Promise.all([
       traerTodo('propietarios', 'wms'),
