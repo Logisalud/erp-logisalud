@@ -28,5 +28,5 @@ export default async function Salida({ params }: { params: { id: string } }) {
   const guia = paquete?.conforme && !paquete.guia ? await repo.datosGuia(params.id) : null
   const eventos = await repo.eventosPedidos({ salidaId: params.id })
   const numeracion = paquete?.conforme && salida.tipo !== 'CLIENTE' && (puedeEmitirGuia(ctx.roles) || puedeAdministrarNumeracion(ctx.roles)) ? await repo.estadoNumeracionGuia(datosSerie) : null
-  return <div className="mx-auto max-w-6xl"><DetalleSalida salida={salida} puedeEditar={puedeCambiarLote(ctx.roles)} puedePreparar={puedePrepararSalidas(ctx.roles)} paquete={paquete} guia={{ datos: guia, modo: modoNubefactActual(), bloqueo: modoDemoActivo() ? undefined : bloqueoParaPantalla(await modoPilotoActivo(), modoNubefactActual(), process.env), hoy, eventos, numeracion }} roles={ctx.roles} usuario={ctx.usuario.nombre} /></div>
+  return <div className="mx-auto max-w-6xl"><DetalleSalida salida={salida} puedeEditar={puedeCambiarLote(ctx.roles)} puedePreparar={puedePrepararSalidas(ctx.roles)} paquete={paquete} guia={{ datos: guia, modo: modoNubefactActual(), bloqueo: modoDemoActivo() ? undefined : bloqueoParaPantalla(await modoPilotoActivo(), modoNubefactActual(), process.env), hoy, eventos, numeracion }} roles={ctx.roles} usuario={ctx.usuario.nombre} piloto={await modoPilotoActivo()} /></div>
 }

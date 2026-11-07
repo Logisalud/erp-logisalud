@@ -2,6 +2,7 @@ import 'server-only'
 
 import { modoDemoActivo } from '@/lib/demo'
 import type { EventoPedidos } from '@/domain/guia-electronica'
+import { TEXTO_PEDIDOS_RETENIDO } from '@/domain/modo-piloto'
 import { ENCABEZADO_FIRMA, ENCABEZADO_HORA, firmar } from './firma'
 
 // El otro sentido del puerto con Pedidos (OS-3): el WMS avisa «guía emitida» (con el número y las líneas conformadas con lote, vencimiento y cantidad,
@@ -25,6 +26,12 @@ export class NotificadorNoConfigurado implements NotificadorPedidos {
   async enviar(): Promise<ResultadoEnvio> {
     return { ok: false, mensaje: 'La conexión con Pedidos todavía no está configurada: el aviso queda en la bandeja y se enviará cuando lo esté.' }
   }
+}
+
+/** Piloto: NADA sale hacia Pedidos. Segunda cerradura (la primera está en `enviarEventosPedidos`): aunque alguien lo llame directo, este notificador no hace ninguna llamada. */
+export class NotificadorBloqueadoPiloto implements NotificadorPedidos {
+  readonly origen = 'piloto (retenido)'
+  async enviar(): Promise<ResultadoEnvio> { return { ok: false, mensaje: TEXTO_PEDIDOS_RETENIDO } }
 }
 
 /** En la demostración Pedidos «recibe» en memoria (para verlo en las pruebas). */
@@ -71,6 +78,7 @@ export class NotificadorPedidosHttp implements NotificadorPedidos {
 }
 
 export function notificadorPedidos(): NotificadorPedidos {
+  if (process.env.WMS_MODO_PILOTO === '1') return new NotificadorBloqueadoPiloto()
   if (modoDemoActivo()) return new NotificadorDemo()
   const baseUrl = process.env.WMS_PEDIDOS_URL
   const secreto = process.env.WMS_PEDIDOS_SECRETO

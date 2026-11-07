@@ -34,3 +34,27 @@ export function resolverModoPiloto(parametro: ModoPiloto | undefined, env: Entor
 
 /** Lo que se dice cuando un aviso a Pedidos queda retenido en el piloto. */
 export const TEXTO_PEDIDOS_RETENIDO = 'Piloto: el aviso a Pedidos quedó retenido y no se envió (no sale nada hacia Pedidos mientras dure el piloto).'
+
+// ---- P1 (Fase 4): piloto con producción REAL. Lo oficial sigue siendo el proceso actual (Odoo y papel). ----
+
+/** Lo que se le dice a TODO el equipo al entrar por primera vez (y en el enlace del Inicio). Lenguaje llano. */
+export const TITULO_BIENVENIDA_PILOTO = 'Esto es un PILOTO'
+export const PUNTOS_BIENVENIDA_PILOTO = [
+  { clave: 'oficial', titulo: 'Lo oficial sigue siendo el proceso actual', texto: 'Odoo y el papel siguen mandando. Lo que hagas aquí no reemplaza nada de lo que haces hoy.' },
+  { clave: 'prueba', titulo: 'Lo que registres aquí es de prueba', texto: 'Las actas, las aprobaciones y las guías de este sistema no valen como documento: llevan la marca «PILOTO, SIN VALOR».' },
+  { clave: 'borra', titulo: 'Todo se borra el 1 de diciembre', texto: 'Ese día se reinicia el sistema y se carga la información definitiva. Nada de lo de prueba pasa a producción.' },
+  { clave: 'nada-sale', titulo: 'Nada sale a Pedidos, a clientes ni a SUNAT', texto: 'No se envía nada a Pedidos ni a SUNAT, no hay correos ni enlaces para clientes y los avisos a vendedores quedan marcados «PRUEBA».' },
+] as const
+export const COOKIE_BIENVENIDA_PILOTO = 'wms_piloto_bienvenida'
+export const FECHA_REINICIO_PILOTO = '2026-12-01'
+
+/** ¿Hay que mostrar la bienvenida? Solo en piloto, y solo si esta persona todavía no la aceptó en este navegador. */
+export function debeVerBienvenida(piloto: boolean, cookie: string | undefined, usuarioId: string): boolean {
+  return piloto && cookie !== usuarioId
+}
+
+/** Encabezado de TODO aviso que sale del WMS mientras dure el piloto (el texto copiable «Copiar aviso» sigue disponible, pero marcado). */
+export const ENCABEZADO_AVISO_PRUEBA = 'PRUEBA (piloto del WMS): este aviso no es real, no lo envíes al vendedor.'
+export function avisoDePrueba(texto: string): string {
+  return texto.startsWith(ENCABEZADO_AVISO_PRUEBA) ? texto : `${ENCABEZADO_AVISO_PRUEBA}\n\n${texto}`
+}

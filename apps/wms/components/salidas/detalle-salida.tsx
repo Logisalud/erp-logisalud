@@ -33,7 +33,7 @@ const Lotes = ({ l }: { l: LineaSalidaVista }) => l.asignacion.length === 0
   ? <span className="text-gray-500">Sin lotes</span>
   : <ul className="space-y-0.5">{l.asignacion.map((a) => <li key={a.loteId} className="tabular"><Link href={`/lotes/${a.loteId}`} className="underline underline-offset-2" data-testid="lote-enlace">{a.lote}</Link> <span className="text-gray-600">· vence {a.vence ? mesAnio(a.vence) : '—'}</span> × <strong>{a.cantidad.toLocaleString('es-PE')}</strong></li>)}</ul>
 
-export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, guia, roles, usuario = '' }: { salida: SalidaVista; usuario?: string; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; guia: { datos: DatosGuia | null; modo: ModoNubefact; bloqueo?: string; hoy: string; eventos: EventoPedidos[]; numeracion?: EstadoCorrelativo | null }; roles: readonly Rol[] }) {
+export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, guia, roles, usuario = '', piloto = false }: { salida: SalidaVista; usuario?: string; piloto?: boolean; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; guia: { datos: DatosGuia | null; modo: ModoNubefact; bloqueo?: string; hoy: string; eventos: EventoPedidos[]; numeracion?: EstadoCorrelativo | null }; roles: readonly Rol[] }) {
   const router = useRouter()
   const movil = useEsMovil()
   const { pendiente, mensaje, ejecutar } = useAccion()
@@ -84,7 +84,7 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
       {lineas.some((l) => l.apartadaDeFefo) && <Aviso tipo="atencion" testid="aviso-fuera-fefo">Algún lote se apartó de la propuesta FEFO. Queda registrado con tu nombre; no necesitas explicar el motivo.</Aviso>}
       {salida.pedidoCancelado && <Aviso tipo="error" testid="pedido-cancelado-aviso"><p className="font-medium">Pedidos canceló este pedido.</p><p>Motivo: {salida.pedidoCancelado.motivo || 'sin motivo'}{salida.pedidoCancelado.por ? ` · lo canceló ${salida.pedidoCancelado.por}` : ''}.{salida.estado === 'CANCELADA' ? ' La orden se canceló y todo quedó libre.' : ''}</p></Aviso>}
       {lineas.some((l) => l.estado === 'SIN_STOCK') && <Aviso tipo="error">Hay líneas sin stock suficiente. Mientras falte, no se puede generar el picking: abajo dice por qué falta y quién decide.</Aviso>}
-      {(salida.faltantes?.length ?? 0) > 0 && <FaltaDeStock faltantes={salida.faltantes!} vendedor={salida.vendedor} aviso={salida.avisoVendedor} pedidoNumero={salida.pedidoNumero} />}
+      {(salida.faltantes?.length ?? 0) > 0 && <FaltaDeStock faltantes={salida.faltantes!} vendedor={salida.vendedor} aviso={salida.avisoVendedor} pedidoNumero={salida.pedidoNumero} piloto={piloto} />}
       {(salida.devoluciones?.length ?? 0) > 0 && <DevolverPicado salidaId={salida.id} devoluciones={salida.devoluciones!} roles={roles} cancelacionPendiente={salida.cancelacionPendiente} motivo={salida.pedidoCancelado?.motivo ?? salida.motivoCancelacion} />}
       {salida.faltaGuiaVigente && <Aviso tipo="atencion" testid="falta-guia-vigente"><p className="font-medium">Guía anulada, falta guía vigente.</p><p>La orden ya salió y el stock no se tocó. Emite la guía nueva en «Documentación final». Si la mercadería vuelve al almacén, entra como una devolución.</p></Aviso>}
       {mensaje?.tipo === 'error' && <Aviso tipo="error">{mensaje.texto}</Aviso>}

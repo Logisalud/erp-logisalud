@@ -11,6 +11,14 @@ test.describe('modo piloto', () => {
     await expect(page.getByTestId('banner-piloto')).toContainText('PILOTO, datos de prueba')
     await sinDesborde(page)
     await entrarComo(page, 'jefe_transporte')
+    // P1: el primer ingreso muestra la bienvenida del piloto; «Entendido» lleva al Inicio y ya no vuelve a salir
+    await page.goto('/wms')
+    await expect(page).toHaveURL(/\/wms\/bienvenida\/?$/)
+    await expect(page.getByTestId('bienvenida-piloto')).toContainText('Lo oficial sigue siendo el proceso actual')
+    await expect(page.getByTestId('bienvenida-piloto')).toContainText('1 de diciembre')
+    await page.getByTestId('bienvenida-entendi').click()
+    await expect(page).toHaveURL(/\/wms\/?$/)
+    await expect(page.getByTestId('enlace-bienvenida-piloto')).toBeVisible()
     for (const ruta of ['/wms', '/wms/entradas', '/wms/salidas', '/wms/kardex', '/wms/alertas']) {
       await page.goto(ruta)
       const b = page.getByTestId('banner-piloto')

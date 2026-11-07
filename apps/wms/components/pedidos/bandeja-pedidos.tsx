@@ -17,6 +17,7 @@ import { CHIP_AVISO, CHIP_NEUTRO, CHIP_OK, PILDORA_ACTIVA, PILDORA_INACTIVA_HOVE
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 import { Buscador } from '../inventario/mover/piezas'
+import { avisoDePrueba } from '@/domain/modo-piloto'
 
 const ESTADOS: EstadoBandeja[] = ['CAMBIO_POR_REVISAR', 'POR_PLANIFICAR', 'EN_SALIDA', 'CANCELADO_EN_PEDIDOS']
 const ROJO = 'border-red-200 bg-red-50 text-red-800'
@@ -60,7 +61,7 @@ function SimularEnPedidos({ p }: { p: PedidoBandeja }) {
   )
 }
 
-function Detalle({ p, puedeRevisar, puedeCrear, creando, crear, demo }: { p: PedidoBandeja; puedeRevisar: boolean; puedeCrear: boolean; creando: boolean; crear: (p: PedidoBandeja) => void; demo: boolean }) {
+function Detalle({ p, puedeRevisar, puedeCrear, creando, crear, demo, piloto }: { p: PedidoBandeja; puedeRevisar: boolean; puedeCrear: boolean; creando: boolean; crear: (p: PedidoBandeja) => void; demo: boolean; piloto: boolean }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const sinCatalogo = p.lineas.filter((l) => !l.enCatalogo)
   const dato = (titulo: string, valor?: string) => valor ? <div><dt className="text-xs font-medium text-gray-600">{titulo}</dt><dd className="text-sm text-gray-900">{valor}</dd></div> : null
@@ -76,7 +77,8 @@ function Detalle({ p, puedeRevisar, puedeCrear, creando, crear, demo }: { p: Ped
         <Aviso tipo="atencion" testid="pedido-falta-stock">
           <p className="font-medium">Falta stock en este pedido: decide el vendedor{p.vendedor ? ` ${p.vendedor}` : ''}, en Pedidos.</p>
           <p className="mt-1">Quitar o reducir la línea (lo que falta se cancela) o cancelar el pedido.</p>
-          <div className="mt-2"><BotonCopiarAviso texto={p.avisoVendedor} testid="copiar-aviso-bandeja" /></div>
+          {piloto && <p className="mt-2 inline-flex rounded-full border border-amber-400 bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-950" data-testid="aviso-prueba-bandeja">Prueba: este aviso no va a ningún vendedor real</p>}
+          <div className="mt-2"><BotonCopiarAviso texto={piloto ? avisoDePrueba(p.avisoVendedor) : p.avisoVendedor} testid="copiar-aviso-bandeja" /></div>
         </Aviso>
       )}
       {p.estado === 'CAMBIO_POR_REVISAR' && (
@@ -130,7 +132,7 @@ function Detalle({ p, puedeRevisar, puedeCrear, creando, crear, demo }: { p: Ped
 }
 
 /** La bandeja de pedidos por despachar: tabla en PC y tablet, filas compactas en el teléfono; el detalle se abre en la misma fila. */
-export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdenes = false, demo = false }: { bandeja: BandejaPedidos; puedeActualizar: boolean; puedeCrearOrdenes?: boolean; demo?: boolean }) {
+export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdenes = false, demo = false, piloto = false }: { bandeja: BandejaPedidos; puedeActualizar: boolean; puedeCrearOrdenes?: boolean; demo?: boolean; piloto?: boolean }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const unica = useAccion()
   const todas = useAccion()
@@ -296,7 +298,7 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
                                 : <span className="text-xs text-gray-500">—</span>}
                             </td>
                           </tr>
-                          {on && <tr id={`det-${p.pedidoId}`}><td colSpan={8} className="bg-white p-0"><Detalle p={p} puedeRevisar={puedeActualizar} puedeCrear={puedeCrearOrdenes} creando={creando === p.pedidoId && unica.pendiente} crear={crearUna} demo={demo} /></td></tr>}
+                          {on && <tr id={`det-${p.pedidoId}`}><td colSpan={8} className="bg-white p-0"><Detalle p={p} puedeRevisar={puedeActualizar} puedeCrear={puedeCrearOrdenes} creando={creando === p.pedidoId && unica.pendiente} crear={crearUna} demo={demo} piloto={piloto} /></td></tr>}
                         </Fragment>
                       )
                     })}
@@ -315,7 +317,7 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
                         <span className="block font-medium text-gray-900">{p.cliente}</span>
                         <span className="tabular block text-sm text-gray-700">{p.lineas.length} {p.lineas.length === 1 ? 'línea' : 'líneas'} · {p.unidades.toLocaleString('es-PE')} u · {fechaDia(p.fecha)}{p.distrito ? ` · ${p.distrito}` : ''}</span>
                       </button>
-                      {on && <div className="border-t border-gray-100 bg-gray-50/50"><Detalle p={p} puedeRevisar={puedeActualizar} puedeCrear={puedeCrearOrdenes} creando={creando === p.pedidoId && unica.pendiente} crear={crearUna} demo={demo} /></div>}
+                      {on && <div className="border-t border-gray-100 bg-gray-50/50"><Detalle p={p} puedeRevisar={puedeActualizar} puedeCrear={puedeCrearOrdenes} creando={creando === p.pedidoId && unica.pendiente} crear={crearUna} demo={demo} piloto={piloto} /></div>}
                     </li>
                   )
                 })}

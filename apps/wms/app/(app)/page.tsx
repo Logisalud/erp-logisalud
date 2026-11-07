@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import {
-  ArrowLeftRight, ArrowRight, BarChart3, Bell, Boxes, CalendarClock, ClipboardCheck, CheckCircle2, ClipboardList, Clock, FilePlus2, FolderOpen, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, type LucideIcon,
+  ArrowLeftRight, ArrowRight, BarChart3, Bell, Boxes, CalendarClock, ClipboardCheck, CheckCircle2, ClipboardList, Clock, FlaskConical, FilePlus2, FolderOpen, Inbox, Map, MessageSquareWarning, PenLine, ShieldAlert, ShieldCheck, TriangleAlert, type LucideIcon,
 } from 'lucide-react'
 import { TRAMO_VENCIDO, filasVencimientos } from '@/domain/reportes'
 import { exigirContexto } from '@/lib/contexto'
@@ -22,6 +24,8 @@ import { ETIQUETA_ETAPA } from '@/domain/despacho'
 import { ETIQUETA_ESTADO_SOLICITUD, ETIQUETA_TIPO_INGRESO } from '@/domain/entradas'
 import { MisTareas } from '@/components/guia/mis-tareas'
 import { Recorrido } from '@/components/guia/recorrido'
+import { modoPilotoActivo } from '@/lib/modo-piloto'
+import { COOKIE_BIENVENIDA_PILOTO, debeVerBienvenida } from '@/domain/modo-piloto'
 
 export const metadata = { title: 'Inicio — WMS LOGISALUD' }
 
@@ -141,6 +145,9 @@ async function cargarKpisInicio(actor: Actor, hoy: string): Promise<Indicador[]>
 
 export default async function Inicio() {
   const ctx = await exigirContexto()
+  // P1: en el piloto, la primera vez de cada persona ve la bienvenida («esto es un piloto, lo oficial sigue siendo el proceso actual»).
+  const piloto = await modoPilotoActivo()
+  if (debeVerBienvenida(piloto, cookies().get(COOKIE_BIENVENIDA_PILOTO)?.value, ctx.usuario.id)) redirect('/bienvenida')
   const repo = repositorio()
   const [p, ingresos, cola, expedientes, conteo, ordenes, conteos, ajustes] = await Promise.all([
     repo.panorama(), repo.listarSolicitudes(), repo.colaDireccionTecnica(), repo.listarExpedientes(), repo.contarAlertasAbiertas(),
@@ -171,6 +178,10 @@ export default async function Inicio() {
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Inicio</h1>
         <p className="mt-1 text-gray-600">{formatoFecha(p.hoy)}</p>
       </header>
+
+      {piloto && (
+        <p><Link href="/bienvenida" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-amber-900 underline underline-offset-2" data-testid="enlace-bienvenida-piloto"><FlaskConical className="h-4 w-4" aria-hidden />Qué es este piloto (lo oficial sigue siendo el proceso actual)</Link></p>
+      )}
 
       <Recorrido />
 

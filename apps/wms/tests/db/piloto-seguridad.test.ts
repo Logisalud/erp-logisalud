@@ -208,3 +208,17 @@ describe('A.1: copia inmutable de las órdenes de compra', () => {
     expect(r3.sin_cambios).toBe(r3.revisadas)
   })
 })
+
+describe('Fase 4 · P1: el piloto con producción real no abre nada a clientes', () => {
+  it('el interruptor de clientes sigue apagado, no hay usuarios de cliente y el piloto está encendido', async () => {
+    expect((await uno(`select valor from wms.parametros where clave = 'acceso_clientes_habilitado'`)).valor).toBe('false')
+    expect(Number((await uno(`select count(*)::int n from wms.usuario_roles where rol in ('usuario_cliente', 'dt_cliente')`)).n)).toBe(0)
+    expect((await uno(`select valor from wms.parametros where clave = 'modo_piloto'`)).valor).toBe('si')
+  })
+  it('un usuario de cliente no se puede crear con el interruptor apagado (ni siquiera siendo administrador)', async () => {
+    const cliente = randomUUID()
+    await base.admin.query('insert into auth.users (id) values ($1)', [cliente])
+    const e = await falla(base.admin.query(`insert into wms.usuario_roles (user_id, rol) values ($1, 'usuario_cliente')`, [cliente]))
+    expect(e.message).toMatch(/cliente/i)
+  })
+})
