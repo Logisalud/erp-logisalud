@@ -2,7 +2,7 @@ import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { normalizarModoPiloto, type ModoPiloto } from '@/domain/modo-piloto'
-import { situacionOc, type OcPilotoVista, type ResumenSincronizacion } from '@/domain/oc-versiones'
+import { situacionOc, TEXTO_ERROR_SINCRONIZACION, type EstadoSincronizacionOc, type OcPilotoVista, type ResultadoSincronizacionAuto, type ResumenSincronizacion } from '@/domain/oc-versiones'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioPiloto } from '../repositorio-piloto'
 import { SalidaManualSupabase } from './salida-manual-supabase'
@@ -46,10 +46,34 @@ export class PilotoSupabase extends SalidaManualSupabase implements RepositorioP
     }).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }))
   }
 
-  async sincronizarOcs(_actor: Actor): Promise<ResultadoAccion<{ resumen: ResumenSincronizacion }>> {
-    const { data, error } = await rpc('sincronizar_ocs_abiertas', {})
-    if (error) return { ok: false, mensaje: mensajeHumano(error) }
-    const r = (data ?? {}) as Record<string, number>
-    return { ok: true, resumen: { revisadas: r.revisadas ?? 0, nuevas: r.nuevas ?? 0, cambiadas: r.cambiadas ?? 0, eliminadas: r.eliminadas ?? 0, sinCambios: r.sin_cambios ?? 0 } }
+  async sincronizarOcs(actor: Actor): Promise<ResultadoAccion<{ resumen: ResumenSincronizacion }>> {
+    // «Revisar Compras ahora»: la misma función con 0 minutos (siempre corre y deja la hora de la última sincronización)
+    const r = await this.sincronizarOcsSiToca(actor, 0)
+    if (r.estado === 'SIN_PERMISO') return { ok: false, mensaje: 'No tienes permiso para copiar órdenes de compra' }
+    if (r.estado === 'EN_CURSO') return { ok: false, mensaje: 'Otra persona está revisando Compras en este momento. Espera un minuto y mira el resultado.' }
+    if (r.estado === 'ERROR' || !r.resumen) return { ok: false, mensaje: r.mensaje ?? TEXTO_ERROR_SINCRONIZACION }
+    return { ok: true, resumen: r.resumen }
+  }
+
+  async estadoSincronizacionOcs(): Promise<EstadoSincronizacionOc> {
+    try {
+      const { data } = await crearClienteServidor().schema('wms').from('oc_sincronizacion').select('*').maybeSingle()
+      const f = (data ?? {}) as Fila
+      const r = (f.ultimo_resumen ?? undefined) as Record<string, number> | undefined
+      return { ultimaEn: s(f.ultima_en), ultimoIntentoEn: s(f.ultimo_intento_en), ultimoError: s(f.ultimo_error), ultimoResumen: r ? { revisadas: r.revisadas ?? 0, nuevas: r.nuevas ?? 0, cambiadas: r.cambiadas ?? 0, eliminadas: r.eliminadas ?? 0, sinCambios: r.sin_cambios ?? 0 } : undefined }
+    } catch { return {} }
+  }
+
+  async sincronizarOcsSiToca(_actor: Actor, minutos = 30): Promise<ResultadoSincronizacionAuto> {
+    try {
+      const { data, error } = await rpc('sincronizar_ocs_si_toca', { p_minutos: minutos })
+      if (error) return { estado: 'ERROR', actual: await this.estadoSincronizacionOcs(), mensaje: TEXTO_ERROR_SINCRONIZACION }
+      const r = (data ?? {}) as Record<string, unknown>
+      const x = r.resumen as Record<string, number> | undefined
+      return {
+        estado: String(r.estado) as ResultadoSincronizacionAuto['estado'], actual: await this.estadoSincronizacionOcs(), mensaje: s(r.error),
+        resumen: x ? { revisadas: x.revisadas ?? 0, nuevas: x.nuevas ?? 0, cambiadas: x.cambiadas ?? 0, eliminadas: x.eliminadas ?? 0, sinCambios: x.sin_cambios ?? 0 } : undefined,
+      }
+    } catch { return { estado: 'ERROR', actual: {}, mensaje: TEXTO_ERROR_SINCRONIZACION } }
   }
 }

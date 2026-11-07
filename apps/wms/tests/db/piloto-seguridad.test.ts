@@ -222,3 +222,66 @@ describe('Fase 4 · P1: el piloto con producción real no abre nada a clientes',
     expect(e.message).toMatch(/cliente/i)
   })
 })
+
+describe('Fase 4 · P6: sincronización automática de las OC (0045)', () => {
+  const siToca = (quien: string, min = 30) => como(quien, async (cl) => (await cl.query('select wms.sincronizar_ocs_si_toca($1) r', [min])).rows[0].r as Record<string, unknown>)
+  const envejecer = (min: number) => base.admin.query(`update wms.oc_sincronizacion set ultima_en = now() - make_interval(mins => $1), ultimo_intento_en = now() - make_interval(mins => $1), ultimo_error = null`, [min])
+
+  it('la primera vez corre y deja la hora; si pasaron menos de 30 minutos no repite; con más de 30 corre de nuevo y audita cada versión nueva', async () => {
+    await envejecer(999)
+    const c = await compras()
+    const r1 = await siToca(sandra)
+    expect(r1.estado).toBe('SINCRONIZADA')
+    expect(Number((r1.resumen as Record<string, number>).nuevas)).toBeGreaterThan(0)
+    expect((await uno('select ultima_en, ultimo_error from wms.oc_sincronizacion')).ultimo_error).toBeNull()
+    const antes = Number((await uno(`select count(*)::int n from wms.audit_events where evento = 'oc_sincronizacion'`)).n)
+    expect(antes).toBeGreaterThan(0)
+    expect((await siToca(sandra)).estado).toBe('AL_DIA')
+    expect(Number((await uno(`select count(*)::int n from wms.audit_events where evento = 'oc_sincronizacion'`)).n)).toBe(antes)
+    // Compras cambia y pasan 31 minutos: corre sola y la versión nueva queda en la auditoría
+    await base.admin.query('update compras.ordenes_compra_items set cantidad_pedida = cantidad_pedida + 5 where id = $1', [c.it])
+    expect((await siToca(sandra)).estado).toBe('AL_DIA')                 // todavía no toca
+    await envejecer(31)
+    const r2 = await siToca(sandra)
+    expect(r2.estado).toBe('SINCRONIZADA'); expect(Number((r2.resumen as Record<string, number>).cambiadas)).toBeGreaterThanOrEqual(1)
+    expect((await versiones(c.oc)).map((x) => x.version)).toEqual([1, 2])
+    expect(Number((await uno(`select count(*)::int n from wms.audit_events where evento = 'oc_version_creada' and entidad_id in (select id::text from wms.oc_versiones where oc_id = $1)`, [c.oc])).n)).toBe(2)
+    expect((await uno(`select motivo from wms.audit_events where evento = 'oc_sincronizacion' order by ts desc limit 1`)).motivo).toBe('automatica')
+  })
+  it('«Revisar ahora» (0 minutos) fuerza la revisión aunque sea reciente', async () => {
+    await envejecer(1)
+    expect((await siToca(sandra, 30)).estado).toBe('AL_DIA')
+    expect((await siToca(sandra, 0)).estado).toBe('SINCRONIZADA')
+  })
+  it('candado: si otra sesión ya la está corriendo, la segunda ve «en curso» y no la repite; dos llamadas a la vez no corren dos veces', async () => {
+    await envejecer(60)
+    await base.admin.query(`select pg_advisory_lock(hashtextextended('wms.sincronizacion_ocs', 0))`)
+    try { expect((await siToca(sandra)).estado).toBe('EN_CURSO') } finally { await base.admin.query(`select pg_advisory_unlock(hashtextextended('wms.sincronizacion_ocs', 0))`) }
+    await envejecer(60)
+    const [a, b] = await Promise.all([siToca(sandra), siToca(jt)])
+    expect([a.estado, b.estado].filter((e) => e === 'SINCRONIZADA')).toHaveLength(1)
+    expect([a.estado, b.estado].filter((e) => e === 'AL_DIA' || e === 'EN_CURSO')).toHaveLength(1)
+  })
+  it('si Compras no responde: mensaje en lenguaje llano, el detalle técnico aparte, no insiste en 5 minutos y se recupera cuando vuelve', async () => {
+    await envejecer(60)
+    await base.admin.query('alter view wms.v_oc_lineas rename to v_oc_lineas_fuera')
+    try {
+      const r = await siToca(sandra)
+      expect(r.estado).toBe('ERROR')
+      expect(String(r.error)).toMatch(/No pudimos revisar Compras ahora/)
+      expect(String(r.error)).not.toMatch(/relation|v_oc_lineas|sql/i)
+      const s = await uno('select ultimo_error, ultimo_detalle from wms.oc_sincronizacion')
+      expect(s.ultimo_detalle).toMatch(/Compras no está conectado/)
+      expect(await siToca(sandra)).toMatchObject({ estado: 'ERROR', reciente: true })
+    } finally { await base.admin.query('alter view wms.v_oc_lineas_fuera rename to v_oc_lineas') }
+    expect((await siToca(sandra, 0)).estado).toBe('SINCRONIZADA')
+    expect((await uno('select ultimo_error from wms.oc_sincronizacion')).ultimo_error).toBeNull()
+  })
+  it('quien solo mira (auditoría) no dispara la sincronización: ve el estado y nada cambia', async () => {
+    await envejecer(60)
+    const antes = await uno('select ultima_en from wms.oc_sincronizacion')
+    expect((await siToca(base.personas.auditor.id)).estado).toBe('SIN_PERMISO')
+    expect((await uno('select ultima_en from wms.oc_sincronizacion')).ultima_en).toEqual(antes.ultima_en)
+    expect((await como(base.personas.auditor.id, (cl) => cl.query('select ultima_en from wms.oc_sincronizacion'))).rows).toHaveLength(1)
+  })
+})

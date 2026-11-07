@@ -4,7 +4,11 @@ import { normalizarModoPiloto, type ModoPiloto } from '@/domain/modo-piloto'
 import type { VersionOc } from '@/domain/oc-versiones'
 import type { EstadoDemo } from './estado'
 
-export interface PilotoDemoEstado { modo?: ModoPiloto; versiones: VersionOc[] }
+export interface PilotoDemoEstado {
+  modo?: ModoPiloto; versiones: VersionOc[]
+  /** P6: la sincronización automática de las OC. `falla` (solo pruebas) simula que Compras no responde; `enCurso` es el candado. */
+  sync?: { ultimaEn?: string; ultimoIntentoEn?: string; error?: string; enCurso?: boolean; falla?: boolean; resumen?: import('@/domain/oc-versiones').ResumenSincronizacion }
+}
 
 export function piloto(e: EstadoDemo): PilotoDemoEstado {
   const x = e as EstadoDemo & { piloto?: PilotoDemoEstado }

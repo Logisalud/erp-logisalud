@@ -1,5 +1,5 @@
 import type { ModoPiloto } from '@/domain/modo-piloto'
-import type { OcPilotoVista, ResumenSincronizacion } from '@/domain/oc-versiones'
+import type { EstadoSincronizacionOc, OcPilotoVista, ResultadoSincronizacionAuto, ResumenSincronizacion } from '@/domain/oc-versiones'
 import type { Actor, ResultadoAccion } from './repositorio'
 
 /** Piloto (0038): el parámetro `modo_piloto` y la copia inmutable de las órdenes de compra. El WMS solo LEE Compras: nada de esto escribe en `compras.*`. */
@@ -10,4 +10,8 @@ export interface RepositorioPiloto {
   ocsDelPiloto(): Promise<OcPilotoVista[]>
   /** «Revisar Compras ahora»: copia las OC nuevas y agrega una versión (con alerta) a las que cambiaron. */
   sincronizarOcs(actor: Actor): Promise<ResultadoAccion<{ resumen: ResumenSincronizacion }>>
+  /** Cuándo fue la última sincronización con Compras y si el último intento falló. */
+  estadoSincronizacionOcs(): Promise<EstadoSincronizacionOc>
+  /** P6: al abrir «Entradas» y «Órdenes de compra del piloto»: sincroniza solo si la última tiene más de N minutos, con candado contra la repetición en paralelo. Nunca lanza: un fallo vuelve como ERROR en palabras llanas. */
+  sincronizarOcsSiToca(actor: Actor, minutos?: number): Promise<ResultadoSincronizacionAuto>
 }

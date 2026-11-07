@@ -1,8 +1,8 @@
 // El modo piloto y la copia de las órdenes de compra, en memoria (modo demostración). Aplica las mismas reglas que la migración 0038 (`wms.sincronizar_oc` y compañía).
 import type { ModoPiloto } from '@/domain/modo-piloto'
 import {
-  describirCambioOc, mensajeOcEliminada, situacionOc,
-  type ContenidoOc, type OcPilotoVista, type ResumenSincronizacion, type VersionOc,
+  describirCambioOc, mensajeOcEliminada, situacionOc, tocaSincronizar, TEXTO_ERROR_SINCRONIZACION,
+  type EstadoSincronizacionOc, type ResultadoSincronizacionAuto, type ContenidoOc, type OcPilotoVista, type ResumenSincronizacion, type VersionOc,
 } from '@/domain/oc-versiones'
 import { hashDeContenidoOc } from '@/lib/oc-hash'
 import { puede } from '@/domain/permisos'
@@ -74,9 +74,7 @@ export class PilotoDemo extends SalidaManualDemo implements RepositorioPiloto {
     }).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }))
   }
 
-  async sincronizarOcs(actor: Actor): Promise<ResultadoAccion<{ resumen: ResumenSincronizacion }>> {
-    const e = estadoE()
-    if (!puede(actor.roles, 'ejecutar')) return falla('No tienes permiso para copiar órdenes de compra')
+  private correrSincronizacion(e: EstadoDemo, actor: Actor): ResumenSincronizacion {
     const ids = [...new Set([...e.compras.filter(esAbierta).map((o) => o.ocId), ...piloto(e).versiones.map((v) => v.encabezado.ocId)])]
     const r: ResumenSincronizacion = { revisadas: 0, nuevas: 0, cambiadas: 0, eliminadas: 0, sinCambios: 0 }
     for (const id of ids) {
@@ -85,6 +83,44 @@ export class PilotoDemo extends SalidaManualDemo implements RepositorioPiloto {
       r.revisadas += 1
       if (a === 'CREADA') r.nuevas += 1; else if (a === 'CAMBIADA') r.cambiadas += 1; else if (a === 'ELIMINADA') r.eliminadas += 1; else r.sinCambios += 1
     }
-    return { ok: true, resumen: r }
+    return r
+  }
+
+  async sincronizarOcs(actor: Actor): Promise<ResultadoAccion<{ resumen: ResumenSincronizacion }>> {
+    // «Revisar Compras ahora»: siempre corre (0 minutos) y deja la hora de la última sincronización
+    const r = await this.sincronizarOcsSiToca(actor, 0)
+    if (r.estado === 'SIN_PERMISO') return falla('No tienes permiso para copiar órdenes de compra')
+    if (r.estado === 'EN_CURSO') return falla('Otra persona está revisando Compras en este momento. Espera un minuto y mira el resultado.')
+    if (r.estado === 'ERROR' || !r.resumen) return falla(r.mensaje ?? TEXTO_ERROR_SINCRONIZACION)
+    return { ok: true, resumen: r.resumen }
+  }
+
+  /** Pruebas: simula que Compras no responde / vuelve, y fija la hora de la última sincronización. */
+  fijarFallaSincronizacionOcs(falla: boolean) { (piloto(estadoE()).sync ??= {}).falla = falla }
+  fijarUltimaSincronizacionOcs(iso: string | undefined) { const s = (piloto(estadoE()).sync ??= {}); s.ultimaEn = iso; s.ultimoIntentoEn = iso; s.error = undefined }
+  fijarSincronizacionEnCurso(enCurso: boolean) { (piloto(estadoE()).sync ??= {}).enCurso = enCurso }
+
+  async estadoSincronizacionOcs(): Promise<EstadoSincronizacionOc> {
+    const s = piloto(estadoE()).sync ?? {}
+    return { ultimaEn: s.ultimaEn, ultimoIntentoEn: s.ultimoIntentoEn, ultimoError: s.error, ultimoResumen: s.resumen }
+  }
+
+  /** Espejo de `wms.sincronizar_ocs_si_toca` (migración 0045). */
+  async sincronizarOcsSiToca(actor: Actor, minutos = 30): Promise<ResultadoSincronizacionAuto> {
+    const e = estadoE()
+    const s = (piloto(e).sync ??= {})
+    const actual = async () => this.estadoSincronizacionOcs()
+    if (!puede(actor.roles, 'ejecutar')) return { estado: 'SIN_PERMISO', actual: await actual() }
+    if (s.enCurso) return { estado: 'EN_CURSO', actual: await actual() }
+    if (minutos > 0 && !tocaSincronizar(s.ultimaEn, new Date(), minutos)) return { estado: 'AL_DIA', actual: await actual() }
+    if (minutos > 0 && s.error && s.ultimoIntentoEn && Date.now() - Date.parse(s.ultimoIntentoEn) < 5 * 60_000) return { estado: 'ERROR', actual: await actual(), mensaje: s.error }
+    s.enCurso = true
+    try {
+      if (s.falla) { s.ultimoIntentoEn = ahora(); s.error = TEXTO_ERROR_SINCRONIZACION; return { estado: 'ERROR', actual: await actual(), mensaje: TEXTO_ERROR_SINCRONIZACION } }
+      const r = this.correrSincronizacion(e, actor)
+      s.ultimaEn = ahora(); s.ultimoIntentoEn = s.ultimaEn; s.error = undefined; s.resumen = r
+      if (r.nuevas + r.cambiadas + r.eliminadas > 0) registrar(e, actor, 'oc_sincronizacion', 'oc_sincronizacion', 'true', `Sincronización con Compras: ${r.nuevas} nuevas, ${r.cambiadas} cambiadas, ${r.eliminadas} eliminadas`, minutos === 0 ? 'manual' : 'automatica')
+      return { estado: 'SINCRONIZADA', actual: await actual(), resumen: r }
+    } finally { s.enCurso = false }
   }
 }

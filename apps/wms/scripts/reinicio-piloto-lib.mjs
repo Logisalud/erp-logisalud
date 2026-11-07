@@ -9,6 +9,7 @@ export const CONSERVAR = [
   'perfil_documental_cliente', 'permisos_rol', 'personal_transporte', 'posicion_geometria', 'posiciones', 'producto_codigos', 'producto_regulatorio', 'producto_regulatorio_cambios',
   'propietarios', 'tablas_muestreo', 'tablas_muestreo_tramos', 'tipos_area', 'tipos_movimiento', 'transiciones_estado', 'usuario_roles', 'vehiculos', 'vistas_guardadas',
   'correlativos', 'guia_correlativos', 'formatos_versiones', 'proveedores_config',
+  'oc_sincronizacion', // solo dice cuándo se sincronizó con Compras por última vez: se conserva
   'reinicios',      // el registro de reinicios queda FUERA de lo que se borra
 ]
 /** Lo que se BORRA: todo lo transaccional, incluidas las copias de pedidos y de OC, la carga de ensayo «piloto», las firmas dibujadas (están en `acta_firmas` y en el bucket) y las fotos de entrega. */

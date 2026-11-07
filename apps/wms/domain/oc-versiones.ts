@@ -76,3 +76,22 @@ export const ETIQUETA_SITUACION_OC: Record<OcPilotoVista['situacion'], string> =
   CAMBIO: 'Cambió en Compras',
   ELIMINADA: 'Ya no existe en Compras',
 }
+
+// ---- Fase 4 · P6: sincronización automática (migración 0045) ----
+export const MINUTOS_SINCRONIZACION = 30
+export interface EstadoSincronizacionOc { ultimaEn?: string; ultimoIntentoEn?: string; ultimoError?: string; ultimoResumen?: ResumenSincronizacion }
+export type ResultadoSincronizacionAuto = { estado: 'SINCRONIZADA' | 'AL_DIA' | 'EN_CURSO' | 'ERROR' | 'SIN_PERMISO'; actual: EstadoSincronizacionOc; resumen?: ResumenSincronizacion; mensaje?: string }
+export const TEXTO_ERROR_SINCRONIZACION = 'No pudimos revisar Compras ahora. Ves la última copia guardada; vuelve a intentar con «Revisar Compras ahora» y, si sigue igual, avisa a quien administra el WMS.'
+
+/** ¿Toca sincronizar? Nunca se sincronizó, o la última que funcionó tiene más de N minutos (espejo de `wms.sincronizar_ocs_si_toca`). */
+export function tocaSincronizar(ultimaEn: string | undefined, ahora: Date = new Date(), minutos = MINUTOS_SINCRONIZACION): boolean {
+  if (!ultimaEn) return true
+  return ahora.getTime() - Date.parse(ultimaEn) > minutos * 60_000
+}
+/** «Última sincronización con Compras: hace 12 min» (o que todavía no hubo ninguna). */
+export function textoUltimaSincronizacion(ultimaEn: string | undefined, ahora: Date = new Date()): string {
+  if (!ultimaEn) return 'Todavía no se sincronizó con Compras.'
+  const min = Math.max(0, Math.round((ahora.getTime() - Date.parse(ultimaEn)) / 60000))
+  const cuanto = min < 1 ? 'hace un momento' : min < 60 ? `hace ${min} min` : min < 1440 ? `hace ${Math.round(min / 60)} h` : `hace ${Math.round(min / 1440)} ${Math.round(min / 1440) === 1 ? 'día' : 'días'}`
+  return `Última sincronización con Compras: ${cuanto}`
+}
