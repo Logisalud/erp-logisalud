@@ -86,14 +86,12 @@ describe('formato organoléptico versionado y «sin material de envase» (F3)', 
     expect(versionVigente([{ version: 1, estado: 'APROBADA' }, { version: 2, estado: 'PENDIENTE' }])).toBe(1)
     expect(versionVigente([{ version: 1, estado: 'APROBADA' }, { version: 2, estado: 'APROBADA' }])).toBe(2)
   })
-  it('sin material de envase, el checklist no lo pide', () => {
+  it('el checklist ya no pide material de envase: solo los puntos del formato', () => {
     const c: Record<string, 'C'> = {}
-    for (const g of CHECKLIST_ORGANOLEPTICO) if (!g.opcional) for (const i of g.items) c[i.id] = 'C'
-    expect(itemsPendientes(c)).toEqual(['material'])
-    expect(itemsPendientes(c, true)).toEqual([])
+    for (const g of CHECKLIST_ORGANOLEPTICO) for (const i of g.items) c[i.id] = 'C'
+    expect(itemsPendientes(c)).toEqual([])
     const d = { certAnalisis: true, checklist: c, destinoSugerido: 'APROBADO' as const, conclusion: 'CONFORME' as const }
-    expect(faltantesParaEnviar(d)).toHaveLength(1)
-    expect(faltantesParaEnviar(d, true)).toEqual([])
+    expect(faltantesParaEnviar(d)).toEqual([])
   })
 })
 

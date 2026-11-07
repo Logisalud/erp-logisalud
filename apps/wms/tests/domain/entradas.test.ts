@@ -135,22 +135,21 @@ describe('numeración', () => {
 describe('checklist organoléptico', () => {
   const marcarTodo = (r: 'C' | 'NC' | 'NA', excepto: string[] = []): Checklist => {
     const c: Checklist = {}
-    for (const g of CHECKLIST_ORGANOLEPTICO) if (!g.opcional || g.id === 'plastico') for (const i of g.items) c[i.id] = excepto.includes(i.id) ? 'NC' : r
+    for (const g of CHECKLIST_ORGANOLEPTICO) for (const i of g.items) c[i.id] = excepto.includes(i.id) ? 'NC' : r
     return c
   }
 
-  it('completo cuando todo lo obligatorio está respondido y hay un material', () => {
-    expect(itemsPendientes({})).toContain('material')
+  it('completo cuando todos los puntos del formato están respondidos', () => {
+    expect(itemsPendientes({})).toHaveLength(CHECKLIST_ORGANOLEPTICO.flatMap((g) => g.items).length)
     expect(itemsPendientes(marcarTodo('C'))).toEqual([])
-    const sinMaterial = marcarTodo('C')
-    for (const i of CHECKLIST_ORGANOLEPTICO.find((g) => g.id === 'plastico')!.items) delete sinMaterial[i.id]
-    expect(itemsPendientes(sinMaterial)).toEqual(['material'])
+    const c = marcarTodo('C')
+    delete c.rotmed_almacenamiento
+    expect(itemsPendientes(c)).toEqual(['rotmed_almacenamiento'])
   })
 
-  it('un grupo de material a medias exige terminarlo', () => {
-    const c = marcarTodo('C')
-    delete c.pla_cierre
-    expect(itemsPendientes(c)).toEqual(['pla_cierre'])
+  it('el formato LS-FR.55.02 tiene 6 + 10 + 10 + 7 + 6 puntos y ninguna sección de material de envase', () => {
+    expect(CHECKLIST_ORGANOLEPTICO.map((g) => g.items.length)).toEqual([6, 10, 10, 7, 6])
+    expect(CHECKLIST_ORGANOLEPTICO.some((g) => g.titulo.startsWith('III.'))).toBe(false)
   })
 
   it('un solo "no conforme" sugiere NO CONFORME', () => {
@@ -161,8 +160,8 @@ describe('checklist organoléptico', () => {
 
   it('lo que falta para enviar a Dirección Técnica se dice claro', () => {
     const f = faltantesParaEnviar({ certAnalisis: null, checklist: {}, destinoSugerido: null, conclusion: null })
-    expect(f).toHaveLength(5)
-    expect(f.join(' ')).toMatch(/certificado[\s\S]*material[\s\S]*puntos[\s\S]*destino[\s\S]*conclusión/)
+    expect(f).toHaveLength(4)
+    expect(f.join(' ')).toMatch(/certificado[\s\S]*puntos[\s\S]*destino[\s\S]*conclusión/)
     expect(faltantesParaEnviar({ certAnalisis: true, checklist: marcarTodo('C'), destinoSugerido: 'APROBADO', conclusion: 'CONFORME' })).toEqual([])
   })
 })

@@ -943,7 +943,7 @@ export class MotorEntradas {
     if (d.destinoSugerido !== undefined) o.datos.destinoSugerido = d.destinoSugerido
     if (d.conclusion !== undefined) o.datos.conclusion = d.conclusion
     if (enviar) {
-      const f = faltantesParaEnviar(o.datos, vistaOrganoleptica(e, o).materialEnvaseOculto)
+      const f = faltantesParaEnviar(o.datos)
       if (f.length) return falla(`Para enviarla a Dirección Técnica: ${f[0]}`)
       o.estado = 'PENDIENTE_DT'
     }
@@ -1238,7 +1238,7 @@ const FIRMA_PNG = FIRMA_PNG_EJEMPLO
 
 export function checklistConforme(): Checklist {
   const c: Checklist = {}
-  for (const g of CHECKLIST_ORGANOLEPTICO) if (!g.opcional || g.id === 'plastico') for (const it of g.items) c[it.id] = 'C'
+  for (const g of CHECKLIST_ORGANOLEPTICO) for (const it of g.items) c[it.id] = 'C'
   return c
 }
 

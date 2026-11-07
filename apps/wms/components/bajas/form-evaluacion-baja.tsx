@@ -5,7 +5,7 @@ import { CheckCheck, Save } from 'lucide-react'
 import { registrarEvaluacionBajaAccion } from '@/app/acciones-bajas'
 import { CHECKLIST_ORGANOLEPTICO, sugerirConclusion, type Checklist, type Respuesta } from '@/domain/entradas'
 import { MENSAJE_BAJA, faltantesEvaluacion, type EvaluacionBajaVista } from '@/domain/bajas'
-import { PILDORA_ACTIVA, PILDORA_ACTIVA_ROJA, PILDORA_INACTIVA, PILDORA_INACTIVA_HOVER } from '../estilos-opcion'
+import { PILDORA_ACTIVA, PILDORA_ACTIVA_ROJA, PILDORA_INACTIVA } from '../estilos-opcion'
 import { Segmentado } from '../calidad/form-organoleptica'
 import { Aviso } from '../entradas/aviso'
 import { useAccion } from '../usar-accion'
@@ -18,12 +18,9 @@ export function FormEvaluacionBaja({ lineaId, previa, onTerminar }: { lineaId: s
   const [obs, setObs] = useState(previa?.observacion ?? '')
   const [conclusion, setConclusion] = useState<'CONFORME' | 'NO_CONFORME' | null>(previa?.conclusion ?? null)
   const [solo, setSolo] = useState(!previa)
-  const [materiales, setMateriales] = useState<Set<string>>(() => new Set(CHECKLIST_ORGANOLEPTICO.filter((g) => g.opcional && g.items.some((i) => previa?.checklist[i.id])).map((g) => g.id)))
 
   const datos = { checklist, certAnalisis: cert, observacion: obs, conclusion }
   const faltan = useMemo(() => faltantesEvaluacion(datos), [checklist, cert, obs, conclusion]) // eslint-disable-line react-hooks/exhaustive-deps
-  const grupos = CHECKLIST_ORGANOLEPTICO.filter((g) => !g.opcional || materiales.has(g.id))
-  const opcionales = CHECKLIST_ORGANOLEPTICO.filter((g) => g.opcional)
 
   function responder(id: string, r: Respuesta) {
     const nuevo = { ...checklist, [id]: r }
@@ -32,7 +29,7 @@ export function FormEvaluacionBaja({ lineaId, previa, onTerminar }: { lineaId: s
   }
   function marcarConformes() {
     const nuevo = { ...checklist }
-    for (const g of CHECKLIST_ORGANOLEPTICO) if (!g.opcional || materiales.has(g.id)) for (const i of g.items) if (!nuevo[i.id]) nuevo[i.id] = 'C'
+    for (const g of CHECKLIST_ORGANOLEPTICO) for (const i of g.items) if (!nuevo[i.id]) nuevo[i.id] = 'C'
     setChecklist(nuevo)
     if (solo) setConclusion(sugerirConclusion(nuevo))
   }
@@ -45,7 +42,7 @@ export function FormEvaluacionBaja({ lineaId, previa, onTerminar }: { lineaId: s
         <p className="text-sm text-gray-700">Para cada punto marca <strong>Sí</strong>, <strong>No</strong> o <strong>N.A.</strong></p>
         <button type="button" className="btn-secondary btn-sm" onClick={marcarConformes} data-testid="eval-marcar-conformes"><CheckCheck className="h-4 w-4" aria-hidden />Marcar lo que falta como conforme</button>
       </div>
-      {grupos.map((g) => (
+      {CHECKLIST_ORGANOLEPTICO.map((g) => (
         <section key={g.id} aria-labelledby={`eg-${lineaId}-${g.id}`} className="rounded-md border border-gray-200 bg-white p-3">
           <h4 id={`eg-${lineaId}-${g.id}`} className="font-heading text-sm font-medium uppercase tracking-wide text-gray-800">{g.titulo}</h4>
           <ul className="mt-1 divide-y divide-gray-100">
@@ -58,15 +55,6 @@ export function FormEvaluacionBaja({ lineaId, previa, onTerminar }: { lineaId: s
           </ul>
         </section>
       ))}
-      <fieldset>
-        <legend className="etiqueta">Material del envase</legend>
-        <div className="flex flex-wrap gap-2">
-          {opcionales.map((g) => {
-            const on = materiales.has(g.id)
-            return <button key={g.id} type="button" role="checkbox" aria-checked={on} onClick={() => setMateriales((m) => { const n = new Set(m); if (on) n.delete(g.id); else n.add(g.id); return n })} className={`min-h-11 rounded-full border px-4 text-sm font-medium transition duration-fast ${on ? PILDORA_ACTIVA : PILDORA_INACTIVA_HOVER}`}>{g.titulo.replace('III. ', '')}</button>
-          })}
-        </div>
-      </fieldset>
       <fieldset>
         <legend className="etiqueta">Trae certificado de análisis o protocolo analítico</legend>
         <div role="radiogroup" aria-label="Trae certificado de análisis o protocolo analítico" className="flex gap-2">{[true, false].map((v) => <button key={String(v)} type="button" role="radio" aria-checked={cert === v} onClick={() => setCert(v)} className={`min-h-11 min-w-20 rounded-full border px-4 text-sm font-medium ${cert === v ? PILDORA_ACTIVA : PILDORA_INACTIVA}`}>{v ? 'Sí' : 'No'}</button>)}</div>

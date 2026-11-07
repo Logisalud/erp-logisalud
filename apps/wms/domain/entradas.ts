@@ -268,8 +268,6 @@ export const ETIQUETA_RESPUESTA: Record<Respuesta, string> = { C: 'Conforme', NC
 export interface GrupoChecklist {
   id: string
   titulo: string
-  /** Los grupos de material del envase se usan solo si el producto lo tiene. */
-  opcional?: boolean
   items: { id: string; texto: string }[]
 }
 
@@ -280,22 +278,20 @@ const generales = (p: string): GrupoChecklist['items'] => [
   { id: `${p}_limpio`, texto: 'Limpio' },
   { id: `${p}_sin_arrugas`, texto: 'Sin arrugas' },
   { id: `${p}_sin_quiebres`, texto: 'Sin quiebres ni humedad' },
-  { id: `${p}_sin_deterioro`, texto: 'Sin deterioro ni deformación' },
-  { id: `${p}_sin_manchas`, texto: 'Sin manchas' },
+  { id: `${p}_sin_deterioro`, texto: 'Sin deterioro, deformación ni manchas' },
   { id: `${p}_sin_cuerpos`, texto: 'Sin cuerpos extraños' },
   { id: `${p}_sin_grietas`, texto: 'Sin grietas, rajaduras ni perforaciones' },
   { id: `${p}_sello`, texto: 'Sello de banda de seguridad intacto' },
-  { id: `${p}_condiciones`, texto: 'Condiciones especiales de almacenamiento' },
 ]
 
-const rotulado = (p: string): GrupoChecklist['items'] => [
+const rotulado = (p: string, conAlmacenamiento: boolean): GrupoChecklist['items'] => [
   { id: `${p}_legible`, texto: 'Bien adherido o impreso y legible' },
   { id: `${p}_nombre`, texto: 'Nombre del producto y forma de presentación' },
   { id: `${p}_fabricante`, texto: 'Datos del fabricante y del importador' },
   { id: `${p}_contenido`, texto: 'Contenido de la información según el registro sanitario' },
   { id: `${p}_lote`, texto: 'N.º de lote' },
   { id: `${p}_vence`, texto: 'Fecha de vencimiento' },
-  { id: `${p}_almacenamiento`, texto: 'Condiciones de almacenamiento' },
+  ...(conAlmacenamiento ? [{ id: `${p}_almacenamiento`, texto: 'Condiciones de almacenamiento' }] : []),
 ]
 
 export const CHECKLIST_ORGANOLEPTICO: readonly GrupoChecklist[] = [
@@ -312,64 +308,20 @@ export const CHECKLIST_ORGANOLEPTICO: readonly GrupoChecklist[] = [
   },
   { id: 'envase_mediato', titulo: 'Envase mediato', items: generales('mediato') },
   { id: 'envase_inmediato', titulo: 'Envase inmediato', items: generales('inmediato') },
-  { id: 'rotulado_mediato', titulo: 'Rotulado mediato', items: rotulado('rotmed') },
-  { id: 'rotulado_inmediato', titulo: 'Rotulado inmediato', items: rotulado('rotinm') },
-  {
-    id: 'vidrio', titulo: 'III. Envase de vidrio', opcional: true,
-    items: [
-      { id: 'vid_lleno', texto: 'Lleno o completo' },
-      { id: 'vid_sin_manchas', texto: 'Sin manchas ni cuerpos extraños en el interior' },
-      { id: 'vid_sin_grietas', texto: 'Sin grietas en ninguna parte del recipiente' },
-      { id: 'vid_cierre', texto: 'Cierre hermético' },
-    ],
-  },
-  {
-    id: 'plastico', titulo: 'III. Envase de plástico', opcional: true,
-    items: [
-      { id: 'pla_sin_perforaciones', texto: 'Libre de perforaciones, grietas o roturas' },
-      { id: 'pla_sin_deformaciones', texto: 'Libre de deformaciones o hendiduras que afecten el producto' },
-      { id: 'pla_banda', texto: 'Con banda de seguridad intacta (cuando corresponda)' },
-      { id: 'pla_cierre', texto: 'Cierre hermético' },
-    ],
-  },
-  {
-    id: 'tubo', titulo: 'III. Envase de tubo', opcional: true,
-    items: [
-      { id: 'tub_entero', texto: 'No está roto' },
-      { id: 'tub_forma', texto: 'No está deforme' },
-      { id: 'tub_lleno', texto: 'Lleno' },
-      { id: 'tub_cierre', texto: 'Cierre hermético' },
-    ],
-  },
-  {
-    id: 'blister', titulo: 'III. Blíster termosellado', opcional: true,
-    items: [
-      { id: 'bli_entero', texto: 'No está roto' },
-      { id: 'bli_lleno', texto: 'Lleno' },
-      { id: 'bli_sellado', texto: 'Sellado' },
-    ],
-  },
-  { id: 'otro', titulo: 'III. Otro material', opcional: true, items: [{ id: 'otro_ok', texto: 'Se ve en buen estado' }] },
+  { id: 'rotulado_mediato', titulo: 'Rotulado mediato', items: rotulado('rotmed', true) },
+  { id: 'rotulado_inmediato', titulo: 'Rotulado inmediato', items: rotulado('rotinm', false) },
 ]
 
 export type Checklist = Record<string, Respuesta>
 
 const todosLosItems = () => CHECKLIST_ORGANOLEPTICO.flatMap((g) => g.items.map((i) => ({ ...i, grupo: g })))
 
-/** Items sin responder en los grupos obligatorios, y en un grupo opcional si ya se empezó a usar. Con `sinMaterialEnvase` no se pide el material del envase (F3). */
-export function itemsPendientes(c: Checklist, sinMaterialEnvase = false): string[] {
-  const pendientes: string[] = []
-  for (const g of CHECKLIST_ORGANOLEPTICO) {
-    const respondidos = g.items.filter((i) => c[i.id]).length
-    if (g.opcional && respondidos === 0) continue
-    for (const i of g.items) if (!c[i.id]) pendientes.push(i.id)
-  }
-  const algunMaterial = CHECKLIST_ORGANOLEPTICO.some((g) => g.opcional && g.items.some((i) => c[i.id]))
-  if (!algunMaterial && !sinMaterialEnvase) pendientes.push('material')
-  return pendientes
+/** Items del formato sin responder. */
+export function itemsPendientes(c: Checklist): string[] {
+  return CHECKLIST_ORGANOLEPTICO.flatMap((g) => g.items).filter((i) => !c[i.id]).map((i) => i.id)
 }
 
-export const checklistCompleto = (c: Checklist, sinMaterialEnvase = false) => itemsPendientes(c, sinMaterialEnvase).length === 0
+export const checklistCompleto = (c: Checklist) => itemsPendientes(c).length === 0
 
 /** Con un solo "no conforme", la conclusión sugerida es NO CONFORME. */
 export function sugerirConclusion(c: Checklist): 'CONFORME' | 'NO_CONFORME' {
@@ -391,12 +343,10 @@ export interface DatosOrganoleptica {
 }
 
 /** ¿Está el acta lista para ir a Dirección Técnica? Devuelve lo que falta, en lenguaje claro. */
-export function faltantesParaEnviar(d: DatosOrganoleptica, sinMaterialEnvase = false): string[] {
+export function faltantesParaEnviar(d: DatosOrganoleptica): string[] {
   const f: string[] = []
   if (d.certAnalisis == null) f.push('Indica si trae certificado de análisis.')
-  const pend = itemsPendientes(d.checklist, sinMaterialEnvase)
-  if (pend.includes('material')) f.push('Marca el material del envase (vidrio, plástico, tubo, blíster u otro).')
-  const sinResponder = pend.filter((p) => p !== 'material').length
+  const sinResponder = itemsPendientes(d.checklist).length
   if (sinResponder > 0) f.push(`Faltan ${sinResponder} puntos del checklist por responder.`)
   if (!d.destinoSugerido) f.push('Elige el destino que sugieres.')
   if (!d.conclusion) f.push('Elige la conclusión (conforme o no conforme).')
