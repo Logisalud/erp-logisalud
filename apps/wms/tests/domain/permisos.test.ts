@@ -119,11 +119,11 @@ describe('rol Administrador (SB-E, D-196): todo lo operativo y de configuración
   })
   it('puede hacer cada acción operativa y de configuración que existe fuera de las sanitarias', () => {
     // Clasificación exhaustiva: si aparece una acción nueva en el dominio, TypeScript obliga a decidir aquí si el Administrador la tiene.
-    const clasificacion: Record<Accion, 'admin' | 'sanitaria'> = {
+    const clasificacion: Record<Accion, 'admin' | 'sanitaria' | 'campo'> = {
       ver: 'admin', ejecutar: 'admin', verificar: 'admin', configurar: 'admin', exportar: 'admin', auditar: 'admin', dar_conformidad: 'admin', cambiar_lote_asignado: 'admin',
       imprimir_paquete_documental: 'admin', gestionar_documentos_regulatorios: 'admin', autorizar_salida_sin_venta: 'admin', preparar_salidas: 'admin', confirmar_salida: 'admin',
       planificar_ruta: 'admin', registrar_documentacion: 'admin', embalar: 'admin', cargar_ruta: 'admin', liberar_unidad: 'admin', reservar_lote: 'admin', anular_guia: 'admin',
-      solicitar_baja: 'admin', cerrar_ruta: 'admin', registrar_ls_fr: 'admin', originar_retorno: 'admin', crear_orden_venta_manual: 'admin', entregar_al_transportista_cliente: 'admin',
+      solicitar_baja: 'admin', cerrar_ruta: 'admin', registrar_ls_fr: 'admin', originar_retorno: 'admin', crear_orden_venta_manual: 'admin', entregar_al_transportista_cliente: 'admin', mis_rutas: 'campo',   // «Mis rutas»: solo conductor y auxiliar de transporte, ligados a su persona de transporte
       aprobar: 'sanitaria', ajustar: 'sanitaria', autorizar_baja: 'sanitaria', registrar_dictamen_cliente: 'sanitaria', marcar_antecedentes_calidad: 'sanitaria', liberar_stock_propietario: 'sanitaria',
     }
     for (const [a, clase] of Object.entries(clasificacion) as [Accion, string][]) expect(puede(efectivos, a), a).toBe(clase === 'admin')

@@ -25,6 +25,8 @@ export const PERSONAS_DEMO: PersonaDemo[] = [
   { clave: 'auxiliar', nombre: 'Auxiliar de almacén (demo)', cargo: 'Auxiliar de almacén', roles: ['auxiliar'], descripcion: 'Prepara, mueve y cuenta; consulta ubicaciones y stock desde el celular.' },
   { clave: 'autoriza_salidas_sin_venta', nombre: 'Autoriza salidas sin venta (demo)', cargo: 'Autoriza salidas sin venta', roles: ['autoriza_salidas_sin_venta'], descripcion: 'Autoriza las muestras de Logissa: es el único rol que puede crear una salida de muestra.' },
   { clave: 'admin_wms', nombre: 'Sebastián (Administrador, demo)', cargo: 'Administrador', roles: ['admin_wms'], descripcion: 'Como Sebastián o Andrés: todo lo operativo y la configuración (usuarios, roles, parámetros, maestros, documentos), incluida la firma de actas como Jefe de Almacén. No firma decisiones sanitarias: aprobar, dar de baja, autorizar ajustes y validar productos son solo de Dirección Técnica.' },
+  { clave: 'conductor', nombre: 'Luis Quispe (conductor, demo)', cargo: 'Conductor', roles: ['conductor'], descripcion: 'Ve sus rutas del día en el celular y marca llegué, entregado, no entregado, rechazado e incidencia.' },
+  { clave: 'auxiliar_transporte', nombre: 'Ana Ríos (auxiliar de transporte, demo)', cargo: 'Auxiliar de transporte', roles: ['auxiliar_transporte'], descripcion: 'Va en la ruta con el conductor y marca las entregas desde el celular.' },
   { clave: 'auditoria_lectura', nombre: 'Auditoría (demo)', cargo: 'Auditoría', roles: ['auditoria_lectura'], descripcion: 'Lee la auditoría: quién, qué, cuándo y por qué.' },
 ]
 

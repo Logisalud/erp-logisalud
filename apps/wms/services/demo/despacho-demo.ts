@@ -317,8 +317,8 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     if (d.sembrado) return
     d.sembrado = true
     d.personal.push(
-      { id: 'per-1', nombre: 'Luis Quispe', funcion: 'CONDUCTOR', activo: true, dni: '40123456', licencia: 'Q40123456' }, { id: 'per-2', nombre: 'Marco Huamán', funcion: 'CONDUCTOR', activo: true, dni: '41234567', licencia: 'Q41234567' },
-      { id: 'per-3', nombre: 'Ana Ríos', funcion: 'AUXILIAR', activo: true }, { id: 'per-4', nombre: 'Pedro Soto', funcion: 'AUXILIAR', activo: true },
+      { id: 'per-1', nombre: 'Luis Quispe', funcion: 'CONDUCTOR', activo: true, dni: '40123456', licencia: 'Q40123456', usuarioId: 'demo:conductor' }, { id: 'per-2', nombre: 'Marco Huamán', funcion: 'CONDUCTOR', activo: true, dni: '41234567', licencia: 'Q41234567' },
+      { id: 'per-3', nombre: 'Ana Ríos', funcion: 'AUXILIAR', activo: true, usuarioId: 'demo:auxiliar_transporte' }, { id: 'per-4', nombre: 'Pedro Soto', funcion: 'AUXILIAR', activo: true },
       { id: 'per-5', nombre: 'Raúl Díaz (de vacaciones)', funcion: 'CONDUCTOR', activo: false },
       // SB-A: los dos conductores reales de hoy (D-159). Hans: su documento de identidad está pendiente. Michele: datos de la guía GALAPHARMA TTT1-2887 (carné de extranjería).
       { id: 'per-6', nombre: 'Hans', funcion: 'CONDUCTOR', activo: true, licencia: 'Q75084250' },

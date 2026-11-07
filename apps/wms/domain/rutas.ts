@@ -20,6 +20,8 @@ export interface PersonalTransporte {
   id: string; nombre: string; funcion: FuncionTransporte; activo: boolean
   /** Número del documento de identidad (el campo se llama `dni` por historia; con `documentoTipo` puede ser un carné de extranjería o un pasaporte). */
   dni?: string; documentoTipo?: DocumentoTipo; licencia?: string
+  /** La persona que además usa el WMS («Mis rutas»): su usuario. */
+  usuarioId?: string
 }
 export interface VehiculoVista {
   id: string; placa: string; descripcion?: string; tipo: 'PROPIO' | 'EXTERNO'

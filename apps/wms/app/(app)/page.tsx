@@ -25,6 +25,7 @@ import { ETIQUETA_ESTADO_SOLICITUD, ETIQUETA_TIPO_INGRESO } from '@/domain/entra
 import { MisTareas } from '@/components/guia/mis-tareas'
 import { Recorrido } from '@/components/guia/recorrido'
 import { modoPilotoActivo } from '@/lib/modo-piloto'
+import { soloMisRutas } from '@/domain/mis-rutas'
 import { COOKIE_BIENVENIDA_PILOTO, debeVerBienvenida } from '@/domain/modo-piloto'
 
 export const metadata = { title: 'Inicio — WMS LOGISALUD' }
@@ -145,6 +146,8 @@ async function cargarKpisInicio(actor: Actor, hoy: string): Promise<Indicador[]>
 
 export default async function Inicio() {
   const ctx = await exigirContexto()
+  // P4: quien solo conduce o ayuda en la ruta no lee el inventario: su Inicio es «Mis rutas».
+  if (soloMisRutas(ctx.roles)) redirect('/mis-rutas')
   // P1: en el piloto, la primera vez de cada persona ve la bienvenida («esto es un piloto, lo oficial sigue siendo el proceso actual»).
   const piloto = await modoPilotoActivo()
   if (debeVerBienvenida(piloto, cookies().get(COOKIE_BIENVENIDA_PILOTO)?.value, ctx.usuario.id)) redirect('/bienvenida')

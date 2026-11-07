@@ -2,6 +2,7 @@ import type { Rol } from './tipos'
 import { esPersonal, puede } from './permisos'
 import { puedeVerBandeja } from './pedidos-despacho'
 import { puedeVerRutas } from './rutas'
+import { puedeVerMisRutas } from './mis-rutas'
 import { puedeOriginarRetorno } from './retornos'
 import { puedeDarConformidad, puedePickear, puedePrepararSalidas, puedeVerSalidas } from './despacho'
 import { puedeEmbalar } from './embalaje'
@@ -57,7 +58,8 @@ const veCalidadYDocumentos = (roles: readonly Rol[]) => gestion(roles)
 export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): SeccionMenu[] {
   const inicio: ItemMenu = { href: '/', etiqueta: 'Inicio', icono: 'inicio' }
   // Quien no es personal (conductor, usuario de cliente) no lee el inventario: solo ve el Inicio.
-  if (!esPersonal(roles)) return [{ id: 'inicio', titulo: null, items: [inicio] }]
+  // Quien solo conduce o ayuda en la ruta (S9 y S10) ve su Inicio y «Mis rutas».
+  if (!esPersonal(roles)) return [{ id: 'inicio', titulo: null, items: puedeVerMisRutas(roles) ? [inicio, { href: '/mis-rutas', etiqueta: 'Mis rutas', icono: 'rutas', destacado: true }] : [inicio] }]
 
   // Quien solo autoriza salidas sin venta no opera el almacén: ve el stock para elegir y su pantalla, no recepciones, movimientos, conteos ni bajas.
   const soloAutoriza = roles.every((r) => r === 'autoriza_salidas_sin_venta')

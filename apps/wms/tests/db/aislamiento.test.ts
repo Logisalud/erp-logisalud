@@ -275,6 +275,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'verificar_linea', 'verificar_pendiente', 'verificar_saldos',
     // Fase 4 · P3 (0042)
     'crear_carga_ensayo', 'registrar_informe_carga',
+    // Fase 4 · P4 (0043)
+    'mis_rutas_del_dia', 'registrar_evento_parada',
     // S2 (0012)
     'aprobar_salida_vencida', 'asignar_salida', 'editar_asignacion', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
     'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',

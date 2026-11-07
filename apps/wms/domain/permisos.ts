@@ -33,8 +33,8 @@ const PERMISOS: Record<Rol, readonly Accion[]> = {
     'preparar_salidas', 'confirmar_salida', 'planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote', 'anular_guia',
     'solicitar_baja', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente', 'gestionar_documentos_regulatorios'],
   jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente'),
-  conductor: [], // sus permisos llegan con «Mis rutas» (S9)
-  auxiliar_transporte: [],
+  conductor: ['mis_rutas'], // «Mis rutas» (S9 y S10): solo lo suyo, por funciones que reconocen a la persona; no lee el inventario
+  auxiliar_transporte: ['mis_rutas'],
   conformidad_despacho: ['ver', 'dar_conformidad'],
   autoriza_salidas_sin_venta: ['ver', 'autorizar_salida_sin_venta'],
   usuario_cliente: [], // lo suyo (crear órdenes de salida) llega en B2, con validación de propietario en la base

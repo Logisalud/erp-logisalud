@@ -15,7 +15,7 @@ import { estadoE, conIdsDeterministas, checklistConforme } from './entradas-demo
 import { desp, duenoDelAlmacen, lotesDisponibles, type SalidaDemo } from './despacho-demo'
 import { sembrarInventario } from './inventario-demo'
 import type { EstadoDemo } from './estado'
-import { PilotoDemo } from './piloto-demo'
+import { MisRutasDemo } from './mis-rutas-demo'
 import type { Actor } from '../repositorio'
 
 const actor = (clave: string, ...roles: Actor['roles']): Actor => ({ id: `demo:${clave}`, nombre: `${clave} (demo)`, roles })
@@ -74,7 +74,7 @@ function productosConStock(e: EstadoDemo, propietarioId: string, minimo: number)
   return out.sort((a, b) => b.codigo.localeCompare(a.codigo, 'es', { numeric: true }))
 }
 
-export class EjemplosDemo extends PilotoDemo {
+export class EjemplosDemo extends MisRutasDemo {
   /** Las órdenes de ejemplo se siembran una sola vez, después del despacho de siempre. Con `WMS_DEMO_EJEMPLOS=0` (o `vacio`) no se siembra nada. */
   protected override async sembrarDespacho(e: EstadoDemo) {
     // la ruta de siempre (PED-DEMO-101) se arma dentro de `super` y vuelve a pasar por aquí: los ejemplos esperan a que termine para conservar su numeración

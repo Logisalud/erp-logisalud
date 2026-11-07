@@ -500,7 +500,7 @@ export type TipoAlerta =
   | 'BAJA_POR_AUTORIZAR' | 'BAJA_POR_TRASLADAR'
   | 'RETORNO_POR_AUTORIZAR' | 'DICTAMEN_POR_CONFIRMAR' | 'ORDEN_MANUAL_UNIDA'
   | 'PEDIDO_CANCELADO' | 'DEVOLUCION_PICKING'
-  | 'OC_CAMBIADA'
+  | 'OC_CAMBIADA' | 'RETORNO_POR_ORIGINAR'
   | 'VENCIMIENTO_VERIFICAR' | 'VIDA_UTIL_CORTA'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
@@ -534,6 +534,7 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   PEDIDO_CANCELADO: 'Pedido cancelado en Pedidos',
   DEVOLUCION_PICKING: 'Lo picado por devolver a su ubicación',
   OC_CAMBIADA: 'La orden de compra cambió en Compras',
+  RETORNO_POR_ORIGINAR: 'Una entrega no se hizo: falta registrar el retorno',
   VENCIMIENTO_VERIFICAR: 'Verifica la fecha de vencimiento (solo trae mes y año)',
   VIDA_UTIL_CORTA: 'Vida útil corta al recibir',
 }
@@ -579,6 +580,8 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   DEVOLUCION_PICKING: 'jefe_almacen',
   // Piloto (0038): Compras cambió (o borró) una orden que el WMS ya copió; Sandra prepara las solicitudes de ingreso con esa OC.
   OC_CAMBIADA: 'asistente_dt',
+  // Piloto (0043): el conductor marcó «no entregado» o «rechazado»; el Jefe de Transporte origina el retorno con el flujo de siempre.
+  RETORNO_POR_ORIGINAR: 'jefe_transporte',
   // Piloto (0040, F): el proveedor solo imprime mes y año → quien recibe verifica la fecha en el envase; vida útil menor al mínimo → Dirección Técnica decide.
   VENCIMIENTO_VERIFICAR: 'jefe_almacen',
   VIDA_UTIL_CORTA: 'direccion_tecnica',
