@@ -2,6 +2,8 @@
 
 Respuestas de Claude a las preguntas H del mensaje del 3-nov-2026, con las propuestas que piden tu aprobación. **Nada de esto se aplicó en ninguna base real ni se desplegó.** Fecha de lectura de datos: 3-nov-2026 (solo lectura).
 
+> **Actualización 4-nov (Sebas):** la ventana aplica **todo MENOS la 0008**; la 0008 va solo en el go-live, al final (PIL-16). Se suman las migraciones 0039 (firma), 0040 (reglas de vencimiento y formato) y 0041 (PIL-8).
+
 ## H(a) ¿La ventana en Supabase real ya se hizo?
 **No.** En el proyecto consolidado (`qpkigzniatidsvnxikox`) no existe el esquema `wms`: hay 0 de las 36 migraciones del WMS (0001 a 0036). Lo aplicado hoy es Cobranzas y Compras (la última de Compras es la 0086; la última de Cobranzas, del 3-nov). Existe `almacen`, pero es de Compras.
 **Propuesta de fecha: jueves 6-nov**, si antes se mergean #209 (bloque de salidas) y el PR del piloto (guía en panel, informe de carga, hojas por rol; migración 0036). Con: la guía `docs/wms/aplicar-migraciones.md` (ensayada en Postgres 17: 36 migraciones, cada una dos veces, y las 642 pruebas de base de datos en verde), la verificación de una copia de Supabase **del mismo día** en el panel (criterio B12 del Go/No-Go) y la reversa.
@@ -59,7 +61,7 @@ Antes de corregir, reproduzco cada error en demo y en la base de pruebas y te di
 1. Fecha de la ventana (propuesta: jueves 6-nov). 2. Aprobar A.2 (variables, guarda y `vercel.json`). 3. Aprobar la propuesta para Compras (trigger de borrado). 4. Aprobar la lista de reinicio y decidir `audit_events`. 5. Orden de construcción. 6. Mercadería vs «bien» en las OC y cómo se asigna el propietario.
 
 ## Avance de B.1 y de la propuesta para Compras (rama `feat/wms-piloto`, migración 0038, sin aplicar)
-- Hecho en el WMS: copia inmutable de cada OC (`wms.oc_versiones`, solo se agregan filas), alerta `OC_CAMBIADA`, pantalla «Órdenes de compra del piloto» y un test que garantiza que el WMS no escribe en Compras. **Hallazgo:** el WMS sí escribe hoy en `catalogo.productos` (alta y corrección de productos): decisión PIL-8, pendiente tuya.
+- Hecho en el WMS: copia inmutable de cada OC (`wms.oc_versiones`, solo se agregan filas), alerta `OC_CAMBIADA`, pantalla «Órdenes de compra del piloto» y un test que garantiza que el WMS no escribe en Compras. **Hallazgo resuelto (PIL-8, decidido 4-nov):** en modo piloto el WMS no escribe en `catalogo.productos`: Compras crea los productos y el WMS los completa («Productos por completar»).
 - **Propuesta para Compras, sin aplicar:** `docs/wms/piloto/propuesta-compras-borrado-oc.sql` — trigger BEFORE DELETE en `ordenes_compra` y `ordenes_compra_items` que rechaza borrar si la OC tiene copia o solicitud en el WMS, y que solo deja borrar borradores. Hoy `authenticated` tiene DELETE y no hay triggers.
 - Durante el piloto «recibido según almacén» no aparece en Compras (Compras no lee nada del WMS) y el WMS no escribe `cantidad_recibida`: ambos quedan cubiertos por el test.
 - Pendiente tuyo: el botón de guías contra la cuenta DEMO real de Nubefact (sin credenciales aquí; listo `apps/wms/e2e-preview/nubefact-preview.spec.ts` y el workflow).

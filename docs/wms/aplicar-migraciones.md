@@ -90,6 +90,14 @@ Storage, RLS real de Compras (`acceso_abierto_temporal`).
 
 **0036** (Piloto «como real», PIL-1; requiere la 0034 por `_guia_de_reemplazo_posible`): parámetro `guia_modo` (`PANEL` sembrado; solo admite `WMS` o `PANEL`), origen `PANEL` en `guias_remision` (se amplía el check; las filas viejas lo cumplen), columna `fecha_emision`, `_guia_inmutable` con esa columna y `wms.registrar_guia_panel(...)` (permiso `registrar_documentacion`, solo con `guia_modo = PANEL`; no repite número ni con una guía anulada; deja el aviso `GUIA_EMITIDA` para Pedidos y audita). Redefine `trg_validar_parametro` (la de la 0034 más `guia_modo`). No toca datos existentes; re-ejecutable. Si se aplica con el piloto en marcha, `guia_modo` queda en `PANEL`: para que el WMS siga emitiendo con Nubefact, cambiarlo a `WMS` después de aplicarla.
 
+## Ventana del piloto: todo MENOS la 0008 (decisión de Sebas, 4-nov-2026)
+
+La ventana aplica **0001 a 0041 salvo la 0008**. La **0008** (D-38) va **solo en el go-live, al final**, después de todas las demás: ya no reemplaza la función entera, la parcha, así que no borra lo posterior y se puede re-aplicar. Ensayo: `WMS_OMITIR=0008 apps/wms/scripts/ensayo-migraciones.sh <url>` (ventana) y `WMS_OMITIR=0008 WMS_APLICAR_AL_FINAL=0008 apps/wms/scripts/ensayo-migraciones.sh <url>` (ventana + go-live). Sin opciones corre la cadena completa en orden.
+
+**0039** (Piloto C): firma del acta de recepción en orden y firma dibujada como referencia al Storage + huella.
+**0040** (Piloto F): parámetros `vencimiento_dia_por_defecto` y `vida_util_minima_meses`, `wms.proveedores_config` y `wms.v_proveedores`, alertas `VENCIMIENTO_VERIFICAR` y `VIDA_UTIL_CORTA`, corrección auditada de la fecha de un lote, «sin material de envase» y `wms.formatos_versiones` (versión 2 del acta organoléptica pendiente de Katia).
+**0041** (Piloto PIL-8): en modo piloto `crear_producto` y la edición de presentación/principio activo se rechazan; `wms.producto_completo` y el parche de `validar_movimiento`. No requiere la 0008.
+
 ## Ensayo de la ventana en Postgres 17 (2026-10-24)
 
 **0037** (Piloto, errores de la demo): reemplaza `wms.ejecutar_movimiento` (la de la 0012) con una regla más: con el motivo «Salida de Cuarentena» el origen es de Cuarentena y el destino de Aprobados (que el destino sea del propietario del lote ya lo exigía `posicion_acepta`); y `wms.registrar_pendiente` (la de la 0009): el responsable del pendiente de la revisión diaria es un auxiliar. No toca datos existentes; re-ejecutable.

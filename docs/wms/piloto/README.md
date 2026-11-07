@@ -30,3 +30,7 @@ Marcados «Sebas» cuando necesitan su decisión. Cada uno tiene dueño.
 11. **Registro de incidencias** del piloto (una lista simple con responsable y fecha) y el día de revisión semanal. Dueño: Charlie.
 12. **Respaldo con restauración probada** antes de la primera semana. Dueño: equipo técnico.
 11. **Pendiente de producción: respaldo de los archivos del Storage** (PDF de actas del bucket `wms-documentos`). Supabase respalda la lista de archivos, no su contenido; hay que definir cómo se copian antes de firmar actas reales. Dueño: equipo técnico; lo aprueba **Sebas**.
+
+## Firma del acta de recepción (C)
+Cada persona firma desde **su propio celular o PC, con su propio usuario** (no hay PIN ni celular compartido). El orden es: **transportista → responsable de conteo → Jefe de Almacén → Dirección Técnica**; la pantalla dice a quién le toca y no deja firmar antes. Al transportista lo atiende quien recibe: registra su nombre, DNI y placa y le da la pantalla para que dibuje su firma (**Borrar** / **Listo**).
+
