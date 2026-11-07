@@ -44,7 +44,7 @@ do $$ begin
   end if;
 end $$;
 grant select on wms.ruta_paradas_eventos to authenticated;
-drop trigger if exists ruta_paradas_eventos_solo_agregar on wms.ruta_paradas_eventos;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'ruta_paradas_eventos_solo_agregar' and tgrelid = 'wms.ruta_paradas_eventos'::regclass and not tgisinternal) then drop trigger ruta_paradas_eventos_solo_agregar on wms.ruta_paradas_eventos; end if; end $$;
 create trigger ruta_paradas_eventos_solo_agregar before update or delete on wms.ruta_paradas_eventos for each row execute function wms._solo_agregar();
 
 -- ¿Es esta persona (conductor o auxiliar) de esta ruta?

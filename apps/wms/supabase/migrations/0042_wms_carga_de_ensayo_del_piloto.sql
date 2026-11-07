@@ -16,7 +16,7 @@ begin
   new.piloto := coalesce(wms._modo_piloto(), true);
   return new;
 end $$;
-drop trigger if exists cargas_iniciales_marca_piloto on wms.cargas_iniciales;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'cargas_iniciales_marca_piloto' and tgrelid = 'wms.cargas_iniciales'::regclass and not tgisinternal) then drop trigger cargas_iniciales_marca_piloto on wms.cargas_iniciales; end if; end $$;
 create trigger cargas_iniciales_marca_piloto before insert on wms.cargas_iniciales for each row execute function wms._carga_marca_piloto();
 
 -- La marca no se cambia después
@@ -25,7 +25,7 @@ begin
   if new.piloto is distinct from old.piloto then raise exception 'La marca «piloto» de una carga no se cambia' using errcode = 'P0001'; end if;
   return new;
 end $$;
-drop trigger if exists cargas_iniciales_piloto_inmutable on wms.cargas_iniciales;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'cargas_iniciales_piloto_inmutable' and tgrelid = 'wms.cargas_iniciales'::regclass and not tgisinternal) then drop trigger cargas_iniciales_piloto_inmutable on wms.cargas_iniciales; end if; end $$;
 create trigger cargas_iniciales_piloto_inmutable before update on wms.cargas_iniciales for each row execute function wms._carga_piloto_inmutable();
 
 -- Constancia de los informes de validación (solo se agregan filas)
@@ -48,7 +48,7 @@ grant select on wms.cargas_informes to authenticated;
 
 create or replace function wms._solo_agregar() returns trigger language plpgsql set search_path = wms, pg_temp as $$
 begin raise exception 'Esta tabla solo admite agregar filas' using errcode = 'P0001'; end $$;
-drop trigger if exists cargas_informes_solo_agregar on wms.cargas_informes;
+do $$ begin if exists (select 1 from pg_trigger where tgname = 'cargas_informes_solo_agregar' and tgrelid = 'wms.cargas_informes'::regclass and not tgisinternal) then drop trigger cargas_informes_solo_agregar on wms.cargas_informes; end if; end $$;
 create trigger cargas_informes_solo_agregar before update or delete on wms.cargas_informes for each row execute function wms._solo_agregar();
 
 create or replace function wms._huella_carga(p_lineas jsonb) returns text language sql immutable set search_path = pg_catalog as $$
