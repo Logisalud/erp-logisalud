@@ -5,6 +5,8 @@ import { CHECKLIST_ORGANOLEPTICO, ETIQUETA_DECISION, ETIQUETA_TIPO_INGRESO } fro
 import type { ActaRecepcionVista, OrganolepticaVista, SolicitudDetalle } from '@/domain/entradas-vistas'
 import { totalesKardex, type FilaKardex, type FiltroKardex } from '@/domain/inventario'
 import { formatoFecha, formatoFechaHora, textoVencimiento } from '@/domain/fechas'
+import type { ExtraActaOrganoleptica } from '@/domain/acta-organoleptica-formato'
+import { hojaActaOrganoleptica } from '../formatos/acta-organoleptica-hoja'
 import { MARCA_BORRADOR, actaRecepcionEsBorrador, organolepticaEsBorrador } from '@/domain/borrador-documento'
 
 // Versión Excel de los documentos del ingreso (mismos datos que el PDF). El RUC va siempre como texto.
@@ -118,36 +120,9 @@ export async function xlsxActaRecepcion(acta: ActaRecepcionVista): Promise<Buffe
   return salida(wb)
 }
 
-export async function xlsxActaOrganoleptica(a: OrganolepticaVista): Promise<Buffer> {
-  const { wb, ws } = libro(`Acta de Análisis Organoléptico ${a.numero}`, 'Acta organoléptica', `Formato LS-FR.55.02 · versión ${a.formatoVersion ?? 1} · ${a.estado === 'FIRMADA' ? `firmada · huella ${a.hash}` : a.estado === 'PENDIENTE_DT' ? 'pendiente de la decisión de Dirección Técnica' : 'borrador'}`, organolepticaEsBorrador(a))
-  ws.columns = [{ width: 34 }, { width: 50 }, { width: 16 }]
-  pares(ws, [
-    ['Motivo', a.ingresoTipo === 'COMPRA_LOCAL' ? 'Compra' : a.ingresoTipo === 'DEVOLUCION' ? 'Devolución' : 'Otros (ingreso de cliente)'],
-    ['Referencia', a.referencia], ['Solicitud', a.solicitudNumero], ['Producto', a.producto], ['Lote', a.lote],
-    ['Nombre genérico', a.principioActivo], ['Vencimiento', a.vence ? textoVencimiento(a.vence, a.venceTexto) : undefined],
-    ['Cantidad recibida', a.cantidadLote], ['Cantidad de muestra', a.cantidadMuestra], ['Régimen de muestreo', a.regimenMuestreo ? `${ETIQUETA_REGIMEN[a.regimenMuestreo]} (${a.tablaMuestreo ?? 'LS-TB.02.02'})` : ''],
-    ['Registro sanitario', a.registroSanitario], ['Vencimiento del R.S.', a.rsVence ? formatoFecha(a.rsVence) : undefined],
-    ['Fabricante / proveedor', a.fabricante], ['Forma de presentación', a.formaPresentacion], ['Propietario', a.propietario],
-    ['Certificado de análisis / protocolo', a.datos.certAnalisis == null ? undefined : a.datos.certAnalisis ? 'SÍ' : 'NO'],
-  ])
-  const c = a.datos.checklist
-  for (const g of CHECKLIST_ORGANOLEPTICO.filter((g) => !g.opcional || (!a.materialEnvaseOculto && g.items.some((i) => c[i.id])))) {
-    titulo(ws, g.titulo.toUpperCase())
-    for (const i of g.items) {
-      const r = ws.addRow([i.texto, c[i.id] ? (c[i.id] === 'C' ? 'SÍ' : c[i.id] === 'NC' ? 'NO' : 'N.A.') : '—'])
-      r.getCell(2).font = { bold: true }
-    }
-  }
-  titulo(ws, 'OBSERVACIÓN, DESTINO Y CONCLUSIÓN')
-  pares(ws, [
-    ['Observación', a.datos.observacion],
-    ['Destino sugerido', a.datos.destinoSugerido === 'APROBADO' ? 'APROBADO' : a.datos.destinoSugerido === 'DEVOLUCION' ? 'DEVOLUCIÓN' : a.datos.destinoSugerido === 'BAJA' ? 'BAJA' : undefined],
-    ['Conclusión', a.datos.conclusion === 'CONFORME' ? 'CONFORME' : a.datos.conclusion === 'NO_CONFORME' ? 'NO CONFORME' : undefined],
-    ['Decisión de Dirección Técnica', a.decision ? ETIQUETA_DECISION[a.decision] : 'pendiente'],
-    ['Decidido por', a.decididoPor ? `${a.decididoPor} · ${formatoFechaHora(a.decididoEn)}` : undefined],
-    ['Observación de Dirección Técnica', a.observacionDt],
-  ])
-  return salida(wb)
+/** Acta de Evaluación Organoléptica: la plantilla OFICIAL LS-FR.55.02 llena (la misma hoja de la que se dibuja el PDF). */
+export async function xlsxActaOrganoleptica(a: OrganolepticaVista, extra: ExtraActaOrganoleptica = {}): Promise<Buffer> {
+  return salida(await hojaActaOrganoleptica(a, extra))
 }
 
 /** Kardex en Excel: las mismas columnas del formato de ejemplo. El RUC siempre va como texto de 11 dígitos. */

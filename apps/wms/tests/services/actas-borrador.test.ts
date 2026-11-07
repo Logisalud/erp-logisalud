@@ -30,7 +30,10 @@ function textoDelPdf(pdf: Buffer): string {
   }
   return partes.join('\n')
 }
-const celdaA3 = async (xlsx: Buffer) => { const wb = new ExcelJS.Workbook(); await wb.xlsx.load(xlsx as unknown as ArrayBuffer); return String(wb.worksheets[0].getCell('A3').value ?? '') }
+const celda = async (xlsx: Buffer, dir: string) => { const wb = new ExcelJS.Workbook(); await wb.xlsx.load(xlsx as unknown as ArrayBuffer); return String(wb.worksheets[0].getCell(dir).value ?? '') }
+const celdaA3 = (xlsx: Buffer) => celda(xlsx, 'A3')
+/** El acta organoléptica es la plantilla oficial LS-FR.55.02: la marca de borrador va fuera de su tabla, en la fila 1. */
+const celdaB1 = (xlsx: Buffer) => celda(xlsx, 'B1')
 
 describe('la marca', () => {
   it('solo el borrador la lleva; la firmada y la anulada no; el archivo lo dice en el nombre', () => {
@@ -91,7 +94,7 @@ describe('Acta organoléptica', () => {
       const borrador = organolepticaEsBorrador(a)
       const pdf = textoDelPdf(await renderActaOrganoleptica(a))
       expect(pdf.includes(MARCA_BORRADOR), `${a.numero} ${a.estado}`).toBe(borrador)
-      expect(await celdaA3(await xlsxActaOrganoleptica(a))).toBe(borrador ? MARCA_BORRADOR : '')
+      expect(await celdaB1(await xlsxActaOrganoleptica(a))).toBe(borrador ? MARCA_BORRADOR : '')
       if (borrador) vistas++
     }
     expect(vistas).toBeGreaterThan(0)
