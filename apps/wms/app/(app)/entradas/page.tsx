@@ -5,6 +5,8 @@ import { repositorio } from '@/services/repositorio-actual'
 import { ETIQUETA_TIPO_INGRESO, puedePrepararSolicitud } from '@/domain/entradas'
 import type { SolicitudResumen } from '@/domain/entradas-vistas'
 import { formatoFechaHora } from '@/domain/fechas'
+import { EstadoSincronizacion } from '@/components/entradas/estado-sincronizacion'
+import { sincronizarOcsAlAbrir } from '@/lib/sincronizar-ocs'
 import { ChipPaso, ChipTipoIngreso } from '@/components/entradas/chips-entradas'
 import { PILDORA_ACTIVA, PILDORA_INACTIVA_HOVER } from '@/components/estilos-opcion'
 
@@ -21,6 +23,7 @@ const FILTROS: { clave: string; etiqueta: string; cuando: ((s: SolicitudResumen)
 
 export default async function Entradas({ searchParams }: { searchParams: { f?: string } }) {
   const ctx = await exigirContexto()
+  const sincronizacion = await sincronizarOcsAlAbrir(ctx)
   const ingresos = await repositorio().listarSolicitudes()
   const filtro = FILTROS.find((f) => f.clave === searchParams.f) ?? FILTROS[0]
   const lista = filtro.cuando ? ingresos.filter(filtro.cuando) : ingresos
