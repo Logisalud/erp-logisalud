@@ -42,6 +42,9 @@ export interface PedidoSnapshot {
   motivoCancelacion?: string
   canceladoPor?: string
   lineas: LineaPedido[]
+  /** Opcionales (P2): la ruta o zona de reparto y el día de despacho que Pedidos ya conozca. Si no vienen, la bandeja usa la ruta planificada en el WMS. */
+  ruta?: string
+  diaDespacho?: string
 }
 
 export interface PedidoDescartado { indice: number; referencia?: string; motivo: string }
@@ -102,6 +105,8 @@ export function validarPedidos(entrada: unknown): { pedidos: PedidoSnapshot[]; d
         ventanaCita: texto(c.ventanaCita),
       },
       vendedor: texto(crudo.vendedor), condicionPago: texto(crudo.condicionPago), factura: texto(crudo.factura), observaciones: texto(crudo.observaciones),
+      ...(texto(crudo.ruta) ?? texto(crudo.zona) ? { ruta: texto(crudo.ruta) ?? texto(crudo.zona) } : {}),
+      ...(esFecha(crudo.diaDespacho ?? crudo.dia_despacho) ? { diaDespacho: String(crudo.diaDespacho ?? crudo.dia_despacho).slice(0, 10) } : {}),
       ...(crudo.estado === ESTADO_PEDIDO_CANCELADO ? { motivoCancelacion, canceladoPor: texto(crudo.canceladoPor) ?? texto(crudo.cancelado_por) } : {}), lineas,
     })
   })
@@ -214,6 +219,9 @@ export interface PedidoBandeja {
   canceladoPor?: string
   /** Si su orden de salida tiene falta de stock: el aviso listo para copiar y mandárselo al vendedor por WhatsApp (SA-3, D-126). */
   avisoVendedor?: string
+  /** Ruta (la que manda Pedidos o, si no, la planificada en el WMS) y día de despacho; vacíos = «sin ruta» / «sin día». */
+  ruta?: string
+  diaDespacho?: string
   texto: string
 }
 
@@ -225,16 +233,32 @@ export function armarBandeja(p: Omit<PedidoBandeja, 'texto' | 'unidades'>): Pedi
   }
 }
 
-export interface FiltrosBandeja { q: string; estado: '' | EstadoBandeja }
-export const FILTROS_BANDEJA_VACIOS: FiltrosBandeja = { q: '', estado: '' }
+/** Valor especial de los filtros de ruta y día: los pedidos que no tienen ruta (o día). */
+export const SIN_VALOR = '__sin__'
+export interface FiltrosBandeja { q: string; estado: '' | EstadoBandeja; /** '' = sin filtro; SIN_VALOR = sin ruta. */ ruta: string; /** '' = sin filtro; SIN_VALOR = sin día. */ dia: string }
+export const FILTROS_BANDEJA_VACIOS: FiltrosBandeja = { q: '', estado: '', ruta: '', dia: '' }
 
-export function filtrarBandeja(pedidos: readonly PedidoBandeja[], f: FiltrosBandeja): PedidoBandeja[] {
+export function filtrarBandeja(pedidos: readonly PedidoBandeja[], f: Partial<FiltrosBandeja> & Pick<FiltrosBandeja, 'q' | 'estado'>): PedidoBandeja[] {
   const q = normalizar(f.q.trim())
+  const ok = (valor: string | undefined, filtro: string | undefined) => !filtro || (filtro === SIN_VALOR ? !valor : valor === filtro)
   return pedidos
-    .filter((p) => (!f.estado || p.estado === f.estado) && (!q || q.split(/\s+/).every((t) => p.texto.includes(t))))
+    .filter((p) => (!f.estado || p.estado === f.estado) && ok(p.ruta, f.ruta) && ok(p.diaDespacho, f.dia) && (!q || q.split(/\s+/).every((t) => p.texto.includes(t))))
     // lo que hay que mirar primero: los que cambiaron, luego los más viejos por planificar
     .sort((a, b) => Number(b.estado === 'CAMBIO_POR_REVISAR') - Number(a.estado === 'CAMBIO_POR_REVISAR') || Number(a.estado === 'CANCELADO_EN_PEDIDOS') - Number(b.estado === 'CANCELADO_EN_PEDIDOS') || a.fecha.localeCompare(b.fecha) || a.numero.localeCompare(b.numero))
 }
+
+export interface OpcionFiltro { valor: string; etiqueta: string; cantidad: number }
+/** Las rutas (o los días) que hay en la bandeja, con cuántos pedidos tiene cada una, y «Sin ruta» al final si corresponde. Los días de más reciente a más viejo no: de más próximo a más lejano. */
+export function opcionesDe(pedidos: readonly PedidoBandeja[], campo: 'ruta' | 'diaDespacho'): OpcionFiltro[] {
+  const cuenta = new Map<string, number>()
+  let sin = 0
+  for (const p of pedidos) { const v = p[campo]; if (v) cuenta.set(v, (cuenta.get(v) ?? 0) + 1); else sin += 1 }
+  const lista = [...cuenta].sort((a, b) => a[0].localeCompare(b[0], 'es', { numeric: true })).map(([valor, cantidad]) => ({ valor, etiqueta: valor, cantidad }))
+  return sin ? [...lista, { valor: SIN_VALOR, etiqueta: campo === 'ruta' ? 'Sin ruta' : 'Sin día', cantidad: sin }] : lista
+}
+
+/** Los pedidos de los que se pueden crear órdenes ahora: importados sin procesar (sin orden), sin cambio por revisar ni cancelación. */
+export const pedidosSinProcesar = (pedidos: readonly PedidoBandeja[]) => pedidos.filter((p) => p.estado === 'POR_PLANIFICAR')
 
 export const contarPorEstado = (pedidos: readonly PedidoBandeja[]): Record<EstadoBandeja, number> => ({
   POR_PLANIFICAR: pedidos.filter((p) => p.estado === 'POR_PLANIFICAR').length,
@@ -262,6 +286,8 @@ export const puedeActualizarBandeja = (roles: readonly string[]) => roles.some((
 /** Arma la fila de la bandeja desde lo guardado (la usan la demo y el adaptador de Supabase, para que digan lo mismo). */
 export function bandejaDeFila(f: {
   id: string; snapshot: PedidoSnapshot; cambios: string[]; cambioPendiente: boolean; salida?: string; salidaId?: string; importadoEn: string; codigosEnCatalogo: ReadonlySet<string>; avisoVendedor?: string
+  /** La ruta viva del WMS donde está el pedido (número y fecha), si la hay. */
+  rutaWms?: { numero: string; fecha: string }
 }): PedidoBandeja {
   const p = f.snapshot
   return armarBandeja({
@@ -271,6 +297,7 @@ export function bandejaDeFila(f: {
     lineas: p.lineas.map((l) => ({ ...l, enCatalogo: f.codigosEnCatalogo.has(l.productoCodigo) })),
     estado: p.estado === ESTADO_PEDIDO_CANCELADO ? 'CANCELADO_EN_PEDIDOS' : f.cambioPendiente ? 'CAMBIO_POR_REVISAR' : f.salida ? 'EN_SALIDA' : 'POR_PLANIFICAR',
     cambios: f.cambios, importadoEn: f.importadoEn, salida: f.salida, salidaId: f.salidaId, avisoVendedor: f.avisoVendedor,
+    ruta: p.ruta ?? f.rutaWms?.numero, diaDespacho: p.diaDespacho ?? f.rutaWms?.fecha,
     ...(p.estado === ESTADO_PEDIDO_CANCELADO ? { motivoCancelacion: p.motivoCancelacion, canceladoPor: p.canceladoPor } : {}),
   })
 }

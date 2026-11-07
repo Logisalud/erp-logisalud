@@ -54,12 +54,24 @@ export class PedidosSupabase extends OperacionSupabase implements RepositorioPed
       const { data } = await crearClienteServidor().schema('catalogo').from('productos').select('codigo').in('codigo', codigos.slice(i, i + 200))
       for (const r of (data ?? []) as Fila[]) enCatalogo.add(String(r.codigo))
     }
+    // La ruta viva del WMS de cada pedido (si Pedidos no mandó ruta ni día, la bandeja usa estos); si no se puede leer, la bandeja sigue sin ellos
+    const rutaDe = new Map<string, { numero: string; fecha: string }>()
+    try {
+      const { data: pa } = await sch().from('ruta_paradas').select('pedido_id, ruta_id').eq('activa', true)
+      const ids = [...new Set(((pa ?? []) as Fila[]).map((x) => String(x.ruta_id)))]
+      const rutas = new Map<string, { numero: string; fecha: string }>()
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await sch().from('rutas').select('id, numero, fecha, estado').in('id', ids.slice(i, i + 200)).not('estado', 'in', '(CANCELADA,CERRADA)')
+        for (const r of (data ?? []) as Fila[]) rutas.set(String(r.id), { numero: String(r.numero), fecha: String(r.fecha).slice(0, 10) })
+      }
+      for (const x of (pa ?? []) as Fila[]) { const r = rutas.get(String(x.ruta_id)); if (r) rutaDe.set(String(x.pedido_id), r) }
+    } catch { /* sin rutas: «Sin ruta» */ }
     const nombres = await nombresDe(importaciones.map((r) => String(r.por)))
     const vistas = importaciones.map((r) => vistaImportacion(r, nombres))
     return {
       pedidos: filas.map((f) => bandejaDeFila({
         id: String(f.id), snapshot: f.snapshot as PedidoSnapshot, cambios: (Array.isArray(f.cambios) ? f.cambios : []) as string[], cambioPendiente: Boolean(f.cambio_pendiente),
-        salida: f.salida_id ? salidas.get(String(f.salida_id)) : undefined, salidaId: s(f.salida_id), importadoEn: String(f.importado_en), codigosEnCatalogo: enCatalogo,
+        salida: f.salida_id ? salidas.get(String(f.salida_id)) : undefined, salidaId: s(f.salida_id), importadoEn: String(f.importado_en), codigosEnCatalogo: enCatalogo, rutaWms: rutaDe.get((f.snapshot as PedidoSnapshot).pedidoId),
       })),
       ultimoIntento: vistas[0] ?? null,
       ultimaExitosa: vistas.find((v) => v.ok) ?? null,

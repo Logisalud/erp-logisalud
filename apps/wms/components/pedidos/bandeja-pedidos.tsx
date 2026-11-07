@@ -2,13 +2,13 @@
 
 import Link from 'next/link'
 import { Fragment, useMemo, useState } from 'react'
-import { Ban, ChevronDown, ChevronRight, CircleDashed, FilePlus2, FileCheck2, History, Inbox, ListPlus, RefreshCw, SearchX, TriangleAlert, X } from 'lucide-react'
+import { Ban, CheckCircle2, ChevronDown, ChevronRight, CircleDashed, FilePlus2, FileCheck2, History, Inbox, ListPlus, RefreshCw, SearchX, TriangleAlert, X } from 'lucide-react'
 import { actualizarBandejaAccion, revisarCambioPedidoAccion, simularCambioEnPedidosAccion } from '@/app/acciones-pedidos'
 import { crearOrdenDePedidoAccion, crearOrdenesPendientesAccion } from '@/app/acciones-salida-manual'
 import type { CambioSimulado } from '@/services/repositorio-cambio-pedido'
 import { BotonCopiarAviso } from '../salidas/boton-copiar-aviso'
 import {
-  ETIQUETA_ESTADO_BANDEJA, FILTROS_BANDEJA_VACIOS, contarPorEstado, filtrarBandeja, hace,
+  ETIQUETA_ESTADO_BANDEJA, FILTROS_BANDEJA_VACIOS, contarPorEstado, filtrarBandeja, hace, opcionesDe, pedidosSinProcesar,
   type EstadoBandeja, type FiltrosBandeja, type PedidoBandeja,
 } from '@/domain/pedidos-despacho'
 import { formatoFechaHora } from '@/domain/fechas'
@@ -131,6 +131,90 @@ function Detalle({ p, puedeRevisar, puedeCrear, creando, crear, demo, piloto }: 
   )
 }
 
+type ResultadoCreacion = { pedidoId: string; numero: string; ok: boolean; texto: string; ordenId?: string }
+
+/**
+ * P2: «Crear órdenes de los pedidos filtrados». Selección múltiple sobre lo que el filtro deja a la vista (solo los importados sin procesar), con una confirmación antes de crear
+ * y el resultado de CADA orden después (creada, ya existía o por qué no se pudo). Las órdenes se crean de una en una: una que falla no detiene a las demás.
+ */
+function CrearFiltrados({ candidatos, crearUna }: { candidatos: PedidoBandeja[]; crearUna: (pedidoId: string) => Promise<{ ok: boolean; mensaje?: string; id?: string; numero?: string; yaExistia?: boolean; faltaStock?: boolean }> }) {
+  const [abierto, setAbierto] = useState(false)
+  const [marcados, setMarcados] = useState<Set<string>>(new Set())
+  const [estado, setEstado] = useState<'eleccion' | 'creando' | 'listo'>('eleccion')
+  const [avance, setAvance] = useState(0)
+  const [resultados, setResultados] = useState<ResultadoCreacion[]>([])
+  const elegidos = candidatos.filter((p) => marcados.has(p.pedidoId))
+  const abrir = () => { setMarcados(new Set(candidatos.map((p) => p.pedidoId))); setResultados([]); setEstado('eleccion'); setAbierto(true) }
+  const alternar = (id: string) => setMarcados((m) => { const n = new Set(m); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  async function confirmar() {
+    const lista = elegidos
+    setEstado('creando'); setAvance(0); setResultados([])
+    const acumulado: ResultadoCreacion[] = []
+    for (const p of lista) {
+      let r: ResultadoCreacion
+      try {
+        const x = await crearUna(p.pedidoId)
+        r = x.ok
+          ? { pedidoId: p.pedidoId, numero: p.numero, ok: true, ordenId: x.id, texto: `${x.yaExistia ? 'Ya tenía' : 'Orden creada:'} ${x.numero ?? ''}${x.faltaStock ? ' · falta stock en alguna línea (decide el vendedor)' : ''}`.trim() }
+          : { pedidoId: p.pedidoId, numero: p.numero, ok: false, texto: x.mensaje ?? 'No se pudo crear la orden.' }
+      } catch { r = { pedidoId: p.pedidoId, numero: p.numero, ok: false, texto: 'No se pudo crear la orden. Vuelve a intentarlo.' } }
+      acumulado.push(r); setResultados([...acumulado]); setAvance(acumulado.length)
+    }
+    setEstado('listo')
+  }
+  if (!abierto && candidatos.length === 0) {
+    return <p className="text-sm text-gray-700" data-testid="filtrados-ninguno">Con este filtro no hay pedidos importados sin procesar: no hay órdenes que crear.</p>
+  }
+  if (!abierto) {
+    return <button type="button" className="btn-primary" onClick={abrir} data-testid="crear-filtrados"><ListPlus className="h-5 w-5" aria-hidden />Crear órdenes de los pedidos filtrados ({candidatos.length})</button>
+  }
+  const fallos = resultados.filter((r) => !r.ok).length
+  return (
+    <section className="space-y-3 rounded-lg border-2 border-green-700 bg-white p-4" aria-labelledby="h-filtrados" data-testid="panel-filtrados">
+      <h3 id="h-filtrados" className="font-heading text-lg font-medium tracking-wide text-gray-900">Crear órdenes de los pedidos filtrados</h3>
+      {estado === 'eleccion' && (
+        <>
+          <p className="text-sm text-gray-800">Marca los pedidos de los que quieres crear la orden de salida. Cada orden reserva el stock por vencimiento. Los que no marques siguen «importados, sin procesar».</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-secondary btn-sm" onClick={() => setMarcados(new Set(candidatos.map((p) => p.pedidoId)))} data-testid="filtrados-todos">Marcar todos</button>
+            <button type="button" className="btn-secondary btn-sm" onClick={() => setMarcados(new Set())} data-testid="filtrados-ninguno-marcado">Quitar todos</button>
+          </div>
+          <ul className="max-h-72 divide-y divide-gray-100 overflow-auto rounded-md border border-gray-200" data-testid="filtrados-lista">
+            {candidatos.map((p) => (
+              <li key={p.pedidoId}>
+                <label className="flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2">
+                  <input type="checkbox" className="h-5 w-5" checked={marcados.has(p.pedidoId)} onChange={() => alternar(p.pedidoId)} data-testid="filtrados-marca" />
+                  <span className="tabular font-medium text-gray-900">{p.numero}</span>
+                  <span className="min-w-0 flex-1 truncate text-gray-700">{p.cliente}</span>
+                  <span className="tabular text-sm text-gray-600">{p.unidades.toLocaleString('es-PE')} u</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" className="btn-primary" disabled={elegidos.length === 0} onClick={confirmar} data-testid="filtrados-confirmar">Confirmar: crear {elegidos.length} {elegidos.length === 1 ? 'orden' : 'órdenes'}</button>
+            <button type="button" className="btn-secondary" onClick={() => setAbierto(false)} data-testid="filtrados-cancelar">Cancelar</button>
+          </div>
+        </>
+      )}
+      {estado !== 'eleccion' && (
+        <>
+          <p className="text-sm font-medium text-gray-900" role="status" aria-live="polite" data-testid="filtrados-avance">{estado === 'creando' ? `Creando las órdenes… ${avance} de ${elegidos.length}` : fallos === 0 ? `Listo: ${resultados.length} ${resultados.length === 1 ? 'orden' : 'órdenes'} (cada una con su resultado abajo).` : `Terminó con ${fallos} ${fallos === 1 ? 'pedido que no se pudo' : 'pedidos que no se pudieron'} crear: revisa abajo qué pasó.`}</p>
+          <ul className="space-y-1" data-testid="filtrados-resultados">
+            {resultados.map((r) => (
+              <li key={r.pedidoId} className={`flex items-start gap-2 rounded-md border p-2 text-sm ${r.ok ? 'border-green-200 bg-green-50 text-green-900' : 'border-red-200 bg-red-50 text-red-900'}`} data-testid={r.ok ? 'filtrados-ok' : 'filtrados-error'}>
+                {r.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> : <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />}
+                <span><strong>{r.numero}:</strong> {r.texto}{r.ok && r.ordenId && <> · <Link href={`/salidas/${r.ordenId}`} className="font-medium underline">Abrir</Link></>}</span>
+              </li>
+            ))}
+          </ul>
+          {estado === 'listo' && <button type="button" className="btn-secondary" onClick={() => setAbierto(false)} data-testid="filtrados-cerrar">Cerrar</button>}
+        </>
+      )}
+    </section>
+  )
+}
+
 /** La bandeja de pedidos por despachar: tabla en PC y tablet, filas compactas en el teléfono; el detalle se abre en la misma fila. */
 export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdenes = false, demo = false, piloto = false }: { bandeja: BandejaPedidos; puedeActualizar: boolean; puedeCrearOrdenes?: boolean; demo?: boolean; piloto?: boolean }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
@@ -176,7 +260,11 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
     })
   }
   const toggle = (id: string) => setAbierto((a) => (a === id ? null : id))
-  const hayFiltros = !!f.q || !!f.estado
+  const hayFiltros = !!f.q || !!f.estado || !!f.ruta || !!f.dia
+  const rutas = useMemo(() => opcionesDe(todos, 'ruta'), [todos])
+  const dias = useMemo(() => opcionesDe(todos, 'diaDespacho'), [todos])
+  const candidatos = useMemo(() => pedidosSinProcesar(visibles), [visibles])
+  const crearParaFiltrados = (pedidoId: string) => crearOrdenDePedidoAccion(pedidoId)
 
   return (
     <div className="space-y-4" data-testid="bandeja-pedidos">
@@ -237,6 +325,20 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
         <>
           <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
             <Buscador id="q-ped" etiqueta="Buscar pedidos" ayuda="Por número, cliente, RUC, distrito o producto." valor={f.q} onCambio={(q) => setF((a) => ({ ...a, q }))} testid="ped-buscar" />
+            <div className="grid gap-3 sm:grid-cols-2" data-testid="filtros-ruta-dia">
+              <label className="block text-sm font-medium text-gray-900">Ruta
+                <select className="mt-1 block min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base" value={f.ruta} onChange={(e) => setF((a) => ({ ...a, ruta: e.target.value }))} data-testid="ped-filtro-ruta">
+                  <option value="">Sin filtro (todas las rutas)</option>
+                  {rutas.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta} ({o.cantidad})</option>)}
+                </select>
+              </label>
+              <label className="block text-sm font-medium text-gray-900">Día de despacho
+                <select className="mt-1 block min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base" value={f.dia} onChange={(e) => setF((a) => ({ ...a, dia: e.target.value }))} data-testid="ped-filtro-dia">
+                  <option value="">Sin filtro (todos los días)</option>
+                  {dias.map((o) => <option key={o.valor} value={o.valor}>{o.valor === '__sin__' ? o.etiqueta : fechaDia(o.valor)} ({o.cantidad})</option>)}
+                </select>
+              </label>
+            </div>
             <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por estado">
               {ESTADOS.map((e) => (
                 <button key={e} type="button" aria-pressed={f.estado === e} onClick={() => setF((a) => ({ ...a, estado: a.estado === e ? '' : e }))}
@@ -244,10 +346,12 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
                   {ETIQUETA_ESTADO_BANDEJA[e]} <span className="tabular">({cuenta[e]})</span>
                 </button>
               ))}
-              {hayFiltros && <button type="button" className="btn-secondary btn-sm" onClick={() => setF(FILTROS_BANDEJA_VACIOS)} data-testid="ped-limpiar"><X className="h-4 w-4" aria-hidden />Quitar filtros</button>}
+              {hayFiltros && <button type="button" className="btn-secondary btn-sm" onClick={() => setF(FILTROS_BANDEJA_VACIOS)} data-testid="ped-limpiar"><X className="h-4 w-4" aria-hidden />Sin filtro</button>}
             </div>
           </div>
 
+          <p className="text-sm text-gray-800" data-testid="ped-sin-procesar">Todos los pedidos que deja Pedidos entran aquí. <strong>Se quedan «importados, sin procesar»</strong> (sin orden de salida) hasta que alguien pida su orden: filtra por ruta o por día y elige cuáles procesar. Su copia no se borra nunca.</p>
+          {puedeCrearOrdenes && <div data-testid="crear-filtrados-bloque"><CrearFiltrados key={`${f.ruta}|${f.dia}|${f.estado}|${f.q}`} candidatos={candidatos} crearUna={crearParaFiltrados} /></div>}
           <p className="text-sm text-gray-700" aria-live="polite" data-testid="ped-conteo">{visibles.length === todos.length ? `${todos.length} ${todos.length === 1 ? 'pedido' : 'pedidos'}` : `${visibles.length} de ${todos.length} pedidos`}</p>
 
           {visibles.length === 0 ? (
