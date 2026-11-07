@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { BORRAR, CONSERVAR, clasificarTablas, exigirCopiaDelDia, hoyLima, leerArgumentos, listarArchivos, reiniciar as reiniciarJs } from '../../scripts/reinicio-piloto-lib.mjs'
+import { BORRAR, CONSERVAR, REINICIAR, clasificarTablas, exigirCopiaDelDia, hoyLima, leerArgumentos, listarArchivos, reiniciar as reiniciarJs } from '../../scripts/reinicio-piloto-lib.mjs'
 import { type BaseDePrueba, crearBaseDePrueba, falla, idPosicion, idPropietario } from './helpers'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,8 +73,9 @@ describe('banderas y lista cerrada', () => {
     await base.admin.query('create table wms.zz_tabla_nueva (id int)')
     try { await expect(clasificarTablas(base.admin)).rejects.toThrow(/zz_tabla_nueva/) } finally { await base.admin.query('drop table wms.zz_tabla_nueva') }
   })
-  it('lo que el plan manda conservar no está entre lo que se borra (y los correlativos de actas y guías no se reinician)', () => {
-    for (const t of ['usuario_roles', 'permisos_rol', 'parametros', 'propietarios', 'posiciones', 'producto_regulatorio', 'documentos_regulatorios', 'correlativos', 'guia_correlativos', 'reinicios']) { expect(CONSERVAR).toContain(t); expect(BORRAR).not.toContain(t) }
+  it('lo que el plan manda conservar no está entre lo que se borra (y los correlativos se reinician: no se conservan ni se borran)', () => {
+    for (const t of ['usuario_roles', 'permisos_rol', 'parametros', 'propietarios', 'posiciones', 'producto_regulatorio', 'documentos_regulatorios', 'reinicios']) { expect(CONSERVAR).toContain(t); expect(BORRAR).not.toContain(t) }
+    for (const t of ['correlativos', 'guia_correlativos']) { expect(REINICIAR).toContain(t); expect(CONSERVAR).not.toContain(t); expect(BORRAR).not.toContain(t) }
     for (const t of ['pedidos_despacho', 'importaciones_pedidos', 'oc_versiones', 'cargas_iniciales', 'acta_firmas', 'ruta_paradas_eventos', 'saldos', 'movimientos']) expect(BORRAR).toContain(t)
   })
 })
@@ -100,7 +101,8 @@ describe('ejecutar', () => {
   it('borra lo transaccional (copias de pedidos y OC, carga de ensayo, firmas, fotos), conserva configuración y correlativos, exporta la auditoría y registra el reinicio', async () => {
     await base.admin.query(`insert into wms.pedidos_despacho (pedido_id, version, numero, fecha, cliente_id, cliente_nombre, cliente_ruc, snapshot, cambios, vigente, importado_por) values ('rp-1', 1, 'PED-1', current_date, 'c', 'Cliente', null, '{}'::jsonb, '{}', true, $1)`, [base.personas.katia.id])
     await base.admin.query(`insert into wms.importaciones_pedidos (origen, ok, por) values ('prueba', true, $1)`, [base.personas.katia.id]).catch(() => undefined)
-    const corr = await q('select * from wms.correlativos order by 1')
+    await base.admin.query(`insert into wms.correlativos (clave, ultimo) values ('ZZ-2026', 7) on conflict (clave) do update set ultimo = 7`)
+    await base.admin.query(`update wms.guia_correlativos set ultimo = 3000, confirmado = true`)
     const conservadas = Object.fromEntries(await Promise.all(CONSERVAR.filter((t: string) => t !== 'reinicios' && t !== 'documentos_regulatorios').map(async (t: string) => [t, await conteo(t)])))
     const auditoriaAntes = await conteo('audit_events')
     const almacen = almacenFalso(['actas/a.pdf', 'entregas/f1.jpg', 'firmas/x.png', 'registro/rs-conservar.pdf'])
@@ -109,9 +111,10 @@ describe('ejecutar', () => {
     // lo transaccional quedó vacío
     for (const t of tablasTransaccionales()) expect(await conteo(t), t).toBe(0)
     expect(await conteo('audit_events')).toBe(0)
-    // la configuración y los correlativos siguen igual (los números del piloto no se reutilizan)
+    // la configuración sigue igual; los correlativos vuelven a su base
     for (const [t, n] of Object.entries(conservadas)) expect(await conteo(t), t).toBe(n)
-    expect(await q('select * from wms.correlativos order by 1')).toEqual(corr)
+    expect((await uno(`select count(*)::int n from wms.correlativos where ultimo <> 0`)).n).toBe(0)
+    expect(await uno(`select ultimo, confirmado from wms.guia_correlativos where serie = 'TTT1'`)).toMatchObject({ ultimo: 2887, confirmado: false })   // la serie real NO vuelve a 0
     expect((await uno(`select count(*)::int n from wms.documentos_regulatorios where lote_id is not null`)).n).toBe(0)   // el COA de un lote del piloto se borra
     expect((await uno(`select count(*)::int n from wms.documentos_regulatorios`)).n).toBe(1)                              // el registro sanitario del producto se conserva
     // la auditoría quedó en un archivo fuera de la base, completa
