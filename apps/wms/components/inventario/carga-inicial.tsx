@@ -6,7 +6,7 @@ import { ArrowRight, CheckCircle2, FileUp, Hourglass, ShieldCheck, Ban } from 'l
 import { confirmarCargaInicialAccion, crearCargaInicialAccion, validarCargaInicialAccion } from '@/app/acciones-inventario'
 import { parsearCargaInicial, type CargaInicialVista, type ErrorFilaCarga, type FilaCargaInicial } from '@/domain/inventario'
 import { formatoFechaHora } from '@/domain/fechas'
-import { ETIQUETA_ESTADO_CARGA, resumenCarga } from '@/domain/carga-inicial'
+import { AVISO_CARGA_ENSAYO, ETIQUETA_CARGA_ENSAYO, ETIQUETA_ESTADO_CARGA, resumenCarga } from '@/domain/carga-inicial'
 import { InformeCarga } from './informe-carga'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
@@ -26,7 +26,7 @@ function textoResumen(filas?: FilaCargaInicial[], p?: { aprobado: number; cuaren
  * Carga inicial como cambio de sistema (OS-7, D-110): el stock de Odoo entra directo a su estado y ubicación, sin acta organoléptica.
  * Administración sube y revisa; Dirección Técnica (Katia) valida con UNA sola confirmación.
  */
-export function CargaInicial({ cargas, puedeCargar, puedeConfirmar }: { cargas: CargaInicialVista[]; puedeCargar: boolean; puedeConfirmar: boolean }) {
+export function CargaInicial({ cargas, puedeCargar, puedeConfirmar, piloto = false }: { cargas: CargaInicialVista[]; puedeCargar: boolean; puedeConfirmar: boolean; piloto?: boolean }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [texto, setTexto] = useState('')
   const [nota, setNota] = useState('')
@@ -35,13 +35,15 @@ export function CargaInicial({ cargas, puedeCargar, puedeConfirmar }: { cargas: 
   const [revisado, setRevisado] = useState(false)
   const [revisando, setRevisando] = useState(false)
   const [confirmada, setConfirmada] = useState<string | null>(null)
+  // P3: el informe de ESTE archivo tiene que haber salido «Lista para cargar» antes de «Cargar»; si cambia el texto, hay que armarlo de nuevo
+  const [informeListo, setInformeListo] = useState(false)
 
   async function revisar(t: string) {
     setRevisando(true)
     const r = parsearCargaInicial(t)
     let e: ErrorFilaCarga[] = r.errores
     if (e.length === 0 || r.filas.length > 0) e = [...e, ...(await validarCargaInicialAccion(r.filas))]
-    setFilas(r.filas); setErrores(e.sort((a, b) => a.fila - b.fila)); setRevisado(true); setRevisando(false)
+    setFilas(r.filas); setErrores(e.sort((a, b) => a.fila - b.fila)); setRevisado(true); setRevisando(false); setInformeListo(false)
   }
   async function archivo(f: File | undefined) {
     if (!f) return
@@ -53,6 +55,7 @@ export function CargaInicial({ cargas, puedeCargar, puedeConfirmar }: { cargas: 
 
   return (
     <div className="space-y-6">
+      {piloto && <Aviso tipo="atencion" testid="aviso-carga-ensayo"><p className="font-medium">{ETIQUETA_CARGA_ENSAYO}</p><p>{AVISO_CARGA_ENSAYO}</p></Aviso>}
       <section className="card space-y-3" aria-labelledby="como-entra" data-testid="como-entra-carga">
         <h2 id="como-entra" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Cómo entra el stock de Odoo</h2>
         <p className="text-sm text-gray-700">Es un cambio de sistema, no una recepción: <strong>no hace falta acta organoléptica</strong>. Cada fila entra con el estado y la ubicación que tenía en Odoo. Dirección Técnica valida toda la carga con <strong>una sola confirmación</strong>.</p>
@@ -76,7 +79,7 @@ export function CargaInicial({ cargas, puedeCargar, puedeConfirmar }: { cargas: 
           </div>
           <div>
             <label htmlFor="texto-carga" className="etiqueta">…o pega las filas aquí</label>
-            <textarea id="texto-carga" rows={5} className="campo tabular !min-h-32 py-2 text-sm" value={texto} onChange={(e) => { setTexto(e.target.value); setRevisado(false) }} placeholder={EJEMPLO} data-testid="texto-carga" />
+            <textarea id="texto-carga" rows={5} className="campo tabular !min-h-32 py-2 text-sm" value={texto} onChange={(e) => { setTexto(e.target.value); setRevisado(false); setInformeListo(false) }} placeholder={EJEMPLO} data-testid="texto-carga" />
           </div>
           <button type="button" className="btn-secondary" disabled={revisando || !texto.trim()} onClick={() => revisar(texto)} data-testid="revisar-carga">{revisando ? 'Revisando…' : 'Revisar la carga'}</button>
 
@@ -100,13 +103,14 @@ export function CargaInicial({ cargas, puedeCargar, puedeConfirmar }: { cargas: 
                   </table>
                 </div>
               )}
-              <InformeCarga key={texto} texto={texto} />
+              <InformeCarga key={texto} texto={texto} alInforme={setInformeListo} />
+              {!informeListo && errores.length === 0 && filas.length > 0 && <Aviso tipo="atencion" testid="informe-obligatorio">Falta un paso: arma el informe de la carga (más arriba). Hasta que salga «Lista para cargar» no se puede cargar.</Aviso>}
               {errores.filter((e) => e.fila === 0).map((e, i) => <p key={i} role="alert" className="text-sm text-red-800">{e.error}</p>)}
               <div>
                 <label htmlFor="nota-carga" className="etiqueta">Nota (opcional)</label>
                 <input id="nota-carga" className="campo" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Por ejemplo: inventario general de octubre" autoComplete="off" />
               </div>
-              <button type="button" className="btn-primary" disabled={pendiente || errores.length > 0 || filas.length === 0} onClick={() => ejecutar(() => crearCargaInicialAccion(filas, nota.trim() || undefined), { exito: puedeConfirmar ? 'Carga guardada como borrador. Sigue: confírmala abajo para que el stock entre al inventario.' : 'Carga guardada como borrador. Sigue: avisa a Dirección Técnica para que la confirme; hasta entonces no entra stock.', alExito: () => { setTexto(''); setFilas([]); setErrores([]); setRevisado(false) } })} data-testid="guardar-carga">Guardar como borrador</button>
+              <button type="button" className="btn-primary" disabled={pendiente || errores.length > 0 || filas.length === 0 || !informeListo} onClick={() => ejecutar(() => crearCargaInicialAccion(filas, nota.trim() || undefined), { exito: puedeConfirmar ? 'Carga guardada como borrador. Sigue: confírmala abajo para que el stock entre al inventario.' : 'Carga guardada como borrador. Sigue: avisa a Dirección Técnica para que la confirme; hasta entonces no entra stock.', alExito: () => { setTexto(''); setFilas([]); setErrores([]); setRevisado(false); setInformeListo(false) } })} data-testid="guardar-carga">{piloto ? 'Cargar como ensayo (borrador)' : 'Guardar como borrador'}</button>
             </div>
           )}
         </section>
@@ -119,6 +123,7 @@ export function CargaInicial({ cargas, puedeCargar, puedeConfirmar }: { cargas: 
             {cargas.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                 <span className="tabular font-heading text-lg font-semibold tracking-wide">{c.numero}</span>
+                {c.piloto && <span className="inline-flex items-center rounded-full border border-amber-400 bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-950" data-testid="chip-carga-ensayo">Ensayo · piloto</span>}
                 <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${c.estado === 'CONFIRMADA' ? CHIP_OK : CHIP_NEUTRO}`}>{c.estado === 'CONFIRMADA' ? 'Confirmada' : c.estado === 'BORRADOR' ? 'Borrador' : 'Anulada'}</span>
                 <span className="min-w-0 flex-1 text-sm text-gray-700">{c.filas} filas · {c.unidades.toLocaleString('es-PE')} unidades ({textoResumen(undefined, c.porEstado)}) · subió {c.creadoPor} · {formatoFechaHora(c.creadoEn)}{c.confirmadoPor && c.confirmadoEn ? ` · confirmó ${c.confirmadoPor} · ${formatoFechaHora(c.confirmadoEn)}` : ''}{c.nota ? ` · ${c.nota}` : ''}</span>
                 {c.estado === 'BORRADOR' && (puedeConfirmar

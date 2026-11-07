@@ -15,6 +15,8 @@ async function persona(rol: string): Promise<string> {
   await base.admin.query('insert into wms.usuario_roles (user_id, rol) values ($1, $2)', [id, rol])
   return id
 }
+/** La carga pasa por el informe (obligatorio) y por `crear_carga_ensayo`; `crear_carga_inicial` ya no la llama `authenticated` directo. */
+const informar = (quien: string, lineas: string) => rpc(quien, `select wms.registrar_informe_carga($1::jsonb, 'LISTA')`, [lineas])
 const rpc = <T = unknown>(quien: string, sql: string, args: unknown[] = []) =>
   base.como(quien, async (c) => (await c.query(sql, args)).rows as T[])
 
@@ -478,8 +480,12 @@ describe('carga inicial (D-09)', () => {
   })
 
   it('Dirección Técnica confirma con UNA sola confirmación (sin decidir un estado aparte); deja el saldo y el kardex', async () => {
-    expect((await falla(rpc(P().admin.id, 'select wms.crear_carga_inicial($1::jsonb, null)', [JSON.stringify(filas([{ producto: 'X', lote: 'Y', vence: '2029-01-01', propietario: 'DIPHASAC', posicion: 'A-18.1', estado: 'APROBADO', cantidad: 1 }]))]))).message).toMatch(/1 filas con errores/)
-    const carga = (await rpc<{ id: string }>(P().admin.id, 'select wms.crear_carga_inicial($1::jsonb, $2) as id', [JSON.stringify(filas()), 'Inventario general']))[0].id
+    const mala = JSON.stringify(filas([{ producto: 'X', lote: 'Y', vence: '2029-01-01', propietario: 'DIPHASAC', posicion: 'A-18.1', estado: 'APROBADO', cantidad: 1 }]))
+    await informar(P().admin.id, mala)   // con errores, la base lo asienta como NO_LISTA y no deja cargar
+    expect((await falla(rpc(P().admin.id, 'select wms.crear_carga_ensayo($1::jsonb, null)', [mala]))).message).toMatch(/Primero arma el informe/)
+    expect((await falla(rpc(P().admin.id, 'select wms.crear_carga_inicial($1::jsonb, null)', [mala]))).code).toBe('42501')
+    await informar(P().admin.id, JSON.stringify(filas()))
+    const carga = (await rpc<{ id: string }>(P().admin.id, 'select wms.crear_carga_ensayo($1::jsonb, $2) as id', [JSON.stringify(filas()), 'Inventario general']))[0].id
     expect((await falla(rpc(P().admin.id, 'select wms.confirmar_carga_inicial($1)', [carga]))).code).toBe('42501')
     expect((await falla(rpc(P().katia.id, `select wms.decidir_estado_carga_inicial('APROBADO')`))).message).toMatch(/ya no existe/)
     await rpc(P().katia.id, 'select wms.confirmar_carga_inicial($1)', [carga])
@@ -491,9 +497,11 @@ describe('carga inicial (D-09)', () => {
   })
 
   it('cada fila trae su estado (Aprobado, Cuarentena o Bajas): una en Cuarentena entra a Cuarentena', async () => {
-    const carga = (await rpc<{ id: string }>(P().admin.id, 'select wms.crear_carga_inicial($1::jsonb, null) as id', [JSON.stringify([
+    const lineas = JSON.stringify([
       { producto: 'T-DAPA', lote: 'CI-L9', vence: '2029-05-31', propietario: 'DIPHASAC', posicion: 'A-6', estado: 'CUARENTENA', cantidad: 3 },
-    ])]))[0].id
+    ])
+    await informar(P().admin.id, lineas)
+    const carga = (await rpc<{ id: string }>(P().admin.id, 'select wms.crear_carga_ensayo($1::jsonb, null) as id', [lineas]))[0].id
     await rpc(P().katia.id, 'select wms.confirmar_carga_inicial($1)', [carga])
     expect((await base.admin.query(`select coalesce(sum(cantidad),0)::int n from wms.saldos s join wms.lotes l on l.id = s.lote_id join wms.posiciones p on p.id = s.posicion_id where l.codigo = 'CI-L9' and s.estado = 'CUARENTENA' and p.codigo = 'A-6'`)).rows[0].n).toBe(3)
   })

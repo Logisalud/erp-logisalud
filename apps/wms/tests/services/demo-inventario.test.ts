@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import { posicionAcepta } from '@/domain/zonas'
 import type { Actor } from '@/services/repositorio'
+import type { FilaCargaInicial } from '@/domain/inventario'
 
 const actor = (rol: Actor['roles'][number]): Actor => ({ id: `demo:${rol}`, nombre: `${rol} (demo)`, roles: [rol] })
 const AUX = actor('auxiliar'); const JEFE = actor('jefe_almacen'); const OTRO_AUX: Actor = { id: 'demo:auxiliar-2', nombre: 'Otro auxiliar (demo)', roles: ['auxiliar'] }
@@ -20,6 +21,9 @@ async function stockLibre(minimo: number) {
   return { p, s: p.saldos.find((x) => x.estado === 'APROBADO' && x.cantidad >= minimo && !usadas.has(x.posicionId))! }
 }
 const exito = <T extends { ok: boolean }>(r: T) => { expect(r, JSON.stringify(r)).toMatchObject({ ok: true }); return r as Extract<T, { ok: true }> }
+
+/** La carga exige el informe «Lista» del mismo archivo (P3): se arma y se carga. */
+async function crearConInforme(repo: RepositorioDemo, filas: FilaCargaInicial[], nota: string | undefined, actor: Actor) { await repo.registrarInformeCarga(filas, 'LISTA', actor); return repo.crearCargaInicial(filas, nota, actor) }
 
 describe('Kardex e historia', () => {
   it('cada saldo del demo arranca con su carga inicial y el saldo final coincide con el stock', async () => {
@@ -194,7 +198,7 @@ describe('carga inicial como cambio de sistema (OS-7, D-110)', () => {
   })
 
   it('solo Dirección Técnica confirma, con una sola confirmación (sin decidir el estado aparte)', async () => {
-    const c = exito(await repo.crearCargaInicial([fila()], 'Inventario general', ADMIN))
+    const c = exito(await crearConInforme(repo, [fila()], 'Inventario general', ADMIN))
     expect(await repo.confirmarCargaInicial(c.id, ADMIN)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Solo Dirección Técnica/) })
     exito(await repo.confirmarCargaInicial(c.id, KATIA))
     const { saldos } = await saldoDe('CI-1')
@@ -205,7 +209,7 @@ describe('carga inicial como cambio de sistema (OS-7, D-110)', () => {
   })
 
   it('Cuarentena se queda en Cuarentena, en su ubicación: un solo paso en el libro', async () => {
-    const c = exito(await repo.crearCargaInicial([fila({ lote: 'CI-Q' })], undefined, ADMIN))
+    const c = exito(await crearConInforme(repo, [fila({ lote: 'CI-Q' })], undefined, ADMIN))
     exito(await repo.confirmarCargaInicial(c.id, KATIA))
     const { lote, saldos } = await saldoDe('CI-Q')
     expect(saldos).toHaveLength(1)
@@ -220,7 +224,7 @@ describe('carga inicial como cambio de sistema (OS-7, D-110)', () => {
       fila({ lote: 'CI-B', posicion: u.bajas!.codigo, estado: 'BAJAS_RECHAZADOS', cantidad: '4' }),
     ]
     expect(await repo.validarCargaInicial(filas, ADMIN)).toEqual([])
-    const c = exito(await repo.crearCargaInicial(filas, undefined, ADMIN))
+    const c = exito(await crearConInforme(repo, filas, undefined, ADMIN))
     exito(await repo.confirmarCargaInicial(c.id, KATIA))
 
     const a = await saldoDe('CI-A')
@@ -242,7 +246,7 @@ describe('carga inicial como cambio de sistema (OS-7, D-110)', () => {
   })
 
   it('todo lote lleva su vencimiento y un mismo lote no puede tener dos fechas', async () => {
-    const c = exito(await repo.crearCargaInicial([fila({ lote: 'CI-V', vence: '2029-05-31' })], undefined, ADMIN))
+    const c = exito(await crearConInforme(repo, [fila({ lote: 'CI-V', vence: '2029-05-31' })], undefined, ADMIN))
     exito(await repo.confirmarCargaInicial(c.id, KATIA))
     const e = await repo.validarCargaInicial([fila({ lote: 'CI-V', vence: '2030-01-31' })], ADMIN)
     expect(e[0].error).toMatch(/ya existe con otro vencimiento/)

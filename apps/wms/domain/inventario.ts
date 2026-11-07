@@ -445,6 +445,8 @@ export interface CargaInicialVista {
   unidades: number
   /** Unidades por estado final (OS-7: cada fila trae el estado de Odoo). */
   porEstado: { aprobado: number; cuarentena: number; bajas: number }
+  /** P3: carga de ENSAYO del piloto (se borra en el reinicio del 1 de diciembre). */
+  piloto?: boolean
 }
 
 const COLUMNAS_CARGA = ['producto', 'lote', 'vence', 'propietario', 'posicion', 'estado', 'cantidad'] as const

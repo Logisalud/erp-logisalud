@@ -12,11 +12,12 @@ import { puedeVerificar } from '@/domain/verificacion'
 import { AREAS_DE_SALIDA, areaAdmite } from '@/domain/zonas'
 import { posicionAcepta } from '@/domain/zonas'
 import { ETIQUETA_ROL } from '@/domain/permisos'
-import { ESTADOS_CARGA, erroresDeFilaCarga, puedeConfirmarCargaInicial, puedeSubirCargaInicial, resumenCarga } from '@/domain/carga-inicial'
+import { TEXTO_INFORME_OBLIGATORIO, huellaDeCarga, ESTADOS_CARGA, erroresDeFilaCarga, puedeConfirmarCargaInicial, puedeSubirCargaInicial, resumenCarga } from '@/domain/carga-inicial'
 import type { Estado, Origen, Rol, Saldo } from '@/domain/tipos'
 import { ESTADOS } from '@/domain/tipos'
 import { nombrePersonaDemo } from '@/lib/sesion-demo'
 import { sumarDias } from './datos'
+import { modoPilotoDemo } from './piloto-estado'
 import { EntradasDemo, alertar, estadoE, falla, ahora, nuevoId } from './entradas-demo'
 import { anotar, numeroDe, siguiente, type AjusteDemo, type ConteoDemo, type ConteoLineaDemo } from './libro'
 import { registrar, type EstadoDemo } from './estado'
@@ -664,13 +665,23 @@ export class InventarioDemo extends EntradasDemo {
     return this.erroresCarga(estadoE(), filas)
   }
 
+  async registrarInformeCarga(filas: FilaCargaInicial[], veredicto: 'LISTA' | 'NO_LISTA', actor: Actor): Promise<void> {
+    const e = estadoE()
+    if (!puedeSubirCargaInicial(actor.roles)) return
+    // el cliente no puede mentir: «LISTA» solo si la validación de siempre no encuentra errores
+    const ver = veredicto === 'LISTA' && filas.length > 0 && this.erroresCarga(e, filas).length === 0 ? 'LISTA' : 'NO_LISTA'
+    ;(e.inv.informesCarga ??= []).push({ huella: huellaDeCarga(filas), por: actor.id, veredicto: ver, en: Date.now() })
+  }
+
   async crearCargaInicial(filas: FilaCargaInicial[], nota: string | undefined, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
     const e = estadoE()
     if (!puedeSubirCargaInicial(actor.roles)) return falla('No tienes permiso para la carga inicial')
     if (!filas.length) return falla('El archivo no tiene filas')
+    const huella = huellaDeCarga(filas)
+    if (!(e.inv.informesCarga ?? []).some((i) => i.huella === huella && i.por === actor.id && i.veredicto === 'LISTA' && Date.now() - i.en < 24 * 3600 * 1000)) return falla(TEXTO_INFORME_OBLIGATORIO)
     const errores = this.erroresCarga(e, filas)
     if (errores.length) return falla(`La carga tiene ${new Set(errores.map((x) => x.fila)).size} filas con errores: corrígelas y vuelve a cargar`)
-    const c = { id: nuevoId(), numero: numeroDe(e.inv, 'CI', anioDe(e)), estado: 'BORRADOR' as const, nota: nota?.trim() || undefined, creadoPor: actor.nombre, creadoEn: ahora(), filas: structuredClone(filas) }
+    const c = { id: nuevoId(), numero: numeroDe(e.inv, 'CI', anioDe(e)), estado: 'BORRADOR' as const, nota: nota?.trim() || undefined, creadoPor: actor.nombre, creadoEn: ahora(), filas: structuredClone(filas), piloto: modoPilotoDemo(e) === 'si' }
     e.inv.cargas.push(c)
     registrar(e, actor, 'carga_inicial_creada', 'cargas_iniciales', c.numero, `Carga inicial creada (${filas.length} filas)`, nota)
     return { ok: true, id: c.id, numero: c.numero }
@@ -730,7 +741,7 @@ export class InventarioDemo extends EntradasDemo {
       const r = resumenCarga(c.filas)
       return {
         id: c.id, numero: c.numero, estado: c.estado, nota: c.nota, creadoPor: c.creadoPor, creadoEn: c.creadoEn, confirmadoEn: c.confirmadoEn, confirmadoPor: c.confirmadoPor,
-        filas: c.filas.length, unidades: r.total, porEstado: { aprobado: r.aprobado, cuarentena: r.cuarentena, bajas: r.bajas },
+        filas: c.filas.length, unidades: r.total, porEstado: { aprobado: r.aprobado, cuarentena: r.cuarentena, bajas: r.bajas }, piloto: c.piloto === true,
       }
     })
   }

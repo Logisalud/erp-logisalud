@@ -79,3 +79,11 @@ export function pasosDeCargaEnHistoria(filas: readonly Pick<FilaHistoriaLote, 'p
 }
 
 export const NOTA_RECORRIDO_KARDEX = 'Carga inicial: el stock de Odoo ingresa en Cuarentena y, sin acta organoléptica, se libera y pasa a su ubicación final (o a Bajas). El recorrido completo está en la historia del lote.'
+
+// ---- Fase 4 · P3: carga de ENSAYO del piloto ----
+export const ETIQUETA_CARGA_ENSAYO = 'Carga de ensayo (piloto)'
+export const AVISO_CARGA_ENSAYO = 'Es una carga de ENSAYO del piloto: sirve para que los pedidos reales puedan asignarse, no es el inventario oficial (el oficial sigue en Odoo) y el reinicio del 1 de diciembre la borra. La carga definitiva usa esta misma herramienta.'
+export const TEXTO_INFORME_OBLIGATORIO = 'Primero arma el informe de la carga y que salga «Lista para cargar»: sin informe de este mismo archivo no se carga.'
+
+/** Lo que se guarda de una fila para reconocer «este mismo archivo» (el informe y la carga tienen que ser de las mismas filas). */
+export const huellaDeCarga = (filas: readonly FilaCargaInicial[]): string => JSON.stringify(filas.map((f) => [f.producto, f.lote, f.vence, f.propietario, f.posicion, f.estado, f.cantidad]))

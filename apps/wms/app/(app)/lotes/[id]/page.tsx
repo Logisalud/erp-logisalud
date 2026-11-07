@@ -27,6 +27,7 @@ export default async function HistoriaLote({ params }: { params: { id: string } 
   const stockAprobado = p.saldos.filter((x) => x.loteId === lote.id && x.estado === 'APROBADO').reduce((t, x) => t + x.cantidad, 0)
   const transito = transitoPorLote(ordenes).get(lote.id)
   const pasosCarga = pasosDeCargaEnHistoria(filas)
+  const cargasEnsayo = new Set((await repo.listarCargasIniciales().catch(() => [])).filter((c) => c.piloto).map((c) => c.numero))
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -65,7 +66,7 @@ export default async function HistoriaLote({ params }: { params: { id: string } 
               </div>
               {pasosCarga.get(f.partidaId) && (() => { const c = pasosCarga.get(f.partidaId)!; return (
                 <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-900" data-testid="paso-carga-inicial">
-                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />Carga inicial {c.carga} · paso {c.paso} de {c.total} · {c.texto}
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />Carga inicial {c.carga}{cargasEnsayo.has(c.carga) ? ' (ensayo, piloto)' : ''} · paso {c.paso} de {c.total} · {c.texto}
                 </p>) })()}
               <p className="mt-1 text-sm text-gray-700">
                 {f.motivo ? `${f.motivo} · ` : ''}{f.referencia ? (/^MI-\d{4}-\d{5}$/.test(f.referencia) ? <><Link href={`/movimientos?q=${encodeURIComponent(f.referencia)}`} className="underline" data-testid="ref-movimiento">{f.referencia}</Link> · </> : `ref. ${f.referencia} · `) : ''}{f.sustento ? `sustento ${f.sustento} · ` : ''}

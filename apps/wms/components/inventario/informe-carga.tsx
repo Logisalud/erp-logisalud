@@ -13,7 +13,7 @@ const ESTILO: Record<EstadoLineaInforme, { cls: string; I: typeof CheckCircle2 }
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
 
 /** Informe de la carga de ensayo para Dirección Técnica y la Gerencia: veredicto, totales por estado, qué corregir en cada línea y descarga en CSV o Excel. No guarda nada. */
-export function InformeCarga({ texto }: { texto: string }) {
+export function InformeCarga({ texto, alInforme }: { texto: string; /** Avisa si el informe de ESTE archivo salió «Lista para cargar» (la carga lo exige). */ alInforme?: (lista: boolean) => void }) {
   const [informe, setInforme] = useState<InformeCarga | null>(null)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,8 +24,8 @@ export function InformeCarga({ texto }: { texto: string }) {
     setCargando(true); setError(null)
     try {
       const r = await informeCargaAccion(texto)
-      if (r.ok) setInforme(r.informe); else { setInforme(null); setError(r.mensaje) }
-    } catch { setError('No se pudo armar el informe. Vuelve a intentarlo.') }
+      if (r.ok) { setInforme(r.informe); alInforme?.(r.informe.veredicto === 'LISTA') } else { setInforme(null); setError(r.mensaje); alInforme?.(false) }
+    } catch { setError('No se pudo armar el informe. Vuelve a intentarlo.'); alInforme?.(false) }
     setCargando(false)
   }
   async function descargar(formato: 'csv' | 'xlsx') {

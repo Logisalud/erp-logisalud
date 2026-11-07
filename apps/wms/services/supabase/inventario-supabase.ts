@@ -230,8 +230,11 @@ export class InventarioSupabase extends EntradasSupabase {
     if (error) return [{ fila: 0, error: mensajeHumano(error) }]
     return ((data ?? []) as Fila[]).map((r) => ({ fila: Number(r.fila), error: String(r.error) }))
   }
+  async registrarInformeCarga(filas: FilaCargaInicial[], veredicto: 'LISTA' | 'NO_LISTA', _a: Actor): Promise<void> {
+    await rpc('registrar_informe_carga', { p_lineas: this.filasJson(filas), p_veredicto: veredicto })
+  }
   async crearCargaInicial(filas: FilaCargaInicial[], nota: string | undefined, _a: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
-    const { data, error } = await rpc('crear_carga_inicial', { p_lineas: this.filasJson(filas), p_nota: nota ?? null })
+    const { data, error } = await rpc('crear_carga_ensayo', { p_lineas: this.filasJson(filas), p_nota: nota ?? null })
     if (error) return mal(error)
     const supabase = crearClienteServidor()
     const { data: c } = await supabase.schema('wms').from('cargas_iniciales').select('numero').eq('id', String(data)).maybeSingle()
@@ -251,7 +254,7 @@ export class InventarioSupabase extends EntradasSupabase {
     return cs.map((c) => {
       const l = porCarga.get(String(c.id)) ?? []
       const suma = (est: string) => l.filter((x) => String(x.estado) === est).reduce((n, x) => n + Number(x.cantidad), 0)
-      return { id: String(c.id), numero: String(c.numero), estado: c.estado as CargaInicialVista['estado'], nota: s(c.nota), creadoPor: nombres.get(String(c.creado_por)) ?? 'Usuario', creadoEn: String(c.creado_en), confirmadoEn: s(c.confirmado_en), confirmadoPor: c.confirmado_por ? nombres.get(String(c.confirmado_por)) : undefined, filas: l.length, unidades: l.reduce((n, x) => n + Number(x.cantidad), 0), porEstado: { aprobado: suma('APROBADO'), cuarentena: suma('CUARENTENA'), bajas: suma('BAJAS_RECHAZADOS') } }
+      return { id: String(c.id), numero: String(c.numero), estado: c.estado as CargaInicialVista['estado'], nota: s(c.nota), creadoPor: nombres.get(String(c.creado_por)) ?? 'Usuario', creadoEn: String(c.creado_en), confirmadoEn: s(c.confirmado_en), confirmadoPor: c.confirmado_por ? nombres.get(String(c.confirmado_por)) : undefined, filas: l.length, unidades: l.reduce((n, x) => n + Number(x.cantidad), 0), porEstado: { aprobado: suma('APROBADO'), cuarentena: suma('CUARENTENA'), bajas: suma('BAJAS_RECHAZADOS') }, piloto: c.piloto === true }
     })
   }
 }

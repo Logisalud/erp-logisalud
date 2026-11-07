@@ -16,5 +16,8 @@ export async function informeDeCarga(texto: string, actor: Actor): Promise<{ ok:
   if (!texto.trim()) return { ok: false, mensaje: 'Sube o pega el archivo de la carga para revisarlo' }
   const leido = parsearCargaInicial(texto)
   const erroresBase = leido.filas.length > 0 ? await repositorio().validarCargaInicial(leido.filas, actor) : []
-  return { ok: true, informe: construirInforme(leido.filas, erroresBase, { hoy: hoyLima(), erroresLectura: leido.errores }) }
+  const informe = construirInforme(leido.filas, erroresBase, { hoy: hoyLima(), erroresLectura: leido.errores })
+  // P3: queda constancia de que ESTE archivo se revisó (la carga lo exige); la base vuelve a comprobar que no tenga errores
+  if (leido.filas.length > 0) await repositorio().registrarInformeCarga(leido.filas, informe.veredicto === 'LISTA' ? 'LISTA' : 'NO_LISTA', actor)
+  return { ok: true, informe }
 }

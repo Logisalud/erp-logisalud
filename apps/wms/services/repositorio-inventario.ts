@@ -51,6 +51,8 @@ export interface RepositorioInventario {
   // ── Carga inicial ───────────────────────────────────────────────────────
   /** OS-7 (D-110): cambio de sistema. Administración sube y revisa; Dirección Técnica valida con UNA sola confirmación (ya no hay un estado que decidir aparte). */
   validarCargaInicial(filas: FilaCargaInicial[], actor: Actor): Promise<ErrorFilaCarga[]>
+  /** P3: deja constancia del informe de validación de ESTE archivo. Sin un informe «LISTA» de las mismas filas, `crearCargaInicial` se niega. */
+  registrarInformeCarga(filas: FilaCargaInicial[], veredicto: 'LISTA' | 'NO_LISTA', actor: Actor): Promise<void>
   crearCargaInicial(filas: FilaCargaInicial[], nota: string | undefined, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
   confirmarCargaInicial(id: string, actor: Actor): Promise<ResultadoAccion>
   listarCargasIniciales(): Promise<CargaInicialVista[]>
