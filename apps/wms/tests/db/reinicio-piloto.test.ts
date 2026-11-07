@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-// @ts-expect-error módulo .mjs del script (sin tipos)
-import { BORRAR, CONSERVAR, clasificarTablas, exigirCopiaDelDia, hoyLima, leerArgumentos, listarArchivos, reiniciar } from '../../scripts/reinicio-piloto-lib.mjs'
+import { BORRAR, CONSERVAR, clasificarTablas, exigirCopiaDelDia, hoyLima, leerArgumentos, listarArchivos, reiniciar as reiniciarJs } from '../../scripts/reinicio-piloto-lib.mjs'
 import { type BaseDePrueba, crearBaseDePrueba, falla, idPosicion, idPropietario } from './helpers'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const reiniciar = reiniciarJs as (c: unknown, o: Record<string, unknown>) => Promise<any>
 let base: BaseDePrueba
 let posAprobado: string
 const q = (sql: string, args: unknown[] = []) => base.admin.query(sql, args).then((r) => r.rows)
