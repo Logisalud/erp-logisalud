@@ -24,7 +24,7 @@ select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'wms' and has_function_privilege('authenticated', p.oid, 'execute');  -- = la lista de tests/db/aislamiento.test.ts
 select count(*) from wms.v_oc_items;     -- al final: ver la sección 6
 ```
-Esperado al terminar: 106 tablas con RLS, 185 funciones para `authenticated`, ninguna para PUBLIC.
+Esperado al terminar: 108 tablas con RLS, 189 funciones para `authenticated`, ninguna para PUBLIC.
 
 ## 4. Variables de entorno en Production del proyecto Vercel `erp-logisalud-wms` (solo NOMBRES; los valores los carga Sebas, nunca se escriben aquí ni en el chat)
 `WMS_MODO_PILOTO=1` (valor fijo) · `NUBEFACT_ENTORNO=DEMO` · `NUBEFACT_RUTA` y `NUBEFACT_TOKEN` (credenciales DEMO) · `NEXT_PUBLIC_SUPABASE_URL` · `NEXT_PUBLIC_SUPABASE_ANON_KEY` · `SUPABASE_SERVICE_ROLE_KEY` (solo servidor) · `NEXT_PUBLIC_BASE_PATH` si corresponde. **Nunca** `WMS_DEMO`, `WMS_DEMO_LOCAL` ni `WMS_GO_LIVE` (con cualquiera la app se niega a arrancar). `WMS_PEDIDOS_URL` y `WMS_PEDIDOS_SECRETO`: **solo cuando se apruebe la ruta de Pedidos**; mientras tanto el WMS no envía nada a Pedidos aunque estén puestas.

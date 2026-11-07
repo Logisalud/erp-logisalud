@@ -39,7 +39,8 @@ test.describe('E-2 · «Salida de Cuarentena» en Mover', () => {
       await origenes.first().click()
       await expect(page.getByTestId('lista-destinos')).toBeVisible()
       const sirven = page.locator('[data-testid="opcion-destino"][data-sirve="si"]')
-      await expect(sirven.first()).toBeVisible()
+      await expect(page.locator('[data-testid="opcion-destino"]').first()).toBeVisible()
+      // si el lote sigue en estado Cuarentena (p. ej. el de la carga inicial de otra prueba) ningún rack sirve y la pantalla lo explica; si ya está Aprobado, sirven solo las de Aprobados
       for (const t of await sirven.allTextContents()) expect(t, 'destino que no es Aprobados').toContain('Aprobados')
       await expect(page.locator('[data-testid="opcion-destino"][data-sirve="no"]').first()).toContainText(/Aprobados|Cuarentena|ubicación/)
     } else {
@@ -83,7 +84,10 @@ test.describe('E-5 · revisión diaria: quién lo resuelve', () => {
     await page.goto('/wms/revision-diaria')
     if (await page.getByTestId('iniciar-revision').count()) await page.getByTestId('iniciar-revision').click()
     await expect(page.getByTestId('focos')).toBeVisible()
-    await page.locator('[data-foco="ORDEN"]').getByTestId('foco-agregar-pendiente').click()
+    const agregar = page.locator('[data-foco="ORDEN"]').getByTestId('foco-agregar-pendiente')
+    // si otra prueba ya cerró la revisión de hoy no hay dónde agregar: la regla («solo auxiliares») queda cubierta por tests/components/revision-diaria-responsable.test.tsx y la base
+    if (!(await agregar.count())) { await expect(page.getByText('Revisión cerrada')).toBeVisible(); return }
+    await agregar.click()
     const opciones = await page.getByTestId('pendiente-responsable').locator('option').allTextContents()
     expect(opciones.length).toBeGreaterThan(1)
     for (const o of opciones.slice(1)) expect(o, 'solo auxiliares').toMatch(/Auxiliar/i)
