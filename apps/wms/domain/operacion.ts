@@ -73,11 +73,16 @@ export function validarMarcaFoco(pendientes: Pick<PendienteVista, 'foco' | 'esta
   return null
 }
 
+/** Quién puede resolver un pendiente de la revisión diaria: solo los auxiliares (la lista del formulario y la validación usan esta misma regla; la base también la aplica). */
+export const auxiliaresDelEquipo = (equipo: PersonaEquipo[]): PersonaEquipo[] => equipo.filter((p) => p.rol === 'auxiliar')
+export const MENSAJE_SOLO_AUXILIARES = 'Solo un auxiliar puede ser responsable de un pendiente de la revisión diaria.'
+
 export function validarPendiente(e: Partial<EntradaPendiente>, equipo: PersonaEquipo[]): Record<string, string> | null {
   const errores: Record<string, string> = {}
   if (!e.descripcion?.trim()) errores.descripcion = 'Cuenta qué pasó.'
   if (!e.responsableId) errores.responsableId = 'Todo pendiente necesita un responsable.'
   else if (!equipo.some((p) => p.id === e.responsableId)) errores.responsableId = 'El responsable debe ser una persona del equipo del WMS.'
+  else if (!auxiliaresDelEquipo(equipo).some((p) => p.id === e.responsableId)) errores.responsableId = MENSAJE_SOLO_AUXILIARES
   return Object.keys(errores).length ? errores : null
 }
 

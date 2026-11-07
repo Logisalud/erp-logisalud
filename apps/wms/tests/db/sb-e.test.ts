@@ -8,7 +8,7 @@ let base: BaseDePrueba
 let a: ReturnType<typeof ayudasDeIngreso>
 let admin: string
 let admin2: string
-const IMG = 'data:image/png;base64,' + 'A'.repeat(200)
+const IMG = 'firmas/' + 'a'.repeat(16) + '-' + 'b'.repeat(64) + '.png'
 const como = <T>(id: string, fn: (c: import('pg').Client) => Promise<T>) => base.como(id, fn)
 
 beforeAll(async () => {
@@ -38,11 +38,11 @@ describe('el Administrador en las entradas', () => {
     for (const l of lineas) await a.verificar(l.id, pos)
     await a.datosRecepcion(ing)
     const acta = await base.como(a.P().charlie.id, async (c) => (await c.query('select wms.generar_acta_recepcion($1) id', [ing])).rows[0].id as string)
+    await como(a.P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'TRANSPORTISTA', 'Pedro Quispe', '45678912', 'ABC-123', $2)`, [acta, IMG]))
+    await como(a.P().aux.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'RESPONSABLE_CONTEO', 'Christians')`, [acta]))
     await como(admin, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'JEFE_ALMACEN', 'Sebastián')`, [acta]))
     expect((await falla(como(admin2, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'DIRECCION_TECNICA', 'Andrés')`, [acta])))).message).toMatch(/Solo Dirección Técnica/)
     await como(a.P().katia.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'DIRECCION_TECNICA', 'Katia Zapata')`, [acta]))
-    await como(a.P().aux.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'RESPONSABLE_CONTEO', 'Christians')`, [acta]))
-    await como(a.P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'TRANSPORTISTA', 'Pedro Quispe', '45678912', 'ABC-123', $2)`, [acta, IMG]))
     const firmas = await a.q('select rol_firma, firmante_id from wms.actas_recepcion_firmas where acta_id = $1', [acta]).catch(() => [])
     if (firmas.length) expect(firmas.some((f) => f.rol_firma === 'JEFE_ALMACEN' && f.firmante_id === admin)).toBe(true)
   })

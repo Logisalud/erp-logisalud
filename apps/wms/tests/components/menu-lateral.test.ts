@@ -62,8 +62,9 @@ describe('menú lateral por rol (D-131 a D-133)', () => {
     expect(hrefs(persona('jefe_almacen'))).not.toContain('/carga-inicial')
   })
 
-  it('quien no es personal (conductor, cliente) solo ve el Inicio', () => {
-    expect(hrefs(['conductor'])).toEqual(['/'])
+  it('quien no es personal ve solo el Inicio; el conductor y el auxiliar de transporte, además, Mis rutas', () => {
+    expect(hrefs(['conductor'])).toEqual(['/', '/mis-rutas'])
+    expect(hrefs(['auxiliar_transporte'])).toEqual(['/', '/mis-rutas'])
     expect(hrefs(['usuario_cliente'])).toEqual(['/'])
   })
 

@@ -50,6 +50,8 @@ export interface CargaDemo {
   creadoEn: string
   confirmadoEn?: string
   confirmadoPor?: string
+  /** Marca «piloto» (P3): la carga nació con el modo piloto encendido. */
+  piloto?: boolean
   filas: FilaCargaInicial[]
 }
 
@@ -59,6 +61,8 @@ export interface InvDemo {
   conteos: ConteoDemo[]
   ajustes: AjusteDemo[]
   cargas: CargaDemo[]
+  /** Informes de validación de la carga (P3): huella del archivo, quién y el veredicto. Obligatorio antes de cargar. */
+  informesCarga?: { huella: string; por: string; veredicto: 'LISTA' | 'NO_LISTA'; en: number }[]
   /** Vistas guardadas de las listas, por persona. */
   vistas: Record<string, VistaGuardada[]>
   contadores: Record<string, number>

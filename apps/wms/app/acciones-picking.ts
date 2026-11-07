@@ -7,8 +7,8 @@ import type { ResultadoLineaConformidad, TipoNoConformidad } from '@/domain/desp
 import type { RepartoBulto } from '@/domain/embalaje'
 import type { ItemChecklist } from '@/domain/carga'
 import type { Actor } from '@/services/repositorio'
-import type { CasoAnulacion, TrasladoGuia } from '@/domain/guia-electronica'
-import { anularGuiaConCaso, consultarEstadoGuia, emitirGuiaElectronica, enviarEventosPedidos, probarConexionNubefact } from '@/services/guia-electronica'
+import type { CasoAnulacion, RegistroGuiaPanel, TrasladoGuia } from '@/domain/guia-electronica'
+import { anularGuiaConCaso, consultarEstadoGuia, emitirGuiaElectronica, enviarEventosPedidos, probarConexionNubefact, registrarGuiaPanel } from '@/services/guia-electronica'
 
 async function quien(): Promise<Actor> {
   const ctx = await exigirContexto()
@@ -30,6 +30,8 @@ export async function aplicarReservaAccion(loteId: string, motivo: string) { ret
 export async function quitarReservaAccion(loteId: string, motivo: string) { return repositorio().quitarReserva(loteId, motivo, await quien()) }
 
 export async function registrarGreAccion(salidaId: string, numero: string, nota?: string) { return repositorio().registrarGre(salidaId, numero, nota, await quien()) }
+/** Piloto (0036): la guía se emitió en el panel de Nubefact; aquí solo se registra. */
+export async function registrarGuiaPanelAccion(salidaId: string, registro: RegistroGuiaPanel) { return registrarGuiaPanel(salidaId, registro, await quien()) }
 export async function anularGreAccion(guiaId: string, motivo: string) { return repositorio().anularGre(guiaId, motivo, await quien()) }
 
 export async function embalarSalidaAccion(salidaId: string, reparto: RepartoBulto[]) { return repositorio().embalarSalida(salidaId, reparto, await quien()) }

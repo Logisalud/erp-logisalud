@@ -12,7 +12,7 @@ export async function entrarComo(page: Page, rol: RolDemo) {
   await page.context().clearCookies()
   await page.goto('/wms/login')
   await page.getByTestId(`entrar-${rol}`).click()
-  await page.waitForURL(/\/wms\/?$/)
+  await page.waitForURL(/\/wms(\/bienvenida)?\/?$/) // en el piloto el primer ingreso cae en la bienvenida
   await expect(page.getByTestId('banner-demo')).toBeVisible()
 }
 

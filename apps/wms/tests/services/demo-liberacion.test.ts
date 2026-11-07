@@ -1,5 +1,6 @@
 // OS-5 en el modo demostración: muestreo LS-TB.02.02, liberación LS-POE.04.05 y retornos. Mismas reglas y mismos mensajes que la migración 0025 (tests/db/os5-*.test.ts).
 import { beforeEach, describe, expect, it } from 'vitest'
+import { FIRMA_PNG_EJEMPLO } from '@/services/firma-imagen'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import { checklistConforme } from '@/services/demo/entradas-demo'
 import type { Actor } from '@/services/repositorio'
@@ -10,7 +11,7 @@ const KATIA = actor('direccion_tecnica', 'Katia')
 const SANDRA = actor('asistente_dt', 'Sandra')
 const AUX = actor('auxiliar', 'Christians')
 const ROBERTO = actor('jefe_transporte', 'Roberto')
-const IMG = 'data:image/png;base64,' + 'A'.repeat(200)
+const IMG = FIRMA_PNG_EJEMPLO
 const DOC = { ref: 'dictamen_cliente/abc-dictamen.pdf', nombre: 'dictamen.pdf', tipo: 'application/pdf', hash: 'a'.repeat(64) }
 
 let repo: RepositorioDemo
@@ -26,10 +27,10 @@ async function recibirTodo(id: string, pos: string) {
   for (const l of s.lineas) exito(await repo.verificarLinea(id, l.id, { coincide: true, posicionId: pos }, CHARLIE))
   exito(await repo.editarRecepcion(id, { temperaturaC: 20, bultos: 3, paletas: 1, placa: 'ABC-123', tipoConteo: 'MUESTREO' }, CHARLIE))
   const g = exito(await repo.generarActa(id, CHARLIE))
+  exito(await repo.firmarActa(g.actaId, { rol: 'TRANSPORTISTA', nombre: 'Pedro Quispe', dni: '45678912', placa: 'ABC-123', imagen: IMG }, CHARLIE))
+  exito(await repo.firmarActa(g.actaId, { rol: 'RESPONSABLE_CONTEO' }, AUX))
   exito(await repo.firmarActa(g.actaId, { rol: 'JEFE_ALMACEN' }, CHARLIE))
   exito(await repo.firmarActa(g.actaId, { rol: 'DIRECCION_TECNICA' }, KATIA))
-  exito(await repo.firmarActa(g.actaId, { rol: 'RESPONSABLE_CONTEO' }, AUX))
-  exito(await repo.firmarActa(g.actaId, { rol: 'TRANSPORTISTA', nombre: 'Pedro Quispe', dni: '45678912', placa: 'ABC-123', imagen: IMG }, CHARLIE))
   exito(await repo.confirmarIngreso(id, CHARLIE))
   return (await repo.obtenerSolicitud(id))!
 }

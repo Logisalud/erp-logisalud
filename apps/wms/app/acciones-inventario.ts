@@ -1,5 +1,6 @@
 'use server'
 
+import { informeDeCarga } from '@/services/informe-carga'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import type { FilaCargaInicial, ErrorFilaCarga, LineaEjecutar, ReporteVista, RevisionLinea, VistaGuardada } from '@/domain/inventario'
@@ -31,6 +32,8 @@ export async function escalarLineaConteoAccion(lineaId: string, nota: string): P
 export async function cerrarConteoAccion(id: string, causa: string | undefined, accion: string | undefined): Promise<ResultadoAccion> { return repositorio().cerrarConteo(id, causa, accion, await quien()) }
 
 // ── Carga inicial ───────────────────────────────────────────────────────────
+/** Piloto: informe de validación de la carga de ensayo (no guarda nada). */
+export async function informeCargaAccion(texto: string) { return informeDeCarga(texto, await quien()) }
 export async function validarCargaInicialAccion(filas: FilaCargaInicial[]): Promise<ErrorFilaCarga[]> { return repositorio().validarCargaInicial(filas, await quien()) }
 export async function crearCargaInicialAccion(filas: FilaCargaInicial[], nota: string | undefined): Promise<ResultadoAccion<{ id: string; numero: string }>> { return repositorio().crearCargaInicial(filas, nota, await quien()) }
 export async function confirmarCargaInicialAccion(id: string): Promise<ResultadoAccion> { return repositorio().confirmarCargaInicial(id, await quien()) }

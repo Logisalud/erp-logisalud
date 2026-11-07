@@ -1,6 +1,7 @@
 // SB-E (D-196): el Administrador hace todo lo operativo y de configuración en el modo demostración, con las mismas reglas que la base (migración 0035).
 // Lo que sigue reservado a Dirección Técnica: aprobar, dar de baja, autorizar ajustes y validar producto.
 import { beforeEach, describe, expect, it } from 'vitest'
+import { FIRMA_PNG_EJEMPLO } from '@/services/firma-imagen'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import { checklistConforme } from '@/services/demo/entradas-demo'
 import { rolesEfectivos } from '@/domain/permisos'
@@ -12,7 +13,7 @@ const KATIA = actor('direccion_tecnica', 'Katia')
 const SANDRA = actor('asistente_dt', 'Sandra')
 const CHARLIE = actor('jefe_almacen', 'Charlie')
 const AUX = actor('auxiliar', 'Christians')
-const IMG = 'data:image/png;base64,' + 'A'.repeat(200)
+const IMG = FIRMA_PNG_EJEMPLO
 const exito = <T extends { ok: boolean }>(r: T) => { expect(r, JSON.stringify(r)).toMatchObject({ ok: true }); return r as Extract<T, { ok: true }> }
 
 let repo: RepositorioDemo
@@ -61,13 +62,13 @@ describe('el Administrador hace lo operativo de las entradas', () => {
     for (const l of s.lineas) exito(await repo.verificarLinea(r.id, l.id, { coincide: true, posicionId: 'pos:A-6' }, CHARLIE))
     exito(await repo.editarRecepcion(r.id, { temperaturaC: 20, bultos: 3, paletas: 1, placa: 'ABC-123', tipoConteo: 'TOTAL' }, CHARLIE))
     const g = exito(await repo.generarActa(r.id, CHARLIE))
+    exito(await repo.firmarActa(g.actaId, { rol: 'TRANSPORTISTA', nombre: 'Pedro Quispe', dni: '45678912', placa: 'ABC-123', imagen: IMG }, CHARLIE))
+    exito(await repo.firmarActa(g.actaId, { rol: 'RESPONSABLE_CONTEO' }, AUX))
     // El Administrador firma como Jefe de Almacén.
     exito(await repo.firmarActa(g.actaId, { rol: 'JEFE_ALMACEN' }, ADMIN))
     // Pero no como Dirección Técnica.
     expect(await repo.firmarActa(g.actaId, { rol: 'DIRECCION_TECNICA' }, ADMIN)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Dirección Técnica/) })
     exito(await repo.firmarActa(g.actaId, { rol: 'DIRECCION_TECNICA' }, KATIA))
-    exito(await repo.firmarActa(g.actaId, { rol: 'RESPONSABLE_CONTEO' }, AUX))
-    exito(await repo.firmarActa(g.actaId, { rol: 'TRANSPORTISTA', nombre: 'Pedro Quispe', dni: '45678912', placa: 'ABC-123', imagen: IMG }, CHARLIE))
   })
   it('llena el acta organoléptica, pero la decisión (Aprobado o Bajas) sigue siendo solo de Dirección Técnica', async () => {
     const cola = await repo.colaDireccionTecnica()

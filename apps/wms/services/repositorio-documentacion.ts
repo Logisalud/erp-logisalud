@@ -1,5 +1,5 @@
 import type { PaqueteSalida } from '@/domain/documentacion'
-import type { CasoAnulacion, DatosGuia, EstadoSunat, EventoPedidos, ModoNubefact, RespuestaConsulta, RespuestaEmision, TrasladoGuia } from '@/domain/guia-electronica'
+import type { CasoAnulacion, DatosGuia, RegistroGuiaPanel, EstadoSunat, EventoPedidos, ModoNubefact, RespuestaConsulta, RespuestaEmision, TrasladoGuia } from '@/domain/guia-electronica'
 import type { EstadoCorrelativo } from '@/domain/numeracion-guias'
 import type { Actor, ResultadoAccion } from './repositorio'
 
@@ -10,6 +10,9 @@ export interface RepositorioDocumentacion {
   /** Registra el N.° de la guía con las líneas confirmadas. Solo con todo el pedido conforme; una guía viva por salida; un número no se repite.
    *  Es la contingencia a mano o, en una orden de un cliente de almacenamiento (tipo B), la GRE que trae el cliente (con su archivo). */
   registrarGre(salidaId: string, numero: string, nota: string | undefined, actor: Actor, archivoRef?: string): Promise<ResultadoAccion<{ id: string }>>
+  /** Piloto (0036, `guia_modo = PANEL`): la guía se emitió en el panel de Nubefact (o en Odoo) y aquí solo se registra: serie-número, fecha, estado y enlace opcional.
+   *  Mismas reglas que `registrarGre` y además el número no se repite ni con una guía anulada. Deja el aviso a Pedidos como una guía emitida por el WMS. */
+  registrarGuiaPanel(salidaId: string, registro: RegistroGuiaPanel, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
   /** Una guía no se edita: se anula con motivo y se registra otra (caso 1: datos del traslado). */
   anularGre(guiaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   /** El paquete de todas las salidas de una ruta, para imprimirlo junto. */

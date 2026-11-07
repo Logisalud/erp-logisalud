@@ -200,13 +200,30 @@ export const ETIQUETA_REGISTRO_COMPRAS: Record<EstadoRegistroCompras, string> = 
 // ── Firmas del Acta de Recepción ────────────────────────────────────────────
 
 export type RolFirma = 'JEFE_ALMACEN' | 'DIRECCION_TECNICA' | 'RESPONSABLE_CONTEO' | 'TRANSPORTISTA'
-export const ROLES_FIRMA: readonly RolFirma[] = ['JEFE_ALMACEN', 'DIRECCION_TECNICA', 'RESPONSABLE_CONTEO', 'TRANSPORTISTA']
+/**
+ * El ORDEN en que se firma el acta (piloto, C): transportista → responsable de conteo → Jefe de Almacén → Dirección Técnica.
+ * Cada persona firma desde su propio celular o PC con su propio usuario; no hay PIN ni celular compartido. La base de datos exige el mismo orden.
+ */
+export const ROLES_FIRMA: readonly RolFirma[] = ['TRANSPORTISTA', 'RESPONSABLE_CONTEO', 'JEFE_ALMACEN', 'DIRECCION_TECNICA']
 
 export const ETIQUETA_ROL_FIRMA: Record<RolFirma, string> = {
   JEFE_ALMACEN: 'Jefe de Almacén',
   DIRECCION_TECNICA: 'Dirección Técnica',
   RESPONSABLE_CONTEO: 'Responsable de conteo',
   TRANSPORTISTA: 'Transportista',
+}
+
+/** A quién le toca firmar ahora: la primera parte del orden que todavía no firmó (null si ya firmaron todas). */
+export function siguienteEnFirmar(hechas: readonly RolFirma[]): RolFirma | null {
+  return ROLES_FIRMA.find((r) => !hechas.includes(r)) ?? null
+}
+
+/** ¿Se puede firmar ahora como `rol`? Si no le toca, dice a quién le toca (la base de datos dice lo mismo). */
+export function verificarOrdenDeFirma(rol: RolFirma, hechas: readonly RolFirma[]): { ok: true } | { ok: false; mensaje: string } {
+  if (hechas.includes(rol)) return { ok: false, mensaje: 'Ese rol ya firmó esta acta' }
+  const toca = siguienteEnFirmar(hechas)
+  if (toca === null || toca === rol) return { ok: true }
+  return { ok: false, mensaje: `Todavía no le toca a ${ETIQUETA_ROL_FIRMA[rol]}. Le toca a ${ETIQUETA_ROL_FIRMA[toca]}.` }
 }
 
 /** Qué rol WMS puede firmar cada parte (la base de datos es la que manda). */
@@ -339,8 +356,8 @@ export type Checklist = Record<string, Respuesta>
 
 const todosLosItems = () => CHECKLIST_ORGANOLEPTICO.flatMap((g) => g.items.map((i) => ({ ...i, grupo: g })))
 
-/** Items sin responder en los grupos obligatorios, y en un grupo opcional si ya se empezó a usar. */
-export function itemsPendientes(c: Checklist): string[] {
+/** Items sin responder en los grupos obligatorios, y en un grupo opcional si ya se empezó a usar. Con `sinMaterialEnvase` no se pide el material del envase (F3). */
+export function itemsPendientes(c: Checklist, sinMaterialEnvase = false): string[] {
   const pendientes: string[] = []
   for (const g of CHECKLIST_ORGANOLEPTICO) {
     const respondidos = g.items.filter((i) => c[i.id]).length
@@ -348,11 +365,11 @@ export function itemsPendientes(c: Checklist): string[] {
     for (const i of g.items) if (!c[i.id]) pendientes.push(i.id)
   }
   const algunMaterial = CHECKLIST_ORGANOLEPTICO.some((g) => g.opcional && g.items.some((i) => c[i.id]))
-  if (!algunMaterial) pendientes.push('material')
+  if (!algunMaterial && !sinMaterialEnvase) pendientes.push('material')
   return pendientes
 }
 
-export const checklistCompleto = (c: Checklist) => itemsPendientes(c).length === 0
+export const checklistCompleto = (c: Checklist, sinMaterialEnvase = false) => itemsPendientes(c, sinMaterialEnvase).length === 0
 
 /** Con un solo "no conforme", la conclusión sugerida es NO CONFORME. */
 export function sugerirConclusion(c: Checklist): 'CONFORME' | 'NO_CONFORME' {
@@ -374,10 +391,10 @@ export interface DatosOrganoleptica {
 }
 
 /** ¿Está el acta lista para ir a Dirección Técnica? Devuelve lo que falta, en lenguaje claro. */
-export function faltantesParaEnviar(d: DatosOrganoleptica): string[] {
+export function faltantesParaEnviar(d: DatosOrganoleptica, sinMaterialEnvase = false): string[] {
   const f: string[] = []
   if (d.certAnalisis == null) f.push('Indica si trae certificado de análisis.')
-  const pend = itemsPendientes(d.checklist)
+  const pend = itemsPendientes(d.checklist, sinMaterialEnvase)
   if (pend.includes('material')) f.push('Marca el material del envase (vidrio, plástico, tubo, blíster u otro).')
   const sinResponder = pend.filter((p) => p !== 'material').length
   if (sinResponder > 0) f.push(`Faltan ${sinResponder} puntos del checklist por responder.`)
@@ -388,10 +405,11 @@ export function faltantesParaEnviar(d: DatosOrganoleptica): string[] {
 
 /** Lo que Dirección Técnica puede decidir según la conclusión del acta. */
 export function validarDecision(
-  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string, productoValidado = true,
+  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string, productoValidado = true, datosCompletos = true,
 ): { ok: true } | { ok: false; mensaje: string } {
   if (decision === 'APROBADO') {
     if (conclusion !== 'CONFORME') return { ok: false, mensaje: 'El acta concluye NO CONFORME: no se puede aprobar. Decide Bajas/Rechazados o pide que la corrijan.' }
+    if (!datosCompletos) return { ok: false, mensaje: 'El producto está pendiente de Dirección Técnica: faltan sus datos regulatorios. Complétalos en su ficha antes de aprobar sus lotes.' }
     if (!productoValidado) return { ok: false, mensaje: 'Este producto todavía no está validado: valídalo en su ficha antes de aprobar sus lotes.' }
     if (rsVence && rsVence < hoy) {
       return { ok: false, mensaje: 'El registro sanitario está vencido: el lote no se puede aprobar hasta que Dirección Técnica lo resuelva.' }
@@ -435,6 +453,25 @@ export function pasoDeSolicitud(s: {
   }
 }
 
+/** Mensaje cuando se pide el acta (generarla, confirmar el ingreso) de una solicitud cuya recepción todavía no empezó. Lo usan la demo, la base y la pantalla. */
+export const MENSAJE_SIN_RECEPCION = 'Todavía no se inició la recepción de esta solicitud, y el acta sale de lo que verificas al recibir. Usa «Iniciar recepción» para empezar.'
+
+export interface ExplicacionSinActa { texto: string; puedeIniciar: boolean }
+
+/**
+ * Por qué una solicitud no tiene acta todavía y qué hacer. `null` si ya tiene recepción (ahí el acta se maneja en su panel).
+ * El botón «Iniciar recepción» solo existe cuando la solicitud ya está autorizada («por llegar») y quien mira puede recibir.
+ */
+export function explicarSinActa(estado: EstadoSolicitud, puedeRecibir: boolean): ExplicacionSinActa | null {
+  switch (estado) {
+    case 'EN_RECEPCION': case 'CERRADA': return null
+    case 'ANULADA': return { texto: 'Esta solicitud está anulada: no habrá recepción ni acta.', puedeIniciar: false }
+    case 'PROGRAMADA':
+      return { texto: `Todavía no hay acta porque la recepción no se inició. El acta se arma con lo que verificas al recibir el camión. ${puedeRecibir ? 'Cuando llegue, inicia la recepción.' : 'La recepción la inicia el personal de almacén.'}`, puedeIniciar: puedeRecibir }
+    default: return { texto: 'Todavía no hay acta: la solicitud aún no está autorizada, así que no se puede recibir. Primero se autoriza; después se inicia la recepción y recién ahí sale el acta.', puedeIniciar: false }
+  }
+}
+
 /** Lo que falta para generar el acta, en el mismo orden y con los mismos mensajes de la base de datos. */
 export function puedeGenerarActa(i: {
   tipo: TipoIngreso
@@ -463,6 +500,8 @@ export type TipoAlerta =
   | 'BAJA_POR_AUTORIZAR' | 'BAJA_POR_TRASLADAR'
   | 'RETORNO_POR_AUTORIZAR' | 'DICTAMEN_POR_CONFIRMAR' | 'ORDEN_MANUAL_UNIDA'
   | 'PEDIDO_CANCELADO' | 'DEVOLUCION_PICKING'
+  | 'OC_CAMBIADA' | 'RETORNO_POR_ORIGINAR'
+  | 'VENCIMIENTO_VERIFICAR' | 'VIDA_UTIL_CORTA'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
 
@@ -494,6 +533,10 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   ORDEN_MANUAL_UNIDA: 'El pedido llegó y se unió a una orden manual',
   PEDIDO_CANCELADO: 'Pedido cancelado en Pedidos',
   DEVOLUCION_PICKING: 'Lo picado por devolver a su ubicación',
+  OC_CAMBIADA: 'La orden de compra cambió en Compras',
+  RETORNO_POR_ORIGINAR: 'Una entrega no se hizo: falta registrar el retorno',
+  VENCIMIENTO_VERIFICAR: 'Verifica la fecha de vencimiento (solo trae mes y año)',
+  VIDA_UTIL_CORTA: 'Vida útil corta al recibir',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -535,6 +578,13 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   // SA-3: el Jefe de Transporte se entera de la cancelación; el Jefe de Almacén coordina a quien devuelve y a quien verifica.
   PEDIDO_CANCELADO: 'jefe_transporte',
   DEVOLUCION_PICKING: 'jefe_almacen',
+  // Piloto (0038): Compras cambió (o borró) una orden que el WMS ya copió; Sandra prepara las solicitudes de ingreso con esa OC.
+  OC_CAMBIADA: 'asistente_dt',
+  // Piloto (0043): el conductor marcó «no entregado» o «rechazado»; el Jefe de Transporte origina el retorno con el flujo de siempre.
+  RETORNO_POR_ORIGINAR: 'jefe_transporte',
+  // Piloto (0040, F): el proveedor solo imprime mes y año → quien recibe verifica la fecha en el envase; vida útil menor al mínimo → Dirección Técnica decide.
+  VENCIMIENTO_VERIFICAR: 'jefe_almacen',
+  VIDA_UTIL_CORTA: 'direccion_tecnica',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {

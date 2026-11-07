@@ -16,6 +16,7 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
   const p = await repo.panorama()
   const filtro = filtroDesdeUrl(searchParams)
   const par = await repo.parametrosInventario()
+  const hayCargaEnsayo = (await repo.listarCargasIniciales().catch(() => [])).some((c) => c.piloto && c.estado === 'CONFIRMADA')
   const filas = filtro ? await repo.kardex(filtro) : []
   const prod = filtro ? p.productos.find((x) => x.id === filtro.productoId) : undefined
   const lotes = filtro ? p.lotes.filter((l) => l.productoId === filtro.productoId).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true })) : []
@@ -98,7 +99,7 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
                   <tbody className="divide-y divide-gray-100">
                     {filas.map((f, i) => (
                       <tr key={i} className={f.esSaldoInicial ? 'bg-gray-50 font-medium' : f.esReversa ? 'text-red-800' : ''} data-testid={f.esSaldoInicial ? 'fila-saldo-inicial' : 'fila-kardex'}>
-                        <td className="px-3 py-2">{f.tipoDocumento}</td>
+                        <td className="px-3 py-2">{f.tipoDocumento}{hayCargaEnsayo && f.tipoDocumento === 'Carga inicial' && <span className="ml-2 rounded-full border border-amber-400 bg-amber-100 px-2 py-0.5 text-xs font-bold uppercase text-amber-950" data-testid="kardex-ensayo">Ensayo · piloto</span>}</td>
                         <td className="tabular px-3 py-2">{f.numeroActa ?? '—'}</td>
                         <td className="tabular px-3 py-2">{f.fecha ? formatoFecha(f.fecha.slice(0, 10)) : '—'}</td>
                         <td className="tabular px-3 py-2">{f.lote ?? '—'}</td>
@@ -119,7 +120,7 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
               <ul className="space-y-2 lg:hidden" data-testid="lista-kardex">
                 {filas.map((f, i) => (
                   <li key={i} className={`rounded-lg border bg-white p-3.5 ${f.esSaldoInicial ? 'border-gray-300 bg-gray-50' : 'border-gray-200'}`}>
-                    <p className="flex flex-wrap items-baseline justify-between gap-2"><span className={`font-medium ${f.esReversa ? 'text-red-800' : 'text-gray-900'}`}>{f.tipoDocumento}</span><span className="tabular text-sm text-gray-600">{f.fecha ? formatoFecha(f.fecha.slice(0, 10)) : ''}</span></p>
+                    <p className="flex flex-wrap items-baseline justify-between gap-2"><span className={`font-medium ${f.esReversa ? 'text-red-800' : 'text-gray-900'}`}>{f.tipoDocumento}{hayCargaEnsayo && f.tipoDocumento === 'Carga inicial' ? ' (ensayo, piloto)' : ''}</span><span className="tabular text-sm text-gray-600">{f.fecha ? formatoFecha(f.fecha.slice(0, 10)) : ''}</span></p>
                     {!f.esSaldoInicial && <p className="tabular text-sm text-gray-700">{f.numeroActa ? `Acta ${f.numeroActa} · ` : ''}lote {f.lote} · {f.posicion}{f.contraparte ? ` · ${f.contraparte}` : ''}</p>}
                     <p className="tabular mt-1 text-sm"><span className="text-green-800">{f.entrada ? `+${f.entrada}` : ''}</span> <span className="text-red-800">{f.salida ? `−${f.salida}` : ''}</span> <strong className="ml-2 text-gray-900">Saldo {f.saldo.toLocaleString('es-PE')}</strong></p>
                   </li>

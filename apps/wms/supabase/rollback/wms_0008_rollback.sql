@@ -1,6 +1,7 @@
 -- Reversa SOLO de la migración 0008 (D-38). SE EJECUTA A MANO. Probada en tests/db/presentacion-principio.test.ts.
 -- Quita el trigger de catalogo.productos y devuelve `wms.editar_regulatorio` a la versión de 0006 (sin presentación ni principio activo).
 -- No toca datos: lo que ya se editó queda en catalogo.productos y en wms.producto_regulatorio_cambios (inmutable).
+-- OJO: la 0008 va AL FINAL (go-live) y parcha la función; esta reversa la deja como la 0006 (sin lo que agregaron la 0035, la 0040 y la 0041). Si se usa, hay que volver a aplicar esas migraciones.
 set lock_timeout = '5s';
 set statement_timeout = '60s';
 

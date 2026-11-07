@@ -96,7 +96,7 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
       const snap = p.snapshot as PedidoSnapshot
       return {
         pedidoId: String(p.pedido_id), numero: String(p.numero), cliente: snap.cliente.nombre, ruc: snap.cliente.ruc, direccion: snap.cliente.direccion, distrito: snap.cliente.distrito,
-        ventanaCita: snap.cliente.ventanaCita, lineas: snap.lineas.length, unidades: snap.lineas.reduce((t, l) => t + l.cantidad, 0),
+        ventanaCita: snap.cliente.ventanaCita, zonaReparto: snap.zonaReparto, ordenDistrito: snap.ordenDistrito, diaPlanificado: snap.diaPlanificado, lineas: snap.lineas.length, unidades: snap.lineas.reduce((t, l) => t + l.cantidad, 0),
         importadoEn: String(p.importado_en), enRuta: numeroRutaViva.get(String(p.pedido_id)), cambioPorRevisar: Boolean(p.cambio_pendiente),
         sinCatalogo: snap.lineas.filter((l) => !codigos.has(l.productoCodigo.toUpperCase())).map((l) => l.productoCodigo),
       }

@@ -50,6 +50,18 @@ export const SQL = {
   m0033: () => leer('supabase/migrations/0033_wms_dictamen_baja_producto_nuevo_y_temperatura.sql'),
   m0034: () => leer('supabase/migrations/0034_wms_baja_de_guia_tras_la_salida_motivos_y_administrador.sql'),
   m0035: () => leer('supabase/migrations/0035_wms_administrador_todo_lo_operativo.sql'),
+  m0036: () => leer('supabase/migrations/0036_wms_guia_emitida_en_el_panel.sql'),
+  m0037: () => leer('supabase/migrations/0037_wms_reglas_de_integridad_del_piloto.sql'),
+  m0038: () => leer('supabase/migrations/0038_wms_seguridad_del_piloto.sql'),
+  m0039: () => leer('supabase/migrations/0039_wms_firma_del_acta_en_orden_y_firma_dibujada.sql'),
+  m0041: () => leer('supabase/migrations/0041_wms_productos_los_crea_compras_y_el_wms_los_completa.sql'),
+  m0042: () => leer('supabase/migrations/0042_wms_carga_de_ensayo_del_piloto.sql'),
+  m0043: () => leer('supabase/migrations/0043_wms_mis_rutas_del_piloto.sql'),
+  m0044: () => leer('supabase/migrations/0044_wms_reinicios_del_piloto.sql'),
+  m0047: () => leer('supabase/migrations/0047_wms_seguimiento_para_el_cliente.sql'),
+  m0046: () => leer('supabase/migrations/0046_wms_ruteo_de_pedidos_en_la_copia.sql'),
+  m0045: () => leer('supabase/migrations/0045_wms_sincronizacion_automatica_de_oc.sql'),
+  m0040: () => leer('supabase/migrations/0040_wms_vencimiento_vida_util_y_formato_organoleptico.sql'),
   seed: () => leer('supabase/seeds/0001_topologia.sql'),
   seedTransporte: () => leer('supabase/seeds/0002_transporte_inicial.sql'),
 }
@@ -78,7 +90,7 @@ export interface BaseDePrueba {
   cerrar: () => Promise<void>
 }
 
-export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigracion0012?: boolean; sinMigracion0015?: boolean } = {}): Promise<BaseDePrueba> {
+export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigracion0012?: boolean; sinMigracion0015?: boolean; piloto?: boolean; con0008?: boolean } = {}): Promise<BaseDePrueba> {
   const nombre = `wms_test_${randomUUID().slice(0, 8).replace(/-/g, '')}`
   const raiz = new Client({ connectionString: url })
   await raiz.connect()
@@ -103,7 +115,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   await admin.query(SQL.m0005())
   await admin.query(SQL.m0006())
   await admin.query(SQL.m0007())
-  await admin.query(SQL.m0008())
+  // La 0008 (D-38) NO va en la ventana del piloto: se aplica al final, en el go-live (`con0008: true` la aplica al final, como en esa ruta).
   await admin.query(SQL.m0009())
   await admin.query(SQL.m0011())
   if (!opciones.sinMigracion0012) { await admin.query(SQL.m0012()); await admin.query(SQL.m0013()); await admin.query(SQL.m0014()); await admin.query(SQL.m0016()); await admin.query(SQL.m0017()); await admin.query(SQL.m0018()); await admin.query(SQL.m0019()); await admin.query(SQL.m0020()); await admin.query(SQL.m0021()); await admin.query(SQL.m0022()); await admin.query(SQL.m0023()); await admin.query(SQL.m0024()) }
@@ -119,7 +131,27 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0033())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0034())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0035())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0036())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0037())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0038())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0039())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0040())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0041())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0042())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0043())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0044())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0045())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0046())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0047())
+  // Solo para las pruebas: los datos de prueba de producto_regulatorio nacen COMPLETOS (los seis datos que pide la 0041); las pruebas de «incompleto» los vacían con un UPDATE.
+  await admin.query(`create or replace function public.zz_completar_regulatorio_prueba() returns trigger language plpgsql as $f$ begin
+      new.fabricante := coalesce(new.fabricante, 'Laboratorio de prueba'); new.forma_presentacion := coalesce(new.forma_presentacion, 'Tableta');
+      new.concentracion := coalesce(new.concentracion, '10 mg'); new.condicion_almacenamiento := coalesce(new.condicion_almacenamiento, 'Menos de 30 C'); return new; end $f$;
+    create trigger zz_completar_regulatorio_prueba before insert on wms.producto_regulatorio for each row execute function public.zz_completar_regulatorio_prueba()`)
+  // La 0038 siembra modo_piloto = si (retiene los avisos a Pedidos). Las pruebas de siempre corren como go-live; las del piloto lo encienden con `piloto: true`.
+  if (!opciones.sinMigracion0012 && !opciones.piloto) await admin.query(`update wms.parametros set valor = 'no' where clave = 'modo_piloto'`)
   if (opciones.conSeed !== false) await admin.query(SQL.seed())
+  if (opciones.con0008) await admin.query(SQL.m0008())   // ruta del go-live: la 0008 va DESPUÉS de todas las demás y no debe borrar lo posterior
 
   const personas = {
     katia: { id: randomUUID(), rol: 'direccion_tecnica' },

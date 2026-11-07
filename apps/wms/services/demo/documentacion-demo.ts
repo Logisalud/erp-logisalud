@@ -6,8 +6,8 @@ import {
 } from '@/domain/documentacion'
 import { etapaDeSalida, type SalidaResumen } from '@/domain/despacho'
 import {
-  FACTURA_ANULACION_DIRECTA_DIAS, motivoDeTraslado, motivoNoPuedeAnular, puedeEmitirGuia,
-  type CasoAnulacion, type DatosGuia, type EstadoSunat, type EventoPedidos, type ModoNubefact, type RespuestaConsulta, type RespuestaEmision, type TipoEventoPedidos, type TrasladoGuia,
+  FACTURA_ANULACION_DIRECTA_DIAS, motivoDeTraslado, normalizarGuiaModo, validarRegistroGuiaPanel, motivoNoPuedeAnular, puedeEmitirGuia,
+  type CasoAnulacion, type DatosGuia, type EstadoSunat, type EventoPedidos, type GuiaModo, type ModoNubefact, type RegistroGuiaPanel, type RespuestaConsulta, type RespuestaEmision, type TipoEventoPedidos, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 import { registrar, type EstadoDemo } from './estado'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
@@ -19,6 +19,7 @@ import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { detalleUsoConductor } from '@/domain/conductor-documentos'
 import { pk } from './picking-demo'
 import { DocumentosDemo } from './documentos-demo'
+import { modoPilotoDemo } from './piloto-estado'
 import type { RepositorioDocumentacion } from '../repositorio-documentacion'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
@@ -120,6 +121,38 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     return s.estado === 'CONFIRMADA' && guias(e).some((g) => g.salidaId === s.id && g.guia.estado === 'ANULADA') && !this.guiaVigente(e, s.id)
   }
 
+  /** Piloto (0036): quién emite la guía en la demo. Por defecto `WMS` (lo de siempre); `WMS_DEMO_GUIA_MODO=PANEL` o `fijarGuiaModo` lo cambian. */
+  guiaModo(e: EstadoDemo = estadoE()): GuiaModo { return desp(e).guiaModo ?? normalizarGuiaModo(process.env.WMS_DEMO_GUIA_MODO) }
+  fijarGuiaModo(modo: GuiaModo) { desp(estadoE()).guiaModo = modo }
+
+  /** Espejo de `wms.registrar_guia_panel` (0036). */
+  async registrarGuiaPanel(salidaId: string, r: RegistroGuiaPanel, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedeRegistrarDocumentacion(actor.roles)) return falla('No tienes permiso para registrar la guía de remisión')
+    if (this.guiaModo(e) !== 'PANEL') return falla('Ahora el WMS emite las guías con Nubefact: no se registran las que salen del panel')
+    const s = desp(e).salidas.find((x) => x.id === salidaId)
+    if (!s) return falla('No encontramos esa salida')
+    const bloqueado = guardiaDeOrden(e, s.id); if (bloqueado) return falla(bloqueado)
+    if (s.estado !== 'ABIERTA' && !this.guiaDeReemplazoPosible(e, s)) return falla('La salida ya no está abierta')
+    const errores = validarRegistroGuiaPanel(r, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }))
+    const [campo, mensaje] = Object.entries(errores)[0] ?? []
+    if (campo) return falla(mensaje!, errores as Record<string, string>)
+    const n = normalizarNumeroGre(r.numero)
+    const bloqueo = motivoNoPuedeRegistrarGuia(actor.roles, { conforme: salidaConforme(e, s.id), guia: this.guiaVigente(e, s.id) })
+    if (bloqueo) return falla(bloqueo)
+    if (guias(e).some((g) => g.guia.numero === n)) return falla(`La guía ${n} ya está registrada (vigente o anulada): un número emitido en el panel no se repite`, { numero: 'Ese número ya está registrado.' })
+    const ruta = desp(e).rutas.find((x) => x.estado !== 'CANCELADA' && x.paradas.some((p) => p.activa && p.salidaId === s.id))
+    const placa = ruta?.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId)?.placa : undefined
+    const guia: GuiaVista = {
+      id: nuevoId(), numero: n, estado: 'VIGENTE', lineas: this.lineasDeGuia(e, s.id), placa, fechaTraslado: ruta?.fecha, nota: r.nota?.trim() || undefined, registradaPor: actor.nombre, registradaEn: ahora(),
+      origen: 'PANEL', enlace: r.enlace?.trim() || undefined, estadoSunat: r.estado, fechaEmision: r.fechaEmision, bultos: s.bultosConformidad,
+    }
+    guias(e).push({ id: guia.id, salidaId: s.id, guia })
+    this.encolarEvento(e, s, guia, 'GUIA_EMITIDA')
+    registrar(e, actor, 'guia_panel_registrada', 'guias_remision', guia.id, `Guía ${n} · ${s.numero} (panel, ${r.fechaEmision}, ${r.estado})`)
+    return { ok: true, id: guia.id, numero: n }
+  }
+
   async anularGre(guiaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {
     const r = await this.anularGuia(guiaId, 1, motivo, actor)
     return r.ok ? { ok: true } : r
@@ -137,7 +170,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       lineas: guia.lineas.map((l) => ({ producto_codigo: l.productoCodigo, producto: l.producto, lote: l.lote, vence: l.vence, cantidad: l.cantidad })),
     }
     if (tipo === 'GUIA_ANULADA') Object.assign(payload, { caso: guia.casoAnulacion, motivo: guia.anuladaMotivo, baja_sunat: guia.bajaSunat, salida_confirmada: s.estado === 'CONFIRMADA', falta_guia_vigente: true, factura_anulacion_directa_dias: FACTURA_ANULACION_DIRECTA_DIAS, aviso: `El WMS no modifica la factura: Pedidos decide si se anula directo en Nubefact (hasta ${FACTURA_ANULACION_DIRECTA_DIAS} días después de emitida) o si corresponde una nota de crédito` })
-    ;(desp(e).eventosPedidos ??= []).push({ id: nuevoId(), tipo, estado: 'PENDIENTE', intentos: 0, creadoEn: ahora(), salidaId: s.id, guiaId: guia.id, payload })
+    ;(desp(e).eventosPedidos ??= []).push({ id: nuevoId(), tipo, estado: modoPilotoDemo(e) === 'si' ? 'RETENIDO_PILOTO' : 'PENDIENTE', intentos: 0, creadoEn: ahora(), salidaId: s.id, guiaId: guia.id, payload })
   }
 
   async datosGuia(salidaId: string): Promise<DatosGuia | null> {
@@ -160,6 +193,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       lineas: this.lineasDeGuia(e, s.id), bultos: s.bultosConformidad ?? bultosDeSalida(e, s.id),
       ruta: ruta ? { id: ruta.id, numero: ruta.numero, fecha: ruta.fecha, placa: veh?.placa, conductor: cond?.nombre, conductorDni: cond?.dni, conductorDocumentoTipo: cond?.documentoTipo, conductorLicencia: cond?.licencia, auxiliar: aux?.nombre, conductorReal: quien.real?.nombre } : undefined,
       partida: { ubigeo: '150119', direccion: 'Almacén Logisalud, Lurín (dirección de demostración)' },
+      guiaModo: this.guiaModo(e),
       motivoTraslado: motivoDeTraslado(s.tipo ?? 'DISTRIBUCION').texto, modalidad: 'TRANSPORTE PRIVADO', serie: 'TTT1', correlativoConfirmado: this.numeracionDe(e, 'TTT1')?.confirmado ?? false,
       reglasBaja: { plazoHoras: 'PENDIENTE', trasInicioTraslado: 'PENDIENTE', soportadaPorApi: 'PENDIENTE' },
     })
@@ -339,6 +373,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
   async marcarEventoPedidos(id: string, enviado: boolean, error: string | undefined, actor: Actor): Promise<ResultadoAccion> {
     const e = estadoE()
     if (!puedeEmitirGuia(actor.roles)) return falla('No tienes permiso para enviar eventos a Pedidos')
+    if (enviado && modoPilotoDemo(e) === 'si') return falla('En el piloto no se envía nada a Pedidos: los avisos quedan retenidos')
     const ev = (desp(e).eventosPedidos ?? []).find((x) => x.id === id && x.estado === 'PENDIENTE')
     if (!ev) return { ok: true }
     ev.intentos += 1

@@ -98,3 +98,31 @@ describe('anular la guía por casos', () => {
     expect(bajaSunatDefinida({ plazoHoras: '72', trasInicioTraslado: 'NO', soportadaPorApi: 'SI' })).toBe(true)
   })
 })
+
+describe('piloto: guía emitida en el panel (0036)', () => {
+  const ok = { numero: 'TTT1-00000012', fechaEmision: '2026-11-03', estado: 'ACEPTADA' as const }
+  it('el modo es PANEL solo si el parámetro lo dice; sin parámetro, WMS (comportamiento de siempre)', async () => {
+    const { normalizarGuiaModo } = await import('@/domain/guia-electronica')
+    expect(normalizarGuiaModo('PANEL')).toBe('PANEL')
+    expect(normalizarGuiaModo(' panel ')).toBe('PANEL')
+    for (const v of [undefined, null, '', 'WMS', 'otro']) expect(normalizarGuiaModo(v)).toBe('WMS')
+  })
+  it('acepta serie-número válidos, fecha de hoy o anterior, estado conocido y enlace https opcional', async () => {
+    const { validarRegistroGuiaPanel } = await import('@/domain/guia-electronica')
+    expect(validarRegistroGuiaPanel(ok, '2026-11-03')).toEqual({})
+    expect(validarRegistroGuiaPanel({ ...ok, numero: ' t001-1234 ', enlace: 'https://panel.nubefact.com/g.pdf' }, '2026-11-04')).toEqual({})
+    expect(validarRegistroGuiaPanel({ ...ok, enlace: '' }, '2026-11-03')).toEqual({})
+  })
+  it('dice qué falla, campo por campo, en lenguaje llano', async () => {
+    const { validarRegistroGuiaPanel } = await import('@/domain/guia-electronica')
+    expect(validarRegistroGuiaPanel({ ...ok, numero: '1234' }, '2026-11-03').numero).toMatch(/serie, guion y número/)
+    expect(validarRegistroGuiaPanel({ ...ok, fechaEmision: '' }, '2026-11-03').fechaEmision).toMatch(/fecha/)
+    expect(validarRegistroGuiaPanel({ ...ok, fechaEmision: '2026-11-05' }, '2026-11-03').fechaEmision).toMatch(/mañana/)
+    expect(validarRegistroGuiaPanel({ ...ok, estado: 'RECHAZADA' as never }, '2026-11-03').estado).toMatch(/aceptada o sin respuesta/)
+    expect(validarRegistroGuiaPanel({ ...ok, enlace: 'panel.nubefact.com/g' }, '2026-11-03').enlace).toMatch(/https:\/\//)
+  })
+  it('el origen PANEL tiene su etiqueta', async () => {
+    const { ETIQUETA_ORIGEN } = await import('@/domain/guia-electronica')
+    expect(ETIQUETA_ORIGEN.PANEL).toMatch(/panel/)
+  })
+})

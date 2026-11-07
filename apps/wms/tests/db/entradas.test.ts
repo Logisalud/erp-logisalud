@@ -9,7 +9,7 @@ let base: BaseDePrueba
 beforeAll(async () => { base = await crearBaseDePrueba() }, 60_000)
 afterAll(async () => { await base?.cerrar() })
 const P = () => base.personas
-const IMG = 'data:image/png;base64,' + 'A'.repeat(200)
+const IMG = 'firmas/' + 'a'.repeat(16) + '-' + 'b'.repeat(64) + '.png'
 const j = JSON.stringify
 
 /** Una OC de Compras (stub) con una línea de `pedida` unidades; `recibida` = lo que Compras ya tiene registrado. */
@@ -51,11 +51,11 @@ const datosDeRecepcion = (ingreso: string, temp = 20) =>
 /** Genera el acta y la firman las cuatro partes. */
 async function firmarTodo(ingreso: string) {
   const acta = await base.como(P().charlie.id, async (c) => (await c.query('select wms.generar_acta_recepcion($1) id', [ingreso])).rows[0].id as string)
-  await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'JEFE_ALMACEN', 'Charlie Chancco')`, [acta]))
-  await base.como(P().katia.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'DIRECCION_TECNICA', 'Katia Zapata')`, [acta]))
-  await base.como(P().aux.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'RESPONSABLE_CONTEO', 'Christians')`, [acta]))
   await base.como(P().charlie.id, (c) => c.query(
     `select wms.firmar_acta_recepcion($1, 'TRANSPORTISTA', 'Pedro Quispe', '45678912', 'ABC-123', $2) r`, [acta, IMG]))
+  await base.como(P().aux.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'RESPONSABLE_CONTEO', 'Christians')`, [acta]))
+  await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'JEFE_ALMACEN', 'Charlie Chancco')`, [acta]))
+  await base.como(P().katia.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'DIRECCION_TECNICA', 'Katia Zapata')`, [acta]))
   return { acta }
 }
 
@@ -423,8 +423,8 @@ describe('acta de recepción', () => {
     expect((await firma(P().charlie.id, 'TRANSPORTISTA', 'Pedro', '45678912', '', IMG)).message).toMatch(/placa/)
     expect((await firma(P().charlie.id, 'TRANSPORTISTA', 'Pedro', '45678912', 'ABC-1', 'x')).message).toMatch(/firma del transportista/)
     expect((await firma(P().sinRol.id, 'RESPONSABLE_CONTEO', 'Nadie')).message).toMatch(/personal de almacén/)
-    await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'JEFE_ALMACEN', 'Charlie')`, [acta]))
-    expect((await firma(P().charlie.id, 'JEFE_ALMACEN', 'Charlie')).message).toMatch(/ya firmó/)
+    await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'TRANSPORTISTA', 'Pedro', '45678912', 'ABC-1', $2)`, [acta, IMG]))
+    expect((await firma(P().charlie.id, 'TRANSPORTISTA', 'Pedro', '45678912', 'ABC-1', IMG)).message).toMatch(/ya firmó/)
   })
 
   it('(5) acta firmada no se edita; anular y reemitir conserva ambas (el número anulado no se reutiliza)', async () => {
@@ -591,7 +591,7 @@ describe('"por trasladar" y conciliación con Compras', () => {
     const x = await compraConfirmada(base.productos.dapa, 6, 6, 'L-RC1')
     const revisar = () => base.como(P().charlie.id, (c) => c.query('select wms.revisar_registro_compras()'))
     await revisar()
-    expect((await base.admin.query(`select count(*)::int n from wms.alertas where solicitud_id = $1`, [x.sol])).rows[0].n).toBe(0) // aún en plazo
+    expect((await base.admin.query(`select count(*)::int n from wms.alertas where solicitud_id = $1 and tipo <> 'VIDA_UTIL_CORTA'`, [x.sol])).rows[0].n).toBe(0) // aún en plazo (la vida útil corta de los lotes de prueba es otra alerta)
     await base.admin.query(`update wms.solicitudes_ingreso set cerrada_en = now() - interval '2 days' where id = $1`, [x.sol])
     await revisar()
     const a = (await base.admin.query(`select tipo, destinatario_rol, mensaje, estado from wms.alertas where solicitud_id = $1 and tipo = 'POR_REGISTRAR_EN_COMPRAS'`, [x.sol])).rows

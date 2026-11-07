@@ -8,6 +8,7 @@ import { repositorio } from '@/services/repositorio-actual'
 import { buscar } from '@/domain/panorama'
 import type { CambioEntrada, Decision, EntradaSolicitud } from '@/domain/entradas'
 import type { DatosEdicionRecepcion, DatosOrganolepticaGuardar, DatosVerificacion, FirmaEntrada } from '@/domain/entradas-vistas'
+import type { FormatoControlado } from '@/domain/formatos'
 import type { Actor, ResultadoAccion } from '@/services/repositorio'
 
 async function quien(): Promise<Actor> {
@@ -28,6 +29,16 @@ export async function ajustarSolicitudAccion(id: string, cambios: CambioEntrada[
 }
 export async function anularSolicitudAccion(id: string, motivo: string): Promise<ResultadoAccion> {
   return repositorio().anularSolicitud(id, motivo, await quien())
+}
+
+// ── Órdenes de compra del piloto (0038): el WMS solo lee Compras y guarda copias ────────────────────
+
+export async function sincronizarOcsAccion(): Promise<ResultadoAccion> {
+  const r = await repositorio().sincronizarOcs(await quien())
+  if (!r.ok) return r
+  const x = r.resumen
+  const partes = [x.nuevas ? `${x.nuevas} ${x.nuevas === 1 ? 'orden copiada por primera vez' : 'órdenes copiadas por primera vez'}` : '', x.cambiadas ? `${x.cambiadas} ${x.cambiadas === 1 ? 'orden cambió' : 'órdenes cambiaron'} (versión nueva y alerta para Sandra)` : '', x.eliminadas ? `${x.eliminadas} ya no ${x.eliminadas === 1 ? 'existe' : 'existen'} en Compras` : ''].filter(Boolean)
+  return { ok: true, mensaje: `Revisamos ${x.revisadas} ${x.revisadas === 1 ? 'orden' : 'órdenes'}: ${partes.length ? partes.join('; ') : 'ninguna cambió'}.` } as ResultadoAccion
 }
 
 // ── Recepción física ────────────────────────────────────────────────────────
@@ -102,4 +113,16 @@ export async function cambiarRolDemoAccion(rol: string): Promise<void> {
   const r = personaDemoDesdeCookie(rol)
   if (!r) return
   cookies().set(COOKIE_ROL_DEMO, r.clave, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
+}
+
+// ── Piloto F: proveedor «solo mes y año», fecha de un lote y versiones de formatos ──────────────────────
+
+export async function marcarProveedorVencimientoAccion(ruc: string, nombre: string | undefined, soloMesAnio: boolean, motivo: string): Promise<ResultadoAccion> {
+  return repositorio().marcarProveedorVencimiento(ruc, nombre, soloMesAnio, motivo, await quien())
+}
+export async function corregirVencimientoLoteAccion(loteId: string, fecha: string, motivo: string): Promise<ResultadoAccion> {
+  return repositorio().corregirVencimientoLote(loteId, fecha, motivo, await quien())
+}
+export async function aprobarVersionFormatoAccion(formato: FormatoControlado, version: number): Promise<ResultadoAccion> {
+  return repositorio().aprobarVersionFormato(formato, version, await quien())
 }

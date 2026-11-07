@@ -19,22 +19,22 @@ describe('qué cliente de Nubefact usa la demostración', () => {
     poner(preview)
     expect(modoDemoActivo()).toBe(true)
     expect(credencialesNubefactDemo()).toEqual({ ruta: RUTA, token: TOKEN })
-    const c = clienteNubefact()
+    const c = clienteNubefact(true)
     expect(c).toBeInstanceOf(ClienteNubefactHttp)
     expect(c.modo).toBe('PRUEBA')
     expect(modoNubefactActual()).toBe('PRUEBA')
   })
   it('en la Preview sin variables, o con solo una, o con una ruta que no es https: el simulador, y se dice por qué sin mostrar valores', () => {
     poner({ VERCEL: '1', VERCEL_ENV: 'preview', WMS_DEMO: '1' })
-    expect(clienteNubefact()).toBeInstanceOf(SimuladorNubefact)
+    expect(clienteNubefact(true)).toBeInstanceOf(SimuladorNubefact)
     expect(nubefactDemoIncompleto()).toBeNull()
     poner({ NUBEFACT_TOKEN: TOKEN })
-    expect(clienteNubefact()).toBeInstanceOf(SimuladorNubefact)
+    expect(clienteNubefact(true)).toBeInstanceOf(SimuladorNubefact)
     expect(nubefactDemoIncompleto()).toBe('Falta NUBEFACT_RUTA en la Preview: se usa el simulador.')
     delete process.env.NUBEFACT_TOKEN; poner({ NUBEFACT_RUTA: RUTA })
     expect(nubefactDemoIncompleto()).toBe('Falta NUBEFACT_TOKEN en la Preview: se usa el simulador.')
     poner({ NUBEFACT_TOKEN: TOKEN, NUBEFACT_RUTA: 'http://inseguro.test' })
-    expect(clienteNubefact()).toBeInstanceOf(SimuladorNubefact)
+    expect(clienteNubefact(true)).toBeInstanceOf(SimuladorNubefact)
     expect(nubefactDemoIncompleto()).toMatch(/https/)
     for (const t of [nubefactDemoIncompleto() ?? '']) { expect(t).not.toContain(TOKEN); expect(t).not.toContain('inseguro') }
   })
@@ -42,7 +42,7 @@ describe('qué cliente de Nubefact usa la demostración', () => {
     poner({ WMS_DEMO_LOCAL: '1', NUBEFACT_RUTA: RUTA, NUBEFACT_TOKEN: TOKEN })
     expect(esPreviewDeDemostracion()).toBe(false)
     expect(credencialesNubefactDemo()).toBeNull()
-    expect(clienteNubefact()).toBeInstanceOf(SimuladorNubefact)
+    expect(clienteNubefact(true)).toBeInstanceOf(SimuladorNubefact)
     expect(modoNubefactActual()).toBe('SIMULADOR')
   })
   it('una Preview sin la demostración (WMS_DEMO) no usa la cuenta DEMO', () => {
@@ -55,11 +55,12 @@ describe('producción sigue rechazando lo de demostración', () => {
   it('la bandera de demostración o NUBEFACT_RUTA en producción impiden arrancar, sin imprimir el valor', () => {
     expect(() => verificarDemoSeguro({ VERCEL: '1', VERCEL_ENV: 'production', WMS_DEMO: '1' })).toThrow()
     let mensaje = ''
-    try { verificarDemoSeguro({ VERCEL: '1', VERCEL_ENV: 'production', NUBEFACT_RUTA: RUTA }) } catch (e) { mensaje = (e as Error).message }
-    expect(mensaje).toMatch(/NUBEFACT_RUTA es solo para Preview/)
+    try { verificarDemoSeguro({ VERCEL: '1', VERCEL_ENV: 'production', WMS_GO_LIVE: '1', NUBEFACT_RUTA: RUTA }) } catch (e) { mensaje = (e as Error).message }
+    expect(mensaje).toMatch(/NUBEFACT_RUTA es solo para el piloto o la Preview/)
     expect(mensaje).not.toContain(RUTA)
     expect(() => verificarDemoSeguro({ VERCEL: '1', VERCEL_ENV: 'preview', NUBEFACT_RUTA: RUTA })).not.toThrow()
-    expect(() => verificarDemoSeguro({ VERCEL: '1', VERCEL_ENV: 'production' })).not.toThrow()
+    expect(() => verificarDemoSeguro({ VERCEL: '1', VERCEL_ENV: 'production', WMS_GO_LIVE: '1' })).not.toThrow()
+    expect(() => verificarDemoSeguro({ VERCEL: '1', VERCEL_ENV: 'production', WMS_MODO_PILOTO: '1', NUBEFACT_RUTA: RUTA })).not.toThrow()
   })
 })
 

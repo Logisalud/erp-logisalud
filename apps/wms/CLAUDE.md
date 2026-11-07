@@ -62,23 +62,17 @@ regulatorias, destructivas o de fuente de verdad → detén solo esa pieza, reg�
 Tailwind ^3.3, `exceljs` 4.4.0 (XLSX), `@react-pdf/renderer` (actas). No agregues `xlsx` (SheetJS).
 
 **Skills:**
-- **Impeccable** (`.claude/skills/impeccable`): establece el contexto de diseño (`PRODUCT.md`,
-  `DESIGN.md`) antes de la primera pantalla y audita/pule **cada pantalla antes de su commit**.
-- **Playwright:** `@playwright/test` para E2E; MCP de Playwright (o Playwright directo mientras el
-  MCP esté pendiente) para verificar cada flujo en **1440×900, 1280×800, 1024×768 y 390×844**,
-  con screenshots en `docs/wms/screenshots/`.
+- No se revisan pantallas a ojo ni con capturas (consumen mucho uso): se prueban con tests automáticos; el diseño sigue PRODUCT.md y DESIGN.md. `@playwright/test` sigue para los E2E con aserciones (en los 4 viewports); no se abren ni leen sus capturas, ni se usa el MCP de Playwright ni la skill Impeccable.
 - Reutiliza `@logisalud/auth` y `@logisalud/design-system` (preset Tailwind y `BrandMark`; no
   trae componentes de UI).
 
 **Experiencia:** "alegre en la superficie, riguroso por debajo". Paridad funcional PC/teléfono
 con distinta presentación (mapa completo en PC/tablet; en teléfono, búsqueda y ubicación en
 texto). Español peruano con **tuteo** (el código viejo de compras usa voseo: aquí no), nada en
-inglés. Cada pantalla tiene vacío, cargando, error y éxito. Estados con texto + ícono, nunca
-solo color. Firma del transportista en pantalla táctil.
+inglés. Cada pantalla tiene vacío, cargando, error y éxito (en el código). Estados con texto + ícono, nunca
+solo color. Mobile-first. No se revisan pantallas a ojo ni con capturas (consumen mucho uso): se prueban con tests automáticos; el diseño sigue PRODUCT.md y DESIGN.md. Firma del transportista en pantalla táctil.
 
-**Cierre de cada batch:** dominio, UX (auditoría Impeccable), tests en verde, 4 viewports, sin
-regresiones en Compras/Pedidos y docs al día → reporta en `progreso.md`, abre el PR hacia main
-con la URL de Preview y **detente hasta que el usuario apruebe**. Si algo falla, detente y reporta.
+**Cierre de cada batch:** dominio, tests en verde (dominio, componentes, base de datos y E2E con aserciones), sin regresiones en Compras/Pedidos y docs al día → reporta en `progreso.md`, abre el PR hacia main con la URL de Preview y **detente hasta que el usuario apruebe**. No se revisan pantallas a ojo ni con capturas (consumen mucho uso): se prueban con tests automáticos; el diseño sigue PRODUCT.md y DESIGN.md. Si algo falla, detente y reporta.
 
 ## Tests E2E (Playwright)
 
@@ -111,13 +105,14 @@ Mientras tanto, verificar con Playwright directo.
   Usa por defecto los datos de prueba de Odoo (`docs/wms/demo-odoo.md`); `WMS_DEMO_DATOS=sintetico` los cambia por los sintéticos (lo fijan vitest, Playwright y `e2e-por-viewport.sh`).
   En Vercel solo se activa en Preview con `WMS_DEMO=1`; en producción la app **se niega a arrancar** si hay una bandera puesta.
 - **Órdenes de ejemplo (SA-1):** en demo/Preview la demo siembra 24 órdenes de ejemplo en cada etapa y tipo (lista en `domain/ejemplos.ts`). `WMS_DEMO_EJEMPLOS=0` las apaga (vitest, Playwright y `e2e-por-viewport.sh` lo hacen para la suite de siempre); `WMS_DEMO_EJEMPLOS=vacio` deja la demo sin ninguna salida. Los E2E de los ejemplos y del vacío corren en servidores propios (ver `e2e-por-viewport.sh`).
+- **Guía del piloto (0036):** el parámetro `guia_modo` (`WMS` | `PANEL`) decide si la orden pide «Emitir guía» (Nubefact) o «Registrar guía emitida» (se emitió en el panel). En la demo, `WMS_DEMO_GUIA_MODO=PANEL` lo enciende (por defecto `WMS`); `e2e/guia-panel.spec.ts` corre en su propio servidor (puerto +3). Hojas por rol, Go/No-Go y pendientes: `docs/wms/piloto/`.
 - **PDF en la Preview (D-177):** `WMS_PREVIEW_URL=https://… npm run test:preview-pdf --workspace erp-logisalud-wms` abre cada PDF en una URL desplegada (la CI lo corre sola al terminar el despliegue; secreto opcional `VERCEL_AUTOMATION_BYPASS_SECRET`).
 - **Pruebas de base de datos:** `npm run test:db:wms` levanta el Postgres 16 local (`scripts/db-local.sh`; en CI corre en Postgres 17, la versión de producción) y corre las migraciones
   contra un schema `auth` simulado. No cubre PostgREST, GoTrue ni Storage (docs/wms/gate-0.md §G.1).
 - **E2E en 4 viewports + capturas:** `npm run build:wms` y luego
   `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium apps/wms/scripts/e2e-por-viewport.sh` (reinicia el servidor entre viewports).
   Las capturas quedan en `docs/wms/screenshots/<pantalla>/<viewport>.png`.
-- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0035; el 0010 está reservado; por pieza: 0028 SA-2, 0029 SA-3, 0030 SA-6, 0031 SB-A rutas y conductor, 0032 SB-B proveedor/guías/muestras, 0033 SB-C dictamen/baja/producto nuevo/temperatura, 0034 SB-D baja de guía/motivos/Administrador, 0035 SB-E Administrador todo lo operativo y productos «por validar»), re-ejecutables, **se aplican a mano**; seed de topología generado (y `seeds/0002_transporte_inicial.sql`, escrito a mano: conductores y vehículo, después de la 0031) con
+- Migraciones: `apps/wms/supabase/migrations/` (0001–0009 y 0011–0047; **la 0008 NO va en la ventana del piloto: va al final, en el go-live (PIL-16)**; el 0010 está reservado; por pieza: 0028 SA-2, 0029 SA-3, 0030 SA-6, 0031 SB-A rutas y conductor, 0032 SB-B proveedor/guías/muestras, 0033 SB-C dictamen/baja/producto nuevo/temperatura, 0034 SB-D baja de guía/motivos/Administrador, 0035 SB-E Administrador todo lo operativo y productos «por validar», 0036 piloto: guía emitida en el panel, `guia_modo`, 0037 piloto: «Salida de Cuarentena» solo de Cuarentena a Aprobados y responsable de la revisión diaria = auxiliar, 0038 piloto: `modo_piloto`, copia inmutable de las OC y avisos a Pedidos retenidos, 0039 piloto: firma del acta en orden y firma dibujada con huella, 0040 piloto: vencimiento mes/año, vida útil, corrección auditada de fecha, «sin material de envase» y formato organoléptico versionado, 0041 piloto PIL-8: Compras crea los productos y el WMS los completa, 0042 piloto: carga de ensayo marcada «piloto» con informe de validación obligatorio, 0043 piloto: «Mis rutas» del conductor y el auxiliar de transporte, 0047 piloto: seguimiento para el cliente (`/seguimiento`, APAGADO en el piloto; `docs/wms/piloto/seguimiento-cliente.md`), 0046 piloto: ruteo de Pedidos (zona de reparto y día planificado) en la copia del pedido, 0045 piloto: sincronización automática de las OC al abrir Entradas (cada 30 min, con candado), 0044 piloto: registro de reinicios `wms.reinicios`; el script manual `scripts/reinicio-piloto.mjs`, ver `docs/wms/piloto/reinicio.md`), re-ejecutables, **se aplican a mano**; seed de topología generado (y `seeds/0002_transporte_inicial.sql`, escrito a mano: conductores y vehículo, después de la 0031) con
   `npm run seed:topologia --workspace erp-logisalud-wms`. Ver `docs/wms/aplicar-migraciones.md`.
-- **Nubefact en la Preview (SB-B, D-167):** con `WMS_DEMO=1` en Vercel, `NUBEFACT_RUTA` + `NUBEFACT_TOKEN` (solo Preview) hacen que la demo use la cuenta DEMO de Nubefact; sin ellas, el simulador. Nunca imprimas ni registres sus valores. Producción rechaza `NUBEFACT_RUTA`. La serie de guías es TTT1 y no se emite una guía real sin correlativo inicial confirmado (`docs/wms/nubefact.md`).
+- **Nubefact en la Preview (SB-B, D-167):** con `WMS_DEMO=1` en Vercel, `NUBEFACT_RUTA` + `NUBEFACT_TOKEN` (solo Preview) hacen que la demo use la cuenta DEMO de Nubefact; sin ellas, el simulador. Nunca imprimas ni registres sus valores. En producción la app no arranca sin `WMS_MODO_PILOTO=1` (piloto) o `WMS_GO_LIVE=1` (nunca las dos); `NUBEFACT_RUTA` solo se permite con `WMS_MODO_PILOTO=1`. El cliente real de Nubefact exige `NUBEFACT_ENTORNO=DEMO` en el piloto y `PRODUCCION` en el go-live. En la demo, `WMS_DEMO_MODO_PILOTO=1` enciende el modo piloto (banner, marca de agua, avisos a Pedidos retenidos; `e2e/modo-piloto.spec.ts`, puerto +4). La serie de guías es TTT1 y no se emite una guía real sin correlativo inicial confirmado (`docs/wms/nubefact.md`).
 - Diseño: `PRODUCT.md` y `DESIGN.md` de esta carpeta; ADR en `docs/wms/adr/`.

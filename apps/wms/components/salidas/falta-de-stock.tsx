@@ -2,13 +2,16 @@ import { PackageX, UserRound } from 'lucide-react'
 import { ETIQUETA_CAUSA_FALTANTE, CAUSAS_FALTANTE, type FaltanteLineaVista } from '@/domain/faltante'
 import { Aviso } from '../entradas/aviso'
 import { BotonCopiarAviso } from './boton-copiar-aviso'
+import { avisoDePrueba } from '@/domain/modo-piloto'
 
 /**
  * Cuando falta stock (SA-3): por qué falta, línea por línea y con cantidades; quién decide (el vendedor, en Pedidos); las dos únicas decisiones; y el aviso listo para copiar.
  * El Jefe de Transporte lo ve y avisa; no cambia cantidades de un pedido de Pedidos.
  */
-export function FaltaDeStock({ faltantes, vendedor, aviso, pedidoNumero }: { faltantes: FaltanteLineaVista[]; vendedor?: string; aviso?: string; pedidoNumero?: string }) {
+export function FaltaDeStock({ faltantes, vendedor, aviso: avisoReal, pedidoNumero, piloto = false }: { faltantes: FaltanteLineaVista[]; vendedor?: string; aviso?: string; pedidoNumero?: string; piloto?: boolean }) {
   if (faltantes.length === 0) return null
+  // Piloto: el aviso queda dentro del WMS marcado «PRUEBA» (no se envía a ningún vendedor real); el texto copiable sigue, con su encabezado.
+  const aviso = avisoReal && piloto ? avisoDePrueba(avisoReal) : avisoReal
   return (
     <section id="falta-stock" aria-labelledby="h-falta" className="space-y-3 rounded-lg border border-red-200 bg-red-50/40 p-4" data-testid="falta-de-stock">
       <h2 id="h-falta" className="flex items-center gap-2 font-heading text-xl font-medium tracking-wide text-gray-900"><PackageX className="h-6 w-6 text-red-800" aria-hidden />Falta stock</h2>
@@ -31,6 +34,7 @@ export function FaltaDeStock({ faltantes, vendedor, aviso, pedidoNumero }: { fal
       </ul>
       {aviso && (
         <div className="space-y-2">
+          {piloto && <p className="inline-flex items-center gap-1.5 rounded-full border border-amber-400 bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-950" data-testid="aviso-prueba">Prueba: este aviso no va a ningún vendedor real</p>}
           <p className="text-sm text-gray-800">Mientras Pedidos y el WMS no estén conectados, avísale al vendedor con este mensaje:</p>
           <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-900" data-testid="aviso-vendedor-texto">{aviso}</pre>
           <BotonCopiarAviso texto={aviso} testid="copiar-aviso-orden" />

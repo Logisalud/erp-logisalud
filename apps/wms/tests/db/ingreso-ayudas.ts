@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { type BaseDePrueba, idPosicion, idPropietario } from './helpers'
 
-const IMG = 'data:image/png;base64,' + 'A'.repeat(200)
+const IMG = 'firmas/' + 'a'.repeat(16) + '-' + 'b'.repeat(64) + '.png'
 const j = JSON.stringify
 
 export function ayudasDeIngreso(base: BaseDePrueba) {
@@ -36,10 +36,10 @@ export function ayudasDeIngreso(base: BaseDePrueba) {
     base.como(P().charlie.id, (c) => c.query('select wms.editar_ingreso($1, $2::jsonb)', [ingreso, j({ temperatura_c: 20, bultos: 3, paletas: 1, placa: 'ABC-123', marca_vehiculo: 'Hyundai', tipo_conteo: 'TOTAL' })]))
   async function firmarTodo(ingreso: string) {
     const acta = await base.como(P().charlie.id, async (c) => (await c.query('select wms.generar_acta_recepcion($1) id', [ingreso])).rows[0].id as string)
+    await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'TRANSPORTISTA', 'Pedro Quispe', '45678912', 'ABC-123', $2)`, [acta, IMG]))
+    await base.como(P().aux.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'RESPONSABLE_CONTEO', 'Christians')`, [acta]))
     await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'JEFE_ALMACEN', 'Charlie Chancco')`, [acta]))
     await base.como(P().katia.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'DIRECCION_TECNICA', 'Katia Zapata')`, [acta]))
-    await base.como(P().aux.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'RESPONSABLE_CONTEO', 'Christians')`, [acta]))
-    await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'TRANSPORTISTA', 'Pedro Quispe', '45678912', 'ABC-123', $2)`, [acta, IMG]))
     return acta
   }
   const confirmar = (ingreso: string) => base.como(P().charlie.id, async (c) => (await c.query('select wms.confirmar_ingreso($1) id', [ingreso])).rows[0].id as string)

@@ -1,0 +1,86 @@
+// @vitest-environment jsdom
+// Fase 4 · P9: la página pública del cliente: formulario (vacío, error, espera, éxito), línea de tiempo y sin banners de empleados.
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const acc = vi.hoisted(() => ({ consultarSeguimientoAccion: vi.fn() }))
+vi.mock('@/app/seguimiento/acciones', () => acc)
+let ruta = '/seguimiento'
+vi.mock('next/navigation', () => ({ usePathname: () => ruta, useRouter: () => ({ refresh: () => {}, push: () => {} }) }))
+import { ConsultaSeguimiento } from '@/components/seguimiento/consulta-seguimiento'
+import { LineaDeTiempo } from '@/components/seguimiento/linea-de-tiempo'
+import { OcultarEnPublicas } from '@/components/ocultar-en-publicas'
+import { MarcoPublico } from '@/components/seguimiento/marco-publico'
+import { BannerPiloto } from '@/components/banner-piloto'
+
+beforeEach(() => { acc.consultarSeguimientoAccion.mockReset(); ruta = '/seguimiento' })
+
+describe('línea de tiempo', () => {
+  it('cada paso con su fecha y hora o «Pendiente», con texto e ícono, y sin hora estimada', () => {
+    render(<LineaDeTiempo pedido="PED-0123" hitos={[{ estado: 'RECIBIDO', en: '2026-11-03T15:00:00Z' }, { estado: 'EN_PREPARACION', en: '2026-11-04T14:30:00Z' }]} />)
+    const pasos = screen.getAllByTestId('paso-seguimiento')
+    expect(pasos).toHaveLength(5)
+    expect(pasos[0]).toHaveTextContent('Pedido recibido'); expect(pasos[0]).toHaveTextContent('2026')
+    expect(pasos[1]).toHaveTextContent('Estado actual')
+    expect(pasos[3]).toHaveTextContent('Pendiente')
+    expect(pasos[0].querySelector('svg')).not.toBeNull()
+    expect(screen.getByTestId('linea-de-tiempo').textContent!.toLowerCase()).not.toMatch(/estimad|precio|lote|conductor/)
+  })
+})
+
+describe('formulario público', () => {
+  const llenar = async () => { await userEvent.type(screen.getByTestId('seguimiento-pedido'), 'PED-0123'); await userEvent.type(screen.getByTestId('seguimiento-ruc'), '20512345671') }
+  it('al abrir no muestra ningún dato; las respuestas son en lenguaje llano', async () => {
+    acc.consultarSeguimientoAccion.mockResolvedValueOnce({ respuesta: { estado: 'NO_ENCONTRADO' }, pedido: 'PED-0123' })
+    render(<ConsultaSeguimiento />)
+    expect(screen.queryByTestId('linea-de-tiempo')).toBeNull()
+    await llenar(); await userEvent.click(screen.getByTestId('seguimiento-consultar'))
+    await waitFor(() => expect(screen.getByTestId('seguimiento-no-encontrado')).toHaveTextContent('No encontramos un pedido con esos datos'))
+  })
+  it('éxito: muestra la línea de tiempo; espera: dice cuántos minutos; error: mensaje simple', async () => {
+    acc.consultarSeguimientoAccion.mockResolvedValueOnce({ respuesta: { estado: 'OK', pedido: 'PED-0123', hitos: [{ estado: 'RECIBIDO', en: '2026-11-03T15:00:00Z' }] }, pedido: 'PED-0123' })
+    const { unmount } = render(<ConsultaSeguimiento />)
+    await llenar(); await userEvent.click(screen.getByTestId('seguimiento-consultar'))
+    await waitFor(() => expect(screen.getByTestId('linea-de-tiempo')).toBeInTheDocument())
+    unmount()
+    acc.consultarSeguimientoAccion.mockResolvedValueOnce({ respuesta: { estado: 'ESPERA', esperaSegundos: 600 }, pedido: 'PED-0123' })
+    const r2 = render(<ConsultaSeguimiento />)
+    await llenar(); await userEvent.click(screen.getByTestId('seguimiento-consultar'))
+    await waitFor(() => expect(screen.getByTestId('seguimiento-espera')).toHaveTextContent('espera 10 minutos'))
+    r2.unmount()
+    acc.consultarSeguimientoAccion.mockResolvedValueOnce({ respuesta: { estado: 'ERROR' }, pedido: 'PED-0123' })
+    render(<ConsultaSeguimiento />)
+    await llenar(); await userEvent.click(screen.getByTestId('seguimiento-consultar'))
+    await waitFor(() => expect(screen.getByTestId('seguimiento-error')).toHaveTextContent('Intenta de nuevo en unos minutos'))
+  })
+  it('errores de campo (los que devuelve la validación)', async () => {
+    acc.consultarSeguimientoAccion.mockResolvedValueOnce({ errores: { pedido: 'Escribe el número de tu pedido.', ruc: 'El RUC tiene 11 números.' } })
+    render(<ConsultaSeguimiento />)
+    await userEvent.click(screen.getByTestId('seguimiento-consultar'))
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
+  })
+})
+
+describe('páginas públicas: sin banners de empleados ni menú', () => {
+  it('el banner del piloto se oculta en /seguimiento y se ve en el resto', () => {
+    const { unmount } = render(<OcultarEnPublicas><BannerPiloto /></OcultarEnPublicas>)
+    expect(screen.queryByTestId('banner-piloto')).toBeNull()
+    unmount()
+    ruta = '/entradas'
+    render(<OcultarEnPublicas><BannerPiloto /></OcultarEnPublicas>)
+    expect(screen.getByTestId('banner-piloto')).toBeInTheDocument()
+  })
+  it('el marco público no trae menú ni nada del WMS; las páginas son públicas en el middleware y no usan el contexto de empleados', () => {
+    render(<MarcoPublico titulo="Seguimiento de tu pedido"><p>hola</p></MarcoPublico>)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Seguimiento de tu pedido')
+    expect(screen.queryByRole('navigation')).toBeNull()
+    const raiz = resolve(__dirname, '../..')
+    for (const f of ['app/seguimiento/page.tsx', 'app/seguimiento/[token]/page.tsx', 'app/seguimiento/acciones.ts']) expect(readFileSync(resolve(raiz, f), 'utf8'), f).not.toMatch(/exigirContexto|obtenerContexto|Shell|shell/)
+    const mw = readFileSync(resolve(raiz, 'middleware.ts'), 'utf8')
+    expect(mw).toContain("'/seguimiento'"); expect(mw).toContain('esRutaPublicaDelCliente')
+    expect(readFileSync(resolve(raiz, 'app/layout.tsx'), 'utf8')).toContain('<OcultarEnPublicas>')
+  })
+})

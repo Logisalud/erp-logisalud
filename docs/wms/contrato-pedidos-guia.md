@@ -24,7 +24,7 @@ Respuesta: `2xx` = recibido. Cualquier otro código (o sin respuesta) deja el av
 }
 ```
 
-`origen` puede ser `NUBEFACT`, `MANUAL` (contingencia) o `CLIENTE` (la GRE que trae un cliente de almacenamiento). En el simulador y en pruebas el `entorno` es `SIMULADOR` o `PRUEBA`: **Pedidos no debe facturar con ellos**.
+`origen` puede ser `NUBEFACT`, `MANUAL` (contingencia), `PANEL` (piloto: la guía se emitió en el panel de Nubefact o en Odoo y el WMS solo la registró; trae `estado_sunat` `ACEPTADA` o `PENDIENTE`, `enlace` si lo hay y sin `entorno`) o `CLIENTE` (la GRE que trae un cliente de almacenamiento). En el simulador y en pruebas el `entorno` es `SIMULADOR` o `PRUEBA`: **Pedidos no debe facturar con ellos**.
 
 ## `GUIA_ANULADA`
 

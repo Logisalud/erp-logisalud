@@ -33,7 +33,7 @@ const Lotes = ({ l }: { l: LineaSalidaVista }) => l.asignacion.length === 0
   ? <span className="text-gray-500">Sin lotes</span>
   : <ul className="space-y-0.5">{l.asignacion.map((a) => <li key={a.loteId} className="tabular"><Link href={`/lotes/${a.loteId}`} className="underline underline-offset-2" data-testid="lote-enlace">{a.lote}</Link> <span className="text-gray-600">· vence {a.vence ? mesAnio(a.vence) : '—'}</span> × <strong>{a.cantidad.toLocaleString('es-PE')}</strong></li>)}</ul>
 
-export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, guia, roles, usuario = '' }: { salida: SalidaVista; usuario?: string; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; guia: { datos: DatosGuia | null; modo: ModoNubefact; hoy: string; eventos: EventoPedidos[]; numeracion?: EstadoCorrelativo | null }; roles: readonly Rol[] }) {
+export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, guia, roles, usuario = '', piloto = false }: { salida: SalidaVista; usuario?: string; piloto?: boolean; puedeEditar: boolean; puedePreparar: boolean; paquete: PaqueteSalida | null; guia: { datos: DatosGuia | null; modo: ModoNubefact; bloqueo?: string; hoy: string; eventos: EventoPedidos[]; numeracion?: EstadoCorrelativo | null }; roles: readonly Rol[] }) {
   const router = useRouter()
   const movil = useEsMovil()
   const { pendiente, mensaje, ejecutar } = useAccion()
@@ -61,7 +61,7 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
         <ChipEtapa etapa={salida.etapa} />
       </header>
 
-      <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE', faltaGuiaVigente: salida.faltaGuiaVigente, tipo: salida.tipo, destruccion: salida.motivo === 'DESTRUCCION', sinRuta: salida.tipo === 'CLIENTE' ? undefined : !salida.rutaNumero, porRuta: salida.origen === 'MANUAL' && salida.tipo !== 'CLIENTE', vendedor: salida.vendedor, sinPedido: salida.conPedido === false, devolucion: salida.devolucion, devolucionHref: salida.devoluciones?.find((d) => d.movimientoId)?.movimientoId ? `/movimientos/${salida.devoluciones.find((d) => d.movimientoId)!.movimientoId}` : undefined })} roles={roles} />
+      <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE' && paquete.guia.origen !== 'PANEL', guiaPanel: guia.datos?.guiaModo === 'PANEL', faltaGuiaVigente: salida.faltaGuiaVigente, tipo: salida.tipo, destruccion: salida.motivo === 'DESTRUCCION', sinRuta: salida.tipo === 'CLIENTE' ? undefined : !salida.rutaNumero, porRuta: salida.origen === 'MANUAL' && salida.tipo !== 'CLIENTE', vendedor: salida.vendedor, sinPedido: salida.conPedido === false, devolucion: salida.devolucion, devolucionHref: salida.devoluciones?.find((d) => d.movimientoId)?.movimientoId ? `/movimientos/${salida.devoluciones.find((d) => d.movimientoId)!.movimientoId}` : undefined })} roles={roles} />
 
       {(salida.origen === 'MANUAL' || salida.creadaDesde === 'BANDEJA') && (
         <section className="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby="h-origen" data-testid="origen-orden">
@@ -84,7 +84,7 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
       {lineas.some((l) => l.apartadaDeFefo) && <Aviso tipo="atencion" testid="aviso-fuera-fefo">Algún lote se apartó de la propuesta FEFO. Queda registrado con tu nombre; no necesitas explicar el motivo.</Aviso>}
       {salida.pedidoCancelado && <Aviso tipo="error" testid="pedido-cancelado-aviso"><p className="font-medium">Pedidos canceló este pedido.</p><p>Motivo: {salida.pedidoCancelado.motivo || 'sin motivo'}{salida.pedidoCancelado.por ? ` · lo canceló ${salida.pedidoCancelado.por}` : ''}.{salida.estado === 'CANCELADA' ? ' La orden se canceló y todo quedó libre.' : ''}</p></Aviso>}
       {lineas.some((l) => l.estado === 'SIN_STOCK') && <Aviso tipo="error">Hay líneas sin stock suficiente. Mientras falte, no se puede generar el picking: abajo dice por qué falta y quién decide.</Aviso>}
-      {(salida.faltantes?.length ?? 0) > 0 && <FaltaDeStock faltantes={salida.faltantes!} vendedor={salida.vendedor} aviso={salida.avisoVendedor} pedidoNumero={salida.pedidoNumero} />}
+      {(salida.faltantes?.length ?? 0) > 0 && <FaltaDeStock faltantes={salida.faltantes!} vendedor={salida.vendedor} aviso={salida.avisoVendedor} pedidoNumero={salida.pedidoNumero} piloto={piloto} />}
       {(salida.devoluciones?.length ?? 0) > 0 && <DevolverPicado salidaId={salida.id} devoluciones={salida.devoluciones!} roles={roles} cancelacionPendiente={salida.cancelacionPendiente} motivo={salida.pedidoCancelado?.motivo ?? salida.motivoCancelacion} />}
       {salida.faltaGuiaVigente && <Aviso tipo="atencion" testid="falta-guia-vigente"><p className="font-medium">Guía anulada, falta guía vigente.</p><p>La orden ya salió y el stock no se tocó. Emite la guía nueva en «Documentación final». Si la mercadería vuelve al almacén, entra como una devolución.</p></Aviso>}
       {mensaje?.tipo === 'error' && <Aviso tipo="error">{mensaje.texto}</Aviso>}
@@ -131,7 +131,7 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
         {puedePreparar && salida.estado === 'ABIERTA' && !salida.ordenPickingId && (salida.origen === 'MANUAL' || salida.creadaDesde === 'BANDEJA') && <CancelarOrden salidaId={salida.id} numero={salida.numero} />}
       </section>
 
-      {paquete && (paquete.conforme || paquete.guia || paquete.guiasAnuladas.length > 0) && <PanelDocumentacion salioYa={esSalidaConfirmada(salida.etapa)} paquete={paquete} roles={roles} datos={guia.datos} modo={guia.modo} hoy={guia.hoy} eventos={guia.eventos} numeracion={guia.numeracion} greCliente={salida.tipo === 'CLIENTE' ? { numero: salida.greNumero, salidaId: salida.id, conArchivo: !!salida.greArchivo } : undefined} />}
+      {paquete && (paquete.conforme || paquete.guia || paquete.guiasAnuladas.length > 0) && <PanelDocumentacion salioYa={esSalidaConfirmada(salida.etapa)} paquete={paquete} roles={roles} datos={guia.datos} modo={guia.modo} bloqueo={guia.bloqueo} hoy={guia.hoy} eventos={guia.eventos} numeracion={guia.numeracion} greCliente={salida.tipo === 'CLIENTE' ? { numero: salida.greNumero, salidaId: salida.id, conArchivo: !!salida.greArchivo } : undefined} />}
 
       {salida.tipo === 'PROVEEDOR' && <CorreoProveedor salida={salida} guiaNumero={paquete?.guia?.numero} />}
 

@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type BaseDePrueba, crearBaseDePrueba, falla } from './helpers'
 
 let base: BaseDePrueba
-beforeAll(async () => { base = await crearBaseDePrueba() }, 60_000)
+beforeAll(async () => { base = await crearBaseDePrueba({ con0008: true }) }, 60_000)   // la 0008 va al final (go-live)
 afterAll(async () => { await base?.cerrar() })
 const P = () => base.personas
 
@@ -114,6 +114,6 @@ describe('la migración 0008', () => {
     // sin el trigger, Compras vuelve a poder cambiar el dato (estado anterior a 0008)
     await comoCompras((c) => c.query(`update catalogo.productos set presentacion = 'Caja x 60' where id = $1`, [id]))
     // y editar los campos regulatorios de siempre sigue funcionando
-    expect((await editar(P().katia.id, id, { concentracion: '10 mg' })).rows[0].n).toBe(1)
+    expect((await editar(P().katia.id, id, { concentracion: '25 mg' })).rows[0].n).toBe(1)
   })
 })

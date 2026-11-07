@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { anularGuiaAccion } from '@/app/acciones-picking'
 import { CASOS_ANULACION, MENSAJE_CASO_1_2_DESPUES_DE_SALIR, MENSAJE_CASO_3_ANTES_DE_SALIR, TEXTO_BAJA_EN_NUBEFACT, TEXTO_BAJA_PENDIENTE, type CasoAnulacion } from '@/domain/guia-electronica'
+import { TEXTO_PEDIDOS_RETENIDO } from '@/domain/modo-piloto'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
 
@@ -42,7 +43,7 @@ export function AnularGuia({ guiaId, salioYa = false, alAnular }: { guiaId: stri
             alExito: (r) => {
               const x = r as unknown as { caso: CasoAnulacion; conformidadReabierta: boolean; bajaSunat: string; pedidos: string }
               setAbierto(false); setMotivo(''); setCaso(null)
-              alAnular(`Guía anulada. ${x.conformidadReabierta ? 'La conformidad se reabrió y el stock volvió de Despacho a su ubicación. Siguiente: otra persona confirma de nuevo en Conformidad y después emites otra guía.' : (x.caso === 3 ? 'El stock no se tocó: la orden ya había salido. Quedó «guía anulada, falta guía vigente». Siguiente: emite la guía nueva. Si la mercadería vuelve al almacén, entra como devolución.' : 'La Orden de Salida no cambió. Siguiente: corrige el dato y emite otra guía.')} ${x.pedidos === 'ENVIADO' ? 'Pedidos fue avisado: Contabilidad decide si se anula la factura o hay nota de crédito (el WMS no la toca).' : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'}${x.bajaSunat === 'PENDIENTE' ? ` ${TEXTO_BAJA_PENDIENTE}` : ''} ${x.caso === 3 ? '' : 'Mientras no haya guía nueva, la orden no se puede cargar ni sacar.'}`)
+              alAnular(`Guía anulada. ${x.conformidadReabierta ? 'La conformidad se reabrió y el stock volvió de Despacho a su ubicación. Siguiente: otra persona confirma de nuevo en Conformidad y después emites otra guía.' : (x.caso === 3 ? 'El stock no se tocó: la orden ya había salido. Quedó «guía anulada, falta guía vigente». Siguiente: emite la guía nueva. Si la mercadería vuelve al almacén, entra como devolución.' : 'La Orden de Salida no cambió. Siguiente: corrige el dato y emite otra guía.')} ${x.pedidos === 'ENVIADO' ? 'Pedidos fue avisado: Contabilidad decide si se anula la factura o hay nota de crédito (el WMS no la toca).' : x.pedidos === 'RETENIDO' ? TEXTO_PEDIDOS_RETENIDO : 'El aviso a Pedidos quedó en la bandeja y se reintenta.'}${x.bajaSunat === 'PENDIENTE' ? ` ${TEXTO_BAJA_PENDIENTE}` : ''} ${x.caso === 3 ? '' : 'Mientras no haya guía nueva, la orden no se puede cargar ni sacar.'}`)
             },
           })}>Anular la guía</button>
         <button type="button" className="btn-secondary btn-sm" onClick={() => { setAbierto(false); limpiar() }}>Cancelar</button>

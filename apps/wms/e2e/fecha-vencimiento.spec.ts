@@ -31,7 +31,7 @@ test.describe('selector de fecha del vencimiento', () => {
 
     // escribir sigue funcionando en cualquiera de los formatos, y el calendario arranca en esa fecha
     await vence.fill('06/2028')
-    await expect(page.getByTestId('selector-fecha').first()).toHaveValue('2028-06-30') // último día del mes
+    await expect(page.getByTestId('selector-fecha').first()).toHaveValue('2028-06-01') // primer día del mes (día por defecto, a confirmar con Katia)
     await vence.fill('2029-01-15')
     await expect(page.getByTestId('selector-fecha').first()).toHaveValue('2029-01-15')
     await sinDesborde(page)
@@ -39,7 +39,7 @@ test.describe('selector de fecha del vencimiento', () => {
 
   // Cada formulario con una fecha de vencimiento (o vigencia) usa el MISMO componente: botón de calendario, y se sigue pudiendo escribir.
   // Formularios del WMS con fecha de vencimiento: (1) nueva solicitud de ingreso, paso 3 «Lote, vencimiento y cantidad»;
-  // (2) ajuste de una línea de la solicitud; (3) alta de producto (vencimiento del registro sanitario); (4) edición de los datos regulatorios.
+  // (2) ajuste de una línea de la solicitud; (3) alta de producto (vencimiento del registro sanitario); (4) edición de los datos regulatorios; (5) corrección de la fecha de un lote (página del lote).
   // «Fecha prevista de llegada» y los filtros Desde/Hasta usan el calendario nativo (type="date"). Un formulario nuevo con fecha se suma aquí.
   async function verificarSelector(page: import('@playwright/test').Page, campo: import('@playwright/test').Locator, contenedor: import('@playwright/test').Locator) {
     const boton = contenedor.getByTestId('abrir-calendario').first()
@@ -48,7 +48,7 @@ test.describe('selector de fecha del vencimiento', () => {
     const selector = contenedor.getByTestId('selector-fecha').first()
     await selector.fill('2028-06-30') // el calendario llena el campo con dd/mm/aaaa
     await expect(campo).toHaveValue('30/06/2028')
-    for (const [escrito, iso] of [['06/2028', '2028-06-30'], ['2029-01-15', '2029-01-15'], ['30/06/2028', '2028-06-30']] as const) {
+    for (const [escrito, iso] of [['06/2028', '2028-06-01'], ['2029-01-15', '2029-01-15'], ['30/06/2028', '2028-06-30']] as const) {
       await campo.fill(escrito) // escribir sigue valiendo, y el calendario arranca en esa fecha
       await expect(selector).toHaveValue(iso)
     }
@@ -87,5 +87,17 @@ test.describe('selector de fecha del vencimiento', () => {
     await page.locator('main a[href*="/productos/prod"]:visible').first().click()
     await expect(page.getByTestId('panel-regulatorio')).toBeVisible()
     await verificarSelector(page, page.locator('#reg-rsVence'), page.getByTestId('panel-regulatorio'))
+  })
+
+  test('5. corrección de la fecha de un lote: el vencimiento tiene calendario y el cambio queda en el historial', async ({ page }) => {
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/lotes/lote%3A1')
+    await expect(page.getByTestId('panel-vencimiento')).toBeVisible()
+    await page.getByTestId('abrir-corregir-vence').click()
+    await verificarSelector(page, page.locator('#vence-nueva'), page.getByTestId('form-corregir-vence'))
+    await page.locator('#vence-nueva').fill('30/06/2031')
+    await page.locator('#vence-motivo').fill('El envase dice 30/06/2031')
+    await page.getByTestId('guardar-corregir-vence').click()
+    await expect(page.getByTestId('cambio-vence').first()).toContainText('El envase dice 30/06/2031')
   })
 })

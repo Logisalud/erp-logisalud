@@ -3,11 +3,12 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { modoDemoActivo } from '@/lib/demo'
+import { archivosEnMemoria } from './archivos-memoria'
 
 // Los PDF van al bucket privado `wms-documentos` (se crea a mano: docs/wms/aplicar-migraciones.md). En la demo viven en memoria del
 // servidor (sirven para probar el flujo y se pierden al reiniciar). El WMS nunca expone una URL pública: se descarga con enlace firmado.
 const BUCKET = 'wms-documentos'
-const memoria = (globalThis as unknown as { __wmsArchivos?: Map<string, Buffer> }).__wmsArchivos ??= new Map<string, Buffer>()
+const memoria = archivosEnMemoria
 
 export const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
 

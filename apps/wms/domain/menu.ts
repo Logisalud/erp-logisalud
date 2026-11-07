@@ -2,10 +2,12 @@ import type { Rol } from './tipos'
 import { esPersonal, puede } from './permisos'
 import { puedeVerBandeja } from './pedidos-despacho'
 import { puedeVerRutas } from './rutas'
+import { puedeVerMisRutas } from './mis-rutas'
 import { puedeOriginarRetorno } from './retornos'
 import { puedeDarConformidad, puedePickear, puedePrepararSalidas, puedeVerSalidas } from './despacho'
 import { puedeEmbalar } from './embalaje'
 import { puedeCargar } from './carga'
+import { puedeVerProveedores } from './vencimiento'
 
 // Estructura del menú lateral (D-131 a D-133). Dominio puro: el layout solo le pasa los roles y las alertas.
 // Es un ESPEJO de lo que cada rol ya puede hacer: no concede nada, solo decide qué enlaces se muestran.
@@ -56,7 +58,8 @@ const veCalidadYDocumentos = (roles: readonly Rol[]) => gestion(roles)
 export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): SeccionMenu[] {
   const inicio: ItemMenu = { href: '/', etiqueta: 'Inicio', icono: 'inicio' }
   // Quien no es personal (conductor, usuario de cliente) no lee el inventario: solo ve el Inicio.
-  if (!esPersonal(roles)) return [{ id: 'inicio', titulo: null, items: [inicio] }]
+  // Quien solo conduce o ayuda en la ruta (S9 y S10) ve su Inicio y «Mis rutas».
+  if (!esPersonal(roles)) return [{ id: 'inicio', titulo: null, items: puedeVerMisRutas(roles) ? [inicio, { href: '/mis-rutas', etiqueta: 'Mis rutas', icono: 'rutas', destacado: true }] : [inicio] }]
 
   // Quien solo autoriza salidas sin venta no opera el almacén: ve el stock para elegir y su pantalla, no recepciones, movimientos, conteos ni bajas.
   const soloAutoriza = roles.every((r) => r === 'autoriza_salidas_sin_venta')
@@ -70,6 +73,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   // Almacén: lo que hay y lo que se hace con ello
   ponerSi('almacen', true, { href: '/almacen', etiqueta: 'Mapa del almacén', icono: 'almacen', corta: 'Almacén' })
   ponerSi('almacen', true, { href: '/productos', etiqueta: 'Productos', icono: 'productos' })
+  ponerSi('almacen', roles.some((r) => r === 'direccion_tecnica' || r === 'asistente_dt' || r === 'admin_wms'), { href: '/productos/por-completar', etiqueta: 'Productos por completar', icono: 'productos', corta: 'Por completar' })
   ponerSi('almacen', !soloAutoriza, { href: '/movimientos', etiqueta: 'Movimientos', icono: 'movimientos' })
   ponerSi('almacen', !soloAutoriza, { href: '/conteos', etiqueta: 'Conteos', icono: 'conteos' })
   ponerSi('almacen', !soloAutoriza, { href: '/revision-diaria', etiqueta: 'Revisión diaria', icono: 'revision' })
@@ -96,6 +100,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   ponerSi('control', veCalidadYDocumentos(roles), { href: '/expedientes', etiqueta: 'Expedientes', icono: 'expedientes' })
   ponerSi('control', true, { href: '/reportes', etiqueta: 'Reportes', icono: 'reportes' })
   ponerSi('control', !soloAutoriza && roles.some((r) => r !== 'auxiliar'), { href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })
+  ponerSi('control', puedeVerProveedores(roles), { href: '/proveedores', etiqueta: 'Proveedores', icono: 'propietarios' })
   ponerSi('control', puede(roles, 'auditar'), { href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })
   ponerSi('control', roles.includes('admin_wms') || roles.includes('direccion_tecnica'), { href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
 
@@ -109,7 +114,8 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
  */
 export function principalesTelefono(roles: readonly Rol[], secciones: readonly SeccionMenu[]): string[] {
   const visibles = new Set(secciones.flatMap((s) => s.items.map((i) => i.href)))
-  const prioridad: string[] = roles.includes('jefe_transporte') ? ['/', '/salidas', '/rutas']
+  const prioridad: string[] = roles.includes('conductor') || roles.includes('auxiliar_transporte') ? ['/', '/mis-rutas']
+    : roles.includes('jefe_transporte') ? ['/', '/salidas', '/rutas']
     : roles.includes('jefe_almacen') || roles.includes('auxiliar') ? ['/', '/picking', '/almacen']
     : roles.includes('conformidad_despacho') ? ['/', '/conformidad', '/almacen']
     : roles.includes('autoriza_salidas_sin_venta') ? ['/', '/salidas/nueva', '/almacen']

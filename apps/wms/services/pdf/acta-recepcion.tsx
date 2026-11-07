@@ -2,8 +2,10 @@ import 'server-only'
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer'
 import { ETIQUETA_ROL_FIRMA } from '@/domain/entradas'
 import type { ActaRecepcionVista } from '@/domain/entradas-vistas'
-import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
+import { textoVencimiento, formatoFecha, formatoFechaHora } from '@/domain/fechas'
+import { actaRecepcionEsBorrador } from '@/domain/borrador-documento'
 import { LOGO_LOGISALUD } from '../pdf-logo'
+import { MarcaBorrador } from './marca-borrador'
 
 // Acta de Recepción de Productos — formato controlado LS-FR.03.05 (A4 horizontal).
 // Respeta los campos del formato. Cambios acordados con control documental (D-12, por confirmar con Katia):
@@ -44,10 +46,11 @@ const Dato = ({ k, v, w }: { k: string; v?: string | number | null; w?: number |
   </View>
 )
 
-function ActaPdf({ acta }: { acta: ActaRecepcionVista }) {
+function ActaPdf({ acta, imagenes = {} }: { acta: ActaRecepcionVista; imagenes?: Record<string, string> }) {
   const c = acta.contenido
   const i = c.ingreso
   const firma = (rol: ActaRecepcionVista['firmas'][number]['rol']) => acta.firmas.find((f) => f.rol === rol)
+  const imagenFirma = (f?: ActaRecepcionVista['firmas'][number]) => (f ? f.imagen ?? (f.imagenRef ? imagenes[f.imagenRef] : undefined) : undefined)
   const hora = (iso?: string) => (iso ? new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso)) : '—')
   type Lote = ActaRecepcionVista['contenido']['lineas'][number]['lotes'][number]
   const filas = c.lineas.flatMap((l) => (l.lotes.length ? l.lotes.map((x, k) => ({ l, x: x as Lote | undefined, primera: k === 0 })) : [{ l, x: undefined as Lote | undefined, primera: true }]))
@@ -62,7 +65,7 @@ function ActaPdf({ acta }: { acta: ActaRecepcionVista }) {
           <View style={s.cabCod}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Cód. Formato: LS-FR.03.05</Text><Text>N° ACTA: <Text style={{ fontFamily: 'Helvetica-Bold', color: VERDE }}>{acta.numero}</Text></Text>{c.solicitud && <Text>SOLICITUD: {c.solicitud.numero} (v{c.solicitud.version})</Text>}</View>
         </View>
 
-        {acta.estado === 'BORRADOR' && <Text style={{ color: '#B45309', fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>BORRADOR — faltan firmas: {acta.faltan.map((r) => ETIQUETA_ROL_FIRMA[r]).join(', ') || 'ninguna'}. Este documento todavía no tiene validez.</Text>}
+        {actaRecepcionEsBorrador(acta) && <MarcaBorrador detalle={`Faltan las firmas de: ${acta.faltan.map((r) => ETIQUETA_ROL_FIRMA[r]).join(', ') || 'ninguna'}. Este documento todavía no tiene validez.`} />}
         {acta.estado === 'ANULADA' && <Text style={{ color: '#B91C1C', fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>ACTA ANULADA el {formatoFechaHora(acta.anuladaEn)}. Motivo: {acta.motivoAnulacion}.{acta.reemplazadaPorNumero ? ` Reemplazada por ${acta.reemplazadaPorNumero}.` : ''}</Text>}
         {acta.reemplazaANumero && <Text style={{ color: TENUE, marginBottom: 4 }}>Reemplaza al acta {acta.reemplazaANumero}.</Text>}
 
@@ -99,7 +102,7 @@ function ActaPdf({ acta }: { acta: ActaRecepcionVista }) {
               <Text style={[s.celda, { width: 190 }]}>{primera ? l.descripcion : ''}</Text>
               <Text style={[s.celda, { width: 60 }]}>{primera ? l.registroSanitario ?? '—' : ''}</Text>
               <Text style={[s.celda, { width: 60 }]}>{x?.lote ?? '—'}</Text>
-              <Text style={[s.celda, { width: 55 }]}>{x ? formatoFecha(x.vence) : '—'}</Text>
+              <Text style={[s.celda, { width: 55 }]}>{x ? (x.venceTexto ? textoVencimiento(x.vence, x.venceTexto) : formatoFecha(x.vence)) : '—'}</Text>
               <Text style={[s.celda, { width: 55, textAlign: 'right' }]}>{primera ? l.cantidadEstablecida : ''}</Text>
               <Text style={[s.celda, { width: 55, textAlign: 'right' }]}>{x?.cantidad ?? ''}</Text>
               <Text style={[s.celda, { width: 45 }]}>{x?.posicion ?? ''}</Text>
@@ -146,13 +149,14 @@ function ActaPdf({ acta }: { acta: ActaRecepcionVista }) {
             <Text style={{ fontFamily: 'Helvetica-Bold' }}>TRANSPORTISTA</Text>
             <Text>NOMBRE: {firma('TRANSPORTISTA')?.nombre ?? '—'}</Text>
             <Text>DNI: {firma('TRANSPORTISTA')?.dni ?? '—'}  PLACA: {firma('TRANSPORTISTA')?.placa ?? '—'}</Text>
-            {firma('TRANSPORTISTA')?.imagen ? <Image src={firma('TRANSPORTISTA')!.imagen!} style={{ height: 30, objectFit: 'contain', marginTop: 2 }} /> : <Text>FIRMA: pendiente</Text>}
+            {imagenFirma(firma('TRANSPORTISTA')) ? <Image src={imagenFirma(firma('TRANSPORTISTA'))!} style={{ height: 30, objectFit: 'contain', marginTop: 2 }} /> : <Text>FIRMA: {firma('TRANSPORTISTA') ? 'registrada (imagen no disponible)' : 'pendiente'}</Text>}
+            {firma('TRANSPORTISTA') && <Text style={{ fontSize: 6.5 }}>REGISTRÓ: {firma('TRANSPORTISTA')?.capturadoPor ?? '—'}{firma('TRANSPORTISTA')?.imagenHash ? ` · HUELLA ${firma('TRANSPORTISTA')!.imagenHash!.slice(0, 16)}…` : ''}</Text>}
             <Text>FECHA: {firma('TRANSPORTISTA') ? formatoFecha(firma('TRANSPORTISTA')!.firmadoEn.slice(0, 10)) : '—'}  HORA: {hora(firma('TRANSPORTISTA')?.firmadoEn)}</Text>
           </View>
         </View>
 
         <View style={s.pie} fixed>
-          <Text>Acta {acta.numero} · {acta.estado === 'FIRMADA' ? `firmada electrónicamente el ${formatoFechaHora(acta.firmadaEn)}` : acta.estado.toLowerCase()} · huella SHA-256 {acta.hash}</Text>
+          <Text>Acta {acta.numero} · {acta.estado === 'FIRMADA' ? `firmada electrónicamente el ${formatoFechaHora(acta.firmadaEn)}` : acta.estado === 'BORRADOR' ? 'borrador, pendiente de firmas' : acta.estado.toLowerCase()} · huella SHA-256 {acta.hash}</Text>
           <Text render={({ pageNumber, totalPages }) => `Pág. ${pageNumber} de ${totalPages}`} />
         </View>
       </Page>
@@ -160,4 +164,5 @@ function ActaPdf({ acta }: { acta: ActaRecepcionVista }) {
   )
 }
 
-export const renderActaRecepcion = (acta: ActaRecepcionVista) => renderToBuffer(<ActaPdf acta={acta} />)
+/** `imagenes`: las firmas dibujadas ya leídas del Storage (referencia → data URL), con su huella verificada. */
+export const renderActaRecepcion = (acta: ActaRecepcionVista, imagenes: Record<string, string> = {}) => renderToBuffer(<ActaPdf acta={acta} imagenes={imagenes} />)

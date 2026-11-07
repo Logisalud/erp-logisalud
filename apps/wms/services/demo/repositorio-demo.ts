@@ -1,11 +1,12 @@
 import { CAMPOS_CATALOGO, CAMPOS_REGULATORIOS, type CambioRegulatorio, type EventoAuditoria, type Regulatorio } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
 import {
-  autorizarAltaProducto, autorizarEdicionRegulatoria, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio,
+  autorizarAltaProducto, autorizarEdicionRegulatoria, autorizarEscrituraCatalogo, autorizarMarcaSinMaterialEnvase, esSi, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio,
   type DatosRegulatorios, type EntradaProducto,
 } from '@/domain/productos'
 import { puedeValidarProducto } from '@/domain/permisos'
 import { estado, registrar } from './estado'
+import { modoPilotoDemo } from './piloto-estado'
 import { estadoE } from './entradas-demo'
 import { modoEjemplos } from '@/lib/demo'
 import { EjemplosDemo } from './ejemplos-demo'
@@ -26,6 +27,8 @@ export class RepositorioDemo extends EjemplosDemo implements Repositorio {
   }
 
   async crearProducto(entrada: EntradaProducto, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+    const enPiloto = autorizarEscrituraCatalogo(modoPilotoDemo(estado()) === 'si')   // PIL-8: en el piloto los productos se crean en Compras
+    if (enPiloto) return { ok: false, mensaje: enPiloto }
     const permiso = autorizarAltaProducto(actor.roles)
     if (permiso) return { ok: false, mensaje: permiso }
     const v = validarEntradaProducto(entrada)
@@ -59,6 +62,9 @@ export class RepositorioDemo extends EjemplosDemo implements Repositorio {
   async editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, actor: Actor): Promise<ResultadoAccion<{ cambios: number }>> {
     const permiso = autorizarEdicionRegulatoria(actor.roles)
     if (permiso) return { ok: false, mensaje: permiso }
+    if ((datos.presentacion !== undefined || datos.principioActivo !== undefined) && modoPilotoDemo(estado()) === 'si') {
+      return { ok: false, mensaje: 'En el piloto presentación y principio activo se corrigen en Compras: el WMS no escribe en el catálogo.' }
+    }
     const errMotivo = validarMotivoRegulatorio(motivo)
     if (errMotivo) return { ok: false, mensaje: errMotivo, errores: { motivo: errMotivo } }
     const e = estado()
@@ -77,6 +83,17 @@ export class RepositorioDemo extends EjemplosDemo implements Repositorio {
       if (antes === despues) continue
       ;(nuevo as unknown as Record<string, string | undefined>)[c.clave] = despues
       cambios.push({ id: `${id}:${c.campo}:${e.cambiosRegulatorios.length + cambios.length}`, productoId: id, campo: c.campo, antes, despues, usuario: actor.nombre, ts: new Date().toISOString(), motivo: motivo.trim() })
+    }
+    // F3: «sin material de envase» (solo Dirección Técnica), con el mismo historial
+    if (datos.sinMaterialEnvase !== undefined) {
+      const permisoMarca = autorizarMarcaSinMaterialEnvase(actor.roles)
+      if (permisoMarca) return { ok: false, mensaje: permisoMarca }
+      const antesB = !!actual.sinMaterialEnvase
+      const despuesB = esSi(datos.sinMaterialEnvase)
+      if (antesB !== despuesB) {
+        nuevo.sinMaterialEnvase = despuesB
+        cambios.push({ id: `${id}:sin_material_envase:${e.cambiosRegulatorios.length + cambios.length}`, productoId: id, campo: 'sin_material_envase', antes: String(antesB), despues: String(despuesB), usuario: actor.nombre, ts: new Date().toISOString(), motivo: motivo.trim() })
+      }
     }
     // D-38: presentación y principio activo viven en el catálogo, con el mismo historial
     for (const c of CAMPOS_CATALOGO) {

@@ -2,6 +2,7 @@ import 'server-only'
 
 import { esPreviewDeDemostracion, modoDemoActivo } from '@/lib/demo'
 import type { ModoNubefact, PayloadConsulta, PayloadNubefact, RespuestaConsulta, RespuestaEmision } from '@/domain/guia-electronica'
+import { bloqueoNubefactReal } from './entorno'
 import { ClienteNubefactHttp } from './http'
 import { SimuladorNubefact } from './simulador'
 
@@ -25,7 +26,7 @@ export class NubefactNoConfigurado extends Error {}
  *   NUBEFACT_PRODUCCION_APROBADA = SI — el candado: sin esto, PRODUCCION no emite. Lo pone Sebas cuando lo apruebe.
  * En la demostración siempre se usa el simulador.
  */
-export function clienteNubefact(): ClienteNubefact {
+export function clienteNubefact(piloto: boolean): ClienteNubefact {
   if (modoDemoActivo()) {
     // D-167: en la Preview de la demostración, si existen NUBEFACT_RUTA y NUBEFACT_TOKEN se usa el cliente real contra la cuenta DEMO de Nubefact; si no, el simulador.
     const demo = credencialesNubefactDemo()
@@ -34,9 +35,12 @@ export function clienteNubefact(): ClienteNubefact {
   const modo = (process.env.NUBEFACT_MODO ?? 'SIMULADOR').toUpperCase()
   if (modo === 'SIMULADOR') return SimuladorNubefact.compartido()
   if (modo !== 'PRUEBA' && modo !== 'PRODUCCION') throw new NubefactNoConfigurado(`NUBEFACT_MODO no es válido (${modo}): usa SIMULADOR, PRUEBA o PRODUCCION`)
-  const url = process.env.NUBEFACT_URL
+  // B.3: el cliente real solo con el entorno que corresponde (DEMO en el piloto, PRODUCCION en el go-live)
+  const bloqueo = bloqueoNubefactReal(piloto, process.env)
+  if (bloqueo) throw new NubefactNoConfigurado(bloqueo)
+  const url = process.env.NUBEFACT_URL ?? process.env.NUBEFACT_RUTA
   const token = process.env.NUBEFACT_TOKEN
-  if (!url || !token) throw new NubefactNoConfigurado('La conexión con Nubefact no está configurada (faltan NUBEFACT_URL y NUBEFACT_TOKEN en el entorno)')
+  if (!url || !token) throw new NubefactNoConfigurado('La conexión con Nubefact no está configurada (faltan NUBEFACT_URL —o NUBEFACT_RUTA— y NUBEFACT_TOKEN en el entorno)')
   if (modo === 'PRODUCCION' && process.env.NUBEFACT_PRODUCCION_APROBADA !== 'SI') {
     throw new NubefactNoConfigurado('Producción de Nubefact todavía no está aprobada: no se emite ninguna guía real hasta que Sebas lo apruebe')
   }

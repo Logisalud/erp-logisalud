@@ -3,7 +3,7 @@
 // el borrador vive aquí (puro, probado). La base de datos vuelve a validar cada línea al ejecutar.
 import { normalizar, puntaje } from './busqueda'
 import { ETIQUETA_AREA, AREAS_COMPARTIDAS, propietarioVigente } from './zonas'
-import { validarDestino, type LineaParaChequear } from './inventario'
+import { esDeOtroPropietario, validarDestino, type LineaParaChequear } from './inventario'
 import type { Panorama } from './panorama'
 
 // ── Qué dice cada línea ──────────────────────────────────────────────────────
@@ -19,6 +19,8 @@ export interface DatosEvaluacion {
   destino?: string
   /** Por qué el destino elegido no sirve para esta línea (undefined/null = sirve). */
   razonDestino?: string | null
+  /** Por qué el ORIGEN no sirve con el motivo elegido (undefined/null = sirve). */
+  razonOrigen?: string | null
   cantidad: string
 }
 
@@ -26,6 +28,7 @@ export interface DatosEvaluacion {
 export function evaluarLinea(d: DatosEvaluacion): MensajeLinea | null {
   if (!d.tieneProducto) return { tipo: 'falta', texto: 'Busca el producto que vas a mover.' }
   if (!d.origen) return { tipo: 'falta', texto: 'Elige de dónde sale.' }
+  if (d.razonOrigen) return { tipo: 'error', texto: `${d.razonOrigen.replace(/\.$/, '')}. Elige otro origen o cambia el motivo.` }
   if (!d.destino) return { tipo: 'falta', texto: 'Elige a dónde va.' }
   if (d.razonDestino) return { tipo: 'error', texto: `Ese destino no sirve: ${d.razonDestino.replace(/\.$/, '')}.` }
   const n = Number(d.cantidad)
@@ -106,6 +109,7 @@ export function opcionesDestinoLinea(p: Panorama, consulta: string, linea: Linea
   const nombreDuenio = (id: string) => { const d = propietarioVigente(id, p.asignaciones, p.hoy); return d ? p.propietarios.find((x) => x.id === d)?.codigo : undefined }
   const todas = p.posiciones
     .filter((pos) => pos.activa && !bloqueadas[pos.id])
+    .filter((pos) => !esDeOtroPropietario(p, pos.id, linea.propietarioId))   // solo del mismo propietario del lote (más las áreas compartidas)
     .filter((pos) => !q || puntaje(q, pos.codigo) > 0 || normalizar(ETIQUETA_AREA[pos.tipoArea]).includes(normalizar(q)))
     .map((pos): OpcionDestino & { score: number } => {
       const v = validarDestino(p, pos.id, [linea], bloqueadas)!

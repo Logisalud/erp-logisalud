@@ -174,7 +174,7 @@ describe('cambio de estado sanitario', () => {
     await base.admin.query(`insert into catalogo.productos (id, codigo, descripcion) values ($1, 'T-NUEVO', 'Producto nuevo (prueba)')`, [nuevo])
     await base.admin.query(`insert into wms.producto_regulatorio (producto_id, creado_por) values ($1, $2)`, [nuevo, P().sandra.id])
     const x = await ingresarACuarentena('CE-5', nuevo)
-    expect((await falla(aprobar(x))).message).toMatch(/no tiene su registro sanitario y su vencimiento cargados/i)
+    expect((await falla(aprobar(x))).message).toMatch(/pendiente de Dirección Técnica|no tiene su registro sanitario y su vencimiento cargados/i)   // PIL-8: ahora lo detiene primero «incompleto»
   })
 
   it('al cargar el registro sanitario con Sandra el producto ya se aprueba (sin segunda validación)', async () => {

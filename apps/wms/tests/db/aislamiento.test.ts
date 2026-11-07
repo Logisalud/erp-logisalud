@@ -261,7 +261,7 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'agregar_documento_expediente', 'agregar_faltante', 'ajustar_solicitud', 'anular_acta_recepcion', 'anular_movimiento',
     'anular_solicitud', 'asegurar_lote', 'atender_alerta', 'autorizar_solicitud', 'cancelar_programacion', 'cerrar_conteo',
     'cerrar_expediente', 'cerrar_revision_diaria', 'confirmar_carga_inicial', 'confirmar_ingreso', 'confirmar_movimiento',
-    'conteo_lineas_para', 'corregir_vencimiento_lote', 'crear_carga_inicial', 'crear_producto', 'crear_solicitud',
+    'conteo_lineas_para', 'corregir_vencimiento_lote', 'crear_producto', 'crear_solicitud',
     'decidir_acta_organoleptica', 'decidir_ajuste', 'decidir_estado_carga_inicial', 'editar_ingreso', 'editar_regulatorio',
     'ejecutar_movimiento', 'es_usuario', 'escalar_linea_conteo', 'estado_registro_compras', 'exactitud_conteos',
     'firmar_acta_recepcion', 'generar_acta_recepcion', 'generar_conteo_programado', 'guardar_acta_organoleptica',
@@ -273,6 +273,14 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'revisar_movimientos_sin_verificar', 'revisar_por_trasladar', 'revisar_registro_compras', 'revisar_vencimientos',
     'saldos_al', 'tiene_permiso', 'tiene_rol', 'ultima_cobertura_por_posicion', 'validar_carga_inicial', 'validar_movimiento',
     'verificar_linea', 'verificar_pendiente', 'verificar_saldos',
+    // Fase 4 · P3 (0042)
+    'crear_carga_ensayo', 'registrar_informe_carga',
+    // Fase 4 · P4 (0043)
+    'mis_rutas_del_dia', 'registrar_evento_parada',
+    // Fase 4 · P6 (0045)
+    'sincronizar_ocs_si_toca',
+    // Fase 4 · P9 (0047): las dos consultas del cliente también las ve `anon` (ver el test de seguimiento)
+    'seguimiento_consultar', 'seguimiento_por_token', 'crear_enlace_seguimiento', 'revocar_enlaces_seguimiento',
     // S2 (0012)
     'aprobar_salida_vencida', 'asignar_salida', 'editar_asignacion', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
     'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',
@@ -324,6 +332,12 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'registrar_lecturas_logger',
     // SB-E (0035): validar un producto (solo DT y su asistente); `_puede_validar` y el parche son internos
     'validar_producto',
+    // Piloto (0036): registrar una guía emitida en el panel de Nubefact
+    'registrar_guia_panel',
+    // Piloto (0038): copia inmutable de las órdenes de compra (leen Compras; solo escriben wms.oc_versiones)
+    'sincronizar_oc', 'sincronizar_ocs_abiertas',
+    // Piloto (0040): marca de proveedor «vencimiento solo mes y año» y aprobación de una versión de formato (la 0039 no agrega funciones)
+    'marcar_proveedor_vencimiento', 'aprobar_version_formato',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {

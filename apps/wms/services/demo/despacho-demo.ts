@@ -95,6 +95,8 @@ export interface DespachoDemoEstado {
   picking?: import('./picking-demo').PickingDemoEstado
   /** S6b: guías de remisión registradas a mano (nunca se editan: se anulan con motivo). */
   guias?: GuiaDemo[]
+  /** Piloto (0036): quién emite la guía. Sin dato = `WMS` (o lo que diga `WMS_DEMO_GUIA_MODO`). */
+  guiaModo?: import('@/domain/guia-electronica').GuiaModo
   /** OS-3: avisos hacia Pedidos (guía emitida / anulada). */
   eventosPedidos?: import('@/domain/guia-electronica').EventoPedidos[]
   /** D-162: la numeración de las guías por serie (último número, correlativo confirmado y el estado de cada número), igual que `wms.guia_correlativos` y `wms.guia_numeros`. */
@@ -315,8 +317,8 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     if (d.sembrado) return
     d.sembrado = true
     d.personal.push(
-      { id: 'per-1', nombre: 'Luis Quispe', funcion: 'CONDUCTOR', activo: true, dni: '40123456', licencia: 'Q40123456' }, { id: 'per-2', nombre: 'Marco Huamán', funcion: 'CONDUCTOR', activo: true, dni: '41234567', licencia: 'Q41234567' },
-      { id: 'per-3', nombre: 'Ana Ríos', funcion: 'AUXILIAR', activo: true }, { id: 'per-4', nombre: 'Pedro Soto', funcion: 'AUXILIAR', activo: true },
+      { id: 'per-1', nombre: 'Luis Quispe', funcion: 'CONDUCTOR', activo: true, dni: '40123456', licencia: 'Q40123456', usuarioId: 'demo:conductor' }, { id: 'per-2', nombre: 'Marco Huamán', funcion: 'CONDUCTOR', activo: true, dni: '41234567', licencia: 'Q41234567' },
+      { id: 'per-3', nombre: 'Ana Ríos', funcion: 'AUXILIAR', activo: true, usuarioId: 'demo:auxiliar_transporte' }, { id: 'per-4', nombre: 'Pedro Soto', funcion: 'AUXILIAR', activo: true },
       { id: 'per-5', nombre: 'Raúl Díaz (de vacaciones)', funcion: 'CONDUCTOR', activo: false },
       // SB-A: los dos conductores reales de hoy (D-159). Hans: su documento de identidad está pendiente. Michele: datos de la guía GALAPHARMA TTT1-2887 (carné de extranjería).
       { id: 'per-6', nombre: 'Hans', funcion: 'CONDUCTOR', activo: true, licencia: 'Q75084250' },
@@ -388,6 +390,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     return e.pedidos!.filas.filter((f) => f.vigente).map((f) => ({
       pedidoId: f.snapshot.pedidoId, numero: f.snapshot.numero, cliente: f.snapshot.cliente.nombre, ruc: f.snapshot.cliente.ruc, direccion: f.snapshot.cliente.direccion,
       distrito: f.snapshot.cliente.distrito, ventanaCita: f.snapshot.cliente.ventanaCita,
+      zonaReparto: f.snapshot.zonaReparto, ordenDistrito: f.snapshot.ordenDistrito, diaPlanificado: f.snapshot.diaPlanificado,
       lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0), importadoEn: f.importadoEn,
       enRuta: enRuta.get(f.snapshot.pedidoId), cambioPorRevisar: f.cambioPendiente,
       sinCatalogo: f.snapshot.lineas.filter((l) => !codigos.has(l.productoCodigo.toUpperCase())).map((l) => l.productoCodigo),

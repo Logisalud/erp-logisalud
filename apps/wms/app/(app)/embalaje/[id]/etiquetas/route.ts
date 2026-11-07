@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { puedeVerSalidas } from '@/domain/despacho'
 import { repositorio } from '@/services/repositorio-actual'
@@ -14,6 +15,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const e = await repositorio().embalajeSalida(params.id)
   if (!e) return new NextResponse('No encontramos esa salida.', { status: 404 })
   if (e.bultosVigentes.length === 0) return new NextResponse('El pedido todavía no está embalado.', { status: 404 })
-  const pdf = await renderEtiquetasBultos({ salidaNumero: e.salidaNumero, pedidoNumero: e.pedidoNumero, cliente: e.cliente, rutaNumero: e.rutaNumero, bultos: e.bultosVigentes })
+  const pdf = await marcarPiloto(await renderEtiquetasBultos({ salidaNumero: e.salidaNumero, pedidoNumero: e.pedidoNumero, cliente: e.cliente, rutaNumero: e.rutaNumero, bultos: e.bultosVigentes }))
   return new NextResponse(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Etiquetas ${e.salidaNumero}.pdf"`, 'Cache-Control': 'private, no-store' } })
 }

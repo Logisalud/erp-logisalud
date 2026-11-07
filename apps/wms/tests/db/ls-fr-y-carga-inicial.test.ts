@@ -234,7 +234,11 @@ let posCuarentena: string
 let dapa: string
 const f = (extra: Record<string, unknown> = {}) => ({ producto: 'T-DAPA', lote: 'CI-L1', vence: '2029-05-31', propietario: 'LOGISSA', posicion: posAprobado, estado: 'APROBADO', cantidad: 25, ...extra })
 const validar = (quien: string, filas: object[]) => como(quien, async (c) => (await c.query('select * from wms.validar_carga_inicial($1::jsonb)', [JSON.stringify(filas)])).rows as { fila: number; error: string }[])
-const crear = (quien: string, filas: object[], nota: string | null = null) => como(quien, async (c) => (await c.query('select wms.crear_carga_inicial($1::jsonb, $2) id', [JSON.stringify(filas), nota])).rows[0].id as string)
+const crear = (quien: string, filas: object[], nota: string | null = null) => como(quien, async (c) => {
+  // la carga pasa por el informe obligatorio (0042) y por crear_carga_ensayo
+  await c.query(`select wms.registrar_informe_carga($1::jsonb, 'LISTA')`, [JSON.stringify(filas)])
+  return (await c.query('select wms.crear_carga_ensayo($1::jsonb, $2) id', [JSON.stringify(filas), nota])).rows[0].id as string
+})
 const confirmar = (quien: string, carga: string) => como(quien, async (c) => (await c.query('select wms.confirmar_carga_inicial($1) id', [carga])).rows[0].id as string)
 const saldoDe = async (lote: string, pos: string, estado: string) => (await uno(`select coalesce(sum(s.cantidad), 0)::int n from wms.saldos s join wms.lotes l on l.id = s.lote_id join wms.posiciones p on p.id = s.posicion_id
   where l.codigo = $1 and p.codigo = $2 and s.estado = $3`, [lote, pos, estado])).n as number
@@ -258,7 +262,7 @@ describe('carga inicial: cambio de sistema', () => {
     expect(r[1].error).toMatch(/Falta la fecha de vencimiento: todo lote necesita/)
     expect(r[2].error).toMatch(/fecha de vencimiento no es válida/)
     expect(r[3].error).toMatch(/Falta la fecha de vencimiento/)
-    expect((await falla(crear(admin, [f({ vence: '' })]))).message).toMatch(/1 filas con errores/)
+    expect((await falla(crear(admin, [f({ vence: '' })]))).message).toMatch(/Primero arma el informe/)
   })
 
   it('la base también lo impone: una línea sin vencimiento no entra a la tabla', async () => {
