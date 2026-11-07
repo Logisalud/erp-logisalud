@@ -141,3 +141,14 @@ describe('ejecutar', () => {
     void randomUUID; void idPosicion
   })
 })
+
+describe('el script desde la línea de comandos', () => {
+  it('con --ejecutar y sin la copia del día se niega (código 2) antes de conectarse a nada', async () => {
+    const { spawnSync } = await import('node:child_process')
+    const r = spawnSync('node', [join(__dirname, '../../scripts/reinicio-piloto.mjs'), '--ejecutar', '--db-url', 'postgres://nadie@127.0.0.1:1/x'], { encoding: 'utf8' })
+    expect(r.status).toBe(2)
+    expect(r.stderr).toMatch(/falta --confirmo-copia-del-dia/)
+    const r2 = spawnSync('node', [join(__dirname, '../../scripts/reinicio-piloto.mjs'), '--ejecutar', '--confirmo-copia-del-dia', '2020-01-01', '--db-url', 'postgres://nadie@127.0.0.1:1/x'], { encoding: 'utf8' })
+    expect(r2.status).toBe(2); expect(r2.stderr).toMatch(/copia DEL DÍA/)
+  })
+})
