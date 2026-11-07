@@ -110,8 +110,7 @@ describe('validación', () => {
   const base = {
     fechaRecepcion: '2026-09-18',
     guias: [{ numero: 'G-001', storagePath: 'ruta/guia.pdf' }],
-    numeroFactura: 'F001-123',
-    storagePathFactura: 'ruta/factura.pdf',
+    facturas: [{ numero: 'F001-123', storagePath: 'ruta/factura.pdf' }],
     lineas: [linea()],
   }
 
@@ -120,13 +119,35 @@ describe('validación', () => {
   })
 
   it('la factura es obligatoria: llega junto con las guías', () => {
-    const sinFactura = validarRecepcionTresColumnas({ ...base, storagePathFactura: null })
-    expect(sinFactura.map((e) => e.campo)).toContain('archivoFactura')
+    const sinArchivo = validarRecepcionTresColumnas({ ...base, facturas: [{ numero: 'F001-123', storagePath: null }] })
+    expect(sinArchivo.map((e) => e.campo)).toContain('factura-0-archivo')
+    expect(validarRecepcionTresColumnas({ ...base, facturas: [] }).map((e) => e.campo)).toContain('facturas')
   })
 
   it('exige el número de factura', () => {
-    expect(validarRecepcionTresColumnas({ ...base, numeroFactura: '' })
-      .map((e) => e.campo)).toContain('numeroFactura')
+    expect(validarRecepcionTresColumnas({ ...base, facturas: [{ numero: '', storagePath: 'ruta/f.pdf' }] })
+      .map((e) => e.campo)).toContain('factura-0-numero')
+  })
+
+  // OC-2026-0050 de DIMEXA (2026-11-04): dos facturas con una sola entrega.
+  it('varias facturas, cada una con su archivo, es válido', () => {
+    expect(validarRecepcionTresColumnas({
+      ...base,
+      facturas: [
+        { numero: 'F991-317017', storagePath: 'ruta/1.pdf' },
+        { numero: 'F991-317018', storagePath: 'ruta/2.pdf' },
+      ],
+    })).toEqual([])
+  })
+
+  it('la misma factura dos veces es un error de tipeo, aunque cambie la mayúscula', () => {
+    expect(validarRecepcionTresColumnas({
+      ...base,
+      facturas: [
+        { numero: 'f991-317017', storagePath: 'ruta/1.pdf' },
+        { numero: 'F991-317017', storagePath: 'ruta/2.pdf' },
+      ],
+    }).map((e) => e.campo)).toContain('facturas')
   })
 
   it('sin ninguna guía completa no pasa', () => {

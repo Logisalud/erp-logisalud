@@ -795,6 +795,14 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
               factoringEntidad={factura.factoring_entidad}
               incobrable={factura.incobrable}
               incobrableMotivo={factura.incobrable_motivo}
+              // Las dos fechas sirven para distinguir un pago de más de una
+              // nota de crédito emitida después de que el cliente ya pagó:
+              // el saldo queda en cero igual, pero son cosas distintas y la
+              // segunda deja plata a favor del cliente.
+              fechaUltimoPago={pagos.reduce<string | null>(
+                (ult, pg) => (!ult || pg.fecha_pago > ult ? pg.fecha_pago : ult), null)}
+              fechaUltimaNc={ncnds.reduce<string | null>(
+                (ult, doc) => (doc.tipo === '07' && (!ult || doc.fecha_emision > ult) ? doc.fecha_emision : ult), null)}
               letrasPagadas={letras
                 .filter(l => l.estado === 'pagada')
                 .map(l => ({ numero_letra: l.numero_letra, fecha_pago: l.fecha_pago ?? null }))}

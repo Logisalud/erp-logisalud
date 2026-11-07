@@ -161,3 +161,30 @@ export function faltaPrecioParaPedir(producto: {
 export function admitePrecioCero(codigoInterno: string): boolean {
   return esBonificacion(codigoInterno);
 }
+
+/**
+ * ¿Se puede pedir este producto, mirando el stock?
+ *
+ * Regla de negocio (2026-10-22): **stock 0 bloquea**. Lo que el almacén no
+ * tiene no se vende: el vendedor lo ofrecía igual, el pedido entraba, y el
+ * problema aparecía recién en el despacho, con el cliente esperando.
+ *
+ * Pedir MÁS de lo que hay no bloquea, avisa: el archivo de stock es una
+ * foto del día y puede estar atrasado respecto de lo que entró hoy a
+ * almacén, así que frenar el pedido ahí costaría ventas reales. Quien
+ * despacha ajusta la cantidad en su pantalla, que ya está hecha para eso.
+ */
+export function hayStockParaPedir(stock: number): boolean {
+  return stock > 0;
+}
+
+/** Pide más de lo que hay: no frena el pedido, pero tiene que verse. */
+export function excedeElStock(cantidad: number, stock: number): boolean {
+  return stock > 0 && cantidad > stock;
+}
+
+/** Cómo se escribe el stock en pantalla, con su unidad. */
+export function etiquetaDeStock(stock: number): string {
+  if (stock <= 0) return "Sin stock";
+  return `Stock: ${stock.toLocaleString("es-PE")}`;
+}

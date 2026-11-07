@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FacturaResumen, Movimiento, Resumen } from '@/lib/estado-cuenta';
+import type { ComentarioCobranza as Comentario } from '@/lib/estado-cuenta-datos';
 
 /**
  * El estado de cuenta de un cliente, para staff y para vendedores.
@@ -74,6 +75,12 @@ function colorDe(m: Movimiento): string {
   return 'text-[#276b3b]';
 }
 
+/** 06/11 14:32 — de cuándo es el comentario. */
+const fmtFechaHora = (iso: string) =>
+  new Date(iso).toLocaleString('es-PE', {
+    timeZone: 'America/Lima', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+
 export default function EstadoCuentaCliente({
   ruc,
   apiHistorial,
@@ -95,6 +102,12 @@ export default function EstadoCuentaCliente({
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Los comentarios de cobranza, de solo lectura acá: esta pantalla la
+  // comparten el staff y el vendedor desde su link, y el link no identifica
+  // a nadie. Se escriben desde /cobranzas/estado-cuenta, con sesión.
+  const [comentarioCliente, setComentarioCliente] = useState<Comentario | null>(null);
+  const [comentariosPorFactura, setComentariosPorFactura] = useState<Record<string, Comentario>>({});
+
   // Buscador para saltar a otro cliente sin volver al menú.
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<ClienteHit[]>([]);
@@ -111,6 +124,8 @@ export default function EstadoCuentaCliente({
       setMovs(j.movimientos);
       setPorFactura(j.porFactura ?? []);
       setResumen(j.resumen);
+      setComentarioCliente(j.comentarioCliente ?? null);
+      setComentariosPorFactura(j.comentariosPorFactura ?? {});
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -273,8 +288,24 @@ export default function EstadoCuentaCliente({
         )}
         {cargando && <p className="text-sm text-gray-500">Cargando…</p>}
 
+        {!cargando && !error && comentarioCliente && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-wide text-amber-700/70">Comentario de cobranza</p>
+            <p className="mt-0.5 whitespace-pre-wrap text-sm text-amber-900">{comentarioCliente.comentario}</p>
+            <p className="mt-1 text-[11px] text-amber-700/60">
+              {comentarioCliente.escrito_por ? `${comentarioCliente.escrito_por} · ` : ''}
+              {fmtFechaHora(comentarioCliente.actualizado_en)}
+            </p>
+          </div>
+        )}
+
         {!cargando && !error && vista === 'factura' && (
-          <TablaPorFactura filas={porFactura} abierta={abierta} alAbrir={setAbierta} />
+          <TablaPorFactura
+            filas={porFactura}
+            abierta={abierta}
+            alAbrir={setAbierta}
+            comentarios={comentariosPorFactura}
+          />
         )}
 
         {!cargando && !error && vista === 'cronologico' && (
@@ -372,10 +403,13 @@ function TablaPorFactura({
   filas,
   abierta,
   alAbrir,
+  comentarios,
 }: {
   filas: FacturaResumen[];
   abierta: string | null;
   alAbrir: (id: string | null) => void;
+  /** Lo anotado en cada factura, por documento_id. Solo lectura. */
+  comentarios: Record<string, Comentario>;
 }) {
   if (filas.length === 0) {
     return (
@@ -419,9 +453,16 @@ function TablaPorFactura({
                   onClick={() => alAbrir(abiertaEsta ? null : f.id)}
                   className={`cursor-pointer hover:bg-gray-50 ${abiertaEsta ? 'bg-gray-50' : ''}`}
                 >
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-gray-700">
-                    <span className="mr-1 text-gray-400">{abiertaEsta ? '▾' : '▸'}</span>
-                    {f.comprobante}
+                  <td className="px-3 py-2 font-mono text-gray-700">
+                    <span className="whitespace-nowrap">
+                      <span className="mr-1 text-gray-400">{abiertaEsta ? '▾' : '▸'}</span>
+                      {f.comprobante}
+                    </span>
+                    {comentarios[f.id] && (
+                      <span className="mt-0.5 block max-w-[16rem] whitespace-pre-wrap font-sans text-[11px] leading-snug text-amber-700">
+                        {comentarios[f.id].comentario}
+                      </span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-gray-500">{fmtFecha(f.fechaEmision)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-gray-500">

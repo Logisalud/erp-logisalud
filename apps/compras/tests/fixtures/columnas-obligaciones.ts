@@ -1,7 +1,8 @@
 /**
  * Las columnas ESCRIBIBLES de `cuentas_x_pagar.obligaciones`, sacadas de la
  * base real (information_schema, is_generated = 'NEVER') el 2026-10-06, más
- * `monto_exonerado` (migración 0078) y `beneficiario_sin_usuario_id` (0081).
+ * `monto_exonerado` (migración 0078), `beneficiario_sin_usuario_id` (0081) y
+ * `tipo_comprobante`, `monto_retencion_4ta`, `motivo_retencion_4ta` (0084).
  *
  * Las generadas (`total`, `neto_a_pagar`, `beneficiario_id`) no van: no se
  * pueden escribir.
@@ -16,8 +17,8 @@ export const COLUMNAS_ESCRIBIBLES_OBLIGACIONES = [
   'conformidad_fecha', 'conformidad_por', 'cotizacion_storage_path', 'creador_correo',
   'created_at', 'created_by', 'editado_en', 'editado_por', 'espera_nota_credito', 'estado',
   'factura_storage_path', 'fecha_factura', 'fecha_vencimiento_real', 'id', 'igv', 'moneda',
-  'monto_detraccion', 'monto_exonerado', 'numero_factura', 'observaciones', 'oc_id', 'origen', 'os_id',
+  'monto_detraccion', 'monto_exonerado', 'monto_retencion_4ta', 'motivo_retencion_4ta', 'numero_factura', 'observaciones', 'oc_id', 'origen', 'os_id',
   'porcentaje_detraccion', 'proveedor_id', 'proveedor_servicio_id', 'recepcion_id',
   'rechazada_en', 'rechazada_por', 'rechazo_motivo', 'reposicion_caja_chica_id', 'sin_igv',
-  'solicitud_gasto_id', 'tasa_detraccion_id', 'tipo_cambio', 'updated_at', 'version',
+  'solicitud_gasto_id', 'tasa_detraccion_id', 'tipo_cambio', 'tipo_comprobante', 'updated_at', 'version',
 ] as const

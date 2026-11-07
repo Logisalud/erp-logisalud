@@ -97,9 +97,8 @@ al PR y deja un comentario. Marca y avisa, no bloquea: un check requerido
 que bloqueara también impediría el merge manual, que es justamente lo que
 hay que poder hacer ahí.
 
-La red de seguridad es el backup diario (`.github/workflows/backup.yml`,
-5:00 UTC, retención 90 días), más un snapshot manual por
-`workflow_dispatch` antes de cualquier migración grande.
+La red de seguridad es el respaldo de Supabase (no hay respaldo en GitHub):
+ver `docs/respaldos/README.md`.
 
 ## Deploy (Vercel)
 

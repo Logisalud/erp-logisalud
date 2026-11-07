@@ -95,6 +95,12 @@ export default function LetrasPage() {
   const [pagoModal, setPagoModal]           = useState<{ letraId: string; fecha: string } | null>(null);
   const [editandoVenc, setEditandoVenc]     = useState<string | null>(null);
   const [guardandoVenc, setGuardandoVenc]   = useState<string | null>(null);
+  // Pedir la dirección del cliente al generar la plantilla, si no la tiene.
+  const [direccionModal, setDireccionModal] = useState<{
+    letraId: string; ruc: string; razonSocial: string; ubicacion: string; direccion: string;
+    guardando: boolean; error: string;
+  } | null>(null);
+  const [preparandoPlantilla, setPreparandoPlantilla] = useState<string | null>(null);
 
   // Multi-factura
   const [modoMulti, setModoMulti]               = useState(false);
@@ -205,6 +211,21 @@ export default function LetrasPage() {
 
   const sumaMulti = facturasCubiertas.reduce((a, fc) => a + (Number(fc.monto_aplicado) || 0), 0);
 
+  /**
+   * La retención del IGV que el cliente se queda de cada factura.
+   *
+   * Va por FACTURA y no por letra: una factura partida en tres letras tiene
+   * una sola retención. Se guarda donde vivió siempre —`pagos` con
+   * tipo='retencion'—, no en una columna nueva de letras, así hay un solo
+   * número por factura y no dos que se contradigan.
+   */
+  const [retenciones, setRetenciones] = useState<Record<string, string>>({});
+  const retencionDe = (documentoId: string) => Number(retenciones[documentoId]) || 0;
+  const retencionesAEnviar = (documentoIds: string[]) =>
+    Array.from(new Set(documentoIds))
+      .map(id => ({ documento_id: id, monto: retencionDe(id) }))
+      .filter(r => r.monto > 0);
+
   const guardarLetraMulti = async () => {
     if (!factura) return;
     setErrMsg('');
@@ -232,12 +253,16 @@ export default function LetrasPage() {
           banco:             letraMulti.banco.trim()      || undefined,
           documentos,
         }],
+        retenciones: retencionesAEnviar(documentos.map(d => d.documento_id)),
       }),
     });
     const d = await res.json();
     if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
+    // La letra se guardó aunque la retención haya fallado: se avisa.
+    if (d.aviso) setErrMsg(d.aviso);
     setModoMulti(false);
     setFacturasCubiertas([]);
+    setRetenciones({});
     setLetraMulti(filaVacia());
     await recargarLetras();
     setGuardando(false);
@@ -266,11 +291,14 @@ export default function LetrasPage() {
           fecha_vencimiento: f.fecha_vencimiento,
           banco:             f.banco.trim()      || undefined,
         })),
+        retenciones: retencionesAEnviar([factura.id]),
       }),
     });
     const d = await res.json();
     if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
+    if (d.aviso) setErrMsg(d.aviso);
     setFilas([filaVacia()]);
+    setRetenciones({});
     await recargarLetras();
     setGuardando(false);
   };
@@ -320,6 +348,54 @@ export default function LetrasPage() {
     } finally {
       setGuardandoVenc(null);
     }
+  };
+
+  // "📄 Plantilla": si el cliente ya tiene dirección, descarga directo; si
+  // no, la pide (y la guarda en el cliente) antes de generar la letra.
+  const descargarPlantilla = (letraId: string) => {
+    window.location.href = `/api/letras/${letraId}/plantilla`;
+  };
+
+  const generarPlantilla = async (letraId: string) => {
+    const ruc = factura?.cliente_ruc;
+    if (!ruc) return descargarPlantilla(letraId);
+    setPreparandoPlantilla(letraId);
+    try {
+      const res = await fetch(`/api/clientes/${ruc}/direccion`);
+      const c = await res.json();
+      if (!res.ok || (c.direccion ?? '').trim()) return descargarPlantilla(letraId);
+      setDireccionModal({
+        letraId, ruc, razonSocial: c.razon_social ?? '',
+        ubicacion: [c.departamento, c.provincia, c.distrito].filter(Boolean).join(' - '),
+        direccion: '', guardando: false, error: '',
+      });
+    } catch {
+      descargarPlantilla(letraId);
+    } finally {
+      setPreparandoPlantilla(null);
+    }
+  };
+
+  const guardarDireccionYGenerar = async () => {
+    if (!direccionModal) return;
+    if (!direccionModal.direccion.trim()) {
+      setDireccionModal({ ...direccionModal, error: 'Escribe la dirección, o genera sin dirección.' });
+      return;
+    }
+    setDireccionModal({ ...direccionModal, guardando: true, error: '' });
+    const res = await fetch(`/api/clientes/${direccionModal.ruc}/direccion`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direccion: direccionModal.direccion }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setDireccionModal({ ...direccionModal, guardando: false, error: j.error ?? 'No se pudo guardar la dirección.' });
+      return;
+    }
+    const letraId = direccionModal.letraId;
+    setDireccionModal(null);
+    descargarPlantilla(letraId);
   };
 
   const eliminarLetra = async (letraId: string) => {
@@ -554,12 +630,14 @@ export default function LetrasPage() {
                             </td>
                             <td className="px-4 py-3 text-center whitespace-nowrap">
                               {l.fecha_giro ? (
-                                <a
-                                  href={`/api/letras/${l.id}/plantilla`}
-                                  className="text-logisalud-teal hover:text-logisalud-green text-xs hover:underline mr-3"
+                                <button
+                                  type="button"
+                                  onClick={() => generarPlantilla(l.id)}
+                                  disabled={preparandoPlantilla === l.id}
+                                  className="text-logisalud-teal hover:text-logisalud-green text-xs hover:underline mr-3 disabled:opacity-50"
                                 >
-                                  📄 Plantilla
-                                </a>
+                                  {preparandoPlantilla === l.id ? '…' : '📄 Plantilla'}
+                                </button>
                               ) : (
                                 <span
                                   className="text-gray-300 text-xs mr-3 cursor-not-allowed"
@@ -710,13 +788,22 @@ export default function LetrasPage() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 flex-wrap">
                     <button
                       onClick={() => setFilas([...filas, filaVacia()])}
                       className="text-sm text-logisalud-teal hover:underline font-medium"
                     >
                       + Agregar fila
                     </button>
+                    <label className="flex items-center gap-2 text-xs text-gray-500">
+                      Retención IGV de la factura
+                      <input
+                        type="number" min="0" step="0.01" placeholder="0.00"
+                        value={factura ? (retenciones[factura.id] ?? '') : ''}
+                        onChange={e => factura && setRetenciones(prev => ({ ...prev, [factura.id]: e.target.value }))}
+                        className="w-24 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                      />
+                    </label>
                     <button
                       onClick={guardarLetras}
                       disabled={guardando}
@@ -751,16 +838,27 @@ export default function LetrasPage() {
                             Saldo: <span className="text-orange-600 font-medium">{fmt(Number(fc.factura.saldo_pendiente))}</span>
                           </p>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-xs text-gray-400">S/</span>
-                          <input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={fc.monto_aplicado}
-                            onChange={e => actualizarMontoAplicado(idx, e.target.value)}
-                            className="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
-                          />
+                        <div className="flex items-end gap-2 shrink-0">
+                          <div className="text-right">
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Retención IGV</label>
+                            <input
+                              type="number" min="0" step="0.01" placeholder="0.00"
+                              value={retenciones[fc.factura.id] ?? ''}
+                              onChange={e => setRetenciones(prev => ({ ...prev, [fc.factura.id]: e.target.value }))}
+                              className="w-24 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                            />
+                          </div>
+                          <div className="text-right">
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Monto aplicado</label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={fc.monto_aplicado}
+                              onChange={e => actualizarMontoAplicado(idx, e.target.value)}
+                              className="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                            />
+                          </div>
                         </div>
                         {idx > 0 && (
                           <button
@@ -866,6 +964,55 @@ export default function LetrasPage() {
       </div>
 
       {/* Modal fecha de pago */}
+      {direccionModal && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
+            <h3 className="font-oswald text-lg text-gray-800 mb-1">Dirección del cliente</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              {direccionModal.razonSocial} no tiene dirección registrada. Escríbela para que salga en la
+              letra — queda guardada en el cliente para las próximas.
+            </p>
+            <input
+              type="text"
+              autoFocus
+              value={direccionModal.direccion}
+              onChange={e => setDireccionModal({ ...direccionModal, direccion: e.target.value, error: '' })}
+              onKeyDown={e => { if (e.key === 'Enter') guardarDireccionYGenerar(); }}
+              placeholder="Ej. AV. MANSICHE N° 792 URB. BARRIO MEDICO"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+            />
+            {direccionModal.ubicacion && (
+              <p className="text-xs text-gray-400 mt-1">Se le agrega: {direccionModal.ubicacion}</p>
+            )}
+            {direccionModal.error && <p className="text-xs text-red-600 mt-2">{direccionModal.error}</p>}
+            <div className="flex flex-col gap-2 mt-5">
+              <button
+                onClick={guardarDireccionYGenerar}
+                disabled={direccionModal.guardando}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-60"
+                style={{ background: '#4BB168' }}
+              >
+                {direccionModal.guardando ? 'Guardando…' : 'Guardar y generar letra'}
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setDireccionModal(null)}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => { const id = direccionModal.letraId; setDireccionModal(null); descargarPlantilla(id); }}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  Generar sin dirección
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {pagoModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-80">

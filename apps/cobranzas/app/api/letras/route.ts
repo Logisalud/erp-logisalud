@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_ESCRITURA, AREAS_LECTURA } from '@/lib/autorizacion';
+import { registrarRetencionDeCanje } from '@/lib/factoring';
 
 export async function GET(req: NextRequest) {
   const auth = await exigirArea(AREAS_LECTURA);
@@ -79,9 +80,14 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.respuesta;
 
   const body = await req.json();
-  const { documento_id, letras } = body as {
+  const { documento_id, letras, retenciones, registrado_por } = body as {
     documento_id: string;
     letras: LetraInput[];
+    // La parte de la factura que el cliente retiene (IGV 3%). Va por
+    // FACTURA, no por letra: una factura partida en tres letras tiene una
+    // sola retención.
+    retenciones?: Array<{ documento_id: string; monto: number }>;
+    registrado_por?: string;
   };
 
   if (!documento_id || !letras?.length)
@@ -101,6 +107,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Solo facturas (01) o boletas (03) pueden tener letras' }, { status: 400 });
   if (doc.forma_pago !== 'CREDITO')
     return NextResponse.json({ error: 'Solo se pueden girar letras sobre comprobantes CREDITO' }, { status: 400 });
+
+  for (const r of retenciones ?? []) {
+    if (!r.documento_id) return NextResponse.json({ error: 'Cada retención necesita su documento_id' }, { status: 400 });
+    if (Number(r.monto) < 0) return NextResponse.json({ error: 'La retención no puede ser negativa' }, { status: 400 });
+  }
 
   // Validar cuadre cuando hay multi-factura
   for (const l of letras) {
@@ -146,5 +157,11 @@ export async function POST(req: NextRequest) {
   const { error: ldErr } = await db.from('letra_documento').insert(ldRows);
   if (ldErr) return NextResponse.json({ error: ldErr.message }, { status: 500 });
 
-  return NextResponse.json({ letras: insertadas, insertadas: insertadas?.length ?? 0 });
+  // La retención va a `pagos` con tipo='retencion', que es donde vivió
+  // siempre — no a una columna nueva de letras. Ver la migración 20261105.
+  // La fecha es la del giro de la primera letra, o la de hoy si no se cargó.
+  const fechaRetencion = letras.find(l => l.fecha_giro)?.fecha_giro ?? new Date().toISOString().slice(0, 10);
+  const aviso = await registrarRetencionDeCanje(db, retenciones ?? [], fechaRetencion, 'letras', registrado_por);
+
+  return NextResponse.json({ letras: insertadas, insertadas: insertadas?.length ?? 0, aviso });
 }

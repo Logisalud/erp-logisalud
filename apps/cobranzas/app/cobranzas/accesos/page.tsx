@@ -50,8 +50,20 @@ export default function AccesosPage() {
       .finally(() => setCargando(false));
   }, []);
 
-  const nunca = filas.filter(f => !f.ultimo_acceso).length;
-  const activos = filas.filter(f => f.ultimo_acceso && diasDesde(f.ultimo_acceso)! <= 7).length;
+  /**
+   * Quienes ya no están no se cuentan ni se muestran.
+   *
+   * Una vendedora que se fue queda `activo = false` y aparecía igual, con
+   * etiqueta gris y —peor— contando como "nunca entró", en rojo: un número
+   * que no es un problema a resolver. Se esconden por defecto y quedan a un
+   * clic. En el sistema siguen estando; es solo la lista.
+   */
+  const [verInactivos, setVerInactivos] = useState(false);
+  const inactivos = filas.filter(f => !f.activo);
+  const visibles = verInactivos ? filas : filas.filter(f => f.activo);
+
+  const nunca = visibles.filter(f => !f.ultimo_acceso).length;
+  const activos = visibles.filter(f => f.ultimo_acceso && diasDesde(f.ultimo_acceso)! <= 7).length;
 
   return (
     <div>
@@ -102,7 +114,7 @@ export default function AccesosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filas.map(f => {
+                {visibles.map(f => {
                   const nuncaEntro = !f.ultimo_acceso;
                   return (
                     <tr key={f.vendedor_id} className={nuncaEntro ? 'bg-red-50/40' : 'hover:bg-gray-50'}>
@@ -122,6 +134,17 @@ export default function AccesosPage() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {!cargando && inactivos.length > 0 && (
+          <button
+            onClick={() => setVerInactivos(v => !v)}
+            className="mt-3 text-xs text-gray-400 hover:text-gray-600 underline"
+          >
+            {verInactivos
+              ? 'Ocultar quienes ya no están'
+              : `Ver ${inactivos.length} que ya no ${inactivos.length === 1 ? 'está' : 'están'}`}
+          </button>
         )}
       </main>
     </div>

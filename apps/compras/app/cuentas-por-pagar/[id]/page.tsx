@@ -23,6 +23,7 @@ import { BotonPagoHistorico } from './pago-historico'
 import { listarCuentasEmpresa } from '@/services/cuentas-empresa'
 import { etiquetaCuentaEmpresa } from '@/domain/cuenta-empresa'
 import { BotonReemplazarConstancia } from './reemplazar-constancia'
+import { constanciaVencidaAlPagar, explicarRetencion, noSuperaUmbral } from '@/domain/retencion-4ta'
 import { BotonCorregirFechaPago } from './corregir-fecha-pago'
 import { etiquetaReemplazo, puedeReemplazarConstancia } from '@/domain/reemplazo-constancia'
 import { etiquetaCorreccion, puedeCorregirFechaDePago } from '@/domain/correccion-fecha-pago'
@@ -210,11 +211,14 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           </p>
         ) : null}
         {obligacion.recepcion ? (
+          // Las guías y facturas viven en la recepción, cada una con su archivo
+          // (0064, 0088) — y ahí se corrigen. Antes esta línea leía
+          // `storage_path_guia_recibida`, sin uso desde 0064: decía "guía —"
+          // aunque la guía estuviera.
           <p className="mt-1 text-sm text-gray-600">
-            Documentos de la recepción:{' '}
-            {obligacion.recepcion.storage_path_guia_recibida ? 'guía ✓' : 'guía —'}
-            {' · '}
-            {obligacion.recepcion.storage_path_factura_proveedor ? 'factura ✓' : 'factura —'}
+            <Link href={`/almacen/recepciones/${obligacion.recepcion.id}`} className="text-logisalud-teal underline">
+              Ver guías y facturas de la recepción
+            </Link>
           </p>
         ) : null}
         {obligacion.cotizacion_storage_path || obligacion.factura_storage_path ? (
@@ -351,8 +355,32 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           ) : null}
           <Total termino="IGV" valor={obligacion.igv} moneda={obligacion.moneda} />
           <Total termino="Detracción" valor={-obligacion.monto_detraccion} moneda={obligacion.moneda} />
+          {/* RxH (0084): el 8% no se le paga al profesional — va a SUNAT en el
+              consolidado mensual de 4ta. Sin la fila, el neto no cuadraría. */}
+          {obligacion.tipo_comprobante === 'rxh' ? (
+            <Total termino="Retención 4ta categoría (8%)" valor={-obligacion.monto_retencion_4ta} moneda={obligacion.moneda} />
+          ) : null}
           <Total termino="Neto a pagar" valor={obligacion.neto_a_pagar} moneda={obligacion.moneda} destacado />
         </dl>
+        {obligacion.tipo_comprobante === 'rxh' && obligacion.motivo_retencion_4ta ? (
+          <p className="mt-2 text-xs text-gray-600">
+            Recibo por Honorarios.{' '}
+            {explicarRetencion(
+              obligacion.motivo_retencion_4ta, null,
+              obligacion.moneda === 'PEN' && noSuperaUmbral(obligacion.base_imponible, 'PEN'),
+            )}
+          </p>
+        ) : null}
+        {constanciaVencidaAlPagar({
+          motivo: obligacion.motivo_retencion_4ta,
+          fechaRecibo: obligacion.fecha_factura,
+          fechaPago: obligacion.pago?.fecha_pago ?? null,
+        }) ? (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+            ⚠️ No se retuvo por una constancia de suspensión de {obligacion.fecha_factura?.slice(0, 4)}, pero se pagó en{' '}
+            {obligacion.pago?.fecha_pago?.slice(0, 4)}, cuando esa constancia ya había vencido. Contabilidad debe revisarlo.
+          </p>
+        ) : null}
       </section>
 
       {comprobantes.length > 0 ? (

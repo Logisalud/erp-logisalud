@@ -5,11 +5,14 @@ import { getFulfillmentForOrder } from "@/services/fulfillments";
 import { requireSession } from "@/lib/auth/session";
 import { listProducts } from "@/services/products";
 import { listPaymentTerms } from "@/services/catalog";
+import { stockDisponiblePorProducto } from "@/services/stock";
+import { deudaDelCliente } from "@/services/credito";
 import { formatSoles } from "@/domain/order-email";
 import { displayRazonSocial } from "@/domain/customer-search";
 import { esCelularValido } from "@/domain/celular";
 import { OrderItemComposer } from "./order-item-composer";
 import { CelularDelCliente } from "./celular-cliente";
+import { DeudaDelClienteAviso } from "./deuda-del-cliente";
 import { OrderHeader } from "./order-header";
 import { ObservationForm } from "./observation-form";
 import { DeleteDraftButton } from "./delete-draft-button";
@@ -52,9 +55,15 @@ export default async function OrderDetailPage({
 
   const isDraft = order.estado === "DRAFT";
 
-  const [products, paymentTerms] = await Promise.all([
+  const [products, paymentTerms, stock, deuda] = await Promise.all([
     isDraft ? listProducts() : Promise.resolve([]),
     listPaymentTerms(),
+    // El stock del almacén, para que el vendedor vea cuánto hay ANTES de
+    // ofrecerlo. Solo hace falta mientras se arma el pedido.
+    isDraft ? stockDisponiblePorProducto() : Promise.resolve(new Map<string, number>()),
+    // La deuda se mira mientras se arma el pedido, que es cuando todavía se
+    // puede decidir otra cosa.
+    isDraft ? deudaDelCliente(order.customer?.ruc_o_documento ?? null) : Promise.resolve(null),
   ]);
 
   // La regla vive en domain/products.ts para poder probarla; acá solo se
@@ -67,6 +76,9 @@ export default async function OrderDetailPage({
       descripcion: p.descripcion,
       codigo_interno: p.codigo_interno,
       presentacion: p.presentacion,
+      // Sin fila en el archivo del almacén y en cero son lo mismo para
+      // quien vende: las dos cosas significan que no hay nada que mandar.
+      stock: stock.get(p.id) ?? 0,
     }));
 
   // Los que existen y están activos pero todavía no se pueden pedir. No van
@@ -107,6 +119,8 @@ export default async function OrderDetailPage({
             tieneLineas={order.items.length > 0}
           />
 
+          {deuda && <DeudaDelClienteAviso deuda={deuda} />}
+
           <CelularDelCliente
             orderId={order.id}
             customerId={order.customer_id}
@@ -121,6 +135,9 @@ export default async function OrderDetailPage({
             items={order.items}
             products={activeProducts}
             sinPrecio={sinPrecio}
+            stockPorProducto={Object.fromEntries(
+              order.items.map((i) => [i.product_id, stock.get(i.product_id) ?? 0]),
+            )}
             observaciones={order.observations}
             esAdmin={currentUser?.roles.includes("administrador") ?? false}
             celularOk={celularOk}

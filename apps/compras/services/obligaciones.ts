@@ -20,6 +20,8 @@ import {
 } from '@/domain/obligacion'
 import { puedeMarcarseFacturada, separarPorIgv } from '@/domain/orden-compra'
 import { ERROR_AUTO_APROBACION, esAutoridadFinal, puedeAnular, puedeDecidirSobre, autoridadYaDecidioPagoDirecto, ERROR_ANULAR_TARDE, ERROR_ANULAR_AJENO } from '@/domain/auto-aprobacion'
+import { calcularRxhParaGuardar } from '@/services/retencion-4ta'
+import type { MotivoRetencion4ta, TipoComprobante } from '@/domain/retencion-4ta'
 import { esContabilidadDecisora } from '@/domain/pendientes-aprobar'
 import { avisarAnulacionSinRomper } from '@/services/avisos'
 import type { FiltroCuentasPorPagar } from '@/domain/filtros-cuentas-por-pagar'
@@ -529,9 +531,13 @@ export type ObligacionListada = {
  * domain/categorias-estado-obligacion.ts.
  */
 export async function listarObligaciones(
-  estado?: EstadoObligacion | readonly EstadoObligacion[]
+  estado?: EstadoObligacion | readonly EstadoObligacion[],
+  /** Ya limpia (ver `limpiarBusqueda`). Se resuelve EN LA BASE y no
+   *  filtrando las 200 de abajo: si no, una deuda vieja no aparecería. */
+  busqueda?: string | null
 ): Promise<ObligacionListada[]> {
   const supabase = crearClienteServidor()
+  const condicionBusqueda = busqueda ? await condicionDeBusqueda(busqueda) : null
   let q = supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -545,6 +551,7 @@ export async function listarObligaciones(
   } else if (estado) {
     q = q.eq('estado', estado)
   }
+  if (condicionBusqueda) q = q.or(condicionBusqueda)
 
   const { data, error } = await q
   if (error) throw new Error(`No se pudieron listar las obligaciones: ${error.message}`)
@@ -573,6 +580,36 @@ export async function listarObligaciones(
 }
 
 /**
+ * La condición `or` de PostgREST para el buscador de Cuentas por Pagar: el
+ * código o el N° de factura de la obligación, o un proveedor (de compra o de
+ * servicio, por razón social o RUC) o un beneficiario (usuario o persona sin
+ * usuario) cuyo nombre coincida. Los nombres viven en otras tablas y otros
+ * schemas, así que primero se buscan sus ids.
+ */
+async function condicionDeBusqueda(busqueda: string): Promise<string> {
+  const supabase = crearClienteServidor()
+  const patron = `%${busqueda}%`
+  // Entre comillas dentro del `or`: así un espacio o un punto ("DIMEXA S.A.")
+  // no se confunden con la sintaxis. `limpiarBusqueda` ya sacó las comillas.
+  const enOr = `"${patron}"`
+  const [compra, servicio, perfiles, personas] = await Promise.all([
+    supabase.schema('compras').from('proveedores').select('id')
+      .or(`razon_social.ilike.${enOr},ruc.ilike.${enOr}`).limit(200),
+    supabase.schema('servicios').from('proveedores_servicio').select('id')
+      .or(`razon_social.ilike.${enOr},ruc.ilike.${enOr}`).limit(200),
+    supabase.from('perfiles').select('id').ilike('nombre', patron).limit(200),
+    supabase.from('personas_sin_usuario').select('id').ilike('nombre', patron).limit(200),
+  ])
+  const ids = (r: { data: any[] | null }) => (r.data ?? []).map((x) => x.id as string)
+  const condiciones = [`codigo.ilike.${enOr}`, `numero_factura.ilike.${enOr}`]
+  if (ids(compra).length) condiciones.push(`proveedor_id.in.(${ids(compra).join(',')})`)
+  if (ids(servicio).length) condiciones.push(`proveedor_servicio_id.in.(${ids(servicio).join(',')})`)
+  const beneficiarios = [...ids(perfiles), ...ids(personas)]
+  if (beneficiarios.length) condiciones.push(`beneficiario_id.in.(${beneficiarios.join(',')})`)
+  return condiciones.join(',')
+}
+
+/**
  * La vista de /cuentas-por-pagar resuelta de punta a punta: filtro de
  * estados + el recorte de "listas para pagar", que no se puede hacer en la
  * consulta porque depende del estado de la PROPUESTA, no del de la
@@ -585,7 +622,7 @@ export async function listarObligaciones(
 export async function listarVistaCuentasPorPagar(
   filtro: FiltroCuentasPorPagar
 ): Promise<ObligacionListada[]> {
-  const todas = await listarObligaciones(filtro.estados)
+  const todas = await listarObligaciones(filtro.estados, filtro.busqueda)
   return filtro.soloListas
     ? todas.filter((o) => o.propuesta?.estado === 'aprobada' && !o.yaPagada)
     : todas
@@ -718,6 +755,11 @@ export type ObligacionDetalle = ObligacionListada & {
   base_imponible: number
   /** Lo exonerado de IGV (migración 0078). NO es parte de base_imponible. */
   monto_exonerado: number
+  /** Factura / boleta / RxH (0084); null en las obligaciones de antes. */
+  tipo_comprobante: TipoComprobante | null
+  /** 8% de 4ta retenido a un RxH — ya descontado de neto_a_pagar (0084). */
+  monto_retencion_4ta: number
+  motivo_retencion_4ta: MotivoRetencion4ta | null
   igv: number
   monto_detraccion: number
   fecha_factura: string | null
@@ -790,6 +832,7 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     .schema('cuentas_x_pagar')
     .from('obligaciones')
     .select(`id, codigo, origen, numero_factura, fecha_factura, moneda, total, neto_a_pagar, base_imponible, monto_exonerado, igv,
+             tipo_comprobante, monto_retencion_4ta, motivo_retencion_4ta,
              monto_detraccion, estado, fecha_vencimiento_real, observaciones, espera_nota_credito,
              proveedor_id, proveedor_servicio_id, beneficiario_id,
              oc_id, recepcion_id, categoria_pago_directo_id, cotizacion_storage_path, factura_storage_path,
@@ -832,6 +875,9 @@ export async function obtenerObligacion(id: string): Promise<ObligacionDetalle |
     neto_a_pagar: Number(data.neto_a_pagar),
     base_imponible: Number(data.base_imponible),
     monto_exonerado: Number((data as any).monto_exonerado ?? 0),
+    tipo_comprobante: (data as any).tipo_comprobante ?? null,
+    monto_retencion_4ta: Number((data as any).monto_retencion_4ta ?? 0),
+    motivo_retencion_4ta: (data as any).motivo_retencion_4ta ?? null,
     igv: Number(data.igv),
     monto_detraccion: Number(data.monto_detraccion),
     estado: data.estado,
@@ -1052,6 +1098,46 @@ export async function listarCategoriasPagoDirecto(): Promise<CategoriaPagoDirect
  * fecha de conformidad de recepción acá — la factura es el único hito real)
  * más la condición de pago del proveedor.
  */
+/**
+ * Las columnas de comprobante/IGV/detracción/retención de un Pago Directo.
+ * Para un RxH (0084) el monto del recibo va en la base, sin IGV ni
+ * detracción, y el 8% de 4ta se calcula contra la base — la constancia de
+ * suspensión nunca viene del formulario. Para factura/boleta, lo de siempre.
+ */
+async function columnasDeComprobante(borrador: BorradorPagoDirecto, pendienteFactura: boolean) {
+  if (borrador.tipoComprobante === 'rxh' && !pendienteFactura) {
+    const rxh = await calcularRxhParaGuardar({
+      fuente: borrador.proveedorFuente ?? 'compra',
+      proveedorId: borrador.proveedorId,
+      fechaRecibo: borrador.fechaFactura,
+      monto: borrador.baseImponible,
+      moneda: borrador.moneda,
+      tipoCambio: borrador.tipoCambio,
+      retenerIgual: borrador.retenerIgual,
+    })
+    return {
+      tipo_comprobante: 'rxh' as const,
+      base_imponible: rxh.monto,
+      igv: 0,
+      sin_igv: true,
+      porcentaje_detraccion: null,
+      monto_detraccion: 0,
+      monto_retencion_4ta: rxh.retencion,
+      motivo_retencion_4ta: rxh.motivo,
+    }
+  }
+  return {
+    tipo_comprobante: pendienteFactura ? null : borrador.tipoComprobante ?? 'factura',
+    base_imponible: borrador.baseImponible,
+    igv: igvSegun(borrador.baseImponible, borrador.sinIgv),
+    sin_igv: !!borrador.sinIgv,
+    porcentaje_detraccion: borrador.tieneDetraccion ? borrador.porcentajeDetraccion : null,
+    monto_detraccion: borrador.tieneDetraccion ? borrador.montoDetraccion ?? 0 : 0,
+    monto_retencion_4ta: 0,
+    motivo_retencion_4ta: null,
+  }
+}
+
 export async function registrarPagoDirecto(
   borrador: BorradorPagoDirecto,
 ): Promise<{ id: string; codigo: string; total: number }> {
@@ -1104,6 +1190,8 @@ export async function registrarPagoDirecto(
     }
   }
 
+  const comprobante = await columnasDeComprobante(borrador, !!borrador.pendienteFactura)
+
   const { data: obligacion, error: errIns } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -1116,18 +1204,11 @@ export async function registrarPagoDirecto(
       fecha_factura: borrador.pendienteFactura ? null : borrador.fechaFactura,
       moneda: borrador.moneda,
       tipo_cambio: borrador.tipoCambio,
-      base_imponible: borrador.baseImponible,
-      // Pieza B2: esto FALTABA — la columna tiene default 0, así que todo
-      // Pago Directo quedaba con IGV 0 y, como `total` y `neto_a_pagar` son
-      // columnas generadas sobre (base + igv), Tesorería veía 18% de menos.
-      igv: igvSegun(borrador.baseImponible, borrador.sinIgv),
-      sin_igv: !!borrador.sinIgv,
+      // Base, IGV (Pieza B2: antes faltaba y todo Pago Directo quedaba con
+      // IGV 0), detracción declarada por quien registra (2026-09-07) y, si
+      // es un RxH, la retención de 4ta — ver columnasDeComprobante.
+      ...comprobante,
       condicion_pago_dias: condicionPagoDias,
-      // Sesión 2026-09-07: ya no se elige una categoría de
-      // `tasas_detraccion` (catálogo nunca cargado) — quien registra
-      // declara directamente el % mirando la factura real.
-      porcentaje_detraccion: borrador.tieneDetraccion ? borrador.porcentajeDetraccion : null,
-      monto_detraccion: borrador.tieneDetraccion ? borrador.montoDetraccion ?? 0 : 0,
       estado: borrador.pendienteFactura ? 'pendiente_factura' : 'registrada',
       fecha_vencimiento_real: fechaVencimientoReal,
       observaciones: borrador.descripcion,
@@ -1174,6 +1255,7 @@ export async function obtenerPagoDirectoParaEditar(id: string): Promise<{
     .select(`id, codigo, origen, estado, categoria_pago_directo_id, observaciones, moneda,
              tipo_cambio, base_imponible, sin_igv, condicion_pago_dias, numero_factura,
              fecha_factura, porcentaje_detraccion, monto_detraccion,
+             tipo_comprobante, motivo_retencion_4ta,
              proveedor_id, proveedor_servicio_id`)
     .eq('id', id)
     .maybeSingle()
@@ -1255,7 +1337,7 @@ export async function editarPagoDirecto(
     ? null
     : normalizarNumeroFactura(borrador.numeroFactura)
 
-  const igv = igvSegun(borrador.baseImponible, borrador.sinIgv)
+  const comprobante = await columnasDeComprobante(borrador, pendienteFactura)
   const { error: errUpd } = await supabase
     .schema('cuentas_x_pagar')
     .from('obligaciones')
@@ -1267,12 +1349,8 @@ export async function editarPagoDirecto(
       fecha_factura: pendienteFactura ? null : borrador.fechaFactura,
       moneda: borrador.moneda,
       tipo_cambio: borrador.tipoCambio,
-      base_imponible: borrador.baseImponible,
-      igv,
-      sin_igv: !!borrador.sinIgv,
+      ...comprobante,
       condicion_pago_dias: condicionPagoDias,
-      porcentaje_detraccion: borrador.tieneDetraccion ? borrador.porcentajeDetraccion : null,
-      monto_detraccion: borrador.tieneDetraccion ? borrador.montoDetraccion ?? 0 : 0,
       fecha_vencimiento_real: fechaVencimientoReal,
       observaciones: borrador.descripcion,
       editado_por: usuario.id,
@@ -1288,7 +1366,7 @@ export async function editarPagoDirecto(
 
   return {
     montoAntes: Number(actual.total),
-    montoDespues: borrador.baseImponible + igv,
+    montoDespues: comprobante.base_imponible + comprobante.igv,
     codigo: actual.codigo,
   }
 }

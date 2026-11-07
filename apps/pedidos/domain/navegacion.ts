@@ -98,8 +98,15 @@ export const SECCIONES: Seccion[] = [
   {
     href: "/aprobador-comercial",
     title: "Aprobaciones comerciales",
-    description: "Solicitudes de descuento que frenan el pedido hasta resolverse.",
+    description:
+      "Descuentos y pedidos frenados por deuda del cliente, que no avanzan hasta resolverse.",
     roles: ["administrador", "aprobador_comercial"],
+  },
+  {
+    href: "/admin/credito",
+    title: "Crédito del cliente",
+    description: "La deuda que llega de cobranzas y la regla que frena un pedido a crédito.",
+    roles: ["administrador"],
   },
   {
     href: "/control-pedidos/documentos",

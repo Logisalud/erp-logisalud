@@ -183,3 +183,13 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+  Impresión de la hoja de ruta. El chofer sale con papel: los controles de
+  la pantalla (checkboxes, botones, enlaces "Despachar") no van a la hoja.
+*/
+@media print {
+  .no-imprimir {
+    display: none !important;
+  }
+}

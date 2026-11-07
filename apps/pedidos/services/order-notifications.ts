@@ -624,12 +624,21 @@ export async function notifyPaymentTermsApprovalRequested(
  * Sin esto, el aprobador tenía que acordarse de mirar la bandeja: el pedido
  * se frena y nadie se enteraba. El cuerpo es el mismo detalle del pedido, con
  * las líneas negociadas marcadas y sus dos precios.
+ *
+ * El `motivo` lo arma `submit_order` y puede traer más de una razón: un
+ * descuento Y la deuda del cliente, por ejemplo. Va adelante del texto fijo
+ * porque es lo único que cambia de un pedido a otro — y porque un pedido
+ * frenado por deuda tiene que decirlo en el correo, no solo en la pantalla.
+ * Pasó al revés con el #445 (GRUPO BARIZAL, 2026-10-30): el correo hablaba
+ * solo del precio especial y el cliente debía S/ 719,99 de hacía 78 días.
  */
 export async function notifyDiscountRequested(
   orderId: string,
   estadoResultado: string,
   actor: string,
+  motivo?: string | null,
 ): Promise<NotifyResult> {
+  const detalle = motivo?.trim();
   return notificarPedido({
     orderId,
     estadoResultado,
@@ -639,8 +648,9 @@ export async function notifyDiscountRequested(
       asunto: "Descuento por aprobar — pedido",
       titulo: `Descuento por aprobar — pedido #__NUMERO__`,
       lead:
-        "Un vendedor pidió un precio especial. El pedido no avanza hasta que " +
-        "se apruebe o se rechace en Aprobaciones comerciales.",
+        (detalle ? `${detalle}. ` : "Un vendedor pidió un precio especial. ") +
+        "El pedido no avanza hasta que se apruebe o se rechace en " +
+        "Aprobaciones comerciales.",
     },
   });
 }

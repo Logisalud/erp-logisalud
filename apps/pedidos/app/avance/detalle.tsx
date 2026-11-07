@@ -24,9 +24,12 @@ const fechaCorta = (iso: string | null) => {
 export function DetalleDeVenta({
   filas,
   mostrarVendedor,
+  periodo,
 }: {
   filas: LineaDetalle[];
   mostrarVendedor: boolean;
+  /** El mes que se está mirando: el Excel baja ese, no el último. */
+  periodo?: string;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [soloNotas, setSoloNotas] = useState(false);
@@ -49,7 +52,10 @@ export function DetalleDeVenta({
     <section className="card flex flex-col gap-3 p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-heading text-lg">Mi detalle de venta</h2>
-        <a href="/avance/excel" className="text-sm font-medium text-logisalud-green underline">
+        <a
+          href={periodo ? `/avance/excel?periodo=${encodeURIComponent(periodo)}` : "/avance/excel"}
+          className="text-sm font-medium text-logisalud-green underline"
+        >
           Bajar en Excel
         </a>
       </div>

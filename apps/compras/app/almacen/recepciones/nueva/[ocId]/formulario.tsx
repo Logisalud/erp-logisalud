@@ -59,14 +59,12 @@ export function FormularioRecepcion({
    * Una fila por guía: su número y su archivo juntos. Arranca con una sola
    * —el caso normal es una guía— y se agregan las que hagan falta.
    */
-  const [guias, setGuias] = useState<FilaGuia[]>([{ numero: '', path: null, nombre: null }])
-  const [pathFactura, setPathFactura] = useState<string | null>(null)
-  const [nombreFactura, setNombreFactura] = useState<string | null>(null)
+  const [guias, setGuias] = useState<FilaPapel[]>([{ numero: '', path: null, nombre: null }])
+  /** Igual que las guías: casi siempre una, a veces el proveedor factura la
+   *  entrega en dos (OC-2026-0050 de DIMEXA, 2026-11-04). */
+  const [facturas, setFacturas] = useState<FilaPapel[]>([{ numero: '', path: null, nombre: null }])
   const [subiendo, setSubiendo] = useState<string | null>(null)
   const [errorArchivo, setErrorArchivo] = useState<string | null>(null)
-
-  const setGuia = (i: number, cambios: Partial<FilaGuia>) =>
-    setGuias((prev) => prev.map((g, j) => (j === i ? { ...g, ...cambios } : g)))
 
   const set = (id: string, cambios: Partial<{ factura: string; fisica: string; obs: string }>) =>
     setValores((prev) => ({ ...prev, [id]: { ...prev[id], ...cambios } }))
@@ -120,7 +118,10 @@ export function FormularioRecepcion({
         type="hidden" name="guias"
         value={JSON.stringify(guias.map((g) => ({ numero: g.numero, storagePath: g.path })))}
       />
-      <input type="hidden" name="pathFactura" value={pathFactura ?? ''} />
+      <input
+        type="hidden" name="facturas"
+        value={JSON.stringify(facturas.map((f) => ({ numero: f.numero, storagePath: f.path })))}
+      />
       <input type="hidden" name="lineas" value={JSON.stringify(lineas.map((l) => ({
         ocItemId: l.ocItemId,
         cantidadFactura: l.cantidadFactura,
@@ -138,80 +139,26 @@ export function FormularioRecepcion({
           guía llegan juntas, así que se piden juntas. */}
       <section className="card space-y-3">
         <h2 className="font-heading text-base">Los papeles que vinieron</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-sm">
-            <span className="text-gray-600">Fecha de llegada</span>
-            <input
-              type="date" name="fechaRecepcion" required defaultValue={hoyLima()} max={hoyLima()}
-              className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-gray-600">N° de factura</span>
-            <input
-              type="text" name="numeroFactura" required placeholder="F001-00012345"
-              className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
-            />
-          </label>
-        </div>
+        <label className="block text-sm sm:max-w-xs">
+          <span className="text-gray-600">Fecha de llegada</span>
+          <input
+            type="date" name="fechaRecepcion" required defaultValue={hoyLima()} max={hoyLima()}
+            className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
+          />
+        </label>
 
         {/* Las guías, una fila por guía. Cuando el proveedor entrega en dos
             viajes con la misma factura, cada guía trae su número Y su
             papel — pedir los números separados por coma con un solo archivo
             dejaba el legajo incompleto sin que nada avisara. */}
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-gray-800">
-            Guías de remisión <span className="font-normal text-gray-500">— una por cada guía que llegó</span>
-          </p>
-          {guias.map((g, i) => (
-            <div key={i} className="grid gap-2 rounded-md border border-gray-200 p-3 sm:grid-cols-[1fr_2fr_auto] sm:items-start">
-              <label className="block text-sm">
-                <span className="text-gray-600">N° de guía {guias.length > 1 ? i + 1 : ''}</span>
-                <input
-                  type="text" value={g.numero} placeholder="G-001"
-                  onChange={(e) => setGuia(i, { numero: e.target.value })}
-                  className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
-                />
-              </label>
-              <CampoDocumento
-                etiqueta="📎 Su archivo" cual="guia"
-                nombre={g.nombre} subiendo={subiendo === `guia-${i}`}
-                onElegir={(cual, archivo) =>
-                  subir(`guia-${i}`, cual, archivo, (path, nombre) => setGuia(i, { path, nombre }))
-                }
-              />
-              {guias.length > 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setGuias((prev) => prev.filter((_, j) => j !== i))}
-                  className="mt-1 self-center text-sm text-red-700 underline sm:mt-6"
-                >
-                  Quitar
-                </button>
-              ) : null}
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setGuias((prev) => [...prev, { numero: '', path: null, nombre: null }])}
-            className="btn-secondary"
-          >
-            + Agregar otra guía
-          </button>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <CampoDocumento
-            etiqueta="📎 Factura" cual="factura"
-            nombre={nombreFactura} subiendo={subiendo === 'factura'}
-            onElegir={(cual, archivo) =>
-              subir('factura', cual, archivo, (path, nombre) => {
-                setPathFactura(path)
-                setNombreFactura(nombre)
-              })
-            }
-          />
-        </div>
+        <ListaPapeles
+          tipo="guia" filas={guias} setFilas={setGuias} subiendo={subiendo}
+          onElegir={(clave, archivo, alSubir) => subir(clave, 'guia', archivo, alSubir)}
+        />
+        <ListaPapeles
+          tipo="factura" filas={facturas} setFilas={setFacturas} subiendo={subiendo}
+          onElegir={(clave, archivo, alSubir) => subir(clave, 'factura', archivo, alSubir)}
+        />
         {errorArchivo ? (
           <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             {errorArchivo}
@@ -342,13 +289,13 @@ export function FormularioRecepcion({
             no se decide acá: se decide cuando ya se sabe qué llegó. */}
         <p className="text-xs text-gray-600">{mensajePendienteDeCierre(cierre)}</p>
 
-        {/* Al menos una guía COMPLETA (número + archivo). El mismo criterio
+        {/* Al menos una guía y una factura COMPLETAS (número + archivo). El mismo criterio
             que valida el servidor, para no dejar apretar algo que va a
             volver con error. */}
         <BotonRegistrar
           bloqueado={
             subiendo !== null ||
-            !pathFactura ||
+            !facturas.some((f) => f.numero.trim() && f.path) ||
             !guias.some((g) => g.numero.trim() && g.path)
           }
         />
@@ -357,8 +304,68 @@ export function FormularioRecepcion({
   )
 }
 
-/** Una fila del formulario de guías: número, y el archivo ya subido. */
-type FilaGuia = { numero: string; path: string | null; nombre: string | null }
+/** Una fila de guía o de factura: número, y el archivo ya subido. */
+type FilaPapel = { numero: string; path: string | null; nombre: string | null }
+
+const TEXTOS_PAPEL = {
+  guia: { titulo: 'Guías de remisión', ayuda: 'una por cada guía que llegó', numero: 'N° de guía', ejemplo: 'T001-000123', otra: '+ Agregar otra guía' },
+  factura: { titulo: 'Facturas', ayuda: 'una por cada factura que vino con esta entrega', numero: 'N° de factura', ejemplo: 'F001-00012345', otra: '+ Agregar otra factura' },
+} as const
+
+/** Las filas de guías o de facturas: número + archivo, agregar y quitar. */
+function ListaPapeles({
+  tipo, filas, setFilas, subiendo, onElegir,
+}: {
+  tipo: 'guia' | 'factura'
+  filas: FilaPapel[]
+  setFilas: (f: (prev: FilaPapel[]) => FilaPapel[]) => void
+  subiendo: string | null
+  onElegir: (clave: string, archivo: File | undefined, alSubir: (path: string, nombre: string) => void) => void
+}) {
+  const t = TEXTOS_PAPEL[tipo]
+  const setFila = (i: number, cambios: Partial<FilaPapel>) =>
+    setFilas((prev) => prev.map((f, j) => (j === i ? { ...f, ...cambios } : f)))
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-gray-800">
+        {t.titulo} <span className="font-normal text-gray-500">— {t.ayuda}</span>
+      </p>
+      {filas.map((f, i) => (
+        <div key={i} className="grid gap-2 rounded-md border border-gray-200 p-3 sm:grid-cols-[1fr_2fr_auto] sm:items-start">
+          <label className="block text-sm">
+            <span className="text-gray-600">{t.numero} {filas.length > 1 ? i + 1 : ''}</span>
+            <input
+              type="text" value={f.numero} placeholder={t.ejemplo}
+              onChange={(e) => setFila(i, { numero: e.target.value })}
+              className="mt-1 min-h-12 w-full rounded-md border border-gray-300 px-3"
+            />
+          </label>
+          <CampoDocumento
+            etiqueta="📎 Su archivo" cual={tipo}
+            nombre={f.nombre} subiendo={subiendo === `${tipo}-${i}`}
+            onElegir={(_cual, archivo) => onElegir(`${tipo}-${i}`, archivo, (path, nombre) => setFila(i, { path, nombre }))}
+          />
+          {filas.length > 1 ? (
+            <button
+              type="button"
+              onClick={() => setFilas((prev) => prev.filter((_, j) => j !== i))}
+              className="mt-1 self-center text-sm text-red-700 underline sm:mt-6"
+            >
+              Quitar
+            </button>
+          ) : null}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => setFilas((prev) => [...prev, { numero: '', path: null, nombre: null }])}
+        className="btn-secondary"
+      >
+        {t.otra}
+      </button>
+    </div>
+  )
+}
 
 function CampoDocumento({
   etiqueta, cual, nombre, subiendo, onElegir,

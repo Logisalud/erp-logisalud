@@ -28,6 +28,17 @@ export default function VendedoresLinksVista() {
     cargar();
   }, []);
 
+  /**
+   * Las que ya no están se esconden, no se borran.
+   *
+   * Una vendedora que se fue queda `activo = false` —su link deja de
+   * funcionar en el acto— pero seguía apareciendo en la lista con una
+   * etiqueta gris, y en la oficina preguntaban todas las semanas por qué
+   * sigue ahí. Se ocultan por defecto y quedan a un clic, que es lo que
+   * hace falta el día que haya que regenerarle un token o mirar algo suyo.
+   */
+  const [verInactivos, setVerInactivos] = useState(false);
+
   async function cargar() {
     setCargando(true);
     const res = await fetch('/api/vendedores-links', { cache: 'no-store' });
@@ -55,6 +66,9 @@ export default function VendedoresLinksVista() {
     setTimeout(() => setCopiado(null), 1500);
   }
 
+  const inactivos = vendedores.filter(v => !v.activo);
+  const visibles = verInactivos ? vendedores : vendedores.filter(v => v.activo);
+
   return (
     <div>
       <header className="px-6 py-4" style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}>
@@ -78,7 +92,7 @@ export default function VendedoresLinksVista() {
           <p className="text-gray-400 text-sm">Cargando…</p>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden divide-y divide-gray-100">
-            {vendedores.map(v => (
+            {visibles.map(v => (
               <div key={v.id} className="px-4 py-3 flex items-center gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-gray-800">
@@ -124,6 +138,17 @@ export default function VendedoresLinksVista() {
               </div>
             ))}
           </div>
+        )}
+
+        {!cargando && inactivos.length > 0 && (
+          <button
+            onClick={() => setVerInactivos(v => !v)}
+            className="mt-3 text-xs text-gray-400 hover:text-gray-600 underline"
+          >
+            {verInactivos
+              ? 'Ocultar quienes ya no están'
+              : `Ver ${inactivos.length} que ya no ${inactivos.length === 1 ? 'está' : 'están'}`}
+          </button>
         )}
 
         <p className="text-xs text-gray-400 mt-4">

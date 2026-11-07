@@ -173,6 +173,11 @@ export type BorradorSolicitud = {
    * Vive en el borrador porque de él depende si `fechaFactura` es
    * obligatoria — así la regla es pura y testeable, sin leer el FormData. */
   tipoComprobante?: TipoComprobante | null
+  /** Solo si `moneda` es USD: soles por dólar del día del comprobante (o del
+   * pedido, en un anticipo). La deuda que nace de la solicitud lo exige —
+   * sin él, Contabilidad no podía aprobar ningún reembolso en dólares (los
+   * 14 de suscripciones de software de octubre de 2026). */
+  tipoCambio?: number | null
 }
 
 export const TIPOS_COMPROBANTE = ['factura', 'boleta', 'sin_comprobante'] as const
@@ -191,6 +196,9 @@ export function validarSolicitud(b: BorradorSolicitud): ErrorValidacion[] {
   if (!b.categoriaId) errores.push({ campo: 'categoriaId', mensaje: 'Elige una categoría de gasto.' })
   if (!b.descripcion.trim()) errores.push({ campo: 'descripcion', mensaje: 'Cuenta para qué es este gasto.' })
   if (b.moneda !== 'PEN' && b.moneda !== 'USD') errores.push({ campo: 'moneda', mensaje: 'La moneda tiene que ser PEN o USD.' })
+  if (b.moneda === 'USD' && !(Number(b.tipoCambio) > 0)) {
+    errores.push({ campo: 'tipoCambio', mensaje: 'En dólares hace falta el tipo de cambio (soles por dólar).' })
+  }
 
   if (b.tipo === 'anticipo') {
     if (!(Number(b.montoAnticipo) > 0)) errores.push({ campo: 'montoAnticipo', mensaje: 'El monto tiene que ser mayor a 0.' })
