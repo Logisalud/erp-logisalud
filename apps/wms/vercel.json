@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/wms packages/auth package.json package-lock.json",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ../../packages/auth ../../package.json ../../package-lock.json",
   "git": {
     "deploymentEnabled": {
       "main": true
