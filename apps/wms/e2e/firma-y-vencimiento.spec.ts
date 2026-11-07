@@ -50,7 +50,7 @@ test.describe('piloto F: vencimiento y formato', () => {
     await expect(page.getByRole('heading', { name: 'Evaluación organoléptica' })).toBeVisible()
     await expect(page.getByTestId('version-formato')).toContainText('LS-FR.55.02 · versión 1')
     await expect(page.getByTestId('panel-formato')).toContainText('Hoy rige la versión 1')
-    await expect(page.getByText('III. Material del envase').first()).toBeVisible()
+    await expect(page.getByText('III. Material del envase')).toHaveCount(0)
     await capturar(page, info, 'organoleptica-formato-version', { completa: true })
     await page.getByTestId('aprobar-version-2').click()
     await expect(page.getByTestId('panel-formato')).toHaveCount(0)

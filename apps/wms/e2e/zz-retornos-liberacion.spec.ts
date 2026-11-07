@@ -73,7 +73,6 @@ async function llenarYEnviarActa(page: Page, lote: string) {
   await page.goto('/wms/calidad')
   await page.getByTestId('fila-organoleptica').filter({ hasText: `Lote ${lote}` }).first().click()
   await page.getByTestId('marcar-conformes').click()
-  await page.getByRole('checkbox', { name: 'Envase de plástico' }).click()
   await page.getByTestId('marcar-conformes').click()
   await page.getByRole('group', { name: /Trae certificado/ }).getByRole('radio', { name: 'Sí' }).click()
   await page.getByRole('group', { name: /Destino que sugieres/ }).getByRole('radio', { name: 'Aprobado' }).click()
@@ -299,7 +298,6 @@ test.describe('observación reversible de un producto', () => {
     if (await delRetorno.count()) {
       await delRetorno.click()
       await page.getByTestId('marcar-conformes').click()
-      await page.getByRole('checkbox', { name: 'Envase de plástico' }).click()
       await page.getByTestId('marcar-conformes').click()
       await page.getByRole('group', { name: /Trae certificado/ }).getByRole('radio', { name: 'Sí' }).click()
       await page.getByRole('group', { name: /Destino que sugieres/ }).getByRole('radio', { name: 'Aprobado' }).click()

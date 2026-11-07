@@ -71,8 +71,8 @@ describe('sustento por motivo (aprobado por Katia)', () => {
 })
 
 describe('la evaluación y el archivo', () => {
-  it('la evaluación pide checklist, material, observación y conclusión; no conforme pide marcar algo', () => {
-    expect(faltantesEvaluacion({ checklist: {}, certAnalisis: null, observacion: '', conclusion: null }).join(' ')).toMatch(/material[\s\S]*checklist[\s\S]*observación[\s\S]*conclusión/)
+  it('la evaluación pide checklist, observación y conclusión; no conforme pide marcar algo', () => {
+    expect(faltantesEvaluacion({ checklist: {}, certAnalisis: null, observacion: '', conclusion: null }).join(' ')).toMatch(/checklist[\s\S]*observación[\s\S]*conclusión/)
     expect(faltantesEvaluacion({ checklist: { emb_cerrado: 'C' }, certAnalisis: null, observacion: 'x', conclusion: 'NO_CONFORME' }).some((m) => /al menos un punto como no conforme/.test(m))).toBe(true)
   })
   it('el archivo es PDF o imagen, no vacío y de hasta 10 MB', () => {

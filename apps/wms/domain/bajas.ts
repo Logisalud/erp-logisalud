@@ -277,9 +277,7 @@ export function primerFaltante(o: Pick<OrdenBajaVista, 'lineas'>): string | null
 /** Una evaluación completa para guardarla: lo que falta, en palabras de personas. */
 export function faltantesEvaluacion(d: DatosEvaluacionBaja): string[] {
   const f: string[] = []
-  const pend = itemsPendientes(d.checklist)
-  if (pend.includes('material')) f.push('Marca el material del envase (vidrio, plástico, tubo, blíster u otro).')
-  const sin = pend.filter((p) => p !== 'material').length
+  const sin = itemsPendientes(d.checklist).length
   if (sin > 0) f.push(`Faltan ${sin} puntos del checklist por responder.`)
   if (!d.observacion.trim()) f.push('Describe lo que viste en la observación.')
   if (!d.conclusion) f.push('Elige la conclusión (conforme o no conforme).')

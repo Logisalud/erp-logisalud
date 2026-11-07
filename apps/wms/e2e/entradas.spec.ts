@@ -314,7 +314,6 @@ test.describe('calidad', () => {
     await expect(page.getByTestId('enviar-dt')).toBeDisabled()
     await expect(page.getByTestId('faltan-enviar')).toContainText('certificado')
     await page.getByTestId('marcar-conformes').click()
-    await page.getByRole('checkbox', { name: 'Envase de plástico' }).click()
     await page.getByTestId('marcar-conformes').click()
     await page.getByRole('radio', { name: 'Sí' }).last().click().catch(() => {})
     await capturar(page, info, 'calidad-acta-sandra', { completa: true })

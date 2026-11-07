@@ -15,7 +15,7 @@ import { ETIQUETA_REGIMEN, explicarRegimen, textoMuestra } from '@/domain/muestr
 import { ChipEstado } from '../chips'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
-import { SEGMENTO_CONFORME, SEGMENTO_NO_CONFORME, SEGMENTO_NO_APLICA, SEGMENTO_INACTIVO, PILDORA_ACTIVA, PILDORA_ACTIVA_ROJA, PILDORA_INACTIVA, PILDORA_INACTIVA_HOVER } from '@/components/estilos-opcion'
+import { SEGMENTO_CONFORME, SEGMENTO_NO_CONFORME, SEGMENTO_NO_APLICA, SEGMENTO_INACTIVO, PILDORA_ACTIVA, PILDORA_ACTIVA_ROJA, PILDORA_INACTIVA } from '@/components/estilos-opcion'
 
 const RESPUESTAS: Respuesta[] = ['C', 'NC', 'NA']
 const TXT: Record<Respuesta, string> = { C: 'Conforme', NC: 'No conforme', NA: 'No aplica' }
@@ -47,12 +47,10 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
   const [destino, setDestino] = useState(acta.datos.destinoSugerido)
   const [conclusion, setConclusion] = useState(acta.datos.conclusion)
   const [concluyoSolo, setConcluyoSolo] = useState(acta.datos.conclusion == null)
-  const [materiales, setMateriales] = useState<Set<string>>(() => new Set(CHECKLIST_ORGANOLEPTICO.filter((g) => g.opcional && g.items.some((i) => acta.datos.checklist[i.id])).map((g) => g.id)))
   const [obsDt, setObsDt] = useState('')
 
   const datos: DatosOrganoleptica = { certAnalisis: cert, checklist, observacion: obs, destinoSugerido: destino, conclusion }
-  const sinEnvase = !!acta.materialEnvaseOculto
-  const faltan = useMemo(() => faltantesParaEnviar(datos, sinEnvase), [checklist, cert, destino, conclusion, sinEnvase]) // eslint-disable-line react-hooks/exhaustive-deps
+  const faltan = useMemo(() => faltantesParaEnviar(datos), [checklist, cert, destino, conclusion]) // eslint-disable-line react-hooks/exhaustive-deps
   const noConformes = itemsNoConformes(checklist)
   const rsVencido = !!acta.rsVence && acta.rsVence < hoy
   const rotaAprobar = validarDecision('APROBADO', conclusion, acta.rsVence, hoy, true, acta.productoCompleto !== false)
@@ -64,15 +62,13 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
   }
   function marcarConformes() {
     const nuevo = { ...checklist }
-    for (const g of CHECKLIST_ORGANOLEPTICO) if (!g.opcional || materiales.has(g.id)) for (const i of g.items) if (!nuevo[i.id]) nuevo[i.id] = 'C'
+    for (const g of CHECKLIST_ORGANOLEPTICO) for (const i of g.items) if (!nuevo[i.id]) nuevo[i.id] = 'C'
     setChecklist(nuevo)
     if (concluyoSolo) setConclusion(sugerirConclusion(nuevo))
   }
   const guardar = (enviar: boolean) => ejecutar(() => guardarOrganolepticaAccion(acta.id, { certAnalisis: cert, checklist, observacion: obs, destinoSugerido: destino, conclusion }, enviar),
     { exito: enviar ? 'Enviada a Dirección Técnica.' : 'Borrador guardado.' })
 
-  const grupos = CHECKLIST_ORGANOLEPTICO.filter((g) => !g.opcional || (!sinEnvase && (materiales.has(g.id) || bloqueada)))
-  const opcionales = CHECKLIST_ORGANOLEPTICO.filter((g) => g.opcional)
 
   return (
     <div className="space-y-6">
@@ -86,7 +82,6 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
           ].map(([k, v]) => <div key={k} className="flex justify-between gap-3 py-2"><dt className="text-gray-600">{k}</dt><dd className="text-right text-gray-900">{v || '—'}</dd></div>)}
         </dl>
         <p className="mt-2 text-xs text-gray-600" data-testid="version-formato">Formato {CODIGO_FORMATO.ACTA_ORGANOLEPTICA} · versión {acta.formatoVersion ?? 1}</p>
-        {sinEnvase && <div className="mt-3"><Aviso tipo="info" testid="sin-material-envase">Dirección Técnica marcó este producto como «sin material de envase»: el punto «Material del envase» no se pide en esta versión del formato.</Aviso></div>}
         <p className="mt-3 rounded-md bg-teal-50 p-3 text-sm text-teal-950" data-testid="muestra"><strong>{textoMuestra(acta.cantidadMuestra, acta.regimenMuestreo, acta.tablaMuestreo, acta.cantidadLote)}</strong>{acta.regimenMuestreo ? ` ${explicarRegimen(acta.regimenMuestreo)}` : ''} La muestra vuelve completa a su caja: no descuenta stock.</p>
         {acta.regimenMuestreo && <p className="mt-1 text-xs text-gray-600" data-testid="regimen-muestreo">{ETIQUETA_REGIMEN[acta.regimenMuestreo]} · tabla {acta.tablaMuestreo}. La tabla es un parámetro: Dirección Técnica la cambia sin tocar el sistema.</p>}
         {rsVencido && <div className="mt-3"><Aviso tipo="error" testid="aviso-rs-vencido"><strong>El registro sanitario está vencido.</strong> Este lote se puede rechazar, pero no aprobar, hasta que Dirección Técnica resuelva el registro.</Aviso></div>}
@@ -99,7 +94,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
         </div>
       )}
 
-      {grupos.map((g) => (
+      {CHECKLIST_ORGANOLEPTICO.map((g) => (
         <section key={g.id} className="card" aria-labelledby={`g-${g.id}`} data-testid={`grupo-${g.id}`}>
           <h2 id={`g-${g.id}`} className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">{g.titulo}</h2>
           <ul className="mt-2 divide-y divide-gray-100">
@@ -113,19 +108,6 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
           </ul>
         </section>
       ))}
-
-      {editable && !sinEnvase && (
-        <fieldset className="card">
-          <legend className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">III. Material del envase</legend>
-          <p className="text-sm text-gray-600">Marca los materiales que tiene el producto; aparece su checklist.</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {opcionales.map((g) => {
-              const on = materiales.has(g.id)
-              return <button key={g.id} type="button" role="checkbox" aria-checked={on} onClick={() => setMateriales((m) => { const n = new Set(m); if (on) n.delete(g.id); else n.add(g.id); return n })} className={`min-h-11 rounded-full border px-4 text-sm font-medium transition duration-fast ${on ? PILDORA_ACTIVA : PILDORA_INACTIVA_HOVER}`}>{g.titulo.replace('III. ', '')}</button>
-            })}
-          </div>
-        </fieldset>
-      )}
 
       <section className="card space-y-5" aria-labelledby="cierre">
         <h2 id="cierre" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Cierre del acta</h2>
