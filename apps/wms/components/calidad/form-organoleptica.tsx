@@ -55,7 +55,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, 
   const faltan = useMemo(() => faltantesParaEnviar(datos, sinEnvase), [checklist, cert, destino, conclusion, sinEnvase]) // eslint-disable-line react-hooks/exhaustive-deps
   const noConformes = itemsNoConformes(checklist)
   const rsVencido = !!acta.rsVence && acta.rsVence < hoy
-  const rotaAprobar = validarDecision('APROBADO', conclusion, acta.rsVence, hoy)
+  const rotaAprobar = validarDecision('APROBADO', conclusion, acta.rsVence, hoy, true, acta.productoCompleto !== false)
 
   function responder(id: string, r: Respuesta) {
     const nuevo = { ...checklist, [id]: r }

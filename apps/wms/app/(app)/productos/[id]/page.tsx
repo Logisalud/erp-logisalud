@@ -9,6 +9,8 @@ import { etiquetaCampo } from '@/domain/tipos'
 import { diasHasta, situacionRS } from '@/domain/regulatorio'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { ChipEstado, ChipPorTrasladar, ChipRS } from '@/components/chips'
+import { modoPilotoActivo } from '@/lib/modo-piloto'
+import { datosFaltantes, productoCompleto } from '@/domain/regulatorio'
 import { FormRegulatorio } from '@/components/form-regulatorio'
 import { PanelValidarProducto } from '@/components/panel-validar-producto'
 import { vistaPropietario } from '@/components/propietarios-color'
@@ -17,7 +19,7 @@ export const metadata = { title: 'Producto — WMS LOGISALUD' }
 
 export default async function DetalleProducto({ params, searchParams }: { params: { id: string }; searchParams: { creado?: string } }) {
   const ctx = await exigirContexto()
-  const p = await repositorio().panorama()
+  const [p, piloto] = await Promise.all([repositorio().panorama(), modoPilotoActivo()])
   const id = decodeURIComponent(params.id)
   const prod = p.productos.find((x) => x.id === id)
   if (!prod) notFound()
@@ -46,6 +48,13 @@ export default async function DetalleProducto({ params, searchParams }: { params
             <p className="font-medium">Listo. El producto quedó dado de alta.</p>
             <p className="text-sm">{reg?.estadoValidacion === 'PENDIENTE' ? 'Sigue: Dirección Técnica lo valida para que se puedan aprobar sus lotes. Cualquier cambio posterior queda en el historial con su motivo.' : 'Sus datos regulatorios ya rigen. Cualquier cambio posterior queda en el historial con su motivo.'}</p>
           </div>
+        </div>
+      )}
+
+      {!productoCompleto(reg) && (
+        <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="producto-pendiente-dt">
+          <p className="font-medium">Pendiente de Dirección Técnica</p>
+          <p className="mt-1">Faltan sus datos regulatorios: {datosFaltantes(reg).join(', ')}. Hasta completarlos no se aprueban lotes de este producto.{puedeEditar ? ' Complétalos abajo, en «Editar los datos regulatorios».' : ''}</p>
         </div>
       )}
 
@@ -93,7 +102,7 @@ export default async function DetalleProducto({ params, searchParams }: { params
         <section className="card border-2 border-teal-400" aria-labelledby="editar" data-testid="panel-regulatorio">
           <h2 id="editar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Editar datos regulatorios y del producto</h2>
           <p className="mb-3 mt-1 text-sm text-gray-600">Katia y Sandra tienen la misma autoridad. El cambio rige de inmediato (si lo haces como Administrador, Dirección Técnica lo valida después) y queda registrado con tu nombre, la fecha y el motivo.</p>
-          <FormRegulatorio productoId={prod.id} reg={reg} presentacion={prod.presentacion} principioActivo={prod.principioActivo} puedeMarcarSinEnvase={ctx.roles.includes('direccion_tecnica')} />
+          <FormRegulatorio productoId={prod.id} reg={reg} presentacion={prod.presentacion} principioActivo={prod.principioActivo} puedeMarcarSinEnvase={ctx.roles.includes('direccion_tecnica')} catalogoEnCompras={piloto} />
         </section>
       )}
 

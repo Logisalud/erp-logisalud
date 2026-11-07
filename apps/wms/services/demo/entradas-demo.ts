@@ -24,6 +24,7 @@ import type {
 import { hoyEnLima, parsearVencimiento } from '@/domain/fechas'
 import { avisosDeVencimiento, validarCorreccionVencimiento, VIDA_UTIL_MINIMA_MESES, ROLES_CORRIGEN_VENCIMIENTO, type AvisoVencimiento, type CambioVencimientoLote } from '@/domain/vencimiento'
 import { ocultaMaterialEnvase, versionVigente, type FormatoControlado, type VersionFormatoVista } from '@/domain/formatos'
+import { productoCompleto } from '@/domain/regulatorio'
 import { archivosEnMemoria } from '../archivos-memoria'
 import { FIRMA_PNG_EJEMPLO, procesarFirmaPng } from '../firma-imagen'
 import { antecedenteVigente, planDeMuestreo, tablaVigente, TABLA_LS_TB_02_02 } from '@/domain/muestreo'
@@ -495,8 +496,9 @@ export function vistaOrganoleptica(e: EstadoDemo, o: OrganolepticaVista): Organo
   const desde = ESTADO_INICIAL[o.ingresoTipo]
   const pendiente = e.panorama.saldos.filter((x) => x.procedenciaId === o.ingresoLoteId && x.estado === desde && x.cantidad > 0).reduce((t, x) => t + x.cantidad, 0)
   const sinMaterialEnvase = !!producto(e, o.productoId)?.reg?.sinMaterialEnvase
+  const completo = productoCompleto(producto(e, o.productoId)?.reg)
   const formatoVersion = o.formatoVersion ?? 1
-  return structuredClone({ ...o, formatoVersion, sinMaterialEnvase, materialEnvaseOculto: ocultaMaterialEnvase(formatoVersion, sinMaterialEnvase), esDeCliente: !!s && s.propietarioId !== dueno, pendienteDecision: o.estado === 'FIRMADA' ? 0 : pendiente, observaciones: o.observaciones ?? [], dictamenes: o.dictamenes ?? [] })
+  return structuredClone({ ...o, formatoVersion, sinMaterialEnvase, productoCompleto: completo, materialEnvaseOculto: ocultaMaterialEnvase(formatoVersion, sinMaterialEnvase), esDeCliente: !!s && s.propietarioId !== dueno, pendienteDecision: o.estado === 'FIRMADA' ? 0 : pendiente, observaciones: o.observaciones ?? [], dictamenes: o.dictamenes ?? [] })
 }
 
 export const esActaObservada = (o: OrganolepticaVista) => (o.observaciones ?? []).some(observacionVigente)
@@ -958,7 +960,7 @@ export class MotorEntradas {
     if (o.estado !== 'PENDIENTE_DT') return falla('El acta todavía no está completa: falta que la envíen a Dirección Técnica')
     if (vistaOrganoleptica(e, o).esDeCliente) return falla('Este producto es de un cliente de almacenamiento: lo libera el DT del cliente, no Dirección Técnica de Logissa. Registra su dictamen y confirma el cambio de estado.')
     const p = producto(e, o.productoId)
-    const v = validarDecision(decision, o.datos.conclusion, p?.reg?.rsVence, e.panorama.hoy, p?.reg?.estadoValidacion !== 'PENDIENTE' && p?.reg?.estadoValidacion !== 'OBSERVADO')
+    const v = validarDecision(decision, o.datos.conclusion, p?.reg?.rsVence, e.panorama.hoy, p?.reg?.estadoValidacion !== 'PENDIENTE' && p?.reg?.estadoValidacion !== 'OBSERVADO', productoCompleto(p?.reg))
     if (!v.ok) return falla(v.mensaje)
     // Solo las unidades de ESTA entrega que siguen esperando su decisión (la aprobación no se hereda).
     const desde = ESTADO_INICIAL[o.ingresoTipo]

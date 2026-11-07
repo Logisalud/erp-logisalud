@@ -71,6 +71,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   // Almacén: lo que hay y lo que se hace con ello
   ponerSi('almacen', true, { href: '/almacen', etiqueta: 'Mapa del almacén', icono: 'almacen', corta: 'Almacén' })
   ponerSi('almacen', true, { href: '/productos', etiqueta: 'Productos', icono: 'productos' })
+  ponerSi('almacen', roles.some((r) => r === 'direccion_tecnica' || r === 'asistente_dt' || r === 'admin_wms'), { href: '/productos/por-completar', etiqueta: 'Productos por completar', icono: 'productos', corta: 'Por completar' })
   ponerSi('almacen', !soloAutoriza, { href: '/movimientos', etiqueta: 'Movimientos', icono: 'movimientos' })
   ponerSi('almacen', !soloAutoriza, { href: '/conteos', etiqueta: 'Conteos', icono: 'conteos' })
   ponerSi('almacen', !soloAutoriza, { href: '/revision-diaria', etiqueta: 'Revisión diaria', icono: 'revision' })

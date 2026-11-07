@@ -4,12 +4,13 @@ import { ArrowLeft } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { puedeCrearProducto } from '@/domain/permisos'
 import { FormProducto } from '@/components/form-producto'
+import { modoPilotoActivo } from '@/lib/modo-piloto'
 
 export const metadata = { title: 'Dar de alta un producto — WMS LOGISALUD' }
 
 export default async function NuevoProducto() {
   const ctx = await exigirContexto()
-  if (!puedeCrearProducto(ctx.roles)) redirect('/productos')
+  if (!puedeCrearProducto(ctx.roles) || (await modoPilotoActivo())) redirect('/productos')   // PIL-8: en el piloto los productos se crean en Compras
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <Link href="/productos" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-gray-700 hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden />Productos</Link>

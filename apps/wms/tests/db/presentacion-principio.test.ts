@@ -114,6 +114,6 @@ describe('la migración 0008', () => {
     // sin el trigger, Compras vuelve a poder cambiar el dato (estado anterior a 0008)
     await comoCompras((c) => c.query(`update catalogo.productos set presentacion = 'Caja x 60' where id = $1`, [id]))
     // y editar los campos regulatorios de siempre sigue funcionando
-    expect((await editar(P().katia.id, id, { concentracion: '10 mg' })).rows[0].n).toBe(1)
+    expect((await editar(P().katia.id, id, { concentracion: '25 mg' })).rows[0].n).toBe(1)
   })
 })

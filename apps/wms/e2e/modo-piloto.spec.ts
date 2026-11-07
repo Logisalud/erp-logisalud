@@ -50,4 +50,16 @@ test.describe('modo piloto', () => {
     await expect(page.getByTestId('ocs-piloto')).toBeVisible()
     await expect(page.getByTestId('ocs-revisar')).toHaveCount(0)
   })
+
+  test('PIL-8: en el piloto no se crean productos en el WMS (los crea Compras) y presentación y principio activo no se editan', async ({ page }) => {
+    await entrarComo(page, 'asistente_dt')
+    await page.goto('/wms/productos')
+    await expect(page.getByTestId('productos-en-compras')).toContainText('se crean en Compras')
+    await expect(page.getByTestId('nuevo-producto')).toHaveCount(0)
+    await page.goto('/wms/productos/nuevo')
+    await expect(page).toHaveURL(/\/wms\/productos\/?$/)
+    await page.locator('main a[href*="/productos/prod"]:visible').first().click()
+    await expect(page.getByTestId('catalogo-en-compras')).toBeVisible()
+    await expect(page.locator('#reg-presentacion')).toHaveCount(0)
+  })
 })

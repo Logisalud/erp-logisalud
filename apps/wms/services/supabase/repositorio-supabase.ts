@@ -5,7 +5,8 @@ import type {
   Asignacion, CambioRegulatorio, CampoRegulatorio, DocumentoSustento, EventoAuditoria, Lote, Posicion, Propietario, Regulatorio, Saldo,
 } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
-import { autorizarMarcaSinMaterialEnvase, esSi, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
+import { resolverModoPiloto } from '@/domain/modo-piloto'
+import { autorizarEscrituraCatalogo, autorizarMarcaSinMaterialEnvase, esSi, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, n, s, traerTodo, type Fila } from './util'
 import { PilotoSupabase } from './piloto-supabase'
@@ -84,7 +85,16 @@ export class RepositorioSupabase extends PilotoSupabase implements Repositorio {
     }))
   }
 
+  /** PIL-8: ¿está encendido el modo piloto? (entorno + parámetro; falla cerrada). La base también rechaza las escrituras del catálogo. */
+  private async enPiloto(): Promise<boolean> {
+    let parametro
+    try { parametro = await this.modoPiloto() } catch { parametro = undefined }
+    return resolverModoPiloto(parametro, { WMS_MODO_PILOTO: process.env.WMS_MODO_PILOTO, WMS_GO_LIVE: process.env.WMS_GO_LIVE })
+  }
+
   async crearProducto(entrada: EntradaProducto, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+    const enPiloto = autorizarEscrituraCatalogo(await this.enPiloto())
+    if (enPiloto) return { ok: false, mensaje: enPiloto }
     const v = validarEntradaProducto(entrada)
     if (!v.ok) return { ok: false, mensaje: 'Revisa los campos marcados.', errores: v.errores as Record<string, string> }
     const supabase = crearClienteServidor()
@@ -109,6 +119,9 @@ export class RepositorioSupabase extends PilotoSupabase implements Repositorio {
   async editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, _actor: Actor): Promise<ResultadoAccion<{ cambios: number }>> {
     const errMotivo = validarMotivoRegulatorio(motivo)
     if (errMotivo) return { ok: false, mensaje: errMotivo, errores: { motivo: errMotivo } }
+    if ((datos.presentacion !== undefined || datos.principioActivo !== undefined) && (await this.enPiloto())) {
+      return { ok: false, mensaje: 'En el piloto presentación y principio activo se corrigen en Compras: el WMS no escribe en el catálogo.' }
+    }
     if (datos.sinMaterialEnvase !== undefined) {
       const permisoMarca = autorizarMarcaSinMaterialEnvase(_actor.roles)
       if (permisoMarca) return { ok: false, mensaje: permisoMarca }

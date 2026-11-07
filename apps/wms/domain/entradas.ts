@@ -405,10 +405,11 @@ export function faltantesParaEnviar(d: DatosOrganoleptica, sinMaterialEnvase = f
 
 /** Lo que Dirección Técnica puede decidir según la conclusión del acta. */
 export function validarDecision(
-  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string, productoValidado = true,
+  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string, productoValidado = true, datosCompletos = true,
 ): { ok: true } | { ok: false; mensaje: string } {
   if (decision === 'APROBADO') {
     if (conclusion !== 'CONFORME') return { ok: false, mensaje: 'El acta concluye NO CONFORME: no se puede aprobar. Decide Bajas/Rechazados o pide que la corrijan.' }
+    if (!datosCompletos) return { ok: false, mensaje: 'El producto está pendiente de Dirección Técnica: faltan sus datos regulatorios. Complétalos en su ficha antes de aprobar sus lotes.' }
     if (!productoValidado) return { ok: false, mensaje: 'Este producto todavía no está validado: valídalo en su ficha antes de aprobar sus lotes.' }
     if (rsVence && rsVence < hoy) {
       return { ok: false, mensaje: 'El registro sanitario está vencido: el lote no se puede aprobar hasta que Dirección Técnica lo resuelva.' }

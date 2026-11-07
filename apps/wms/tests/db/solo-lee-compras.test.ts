@@ -42,6 +42,10 @@ describe('el WMS solo lee Compras (base de datos)', () => {
     }
     // En la ventana del piloto (sin la 0008) `editar_regulatorio` ni siquiera tiene la escritura: la 0008 va al final.
     expect(halladas).toEqual(EXCEPCIONES_GO_LIVE)
+    // ... y está apagada en modo piloto: lo primero que hace `crear_producto` es rechazar la llamada.
+    const cuerpo = (await base.admin.query(`select p.prosrc src from pg_proc p where p.pronamespace = 'wms'::regnamespace and p.proname = 'crear_producto'`)).rows[0].src as string
+    expect(cuerpo.indexOf('_modo_piloto()')).toBeGreaterThan(0)
+    expect(cuerpo.indexOf('_modo_piloto()')).toBeLessThan(cuerpo.search(/insert into catalogo\.productos/i))
     // nada sobre Compras o Almacén: la excepción es solo del catálogo
     for (const ops of Object.values(halladas)) for (const op of ops) expect(op).toMatch(/ catalogo\.productos$/)
   })
@@ -56,6 +60,21 @@ describe('el WMS solo lee Compras (base de datos)', () => {
     const r = await base.admin.query(`select c.relnamespace::regnamespace::text esquema, c.relname tabla, t.tgname n from pg_trigger t join pg_class c on c.oid = t.tgrelid
       where not t.tgisinternal and c.relnamespace::regnamespace::text in ('compras', 'almacen', 'catalogo')`)
     expect(r.rows.map((x) => `${x.esquema}.${x.tabla}:${x.n}`)).toEqual([])
+  })
+
+  it('en modo piloto NINGUNA operación del WMS escribe fuera de su esquema: crear productos y editar presentación o principio activo se rechazan y el catálogo queda idéntico', async () => {
+    const piloto = await crearBaseDePrueba({ piloto: true, con0008: true })   // la peor ruta: con la 0008 aplicada al final
+    try {
+      const foto = async () => (await piloto.admin.query(`select md5(string_agg(t::text, '|' order by t::text)) m from catalogo.productos t`)).rows[0].m
+      const antes = await foto()
+      const intentos = [
+        () => piloto.como(piloto.personas.katia.id, (c) => c.query(`select wms.crear_producto('Z-1', 'Z', 'Caja', 'M', 'P', 'TABLETA', 'EG-1', '2031-01-01', 'L', 'T', '1', 'C')`)),
+        () => piloto.como(piloto.personas.sandra.id, (c) => c.query(`select wms.editar_regulatorio($1, '{"presentacion":"Otra"}'::jsonb, 'x')`, [piloto.productos.dapa])),
+        () => piloto.como(piloto.personas.katia.id, (c) => c.query(`select wms.editar_regulatorio($1, '{"principio_activo":"Otro"}'::jsonb, 'x')`, [piloto.productos.dapa])),
+      ]
+      for (const i of intentos) await expect(i()).rejects.toThrow(/Compras/)
+      expect(await foto()).toBe(antes)
+    } finally { await piloto.cerrar() }
   })
 
   it('ningún rol del WMS (authenticated, anon) tiene privilegios de escritura sobre compras ni almacen', async () => {

@@ -95,7 +95,7 @@ export function construirPanoramaDemo(hoy: string, datos: DatosDemo = datosDemoA
     const base: Regulatorio = {
       productoId: `prod:${n}`, registroSanitario: `EG-${String(10000 + n * 37)}`, rsVence: sumarDias(hoy, 365 + n * 40),
       fabricante: 'Laboratorio de demostración', formaPresentacion: x.um === 'TABLETA' ? 'Tableta' : x.um === 'AMPOLLA' ? 'Solución inyectable' : 'Según presentación',
-      concentracion: x.um === 'TABLETA' ? '500 mg' : undefined, condicionAlmacenamiento: 'Conservar a menos de 30 °C', creadoPor: 'demo:sandra',
+      concentracion: x.um === 'TABLETA' ? '500 mg' : 'Según presentación', condicionAlmacenamiento: 'Conservar a menos de 30 °C', creadoPor: 'demo:sandra',
     }
     if (n === 4) reg = { ...base, rsVence: sumarDias(hoy, 45) } // por vencer
     else if (n === 9) reg = { ...base, rsVence: sumarDias(hoy, 78) } // por vencer
@@ -197,7 +197,7 @@ function productosYStockOdoo(hoy: string): Pick<Panorama, 'productos' | 'lotes' 
     idProducto.set(x.codigo, `prod:${n}`)
     const base: Regulatorio = {
       productoId: `prod:${n}`, registroSanitario: `RS-DEMO-${x.codigo}`, rsVence: sumarDias(hoy, 365 + (n % 9) * 40),
-      fabricante: 'Laboratorio de demostración', condicionAlmacenamiento: 'Conservar a menos de 30 °C', creadoPor: 'demo:sandra',
+      fabricante: 'Laboratorio de demostración', formaPresentacion: 'Según presentación', concentracion: 'Según presentación', condicionAlmacenamiento: 'Conservar a menos de 30 °C', creadoPor: 'demo:sandra',
     }
     let reg: Regulatorio = base
     if (n === 4) reg = { ...base, rsVence: sumarDias(hoy, 45) }

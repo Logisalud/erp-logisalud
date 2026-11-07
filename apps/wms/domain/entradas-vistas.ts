@@ -201,6 +201,8 @@ export interface OrganolepticaVista {
   sinMaterialEnvase?: boolean
   /** Piloto F3: con esta versión del formato y este producto, el punto «Material del envase» no se muestra. */
   materialEnvaseOculto?: boolean
+  /** PIL-8: el producto tiene completos sus datos regulatorios (si no, está pendiente de Dirección Técnica y no se aprueban sus lotes). */
+  productoCompleto?: boolean
   /** Lo que escribió la persona si el vencimiento era solo mes y año («06/2028»). */
   venceTexto?: string
   estado: 'BORRADOR' | 'PENDIENTE_DT' | 'FIRMADA'

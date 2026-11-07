@@ -166,6 +166,7 @@ function armarOrganolepticas(c: Carga): OrganolepticaVista[] {
       registroSanitario: s(rg?.registro_sanitario), rsVence: s(rg?.rs_vence), fabricante: s(rg?.fabricante),
       formaPresentacion: s(rg?.forma_presentacion) ?? s(p?.presentacion), lote: String(l?.codigo ?? x?.lote_codigo ?? ''), vence: String(l?.vence ?? x?.vence ?? ''), venceTexto: s(l?.vence_texto_original ?? x?.vence_texto_original),
       formatoVersion: Number(o.formato_version ?? 1), sinMaterialEnvase: rg?.sin_material_envase === true,
+      productoCompleto: ['registro_sanitario', 'rs_vence', 'fabricante', 'forma_presentacion', 'concentracion', 'condicion_almacenamiento'].every((k) => String(rg?.[k] ?? '').trim() !== ''),
       materialEnvaseOculto: ocultaMaterialEnvase(Number(o.formato_version ?? 1), rg?.sin_material_envase === true),
       propietario: String(prop.get(String(i?.propietario_id))?.razon_social ?? ''), cantidadLote: Number(o.cantidad_lote),
       cantidadMuestra: Number(o.cantidad_muestra), regimenMuestreo: (o.regimen_muestreo ?? undefined) as OrganolepticaVista['regimenMuestreo'], tablaMuestreo: s(o.tabla_muestreo),

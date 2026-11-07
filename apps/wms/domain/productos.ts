@@ -74,3 +74,9 @@ export function validarEdicionRegulatoria(
   if (registro && !vence) errores.rsVence = 'Falta el vencimiento del registro sanitario.'
   return Object.keys(errores).length ? { ok: false, errores } : { ok: true, datos: out }
 }
+
+/** PIL-8: en el piloto los productos se crean en Compras; el WMS no escribe en el catálogo (ni crea productos ni edita presentación o principio activo). */
+export const MENSAJE_CATALOGO_EN_COMPRAS = 'En el piloto los productos se crean y se corrigen en Compras: el WMS no escribe en el catálogo. Aquí solo completas sus datos regulatorios.'
+export function autorizarEscrituraCatalogo(modoPiloto: boolean): string | null {
+  return modoPiloto ? MENSAJE_CATALOGO_EN_COMPRAS : null
+}

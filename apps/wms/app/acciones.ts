@@ -1,5 +1,6 @@
 'use server'
 
+import { modoPilotoActivo } from '@/lib/modo-piloto'
 import { transitoPorLote, transitoPorPosicion } from '@/domain/transito'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -66,6 +67,8 @@ export async function editarRegulatorioAccion(_prev: EstadoFormulario, formData:
   for (const k of ['registroSanitario', 'rsVence', 'formaPresentacion', 'concentracion', 'fabricante', 'condicionAlmacenamiento', 'presentacion', 'principioActivo'] as const) {
     datos[k] = campo(formData, k)
   }
+  // PIL-8: en el piloto presentación y principio activo se corrigen en Compras; el WMS no los envía ni los escribe.
+  if (await modoPilotoActivo()) { delete datos.presentacion; delete datos.principioActivo }
   // «Sin material de envase» solo lo marca Dirección Técnica (la casilla solo se le muestra a ella).
   if (ctx.roles.includes('direccion_tecnica') && formData.has('sinMaterialEnvaseEnviado')) datos.sinMaterialEnvase = formData.get('sinMaterialEnvase') === 'si' ? 'si' : 'no'
   const r = await repositorio().editarRegulatorio(id, datos, campo(formData, 'motivo'), {
