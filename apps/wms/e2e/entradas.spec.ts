@@ -98,6 +98,10 @@ test.describe('entradas: la solicitud es lo primero', () => {
     await page.goto('/wms/entradas/nuevo')
     await page.getByTestId('tipo-COMPRA_LOCAL').click()
     await expect(page.getByTestId('oc-OC-DEMO-0004')).toBeVisible()
+    // el detalle de los productos se despliega con la flecha, sin elegir la orden
+    await page.getByTestId('oc-detalle-boton-OC-DEMO-0004').click()
+    await expect(page.getByTestId('oc-detalle-OC-DEMO-0004')).toContainText('Producto')
+    await expect(page.getByTestId('oc-OC-DEMO-0004')).toHaveAttribute('aria-checked', 'false')
     await page.getByTestId('oc-OC-DEMO-0004').click()
     await expect(page.getByTestId('declarado-oc')).toContainText('300 de 300')
     const filas = page.getByTestId('fila-solicitud')
