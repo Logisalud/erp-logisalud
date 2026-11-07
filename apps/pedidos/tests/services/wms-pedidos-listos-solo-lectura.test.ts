@@ -84,6 +84,12 @@ describe("cargarPedidosListosParaWms con un cliente falso", () => {
       },
     ];
     tablas.ubigeos = [{ codigo_inei: "150116", distrito: "Lince" }];
+    tablas.zonas_reparto = [{ id: 3, codigo: "CENTRO", nombre: "Centro", orden_ruta: 3 }];
+    tablas.ubigeo_zona_reparto = [{ codigo_inei: "150116", zona_reparto_id: 3, orden_distrito: 6 }];
+    tablas.plan_semanal_reparto = [
+      { dia_semana: 1, zona_reparto_id: 3 },
+      { dia_semana: 3, zona_reparto_id: 3 },
+    ];
   });
 
   it("solo ejecuta lecturas y devuelve el pedido en la forma del contrato", async () => {
@@ -91,6 +97,13 @@ describe("cargarPedidosListosParaWms con un cliente falso", () => {
     expect(r.pedidos).toHaveLength(1);
     expect(r.pedidos[0]).toMatchObject({ pedidoId: "p1", numero: "7", estado: "READY_FOR_OPERATIONS", version: 1 });
     expect(r.pedidos[0].cliente.distrito).toBe("Lince");
+    // 2026-11-07 es sábado: la zona Centro toca lunes y miércoles, gana el lunes 9.
+    expect(r.pedidos[0]).toMatchObject({
+      zona_reparto: { codigo: "CENTRO", nombre: "Centro", orden_ruta: 3 },
+      orden_distrito: 6,
+      dia_planificado: 1,
+      fecha_planificada: "2026-11-09",
+    });
 
     expect(llamadas.length).toBeGreaterThan(0);
     const metodos = new Set(llamadas.map((l) => l.split(".").pop()));
@@ -102,7 +115,16 @@ describe("cargarPedidosListosParaWms con un cliente falso", () => {
     await cargarPedidosListosParaWms();
     const tocadas = new Set(llamadas.map((l) => l.split(".")[0]));
     expect([...tocadas].sort()).toEqual(
-      ["facturas_emitidas", "order_observations", "order_status_history", "orders", "ubigeos"].sort(),
+      [
+        "facturas_emitidas",
+        "order_observations",
+        "order_status_history",
+        "orders",
+        "plan_semanal_reparto",
+        "ubigeo_zona_reparto",
+        "ubigeos",
+        "zonas_reparto",
+      ].sort(),
     );
   });
 });

@@ -18,7 +18,7 @@ vez que el pedido se modifica después de quedar listo. Sin service role del otr
   "pedidos": [
     {
       "pedidoId": "uuid-o-id-estable-del-pedido",
-      "numero": "PED-2026-00123",
+      "numero": "123",
       "version": 2,
       "estado": "READY_FOR_OPERATIONS",
       "fecha": "2026-10-13",
@@ -29,6 +29,8 @@ vez que el pedido se modifica después de quedar listo. Sin service role del otr
         "coordenadas": { "lat": -12.0867, "lng": -77.0336 },
         "ventanaCita": "L-V 8:00-12:00"
       },
+      "zona_reparto": { "codigo": "CENTRO", "nombre": "Centro", "orden_ruta": 3 },
+      "orden_distrito": 6, "dia_planificado": 1, "fecha_planificada": "2026-10-19",
       "vendedor": "Nombre del vendedor", "condicionPago": "Contado", "factura": "F001-00045", "observaciones": "Entrega con cadena de frío.",
       "lineas": [
         { "lineaId": "id-estable-de-la-línea", "productoCodigo": "LIZI-10", "descripcion": "Lizinopril 10 mg", "cantidad": 20 }
@@ -44,6 +46,14 @@ Reglas del contrato (las valida el dominio del WMS y otra vez la base de datos, 
 - `productoCodigo` es el **código de producto que ya comparten Compras y el WMS**. Un código que el WMS no tiene se importa igual y se marca «No está en el catálogo del WMS».
 - `cantidad` entera mayor que cero; `version` entera desde 1; `estado` es `READY_FOR_OPERATIONS` o `CANCELLED` (ver abajo).
 - Un pedido mal formado se **descarta con su motivo** y no tumba a los demás.
+- `numero` es el **correlativo de Pedidos** (p. ej. `"123"`), como texto; no lleva prefijo `PED-AAAA-`.
+- **Ruteo (campos opcionales, solo lectura):** Pedidos ya definió las zonas de reparto, el orden de visita y el plan semanal; el WMS no lo rehace, lo recibe por pedido para filtrar su bandeja y precargar el orden de las paradas:
+  - `zona_reparto`: `{ codigo, nombre, orden_ruta }` o `null`. `orden_ruta` es el orden en que se recorren las zonas saliendo del almacén.
+  - `orden_distrito`: número (orden del distrito dentro de la zona) o `null`.
+  - `dia_planificado`: día ISO `1..7` (1 = lunes) en que toca esa zona según el plan semanal, o `null`. Si la zona toca más de un día, es el **próximo** a partir de hoy en hora de Lima (si hoy toca, es hoy; sábado y domingo pasan al lunes).
+  - `fecha_planificada`: `AAAA-MM-DD` de ese día, o `null`.
+  - Pedido sin ubigeo, o con un destino que no está en ninguna zona (provincia): los cuatro van en `null`; nunca se inventa un valor. Una zona que no figura en el plan lleva `zona_reparto` y `orden_distrito`, pero `dia_planificado` y `fecha_planificada` en `null`.
+  - Son valores del momento de la consulta: el día planificado se recalcula cada vez que se pide la lista.
 - No hay precios ni importes: el WMS no calcula ni valida lo tributario.
 
 ## Firma HMAC
@@ -55,7 +65,7 @@ Cada solicitud lleva dos encabezados:
 | `x-wms-timestamp` | Segundos Unix (UTC) del momento de la solicitud |
 | `x-wms-firma` | `sha256=` + HMAC-SHA256 en hexadecimal con el secreto compartido |
 
-Texto que se firma (cuatro líneas separadas por `\n`): `timestamp`, método en mayúsculas, ruta con su query (`/integracion/wms/pedidos-listos`) y el SHA-256
+Texto que se firma (cuatro líneas separadas por `\n`): `timestamp`, método en mayúsculas, ruta **completa con su `/api` y su query** (`/api/integracion/wms/pedidos-listos`: el WMS firma la ruta tal como la pide, porque su `WMS_PEDIDOS_URL` termina en `/api`) y el SHA-256
 hexadecimal del cuerpo (vacío en un `GET`). Pedidos **rechaza con 401/403** si falta algún encabezado, si la firma no coincide (comparación en tiempo
 constante) o si el `timestamp` se aparta más de **300 segundos** de su reloj: una captura no se puede repetir. El secreto se rota cambiando la variable
 en ambos lados. La implementación de referencia (y su verificador, que Pedidos puede copiar) está en `apps/wms/services/pedidos/firma.ts`.
@@ -72,7 +82,7 @@ en ambos lados. La implementación de referencia (y su verificador, que Pedidos 
 Cuando el vendedor cancela un pedido en Pedidos (por ejemplo, porque no hay stock y el cliente no quiere esperar), Pedidos lo entrega como **una versión nueva** con `estado: "CANCELLED"`:
 
 ```json
-{ "pedidoId": "uuid", "numero": "PED-2026-00123", "version": 3, "estado": "CANCELLED", "fecha": "2026-10-13", "modificadoEn": "2026-10-15T09:00:00Z",
+{ "pedidoId": "uuid", "numero": "123", "version": 3, "estado": "CANCELLED", "fecha": "2026-10-13", "modificadoEn": "2026-10-15T09:00:00Z",
   "motivoCancelacion": "El cliente prefiere esperar al próximo mes", "canceladoPor": "Rosa Paredes",
   "cliente": { "id": "…", "nombre": "…" }, "lineas": [ { "lineaId": "…", "productoCodigo": "…", "descripcion": "…", "cantidad": 20 } ] }
 ```

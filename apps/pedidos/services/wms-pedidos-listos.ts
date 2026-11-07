@@ -4,6 +4,7 @@ import {
   ESTADOS_PARA_WMS,
   armarRespuestaContrato,
   type DatosAuxiliares,
+  type DatosRuteo,
   type FilaFactura,
   type FilaHistorial,
   type FilaObservacion,
@@ -93,6 +94,46 @@ export async function cargarPedidosListosParaWms(ahora = new Date()): Promise<Re
       aux.distritos[u.codigo_inei] = u.distrito;
     }
   }
+
+  // Ruteo de Andrés (solo lectura de sus tablas): zona, orden y plan semanal.
+  const ruteo: DatosRuteo = { zonas: [], ubigeoZona: {}, plan: [] };
+  const [zonasRes, planRes] = await Promise.all([
+    db
+      .from("zonas_reparto")
+      .select("id, codigo, nombre, orden_ruta")
+      .eq("estado", "activo")
+      .order("orden_ruta"),
+    db.from("plan_semanal_reparto").select("dia_semana, zona_reparto_id"),
+  ]);
+  if (zonasRes.error) throw new Error(zonasRes.error.message);
+  if (planRes.error) throw new Error(planRes.error.message);
+  ruteo.zonas = (zonasRes.data ?? []) as DatosRuteo["zonas"];
+  for (const fila of (planRes.data ?? []) as Array<{ dia_semana: number; zona_reparto_id: number }>) {
+    let dia = ruteo.plan.find((d) => d.dia === fila.dia_semana);
+    if (!dia) {
+      dia = { dia: fila.dia_semana, zonaIds: [] };
+      ruteo.plan.push(dia);
+    }
+    dia.zonaIds.push(fila.zona_reparto_id);
+  }
+  for (const lote of lotes(codigos, LOTE_IDS)) {
+    const { data, error } = await db
+      .from("ubigeo_zona_reparto")
+      .select("codigo_inei, zona_reparto_id, orden_distrito")
+      .in("codigo_inei", lote);
+    if (error) throw new Error(error.message);
+    for (const u of (data ?? []) as Array<{
+      codigo_inei: string;
+      zona_reparto_id: number;
+      orden_distrito: number;
+    }>) {
+      ruteo.ubigeoZona[u.codigo_inei] = {
+        zona_reparto_id: u.zona_reparto_id,
+        orden_distrito: u.orden_distrito,
+      };
+    }
+  }
+  aux.ruteo = ruteo;
 
   return armarRespuestaContrato(filas, aux, ahora);
 }

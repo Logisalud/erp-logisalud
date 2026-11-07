@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   armarRespuestaContrato,
   diaEnLima,
+  ruteoDelPedido,
+  type DatosRuteo,
   type DatosAuxiliares,
   type FilaPedido,
 } from "@/domain/wms-pedidos-listos";
@@ -67,6 +69,11 @@ describe("armarRespuestaContrato", () => {
           { lineaId: "aaaa", productoCodigo: "LIZI-10", descripcion: "Lizinopril 10 mg", cantidad: 20 },
           { lineaId: "bbbb", productoCodigo: "ZZZ-1", descripcion: "Otro", cantidad: 5 },
         ],
+        // sin datos de ruteo en este caso: nunca se inventa un valor
+        zona_reparto: null,
+        orden_distrito: null,
+        dia_planificado: null,
+        fecha_planificada: null,
       },
     ]);
   });
@@ -128,5 +135,94 @@ describe("armarRespuestaContrato", () => {
   it("la fecha es el día de Lima", () => {
     expect(diaEnLima("2026-10-14T03:30:00Z")).toBe("2026-10-13");
     expect(diaEnLima("2026-10-14T05:00:00Z")).toBe("2026-10-14");
+  });
+});
+
+describe("ruteo: zona de reparto, orden y día planificado", () => {
+  const ruteo: DatosRuteo = {
+    zonas: [
+      { id: 1, codigo: "SUR", nombre: "Sur", orden_ruta: 1 },
+      { id: 3, codigo: "CENTRO", nombre: "Centro", orden_ruta: 3 },
+      { id: 9, codigo: "SINPLAN", nombre: "Sin plan", orden_ruta: 9 },
+    ],
+    ubigeoZona: {
+      "150116": { zona_reparto_id: 3, orden_distrito: 6 },
+      "150119": { zona_reparto_id: 1, orden_distrito: 6 },
+      "150999": { zona_reparto_id: 9, orden_distrito: 1 },
+    },
+    plan: [
+      { dia: 1, zonaIds: [3] },
+      { dia: 2, zonaIds: [1] },
+      { dia: 3, zonaIds: [3] },
+    ],
+  };
+  const MARTES = new Date("2026-11-03T15:00:00Z"); // martes en Lima
+  const MIERCOLES = new Date("2026-11-04T15:00:00Z");
+  const SABADO = new Date("2026-11-07T15:00:00Z");
+
+  it("zona con un solo día: toca ese día y esa fecha", () => {
+    expect(ruteoDelPedido("150119", ruteo, SABADO)).toEqual({
+      zona_reparto: { codigo: "SUR", nombre: "Sur", orden_ruta: 1 },
+      orden_distrito: 6,
+      dia_planificado: 2,
+      fecha_planificada: "2026-11-10",
+    });
+  });
+
+  it("hoy cuenta: si hoy toca la zona, es hoy", () => {
+    const r = ruteoDelPedido("150119", ruteo, MARTES);
+    expect(r.dia_planificado).toBe(2);
+    expect(r.fecha_planificada).toBe("2026-11-03");
+  });
+
+  it("zona con dos días: elige el próximo a partir de hoy, dando la vuelta a la semana", () => {
+    expect(ruteoDelPedido("150116", ruteo, MARTES)).toMatchObject({ dia_planificado: 3, fecha_planificada: "2026-11-04" });
+    expect(ruteoDelPedido("150116", ruteo, MIERCOLES)).toMatchObject({ dia_planificado: 3, fecha_planificada: "2026-11-04" });
+    // jueves: ya pasaron lunes y miércoles, le toca el lunes siguiente
+    expect(ruteoDelPedido("150116", ruteo, new Date("2026-11-05T15:00:00Z"))).toMatchObject({
+      dia_planificado: 1,
+      fecha_planificada: "2026-11-09",
+    });
+  });
+
+  it("fin de semana: sábado y domingo pasan al lunes", () => {
+    for (const f of ["2026-11-07T15:00:00Z", "2026-11-08T15:00:00Z"]) {
+      expect(ruteoDelPedido("150116", ruteo, new Date(f))).toMatchObject({
+        dia_planificado: 1,
+        fecha_planificada: "2026-11-09",
+      });
+    }
+  });
+
+  it("usa el día de Lima, no el de UTC (domingo 21:00 en Lima ya es lunes en UTC)", () => {
+    const r = ruteoDelPedido("150116", ruteo, new Date("2026-11-09T02:00:00Z"));
+    expect(r).toMatchObject({ dia_planificado: 1, fecha_planificada: "2026-11-09" });
+  });
+
+  it("pedido sin ubigeo, con ubigeo fuera de toda zona o sin datos de ruteo: todo null", () => {
+    const nulos = { zona_reparto: null, orden_distrito: null, dia_planificado: null, fecha_planificada: null };
+    expect(ruteoDelPedido(null, ruteo, SABADO)).toEqual(nulos);
+    expect(ruteoDelPedido("040101", ruteo, SABADO)).toEqual(nulos);
+    expect(ruteoDelPedido("150116", undefined, SABADO)).toEqual(nulos);
+  });
+
+  it("zona que no está en el plan: lleva zona y orden, pero sin día ni fecha", () => {
+    expect(ruteoDelPedido("150999", ruteo, SABADO)).toEqual({
+      zona_reparto: { codigo: "SINPLAN", nombre: "Sin plan", orden_ruta: 9 },
+      orden_distrito: 1,
+      dia_planificado: null,
+      fecha_planificada: null,
+    });
+  });
+
+  it("armarRespuestaContrato agrega los cuatro campos al pedido y no cambia lo demás", () => {
+    const p = armarRespuestaContrato([base], { ...aux, ruteo }, SABADO).pedidos[0];
+    expect(p).toMatchObject({
+      numero: "123",
+      zona_reparto: { codigo: "CENTRO", nombre: "Centro", orden_ruta: 3 },
+      orden_distrito: 6,
+      dia_planificado: 1,
+      fecha_planificada: "2026-11-09",
+    });
   });
 });
