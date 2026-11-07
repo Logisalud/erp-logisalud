@@ -150,17 +150,21 @@ describe('planificar una ruta', () => {
     expect((await falla(planificar(jt, r2, en(5), null, null, null, [{ pedido_id: 'no-existe' }]))).message).toBe('No encontramos uno de los pedidos en la bandeja')
   })
 
-  it('el corte: lo importado después de la víspera a la hora del corte necesita una excepción con motivo', async () => {
+  it('el corte solo avisa; con el corte estricto (parámetro), lo importado después de la víspera necesita una excepción con motivo', async () => {
     const { ped } = await pedidoConStock(5)
     const ruta = await crearRuta(jt, en(1))
     await base.admin.query(`update wms.parametros set valor = '00:00' where clave = 'hora_corte_planificacion'`) // el corte de la víspera ya pasó
     try {
+      // por defecto el corte NO bloquea
+      expect((await planificar(jt, ruta, en(1), null, null, null, [{ pedido_id: ped.pedidoId }])).paradas).toBe(1)
+      await base.admin.query(`update wms.parametros set valor = 'si' where clave = 'corte_planificacion_estricto'`)
       expect((await falla(planificar(jt, ruta, en(1), null, null, null, [{ pedido_id: ped.pedidoId }]))).message).toMatch(/llegó después del corte de las 00:00 de la víspera/)
       expect((await falla(planificar(jt, ruta, en(1), null, null, null, [{ pedido_id: ped.pedidoId, excepcion_corte: true }]))).message).toBe(`La excepción del pedido ${ped.numero} necesita un motivo`)
       const r = await planificar(jt, ruta, en(1), null, null, null, [{ pedido_id: ped.pedidoId, excepcion_corte: true, motivo_excepcion: 'Cliente urgente' }])
       expect(r.paradas).toBe(1)
       expect(await uno('select excepcion_corte, motivo_excepcion from wms.ruta_paradas where ruta_id = $1 and activa', [ruta])).toMatchObject({ excepcion_corte: true, motivo_excepcion: 'Cliente urgente' })
     } finally {
+      await base.admin.query(`update wms.parametros set valor = 'no' where clave = 'corte_planificacion_estricto'`)
       await base.admin.query(`update wms.parametros set valor = '23:59' where clave = 'hora_corte_planificacion'`)
     }
     // con el corte a las 23:59 de la víspera, lo de hoy entra sin excepción

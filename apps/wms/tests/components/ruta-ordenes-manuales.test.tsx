@@ -43,14 +43,12 @@ describe('«Órdenes manuales por despachar» junto a «Pedidos por planificar»
     expect((acc.planificarRutaAccion.mock.calls[0][1] as { paradas: object[] }).paradas[0]).not.toHaveProperty('pedidoId')
   })
 
-  it('una orden creada después del corte pide excepción con motivo, igual que un pedido; una sin stock no se puede agregar', async () => {
+  it('una orden creada después del corte solo avisa (no bloquea ni pide excepción); una sin stock no se puede agregar', async () => {
     render(<EditorRuta ruta={ruta} panorama={panorama([orden('1', { creadaEn: '2026-10-24T22:00:00Z' }), orden('2', { sinStock: true })])} />)
     expect(screen.getAllByTestId('agregar-orden')[1]).toBeDisabled()
     await userEvent.click(screen.getAllByTestId('agregar-orden')[0])
     expect(screen.getByTestId('chip-corte')).toHaveTextContent('Se creó después del corte')
-    expect(screen.getByTestId('errores-plan')).toHaveTextContent('se creó después del corte de las 16:00')
-    await userEvent.click(screen.getByTestId('excepcion-corte'))
-    await userEvent.type(screen.getByTestId('excepcion-motivo'), 'Urgente')
+    expect(screen.queryByTestId('excepcion-corte')).toBeNull()
     expect(screen.queryByTestId('errores-plan')).toBeNull()
   })
 

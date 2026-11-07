@@ -139,14 +139,9 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await expect(page.getByTestId('parada')).toHaveCount(2)
     await expect(page.getByTestId('parada').first()).toContainText('Orden manual · Venta de distribución')
     await expect(page.getByTestId('parada').nth(1)).toContainText('Orden manual · Muestra de Logissa')
-    // la ruta es de hoy y las órdenes se crearon hoy: llegaron después del corte → excepción con motivo, como un pedido
+    // la ruta es de hoy y las órdenes se crearon hoy: llegaron después del corte → solo se avisa (chip), no se bloquea ni se pide excepción (0048)
     await expect(page.getByTestId('chip-corte').first()).toContainText('Se creó después del corte')
-    await expect(page.getByTestId('guardar-plan')).toBeDisabled()
-    await expect(page.getByTestId('errores-plan')).toContainText('se creó después del corte')
-    for (let i = 0; i < 2; i++) {
-      await page.getByTestId('excepcion-corte').nth(i).check()
-      await page.getByTestId('excepcion-motivo').nth(i).fill('Se despacha hoy')
-    }
+    await expect(page.getByTestId('excepcion-corte')).toHaveCount(0)
     await expect(page.getByTestId('errores-plan')).toHaveCount(0)
     await sinDesborde(page)
     await capturar(page, info, 'rutas-ordenes-manuales-plan', { completa: true })
