@@ -42,6 +42,7 @@ export default async function Entradas({ searchParams }: { searchParams: { f?: s
         {puedeCrear && <Link href="/entradas/nuevo" className="btn-primary" data-testid="nuevo-ingreso"><FilePlus2 className="h-5 w-5" aria-hidden />Nueva solicitud</Link>}
         </div>
       </header>
+      <EstadoSincronizacion r={sincronizacion} />
 
       <nav aria-label="Filtrar entradas" className="flex flex-wrap gap-2">
         {FILTROS.map((f) => {
