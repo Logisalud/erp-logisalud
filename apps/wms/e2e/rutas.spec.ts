@@ -1,6 +1,6 @@
 // S4: rutas de distribución en los 4 viewports: lista, armado (vehículo, personal, pedidos, orden), corte, sin stock, versiones y permisos.
 import { expect, test, type Page } from '@playwright/test'
-import { capturar, entrarComo, esTelefono, sinDesborde } from './ayudas'
+import { capturar, enDias, entrarComo, esTelefono, sinDesborde } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -97,7 +97,7 @@ test.describe('rutas (S4)', () => {
   test('un vehículo común atiende a cualquier cliente (el vehículo calificado ya no se valida), y un pedido sin stock deja guardar pero no confirmar; sacarlo lo libera', async ({ page }, info) => {
     await entrarComo(page, 'jefe_transporte')
     await page.goto('/wms/rutas')
-    await page.getByTestId('nueva-ruta-fecha').fill(new Date().toISOString().slice(0, 10)) // hoy: lo importado hoy llegó después del corte de la víspera
+    await page.getByTestId('nueva-ruta-fecha').fill(enDias(0)) // hoy (de Lima): lo importado hoy llegó después del corte de la víspera
     await page.getByTestId('nueva-ruta').click()
     await expect(page.getByTestId('editor-ruta')).toBeVisible()
     await page.getByTestId('ruta-vehiculo').selectOption({ label: 'AXL-204 — Moto furgón' })
