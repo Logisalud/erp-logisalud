@@ -61,6 +61,8 @@ regulatorias, destructivas o de fuente de verdad → detén solo esa pieza, reg�
 **Versiones:** Next 14.2.29 exacto, React 18 (`useFormState`), `@supabase/ssr ^0.5.2`,
 Tailwind ^3.3, `exceljs` 4.4.0 (XLSX), `@react-pdf/renderer` (actas). No agregues `xlsx` (SheetJS).
 
+**Capturas de pantalla (regla de Sebas, 2026-11-07): no se usan.** Ni a ojo, ni con Playwright, ni con el MCP de Playwright: no se toman, no se abren, no se leen y no se guardan. `capturar()` de `e2e/ayudas.ts` es una función vacía a propósito: no la vuelvas a hacer escribir imágenes, y una prueba nueva no debe llamar a `page.screenshot`. Las pantallas se verifican con aserciones (texto, roles, `data-testid`, `sinDesborde`). Las de `docs/wms/screenshots/` son históricas y no se regeneran. Si algo no se puede verificar sin verlo, se dice y se pregunta; no se abre una captura.
+
 **Skills:**
 - No se revisan pantallas a ojo ni con capturas (consumen mucho uso): se prueban con tests automáticos; el diseño sigue PRODUCT.md y DESIGN.md. `@playwright/test` sigue para los E2E con aserciones (en los 4 viewports); no se abren ni leen sus capturas, ni se usa el MCP de Playwright ni la skill Impeccable.
 - Reutiliza `@logisalud/auth` y `@logisalud/design-system` (preset Tailwind y `BrandMark`; no
