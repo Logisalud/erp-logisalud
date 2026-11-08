@@ -1,7 +1,7 @@
 // SA-3: cuando falta stock (por qué falta, decide el vendedor, copiar el aviso), cuando el pedido cambia o se cancela, y lo picado que vuelve a su ubicación con un movimiento
 // verificado. Corre al final (zzz): usa el pedido 104 de la demostración, que ninguna otra prueba deja con orden. Lleva su estado de un test al siguiente.
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
-import { capturar, entrarComo, esTelefono, sinDesborde } from './ayudas'
+import { capturar, enDias, entrarComo, esTelefono, sinDesborde } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -31,7 +31,7 @@ test.describe('cuando falta stock (SA-3)', () => {
     // una ruta nueva con el pedido 104 (no hay stock para 250.000 unidades)
     await page.goto('/wms/rutas')
     // una fecha lejana: el vehículo y el conductor están libres aunque otras pruebas hayan armado rutas de hoy o de mañana, y no aplica el corte de la víspera
-    await page.getByTestId('nueva-ruta-fecha').fill(new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10))
+    await page.getByTestId('nueva-ruta-fecha').fill(enDias(5))
     await page.getByTestId('nueva-ruta').click()
     await expect(page.getByTestId('editor-ruta')).toBeVisible()
     await page.getByTestId('ruta-vehiculo').selectOption({ label: 'BKW-757 — Camioneta cerrada' })

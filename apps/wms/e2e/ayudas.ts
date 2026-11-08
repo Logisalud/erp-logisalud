@@ -6,6 +6,15 @@ export type RolDemo = 'direccion_tecnica' | 'asistente_dt' | 'jefe_almacen' | 'j
 
 const CARPETA = resolve(__dirname, '../../../docs/wms/screenshots')
 
+import { hoyLima } from '../lib/hoy-lima'
+
+/**
+ * El día de HOY para las pruebas es el de Lima, igual que en la demo y en la base: no `new Date().toISOString()`, que es UTC y entre las 19:00 y las 24:00
+ * de Lima ya marca el día siguiente (chocaba con la ruta que la demo siembra para mañana). `enDias(n)` = Lima hoy + n días.
+ */
+export const hoyDeLima = () => hoyLima()
+export const enDias = (n: number) => new Date(Date.parse(`${hoyLima()}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
+
 export const esTelefono = (info: TestInfo) => info.project.name.startsWith('telefono')
 
 export async function entrarComo(page: Page, rol: RolDemo) {
