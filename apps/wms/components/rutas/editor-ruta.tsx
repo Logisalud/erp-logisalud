@@ -81,7 +81,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
     || paradas.length !== guardadas.length || paradas.some((p, i) => clavePlanParada(p) !== guardadas[i] || !!p.excepcionCorte !== !!ruta.paradas[i]?.excepcionCorte || (p.motivoExcepcion ?? '') !== (ruta.paradas[i]?.motivoExcepcion ?? ''))
   const enOtraRuta = useMemo(() => new Map(panorama.pedidos.filter((p) => p.enRuta && !guardadas.includes(p.pedidoId)).map((p) => [p.pedidoId, p.enRuta!])), [panorama.pedidos, guardadas])
   const ordenesEnOtraRuta = useMemo(() => new Map(panorama.ordenes.filter((o) => o.enRuta && !guardadas.includes(o.clave)).map((o) => [o.clave, o.enRuta!])), [panorama.ordenes, guardadas])
-  const errores = useMemo(() => validarPlan({ hoy: panorama.hoy, corte: panorama.corte, plan: { fecha, vehiculoId, conductorId, auxiliarId, paradas }, vehiculo, pedidos: pedido, enOtraRuta, ordenes: ordenMap, ordenesEnOtraRuta }), [panorama, fecha, vehiculoId, conductorId, auxiliarId, paradas, vehiculo, pedido, enOtraRuta, ordenMap, ordenesEnOtraRuta])
+  const errores = useMemo(() => validarPlan({ hoy: panorama.hoy, corte: panorama.corte, corteEstricto: panorama.corteEstricto, plan: { fecha, vehiculoId, conductorId, auxiliarId, paradas }, vehiculo, pedidos: pedido, enOtraRuta, ordenes: ordenMap, ordenesEnOtraRuta }), [panorama, fecha, vehiculoId, conductorId, auxiliarId, paradas, vehiculo, pedido, enOtraRuta, ordenMap, ordenesEnOtraRuta])
   const requiereMotivo = ruta.estado === 'PLANIFICADA' && sucio
 
   if (!editable) return <VistaRuta ruta={ruta} registro={registro} permisos={permisos} />
@@ -185,7 +185,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
                       <button type="button" className={icono} onClick={() => quitar(i)} aria-label={`Quitar ${p.cliente} de la ruta`} data-testid="parada-quitar"><Trash2 className="h-5 w-5" aria-hidden /></button>
                     </div>
                   </div>
-                  {tarde && (
+                  {tarde && panorama.corteEstricto && (
                     <div className="ml-11 space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
                       <label className="flex min-h-11 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!pp.excepcionCorte} onChange={(e) => marcar(i, { excepcionCorte: e.target.checked, motivoExcepcion: e.target.checked ? pp.motivoExcepcion : undefined })} data-testid="excepcion-corte" />Incluirlo con excepción ({pp.pedidoId ? 'llegó' : 'se creó'} después de las {panorama.corte} de la víspera)</label>
                       {pp.excepcionCorte && <div><label htmlFor={`mot-${clave}`} className="etiqueta">Motivo de la excepción</label><input id={`mot-${clave}`} className="campo" value={pp.motivoExcepcion ?? ''} onChange={(e) => marcar(i, { motivoExcepcion: e.target.value })} data-testid="excepcion-motivo" /></div>}

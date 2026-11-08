@@ -31,11 +31,15 @@ describe('validarPlan', () => {
     expect(e.some((m) => /calificado/.test(m))).toBe(false)
     expect(validarPlan(base([ped('1')], { vehiculo: veh({ calificado: false }) }))).toEqual([])
   })
-  it('fuera del corte pide excepción con motivo', () => {
+  it('fuera del corte NO bloquea: el corte solo avisa', () => {
     const tarde = ped('1', { importadoEn: '2026-10-14T22:00:00Z' })
-    expect(validarPlan(base([tarde]))).toEqual(['El pedido PED-1 llegó después del corte de las 16:00 de la víspera: marca la excepción y escribe el motivo.'])
-    expect(validarPlan({ ...base([tarde]), plan: { fecha: '2026-10-15', paradas: [{ pedidoId: '1', excepcionCorte: true }] } })).toEqual(['La excepción del pedido PED-1 necesita un motivo.'])
-    expect(validarPlan({ ...base([tarde]), plan: { fecha: '2026-10-15', paradas: [{ pedidoId: '1', excepcionCorte: true, motivoExcepcion: 'Urgente' }] } })).toEqual([])
+    expect(validarPlan(base([tarde]))).toEqual([])
+  })
+  it('con el corte estricto (parámetro), fuera del corte pide excepción con motivo', () => {
+    const tarde = ped('1', { importadoEn: '2026-10-14T22:00:00Z' })
+    expect(validarPlan({ ...base([tarde]), corteEstricto: true })).toEqual(['El pedido PED-1 llegó después del corte de las 16:00 de la víspera: marca la excepción y escribe el motivo.'])
+    expect(validarPlan({ ...base([tarde]), corteEstricto: true, plan: { fecha: '2026-10-15', paradas: [{ pedidoId: '1', excepcionCorte: true }] } })).toEqual(['La excepción del pedido PED-1 necesita un motivo.'])
+    expect(validarPlan({ ...base([tarde]), corteEstricto: true, plan: { fecha: '2026-10-15', paradas: [{ pedidoId: '1', excepcionCorte: true, motivoExcepcion: 'Urgente' }] } })).toEqual([])
   })
 })
 
@@ -67,11 +71,12 @@ describe('paradas por orden (SA-6): venta manual sin pedido en la bandeja, muest
     expect(validarPlan({ ...conOrdenes([]), plan: { fecha: '2026-10-15', paradas: [{ salidaId: 'x' }] } })).toEqual(['Una de las órdenes ya no se puede planificar.'])
     expect(validarPlan(conOrdenes([ord('1', { tipo: 'CLIENTE' })]))).toEqual(['La orden OS-2026-00001 es por cuenta de un cliente de almacenamiento: no va en una ruta de Logisalud, se entrega al transportista del cliente.'])
   })
-  it('el corte vale también para una orden: creada después del corte pide excepción con motivo', () => {
+  it('el corte tampoco bloquea una orden; con el corte estricto pide excepción con motivo', () => {
     const tarde = ord('1', { creadaEn: '2026-10-14T22:00:00Z' })
-    expect(validarPlan(conOrdenes([tarde]))).toEqual(['La orden OS-2026-00001 se creó después del corte de las 16:00 de la víspera: marca la excepción y escribe el motivo.'])
-    expect(validarPlan({ ...conOrdenes([tarde]), plan: { fecha: '2026-10-15', paradas: [{ salidaId: '1', excepcionCorte: true }] } })).toEqual(['La excepción de la orden OS-2026-00001 necesita un motivo.'])
-    expect(validarPlan({ ...conOrdenes([tarde]), plan: { fecha: '2026-10-15', paradas: [{ salidaId: '1', excepcionCorte: true, motivoExcepcion: 'Urgente' }] } })).toEqual([])
+    expect(validarPlan(conOrdenes([tarde]))).toEqual([])
+    expect(validarPlan({ ...conOrdenes([tarde]), corteEstricto: true })).toEqual(['La orden OS-2026-00001 se creó después del corte de las 16:00 de la víspera: marca la excepción y escribe el motivo.'])
+    expect(validarPlan({ ...conOrdenes([tarde]), corteEstricto: true, plan: { fecha: '2026-10-15', paradas: [{ salidaId: '1', excepcionCorte: true }] } })).toEqual(['La excepción de la orden OS-2026-00001 necesita un motivo.'])
+    expect(validarPlan({ ...conOrdenes([tarde]), corteEstricto: true, plan: { fecha: '2026-10-15', paradas: [{ salidaId: '1', excepcionCorte: true, motivoExcepcion: 'Urgente' }] } })).toEqual([])
   })
   it('el buscador de órdenes encuentra por número de orden, de pedido, cliente o RUC', () => {
     const lista = [ord('1', { ruc: '20123456789' }), ord('2', { cliente: 'Clínica Sur', pedidoNumero: undefined })]

@@ -81,8 +81,6 @@ test.describe('rutas (S4)', () => {
     await page.getByTestId('pedido-disponible').filter({ hasText: 'PED-DEMO-102' }).getByTestId('agregar-pedido').click()
     await expect(page.getByTestId('parada')).toHaveCount(1)
     await expect(page.getByTestId('conteo-paradas')).toHaveText('(1)')
-    // Un pedido que Pedidos modificó pasadas las 16:00 llega después del corte de la víspera: depende de la hora en que se pruebe
-    if (await page.getByTestId('excepcion-corte').count()) { await page.getByTestId('excepcion-corte').check(); await page.getByTestId('excepcion-motivo').fill('Cliente urgente') }
     await sinDesborde(page)
     await capturar(page, info, 'rutas-armando', { completa: true })
     await page.getByTestId('guardar-plan').click()
@@ -104,12 +102,10 @@ test.describe('rutas (S4)', () => {
     await page.getByTestId('ruta-conductor').selectOption({ label: 'Luis Quispe' })
     await page.getByTestId('agregar-buscar').fill('PED-DEMO-104')
     await page.getByTestId('pedido-disponible').filter({ hasText: 'PED-DEMO-104' }).getByTestId('agregar-pedido').click()
-    await expect(page.getByTestId('errores-plan')).toContainText('llegó después del corte')
-    await expect(page.getByTestId('errores-plan')).not.toContainText('calificado')   // D-153: el WMS ya no exige vehículo calificado
-    await expect(page.getByTestId('guardar-plan')).toBeDisabled()
-    await page.getByTestId('excepcion-corte').check()
-    await page.getByTestId('excepcion-motivo').fill('Cliente urgente')
-    await expect(page.getByTestId('errores-plan')).toHaveCount(0)
+    // el corte solo avisa (chip), no bloquea ni pide excepción (0049)
+    await expect(page.getByTestId('chip-corte').first()).toContainText('después del corte')
+    await expect(page.getByTestId('excepcion-corte')).toHaveCount(0)
+    await expect(page.getByTestId('errores-plan')).toHaveCount(0)   // D-153: el WMS ya no exige vehículo calificado
     await capturar(page, info, 'rutas-corte', { completa: true })
     await page.getByTestId('guardar-plan').click()
     await expect(page.getByTestId('aviso-bloqueados')).toContainText('PED-DEMO-104')

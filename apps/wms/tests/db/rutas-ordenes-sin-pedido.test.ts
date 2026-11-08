@@ -169,6 +169,7 @@ describe('planificar una ruta con paradas por orden', () => {
   it('el corte vale también para una orden: una orden creada después del corte necesita excepción con motivo', async () => {
     const a = await ordenA()
     await base.admin.query(`update wms.parametros set valor = '00:00' where clave = 'hora_corte_planificacion'`)
+    await base.admin.query(`update wms.parametros set valor = 'si' where clave = 'corte_planificacion_estricto'`) // el corte duro es opcional (0049)
     try {
       const v = await veh(); const cd = await cond(); const r = await nuevaRuta(en(1), v, cd)
       await base.admin.query(`update wms.salidas set creada_en = now() where id = $1`, [a.id])
@@ -178,6 +179,7 @@ describe('planificar una ruta con paradas por orden', () => {
       await planificar(jt, r, en(1), v, cd, [{ salida_id: a.id, excepcion_corte: true, motivo_excepcion: 'El cliente la necesita hoy' }])
       expect((await paradasVivas(r))[0]).toMatchObject({ excepcion_corte: true, motivo_excepcion: 'El cliente la necesita hoy' })
     } finally {
+      await base.admin.query(`update wms.parametros set valor = 'no' where clave = 'corte_planificacion_estricto'`)
       await base.admin.query(`update wms.parametros set valor = '23:59' where clave = 'hora_corte_planificacion'`)
     }
   })

@@ -418,7 +418,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     const e = estadoE(); await this.sembrarDespacho(e)
     const d = desp(e)
     return structuredClone({
-      hoy: e.panorama.hoy, corte: d.corte, rutas: [...d.rutas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)).map((r) => this.vistaRuta(e, r)),
+      hoy: e.panorama.hoy, corte: d.corte, corteEstricto: false, rutas: [...d.rutas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)).map((r) => this.vistaRuta(e, r)),
       vehiculos: d.vehiculos, personal: d.personal, pedidos: this.pedidosPlanificables(e), ordenes: this.ordenesPlanificables(e),
       conductorEnDocumentos: this.vistaConductorEnDocumentos(e),
     })
@@ -520,7 +520,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
       if (s.tipo === 'CLIENTE') return falla(`La orden ${s.numero} es por cuenta de un cliente de almacenamiento: no va en una ruta de Logisalud, se entrega al transportista del cliente`)
       if (s.origen !== 'MANUAL') return falla(`La orden ${s.numero} nace de un pedido de la bandeja: agrégala a la ruta desde «Pedidos por despachar»`)
     }
-    const errores = validarPlan({ hoy: e.panorama.hoy, corte: d.corte, plan: planNormal, vehiculo, pedidos: planificables, enOtraRuta, ordenes, ordenesEnOtraRuta })
+    const errores = validarPlan({ hoy: e.panorama.hoy, corte: d.corte, corteEstricto: false, plan: planNormal, vehiculo, pedidos: planificables, enOtraRuta, ordenes, ordenesEnOtraRuta })
     if (errores.length) return falla(errores[0], { plan: errores.join(' ') })
 
     // Las paradas que salen del plan: la orden se libera solo si nació en esta ruta (y tiene pedido); una orden manual o de la bandeja sigue viva, solo se libera la parada

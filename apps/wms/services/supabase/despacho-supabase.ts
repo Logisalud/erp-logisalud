@@ -117,9 +117,9 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
   }
 
   async panoramaRutas(): Promise<PanoramaRutas> {
-    const [{ rutas, vehiculos, personal, planificables, ordenes }, param] = await Promise.all([this.armarRutas(), sch().from('parametros').select('valor').eq('clave', 'hora_corte_planificacion').maybeSingle()])
+    const [{ rutas, vehiculos, personal, planificables, ordenes }, param, estricto] = await Promise.all([this.armarRutas(), sch().from('parametros').select('valor').eq('clave', 'hora_corte_planificacion').maybeSingle(), sch().from('parametros').select('valor').eq('clave', 'corte_planificacion_estricto').maybeSingle()])
     return {
-      hoy: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }), corte: String((param.data as Fila | null)?.valor ?? '16:00'),
+      hoy: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }), corte: String((param.data as Fila | null)?.valor ?? '16:00'), corteEstricto: String((estricto.data as Fila | null)?.valor ?? 'no') === 'si',
       rutas: rutas.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)), vehiculos, personal, pedidos: planificables, ordenes,
       conductorEnDocumentos: await leerConductorEnDocumentos(personal),
     }

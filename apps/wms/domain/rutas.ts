@@ -131,6 +131,8 @@ export const claveDeOrden = (salidaId: string) => `orden:${salidaId}`
 export interface PanoramaRutas {
   hoy: string
   corte: string
+  /** El corte avisa (chip) pero no bloquea, salvo que el parámetro `corte_planificacion_estricto` esté en «si». */
+  corteEstricto?: boolean
   rutas: RutaVista[]
   vehiculos: VehiculoVista[]
   personal: PersonalTransporte[]
@@ -186,6 +188,8 @@ export function fueraDeCorte(importadoEn: string, fechaRuta: string, corte = '16
 export interface EntradaValidacion {
   hoy: string
   corte: string
+  /** Con el corte estricto, lo que llegó después necesita excepción con motivo; si no, solo se avisa. */
+  corteEstricto?: boolean
   plan: PlanRuta
   vehiculo?: VehiculoVista
   pedidos: ReadonlyMap<string, PedidoPlanificable>
@@ -214,7 +218,7 @@ export function validarPlan(e: EntradaValidacion): string[] {
       if (ord.tipo === 'CLIENTE') { errores.push(`La orden ${ord.numero} es por cuenta de un cliente de almacenamiento: no va en una ruta de Logisalud, se entrega al transportista del cliente.`); continue }
       const otraO = e.ordenesEnOtraRuta?.get(clave)
       if (otraO) errores.push(`La orden ${ord.numero} ya está en la ruta ${otraO}.`)
-      if (fueraDeCorte(ord.creadaEn, e.plan.fecha, e.corte) && !p.excepcionCorte) errores.push(`La orden ${ord.numero} se creó después del corte de las ${e.corte} de la víspera: marca la excepción y escribe el motivo.`)
+      if (e.corteEstricto && fueraDeCorte(ord.creadaEn, e.plan.fecha, e.corte) && !p.excepcionCorte) errores.push(`La orden ${ord.numero} se creó después del corte de las ${e.corte} de la víspera: marca la excepción y escribe el motivo.`)
       if (p.excepcionCorte && !p.motivoExcepcion?.trim()) errores.push(`La excepción de la orden ${ord.numero} necesita un motivo.`)
       continue
     }
@@ -224,7 +228,7 @@ export function validarPlan(e: EntradaValidacion): string[] {
     const otra = e.enOtraRuta.get(p.pedidoId)
     if (otra) errores.push(`El pedido ${ped.numero} ya está en la ruta ${otra}.`)
     if (ped.sinCatalogo.length) errores.push(`El pedido ${ped.numero} trae un producto que el WMS no conoce (${ped.sinCatalogo[0]}): Dirección Técnica debe darlo de alta.`)
-    if (fueraDeCorte(ped.importadoEn, e.plan.fecha, e.corte) && !p.excepcionCorte) errores.push(`El pedido ${ped.numero} llegó después del corte de las ${e.corte} de la víspera: marca la excepción y escribe el motivo.`)
+    if (e.corteEstricto && fueraDeCorte(ped.importadoEn, e.plan.fecha, e.corte) && !p.excepcionCorte) errores.push(`El pedido ${ped.numero} llegó después del corte de las ${e.corte} de la víspera: marca la excepción y escribe el motivo.`)
     if (p.excepcionCorte && !p.motivoExcepcion?.trim()) errores.push(`La excepción del pedido ${ped.numero} necesita un motivo.`)
   }
   return errores
