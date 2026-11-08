@@ -102,7 +102,7 @@ test.describe('rutas (S4)', () => {
     await page.getByTestId('ruta-conductor').selectOption({ label: 'Luis Quispe' })
     await page.getByTestId('agregar-buscar').fill('PED-DEMO-104')
     await page.getByTestId('pedido-disponible').filter({ hasText: 'PED-DEMO-104' }).getByTestId('agregar-pedido').click()
-    // el corte solo avisa (chip), no bloquea ni pide excepción (0048)
+    // el corte solo avisa (chip), no bloquea ni pide excepción (0049)
     await expect(page.getByTestId('chip-corte').first()).toContainText('después del corte')
     await expect(page.getByTestId('excepcion-corte')).toHaveCount(0)
     await expect(page.getByTestId('errores-plan')).toHaveCount(0)   // D-153: el WMS ya no exige vehículo calificado

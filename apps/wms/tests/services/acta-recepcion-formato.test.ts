@@ -10,7 +10,7 @@ beforeEach(() => { ;(globalThis as { __wmsDemo?: unknown }).__wmsDemo = undefine
 
 function textoDelPdf(pdf: Buffer): string {
   const bytes = pdf.toString('latin1'); const partes: string[] = []
-  for (const m of bytes.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+  for (const m of bytes.matchAll(/stream\r?\n([\s\S]*?)\nendstream/g)) {
     let contenido: string
     try { contenido = inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1') } catch { continue }
     for (const t of contenido.matchAll(/\[((?:<[0-9a-fA-F]*>|\([^)]*\)|-?[\d.]+|\s)*)\]\s*TJ|<([0-9a-fA-F]+)>\s*Tj|\(([^)]*)\)\s*Tj/g)) {

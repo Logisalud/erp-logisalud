@@ -12,7 +12,7 @@ const RAIZ = resolve(__dirname, '../..')
 
 function texto(pdf: Buffer): string {
   const partes: string[] = []
-  for (const m of pdf.toString('latin1').matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+  for (const m of pdf.toString('latin1').matchAll(/stream\r?\n([\s\S]*?)\nendstream/g)) {
     let c: string
     try { c = inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1') } catch { continue }
     for (const t of c.matchAll(/<([0-9a-fA-F]+)>\s*Tj|\(([^)]*)\)\s*Tj/g)) partes.push(t[1] !== undefined ? (t[1].match(/../g) ?? []).map((x) => String.fromCharCode(parseInt(x, 16))).join('') : t[2])
