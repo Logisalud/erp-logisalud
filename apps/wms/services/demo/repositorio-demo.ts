@@ -1,3 +1,4 @@
+import { heredarBonificacion } from '@/domain/bonificacion'
 import { CAMPOS_CATALOGO, CAMPOS_REGULATORIOS, type CambioRegulatorio, type EventoAuditoria, type Regulatorio } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
 import {
@@ -19,7 +20,9 @@ export class RepositorioDemo extends EjemplosDemo implements Repositorio {
     // SA-1: con las órdenes de ejemplo encendidas, el stock ya refleja lo que ellas movieron (una salida confirmada baja stock)
     if (modoEjemplos() === 'si') await this.sembrarDespacho(estadoE())
     sembrarInventario(estadoE())
-    return structuredClone(estado().panorama)
+    const panorama = structuredClone(estado().panorama)
+    panorama.productos = heredarBonificacion(panorama.productos)
+    return panorama
   }
 
   async auditoria(limite = 100): Promise<EventoAuditoria[]> {
