@@ -98,6 +98,10 @@ test.describe('entradas: la solicitud es lo primero', () => {
     await page.goto('/wms/entradas/nuevo')
     await page.getByTestId('tipo-COMPRA_LOCAL').click()
     await expect(page.getByTestId('oc-OC-DEMO-0004')).toBeVisible()
+    await expect(page.getByTestId('oc-fecha').first()).toHaveText(/\d{1,2} \w{3} \d{4}/)   // cada OC muestra su fecha de emisión
+    await page.getByTestId('oc-buscar').fill('OC-DEMO-0004')
+    await expect(page.getByTestId('oc-fila')).toHaveCount(1)
+    await page.getByTestId('oc-buscar').fill('')
     // el detalle de los productos se despliega con la flecha, sin elegir la orden
     await page.getByTestId('oc-detalle-boton-OC-DEMO-0004').click()
     await expect(page.getByTestId('oc-detalle-OC-DEMO-0004')).toContainText('Producto')

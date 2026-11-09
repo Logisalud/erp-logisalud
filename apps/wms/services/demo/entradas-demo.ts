@@ -509,7 +509,7 @@ export class MotorEntradas {
   ocsPendientes(): OcPendiente[] {
     const e = estadoE()
     return e.compras.map((c) => ({
-      ocId: c.ocId, codigo: c.codigo, proveedorNombre: c.proveedorNombre, proveedorRuc: c.proveedorRuc, estado: c.estado,
+      ocId: c.ocId, codigo: c.codigo, proveedorNombre: c.proveedorNombre, proveedorRuc: c.proveedorRuc, estado: c.estado, fechaEmision: c.fechaEmision, fechaEntrega: c.fechaEntrega,
       items: c.items.map((i) => ({
         ocItemId: i.ocItemId, productoId: i.productoId, codigo: producto(e, i.productoId)?.codigo ?? '', descripcion: producto(e, i.productoId)?.descripcion ?? '',
         pedida: i.pedida, recibida: i.recibida, saldo: i.pedida - i.recibida, facturada: i.facturada,
@@ -1250,10 +1250,9 @@ function sembrar(e: EstadoDemo) {
   const facturadas: Record<number, number> = { 1: 120, 3: 25, 6: 200 }
   const oc = (n: number, codigo: string, proveedor: string, ruc: string, items: [number, number][]) => {
     e.compras.push({
-      ocId: `compras-oc:${n}`, codigo, proveedorNombre: proveedor, proveedorRuc: ruc, estado: 'enviada',
+      ocId: `compras-oc:${n}`, codigo, proveedorNombre: proveedor, proveedorRuc: ruc, estado: 'enviada', fechaEmision: sumarDias(hoy, -n),
       items: items.map(([p, c], k) => ({ ocItemId: `compras-oc:${n}:item:${k + 1}`, productoId: idProd(p), pedida: c, recibida: 0, facturada: facturadas[n] ?? 0 })),
     })
-    void sumarDias(hoy, -n)
   }
   oc(1, 'OC-DEMO-0001', 'Distribuidora Andina S.A.C.', '20100000001', [[7, 120]])
   oc(2, 'OC-DEMO-0002', 'Droguería Pacífico S.A.C.', '20100000002', [[2, 6]])

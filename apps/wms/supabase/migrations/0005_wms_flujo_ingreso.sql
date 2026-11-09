@@ -338,23 +338,30 @@ alter table wms.alertas add constraint alertas_destinatario_rol_check
   check (destinatario_rol in ('direccion_tecnica', 'jefe_almacen', 'asistente_dt'));
 
 -- Lectura de Compras (solo lectura, aditivo): todas las líneas de OC con lo recibido y lo facturado.
-do $$ begin
+-- (0051: si Compras trae `fecha_emision` y `fecha_entrega_estimada`, las vistas las llevan al final; así volver a correr esta migración no las quita.)
+do $$
+declare v_fechas text := '';
+begin
   if to_regclass('compras.ordenes_compra') is not null and to_regclass('compras.ordenes_compra_items') is not null
      and to_regclass('compras.proveedores') is not null and to_regclass('catalogo.productos') is not null then
-    execute $v$
-      -- Todas las líneas de OC (cualquier estado): para conciliar y mostrar lo facturado aunque la OC ya se haya cerrado en Compras.
+    if exists (select 1 from information_schema.columns where table_schema = 'compras' and table_name = 'ordenes_compra' and column_name = 'fecha_emision')
+       and exists (select 1 from information_schema.columns where table_schema = 'compras' and table_name = 'ordenes_compra' and column_name = 'fecha_entrega_estimada') then
+      v_fechas := ', oc.fecha_emision, oc.fecha_entrega_estimada';
+    end if;
+    -- Todas las líneas de OC (cualquier estado): para conciliar y mostrar lo facturado aunque la OC ya se haya cerrado en Compras.
+    execute format($v$
       create or replace view wms.v_oc_lineas with (security_invoker = true) as
       select oc.id as oc_id, oc.codigo as oc_codigo, oc.estado as estado_oc, pv.id as proveedor_id,
              pv.razon_social as proveedor_nombre, pv.ruc as proveedor_ruc,
              oi.id as oc_item_id, oi.producto_id, p.codigo as producto_codigo, p.descripcion as producto_descripcion,
              oi.cantidad_pedida, coalesce(oi.cantidad_recibida, 0) as cantidad_recibida,
              oi.cantidad_pedida - coalesce(oi.cantidad_recibida, 0) as saldo,
-             coalesce(oi.cantidad_facturada, 0) as cantidad_facturada
+             coalesce(oi.cantidad_facturada, 0) as cantidad_facturada%s
         from compras.ordenes_compra oc
         join compras.proveedores pv on pv.id = oc.proveedor_id
         join compras.ordenes_compra_items oi on oi.oc_id = oc.id
         join catalogo.productos p on p.id = oi.producto_id
-    $v$;
+    $v$, v_fechas);
     -- Lo que se puede anunciar: solo OC que aún pueden recibir mercadería.
     execute $v$
       create or replace view wms.v_oc_items with (security_invoker = true) as

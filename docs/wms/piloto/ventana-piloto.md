@@ -11,10 +11,10 @@ Proyecto consolidado **`qpkigzniatidsvnxikox`**. **Nada de esto se ejecutó en n
 6. Compras tiene `ordenes_compra.estado` y `ordenes_compra_items.cantidad_recibida` y existe `catalogo.productos` (verificar contra la base real).
 
 ## 2. Orden exacto de migraciones (`apps/wms/supabase/migrations/`)
-**0001 → 0050, SIN la 0008** (la 0010 no existe; la 0008 va solo en el go-live). Cada archivo se corre una vez, en orden numérico: 0001–0007, 0009, 0011–0050. Después, las semillas `seeds/0001_topologia.sql` y `seeds/0002_transporte_inicial.sql`. Nuevas del piloto: 0042 carga de ensayo, 0043 Mis rutas, 0044 registro de reinicios, 0045 sincronización automática de OC, 0046 ruteo de Pedidos en la copia del pedido, 0047 seguimiento para el cliente (apagado en el piloto).
+**0001 → 0051, SIN la 0008** (la 0010 no existe; la 0008 va solo en el go-live). Cada archivo se corre una vez, en orden numérico: 0001–0007, 0009, 0011–0051. Después, las semillas `seeds/0001_topologia.sql` y `seeds/0002_transporte_inicial.sql`. Nuevas del piloto: 0042 carga de ensayo, 0043 Mis rutas, 0044 registro de reinicios, 0045 sincronización automática de OC, 0046 ruteo de Pedidos en la copia del pedido, 0047 seguimiento para el cliente (apagado en el piloto).
 Ensayo previo (ya hecho en Postgres 17.5): `WMS_OMITIR=0008 WMS_PROBAR_REVERSA=1 apps/wms/scripts/ensayo-migraciones.sh <url-de-un-Postgres-desechable>`.
 
-## 3. Verificación después de cada bloque (0001–0009 · 0011–0024 · 0025–0036 · 0037–0050 y semillas)
+## 3. Verificación después de cada bloque (0001–0009 · 0011–0024 · 0025–0036 · 0037–0051 y semillas)
 ```sql
 select * from wms.verificar_saldos();                                   -- 0 filas
 select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
