@@ -71,6 +71,12 @@ function colorDe(m: Movimiento): string {
   if (m.tipo === 'AJUSTE') {
     return m.detalle?.startsWith('Diferencia sin explicar') ? 'text-red-700' : 'text-amber-700';
   }
+  // Una letra que no se cobró entra en S/ 0,00 y no mueve el acumulado. Sin
+  // esto se pintaría de verde como si fuera un cobro, que es justo lo que
+  // no es: una protestada es plata que no entró.
+  if (m.tipo === 'LETRA' && m.debe === 0 && m.haber === 0) {
+    return m.etiqueta.includes('protestada') ? 'text-red-700' : 'text-gray-500';
+  }
   if (m.debe > 0) return 'text-gray-900';
   return 'text-[#276b3b]';
 }
