@@ -122,6 +122,8 @@ export interface Producto {
   principioActivo?: string
   unidadMedida: string
   estado: 'activo' | 'inactivo'
+  /** Código de bonificación (BO…) que Compras liga a este producto: es el MISMO producto, con otro código (D-213). */
+  codigoBonificacion?: string
 }
 
 /** Datos regulatorios (D-37): los edita Dirección Técnica (Katia o Sandra) sin segunda validación; cada cambio queda en el historial. */

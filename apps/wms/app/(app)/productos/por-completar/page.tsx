@@ -5,6 +5,7 @@ import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { puedeEditarRegulatorio } from '@/domain/permisos'
 import { datosFaltantes, productoCompleto } from '@/domain/regulatorio'
+import { sinGemelosBonificacion, vinculosBonificacion } from '@/domain/bonificacion'
 
 export const metadata = { title: 'Productos por completar — WMS LOGISALUD' }
 
@@ -13,7 +14,9 @@ export default async function ProductosPorCompletar() {
   const ctx = await exigirContexto()
   if (!puedeEditarRegulatorio(ctx.roles)) redirect('/productos')
   const p = await repositorio().panorama()
-  const filas = p.productos.filter((x) => !productoCompleto(x.reg)).sort((a, b) => a.descripcion.localeCompare(b.descripcion, 'es'))
+  const { bonificacionDe } = vinculosBonificacion(p.productos)
+  // un producto con código de bonificación (BO) se completa una sola vez: aquí sale su producto normal, no los dos
+  const filas = sinGemelosBonificacion(p.productos).filter((x) => !productoCompleto(x.reg)).sort((a, b) => a.descripcion.localeCompare(b.descripcion, 'es'))
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <Link href="/productos" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-gray-700 hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden />Productos</Link>
@@ -36,6 +39,7 @@ export default async function ProductosPorCompletar() {
                 <Link href={`/productos/${x.id}`} className="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-400" data-testid="fila-por-completar">
                   <p className="font-medium text-gray-900">{x.descripcion}</p>
                   <p className="text-xs text-gray-600">{x.codigo}{x.presentacion ? ` · ${x.presentacion}` : ''}</p>
+                  {bonificacionDe.get(x.id) && <p className="mt-0.5 text-xs text-gray-600" data-testid="incluye-bonificacion">Incluye su código de bonificación {bonificacionDe.get(x.id)!.codigo}: se completa una sola vez.</p>}
                   <p className="mt-2 flex items-start gap-2 text-sm text-amber-950"><ClipboardList className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /><span>Falta: {datosFaltantes(x.reg).join(', ')}.</span></p>
                 </Link>
               </li>

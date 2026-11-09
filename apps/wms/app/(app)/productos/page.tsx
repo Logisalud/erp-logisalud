@@ -1,3 +1,4 @@
+import { sinGemelosBonificacion } from '@/domain/bonificacion'
 import Link from 'next/link'
 import { Boxes, ClipboardList, FilePlus2, SearchX } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
@@ -20,7 +21,7 @@ export default async function PaginaProductos({
 }: { searchParams: { q?: string; rs?: string; creado?: string } }) {
   const ctx = await exigirContexto()
   const [p, piloto] = await Promise.all([repositorio().panorama(), modoPilotoActivo()])
-  const porCompletar = p.productos.filter((x) => !productoCompleto(x.reg)).length
+  const porCompletar = sinGemelosBonificacion(p.productos).filter((x) => !productoCompleto(x.reg)).length
   const q = (searchParams.q ?? '').trim()
   const rs = RS.find((v) => v === searchParams.rs)
 

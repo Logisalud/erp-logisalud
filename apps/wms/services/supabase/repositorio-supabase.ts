@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
+import { heredarBonificacion } from '@/domain/bonificacion'
 import type {
   Asignacion, CambioRegulatorio, CampoRegulatorio, DocumentoSustento, EventoAuditoria, Lote, Posicion, Propietario, Regulatorio, Saldo,
 } from '@/domain/tipos'
@@ -36,7 +37,7 @@ export class RepositorioSupabase extends SeguimientoSupabase implements Reposito
       traerTodo('posiciones', 'wms'),
       traerTodo('asignaciones_posicion', 'wms'),
       traerTodo('documentos_sustento', 'wms'),
-      traerTodo('productos', 'catalogo', 'id, codigo, descripcion, presentacion, marca, principio_activo, unidad_medida, estado'),
+      traerTodo('productos', 'catalogo', 'id, codigo, codigo_bonificacion, descripcion, presentacion, marca, principio_activo, unidad_medida, estado'),
       traerTodo('producto_regulatorio', 'wms'),
       traerTodo('lotes', 'wms'),
       traerTodo('saldos', 'wms'),
@@ -44,7 +45,7 @@ export class RepositorioSupabase extends SeguimientoSupabase implements Reposito
     const regPorProducto = new Map(regs.map((r) => [String(r.producto_id), mapearRegulatorio(r)]))
     const productos: ProductoConReg[] = prods.map((r) => ({
       id: String(r.id), codigo: String(r.codigo), descripcion: String(r.descripcion), presentacion: s(r.presentacion),
-      marca: s(r.marca), principioActivo: s(r.principio_activo), unidadMedida: String(r.unidad_medida ?? 'UND'),
+      marca: s(r.marca), principioActivo: s(r.principio_activo), unidadMedida: String(r.unidad_medida ?? 'UND'), codigoBonificacion: s(r.codigo_bonificacion),
       estado: r.estado === 'inactivo' ? 'inactivo' : 'activo', reg: regPorProducto.get(String(r.id)),
     }))
     return {
@@ -63,7 +64,7 @@ export class RepositorioSupabase extends SeguimientoSupabase implements Reposito
         vigenteDesde: s(r.vigente_desde), archivoRef: s(r.archivo_ref),
         estadoConfirmacion: r.estado_confirmacion as DocumentoSustento['estadoConfirmacion'], nota: s(r.nota),
       })),
-      productos,
+      productos: heredarBonificacion(productos),
       lotes: lotes.map((r): Lote => ({
         id: String(r.id), productoId: String(r.producto_id), codigo: String(r.codigo), vence: s(r.vence), venceTexto: s(r.vence_texto_original),
         propietarioId: String(r.propietario_id),

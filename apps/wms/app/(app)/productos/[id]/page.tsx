@@ -12,6 +12,7 @@ import { ChipEstado, ChipPorTrasladar, ChipRS } from '@/components/chips'
 import { modoPilotoActivo } from '@/lib/modo-piloto'
 import { datosFaltantes, productoCompleto } from '@/domain/regulatorio'
 import { FormRegulatorio } from '@/components/form-regulatorio'
+import { vinculosBonificacion } from '@/domain/bonificacion'
 import { PanelValidarProducto } from '@/components/panel-validar-producto'
 import { vistaPropietario } from '@/components/propietarios-color'
 
@@ -27,8 +28,12 @@ export default async function DetalleProducto({ params, searchParams }: { params
   const sit = situacionRS(reg?.rsVence, p.hoy)
   const stock = filasDeStock(p).filter((f) => f.producto.id === prod.id)
   const total = stock.reduce((n, f) => n + f.saldo.cantidad, 0)
-  const puedeEditar = puedeEditarRegulatorio(ctx.roles)
-  const historial = await repositorio().historialRegulatorio(prod.id)
+  // código de bonificación (BO): es el mismo producto que su producto normal; sus datos regulatorios son los de ese producto y se editan allí (D-213)
+  const { baseDe, bonificacionDe } = vinculosBonificacion(p.productos)
+  const base = baseDe.get(prod.id)
+  const bonificacion = bonificacionDe.get(prod.id)
+  const puedeEditar = puedeEditarRegulatorio(ctx.roles) && !base
+  const historial = await repositorio().historialRegulatorio((base ?? prod).id)
 
   const dato = (k: string, v: string | undefined | null) => (
     <div className="flex flex-col gap-0.5 py-3 sm:flex-row sm:items-baseline sm:gap-6">
@@ -51,17 +56,25 @@ export default async function DetalleProducto({ params, searchParams }: { params
         </div>
       )}
 
-      {!productoCompleto(reg) && (
+      {base && (
+        <div role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-4 text-sm text-teal-950" data-testid="producto-es-bonificacion">
+          <p className="font-medium">Es el código de bonificación de {base.codigo}</p>
+          <p className="mt-1">Es el mismo producto, con otro código: sus datos regulatorios son los de <Link href={`/productos/${base.id}`} className="underline">{base.descripcion} ({base.codigo})</Link>. Se completan y se editan allí, una sola vez.</p>
+        </div>
+      )}
+
+      {!productoCompleto(reg) && !base && (
         <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="producto-pendiente-dt">
           <p className="font-medium">Pendiente de Dirección Técnica</p>
           <p className="mt-1">Faltan sus datos regulatorios: {datosFaltantes(reg).join(', ')}. Hasta completarlos no se aprueban lotes de este producto.{puedeEditar ? ' Complétalos abajo, en «Editar los datos regulatorios».' : ''}</p>
         </div>
       )}
 
-      {(reg?.estadoValidacion === 'PENDIENTE' || reg?.estadoValidacion === 'OBSERVADO') && <PanelValidarProducto productoId={prod.id} puedeValidar={puedeValidarProducto(ctx.roles)} />}
+      {!base && (reg?.estadoValidacion === 'PENDIENTE' || reg?.estadoValidacion === 'OBSERVADO') && <PanelValidarProducto productoId={prod.id} puedeValidar={puedeValidarProducto(ctx.roles)} />}
 
       <header>
         <p className="text-sm text-gray-600">{prod.codigo}</p>
+        {bonificacion && <p className="text-xs text-gray-600" data-testid="tiene-bonificacion">Su código de bonificación es {bonificacion.codigo}: es el mismo producto y usa estos mismos datos.</p>}
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">{prod.descripcion}</h1>
         {prod.presentacion && <p className="mt-1 text-gray-700">{prod.presentacion}</p>}
         {reg && <div className="mt-3 flex flex-wrap items-center gap-2"><ChipRS situacion={sit} /><Link href={`/kardex?producto=${prod.id}`} className="text-sm text-gray-800 underline" data-testid="ver-kardex-producto">Ver su Kardex</Link></div>}
