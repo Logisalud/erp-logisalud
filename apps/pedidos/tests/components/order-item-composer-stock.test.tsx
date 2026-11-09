@@ -44,6 +44,7 @@ function pintar(stock: number) {
       items={items}
       products={[]}
       sinPrecio={[]}
+      bonificables={[]}
       stockPorProducto={{ [PRODUCTO]: stock }}
       observaciones={[]}
       esAdmin={false}

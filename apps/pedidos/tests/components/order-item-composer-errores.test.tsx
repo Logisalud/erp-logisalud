@@ -64,6 +64,7 @@ describe("cuando el envío del pedido se frena", () => {
         items={items}
         products={[]}
         sinPrecio={[]}
+        bonificables={[]}
         stockPorProducto={stockDeSobra}
         observaciones={[]}
         esAdmin={false}

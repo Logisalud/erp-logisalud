@@ -642,6 +642,86 @@ export async function marcarBonificacionManual(input: {
   };
 }
 
+/**
+ * Pone una línea gratis de un producto que NO está en el pedido.
+ *
+ * Es la otra puerta al mismo mecanismo que `marcarBonificacionManual`: la
+ * línea sale con `origen_precio = 'BONIFICACION_MANUAL'`, así que pasa por
+ * la misma aprobación y se ve igual en el correo y en el Excel.
+ *
+ * Hace falta porque un producto que solo se regala —el panetón de
+ * Intipharma— no tiene precio de lista, y sin precio no se puede agregar al
+ * pedido para después marcarlo. Ver la migración 1058.
+ */
+export async function agregarBonificacionSuelta(input: {
+  orderId: string;
+  productId: string;
+  cantidad: number;
+  motivo: string;
+  actor: string;
+}): Promise<{
+  itemId: string;
+  codigoInterno: string;
+  cantidad: number;
+  precioLista: number;
+  motivo: string;
+  requiereAprobacion: boolean;
+}> {
+  if (!Number.isInteger(input.cantidad) || input.cantidad < 1) {
+    throw new Error("La cantidad bonificada tiene que ser un número entero de 1 o más.");
+  }
+  const motivo = input.motivo.trim();
+  if (!motivo) {
+    throw new Error("Escribí el motivo de la bonificación: es lo que va a revisar el aprobador.");
+  }
+
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("agregar_bonificacion_suelta", {
+    p_order_id: input.orderId,
+    p_product_id: input.productId,
+    p_cantidad: input.cantidad,
+    p_motivo: motivo,
+  });
+  if (error) throw new Error(error.message);
+
+  const resultado = data as {
+    orderId: string;
+    orderItemId: string;
+    productId: string;
+    codigoInterno: string;
+    cantidad: number;
+    precioLista: number;
+    motivo: string;
+    requiereAprobacion: boolean;
+  };
+
+  await logAudit({
+    actor: input.actor,
+    accion: "agregar_bonificacion_suelta",
+    entidad: "order_items",
+    entidadId: resultado.orderItemId,
+    datosDespues: {
+      order_id: resultado.orderId,
+      product_id: resultado.productId,
+      codigo_interno: resultado.codigoInterno,
+      cantidad: resultado.cantidad,
+      precio_unitario: 0,
+      precio_lista_original: resultado.precioLista,
+      motivo: resultado.motivo,
+      requiere_aprobacion_comercial: resultado.requiereAprobacion,
+    },
+  });
+
+  return {
+    itemId: resultado.orderItemId,
+    codigoInterno: resultado.codigoInterno,
+    cantidad: resultado.cantidad,
+    precioLista: resultado.precioLista,
+    motivo: resultado.motivo,
+    requiereAprobacion: resultado.requiereAprobacion,
+  };
+}
+
 /** Deshace la bonificación manual: la línea gratis se va del pedido. */
 export async function quitarBonificacionManual(input: {
   itemId: string;

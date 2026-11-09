@@ -56,9 +56,11 @@ describe("la línea bonificada en la pantalla del pedido", () => {
         items={items}
         products={[]}
         sinPrecio={[]}
+        bonificables={[]}
         stockPorProducto={stockDeSobra}
         observaciones={[]}
         esAdmin={false}
+        celularOk={true}
       />,
     );
     expect(html).toContain("Bonificación automática");
@@ -81,9 +83,11 @@ describe("la línea bonificada en la pantalla del pedido", () => {
         items={items}
         products={[]}
         sinPrecio={[]}
+        bonificables={[]}
         stockPorProducto={stockDeSobra}
         observaciones={[]}
         esAdmin={false}
+        celularOk={true}
       />,
     );
 
@@ -98,9 +102,11 @@ describe("la línea bonificada en la pantalla del pedido", () => {
         items={[{ ...items[1], cantidad: 1 }]}
         products={[]}
         sinPrecio={[]}
+        bonificables={[]}
         stockPorProducto={stockDeSobra}
         observaciones={[]}
         esAdmin={false}
+        celularOk={true}
       />,
     );
 
@@ -134,9 +140,11 @@ function renderConItems(items: typeof manuales, esAdmin: boolean) {
       items={items}
       products={[]}
       sinPrecio={[]}
-        stockPorProducto={stockDeSobra}
+      bonificables={[]}
+      stockPorProducto={stockDeSobra}
       observaciones={[]}
       esAdmin={esAdmin}
+      celularOk
     />,
   );
 }

@@ -8,6 +8,7 @@ import {
   changeOrderCustomer,
   deleteDraftOrder,
   lineasSinStockDelPedido,
+  agregarBonificacionSuelta,
   marcarBonificacionManual,
   quitarBonificacionManual,
   removeOrderItem,
@@ -253,6 +254,40 @@ export async function marcarComoBonificacion(
     return { ok: true, ...resultado };
   } catch (err) {
     return falloDe(err, "No se pudo marcar la bonificación.");
+  }
+}
+
+export async function agregarBonificacion(
+  orderId: string,
+  formData: FormData,
+): Promise<ResultadoAccion> {
+  try {
+    const userId = await requireUserId();
+
+    const productId = String(formData.get("productId") ?? "").trim();
+    const cantidad = Number(formData.get("cantidad"));
+    const motivo = String(formData.get("motivo") ?? "").trim();
+
+    if (!productId) throw new Error("Elegí qué producto va bonificado.");
+    if (!Number.isInteger(cantidad) || cantidad < 1) {
+      throw new Error("Escribí cuántas unidades van bonificadas.");
+    }
+    if (!motivo) {
+      throw new Error("Escribí el motivo de la bonificación: es lo que va a revisar el aprobador.");
+    }
+
+    const resultado = await agregarBonificacionSuelta({
+      orderId,
+      productId,
+      cantidad,
+      motivo,
+      actor: userId,
+    });
+
+    revalidatePath(`/pedidos/${orderId}`);
+    return { ok: true, ...resultado };
+  } catch (err) {
+    return falloDe(err, "No se pudo agregar la bonificación.");
   }
 }
 

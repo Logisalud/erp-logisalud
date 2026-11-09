@@ -18,6 +18,7 @@ import { ObservationForm } from "./observation-form";
 import { DeleteDraftButton } from "./delete-draft-button";
 import {
   displayNombreProducto,
+  esBonificacion,
   esOfrecibleEnPedido,
   faltaPrecioParaPedir,
 } from "@/domain/products";
@@ -88,6 +89,19 @@ export default async function OrderDetailPage({
     .filter(faltaPrecioParaPedir)
     .map((p) => ({ descripcion: p.descripcion, codigo_interno: p.codigo_interno }));
 
+  // Lo que se puede REGALAR: los productos de bonificación (prefijo BO).
+  // No tienen precio —son el mismo artículo que llega sin costo— así que no
+  // salen en el buscador normal; van en su propio selector. El panetón de
+  // Intipharma (BOI000) es el que trajo esto: se regala en la campaña de fin
+  // de año y no se vende nunca.
+  const bonificables = products
+    .filter((p) => p.estado === "activo" && esBonificacion(p.codigo_interno))
+    .map((p) => ({
+      id: p.id,
+      descripcion: p.descripcion,
+      codigo_interno: p.codigo_interno,
+    }));
+
   const total = order.items.reduce((acc, item) => acc + item.total, 0);
   // Sin celular el pedido no sale (lo frena submit_order). Se calcula acá
   // para poder avisarlo ANTES de que el vendedor toque "Enviar pedido".
@@ -135,6 +149,7 @@ export default async function OrderDetailPage({
             items={order.items}
             products={activeProducts}
             sinPrecio={sinPrecio}
+            bonificables={bonificables}
             stockPorProducto={Object.fromEntries(
               order.items.map((i) => [i.product_id, stock.get(i.product_id) ?? 0]),
             )}

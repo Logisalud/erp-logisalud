@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Combobox, type ComboboxOption } from "@/components/combobox";
 import {
@@ -16,6 +16,7 @@ import {
   cambiarCantidad,
   enviarPedido,
   fijarPrecioEspecial,
+  agregarBonificacion,
   marcarComoBonificacion,
   quitarBonificacion,
   quitarProducto,
@@ -77,6 +78,7 @@ export function OrderItemComposer({
   items,
   products,
   sinPrecio,
+  bonificables,
   stockPorProducto,
   observaciones,
   esAdmin,
@@ -93,6 +95,8 @@ export function OrderItemComposer({
    * acá no salga nada, sin explicación, parecía una falla del sistema.
    */
   sinPrecio: Array<{ descripcion: string; codigo_interno: string }>;
+  /** Los productos que se pueden REGALAR (prefijo BO), con o sin precio. */
+  bonificables: Array<{ id: string; descripcion: string; codigo_interno: string }>;
   /**
    * Stock de los productos que YA están en el pedido. Va aparte de
    * `products` porque una línea puede ser de un producto que el buscador no
@@ -286,6 +290,52 @@ export function OrderItemComposer({
         return;
       }
       setDiscountFormItemId(null);
+      router.refresh();
+    });
+  }
+
+  // Regalar algo que no está en el pedido. El panetón de Intipharma es el
+  // caso: se regala y no se vende, así que no tiene precio y no aparece en
+  // el buscador de arriba.
+  const [abrirRegalo, setAbrirRegalo] = useState(false);
+  const [regaloElegido, setRegaloElegido] = useState<ComboboxOption | null>(null);
+
+  const opcionesRegalo: ComboboxOption[] = useMemo(
+    () =>
+      bonificables.map((p) => ({
+        id: p.id,
+        label: displayNombreProducto(p.descripcion, p.codigo_interno),
+        description: p.codigo_interno,
+      })),
+    [bonificables],
+  );
+
+  async function buscarRegalo(term: string): Promise<ComboboxOption[]> {
+    const q = normalize(term);
+    return opcionesRegalo
+      .filter(
+        (o) => normalize(o.label).includes(q) || normalize(o.description ?? "").includes(q),
+      )
+      .slice(0, 30);
+  }
+
+  function enviarRegalo(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    if (!regaloElegido) {
+      setError("Elegí qué producto va bonificado.");
+      return;
+    }
+    formData.set("productId", regaloElegido.id);
+    setError(null);
+    startTransition(async () => {
+      const resultado = await agregarBonificacion(orderId, formData);
+      if (!resultado.ok) {
+        setError(resultado.mensaje);
+        return;
+      }
+      setAbrirRegalo(false);
+      setRegaloElegido(null);
       router.refresh();
     });
   }
@@ -498,6 +548,81 @@ export function OrderItemComposer({
                   Agregar
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Regalar algo que no se vende: el panetón de la campaña, una
+              muestra. Va acá abajo y plegado para no competir con el
+              camino normal, que es agregar un producto que se cobra. */}
+          {bonificables.length > 0 && (
+            <div className="mt-4 border-t border-slate-200 pt-3">
+              {!abrirRegalo ? (
+                <button
+                  type="button"
+                  onClick={() => setAbrirRegalo(true)}
+                  className="btn-ghost text-sm"
+                >
+                  Agregar una bonificación (panetón, muestra…)
+                </button>
+              ) : (
+                <form onSubmit={enviarRegalo} className="flex flex-col gap-3">
+                  <p className="text-sm text-slate-700">
+                    {esAdmin
+                      ? "Entra como línea aparte a S/ 0.00. Como administrador se aplica de inmediato, sin aprobación."
+                      : "Entra como línea aparte a S/ 0.00. Es un regalo, así que al enviar el pedido queda esperando aprobación comercial."}
+                  </p>
+
+                  <Combobox
+                    name="productIdRegalo"
+                    label="Qué va bonificado"
+                    selected={regaloElegido}
+                    onSelect={setRegaloElegido}
+                    onSearch={buscarRegalo}
+                    initialOptions={opcionesRegalo.slice(0, 30)}
+                    placeholder="Busca por nombre o código..."
+                    minSearchLength={1}
+                    debounceMs={120}
+                    emptyMessage="Ningún producto coincide"
+                  />
+
+                  <div className="w-32">
+                    <label className="etiqueta" htmlFor="cantidad-regalo">
+                      Unidades
+                    </label>
+                    <input
+                      id="cantidad-regalo"
+                      name="cantidad"
+                      className="campo cifra"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      required
+                      defaultValue={1}
+                    />
+                  </div>
+
+                  <input
+                    name="motivo"
+                    required
+                    placeholder="Motivo (obligatorio): ej. panetón de campaña de fin de año"
+                    className="campo h-11 min-h-11 text-sm"
+                  />
+
+                  <div className="flex gap-2">
+                    <button type="submit" className="btn-secondary text-sm" disabled={isPending}>
+                      {isPending ? "Agregando…" : "Agregar bonificación"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAbrirRegalo(false); setRegaloElegido(null); }}
+                      className="btn-ghost text-sm"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
         </section>
