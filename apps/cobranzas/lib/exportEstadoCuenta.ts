@@ -15,6 +15,11 @@ const fecha = (f: string) => {
  * cambia una regla de saldo, cambia en un solo lugar y las dos salidas siguen
  * diciendo lo mismo — que un Excel y una pantalla discrepen sobre cuánto debe
  * un cliente es peor que no tener el Excel.
+ *
+ * Los comentarios de cobranza entran por la misma puerta: el del cliente
+ * arriba con el resumen, y el de cada factura en su columna de la segunda
+ * hoja. Quedaban solo en pantalla, y el archivo que se manda por correo o
+ * WhatsApp es justamente donde hacía falta leerlos.
  */
 export function estadoCuentaXlsx(
   ruc: string,
@@ -22,7 +27,7 @@ export function estadoCuentaXlsx(
   desde: string | null,
   hasta: string | null,
 ): { buf: ArrayBuffer; filename: string } {
-  const { cliente: c, movimientos, porFactura, resumen } = datos;
+  const { cliente: c, movimientos, porFactura, resumen, comentarioCliente, comentariosPorFactura } = datos;
 
   const rango =
     desde || hasta
@@ -44,6 +49,18 @@ export function estadoCuentaXlsx(
     ['Total notas de crédito', resumen.totalNotasCredito],
     ['Total notas de débito', resumen.totalNotasDebito],
     [],
+    // El acuerdo con el cliente va arriba, con el resumen, no perdido entre
+    // las filas: es lo primero que pregunta quien recibe el archivo.
+    ...(comentarioCliente
+      ? [
+          [
+            'Comentario de cobranza',
+            comentarioCliente.comentario +
+              (comentarioCliente.escrito_por ? ` — ${comentarioCliente.escrito_por}` : ''),
+          ],
+          [],
+        ]
+      : []),
     ['Fecha', 'Tipo', 'Documento', 'Debe', 'Haber', 'Saldo', 'Detalle'],
   ];
 
@@ -64,7 +81,7 @@ export function estadoCuentaXlsx(
     [c?.razon_social ?? ruc],
     [`RUC ${ruc}`],
     [],
-    ['Factura', 'Emisión', 'Vence', 'Importe', 'Notas de crédito', 'Notas de débito', 'Cobrado', 'Ajuste', 'Motivo del ajuste', 'Saldo', 'Estado', 'Días vencida', 'NC vigentes'],
+    ['Factura', 'Emisión', 'Vence', 'Importe', 'Notas de crédito', 'Notas de débito', 'Cobrado', 'Ajuste', 'Motivo del ajuste', 'Saldo', 'Estado', 'Días vencida', 'NC vigentes', 'Comentario'],
   ];
   for (const f of porFactura) {
     aoaF.push([
@@ -81,12 +98,14 @@ export function estadoCuentaXlsx(
       f.estado,
       f.saldo > 0.005 && (f.diasVencida ?? 0) > 0 ? (f.diasVencida as number) : '',
       f.notasCredito.map((n) => `${n.comprobante} (${fecha(n.fecha)}) ${n.importe.toFixed(2)}`).join(' · '),
+      comentariosPorFactura[f.id]?.comentario ?? '',
     ]);
   }
   const wsF = XLSX.utils.aoa_to_sheet(aoaF);
   wsF['!cols'] = [
     { wch: 14 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 17 }, { wch: 16 },
     { wch: 13 }, { wch: 12 }, { wch: 34 }, { wch: 13 }, { wch: 11 }, { wch: 13 }, { wch: 46 },
+    { wch: 42 },
   ];
 
   const wb = XLSX.utils.book_new();

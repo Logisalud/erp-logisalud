@@ -39,9 +39,9 @@ export async function registrarRecepcionAction(
       // archivo) y un FormData plano no representa una lista de pares sin
       // inventar nombres tipo `guia[0][numero]`. El archivo ya se subió
       // antes, en su propio request: acá solo llega su ruta.
-      guias: parsearGuias(form.get('guias')),
-      numeroFactura: String(form.get('numeroFactura') ?? ''),
-      storagePathFactura: String(form.get('pathFactura') ?? '') || null,
+      guias: parsearPapeles(form.get('guias')),
+      // Igual que las guías: un proveedor puede facturar la entrega en dos.
+      facturas: parsearPapeles(form.get('facturas')),
       lineas: JSON.parse(String(form.get('lineas') ?? '[]')),
     })
   } catch (e) {
@@ -51,11 +51,11 @@ export async function registrarRecepcionAction(
 }
 
 /**
- * Las guías que manda el formulario. Tolera basura de entrada —devuelve
- * lista vacía— y deja que `validarRecepcionTresColumnas` sea la que exige al
- * menos una completa: la validación de negocio vive en el dominio, no acá.
+ * Las guías o facturas que manda el formulario. Tolera basura de entrada
+ * —devuelve lista vacía— y deja que `validarRecepcionTresColumnas` sea la que
+ * exige al menos una completa: la validación de negocio vive en el dominio.
  */
-function parsearGuias(crudo: FormDataEntryValue | null): { numero: string; storagePath: string | null }[] {
+function parsearPapeles(crudo: FormDataEntryValue | null): { numero: string; storagePath: string | null }[] {
   if (typeof crudo !== 'string' || !crudo) return []
   try {
     const datos = JSON.parse(crudo)

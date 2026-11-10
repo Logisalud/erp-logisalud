@@ -1,6 +1,6 @@
 import { Ban, CalendarClock, CheckCircle2, CircleDashed, Clock, ClipboardCheck, FileSignature, Hourglass, PenLine, ScanSearch, ShieldAlert, Thermometer, TriangleAlert, Truck, UserCheck } from 'lucide-react'
 import {
-  ETIQUETA_ALERTA, ETIQUETA_PASO, ETIQUETA_REGISTRO_COMPRAS, ETIQUETA_TIPO_INGRESO, type EstadoActa, type EstadoRegistroCompras, type PasoSolicitud,
+  ETIQUETA_ALERTA, ETIQUETA_ESTADO_SOLICITUD, ETIQUETA_PASO, ETIQUETA_REGISTRO_COMPRAS, ETIQUETA_TIPO_INGRESO, type EstadoActa, type EstadoRegistroCompras, type EstadoSolicitud, type PasoSolicitud,
   type TipoAlerta, type TipoIngreso, type VerificacionLinea,
 } from '@/domain/entradas'
 
@@ -20,6 +20,17 @@ export function ChipPaso({ paso, tipo }: { paso: PasoSolicitud; tipo?: TipoIngre
   // Una solicitud cerrada ya tiene su inventario: espera su acta organoléptica en Cuarentena (o en Devoluciones).
   const texto = paso === 'CERRADA' ? (tipo === 'DEVOLUCION' ? 'En Devoluciones' : 'En Cuarentena') : ETIQUETA_PASO[paso]
   return <span className={`${base} ${m.cls}`}><m.Icono className="h-3.5 w-3.5" aria-hidden />{texto}</span>
+}
+
+/** Dónde va una solicitud de ingreso (para listas que no son la de Entradas). Siempre con ícono y palabra. */
+export function ChipEstadoSolicitud({ estado }: { estado: EstadoSolicitud }) {
+  const m: Record<EstadoSolicitud, { cls: string; Icono: typeof Truck }> = {
+    BORRADOR: { cls: 'border-gray-300 bg-gray-100 text-gray-800', Icono: UserCheck }, ENVIADA: { cls: 'border-gray-300 bg-gray-100 text-gray-800', Icono: UserCheck },
+    PROGRAMADA: { cls: 'border-sky-200 bg-sky-50 text-sky-900', Icono: Truck }, EN_RECEPCION: { cls: 'border-amber-300 bg-amber-50 text-amber-900', Icono: ScanSearch },
+    CERRADA: { cls: 'border-green-200 bg-green-50 text-green-800', Icono: CheckCircle2 }, ANULADA: { cls: 'border-red-200 bg-red-50 text-red-800', Icono: Ban },
+  }
+  const x = m[estado]
+  return <span className={`${base} ${x.cls}`}><x.Icono className="h-3.5 w-3.5" aria-hidden />{ETIQUETA_ESTADO_SOLICITUD[estado]}</span>
 }
 
 export function ChipVerificacion({ v }: { v: VerificacionLinea | null }) {

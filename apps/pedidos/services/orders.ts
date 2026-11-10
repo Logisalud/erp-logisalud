@@ -273,7 +273,12 @@ async function resolverUbigeo(
 
 export type AddOrderItemResult =
   | { ok: true; itemId: string }
-  | { ok: false; reason: "NO_PRICE" | "NO_TAX_PROFILE" | "NO_CHANNEL" | "PRODUCTO_INACTIVO" | "SIN_STOCK" };
+  | {
+      ok: false;
+      reason: "NO_PRICE" | "NO_TAX_PROFILE" | "NO_CHANNEL" | "PRODUCTO_INACTIVO" | "SIN_STOCK" | "FUERA_DE_ZONA";
+      /** El texto exacto para mostrar, cuando el motivo lo trae la base. */
+      detalle?: string;
+    };
 
 /**
  * Agrega una línea al pedido en DRAFT. El precio mostrado acá es solo
@@ -345,6 +350,45 @@ export async function lineasSinStockDelPedido(orderId: string): Promise<string[]
   );
 }
 
+/**
+ * El motivo por el que ese producto no se puede entregar en la dirección
+ * del pedido, o null si sí se puede.
+ *
+ * Un pedido sin dirección elegida todavía no se veta: la pregunta no se
+ * puede contestar, y frenar por falta de dato es frenar ventas de más. El
+ * envío sí exige dirección, así que el caso se cierra ahí.
+ */
+async function motivoFueraDeZona(
+  supabase: ReturnType<typeof createClient>,
+  orderId: string,
+  productId: string,
+): Promise<string | null> {
+  const { data: order, error } = await supabase
+    .from("orders")
+    .select("customer_address_id")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const direccionId = (order as { customer_address_id: string | null } | null)?.customer_address_id;
+  if (!direccionId) return null;
+
+  const { data: direccion, error: errorDireccion } = await supabase
+    .from("customer_addresses")
+    .select("ubigeo")
+    .eq("id", direccionId)
+    .maybeSingle();
+  if (errorDireccion) throw new Error(errorDireccion.message);
+  const ubigeo = (direccion as { ubigeo: string | null } | null)?.ubigeo;
+  if (!ubigeo) return null;
+
+  const { data, error: errorVeto } = await supabase.rpc("producto_vetado_en", {
+    p_product_id: productId,
+    p_ubigeo: ubigeo,
+  });
+  if (errorVeto) throw new Error(errorVeto.message);
+  return (data as string | null) ?? null;
+}
+
 export async function addOrderItem(input: {
   orderId: string;
   customerId: string;
@@ -378,6 +422,16 @@ export async function addOrderItem(input: {
   const disponible = ((nivel ?? []) as unknown as Array<{ cantidad_disponible: number | string }>)
     .reduce((acc, n) => acc + Number(n.cantidad_disponible), 0);
   if (!hayStockParaPedir(disponible)) return { ok: false, reason: "SIN_STOCK" };
+
+  // Territorio del proveedor: hay líneas que no se pueden entregar en el
+  // distrito al que va el pedido. Se avisa acá, al agregar, y no recién al
+  // enviar: el vendedor suele estar con el cliente adelante, y enterarse
+  // después de armar todo el pedido es enterarse tarde.
+  //
+  // `submit_order` lo vuelve a chequear igual, porque la dirección de
+  // entrega se puede cambiar DESPUÉS de cargar las líneas.
+  const vetado = await motivoFueraDeZona(supabase, input.orderId, input.productId);
+  if (vetado) return { ok: false, reason: "FUERA_DE_ZONA", detalle: vetado };
 
   const { data: customer, error: customerError } = await supabase
     .from("customers")

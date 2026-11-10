@@ -1,5 +1,6 @@
 // El motor de entradas del modo demostración aplica las mismas reglas que la base de datos (migración 0005).
 import { beforeEach, describe, expect, it } from 'vitest'
+import { FIRMA_PNG_EJEMPLO } from '@/services/firma-imagen'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import { checklistConforme } from '@/services/demo/entradas-demo'
 import type { Actor } from '@/services/repositorio'
@@ -9,7 +10,7 @@ const CHARLIE = actor('jefe_almacen', 'Charlie')
 const KATIA = actor('direccion_tecnica', 'Katia')
 const SANDRA = actor('asistente_dt', 'Sandra')
 const AUX = actor('auxiliar', 'Christians')
-const IMG = 'data:image/png;base64,' + 'A'.repeat(200)
+const IMG = FIRMA_PNG_EJEMPLO
 
 let repo: RepositorioDemo
 beforeEach(() => {
@@ -30,10 +31,10 @@ const ocId = async (codigo: string) => (await repo.ocsPendientes()).find((o) => 
 const datos = { temperaturaC: 20, bultos: 3, paletas: 1, placa: 'ABC-123', tipoConteo: 'TOTAL' as const }
 
 async function firmarTodo(actaId: string) {
-  exito(await repo.firmarActa(actaId, { rol: 'JEFE_ALMACEN' }, CHARLIE))
-  exito(await repo.firmarActa(actaId, { rol: 'DIRECCION_TECNICA' }, KATIA))
+  exito(await repo.firmarActa(actaId, { rol: 'TRANSPORTISTA', nombre: 'Pedro Quispe', dni: '45678912', placa: 'ABC-123', imagen: IMG }, CHARLIE))
   exito(await repo.firmarActa(actaId, { rol: 'RESPONSABLE_CONTEO' }, AUX))
-  return exito(await repo.firmarActa(actaId, { rol: 'TRANSPORTISTA', nombre: 'Pedro Quispe', dni: '45678912', placa: 'ABC-123', imagen: IMG }, CHARLIE))
+  exito(await repo.firmarActa(actaId, { rol: 'JEFE_ALMACEN' }, CHARLIE))
+  return exito(await repo.firmarActa(actaId, { rol: 'DIRECCION_TECNICA' }, KATIA))
 }
 
 /** Crea una solicitud de compra desde la OC (Sandra) con un solo lote. */
@@ -305,7 +306,7 @@ describe('devolución e ingreso de cliente', () => {
   })
 
   it('(D-31) la devolución nace en Devoluciones, nunca en Cuarentena, y su acta organoléptica la lleva a Aprobado', async () => {
-    const dip = await propietario('DIPHASAC')
+    const dip = await propietario('LOGISSA') // OS-5: el stock de un cliente lo libera su DT (demo-liberacion.test.ts); aquí, stock de Logissa
     const r = exito(await repo.crearSolicitud({
       tipo: 'DEVOLUCION', propietarioId: dip, contraparteNombre: 'Clínica', guiaNumero: 'G-2', docOriginalTipo: 'FACTURA', docOriginalNumero: 'F001-1', motivo: 'Sin rotación',
       lineas: [{ productoId: 'prod:1', lote: 'DEV-1', vence: '30/06/2028', cantidad: 5 }],
@@ -359,8 +360,8 @@ describe('acta de recepción', () => {
     expect(await repo.firmarActa(a.actaId, { rol: 'JEFE_ALMACEN' }, AUX)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Jefe de Almacén/) })
     expect(await repo.firmarActa(a.actaId, { rol: 'DIRECCION_TECNICA' }, CHARLIE)).toMatchObject({ ok: false })
     expect(await repo.firmarActa(a.actaId, { rol: 'TRANSPORTISTA', nombre: 'P', dni: '12', placa: 'X', imagen: IMG }, CHARLIE)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/8 dígitos/) })
-    exito(await repo.firmarActa(a.actaId, { rol: 'JEFE_ALMACEN' }, CHARLIE))
-    expect(await repo.firmarActa(a.actaId, { rol: 'JEFE_ALMACEN' }, CHARLIE)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/ya firmó/) })
+    exito(await repo.firmarActa(a.actaId, { rol: 'TRANSPORTISTA', nombre: 'Pedro Quispe', dni: '45678912', placa: 'ABC-123', imagen: IMG }, CHARLIE))
+    expect(await repo.firmarActa(a.actaId, { rol: 'TRANSPORTISTA', nombre: 'Pedro Quispe', dni: '45678912', placa: 'ABC-123', imagen: IMG }, CHARLIE)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/ya firmó/) })
     // Con firmas, la recepción y la solicitud ya no se editan.
     expect(await repo.editarRecepcion(x.id, { temperaturaC: 18 }, CHARLIE)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/anúlala con motivo/) })
     expect(await repo.ajustarSolicitud(x.id, [{ op: 'LINEA', lineaId: x.linea.id, campo: 'cantidad', valor: '3' }], 'x', SANDRA)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/anúlala con motivo/) })

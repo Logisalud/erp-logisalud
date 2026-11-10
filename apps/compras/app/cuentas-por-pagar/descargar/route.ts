@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     estado: params.get('estado') ?? undefined,
     categoria: params.get('categoria') ?? undefined,
     listas: params.get('listas') ?? undefined,
+    q: params.get('q') ?? undefined,
   })
 
   const filas = await listarVistaCuentasPorPagar(filtro)

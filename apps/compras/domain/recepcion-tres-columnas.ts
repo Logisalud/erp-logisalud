@@ -181,11 +181,62 @@ export type GuiaRecibida = {
   storagePath: string | null
 }
 
+export type TipoPapel = 'guia' | 'factura'
+
+const NOMBRE_PAPEL: Record<TipoPapel, { uno: string; varios: string; lista: string; alMenos: string }> = {
+  guia: { uno: 'la guía', varios: 'las guías', lista: 'guias', alMenos: 'Registra al menos una guía de remisión, con su número y su archivo.' },
+  factura: { uno: 'la factura', varios: 'las facturas', lista: 'facturas', alMenos: 'Registra al menos una factura, con su número y su archivo.' },
+}
+
+/**
+ * Los papeles de un tipo (guías o facturas). Un papel cuenta solo si tiene
+ * las DOS cosas. Una fila a medio llenar no se ignora en silencio: se reclama
+ * la parte que falta, porque quien registra ya escribió algo ahí y borrarlo
+ * sin avisar sería perderle el dato.
+ */
+export function validarPapeles(papeles: readonly GuiaRecibida[], tipo: TipoPapel): ErrorValidacion[] {
+  const n = NOMBRE_PAPEL[tipo]
+  const errores: ErrorValidacion[] = []
+  const filas = papeles.map((g) => ({ ...g, numero: g.numero.trim() }))
+  const completas = filas.filter((g) => g.numero && g.storagePath)
+  if (completas.length === 0) errores.push({ campo: n.lista, mensaje: n.alMenos })
+  filas.forEach((g, i) => {
+    if (g.numero && !g.storagePath) {
+      errores.push({ campo: `${tipo}-${i}-archivo`, mensaje: `Falta subir el archivo de ${n.uno} ${g.numero}.` })
+    }
+    if (!g.numero && g.storagePath) {
+      errores.push({ campo: `${tipo}-${i}-numero`, mensaje: `Falta el número de una de ${n.varios} que subiste.` })
+    }
+  })
+  const numeros = completas.map((g) => g.numero.toUpperCase())
+  if (new Set(numeros).size !== numeros.length) {
+    errores.push({ campo: n.lista, mensaje: `Hay dos ${tipo === 'guia' ? 'guías' : 'facturas'} con el mismo número — revisa si te repetiste.` })
+  }
+  return errores
+}
+
+/** Solo las filas completas, ya recortadas. */
+export function papelesCompletos(papeles: readonly GuiaRecibida[]): { numero: string; storagePath: string }[] {
+  return papeles
+    .map((g) => ({ numero: g.numero.trim(), storagePath: g.storagePath }))
+    .filter((g): g is { numero: string; storagePath: string } => !!g.numero && !!g.storagePath)
+}
+
+/**
+ * El número que lleva la obligación cuando la recepción trae varias
+ * facturas: todas, en el orden en que se registraron. Tiene que dar lo mismo
+ * que `almacen.sincronizar_facturas_recepcion` (0088), que lo recalcula al
+ * corregir los papeles después.
+ */
+export function resumenNumerosFactura(numeros: readonly string[]): string {
+  return numeros.map((n) => n.trim().toUpperCase()).filter(Boolean).join(' / ')
+}
+
 export function validarRecepcionTresColumnas(input: {
   fechaRecepcion: string
   guias: readonly GuiaRecibida[]
-  numeroFactura: string
-  storagePathFactura: string | null
+  /** Una o varias: un proveedor puede facturar una entrega en dos (0088). */
+  facturas: readonly GuiaRecibida[]
   lineas: readonly LineaTresColumnas[]
 }): ErrorValidacion[] {
   const errores: ErrorValidacion[] = []
@@ -194,38 +245,13 @@ export function validarRecepcionTresColumnas(input: {
     errores.push({ campo: 'fechaRecepcion', mensaje: 'Pon la fecha en que llegó la mercadería.' })
   }
 
-  // Una guía cuenta solo si tiene las DOS cosas. Una fila a medio llenar no
-  // se ignora en silencio: se reclama la parte que falta, porque el vendedor
-  // ya escribió algo ahí y borrarlo sin avisar sería perderle el dato.
-  const guias = input.guias.map((g) => ({ ...g, numero: g.numero.trim() }))
-  const completas = guias.filter((g) => g.numero && g.storagePath)
-  if (completas.length === 0) {
-    errores.push({ campo: 'guias', mensaje: 'Registra al menos una guía de remisión, con su número y su archivo.' })
-  }
-  guias.forEach((g, i) => {
-    if (g.numero && !g.storagePath) {
-      errores.push({ campo: `guia-${i}-archivo`, mensaje: `Falta subir el archivo de la guía ${g.numero}.` })
-    }
-    if (!g.numero && g.storagePath) {
-      errores.push({ campo: `guia-${i}-numero`, mensaje: 'Falta el número de una de las guías que subiste.' })
-    }
-  })
-  const numeros = completas.map((g) => g.numero)
-  if (new Set(numeros).size !== numeros.length) {
-    errores.push({ campo: 'guias', mensaje: 'Hay dos guías con el mismo número — revisa si te repetiste.' })
-  }
-
-  if (!input.numeroFactura.trim()) {
-    errores.push({ campo: 'numeroFactura', mensaje: 'Pon el número de la factura.' })
-  }
+  errores.push(...validarPapeles(input.guias, 'guia'))
 
   // La factura, siempre: la regla es que factura y guías llegan juntas. Sin
   // esto la obligación nacería sin respaldo y Contabilidad tendría que
   // volver a pedirlo — regla 6 de la Carta de Simplicidad, "una sola fuente
-  // de verdad por dato". El archivo de cada guía se exige arriba, por fila.
-  if (!input.storagePathFactura) {
-    errores.push({ campo: 'archivoFactura', mensaje: 'Sube la foto o el PDF de la factura.' })
-  }
+  // de verdad por dato".
+  errores.push(...validarPapeles(input.facturas, 'factura'))
 
   const conCantidad = input.lineas.filter((l) => l.cantidadFactura > 0 || l.cantidadFisica > 0)
   if (conCantidad.length === 0) {

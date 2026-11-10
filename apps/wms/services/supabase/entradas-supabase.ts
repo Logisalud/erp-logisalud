@@ -2,7 +2,7 @@ import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
 import {
-  AREA_DESTINO, ESTADO_INICIAL, ETIQUETA_TIPO_INGRESO, pasoDeSolicitud, ROLES_FIRMA, temperaturaFueraDeRango, validarEntradaSolicitud,
+  AREA_DESTINO, ESTADO_INICIAL, ETIQUETA_TIPO_INGRESO, MENSAJE_SIN_RECEPCION, pasoDeSolicitud, ROLES_FIRMA, temperaturaFueraDeRango, validarEntradaSolicitud,
   validarLineaSolicitud, validarTransportista, type CambioEntrada, type Decision, type EntradaSolicitud, type EstadoRegistroCompras,
   type TipoIngreso,
 } from '@/domain/entradas'
@@ -12,7 +12,12 @@ import type {
   ExpedienteVista, FirmaEntrada, LineaSolicitudVista, OcPendiente, OrganolepticaVista, PosicionDestino, ResumenExpediente,
   SolicitudDetalle, SolicitudResumen,
 } from '@/domain/entradas-vistas'
-import { parsearVencimiento } from '@/domain/fechas'
+import { diaPorDefectoDe, hoyEnLima, parsearVencimiento, type DiaPorDefecto } from '@/domain/fechas'
+import { avisosDeVencimiento, validarCorreccionVencimiento, VIDA_UTIL_MINIMA_MESES, type CambioVencimientoLote } from '@/domain/vencimiento'
+import { ocultaMaterialEnvase, type FormatoControlado, type VersionFormatoVista } from '@/domain/formatos'
+import { guardarArchivo } from '../archivos'
+import { procesarFirmaPng } from '../firma-imagen'
+import type { DictamenClienteVista, ObservacionVista } from '@/domain/liberacion'
 import type { ResultadoBusqueda } from '@/domain/panorama'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, num, rpc, s, traerTodo, type Fila } from './util'
@@ -24,6 +29,11 @@ import { mensajeHumano, num, rpc, s, traerTodo, type Fila } from './util'
 
 const ok = <T extends object>(extra?: T) => ({ ok: true as const, ...(extra as T) })
 const mal = (error: { code?: string; message: string }) => ({ ok: false as const, mensaje: mensajeHumano(error) })
+/** Parámetro `vencimiento_dia_por_defecto` (primero | ultimo). Si no se puede leer, rige el valor inicial. */
+async function diaPorDefecto(): Promise<DiaPorDefecto> {
+  const { data } = await crearClienteServidor().schema('wms').from('parametros').select('valor').eq('clave', 'vencimiento_dia_por_defecto').maybeSingle()
+  return diaPorDefectoDe(data?.valor as string | undefined)
+}
 const SOLO_MES_ANIO = /^\d{1,2}\/\d{4}$|^\d{4}-\d{2}$/
 
 const por = <T extends Fila>(filas: T[], clave: string) => {
@@ -64,11 +74,17 @@ interface Carga {
   firmas: Fila[]
   organolepticas: Fila[]
   alertas: Fila[]
+  /** OS-5: observaciones reversibles, dictámenes del DT del cliente y número de las Órdenes de Salida de las que vuelven los retornos. */
+  observaciones: Fila[]
+  dictamenes: Fila[]
+  proveedoresConfig: Fila[]
+  formatos: Fila[]
+  salidasNumero: Map<string, string>
   nombres: Map<string, string>
 }
 
 async function cargar(): Promise<Carga> {
-  const [solicitudes, lineas, cambios, versiones, ingresos, lotesIngreso, lotes, posiciones, productos, regulatorio, propietarios, actas, firmas, organolepticas, alertas] =
+  const [solicitudes, lineas, cambios, versiones, ingresos, lotesIngreso, lotes, posiciones, productos, regulatorio, propietarios, actas, firmas, organolepticas, alertas, observaciones, dictamenes, proveedoresConfig, formatos] =
     await Promise.all([
       traerTodo('solicitudes_ingreso', 'wms', '*', ['creado_en']), traerTodo('solicitud_ingreso_lineas', 'wms', '*', ['creado_en']),
       traerTodo('solicitud_ingreso_cambios', 'wms', '*', ['id']), traerTodo('solicitud_ingreso_versiones', 'wms'),
@@ -78,12 +94,21 @@ async function cargar(): Promise<Carga> {
       traerTodo('producto_regulatorio', 'wms'), traerTodo('propietarios', 'wms'),
       traerTodo('actas_recepcion', 'wms', '*', ['generada_en']), traerTodo('acta_firmas', 'wms'),
       traerTodo('actas_organolepticas', 'wms', '*', ['creado_en']), traerTodo('alertas', 'wms', '*', ['creada_en']),
+      traerTodo('observaciones_liberacion', 'wms', '*', ['registrada_en']), traerTodo('dictamenes_cliente', 'wms', '*', ['registrado_en']),
+      traerTodo('proveedores_config', 'wms'), traerTodo('formatos_versiones', 'wms'),
     ])
+  const idsSalida = [...new Set(solicitudes.map((r) => s(r.salida_id)).filter((x): x is string => !!x))]
+  const salidasNumero = new Map<string, string>()
+  if (idsSalida.length) {
+    const { data } = await crearClienteServidor().schema('wms').from('salidas').select('id, numero').in('id', idsSalida)
+    for (const r of (data ?? []) as Fila[]) salidasNumero.set(String(r.id), String(r.numero))
+  }
   const nombres = await nombresDe([
     ...solicitudes.map((r) => s(r.creado_por)), ...solicitudes.map((r) => s(r.autorizado_por)), ...versiones.map((r) => s(r.editado_por)),
-    ...cambios.map((r) => s(r.usuario)), ...organolepticas.map((r) => s(r.decidido_por)), ...alertas.map((r) => s(r.atendida_por)),
+    ...cambios.map((r) => s(r.usuario)), ...firmas.map((r) => s(r.registrado_por)), ...organolepticas.map((r) => s(r.decidido_por)), ...alertas.map((r) => s(r.atendida_por)),
+    ...observaciones.flatMap((r) => [s(r.registrada_por), s(r.cerrada_por)]), ...dictamenes.flatMap((r) => [s(r.registrado_por), s(r.confirmado_por), s(r.anulado_por)]),
   ])
-  return { solicitudes, lineas, cambios, versiones, ingresos, lotesIngreso, lotes, posiciones, productos, regulatorio, propietarios, actas, firmas, organolepticas, alertas, nombres }
+  return { solicitudes, lineas, cambios, versiones, ingresos, lotesIngreso, lotes, posiciones, productos, regulatorio, propietarios, actas, firmas, organolepticas, alertas, observaciones, dictamenes, proveedoresConfig, formatos, salidasNumero, nombres }
 }
 
 /** Una alerta se refiere a una solicitud directamente o a través de su ingreso. */
@@ -98,6 +123,24 @@ function mapearAlerta(r: Fila, nombres: Map<string, string>, solicitudDeIngreso:
 }
 
 const solicitudesDeIngreso = (c: Carga) => new Map(c.ingresos.map((i) => [String(i.id), String(i.solicitud_id)]))
+
+const nombreDe = (c: Carga, v: unknown) => (v ? c.nombres.get(String(v)) ?? 'Usuario' : undefined)
+
+function observacionesDe(c: Carga, actaId: string): ObservacionVista[] {
+  return c.observaciones.filter((r) => String(r.acta_id) === actaId).map((r) => ({
+    id: String(r.id), actaId, texto: String(r.texto), registradaPor: nombreDe(c, r.registrada_por) ?? 'Usuario', registradaEn: String(r.registrada_en),
+    cerradaEn: s(r.cerrada_en), cerradaPor: nombreDe(c, r.cerrada_por), nota: s(r.nota),
+  })).sort((a, b) => b.registradaEn.localeCompare(a.registradaEn))
+}
+
+function dictamenesDe(c: Carga, actaId: string): DictamenClienteVista[] {
+  return c.dictamenes.filter((r) => String(r.acta_id) === actaId).map((r): DictamenClienteVista => ({
+    id: String(r.id), actaId, estado: r.estado as DictamenClienteVista['estado'], via: r.via as DictamenClienteVista['via'], liberada: Number(r.cantidad_liberada), rechazada: Number(r.cantidad_rechazada),
+    fechaDictamen: s(r.fecha_dictamen), observacion: s(r.observacion), documentoNombre: s(r.documento_nombre), documentoRef: s(r.documento_ref), documentoHash: s(r.documento_hash),
+    registradoPor: nombreDe(c, r.registrado_por) ?? 'Usuario', registradoEn: String(r.registrado_en), confirmadoPor: nombreDe(c, r.confirmado_por), confirmadoEn: s(r.confirmado_en),
+    anuladoPor: nombreDe(c, r.anulado_por), anuladoEn: s(r.anulado_en), motivoAnulacion: s(r.motivo_anulacion),
+  })).sort((a, b) => b.registradoEn.localeCompare(a.registradoEn))
+}
 
 function armarOrganolepticas(c: Carga): OrganolepticaVista[] {
   const prod = new Map(c.productos.map((r) => [String(r.id), r]))
@@ -121,9 +164,14 @@ function armarOrganolepticas(c: Carga): OrganolepticaVista[] {
       solicitudNumero: String(sl?.numero ?? ''), ingresoTipo: i?.tipo as TipoIngreso, ingresoLoteId: String(o.ingreso_lote_id), productoId: String(x?.producto_id),
       productoCodigo: String(p?.codigo ?? ''), producto: String(p?.descripcion ?? ''), principioActivo: s(p?.principio_activo),
       registroSanitario: s(rg?.registro_sanitario), rsVence: s(rg?.rs_vence), fabricante: s(rg?.fabricante),
-      formaPresentacion: s(rg?.forma_presentacion) ?? s(p?.presentacion), lote: String(l?.codigo ?? x?.lote_codigo ?? ''), vence: String(l?.vence ?? x?.vence ?? ''),
+      formaPresentacion: s(rg?.forma_presentacion) ?? s(p?.presentacion), lote: String(l?.codigo ?? x?.lote_codigo ?? ''), vence: String(l?.vence ?? x?.vence ?? ''), venceTexto: s(l?.vence_texto_original ?? x?.vence_texto_original),
+      formatoVersion: Number(o.formato_version ?? 1), sinMaterialEnvase: rg?.sin_material_envase === true,
+      productoCompleto: ['registro_sanitario', 'rs_vence', 'fabricante', 'forma_presentacion', 'concentracion', 'condicion_almacenamiento'].every((k) => String(rg?.[k] ?? '').trim() !== ''),
+      materialEnvaseOculto: ocultaMaterialEnvase(Number(o.formato_version ?? 1), rg?.sin_material_envase === true),
       propietario: String(prop.get(String(i?.propietario_id))?.razon_social ?? ''), cantidadLote: Number(o.cantidad_lote),
-      cantidadMuestra: Number(o.cantidad_muestra), referencia: s(i?.oc_codigo) ?? s(sl?.guia_numero) ?? s(sl?.doc_original_numero),
+      cantidadMuestra: Number(o.cantidad_muestra), regimenMuestreo: (o.regimen_muestreo ?? undefined) as OrganolepticaVista['regimenMuestreo'], tablaMuestreo: s(o.tabla_muestreo),
+      esDeCliente: !prop.get(String(i?.propietario_id))?.es_dueno_almacen,
+      observaciones: observacionesDe(c, String(o.id)), dictamenes: dictamenesDe(c, String(o.id)), referencia: s(i?.oc_codigo) ?? s(sl?.guia_numero) ?? s(sl?.doc_original_numero),
       datos: {
         certAnalisis: o.cert_analisis == null ? null : Boolean(o.cert_analisis),
         checklist: (o.checklist ?? {}) as OrganolepticaVista['datos']['checklist'], observacion: s(o.observacion),
@@ -168,6 +216,11 @@ function armarDetalle(c: Carga, sol: Fila, bloque: BloqueFisico[], facturadas: M
       estadoLinea: l.estado_linea as LineaSolicitudVista['estadoLinea'], verificacion: (x?.verificacion ?? null) as LineaSolicitudVista['verificacion'],
       posicionId: s(x?.posicion_id), posicionCodigo: x?.posicion_id ? s(pos.get(String(x.posicion_id))?.codigo) : undefined,
       fisica: confirmado && x ? Number(x.cantidad) : undefined,
+      avisosVencimiento: ing && x ? avisosDeVencimiento({
+        lote: String(l.lote), vence: s(l.vence), hoy: hoyEnLima(), proveedorNombre: s(sol.contraparte_nombre),
+        proveedorSoloMesAnio: !!sol.contraparte_ruc && c.proveedoresConfig.some((p) => String(p.ruc) === String(sol.contraparte_ruc) && p.vence_solo_mes_anio === true),
+        minimoMeses: VIDA_UTIL_MINIMA_MESES,
+      }) : undefined,
     }
   })
   const nombres = c.nombres
@@ -190,7 +243,7 @@ function armarDetalle(c: Carga, sol: Fila, bloque: BloqueFisico[], facturadas: M
       reemplazaANumero: s(c.actas.find((x) => String(x.id) === String(a.reemplaza_a))?.numero),
       reemplazadaPorNumero: s(c.actas.find((x) => String(x.reemplaza_a) === String(a.id))?.numero),
       anuladaEn: s(a.anulada_en), motivoAnulacion: s(a.motivo_anulacion), contenido: camel(a.contenido) as ActaRecepcionVista['contenido'],
-      firmas: f.map((x) => ({ rol: x.rol_firma as ActaRecepcionVista['firmas'][number]['rol'], nombre: String(x.nombre), dni: s(x.dni), placa: s(x.placa), imagen: s(x.imagen_firma), firmadoEn: String(x.firmado_en), hash: String(x.hash_contenido) })),
+      firmas: f.map((x) => ({ rol: x.rol_firma as ActaRecepcionVista['firmas'][number]['rol'], nombre: String(x.nombre), dni: s(x.dni), placa: s(x.placa), imagen: s(x.imagen_firma), imagenRef: s(x.imagen_ref), imagenHash: s(x.imagen_hash), capturadoPor: nombres.get(String(x.registrado_por)) ?? 'Usuario', firmadoEn: String(x.firmado_en), hash: String(x.hash_contenido) })),
       faltan: ROLES_FIRMA.filter((r) => !hechas.has(r)),
     }
   }).reverse()
@@ -222,6 +275,7 @@ function armarDetalle(c: Carga, sol: Fila, bloque: BloqueFisico[], facturadas: M
     alertas: c.alertas.filter((a) => String(a.solicitud_id) === id || (ing && String(a.ingreso_id) === String(ing.id))).map((a) => mapearAlerta(a, nombres, solicitudesDeIngreso(c))),
     expedienteId: s(ing?.expediente_id), bloqueadoPorFirmas: !!vigente && c.firmas.some((x) => String(x.acta_id) === String(vigente.id)),
     conDiferencias, tiposDiferencia, cantidadFisica: bloque, estadoInicial: ESTADO_INICIAL[tipo],
+    retorno: sol.salida_id ? { salidaId: String(sol.salida_id), salidaNumero: c.salidasNumero.get(String(sol.salida_id)) ?? '', motivo: sol.retorno_motivo as 'RECHAZADO_CLIENTE' | 'NO_ENTREGADO', guiaNumero: s(sol.guia_numero) } : undefined,
   }
 }
 
@@ -235,17 +289,17 @@ function camel(v: unknown): unknown {
 }
 
 /** Convierte lo que escribe la persona al formato de las funciones SQL (fechas ISO y claves en snake_case). */
-function cambiosParaBase(cambios: CambioEntrada[]): { ok: true; datos: Record<string, unknown>[] } | { ok: false; mensaje: string } {
+function cambiosParaBase(cambios: CambioEntrada[], dia: DiaPorDefecto): { ok: true; datos: Record<string, unknown>[] } | { ok: false; mensaje: string } {
   const out: Record<string, unknown>[] = []
   for (const c of cambios) {
     if (c.op === 'LINEA') {
       if (c.campo === 'vence') {
-        const f = parsearVencimiento(c.valor)
+        const f = parsearVencimiento(c.valor, dia)
         if (!f) return { ok: false, mensaje: 'No entiendo esa fecha. Usa 30/06/2028 o, si el producto solo dice mes y año, 06/2028.' }
         out.push({ op: 'LINEA', linea_id: c.lineaId, campo: 'vence', valor: f.fecha, vence_texto: SOLO_MES_ANIO.test(f.textoOriginal) ? f.textoOriginal : null })
       } else out.push({ op: 'LINEA', linea_id: c.lineaId, campo: c.campo, valor: c.valor })
     } else if (c.op === 'AGREGAR_LINEA') {
-      const f = parsearVencimiento(c.vence)
+      const f = parsearVencimiento(c.vence, dia)
       if (!f) return { ok: false, mensaje: 'No entiendo esa fecha de vencimiento.' }
       out.push({ op: 'AGREGAR_LINEA', oc_item_id: c.ocItemId ?? null, producto_id: c.productoId ?? null, lote: c.lote, vence: f.fecha,
         vence_texto: SOLO_MES_ANIO.test(f.textoOriginal) ? f.textoOriginal : null, cantidad: c.cantidad })
@@ -323,8 +377,9 @@ export class EntradasSupabase {
     const v = validarEntradaSolicitud(entrada, p ? { esDuenoAlmacen: Boolean(p.es_dueno_almacen) } : undefined)
     if (!v.ok) return { ok: false, mensaje: Object.values(v.errores)[0] ?? 'Revisa los campos marcados.', errores: v.errores as Record<string, string> }
     const lineas: Record<string, unknown>[] = []
+    const dia = await diaPorDefecto()
     for (const [idx, x] of entrada.lineas.entries()) {
-      const r = validarLineaSolicitud(x, entrada.tipo, parsearVencimiento)
+      const r = validarLineaSolicitud(x, entrada.tipo, (t) => parsearVencimiento(t, dia))
       if (!r.ok) return { ok: false, mensaje: `Línea ${idx + 1}: ${Object.values(r.errores)[0]}`, errores: Object.fromEntries(Object.entries(r.errores).map(([k, m]) => [`${k}-${idx}`, m as string])) }
       lineas.push({ oc_item_id: x.ocItemId ?? null, producto_id: x.productoId ?? null, lote: x.lote.trim(), vence: r.vence, vence_texto: SOLO_MES_ANIO.test(r.venceTexto) ? r.venceTexto : null, cantidad: r.cantidad })
     }
@@ -349,7 +404,7 @@ export class EntradasSupabase {
   }
 
   async ajustarSolicitud(id: string, cambios: CambioEntrada[], motivo: string | undefined, _actor: Actor): Promise<ResultadoAccion<{ version: number }>> {
-    const c = cambiosParaBase(cambios)
+    const c = cambiosParaBase(cambios, await diaPorDefecto())
     if (!c.ok) return c
     const { data, error } = await rpc('ajustar_solicitud', { p_solicitud: id, p_cambios: c.datos, p_motivo: motivo ?? null })
     return error ? mal(error) : { ok: true, version: Number(data) }
@@ -369,7 +424,7 @@ export class EntradasSupabase {
     let vence: string | null = null
     let venceTexto: string | null = null
     if (!d.coincide && d.vence?.trim()) {
-      const f = parsearVencimiento(d.vence)
+      const f = parsearVencimiento(d.vence, await diaPorDefecto())
       if (!f) return { ok: false, mensaje: 'No entiendo esa fecha. Usa 30/06/2028 o, si el producto solo dice mes y año, 06/2028.' }
       vence = f.fecha
       venceTexto = SOLO_MES_ANIO.test(f.textoOriginal) ? f.textoOriginal : null
@@ -398,7 +453,7 @@ export class EntradasSupabase {
 
   async generarActa(solicitudId: string, _actor: Actor): Promise<ResultadoAccion<{ actaId: string }>> {
     const ingreso = await ingresoDe(solicitudId)
-    if (!ingreso) return { ok: false, mensaje: 'Empieza la recepción primero' }
+    if (!ingreso) return { ok: false, mensaje: MENSAJE_SIN_RECEPCION }
     const { data, error } = await rpc('generar_acta_recepcion', { p_ingreso: ingreso })
     return error ? mal(error) : { ok: true, actaId: String(data) }
   }
@@ -408,9 +463,16 @@ export class EntradasSupabase {
       const v = validarTransportista({ nombre: firma.nombre ?? '', dni: firma.dni ?? '', placa: firma.placa ?? '', imagen: firma.imagen ?? '' })
       if (!v.ok) return { ok: false, mensaje: Object.values(v.errores)[0] ?? 'Revisa los datos del transportista', errores: v.errores as Record<string, string> }
     }
+    // La firma dibujada se guarda en el Storage y la base recibe su referencia (que lleva la huella SHA-256); la base verifica el orden de las firmas.
+    let ref: string | null = null
+    if (firma.rol === 'TRANSPORTISTA') {
+      const png = procesarFirmaPng(firma.imagen)
+      if ('error' in png) return { ok: false, mensaje: png.error, errores: { imagen: png.error } }
+      try { ref = (await guardarArchivo('firmas', `${png.hash}.png`, png.bytes, 'image/png')).ref } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'No se pudo guardar la firma.' } }
+    }
     const { data, error } = await rpc('firmar_acta_recepcion', {
       p_acta: actaId, p_rol_firma: firma.rol, p_nombre: firma.rol === 'TRANSPORTISTA' ? firma.nombre : actor.nombre,
-      p_dni: firma.dni ?? null, p_placa: firma.placa ?? null, p_imagen: firma.imagen ?? null,
+      p_dni: firma.dni ?? null, p_placa: firma.placa ?? null, p_imagen: ref,
     })
     return error ? mal(error) : { ok: true, completa: Boolean((data as { completa?: boolean } | null)?.completa) }
   }
@@ -427,7 +489,7 @@ export class EntradasSupabase {
 
   async confirmarIngreso(solicitudId: string, _actor: Actor): Promise<ResultadoAccion> {
     const ingreso = await ingresoDe(solicitudId)
-    if (!ingreso) return { ok: false, mensaje: 'Empieza la recepción primero' }
+    if (!ingreso) return { ok: false, mensaje: MENSAJE_SIN_RECEPCION }
     const { error } = await rpc('confirmar_ingreso', { p_ingreso: ingreso })
     return error ? mal(error) : ok()
   }
@@ -534,6 +596,55 @@ export class EntradasSupabase {
 
   async cerrarExpediente(expedienteId: string, _actor: Actor): Promise<ResultadoAccion> {
     const { error } = await rpc('cerrar_expediente', { p_exp: expedienteId })
+    return error ? mal(error) : ok()
+  }
+
+  // ── Piloto F ────────────────────────────────────────────────────────────────
+
+  async proveedoresVencimiento(): Promise<{ ruc: string; nombre: string; soloMesAnio: boolean }[]> {
+    const supabase = crearClienteServidor().schema('wms')
+    const [cfg, comp] = await Promise.all([
+      traerTodo('proveedores_config', 'wms'),
+      supabase.from('v_proveedores').select('ruc, nombre').order('nombre').then((r) => (r.error ? [] : (r.data ?? []) as Fila[])),
+    ])
+    const m = new Map<string, { ruc: string; nombre: string; soloMesAnio: boolean }>()
+    for (const r of comp) m.set(String(r.ruc), { ruc: String(r.ruc), nombre: String(r.nombre ?? r.ruc), soloMesAnio: false })
+    for (const r of cfg) m.set(String(r.ruc), { ruc: String(r.ruc), nombre: String(r.nombre ?? m.get(String(r.ruc))?.nombre ?? r.ruc), soloMesAnio: r.vence_solo_mes_anio === true })
+    return [...m.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+  }
+
+  async marcarProveedorVencimiento(ruc: string, nombre: string | undefined, soloMesAnio: boolean, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('marcar_proveedor_vencimiento', { p_ruc: ruc, p_nombre: nombre ?? null, p_solo_mes_anio: soloMesAnio, p_motivo: motivo })
+    return error ? mal(error) : ok()
+  }
+
+  async corregirVencimientoLote(loteId: string, fecha: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
+    const v = validarCorreccionVencimiento(fecha, motivo)
+    if (!v.ok) return { ok: false, mensaje: Object.values(v.errores)[0]!, errores: v.errores as Record<string, string> }
+    const f = parsearVencimiento(fecha, await diaPorDefecto())
+    if (!f) return { ok: false, mensaje: 'No entiendo esa fecha. Usa 30/06/2028.', errores: { fecha: 'No entiendo esa fecha. Usa 30/06/2028.' } }
+    const { error } = await rpc('corregir_vencimiento_lote', { p_lote: loteId, p_vence: f.fecha, p_motivo: motivo })
+    return error ? mal(error) : ok()
+  }
+
+  async historialVencimientoLote(loteId: string): Promise<CambioVencimientoLote[]> {
+    const { data, error } = await crearClienteServidor().schema('wms').from('lote_vencimiento_cambios').select('*').eq('lote_id', loteId).order('id', { ascending: false })
+    if (error) throw new Error(`No se pudo leer el historial de la fecha: ${error.message}`)
+    const nombres = await nombresDe((data ?? []).map((r: Fila) => s(r.usuario)))
+    return (data ?? []).map((r: Fila) => ({ id: String(r.id), loteId: String(r.lote_id), antes: s(r.antes), despues: s(r.despues), motivo: String(r.motivo), usuario: nombres.get(String(r.usuario)) ?? 'Usuario', ts: String(r.ts) }))
+  }
+
+  async versionesFormato(formato: FormatoControlado): Promise<VersionFormatoVista[]> {
+    const filas = await traerTodo('formatos_versiones', 'wms')
+    const nombres = await nombresDe(filas.map((r) => s(r.aprobada_por)))
+    return filas.filter((r) => r.formato === formato).map((r) => ({
+      formato, version: Number(r.version), resumen: String(r.resumen), estado: r.estado as VersionFormatoVista['estado'], propuestaEn: s(r.propuesta_en),
+      aprobadaPor: r.aprobada_por ? nombres.get(String(r.aprobada_por)) ?? 'Dirección Técnica' : undefined, aprobadaEn: s(r.aprobada_en),
+    })).sort((a, b) => a.version - b.version)
+  }
+
+  async aprobarVersionFormato(formato: FormatoControlado, version: number, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('aprobar_version_formato', { p_formato: formato, p_version: version })
     return error ? mal(error) : ok()
   }
 

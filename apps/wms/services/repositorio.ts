@@ -2,12 +2,21 @@ import type { CambioRegulatorio, EventoAuditoria, Rol } from '@/domain/tipos'
 import type { Panorama } from '@/domain/panorama'
 import type { RepositorioOperacion } from './repositorio-operacion'
 import type { RepositorioPedidos } from './repositorio-pedidos'
+import type { RepositorioCambioPedido } from './repositorio-cambio-pedido'
 import type { RepositorioRutas } from './repositorio-rutas'
 import type { RepositorioPicking } from './repositorio-picking'
+import type { RepositorioReservas } from './repositorio-reservas'
+import type { RepositorioBajas } from './repositorio-bajas'
 import type { RepositorioDocumentos } from './repositorio-documentos'
 import type { RepositorioDocumentacion } from './repositorio-documentacion'
 import type { RepositorioEmbalaje } from './repositorio-embalaje'
 import type { RepositorioCarga } from './repositorio-carga'
+import type { RepositorioCierreRuta } from './repositorio-cierre-ruta'
+import type { RepositorioMisRutas } from './repositorio-mis-rutas'
+import type { RepositorioSeguimiento } from './repositorio-seguimiento'
+import type { RepositorioLiberacion } from './repositorio-liberacion'
+import type { RepositorioSalidaManual } from './repositorio-salida-manual'
+import type { RepositorioPiloto } from './repositorio-piloto'
 import type { RepositorioInventario } from './repositorio-inventario'
 import type { DatosRegulatorios, EntradaProducto } from '@/domain/productos'
 import type { CambioEntrada, Decision, EntradaSolicitud, TipoIngreso } from '@/domain/entradas'
@@ -34,12 +43,14 @@ export type ResultadoAccion<T = unknown> =
  */
 export interface ConteoAlertas { direccion_tecnica: number; jefe_almacen: number; asistente_dt: number; jefe_transporte: number }
 
-export interface Repositorio extends RepositorioInventario, RepositorioOperacion, RepositorioPedidos, RepositorioRutas, RepositorioPicking, RepositorioDocumentos, RepositorioDocumentacion, RepositorioEmbalaje, RepositorioCarga {
+export interface Repositorio extends RepositorioInventario, RepositorioOperacion, RepositorioPedidos, RepositorioRutas, RepositorioPicking, RepositorioReservas, RepositorioDocumentos, RepositorioDocumentacion, RepositorioEmbalaje, RepositorioCarga, RepositorioBajas, RepositorioCierreRuta, RepositorioLiberacion, RepositorioSalidaManual, RepositorioCambioPedido, RepositorioPiloto, RepositorioMisRutas, RepositorioSeguimiento {
   panorama(): Promise<Panorama>
   auditoria(limite?: number): Promise<EventoAuditoria[]>
   crearProducto(entrada: EntradaProducto, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
   /** D-37: Katia o Sandra editan los datos regulatorios; rige de inmediato y cada cambio queda con su motivo. Devuelve cuántos campos cambiaron. */
   editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, actor: Actor): Promise<ResultadoAccion<{ cambios: number }>>
+  /** D-196: Dirección Técnica (o su asistente) valida un producto dado de alta o editado por el Administrador; sin eso no se aprueban sus lotes. */
+  validarProducto(id: string, actor: Actor): Promise<ResultadoAccion>
   /** Historial de cambios regulatorios de un producto, del más reciente al más antiguo. */
   historialRegulatorio(id: string): Promise<CambioRegulatorio[]>
 
@@ -88,4 +99,15 @@ export interface Repositorio extends RepositorioInventario, RepositorioOperacion
 
   /** OC y actas para la búsqueda universal. */
   buscarEntradas(consulta: string): Promise<ResultadoBusqueda[]>
+
+  // ── Piloto F: vencimiento, proveedores y formatos controlados ───────────────────────────────────
+  /** Proveedores de Compras (solo lectura) con su marca «vencimiento solo mes y año» (tabla propia del WMS). */
+  proveedoresVencimiento(): Promise<{ ruc: string; nombre: string; soloMesAnio: boolean }[]>
+  marcarProveedorVencimiento(ruc: string, nombre: string | undefined, soloMesAnio: boolean, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  /** Corregir la fecha de un lote ya registrado: Jefe de Almacén o Dirección Técnica, con motivo y con historial. */
+  corregirVencimientoLote(loteId: string, fecha: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  historialVencimientoLote(loteId: string): Promise<import('@/domain/vencimiento').CambioVencimientoLote[]>
+  versionesFormato(formato: import('@/domain/formatos').FormatoControlado): Promise<import('@/domain/formatos').VersionFormatoVista[]>
+  /** Solo Dirección Técnica: la versión nueva rige desde que se aprueba. */
+  aprobarVersionFormato(formato: import('@/domain/formatos').FormatoControlado, version: number, actor: Actor): Promise<ResultadoAccion>
 }

@@ -21,7 +21,7 @@ export const ETIQUETA_TIPO_INGRESO: Record<TipoIngreso, string> = {
 
 export const AYUDA_TIPO_INGRESO: Record<TipoIngreso, string> = {
   COMPRA_LOCAL: 'Una orden de compra que va a llegar. Los productos y las cantidades salen de ella; tú indicas el lote y el vencimiento.',
-  DEVOLUCION: 'Mercadería que vuelve de un cliente. Necesita la factura o boleta original y se deja en el Área de Devoluciones.',
+  DEVOLUCION: 'Mercadería que vuelve de un cliente. Necesita la factura o boleta original, se cuenta al 100 % y se deja en el Área de Devoluciones. Si viene de una Orden de Salida, regístrala desde esa Orden.',
   INGRESO_CLIENTE: 'Mercadería que un cliente nos entrega para guardar. Se cuenta contra su guía.',
 }
 
@@ -40,7 +40,8 @@ export const AREA_DESTINO: Record<TipoIngreso, 'CUARENTENA' | 'DEVOLUCIONES'> = 
 // ── Quién prepara solicitudes (D-32) ────────────────────────────────────────
 
 /** Sandra (asistente de DT) y Katia (Dirección Técnica). Con el portal de clientes, el cliente crea y ellas autorizan. */
-export const puedePrepararSolicitud = (roles: readonly Rol[]) => roles.includes('asistente_dt') || roles.includes('direccion_tecnica')
+/** D-196: el Administrador también prepara y autoriza solicitudes de ingreso (lo operativo). */
+export const puedePrepararSolicitud = (roles: readonly Rol[]) => roles.includes('asistente_dt') || roles.includes('direccion_tecnica') || roles.includes('admin_wms')
 
 // ── Estados de la solicitud ─────────────────────────────────────────────────
 
@@ -199,13 +200,30 @@ export const ETIQUETA_REGISTRO_COMPRAS: Record<EstadoRegistroCompras, string> = 
 // ── Firmas del Acta de Recepción ────────────────────────────────────────────
 
 export type RolFirma = 'JEFE_ALMACEN' | 'DIRECCION_TECNICA' | 'RESPONSABLE_CONTEO' | 'TRANSPORTISTA'
-export const ROLES_FIRMA: readonly RolFirma[] = ['JEFE_ALMACEN', 'DIRECCION_TECNICA', 'RESPONSABLE_CONTEO', 'TRANSPORTISTA']
+/**
+ * El ORDEN en que se firma el acta (piloto, C): transportista → responsable de conteo → Jefe de Almacén → Dirección Técnica.
+ * Cada persona firma desde su propio celular o PC con su propio usuario; no hay PIN ni celular compartido. La base de datos exige el mismo orden.
+ */
+export const ROLES_FIRMA: readonly RolFirma[] = ['TRANSPORTISTA', 'RESPONSABLE_CONTEO', 'JEFE_ALMACEN', 'DIRECCION_TECNICA']
 
 export const ETIQUETA_ROL_FIRMA: Record<RolFirma, string> = {
   JEFE_ALMACEN: 'Jefe de Almacén',
   DIRECCION_TECNICA: 'Dirección Técnica',
   RESPONSABLE_CONTEO: 'Responsable de conteo',
   TRANSPORTISTA: 'Transportista',
+}
+
+/** A quién le toca firmar ahora: la primera parte del orden que todavía no firmó (null si ya firmaron todas). */
+export function siguienteEnFirmar(hechas: readonly RolFirma[]): RolFirma | null {
+  return ROLES_FIRMA.find((r) => !hechas.includes(r)) ?? null
+}
+
+/** ¿Se puede firmar ahora como `rol`? Si no le toca, dice a quién le toca (la base de datos dice lo mismo). */
+export function verificarOrdenDeFirma(rol: RolFirma, hechas: readonly RolFirma[]): { ok: true } | { ok: false; mensaje: string } {
+  if (hechas.includes(rol)) return { ok: false, mensaje: 'Ese rol ya firmó esta acta' }
+  const toca = siguienteEnFirmar(hechas)
+  if (toca === null || toca === rol) return { ok: true }
+  return { ok: false, mensaje: `Todavía no le toca a ${ETIQUETA_ROL_FIRMA[rol]}. Le toca a ${ETIQUETA_ROL_FIRMA[toca]}.` }
 }
 
 /** Qué rol WMS puede firmar cada parte (la base de datos es la que manda). */
@@ -240,11 +258,7 @@ export function numeroDeActa(prefijo: 'I' | 'O', fecha: Date | string, correlati
 }
 
 // ── Muestra organoléptica ───────────────────────────────────────────────────
-
-/** techo(√unidades) + constante (1). La muestra vuelve completa a su caja: no descuenta stock. */
-export function muestraOrganoleptica(unidades: number, constante = 1): number {
-  return Math.ceil(Math.sqrt(Math.max(unidades, 0))) + constante
-}
+// El tamaño de la muestra sale de la tabla LS-TB.02.02 (domain/muestreo.ts); la regla anterior techo(√unidades)+1 se retiró (OS-5).
 
 // ── Checklist del Acta de Evaluación Organoléptica (LS-FR.55.02) ────────────
 
@@ -254,8 +268,6 @@ export const ETIQUETA_RESPUESTA: Record<Respuesta, string> = { C: 'Conforme', NC
 export interface GrupoChecklist {
   id: string
   titulo: string
-  /** Los grupos de material del envase se usan solo si el producto lo tiene. */
-  opcional?: boolean
   items: { id: string; texto: string }[]
 }
 
@@ -266,22 +278,20 @@ const generales = (p: string): GrupoChecklist['items'] => [
   { id: `${p}_limpio`, texto: 'Limpio' },
   { id: `${p}_sin_arrugas`, texto: 'Sin arrugas' },
   { id: `${p}_sin_quiebres`, texto: 'Sin quiebres ni humedad' },
-  { id: `${p}_sin_deterioro`, texto: 'Sin deterioro ni deformación' },
-  { id: `${p}_sin_manchas`, texto: 'Sin manchas' },
+  { id: `${p}_sin_deterioro`, texto: 'Sin deterioro, deformación ni manchas' },
   { id: `${p}_sin_cuerpos`, texto: 'Sin cuerpos extraños' },
   { id: `${p}_sin_grietas`, texto: 'Sin grietas, rajaduras ni perforaciones' },
   { id: `${p}_sello`, texto: 'Sello de banda de seguridad intacto' },
-  { id: `${p}_condiciones`, texto: 'Condiciones especiales de almacenamiento' },
 ]
 
-const rotulado = (p: string): GrupoChecklist['items'] => [
+const rotulado = (p: string, conAlmacenamiento: boolean): GrupoChecklist['items'] => [
   { id: `${p}_legible`, texto: 'Bien adherido o impreso y legible' },
   { id: `${p}_nombre`, texto: 'Nombre del producto y forma de presentación' },
   { id: `${p}_fabricante`, texto: 'Datos del fabricante y del importador' },
   { id: `${p}_contenido`, texto: 'Contenido de la información según el registro sanitario' },
   { id: `${p}_lote`, texto: 'N.º de lote' },
   { id: `${p}_vence`, texto: 'Fecha de vencimiento' },
-  { id: `${p}_almacenamiento`, texto: 'Condiciones de almacenamiento' },
+  ...(conAlmacenamiento ? [{ id: `${p}_almacenamiento`, texto: 'Condiciones de almacenamiento' }] : []),
 ]
 
 export const CHECKLIST_ORGANOLEPTICO: readonly GrupoChecklist[] = [
@@ -298,61 +308,17 @@ export const CHECKLIST_ORGANOLEPTICO: readonly GrupoChecklist[] = [
   },
   { id: 'envase_mediato', titulo: 'Envase mediato', items: generales('mediato') },
   { id: 'envase_inmediato', titulo: 'Envase inmediato', items: generales('inmediato') },
-  { id: 'rotulado_mediato', titulo: 'Rotulado mediato', items: rotulado('rotmed') },
-  { id: 'rotulado_inmediato', titulo: 'Rotulado inmediato', items: rotulado('rotinm') },
-  {
-    id: 'vidrio', titulo: 'III. Envase de vidrio', opcional: true,
-    items: [
-      { id: 'vid_lleno', texto: 'Lleno o completo' },
-      { id: 'vid_sin_manchas', texto: 'Sin manchas ni cuerpos extraños en el interior' },
-      { id: 'vid_sin_grietas', texto: 'Sin grietas en ninguna parte del recipiente' },
-      { id: 'vid_cierre', texto: 'Cierre hermético' },
-    ],
-  },
-  {
-    id: 'plastico', titulo: 'III. Envase de plástico', opcional: true,
-    items: [
-      { id: 'pla_sin_perforaciones', texto: 'Libre de perforaciones, grietas o roturas' },
-      { id: 'pla_sin_deformaciones', texto: 'Libre de deformaciones o hendiduras que afecten el producto' },
-      { id: 'pla_banda', texto: 'Con banda de seguridad intacta (cuando corresponda)' },
-      { id: 'pla_cierre', texto: 'Cierre hermético' },
-    ],
-  },
-  {
-    id: 'tubo', titulo: 'III. Envase de tubo', opcional: true,
-    items: [
-      { id: 'tub_entero', texto: 'No está roto' },
-      { id: 'tub_forma', texto: 'No está deforme' },
-      { id: 'tub_lleno', texto: 'Lleno' },
-      { id: 'tub_cierre', texto: 'Cierre hermético' },
-    ],
-  },
-  {
-    id: 'blister', titulo: 'III. Blíster termosellado', opcional: true,
-    items: [
-      { id: 'bli_entero', texto: 'No está roto' },
-      { id: 'bli_lleno', texto: 'Lleno' },
-      { id: 'bli_sellado', texto: 'Sellado' },
-    ],
-  },
-  { id: 'otro', titulo: 'III. Otro material', opcional: true, items: [{ id: 'otro_ok', texto: 'Se ve en buen estado' }] },
+  { id: 'rotulado_mediato', titulo: 'Rotulado mediato', items: rotulado('rotmed', true) },
+  { id: 'rotulado_inmediato', titulo: 'Rotulado inmediato', items: rotulado('rotinm', false) },
 ]
 
 export type Checklist = Record<string, Respuesta>
 
 const todosLosItems = () => CHECKLIST_ORGANOLEPTICO.flatMap((g) => g.items.map((i) => ({ ...i, grupo: g })))
 
-/** Items sin responder en los grupos obligatorios, y en un grupo opcional si ya se empezó a usar. */
+/** Items del formato sin responder. */
 export function itemsPendientes(c: Checklist): string[] {
-  const pendientes: string[] = []
-  for (const g of CHECKLIST_ORGANOLEPTICO) {
-    const respondidos = g.items.filter((i) => c[i.id]).length
-    if (g.opcional && respondidos === 0) continue
-    for (const i of g.items) if (!c[i.id]) pendientes.push(i.id)
-  }
-  const algunMaterial = CHECKLIST_ORGANOLEPTICO.some((g) => g.opcional && g.items.some((i) => c[i.id]))
-  if (!algunMaterial) pendientes.push('material')
-  return pendientes
+  return CHECKLIST_ORGANOLEPTICO.flatMap((g) => g.items).filter((i) => !c[i.id]).map((i) => i.id)
 }
 
 export const checklistCompleto = (c: Checklist) => itemsPendientes(c).length === 0
@@ -380,9 +346,7 @@ export interface DatosOrganoleptica {
 export function faltantesParaEnviar(d: DatosOrganoleptica): string[] {
   const f: string[] = []
   if (d.certAnalisis == null) f.push('Indica si trae certificado de análisis.')
-  const pend = itemsPendientes(d.checklist)
-  if (pend.includes('material')) f.push('Marca el material del envase (vidrio, plástico, tubo, blíster u otro).')
-  const sinResponder = pend.filter((p) => p !== 'material').length
+  const sinResponder = itemsPendientes(d.checklist).length
   if (sinResponder > 0) f.push(`Faltan ${sinResponder} puntos del checklist por responder.`)
   if (!d.destinoSugerido) f.push('Elige el destino que sugieres.')
   if (!d.conclusion) f.push('Elige la conclusión (conforme o no conforme).')
@@ -391,10 +355,12 @@ export function faltantesParaEnviar(d: DatosOrganoleptica): string[] {
 
 /** Lo que Dirección Técnica puede decidir según la conclusión del acta. */
 export function validarDecision(
-  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string,
+  decision: Decision, conclusion: 'CONFORME' | 'NO_CONFORME' | null, rsVence: string | undefined, hoy: string, productoValidado = true, datosCompletos = true,
 ): { ok: true } | { ok: false; mensaje: string } {
   if (decision === 'APROBADO') {
     if (conclusion !== 'CONFORME') return { ok: false, mensaje: 'El acta concluye NO CONFORME: no se puede aprobar. Decide Bajas/Rechazados o pide que la corrijan.' }
+    if (!datosCompletos) return { ok: false, mensaje: 'El producto está pendiente de Dirección Técnica: faltan sus datos regulatorios. Complétalos en su ficha antes de aprobar sus lotes.' }
+    if (!productoValidado) return { ok: false, mensaje: 'Este producto todavía no está validado: valídalo en su ficha antes de aprobar sus lotes.' }
     if (rsVence && rsVence < hoy) {
       return { ok: false, mensaje: 'El registro sanitario está vencido: el lote no se puede aprobar hasta que Dirección Técnica lo resuelva.' }
     }
@@ -437,6 +403,25 @@ export function pasoDeSolicitud(s: {
   }
 }
 
+/** Mensaje cuando se pide el acta (generarla, confirmar el ingreso) de una solicitud cuya recepción todavía no empezó. Lo usan la demo, la base y la pantalla. */
+export const MENSAJE_SIN_RECEPCION = 'Todavía no se inició la recepción de esta solicitud, y el acta sale de lo que verificas al recibir. Usa «Iniciar recepción» para empezar.'
+
+export interface ExplicacionSinActa { texto: string; puedeIniciar: boolean }
+
+/**
+ * Por qué una solicitud no tiene acta todavía y qué hacer. `null` si ya tiene recepción (ahí el acta se maneja en su panel).
+ * El botón «Iniciar recepción» solo existe cuando la solicitud ya está autorizada («por llegar») y quien mira puede recibir.
+ */
+export function explicarSinActa(estado: EstadoSolicitud, puedeRecibir: boolean): ExplicacionSinActa | null {
+  switch (estado) {
+    case 'EN_RECEPCION': case 'CERRADA': return null
+    case 'ANULADA': return { texto: 'Esta solicitud está anulada: no habrá recepción ni acta.', puedeIniciar: false }
+    case 'PROGRAMADA':
+      return { texto: `Todavía no hay acta porque la recepción no se inició. El acta se arma con lo que verificas al recibir el camión. ${puedeRecibir ? 'Cuando llegue, inicia la recepción.' : 'La recepción la inicia el personal de almacén.'}`, puedeIniciar: puedeRecibir }
+    default: return { texto: 'Todavía no hay acta: la solicitud aún no está autorizada, así que no se puede recibir. Primero se autoriza; después se inicia la recepción y recién ahí sale el acta.', puedeIniciar: false }
+  }
+}
+
 /** Lo que falta para generar el acta, en el mismo orden y con los mismos mensajes de la base de datos. */
 export function puedeGenerarActa(i: {
   tipo: TipoIngreso
@@ -461,7 +446,12 @@ export type TipoAlerta =
   | 'TEMPERATURA' | 'RS_VENCIDO' | 'DIVERGENCIA_COMPRAS' | 'POR_TRASLADAR_VENCIDO' | 'LOTE_POR_VENCER' | 'LOTE_VENCIDO'
   | 'SOLICITUD_AJUSTADA' | 'EXCEDE_OC' | 'POR_REGISTRAR_EN_COMPRAS' | 'NO_COINCIDE_CON_COMPRAS'
   | 'MOVIMIENTO_CON_DIFERENCIA' | 'MOVIMIENTO_SIN_VERIFICAR' | 'CONTEO_CON_DIFERENCIA' | 'AJUSTE_POR_AUTORIZAR' | 'PENDIENTE_AFECTA_PRODUCTO'
-  | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO' | 'DOCUMENTACION_INCOMPLETA'
+  | 'STOCK_INSUFICIENTE' | 'PEDIDO_CAMBIADO' | 'DOCUMENTO_VENCIDO' | 'DOCUMENTACION_INCOMPLETA' | 'LOTE_EN_RESERVA'
+  | 'BAJA_POR_AUTORIZAR' | 'BAJA_POR_TRASLADAR'
+  | 'RETORNO_POR_AUTORIZAR' | 'DICTAMEN_POR_CONFIRMAR' | 'ORDEN_MANUAL_UNIDA'
+  | 'PEDIDO_CANCELADO' | 'DEVOLUCION_PICKING'
+  | 'OC_CAMBIADA' | 'RETORNO_POR_ORIGINAR'
+  | 'VENCIMIENTO_VERIFICAR' | 'VIDA_UTIL_CORTA'
 
 export type DestinatarioAlerta = 'direccion_tecnica' | 'jefe_almacen' | 'asistente_dt' | 'jefe_transporte'
 
@@ -485,6 +475,18 @@ export const ETIQUETA_ALERTA: Record<TipoAlerta, string> = {
   PEDIDO_CAMBIADO: 'El pedido cambió en Pedidos',
   DOCUMENTO_VENCIDO: 'Documento regulatorio vencido o por vencer',
   DOCUMENTACION_INCOMPLETA: 'Pedido conforme con documentos por completar',
+  LOTE_EN_RESERVA: 'Lote en Reserva con pedidos asignados',
+  BAJA_POR_AUTORIZAR: 'Baja por autorizar',
+  BAJA_POR_TRASLADAR: 'Baja por trasladar a Bajas',
+  RETORNO_POR_AUTORIZAR: 'Retorno de una Orden de Salida por autorizar',
+  DICTAMEN_POR_CONFIRMAR: 'Dictamen del DT del cliente por confirmar',
+  ORDEN_MANUAL_UNIDA: 'El pedido llegó y se unió a una orden manual',
+  PEDIDO_CANCELADO: 'Pedido cancelado en Pedidos',
+  DEVOLUCION_PICKING: 'Lo picado por devolver a su ubicación',
+  OC_CAMBIADA: 'La orden de compra cambió en Compras',
+  RETORNO_POR_ORIGINAR: 'Una entrega no se hizo: falta registrar el retorno',
+  VENCIMIENTO_VERIFICAR: 'Verifica la fecha de vencimiento (solo trae mes y año)',
+  VIDA_UTIL_CORTA: 'Vida útil corta al recibir',
 }
 
 /** Quién recibe cada tipo. Los avisos de la solicitud y de Compras se envían a más de una persona (una alerta por destinatario). */
@@ -515,10 +517,29 @@ export const DESTINATARIO_ALERTA: Record<TipoAlerta, DestinatarioAlerta> = {
   PEDIDO_CAMBIADO: 'jefe_transporte',
   DOCUMENTO_VENCIDO: 'direccion_tecnica',
   DOCUMENTACION_INCOMPLETA: 'jefe_transporte',
+  LOTE_EN_RESERVA: 'jefe_transporte',
+  BAJA_POR_AUTORIZAR: 'direccion_tecnica',
+  BAJA_POR_TRASLADAR: 'jefe_almacen',
+  // OS-5: quien registra el retorno no siempre puede autorizarlo; Sandra y Katia lo autorizan. El dictamen del DT del cliente lo confirma el otro.
+  RETORNO_POR_AUTORIZAR: 'asistente_dt',
+  DICTAMEN_POR_CONFIRMAR: 'asistente_dt',
+  // SA-2: el pedido de una venta manual llegó por la bandeja y se unió a su orden (sin crear otra); el Jefe de Transporte lo sabe.
+  ORDEN_MANUAL_UNIDA: 'jefe_transporte',
+  // SA-3: el Jefe de Transporte se entera de la cancelación; el Jefe de Almacén coordina a quien devuelve y a quien verifica.
+  PEDIDO_CANCELADO: 'jefe_transporte',
+  DEVOLUCION_PICKING: 'jefe_almacen',
+  // Piloto (0038): Compras cambió (o borró) una orden que el WMS ya copió; Sandra prepara las solicitudes de ingreso con esa OC.
+  OC_CAMBIADA: 'asistente_dt',
+  // Piloto (0043): el conductor marcó «no entregado» o «rechazado»; el Jefe de Transporte origina el retorno con el flujo de siempre.
+  RETORNO_POR_ORIGINAR: 'jefe_transporte',
+  // Piloto (0040, F): el proveedor solo imprime mes y año → quien recibe verifica la fecha en el envase; vida útil menor al mínimo → Dirección Técnica decide.
+  VENCIMIENTO_VERIFICAR: 'jefe_almacen',
+  VIDA_UTIL_CORTA: 'direccion_tecnica',
 }
 
 export function puedeAtenderAlerta(roles: readonly Rol[], destinatario: DestinatarioAlerta): boolean {
-  return roles.includes('direccion_tecnica') || roles.includes(destinatario)
+  // D-196: el Administrador atiende las alertas de la asistente de DT (no las de Dirección Técnica).
+  return roles.includes('direccion_tecnica') || roles.includes(destinatario) || (destinatario === 'asistente_dt' && roles.includes('admin_wms'))
 }
 
 export const PLAZO_POR_TRASLADAR_HORAS_DEFECTO = 24
@@ -550,7 +571,7 @@ export function porTrasladarVencido(desdeIso: string, ahoraIso: string, plazoHor
 
 export type TipoDocumentoExpediente =
   | 'ACTA_RECEPCION' | 'SOLICITUD_INGRESO' | 'GUIA_REMISION' | 'FACTURA' | 'FACTURA_BOLETA_ORIGINAL'
-  | 'FORMULARIO_DEVOLUCION' | 'ACTA_ORGANOLEPTICA' | 'OTRO'
+  | 'FORMULARIO_DEVOLUCION' | 'ACTA_ORGANOLEPTICA' | 'DICTAMEN_DT_CLIENTE' | 'OTRO'
 
 export const ETIQUETA_DOCUMENTO: Record<TipoDocumentoExpediente, string> = {
   ACTA_RECEPCION: 'Acta de Recepción',
@@ -560,6 +581,7 @@ export const ETIQUETA_DOCUMENTO: Record<TipoDocumentoExpediente, string> = {
   FACTURA_BOLETA_ORIGINAL: 'Factura o boleta original',
   FORMULARIO_DEVOLUCION: 'Formulario de devolución',
   ACTA_ORGANOLEPTICA: 'Acta organoléptica',
+  DICTAMEN_DT_CLIENTE: 'Dictamen del DT del cliente',
   OTRO: 'Otro documento',
 }
 

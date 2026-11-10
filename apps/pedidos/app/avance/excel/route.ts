@@ -10,12 +10,20 @@ import { cargaVigente, detalleDeVenta } from "@/services/avance";
  * que la RLS deja ver a quien está pidiendo. Un vendedor baja lo suyo; un
  * administrador, todo. Así no hay forma de bajarse el detalle de otro
  * cambiando un número en la URL.
+ *
+ * `periodo` sí se recibe, porque desde que la pantalla tiene pestañas el
+ * botón tiene que bajar el mes que se está mirando y no siempre el último.
+ * No abre nada: elige entre meses publicados, y adentro de cada uno manda
+ * la misma RLS. Si viene un período sin carga, cae en el más reciente.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "No hay sesión." }, { status: 401 });
 
-  const carga = await cargaVigente();
+  const pedido = new URL(request.url).searchParams.get("periodo");
+  const periodo = pedido && /^[0-9]{4}-[0-9]{2}$/.test(pedido) ? pedido : undefined;
+
+  const carga = (await cargaVigente(periodo)) ?? (periodo ? await cargaVigente() : null);
   if (!carga) {
     return NextResponse.json({ error: "Todavía no hay un avance publicado." }, { status: 404 });
   }

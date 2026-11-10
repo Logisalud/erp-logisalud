@@ -9,7 +9,7 @@ let base: BaseDePrueba
 beforeAll(async () => { base = await crearBaseDePrueba() }, 60_000)
 afterAll(async () => { await base?.cerrar() })
 const P = () => base.personas
-const IMG = 'data:image/png;base64,' + 'A'.repeat(200)
+const IMG = 'firmas/' + 'a'.repeat(16) + '-' + 'b'.repeat(64) + '.png'
 const j = JSON.stringify
 
 /** Una OC de Compras (stub) con una línea de `pedida` unidades; `recibida` = lo que Compras ya tiene registrado. */
@@ -51,11 +51,11 @@ const datosDeRecepcion = (ingreso: string, temp = 20) =>
 /** Genera el acta y la firman las cuatro partes. */
 async function firmarTodo(ingreso: string) {
   const acta = await base.como(P().charlie.id, async (c) => (await c.query('select wms.generar_acta_recepcion($1) id', [ingreso])).rows[0].id as string)
-  await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'JEFE_ALMACEN', 'Charlie Chancco')`, [acta]))
-  await base.como(P().katia.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'DIRECCION_TECNICA', 'Katia Zapata')`, [acta]))
-  await base.como(P().aux.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'RESPONSABLE_CONTEO', 'Christians')`, [acta]))
   await base.como(P().charlie.id, (c) => c.query(
     `select wms.firmar_acta_recepcion($1, 'TRANSPORTISTA', 'Pedro Quispe', '45678912', 'ABC-123', $2) r`, [acta, IMG]))
+  await base.como(P().aux.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'RESPONSABLE_CONTEO', 'Christians')`, [acta]))
+  await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'JEFE_ALMACEN', 'Charlie Chancco')`, [acta]))
+  await base.como(P().katia.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'DIRECCION_TECNICA', 'Katia Zapata')`, [acta]))
   return { acta }
 }
 
@@ -314,17 +314,17 @@ describe('devolución e ingreso de cliente', () => {
   })
 
   it('(D-31) la devolución nace en Devoluciones, nunca en Cuarentena, y sale por su Acta Organoléptica', async () => {
-    const dip = await idPropietario(base.admin, 'DIPHASAC')
+    const dip = await idPropietario(base.admin, 'LOGISSA') // OS-5: el stock de un cliente lo libera su DT (tests/db/os5-liberacion.test.ts); aquí, stock de Logissa
     const sol = await crear('DEVOLUCION', dip, { guia_numero: 'G-2', doc_original_tipo: 'FACTURA', doc_original_numero: 'F001-123', motivo: 'Cliente devolvió' },
       [{ producto_id: base.productos.dapa, lote: 'L-DEV1', vence: '2028-01-31', cantidad: 5 }])
     const linea = (await base.admin.query('select id from wms.solicitud_ingreso_lineas where solicitud_id = $1', [sol])).rows[0].id
     const ing = await recibir(sol)
     expect((await falla(verificar(linea, true, { posicion: await pos('A-6') }))).message).toMatch(/Área de Devoluciones: nunca pasa por Cuarentena/)
-    await verificar(linea, true, { posicion: await pos('A-10.1') })
+    await verificar(linea, true, { posicion: await pos('E-8.1.1') })
     await datosDeRecepcion(ing)
     await firmarTodo(ing)
     await confirmar(ing)
-    expect((await saldos(ing))[0]).toMatchObject({ estado: 'DEVOLUCIONES', cantidad: 5, propietario: 'DIPHASAC' })
+    expect((await saldos(ing))[0]).toMatchObject({ estado: 'DEVOLUCIONES', cantidad: 5, propietario: 'LOGISSA' })
     expect((await base.admin.query(`select count(*)::int n from wms.partidas p join wms.ingreso_lotes il on il.id = p.procedencia_id where il.ingreso_id = $1 and p.estado = 'CUARENTENA'`, [ing])).rows[0].n).toBe(0)
     // Sale de Devoluciones con su acta: a Aprobado.
     await (await decidirOrg(ing, 'L-DEV1', 'APROBADO')).decidir()
@@ -332,12 +332,12 @@ describe('devolución e ingreso de cliente', () => {
   })
 
   it('(D-31) la devolución rechazada va a Bajas/Rechazados', async () => {
-    const dip = await idPropietario(base.admin, 'DIPHASAC')
+    const dip = await idPropietario(base.admin, 'LOGISSA') // OS-5: el stock de un cliente lo libera su DT (tests/db/os5-liberacion.test.ts); aquí, stock de Logissa
     const sol = await crear('DEVOLUCION', dip, { guia_numero: 'G-3', doc_original_tipo: 'BOLETA', doc_original_numero: 'B001-9', motivo: 'Dañado' },
       [{ producto_id: base.productos.dapa, lote: 'L-DEV2', vence: '2028-01-31', cantidad: 2 }])
     const linea = (await base.admin.query('select id from wms.solicitud_ingreso_lineas where solicitud_id = $1', [sol])).rows[0].id
     const ing = await recibir(sol)
-    await verificar(linea, true, { posicion: await pos('A-10.1') })
+    await verificar(linea, true, { posicion: await pos('E-8.1.1') })
     await datosDeRecepcion(ing)
     await firmarTodo(ing)
     await confirmar(ing)
@@ -405,9 +405,9 @@ describe('acta de recepción', () => {
     expect(x.id).toBeTruthy()
   })
 
-  it('(D-29) el código del formato de Kardex es un parámetro configurable, provisional', async () => {
+  it('(D-29) el código del formato de Kardex es un parámetro configurable: LS-FR.41 desde la 0022', async () => {
     const r = (await base.admin.query(`select valor from wms.parametros where clave = 'kardex_codigo_formato'`)).rows[0]
-    expect(r.valor).toBe('LS-FR-KDX (provisional)')
+    expect(r.valor).toBe('LS-FR.41')
   })
 
   it('cada rol firma con su rol, y el transportista exige DNI, placa y firma', async () => {
@@ -423,8 +423,8 @@ describe('acta de recepción', () => {
     expect((await firma(P().charlie.id, 'TRANSPORTISTA', 'Pedro', '45678912', '', IMG)).message).toMatch(/placa/)
     expect((await firma(P().charlie.id, 'TRANSPORTISTA', 'Pedro', '45678912', 'ABC-1', 'x')).message).toMatch(/firma del transportista/)
     expect((await firma(P().sinRol.id, 'RESPONSABLE_CONTEO', 'Nadie')).message).toMatch(/personal de almacén/)
-    await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'JEFE_ALMACEN', 'Charlie')`, [acta]))
-    expect((await firma(P().charlie.id, 'JEFE_ALMACEN', 'Charlie')).message).toMatch(/ya firmó/)
+    await base.como(P().charlie.id, (c) => c.query(`select wms.firmar_acta_recepcion($1, 'TRANSPORTISTA', 'Pedro', '45678912', 'ABC-1', $2)`, [acta, IMG]))
+    expect((await firma(P().charlie.id, 'TRANSPORTISTA', 'Pedro', '45678912', 'ABC-1', IMG)).message).toMatch(/ya firmó/)
   })
 
   it('(5) acta firmada no se edita; anular y reemitir conserva ambas (el número anulado no se reutiliza)', async () => {
@@ -494,12 +494,11 @@ describe('alertas', () => {
 })
 
 describe('acta organoléptica', () => {
-  it('(6) muestra = techo(raíz(unidades)) + 1', async () => {
-    const m = async (n: number) => (await base.admin.query('select wms.muestra_organoleptica($1) m', [n])).rows[0].m
-    expect([await m(1), await m(4), await m(5), await m(9), await m(10), await m(100), await m(101)]).toEqual([2, 3, 4, 4, 5, 11, 12])
+  it('(6) la muestra sale de la tabla LS-TB.02.02 (OS-5): un lote de 4 unidades se evalúa al 100 % (ya no techo(raíz)+1)', async () => {
     const x = await ingresoCompletoCompra(base.productos.dapa, 4, [['L-M1', 4]])
-    const r = await base.admin.query('select cantidad_lote, cantidad_muestra from wms.actas_organolepticas where ingreso_id = $1 order by cantidad_lote desc', [x.id])
-    expect(r.rows).toEqual([{ cantidad_lote: 4, cantidad_muestra: 3 }])
+    const r = await base.admin.query('select cantidad_lote, cantidad_muestra, regimen_muestreo, tabla_muestreo from wms.actas_organolepticas where ingreso_id = $1 order by cantidad_lote desc', [x.id])
+    expect(r.rows).toEqual([{ cantidad_lote: 4, cantidad_muestra: 4, regimen_muestreo: 'LOTE_MENOR', tabla_muestreo: 'LS-TB.02.02' }])
+    expect((await base.admin.query(`select to_regprocedure('wms.muestra_organoleptica(integer)') f`)).rows[0].f).toBeNull()
   })
 
   it('hay un acta organoléptica por producto y lote, con su correlativo', async () => {
@@ -592,7 +591,7 @@ describe('"por trasladar" y conciliación con Compras', () => {
     const x = await compraConfirmada(base.productos.dapa, 6, 6, 'L-RC1')
     const revisar = () => base.como(P().charlie.id, (c) => c.query('select wms.revisar_registro_compras()'))
     await revisar()
-    expect((await base.admin.query(`select count(*)::int n from wms.alertas where solicitud_id = $1`, [x.sol])).rows[0].n).toBe(0) // aún en plazo
+    expect((await base.admin.query(`select count(*)::int n from wms.alertas where solicitud_id = $1 and tipo <> 'VIDA_UTIL_CORTA'`, [x.sol])).rows[0].n).toBe(0) // aún en plazo (la vida útil corta de los lotes de prueba es otra alerta)
     await base.admin.query(`update wms.solicitudes_ingreso set cerrada_en = now() - interval '2 days' where id = $1`, [x.sol])
     await revisar()
     const a = (await base.admin.query(`select tipo, destinatario_rol, mensaje, estado from wms.alertas where solicitud_id = $1 and tipo = 'POR_REGISTRAR_EN_COMPRAS'`, [x.sol])).rows

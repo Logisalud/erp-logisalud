@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAll } from './fetchAll';
+import { retencionesPorDocumento } from './retenciones';
+
+export { retencionesPorDocumento };
 
 interface CanjeActivoInfo { canjeId: string; montoCanje: number }
 
@@ -135,5 +138,178 @@ export async function construirReporteFactoring(db: SupabaseClient, filtros: { c
   }
 
   filas.sort((a, b) => (a.fecha_vencimiento ?? '').localeCompare(b.fecha_vencimiento ?? ''));
+  return filas;
+}
+
+/**
+ * Registra la retención que se indicó al armar un canje (a letras o a
+ * factoring).
+ *
+ * La escribe acá y no vía `/api/pagos` porque esa ruta rechaza —con razón—
+ * cualquier pago sobre una factura con letras o en factoring: es la guarda
+ * que evita que alguien registre ahí el pago del cliente. Esto no es el pago
+ * del cliente: es la parte de la factura que el cliente retiene, y la sabe
+ * justamente quien está armando el canje.
+ *
+ * Devuelve un aviso en texto si algo no se pudo registrar. El canje ya está
+ * guardado para cuando esto corre: una retención que falla no puede tirar
+ * abajo una operación que está bien, pero tampoco puede pasar en silencio.
+ */
+export async function registrarRetencionDeCanje(
+  db: SupabaseClient,
+  retenciones: Array<{ documento_id: string; monto: number }>,
+  fecha: string,
+  origen: 'letras' | 'factoring',
+  registradoPor?: string | null,
+): Promise<string | null> {
+  const aRegistrar = retenciones.filter(r => Number(r.monto) > 0);
+  if (aRegistrar.length === 0) return null;
+
+  const etiqueta = origen === 'letras' ? 'canje a letras' : 'canje a factoring';
+  const { error } = await db.from('pagos').insert(
+    aRegistrar.map(r => ({
+      documento_id: r.documento_id,
+      monto: Number(r.monto),
+      fecha_pago: fecha,
+      referencia: `Retención IGV 3% (${etiqueta})`,
+      voucher_path: null,
+      tipo: 'retencion',
+      registrado_por: registradoPor?.trim() || null,
+    })),
+  );
+
+  if (error) return `El canje se registró, pero la retención no: ${error.message}`;
+  return null;
+}
+
+// ──────────────────────── Reporteador de factoring ───────────────────────────
+
+export interface FilaReporteFactoringCompleto {
+  documento_id: string;
+  canje_id: string;
+  comprobante: string;
+  cliente_ruc: string;
+  razon_social: string;
+  entidad: string | null;
+  fecha_canje: string;
+  /** La que toma la entidad financiera. Vacía en los canjes viejos. */
+  fecha_vencimiento: string | null;
+  /** La de la factura, para poder comparar las dos. */
+  fecha_vencimiento_factura: string | null;
+  monto: number;
+  retencion: number;
+  fecha_ingreso: string | null;
+  estado: 'en_factoring' | 'ingresada' | 'anulada';
+  dias_en_factoring: number;
+}
+
+export interface FiltrosReporteFactoring {
+  cliente_ruc?: string | null;
+  /** 'todos' | 'en_factoring' | 'ingresada' | 'anulada' */
+  estado?: string | null;
+  /** Rango sobre la fecha del canje. */
+  desde?: string | null;
+  hasta?: string | null;
+}
+
+/**
+ * Todas las facturas que pasaron por factoring, en el estado en que están
+ * hoy.
+ *
+ * Es el espejo del reporteador de letras, y existe porque el reporte que
+ * había mostraba SOLO las que esperan el ingreso al banco: apenas entra la
+ * plata desaparecen, así que con las 15 facturas de los 4 canjes ya
+ * ingresadas la pantalla estaba vacía y no había forma de mirar para atrás.
+ */
+export async function construirReporteFactoringCompleto(
+  db: SupabaseClient,
+  filtros: FiltrosReporteFactoring,
+): Promise<FilaReporteFactoringCompleto[]> {
+  let qCanjes = db.from('factoring_canjes').select('id, cliente_ruc, fecha_canje, anulado');
+  if (filtros.cliente_ruc) qCanjes = qCanjes.eq('cliente_ruc', filtros.cliente_ruc);
+  if (filtros.desde) qCanjes = qCanjes.gte('fecha_canje', filtros.desde);
+  if (filtros.hasta) qCanjes = qCanjes.lte('fecha_canje', filtros.hasta);
+
+  const canjes = await fetchAll<{ id: string; cliente_ruc: string; fecha_canje: string; anulado: boolean }>(
+    (from, to) => qCanjes.order('fecha_canje', { ascending: false }).order('id').range(from, to)
+  );
+  if (canjes.length === 0) return [];
+
+  const canjeIds = canjes.map(c => c.id);
+  const canjeFacturas = await fetchAll<{ canje_id: string; documento_id: string; monto_canje: number; fecha_vencimiento: string | null }>(
+    (from, to) => db.from('factoring_canje_facturas')
+      .select('canje_id, documento_id, monto_canje, fecha_vencimiento')
+      .in('canje_id', canjeIds).order('id').range(from, to)
+  );
+  const documentoIds = Array.from(new Set(canjeFacturas.map(cf => cf.documento_id)));
+  if (documentoIds.length === 0) return [];
+
+  // El ingreso al banco de cada factura: su fecha y su entidad, que es la
+  // que de verdad compró la factura.
+  const ingresoFacturas = await fetchAll<{ documento_id: string; ingreso_id: string }>((from, to) =>
+    db.from('factoring_ingreso_facturas').select('documento_id, ingreso_id').in('documento_id', documentoIds).order('id').range(from, to)
+  );
+  const ingresoIds = Array.from(new Set(ingresoFacturas.map(f => f.ingreso_id)));
+  const { data: ingresos } = ingresoIds.length
+    ? await db.from('factoring_ingresos').select('id, entidad, fecha_ingreso, anulado').in('id', ingresoIds)
+    : { data: [] as Array<{ id: string; entidad: string; fecha_ingreso: string; anulado: boolean }> };
+  const ingresoPorId = new Map((ingresos ?? []).map(i => [i.id, i]));
+  const ingresoPorDocumento = new Map<string, { entidad: string; fecha_ingreso: string }>();
+  for (const f of ingresoFacturas) {
+    const i = ingresoPorId.get(f.ingreso_id);
+    if (i && !i.anulado) ingresoPorDocumento.set(f.documento_id, { entidad: i.entidad, fecha_ingreso: i.fecha_ingreso });
+  }
+
+  const facturas = await fetchAll<{ id: string; comprobante: string; cliente_ruc: string; razon_social: string; fecha_vencimiento: string | null }>(
+    (from, to) => db.from('v_saldos')
+      .select('id, comprobante, cliente_ruc, razon_social, fecha_vencimiento')
+      .in('id', documentoIds).order('id').range(from, to)
+  );
+  const facturaPorId = new Map(facturas.map(f => [f.id, f]));
+  const retencionPorDocumento = await retencionesPorDocumento(db, documentoIds);
+
+  const canjePorId = new Map(canjes.map(c => [c.id, c]));
+  const hoy = new Date();
+  const filas: FilaReporteFactoringCompleto[] = [];
+
+  for (const cf of canjeFacturas) {
+    const factura = facturaPorId.get(cf.documento_id);
+    const canje = canjePorId.get(cf.canje_id);
+    if (!factura || !canje) continue;
+
+    const ingreso = ingresoPorDocumento.get(cf.documento_id) ?? null;
+    const estado: FilaReporteFactoringCompleto['estado'] =
+      ingreso ? 'ingresada' : canje.anulado ? 'anulada' : 'en_factoring';
+    if (filtros.estado && filtros.estado !== 'todos' && filtros.estado !== estado) continue;
+
+    // Los días corren hasta que entra la plata; una factura ya ingresada
+    // tiene los días que tardó, no los que pasaron desde entonces.
+    const hasta = ingreso ? new Date(ingreso.fecha_ingreso) : hoy;
+    const dias = Math.max(0, Math.floor((hasta.getTime() - new Date(canje.fecha_canje).getTime()) / 86400000));
+
+    filas.push({
+      documento_id: factura.id,
+      canje_id: canje.id,
+      comprobante: factura.comprobante,
+      cliente_ruc: factura.cliente_ruc,
+      razon_social: factura.razon_social,
+      entidad: ingreso?.entidad ?? null,
+      fecha_canje: canje.fecha_canje,
+      fecha_vencimiento: cf.fecha_vencimiento,
+      fecha_vencimiento_factura: factura.fecha_vencimiento,
+      monto: Number(cf.monto_canje) || 0,
+      retencion: retencionPorDocumento.get(cf.documento_id) ?? 0,
+      fecha_ingreso: ingreso?.fecha_ingreso ?? null,
+      estado,
+      dias_en_factoring: dias,
+    });
+  }
+
+  // Por vencimiento, como el de letras. El de la entidad manda; si no está,
+  // el de la factura, que es el que vale en ese canje.
+  filas.sort((a, b) =>
+    (a.fecha_vencimiento ?? a.fecha_vencimiento_factura ?? '').localeCompare(
+      b.fecha_vencimiento ?? b.fecha_vencimiento_factura ?? '')
+  );
   return filas;
 }

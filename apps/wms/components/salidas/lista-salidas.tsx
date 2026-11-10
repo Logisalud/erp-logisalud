@@ -2,13 +2,23 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { ChevronRight, PackageSearch, Search } from 'lucide-react'
+import { ChevronRight, Search } from 'lucide-react'
 import { ETIQUETA_ETAPA, filtrarSalidas, type EtapaSalida, type SalidaResumen } from '@/domain/despacho'
 import { ChipEtapa } from './chip-etapa'
+import { avanceDeSalida } from '@/domain/pasos'
+import { EtiquetasOrigen } from './etiquetas-origen'
+import { SalidasSinCoincidencias, SalidasVacio } from './salidas-vacio'
 
 const ETAPAS = Object.keys(ETIQUETA_ETAPA) as EtapaSalida[]
+const extrasDe = (s: SalidaResumen) => ({ vendedor: s.vendedor, sinPedido: s.sinPedido, devolucion: s.devolucion, devolucionHref: s.devolucionHref, tipo: s.tipo, destruccion: s.motivo === 'DESTRUCCION', sinRuta: s.tipo === 'CLIENTE' ? undefined : !s.rutaNumero, porRuta: s.origen === 'MANUAL' && s.tipo !== 'CLIENTE' })
 
-export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]; verCambios: boolean }) {
+/** «Qué sigue y quién lo hace» de una orden (la misma frase en la columna propia y, en pantallas medianas, debajo de la etapa). */
+function Siguiente({ s }: { s: SalidaResumen }) {
+  const x = avanceDeSalida(s.etapa, s.id, extrasDe(s)).siguiente
+  return <><span className="block text-gray-900 first-letter:uppercase">{x.texto}</span><span className="block text-gray-600">{x.fin ? '' : `Lo hace: ${x.responsable.etiqueta}`}</span></>
+}
+
+export function ListaSalidas({ salidas, verCambios, puedeTraer = false, puedeCrear = false }: { salidas: SalidaResumen[]; verCambios: boolean; puedeTraer?: boolean; puedeCrear?: boolean }) {
   const [q, setQ] = useState('')
   const [etapa, setEtapa] = useState<'' | EtapaSalida>('')
   const vistas = useMemo(() => filtrarSalidas(salidas, { q, etapa }), [salidas, q, etapa])
@@ -31,32 +41,31 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
       </div>
 
       {vistas.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white px-6 py-14 text-center" data-testid="salidas-vacio">
-          <PackageSearch className="mx-auto h-10 w-10 text-gray-400" aria-hidden />
-          <p className="mt-3 font-medium text-gray-900">{salidas.length === 0 ? 'Todavía no hay salidas' : 'Ninguna salida coincide'}</p>
-          <p className="mx-auto mt-1 max-w-md text-sm text-gray-600">{salidas.length === 0 ? 'Las salidas nacen cuando un pedido entra a una ruta: el WMS le asigna el stock por vencimiento.' : 'Cambia la búsqueda o la etapa.'}</p>
-        </div>
+        salidas.length === 0
+          ? <SalidasVacio puedeTraer={puedeTraer} puedeCrear={puedeCrear} />
+          : <SalidasSinCoincidencias alQuitar={() => { setQ(''); setEtapa('') }} />
       ) : (
         <>
-          <div className="hidden overflow-x-auto rounded-lg border border-gray-200 bg-white md:block">
+          <div className="relative hidden overflow-x-auto rounded-lg border border-gray-200 bg-white md:block">
             <table className="w-full text-[13px] xl:text-sm" data-testid="tabla-salidas">
-              <caption className="sr-only">Salidas por pedido</caption>
+              <caption className="sr-only">Órdenes de salida</caption>
               <thead className="border-b border-gray-200 bg-gray-50 text-left text-gray-700"><tr>
                 <th scope="col" className="px-3 py-2 font-medium">Salida</th><th scope="col" className="px-3 py-2 font-medium">Pedido</th><th scope="col" className="px-3 py-2 font-medium">Cliente</th>
-                <th scope="col" className="px-3 py-2 font-medium">Ruta</th><th scope="col" className="px-3 py-2 font-medium">Guía</th><th scope="col" className="px-3 py-2 text-right font-medium">Líneas</th><th scope="col" className="px-3 py-2 text-right font-medium">Unidades</th>
-                <th scope="col" className="px-3 py-2 font-medium">Etapa</th><th scope="col" className="px-3 py-2"><span className="sr-only">Abrir</span></th>
+                <th scope="col" className="hidden px-3 py-2 font-medium xl:table-cell">Ruta</th><th scope="col" className="px-3 py-2 font-medium">Guía</th><th scope="col" className="hidden px-3 py-2 text-right font-medium 2xl:table-cell">Líneas</th><th scope="col" className="px-3 py-2 text-right font-medium">Unidades</th>
+                <th scope="col" className="px-3 py-2 font-medium">Etapa y qué sigue</th><th scope="col" className="hidden px-3 py-2 font-medium 2xl:table-cell">Qué sigue y quién lo hace</th><th scope="col" className="px-3 py-2"><span className="sr-only">Abrir</span></th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {vistas.map((s) => (
                   <tr key={s.id} className="hover:bg-gray-50" data-testid="fila-salida">
-                    <td className="px-3 py-3"><Link href={`/salidas/${s.id}`} className="tabular font-heading text-sm font-semibold tracking-wide text-green-800 underline">{s.numero}</Link></td>
+                    <td className="px-3 py-3"><Link href={`/salidas/${s.id}`} className="tabular font-heading text-sm font-semibold tracking-wide text-green-800 underline">{s.numero}</Link><span className="mt-1 block"><EtiquetasOrigen datos={s} conTipo /></span></td>
                     <td className="tabular px-3 py-3 text-gray-900">{s.pedidoNumero ?? '—'}</td>
                     <td className="px-3 py-3 text-gray-800">{s.cliente ?? '—'}</td>
-                    <td className="tabular px-3 py-3 text-gray-800">{s.rutaNumero ?? <span className="text-gray-500">Sin ruta</span>}</td>
+                    <td className="tabular hidden px-3 py-3 text-gray-800 xl:table-cell">{s.rutaNumero ?? <span className="text-gray-500">Sin ruta</span>}</td>
                     <td className="tabular px-3 py-3 text-gray-800">{s.guia ?? <span className="text-gray-500">—</span>}{!!s.documentosFaltantes && <span className="ml-2 text-xs text-amber-900">{s.documentosFaltantes} {s.documentosFaltantes === 1 ? 'documento falta' : 'documentos faltan'}</span>}</td>
-                    <td className="tabular px-3 py-3 text-right">{s.lineas}</td>
+                    <td className="tabular hidden px-3 py-3 text-right 2xl:table-cell">{s.lineas}</td>
                     <td className="tabular px-3 py-3 text-right">{s.unidades.toLocaleString('es-PE')} u</td>
-                    <td className="px-3 py-3"><ChipEtapa etapa={s.etapa} /></td>
+                    <td className="px-3 py-3"><ChipEtapa etapa={s.etapa} /><div className="mt-2 max-w-[17rem] text-xs text-gray-800 2xl:hidden" data-testid="siguiente-salida"><Siguiente s={s} /></div></td>
+                    <td className="hidden max-w-[18rem] px-3 py-3 text-xs text-gray-800 2xl:table-cell" data-testid="siguiente-salida"><Siguiente s={s} /></td>
                     <td className="px-3 py-3 text-right"><Link href={`/salidas/${s.id}`} className="btn-secondary btn-sm" aria-label={`Abrir ${s.numero}`}>Abrir</Link></td>
                   </tr>
                 ))}
@@ -70,6 +79,8 @@ export function ListaSalidas({ salidas, verCambios }: { salidas: SalidaResumen[]
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center justify-between gap-2"><span className="tabular font-heading text-sm font-semibold tracking-wide text-gray-900">{s.pedidoNumero ?? s.numero}</span><ChipEtapa etapa={s.etapa} /></div>
                     <p className="truncate text-sm text-gray-700">{s.cliente ?? 'Sin cliente'} · {s.unidades.toLocaleString('es-PE')} u</p>
+                    <EtiquetasOrigen datos={s} conTipo />
+                    <p className="text-xs text-gray-600">Sigue: {avanceDeSalida(s.etapa, s.id, extrasDe(s)).siguiente.texto}</p>
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />
                 </Link>

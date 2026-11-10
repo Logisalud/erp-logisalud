@@ -1,25 +1,33 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Clock } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Clock } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { ETIQUETA_TIPO_MOVIMIENTO } from '@/domain/inventario'
-import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
+import { pasosDeCargaEnHistoria } from '@/domain/carga-inicial'
+import { formatoFechaHora, textoVencimiento } from '@/domain/fechas'
 import { transitoPorLote, textoTransito } from '@/domain/transito'
 import { ChipEstado } from '@/components/chips'
+import { puedeReservarLote } from '@/domain/reserva'
+import { PanelReserva } from '@/components/lotes/panel-reserva'
+import { PanelVencimiento } from '@/components/lotes/panel-vencimiento'
+import { ROLES_CORRIGEN_VENCIMIENTO } from '@/domain/vencimiento'
 
 export const metadata = { title: 'Historia del lote — WMS LOGISALUD' }
 
 export default async function HistoriaLote({ params }: { params: { id: string } }) {
-  await exigirContexto()
+  const ctx = await exigirContexto()
   const repo = repositorio()
   const p = await repo.panorama()
   const lote = p.lotes.find((l) => l.id === decodeURIComponent(params.id))
   if (!lote) notFound()
   const prod = p.productos.find((x) => x.id === lote.productoId)
   const dueno = p.propietarios.find((x) => x.id === lote.propietarioId)
-  const [filas, ordenes] = await Promise.all([repo.historiaLote(lote.id), repo.listarMovimientos()])
+  const [filas, ordenes, reservas, cambiosVence] = await Promise.all([repo.historiaLote(lote.id), repo.listarMovimientos(), repo.reservasDelLote(lote.id), repo.historialVencimientoLote(lote.id)])
+  const stockAprobado = p.saldos.filter((x) => x.loteId === lote.id && x.estado === 'APROBADO').reduce((t, x) => t + x.cantidad, 0)
   const transito = transitoPorLote(ordenes).get(lote.id)
+  const pasosCarga = pasosDeCargaEnHistoria(filas)
+  const cargasEnsayo = new Set((await repo.listarCargasIniciales().catch(() => [])).filter((c) => c.piloto).map((c) => c.numero))
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -27,9 +35,13 @@ export default async function HistoriaLote({ params }: { params: { id: string } 
       <header>
         <p className="text-sm text-gray-600">{prod?.codigo}</p>
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Lote <span className="tabular">{lote.codigo}</span></h1>
-        <p className="mt-1 text-gray-700">{prod?.descripcion} · propietario <strong>{dueno?.codigo}</strong> · vence {formatoFecha(lote.vence)}</p>
+        <p className="mt-1 text-gray-700">{prod?.descripcion} · propietario <strong>{dueno?.codigo}</strong> · vence {textoVencimiento(lote.vence, lote.venceTexto)}</p>
         <p className="mt-1 text-sm text-gray-600">Todo lo que tocó este lote, de lo más antiguo a lo más reciente: ingresos, movimientos internos, cambios de estado, ajustes y reversas, con quién y cuándo. Nada se oculta ni se borra.</p>
       </header>
+
+      <PanelVencimiento loteId={lote.id} vence={lote.vence} venceTexto={lote.venceTexto} historia={cambiosVence} puedeCorregir={ctx.roles.some((r) => (ROLES_CORRIGEN_VENCIMIENTO as readonly string[]).includes(r))} />
+
+      <PanelReserva loteId={lote.id} lote={lote.codigo} historia={reservas} puedeReservar={puedeReservarLote(ctx.roles)} tieneStockAprobado={stockAprobado > 0} />
 
       {transito && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-900" data-testid="lote-en-transito" role="status">
@@ -52,6 +64,10 @@ export default async function HistoriaLote({ params }: { params: { id: string } 
                 <ChipEstado estado={f.estado} />
                 <span className="tabular ml-auto text-sm"><strong className={f.delta > 0 ? 'text-green-800' : 'text-red-800'}>{f.delta > 0 ? `+${f.delta}` : `−${Math.abs(f.delta)}`}</strong> en <strong>{f.posicion}</strong> · saldo del lote {f.saldoLote}</span>
               </div>
+              {pasosCarga.get(f.partidaId) && (() => { const c = pasosCarga.get(f.partidaId)!; return (
+                <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-900" data-testid="paso-carga-inicial">
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />Carga inicial {c.carga}{cargasEnsayo.has(c.carga) ? ' (ensayo, piloto)' : ''} · paso {c.paso} de {c.total} · {c.texto}
+                </p>) })()}
               <p className="mt-1 text-sm text-gray-700">
                 {f.motivo ? `${f.motivo} · ` : ''}{f.referencia ? (/^MI-\d{4}-\d{5}$/.test(f.referencia) ? <><Link href={`/movimientos?q=${encodeURIComponent(f.referencia)}`} className="underline" data-testid="ref-movimiento">{f.referencia}</Link> · </> : `ref. ${f.referencia} · `) : ''}{f.sustento ? `sustento ${f.sustento} · ` : ''}
                 {f.ejecutor ? `${f.tipo === 'MOVIMIENTO' ? 'movió' : 'registró'} ${f.ejecutor}` : ''}{f.verificador ? ` · verificó ${f.verificador}` : ''}

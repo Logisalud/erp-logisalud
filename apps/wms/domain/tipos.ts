@@ -10,11 +10,7 @@ export type TipoArea =
   | 'APROBADOS'
   | 'BAJAS_RECHAZADOS'
   | 'CONTRAMUESTRA'
-  | 'EMBALAJE'
   | 'DESPACHO'
-  | 'PENDIENTE_CONFORMIDAD'
-  | 'OBSERVADO'
-  | 'RETORNO_RESERVADO'
 
 export type Origen =
   | 'COMPRA_LOCAL'
@@ -38,6 +34,7 @@ export type Rol =
   | 'conformidad_despacho'
   | 'autoriza_salidas_sin_venta'
   | 'usuario_cliente'
+  | 'dt_cliente'
 
 export type Accion =
   | 'ver'
@@ -60,6 +57,19 @@ export type Accion =
   | 'embalar'
   | 'cargar_ruta'
   | 'liberar_unidad'
+  | 'reservar_lote'
+  | 'anular_guia'
+  | 'solicitar_baja'
+  | 'autorizar_baja'
+  | 'cerrar_ruta'
+  | 'registrar_ls_fr'
+  | 'originar_retorno'
+  | 'mis_rutas'
+  | 'registrar_dictamen_cliente'
+  | 'marcar_antecedentes_calidad'
+  | 'liberar_stock_propietario'
+  | 'crear_orden_venta_manual'
+  | 'entregar_al_transportista_cliente'
 
 export interface Propietario {
   id: string
@@ -112,6 +122,8 @@ export interface Producto {
   principioActivo?: string
   unidadMedida: string
   estado: 'activo' | 'inactivo'
+  /** Código de bonificación (BO…) que Compras liga a este producto: es el MISMO producto, con otro código (D-213). */
+  codigoBonificacion?: string
 }
 
 /** Datos regulatorios (D-37): los edita Dirección Técnica (Katia o Sandra) sin segunda validación; cada cambio queda en el historial. */
@@ -123,7 +135,11 @@ export interface Regulatorio {
   concentracion?: string
   fabricante?: string
   condicionAlmacenamiento?: string
+  /** Piloto F3: lo marca Dirección Técnica; con el formato organoléptico vigente (versión 2 o más) se oculta el material del envase. */
+  sinMaterialEnvase?: boolean
   creadoPor?: string
+  /** D-196: un producto que da de alta o edita el Administrador queda PENDIENTE hasta que Dirección Técnica lo valida; sin dato, se toma como validado. */
+  estadoValidacion?: 'PENDIENTE' | 'VALIDADO' | 'OBSERVADO'
 }
 
 /** Un cambio de un dato regulatorio: campo, valor anterior y nuevo, quién, cuándo y por qué. */
@@ -138,7 +154,7 @@ export interface CambioRegulatorio {
   motivo: string
 }
 
-export type CampoRegulatorio = 'registro_sanitario' | 'rs_vence' | 'forma_presentacion' | 'concentracion' | 'fabricante' | 'condicion_almacenamiento' | CampoCatalogo
+export type CampoRegulatorio = 'registro_sanitario' | 'rs_vence' | 'forma_presentacion' | 'concentracion' | 'fabricante' | 'condicion_almacenamiento' | 'sin_material_envase' | CampoCatalogo
 
 /** D-38: presentación y principio activo viven solo en catalogo.productos; Compras los llena al crear y después solo Dirección Técnica los edita. */
 export type CampoCatalogo = 'presentacion' | 'principio_activo'
@@ -149,9 +165,9 @@ export const CAMPOS_CATALOGO: readonly { campo: CampoCatalogo; clave: 'presentac
 
 /** Etiqueta de cualquier campo editable del historial (regulatorio o del catálogo). */
 export const etiquetaCampo = (campo: string): string =>
-  CAMPOS_REGULATORIOS.find((x) => x.campo === campo)?.etiqueta ?? CAMPOS_CATALOGO.find((x) => x.campo === campo)?.etiqueta ?? campo
+  campo === 'sin_material_envase' ? 'Sin material de envase' : CAMPOS_REGULATORIOS.find((x) => x.campo === campo)?.etiqueta ?? CAMPOS_CATALOGO.find((x) => x.campo === campo)?.etiqueta ?? campo
 
-export const CAMPOS_REGULATORIOS: readonly { campo: CampoRegulatorio; clave: keyof Omit<Regulatorio, 'productoId' | 'creadoPor'>; etiqueta: string }[] = [
+export const CAMPOS_REGULATORIOS: readonly { campo: CampoRegulatorio; clave: keyof Omit<Regulatorio, 'productoId' | 'creadoPor' | 'sinMaterialEnvase'>; etiqueta: string }[] = [
   { campo: 'registro_sanitario', clave: 'registroSanitario', etiqueta: 'Registro sanitario' },
   { campo: 'rs_vence', clave: 'rsVence', etiqueta: 'Vencimiento del registro' },
   { campo: 'forma_presentacion', clave: 'formaPresentacion', etiqueta: 'Forma farmacéutica' },
@@ -165,6 +181,8 @@ export interface Lote {
   productoId: string
   codigo: string
   vence?: string
+  /** Lo que escribió la persona si el producto solo muestra mes y año («06/2028»); sin dato, la fecha era completa. */
+  venceTexto?: string
   propietarioId: string
 }
 

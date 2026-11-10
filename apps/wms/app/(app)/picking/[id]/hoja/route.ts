@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { puedeVerSalidas } from '@/domain/despacho'
 import { repositorio } from '@/services/repositorio-actual'
@@ -13,6 +14,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!ctx || !puedeVerSalidas(ctx.roles)) return new NextResponse('Inicia sesión con un perfil de almacén o transporte.', { status: 401 })
   const orden = await repositorio().obtenerOrdenPicking(params.id)
   if (!orden) return new NextResponse('No encontramos esa orden de picking.', { status: 404 })
-  const pdf = await renderHojaPicking(orden)
+  const pdf = await marcarPiloto(await renderHojaPicking(orden))
   return new NextResponse(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Picking ${orden.numero}.pdf"`, 'Cache-Control': 'private, no-store' } })
 }

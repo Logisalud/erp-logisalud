@@ -311,11 +311,11 @@ test.describe('productos y registro sanitario', () => {
     await page.fill('#campo-codigo', codigo)
     await page.fill('#campo-descripcion', 'Producto de prueba E2E 5 mg')
     await page.fill('#campo-registroSanitario', 'EG-99001')
-    await page.fill('#campo-rsVence', '06/2031') // solo mes y año → último día del mes
+    await page.fill('#campo-rsVence', '06/2031') // solo mes y año → el día por defecto (0040)
     await page.getByTestId('guardar-producto').click()
     await expect(page.getByTestId('producto-creado')).toContainText('Listo')
     await expect(page.getByTestId('historial-regulatorio')).toContainText('Alta del producto')
-    await expect(page.getByText('30 jun 2031')).toBeVisible()
+    await expect(page.getByText(/(^|\s)1 jun\.? 2031/).first()).toBeVisible()   // solo mes y año → día por defecto del parámetro (0040: el 1)
     await capturar(page, info, 'producto-alta-exito', { completa: true })
 
     await page.goto('/wms/productos/nuevo')
@@ -405,7 +405,9 @@ test.describe('propietarios y auditoría', () => {
   test('Auditoría: quién, qué, cuándo y por qué', async ({ page }, info) => {
     await entrarComo(page, 'auditoria_lectura')
     await page.goto('/wms/auditoria')
-    await expect(page.getByTestId('lista-auditoria')).toContainText('Administración (demo)')
+    // la lista trae los últimos 100 eventos (quién, qué, cuándo y por qué); cuántos eventos hay antes depende de lo que corrieron las otras pruebas
+    await expect(page.getByTestId('lista-auditoria')).toContainText('(demo)')
+    await expect(page.getByTestId('lista-auditoria')).toContainText('Motivo:')
     await sinDesborde(page)
     await capturar(page, info, 'auditoria', { completa: true })
   })

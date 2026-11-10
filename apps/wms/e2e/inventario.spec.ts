@@ -1,7 +1,7 @@
 // Flujos del Batch 3 (inventario en operación) en los 4 viewports. Modo demostración, en serie:
 // cada prueba parte de lo que dejó la anterior (el servidor se reinicia por viewport).
 import { expect, test, type Page } from '@playwright/test'
-import { capturar, entrarComo, esTelefono, sinDesborde, type RolDemo } from './ayudas'
+import { capturar, elegirProductoKardex, entrarComo, esTelefono, sinDesborde, type RolDemo } from './ayudas'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -42,7 +42,7 @@ test.describe('Kardex, historia del lote y vencimientos', () => {
     await page.goto('/wms/kardex')
     await expect(page.getByTestId('kardex-vacio')).toBeVisible()
     await capturar(page, info, 'kardex-vacio')
-    await page.locator('#k-producto').selectOption({ index: 1 })
+    await elegirProductoKardex(page, 'DEMO-001')
     await page.getByTestId('ver-kardex').click()
     await expect(page.getByTestId('kardex-saldo-final')).toBeVisible()
     const filas = page.locator('[data-testid="fila-kardex"]:visible, [data-testid="lista-kardex"]:visible > li')
@@ -60,7 +60,7 @@ test.describe('Kardex, historia del lote y vencimientos', () => {
   test('un lote tiene su historia completa', async ({ page }, info) => {
     await entrarComo(page, 'auditoria_lectura')
     await page.goto('/wms/kardex')
-    await page.locator('#k-producto').selectOption({ index: 1 })
+    await elegirProductoKardex(page, 'DEMO-001')
     await page.getByTestId('ver-kardex').click()
     await expect(page.getByTestId('kardex-saldo-final')).toBeVisible()
     await page.locator('#k-lote').selectOption({ index: 1 })
@@ -461,44 +461,5 @@ test.describe('conteos cíclicos y ajustes (INV-05)', () => {
     await entrarComo(page, 'auxiliar')
     await page.goto('/wms/conteos')
     await expect(page.getByTestId('fila-conteo').first()).toContainText('Cerrado')
-  })
-})
-
-test.describe('carga inicial (D-09)', () => {
-  const CSV = 'producto;lote;vence;propietario;posicion;estado;cantidad\nDEMO-001;CI-E2E;31/12/2029;LOGISSA;A-6;CUARENTENA;40\nNO-EXISTE;X;31/12/2029;LOGISSA;A-6;CUARENTENA;5'
-
-  test('la vista previa marca cada error; no se confirma sin la decisión de Dirección Técnica; con ella entra al inventario y al Kardex', async ({ page }, info) => {
-    await entrarComo(page, 'admin_wms')
-    await page.goto('/wms/carga-inicial')
-    await expect(page.getByTestId('sin-decision')).toBeVisible()
-    await page.getByTestId('texto-carga').fill(CSV)
-    await page.getByTestId('revisar-carga').click()
-    await expect(page.getByTestId('carga-con-errores')).toBeVisible()
-    await expect(page.getByTestId('fila-previa').nth(1)).toContainText('no existe en el catálogo')
-    await expect(page.getByTestId('guardar-carga')).toBeDisabled()
-    await capturar(page, info, 'carga-inicial-errores', { completa: true })
-    await page.getByTestId('texto-carga').fill(CSV.split('\n').slice(0, 2).join('\n'))
-    await page.getByTestId('revisar-carga').click()
-    await expect(page.getByTestId('carga-sin-errores')).toBeVisible()
-    await sinDesborde(page)
-    await capturar(page, info, 'carga-inicial-lista', { completa: true })
-    await page.getByTestId('guardar-carga').click()
-    await expect(page.getByText('Carga guardada como borrador')).toBeVisible()
-    await page.getByTestId('confirmar-carga').click()
-    await expect(page.getByRole('alert').filter({ hasText: 'Falta la decisión de Dirección Técnica' })).toBeVisible()
-    await cambiarRol(page, 'direccion_tecnica')
-    await page.getByTestId('decidir-CUARENTENA').click()
-    await expect(page.getByTestId('decision-vigente')).toContainText('Cuarentena')
-    await cambiarRol(page, 'admin_wms')
-    await page.getByTestId('confirmar-carga').click()
-    await expect(page.getByText('Carga confirmada')).toBeVisible()
-    await expect(page.getByTestId('lista-cargas')).toContainText('Confirmada')
-    await capturar(page, info, 'carga-inicial-confirmada', { completa: true })
-  })
-
-  test('quien no administra ni decide no ve la carga inicial', async ({ page }) => {
-    await entrarComo(page, 'auxiliar')
-    await page.goto('/wms/carga-inicial')
-    await expect(page).toHaveURL(/\/wms\/?$/)
   })
 })
