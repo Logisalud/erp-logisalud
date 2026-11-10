@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowUp, Ban, CheckCircle2, ClipboardList, FileText, History, ListOrdered, Plus, Save, Trash2, TriangleAlert } from 'lucide-react'
 import { cancelarRutaAccion, confirmarRutaAccion, planificarRutaAccion } from '@/app/acciones-rutas'
 import {
-  ETIQUETA_ESTADO_RUTA, RUTA_EDITABLE, clavePlanParada, filtrarOrdenesPlanificables, filtrarPedidosPlanificables, fueraDeCorte, ordenSugerido, validarPlan,
+  ETIQUETA_ESTADO_RUTA, RUTA_EDITABLE, clavePlanParada, distritosDePedidos, filtrarOrdenesPlanificables, filtrarPedidosPlanificables, filtrarYOrdenarPorDistrito, fueraDeCorte, ordenSugerido, validarPlan,
   paradasDeZona, zonasConPedidos, type OrdenPlanificable, type PanoramaRutas, type PedidoPlanificable, type PlanParada, type RutaVista,
 } from '@/domain/rutas'
 import { formatoFechaHora } from '@/domain/fechas'
@@ -63,6 +63,8 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const [paradas, setParadas] = useState<PlanParada[]>(ruta.paradas.map((p) => ({ ...(p.pedidoId ? { pedidoId: p.pedidoId } : { salidaId: p.salidaId }), excepcionCorte: p.excepcionCorte, motivoExcepcion: p.motivoExcepcion })))
   const [motivo, setMotivo] = useState('')
   const [q, setQ] = useState('')
+  const [distritoFiltro, setDistritoFiltro] = useState('')
+  const [ordenDistrito, setOrdenDistrito] = useState<'ninguno' | 'asc' | 'desc'>('ninguno')
   const [cancelando, setCancelando] = useState(false)
   const [motivoCancelar, setMotivoCancelar] = useState('')
   const [aviso, setAviso] = useState<string | null>(null)
@@ -106,7 +108,9 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const confirmar = () => ejecutar(() => confirmarRutaAccion(ruta.id), { exito: 'Ruta confirmada: ya nació su registro LS-FR.43.03.' })
   const cancelar = () => ejecutar(() => cancelarRutaAccion(ruta.id, motivoCancelar), { refrescar: false, alExito: () => router.push('/rutas') })
 
-  const disponibles = filtrarPedidosPlanificables(panorama.pedidos.filter((p) => !paradas.some((x) => x.pedidoId === p.pedidoId)), q)
+  const porAgregar = panorama.pedidos.filter((p) => !paradas.some((x) => x.pedidoId === p.pedidoId))
+  const distritos = distritosDePedidos(porAgregar)
+  const disponibles = filtrarYOrdenarPorDistrito(filtrarPedidosPlanificables(porAgregar, q), distritoFiltro, ordenDistrito)
   const ordenesDisponibles = filtrarOrdenesPlanificables(panorama.ordenes.filter((o) => !paradas.some((x) => clavePlanParada(x) === o.clave)), q)
   const motivoBloqueoOrden = (o: OrdenPlanificable) => o.enRuta ? `Ya está en ${o.enRuta}` : o.sinStock ? 'Sin stock suficiente: decide quién resuelve la falta' : null
   const motivoBloqueo = (p: PedidoPlanificable) => p.enRuta ? `Ya está en ${p.enRuta}` : p.cambioPorRevisar ? 'Cambió en Pedidos: revísalo primero' : p.sinCatalogo.length ? `Producto desconocido (${p.sinCatalogo[0]})` : null
@@ -222,6 +226,23 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
       <section aria-labelledby="t-agregar" className="space-y-3">
         <h2 id="t-agregar" className="font-heading text-xl font-semibold uppercase tracking-wide text-gray-900">Pedidos por planificar</h2>
         <Buscador id="q-agregar" etiqueta="Buscar pedidos" ayuda="Por número, cliente, RUC o distrito." valor={q} onCambio={setQ} testid="agregar-buscar" />
+        <div className="flex flex-wrap items-end gap-3" data-testid="filtros-distrito">
+          <div>
+            <label htmlFor="f-distrito" className="etiqueta">Distrito</label>
+            <select id="f-distrito" className="campo" value={distritoFiltro} onChange={(e) => setDistritoFiltro(e.target.value)} data-testid="filtro-distrito">
+              <option value="">Todos los distritos</option>
+              {distritos.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="o-distrito" className="etiqueta">Ordenar por distrito</label>
+            <select id="o-distrito" className="campo" value={ordenDistrito} onChange={(e) => setOrdenDistrito(e.target.value as 'ninguno' | 'asc' | 'desc')} data-testid="orden-distrito">
+              <option value="ninguno">Como llegaron</option>
+              <option value="asc">A → Z</option>
+              <option value="desc">Z → A</option>
+            </select>
+          </div>
+        </div>
         {disponibles.length === 0 ? <p className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-700" data-testid="sin-disponibles">No hay más pedidos para agregar.</p> : (
           <ul className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white" data-testid="lista-disponibles">
             {disponibles.map((p) => {
@@ -230,7 +251,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
                 <li key={p.pedidoId} className="flex flex-wrap items-center gap-3 px-3 py-3 md:px-4" data-testid="pedido-disponible">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-gray-900">{p.cliente} <span className="tabular text-sm font-normal text-gray-600">· {p.numero}</span></p>
-                    <p className="text-sm text-gray-700">{[p.distrito, p.ventanaCita, `${p.lineas} ${p.lineas === 1 ? 'línea' : 'líneas'}`, `${p.unidades.toLocaleString('es-PE')} u`].filter(Boolean).join(' · ')}</p>
+                    <p className="text-sm text-gray-700"><span className="font-medium text-gray-900" data-testid="pedido-distrito">Distrito: {p.distrito ?? '—'}</span>{[p.ventanaCita, `${p.lineas} ${p.lineas === 1 ? 'línea' : 'líneas'}`, `${p.unidades.toLocaleString('es-PE')} u`].filter(Boolean).map((t) => ` · ${t}`).join('')}</p>
                     {bloqueo && <p className={`${base} ${CHIP_AVISO} mt-1`}><TriangleAlert className="h-3.5 w-3.5" aria-hidden />{bloqueo}</p>}
                   </div>
                   <button type="button" className="btn-secondary" onClick={() => agregar(p)} disabled={!!bloqueo} aria-label={`Agregar ${p.numero} a la ruta`} data-testid="agregar-pedido"><Plus className="h-5 w-5" aria-hidden />Agregar</button>
