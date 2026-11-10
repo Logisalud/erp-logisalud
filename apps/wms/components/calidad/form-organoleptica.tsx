@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { MARCA_BORRADOR } from '@/domain/borrador-documento'
+import { useMemo, useState, type ReactNode } from 'react'
 import { CheckCheck, Download, Fingerprint, Send } from 'lucide-react'
 import { decidirOrganolepticaAccion, guardarOrganolepticaAccion } from '@/app/acciones-entradas'
 import {
@@ -8,16 +9,18 @@ import {
   type Checklist, type DatosOrganoleptica, type Respuesta,
 } from '@/domain/entradas'
 import type { OrganolepticaVista } from '@/domain/entradas-vistas'
-import { formatoFechaHora } from '@/domain/fechas'
+import { formatoFechaHora, textoVencimiento } from '@/domain/fechas'
+import { CODIGO_FORMATO } from '@/domain/formatos'
+import { ETIQUETA_REGIMEN, explicarRegimen, textoMuestra } from '@/domain/muestreo'
 import { ChipEstado } from '../chips'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
-import { SEGMENTO_CONFORME, SEGMENTO_NO_CONFORME, SEGMENTO_NO_APLICA, SEGMENTO_INACTIVO, PILDORA_ACTIVA, PILDORA_ACTIVA_ROJA, PILDORA_INACTIVA, PILDORA_INACTIVA_HOVER } from '@/components/estilos-opcion'
+import { SEGMENTO_CONFORME, SEGMENTO_NO_CONFORME, SEGMENTO_NO_APLICA, SEGMENTO_INACTIVO, PILDORA_ACTIVA, PILDORA_ACTIVA_ROJA, PILDORA_INACTIVA } from '@/components/estilos-opcion'
 
 const RESPUESTAS: Respuesta[] = ['C', 'NC', 'NA']
 const TXT: Record<Respuesta, string> = { C: 'Conforme', NC: 'No conforme', NA: 'No aplica' }
 
-function Segmentado({ nombre, valor, onCambio, deshabilitado }: { nombre: string; valor?: Respuesta; onCambio: (r: Respuesta) => void; deshabilitado: boolean }) {
+export function Segmentado({ nombre, valor, onCambio, deshabilitado }: { nombre: string; valor?: Respuesta; onCambio: (r: Respuesta) => void; deshabilitado: boolean }) {
   return (
     <div role="radiogroup" aria-label={nombre} className="inline-flex shrink-0 overflow-hidden rounded-full border border-gray-300 bg-white">
       {RESPUESTAS.map((r) => {
@@ -34,7 +37,7 @@ function Segmentado({ nombre, valor, onCambio, deshabilitado }: { nombre: string
   )
 }
 
-export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }: { acta: OrganolepticaVista; puedeEditar: boolean; puedeDecidir: boolean; hoy: string; base: string }) {
+export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base, liberacion }: { acta: OrganolepticaVista; puedeEditar: boolean; puedeDecidir: boolean; hoy: string; base: string; liberacion?: ReactNode }) {
   const { pendiente, mensaje, ejecutar } = useAccion()
   const bloqueada = acta.estado === 'FIRMADA'
   const editable = puedeEditar && !bloqueada
@@ -44,14 +47,13 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
   const [destino, setDestino] = useState(acta.datos.destinoSugerido)
   const [conclusion, setConclusion] = useState(acta.datos.conclusion)
   const [concluyoSolo, setConcluyoSolo] = useState(acta.datos.conclusion == null)
-  const [materiales, setMateriales] = useState<Set<string>>(() => new Set(CHECKLIST_ORGANOLEPTICO.filter((g) => g.opcional && g.items.some((i) => acta.datos.checklist[i.id])).map((g) => g.id)))
   const [obsDt, setObsDt] = useState('')
 
   const datos: DatosOrganoleptica = { certAnalisis: cert, checklist, observacion: obs, destinoSugerido: destino, conclusion }
   const faltan = useMemo(() => faltantesParaEnviar(datos), [checklist, cert, destino, conclusion]) // eslint-disable-line react-hooks/exhaustive-deps
   const noConformes = itemsNoConformes(checklist)
   const rsVencido = !!acta.rsVence && acta.rsVence < hoy
-  const rotaAprobar = validarDecision('APROBADO', conclusion, acta.rsVence, hoy)
+  const rotaAprobar = validarDecision('APROBADO', conclusion, acta.rsVence, hoy, true, acta.productoCompleto !== false)
 
   function responder(id: string, r: Respuesta) {
     const nuevo = { ...checklist, [id]: r }
@@ -60,15 +62,13 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
   }
   function marcarConformes() {
     const nuevo = { ...checklist }
-    for (const g of CHECKLIST_ORGANOLEPTICO) if (!g.opcional || materiales.has(g.id)) for (const i of g.items) if (!nuevo[i.id]) nuevo[i.id] = 'C'
+    for (const g of CHECKLIST_ORGANOLEPTICO) for (const i of g.items) if (!nuevo[i.id]) nuevo[i.id] = 'C'
     setChecklist(nuevo)
     if (concluyoSolo) setConclusion(sugerirConclusion(nuevo))
   }
   const guardar = (enviar: boolean) => ejecutar(() => guardarOrganolepticaAccion(acta.id, { certAnalisis: cert, checklist, observacion: obs, destinoSugerido: destino, conclusion }, enviar),
     { exito: enviar ? 'Enviada a Dirección Técnica.' : 'Borrador guardado.' })
 
-  const grupos = CHECKLIST_ORGANOLEPTICO.filter((g) => !g.opcional || materiales.has(g.id) || bloqueada)
-  const opcionales = CHECKLIST_ORGANOLEPTICO.filter((g) => g.opcional)
 
   return (
     <div className="space-y-6">
@@ -76,12 +76,14 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
         <h2 id="datos-producto" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">I. El producto</h2>
         <dl className="mt-2 grid gap-x-8 divide-y divide-gray-100 text-sm sm:grid-cols-2 sm:divide-y-0">
           {[
-            ['Producto', acta.producto], ['Nombre genérico', acta.principioActivo], ['Lote', acta.lote], ['Vence', acta.vence ? new Date(`${acta.vence}T00:00:00Z`).toLocaleDateString('es-PE', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }) : undefined],
+            ['Producto', acta.producto], ['Nombre genérico', acta.principioActivo], ['Lote', acta.lote], ['Vence', acta.vence ? textoVencimiento(acta.vence, acta.venceTexto) : undefined],
             ['Registro sanitario', acta.registroSanitario], ['Vence el registro', acta.rsVence], ['Fabricante', acta.fabricante], ['Forma de presentación', acta.formaPresentacion],
             ['Propietario', acta.propietario], ['Referencia', acta.referencia], ['Cantidad del lote', `${acta.cantidadLote.toLocaleString('es-PE')} unidades`],
           ].map(([k, v]) => <div key={k} className="flex justify-between gap-3 py-2"><dt className="text-gray-600">{k}</dt><dd className="text-right text-gray-900">{v || '—'}</dd></div>)}
         </dl>
-        <p className="mt-3 rounded-md bg-teal-50 p-3 text-sm text-teal-950" data-testid="muestra"><strong>Toma {acta.cantidadMuestra} unidades de muestra.</strong> Es el techo de la raíz de {acta.cantidadLote.toLocaleString('es-PE')} más 1. La muestra vuelve completa a su caja: no descuenta stock.</p>
+        <p className="mt-2 text-xs text-gray-600" data-testid="version-formato">Formato {CODIGO_FORMATO.ACTA_ORGANOLEPTICA} · versión {acta.formatoVersion ?? 1}</p>
+        <p className="mt-3 rounded-md bg-teal-50 p-3 text-sm text-teal-950" data-testid="muestra"><strong>{textoMuestra(acta.cantidadMuestra, acta.regimenMuestreo, acta.tablaMuestreo, acta.cantidadLote)}</strong>{acta.regimenMuestreo ? ` ${explicarRegimen(acta.regimenMuestreo)}` : ''} La muestra vuelve completa a su caja: no descuenta stock.</p>
+        {acta.regimenMuestreo && <p className="mt-1 text-xs text-gray-600" data-testid="regimen-muestreo">{ETIQUETA_REGIMEN[acta.regimenMuestreo]} · tabla {acta.tablaMuestreo}. La tabla es un parámetro: Dirección Técnica la cambia sin tocar el sistema.</p>}
         {rsVencido && <div className="mt-3"><Aviso tipo="error" testid="aviso-rs-vencido"><strong>El registro sanitario está vencido.</strong> Este lote se puede rechazar, pero no aprobar, hasta que Dirección Técnica resuelva el registro.</Aviso></div>}
       </section>
 
@@ -92,7 +94,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
         </div>
       )}
 
-      {grupos.map((g) => (
+      {CHECKLIST_ORGANOLEPTICO.map((g) => (
         <section key={g.id} className="card" aria-labelledby={`g-${g.id}`} data-testid={`grupo-${g.id}`}>
           <h2 id={`g-${g.id}`} className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">{g.titulo}</h2>
           <ul className="mt-2 divide-y divide-gray-100">
@@ -106,19 +108,6 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
           </ul>
         </section>
       ))}
-
-      {editable && (
-        <fieldset className="card">
-          <legend className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">III. Material del envase</legend>
-          <p className="text-sm text-gray-600">Marca los materiales que tiene el producto; aparece su checklist.</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {opcionales.map((g) => {
-              const on = materiales.has(g.id)
-              return <button key={g.id} type="button" role="checkbox" aria-checked={on} onClick={() => setMateriales((m) => { const n = new Set(m); if (on) n.delete(g.id); else n.add(g.id); return n })} className={`min-h-11 rounded-full border px-4 text-sm font-medium transition duration-fast ${on ? PILDORA_ACTIVA : PILDORA_INACTIVA_HOVER}`}>{g.titulo.replace('III. ', '')}</button>
-            })}
-          </div>
-        </fieldset>
-      )}
 
       <section className="card space-y-5" aria-labelledby="cierre">
         <h2 id="cierre" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Cierre del acta</h2>
@@ -148,7 +137,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
         )}
       </section>
 
-      {acta.estado === 'PENDIENTE_DT' && puedeDecidir && (
+      {acta.estado === 'PENDIENTE_DT' && puedeDecidir && !acta.esDeCliente && (
         <section className="card border-2 border-logisalud-teal" aria-labelledby="decision" data-testid="panel-decision">
           <h2 id="decision" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Decisión de Dirección Técnica</h2>
           <p className="mt-1 text-sm text-gray-700">Al firmar, las {acta.cantidadLote.toLocaleString('es-PE')} unidades de este lote cambian de estado en su lugar y quedan por trasladar. Aprobado nunca vuelve a Cuarentena.</p>
@@ -160,6 +149,8 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
           </div>
         </section>
       )}
+
+      {liberacion}
 
       {bloqueada && acta.decision && (
         <section className="card" aria-labelledby="resultado" data-testid="resultado-acta">
@@ -174,7 +165,7 @@ export function FormOrganoleptica({ acta, puedeEditar, puedeDecidir, hoy, base }
       <section className="flex flex-wrap items-center gap-2" aria-label="Descargar el acta">
         <a className="btn-secondary btn-sm" href={`${base}/pdf`} target="_blank" rel="noopener" data-testid="pdf-organoleptica"><Download className="h-4 w-4" aria-hidden />Ver el PDF</a>
         <a className="btn-secondary btn-sm" href={`${base}/xlsx`} download data-testid="xlsx-organoleptica"><Download className="h-4 w-4" aria-hidden />Descargar Excel</a>
-        {!bloqueada && <span className="text-xs text-gray-600">Mientras no esté firmada, el documento sale marcado como borrador.</span>}
+        {!bloqueada && <span className="text-xs text-gray-600" data-testid="aviso-borrador-organoleptica">Mientras no esté firmada, el PDF y el Excel salen marcados «{MARCA_BORRADOR}».</span>}
       </section>
 
       {mensaje && <Aviso tipo={mensaje.tipo === 'ok' ? 'ok' : 'error'}>{mensaje.texto}</Aviso>}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { actualizarDeudaAhora, guardarReglaDeCredito } from "./actions";
+import { actualizarDeudaAhora, completarContactosAhora, guardarReglaDeCredito } from "./actions";
 import type { EstadoDelCredito } from "@/services/credito";
+import type { UltimaCorridaDeContactos } from "@/services/contactos-cobranzas";
 
 const soles = (n: number) =>
   n.toLocaleString("es-PE", { style: "currency", currency: "PEN", minimumFractionDigits: 2 });
@@ -10,7 +11,13 @@ const soles = (n: number) =>
 const cuando = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("es-PE", { timeZone: "America/Lima" }) : "nunca";
 
-export function PanelDeCredito({ estado }: { estado: EstadoDelCredito }) {
+export function PanelDeCredito({
+  estado,
+  ultimosContactos,
+}: {
+  estado: EstadoDelCredito;
+  ultimosContactos: UltimaCorridaDeContactos;
+}) {
   const [pendiente, startTransition] = useTransition();
   const [aviso, setAviso] = useState<{ texto: string; ok: boolean } | null>(null);
 
@@ -21,6 +28,21 @@ export function PanelDeCredito({ estado }: { estado: EstadoDelCredito }) {
       setAviso(
         r.ok
           ? { texto: `Listo: ${r.clientes} clientes con deuda, ${soles(r.vencido)} vencidos.`, ok: true }
+          : { texto: r.mensaje, ok: false },
+      );
+    });
+  }
+
+  function completarContactos() {
+    setAviso(null);
+    startTransition(async () => {
+      const r = await completarContactosAhora();
+      setAviso(
+        r.ok
+          ? {
+              texto: `Listo: ${r.celulares} celulares, ${r.direcciones} direcciones y ${r.ubicaciones} ubicaciones completadas en cobranzas.`,
+              ok: true,
+            }
           : { texto: r.mensaje, ok: false },
       );
     });
@@ -57,7 +79,10 @@ export function PanelDeCredito({ estado }: { estado: EstadoDelCredito }) {
       <section className="card p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h3 className="font-heading text-lg">La copia de la deuda</h3>
-          <p className="text-sm text-gray-600">Última actualización: {cuando(estado.ultimaActualizacion)}</p>
+          <p className="text-sm text-gray-600">
+            Última actualización: {cuando(estado.ultimaActualizacion)}
+            {estado.ultimaPorElCron === null ? "" : estado.ultimaPorElCron ? " (automática)" : " (a mano)"}
+          </p>
         </div>
 
         <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -75,6 +100,47 @@ export function PanelDeCredito({ estado }: { estado: EstadoDelCredito }) {
         <p className="mt-2 text-sm text-gray-600">
           Se actualiza sola todos los días. Este botón es para cuando un cliente acaba de pagar y
           no se puede esperar al refresco.
+        </p>
+      </section>
+
+      <section className="card p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h3 className="font-heading text-lg">Contactos hacia cobranzas</h3>
+          <p className="text-sm text-gray-600">
+            Última vez: {ultimosContactos ? cuando(ultimosContactos.cuando) : "nunca"}
+            {ultimosContactos ? (ultimosContactos.porElCron ? " (automática)" : " (a mano)") : ""}
+          </p>
+        </div>
+
+        <p className="mt-2 text-sm text-gray-600">
+          Completa en la cartera de cobranzas los celulares y las direcciones que falten, con lo que
+          conoce el vendedor acá. <strong>Solo llena vacíos</strong>: nunca pisa un dato que ya está
+          cargado allá, así que una corrección hecha en cobranzas siempre gana. Tampoco crea
+          clientes nuevos.
+        </p>
+
+        {ultimosContactos ? (
+          <p className="cifra mt-2 text-sm text-gray-600">
+            Entonces se completaron {ultimosContactos.celulares} celulares,{" "}
+            {ultimosContactos.direcciones} direcciones y {ultimosContactos.ubicaciones} ubicaciones.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-amber-900">
+            Todavía no corrió ninguna vez.
+          </p>
+        )}
+
+        <button
+          type="button"
+          className="btn-secondary mt-4"
+          onClick={completarContactos}
+          disabled={pendiente}
+        >
+          {pendiente ? "Completando…" : "Completar ahora"}
+        </button>
+        <p className="mt-2 text-sm text-gray-600">
+          Está previsto que corra solo todos los días de madrugada. Este botón es para cuando no se
+          puede esperar, o cuando la tarea programada no corrió.
         </p>
       </section>
 

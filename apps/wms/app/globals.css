@@ -5,6 +5,8 @@
 @layer base {
   :root { --alto-banner: 0px; }
   .con-banner { --alto-banner: 2.25rem; }
+  .con-banner-piloto { --alto-banner: 2.25rem; }
+  .con-banner.con-banner-piloto { --alto-banner: 4.5rem; }
   /* Foco siempre visible y siempre teal (marca): nunca se confunde con un hover. */
   :focus-visible {
     outline: none;

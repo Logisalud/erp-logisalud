@@ -13,6 +13,8 @@ interface Fila {
   estado: 'en_cartera' | 'en_banco' | 'pagada' | 'protestada';
   banco: string | null;
   fecha_pago: string | null;
+  retencion: number;
+  retencion_en_otra_letra: boolean;
 }
 
 interface ClienteBuscado {
@@ -93,6 +95,9 @@ export default function ReporteLetrasPage() {
   })();
 
   const totalMonto = filas.reduce((s, f) => s + f.importe, 0);
+  // Se puede sumar derecho: la retención de una factura la lleva una sola
+  // de sus letras (ver lib/reporteLetras.ts), así que no se cuenta dos veces.
+  const totalRetencion = filas.reduce((s, f) => s + f.retencion, 0);
 
   return (
     <div>
@@ -117,6 +122,8 @@ export default function ReporteLetrasPage() {
       <main className="max-w-5xl mx-auto mt-6 px-4 pb-16">
         <p className="text-gray-500 text-sm mb-4">
           Agenda de seguimiento de letras con el banco — todas las letras, ordenadas por fecha de vencimiento.
+          La retención es de la factura: cuando se partió en varias letras, la lleva la de vencimiento más
+          cercano y las otras muestran un guión, así la columna se puede sumar.
         </p>
 
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -172,7 +179,7 @@ export default function ReporteLetrasPage() {
         </div>
 
         {!cargando && (
-          <div className="grid grid-cols-2 gap-2.5 mb-4">
+          <div className="grid grid-cols-3 gap-2.5 mb-4">
             <div className="bg-white rounded-xl border border-gray-200 p-3.5">
               <p className="text-[11px] text-gray-400 uppercase tracking-wider">Letras</p>
               <p className="font-oswald text-xl mt-0.5 text-gray-700">{filas.length}</p>
@@ -180,6 +187,10 @@ export default function ReporteLetrasPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-3.5">
               <p className="text-[11px] text-gray-400 uppercase tracking-wider">Monto total</p>
               <p className="font-oswald text-xl mt-0.5" style={{ color: '#4BB168' }}>{fmt(totalMonto)}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-3.5">
+              <p className="text-[11px] text-gray-400 uppercase tracking-wider">Retención IGV</p>
+              <p className="font-oswald text-xl mt-0.5 text-gray-700">{fmt(totalRetencion)}</p>
             </div>
           </div>
         )}
@@ -192,7 +203,7 @@ export default function ReporteLetrasPage() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm min-w-[960px]">
+            <table className="w-full text-sm min-w-[1060px]">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="px-3 py-2.5 text-left">N° Letra</th>
@@ -200,6 +211,7 @@ export default function ReporteLetrasPage() {
                   <th className="px-3 py-2.5 text-left">Comprobante(s)</th>
                   <th className="px-3 py-2.5 text-left">Vencimiento</th>
                   <th className="px-3 py-2.5 text-right">Monto</th>
+                  <th className="px-3 py-2.5 text-right">Retención</th>
                   <th className="px-3 py-2.5 text-left">Estado</th>
                   <th className="px-3 py-2.5 text-left">Banco</th>
                   <th className="px-3 py-2.5 text-left">F. Pago</th>
@@ -216,6 +228,12 @@ export default function ReporteLetrasPage() {
                     <td className="px-3 py-2 font-mono text-xs text-gray-600">{f.comprobantes}</td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{fmtFecha(f.fecha_vencimiento)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-800">{fmt(f.importe)}</td>
+                    <td
+                      className="px-3 py-2 text-right tabular-nums text-gray-600"
+                      title={f.retencion_en_otra_letra ? 'La retención de esta factura va en otra de sus letras, para no contarla dos veces.' : undefined}
+                    >
+                      {f.retencion > 0 ? fmt(f.retencion) : '—'}
+                    </td>
                     <td className="px-3 py-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_BADGE[f.estado]}`}>
                         {ESTADOS.find(e => e.value === f.estado)?.label ?? f.estado}

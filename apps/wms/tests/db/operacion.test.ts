@@ -73,6 +73,17 @@ describe('revisión diaria (INV-04)', () => {
       expect((await falla(rpc(aux, `select wms.registrar_pendiente($1, 'ORDEN', 'x', $2)`, [id, aux]))).code).toBe('42501')
     })
 
+    it('(piloto E-5, 0037) el responsable es siempre un auxiliar: un jefe, Dirección Técnica o su asistente se rechazan', async () => {
+      const id = await iniciar()
+      const reg = (resp: string) => rpc(P().charlie.id, `select wms.registrar_pendiente($1, 'ORDEN', 'Cajas en el pasillo', $2)`, [id, resp])
+      for (const quien of [P().charlie.id, P().katia.id, P().sandra.id, await persona('jefe_almacen')]) {
+        expect((await falla(reg(quien))).message).toMatch(/Solo un auxiliar puede ser responsable/)
+      }
+      expect((await base.admin.query('select count(*)::int n from wms.revision_pendientes where revision_id = $1', [id])).rows[0].n).toBe(0)
+      await reg(await persona('auxiliar'))
+      expect((await base.admin.query('select count(*)::int n from wms.revision_pendientes where revision_id = $1', [id])).rows[0].n).toBe(1)
+    })
+
     it('registrar un pendiente marca el foco «con pendientes» y ese foco ya no puede quedar «sin problemas»', async () => {
       const id = await iniciar()
       const aux = await persona('auxiliar')

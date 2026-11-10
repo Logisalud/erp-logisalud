@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type BaseDePrueba, crearBaseDePrueba, falla } from './helpers'
 
 let base: BaseDePrueba
-beforeAll(async () => { base = await crearBaseDePrueba() }, 60_000)
+beforeAll(async () => { base = await crearBaseDePrueba({ con0008: true }) }, 60_000)   // la 0008 va al final (go-live)
 afterAll(async () => { await base?.cerrar() })
 const P = () => base.personas
 
@@ -76,7 +76,7 @@ describe('Katia y Sandra los editan desde el WMS', () => {
   })
   it('otros roles, sin motivo o sobre un producto inexistente: se rechaza', async () => {
     const id = await crearEnCompras('D38-8')
-    for (const quien of [P().charlie, P().aux, P().admin, P().auditor, P().sinRol]) {
+    for (const quien of [P().charlie, P().aux, P().auditor, P().sinRol] /* D-196: el Administrador ya edita (queda por validar) */) {
       expect((await falla(editar(quien.id, id, { presentacion: 'X' }))).code).toBe('42501')
     }
     expect((await falla(editar(P().katia.id, id, { presentacion: 'X' }, '  '))).message).toMatch(/necesita su motivo/)
@@ -114,6 +114,6 @@ describe('la migración 0008', () => {
     // sin el trigger, Compras vuelve a poder cambiar el dato (estado anterior a 0008)
     await comoCompras((c) => c.query(`update catalogo.productos set presentacion = 'Caja x 60' where id = $1`, [id]))
     // y editar los campos regulatorios de siempre sigue funcionando
-    expect((await editar(P().katia.id, id, { concentracion: '10 mg' })).rows[0].n).toBe(1)
+    expect((await editar(P().katia.id, id, { concentracion: '25 mg' })).rows[0].n).toBe(1)
   })
 })

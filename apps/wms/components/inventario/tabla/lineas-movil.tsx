@@ -89,7 +89,7 @@ function Hoja({ c, m, cerrar }: { c: LineaCalculada; m: usarMovimientoTablaTipo;
           {paso === 'origen' && l.producto && (
             <div className="space-y-2">
               <p className="text-sm text-gray-800"><strong>{l.producto.descripcion}</strong> · ¿de dónde sale?</p>
-              <ListaOrigenes celdas={l.celdas ?? []} seleccionada={l.celda?.clave} libreDe={(x) => m.libreDe(l.id, x)} alElegir={(x) => void m.elegirOrigen(l.id, x)} />
+              <ListaOrigenes celdas={m.celdasDe(l)} hayOtras={(l.celdas?.length ?? 0) > m.celdasDe(l).length} seleccionada={l.celda?.clave} libreDe={(x) => m.libreDe(l.id, x)} alElegir={(x) => void m.elegirOrigen(l.id, x)} />
             </div>
           )}
           {paso === 'destino' && l.celda && (

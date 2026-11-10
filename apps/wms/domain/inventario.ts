@@ -1,11 +1,13 @@
 // Inventario en operación (Batch 3): Kardex e historia del lote, vencimientos (D-30), movimientos internos (INV-02),
 // conteos cíclicos y ajustes (INV-05) y carga inicial. Dominio puro: sin Next ni Supabase.
-import type { Estado, Origen, Rol } from './tipos'
+import type { Estado, Origen, Rol, TipoArea } from './tipos'
 import { puedeVerificar } from './verificacion'
 import { diasHasta } from './regulatorio'
 import type { Panorama } from './panorama'
 import { normalizar, puntaje } from './busqueda'
-import { AREAS_DE_SALIDA, areaAdmite, ETIQUETA_AREA, mensajeZonaNoAdmite, posicionAcepta, propietarioVigente } from './zonas'
+import { estadoDeArchivo } from './carga-inicial'
+import { AREAS_COMPARTIDAS, AREAS_DE_SALIDA, areaAdmite, ETIQUETA_AREA, mensajeZonaNoAdmite, posicionAcepta, propietarioVigente } from './zonas'
+import { razonDestinoPorMotivo, razonOrigenPorMotivo } from './regla-motivo'
 
 // ── Libro mayor (lo que el Kardex y la historia leen) ───────────────────────
 
@@ -416,7 +418,7 @@ export interface AjusteVista {
 
 export const puedeDecidirAjuste = (roles: readonly Rol[]) => roles.includes('direccion_tecnica')
 
-// ── Carga inicial (D-09) ────────────────────────────────────────────────────
+// ── Carga inicial (D-09; cambio de sistema desde OS-7, D-110: ver carga-inicial.ts) ────────────────────────────────────────────────────
 
 export interface FilaCargaInicial {
   producto: string
@@ -438,8 +440,13 @@ export interface CargaInicialVista {
   creadoPor: string
   creadoEn: string
   confirmadoEn?: string
+  confirmadoPor?: string
   filas: number
   unidades: number
+  /** Unidades por estado final (OS-7: cada fila trae el estado de Odoo). */
+  porEstado: { aprobado: number; cuarentena: number; bajas: number }
+  /** P3: carga de ENSAYO del piloto (se borra en el reinicio del 1 de diciembre). */
+  piloto?: boolean
 }
 
 const COLUMNAS_CARGA = ['producto', 'lote', 'vence', 'propietario', 'posicion', 'estado', 'cantidad'] as const
@@ -475,7 +482,7 @@ export function parsearCargaInicial(texto: string): { filas: FilaCargaInicial[];
     const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(vence)
     if (dmy) vence = `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`
     if (vence && !/^\d{4}-\d{2}-\d{2}$/.test(vence)) errores.push({ fila: k + 1, error: `La fecha «${v('vence')}» no se entiende: usa 31/12/2028 o 2028-12-31` })
-    filas.push({ producto: v('producto'), lote: v('lote'), vence, propietario: v('propietario').toUpperCase(), posicion: v('posicion').toUpperCase(), estado: v('estado').toUpperCase(), cantidad })
+    filas.push({ producto: v('producto'), lote: v('lote'), vence, propietario: v('propietario').toUpperCase(), posicion: v('posicion').toUpperCase(), estado: estadoDeArchivo(v('estado')), cantidad })
   })
   return { filas, errores }
 }
@@ -501,6 +508,8 @@ export interface LineaContenido {
   /** Código y área de la ubicación donde está (para mostrar «dónde está» sin otra consulta). */
   posicion: string
   area: string
+  /** El tipo de área de esa ubicación (para reglas como la de «Salida de Cuarentena»). */
+  tipoArea?: TipoArea
   loteId: string
   productoId: string
   codigoProducto: string
@@ -542,7 +551,7 @@ export function contenidoDeUbicacion(p: Panorama, posicionId: string, reservado:
     const clave = claveCelda(s.posicionId, s.loteId, s.estado, s.procedenciaId)
     const ub = pos.get(s.posicionId)
     return {
-      clave, posicionId: s.posicionId, posicion: ub?.codigo ?? '—', area: ub ? ETIQUETA_AREA[ub.tipoArea] : '—', loteId: s.loteId, productoId: s.productoId, codigoProducto: x?.codigo ?? '', producto: x?.descripcion ?? '—', lote: l?.codigo ?? '—', vence: l?.vence,
+      clave, posicionId: s.posicionId, posicion: ub?.codigo ?? '—', area: ub ? ETIQUETA_AREA[ub.tipoArea] : '—', tipoArea: ub?.tipoArea, loteId: s.loteId, productoId: s.productoId, codigoProducto: x?.codigo ?? '', producto: x?.descripcion ?? '—', lote: l?.codigo ?? '—', vence: l?.vence,
       propietarioId: s.propietarioId, propietario: prop.get(s.propietarioId)?.codigo ?? '—', estado: s.estado, procedenciaId: s.procedenciaId, cantidad: s.cantidad,
       disponible: Math.max(0, s.cantidad - (reservado.get(clave) ?? 0)),
     }
@@ -641,8 +650,12 @@ export function ubicacionesDeProducto(p: Panorama, productoId: string, reservado
 }
 
 /** Una línea de la lista del movimiento, con su destino efectivo (el de la cabecera o uno propio). */
-export interface LineaParaChequear extends Pick<LineaContenido, 'clave' | 'posicionId' | 'propietarioId' | 'propietario' | 'estado'> { haciaPosicionId?: string }
-export interface ValidacionLineaMov { clave: string; ok: boolean; mensaje?: string; sinDestino?: boolean }
+export interface LineaParaChequear extends Pick<LineaContenido, 'clave' | 'posicionId' | 'propietarioId' | 'propietario' | 'estado'> {
+  haciaPosicionId?: string
+  /** Motivo del movimiento: algunos motivos (Salida de Cuarentena) limitan el origen y el destino. */
+  motivo?: string
+}
+export interface ValidacionLineaMov { clave: string; ok: boolean; mensaje?: string; sinDestino?: boolean; lado?: 'origen' | 'destino' }
 
 /** Valida cada línea contra SU destino (propietario, área, estado, ubicación en conteo) con mensajes humanos. La base de datos vuelve a validar. */
 export function validarLineasMovimiento(p: Panorama, lineas: LineaParaChequear[], bloqueadas: Record<string, string> = {}): ValidacionLineaMov[] {
@@ -656,12 +669,15 @@ export function validarLineasMovimiento(p: Panorama, lineas: LineaParaChequear[]
   const nombre = (id: string) => p.posiciones.find((x) => x.id === id)?.codigo ?? id
   return lineas.map((l): ValidacionLineaMov => {
     if (bloqueadas[l.posicionId]) return { clave: l.clave, ok: false, mensaje: `La ubicación ${nombre(l.posicionId)} ${bloqueadas[l.posicionId]}: no se mueve desde ahí.` }
+    const origen = p.posiciones.find((x) => x.id === l.posicionId)
+    const porOrigen = origen ? razonOrigenPorMotivo(l.motivo, origen.tipoArea) : null
+    if (porOrigen) return { clave: l.clave, ok: false, lado: 'origen', mensaje: `${porOrigen}: ${origen!.codigo} es de ${ETIQUETA_AREA[origen!.tipoArea]}.` }
     if (!l.haciaPosicionId) return { clave: l.clave, ok: false, sinDestino: true, mensaje: 'Falta elegir el destino.' }
     return resultado.get(l.clave) ?? { clave: l.clave, ok: false, mensaje: 'No encontramos ese destino.' }
   })
 }
 
-export interface ValidacionLineaDestino { clave: string; ok: boolean; mensaje?: string }
+export interface ValidacionLineaDestino { clave: string; ok: boolean; mensaje?: string; lado?: 'origen' | 'destino' }
 export interface ValidacionDestino {
   posicionId: string
   codigo: string
@@ -675,10 +691,19 @@ export interface ValidacionDestino {
   ok: boolean
 }
 
-type LineaParaValidar = Pick<LineaContenido, 'clave' | 'posicionId' | 'propietarioId' | 'propietario' | 'estado'>
+type LineaParaValidar = Pick<LineaContenido, 'clave' | 'posicionId' | 'propietarioId' | 'propietario' | 'estado'> & { motivo?: string }
 
 /** El origen exacto de una unidad no viaja en el saldo: solo importa para Devoluciones, donde el estado ya lo dice. */
 const origenAproximado = (estado: Estado): Origen => (estado === 'DEVOLUCIONES' ? 'DEVOLUCION' : 'COMPRA_LOCAL')
+
+/**
+ * Una ubicación exclusiva de OTRO propietario, o sin asignación vigente para este, nunca recibe el stock de ese propietario: la pantalla ni la ofrece
+ * y la base la rechaza. Las áreas compartidas (Recepción, Cuarentena, Despacho) no cuentan aquí: las decide la compatibilidad con el estado.
+ */
+export function esDeOtroPropietario(p: Panorama, destinoId: string, propietarioId: string): boolean {
+  const d = p.posiciones.find((x) => x.id === destinoId)
+  return !!d && !AREAS_COMPARTIDAS.has(d.tipoArea) && !posicionAcepta(d, propietarioId, p.asignaciones, p.hoy)
+}
 
 /** Validación inmediata del destino: propietario, área y estado, con mensajes humanos. La base de datos vuelve a validar cada línea. */
 export function validarDestino(p: Panorama, destinoId: string, lineas: LineaParaValidar[], bloqueadas: Record<string, string> = {}): ValidacionDestino | null {
@@ -690,6 +715,11 @@ export function validarDestino(p: Panorama, destinoId: string, lineas: LineaPara
   const porLinea = lineas.map((l): ValidacionLineaDestino => {
     if (general) return { clave: l.clave, ok: false, mensaje: general }
     if (l.posicionId === d.id) return { clave: l.clave, ok: false, mensaje: 'Ya está en esa ubicación.' }
+    const origen = p.posiciones.find((x) => x.id === l.posicionId)
+    const porOrigen = origen ? razonOrigenPorMotivo(l.motivo, origen.tipoArea) : null
+    if (porOrigen) return { clave: l.clave, ok: false, lado: 'origen', mensaje: `${porOrigen}: ${origen!.codigo} es de ${ETIQUETA_AREA[origen!.tipoArea]}.` }
+    const porDestino = razonDestinoPorMotivo(l.motivo, d.tipoArea)
+    if (porDestino) return { clave: l.clave, ok: false, mensaje: `${porDestino}.` }
     if (AREAS_DE_SALIDA.has(d.tipoArea)) return { clave: l.clave, ok: false, mensaje: `${ETIQUETA_AREA[d.tipoArea]} se usa solo en las salidas.` }
     if (!areaAdmite(d.tipoArea, l.estado, origenAproximado(l.estado))) return { clave: l.clave, ok: false, mensaje: mensajeZonaNoAdmite(d.tipoArea, l.estado) }
     if (!posicionAcepta(d, l.propietarioId, p.asignaciones, p.hoy)) {
@@ -718,6 +748,7 @@ export function buscarDestinos(p: Panorama, consulta: string, lineas: LineaParaV
     if (bloqueadas[pos.id]) continue   // una ubicación en conteo no aparece como destino
     const score = puntaje(q, pos.codigo)
     if (score === 0 && !normalizar(ETIQUETA_AREA[pos.tipoArea]).includes(normalizar(q))) continue
+    if (lineas.length > 0 && lineas.every((l) => esDeOtroPropietario(p, pos.id, l.propietarioId))) continue   // de otro propietario: no se ofrece
     const v = validarDestino(p, pos.id, lineas, bloqueadas)!
     out.push({ posicionId: pos.id, codigo: pos.codigo, area: v.area, validas: v.validas, invalidas: v.invalidas, general: v.general, ocupadas: unidades.get(pos.id) ?? 0, motivo: lineas.length === 1 && !v.ok ? (v.general ?? v.porLinea[0]?.mensaje) : undefined, score })
   }

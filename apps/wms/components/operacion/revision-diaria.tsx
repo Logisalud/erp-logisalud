@@ -6,7 +6,7 @@ import {
   cerrarRevisionAccion, iniciarRevisionAccion, marcarFocoAccion, registrarPendienteAccion, resolverPendienteAccion, verificarPendienteAccion,
 } from '@/app/acciones-operacion'
 import {
-  ETIQUETA_ESTADO_PENDIENTE, ETIQUETA_FOCO, FOCOS, pendientesVivos, puedeCerrarRevision, puedeHacerRevision, puedeResolverPendiente,
+  ETIQUETA_ESTADO_PENDIENTE, ETIQUETA_FOCO, FOCOS, auxiliaresDelEquipo, pendientesVivos, puedeCerrarRevision, puedeHacerRevision, puedeResolverPendiente,
   type FocoRevision, type PendienteVista, type PersonaEquipo, type RevisionDiaria,
 } from '@/domain/operacion'
 import { formatoFecha } from '@/domain/fechas'
@@ -219,8 +219,9 @@ function FormPendiente({ equipo, alGuardar, ocupado }: { equipo: PersonaEquipo[]
           <label htmlFor="pend-resp" className="etiqueta">¿Quién lo resuelve?</label>
           <select id="pend-resp" className="campo" value={responsableId} onChange={(e) => setResponsableId(e.target.value)} data-testid="pendiente-responsable">
             <option value="">Elige a una persona</option>
-            {equipo.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            {auxiliaresDelEquipo(equipo).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
           </select>
+          <p className="mt-1 text-xs text-gray-700" data-testid="pendiente-solo-auxiliares">{auxiliaresDelEquipo(equipo).length === 0 ? 'Todavía no hay auxiliares en el equipo: pídele al Administrador que los registre.' : 'Lo resuelve un auxiliar.'}</p>
         </div>
         <div>
           <label htmlFor="pend-ub" className="etiqueta">Ubicación <span className="font-normal text-gray-700">(opcional)</span></label>

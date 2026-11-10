@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/contactos-cobranzas",
-      "schedule": "0 10 * * *"
+      "path": "/api/cron/diario",
+      "schedule": "0 9 * * *"
     }
   ]
 }

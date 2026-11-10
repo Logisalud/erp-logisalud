@@ -1,11 +1,13 @@
 import 'server-only'
-import { crearClienteServidor, exigirUsuario } from '@logisalud/auth/server'
+import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import type { TipoDiscrepancia } from '@/domain/recepcion'
 import { estadoTrasRecepcion, puedeRecibirse, ETIQUETA_ESTADO, type EstadoOC } from '@/domain/orden-compra'
 import {
-  clasificarTresColumnas, totalizarRecepcion, validarRecepcionTresColumnas,
-  type LineaTresColumnas, type TotalesRecepcion,
+  clasificarTresColumnas, papelesCompletos, resumenNumerosFactura, totalizarRecepcion,
+  validarRecepcionTresColumnas,
+  type GuiaRecibida, type LineaTresColumnas, type TipoPapel, type TotalesRecepcion,
 } from '@/domain/recepcion-tres-columnas'
+import { puedeCorregirPapeles, validarCorreccionPapel } from '@/domain/correccion-papeles-recepcion'
 import { calcularFechaVencimientoReal, normalizarNumeroFactura } from '@/domain/obligacion'
 import { anioMesStorageLima, hoyLima } from '@/domain/fecha'
 
@@ -171,6 +173,10 @@ export type RecepcionDetalle = {
    * sola factura — de ahí que sea una lista y no un campo.
    */
   guias: { id: string; numero: string; storage_path: string }[]
+  /** Una o varias, cada una con su archivo (0088). */
+  facturas: { id: string; numero: string; storage_path: string }[]
+  /** Lo que se corrigió de los papeles después de registrar, más nuevo primero. */
+  cambiosPapeles: { accion: string; tipo: string; numero: string; motivo: string | null; hecho_por: string | null; hecho_en: string }[]
   numero_factura: string | null
   estado: 'pendiente' | 'conforme' | 'con_discrepancia'
   observaciones: string | null
@@ -208,7 +214,9 @@ export async function obtenerRecepcion(id: string): Promise<RecepcionDetalle | n
     .from('recepciones')
     .select(`id, oc_id, fecha_recepcion, guia_remision, numero_factura,
              estado, observaciones,
-             recepciones_guias(id, numero, storage_path),
+             recepciones_guias(id, numero, storage_path, created_at),
+             recepciones_facturas(id, numero, storage_path, created_at),
+             recepciones_documentos_cambios(accion, tipo, numero, motivo, hecho_por, hecho_en),
              recepciones_items(id, cantidad_guia, cantidad_factura, cantidad_fisica,
                                 lote, fecha_vencimiento, estado_calidad, tipo_discrepancia,
                                 cantidad_aceptada, cantidad_rechazada, observaciones,
@@ -225,10 +233,11 @@ export async function obtenerRecepcion(id: string): Promise<RecepcionDetalle | n
   // `matriz` y `resoluciones` ya no se consultan: el modelo de tres columnas
   // no resuelve discrepancias con una matriz. Se dejan los tipos por
   // compatibilidad con lecturas viejas, pero vienen siempre en null.
-  const [ocs, productos, obligacion] = await Promise.all([
+  const [ocs, productos, obligacion, nombres] = await Promise.all([
     mapaOCsConId([(data as any).oc_id]),
     mapaProductosPorOCItem(ocItemIds),
     obligacionDeRecepcion((data as any).id),
+    mapaNombresPerfiles(((data as any).recepciones_documentos_cambios ?? []).map((c: any) => c.hecho_por)),
   ])
 
   return {
@@ -239,9 +248,11 @@ export async function obtenerRecepcion(id: string): Promise<RecepcionDetalle | n
     // Embed directo y no una segunda consulta: las dos tablas viven en el
     // schema `almacen`, así que PostgREST sí las une (el límite es entre
     // schemas distintos — ver CLAUDE.md).
-    guias: ((data as any).recepciones_guias ?? []).map((g: any) => ({
-      id: g.id, numero: g.numero, storage_path: g.storage_path,
-    })),
+    guias: porFechaDeAlta((data as any).recepciones_guias),
+    facturas: porFechaDeAlta((data as any).recepciones_facturas),
+    cambiosPapeles: ((data as any).recepciones_documentos_cambios ?? [])
+      .map((c: any) => ({ ...c, hecho_por: nombres.get(c.hecho_por) ?? null }))
+      .sort((a: any, b: any) => String(b.hecho_en).localeCompare(String(a.hecho_en))),
     numero_factura: (data as any).numero_factura ?? null,
     estado: (data as any).estado,
     observaciones: (data as any).observaciones,
@@ -254,6 +265,20 @@ export async function obtenerRecepcion(id: string): Promise<RecepcionDetalle | n
       resolucion: null,
     })),
   }
+}
+
+function porFechaDeAlta(filas: any[] | null): { id: string; numero: string; storage_path: string }[] {
+  return [...(filas ?? [])]
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+    .map((f) => ({ id: f.id, numero: f.numero, storage_path: f.storage_path }))
+}
+
+async function mapaNombresPerfiles(ids: (string | null)[]): Promise<Map<string, string>> {
+  const unicos = [...new Set(ids.filter((i): i is string => !!i))]
+  if (unicos.length === 0) return new Map()
+  const supabase = crearClienteServidor()
+  const { data } = await supabase.from('perfiles').select('id, nombre').in('id', unicos)
+  return new Map((data ?? []).map((p: any) => [p.id, p.nombre]))
 }
 
 /** La obligación que esta recepción generó, si la generó. */
@@ -330,9 +355,9 @@ export type BorradorRecepcionTresColumnas = {
   ocId: string
   fechaRecepcion: string
   /** Cada guía con SU archivo — ver migración 0064 y GuiaRecibida. */
-  guias: { numero: string; storagePath: string | null }[]
-  numeroFactura: string
-  storagePathFactura: string | null
+  guias: GuiaRecibida[]
+  /** Una o varias, cada una con su archivo (0088). */
+  facturas: GuiaRecibida[]
   lineas: {
     ocItemId: string
     cantidadFactura: number
@@ -412,8 +437,7 @@ export async function registrarRecepcionTresColumnas(
   const errores = validarRecepcionTresColumnas({
     fechaRecepcion: borrador.fechaRecepcion,
     guias: borrador.guias,
-    numeroFactura: borrador.numeroFactura,
-    storagePathFactura: borrador.storagePathFactura,
+    facturas: borrador.facturas,
     lineas: lineasDominio,
   })
   if (errores.length > 0) throw new Error(errores[0].mensaje)
@@ -422,9 +446,12 @@ export async function registrarRecepcionTresColumnas(
   // Solo las completas: la validación de arriba ya rechazó las filas a
   // medio llenar, así que acá lo único que queda es descartar las vacías
   // que el formulario pudo dejar de más.
-  const guias = borrador.guias
-    .map((g) => ({ numero: g.numero.trim(), storagePath: g.storagePath }))
-    .filter((g): g is { numero: string; storagePath: string } => !!g.numero && !!g.storagePath)
+  const guias = papelesCompletos(borrador.guias)
+  const facturas = papelesCompletos(borrador.facturas)
+  // La obligación sigue siendo UNA por recepción y lleva todas las facturas
+  // en su número; el archivo que la representa es el de la primera.
+  const numeroFactura = resumenNumerosFactura(facturas.map((f) => f.numero))
+  const storagePathFactura = facturas[0].storagePath
 
   // ── 1. La cabecera ────────────────────────────────────────────────────
   const { data: recepcion, error: errRec } = await supabase
@@ -439,8 +466,8 @@ export async function registrarRecepcionTresColumnas(
       // van a almacen.recepciones_guias, más abajo — `numeros_guia` y
       // `storage_path_guia_recibida` quedaron sin uso en 0064.
       guia_remision: guias[0]?.numero ?? null,
-      numero_factura: borrador.numeroFactura.trim(),
-      storage_path_factura_proveedor: borrador.storagePathFactura,
+      numero_factura: numeroFactura,
+      storage_path_factura_proveedor: storagePathFactura,
       estado: totales.lineasConDiscrepancia > 0 ? 'con_discrepancia' : 'conforme',
       conforme: totales.lineasConDiscrepancia === 0,
       // La fecha de conformidad manda la fecha de vencimiento del pago
@@ -467,6 +494,20 @@ export async function registrarRecepcionTresColumnas(
     // le falta. El `on delete cascade` se lleva las guías que sí entraron.
     await supabase.schema('almacen').from('recepciones').delete().eq('id', recepcion.id)
     throw new Error(`No se pudieron guardar las guías: ${errGuias.message}`)
+  }
+
+  // ── 1c. Las facturas, igual que las guías ─────────────────────────────
+  const { error: errFacturas } = await supabase
+    .schema('almacen')
+    .from('recepciones_facturas')
+    .insert(facturas.map((f) => ({
+      recepcion_id: recepcion.id,
+      numero: f.numero,
+      storage_path: f.storagePath,
+    })))
+  if (errFacturas) {
+    await supabase.schema('almacen').from('recepciones').delete().eq('id', recepcion.id)
+    throw new Error(`No se pudieron guardar las facturas: ${errFacturas.message}`)
   }
 
   // ── 2. Las líneas ─────────────────────────────────────────────────────
@@ -508,9 +549,9 @@ export async function registrarRecepcionTresColumnas(
   const obligacionId = await crearObligacionDesdeRecepcionTresColumnas({
     recepcionId: recepcion.id,
     oc,
-    numeroFactura: borrador.numeroFactura.trim(),
+    numeroFactura,
     totales,
-    storagePathFactura: borrador.storagePathFactura,
+    storagePathFactura,
     usuarioId: usuario.id,
   })
 
@@ -629,4 +670,80 @@ export async function subirDocumentoRecepcion(
     return { error: `No se pudo subir ${cual === 'guia' ? 'la guía' : 'la factura'}: ${error.message}` }
   }
   return { path }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CORREGIR LOS PAPELES DESPUÉS DE REGISTRAR (0088)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TABLA_PAPEL: Record<TipoPapel, 'recepciones_guias' | 'recepciones_facturas'> = {
+  guia: 'recepciones_guias',
+  factura: 'recepciones_facturas',
+}
+
+export type CorreccionPapel =
+  | { accion: 'agregar'; tipo: TipoPapel; numero: string; storagePath: string | null }
+  | { accion: 'quitar' | 'reclasificar'; tipo: TipoPapel; id: string; motivo: string }
+
+/**
+ * Agrega, quita o reclasifica una guía o factura de una recepción ya
+ * registrada — aunque la OC esté cerrada. Ver
+ * domain/correccion-papeles-recepcion.ts para las reglas.
+ *
+ * Sin transacción, como todo el módulo. El orden deja algo recuperable: el
+ * papel nuevo entra ANTES de que se borre el viejo (reclasificar), y el
+ * rastro y el resumen de la obligación van al final — si fallan, el papel
+ * ya quedó bien y el error lo dice.
+ */
+export async function corregirPapelRecepcion(recepcionId: string, cambio: CorreccionPapel): Promise<void> {
+  const perfil = await perfilActual()
+  if (!puedeCorregirPapeles(perfil?.area)) {
+    throw new Error('Solo Almacén o Contabilidad corrigen los papeles de una recepción.')
+  }
+  const recepcion = await obtenerRecepcion(recepcionId)
+  if (!recepcion) throw new Error('No se encontró la recepción.')
+
+  const error = validarCorreccionPapel({ guias: recepcion.guias, facturas: recepcion.facturas }, cambio)
+  if (error) throw new Error(error)
+
+  const supabase = crearClienteServidor()
+  const almacen = supabase.schema('almacen')
+  let rastro: { tipo: TipoPapel; numero: string; storage_path: string | null; motivo: string | null }
+
+  if (cambio.accion === 'agregar') {
+    const { error: e } = await almacen.from(TABLA_PAPEL[cambio.tipo]).insert({
+      recepcion_id: recepcionId, numero: cambio.numero.trim(), storage_path: cambio.storagePath,
+    })
+    if (e) throw new Error(`No se pudo agregar: ${e.message}`)
+    rastro = { tipo: cambio.tipo, numero: cambio.numero.trim(), storage_path: cambio.storagePath, motivo: null }
+  } else {
+    const papel = (cambio.tipo === 'guia' ? recepcion.guias : recepcion.facturas).find((d) => d.id === cambio.id)!
+    if (cambio.accion === 'reclasificar') {
+      const destino: TipoPapel = cambio.tipo === 'guia' ? 'factura' : 'guia'
+      const { error: e } = await almacen.from(TABLA_PAPEL[destino]).insert({
+        recepcion_id: recepcionId, numero: papel.numero, storage_path: papel.storage_path,
+      })
+      if (e) throw new Error(`No se pudo pasar a ${destino === 'guia' ? 'guía' : 'factura'}: ${e.message}`)
+      rastro = { tipo: destino, numero: papel.numero, storage_path: papel.storage_path, motivo: cambio.motivo.trim() }
+    } else {
+      // El archivo NO se borra del storage: es el respaldo de que existió.
+      rastro = { tipo: cambio.tipo, numero: papel.numero, storage_path: papel.storage_path, motivo: cambio.motivo.trim() }
+    }
+    const { error: e } = await almacen.from(TABLA_PAPEL[cambio.tipo]).delete().eq('id', papel.id)
+    if (e) throw new Error(`No se pudo quitar ${cambio.tipo === 'guia' ? 'la guía' : 'la factura'}: ${e.message}`)
+  }
+
+  const { error: errRastro } = await almacen.from('recepciones_documentos_cambios').insert({
+    recepcion_id: recepcionId, accion: cambio.accion, ...rastro,
+  })
+  if (errRastro) console.error('[corregirPapelRecepcion] no se pudo guardar el rastro:', errRastro.message)
+
+  // Si se tocaron facturas, el número de la obligación cambia con ellas.
+  const tocoFacturas = cambio.tipo === 'factura' || cambio.accion === 'reclasificar'
+  if (tocoFacturas) {
+    const { error: errSync } = await almacen.rpc('sincronizar_facturas_recepcion', { p_recepcion_id: recepcionId })
+    if (errSync) {
+      throw new Error(`El papel quedó corregido, pero no se pudo actualizar el número de factura de la obligación: ${errSync.message}. Avisa a Contabilidad.`)
+    }
+  }
 }

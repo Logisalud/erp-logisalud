@@ -3,21 +3,22 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { modoDemoActivo } from '@/lib/demo'
+import { archivosEnMemoria } from './archivos-memoria'
 
 // Los PDF van al bucket privado `wms-documentos` (se crea a mano: docs/wms/aplicar-migraciones.md). En la demo viven en memoria del
 // servidor (sirven para probar el flujo y se pierden al reiniciar). El WMS nunca expone una URL pública: se descarga con enlace firmado.
 const BUCKET = 'wms-documentos'
-const memoria = (globalThis as unknown as { __wmsArchivos?: Map<string, Buffer> }).__wmsArchivos ??= new Map<string, Buffer>()
+const memoria = archivosEnMemoria
 
 export const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
 
 /** Guarda el archivo y devuelve su referencia (ruta dentro del bucket). La ruta lleva el hash: el mismo contenido siempre cae en el mismo lugar. */
-export async function guardarArchivo(tipo: string, nombre: string, bytes: Uint8Array): Promise<{ ref: string; hash: string }> {
+export async function guardarArchivo(tipo: string, nombre: string, bytes: Uint8Array, contentType = 'application/pdf'): Promise<{ ref: string; hash: string }> {
   const hash = sha256(bytes)
   const limpio = nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-80)
   const ref = `${tipo.toLowerCase()}/${hash.slice(0, 16)}-${limpio}`
   if (modoDemoActivo()) { memoria.set(ref, Buffer.from(bytes)); return { ref, hash } }
-  const { error } = await crearClienteServidor().storage.from(BUCKET).upload(ref, bytes, { contentType: 'application/pdf', upsert: true })
+  const { error } = await crearClienteServidor().storage.from(BUCKET).upload(ref, bytes, { contentType, upsert: true })
   if (error) throw new Error(`No se pudo guardar el archivo: ${error.message}`)
   return { ref, hash }
 }

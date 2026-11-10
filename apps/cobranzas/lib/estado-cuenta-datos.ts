@@ -32,11 +32,27 @@ export interface ClienteEstadoCuenta {
   celular?: string | null;
 }
 
+export interface ComentarioCobranza {
+  comentario: string;
+  escrito_por: string | null;
+  actualizado_en: string;
+}
+
 export interface DatosEstadoCuenta {
   cliente: ClienteEstadoCuenta;
   movimientos: Movimiento[];
   porFactura: FacturaResumen[];
   resumen: Resumen;
+  /**
+   * Lo acordado con el cliente, y lo anotado en cada factura.
+   *
+   * Van acá y no en una llamada aparte por la misma razón que todo lo
+   * demás: las tres pantallas que usan esta función —staff, su Excel y el
+   * link del vendedor— tienen que decir lo mismo. El vendedor los ve; el
+   * permiso para escribirlos lo pone la API de comentarios, no esto.
+   */
+  comentarioCliente: ComentarioCobranza | null;
+  comentariosPorFactura: Record<string, ComentarioCobranza>;
 }
 
 /**
@@ -169,10 +185,34 @@ export async function cargarEstadoCuenta(
   const hoyISO = new Date().toISOString().slice(0, 10);
   const porFactura = agruparPorFactura(completo, facturas, hoyISO);
 
+  const comentarioCliente = await db
+    .from('comentarios_cliente')
+    .select('comentario, escrito_por, actualizado_en')
+    .eq('cliente_ruc', ruc)
+    .maybeSingle();
+
+  const comentariosPorFactura: Record<string, ComentarioCobranza> = {};
+  const idsFacturas = facturas.map((f) => f.id);
+  for (let i = 0; i < idsFacturas.length; i += 500) {
+    const { data } = await db
+      .from('comentarios_documento')
+      .select('documento_id, comentario, escrito_por, actualizado_en')
+      .in('documento_id', idsFacturas.slice(i, i + 500));
+    for (const c of (data ?? []) as Array<ComentarioCobranza & { documento_id: string }>) {
+      comentariosPorFactura[c.documento_id] = {
+        comentario: c.comentario,
+        escrito_por: c.escrito_por,
+        actualizado_en: String(c.actualizado_en),
+      };
+    }
+  }
+
   return {
     cliente: (cliente.data as ClienteEstadoCuenta | null) ?? { ruc, razon_social: ruc },
     movimientos,
     porFactura,
     resumen,
+    comentarioCliente: (comentarioCliente.data as ComentarioCobranza | null) ?? null,
+    comentariosPorFactura,
   };
 }

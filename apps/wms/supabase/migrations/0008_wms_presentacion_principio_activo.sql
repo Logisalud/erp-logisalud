@@ -3,7 +3,9 @@
 -- Viven SOLO en catalogo.productos. Compras (y DT/admin) los llena al CREAR un producto; una vez creado, solo Katia y Sandra
 -- los editan, desde el WMS, con el mismo historial que los demás datos regulatorios (campo, antes, después, usuario, fecha, motivo).
 --
--- NO SE APLICA SOLA: se aplica a mano junto con el resto de la salida a producción (docs/wms/plan-aplicacion-produccion.md).
+-- NO SE APLICA SOLA. DECISIÓN DE SEBAS (4-nov-2026): la 0008 NO va en la ventana del piloto; se aplica AL FINAL, en el go-live, después de todas las demás
+-- (docs/wms/aplicar-migraciones.md). Por eso la parte que cambia `editar_regulatorio` ya no reemplaza la función entera (borraría lo que las migraciones
+-- 0035, 0040 y 0041 le agregaron): la PARCHA por texto, y es re-aplicable aunque ya se haya parchado. Aplicada en el orden de siempre (antes de la 0035) también funciona.
 -- Re-ejecutable. Aditiva: no cambia policies, grants ni columnas de Compras; solo agrega un trigger a catalogo.productos.
 -- Sin `drop … if exists`: las comprobaciones de existencia son explícitas.
 
@@ -31,64 +33,50 @@ end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2. editar_regulatorio acepta presentacion y principio_activo (viven en catalogo.productos) con el mismo historial.
+--    Se PARCHA la función que exista (la de la 0006, o la que ya tengan las migraciones posteriores); nunca se reemplaza entera.
 -- ─────────────────────────────────────────────────────────────────────────────
-create or replace function wms.editar_regulatorio(p_producto uuid, p_datos jsonb, p_motivo text)
-returns integer language plpgsql security definer set search_path = wms, pg_temp as $$
-declare
-  v wms.producto_regulatorio;
-  k text;
-  v_antes text;
-  v_despues text;
-  v_n integer := 0;
-  v_campos text[] := array['registro_sanitario', 'rs_vence', 'forma_presentacion', 'concentracion', 'fabricante', 'condicion_almacenamiento'];
-  v_catalogo text[] := array['presentacion', 'principio_activo'];
+
+-- Parche por texto (el mismo ayudante de las migraciones 0035, 0040 y 0041): falla en voz alta si el texto esperado no está.
+create or replace function wms._parchar_funcion(p_nombre text, p_viejo text, p_nuevo text) returns void
+language plpgsql set search_path = wms, pg_temp as $$
+declare v_oid oid; v_def text;
 begin
-  perform wms._exigir_regulatorio();
-  if nullif(trim(p_motivo), '') is null then
-    raise exception 'Todo cambio de datos regulatorios necesita su motivo' using errcode = 'P0001';
+  select p.oid into v_oid from pg_proc p where p.pronamespace = 'wms'::regnamespace and p.proname = p_nombre order by p.oid desc limit 1;
+  if v_oid is null then raise exception 'No existe wms.%', p_nombre; end if;
+  v_def := pg_get_functiondef(v_oid);
+  if position(p_viejo in v_def) = 0 then
+    if position(p_nuevo in v_def) > 0 then return; end if;
+    raise exception 'No se encontró el texto esperado en wms.%: %', p_nombre, p_viejo;
   end if;
-  if not exists (select 1 from catalogo.productos where id = p_producto) then
-    raise exception 'El producto no existe en el catálogo' using errcode = 'P0001';
-  end if;
-  for k in select jsonb_object_keys(coalesce(p_datos, '{}'::jsonb)) loop
-    if not (k = any (v_campos) or k = any (v_catalogo)) then
-      raise exception 'Ese dato no se edita aquí: %', k using errcode = 'P0001';
-    end if;
-  end loop;
-  insert into wms.producto_regulatorio (producto_id, creado_por, estado_validacion, validado_por, validado_en)
-  values (p_producto, auth.uid(), 'VALIDADO', auth.uid(), now())
-  on conflict (producto_id) do nothing;
-  select * into v from wms.producto_regulatorio where producto_id = p_producto for update;
-  foreach k in array v_campos || v_catalogo loop
-    if not (p_datos ? k) then continue; end if;
-    v_despues := nullif(trim(p_datos->>k), '');
+  execute replace(v_def, p_viejo, p_nuevo);
+end $$;
+
+do $$ begin
+  -- Ya parchada (por esta misma migración): no se toca de nuevo.
+  if position('v_catalogo' in pg_get_functiondef('wms.editar_regulatorio(uuid, jsonb, text)'::regprocedure)) = 0 then
+    perform wms._parchar_funcion('editar_regulatorio', $q$  v_n integer := 0;$q$,
+      $q$  v_n integer := 0;
+  v_catalogo text[] := array['presentacion', 'principio_activo'];$q$);
+    perform wms._parchar_funcion('editar_regulatorio', $q$foreach k in array v_campos loop$q$, $q$foreach k in array v_campos || v_catalogo loop$q$);
+    perform wms._parchar_funcion('editar_regulatorio', $q$if not (k = any (v_campos)) then$q$, $q$if not (k = any (v_campos) or k = any (v_catalogo)) then$q$);
+    -- Lo del catálogo se procesa aparte y sigue con el campo siguiente: antes/después, historial y la escritura en catalogo.productos (solo fuera del piloto).
+    perform wms._parchar_funcion('editar_regulatorio', $q$    v_despues := nullif(trim(p_datos->>k), '');$q$,
+      $q$    v_despues := nullif(trim(p_datos->>k), '');
     if k = any (v_catalogo) then
+      if coalesce(wms._modo_piloto(), true) then
+        raise exception 'En el piloto presentación y principio activo se corrigen en Compras: el WMS no escribe en el catálogo' using errcode = 'P0001';
+      end if;
       execute format('select %I::text from catalogo.productos where id = $1', k) into v_antes using p_producto;
-    else
-      execute format('select %I::text from wms.producto_regulatorio where producto_id = $1', k) into v_antes using p_producto;
-    end if;
-    if v_antes is not distinct from v_despues then continue; end if;
-    if k = any (v_catalogo) then
-      execute format('update catalogo.productos set %I = $1 where id = $2', k) using v_despues, p_producto;
-    elsif k = 'rs_vence' then
-      execute 'update wms.producto_regulatorio set rs_vence = $1::date where producto_id = $2' using v_despues, p_producto;
-    else
-      execute format('update wms.producto_regulatorio set %I = $1 where producto_id = $2', k) using v_despues, p_producto;
-    end if;
-    insert into wms.producto_regulatorio_cambios (producto_id, campo, antes, despues, usuario, motivo)
-    values (p_producto, k, v_antes, v_despues, auth.uid(), trim(p_motivo));
-    v_n := v_n + 1;
-  end loop;
-  select * into v from wms.producto_regulatorio where producto_id = p_producto;
-  if nullif(trim(v.registro_sanitario), '') is not null and v.rs_vence is null then
-    raise exception 'Falta el vencimiento del registro sanitario' using errcode = 'P0001';
+      if v_antes is distinct from v_despues then
+        execute format('update catalogo.productos set %I = $1 where id = $2', k) using v_despues, p_producto;
+        insert into wms.producto_regulatorio_cambios (producto_id, campo, antes, despues, usuario, motivo)
+        values (p_producto, k, v_antes, v_despues, auth.uid(), trim(p_motivo));
+        v_n := v_n + 1;
+      end if;
+      continue;
+    end if;$q$);
   end if;
-  update wms.producto_regulatorio set estado_validacion = 'VALIDADO', observacion = null, validado_por = auth.uid(), validado_en = now()
-   where producto_id = p_producto;
-  if v_n > 0 then
-    perform wms.registrar_audit('regulatorio_editado', 'producto_regulatorio', p_producto::text, null, p_datos, p_motivo);
-  end if;
-  return v_n;
 end $$;
 
 grant execute on function wms.editar_regulatorio(uuid, jsonb, text) to authenticated;
+revoke execute on all functions in schema wms from public;

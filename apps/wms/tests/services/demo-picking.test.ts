@@ -101,7 +101,7 @@ describe('picking y conformidad (demo)', () => {
     expect((await repo.obtenerSalida(s.id))!.etapa).toBe('CONFORME')
     const p = await repo.panorama()
     expect(p.saldos.reduce((t, x) => t + x.cantidad, 0)).toBe(antes) // el stock no sale: solo cambia de lugar
-    const stg = p.posiciones.find((x) => x.tipoArea === 'PENDIENTE_CONFORMIDAD')!
+    const stg = p.posiciones.find((x) => x.codigo === 'K-1')!
     expect(p.saldos.filter((x) => x.posicionId === stg.id).reduce((t, x) => t + x.cantidad, 0)).toBe(26)
     expect((await repo.colaConformidad())).toEqual([])
   })

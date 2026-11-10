@@ -1,0 +1,77 @@
+// SB-B: muestra a nombre de un trabajador (DNI) y devolución al proveedor con poco plazo (aviso con motivo y «Copiar correo al proveedor»), en los 4 viewports + capturas.
+// La numeración de las guías se comprueba dentro de la prueba de la guía (zz-excepciones.spec.ts).
+import { expect, test, type Page } from '@playwright/test'
+import { capturar, entrarComo, sinDesborde } from './ayudas'
+
+test.describe.configure({ mode: 'serial' })
+
+async function elegirProducto(page: Page, consulta: string) {
+  const f = page.getByTestId('fila-linea-orden').first()
+  await f.getByTestId('buscar-producto-salida').fill(consulta)
+  await f.getByTestId('opcion-producto-salida').first().click()
+  await expect(f.getByTestId('producto-elegido')).toBeVisible()
+}
+
+test.describe('muestra a nombre de un trabajador', () => {
+  test('quien autoriza salidas sin venta elige «Un trabajador (DNI)», escribe 8 números y la orden lo muestra', async ({ page }, info) => {
+    await entrarComo(page, 'autoriza_salidas_sin_venta')
+    await page.goto('/wms/salidas/nueva')
+    await page.getByTestId('motivo-C-MUESTRA').click()
+    await expect(page.getByTestId('tipo-documento-muestra')).toBeVisible()
+    await page.getByTestId('recibe-DNI').click()
+    await page.getByTestId('dest-razon-social').fill('Pedro Quispe Mamani')
+    await page.getByTestId('dest-ruc').fill('4012345')
+    await page.getByTestId('dest-direccion').fill('Jr. Los Pinos 12, Lima')
+    await page.getByTestId('dest-ubigeo').fill('150101')
+    await elegirProducto(page, 'DEMO-001')
+    await page.getByTestId('cantidad-linea-orden').fill('1')
+    await sinDesborde(page)
+    await capturar(page, info, 'salida-nueva-muestra-dni', { completa: true })
+    await page.getByTestId('crear-orden-manual').click()
+    await expect(page.getByTestId('error-dest-ruc')).toContainText('El DNI tiene 8 números')
+    await page.getByTestId('dest-ruc').fill('40123456')
+    await page.getByTestId('crear-orden-manual').click()
+    await expect(page.getByTestId('orden-creada')).toContainText('quedó creada')
+    await page.getByTestId('abrir-orden-creada').click()
+    await expect(page.getByTestId('origen-orden')).toContainText('Recibe la muestra')
+    await expect(page.getByTestId('documento-destinatario')).toHaveText('40123456')
+    await expect(page.getByTestId('origen-orden')).toContainText('DNI')
+    await sinDesborde(page)
+    await capturar(page, info, 'salida-detalle-muestra-dni', { completa: true })
+  })
+})
+
+test.describe('devolución al proveedor con menos de 90 días', () => {
+  test('avisa, pide el motivo para continuar (no bloquea) y la orden deja «Copiar correo al proveedor»', async ({ page, context }, info) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {})
+    await entrarComo(page, 'jefe_transporte')
+    await page.goto('/wms/salidas/nueva')
+    await page.getByTestId('clase-C').click()
+    await page.getByTestId('motivo-C-DEVOLUCION_PROVEEDOR').click()
+    await page.getByTestId('dest-razon-social').fill('Laboratorios Biosana SAC')
+    await page.getByTestId('dest-ruc').fill('20100070970')
+    await page.getByTestId('dest-direccion').fill('Av. Industrial 450, Lurín')
+    await page.getByTestId('dest-ubigeo').fill('150119')
+    await elegirProducto(page, 'DEMO-003')
+    await page.getByTestId('lote-linea-orden').fill('L-VENCE-PRONTO')
+    await page.getByTestId('cantidad-linea-orden').fill('2')
+    await expect(page.getByTestId('aviso-devolucion')).toContainText('menos de 3 meses')
+    await expect(page.getByTestId('validacion-linea')).toHaveAttribute('data-estado', 'aviso')
+    await sinDesborde(page)
+    await capturar(page, info, 'salida-nueva-devolucion-aviso', { completa: true })
+    await page.getByTestId('crear-orden-manual').click()
+    await expect(page.getByTestId('error-aviso-motivo')).toContainText('Escribe el motivo')
+    await page.getByTestId('aviso-motivo').fill('El proveedor aceptó recibirlo por correo')
+    await page.getByTestId('crear-orden-manual').click()
+    await expect(page.getByTestId('orden-creada')).toContainText('quedó creada')
+    await page.getByTestId('abrir-orden-creada').click()
+    await expect(page.getByTestId('correo-proveedor')).toBeVisible()
+    await expect(page.getByTestId('devolucion-aviso-motivo')).toContainText('El proveedor aceptó recibirlo por correo')
+    await expect(page.getByTestId('correo-proveedor-texto')).toContainText('L-VENCE-PRONTO')
+    await expect(page.getByTestId('correo-proveedor-texto')).toContainText('Laboratorios Biosana SAC')
+    await page.getByTestId('copiar-correo-proveedor').click()
+    await expect(page.getByTestId('copiar-correo-proveedor')).toContainText('Copiado')
+    await sinDesborde(page)
+    await capturar(page, info, 'salida-devolucion-correo', { completa: true })
+  })
+})
