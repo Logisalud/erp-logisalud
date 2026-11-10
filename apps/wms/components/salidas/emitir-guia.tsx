@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { FlaskConical, Send, ShieldAlert, Truck, TriangleAlert } from 'lucide-react'
 import { emitirGuiaElectronicaAccion } from '@/app/acciones-picking'
-import { ETIQUETA_MODO, NOMBRE_MODO, PESO_BRUTO_DEFECTO_KG, faltantesDeGuia, type DatosGuia, type ModoNubefact } from '@/domain/guia-electronica'
+import { AVISO_MODO_PRUEBA, ETIQUETA_MODO, NOMBRE_MODO, PESO_BRUTO_DEFECTO_KG, faltantesDeGuia, type DatosGuia, type ModoNubefact } from '@/domain/guia-electronica'
 import { mesAnio } from '@/domain/salidas'
 import { numeroConSerie } from '@/domain/numeracion-guias'
 import { TEXTO_PEDIDOS_RETENIDO } from '@/domain/modo-piloto'
@@ -59,6 +59,7 @@ export function EmitirGuia({ datos, modo, bloqueo, hoy, alEmitir }: { datos: Dat
         )}
       </div>
 
+      {modo === 'PRUEBA' && <Aviso tipo="info" testid="guia-aviso-prueba">{AVISO_MODO_PRUEBA}</Aviso>}
       {bloqueo && <Aviso tipo="atencion" testid="guia-bloqueo-nubefact"><strong>Nubefact no está disponible:</strong> {bloqueo}</Aviso>}
       {faltan.length > 0 && (
         <Aviso tipo="atencion" testid="guia-faltan"><strong>Antes de emitir:</strong> {faltan.join('. ')}.</Aviso>
