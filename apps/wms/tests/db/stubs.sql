@@ -19,7 +19,8 @@ create table if not exists catalogo.productos (
   proveedor_id uuid,
   controla_lote boolean not null default false,
   controla_vencimiento boolean not null default false,
-  estado text not null default 'activo' check (estado in ('activo', 'inactivo'))
+  estado text not null default 'activo' check (estado in ('activo', 'inactivo')),
+  codigo_bonificacion text
 );
 grant usage on schema catalogo to authenticated;
 grant select on catalogo.productos to authenticated;

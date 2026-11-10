@@ -41,3 +41,12 @@ Excel o CSV. **Una fila = una combinación única de producto, lote, posición y
 | Claude | Validador, informe, carga, conciliación, reporte semanal |
 | Katia | Decisión sobre lo que entra en Cuarentena; firma de diferencias |
 | Charlie | Muestra física; firma de diferencias |
+
+## Carga de ENSAYO del piloto (Fase 4, migración 0042)
+
+Mientras dura el piloto con producción real, el stock se carga como **ensayo**, con la misma herramienta y el mismo flujo que la carga definitiva (pantalla «Carga inicial»), para que los pedidos reales puedan asignarse. Lo oficial sigue siendo Odoo.
+
+1. La exportación nueva de Odoo (la pasa Sebas) tiene el mismo formato de arriba. Hasta entonces se prueba con datos sintéticos.
+2. **Revisar la carga** y **armar el informe** son obligatorios: «Cargar como ensayo» queda bloqueado hasta que el informe de ESE archivo salga «Lista para cargar». La base de datos lo exige también: `crear_carga_ensayo` solo crea la carga si existe un informe «Lista» de las mismas líneas, de la misma persona, de las últimas 24 horas (`wms.cargas_informes`). `crear_carga_inicial` ya no se llama directo.
+3. Toda carga que nace con `modo_piloto = si` queda marcada **piloto** (`cargas_iniciales.piloto`, la pone la base): se ve en la pantalla («Ensayo · piloto»), en el Kardex y en la historia del lote, y el reinicio del 1 de diciembre la borra con lo demás. Con `modo_piloto = no` (go-live) la carga definitiva nace sin la marca.
+4. Dirección Técnica confirma con una sola confirmación, como siempre.

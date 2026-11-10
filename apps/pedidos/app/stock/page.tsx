@@ -17,7 +17,7 @@ import { getStockResumen, listStockLotes, STOCK_PAGE_SIZE, type StockOrden } fro
 export default async function StockPage({
   searchParams,
 }: {
-  searchParams: { q?: string; pagina?: string; orden?: string };
+  searchParams: { q?: string; pagina?: string; orden?: string; excel?: string };
 }) {
   const busqueda = (searchParams.q ?? "").trim();
   const pagina = Math.max(1, Number(searchParams.pagina ?? "1") || 1);
@@ -53,6 +53,17 @@ export default async function StockPage({
     return qs ? `/stock?${qs}` : "/stock";
   };
 
+  // El Excel sale de lo que se está mirando: mismo filtro, mismo orden, sin
+  // la página. Si saliera de otro criterio que la tabla, habría dos
+  // verdades del mismo stock.
+  const hrefExcel = (() => {
+    const params = new URLSearchParams();
+    if (busqueda) params.set("q", busqueda);
+    if (orden !== "producto") params.set("orden", orden);
+    const qs = params.toString();
+    return qs ? `/stock/excel?${qs}` : "/stock/excel";
+  })();
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -60,7 +71,8 @@ export default async function StockPage({
         <h2 className="text-xl font-semibold">Stock disponible</h2>
         <p className="mt-1 text-sm text-gray-600">
           Lo que hay en almacén, por lote, en orden alfabético de producto. Es sólo de consulta:
-          la carga la hace un administrador desde el importador.
+          la carga la hace un administrador desde el importador. Se puede descargar en Excel, con
+          lo que estés viendo: si buscaste algo, el archivo sale filtrado igual.
           {resumen.ultimaActualizacion && (
             <>
               {" "}
@@ -75,6 +87,13 @@ export default async function StockPage({
           )}
         </p>
       </div>
+
+      {searchParams.excel === "error" && (
+        <p className="aviso-error" role="alert">
+          <span aria-hidden>✕</span>
+          <span>No se pudo armar el Excel del stock. Volvé a intentarlo.</span>
+        </p>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <div className="card p-4">
@@ -138,6 +157,14 @@ export default async function StockPage({
         >
           Vence primero
         </Link>
+
+        {/*
+          Un enlace y no un botón: es una descarga, así que funciona sin
+          JavaScript y se puede abrir en otra pestaña desde el celular.
+        */}
+        <a href={hrefExcel} className="btn-secondary ml-auto text-sm" download>
+          Descargar Excel
+        </a>
       </div>
 
       {page.filas.length === 0 ? (

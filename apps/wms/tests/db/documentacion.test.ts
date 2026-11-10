@@ -59,7 +59,8 @@ beforeAll(async () => {
   logissa = await idPropietario(base.admin, 'LOGISSA')
   dt = base.personas.katia.id
   jt = await persona('jefe_transporte'); aux1 = await persona('auxiliar'); sandra = await persona(['asistente_dt', 'conformidad_despacho'])
-  await base.admin.query(`insert into wms.posiciones (codigo, rack, forma, tipo_area) values ('STG-6', 'S', 'PISO', 'PENDIENTE_CONFORMIDAD')`)
+  await base.admin.query(`insert into wms.posiciones (codigo, rack, forma, tipo_area) values ('STG-6', 'S', 'PISO', 'DESPACHO')`)
+  await base.admin.query(`update wms.parametros set valor = 'STG-6' where clave = 'posicion_despacho_defecto'`)
 }, 120_000)
 afterAll(async () => { await base?.cerrar() })
 
@@ -177,6 +178,6 @@ describe('migración 0019', () => {
   it('es re-ejecutable', async () => {
     const { SQL } = await import('./helpers')
     await base.admin.query(SQL.m0019()); await base.admin.query(SQL.m0019())
-    expect((await uno(`select count(*)::int n from wms.permisos_rol where accion = 'registrar_documentacion'`)).n).toBe(3)
+    expect((await uno(`select count(*)::int n from wms.permisos_rol where accion = 'registrar_documentacion'`)).n).toBe(4)
   })
 })

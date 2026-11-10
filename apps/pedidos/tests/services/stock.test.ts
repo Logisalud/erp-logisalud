@@ -97,20 +97,28 @@ function tabla(nombre: string): any {
   }
 
   if (nombre === "stock_lotes") {
-    return {
-      select: () => ({
-        in: (_col: string, ids: string[]) => ({
-          order: () => ({
-            limit: async () => ({
-              data: LOTES.filter((l) => ids.includes(l.product_id)).sort((a, b) =>
-                String(a.fecha_vencimiento).localeCompare(String(b.fecha_vencimiento)),
-              ),
-              error: null,
-            }),
-          }),
+    // Builder encadenable: el servicio ordena por vencimiento Y por id —el
+    // desempate único que hace falta para paginar sin repetir filas— y pide
+    // por rango, no por limit.
+    const hacer = (ids: string[]) => {
+      const builder: any = {
+        order() {
+          return builder;
+        },
+        range: async (desde: number, hasta: number) => ({
+          data: LOTES.filter((l) => ids.includes(l.product_id))
+            .sort(
+              (a, b) =>
+                String(a.fecha_vencimiento).localeCompare(String(b.fecha_vencimiento)) ||
+                a.id.localeCompare(b.id),
+            )
+            .slice(desde, hasta + 1),
+          error: null,
         }),
-      }),
+      };
+      return builder;
     };
+    return { select: () => ({ in: (_col: string, ids: string[]) => hacer(ids) }) };
   }
 
   throw new Error(`tabla no simulada: ${nombre}`);
@@ -118,7 +126,7 @@ function tabla(nombre: string): any {
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: () => ({ from: tabla }) }));
 
-import { listStockLotes } from "@/services/stock";
+import { listStockLotes, listStockLotesCompleto } from "@/services/stock";
 
 beforeEach(() => {
   pedidas.length = 0;
@@ -205,5 +213,30 @@ describe("el proveedor de la pantalla de stock", () => {
     const page = await listStockLotes({ busqueda: "GASA" });
 
     expect(page.filas.map((f) => f.proveedor)).toEqual(["DIPHASAC - CUIDADO PERSONAL"]);
+  });
+});
+
+describe("listStockLotesCompleto", () => {
+  /**
+   * El Excel no pagina: si saliera cortado en la primera página, el
+   * vendedor creería que no hay stock de lo que no entró, que es peor que
+   * no tener el archivo.
+   */
+  it("trae todos los lotes, no una página", async () => {
+    const completo = await listStockLotesCompleto();
+    const pagina = await listStockLotes();
+
+    expect(completo).toHaveLength(4);
+    expect(completo.length).toBeGreaterThanOrEqual(pagina.filas.length);
+  });
+
+  it("respeta el mismo filtro que la pantalla", async () => {
+    const completo = await listStockLotesCompleto({ busqueda: "tranexamico" });
+    expect(completo.map((f) => f.codigo)).toEqual(["DHP414", "DHP414"]);
+  });
+
+  it("y el mismo orden", async () => {
+    const completo = await listStockLotesCompleto({ orden: "vencimiento" });
+    expect(completo[0].descripcion).toBe("VITAMINA E 400 UI CJA. X 30 CAP. BDA.");
   });
 });

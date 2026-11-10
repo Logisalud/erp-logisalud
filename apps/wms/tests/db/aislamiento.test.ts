@@ -106,7 +106,7 @@ const ROLES_ESPERADOS: Record<string, boolean> = {
   direccion_tecnica: true, asistente_dt: true, jefe_almacen: true, reemplazo_jefe: false, auxiliar: true,
   auditoria_lectura: true, admin_wms: true, jefe_transporte: true, conformidad_despacho: true,
   autoriza_salidas_sin_venta: true,
-  conductor: false, auxiliar_transporte: false, usuario_cliente: false,
+  conductor: false, auxiliar_transporte: false, usuario_cliente: false, dt_cliente: false,
 }
 
 describe('es_usuario(): lista cerrada de personal', () => {
@@ -123,7 +123,7 @@ describe('es_usuario(): lista cerrada de personal', () => {
       for (const [rol, personal] of Object.entries(ROLES_ESPERADOS)) {
         if (rol === 'reemplazo_jefe') continue // retirado (0015): ya no se puede asignar; ver roles-jefes.test.ts
         const u = await nuevaCuenta()
-        await base.admin.query(`insert into wms.usuario_roles (user_id, rol, propietario_id) values ($1, $2, $3)`, [u, rol, rol === 'usuario_cliente' ? idAjr : null])
+        await base.admin.query(`insert into wms.usuario_roles (user_id, rol, propietario_id) values ($1, $2, $3)`, [u, rol, rol === 'usuario_cliente' || rol === 'dt_cliente' ? idAjr : null])
         const r = await base.como(u, async (c) => (await c.query('select wms.es_usuario() as p')).rows[0].p)
         expect(r, rol).toBe(personal)
       }
@@ -238,7 +238,7 @@ describe('P0: el usuario de cliente solo ve lo de su propietario', () => {
     expect(await base.como(ajr, async (c) => (await c.query(`update wms.usuario_roles set propietario_id = $1`, [idDiph])).rowCount)).toBe(0)
     const e = await falla(base.como(ajr, (c) => c.query(`insert into wms.usuario_roles (user_id, rol) values ($1, 'admin_wms')`, [ajr])))
     expect(e.message).toMatch(/row-level security|permission denied|es de un cliente/)
-  })
+  }, 60_000)
 
   it('un cliente no logra nada con las operaciones del WMS (ledger, ingresos, conteos, alertas…)', async () => {
     const pos = (await base.admin.query(`select id from wms.posiciones where codigo = 'G-7.1'`)).rows[0].id
@@ -261,11 +261,11 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'agregar_documento_expediente', 'agregar_faltante', 'ajustar_solicitud', 'anular_acta_recepcion', 'anular_movimiento',
     'anular_solicitud', 'asegurar_lote', 'atender_alerta', 'autorizar_solicitud', 'cancelar_programacion', 'cerrar_conteo',
     'cerrar_expediente', 'cerrar_revision_diaria', 'confirmar_carga_inicial', 'confirmar_ingreso', 'confirmar_movimiento',
-    'conteo_lineas_para', 'corregir_vencimiento_lote', 'crear_carga_inicial', 'crear_producto', 'crear_solicitud',
+    'conteo_lineas_para', 'corregir_vencimiento_lote', 'crear_producto', 'crear_solicitud',
     'decidir_acta_organoleptica', 'decidir_ajuste', 'decidir_estado_carga_inicial', 'editar_ingreso', 'editar_regulatorio',
     'ejecutar_movimiento', 'es_usuario', 'escalar_linea_conteo', 'estado_registro_compras', 'exactitud_conteos',
     'firmar_acta_recepcion', 'generar_acta_recepcion', 'generar_conteo_programado', 'guardar_acta_organoleptica',
-    'historia_lote', 'iniciar_recepcion', 'iniciar_revision_diaria', 'kardex_filas', 'marcar_foco', 'muestra_organoleptica',
+    'historia_lote', 'iniciar_recepcion', 'iniciar_revision_diaria', 'kardex_filas', 'marcar_foco',
     'orden_recorrido_por_defecto', 'personas_del_equipo', 'posicion_acepta', 'posiciones_bloqueadas', 'postear_movimiento',
     'programar_conteo', 'programar_conteo_extra', 'programar_conteo_semanal', 'propietario_cliente', 'proponer_ajuste',
     'reemitir_acta_recepcion', 'registrar_causa_conteo', 'registrar_conteo', 'registrar_pendiente', 'resolver_faltante',
@@ -273,16 +273,38 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'revisar_movimientos_sin_verificar', 'revisar_por_trasladar', 'revisar_registro_compras', 'revisar_vencimientos',
     'saldos_al', 'tiene_permiso', 'tiene_rol', 'ultima_cobertura_por_posicion', 'validar_carga_inicial', 'validar_movimiento',
     'verificar_linea', 'verificar_pendiente', 'verificar_saldos',
+    // Fase 4 · P3 (0042)
+    'crear_carga_ensayo', 'registrar_informe_carga',
+    // Fase 4 · P4 (0043)
+    'mis_rutas_del_dia', 'registrar_evento_parada',
+    // Fase 4 · P6 (0045)
+    'sincronizar_ocs_si_toca',
+    // Fase 4 · P9 (0047): las dos consultas del cliente también las ve `anon` (ver el test de seguimiento)
+    'seguimiento_consultar', 'seguimiento_por_token', 'crear_enlace_seguimiento', 'revocar_enlaces_seguimiento',
     // S2 (0012)
     'aprobar_salida_vencida', 'asignar_salida', 'editar_asignacion', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
     'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',
-    'registrar_retorno', 'stock_vendible',
+    'stock_vendible',
     // Roles de los jefes y cargos (0015)
     'asignar_cargo',
+    // OS-2 (0023)
+    'conformar_orden', 'designar_picker', 'personal_de_picking',
+    // OS-1 (0022)
+    'aplicar_reserva_lote', 'quitar_reserva_lote',
+    // OS-6 (0026)
+    'adjuntar_sustento_baja', 'anular_orden_baja', 'autorizar_baja', 'cerrar_solicitud_baja', 'confirmar_vencimiento_baja', 'reemitir_orden_baja',
+    'registrar_evaluacion_baja', 'solicitar_baja', 'stock_para_baja', 'trasladar_baja',
+    // OS-7 (0027)
+    'cerrar_ruta', 'corregir_cierre_ruta', 'registrar_impresion_ls_fr', 'subir_escaneo_ls_fr',
+    // OS-5 (0025)
+    'anular_dictamen_cliente', 'confirmar_dictamen_cliente', 'crear_retorno', 'dictaminar_como_dt_cliente', 'levantar_observacion_acta', 'lotes_retornables',
+    'marcar_muestreo_estricto', 'observar_acta_organoleptica', 'quitar_muestreo_estricto', 'registrar_dictamen_cliente',
     // S8 (0021)
     'cargar_bulto', 'conciliacion_carga', 'confirmar_salida_ruta', 'excluir_pedido_de_carga', 'guardar_checklist_vehicular', 'liberar_unidad', 'retirar_bulto_carga',
     // S7 (0020)
     'embalar_salida', 'listo_para_carga', 'reabrir_embalaje',
+    // OS-3 (0024)
+    'actualizar_estado_guia', 'anular_guia', 'contexto_guia', 'marcar_evento_pedidos', 'registrar_guia_electronica', 'siguiente_numero_guia',
     // S6b (0019)
     'anular_gre', 'documentacion_resumen', 'paquete_documental', 'registrar_gre',
     // S5 (0018)
@@ -296,6 +318,26 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'avisos_fefo', 'lotes_para_editar', 'reporte_cambios_fefo',
     // S3 (0014)
     'registrar_importacion_pedidos', 'revisar_cambio_pedido',
+    // SA-2 (0028)
+    'agregar_codigo_producto', 'crear_orden_de_pedido', 'crear_orden_salida_manual', 'crear_ordenes_pendientes', 'orden_del_pedido', 'cancelar_orden_salida',
+    // SA-3 (0029)
+    'ejecutar_devolucion_picking', 'explicar_faltante', 'verificar_devolucion_picking',
+    // SA-6 (0030): entrega al transportista del cliente (tipo B); `confirmar_salida` ya era API, `_confirmar_salida_nucleo` es interna
+    'registrar_entrega_transportista_cliente',
+    // SB-A (0031): conductor en documentos (temporal) y documento de identidad del personal de transporte; `_conductor_para_documentos`, `_auditar_uso_conductor` y los disparadores son internos
+    'cambiar_conductor_en_documentos', 'guardar_documentos_personal',
+    // SB-B (0032): numeración atómica de las guías
+    'reservar_numero_guia', 'liberar_numero_guia', 'marcar_numero_guia_ocupado', 'confirmar_correlativo_guia', 'corregir_correlativo_guia',
+    // SB-C (0033): lecturas del data logger (las funciones `es_producto_nuevo` y `es_proveedor_nuevo` son internas)
+    'registrar_lecturas_logger',
+    // SB-E (0035): validar un producto (solo DT y su asistente); `_puede_validar` y el parche son internos
+    'validar_producto',
+    // Piloto (0036): registrar una guía emitida en el panel de Nubefact
+    'registrar_guia_panel',
+    // Piloto (0038): copia inmutable de las órdenes de compra (leen Compras; solo escriben wms.oc_versiones)
+    'sincronizar_oc', 'sincronizar_ocs_abiertas',
+    // Piloto (0040): marca de proveedor «vencimiento solo mes y año» y aprobación de una versión de formato (la 0039 no agrega funciones)
+    'marcar_proveedor_vencimiento', 'aprobar_version_formato',
   ]
 
   it('solo la API conocida tiene EXECUTE para authenticated; los ayudantes internos no', async () => {

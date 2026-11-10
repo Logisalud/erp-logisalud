@@ -49,11 +49,11 @@ export interface RepositorioInventario {
   listarAjustes(): Promise<AjusteVista[]>
 
   // ── Carga inicial ───────────────────────────────────────────────────────
-  /** D-09: el estado del stock inicial que decidió Dirección Técnica ('' = todavía no). */
-  estadoCargaInicial(): Promise<string>
+  /** OS-7 (D-110): cambio de sistema. Administración sube y revisa; Dirección Técnica valida con UNA sola confirmación (ya no hay un estado que decidir aparte). */
   validarCargaInicial(filas: FilaCargaInicial[], actor: Actor): Promise<ErrorFilaCarga[]>
+  /** P3: deja constancia del informe de validación de ESTE archivo. Sin un informe «LISTA» de las mismas filas, `crearCargaInicial` se niega. */
+  registrarInformeCarga(filas: FilaCargaInicial[], veredicto: 'LISTA' | 'NO_LISTA', actor: Actor): Promise<void>
   crearCargaInicial(filas: FilaCargaInicial[], nota: string | undefined, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
-  decidirEstadoCargaInicial(estado: 'APROBADO' | 'CUARENTENA', actor: Actor): Promise<ResultadoAccion>
   confirmarCargaInicial(id: string, actor: Actor): Promise<ResultadoAccion>
   listarCargasIniciales(): Promise<CargaInicialVista[]>
 }

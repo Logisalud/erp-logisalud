@@ -25,6 +25,20 @@ async function abrir(page: Page, info: { project: { name: string } }, numero: st
 const detalle = (page: Page) => page.locator('[data-testid="detalle-pedido"]:visible')
 
 test.describe('bandeja de pedidos (S3)', () => {
+  test('P2: dice que lo importado queda sin procesar y trae los filtros de zona de reparto y día planificado (sin filtro lo deja todo)', async ({ page }) => {
+    await entrarComo(page, 'jefe_transporte')
+    await page.goto('/wms/pedidos')
+    await expect(page.getByTestId('ped-sin-procesar')).toContainText('importados, sin procesar')
+    await expect(page.getByTestId('ped-filtro-zona')).toBeVisible()
+    await expect(page.getByTestId('ped-filtro-dia')).toBeVisible()
+    await expect(page.getByTestId('ped-conteo')).toHaveText('3 pedidos')
+    await page.getByTestId('ped-filtro-zona').selectOption('LIMA-CENTRO')
+    await expect(page.getByTestId('ped-conteo')).toHaveText('2 de 3 pedidos')
+    await page.getByTestId('ped-limpiar').click()
+    await expect(page.getByTestId('ped-conteo')).toHaveText('3 pedidos')
+    await sinDesborde(page)
+  })
+
   test('el Jefe de Transporte ve los pedidos importados, con su estado, y abre el detalle de uno con su producto desconocido', async ({ page }, info) => {
     await entrarComo(page, 'jefe_transporte')
     await page.goto('/wms/pedidos')

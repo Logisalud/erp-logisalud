@@ -49,6 +49,9 @@ export interface CargaDemo {
   creadoPor: string
   creadoEn: string
   confirmadoEn?: string
+  confirmadoPor?: string
+  /** Marca «piloto» (P3): la carga nació con el modo piloto encendido. */
+  piloto?: boolean
   filas: FilaCargaInicial[]
 }
 
@@ -58,8 +61,8 @@ export interface InvDemo {
   conteos: ConteoDemo[]
   ajustes: AjusteDemo[]
   cargas: CargaDemo[]
-  /** D-09: estado del stock inicial decidido por Dirección Técnica ('' = sin decidir). */
-  cargaDecision: string
+  /** Informes de validación de la carga (P3): huella del archivo, quién y el veredicto. Obligatorio antes de cargar. */
+  informesCarga?: { huella: string; por: string; veredicto: 'LISTA' | 'NO_LISTA'; en: number }[]
   /** Vistas guardadas de las listas, por persona. */
   vistas: Record<string, VistaGuardada[]>
   contadores: Record<string, number>
@@ -75,7 +78,7 @@ export function iniciarInventario(panorama: Panorama): InvDemo {
     origen: 'CARGA_INICIAL' as const, procedenciaId: s.procedenciaId, delta: s.cantidad, ejecutorId: 'demo:admin_wms',
     referenciaTipo: 'carga_inicial', referenciaId: 'CI-DEMO-00001',
   }))
-  return { ledger, ordenes: [], conteos: [], ajustes: [], cargas: [], cargaDecision: '', vistas: {}, contadores: {}, sembrado: false }
+  return { ledger, ordenes: [], conteos: [], ajustes: [], cargas: [], vistas: {}, contadores: {}, sembrado: false }
 }
 
 export const siguiente = (inv: InvDemo, clave: string): number => {

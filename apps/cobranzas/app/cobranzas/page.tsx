@@ -39,6 +39,10 @@ export default async function Home() {
           <h2 className="text-lg font-semibold mb-1">📅 Reporte de letras</h2>
           <p className="text-gray-500 text-sm">Agenda plana de todas las letras, filtrable por estado, cliente y vencimiento.</p>
         </Link>
+        <Link href="/cobranzas/reporte-factoring" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
+          <h2 className="text-lg font-semibold mb-1">📑 Reporte de factoring</h2>
+          <p className="text-gray-500 text-sm">Todas las facturas que pasaron por factoring, con su vencimiento, su retención y su estado.</p>
+        </Link>
         <Link href="/cobranzas/clientes" className="block p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition">
           <h2 className="text-lg font-semibold mb-1">🔍 Clientes</h2>
           <p className="text-gray-500 text-sm">Busca clientes, asigna o reasigna vendedores manualmente.</p>

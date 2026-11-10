@@ -1,3 +1,43 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/**
+ * Barra de desplazamiento horizontal siempre visible en las tablas anchas.
+ *
+ * `overflow-x-auto` alcanza para que la tabla se pueda correr, pero en Mac
+ * —y en Chrome con scrollbars superpuestas— la barra solo aparece mientras
+ * se arrastra, así que no se ve que haya algo más a la derecha. Con la
+ * columna de comentarios, la cartera quedó más ancha que la pantalla y el
+ * usuario terminaba sombreando texto y arrastrando para llegar a ella.
+ *
+ * Al darle un alto y un color explícitos a `::-webkit-scrollbar`, el
+ * navegador deja de superponerla y la muestra siempre. `scrollbar-color`
+ * hace lo propio en Firefox.
+ */
+.tabla-scroll {
+  overflow-x: auto;
+  /* Sin overflow-y: la tabla crece a lo alto y recortarla escondería las
+     letras que se despliegan debajo de una factura. */
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.tabla-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.tabla-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.tabla-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 9999px;
+  border: 2px solid #f1f5f9;
+}
+
+.tabla-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

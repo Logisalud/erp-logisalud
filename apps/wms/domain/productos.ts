@@ -36,11 +36,18 @@ export function validarEntradaProducto(e: EntradaProducto): { ok: true; rsVence?
 }
 
 export function autorizarAltaProducto(roles: readonly Rol[]): string | null {
-  return puedeCrearProducto(roles) ? null : 'Solo Dirección Técnica y su asistente dan de alta productos.'
+  return puedeCrearProducto(roles) ? null : 'Solo Dirección Técnica, su asistente y el Administrador dan de alta productos.'
 }
 
+/** «Sin material de envase» lo marca solo Dirección Técnica (F3). Devuelve el mensaje de error o null. */
+export function autorizarMarcaSinMaterialEnvase(roles: readonly Rol[]): string | null {
+  return roles.includes('direccion_tecnica') ? null : 'Solo Dirección Técnica marca un producto como «sin material de envase».'
+}
+
+export const esSi = (v: string | undefined) => ['si', 'sí', 'true', '1'].includes((v ?? '').trim().toLowerCase())
+
 export function autorizarEdicionRegulatoria(roles: readonly Rol[]): string | null {
-  return puedeEditarRegulatorio(roles) ? null : 'Solo Dirección Técnica (Katia o Sandra) edita los datos regulatorios.'
+  return puedeEditarRegulatorio(roles) ? null : 'Solo Dirección Técnica (Katia o Sandra) y el Administrador editan los datos regulatorios.'
 }
 
 /** Todo cambio regulatorio lleva su motivo. Devuelve el mensaje de error o null. */
@@ -49,7 +56,7 @@ export function validarMotivoRegulatorio(motivo: string | undefined): string | n
 }
 
 /** Los datos regulatorios que se envían a editar (texto tal como lo escribe la persona; vacío = quitar el dato). */
-export type DatosRegulatorios = Partial<Record<'registroSanitario' | 'rsVence' | 'formaPresentacion' | 'concentracion' | 'fabricante' | 'condicionAlmacenamiento' | 'presentacion' | 'principioActivo', string>>
+export type DatosRegulatorios = Partial<Record<'registroSanitario' | 'rsVence' | 'formaPresentacion' | 'concentracion' | 'fabricante' | 'condicionAlmacenamiento' | 'presentacion' | 'principioActivo' | 'sinMaterialEnvase', string>>
 
 /** Valida y normaliza una edición: la fecha se convierte a ISO y no se deja un registro sin su vencimiento. */
 export function validarEdicionRegulatoria(
@@ -66,4 +73,10 @@ export function validarEdicionRegulatoria(
   const vence = datos.rsVence !== undefined ? datos.rsVence.trim() : actual?.rsVence
   if (registro && !vence) errores.rsVence = 'Falta el vencimiento del registro sanitario.'
   return Object.keys(errores).length ? { ok: false, errores } : { ok: true, datos: out }
+}
+
+/** PIL-8: en el piloto los productos se crean en Compras; el WMS no escribe en el catálogo (ni crea productos ni edita presentación o principio activo). */
+export const MENSAJE_CATALOGO_EN_COMPRAS = 'En el piloto los productos se crean y se corrigen en Compras: el WMS no escribe en el catálogo. Aquí solo completas sus datos regulatorios.'
+export function autorizarEscrituraCatalogo(modoPiloto: boolean): string | null {
+  return modoPiloto ? MENSAJE_CATALOGO_EN_COMPRAS : null
 }

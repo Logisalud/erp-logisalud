@@ -26,7 +26,7 @@ Nada de esto está construido. Las reglas cerradas de arriba se mantienen; lo si
 - **Códigos de producto:** uno de distribución, el del proveedor (nunca se elimina) y uno por cada cliente de almacenamiento; la búsqueda encuentra por cualquiera (D-73).
 - **Ubicaciones:** nomenclatura Rack-Columna.Nivel, niveles 1 a 4 de abajo hacia arriba; el piso (B, C, D, E-1 a E-7) no tiene niveles; el recorrido de picking sigue la posición física de cada columna (D-65).
 - **Transporte:** roles Conductor y Auxiliar de transporte (usuarios principales en ruta, desde el teléfono) y permisos propios para el Jefe de Transporte. Roles, no nombres.
-- **LS-FR.43.03** (formato controlado, LS-POE.07.05): el usuario genera la ruta y el WMS genera el documento; firmas de Conductor y Dirección Técnica físicas mientras Calidad no apruebe otra cosa. Seis definiciones pendientes de Katia (D-53).
+- **LS-FR.43.03** (formato controlado, LS-POE.07.05): el usuario genera la ruta y el WMS genera el documento; firmas de Conductor y Dirección Técnica físicas mientras Calidad no apruebe otra cosa. **Definido por Dirección Técnica el 2026-10-17 (OS-7, D-111):** USUARIO = el Jefe de Transporte que prepara la ruta; «N.° de cajas» = bultos (caja master); la temperatura sale del **data logger Elitech GSP-6**: **al cerrar la ruta** se adjunta el archivo descargado (se guarda tal cual) y se registran la **mínima y la máxima** (el rango del formato, 15–25 °C, solo marca el cierre); se **imprime una copia antes de la salida** que viaja con el conductor (queda registrada; liberar sin imprimir advierte, no bloquea); las firmas físicas se **suben como escaneo** ligado a la ruta (cambiarlo pide motivo y deja la versión anterior); **conservación: 5 años**, en físico y en digital. Siguen pendientes: el formato del archivo del data logger y qué hacer con una temperatura fuera de rango (D-112).
 
 ## Transición
 - **Odoo desaparece y el WMS lo reemplaza (Sebas, 2026-10-14): no se integra con Odoo ni se vuelve a usar tras el corte.**
@@ -112,7 +112,7 @@ La recepción no empieza cuando llega el camión: empieza con la **Solicitud de 
 
 ## Evaluación organoléptica y aprobación
 - Acta de Evaluación Organoléptica (LS-FR.55.02): una por producto y lote, también en devoluciones. La llena Sandra; Katia decide y firma en el WMS.
-- Muestra = techo(√unidades del lote) + 1. Vuelve completa a su caja: no descuenta stock.
+- Muestra según la tabla LS-TB.02.02 (parámetro con código y vigencia; reemplaza techo(√n)+1): lotes de menos de 100 unidades y devoluciones, 100 %; simplificada 100–1.000 → 20, 1.001–10.000 → 30, 10.001–100.000 → 80, más de 100.000 → 150; normal (producto o proveedor nuevo) 50, 150, 300, 500; estricta (antecedentes de calidad que marca DT) 100 %. Vuelve completa a su caja: no descuenta stock.
 - El acta firmada sustenta la decisión. No existe Acta de Liberación.
 - Lo rechazado en Cuarentena nunca vuelve al proveedor.
 
@@ -162,7 +162,7 @@ Cada posición tiene tipo de área y propietario. El sistema bloquea combinacion
 ## Inventarios cíclicos (INV-05)
 - **Implementado (Batch 3, 0007):** el Jefe programa conteos por ubicación (3 por semana, parámetro `conteos_por_semana`). El contador **no ve** el saldo del sistema (ni lo puede leer por la API). Una ubicación en conteo **no se mueve** hasta cerrarlo. Si hay diferencia, la **segunda persona** cuenta, también a ciegas; si dos conteos coinciden entre sí, se registra la **causa** y el Jefe **propone** un ajuste que **autoriza Dirección Técnica** (distinta de quien propone) y deja su sustento y su fila en el Kardex; sin explicación, se **escala** con evidencia. El conteo se cierra con fecha, alcance, quién contó, diferencia, causa y acción.
 - **Kardex:** solo entradas y salidas (ingresos, carga inicial, ajustes y sus reversas), con saldo corrido y saldo inicial al comienzo del rango; los movimientos internos y cambios de estado van en la historia completa del lote.
-- **Carga inicial:** administración la sube (con vista previa fila por fila); **no se confirma sin la decisión de Dirección Técnica sobre el estado del stock inicial (D-09)**.
+- **Carga inicial (cambio de sistema, OS-7, D-110):** administración la sube (con vista previa fila por fila; **todo lote lleva código de lote y vencimiento**). El stock de Odoo entra **directo a su estado y ubicación** —Aprobados en su ubicación, Bajas en Bajas, Cuarentena en Cuarentena— **sin acta organoléptica**. El libro mayor y la historia del lote muestran el recorrido: *ingreso por carga inicial en Cuarentena → liberación (o baja) → ubicación final*; el Kardex cuenta solo el ingreso. **Dirección Técnica (Katia) valida con UNA sola confirmación**; ya no hay una decisión aparte sobre el estado del stock inicial (reemplaza a D-09). Un Aprobado exige el registro sanitario cargado y vigente.
 - 3 por semana, programados **por rotación** (primero lo que hace más tiempo no se cuenta); una ubicación no se repite dentro de la semana; la ubicación con movimientos por verificar no se puede contar todavía. Un **conteo extra por incidencia** exige decir la incidencia y no cuenta entre los 3. (Implementado en Batch 3b, 0009.)
 - Primer conteo ciego.
 - Reconteo por otra persona solo si hay diferencia.
@@ -189,10 +189,26 @@ Recorrido con 4 focos: orden, limpieza, ubicaciones y situaciones anormales. Sol
 ## Salidas — núcleo de stock (S2)
 - **Una sola cuenta de lo comprometido:** reservas activas, en tránsito o en staging más las líneas abiertas de «Mover». Disponible = saldo − comprometido; Mover y las salidas usan la misma cuenta.
 - **FEFO (modo A, distribución y muestras de Logissa; D-76):** el pedido no trae lote. Se toma lo que haya del lote FEFO válido y se completa, automáticamente, con el siguiente lote FEFO válido, hasta cubrir la línea. Una línea puede tener varias asignaciones (una por lote y celda): cada una aparece con su ubicación en la orden de picking y la GRE muestra cada lote con su cantidad. Lote válido: no vencido, sin retención, fuera de conteo y, solo en distribución, con 60 días de vida útil como mínimo (`vida_util_minima_venta_dias`). Nunca se toma más de lo disponible (el disponible no queda negativo). Si ni sumando los lotes alcanza, no se reserva nada y se alerta de stock insuficiente al Jefe de Transporte antes del picking. El stock de Logissa nunca se considera vencido para muestras.
-- **Lote indicado por el cliente (modo B): una línea, un lote** (si necesita dos lotes, usa dos líneas); se respeta el lote pedido; un lote vencido de cliente solo sale por pesquisa, destrucción o devolución al proveedor y con aprobación de la Dirección Técnica antes del picking.
+- **Lote indicado por el cliente (modo B): una línea, un lote** (si necesita dos lotes, usa dos líneas); se respeta el lote pedido; un lote vencido de cliente **ya no sale por una salida** (OS-6, D-99: va a Bajas y sale a destrucción desde Bajas); antes: pesquisa, destrucción o devolución con aprobación de la Dirección Técnica antes del picking.
 - **El picking no toca el libro mayor.** La conformidad de otra persona (con `dar_conformidad`) registra el movimiento rack → staging; la salida confirma staging → fuera; el retorno nunca supera lo que salió.
 - **Edición de la asignación (D-79, reemplaza D-77 (a) y D-78):** el Jefe de Almacén, el Jefe de Transporte y los auxiliares de almacén reemplazan, agregan o quitan lotes y redistribuyen cantidades de una línea de venta antes del picking (suma = cantidad de la línea). Sin motivo obligatorio ni regla de «vencer después»; el aviso de lote que vence antes no bloquea. Queda, sin pedir nada al usuario, la asignación FEFO original, la anterior, la final, quién y cuándo (motivo opcional). Reporte «Cambios a FEFO»: cuántas veces y por quién se eligió un lote distinto al FEFO, por periodo. El reemplazo en picking se propone por lote.
 - Idempotencia por token en cada paso; el Kardex incluye SALIDA y RETORNO.
+
+## Orden de Salida — ajustes de Dirección Técnica (2026-10-17)
+El detalle completo está en `respuestas-dt-2026-10.md`. Lo que ya rige (OS-1):
+- **Áreas habilitadas:** Recepción, Cuarentena, Aprobados, Contramuestra, Bajas, Devoluciones y Despacho. «Pendiente de conformidad», «Observado», «Retorno reservado» y «Embalaje» se retiran; la mesa K-M2 es parte de Despacho. El picking solo sale de Aprobados; la conformidad deja el stock en Despacho y la salida sale de Despacho.
+- **Reserva:** un estado del lote (no un área). El lote sigue Aprobado pero no se asigna ni se pickea. La aplican y la quitan el Jefe de Transporte y Dirección Técnica, con motivo; la historia no se borra.
+- **Contramuestra:** solo cuando Logissa es titular del registro sanitario o del certificado de registro (fabricación por encargo, cada lote nuevo). Hoy no aplica a Logissa.
+- **Permisos:** Jefe de Almacén y Jefe de Transporte tienen todos los permisos del auxiliar. Kardex: código controlado LS-FR.41.
+- **Orden de Salida (OS-2):** `OS-AAAA-NNNNN`, se imprime. Se indica quién picó; la conformidad de **toda la orden** la da otra persona en una tabla (por línea: otro lote, menos cantidad, no encontrado) con el número de bultos; el stock pasa a Despacho. Lima no embala; provincia sí. La ruta se asigna antes que la guía.
+
+## Bajas, vencidos y salidas sin venta (OS-6, 2026-10-17)
+- **Dar de baja es un proceso con documento** (D-96): se solicita, Dirección Técnica autoriza y el WMS emite la **Orden de Baja LS-FR.56.01** (PDF con N.° `BJ-AAAA-NNNNN`, fecha, solicitante, y por línea producto, presentación, registro sanitario, lote, vencimiento, cantidad y motivo, con V°/B°). Una Orden emitida no se edita: se anula con motivo y se reemite.
+- **Sustento por motivo** (D-97): vencido → la fecha (el sistema propone, DT confirma); deterioro o daño → evaluación tipo acta organoléptica no conforme; alerta o retiro de DIGEMID → la alerta adjunta; observación del proveedor o fabricante → su comunicación adjunta. Sin sustento no se autoriza (aplicación y base).
+- **Autorizar** cambia el estado a Bajas/Rechazados en el mismo lugar (un cambio de estado no se revierte); el traslado físico se registra por Movimientos y otra persona lo verifica (D-98).
+- **Vencidos** (D-99): no salen por ninguna salida; van a Bajas. Los de clientes de almacenamiento salen a **destrucción cuando el cliente lo indica, solo desde Bajas**; nunca se devuelven ni se venden vencidos. La pesquisa DIGEMID nunca es de vencidos.
+- **Devolución al proveedor** (D-100): stock de Logissa, salida normal, solo antes del vencimiento y según la **política de canje (PENDIENTE de Katia, parámetros configurables)**.
+- **Salida tipo B** (D-101): motivos venta, pesquisa DIGEMID, muestra y destrucción; no emite guía del WMS (usa la GRE del cliente).
 
 ## Integridad
 Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario, fecha, motivo).
@@ -205,3 +221,13 @@ Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario,
 5. Naturaleza de Contramuestra (solo importaciones).
 6. Confirmar muestreo techo(√unidades) + 1.
 7. Acondicionamiento en la ubicación "Calidad" de Odoo: formalizarlo (ÁMBAR) o eliminarlo. No se migra.
+
+## Guía de remisión y anulación (OS-3)
+- La guía de pedidos (tipo A) se **emite con Nubefact** desde la Orden de Salida conformada y **con la ruta ya asignada**; se completa sola y el Jefe de Transporte confirma fecha de inicio y peso bruto (12 kg). Si SUNAT rechaza, no se registra. Una guía **nunca se edita ni se borra**.
+- **Tipo B no genera guía**: se despacha con la GRE que sube el cliente.
+- **Anulación** (solo Jefe de Transporte, con motivo): caso 1 datos del traslado, caso 2 contenido (la Orden vuelve a conformidad y el stock regresa al rack), caso 3 después de la salida (retorno como devolución y nueva Orden). Sin guía vigente la orden no se carga ni sale. El WMS avisa a Pedidos y **no toca la factura**.
+- Las reglas de baja ante SUNAT están **pendientes** de Contabilidad y Nubefact. Nada se emite en producción sin aprobación de Sebas. Ver `docs/wms/nubefact.md` y `docs/wms/contrato-pedidos-guia.md`.
+## OS-5 — retornos, liberación y muestreo (migración 0025, sin aplicar)
+- **Retornos:** todo lo que salió y vuelve (rechazado o no entregado) entra como recepción tipo devolución: Devoluciones, acta de recepción y acta organoléptica al 100 %, y Aprobado o Bajas. Nunca vuelve más de lo que salió, por lote. Reprogramar = nueva Orden de Salida.
+- **Liberación (LS-POE.04.05):** productos de Logissa, Sandra evalúa y Katia dictamina; observación reversible = sigue en Cuarentena. Productos de clientes: libera el DT del cliente; Sandra o Katia registran su dictamen con el documento y confirman el cambio de estado. Rol «DT de cliente» apagado hasta SEC1. Reemplaza el LS-FR.04.
+- **Muestreo:** tabla LS-TB.02.02 como parámetro (ver arriba). Decisiones D-93 a D-96.

@@ -1,14 +1,17 @@
 import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
+import { heredarBonificacion } from '@/domain/bonificacion'
 import type {
   Asignacion, CambioRegulatorio, CampoRegulatorio, DocumentoSustento, EventoAuditoria, Lote, Posicion, Propietario, Regulatorio, Saldo,
 } from '@/domain/tipos'
 import type { Panorama, ProductoConReg } from '@/domain/panorama'
-import { validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
+import { resolverModoPiloto } from '@/domain/modo-piloto'
+import { autorizarEscrituraCatalogo, autorizarMarcaSinMaterialEnvase, esSi, validarEdicionRegulatoria, validarEntradaProducto, validarMotivoRegulatorio, type DatosRegulatorios, type EntradaProducto } from '@/domain/productos'
 import type { Actor, Repositorio, ResultadoAccion } from '../repositorio'
 import { mensajeHumano, n, s, traerTodo, type Fila } from './util'
-import { CargaSupabase } from './carga-supabase'
+import { SeguimientoSupabase } from './seguimiento-supabase'
+import { hoyLima } from '@/lib/hoy-lima'
 
 export function mapearPosicion(r: Fila): Posicion {
   return {
@@ -22,18 +25,19 @@ export function mapearRegulatorio(r: Fila): Regulatorio {
   return {
     productoId: String(r.producto_id), registroSanitario: s(r.registro_sanitario), rsVence: s(r.rs_vence),
     formaPresentacion: s(r.forma_presentacion), concentracion: s(r.concentracion), fabricante: s(r.fabricante),
-    condicionAlmacenamiento: s(r.condicion_almacenamiento), creadoPor: s(r.creado_por),
+    condicionAlmacenamiento: s(r.condicion_almacenamiento), sinMaterialEnvase: r.sin_material_envase === true, creadoPor: s(r.creado_por),
+    estadoValidacion: r.por_validar === true ? 'PENDIENTE' : 'VALIDADO',
   }
 }
 
-export class RepositorioSupabase extends CargaSupabase implements Repositorio {
+export class RepositorioSupabase extends SeguimientoSupabase implements Repositorio {
   async panorama(): Promise<Panorama> {
     const [props, poss, asigs, docs, prods, regs, lotes, saldos] = await Promise.all([
       traerTodo('propietarios', 'wms'),
       traerTodo('posiciones', 'wms'),
       traerTodo('asignaciones_posicion', 'wms'),
       traerTodo('documentos_sustento', 'wms'),
-      traerTodo('productos', 'catalogo', 'id, codigo, descripcion, presentacion, marca, principio_activo, unidad_medida, estado'),
+      traerTodo('productos', 'catalogo', 'id, codigo, codigo_bonificacion, descripcion, presentacion, marca, principio_activo, unidad_medida, estado'),
       traerTodo('producto_regulatorio', 'wms'),
       traerTodo('lotes', 'wms'),
       traerTodo('saldos', 'wms'),
@@ -41,11 +45,11 @@ export class RepositorioSupabase extends CargaSupabase implements Repositorio {
     const regPorProducto = new Map(regs.map((r) => [String(r.producto_id), mapearRegulatorio(r)]))
     const productos: ProductoConReg[] = prods.map((r) => ({
       id: String(r.id), codigo: String(r.codigo), descripcion: String(r.descripcion), presentacion: s(r.presentacion),
-      marca: s(r.marca), principioActivo: s(r.principio_activo), unidadMedida: String(r.unidad_medida ?? 'UND'),
+      marca: s(r.marca), principioActivo: s(r.principio_activo), unidadMedida: String(r.unidad_medida ?? 'UND'), codigoBonificacion: s(r.codigo_bonificacion),
       estado: r.estado === 'inactivo' ? 'inactivo' : 'activo', reg: regPorProducto.get(String(r.id)),
     }))
     return {
-      hoy: new Date().toISOString().slice(0, 10),
+      hoy: hoyLima(),
       propietarios: props.map((r): Propietario => ({
         id: String(r.id), codigo: String(r.codigo), razonSocial: String(r.razon_social), ruc: s(r.ruc),
         esDuenoAlmacen: Boolean(r.es_dueno_almacen),
@@ -60,9 +64,9 @@ export class RepositorioSupabase extends CargaSupabase implements Repositorio {
         vigenteDesde: s(r.vigente_desde), archivoRef: s(r.archivo_ref),
         estadoConfirmacion: r.estado_confirmacion as DocumentoSustento['estadoConfirmacion'], nota: s(r.nota),
       })),
-      productos,
+      productos: heredarBonificacion(productos),
       lotes: lotes.map((r): Lote => ({
-        id: String(r.id), productoId: String(r.producto_id), codigo: String(r.codigo), vence: s(r.vence),
+        id: String(r.id), productoId: String(r.producto_id), codigo: String(r.codigo), vence: s(r.vence), venceTexto: s(r.vence_texto_original),
         propietarioId: String(r.propietario_id),
       })),
       saldos: saldos.map((r): Saldo => ({
@@ -83,7 +87,16 @@ export class RepositorioSupabase extends CargaSupabase implements Repositorio {
     }))
   }
 
+  /** PIL-8: ¿está encendido el modo piloto? (entorno + parámetro; falla cerrada). La base también rechaza las escrituras del catálogo. */
+  private async enPiloto(): Promise<boolean> {
+    let parametro
+    try { parametro = await this.modoPiloto() } catch { parametro = undefined }
+    return resolverModoPiloto(parametro, { WMS_MODO_PILOTO: process.env.WMS_MODO_PILOTO, WMS_GO_LIVE: process.env.WMS_GO_LIVE })
+  }
+
   async crearProducto(entrada: EntradaProducto, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+    const enPiloto = autorizarEscrituraCatalogo(await this.enPiloto())
+    if (enPiloto) return { ok: false, mensaje: enPiloto }
     const v = validarEntradaProducto(entrada)
     if (!v.ok) return { ok: false, mensaje: 'Revisa los campos marcados.', errores: v.errores as Record<string, string> }
     const supabase = crearClienteServidor()
@@ -99,9 +112,22 @@ export class RepositorioSupabase extends CargaSupabase implements Repositorio {
     return { ok: true, id: String(data) }
   }
 
+  async validarProducto(id: string, _actor: Actor): Promise<ResultadoAccion> {
+    const supabase = crearClienteServidor()
+    const { error } = await supabase.schema('wms').rpc('validar_producto', { p_producto: id })
+    return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
+  }
+
   async editarRegulatorio(id: string, datos: DatosRegulatorios, motivo: string, _actor: Actor): Promise<ResultadoAccion<{ cambios: number }>> {
     const errMotivo = validarMotivoRegulatorio(motivo)
     if (errMotivo) return { ok: false, mensaje: errMotivo, errores: { motivo: errMotivo } }
+    if ((datos.presentacion !== undefined || datos.principioActivo !== undefined) && (await this.enPiloto())) {
+      return { ok: false, mensaje: 'En el piloto presentación y principio activo se corrigen en Compras: el WMS no escribe en el catálogo.' }
+    }
+    if (datos.sinMaterialEnvase !== undefined) {
+      const permisoMarca = autorizarMarcaSinMaterialEnvase(_actor.roles)
+      if (permisoMarca) return { ok: false, mensaje: permisoMarca }
+    }
     const supabase = crearClienteServidor()
     const { data: act } = await supabase.schema('wms').from('producto_regulatorio').select('registro_sanitario, rs_vence').eq('producto_id', id).maybeSingle()
     const v = validarEdicionRegulatoria(datos, act ? { registroSanitario: s(act.registro_sanitario), rsVence: s(act.rs_vence) } : undefined)
@@ -109,12 +135,13 @@ export class RepositorioSupabase extends CargaSupabase implements Repositorio {
     const columnas: Record<keyof DatosRegulatorios, string> = {
       registroSanitario: 'registro_sanitario', rsVence: 'rs_vence', formaPresentacion: 'forma_presentacion',
       concentracion: 'concentracion', fabricante: 'fabricante', condicionAlmacenamiento: 'condicion_almacenamiento',
-      presentacion: 'presentacion', principioActivo: 'principio_activo',
+      presentacion: 'presentacion', principioActivo: 'principio_activo', sinMaterialEnvase: 'sin_material_envase',
     }
     const json: Record<string, string> = {}
     for (const [k, col] of Object.entries(columnas)) {
       const x = v.datos[k as keyof DatosRegulatorios]
-      if (x !== undefined) json[col] = x
+      if (x === undefined) continue
+      json[col] = k === 'sinMaterialEnvase' ? String(esSi(x)) : x
     }
     const { data, error } = await supabase.schema('wms').rpc('editar_regulatorio', { p_producto: id, p_datos: json, p_motivo: motivo })
     return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true, cambios: Number(data ?? 0) }

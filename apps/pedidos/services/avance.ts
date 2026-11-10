@@ -321,6 +321,41 @@ export type FilaCuadro = {
   porDia: Record<string, number>;
 };
 
+export type PeriodoPublicado = {
+  periodo: string;
+  fechaCorte: string;
+  subidoEn: string;
+};
+
+/**
+ * Los meses que tienen un avance publicado, del más nuevo al más viejo.
+ *
+ * Es lo que arma las pestañas de la pantalla. Lee solo las cargas
+ * `vigente`, que es a lo sumo una por período: las dos anteriores que se
+ * guardan de cada mes son para comparar si algo no cuadra, no para
+ * mostrarlas como si fueran meses distintos.
+ *
+ * La política de lectura de `avance_cargas` deja ver la cabecera a
+ * cualquiera que entre, así que un vendedor ve las mismas pestañas que un
+ * administrador; lo que cambia, adentro de cada mes, es qué filas le
+ * entrega la RLS.
+ */
+export async function periodosPublicados(): Promise<PeriodoPublicado[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("avance_cargas")
+    .select("periodo, fecha_corte, subido_en")
+    .eq("vigente", true)
+    .order("periodo", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((c) => ({
+    periodo: c.periodo as string,
+    fechaCorte: String(c.fecha_corte),
+    subidoEn: String(c.subido_en),
+  }));
+}
+
 export async function cargaVigente(periodo?: string): Promise<Carga | null> {
   const supabase = createClient();
   let q = supabase

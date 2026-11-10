@@ -2,6 +2,7 @@
 // documental del cliente. Puro (sin Next ni Supabase): lo usan la demo y las pantallas; la base de datos (`wms.subir_documento_regulatorio`,
 // `wms.estado_documental`) aplica las mismas reglas y es la que manda.
 import { normalizar } from './busqueda'
+import { puede } from './permisos'
 import type { Rol } from './tipos'
 
 export type TipoDocumento = 'COA' | 'REGISTRO_SANITARIO' | 'BPM'
@@ -45,9 +46,9 @@ export function estadoDocumento(d: Pick<DocumentoRegulatorio, 'vigenteHasta'>, h
 
 /** ¿Puede esta persona subir (o reemplazar) este documento? Devuelve el motivo si no. Espejo de wms.subir_documento_regulatorio. */
 export function motivoNoPuedeSubir(roles: readonly Rol[], tipo: TipoDocumento, hayVigente: boolean): string | null {
-  const dt = roles.includes('direccion_tecnica')
-  if (tipo !== 'COA') return dt ? null : 'Solo Dirección Técnica sube o reemplaza el registro sanitario y el BPM'
-  if (hayVigente) return dt ? null : 'Este lote ya tiene un COA vigente: solo Dirección Técnica lo reemplaza'
+  const dt = puede(roles, 'gestionar_documentos_regulatorios') // Dirección Técnica y el Administrador (D-196)
+  if (tipo !== 'COA') return dt ? null : 'Solo Dirección Técnica y el Administrador suben o reemplazan el registro sanitario y el BPM'
+  if (hayVigente) return dt ? null : 'Este lote ya tiene un COA vigente: solo Dirección Técnica y el Administrador lo reemplazan'
   return dt || roles.some((r) => r === 'jefe_almacen' || r === 'auxiliar' || r === 'asistente_dt') ? null : 'No tienes permiso para adjuntar un COA'
 }
 
