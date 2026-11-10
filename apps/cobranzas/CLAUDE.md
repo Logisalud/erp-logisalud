@@ -5,6 +5,10 @@ Next.js 14 (App Router) + Supabase (Postgres). Sin backend separado: las API
 routes de Next hablan directo con Supabase usando `supabaseAdmin()` (service
 role key, bypassa RLS).
 
+Sistema de diseño de pantallas nuevas: ver `DESIGN.md` en esta misma
+carpeta (tokens aditivos, componentes en `components/ds/`, por qué no se
+usa `@logisalud/design-system` como preset de Tailwind acá).
+
 ## Entorno
 
 - Proyecto Supabase: `qpkigzniatidsvnxikox` ("erp-cobranzas", org
