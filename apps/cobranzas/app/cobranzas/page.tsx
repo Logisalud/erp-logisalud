@@ -4,7 +4,7 @@ import { AREAS_ESCRITURA, AREAS_ASIGNACION } from '@/lib/autorizacion';
 import {
   Upload, CreditCard, Landmark, AlertTriangle, Banknote, Clock,
   Target, Wallet, Layers, BarChart3, Tag, Repeat,
-  Users, ClipboardList, ScrollText, CalendarClock, FileOutput,
+  Users, ClipboardList, ScrollText, CalendarClock, FileOutput, FileSpreadsheet,
   Link2, Eye, MessageCircle, FolderInput,
   type LucideIcon,
 } from 'lucide-react';
@@ -68,6 +68,7 @@ export default async function Home() {
       nombre: 'Reportes y exportaciones',
       tarjetas: [
         { href: '/cobranzas/reporte-letras', icono: CalendarClock, titulo: 'Reporte de letras', descripcion: 'Agenda plana de todas las letras, filtrable por estado, cliente y vencimiento.' },
+        { href: '/cobranzas/reporte-factoring', icono: FileSpreadsheet, titulo: 'Reporte de factoring', descripcion: 'Todas las facturas que pasaron por factoring, con su vencimiento, su retención y su estado.' },
         { href: '/cobranzas/exportar-nubecont', icono: FileOutput, titulo: 'Export a Nubecont', descripcion: 'Descarga los ingresos de cobranza en el formato de importación de Nubecont.' },
       ],
     },
