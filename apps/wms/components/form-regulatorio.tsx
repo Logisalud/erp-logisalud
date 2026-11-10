@@ -27,15 +27,19 @@ function Campo({ nombre, etiqueta, valor, error, ayuda, fecha = false }: { nombr
 }
 
 /** Katia o Sandra: editan los datos regulatorios; rige de inmediato y el motivo es obligatorio (D-37). */
-export function FormRegulatorio({ productoId, reg, presentacion, principioActivo }: { productoId: string; reg?: Regulatorio; presentacion?: string; principioActivo?: string }) {
+export function FormRegulatorio({ productoId, reg, presentacion, principioActivo, puedeMarcarSinEnvase = false, catalogoEnCompras = false }: { productoId: string; reg?: Regulatorio; presentacion?: string; principioActivo?: string; puedeMarcarSinEnvase?: boolean; catalogoEnCompras?: boolean }) {
   const [estado, accion] = useFormState<EstadoFormulario, FormData>(editarRegulatorioAccion, {})
   const e = estado.errores ?? {}
   return (
     <form action={accion} className="space-y-4" noValidate>
       <input type="hidden" name="id" value={productoId} />
       <div className="grid gap-4 md:grid-cols-2">
-        <Campo nombre="presentacion" etiqueta="Presentación" valor={presentacion} error={e.presentacion} ayuda="Por ejemplo: Caja x 30 tabletas." />
-        <Campo nombre="principioActivo" etiqueta="Principio activo" valor={principioActivo} error={e.principioActivo} />
+        {catalogoEnCompras ? (
+          <p className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 md:col-span-2" data-testid="catalogo-en-compras">Presentación y principio activo vienen de Compras y en el piloto no se editan aquí: se corrigen en Compras.</p>
+        ) : (<>
+          <Campo nombre="presentacion" etiqueta="Presentación" valor={presentacion} error={e.presentacion} ayuda="Por ejemplo: Caja x 30 tabletas." />
+          <Campo nombre="principioActivo" etiqueta="Principio activo" valor={principioActivo} error={e.principioActivo} />
+        </>)}
         <Campo nombre="registroSanitario" etiqueta="Número de registro sanitario" valor={reg?.registroSanitario} error={e.registroSanitario} />
         <Campo nombre="rsVence" fecha etiqueta="Vencimiento del registro" valor={reg?.rsVence} error={e.rsVence} ayuda="30/06/2030, 2030-06-30 o 06/2030." />
         <Campo nombre="formaPresentacion" etiqueta="Forma farmacéutica" valor={reg?.formaPresentacion} error={e.formaPresentacion} />
@@ -43,6 +47,13 @@ export function FormRegulatorio({ productoId, reg, presentacion, principioActivo
         <Campo nombre="fabricante" etiqueta="Fabricante" valor={reg?.fabricante} error={e.fabricante} />
         <Campo nombre="condicionAlmacenamiento" etiqueta="Condición de almacenamiento" valor={reg?.condicionAlmacenamiento} error={e.condicionAlmacenamiento} />
       </div>
+      {puedeMarcarSinEnvase && (
+        <div className="flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 p-3">
+          <input type="hidden" name="sinMaterialEnvaseEnviado" value="1" />
+          <input id="reg-sin-envase" type="checkbox" name="sinMaterialEnvase" value="si" defaultChecked={!!reg?.sinMaterialEnvase} className="mt-1 h-5 w-5 shrink-0 rounded border-gray-400" data-testid="sin-material-envase" />
+          <label htmlFor="reg-sin-envase" className="text-sm text-gray-900"><span className="font-medium">Sin material de envase.</span> Márcalo si este producto no trae envase de vidrio, plástico, tubo ni blíster. Con el formato del acta organoléptica en versión 2, ese punto deja de pedirse. Solo Dirección Técnica lo marca.</label>
+        </div>
+      )}
       <div>
         <label htmlFor="reg-motivo" className="etiqueta">Motivo del cambio <span className="text-red-700">*</span></label>
         <textarea id="reg-motivo" name="motivo" rows={2} className={`campo !min-h-20 py-2 ${e.motivo ? '!border-red-500' : ''}`} placeholder="Por ejemplo: renovación del registro ante DIGEMID." aria-invalid={e.motivo ? true : undefined} />

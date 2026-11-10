@@ -1,9 +1,11 @@
+import { FiltroProducto } from '@/components/inventario/filtro-producto'
 import Link from 'next/link'
-import { Download, FileSpreadsheet, History, SearchX } from 'lucide-react'
+import { Download, FileSpreadsheet, History, Info, SearchX } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { filtroDesdeUrl, consultaDe } from '@/lib/filtro-kardex'
 import { repositorio } from '@/services/repositorio-actual'
 import { totalesKardex } from '@/domain/inventario'
+import { NOTA_RECORRIDO_KARDEX } from '@/domain/carga-inicial'
 import { formatoFecha } from '@/domain/fechas'
 
 export const metadata = { title: 'Kardex — WMS LOGISALUD' }
@@ -14,6 +16,7 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
   const p = await repo.panorama()
   const filtro = filtroDesdeUrl(searchParams)
   const par = await repo.parametrosInventario()
+  const hayCargaEnsayo = (await repo.listarCargasIniciales().catch(() => [])).some((c) => c.piloto && c.estado === 'CONFIRMADA')
   const filas = filtro ? await repo.kardex(filtro) : []
   const prod = filtro ? p.productos.find((x) => x.id === filtro.productoId) : undefined
   const lotes = filtro ? p.lotes.filter((l) => l.productoId === filtro.productoId).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true })) : []
@@ -31,10 +34,7 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
       <form method="get" className="card grid gap-3 md:grid-cols-6 md:items-end" data-testid="filtros-kardex">
         <div className="md:col-span-2">
           <label htmlFor="k-producto" className="etiqueta">Producto</label>
-          <select id="k-producto" name="producto" className="campo" defaultValue={filtro?.productoId ?? ''} required>
-            <option value="" disabled>Elige un producto…</option>
-            {[...p.productos].sort((a, b) => a.descripcion.localeCompare(b.descripcion, 'es')).map((x) => <option key={x.id} value={x.id}>{x.codigo} · {x.descripcion}</option>)}
-          </select>
+          <FiltroProducto inicial={prod ? { id: prod.id, codigo: prod.codigo, descripcion: prod.descripcion, presentacion: prod.presentacion } : null} />
         </div>
         <div>
           <label htmlFor="k-lote" className="etiqueta">Lote</label>
@@ -99,7 +99,7 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
                   <tbody className="divide-y divide-gray-100">
                     {filas.map((f, i) => (
                       <tr key={i} className={f.esSaldoInicial ? 'bg-gray-50 font-medium' : f.esReversa ? 'text-red-800' : ''} data-testid={f.esSaldoInicial ? 'fila-saldo-inicial' : 'fila-kardex'}>
-                        <td className="px-3 py-2">{f.tipoDocumento}</td>
+                        <td className="px-3 py-2">{f.tipoDocumento}{hayCargaEnsayo && f.tipoDocumento === 'Carga inicial' && <span className="ml-2 rounded-full border border-amber-400 bg-amber-100 px-2 py-0.5 text-xs font-bold uppercase text-amber-950" data-testid="kardex-ensayo">Ensayo · piloto</span>}</td>
                         <td className="tabular px-3 py-2">{f.numeroActa ?? '—'}</td>
                         <td className="tabular px-3 py-2">{f.fecha ? formatoFecha(f.fecha.slice(0, 10)) : '—'}</td>
                         <td className="tabular px-3 py-2">{f.lote ?? '—'}</td>
@@ -120,12 +120,15 @@ export default async function PaginaKardex({ searchParams }: { searchParams: Rec
               <ul className="space-y-2 lg:hidden" data-testid="lista-kardex">
                 {filas.map((f, i) => (
                   <li key={i} className={`rounded-lg border bg-white p-3.5 ${f.esSaldoInicial ? 'border-gray-300 bg-gray-50' : 'border-gray-200'}`}>
-                    <p className="flex flex-wrap items-baseline justify-between gap-2"><span className={`font-medium ${f.esReversa ? 'text-red-800' : 'text-gray-900'}`}>{f.tipoDocumento}</span><span className="tabular text-sm text-gray-600">{f.fecha ? formatoFecha(f.fecha.slice(0, 10)) : ''}</span></p>
+                    <p className="flex flex-wrap items-baseline justify-between gap-2"><span className={`font-medium ${f.esReversa ? 'text-red-800' : 'text-gray-900'}`}>{f.tipoDocumento}{hayCargaEnsayo && f.tipoDocumento === 'Carga inicial' ? ' (ensayo, piloto)' : ''}</span><span className="tabular text-sm text-gray-600">{f.fecha ? formatoFecha(f.fecha.slice(0, 10)) : ''}</span></p>
                     {!f.esSaldoInicial && <p className="tabular text-sm text-gray-700">{f.numeroActa ? `Acta ${f.numeroActa} · ` : ''}lote {f.lote} · {f.posicion}{f.contraparte ? ` · ${f.contraparte}` : ''}</p>}
                     <p className="tabular mt-1 text-sm"><span className="text-green-800">{f.entrada ? `+${f.entrada}` : ''}</span> <span className="text-red-800">{f.salida ? `−${f.salida}` : ''}</span> <strong className="ml-2 text-gray-900">Saldo {f.saldo.toLocaleString('es-PE')}</strong></p>
                   </li>
                 ))}
               </ul>
+              {filas.some((f) => f.tipoDocumento === 'Carga inicial') && (
+                <p className="flex items-start gap-2 text-sm text-gray-600" data-testid="nota-carga-inicial"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{NOTA_RECORRIDO_KARDEX}</p>
+              )}
             </>
           )}
         </>

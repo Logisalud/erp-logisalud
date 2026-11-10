@@ -211,11 +211,14 @@ export default async function DetalleObligacion({ params }: { params: { id: stri
           </p>
         ) : null}
         {obligacion.recepcion ? (
+          // Las guías y facturas viven en la recepción, cada una con su archivo
+          // (0064, 0088) — y ahí se corrigen. Antes esta línea leía
+          // `storage_path_guia_recibida`, sin uso desde 0064: decía "guía —"
+          // aunque la guía estuviera.
           <p className="mt-1 text-sm text-gray-600">
-            Documentos de la recepción:{' '}
-            {obligacion.recepcion.storage_path_guia_recibida ? 'guía ✓' : 'guía —'}
-            {' · '}
-            {obligacion.recepcion.storage_path_factura_proveedor ? 'factura ✓' : 'factura —'}
+            <Link href={`/almacen/recepciones/${obligacion.recepcion.id}`} className="text-logisalud-teal underline">
+              Ver guías y facturas de la recepción
+            </Link>
           </p>
         ) : null}
         {obligacion.cotizacion_storage_path || obligacion.factura_storage_path ? (

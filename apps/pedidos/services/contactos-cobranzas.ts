@@ -1,7 +1,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanEnv } from "@/lib/env";
-import { logAudit } from "./audit-log";
+import { logAudit, ultimaCorrida } from "./audit-log";
+import { claveDeCobranzas } from "@/domain/documentos";
 
 /**
  * El viaje de vuelta del puente: el contacto del cliente, que lo tiene
@@ -147,8 +148,11 @@ async function contactosDePedidos(): Promise<Map<string, ContactoPedidos>> {
 
   const porRuc = new Map<string, ContactoPedidos>();
   for (const c of filas) {
-    const ruc = (c.ruc_o_documento ?? "").trim();
-    if (ruc === "") continue;
+    // Indexado por la llave que usa cobranzas, no por el documento pelado:
+    // allá el DNI va relleno con ceros y si no se normaliza acá, ningún
+    // cliente con DNI cruza nunca.
+    const ruc = claveDeCobranzas(c.ruc_o_documento);
+    if (ruc === null) continue;
     porRuc.set(ruc, {
       celular: vacio(c.whatsapp) ? null : (c.whatsapp ?? "").trim(),
       direccion: limpiarDireccion(entrega.get(c.id) ?? c.direccion_fiscal),
@@ -168,7 +172,7 @@ async function contactosDePedidos(): Promise<Map<string, ContactoPedidos>> {
  * levanta el error: a medio camino es mejor haber llenado 400 fichas que
  * ninguna, y la próxima corrida retoma lo que quedó.
  */
-export async function sincronizarContactosACobranzas(actor: string): Promise<ResultadoContactos> {
+export async function sincronizarContactosACobranzas(actor: string | null): Promise<ResultadoContactos> {
   const acceso = accesoACobranzas();
   if (!acceso) {
     throw new Error(
@@ -248,10 +252,38 @@ export async function sincronizarContactosACobranzas(actor: string): Promise<Res
     accion: "sincronizar_contactos_cobranzas",
     entidad: "clientes_cobranzas",
     entidadId: "cartera",
-    datosDespues: { celulares, direcciones, ubicaciones, soloEnPedidos },
+    datosDespues: {
+      celulares,
+      direcciones,
+      ubicaciones,
+      soloEnPedidos,
+      origen: actor ? "persona" : "cron",
+    },
   });
 
   if (ultimoError) throw new Error(`${ultimoError}. Se completaron ${celulares + direcciones} datos antes de fallar.`);
 
   return { celulares, direcciones, ubicaciones, soloEnPedidos, cuando };
+}
+
+export type UltimaCorridaDeContactos = {
+  cuando: string;
+  porElCron: boolean;
+  celulares: number;
+  direcciones: number;
+  ubicaciones: number;
+} | null;
+
+/** Cuándo se completaron los contactos por última vez, y con qué resultado. */
+export async function ultimaCorridaDeContactos(): Promise<UltimaCorridaDeContactos> {
+  const c = await ultimaCorrida("sincronizar_contactos_cobranzas");
+  if (!c) return null;
+  const n = (k: string) => Number(c.datos[k] ?? 0);
+  return {
+    cuando: c.cuando,
+    porElCron: c.porElCron,
+    celulares: n("celulares"),
+    direcciones: n("direcciones"),
+    ubicaciones: n("ubicaciones"),
+  };
 }

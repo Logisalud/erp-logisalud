@@ -3,18 +3,21 @@ import { middlewareSesion } from '@logisalud/auth/middleware'
 import { modoDemoActivo } from '@/lib/demo'
 import { COOKIE_ROL_DEMO } from '@/lib/sesion-demo'
 
+/** Las páginas públicas del cliente (P9): sin usuario. Solo `/seguimiento` y lo que cuelga de él. */
+const esRutaPublicaDelCliente = (pathname: string) => pathname === '/seguimiento' || pathname.startsWith('/seguimiento/')
+
 export async function middleware(request: NextRequest) {
   if (modoDemoActivo()) {
     // En demostración no hay Supabase: la "sesión" es una cookie con el rol que se prueba.
     const { pathname } = request.nextUrl // sin el basePath
-    if (!request.cookies.get(COOKIE_ROL_DEMO)?.value && pathname !== '/login') {
+    if (!request.cookies.get(COOKIE_ROL_DEMO)?.value && pathname !== '/login' && !esRutaPublicaDelCliente(pathname)) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
     }
     return NextResponse.next()
   }
-  return middlewareSesion(request, { rutasPublicas: ['/sin-acceso'] })
+  return middlewareSesion(request, { rutasPublicas: ['/sin-acceso', '/seguimiento'] })
 }
 
 // Matcher literal (Next lo lee en build). Los paths se escriben SIN basePath.

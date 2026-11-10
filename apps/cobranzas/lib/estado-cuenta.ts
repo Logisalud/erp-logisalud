@@ -189,6 +189,25 @@ const ORDEN_EN_EL_DIA: Record<TipoMovimiento, number> = {
   AJUSTE: 6,
 };
 
+/**
+ * Cómo se lee el estado de una letra que todavía no se cobró.
+ *
+ * Son los cuatro valores de `letras.estado`; 'pagada' no pasa por acá.
+ * Cualquier otro se devuelve tal cual en vez de esconderse detrás de un
+ * genérico: si mañana aparece un estado nuevo, se ve.
+ */
+function etiquetaDeEstadoDeLetra(estado: string): string {
+  switch (estado) {
+    case 'protestada': return 'protestada';
+    case 'en_banco': return 'en banco';
+    case 'en_cartera': return 'en cartera';
+    default: return estado;
+  }
+}
+
+const formatearImporte = (n: number) =>
+  'S/ ' + n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 // ---- El cálculo ----------------------------------------------------------
 
 /**
@@ -278,23 +297,39 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
     });
   }
 
-  // 4. Letras. Sólo las PAGADAS descuentan: una letra en cartera es una
-  //    promesa, no un cobro. Las pendientes no generan fila porque la deuda
-  //    ya está representada por su factura.
+  // 4. Letras.
+  //
+  //    Sólo las PAGADAS descuentan: una letra en cartera es una promesa, no
+  //    un cobro, y la deuda ya está representada por su factura. Contarla
+  //    dos veces dejaría el extracto en cero sobre una factura impaga.
+  //
+  //    Pero las demás SÍ se muestran, en S/ 0,00 y sin tocar el acumulado.
+  //    Antes se omitían, y eso dejaba una pantalla que mentía por omisión:
+  //    FFF1-1034 de ADRIXEL tiene cinco letras —una pagada y cuatro
+  //    protestadas por S/ 10.248,68, que es exactamente su saldo— y el
+  //    estado de cuenta mostraba sólo la pagada. Quien lo leía veía una
+  //    factura que debe diez mil soles sin una sola fila que lo explique.
+  //    Lo levantó el usuario el 2026-11-09.
+  //
+  //    El importe va en el detalle y no en el haber a propósito: en el haber
+  //    se sumaría al acumulado y descontaría una deuda que sigue viva.
   for (const l of letras) {
-    if (l.estado !== 'pagada') continue;
     const monto = aCentimos(l.monto_aplicado);
-    sumar(cobrado, l.documento_id, monto);
+    const pagada = l.estado === 'pagada';
+
+    if (pagada) sumar(cobrado, l.documento_id, monto);
+
+    const numero = l.numero_letra ? `letra ${l.numero_letra}` : 'letra sin número';
 
     movimientos.push({
       fecha: l.fecha_vencimiento ?? '',
       tipo: 'LETRA',
-      etiqueta: 'Letra pagada',
+      etiqueta: pagada ? 'Letra pagada' : `Letra ${etiquetaDeEstadoDeLetra(l.estado)}`,
       documento: comprobantePorId.get(l.documento_id) ?? '—',
       facturaId: l.documento_id,
-      detalle: l.numero_letra ? `letra ${l.numero_letra}` : null,
+      detalle: pagada ? numero : `${numero} · ${formatearImporte(monto)} sin cobrar`,
       debe: 0,
-      haber: monto,
+      haber: pagada ? monto : 0,
       saldo: 0,
     });
   }

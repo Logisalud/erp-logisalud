@@ -4,9 +4,11 @@ import type {
   ActaRecepcionVista, AlertaVista, CambioVista, ExpedienteVista, FirmaVista, OcPendiente, OrganolepticaVista, VersionSolicitud,
 } from '@/domain/entradas-vistas'
 import type { EstadoLineaSolicitud, EstadoSolicitud, TipoIngreso, VerificacionLinea } from '@/domain/entradas'
+import { VERSIONES_ORGANOLEPTICA_INICIALES } from '@/domain/formatos'
 import { construirPanoramaDemo, sumarDias } from './datos'
 import { iniciarInventario, type InvDemo } from './libro'
 import type { Actor } from '../repositorio'
+import { hoyLima } from '@/lib/hoy-lima'
 
 export interface LineaSolicitudDemo {
   id: string
@@ -78,6 +80,8 @@ export interface SolicitudDemo {
   cambios: CambioVista[]
   recepcion?: RecepcionDemo
   expedienteId?: string
+  /** OS-5: si es el retorno de una Orden de Salida (recepción tipo devolución). */
+  retorno?: import('@/domain/entradas-vistas').RetornoDeSalida
 }
 
 export interface ActaDemo extends Omit<ActaRecepcionVista, 'faltan' | 'reemplazaANumero' | 'reemplazadaPorNumero'> {
@@ -104,6 +108,10 @@ export interface EstadoDemo {
   desp?: import('./despacho-demo').DespachoDemoEstado
   /** S6a: documentos regulatorios (se crea al primer uso). */
   docs?: import('./documentos-demo').DocsDemoEstado
+  /** OS-5: productos con antecedentes de calidad (se evalúan al 100 %). */
+  antecedentes?: import('@/domain/muestreo').AntecedenteCalidadVista[]
+  /** OS-5: la Orden de Salida ya despachada de la demostración (para probar el retorno) se creó. */
+  os5Sembrado?: boolean
   solicitudes: SolicitudDemo[]
   actas: ActaDemo[]
   organolepticas: OrganolepticaVista[]
@@ -120,7 +128,15 @@ export interface EstadoDemo {
   plazoRegistroComprasHoras: number
   /** Días antes del vencimiento de un lote en que se alerta (D-30). */
   diasAlertaVencimiento: number
+  /** Piloto F1: proveedores con la marca «vencimiento solo mes y año» (por RUC). */
+  proveedoresVencimiento: Record<string, { ruc: string; nombre?: string; soloMesAnio: boolean }>
+  /** Piloto F1: correcciones auditadas de la fecha de un lote (historial inmutable). */
+  cambiosVencimiento: import('@/domain/vencimiento').CambioVencimientoLote[]
+  /** Piloto F3: versiones de los formatos controlados. */
+  formatos: import('@/domain/formatos').VersionFormatoVista[]
   sembrado?: boolean
+  /** SA-1: las órdenes de ejemplo ya se sembraron (o se empezó a sembrarlas). */
+  ejemplosSembrados?: boolean
 }
 
 export type { FirmaVista }
@@ -129,7 +145,7 @@ export type { FirmaVista }
 const g = globalThis as unknown as { __wmsDemo?: EstadoDemo }
 
 export function estado(): EstadoDemo {
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLima()
   if (!g.__wmsDemo || g.__wmsDemo.panorama.hoy !== hoy) {
     const panorama = construirPanoramaDemo(hoy)
     const ts = (dias: number, h: string) => `${sumarDias(hoy, dias)}T${h}:00Z`
@@ -139,6 +155,8 @@ export function estado(): EstadoDemo {
       cambiosRegulatorios: [],
       inv: iniciarInventario(panorama),
       solicitudes: [], actas: [], organolepticas: [], alertas: [], expedientes: [], compras: [], correlativos: {},
+      proveedoresVencimiento: {}, cambiosVencimiento: [],
+      formatos: VERSIONES_ORGANOLEPTICA_INICIALES.map((v) => ({ formato: 'ACTA_ORGANOLEPTICA' as const, ...v, ...(v.estado === 'APROBADA' ? { aprobadaEn: new Date().toISOString() } : { propuestaEn: new Date().toISOString() }) })),
       aprobadoEn: {}, plazoPorTrasladarHoras: 24, plazoMovSinVerificarHoras: 24, plazoRegistroComprasHoras: 24, diasAlertaVencimiento: 90,
       auditoria: [
         { id: 6, ts: ts(0, '08:12'), actor: 'Dirección Técnica (demo)', evento: 'regulatorio_editado', entidad: 'producto_regulatorio', entidadId: 'DEMO-019', detalle: 'Registro sanitario actualizado', motivo: 'Renovación del registro' },

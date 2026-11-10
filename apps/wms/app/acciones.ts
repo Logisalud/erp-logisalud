@@ -1,5 +1,6 @@
 'use server'
 
+import { modoPilotoActivo } from '@/lib/modo-piloto'
 import { transitoPorLote, transitoPorPosicion } from '@/domain/transito'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -66,12 +67,24 @@ export async function editarRegulatorioAccion(_prev: EstadoFormulario, formData:
   for (const k of ['registroSanitario', 'rsVence', 'formaPresentacion', 'concentracion', 'fabricante', 'condicionAlmacenamiento', 'presentacion', 'principioActivo'] as const) {
     datos[k] = campo(formData, k)
   }
+  // PIL-8: en el piloto presentación y principio activo se corrigen en Compras; el WMS no los envía ni los escribe.
+  if (await modoPilotoActivo()) { delete datos.presentacion; delete datos.principioActivo }
+  // «Sin material de envase» solo lo marca Dirección Técnica (la casilla solo se le muestra a ella).
+  if (ctx.roles.includes('direccion_tecnica') && formData.has('sinMaterialEnvaseEnviado')) datos.sinMaterialEnvase = formData.get('sinMaterialEnvase') === 'si' ? 'si' : 'no'
   const r = await repositorio().editarRegulatorio(id, datos, campo(formData, 'motivo'), {
     id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles,
   })
   if (!r.ok) return { ok: false, mensaje: r.mensaje, errores: r.errores }
   revalidatePath(`/productos/${id}`)
   return { ok: true, mensaje: r.cambios === 0 ? 'No hubo nada que cambiar.' : `Listo. Guardamos ${r.cambios} ${r.cambios === 1 ? 'cambio' : 'cambios'} y quedaron en el historial.` }
+}
+
+/** D-196: Dirección Técnica (o su asistente) valida un producto que dio de alta o editó el Administrador. */
+export async function validarProductoAccion(id: string): Promise<ResultadoAccion> {
+  const ctx = await exigirContexto()
+  const r = await repositorio().validarProducto(id, { id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles })
+  if (r.ok) revalidatePath(`/productos/${id}`)
+  return r
 }
 
 /** Para pantallas que solo necesitan saber si hay sesión sin redirigir. */

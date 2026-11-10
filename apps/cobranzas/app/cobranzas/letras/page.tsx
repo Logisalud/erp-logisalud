@@ -211,6 +211,21 @@ export default function LetrasPage() {
 
   const sumaMulti = facturasCubiertas.reduce((a, fc) => a + (Number(fc.monto_aplicado) || 0), 0);
 
+  /**
+   * La retención del IGV que el cliente se queda de cada factura.
+   *
+   * Va por FACTURA y no por letra: una factura partida en tres letras tiene
+   * una sola retención. Se guarda donde vivió siempre —`pagos` con
+   * tipo='retencion'—, no en una columna nueva de letras, así hay un solo
+   * número por factura y no dos que se contradigan.
+   */
+  const [retenciones, setRetenciones] = useState<Record<string, string>>({});
+  const retencionDe = (documentoId: string) => Number(retenciones[documentoId]) || 0;
+  const retencionesAEnviar = (documentoIds: string[]) =>
+    Array.from(new Set(documentoIds))
+      .map(id => ({ documento_id: id, monto: retencionDe(id) }))
+      .filter(r => r.monto > 0);
+
   const guardarLetraMulti = async () => {
     if (!factura) return;
     setErrMsg('');
@@ -238,12 +253,16 @@ export default function LetrasPage() {
           banco:             letraMulti.banco.trim()      || undefined,
           documentos,
         }],
+        retenciones: retencionesAEnviar(documentos.map(d => d.documento_id)),
       }),
     });
     const d = await res.json();
     if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
+    // La letra se guardó aunque la retención haya fallado: se avisa.
+    if (d.aviso) setErrMsg(d.aviso);
     setModoMulti(false);
     setFacturasCubiertas([]);
+    setRetenciones({});
     setLetraMulti(filaVacia());
     await recargarLetras();
     setGuardando(false);
@@ -272,11 +291,14 @@ export default function LetrasPage() {
           fecha_vencimiento: f.fecha_vencimiento,
           banco:             f.banco.trim()      || undefined,
         })),
+        retenciones: retencionesAEnviar([factura.id]),
       }),
     });
     const d = await res.json();
     if (d.error) { setErrMsg(d.error); setGuardando(false); return; }
+    if (d.aviso) setErrMsg(d.aviso);
     setFilas([filaVacia()]);
+    setRetenciones({});
     await recargarLetras();
     setGuardando(false);
   };
@@ -766,13 +788,22 @@ export default function LetrasPage() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 flex-wrap">
                     <button
                       onClick={() => setFilas([...filas, filaVacia()])}
                       className="text-sm text-logisalud-teal hover:underline font-medium"
                     >
                       + Agregar fila
                     </button>
+                    <label className="flex items-center gap-2 text-xs text-gray-500">
+                      Retención IGV de la factura
+                      <input
+                        type="number" min="0" step="0.01" placeholder="0.00"
+                        value={factura ? (retenciones[factura.id] ?? '') : ''}
+                        onChange={e => factura && setRetenciones(prev => ({ ...prev, [factura.id]: e.target.value }))}
+                        className="w-24 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                      />
+                    </label>
                     <button
                       onClick={guardarLetras}
                       disabled={guardando}
@@ -807,16 +838,27 @@ export default function LetrasPage() {
                             Saldo: <span className="text-orange-600 font-medium">{fmt(Number(fc.factura.saldo_pendiente))}</span>
                           </p>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-xs text-gray-400">S/</span>
-                          <input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={fc.monto_aplicado}
-                            onChange={e => actualizarMontoAplicado(idx, e.target.value)}
-                            className="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
-                          />
+                        <div className="flex items-end gap-2 shrink-0">
+                          <div className="text-right">
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Retención IGV</label>
+                            <input
+                              type="number" min="0" step="0.01" placeholder="0.00"
+                              value={retenciones[fc.factura.id] ?? ''}
+                              onChange={e => setRetenciones(prev => ({ ...prev, [fc.factura.id]: e.target.value }))}
+                              className="w-24 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                            />
+                          </div>
+                          <div className="text-right">
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Monto aplicado</label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={fc.monto_aplicado}
+                              onChange={e => actualizarMontoAplicado(idx, e.target.value)}
+                              className="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-logisalud-teal"
+                            />
+                          </div>
                         </div>
                         {idx > 0 && (
                           <button

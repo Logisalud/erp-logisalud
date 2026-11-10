@@ -62,7 +62,7 @@ const SECTIONS = [
     href: "/admin/credito",
     title: "Crédito del cliente",
     description:
-      "La deuda que trae el ERP de cobranzas y la regla que frena un pedido a crédito cuando el cliente está vencido.",
+      "El puente con el ERP de cobranzas: la deuda que trae y frena un pedido a crédito, y los contactos que le manda para completar la cartera del vendedor.",
   },
   {
     href: "/admin/maestros/despacho",

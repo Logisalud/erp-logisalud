@@ -1,16 +1,21 @@
 import 'server-only'
+import { ETIQUETA_REGIMEN } from '@/domain/muestreo'
 import ExcelJS from 'exceljs'
 import { CHECKLIST_ORGANOLEPTICO, ETIQUETA_DECISION, ETIQUETA_TIPO_INGRESO } from '@/domain/entradas'
 import type { ActaRecepcionVista, OrganolepticaVista, SolicitudDetalle } from '@/domain/entradas-vistas'
 import { totalesKardex, type FilaKardex, type FiltroKardex } from '@/domain/inventario'
-import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
+import { formatoFecha, formatoFechaHora, textoVencimiento } from '@/domain/fechas'
+import type { ExtraActaOrganoleptica } from '@/domain/acta-organoleptica-formato'
+import { hojaActaOrganoleptica } from '../formatos/acta-organoleptica-hoja'
+import { hojaActaRecepcion } from './acta-recepcion-hoja'
+import { MARCA_BORRADOR, actaRecepcionEsBorrador, organolepticaEsBorrador } from '@/domain/borrador-documento'
 
 // Versión Excel de los documentos del ingreso (mismos datos que el PDF). El RUC va siempre como texto.
 
 const VERDE = 'FF4BB168'
 const GRIS = 'FFF3F4F6'
 
-function libro(titulo: string, hoja: string, subtitulo: string) {
+function libro(titulo: string, hoja: string, subtitulo: string, borrador = false) {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'WMS LOGISALUD'
   wb.created = new Date()
@@ -20,6 +25,13 @@ function libro(titulo: string, hoja: string, subtitulo: string) {
   ws.getCell('A2').value = subtitulo
   ws.getCell('A2').font = { color: { argb: 'FF6B7280' } }
   ws.addRow([])
+  if (borrador) {
+    // Fila 3: la marca, bien visible, y también en el encabezado de impresión de cada página.
+    ws.getCell('A3').value = MARCA_BORRADOR
+    ws.getCell('A3').font = { bold: true, size: 12, color: { argb: 'FF92400E' } }
+    ws.getCell('A3').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } }
+    ws.headerFooter.oddHeader = `&C&B&K92400E${MARCA_BORRADOR}`
+  }
   return { wb, ws }
 }
 
@@ -81,64 +93,14 @@ export async function xlsxSolicitudIngreso(sol: SolicitudDetalle): Promise<Buffe
   return salida(wb)
 }
 
+/** Acta de Recepción: el formato oficial LS-FR.03.05 en Excel (el mismo modelo que dibuja el PDF). */
 export async function xlsxActaRecepcion(acta: ActaRecepcionVista): Promise<Buffer> {
-  const c = acta.contenido
-  const i = c.ingreso
-  const { wb, ws } = libro(`Acta de Recepción de Productos ${acta.numero}`, 'Acta de recepción', `Formato LS-FR.03.05 · ${acta.estado === 'FIRMADA' ? `firmada el ${formatoFechaHora(acta.firmadaEn)}` : acta.estado.toLowerCase()} · huella ${acta.hash}`)
-  ws.columns = [{ width: 30 }, { width: 44 }, { width: 18 }, { width: 18 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }]
-  pares(ws, [
-    ['Solicitud', c.solicitud ? `${c.solicitud.numero} (v${c.solicitud.version})` : undefined],
-    ['Tipo de ingreso', ETIQUETA_TIPO_INGRESO[i.tipo]],
-    ['Propietario del stock', i.propietario],
-    [i.tipo === 'COMPRA_LOCAL' ? 'Proveedor' : 'Cliente', i.contraparteNombre],
-    ['RUC', i.contraparteRuc ? String(i.contraparteRuc) : undefined],
-    ['O.C.', i.ocCodigo], ['Guía de remisión', i.guiaNumero], ['Factura', i.facturaNumero],
-    ['Documento original', i.docOriginalNumero ? `${i.docOriginalTipo ?? ''} ${i.docOriginalNumero}`.trim() : undefined],
-    ['Temperatura (°C)', i.temperaturaC], ['Bultos', i.bultos], ['Paletas', i.paletas], ['Placa', i.placa], ['Tipo de conteo', i.tipoConteo],
-    ['Observaciones', i.observaciones],
-  ])
-  titulo(ws, 'PRODUCTOS')
-  encabezado(ws, ['Código', 'Descripción', 'R.S.', 'Lote', 'F. expira', 'Cant. solicitud', 'Cant. recibida', 'Posición'])
-  for (const l of c.lineas) {
-    if (l.lotes.length === 0) ws.addRow([l.codigo, l.descripcion, l.registroSanitario ?? '—', '—', '—', l.cantidadEstablecida, l.cantidadRecibida, '—'])
-    for (const x of l.lotes) ws.addRow([l.codigo, l.descripcion, l.registroSanitario ?? '—', x.lote, x.venceTexto ?? formatoFecha(x.vence), x.cantidadInicial ?? l.cantidadEstablecida, x.cantidad, x.posicion])
-  }
-  titulo(ws, 'FIRMAS')
-  encabezado(ws, ['Rol', 'Nombre', 'DNI', 'Placa', 'Fecha y hora'])
-  for (const f of acta.firmas) ws.addRow([f.rol, f.nombre ?? '—', f.dni ? String(f.dni) : '—', f.placa ?? '—', formatoFechaHora(f.firmadoEn)])
-  return salida(wb)
+  return salida(await hojaActaRecepcion(acta))
 }
 
-export async function xlsxActaOrganoleptica(a: OrganolepticaVista): Promise<Buffer> {
-  const { wb, ws } = libro(`Acta de Análisis Organoléptico ${a.numero}`, 'Acta organoléptica', `Formato LS-FR.55.02 · ${a.estado === 'FIRMADA' ? `firmada · huella ${a.hash}` : a.estado === 'PENDIENTE_DT' ? 'pendiente de la decisión de Dirección Técnica' : 'borrador'}`)
-  ws.columns = [{ width: 34 }, { width: 50 }, { width: 16 }]
-  pares(ws, [
-    ['Motivo', a.ingresoTipo === 'COMPRA_LOCAL' ? 'Compra' : a.ingresoTipo === 'DEVOLUCION' ? 'Devolución' : 'Otros (ingreso de cliente)'],
-    ['Referencia', a.referencia], ['Solicitud', a.solicitudNumero], ['Producto', a.producto], ['Lote', a.lote],
-    ['Nombre genérico', a.principioActivo], ['Vencimiento', a.vence ? formatoFecha(a.vence) : undefined],
-    ['Cantidad recibida', a.cantidadLote], ['Cantidad de muestra', a.cantidadMuestra],
-    ['Registro sanitario', a.registroSanitario], ['Vencimiento del R.S.', a.rsVence ? formatoFecha(a.rsVence) : undefined],
-    ['Fabricante / proveedor', a.fabricante], ['Forma de presentación', a.formaPresentacion], ['Propietario', a.propietario],
-    ['Certificado de análisis / protocolo', a.datos.certAnalisis == null ? undefined : a.datos.certAnalisis ? 'SÍ' : 'NO'],
-  ])
-  const c = a.datos.checklist
-  for (const g of CHECKLIST_ORGANOLEPTICO.filter((g) => !g.opcional || g.items.some((i) => c[i.id]))) {
-    titulo(ws, g.titulo.toUpperCase())
-    for (const i of g.items) {
-      const r = ws.addRow([i.texto, c[i.id] ? (c[i.id] === 'C' ? 'SÍ' : c[i.id] === 'NC' ? 'NO' : 'N.A.') : '—'])
-      r.getCell(2).font = { bold: true }
-    }
-  }
-  titulo(ws, 'OBSERVACIÓN, DESTINO Y CONCLUSIÓN')
-  pares(ws, [
-    ['Observación', a.datos.observacion],
-    ['Destino sugerido', a.datos.destinoSugerido === 'APROBADO' ? 'APROBADO' : a.datos.destinoSugerido === 'DEVOLUCION' ? 'DEVOLUCIÓN' : a.datos.destinoSugerido === 'BAJA' ? 'BAJA' : undefined],
-    ['Conclusión', a.datos.conclusion === 'CONFORME' ? 'CONFORME' : a.datos.conclusion === 'NO_CONFORME' ? 'NO CONFORME' : undefined],
-    ['Decisión de Dirección Técnica', a.decision ? ETIQUETA_DECISION[a.decision] : 'pendiente'],
-    ['Decidido por', a.decididoPor ? `${a.decididoPor} · ${formatoFechaHora(a.decididoEn)}` : undefined],
-    ['Observación de Dirección Técnica', a.observacionDt],
-  ])
-  return salida(wb)
+/** Acta de Evaluación Organoléptica: la plantilla OFICIAL LS-FR.55.02 llena (la misma hoja de la que se dibuja el PDF). */
+export async function xlsxActaOrganoleptica(a: OrganolepticaVista, extra: ExtraActaOrganoleptica = {}): Promise<Buffer> {
+  return salida(await hojaActaOrganoleptica(a, extra))
 }
 
 /** Kardex en Excel: las mismas columnas del formato de ejemplo. El RUC siempre va como texto de 11 dígitos. */

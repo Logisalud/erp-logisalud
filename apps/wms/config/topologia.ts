@@ -91,7 +91,7 @@ export function generarPosiciones(): PosicionConfig[] {
   add('A-M1', 'A', null, null, null, 'MESA', 'RECEPCION', null)
   for (let n = 6; n <= 9; n++) add(`A-${n}`, 'A', n, null, null, 'PISO', 'CUARENTENA', null)
   for (let k = 1; k <= 7; k++) add(`K-${k}`, 'K', k, null, null, 'PISO', 'DESPACHO', null)
-  add('K-M2', 'K', null, null, null, 'MESA', 'EMBALAJE', null)
+  add('K-M2', 'K', null, null, null, 'MESA', 'DESPACHO', null)
 
   // Rack A (10–27): Diphasac aprobados; en el nivel 1 de A-10..A-13, devoluciones.
   for (let p = 10; p <= 27; p++) {

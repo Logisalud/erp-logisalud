@@ -110,6 +110,33 @@ export async function GET(req: NextRequest) {
     };
 
     const pagosPorDoc = new Map<string, PagoRow[]>();
+    // Los comentarios de cobranza. El de la factura por su documento_id; el
+    // del cliente por RUC, que es una consulta aparte porque no cuelga de la
+    // factura. Los dos existen desde la migración 20261106.
+    const comentarioPorDoc = new Map<string, string>();
+    for (const c of await traerDeFacturas<{ documento_id: string; comentario: string }>(
+      'comentarios_documento',
+      'documento_id, comentario',
+      'documento_id',
+      ['documento_id'],
+    )) {
+      comentarioPorDoc.set(c.documento_id, c.comentario);
+    }
+
+    const comentarioPorCliente = new Map<string, string>();
+    {
+      const rucs = Array.from(new Set(data.map(r => (r as Record<string, unknown>).cliente_ruc as string)));
+      for (let i = 0; i < rucs.length; i += 200) {
+        const { data: cs } = await db
+          .from('comentarios_cliente')
+          .select('cliente_ruc, comentario')
+          .in('cliente_ruc', rucs.slice(i, i + 200));
+        for (const c of cs ?? []) {
+          comentarioPorCliente.set(c.cliente_ruc as string, c.comentario as string);
+        }
+      }
+    }
+
     for (const p of await traerDeFacturas<PagoRow>(
       'pagos',
       'documento_id, monto, fecha_pago, referencia, tipo, created_at, medio_cobro, estado_efectivo, fecha_deposito',
@@ -309,6 +336,8 @@ export async function GET(req: NextRequest) {
         '% Morosidad':        saldo > 0 ? Math.round(vencido / saldo * 10000) / 100 : 0,
         'Rango':              row.rango_vencimiento ?? '',
         'Tiene Letras':       row.tiene_letras ? 'Sí' : 'No',
+        'Comentario Factura': comentarioPorDoc.get(id) ?? '',
+        'Comentario Cliente': comentarioPorCliente.get(row.cliente_ruc as string) ?? '',
       };
     });
 
@@ -323,6 +352,7 @@ export async function GET(req: NextRequest) {
       { wch: 14 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 13 }, { wch: 11 }, { wch: 12 }, { wch: 15 }, { wch: 11 },
+      { wch: 42 }, { wch: 42 },
     ];
     const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
     ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };

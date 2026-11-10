@@ -14,7 +14,25 @@ const nextConfig = {
     NEXT_PUBLIC_BASE_PATH: '/wms',
   },
   // Cada PDF de documentos regulatorios (≤ 15 MB) viaja en una acción del servidor
-  experimental: { serverActions: { bodySizeLimit: '16mb' } },
+  experimental: {
+    serverActions: { bodySizeLimit: '16mb' },
+    // Las fuentes estándar de pdfkit (Helvetica, etc. — las usa @react-pdf/renderer en todos los PDF) se cargan con un
+    // `require('#standard-fonts/…')` por «imports» del paquete: el rastreo de archivos de Vercel no lo ve y la función
+    // serverless se despliega sin ellas («Cannot find module …/standard-fonts/Helvetica.cjs» → HTTP 500). Se incluyen a mano.
+    // Ver D-177. Los dos prefijos cubren node_modules local de la app y el hoisted de la raíz del monorepo.
+    outputFileTracingIncludes: {
+      '/**/*': [
+        './node_modules/pdfkit/package.json',
+        './node_modules/pdfkit/js/pdfkit.node.mjs',
+        './node_modules/pdfkit/js/standard-fonts/**',
+        './node_modules/pdfkit/js/data/**',
+        '../../node_modules/pdfkit/package.json',
+        '../../node_modules/pdfkit/js/pdfkit.node.mjs',
+        '../../node_modules/pdfkit/js/standard-fonts/**',
+        '../../node_modules/pdfkit/js/data/**',
+      ],
+    },
+  },
   images: {
     unoptimized: true,
   },

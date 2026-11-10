@@ -4,19 +4,23 @@ import { ArrowLeft, CheckCircle2, MapPin } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { filasDeStock } from '@/domain/panorama'
-import { puedeEditarRegulatorio } from '@/domain/permisos'
+import { puedeEditarRegulatorio, puedeValidarProducto } from '@/domain/permisos'
 import { etiquetaCampo } from '@/domain/tipos'
 import { diasHasta, situacionRS } from '@/domain/regulatorio'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { ChipEstado, ChipPorTrasladar, ChipRS } from '@/components/chips'
+import { modoPilotoActivo } from '@/lib/modo-piloto'
+import { datosFaltantes, productoCompleto } from '@/domain/regulatorio'
 import { FormRegulatorio } from '@/components/form-regulatorio'
+import { vinculosBonificacion } from '@/domain/bonificacion'
+import { PanelValidarProducto } from '@/components/panel-validar-producto'
 import { vistaPropietario } from '@/components/propietarios-color'
 
 export const metadata = { title: 'Producto — WMS LOGISALUD' }
 
 export default async function DetalleProducto({ params, searchParams }: { params: { id: string }; searchParams: { creado?: string } }) {
   const ctx = await exigirContexto()
-  const p = await repositorio().panorama()
+  const [p, piloto] = await Promise.all([repositorio().panorama(), modoPilotoActivo()])
   const id = decodeURIComponent(params.id)
   const prod = p.productos.find((x) => x.id === id)
   if (!prod) notFound()
@@ -24,8 +28,12 @@ export default async function DetalleProducto({ params, searchParams }: { params
   const sit = situacionRS(reg?.rsVence, p.hoy)
   const stock = filasDeStock(p).filter((f) => f.producto.id === prod.id)
   const total = stock.reduce((n, f) => n + f.saldo.cantidad, 0)
-  const puedeEditar = puedeEditarRegulatorio(ctx.roles)
-  const historial = await repositorio().historialRegulatorio(prod.id)
+  // código de bonificación (BO): es el mismo producto que su producto normal; sus datos regulatorios son los de ese producto y se editan allí (D-213)
+  const { baseDe, bonificacionDe } = vinculosBonificacion(p.productos)
+  const base = baseDe.get(prod.id)
+  const bonificacion = bonificacionDe.get(prod.id)
+  const puedeEditar = puedeEditarRegulatorio(ctx.roles) && !base
+  const historial = await repositorio().historialRegulatorio((base ?? prod).id)
 
   const dato = (k: string, v: string | undefined | null) => (
     <div className="flex flex-col gap-0.5 py-3 sm:flex-row sm:items-baseline sm:gap-6">
@@ -43,13 +51,30 @@ export default async function DetalleProducto({ params, searchParams }: { params
           <CheckCircle2 className="h-6 w-6 shrink-0" aria-hidden />
           <div>
             <p className="font-medium">Listo. El producto quedó dado de alta.</p>
-            <p className="text-sm">Sus datos regulatorios ya rigen. Cualquier cambio posterior queda en el historial con su motivo.</p>
+            <p className="text-sm">{reg?.estadoValidacion === 'PENDIENTE' ? 'Sigue: Dirección Técnica lo valida para que se puedan aprobar sus lotes. Cualquier cambio posterior queda en el historial con su motivo.' : 'Sus datos regulatorios ya rigen. Cualquier cambio posterior queda en el historial con su motivo.'}</p>
           </div>
         </div>
       )}
 
+      {base && (
+        <div role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-4 text-sm text-teal-950" data-testid="producto-es-bonificacion">
+          <p className="font-medium">Es el código de bonificación de {base.codigo}</p>
+          <p className="mt-1">Es el mismo producto, con otro código: sus datos regulatorios son los de <Link href={`/productos/${base.id}`} className="underline">{base.descripcion} ({base.codigo})</Link>. Se completan y se editan allí, una sola vez.</p>
+        </div>
+      )}
+
+      {!productoCompleto(reg) && !base && (
+        <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="producto-pendiente-dt">
+          <p className="font-medium">Pendiente de Dirección Técnica</p>
+          <p className="mt-1">Faltan sus datos regulatorios: {datosFaltantes(reg).join(', ')}. Hasta completarlos no se aprueban lotes de este producto.{puedeEditar ? ' Complétalos abajo, en «Editar los datos regulatorios».' : ''}</p>
+        </div>
+      )}
+
+      {!base && (reg?.estadoValidacion === 'PENDIENTE' || reg?.estadoValidacion === 'OBSERVADO') && <PanelValidarProducto productoId={prod.id} puedeValidar={puedeValidarProducto(ctx.roles)} />}
+
       <header>
         <p className="text-sm text-gray-600">{prod.codigo}</p>
+        {bonificacion && <p className="text-xs text-gray-600" data-testid="tiene-bonificacion">Su código de bonificación es {bonificacion.codigo}: es el mismo producto y usa estos mismos datos.</p>}
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">{prod.descripcion}</h1>
         {prod.presentacion && <p className="mt-1 text-gray-700">{prod.presentacion}</p>}
         {reg && <div className="mt-3 flex flex-wrap items-center gap-2"><ChipRS situacion={sit} /><Link href={`/kardex?producto=${prod.id}`} className="text-sm text-gray-800 underline" data-testid="ver-kardex-producto">Ver su Kardex</Link></div>}
@@ -71,6 +96,7 @@ export default async function DetalleProducto({ params, searchParams }: { params
           {dato('Concentración', reg?.concentracion)}
           {dato('Fabricante', reg?.fabricante)}
           {dato('Condición de almacenamiento', reg?.condicionAlmacenamiento)}
+          <div data-testid="dato-sin-material-envase">{dato('Material de envase', reg?.sinMaterialEnvase ? 'Sin material de envase (el acta organoléptica no lo pide)' : 'Con material de envase')}</div>
         </dl>
       </section>
 
@@ -88,8 +114,8 @@ export default async function DetalleProducto({ params, searchParams }: { params
       {puedeEditar && (
         <section className="card border-2 border-teal-400" aria-labelledby="editar" data-testid="panel-regulatorio">
           <h2 id="editar" className="font-heading text-lg font-medium uppercase tracking-wide text-gray-800">Editar datos regulatorios y del producto</h2>
-          <p className="mb-3 mt-1 text-sm text-gray-600">Katia y Sandra tienen la misma autoridad. El cambio rige de inmediato y queda registrado con tu nombre, la fecha y el motivo.</p>
-          <FormRegulatorio productoId={prod.id} reg={reg} presentacion={prod.presentacion} principioActivo={prod.principioActivo} />
+          <p className="mb-3 mt-1 text-sm text-gray-600">Katia y Sandra tienen la misma autoridad. El cambio rige de inmediato (si lo haces como Administrador, Dirección Técnica lo valida después) y queda registrado con tu nombre, la fecha y el motivo.</p>
+          <FormRegulatorio productoId={prod.id} reg={reg} presentacion={prod.presentacion} principioActivo={prod.principioActivo} puedeMarcarSinEnvase={ctx.roles.includes('direccion_tecnica')} catalogoEnCompras={piloto} />
         </section>
       )}
 

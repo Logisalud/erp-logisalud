@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parsearVencimiento } from '@/domain/fechas'
 import {
-  AREA_DESTINO, CHECKLIST_ORGANOLEPTICO, ESTADO_INICIAL, estadoRegistroCompras, faltantesParaEnviar, itemsPendientes, muestraOrganoleptica,
+  AREA_DESTINO, CHECKLIST_ORGANOLEPTICO, ESTADO_INICIAL, estadoRegistroCompras, faltantesParaEnviar, itemsPendientes,
   numeroDeActa, pasoDeSolicitud, porTrasladarVencido, puedeAtenderAlerta, puedeFirmarComo, puedeGenerarActa, puedePrepararSolicitud, rucValido,
   sugerirConclusion, temperaturaFueraDeRango, textoDiferencia, validarDecision, validarEntradaSolicitud, validarLineaSolicitud,
   validarTransportista, situacionLote, diasParaVencer, DESTINATARIO_ALERTA, type Checklist,
@@ -12,11 +12,11 @@ const cliente = { esDuenoAlmacen: false }
 const linea = { lote: 'L1', vence: '30/06/2028', cantidad: 4 }
 
 describe('líneas de la solicitud', () => {
-  it('vencimiento: fecha completa; solo mes y año → último día del mes', () => {
+  it('vencimiento: fecha completa; solo mes y año → primer día del mes', () => {
     const v = (e: Partial<Parameters<typeof validarLineaSolicitud>[0]>) =>
       validarLineaSolicitud({ productoId: 'p', ...linea, ...e }, 'DEVOLUCION', parsearVencimiento)
     expect(v({})).toMatchObject({ ok: true, vence: '2028-06-30', cantidad: 4 })
-    expect(v({ vence: '02/2028' })).toMatchObject({ ok: true, vence: '2028-02-29', venceTexto: '02/2028' })
+    expect(v({ vence: '02/2028' })).toMatchObject({ ok: true, vence: '2028-02-01', venceTexto: '02/2028' })
     expect(v({ vence: 'pronto' })).toMatchObject({ ok: false, errores: { vence: expect.stringMatching(/No entiendo/) } })
     expect(v({ cantidad: 0 })).toMatchObject({ ok: false, errores: { cantidad: expect.any(String) } })
     expect(v({ cantidad: '2,5' })).toMatchObject({ ok: false })
@@ -130,33 +130,26 @@ describe('numeración', () => {
   })
 })
 
-describe('muestra organoléptica', () => {
-  it('(6) techo(√unidades) + 1', () => {
-    expect([1, 4, 5, 9, 10, 100, 101, 480].map((n) => muestraOrganoleptica(n))).toEqual([2, 3, 4, 4, 5, 11, 12, 23])
-    expect(muestraOrganoleptica(0)).toBe(1)
-    expect(muestraOrganoleptica(100, 2)).toBe(12)
-  })
-})
+// La muestra ya no es techo(√n)+1: la calcula la tabla LS-TB.02.02 (tests/domain/muestreo.test.ts).
 
 describe('checklist organoléptico', () => {
   const marcarTodo = (r: 'C' | 'NC' | 'NA', excepto: string[] = []): Checklist => {
     const c: Checklist = {}
-    for (const g of CHECKLIST_ORGANOLEPTICO) if (!g.opcional || g.id === 'plastico') for (const i of g.items) c[i.id] = excepto.includes(i.id) ? 'NC' : r
+    for (const g of CHECKLIST_ORGANOLEPTICO) for (const i of g.items) c[i.id] = excepto.includes(i.id) ? 'NC' : r
     return c
   }
 
-  it('completo cuando todo lo obligatorio está respondido y hay un material', () => {
-    expect(itemsPendientes({})).toContain('material')
+  it('completo cuando todos los puntos del formato están respondidos', () => {
+    expect(itemsPendientes({})).toHaveLength(CHECKLIST_ORGANOLEPTICO.flatMap((g) => g.items).length)
     expect(itemsPendientes(marcarTodo('C'))).toEqual([])
-    const sinMaterial = marcarTodo('C')
-    for (const i of CHECKLIST_ORGANOLEPTICO.find((g) => g.id === 'plastico')!.items) delete sinMaterial[i.id]
-    expect(itemsPendientes(sinMaterial)).toEqual(['material'])
+    const c = marcarTodo('C')
+    delete c.rotmed_almacenamiento
+    expect(itemsPendientes(c)).toEqual(['rotmed_almacenamiento'])
   })
 
-  it('un grupo de material a medias exige terminarlo', () => {
-    const c = marcarTodo('C')
-    delete c.pla_cierre
-    expect(itemsPendientes(c)).toEqual(['pla_cierre'])
+  it('el formato LS-FR.55.02 tiene 6 + 10 + 10 + 7 + 6 puntos y ninguna sección de material de envase', () => {
+    expect(CHECKLIST_ORGANOLEPTICO.map((g) => g.items.length)).toEqual([6, 10, 10, 7, 6])
+    expect(CHECKLIST_ORGANOLEPTICO.some((g) => g.titulo.startsWith('III.'))).toBe(false)
   })
 
   it('un solo "no conforme" sugiere NO CONFORME', () => {
@@ -167,8 +160,8 @@ describe('checklist organoléptico', () => {
 
   it('lo que falta para enviar a Dirección Técnica se dice claro', () => {
     const f = faltantesParaEnviar({ certAnalisis: null, checklist: {}, destinoSugerido: null, conclusion: null })
-    expect(f).toHaveLength(5)
-    expect(f.join(' ')).toMatch(/certificado[\s\S]*material[\s\S]*puntos[\s\S]*destino[\s\S]*conclusión/)
+    expect(f).toHaveLength(4)
+    expect(f.join(' ')).toMatch(/certificado[\s\S]*puntos[\s\S]*destino[\s\S]*conclusión/)
     expect(faltantesParaEnviar({ certAnalisis: true, checklist: marcarTodo('C'), destinoSugerido: 'APROBADO', conclusion: 'CONFORME' })).toEqual([])
   })
 })

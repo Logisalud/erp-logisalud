@@ -4,7 +4,7 @@ import { listarVistaCuentasPorPagar } from '@/services/obligaciones'
 import { TablaObligaciones } from '@/components/tabla-obligaciones'
 import { ChipFiltro as Chip } from '@/components/chip-filtro'
 import {
-  nombreDelRecorte, querystringDeFiltro, resolverFiltroCuentasPorPagar,
+  querystringDeFiltro, resolverFiltroCuentasPorPagar, type FiltroCuentasPorPagar,
 } from '@/domain/filtros-cuentas-por-pagar'
 import { ETIQUETA_ESTADO, ESTADOS_OBLIGACION } from '@/domain/obligacion'
 import { CATEGORIAS_ESTADO, ETIQUETA_CATEGORIA } from '@/domain/categorias-estado-obligacion'
@@ -31,12 +31,15 @@ export const dynamic = 'force-dynamic'
 export default async function CuentasPorPagar({
   searchParams,
 }: {
-  searchParams: { estado?: string; categoria?: string; listas?: string; avanzado?: string }
+  searchParams: { estado?: string; categoria?: string; listas?: string; avanzado?: string; q?: string }
 }) {
   // El filtro se resuelve en el dominio para que la descarga a Excel baje
   // exactamente estas filas y no una reconstrucción parecida.
   const filtro = resolverFiltroCuentasPorPagar(searchParams)
-  const { estadoExacto, categoria, soloListas, verAvanzado, sinFiltro } = filtro
+  const { estadoExacto, categoria, soloListas, verAvanzado, sinFiltro, busqueda } = filtro
+  // Los chips conservan lo buscado: "DIMEXA" y después "Pagada" es DIMEXA pagada.
+  const conBusqueda = (href: string) =>
+    busqueda ? `${href}${href.includes('?') ? '&' : '?'}q=${encodeURIComponent(busqueda)}` : href
 
   const obligaciones = await listarVistaCuentasPorPagar(filtro)
   const hoy = hoyLima()
@@ -68,15 +71,38 @@ export default async function CuentasPorPagar({
         </a>
       </div>
 
+      {/* Buscar va por GET a la misma página (sin `action`: uno a mano
+          perdería el basePath /compras). El resultado queda en la URL
+          (se comparte, se recarga) y el Excel baja lo mismo. Conserva el
+          chip elegido. */}
+      <form className="mb-3 flex flex-wrap gap-2">
+        {soloListas ? <input type="hidden" name="listas" value="1" /> : null}
+        {estadoExacto ? <input type="hidden" name="estado" value={estadoExacto} /> : null}
+        {categoria ? <input type="hidden" name="categoria" value={categoria} /> : null}
+        <input
+          type="search"
+          name="q"
+          defaultValue={busqueda ?? ''}
+          placeholder="Proveedor, beneficiario, RUC, código o N° de factura"
+          className="min-h-12 flex-1 rounded-md border border-gray-300 bg-white px-3 sm:max-w-md"
+        />
+        <button type="submit" className="btn-secondary">Buscar</button>
+        {busqueda ? (
+          <Link href={querystringSinBusqueda(filtro)} className="self-center text-sm text-gray-600 underline">
+            Quitar búsqueda
+          </Link>
+        ) : null}
+      </form>
+
       <div className="mb-2 flex flex-wrap gap-2 text-sm">
-        <Chip etiqueta="💸 Listas para pagar" activo={soloListas} href="/cuentas-por-pagar?listas=1" />
-        <Chip etiqueta="Todas" activo={sinFiltro} href="/cuentas-por-pagar" />
+        <Chip etiqueta="💸 Listas para pagar" activo={soloListas} href={conBusqueda('/cuentas-por-pagar?listas=1')} />
+        <Chip etiqueta="Todas" activo={sinFiltro} href={conBusqueda('/cuentas-por-pagar')} />
         {CATEGORIAS_ESTADO.map((c) => (
           <Chip
             key={c}
             etiqueta={ETIQUETA_CATEGORIA[c]}
             activo={categoria === c}
-            href={`/cuentas-por-pagar?categoria=${c}`}
+            href={conBusqueda(`/cuentas-por-pagar?categoria=${c}`)}
           />
         ))}
       </div>
@@ -92,7 +118,7 @@ export default async function CuentasPorPagar({
                 key={e}
                 etiqueta={ETIQUETA_ESTADO[e]}
                 activo={estadoExacto === e}
-                href={`/cuentas-por-pagar?estado=${e}`}
+                href={conBusqueda(`/cuentas-por-pagar?estado=${e}`)}
               />
             ))}
           </div>
@@ -116,9 +142,11 @@ export default async function CuentasPorPagar({
 
       {obligaciones.length === 0 ? (
         <p className="card text-sm text-gray-600">
-          {soloListas
-            ? 'No hay nada listo para pagar: ninguna obligación está en una propuesta aprobada pendiente de desembolso.'
-            : 'No hay obligaciones para este filtro.'}
+          {busqueda
+            ? `Nada coincide con “${busqueda}” en este filtro.`
+            : soloListas
+              ? 'No hay nada listo para pagar: ninguna obligación está en una propuesta aprobada pendiente de desembolso.'
+              : 'No hay obligaciones para este filtro.'}
         </p>
       ) : (
         <TablaObligaciones filas={obligaciones} hoy={hoy} />
@@ -127,4 +155,7 @@ export default async function CuentasPorPagar({
   )
 }
 
-
+/** La misma vista, sin lo buscado. */
+function querystringSinBusqueda(filtro: FiltroCuentasPorPagar): string {
+  return `/cuentas-por-pagar${querystringDeFiltro({ ...filtro, busqueda: null })}`
+}

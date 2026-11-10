@@ -17,7 +17,10 @@ import EstadoCuentaVista from './vista';
 export default async function EstadoCuentaPage() {
   const perfil = await perfilActual();
   const area = perfil?.area ?? '';
-  const puedeEditarContado = area === 'admin' || (AREAS_ESCRITURA as readonly string[]).includes(area);
+  const puedeEscribir = area === 'admin' || (AREAS_ESCRITURA as readonly string[]).includes(area);
 
-  return <EstadoCuentaVista puedeEditarContado={puedeEditarContado} />;
+  // Mismo criterio para las dos cosas, pero se pasan por separado: son
+  // permisos distintos aunque hoy coincidan, y el día que uno se mueva no
+  // hay que acordarse de que viajaban juntos.
+  return <EstadoCuentaVista puedeEditarContado={puedeEscribir} puedeComentar={puedeEscribir} />;
 }

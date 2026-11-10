@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { getCurrentUser, requireRole } from "@/lib/auth/session";
-import { cargaVigente, detalleDeVenta, filasDelCuadro, type FilaCuadro } from "@/services/avance";
+import { nombreDePeriodo } from "@/domain/fechas";
+import {
+  cargaVigente,
+  detalleDeVenta,
+  filasDelCuadro,
+  periodosPublicados,
+  type FilaCuadro,
+} from "@/services/avance";
 import { DetalleDeVenta } from "./detalle";
+import { PestanasDeMes } from "./pestanas";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +35,25 @@ const fechaLarga = (iso: string) => {
  * vendedor sólo le devuelve su fila, sus líneas y los totales de grupo y
  * compañía. Un administrador recibe todo y ve el cuadro completo.
  */
-export default async function AvancePage() {
+export default async function AvancePage({
+  searchParams,
+}: {
+  searchParams?: { periodo?: string };
+}) {
   await requireRole(["administrador", "vendedor"]);
   const user = await getCurrentUser();
   const esAdmin = user?.roles.includes("administrador") ?? false;
 
-  const carga = await cargaVigente();
+  const periodos = await periodosPublicados();
+
+  // Un período que no está publicado no es un error que valga una pantalla
+  // de error: puede ser un link viejo de WhatsApp, o el mes que Comercial
+  // todavía no subió. Se cae al más reciente, que es lo que esta pantalla
+  // mostraba siempre.
+  const pedido = searchParams?.periodo;
+  const elegido = periodos.some((p) => p.periodo === pedido) ? pedido : periodos[0]?.periodo;
+
+  const carga = await cargaVigente(elegido);
   if (!carga) {
     return (
       <Pagina>
@@ -65,7 +86,9 @@ export default async function AvancePage() {
     <Pagina>
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h1 className="font-heading text-2xl text-logisalud-green">Mi avance del mes</h1>
+          <h1 className="font-heading text-2xl text-logisalud-green">
+            Mi avance de {nombreDePeriodo(carga.periodo)}
+          </h1>
           <p className="text-sm text-slate-600">
             Corte al <strong>{fechaLarga(carga.fechaCorte)}</strong>
             {carga.diasTranscurridos && carga.diasMes
@@ -79,6 +102,8 @@ export default async function AvancePage() {
           </Link>
         )}
       </header>
+
+      <PestanasDeMes periodos={periodos} actual={carga.periodo} />
 
       {!esAdmin && !yo && (
         <p className="aviso-bloqueo">
@@ -100,7 +125,7 @@ export default async function AvancePage() {
 
       {esAdmin && <CuadroCompleto filas={filas} />}
 
-      <DetalleDeVenta filas={detalle} mostrarVendedor={esAdmin} />
+      <DetalleDeVenta filas={detalle} mostrarVendedor={esAdmin} periodo={carga.periodo} />
     </Pagina>
   );
 }

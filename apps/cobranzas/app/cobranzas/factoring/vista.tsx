@@ -18,7 +18,14 @@ interface FacturaCliente {
   monto_canje: number | null;
 }
 
-interface CanjeFactura { documento_id: string; comprobante: string; monto_canje: number; estado: 'en_factoring' | 'ingresada' | 'anulada'; }
+interface CanjeFactura {
+  documento_id: string; comprobante: string; monto_canje: number;
+  /** El vencimiento que tomó la entidad. Vacío en los canjes anteriores al 05/11/2026. */
+  fecha_vencimiento: string | null;
+  fecha_vencimiento_factura: string | null;
+  retencion: number;
+  estado: 'en_factoring' | 'ingresada' | 'anulada';
+}
 interface Canje {
   id: string; cliente_ruc: string; razon_social: string; fecha_canje: string;
   observaciones: string | null; registrado_por: string | null;
@@ -151,6 +158,16 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
   const [facturas, setFacturas] = useState<FacturaCliente[]>([]);
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
   const [montosCanje, setMontosCanje] = useState<Record<string, string>>({});
+  // El vencimiento que va al contrato con la entidad: arranca en el de la
+  // factura y se edita, porque el cliente suele confirmar dos o tres días
+  // más y esa es la fecha con la que trabaja la financiera.
+  const [vencimientos, setVencimientos] = useState<Record<string, string>>({});
+  // El mismo vencimiento para todo el canje, arriba junto a la fecha. Es el
+  // caso normal —la entidad fija una fecha para la operación— y además es
+  // donde se lo busca: el campo por factura, metido adentro de la lista, no
+  // se encontraba.
+  const [vencimientoGeneral, setVencimientoGeneral] = useState('');
+  const [retenciones, setRetenciones] = useState<Record<string, string>>({});
   const [fechaCanje, setFechaCanje] = useState(hoy());
   const [observaciones, setObservaciones] = useState('');
   const [registradoPor, setRegistradoPor] = useState('');
@@ -162,6 +179,40 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
   const [cargandoHist, setCargandoHist] = useState(true);
   const [anulandoId, setAnulandoId] = useState<string | null>(null);
   const [motivo, setMotivo] = useState('');
+
+  // Completar el vencimiento de un canje ya registrado. Los de antes del
+  // 05/11/2026 quedaron sin esa fecha porque el campo no existía, y se
+  // necesita igual: es la que tomó la entidad financiera.
+  const [editandoVenc, setEditandoVenc] = useState<string | null>(null);
+  const [vencEdit, setVencEdit] = useState<Record<string, string>>({});
+  const [guardandoVenc, setGuardandoVenc] = useState(false);
+
+  const abrirVencimientos = (c: Canje) => {
+    setEditandoVenc(c.id);
+    setVencEdit(Object.fromEntries(
+      c.facturas.map(f => [f.documento_id, f.fecha_vencimiento ?? f.fecha_vencimiento_factura ?? ''])
+    ));
+  };
+
+  const guardarVencimientos = async (c: Canje) => {
+    setGuardandoVenc(true);
+    try {
+      const res = await fetch(`/api/factoring/canjes/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vencimientos: c.facturas.map(f => ({
+            documento_id: f.documento_id,
+            fecha_vencimiento: vencEdit[f.documento_id] || null,
+          })),
+        }),
+      });
+      const d = await res.json();
+      if (d.error) { alert(d.error); return; }
+      setEditandoVenc(null);
+      await cargarHistorial();
+    } finally { setGuardandoVenc(false); }
+  };
 
   useEffect(() => {
     const g = localStorage.getItem('registrado_por');
@@ -185,6 +236,9 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
       setFacturas(d.facturas ?? []);
       setSeleccionadas(new Set());
       setMontosCanje({});
+      setVencimientos({});
+      setVencimientoGeneral('');
+      setRetenciones({});
     })();
   }, [b.seleccionado]);
 
@@ -204,6 +258,44 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
       }
       return { ...prev, [f.id]: f.saldo_pendiente.toFixed(2) };
     });
+    setVencimientos(prev => {
+      if (prev[f.id] !== undefined) {
+        const { [f.id]: _omit, ...resto } = prev;
+        return resto;
+      }
+      return { ...prev, [f.id]: vencimientoGeneral || f.fecha_vencimiento || '' };
+    });
+    setRetenciones(prev => {
+      const { [f.id]: _omit, ...resto } = prev;
+      return resto;
+    });
+  };
+
+  /**
+   * Cuando se escribe la retención, el valor a factorizar baja solo: lo que
+   * el cliente retiene no se factoriza. Queda editable igual, por si el
+   * acuerdo con el factor es otro.
+   */
+  const cambiarRetencion = (f: FacturaCliente, valor: string) => {
+    setRetenciones(prev => ({ ...prev, [f.id]: valor }));
+    const ret = Number(valor) || 0;
+    if (ret < 0 || ret > f.saldo_pendiente) return;
+    setMontosCanje(prev => ({ ...prev, [f.id]: (f.saldo_pendiente - ret).toFixed(2) }));
+  };
+
+  /** Todas vencen el mismo día: lo normal, y si no se edita una y listo. */
+  const aplicarVencimientoATodas = (fecha: string) => {
+    if (!fecha) return;
+    setVencimientos(prev => {
+      const s = { ...prev };
+      for (const id of seleccionadas) s[id] = fecha;
+      return s;
+    });
+  };
+
+  const cambiarVencimientoGeneral = (fecha: string) => {
+    setVencimientoGeneral(fecha);
+    aplicarVencimientoATodas(fecha);
   };
 
   const registrar = async () => {
@@ -213,6 +305,9 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
     for (const id of seleccionadas) {
       const monto = Number(montosCanje[id]);
       if (!monto || monto <= 0) { setErrMsg('Indica el valor a factorizar de cada factura seleccionada.'); return; }
+      if (!vencimientos[id]) { setErrMsg('Indica la fecha de vencimiento del factoring de cada factura: es la que toma la entidad financiera.'); return; }
+      const ret = Number(retenciones[id]) || 0;
+      if (ret < 0) { setErrMsg('La retención no puede ser negativa.'); return; }
     }
     localStorage.setItem('registrado_por', registradoPor.trim());
     setGuardando(true); setErrMsg(''); setExitoMsg('');
@@ -223,7 +318,12 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
         body: JSON.stringify({
           cliente_ruc: b.seleccionado.cliente_ruc,
           fecha_canje: fechaCanje,
-          facturas: Array.from(seleccionadas).map(id => ({ documento_id: id, monto_canje: Number(montosCanje[id]) })),
+          facturas: Array.from(seleccionadas).map(id => ({
+            documento_id: id,
+            monto_canje: Number(montosCanje[id]),
+            fecha_vencimiento: vencimientos[id] || null,
+            retencion: Number(retenciones[id]) || 0,
+          })),
           observaciones: observaciones.trim() || undefined,
           registrado_por: registradoPor.trim(),
         }),
@@ -231,7 +331,11 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
       const d = await res.json();
       if (d.error) { setErrMsg(d.error); return; }
       setExitoMsg(`✓ ${seleccionadas.size} ${seleccionadas.size === 1 ? 'factura canjeada' : 'facturas canjeadas'} a factoring.`);
-      setSeleccionadas(new Set()); setMontosCanje({}); setObservaciones(''); b.limpiar();
+      // El canje se guardó aunque la retención haya fallado: se avisa, no se
+      // esconde detrás del tilde verde.
+      if (d.aviso) setErrMsg(d.aviso);
+      setSeleccionadas(new Set()); setMontosCanje({}); setVencimientos({}); setVencimientoGeneral('');
+      setRetenciones({}); setObservaciones(''); b.limpiar();
       await cargarHistorial();
     } finally { setGuardando(false); }
   };
@@ -269,7 +373,7 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                 const deshabilitada = f.tiene_letras || f.en_canje_activo;
                 const seleccionada = seleccionadas.has(f.id);
                 return (
-                  <div key={f.id} className={`flex items-center justify-between gap-3 px-3 py-2 ${deshabilitada ? 'opacity-50' : 'hover:bg-gray-50'}`}>
+                  <div key={f.id} className={`flex flex-wrap items-center justify-between gap-3 px-3 py-2 ${deshabilitada ? 'opacity-50' : 'hover:bg-gray-50'}`}>
                     <label className={`flex items-center gap-3 min-w-0 flex-1 ${deshabilitada ? '' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox" disabled={deshabilitada}
@@ -286,14 +390,35 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                       </div>
                     </label>
                     {seleccionada ? (
-                      <div className="shrink-0 text-right">
-                        <label className="block text-[10px] text-gray-400 mb-0.5">Valor a factorizar</label>
-                        <input
-                          type="number" min="0.01" max={f.saldo_pendiente} step="0.01"
-                          value={montosCanje[f.id] ?? ''}
-                          onChange={e => setMontosCanje(prev => ({ ...prev, [f.id]: e.target.value }))}
-                          className="w-28 px-2 py-1 border border-gray-200 rounded-lg text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
-                        />
+                      <div className="shrink-0 flex items-end gap-2 flex-wrap justify-end">
+                        <div className="text-left">
+                          <label className="block text-[10px] text-gray-400 mb-0.5">Vence (factoring)</label>
+                          <input
+                            type="date"
+                            value={vencimientos[f.id] ?? ''}
+                            onChange={e => setVencimientos(prev => ({ ...prev, [f.id]: e.target.value }))}
+                            onBlur={e => { if (seleccionadas.size > 1 && e.target.value) aplicarVencimientoATodas(e.target.value); }}
+                            className="w-36 px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <label className="block text-[10px] text-gray-400 mb-0.5">Retención IGV</label>
+                          <input
+                            type="number" min="0" max={f.saldo_pendiente} step="0.01" placeholder="0.00"
+                            value={retenciones[f.id] ?? ''}
+                            onChange={e => cambiarRetencion(f, e.target.value)}
+                            className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <label className="block text-[10px] text-gray-400 mb-0.5">Valor a factorizar</label>
+                          <input
+                            type="number" min="0.01" max={f.saldo_pendiente} step="0.01"
+                            value={montosCanje[f.id] ?? ''}
+                            onChange={e => setMontosCanje(prev => ({ ...prev, [f.id]: e.target.value }))}
+                            className="w-28 px-2 py-1 border border-gray-200 rounded-lg text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <span className="text-sm font-semibold text-gray-800 shrink-0">{fmt(f.saldo_pendiente)}</span>
@@ -302,11 +427,19 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                 );
               })}
               {seleccionadas.size > 0 && (
-                <div className="flex justify-between px-3 py-2 bg-gray-50 font-semibold text-sm">
-                  <span>Total a factorizar</span>
-                  <span style={{ color: '#4BB168' }}>
-                    {fmt(Array.from(seleccionadas).reduce((s, id) => s + (Number(montosCanje[id]) || 0), 0))}
-                  </span>
+                <div className="px-3 py-2 bg-gray-50 text-sm space-y-1">
+                  <div className="flex justify-between font-semibold">
+                    <span>Total a factorizar</span>
+                    <span style={{ color: '#4BB168' }}>
+                      {fmt(Array.from(seleccionadas).reduce((s, id) => s + (Number(montosCanje[id]) || 0), 0))}
+                    </span>
+                  </div>
+                  {Array.from(seleccionadas).some(id => Number(retenciones[id]) > 0) && (
+                    <div className="flex justify-between text-gray-500 text-xs">
+                      <span>Retención IGV (no se factoriza)</span>
+                      <span>{fmt(Array.from(seleccionadas).reduce((s, id) => s + (Number(retenciones[id]) || 0), 0))}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -317,6 +450,15 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
               <label className="block text-xs text-gray-500 mb-1">Fecha del canje *</label>
               <input type="date" value={fechaCanje} onChange={e => setFechaCanje(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Vencimiento del factoring *</label>
+              <input type="date" value={vencimientoGeneral} onChange={e => cambiarVencimientoGeneral(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal" />
+              <p className="text-[11px] text-gray-400 mt-1">
+                El que toma la entidad financiera, que suele ser el de la factura más dos o tres días.
+                Se aplica a todas las facturas marcadas; si alguna vence distinto, se cambia en su fila.
+              </p>
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Observaciones (opcional)</label>
@@ -370,9 +512,57 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                       f.estado === 'ingresada' ? 'bg-green-100 text-green-700' : f.estado === 'anulada' ? 'bg-gray-100 text-gray-400' : 'bg-amber-100 text-amber-700'
                     }`}>
                       {f.comprobante} · {fmt(f.monto_canje)}
+                      {f.fecha_vencimiento
+                        ? <> · vence {fmtFecha(f.fecha_vencimiento)}</>
+                        : <span className="opacity-60"> · sin vencimiento</span>}
                     </span>
                   ))}
                 </div>
+                {editandoVenc === c.id ? (
+                  <div className="mt-3 p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-2">
+                    <p className="text-xs text-gray-500">
+                      El vencimiento que tomó la entidad financiera. Se propone el de cada factura;
+                      cambialo si el contrato quedó con otra fecha.
+                    </p>
+                    {c.facturas.map(f => (
+                      <div key={f.documento_id} className="flex items-center justify-between gap-3 flex-wrap">
+                        <span className="font-mono text-xs text-gray-600">{f.comprobante}</span>
+                        <input
+                          type="date"
+                          value={vencEdit[f.documento_id] ?? ''}
+                          onChange={e => setVencEdit(prev => ({ ...prev, [f.documento_id]: e.target.value }))}
+                          className="px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                        />
+                      </div>
+                    ))}
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => guardarVencimientos(c)}
+                        disabled={guardandoVenc}
+                        className="px-4 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                        style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
+                      >
+                        {guardandoVenc ? 'Guardando…' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={() => setEditandoVenc(null)}
+                        className="px-4 py-1.5 rounded-lg text-sm text-gray-500 border border-gray-200 hover:bg-gray-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => abrirVencimientos(c)}
+                    className="mt-3 mr-4 text-xs text-logisalud-teal hover:underline font-medium"
+                  >
+                    {c.facturas.some(f => !f.fecha_vencimiento)
+                      ? 'Completar vencimiento'
+                      : 'Editar vencimiento'}
+                  </button>
+                )}
+
                 {puedeAnular && !c.anulado && (
                   anulandoId === c.id ? (
                     <div className="mt-3 p-3 rounded-lg bg-red-50/40 border border-red-100 space-y-2">

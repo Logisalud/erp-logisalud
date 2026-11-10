@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/session";
 import { guardarConfigCredito, sincronizarCredito } from "@/services/credito";
+import { sincronizarContactosACobranzas } from "@/services/contactos-cobranzas";
 import { falloDe, type ResultadoAccion } from "@/domain/acciones";
 
 async function requireAdminId(): Promise<string> {
@@ -54,5 +55,26 @@ export async function guardarReglaDeCredito(formData: FormData): Promise<Resulta
     return { ok: true };
   } catch (err) {
     return falloDe(err, "No se pudo guardar la regla.");
+  }
+}
+
+/**
+ * El viaje de vuelta del puente, a mano.
+ *
+ * Existe por la misma razón que "Actualizar ahora" de la deuda: el cron
+ * puede no haber corrido —al 2026-11-03 no corrió nunca— y la cartera del
+ * vendedor no puede quedar esperando a que alguien destrabe una tarea
+ * programada. Con botón, el dato se completa cuando hace falta.
+ */
+export async function completarContactosAhora(): Promise<
+  ResultadoAccion<{ celulares: number; direcciones: number; ubicaciones: number }>
+> {
+  try {
+    const actor = await requireAdminId();
+    const r = await sincronizarContactosACobranzas(actor);
+    revalidatePath("/admin/credito");
+    return { ok: true, celulares: r.celulares, direcciones: r.direcciones, ubicaciones: r.ubicaciones };
+  } catch (err) {
+    return falloDe(err, "No se pudieron completar los contactos en cobranzas.");
   }
 }

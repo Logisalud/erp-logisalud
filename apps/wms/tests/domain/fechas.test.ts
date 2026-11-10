@@ -6,10 +6,13 @@ describe('vencimiento', () => {
     expect(parsearVencimiento('2027-02-15')).toEqual({ fecha: '2027-02-15', textoOriginal: '2027-02-15' })
     expect(parsearVencimiento('15/02/2027')?.fecha).toBe('2027-02-15')
   })
-  it('solo con mes y año usa el último día del mes', () => {
-    expect(parsearVencimiento('02/2027')?.fecha).toBe('2027-02-28')
-    expect(parsearVencimiento('02/2028')?.fecha).toBe('2028-02-29') // bisiesto
-    expect(parsearVencimiento('2027-12')?.fecha).toBe('2027-12-31')
+  it('solo con mes y año usa el día por defecto: el PRIMER día del mes (a confirmar con Katia); con el parámetro «ultimo», el último', () => {
+    expect(parsearVencimiento('02/2027')?.fecha).toBe('2027-02-01')
+    expect(parsearVencimiento('2027-02')?.fecha).toBe('2027-02-01')
+    expect(parsearVencimiento('02/2027', 'ultimo')?.fecha).toBe('2027-02-28')
+    expect(parsearVencimiento('02/2028', 'ultimo')?.fecha).toBe('2028-02-29') // bisiesto
+    expect(parsearVencimiento('2027-12')?.fecha).toBe('2027-12-01')
+    expect(parsearVencimiento('2027-12', 'ultimo')?.fecha).toBe('2027-12-31')
     expect(parsearVencimiento('02/2027')?.textoOriginal).toBe('02/2027')
   })
   it('rechaza fechas imposibles', () => {

@@ -8,33 +8,26 @@ export const ETIQUETA_AREA: Record<TipoArea, string> = {
   APROBADOS: 'Aprobados',
   BAJAS_RECHAZADOS: 'Bajas/Rechazados',
   CONTRAMUESTRA: 'Contramuestra',
-  EMBALAJE: 'Embalaje',
   DESPACHO: 'Despacho',
-  PENDIENTE_CONFORMIDAD: 'Pendiente de conformidad',
-  OBSERVADO: 'Observado / pendiente de corrección',
-  RETORNO_RESERVADO: 'Retorno no entregado / reservado',
 }
 
 /** Áreas donde varios propietarios pueden tener stock a la vez. */
-export const AREAS_COMPARTIDAS: ReadonlySet<TipoArea> = new Set<TipoArea>([
-  'RECEPCION', 'CUARENTENA', 'EMBALAJE', 'DESPACHO', 'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO',
-])
+export const AREAS_COMPARTIDAS: ReadonlySet<TipoArea> = new Set<TipoArea>(['RECEPCION', 'CUARENTENA', 'DESPACHO'])
 
 /**
- * Zonas nuevas, configurables y APAGADAS (D-52: Katia y Charlie definen su ubicación física y su tipo BPA). Sin
- * `area_estado_admitido` ni posiciones, nada puede entrar.
+ * Áreas retiradas (DT, 2026-10-17): «Pendiente de conformidad», «Observado», «Retorno reservado» y «Embalaje» ya no existen como zonas; la mesa K-M2 es parte
+ * de Despacho. Quedan en la base, fuera de alcance. El conjunto de áreas habilitadas es el tipo `TipoArea`.
  */
-export const AREAS_FUERA_DE_ALCANCE: ReadonlySet<TipoArea> = new Set<TipoArea>([
-  'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO',
-])
+export const AREAS_RETIRADAS: readonly string[] = ['EMBALAJE', 'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO']
+
+/** Sin áreas apagadas pendientes de definir: todas las áreas habilitadas funcionan (se conserva el nombre por compatibilidad con la matriz). */
+export const AREAS_FUERA_DE_ALCANCE: ReadonlySet<TipoArea> = new Set<TipoArea>([])
 
 /**
- * Zonas que solo alimenta el flujo de salidas (picking, conformidad, embalaje, carga). Un movimiento interno manual
- * (Mover) no las elige como destino, aunque la base de datos admita Aprobado en ellas.
+ * Zonas que solo alimenta el flujo de salidas (conformidad, carga). Un movimiento interno manual (Mover) no las elige como destino,
+ * aunque la base de datos admita Aprobado en ellas. El stock que pasa la conformidad queda en Despacho y la salida sale de ahí.
  */
-export const AREAS_DE_SALIDA: ReadonlySet<TipoArea> = new Set<TipoArea>([
-  'EMBALAJE', 'DESPACHO', 'PENDIENTE_CONFORMIDAD', 'OBSERVADO', 'RETORNO_RESERVADO',
-])
+export const AREAS_DE_SALIDA: ReadonlySet<TipoArea> = new Set<TipoArea>(['DESPACHO'])
 
 interface ReglaArea {
   estado: Estado
@@ -47,7 +40,6 @@ const MATRIZ: Partial<Record<TipoArea, ReglaArea[]>> = {
   DEVOLUCIONES: [{ estado: 'DEVOLUCIONES', origenRequerido: 'DEVOLUCION' }],
   APROBADOS: [{ estado: 'APROBADO' }],
   BAJAS_RECHAZADOS: [{ estado: 'BAJAS_RECHAZADOS' }],
-  EMBALAJE: [{ estado: 'APROBADO' }],
   DESPACHO: [{ estado: 'APROBADO' }],
 }
 
@@ -60,7 +52,7 @@ export function areaAdmite(area: TipoArea, estado: Estado, origen: Origen): bool
 export function mensajeZonaNoAdmite(area: TipoArea, estado: Estado): string {
   const a = ETIQUETA_AREA[area]
   if (AREAS_DE_SALIDA.has(area) && estado === 'APROBADO') return `${a} se usa solo en las salidas.`
-  if (area === 'RECEPCION' || area === 'CONTRAMUESTRA' || AREAS_DE_SALIDA.has(area)) {
+  if (area === 'RECEPCION' || area === 'CONTRAMUESTRA') {
     return `${a} no recibe stock en este momento.`
   }
   // Mensajes humanos para los casos de todos los días.

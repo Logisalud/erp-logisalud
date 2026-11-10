@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { RepositorioDemo } from '@/services/demo/repositorio-demo'
 import type { Actor } from '@/services/repositorio'
+import { auxiliaresDelEquipo } from '@/domain/operacion'
 
 const actor = (rol: Actor['roles'][number]): Actor => ({ id: `demo:${rol}`, nombre: `${rol} (demo)`, roles: [rol] })
 const AUX = actor('auxiliar'); const JEFE = actor('jefe_almacen'); const KATIA = actor('direccion_tecnica')
@@ -28,7 +29,7 @@ describe('revisión diaria', () => {
 
   it('un pendiente que puede afectar producto avisa a Dirección Técnica', async () => {
     const { id } = bien(await repo.iniciarRevision(JEFE))
-    bien(await repo.registrarPendiente(id, { foco: 'ANORMAL', descripcion: 'Goteras sobre el rack G-3', responsableId: 'demo:reemplazante_jefe', critico: true, afectaProducto: true }, JEFE))
+    bien(await repo.registrarPendiente(id, { foco: 'ANORMAL', descripcion: 'Goteras sobre el rack G-3', responsableId: 'demo:auxiliar', critico: true, afectaProducto: true }, JEFE))
     const a = (await repo.listarAlertas()).find((x) => x.tipo === 'PENDIENTE_AFECTA_PRODUCTO')
     expect(a).toMatchObject({ destinatario: 'direccion_tecnica' })
     expect(a?.mensaje).toContain('Goteras')
@@ -108,5 +109,23 @@ describe('exactitud', () => {
     expect(filas.some((f) => f.primerConteo !== f.cantidadSistema)).toBe(true) // y algunos con diferencia
     expect(filas.some((f) => f.primerConteo !== f.cantidadSistema && f.diferencia === 0)).toBe(true) // coincidieron recién en el reconteo
     expect(await repo.exactitudConteos('2999-01-01', undefined, KATIA)).toEqual([])
+  })
+})
+
+describe('revisión diaria · «¿quién lo resuelve?» es siempre un auxiliar (piloto, E-5)', () => {
+  it('la lista del equipo para elegir responsable solo trae auxiliares', async () => {
+    const equipo = await repo.personasDelEquipo()
+    expect(equipo.length).toBeGreaterThan(1)
+    const lista = auxiliaresDelEquipo(equipo)
+    expect(lista.length).toBeGreaterThan(0)
+    expect(lista.every((p) => p.rol === 'auxiliar')).toBe(true)
+  })
+  it('asignar el pendiente a un jefe, a Dirección Técnica o a su asistente se rechaza; a un auxiliar se acepta', async () => {
+    const { id } = bien(await repo.iniciarRevision(JEFE))
+    for (const quien of ['demo:jefe_almacen', 'demo:reemplazante_jefe', 'demo:direccion_tecnica', 'demo:asistente_dt']) {
+      const r = await repo.registrarPendiente(id, { foco: 'ORDEN', descripcion: 'Cajas en el pasillo', responsableId: quien, critico: false, afectaProducto: false }, JEFE)
+      expect(r, quien).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Solo un auxiliar/) })
+    }
+    bien(await repo.registrarPendiente(id, { foco: 'ORDEN', descripcion: 'Cajas en el pasillo', responsableId: 'demo:auxiliar', critico: false, afectaProducto: false }, JEFE))
   })
 })

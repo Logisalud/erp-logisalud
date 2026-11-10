@@ -1,5 +1,5 @@
 import type { RegistroLsFrVista } from '@/domain/ls-fr-43-03'
-import type { PanoramaRutas, PlanRuta, PersonalTransporte, RutaVista, VehiculoVista } from '@/domain/rutas'
+import type { DocumentoTipo, PanoramaRutas, PlanRuta, PersonalTransporte, RutaVista, VehiculoVista } from '@/domain/rutas'
 import type { Actor, ResultadoAccion } from './repositorio'
 
 /** S4: rutas de distribución. Planificar una ruta crea la salida de cada pedido y le asigna el stock (FEFO). */
@@ -14,5 +14,12 @@ export interface RepositorioRutas {
   confirmarRuta(id: string, actor: Actor): Promise<ResultadoAccion>
   cancelarRuta(id: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   guardarPersonal(p: { id?: string; nombre: string; funcion: PersonalTransporte['funcion']; activo: boolean }, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
+  /**
+   * D-155 (temporal): cambia quién figura como conductor en la guía electrónica y en el LS-FR.43.03 (`null` = el conductor real de cada ruta). Solo el Jefe de Transporte,
+   * con motivo; queda en la auditoría. La ruta y el registro siguen guardando al conductor real.
+   */
+  cambiarConductorEnDocumentos(personaId: string | null, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  /** Documento de identidad (DNI o carné de extranjería) y licencia de quien conduce: lo que pide la guía. Vacío = pendiente. */
+  guardarDocumentosPersonal(p: { id: string; documentoTipo: DocumentoTipo; dni: string; licencia?: string }, actor: Actor): Promise<ResultadoAccion>
   guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
 }

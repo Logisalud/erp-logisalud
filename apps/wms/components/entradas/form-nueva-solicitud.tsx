@@ -14,6 +14,7 @@ import type { Propietario } from '@/domain/tipos'
 import { CampoVencimiento } from '../campo-vencimiento'
 import { useAccion } from '../usar-accion'
 import { Aviso } from './aviso'
+import { SelectorOrdenCompra } from './selector-orden-compra'
 import { SelectorProducto, type ProductoElegido } from './selector-producto'
 
 const ICONO: Record<TipoIngreso, typeof Undo2> = { COMPRA_LOCAL: ShoppingCart, DEVOLUCION: Undo2, INGRESO_CLIENTE: Users }
@@ -142,20 +143,7 @@ export function FormNuevaSolicitud({ propietarios, ocs }: { propietarios: Propie
             {ocs.length === 0 ? (
               <div className="mt-3"><Aviso tipo="info">No hay órdenes de compra con saldo por recibir. Cuando Compras emita una, aparece aquí.</Aviso></div>
             ) : (
-              <ul className="mt-3 grid gap-3 lg:grid-cols-2" role="radiogroup" aria-label="Órdenes de compra">
-                {ocs.map((o) => {
-                  const on = ocId === o.ocId
-                  return (
-                    <li key={o.ocId}>
-                      <button type="button" role="radio" aria-checked={on} data-testid={`oc-${o.codigo}`} onClick={() => elegirOc(o.ocId)}
-                        className={`w-full rounded-lg border-2 p-4 text-left transition duration-fast ${on ? 'border-logisalud-green bg-green-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
-                        <span className="flex flex-wrap items-baseline justify-between gap-2"><span className="font-medium text-gray-900">{o.codigo}</span><span className="text-xs text-gray-600">{o.proveedorNombre}</span></span>
-                        <span className="mt-2 block space-y-0.5 text-sm text-gray-800">{o.items.filter((i) => i.saldo > 0).map((i) => <span key={i.ocItemId} className="flex justify-between gap-3"><span className="truncate">{i.descripcion}</span><span className="tabular shrink-0 font-medium">{i.saldo.toLocaleString('es-PE')} por recibir</span></span>)}</span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              <SelectorOrdenCompra ocs={ocs} ocId={ocId} onElegir={elegirOc} />
             )}
             {err('ocId') && <p role="alert" className="mt-2 text-sm text-red-700">{err('ocId')}</p>}
             {err('propietarioId') && <p role="alert" className="mt-2 text-sm text-red-700">{err('propietarioId')}</p>}

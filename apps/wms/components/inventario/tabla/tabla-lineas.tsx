@@ -101,7 +101,7 @@ function Fila({ c, m }: { c: LineaCalculada; m: usarMovimientoTablaTipo }) {
       {l.abierto && (
         <div className="mx-3 mb-3 ml-12 max-w-3xl rounded-xl border border-gray-200 bg-gray-50 p-3" data-testid="panel-linea" data-panel={l.abierto}>
           {l.abierto === 'producto' && <ListaProductos consulta={l.consulta} alElegir={(p) => void m.elegirProducto(l.id, p)} />}
-          {l.abierto === 'origen' && l.producto && <ListaOrigenes celdas={l.celdas ?? []} seleccionada={celda?.clave} libreDe={libreDe} alElegir={(x) => void m.elegirOrigen(l.id, x)} />}
+          {l.abierto === 'origen' && l.producto && <ListaOrigenes celdas={m.celdasDe(l)} hayOtras={(l.celdas?.length ?? 0) > m.celdasDe(l).length} seleccionada={celda?.clave} libreDe={libreDe} alElegir={(x) => void m.elegirOrigen(l.id, x)} />}
           {l.abierto === 'destino' && celda && <ListaDestinos linea={m.comoChequeo(l)} seleccionado={l.destino?.posicionId} alElegir={(d) => m.elegirDestino(l.id, d)} autoFoco />}
         </div>
       )}
