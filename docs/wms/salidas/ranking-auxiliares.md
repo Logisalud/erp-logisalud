@@ -18,10 +18,16 @@ Es el método estándar de los almacenes: una **puerta de calidad** y, dentro de
 - **Pedido con error:**
   - **Picking:** alguien detecta una diferencia (cantidad, descripción, lote o documento) en lo que picaste: la conformidad, la carga (transporte), la entrega o una devolución.
   - **Conformidad:** después de darlo por conforme, aparece una diferencia (la detecta el transportista al cargar, o la entrega o una devolución). Detectar errores no suma ni resta: nadie gana por rechazar de más ni por aprobar sin mirar.
-  - Un **mal despacho** (el error llegó al cliente) descalifica el mes en ese ranking.
+  - Un **mal despacho** (el error llegó al cliente) cuenta como **3 pedidos con error** (no descalifica: un solo caso en 500 pedidos no debe cancelar un mes de trabajo).
 - **Mínimo para entrar:** la mitad de los pedidos del promedio del equipo en ese rol ese mes, y nunca menos de 20 (así el % de errores es confiable y no gana quien casi no trabaja).
 - **«Cómo voy» (provisional):** el % de errores y la posición se muestran durante el mes y se cierran el último día; hasta tener 20 pedidos se muestran como «aún sin suficientes pedidos».
 - Lo calcula el sistema solo con sus registros; la meta, el mínimo y los puntos están en una tabla de parámetros.
+
+## Quién entra (auditoría, 2026-11-11)
+- Entra **cualquier persona que pica o da conformidad, sin importar su cargo**, menos los jefes: por eso los **auxiliares de transporte** (Cristians Montellanos, José Carlos Téllez) y los conductores que pican (Hans, Michele) entran al ranking de picking, como ya aparece en el Excel. Quedan fuera los jefes (Roberto Muñoz, Katia Zapata, Dra. Elizabeth Remón) y «Varios».
+- **Quien detecta un error al cargar no puede ser quien picó ni quien conformó ese pedido**, y cada «Diferencia detectada en la carga» lleva motivo (y foto si se puede); el Jefe de Transporte puede descartarla si fue un error de quien la registró. Así nadie esconde errores de un compañero ni los inventa contra otro, ya que los transportistas son a la vez jueces del tercer filtro y competidores del picking.
+- Hoy casi toda la conformidad la da una sola persona (Sandra: ~80 % de los pedidos): el ranking de conformidad solo será una competencia cuando la conformidad se reparta entre varios («Tomar para conformidad»).
+- La meta de 3 % es un corte duro (3,0 % pasa, 3,2 % no). «Cómo voy» avisa en amarillo desde 2 % para corregir durante el mes.
 
 ## Por construir (en este orden)
 1. Conformidad: «pedido conforme sí/no» y el tipo de diferencia (cantidad, descripción, lote, documento). 2. «Diferencia detectada en la carga» (transporte). 3. Los dos rankings del mes con «Cómo voy». 4. Inspecciones LS-FR.49.03 y LS-FR.52.03 (conductor y auxiliar, firma dibujada, descarga en Word del formato mensual; no bloquean la salida).
