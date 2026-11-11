@@ -1,0 +1,179 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface FacturaAFavor {
+  id: string; comprobante: string; fecha_emision: string;
+  importe_total: number; total_nc: number; total_pagado: number; a_favor: number;
+}
+interface ClienteAFavor {
+  cliente_ruc: string; razon_social: string;
+  vendedor_nombre: string | null; vendedor_codigo: string | null;
+  a_favor: number; deuda: number; neto: number; facturas: FacturaAFavor[];
+}
+
+const fmt = (n: number) => 'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const fmtFecha = (s: string) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+
+// Por defecto se ocultan los menores a S/ 10: son redondeos del vuelto o de
+// la retención (32 de 80 al 2026-11-11, S/ 68,80 entre todos) y tapan los
+// pocos casos que de verdad hay que resolver.
+const MINIMO_POR_DEFECTO = 10;
+
+export default function SaldosAFavorPage() {
+  const [clientes, setClientes] = useState<ClienteAFavor[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [ocultarChicos, setOcultarChicos] = useState(true);
+  const [abierto, setAbierto] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/saldos-a-favor', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => d.error ? setError(d.error) : setClientes(d.clientes))
+      .catch(e => setError(String(e)));
+  }, []);
+
+  const visibles = (clientes ?? []).filter(c => !ocultarChicos || c.a_favor >= MINIMO_POR_DEFECTO);
+  const totalAFavor = visibles.reduce((s, c) => s + c.a_favor, 0);
+  const leDebemos = visibles.filter(c => c.neto < -0.09);
+  const totalLeDebemos = leDebemos.reduce((s, c) => s + (-c.neto), 0);
+  const ocultos = (clientes ?? []).length - visibles.length;
+
+  return (
+    <div>
+      <header className="px-6 py-4" style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}>
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-white text-2xl font-oswald tracking-wide">LOGISALUD</h1>
+            <p className="text-white/70 text-sm">Saldos a favor del cliente</p>
+          </div>
+          <a href="/cobranzas" className="text-white/80 hover:text-white text-sm">&larr; Menú</a>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto mt-6 px-4 pb-16">
+        <p className="text-sm text-gray-500 mb-4 max-w-3xl">
+          Lo que se le aplicó de <strong>más</strong> a una factura: notas de crédito emitidas
+          después de que el cliente pagó, o pagos por encima del importe. Como se{' '}
+          <strong>compensa</strong> contra las compras siguientes, la columna que manda es el{' '}
+          <strong>neto</strong>: si es negativo, le debemos esa plata.
+        </p>
+
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">{error}</div>}
+        {!clientes && !error && <div className="text-center py-16 text-gray-400 text-sm">Cargando…</div>}
+
+        {clientes && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider">Total a favor</p>
+                <p className="font-oswald text-2xl mt-0.5 text-gray-800">{fmt(totalAFavor)}</p>
+                <p className="text-[11px] text-gray-400">{visibles.length} cliente{visibles.length !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider">Le debemos (neto)</p>
+                <p className="font-oswald text-2xl mt-0.5" style={{ color: '#c0392b' }}>{fmt(totalLeDebemos)}</p>
+                <p className="text-[11px] text-gray-400">{leDebemos.length} cliente{leDebemos.length !== 1 ? 's' : ''} sin deuda que lo absorba</p>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col justify-between">
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input type="checkbox" checked={ocultarChicos} onChange={e => setOcultarChicos(e.target.checked)} />
+                  Ocultar menores a {fmt(MINIMO_POR_DEFECTO)}
+                </label>
+                <p className="text-[11px] text-gray-400">{ocultos > 0 ? `${ocultos} oculto${ocultos !== 1 ? 's' : ''} (redondeos)` : 'Nada oculto'}</p>
+                <a href="/api/exportar/saldos-a-favor"
+                  className="mt-2 inline-block text-center px-3 py-2 text-xs font-medium rounded-lg text-white" style={{ background: '#4BB168' }}>
+                  ⬇ Exportar a Excel
+                </a>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[760px]">
+                  <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left">Cliente</th>
+                      <th className="px-4 py-2.5 text-left">Vendedor</th>
+                      <th className="px-4 py-2.5 text-right">A favor</th>
+                      <th className="px-4 py-2.5 text-right">Deuda vigente</th>
+                      <th className="px-4 py-2.5 text-right">Neto</th>
+                      <th className="px-4 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {visibles.map(c => {
+                      const abierta = abierto === c.cliente_ruc;
+                      const debemos = c.neto < -0.09;
+                      return (
+                        <tr key={c.cliente_ruc} className="align-top">
+                          <td colSpan={6} className="p-0">
+                            <div className="flex items-center hover:bg-gray-50 cursor-pointer"
+                              onClick={() => setAbierto(abierta ? null : c.cliente_ruc)}>
+                              <div className="px-4 py-2.5 flex-1 min-w-0">
+                                <p className="font-semibold text-gray-800 truncate">{c.razon_social}</p>
+                                <p className="text-xs text-gray-400">{c.cliente_ruc}</p>
+                              </div>
+                              <div className="px-4 py-2.5 w-48 text-xs text-gray-500 truncate">
+                                {c.vendedor_nombre ?? 'Sin vendedor'}
+                              </div>
+                              <div className="px-4 py-2.5 w-32 text-right tabular-nums font-semibold text-gray-800">{fmt(c.a_favor)}</div>
+                              <div className="px-4 py-2.5 w-32 text-right tabular-nums text-gray-500">{fmt(c.deuda)}</div>
+                              <div className="px-4 py-2.5 w-36 text-right tabular-nums font-semibold"
+                                style={{ color: debemos ? '#c0392b' : '#4BB168' }}>
+                                {debemos ? `−${fmt(-c.neto)}` : fmt(c.neto)}
+                              </div>
+                              <div className="px-3 py-2.5 w-10 text-gray-300 text-xs">{abierta ? '▲' : '▼'}</div>
+                            </div>
+                            {abierta && (
+                              <div className="bg-gray-50 border-t border-gray-100 px-4 py-3">
+                                <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">De dónde sale</p>
+                                <table className="w-full text-xs">
+                                  <thead className="text-gray-400">
+                                    <tr>
+                                      <th className="py-1 text-left font-medium">Comprobante</th>
+                                      <th className="py-1 text-left font-medium">Emisión</th>
+                                      <th className="py-1 text-right font-medium">Importe</th>
+                                      <th className="py-1 text-right font-medium">Notas de crédito</th>
+                                      <th className="py-1 text-right font-medium">Pagado</th>
+                                      <th className="py-1 text-right font-medium">A favor</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {c.facturas.map(f => (
+                                      <tr key={f.id} className="border-t border-gray-200">
+                                        <td className="py-1.5 font-medium text-gray-700">{f.comprobante}</td>
+                                        <td className="py-1.5 text-gray-500">{fmtFecha(f.fecha_emision)}</td>
+                                        <td className="py-1.5 text-right tabular-nums text-gray-600">{fmt(f.importe_total)}</td>
+                                        <td className="py-1.5 text-right tabular-nums text-gray-600">{f.total_nc ? fmt(f.total_nc) : '—'}</td>
+                                        <td className="py-1.5 text-right tabular-nums text-gray-600">{fmt(f.total_pagado)}</td>
+                                        <td className="py-1.5 text-right tabular-nums font-semibold text-gray-800">{fmt(f.a_favor)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                                <a href={`/cobranzas/clientes/${c.cliente_ruc}/estado-cuenta`}
+                                  className="inline-block mt-3 text-xs" style={{ color: '#4ABCC2' }}>
+                                  Ver el estado de cuenta completo →
+                                </a>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {visibles.length === 0 && (
+                      <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">
+                        No hay saldos a favor{ocultarChicos && ocultos > 0 ? ` por encima de ${fmt(MINIMO_POR_DEFECTO)}` : ''}.
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}

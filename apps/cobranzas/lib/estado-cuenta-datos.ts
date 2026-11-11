@@ -53,6 +53,16 @@ export interface DatosEstadoCuenta {
    */
   comentarioCliente: ComentarioCobranza | null;
   comentariosPorFactura: Record<string, ComentarioCobranza>;
+  /**
+   * Lo que se le aplicó de MÁS al cliente, sumando sus facturas.
+   *
+   * Es plata que se le debe: se compensa contra sus compras siguientes. No
+   * sale restando del saldo —`saldo_pendiente` nunca es negativo— sino de la
+   * columna `saldo_a_favor` de `v_saldos`.
+   */
+  saldoAFavor: number;
+  /** El mismo excedente, abierto por factura (solo las que tienen). */
+  saldoAFavorPorFactura: Record<string, number>;
 }
 
 /**
@@ -80,16 +90,32 @@ export async function cargarEstadoCuenta(
     .eq('ruc', ruc)
     .maybeSingle();
 
-  const facturas = (await fetchAll<FacturaCruda>((from, to) =>
+  const facturasCrudas = await fetchAll<FacturaCruda & { saldo_a_favor?: number | string }>((from, to) =>
     db
       .from('v_saldos')
       .select(
-        'id, tipo, comprobante, fecha_emision, fecha_vencimiento, importe_total, saldo_pendiente, forma_pago, contado_pendiente, factorizado, factoring_entidad, incobrable, incobrable_motivo',
+        'id, tipo, comprobante, fecha_emision, fecha_vencimiento, importe_total, saldo_pendiente, forma_pago, contado_pendiente, factorizado, factoring_entidad, incobrable, incobrable_motivo, saldo_a_favor',
       )
       .eq('cliente_ruc', ruc)
       .order('fecha_emision')
       .order('id').range(from, to),
-  )) as FacturaCruda[];
+  );
+  const facturas = facturasCrudas as FacturaCruda[];
+
+  // Saldo a favor: lo aplicado de MÁS sobre una factura. Se lee de la vista
+  // (`v_saldos.saldo_a_favor`, migración 20261111) y no se recalcula acá, por
+  // lo mismo que `agruparPorFactura` no recalcula el saldo: dos cuentas del
+  // mismo número terminan discrepando. `saldo_pendiente` lo ignora a
+  // propósito — una factura nunca baja de cero.
+  const saldoAFavorPorFactura: Record<string, number> = {};
+  let saldoAFavor = 0;
+  for (const f of facturasCrudas) {
+    const v = Number(f.saldo_a_favor) || 0;
+    if (v > 0) {
+      saldoAFavorPorFactura[f.id] = v;
+      saldoAFavor = Math.round((saldoAFavor + v) * 100) / 100;
+    }
+  }
 
   const notas = (await fetchAll((from, to) =>
     db
@@ -214,5 +240,7 @@ export async function cargarEstadoCuenta(
     resumen,
     comentarioCliente: (comentarioCliente.data as ComentarioCobranza | null) ?? null,
     comentariosPorFactura,
+    saldoAFavor,
+    saldoAFavorPorFactura,
   };
 }

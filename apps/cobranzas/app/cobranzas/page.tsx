@@ -5,7 +5,7 @@ import {
   Upload, CreditCard, Landmark, AlertTriangle, Banknote, Clock,
   Target, Wallet, Layers, BarChart3, Tag, Repeat,
   Users, ClipboardList, ScrollText, CalendarClock, FileOutput, FileSpreadsheet,
-  Link2, Eye, MessageCircle, FolderInput,
+  Link2, Eye, MessageCircle, FolderInput, HandCoins,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -61,6 +61,7 @@ export default async function Home() {
         { href: '/cobranzas/clientes', icono: Users, titulo: 'Clientes', descripcion: 'Busca clientes, asigna o reasigna vendedores manualmente.' },
         { href: '/cobranzas/estado-cuenta', icono: ClipboardList, titulo: 'Estado de Cuenta', descripcion: 'Cartera por vendedor, cliente y factura con aging de vencimientos.', destacar: true },
         { href: '/cobranzas/estado-cuenta-cliente', icono: ScrollText, titulo: 'Estado de Cuenta por Cliente', descripcion: 'Historial completo tipo extracto bancario: cada movimiento con su saldo acumulado.', destacar: true },
+        { href: '/cobranzas/saldos-a-favor', icono: HandCoins, titulo: 'Saldos a favor del cliente', descripcion: 'A quién le debemos plata: notas de crédito y pagos aplicados de más, con el neto contra su deuda.' },
         { href: '/cobranzas/contados-pendientes', icono: Clock, titulo: 'Contados Pendientes', descripcion: 'Facturas CONTADO aún no cobradas. Márcalas como pendientes para incluirlas en la cartera.', destacar: true, visible: puedeEditarContado },
       ],
     },

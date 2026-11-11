@@ -103,6 +103,7 @@ export default function EstadoCuentaCliente({
   const [vista, setVista] = useState<'factura' | 'cronologico'>('factura');
   const [abierta, setAbierta] = useState<string | null>(null);
   const [resumen, setResumen] = useState<Resumen | null>(null);
+  const [saldoAFavor, setSaldoAFavor] = useState(0);
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [cargando, setCargando] = useState(true);
@@ -130,6 +131,7 @@ export default function EstadoCuentaCliente({
       setMovs(j.movimientos);
       setPorFactura(j.porFactura ?? []);
       setResumen(j.resumen);
+      setSaldoAFavor(Number(j.saldoAFavor) || 0);
       setComentarioCliente(j.comentarioCliente ?? null);
       setComentariosPorFactura(j.comentariosPorFactura ?? {});
     } catch (e) {
@@ -232,6 +234,20 @@ export default function EstadoCuentaCliente({
             <Tile titulo="Total facturado" valor={fmtSaldo(resumen.totalFacturado)} />
             <Tile titulo="Total pagado" valor={fmtSaldo(resumen.totalPagado)} nota="Incluye letras pagadas y retención" />
             <Tile titulo="Notas de crédito" valor={fmtSaldo(resumen.totalNotasCredito)} />
+          </div>
+        )}
+
+        {/* El saldo a favor no puede salir del saldo: `v_cobros` recorta cada
+            factura en cero, así que un excedente no baja la deuda del cliente
+            ni aparece en ningún total. Va como aviso aparte para que no se
+            pierda — es plata que se le debe. */}
+        {saldoAFavor > 0 && (
+          <div className="mb-4 rounded-lg border px-3 py-2 text-sm"
+            style={{ borderColor: '#bfe3c9', background: '#f1f9f3', color: '#276b3b' }}>
+            Este cliente tiene <strong>S/ {fmtSaldo(saldoAFavor)} a favor</strong> — notas de
+            crédito o pagos aplicados de más. Se compensa contra sus próximas compras y{' '}
+            <strong>no está descontado</strong> del saldo de arriba, porque una factura nunca
+            baja de cero.
           </div>
         )}
 
