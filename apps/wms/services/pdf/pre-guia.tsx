@@ -59,7 +59,7 @@ function Hoja({ d }: { d: DatosPreGuia }) {
               <Campo nombre="Vehículo · Conductor" valor={pre.placa || pre.conductor ? `${pre.placa ?? 'sin vehículo'} · ${pre.conductor ?? 'sin conductor'}` : 'Por asignar con la ruta'} />
             </View>
           </View>
-          <View style={[s.bloque, { marginTop: 10, flexGrow: 0 }]}>
+          <View style={{ border: `0.75pt solid ${LINEA}`, borderRadius: 4, padding: 9, marginTop: 10 }}>
             <Text style={{ fontFamily: 'Helvetica-Bold', color: TEAL, marginBottom: 4 }}>PUNTO DE PARTIDA</Text>
             <Text>{g.partida.direccion || '—'} · ubigeo {g.partida.ubigeo}</Text>
           </View>
