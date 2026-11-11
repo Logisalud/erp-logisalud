@@ -285,7 +285,17 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     if (entorno === 'PRODUCCION' && !n.confirmado) return falla(MENSAJE_SIN_CORRELATIVO(k))
     if (entorno !== 'PRODUCCION' && n.confirmado) return falla(mensajeSerieConfirmada(k))
     const propia = n.numeros.find((x) => x.estado === 'RESERVADO' && x.preGuia && x.salidaId === salidaId)
-    if (propia) return { ok: true, numero: propia.numero, reintento: false }      // 0055: el envío adopta el número de SU pre-guía
+    if (propia) {
+      // 0055: Nubefact exige correlativo seguido. Si otra pre-guía sin enviar tiene un número menor, intercambian números (ninguno se pierde).
+      const menor = n.numeros.filter((x) => x.estado === 'RESERVADO' && x.preGuia && x !== propia).sort((a, b) => a.numero - b.numero)[0]
+      if (menor && menor.numero < propia.numero) {
+        const mio = propia.numero
+        propia.numero = menor.numero
+        menor.numero = mio
+        ;(menor as { detalle?: string }).detalle = `Su número pasó de ${propia.numero} a ${mio}: otra pre-guía se envió antes y Nubefact pide números seguidos.`
+      }
+      return { ok: true, numero: propia.numero, reintento: false }
+    }
     const abierto = n.numeros.find((x) => x.estado === 'RESERVADO' && !x.preGuia)
     if (abierto) {
       if (abierto.salidaId === salidaId) return { ok: true, numero: abierto.numero, reintento: true }

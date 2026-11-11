@@ -68,7 +68,21 @@ do $$ begin
   perform wms._parchar_funcion('reservar_numero_guia',
     $q$  select * into n from wms.guia_numeros where serie = v_serie and estado = 'RESERVADO' and not archivado order by numero limit 1 for update;$q$,
     $q$  select * into n from wms.guia_numeros where serie = v_serie and estado = 'RESERVADO' and pre_guia and salida_id = p_salida and not archivado limit 1 for update;
-  if found then return jsonb_build_object('numero', n.numero, 'reintento', false); end if;
+  if found then
+    -- Nubefact exige correlativo seguido: si hay una pre-guía con un número menor aún sin enviar, esa pre-guía y esta INTERCAMBIAN números (ninguno se pierde ni se salta).
+    declare v_menor wms.guia_numeros; v_mio integer := n.numero;
+    begin
+      select * into v_menor from wms.guia_numeros where serie = v_serie and estado = 'RESERVADO' and pre_guia and not archivado and id <> n.id order by numero limit 1 for update;
+      if found and v_menor.numero < v_mio then
+        update wms.guia_numeros set numero = 99999999 where id = v_menor.id;
+        update wms.guia_numeros set numero = v_menor.numero where id = n.id;
+        update wms.guia_numeros set numero = v_mio, detalle = format('Su número pasó de %s a %s: otra pre-guía se envió antes y Nubefact pide números seguidos.', v_menor.numero, v_mio) where id = v_menor.id;
+        perform wms.registrar_audit('pre_guia_numero_intercambiado', 'guia_numeros', v_serie || '-' || v_menor.numero, null, jsonb_build_object('serie', v_serie, 'sale_el', v_menor.numero, 'recibe_el', v_mio, 'salida_que_se_envia', p_salida, 'salida_que_cambia', v_menor.salida_id), 'Correlativo seguido');
+        select * into n from wms.guia_numeros where id = n.id;
+      end if;
+    end;
+    return jsonb_build_object('numero', n.numero, 'reintento', false);
+  end if;
   select * into n from wms.guia_numeros where serie = v_serie and estado = 'RESERVADO' and not pre_guia and not archivado order by numero limit 1 for update;$q$);
   perform wms._parchar_funcion('liberar_numero_guia',
     $q$  if not found or n.estado <> 'RESERVADO' then return false; end if;$q$,

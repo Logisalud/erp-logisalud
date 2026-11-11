@@ -40,13 +40,21 @@ describe('0055 · pre-guía', () => {
     await expect(base.como(base.personas.sinRol.id, (c) => c.query(`select wms.crear_pre_guia('TTT1', 'PRUEBA', $1)`, [otra]))).rejects.toThrow()
     expect(Number((await uno(`select count(*) n from wms.guia_numeros where salida_id = $1`, [sin])).n)).toBe(0)
   })
-  it('el envío adopta el número de SU pre-guía, aunque haya otras pre-guías reservadas; una orden sin pre-guía no se bloquea por ellas', async () => {
+  it('el envío usa el número que sigue en la serie (Nubefact pide correlativo seguido): si su pre-guía tenía otro, intercambian números y ninguno se pierde; una orden sin pre-guía no se bloquea', async () => {
     const [a, b, sinPre] = [await orden(), await orden(), await orden()]
-    const pa = await crear(a); const pb = await crear(b)
-    expect(await reservarEnvio(b)).toEqual({ numero: pb.numero, reintento: false })
-    expect(await reservarEnvio(a)).toEqual({ numero: pa.numero, reintento: false })
+    await crear(a); const pb = await crear(b)
+    const antes = (await q(`select numero from wms.guia_numeros where pre_guia and estado = 'RESERVADO' and not archivado order by numero`)).map((r) => r.numero as number)
+    const menor = antes[0]
+    expect(pb.numero).toBeGreaterThan(menor)
+    expect(await reservarEnvio(b)).toEqual({ numero: menor, reintento: false })   // sale primero b: toma el número que sigue
+    const despues = (await q(`select numero from wms.guia_numeros where pre_guia and estado = 'RESERVADO' and not archivado order by numero`)).map((r) => r.numero as number)
+    expect(despues).toEqual(antes)   // los mismos números siguen reservados: solo cambiaron de dueño
+    const quien = await uno(`select salida_id, detalle from wms.guia_numeros where serie = 'TTT1' and numero = $1 and not archivado`, [pb.numero])
+    expect(quien.detalle).toMatch(/pasó de/)
+    expect((await uno(`select count(*)::int n from wms.audit_events where evento = 'pre_guia_numero_intercambiado'`)).n).toBeGreaterThanOrEqual(1)
+    expect(await reservarEnvio(b)).toEqual({ numero: menor, reintento: false })   // repetir es lo mismo
     const libre = await reservarEnvio(sinPre)
-    expect(libre.reintento).toBe(false); expect(libre.numero).toBeGreaterThan(Math.max(pa.numero, pb.numero))
+    expect(libre.reintento).toBe(false); expect(libre.numero).toBeGreaterThan(Math.max(...antes))
   })
   it('si Nubefact rechaza el envío, el número de la pre-guía NO se libera', async () => {
     const a = await orden(); const p = await crear(a)
