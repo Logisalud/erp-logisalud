@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Printer, Search } from 'lucide-react'
 import { puntaje } from '@/domain/busqueda'
 import { ETIQUETA_ESTADO } from '@/domain/estados'
-import { MAXIMO_ROTULOS, ROTULO_CODIGO, codificarPedido, fechaDDMMAAAA, textoVencimiento, totalRotulos, validarPedidoRotulos, type CajaSaldo } from '@/domain/rotulos'
+import { MAXIMO_ROTULOS, ROTULO_CODIGO, codificarPedido, fechaDeConteo, textoVencimiento, totalRotulos, validarPedidoRotulos, type CajaSaldo } from '@/domain/rotulos'
 import { hoyEnLima } from '@/domain/fechas'
 
 /**
@@ -12,7 +12,9 @@ import { hoyEnLima } from '@/domain/fechas'
  * la fecha de conteo viene con el día de hoy.
  */
 export function ListaRotulos({ cajas }: { cajas: CajaSaldo[] }) {
+  const hoy = hoyEnLima()
   const [q, setQ] = useState('')
+  const [fecha, setFecha] = useState(hoy)
   const [copias, setCopias] = useState<Record<string, number>>({})
   const visibles = useMemo(() => {
     const t = q.trim()
@@ -28,8 +30,13 @@ export function ListaRotulos({ cajas }: { cajas: CajaSaldo[] }) {
     <div className="mx-auto max-w-5xl space-y-5" data-testid="rotulos">
       <header>
         <h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Rótulos de caja saldo</h1>
-        <p className="mt-1 max-w-3xl text-gray-600">Formato {ROTULO_CODIGO} «Status del producto (cajas saldo)». Elige las cajas: el rótulo sale con el cliente (Logisalud, Diphasac, AJR, Medic Pharma…), el producto, el R.S., el lote, el vencimiento y el status. <strong>La cantidad y la firma quedan en blanco</strong> para llenarlas a mano; la fecha del conteo viene con el día de hoy ({fechaDDMMAAAA(hoyEnLima())}).</p>
+        <p className="mt-1 max-w-3xl text-gray-600">Formato {ROTULO_CODIGO} «Status del producto (cajas saldo)». Elige las cajas: el rótulo sale con el cliente (Logisalud, Diphasac, AJR, Medic Pharma…), el producto, el R.S., el lote, el vencimiento y el status. <strong>La cantidad y la firma quedan en blanco</strong> para llenarlas a mano; la fecha del conteo viene con el día de hoy y la puedes cambiar.</p>
       </header>
+
+      <div>
+        <label htmlFor="rot-fecha" className="mb-1 block text-sm font-medium text-gray-800">Fecha del conteo</label>
+        <input id="rot-fecha" type="date" className="campo max-w-[12rem]" value={fecha} max={hoy} onChange={(e) => setFecha(e.target.value || hoy)} data-testid="rotulos-fecha" />
+      </div>
 
       <div className="relative">
         <label htmlFor="rot-q" className="sr-only">Buscar producto, lote o registro sanitario</label>
@@ -62,7 +69,7 @@ export function ListaRotulos({ cajas }: { cajas: CajaSaldo[] }) {
 
       <div className="sticky bottom-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm" data-testid="rotulos-barra">
         <p className="text-sm text-gray-800" data-testid="rotulos-total">{total === 0 ? 'Elige cuántos rótulos de cada caja.' : `${total} ${total === 1 ? 'rótulo' : 'rótulos'} (${Math.ceil(total / 2)} ${Math.ceil(total / 2) === 1 ? 'hoja' : 'hojas'} A4, dos por hoja; máximo ${MAXIMO_ROTULOS})`}</p>
-        <a href={error ? undefined : `/wms/rotulos/pdf?p=${encodeURIComponent(codificarPedido(pedido))}`} target="_blank" rel="noopener noreferrer" aria-disabled={!!error}
+        <a href={error ? undefined : `/wms/rotulos/pdf?p=${encodeURIComponent(codificarPedido(pedido))}&f=${fechaDeConteo(fecha, hoy)}`} target="_blank" rel="noopener noreferrer" aria-disabled={!!error}
           className={`btn-primary ${error ? 'pointer-events-none opacity-50' : ''}`} data-testid="rotulos-imprimir"><Printer className="h-5 w-5" aria-hidden />Imprimir los rótulos</a>
       </div>
     </div>

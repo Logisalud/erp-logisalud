@@ -89,4 +89,12 @@ export function validarPedidoRotulos(p: readonly PedidoRotulo[]): string | null 
   if (total > MAXIMO_ROTULOS) return `Son demasiados rótulos de una vez (${total}); imprime hasta ${MAXIMO_ROTULOS}`
   return null
 }
+/** La fecha del conteo que se puede cambiar en pantalla: AAAA-MM-DD real y no posterior a hoy. Si no sirve, vale hoy. */
+export function fechaDeConteo(texto: string | null | undefined, hoy: string): string {
+  if (!texto || !/^\d{4}-\d{2}-\d{2}$/.test(texto)) return hoy
+  const d = new Date(`${texto}T00:00:00Z`)
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== texto || texto > hoy) return hoy
+  return texto
+}
+
 export const totalRotulos = (p: readonly PedidoRotulo[]) => p.reduce((t, x) => t + x.copias, 0)

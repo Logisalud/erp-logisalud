@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAXIMO_ROTULOS, codificarPedido, datosDeRotulo, decodificarPedido, fechaDDMMAAAA, puedeImprimirRotulos, statusDeRotulo, textoVencimiento, totalRotulos, validarPedidoRotulos, type CajaSaldo } from '@/domain/rotulos'
+import { fechaDeConteo, MAXIMO_ROTULOS, codificarPedido, datosDeRotulo, decodificarPedido, fechaDDMMAAAA, puedeImprimirRotulos, statusDeRotulo, textoVencimiento, totalRotulos, validarPedidoRotulos, type CajaSaldo } from '@/domain/rotulos'
 
 const caja = (p: Partial<CajaSaldo> = {}): CajaSaldo => ({ clave: 'l1:APROBADO', loteId: 'l1', estado: 'APROBADO', productoId: 'p1', productoCodigo: 'DHP106', producto: 'DAPHA 10 10 MG CJA X 30 TAB. REC.', registroSanitario: 'EE-01234', lote: 'L-77', vence: '2028-06-30', propietario: 'Diphasac', cantidad: 30, ...p })
 
@@ -27,5 +27,13 @@ describe('rótulos de caja saldo (LS.ET.07)', () => {
   it('lo imprimen auxiliares, jefes de almacén y administración; no el conductor', () => {
     for (const r of ['auxiliar', 'jefe_almacen', 'jefe_transporte', 'admin_wms'] as const) expect(puedeImprimirRotulos([r]), r).toBe(true)
     expect(puedeImprimirRotulos(['conductor'])).toBe(false)
+  })
+})
+
+describe('fechaDeConteo', () => {
+  it('acepta hoy y días pasados; lo demás vuelve a hoy', () => {
+    expect(fechaDeConteo('2026-11-09', '2026-11-11')).toBe('2026-11-09')
+    expect(fechaDeConteo('2026-11-11', '2026-11-11')).toBe('2026-11-11')
+    for (const x of ['2026-11-12', '2026-02-30', 'ayer', '', null, undefined]) expect(fechaDeConteo(x, '2026-11-11')).toBe('2026-11-11')
   })
 })

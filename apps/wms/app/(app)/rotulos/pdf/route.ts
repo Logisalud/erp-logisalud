@@ -3,14 +3,14 @@ import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { cajasSaldoDe } from '@/services/rotulos'
-import { datosDeRotulo, decodificarPedido, puedeImprimirRotulos, validarPedidoRotulos, type DatosRotulo } from '@/domain/rotulos'
+import { datosDeRotulo, fechaDeConteo, decodificarPedido, puedeImprimirRotulos, validarPedidoRotulos, type DatosRotulo } from '@/domain/rotulos'
 import { hoyEnLima } from '@/domain/fechas'
 import { renderRotulosSaldo } from '@/services/pdf/rotulos-saldo'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-/** Los rótulos de caja saldo (LS.ET.07), dos por hoja A4: `?p=loteId:ESTADO:copias,…`. La cantidad y la firma quedan en blanco; la fecha de conteo es hoy. */
+/** Los rótulos de caja saldo (LS.ET.07), dos por hoja A4: `?p=loteId:ESTADO:copias,…`. La cantidad y la firma quedan en blanco; la fecha de conteo es hoy, o la que se elija (`f=AAAA-MM-DD`, nunca futura). */
 export async function GET(req: Request) {
   const ctx = await obtenerContexto()
   if (!ctx || !puedeImprimirRotulos(ctx.roles)) return new NextResponse('Inicia sesión con un perfil de almacén.', { status: 401 })
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const error = validarPedidoRotulos(pedido)
   if (error) return new NextResponse(error, { status: 400 })
   const cajas = new Map(cajasSaldoDe(await repositorio().panorama()).map((c) => [c.clave, c]))
-  const hoy = hoyEnLima()
+  const hoy = fechaDeConteo(new URL(req.url).searchParams.get('f'), hoyEnLima())
   const rotulos: DatosRotulo[] = []
   for (const x of pedido) {
     const c = cajas.get(x.clave)
