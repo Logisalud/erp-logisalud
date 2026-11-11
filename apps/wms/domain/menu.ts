@@ -14,7 +14,7 @@ import { puedeVerProveedores } from './vencimiento'
 
 export type IconoNav =
   | 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos'
-  | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'nuevasalida' | 'guias'
+  | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'nuevasalida' | 'guias' | 'ranking'
   | 'picking' | 'conformidad' | 'embalaje' | 'cargaunidad' | 'bajas' | 'retornos'
 
 export interface ItemMenu {
@@ -100,6 +100,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   ponerSi('control', veCalidadYDocumentos(roles), { href: '/documentos', etiqueta: 'Documentos regulatorios', icono: 'documentos' })
   ponerSi('control', veCalidadYDocumentos(roles), { href: '/expedientes', etiqueta: 'Expedientes', icono: 'expedientes' })
   ponerSi('control', true, { href: '/reportes', etiqueta: 'Reportes', icono: 'reportes' })
+  ponerSi('control', !soloAutoriza, { href: '/ranking', etiqueta: 'Ranking del mes', icono: 'ranking', corta: 'Ranking' })
   ponerSi('control', !soloAutoriza && roles.some((r) => r !== 'auxiliar'), { href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })
   ponerSi('control', puedeVerProveedores(roles), { href: '/proveedores', etiqueta: 'Proveedores', icono: 'propietarios' })
   ponerSi('control', puede(roles, 'auditar'), { href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })

@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Ban, Check, CheckCircle2, ListChecks, PackageCheck, ScanLine, Truck, Undo2, XCircle } from 'lucide-react'
+import { ArrowLeft, Ban, Check, CheckCircle2, ListChecks, PackageCheck, ScanLine, Truck, TriangleAlert, Undo2, XCircle } from 'lucide-react'
+import { registrarDiferenciaCargaAccion } from '@/app/acciones-ranking'
 import { cargarBultoAccion, confirmarSalidaRutaAccion, excluirPedidoAccion, guardarChecklistAccion, liberarUnidadAccion, retirarBultoAccion } from '@/app/acciones-picking'
 import { ETIQUETA_ESTADO_CARGA, type CargaRuta, type ItemChecklist } from '@/domain/carga'
 import { textoNoImpreso } from '@/domain/ls-fr-43-03'
@@ -25,6 +26,7 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
   const [excluyendo, setExcluyendo] = useState<string | null>(null)
   const [motivo, setMotivo] = useState('')
   const [confirmando, setConfirmando] = useState(false)
+  const [diferencia, setDiferencia] = useState<string | null>(null)
   const entrada = useRef<HTMLInputElement>(null)
   const guardado = JSON.stringify(carga.checklist)
   // el checklist guardado manda; lo que se está editando sin guardar no se pierde al escanear
@@ -123,6 +125,14 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
                   <div className="flex gap-2"><button type="button" className="btn-primary btn-sm" disabled={pendiente || !motivo.trim()} onClick={() => ejecutar(() => retirarBultoAccion(carga.rutaId, retirando, motivo), { alExito: () => setRetirando(null) })} data-testid="confirmar-retiro">Retirar</button><button type="button" className="btn-secondary btn-sm" onClick={() => setRetirando(null)}>Cancelar</button></div>
                 </div>
               )}
+              {enCarga && puedeCargar && !p.excluida && (diferencia === p.salidaId ? (
+                <div className="mt-3 space-y-2" data-testid="form-diferencia-carga">
+                  <label htmlFor="motivo-diferencia" className="etiqueta">¿Qué diferencia encontraste al cargar este pedido?</label>
+                  <input id="motivo-diferencia" className="campo" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Por ejemplo: en la caja había otro lote" data-testid="motivo-diferencia" />
+                  <p className="text-sm text-gray-700">Cuenta como un error del pedido para quien lo picó y para quien dio la conformidad. No puedes registrarla si tú picaste o diste la conformidad de este pedido.</p>
+                  <div className="flex gap-2"><button type="button" className="btn-primary btn-sm" disabled={pendiente || !motivo.trim()} onClick={() => ejecutar(() => registrarDiferenciaCargaAccion(p.salidaId, motivo), { alExito: () => { setDiferencia(null); setMotivo(''); setAviso({ tipo: 'ok', texto: 'Diferencia registrada. Quedó anotada en el pedido.' }) } })} data-testid="diferencia-confirmar">Registrar la diferencia</button><button type="button" className="btn-secondary btn-sm" onClick={() => setDiferencia(null)}>Cancelar</button></div>
+                </div>
+              ) : <button type="button" className="btn-secondary btn-sm mt-3 mr-2" onClick={() => { setDiferencia(p.salidaId); setMotivo('') }} data-testid="diferencia-carga"><TriangleAlert className="h-4 w-4" aria-hidden />Diferencia detectada en la carga</button>)}
               {enCarga && puedeLiberar && !p.excluida && (excluyendo === p.salidaId ? (
                 <div className="mt-3 space-y-2" data-testid="form-excluir">
                   <label htmlFor="motivo-excluir" className="etiqueta">¿Por qué el pedido se deja fuera de esta salida?</label>
