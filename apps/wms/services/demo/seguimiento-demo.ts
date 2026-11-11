@@ -22,7 +22,7 @@ export class SeguimientoDemo extends MisRutasDemo implements RepositorioSeguimie
   fijarSeguimientoHabilitado(v: boolean) { seg(estadoE()).habilitado = v }
   /** Pruebas: mueve en el tiempo los intentos (para probar que a los 15 minutos se puede volver a intentar). */
   envejecerIntentosSeguimiento(ms: number) { for (const i of seg(estadoE()).intentos) i.en -= ms }
-  seguimientoDisponible(): boolean { const e = estadoE(); return modoPilotoDemo(e) === 'no' && seg(e).habilitado }
+  seguimientoDisponible(): boolean { const e = estadoE(); return seg(e).habilitado }   // 0054: basta el interruptor (también en el piloto)
 
   /** Segundos de espera si hubo demasiados fallos (por pedido 5, por IP 8, global 300 en 15 minutos); 0 si puede intentar. */
   private espera(e: EstadoDemo, ip: string, clave: string): number {

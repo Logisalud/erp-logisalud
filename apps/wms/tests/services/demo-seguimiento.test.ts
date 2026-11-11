@@ -14,17 +14,19 @@ beforeEach(async () => {
 })
 const encender = () => { repo.fijarModoPiloto('no'); repo.fijarSeguimientoHabilitado(true) }
 
-describe('apagado en el piloto', () => {
-  it('con modo piloto responde «no disponible» y no genera enlaces, aunque el interruptor esté encendido', async () => {
-    repo.fijarModoPiloto('si'); repo.fijarSeguimientoHabilitado(true)
-    expect(await repo.consultarSeguimiento('PED-DEMO-101', RUC, '1.1.1.1')).toEqual({ estado: 'NO_DISPONIBLE' })
-    expect(await repo.consultarSeguimientoPorToken('x'.repeat(64), '1.1.1.1')).toEqual({ estado: 'NO_DISPONIBLE' })
-    expect(await repo.crearEnlaceSeguimiento('PED-DEMO-101', 30, JT)).toMatchObject({ ok: false, mensaje: 'Seguimiento aún no disponible' })
+describe('apagado mientras el interruptor esté apagado', () => {
+  it('con el interruptor apagado responde «no disponible» y no genera enlaces, en el piloto o fuera de él', async () => {
+    for (const piloto of ['si', 'no'] as const) {
+      repo.fijarModoPiloto(piloto); repo.fijarSeguimientoHabilitado(false)
+      expect(await repo.consultarSeguimiento('PED-DEMO-101', RUC, '1.1.1.1')).toEqual({ estado: 'NO_DISPONIBLE' })
+      expect(await repo.consultarSeguimientoPorToken('x'.repeat(64), '1.1.1.1')).toEqual({ estado: 'NO_DISPONIBLE' })
+      expect(await repo.crearEnlaceSeguimiento('PED-DEMO-101', 30, JT)).toMatchObject({ ok: false, mensaje: 'Seguimiento aún no disponible' })
+    }
     expect(repo.tokensGuardadosSeguimiento()).toEqual([])
   })
-  it('fuera del piloto pero con el interruptor apagado (de fábrica) tampoco está disponible', async () => {
-    repo.fijarModoPiloto('no')
-    expect(await repo.consultarSeguimiento('', '', '1.1.1.1')).toEqual({ estado: 'NO_DISPONIBLE' })
+  it('0054: en el piloto, con el interruptor encendido, funciona', async () => {
+    repo.fijarModoPiloto('si'); repo.fijarSeguimientoHabilitado(true)
+    expect((await repo.consultarSeguimiento('PED-DEMO-101', RUC, '1.1.1.1')).estado).toBe('OK')
   })
 })
 
