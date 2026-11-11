@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { claveDeOrden, clavePlanParada, filtrarOrdenesPlanificables, fueraDeCorte, horaLima, ordenSugerido, validarPlan, type OrdenPlanificable, type PedidoPlanificable, type VehiculoVista } from '@/domain/rutas'
+import { claveDeOrden, clavePlanParada, filtrarOrdenesPlanificables, fueraDeCorte, horaLima, motivoFaltaContingencia, ordenSugerido, validarPlan, type OrdenPlanificable, type PedidoPlanificable, type VehiculoVista } from '@/domain/rutas'
 
 const ped = (n: string, extra: Partial<PedidoPlanificable> = {}): PedidoPlanificable => ({ pedidoId: n, numero: `PED-${n}`, cliente: `Cliente ${n}`, lineas: 1, unidades: 10, importadoEn: '2026-10-14T15:00:00Z', cambioPorRevisar: false, sinCatalogo: [], ...extra })
 const veh = (extra: Partial<VehiculoVista> = {}): VehiculoVista => ({ id: 'v1', placa: 'ABC-123', tipo: 'PROPIO', calificado: false, aptoCadenaFrio: false, activo: true, ...extra })
 const base = (pedidos: PedidoPlanificable[], extra: Partial<Parameters<typeof validarPlan>[0]> = {}) =>
   ({ hoy: '2026-10-14', corte: '16:00', plan: { fecha: '2026-10-15', paradas: pedidos.map((p) => ({ pedidoId: p.pedidoId })) }, vehiculo: veh(), pedidos: new Map(pedidos.map((p) => [p.pedidoId, p])), enOtraRuta: new Map(), ...extra })
+
+describe('motivoFaltaContingencia (0057)', () => {
+  it('solo el vehículo de contingencia pide nota, de al menos 5 letras', () => {
+    expect(motivoFaltaContingencia(undefined, '')).toBeNull()
+    expect(motivoFaltaContingencia({ contingencia: false }, '')).toBeNull()
+    expect(motivoFaltaContingencia({ contingencia: true }, '')).toMatch(/vehículo de contingencia/)
+    expect(motivoFaltaContingencia({ contingencia: true }, ' ab ')).toMatch(/vehículo de contingencia/)
+    expect(motivoFaltaContingencia({ contingencia: true }, 'Se averió el camión')).toBeNull()
+  })
+})
 
 describe('corte de planificación (hora de Lima)', () => {
   it('convierte UTC a Lima', () => { expect(horaLima('2026-10-14T21:30:00Z')).toEqual({ fecha: '2026-10-14', hora: '16:30' }); expect(horaLima('2026-10-15T03:00:00Z')).toEqual({ fecha: '2026-10-14', hora: '22:00' }) })

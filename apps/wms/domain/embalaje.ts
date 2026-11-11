@@ -1,3 +1,4 @@
+import { nombresDeUbigeo } from './ubigeos-peru'
 // Embalaje y bultos (S7): el reparto de lo confirmado en bultos «1 de 3». Espejo de wms.embalar_salida y wms.reabrir_embalaje (la base de datos manda).
 import { puede } from './permisos'
 import type { Rol } from './tipos'
@@ -89,4 +90,16 @@ export function textoDestinoEtiqueta(direccion?: string | null, distrito?: strin
   if (!d) return dist ? `Distrito: ${dist} (sin dirección registrada)` : 'SIN DIRECCIÓN DE DESTINO'
   if (dist && !d.toLowerCase().includes(dist.toLowerCase())) return `${d} · ${dist}`
   return d
+}
+
+/**
+ * La etiqueta de provincia (hoja LOGISALUD del formato de etiquetas, para la etiquetera TSC TE200: 104,6 × 75 mm): «DESTINO: <departamento>» y
+ * «ENTREGA A DOMICILIO: DEPARTAMENTO - PROVINCIA - DISTRITO - dirección». Sin ubigeo en el catálogo, la dirección sola (y el distrito si lo trae).
+ */
+export function destinoDeEtiqueta(ubigeo: string | null | undefined, direccion?: string | null, distrito?: string | null): { departamento?: string; entrega: string } {
+  const n = nombresDeUbigeo(ubigeo)
+  const dir = (direccion ?? '').trim().replace(/\s+/g, ' ')
+  if (!n) return { entrega: textoDestinoEtiqueta(direccion, distrito) }
+  const partes = [n.departamento, n.provincia, n.distrito]
+  return { departamento: n.departamento, entrega: [...partes, ...(dir ? [dir] : [])].join(' - ') }
 }

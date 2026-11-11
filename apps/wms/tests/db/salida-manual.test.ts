@@ -67,6 +67,62 @@ beforeAll(async () => {
 }, 120_000)
 afterAll(async () => { await base?.cerrar() })
 
+describe('editar la orden (0059)', () => {
+  const editar = (quien: string, salidaId: string, cambios: unknown, motivo: string | null = null) =>
+    como(quien, async (c) => (await c.query('select wms.editar_orden_salida($1, $2::jsonb, $3) r', [salidaId, JSON.stringify(cambios), motivo])).rows[0].r as { cambios: string[]; sin_stock: number })
+  const reservado = async (lineaId: string) => Number((await uno(`select coalesce(sum(cantidad), 0)::int n from wms.reservas where linea_id = $1 and estado in ('ACTIVA', 'EN_TRANSITO', 'EN_STAGING')`, [lineaId])).n)
+
+  it('una orden manual antes del picking: cambia la nota, el destinatario y las cantidades (con motivo); lo reservado se ajusta por FEFO y todo queda en la auditoría', async () => {
+    const p = await producto()
+    await stock(p.id, 'E-VIEJO', en(120), 30); await stock(p.id, 'E-NUEVO', en(400), 100)
+    const id = await manual(jt, 'A', null, null, [{ producto_id: p.id, cantidad: 50 }], { pedido: 'PED-E-001', cliente: CLIENTE })
+    const l = (await lineasDe(id))[0]
+    expect(await reservado(l.id)).toBe(50)
+    expect(await editar(ja, id, { nota: 'Entregar por la puerta lateral' })).toMatchObject({ cambios: ['nota'] })
+    expect((await salida(id)).nota_orden).toBe('Entregar por la puerta lateral')
+    // el motivo es obligatorio para cambiar líneas o destinatario
+    expect((await falla(editar(ja, id, { lineas: [{ linea_id: l.id, cantidad: 40 }] }))).message).toMatch(/por qué cambias la orden/)
+    await editar(ja, id, { lineas: [{ linea_id: l.id, cantidad: 40 }] }, 'El cliente pidió menos')
+    expect(await reservado(l.id)).toBe(40); expect((await lineasDe(id))[0].cantidad).toBe(40)
+    await editar(ja, id, { lineas: [{ linea_id: l.id, cantidad: 70 }] }, 'Ahora pidió más')
+    expect(await reservado(l.id)).toBe(70); expect((await lineasDe(id))[0]).toMatchObject({ cantidad: 70, estado: 'ASIGNADA' })
+    await editar(ja, id, { destinatario: { razon_social: 'Botica Nueva SAC', direccion: 'Jr. Cusco 456, Lima' } }, 'Cambió de sucursal')
+    expect((await salida(id)).cliente_manual).toMatchObject({ razon_social: 'Botica Nueva SAC', direccion: 'Jr. Cusco 456, Lima', ruc: '20123456789', ubigeo: '150101' })
+    expect(Number((await uno(`select count(*)::int n from wms.audit_events where evento in ('orden_nota_editada', 'orden_linea_editada', 'orden_destinatario_editado') and (entidad_id = $1 or entidad_id = $2)`, [id, l.id])).n)).toBe(4)
+    await editar(ja, id, { nota: '' }); expect((await salida(id)).nota_orden).toBeNull()
+  })
+
+  it('reglas: cantidad entera desde 1, ubigeo y RUC válidos, líneas ajenas no, y solo quien prepara salidas', async () => {
+    const p = await producto(); await stock(p.id, 'E2-A', en(300), 100)
+    const id = await manual(jt, 'A', null, null, [{ producto_id: p.id, cantidad: 10 }], { pedido: 'PED-E-002', cliente: CLIENTE })
+    const l = (await lineasDe(id))[0]
+    expect((await falla(editar(ja, id, { lineas: [{ linea_id: l.id, cantidad: 0 }] }, 'Quitar la línea'))).message).toMatch(/cancela la orden y crea otra/)
+    expect((await falla(editar(ja, id, { lineas: [{ linea_id: randomUUID(), cantidad: 5 }] }, 'Línea de otra orden'))).message).toMatch(/no es de esta orden/)
+    expect((await falla(editar(ja, id, { destinatario: { ubigeo: '15' } }, 'Ubigeo corto'))).message).toMatch(/6 números/)
+    expect((await falla(editar(ja, id, { destinatario: { ruc: '123' } }, 'RUC corto'))).message).toMatch(/RUC tiene 11/)
+    expect((await falla(editar(ja, id, { destinatario: { telefono: '999' } }, 'Dato que no se edita'))).message).toMatch(/solo se cambian/)
+    expect((await falla(editar(aux, id, { nota: 'hola' }))).message).toMatch(/permiso/)
+    expect((await falla(editar(kat, id, { nota: 'hola' }))).message).toMatch(/permiso/)
+    expect(await reservado(l.id)).toBe(10)   // lo que falló no tocó nada
+  })
+
+  it('una orden de un pedido no se edita (ni la nota); una manual con el picking empezado admite solo la nota; cancelada, nada', async () => {
+    const p = await producto(); await stock(p.id, 'E3-A', en(300), 100)
+    const ped = pedido(p.codigo, 20); await importar([ped])
+    const deBand = (await deBandeja(ja, ped)).salida_id as string
+    expect((await falla(editar(ja, deBand, { lineas: [{ linea_id: (await lineasDe(deBand))[0].id, cantidad: 5 }] }, 'Cambio desde la orden'))).message).toMatch(/se cambia desde Pedidos/)
+    expect((await falla(editar(ja, deBand, { nota: 'Llamar antes de entregar' }))).message).toMatch(/se cambia desde Pedidos/)
+    // manual con picking generado
+    const q2 = await producto(); await stock(q2.id, 'E3-B', en(300), 100)
+    const man = await manual(jt, 'A', null, null, [{ producto_id: q2.id, cantidad: 10 }], { pedido: 'PED-E-003', cliente: CLIENTE })
+    await como(jt, (c) => c.query('select wms.generar_orden_picking($1)', [man]))
+    expect((await falla(editar(ja, man, { lineas: [{ linea_id: (await lineasDe(man))[0].id, cantidad: 5 }] }, 'Cambio con picking'))).message).toMatch(/ya empezó el picking/)
+    await editar(ja, man, { nota: 'Nota con picking' })   // la nota sí
+    await como(jt, (c) => c.query('select wms.cancelar_orden_salida($1, $2)', [man, 'Se canceló']))
+    expect((await falla(editar(ja, man, { nota: 'ya no' }))).message).toMatch(/ya no está abierta/)
+  })
+})
+
 describe('tipo A: venta manual de distribución', () => {
   it('la crea el Jefe de Transporte con el número de pedido; queda manual, por conciliar, con el cliente escrito y el stock asignado por FEFO', async () => {
     const p = await producto()

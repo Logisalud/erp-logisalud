@@ -13,7 +13,7 @@ export default async function Conformidad() {
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <header><h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Conformidad de despacho</h1><p className="mt-1 max-w-3xl text-gray-600">Una segunda persona revisa lo pickeado. Al dar la conformidad, las unidades pasan del rack a la zona de conformidad.</p></header>
-      <ColaOrdenes ordenes={cola} modo="conformidad" />
+      <ColaOrdenes ordenes={cola} modo="conformidad" roles={ctx.roles} personaId={ctx.usuario.id} />
     </div>
   )
 }

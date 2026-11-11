@@ -34,7 +34,8 @@ function ChipBandeja({ estado }: { estado: EstadoBandeja }) {
   return <span className={`${base} ${m.cls}`} data-testid="chip-estado-pedido"><m.Icono className="h-3.5 w-3.5" aria-hidden />{ETIQUETA_ESTADO_BANDEJA[estado]}</span>
 }
 
-const fechaDia = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+/** Siempre con el año («5 nov 2026»): la bandeja va a tener pedidos de más de un año. */
+const fechaDia = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 
 const SIMULACIONES: { cambio: CambioSimulado; texto: string }[] = [
   { cambio: 'REDUCIR', texto: 'Reducir una línea' }, { cambio: 'QUITAR', texto: 'Quitar una línea' }, { cambio: 'AGREGAR', texto: 'Agregar una línea' },
@@ -242,7 +243,11 @@ export function BandejaPedidosVista({ bandeja, puedeActualizar, puedeCrearOrdene
         x.nuevasVersiones ? `${x.nuevasVersiones} con versión nueva` : '',
         x.descartados.length ? `${x.descartados.length} ${x.descartados.length === 1 ? 'descartado' : 'descartados'} por venir mal (${x.descartados.map((d) => `${d.referencia ?? 'sin número'}: ${d.motivo.replace(/\.$/, '')}`).join('; ')})` : '',
       ].filter(Boolean)
-      setResumen(partes.length ? `Bandeja actualizada: ${partes.join(', ')}.` : 'Bandeja al día: no hay nada nuevo en Pedidos.')
+      const base = partes.length ? `Bandeja actualizada: ${partes.join(', ')}.` : 'Bandeja al día: no hay nada nuevo en Pedidos.'
+      const entrego = x.entregados !== undefined ? ` Pedidos entregó ${x.entregados} ${x.entregados === 1 ? 'pedido' : 'pedidos'}${x.ultimoNumero ? ` (el último es el N.° ${x.ultimoNumero})` : ''}.` : ''
+      // si Pedidos cuenta más listos de los que entregó, algo se cortó por el camino: se dice, no se calla
+      const corte = x.totalEnPedidos !== undefined && x.entregados !== undefined && x.totalEnPedidos > x.entregados ? ` ATENCIÓN: Pedidos cuenta ${x.totalEnPedidos} listos pero solo entregó ${x.entregados}. Avisa a quien administra Pedidos.` : ''
+      setResumen(base + entrego + corte)
     },
   })
 

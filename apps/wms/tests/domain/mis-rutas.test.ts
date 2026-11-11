@@ -1,7 +1,7 @@
 // Fase 4 · P4: reglas puras de «Mis rutas» (espejo de wms.registrar_evento_parada, migración 0043).
 import { describe, expect, it } from 'vitest'
 import { construirMenu } from '@/domain/menu'
-import { datosParaLsFr, estadoDeParada, eventosPosibles, motivoNoSePuede, puedeVerMisRutas, soloMisRutas, todasResueltas, validarEventoParada, validarFoto, type EventoParadaVista } from '@/domain/mis-rutas'
+import { datosParaLsFr, estadoDeParada, eventosPosibles, motivoNoSePuede, puedeFotografiarPedido, puedeVerMisRutas, soloMisRutas, todasResueltas, validarEventoParada, validarFoto, type EventoParadaVista } from '@/domain/mis-rutas'
 import { puede } from '@/domain/permisos'
 
 const ev = (evento: EventoParadaVista['evento'], extra: Partial<EventoParadaVista> = {}): EventoParadaVista => ({ id: evento, evento, hora: '2026-11-05T15:30:00Z', ...extra })
@@ -14,7 +14,7 @@ describe('permisos y menú', () => {
     expect(soloMisRutas(['conductor'])).toBe(true); expect(soloMisRutas(['conductor', 'jefe_transporte'])).toBe(false)
   })
   it('su menú es Inicio y Mis rutas; el de los demás no la trae', () => {
-    expect(construirMenu(['conductor']).flatMap((s) => s.items.map((i) => i.href))).toEqual(['/', '/mis-rutas'])
+    expect(construirMenu(['conductor']).flatMap((s) => s.items.map((i) => i.href))).toEqual(['/', '/mis-rutas', '/inspecciones'])
     expect(construirMenu(['auxiliar_transporte']).flatMap((s) => s.items.map((i) => i.href))).toContain('/mis-rutas')
     expect(construirMenu(['jefe_transporte']).flatMap((s) => s.items.map((i) => i.href))).not.toContain('/mis-rutas')
   })
@@ -54,6 +54,17 @@ describe('validaciones', () => {
   it('entregado pide nombre, DNI de 8 números y foto; los demás, el motivo', () => {
     expect(validarEventoParada('ENTREGADO', {})).toMatchObject({ recibioNombre: expect.any(String), recibioDocumento: expect.any(String), foto: expect.any(String) })
     expect(validarEventoParada('ENTREGADO', { recibioNombre: 'María Pérez', recibioDocumento: '1234567', tieneFoto: true })).toEqual({ recibioDocumento: 'El DNI de quien recibió tiene 8 números' })
+    // foto del pedido con la caja abierta: pide la foto; se toma con la ruta liberada o en ruta, no con la parada ya resuelta
+    expect(validarEventoParada('FOTO_PEDIDO', {})).toMatchObject({ foto: expect.stringContaining('caja abierta') })
+    expect(validarEventoParada('FOTO_PEDIDO', { tieneFoto: true })).toEqual({})
+    expect(puedeFotografiarPedido('LIBERADA', 'PENDIENTE')).toBe(true); expect(puedeFotografiarPedido('EN_RUTA', 'LLEGUE')).toBe(true)
+    expect(puedeFotografiarPedido('PLANIFICADA', 'PENDIENTE')).toBe(false); expect(puedeFotografiarPedido('EN_RUTA', 'ENTREGADO')).toBe(false); expect(puedeFotografiarPedido('CERRADA', 'PENDIENTE')).toBe(false)
+    // conformidad del cliente: sin marcar o «sí» no pide nada más; «no» pide el tipo de diferencia
+    const base = { recibioNombre: 'María Pérez', recibioDocumento: '12345678', tieneFoto: true }
+    expect(validarEventoParada('ENTREGADO', base)).toEqual({})
+    expect(validarEventoParada('ENTREGADO', { ...base, conforme: true })).toEqual({})
+    expect(validarEventoParada('ENTREGADO', { ...base, conforme: false })).toMatchObject({ tipoDiferencia: expect.stringContaining('Elige qué no coincidió') })
+    expect(validarEventoParada('ENTREGADO', { ...base, conforme: false, tipoDiferencia: 'LOTE' })).toEqual({})
     expect(validarEventoParada('ENTREGADO', { recibioNombre: 'María Pérez', recibioDocumento: '12345678', tieneFoto: true })).toEqual({})
     for (const e of ['NO_ENTREGADO', 'RECHAZADO', 'INCIDENCIA'] as const) { expect(validarEventoParada(e, { motivo: 'no' }).motivo).toBeTruthy(); expect(validarEventoParada(e, { motivo: 'Cliente ausente' })).toEqual({}) }
     expect(validarEventoParada('LLEGUE', {})).toEqual({})

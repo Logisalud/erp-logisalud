@@ -11,7 +11,7 @@ export default async function LayoutApp({ children }: { children: ReactNode }) {
   const ctx = await exigirContexto()
   const alertas = await repositorio().contarAlertasAbiertas()
   const misAlertas = (ctx.roles.includes('direccion_tecnica') ? alertas.direccion_tecnica : 0) + (ctx.roles.some((r) => r === 'jefe_almacen') ? alertas.jefe_almacen : 0) + (ctx.roles.includes('asistente_dt') ? alertas.asistente_dt : 0) + (ctx.roles.includes('jefe_transporte') ? alertas.jefe_transporte : 0)
-  const secciones = construirMenu(ctx.roles, misAlertas)
+  const secciones = construirMenu(ctx.roles, misAlertas, await repositorio().embalajeActivo())
   return (
     <Shell secciones={secciones} principales={principalesTelefono(ctx.roles, secciones)} cerradas={cerradasPorDefecto(ctx.roles, secciones)} nombre={ctx.usuario.nombre} rol={etiquetaCargo(ctx)} salir={<Salir demo={ctx.demo} />}>
       {children}

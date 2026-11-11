@@ -101,6 +101,7 @@ function NuevoVehiculo() {
   const [descripcion, setDescripcion] = useState('')
   const [calificado, setCalificado] = useState(false)
   const [frio, setFrio] = useState(false)
+  const [contingencia, setContingencia] = useState(false)
   return (
     <div className="space-y-3 px-4 py-3">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -110,8 +111,9 @@ function NuevoVehiculo() {
       <div className="flex flex-wrap gap-x-6">
         <label className="inline-flex min-h-11 items-center gap-2 text-sm text-gray-900"><input type="checkbox" className="h-5 w-5" checked={calificado} onChange={(e) => setCalificado(e.target.checked)} data-testid="vehiculo-calificado" />Vehículo calificado <span className="text-gray-600">(solo informativo)</span></label>
         <label className="inline-flex min-h-11 items-center gap-2 text-sm text-gray-900"><input type="checkbox" className="h-5 w-5" checked={frio} onChange={(e) => setFrio(e.target.checked)} />Apto para cadena de frío</label>
+        <label className="inline-flex min-h-11 items-center gap-2 text-sm text-gray-900"><input type="checkbox" className="h-5 w-5" checked={contingencia} onChange={(e) => setContingencia(e.target.checked)} data-testid="vehiculo-contingencia" />Vehículo de contingencia <span className="text-gray-600">(pide una nota al usarlo)</span></label>
       </div>
-      <button type="button" className="btn-secondary" disabled={pendiente || !placa.trim()} onClick={() => ejecutar(() => guardarVehiculoAccion({ placa, descripcion, tipo: 'PROPIO', calificado, aptoCadenaFrio: frio, activo: true }), { exito: 'Vehículo guardado.', alExito: () => { setPlaca(''); setDescripcion(''); setCalificado(false); setFrio(false) } })} data-testid="guardar-vehiculo"><Save className="h-5 w-5" aria-hidden />Guardar vehículo</button>
+      <button type="button" className="btn-secondary" disabled={pendiente || !placa.trim()} onClick={() => ejecutar(() => guardarVehiculoAccion({ placa, descripcion, tipo: 'PROPIO', calificado, aptoCadenaFrio: frio, activo: true, contingencia }), { exito: 'Vehículo guardado.', alExito: () => { setPlaca(''); setDescripcion(''); setCalificado(false); setFrio(false); setContingencia(false) } })} data-testid="guardar-vehiculo"><Save className="h-5 w-5" aria-hidden />Guardar vehículo</button>
       {mensaje && !mensaje.errores && <Aviso tipo={mensaje.tipo === 'ok' ? 'ok' : 'error'}>{mensaje.texto}</Aviso>}
     </div>
   )

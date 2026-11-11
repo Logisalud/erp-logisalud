@@ -40,11 +40,10 @@ describe('permisos por rol', () => {
 })
 
 describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
-  it('la conformidad es un permiso propio: no la tiene el Jefe de Almacén ni el de Transporte', () => {
+  it('la conformidad (reunión del 10-nov): la dan los auxiliares de almacén, Sandra y los jefes; no Dirección Técnica sola ni el asistente sin su rol de conformidad', () => {
     expect(puede(['conformidad_despacho'], 'dar_conformidad')).toBe(true)
-    for (const r of ['jefe_almacen', 'jefe_transporte', 'auxiliar', 'asistente_dt', 'direccion_tecnica'] as const) {
-      expect(puede([r], 'dar_conformidad'), r).toBe(false)
-    }
+    for (const r of ['jefe_almacen', 'jefe_transporte', 'auxiliar'] as const) expect(puede([r], 'dar_conformidad'), r).toBe(true)
+    for (const r of ['asistente_dt', 'direccion_tecnica'] as const) expect(puede([r], 'dar_conformidad'), r).toBe(false)
     // Un usuario con varios roles (p. ej. Sandra: asistente de DT + conformidad) suma sus permisos.
     expect(puede(['asistente_dt', 'conformidad_despacho'], 'dar_conformidad')).toBe(true)
   })
@@ -123,7 +122,7 @@ describe('rol Administrador (SB-E, D-196): todo lo operativo y de configuración
       ver: 'admin', ejecutar: 'admin', verificar: 'admin', configurar: 'admin', exportar: 'admin', auditar: 'admin', dar_conformidad: 'admin', cambiar_lote_asignado: 'admin',
       imprimir_paquete_documental: 'admin', gestionar_documentos_regulatorios: 'admin', autorizar_salida_sin_venta: 'admin', preparar_salidas: 'admin', confirmar_salida: 'admin',
       planificar_ruta: 'admin', registrar_documentacion: 'admin', embalar: 'admin', cargar_ruta: 'admin', liberar_unidad: 'admin', reservar_lote: 'admin', anular_guia: 'admin',
-      solicitar_baja: 'admin', cerrar_ruta: 'admin', registrar_ls_fr: 'admin', originar_retorno: 'admin', crear_orden_venta_manual: 'admin', entregar_al_transportista_cliente: 'admin', mis_rutas: 'campo',   // «Mis rutas»: solo conductor y auxiliar de transporte, ligados a su persona de transporte
+      solicitar_baja: 'admin', cerrar_ruta: 'admin', registrar_ls_fr: 'admin', originar_retorno: 'admin', crear_orden_venta_manual: 'admin', entregar_al_transportista_cliente: 'admin', mis_rutas: 'campo', inspeccion_unidad: 'admin',   // «Mis rutas»: solo conductor y auxiliar de transporte, ligados a su persona de transporte
       aprobar: 'sanitaria', ajustar: 'sanitaria', autorizar_baja: 'sanitaria', registrar_dictamen_cliente: 'sanitaria', marcar_antecedentes_calidad: 'sanitaria', liberar_stock_propietario: 'sanitaria',
     }
     for (const [a, clase] of Object.entries(clasificacion) as [Accion, string][]) expect(puede(efectivos, a), a).toBe(clase === 'admin')

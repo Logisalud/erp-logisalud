@@ -28,15 +28,15 @@ describe('menú lateral por rol (D-131 a D-133)', () => {
   })
 
   it('los pasos del trabajo llevan nombres que dicen qué se hace', () => {
-    expect(etiquetas(persona('jefe_transporte'), 'despacho')).toEqual(['Preparar pedidos (picking)', 'Embalar', 'Cargar la unidad'])
+    expect(etiquetas(persona('jefe_transporte'), 'despacho')).toEqual(['Preparar pedidos (picking)', 'Dar conformidad', 'Embalar', 'Cargar la unidad', 'Inspección de la unidad'])
     expect(etiquetas(['conformidad_despacho', 'asistente_dt'], 'despacho')).toContain('Dar conformidad')
     expect(etiquetas(persona('jefe_transporte'), 'entradas')).toEqual(['Recepciones', 'Devoluciones'])
   })
 
   it('el Auxiliar no ve la bandeja de pedidos, ni Nueva salida, ni Rutas; sí ve los pasos de piso', () => {
     const h = hrefs(persona('auxiliar'))
-    for (const x of ['/pedidos', '/salidas/nueva', '/rutas', '/conformidad', '/propietarios', '/calidad', '/documentos', '/expedientes', '/auditoria', '/carga-inicial', '/retornos']) expect(h, x).not.toContain(x)
-    for (const x of ['/', '/almacen', '/movimientos', '/conteos', '/picking', '/embalaje', '/carga', '/alertas']) expect(h, x).toContain(x)
+    for (const x of ['/pedidos', '/salidas/nueva', '/rutas', '/propietarios', '/calidad', '/documentos', '/expedientes', '/auditoria', '/carga-inicial', '/retornos']) expect(h, x).not.toContain(x)
+    for (const x of ['/', '/almacen', '/movimientos', '/conteos', '/picking', '/conformidad', '/embalaje', '/carga', '/alertas']) expect(h, x).toContain(x)
   })
 
   it('Auditoría solo lee: ve la lista de órdenes y la auditoría, ninguna cola de trabajo ni «Nueva salida»', () => {
@@ -63,8 +63,8 @@ describe('menú lateral por rol (D-131 a D-133)', () => {
   })
 
   it('quien no es personal ve solo el Inicio; el conductor y el auxiliar de transporte, además, Mis rutas', () => {
-    expect(hrefs(['conductor'])).toEqual(['/', '/mis-rutas'])
-    expect(hrefs(['auxiliar_transporte'])).toEqual(['/', '/mis-rutas'])
+    expect(hrefs(['conductor'])).toEqual(['/', '/mis-rutas', '/inspecciones'])
+    expect(hrefs(['auxiliar_transporte'])).toEqual(['/', '/mis-rutas', '/inspecciones'])
     expect(hrefs(['usuario_cliente'])).toEqual(['/'])
   })
 

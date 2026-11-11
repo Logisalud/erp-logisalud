@@ -114,3 +114,33 @@ export function documentosDelPaquete(items: readonly ItemPaquete[]): DocumentoDe
   }
   return out
 }
+
+// ── Paquete documental de la ruta por casillas (reunión 10-nov, punto 5) ──
+/** Un pedido de la ruta con su casilla: por defecto va marcado si su cliente pide algún documento (su perfil documental); Roberto lo cambia. */
+export interface PedidoParaPaquete {
+  salidaId: string
+  salidaNumero: string
+  pedidoNumero?: string
+  cliente?: string
+  /** Lo que pide el cliente, en palabras: «COA, registro sanitario». Vacío = no pide documentos. */
+  exige: string
+  marcado: boolean
+  completo: boolean
+}
+
+const NOMBRE_EXIGIDO: Record<TipoDocumento, string> = { COA: 'COA', REGISTRO_SANITARIO: 'registro sanitario', BPM: 'BPM' }
+
+export function pedidosParaPaquete(paquetes: readonly PaqueteSalida[]): PedidoParaPaquete[] {
+  return paquetes.map((p) => {
+    const tipos = new Set(p.items.flatMap((i) => i.requisitos.filter((r) => r.exigido).map((r) => r.tipo)))
+    const exige = [...tipos].map((t) => NOMBRE_EXIGIDO[t] ?? t).join(', ')
+    return { salidaId: p.salidaId, salidaNumero: p.salidaNumero, pedidoNumero: p.pedidoNumero, cliente: p.cliente, exige, marcado: tipos.size > 0, completo: p.completo }
+  })
+}
+
+/** Lo que se lee de `?s=id1,id2`: solo ids de la ruta, sin repetir y en el orden de las paradas. null = no vino la selección (se imprime toda la ruta). */
+export function seleccionDePaquete(texto: string | null | undefined, idsDeLaRuta: readonly string[]): string[] | null {
+  if (texto === null || texto === undefined) return null
+  const pedidos = new Set(texto.split(',').map((x) => x.trim()).filter(Boolean))
+  return idsDeLaRuta.filter((id) => pedidos.has(id))
+}

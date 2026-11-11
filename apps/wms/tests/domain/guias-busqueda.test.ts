@@ -12,6 +12,10 @@ const G = [
 ]
 
 describe('estado de la guía', () => {
+  it('una guía registrada a mano que dice «aceptada» no se muestra como aceptada por SUNAT: nadie la verificó', () => {
+    expect(estadoDeGuia(g({ origen: 'PANEL', estadoSunat: 'ACEPTADA' }))).toBe('DECLARADA')
+    expect(estadoDeGuia(g({ origen: 'NUBEFACT', estadoSunat: 'ACEPTADA' }))).toBe('ACEPTADA')
+  })
   it('anulada manda sobre lo que dijo SUNAT; sin respuesta de SUNAT es «registrada»', () => {
     expect(G.map(estadoDeGuia)).toEqual(['ACEPTADA', 'ENVIADA', 'RECHAZADA', 'ANULADA', 'REGISTRADA'])
   })

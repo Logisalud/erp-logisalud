@@ -24,6 +24,19 @@ describe('rutas (demo)', () => {
     expect(p.corte).toBe('16:00')
   })
 
+  it('vehículo de contingencia: la ruta no se confirma sin la nota de por qué; con la nota, sí', async () => {
+    const r = await repo.crearRuta({ fecha: manana() }, JT); if (!r.ok) throw new Error(r.mensaje)
+    const veh = (await repo.panoramaRutas()).vehiculos[1]
+    await repo.guardarVehiculo({ id: veh.id, placa: veh.placa, tipo: veh.tipo, calificado: veh.calificado, aptoCadenaFrio: veh.aptoCadenaFrio, activo: true, contingencia: true }, JT)
+    await repo.planificarRuta(r.id, { fecha: manana(), vehiculoId: veh.id, conductorId: 'per-2', auxiliarId: 'per-4', paradas: [{ pedidoId: 'ped-demo-102' }] }, JT)
+    expect(await repo.confirmarRuta(r.id, JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('vehículo de contingencia') })
+    expect(await repo.registrarMotivoContingencia(r.id, 'no', JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('al menos 5 letras') })
+    expect(await repo.registrarMotivoContingencia(r.id, 'Se averió el camión habitual', AUX)).toMatchObject({ ok: false })
+    expect(await repo.registrarMotivoContingencia(r.id, 'Se averió el camión habitual', JT)).toMatchObject({ ok: true })
+    expect(await repo.confirmarRuta(r.id, JT)).toMatchObject({ ok: true })
+    expect((await repo.panoramaRutas()).rutas.find((x) => x.id === r.id)).toMatchObject({ motivoContingencia: 'Se averió el camión habitual' })
+  })
+
   it('solo el Jefe de Transporte planifica', async () => {
     expect(await repo.crearRuta({ fecha: manana() }, AUX)).toMatchObject({ ok: false, mensaje: 'No tienes permiso para planificar rutas' })
     expect(await repo.crearRuta({ fecha: manana() }, JEFE)).toMatchObject({ ok: false })

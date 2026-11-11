@@ -720,11 +720,11 @@ describe('picking → conformidad → salida → retorno (§4.3)', () => {
   it('la conformidad la da OTRA persona con el permiso propio; recién ahí se mueve rack → staging (D-51)', async () => {
     const { p, ols, linea } = await preparado()
     await pickear(aux1, ols[0].id, ols[0].cantidad)
-    expect((await falla(conformar(aux1, ols[0].id))).message).toMatch(/No tienes permiso para dar la conformidad/) // el picker no tiene el permiso
+    expect((await falla(conformar(aux1, ols[0].id))).message).toMatch(/La conformidad la da otra persona, no quien hizo el picking/) // el picker ya tiene el permiso (0060), pero no conforma lo que picó
     const picker = await persona(['auxiliar', 'conformidad_despacho'])
     await pickear(picker, ols[1].id, ols[1].cantidad)
     expect((await falla(conformar(picker, ols[1].id))).message).toMatch(/otra persona, no quien hizo el picking/) // ni con el permiso, sobre su propio picking
-    for (const quien of [jt, aux2, base.personas.charlie.id]) expect((await falla(conformar(quien, ols[0].id))).message).toMatch(/No tienes permiso para dar la conformidad/)
+    for (const quien of [base.personas.sinRol.id]) expect((await falla(conformar(quien, ols[0].id))).message).toMatch(/No tienes permiso para dar la conformidad/)   // los jefes y los auxiliares la dan desde la 0060; quien no tiene el permiso, no
     const rack = await saldoEn(p, 'F-1.1')
     const mov = await conformar(sandra, ols[0].id)
     expect(mov).toBeTruthy()
@@ -904,7 +904,7 @@ describe('permisos y aislamiento de las operaciones de salida', () => {
     // la 0012 se reintenta antes de la 0013 (la 0013 le agrega un valor por defecto a editar_asignacion, que la 0012 no puede quitar)
     await base.admin.query('drop function wms.editar_asignacion(uuid, jsonb, text)')
     // la 0017 agregó permisos que la lista de la 0012 no conoce: se quitan para reintentar la 0012 y se vuelven a poner con la 0017
-    await base.admin.query(`delete from wms.permisos_rol where accion in ('mis_rutas', 'planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'solicitar_baja', 'autorizar_baja', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad', 'liberar_stock_propietario', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente')`)
+    await base.admin.query(`delete from wms.permisos_rol where accion in ('inspeccion_unidad', 'mis_rutas', 'planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'solicitar_baja', 'autorizar_baja', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad', 'liberar_stock_propietario', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente')`)
     await base.admin.query(`delete from wms.alertas where tipo in ('PEDIDO_CAMBIADO', 'DOCUMENTO_VENCIDO', 'DOCUMENTACION_INCOMPLETA', 'LOTE_EN_RESERVA', 'BAJA_POR_AUTORIZAR', 'BAJA_POR_TRASLADAR', 'RETORNO_POR_AUTORIZAR', 'DICTAMEN_POR_CONFIRMAR', 'ORDEN_MANUAL_UNIDA')`) // tipos que la lista de la 0012 no conoce
     await base.admin.query(SQL.m0012())
     await base.admin.query(SQL.m0012())

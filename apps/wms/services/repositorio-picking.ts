@@ -23,6 +23,10 @@ export interface RepositorioPicking {
   proponerReemplazo(ordenLineaId: string): Promise<ReemplazoVista[]>
   resolverDiscrepancia(ordenLineaId: string, loteId: string, posicionId: string | undefined, nota: string | undefined, actor: Actor): Promise<ResultadoAccion>
   colaConformidad(): Promise<OrdenPickingResumen[]>
+  /** 0060: «Tomar para conformidad»: mientras la tengas tomada, nadie más da la conformidad. Quien picó no la toma. */
+  tomarParaConformidad(ordenId: string, actor: Actor): Promise<ResultadoAccion>
+  /** La suelta quien la tomó o un Jefe. */
+  soltarConformidad(ordenId: string, actor: Actor): Promise<ResultadoAccion>
   /**
    * La conformidad de TODA la orden, de una vez (la da otra persona, no quien picó): «Conforme» con un click o, por línea, otro lote, menos cantidad o no encontrado; registra el N.° de bultos
    * (caja master). Al conformar, el stock pasa a Despacho. Todo o nada.

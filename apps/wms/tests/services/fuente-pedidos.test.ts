@@ -91,3 +91,12 @@ describe('adaptador HTTP (contrato contra un doble de Pedidos)', () => {
     expect(await new FuenteNoConfigurada().listarListos()).toMatchObject({ ok: false, codigo: 'NO_CONFIGURADA' })
   })
 })
+
+describe('total de listos que dice Pedidos', () => {
+  it('lo lee de la respuesta (total_listos) para que la bandeja note si algo se cortó; sin el dato, queda vacío', async () => {
+    const con = new FuentePedidosHttp({ baseUrl: 'https://pedidos.example/api', secreto: 'x', fetchFn: (async () => new Response(JSON.stringify({ generado_en: '2026-11-11T10:00:00Z', pedidos: [], total_listos: 113 }), { status: 200 })) as typeof fetch })
+    expect(await con.listarListos()).toMatchObject({ ok: true, totalListos: 113 })
+    const sin = new FuentePedidosHttp({ baseUrl: 'https://pedidos.example/api', secreto: 'x', fetchFn: (async () => new Response(JSON.stringify({ pedidos: [] }), { status: 200 })) as typeof fetch })
+    expect(await sin.listarListos()).toMatchObject({ ok: true, totalListos: undefined })
+  })
+})

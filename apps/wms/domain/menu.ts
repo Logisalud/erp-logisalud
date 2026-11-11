@@ -3,6 +3,8 @@ import { esPersonal, puede } from './permisos'
 import { puedeVerBandeja } from './pedidos-despacho'
 import { puedeVerRutas } from './rutas'
 import { puedeVerMisRutas } from './mis-rutas'
+import { puedeVerInspecciones } from './inspecciones'
+import { puedeImprimirRotulos } from './rotulos'
 import { puedeOriginarRetorno } from './retornos'
 import { puedeDarConformidad, puedePickear, puedePrepararSalidas, puedeVerSalidas } from './despacho'
 import { puedeEmbalar } from './embalaje'
@@ -15,7 +17,7 @@ import { puedeVerProveedores } from './vencimiento'
 export type IconoNav =
   | 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos'
   | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'nuevasalida' | 'guias' | 'ranking'
-  | 'picking' | 'conformidad' | 'embalaje' | 'cargaunidad' | 'bajas' | 'retornos'
+  | 'picking' | 'conformidad' | 'embalaje' | 'cargaunidad' | 'bajas' | 'retornos' | 'inspeccion' | 'rotulo'
 
 export interface ItemMenu {
   href: string
@@ -55,11 +57,11 @@ export const puedeCrearSalida = (roles: readonly Rol[]) => puedePrepararSalidas(
 /** Quién ve «Calidad», «Documentos regulatorios» y «Expedientes» (el auxiliar y los roles de una sola tarea no los usan). */
 const veCalidadYDocumentos = (roles: readonly Rol[]) => gestion(roles)
 
-export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): SeccionMenu[] {
+export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0, embalajeActivo = true): SeccionMenu[] {
   const inicio: ItemMenu = { href: '/', etiqueta: 'Inicio', icono: 'inicio' }
   // Quien no es personal (conductor, usuario de cliente) no lee el inventario: solo ve el Inicio.
   // Quien solo conduce o ayuda en la ruta (S9 y S10) ve su Inicio y «Mis rutas».
-  if (!esPersonal(roles)) return [{ id: 'inicio', titulo: null, items: puedeVerMisRutas(roles) ? [inicio, { href: '/mis-rutas', etiqueta: 'Mis rutas', icono: 'rutas', destacado: true }] : [inicio] }]
+  if (!esPersonal(roles)) return [{ id: 'inicio', titulo: null, items: puedeVerMisRutas(roles) ? [inicio, { href: '/mis-rutas', etiqueta: 'Mis rutas', icono: 'rutas', destacado: true }, ...(puedeVerInspecciones(roles) ? [{ href: '/inspecciones', etiqueta: 'Inspección de la unidad', icono: 'inspeccion' as const, corta: 'Inspección' }] : [])] : [inicio] }]
 
   // Quien solo autoriza salidas sin venta no opera el almacén: ve el stock para elegir y su pantalla, no recepciones, movimientos, conteos ni bajas.
   const soloAutoriza = roles.every((r) => r === 'autoriza_salidas_sin_venta')
@@ -78,6 +80,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   ponerSi('almacen', !soloAutoriza, { href: '/conteos', etiqueta: 'Conteos', icono: 'conteos' })
   ponerSi('almacen', !soloAutoriza, { href: '/revision-diaria', etiqueta: 'Revisión diaria', icono: 'revision' })
   ponerSi('almacen', !soloAutoriza, { href: '/bajas', etiqueta: 'Dar de baja', icono: 'bajas' })
+  ponerSi('almacen', !soloAutoriza && puedeImprimirRotulos(roles), { href: '/rotulos', etiqueta: 'Rótulos de caja saldo', icono: 'rotulo', corta: 'Rótulos' })
 
   // Salidas: cómo empieza y se sigue una salida
   ponerSi('salidas', puedeVerBandeja(roles), { href: '/pedidos', etiqueta: SALIDAS_NOMBRES[0], icono: 'pedidos' })
@@ -90,8 +93,9 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   const salidas = puedeVerSalidas(roles)
   ponerSi('despacho', salidas && puedePickear(roles), { href: '/picking', etiqueta: 'Preparar pedidos (picking)', icono: 'picking', corta: 'Picking' })
   ponerSi('despacho', salidas && puedeDarConformidad(roles), { href: '/conformidad', etiqueta: 'Dar conformidad', icono: 'conformidad', corta: 'Conformidad' })
-  ponerSi('despacho', salidas && puedeEmbalar(roles), { href: '/embalaje', etiqueta: 'Embalar', icono: 'embalaje' })
+  ponerSi('despacho', salidas && embalajeActivo && puedeEmbalar(roles), { href: '/embalaje', etiqueta: 'Embalar', icono: 'embalaje' })
   ponerSi('despacho', salidas && puedeCargar(roles), { href: '/carga', etiqueta: 'Cargar la unidad', icono: 'cargaunidad' })
+  ponerSi('despacho', puedeVerInspecciones(roles) && !soloAutoriza, { href: '/inspecciones', etiqueta: 'Inspección de la unidad', icono: 'inspeccion', corta: 'Inspección' })
 
   // Control: avisos, historia, calidad y papeles
   ponerSi('control', true, { href: '/alertas', etiqueta: 'Alertas', icono: 'alertas', insignia: alertasAbiertas })

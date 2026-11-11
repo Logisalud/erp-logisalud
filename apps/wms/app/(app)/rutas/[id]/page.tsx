@@ -4,6 +4,7 @@ import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
 import { puedePlanificarRutas, puedeVerRutas } from '@/domain/rutas'
 import { puedeCerrarRuta, puedeRegistrarLsFr } from '@/domain/cierre-ruta'
+import { pedidosParaPaquete, puedeImprimirPaquete } from '@/domain/documentacion'
 import { EditorRuta } from '@/components/rutas/editor-ruta'
 
 export const metadata = { title: 'Ruta — WMS LOGISALUD' }
@@ -16,11 +17,16 @@ export default async function Ruta({ params }: { params: { id: string } }) {
   const repo = repositorio()
   const [ruta, panorama, registro] = await Promise.all([repo.obtenerRuta(params.id), repo.panoramaRutas(), repo.registroLsFr(params.id)])
   if (!ruta) notFound()
+  let pedidosPaquete
+  if (puedeImprimirPaquete(ctx.roles)) {
+    const ids = await repo.salidasDeRuta(params.id)
+    if (ids.length > 0) pedidosPaquete = pedidosParaPaquete((await Promise.all(ids.map((id) => repo.paqueteSalida(id)))).filter((p): p is NonNullable<typeof p> => !!p))
+  }
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <header><h1 className="font-heading text-3xl font-semibold uppercase tracking-wide text-gray-900">Planificar ruta</h1>
         {!puedePlanificarRutas(ctx.roles) && <p className="mt-1 text-gray-600">Solo el Jefe de Transporte cambia el plan; aquí puedes verlo.</p>}</header>
-      <EditorRuta ruta={ruta} panorama={panorama} registro={registro} soloLectura={!puedePlanificarRutas(ctx.roles)} permisos={{ cerrar: puedeCerrarRuta(ctx.roles), registrar: puedeRegistrarLsFr(ctx.roles) }} />
+      <EditorRuta ruta={ruta} panorama={panorama} registro={registro} soloLectura={!puedePlanificarRutas(ctx.roles)} permisos={{ cerrar: puedeCerrarRuta(ctx.roles), registrar: puedeRegistrarLsFr(ctx.roles) }} pedidosPaquete={pedidosPaquete} />
     </div>
   )
 }

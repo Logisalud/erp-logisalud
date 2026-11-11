@@ -12,6 +12,8 @@ export interface RepositorioRutas {
   /** El registro LS-FR.43.03 de la ruta (existe desde que se confirma), con lo que registraron las etapas siguientes. */
   registroLsFr(rutaId: string): Promise<RegistroLsFrVista | null>
   confirmarRuta(id: string, actor: Actor): Promise<ResultadoAccion>
+  /** 0057: la nota de por qué sale el vehículo de contingencia. */
+  registrarMotivoContingencia(rutaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   cancelarRuta(id: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   guardarPersonal(p: { id?: string; nombre: string; funcion: PersonalTransporte['funcion']; activo: boolean }, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
   /**
@@ -21,5 +23,5 @@ export interface RepositorioRutas {
   cambiarConductorEnDocumentos(personaId: string | null, motivo: string, actor: Actor): Promise<ResultadoAccion>
   /** Documento de identidad (DNI o carné de extranjería) y licencia de quien conduce: lo que pide la guía. Vacío = pendiente. */
   guardarDocumentosPersonal(p: { id: string; documentoTipo: DocumentoTipo; dni: string; licencia?: string }, actor: Actor): Promise<ResultadoAccion>
-  guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
+  guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo' | 'contingencia'> & { id?: string }, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
 }

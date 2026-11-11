@@ -5,11 +5,12 @@ import type { ClienteManual, CreadaDesde, OrigenOrden } from '@/domain/salida-ma
 import { normalizarNumeroPedido } from '@/domain/salida-manual'
 import { explicarFaltante, type CausaFaltante, type CausaQuiebre, type ExistenciaLote, type ExplicacionFaltante } from '@/domain/faltante'
 import {
-  RUTA_EDITABLE, claveDeOrden, clavePlanParada, puedePlanificarRutas, validarPlan, totalUnidades,
+  RUTA_EDITABLE, claveDeOrden, clavePlanParada, motivoFaltaContingencia, puedePlanificarRutas, validarPlan, totalUnidades,
   type ConductorEnDocumentos, type DocumentoTipo, type OrdenPlanificable, type ParadaVista, type PanoramaRutas, type PedidoPlanificable, type PersonalTransporte, type PlanParada, type PlanRuta, type RutaVista, type VehiculoVista,
 } from '@/domain/rutas'
 import { AREAS_DE_SALIDA } from '@/domain/zonas'
 import { requiereEmbalaje } from '@/domain/pedidos-despacho'
+import { embalajeActivoDemo } from './ajustes'
 import { PARAMETROS_LS_FR_POR_DEFECTO, PENDIENTES_LS_FR, armarRegistroLsFr, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import { errorDocumentoPersonal, quienFiguraEnDocumentos, type QuienFigura } from '@/domain/conductor-documentos'
 import { modoEjemplos } from '@/lib/demo'
@@ -48,6 +49,8 @@ export interface SalidaDemo {
   /** SA-2: de dónde nació la orden. Lo anterior (sin estos datos) es una venta de distribución de un pedido. */
   tipo?: TipoSalida; motivo?: MotivoSalida; origen?: OrigenOrden; creadaDesde?: CreadaDesde
   pedidoNumero?: string; porConciliar?: boolean; clienteManual?: ClienteManual
+  /** 0059: la nota de la orden. */
+  nota?: string
   /** Tipo B: la GRE del cliente (número y PDF) y a nombre de qué propietario se creó. */
   greNumero?: string; greArchivo?: string; enNombreDe?: string
   /** D-161: motivo escrito para continuar una devolución al proveedor con menos de 90 días para vencer. */
@@ -85,7 +88,7 @@ export interface RutaDemo {
   id: string; numero: string; fecha: string; estado: RutaVista['estado']; version: number
   vehiculoId?: string; conductorId?: string; auxiliarId?: string; paradas: ParadaDemo[]
   versiones: RutaVista['versiones']; registroLsFr?: RutaVista['registroLsFr']; motivoCancelacion?: string
-  creadaPor: string; creadaEn: string; confirmadaEn?: string
+  creadaPor: string; creadaEn: string; confirmadaEn?: string; motivoContingencia?: string
 }
 export interface DespachoDemoEstado {
   personal: PersonalTransporte[]; vehiculos: VehiculoVista[]; rutas: RutaDemo[]; salidas: SalidaDemo[]; reservas: ReservaDemo[]
@@ -286,7 +289,7 @@ export function ordenDelPedido(e: EstadoDemo, pedidoId: string, actor: Actor, de
     lineas.push({ id: nuevoId(), productoId: prod.id, cantidad: l.cantidad, pedidoLineaId: l.lineaId, estado: 'PENDIENTE', fefo: [] })
   }
   const salida: SalidaDemo = {
-    id: nuevoId(), numero: numeroDe(e.inv, 'OS', e.panorama.hoy.slice(0, 4)), pedidoId, requiereEmbalaje: requiereEmbalaje(fila.snapshot.cliente.ubigeo), propietarioId: duenoDelAlmacen(e), estado: 'ABIERTA', lineas,
+    id: nuevoId(), numero: numeroDe(e.inv, 'OS', e.panorama.hoy.slice(0, 4)), pedidoId, requiereEmbalaje: requiereEmbalaje(fila.snapshot.cliente.ubigeo, undefined, embalajeActivoDemo()), propietarioId: duenoDelAlmacen(e), estado: 'ABIERTA', lineas,
     creadaEn: ahora(), creadaPor: actor.id, tipo: 'DISTRIBUCION', motivo: 'VENTA', origen: 'PEDIDO', creadaDesde: desde, pedidoNumero: fila.snapshot.numero,
   }
   d.salidas.push(salida)
@@ -377,7 +380,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     return {
       id: r.id, numero: r.numero, fecha: r.fecha, estado: r.estado, version: r.version,
       vehiculo: d.vehiculos.find((v) => v.id === r.vehiculoId), conductor: d.personal.find((p) => p.id === r.conductorId), auxiliar: d.personal.find((p) => p.id === r.auxiliarId),
-      paradas, versiones: [...r.versiones].sort((a, b) => b.version - a.version), registroLsFr: r.registroLsFr, motivoCancelacion: r.motivoCancelacion,
+      paradas, versiones: [...r.versiones].sort((a, b) => b.version - a.version), registroLsFr: r.registroLsFr, motivoCancelacion: r.motivoCancelacion, motivoContingencia: r.motivoContingencia,
       creadaPor: r.creadaPor, creadaEn: r.creadaEn, confirmadaEn: r.confirmadaEn, unidades: totalUnidades(paradas),
     }
   }
@@ -563,6 +566,19 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     return { ok: true, version: r.version, bloqueadosPorStock: bloqueados }
   }
 
+  async registrarMotivoContingencia(rutaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const no = this.sinPermiso(actor); if (no) return falla(no)
+    const r = desp(e).rutas.find((x) => x.id === rutaId)
+    if (!r) return falla('No encontramos esa ruta')
+    if (!RUTA_EDITABLE.includes(r.estado)) return falla('La ruta ya no se puede cambiar')
+    if (!desp(e).vehiculos.find((x) => x.id === r.vehiculoId)?.contingencia) return falla('El vehículo de esta ruta no es de contingencia')
+    if (motivo.trim().length < 5) return falla('Cuéntanos por qué sale el vehículo de contingencia (al menos 5 letras)')
+    r.motivoContingencia = motivo.trim()
+    registrar(e, actor, 'ruta_contingencia', 'rutas', r.numero, 'Vehículo de contingencia', motivo)
+    return { ok: true }
+  }
+
   async confirmarRuta(id: string, actor: Actor): Promise<ResultadoAccion> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const no = this.sinPermiso(actor); if (no) return falla(no)
@@ -572,6 +588,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     if (r.estado !== 'BORRADOR') return falla('La ruta ya está confirmada o cerrada')
     if (!r.vehiculoId) return falla('Elige el vehículo')
     if (!r.conductorId) return falla('Elige el conductor')
+    const faltaNota = motivoFaltaContingencia(d.vehiculos.find((x) => x.id === r.vehiculoId), r.motivoContingencia); if (faltaNota) return falla(faltaNota)
     const vivas = r.paradas.filter((p) => p.activa)
     if (!vivas.length) return falla('La ruta no tiene pedidos')
     const sin = vivas.filter((p) => d.salidas.find((s) => s.id === p.salidaId)?.lineas.some((l) => l.estado === 'SIN_STOCK')).map((p) => (p.pedidoId ? e.pedidos!.filas.find((f) => f.snapshot.pedidoId === p.pedidoId && f.vigente)?.snapshot.numero : undefined) ?? d.salidas.find((s) => s.id === p.salidaId)?.pedidoNumero ?? d.salidas.find((s) => s.id === p.salidaId)!.numero)
@@ -645,7 +662,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     return { ok: true }
   }
 
-  async guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+  async guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo' | 'contingencia'> & { id?: string }, actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
     const e = estadoE(); await this.sembrarDespacho(e)
     if (!puedePlanificarRutas(actor.roles)) return falla('No tienes permiso para administrar los vehículos')
     const placa = v.placa.trim().toUpperCase()
@@ -655,7 +672,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     const previo = v.id ? d.vehiculos.find((x) => x.id === v.id) : undefined
     if (v.id && !previo) return falla('No encontramos ese vehículo')
     const id = previo?.id ?? nuevoId()
-    const datos = { placa, descripcion: v.descripcion?.trim() || undefined, tipo: v.tipo, calificado: v.calificado, aptoCadenaFrio: v.aptoCadenaFrio, activo: v.activo }
+    const datos = { placa, descripcion: v.descripcion?.trim() || undefined, tipo: v.tipo, calificado: v.calificado, aptoCadenaFrio: v.aptoCadenaFrio, activo: v.activo, contingencia: Boolean(v.contingencia) }
     if (previo) Object.assign(previo, datos); else d.vehiculos.push({ id, ...datos })
     registrar(e, actor, 'vehiculo_guardado', 'vehiculos', id, placa)
     return { ok: true, id }

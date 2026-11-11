@@ -1,6 +1,6 @@
 // Asignación editable de lotes, picking, discrepancias y conformidad en memoria (modo demostración). Mismas reglas que las migraciones 0012, 0013 y 0018.
 import {
-  ETIQUETA_ETAPA, avancePicking, etapaDeSalida, puedeCambiarLote, puedeDarConformidad, puedePickear, puedePrepararSalidas, puedeVerCambiosFefo, NO_CONFORMIDADES,
+  ETIQUETA_ETAPA, avancePicking, etapaDeSalida, puedeCambiarLote, puedeDarConformidad, puedeSoltarConformidadAjena, puedePickear, puedePrepararSalidas, puedeVerCambiosFefo, NO_CONFORMIDADES,
   type AsignacionVista, type CambioFefoPersona, type CambioFefoVista, type EstadoOrdenPicking, type LineaPickingVista, type LineaSalidaVista, type LoteEditable,
   validarConformidadOrden, type AjusteConformidadVista, type OrdenPickingResumen, type OrdenPickingVista, type PersonaPicking, type ReemplazoVista, type ResultadoLineaConformidad, type ResultadoConformidad, type ResultadoPicking, type SalidaResumen, type SalidaVista, type TipoNoConformidad,
 } from '@/domain/despacho'
@@ -22,7 +22,7 @@ export interface OrdenLineaDemo {
   picking: ResultadoPicking; pickerId?: string; picker?: string; pickeadaEn?: string; notaPicking?: string
   conformidad: ResultadoConformidad; verificadorId?: string; verificador?: string; verificadaEn?: string; notaConformidad?: string; noConformidad?: TipoNoConformidad
 }
-export interface OrdenDemo { id: string; numero: string; salidaId: string; estado: EstadoOrdenPicking; generadaPor: string; generadaEn: string; lineas: OrdenLineaDemo[]; pickerId?: string; picker?: string }
+export interface OrdenDemo { id: string; numero: string; salidaId: string; estado: EstadoOrdenPicking; generadaPor: string; generadaEn: string; lineas: OrdenLineaDemo[]; pickerId?: string; picker?: string; conformidadTomadaPor?: string; conformidadTomadaNombre?: string }
 export interface CambioFefoDemo { id: string; lineaId: string; en: string; porId: string; por: string; anterior: AsignacionLote[]; nueva: AsignacionLote[]; fefo: AsignacionLote[]; distinto: boolean; motivo?: string }
 export interface PickingDemoEstado { ordenes: OrdenDemo[]; cambios: CambioFefoDemo[]; discrepancias: { ordenId: string; lineaId: string; loteId: string; nota: string; resueltaPor: string; en: string }[]; ajustes?: AjusteConformidadVista[]; observaciones: { ordenLineaId: string; tipo?: string; nota: string; por: string; corregidaPor: string; en: string }[] }
 
@@ -133,7 +133,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     const cambios: CambioFefoVista[] = pk(e).cambios.filter((c) => s.lineas.some((l) => l.id === c.lineaId)).map((c) => ({
       lineaId: c.lineaId, en: c.en, por: c.por, anterior: nombreLoteCantidad(e, c.anterior), nueva: nombreLoteCantidad(e, c.nueva), distintoDeFefo: c.distinto, motivo: c.motivo,
     })).sort((a, b) => b.en.localeCompare(a.en))
-    return structuredClone({ ...this.resumenSalida(e, s), estado: s.estado, requiereEmbalaje: s.requiereEmbalaje, creadaPor: nombrePersonaDemo(s.creadaPor), entrega: s.entrega, lineasDetalle: s.lineas.map((l) => this.vistaLinea(e, l, s)), clienteManual: s.clienteManual, greNumero: s.greNumero, greArchivo: s.greArchivo, devolucionAvisoMotivo: s.devolucionAvisoMotivo, ordenPickingId: this.ordenDe(e, s.id)?.id, cambios })
+    return structuredClone({ ...this.resumenSalida(e, s), estado: s.estado, requiereEmbalaje: s.requiereEmbalaje, creadaPor: nombrePersonaDemo(s.creadaPor), entrega: s.entrega, nota: s.nota, lineasDetalle: s.lineas.map((l) => this.vistaLinea(e, l, s)), clienteManual: s.clienteManual, greNumero: s.greNumero, greArchivo: s.greArchivo, devolucionAvisoMotivo: s.devolucionAvisoMotivo, ordenPickingId: this.ordenDe(e, s.id)?.id, cambios })
   }
 
   async lotesParaEditar(lineaId: string): Promise<LoteEditable[]> {
@@ -243,7 +243,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
       id: o.id, numero: o.numero, salidaNumero: s.numero, ...this.contexto(e, s), estado: o.estado, lineas: o.lineas.length, unidades: o.lineas.reduce((t, l) => t + l.cantidad, 0),
       pickeadas: o.lineas.filter((l) => l.picking === 'PICKEADA').length, conformes: o.lineas.filter((l) => l.conformidad === 'CONFORME').length,
       observadas: o.lineas.filter((l) => l.conformidad === 'OBSERVADA').length, discrepancias: o.lineas.filter((l) => l.picking === 'DISCREPANCIA').length, generadaEn: o.generadaEn,
-      pickerId: o.pickerId, picker: o.picker,
+      pickerId: o.pickerId, picker: o.picker, conformidadTomadaPor: o.conformidadTomadaPor, conformidadTomadaNombre: o.conformidadTomadaNombre,
     }
   }
 
@@ -255,6 +255,34 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
   async colaConformidad(): Promise<OrdenPickingResumen[]> {
     const e = estadoE(); await this.sembrarDespacho(e)
     return structuredClone(pk(e).ordenes.filter((o) => o.estado !== 'CANCELADA' && o.lineas.some((l) => l.conformidad === 'PENDIENTE' && l.picking !== 'DISCREPANCIA')).map((o) => this.resumenOrden(e, o)))
+  }
+
+  private puedeConformarDemo(e: EstadoDemo, o: OrdenDemo, personaId: string, roles: Actor['roles']): boolean {
+    return puedeDarConformidad(roles) && o.pickerId !== personaId && !o.lineas.some((l) => l.pickerId === personaId)
+  }
+
+  async tomarParaConformidad(ordenId: string, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedeDarConformidad(actor.roles)) return falla('No tienes permiso para dar la conformidad')
+    const o = pk(e).ordenes.find((x) => x.id === ordenId)
+    if (!o || o.estado === 'CANCELADA') return falla('No encontramos esa Orden de Salida')
+    if (salidaDe(e, o.salidaId)!.estado !== 'ABIERTA') return falla('La Orden de Salida ya no está abierta')
+    if (!o.lineas.some((l) => l.conformidad === 'PENDIENTE')) return falla('Esta Orden de Salida ya tiene su conformidad')
+    if (!this.puedeConformarDemo(e, o, actor.id, actor.roles)) return falla('La conformidad la da otra persona, no quien hizo el picking')
+    if (o.conformidadTomadaPor && o.conformidadTomadaPor !== actor.id) return falla('Esta orden ya la tomó otra persona para la conformidad: pídele que la suelte (o avisa al Jefe si no está)')
+    if (!o.conformidadTomadaPor) { o.conformidadTomadaPor = actor.id; o.conformidadTomadaNombre = actor.nombre; registrar(e, actor, 'conformidad_tomada', 'ordenes_picking', o.numero, `Conformidad de ${o.numero} tomada`) }
+    return { ok: true }
+  }
+
+  async soltarConformidad(ordenId: string, actor: Actor): Promise<ResultadoAccion> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const o = pk(e).ordenes.find((x) => x.id === ordenId)
+    if (!o) return falla('No encontramos esa Orden de Salida')
+    if (!o.conformidadTomadaPor) return { ok: true }
+    if (o.conformidadTomadaPor !== actor.id && !puedeSoltarConformidadAjena(actor.roles)) return falla('Solo quien la tomó o un Jefe puede soltarla')
+    o.conformidadTomadaPor = undefined; o.conformidadTomadaNombre = undefined
+    registrar(e, actor, 'conformidad_soltada', 'ordenes_picking', o.numero, `Conformidad de ${o.numero} soltada`)
+    return { ok: true }
   }
 
   async obtenerOrdenPicking(id: string): Promise<OrdenPickingVista | null> {
@@ -422,6 +450,7 @@ export class PickingDemo extends ReservasDemo implements RepositorioPicking {
     const s = salidaDe(e, o.salidaId)!
     if (s.estado !== 'ABIERTA') return falla('La Orden de Salida ya no está abierta')
     if (!o.pickerId) return falla('Antes de la conformidad se indica quién hizo el picking (al imprimir la orden o al iniciarla)')
+    if (o.conformidadTomadaPor && o.conformidadTomadaPor !== actor.id) return falla('Esta orden la tomó otra persona para la conformidad: pídele que la suelte (o avisa al Jefe si no está)')
     if (o.pickerId === actor.id || o.lineas.some((l) => l.pickerId === actor.id)) return falla('La conformidad la da otra persona, no quien hizo el picking')
     if (o.lineas.some((l) => l.picking === 'DISCREPANCIA')) return falla('Hay una línea con discrepancia de picking: resuélvela antes de la conformidad')
     if (o.lineas.some((l) => l.conformidad === 'OBSERVADA')) return falla('Hay una línea observada: corrígela antes de la conformidad')

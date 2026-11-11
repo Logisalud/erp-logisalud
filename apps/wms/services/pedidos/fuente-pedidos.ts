@@ -8,7 +8,7 @@ import { ENCABEZADO_FIRMA, ENCABEZADO_HORA, firmar } from './firma'
 export type CodigoFalla = 'NO_CONFIGURADA' | 'SIN_RESPUESTA' | 'RECHAZADA' | 'RESPUESTA_INVALIDA'
 
 export type ResultadoFuente =
-  | { ok: true; /** El JSON crudo de Pedidos: lo valida el dominio, pedido por pedido. */ pedidos: unknown; generadoEn: string }
+  | { ok: true; /** El JSON crudo de Pedidos: lo valida el dominio, pedido por pedido. */ pedidos: unknown; generadoEn: string; /** Cuántos listos cuenta Pedidos al responder (si lo dice): sirve para notar que algo se cortó por el camino. */ totalListos?: number }
   | { ok: false; codigo: CodigoFalla; mensaje: string }
 
 export interface FuentePedidos {
@@ -56,9 +56,9 @@ export class FuentePedidosHttp implements FuentePedidos {
       if (!r.ok) return { ok: false, codigo: 'SIN_RESPUESTA', mensaje: `Pedidos respondió con un error (${r.status}). Intenta de nuevo en unos minutos.` }
       let cuerpo: unknown
       try { cuerpo = await r.json() } catch { return { ok: false, codigo: 'RESPUESTA_INVALIDA', mensaje: 'La respuesta de Pedidos no es un JSON válido.' } }
-      const c = cuerpo as { pedidos?: unknown; generado_en?: unknown; generadoEn?: unknown }
+      const c = cuerpo as { pedidos?: unknown; generado_en?: unknown; generadoEn?: unknown; total_listos?: unknown }
       if (!c || !Array.isArray(c.pedidos)) return { ok: false, codigo: 'RESPUESTA_INVALIDA', mensaje: 'La respuesta de Pedidos no trae la lista de pedidos.' }
-      return { ok: true, pedidos: c.pedidos, generadoEn: String(c.generado_en ?? c.generadoEn ?? ahora.toISOString()) }
+      return { ok: true, pedidos: c.pedidos, generadoEn: String(c.generado_en ?? c.generadoEn ?? ahora.toISOString()), totalListos: Number.isInteger(c.total_listos) ? Number(c.total_listos) : undefined }
     } catch {
       return { ok: false, codigo: 'SIN_RESPUESTA', mensaje: 'Pedidos no respondió. La bandeja sigue con lo ya importado.' }
     } finally {

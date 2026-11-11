@@ -17,24 +17,24 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
 }
 
 /** Espejo de wms.permisos_rol (la base de datos es la que manda; esto solo oculta botones). */
-const PERMISOS_AUXILIAR: readonly Accion[] = ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta']
+const PERMISOS_AUXILIAR: readonly Accion[] = ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta', 'dar_conformidad']
 /** Los jefes tienen TODO lo del auxiliar (DT, 2026-10-17) además de lo suyo. */
 const conAuxiliar = (...propias: Accion[]): readonly Accion[] => [...new Set<Accion>([...PERMISOS_AUXILIAR, ...propias])]
 
 const PERMISOS: Record<Rol, readonly Accion[]> = {
-  direccion_tecnica: ['ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote', 'solicitar_baja', 'autorizar_baja', 'registrar_ls_fr', 'originar_retorno', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad'],
+  direccion_tecnica: ['inspeccion_unidad', 'ver', 'aprobar', 'ajustar', 'verificar', 'exportar', 'auditar', 'gestionar_documentos_regulatorios', 'imprimir_paquete_documental', 'registrar_documentacion', 'reservar_lote', 'solicitar_baja', 'autorizar_baja', 'registrar_ls_fr', 'originar_retorno', 'registrar_dictamen_cliente', 'marcar_antecedentes_calidad'],
   asistente_dt: ['ver', 'ejecutar', 'exportar', 'registrar_documentacion', 'solicitar_baja', 'registrar_ls_fr', 'originar_retorno', 'registrar_dictamen_cliente'],
   jefe_almacen: conAuxiliar('exportar', 'preparar_salidas', 'solicitar_baja', 'registrar_ls_fr', 'originar_retorno', 'entregar_al_transportista_cliente'),
   auxiliar: PERMISOS_AUXILIAR,
   auditoria_lectura: ['ver', 'exportar', 'auditar'],
   // D-194/D-196: el Administrador (Sebastián y Andrés) tiene todo lo operativo y la configuración, también los documentos regulatorios. NO tiene las decisiones sanitarias
   // (aprobar, ajustar, autorizar_baja, registrar_dictamen_cliente, marcar_antecedentes_calidad, liberar_stock_propietario, validar producto): esas son solo de Dirección Técnica.
-  admin_wms: ['ver', 'ejecutar', 'verificar', 'configurar', 'exportar', 'auditar', 'dar_conformidad', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'autorizar_salida_sin_venta',
+  admin_wms: ['inspeccion_unidad', 'ver', 'ejecutar', 'verificar', 'configurar', 'exportar', 'auditar', 'dar_conformidad', 'cambiar_lote_asignado', 'imprimir_paquete_documental', 'autorizar_salida_sin_venta',
     'preparar_salidas', 'confirmar_salida', 'planificar_ruta', 'registrar_documentacion', 'embalar', 'cargar_ruta', 'liberar_unidad', 'reservar_lote', 'anular_guia',
     'solicitar_baja', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente', 'gestionar_documentos_regulatorios'],
-  jefe_transporte: conAuxiliar('imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente'),
-  conductor: ['mis_rutas'], // «Mis rutas» (S9 y S10): solo lo suyo, por funciones que reconocen a la persona; no lee el inventario
-  auxiliar_transporte: ['mis_rutas'],
+  jefe_transporte: conAuxiliar('inspeccion_unidad', 'imprimir_paquete_documental', 'preparar_salidas', 'confirmar_salida', 'registrar_documentacion', 'liberar_unidad', 'reservar_lote', 'anular_guia', 'cerrar_ruta', 'registrar_ls_fr', 'originar_retorno', 'crear_orden_venta_manual', 'entregar_al_transportista_cliente'),
+  conductor: ['mis_rutas', 'inspeccion_unidad'], // «Mis rutas» (S9 y S10): solo lo suyo, por funciones que reconocen a la persona; no lee el inventario
+  auxiliar_transporte: ['mis_rutas', 'inspeccion_unidad'],
   conformidad_despacho: ['ver', 'dar_conformidad'],
   autoriza_salidas_sin_venta: ['ver', 'autorizar_salida_sin_venta'],
   usuario_cliente: [], // lo suyo (crear órdenes de salida) llega en B2, con validación de propietario en la base

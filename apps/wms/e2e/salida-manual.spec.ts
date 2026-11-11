@@ -60,6 +60,26 @@ test.describe('Nueva Orden de Salida', () => {
     await capturar(page, info, 'salida-detalle-manual', { completa: true })
   })
 
+  test('«Editar»: el Jefe de Almacén cambia la nota, el destinatario y las cantidades de una orden manual (con motivo)', async ({ page }) => {
+    await entrarComo(page, 'jefe_almacen')
+    await page.goto('/wms/salidas')
+    if (page.viewportSize()!.width < 768) await page.getByTestId('fila-salida-movil').filter({ hasText: 'PED-E2E-001' }).click()
+    else await page.getByTestId('fila-salida').filter({ hasText: 'PED-E2E-001' }).getByRole('link').first().click()
+    await page.getByTestId('editar-orden-abrir').click()
+    await expect(page.getByTestId('editar-orden-panel')).toBeVisible()
+    await expect(page.getByTestId('editar-destinatario')).toBeVisible()
+    await page.getByTestId('editar-nota').fill('Entregar por la puerta lateral')
+    await page.getByTestId('editar-cantidad').first().fill('3')
+    await expect(page.getByTestId('editar-orden-guardar')).toBeDisabled()          // cambiar cantidades pide el motivo
+    await expect(page.getByTestId('editar-orden-falta')).toContainText('por qué cambias la orden')
+    await page.getByTestId('editar-razon-social').fill('Botica Nueva SAC')
+    await page.getByTestId('editar-motivo').fill('El cliente pidió menos y cambió de sucursal')
+    await sinDesborde(page)
+    await page.getByTestId('editar-orden-guardar').click()
+    await expect(page.getByTestId('nota-orden')).toContainText('Entregar por la puerta lateral')
+    await expect(page.getByTestId('origen-orden')).toContainText('Botica Nueva SAC')
+  })
+
   test('tipo B: por cuenta de un cliente, con su GRE y validación inmediata por línea; queda «creada por X en nombre de Y»', async ({ page }, info) => {
     await entrarComo(page, 'jefe_almacen')
     await page.goto('/wms/salidas/nueva')

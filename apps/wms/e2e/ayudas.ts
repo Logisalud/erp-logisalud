@@ -1,6 +1,6 @@
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
-export type RolDemo = 'direccion_tecnica' | 'asistente_dt' | 'jefe_almacen' | 'jefe_transporte' | 'reemplazante_jefe' | 'auxiliar' | 'admin_wms' | 'auditoria_lectura' | 'autoriza_salidas_sin_venta'
+export type RolDemo = 'direccion_tecnica' | 'asistente_dt' | 'jefe_almacen' | 'jefe_transporte' | 'reemplazante_jefe' | 'auxiliar' | 'admin_wms' | 'auditoria_lectura' | 'autoriza_salidas_sin_venta' | 'conductor' | 'auxiliar_transporte'
 
 import { hoyLima } from '../lib/hoy-lima'
 

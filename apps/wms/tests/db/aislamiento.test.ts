@@ -307,6 +307,14 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'actualizar_estado_guia', 'anular_guia', 'contexto_guia', 'marcar_evento_pedidos', 'registrar_guia_electronica', 'siguiente_numero_guia',
     // Ranking y diferencia en la carga (0053)
     'registrar_diferencia_carga', 'descartar_diferencia_carga', 'pedidos_del_mes',
+    // Tomar para conformidad (0060)
+    'tomar_para_conformidad', 'soltar_conformidad', 'salida_lleva_etiqueta', 'registrar_conteo_carga',
+    // Editar la orden (0059)
+    'editar_orden_salida',
+    // Inspecciones de la unidad (0058)
+    'vehiculos_para_inspeccion', 'registrar_inspeccion_unidad', 'supervisar_inspeccion_unidad', 'inspecciones_del_mes',
+    // Vehículo de contingencia (0057)
+    'registrar_motivo_contingencia',
     // Pre-guía (0055)
     'crear_pre_guia', 'cancelar_pre_guia',
     // S6b (0019)

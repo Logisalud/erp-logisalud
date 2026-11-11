@@ -89,7 +89,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
       id: String(o.id), numero: String(o.numero), salidaNumero: String(sal?.numero ?? ''), pedidoNumero: ped?.numero, cliente: ped?.cliente?.nombre, rutaNumero: c.rutaPorSalida.get(String(o.salida_id)),
       estado: String(o.estado) as EstadoOrdenPicking, lineas: ls.length, unidades: ls.reduce((t, x) => t + Number(x.cantidad), 0), pickeadas: ls.filter((x) => x.picking === 'PICKEADA').length,
       conformes: ls.filter((x) => x.conformidad === 'CONFORME').length, observadas: ls.filter((x) => x.conformidad === 'OBSERVADA').length, discrepancias: ls.filter((x) => x.picking === 'DISCREPANCIA').length, generadaEn: String(o.generada_en),
-      pickerId: s(o.picker_id),
+      pickerId: s(o.picker_id), conformidadTomadaPor: s(o.conformidad_tomada_por),
     }
   }
 
@@ -129,7 +129,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     return {
       ...this.resumenSalida(c, sal), estado: sal.estado as SalidaVista['estado'], requiereEmbalaje: sal.requiere_embalaje !== false, creadaPor: nombres.get(String(sal.creada_por)) ?? 'Usuario',
       lineasDetalle: c.lineas.filter((l) => String(l.salida_id) === id).map((l) => this.lineaVista(c, l, String(sal.tipo))),
-      clienteManual: sal.cliente_manual ? clienteDeJson(sal.cliente_manual as Record<string, unknown>) : undefined, greNumero: s(sal.gre_numero), greArchivo: s(sal.gre_archivo), devolucionAvisoMotivo: s(sal.devolucion_aviso_motivo),
+      nota: s(sal.nota_orden), clienteManual: sal.cliente_manual ? clienteDeJson(sal.cliente_manual as Record<string, unknown>) : undefined, greNumero: s(sal.gre_numero), greArchivo: s(sal.gre_archivo), devolucionAvisoMotivo: s(sal.devolucion_aviso_motivo),
       entrega: c.entregas.has(id) ? vistaEntrega(c.entregas.get(id)!, nombres) : undefined,
       ordenPickingId: s(c.ordenes.find((o) => String(o.salida_id) === id && o.estado !== 'CANCELADA')?.id), cambios,
     }
@@ -186,7 +186,18 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
 
   async colaConformidad(): Promise<OrdenPickingResumen[]> {
     const c = await this.contexto()
-    return c.ordenes.filter((o) => o.estado !== 'CANCELADA' && c.ordenLineas.some((l) => String(l.orden_id) === String(o.id) && l.conformidad === 'PENDIENTE' && l.picking !== 'DISCREPANCIA')).map((o) => this.resumenOrden(c, o))
+    const filas = c.ordenes.filter((o) => o.estado !== 'CANCELADA' && c.ordenLineas.some((l) => String(l.orden_id) === String(o.id) && l.conformidad === 'PENDIENTE' && l.picking !== 'DISCREPANCIA')).map((o) => this.resumenOrden(c, o))
+    const nombres = await nombresDe(filas.map((f) => f.conformidadTomadaPor))
+    return filas.map((f) => (f.conformidadTomadaPor ? { ...f, conformidadTomadaNombre: nombres.get(f.conformidadTomadaPor) ?? 'otra persona' } : f))
+  }
+
+  async tomarParaConformidad(ordenId: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('tomar_para_conformidad', { p_orden: ordenId })
+    return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
+  }
+  async soltarConformidad(ordenId: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('soltar_conformidad', { p_orden: ordenId })
+    return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
   }
 
   async obtenerOrdenPicking(id: string): Promise<OrdenPickingVista | null> {
@@ -213,7 +224,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
       cantidadAntes: Number(a.cantidad_antes), cantidadDespues: Number(a.cantidad_despues), nota: s(a.nota), por: nombresAj.get(String(a.por)) ?? 'Usuario', en: String(a.en),
     }))
     return {
-      ...this.resumenOrden(c, o), picker: o.picker_id ? nombresAj.get(String(o.picker_id)) : undefined, salidaId: String(o.salida_id), generadaPor: nombres.get(String(o.generada_por)) ?? 'Usuario', lineasDetalle,
+      ...this.resumenOrden(c, o), conformidadTomadaNombre: o.conformidad_tomada_por ? ((await nombresDe([String(o.conformidad_tomada_por)])).get(String(o.conformidad_tomada_por)) ?? 'otra persona') : undefined, picker: o.picker_id ? nombresAj.get(String(o.picker_id)) : undefined, salidaId: String(o.salida_id), generadaPor: nombres.get(String(o.generada_por)) ?? 'Usuario', lineasDetalle,
       requiereEmbalaje: sal?.requiere_embalaje !== false, bultosConformidad: sal?.bultos_conformidad == null ? undefined : Number(sal.bultos_conformidad), ajustes,
     }
   }

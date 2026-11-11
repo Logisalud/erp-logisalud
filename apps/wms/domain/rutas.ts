@@ -28,6 +28,8 @@ export interface VehiculoVista {
   id: string; placa: string; descripcion?: string; tipo: 'PROPIO' | 'EXTERNO'
   /** Solo informativo (D-153): el WMS ya no valida ni exige «vehículo calificado»; lo decide el Jefe de Transporte por experiencia. */
   calificado: boolean; aptoCadenaFrio: boolean; capacidadBultos?: number; activo: boolean
+  /** 0057: el vehículo que se usa cuando falla el habitual; una ruta que sale con él necesita una nota que diga por qué. */
+  contingencia?: boolean
 }
 
 export type EstadoStockParada = 'ASIGNADA' | 'SIN_STOCK' | 'PENDIENTE'
@@ -71,6 +73,8 @@ export interface RutaVista {
   estado: EstadoRuta
   version: number
   vehiculo?: VehiculoVista
+  /** 0057: por qué sale el vehículo de contingencia (obligatoria para confirmar la ruta). */
+  motivoContingencia?: string
   conductor?: PersonalTransporte
   auxiliar?: PersonalTransporte
   paradas: ParadaVista[]
@@ -165,6 +169,12 @@ export interface PlanRuta {
   auxiliarId?: string
   paradas: PlanParada[]
   motivo?: string
+}
+
+/** 0057: la ruta con vehículo de contingencia no se confirma sin su nota (mismo texto que la base). Vacío = vale. */
+export function motivoFaltaContingencia(vehiculo: Pick<VehiculoVista, 'contingencia'> | undefined, motivo: string | undefined): string | null {
+  if (!vehiculo?.contingencia) return null
+  return (motivo ?? '').trim().length >= 5 ? null : 'Usaste el vehículo de contingencia: escribe por qué antes de confirmar la ruta'
 }
 
 // ── Permisos ──────────────────────────────────────────────────────────────────────────────────────────────────────

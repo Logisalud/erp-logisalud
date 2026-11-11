@@ -105,7 +105,8 @@ export type PedidoContrato = RuteoContrato & {
   lineas: LineaContrato[];
 };
 
-export type RespuestaContrato = { generado_en: string; pedidos: PedidoContrato[] };
+/** `total_listos`: cuántos pedidos listos (o cancelados) cuenta la base AL MOMENTO de responder, aparte de los que se arman: si no coincide con `pedidos.length`, el WMS avisa que algo se cortó. */
+export type RespuestaContrato = { generado_en: string; pedidos: PedidoContrato[]; total_listos?: number };
 
 /** YYYY-MM-DD del día de Lima (UTC-5, sin horario de verano). */
 export function diaEnLima(instante: string): string {
@@ -236,9 +237,10 @@ export function armarRespuestaContrato(
   filas: FilaPedido[],
   aux: DatosAuxiliares,
   ahora: Date = new Date(),
+  totalListos?: number,
 ): RespuestaContrato {
   const pedidos = filas
     .map((f) => armarPedidoContrato(f, aux, ahora))
     .filter((p): p is PedidoContrato => p !== null);
-  return { generado_en: ahora.toISOString(), pedidos };
+  return { generado_en: ahora.toISOString(), pedidos, ...(totalListos !== undefined ? { total_listos: totalListos } : {}) };
 }

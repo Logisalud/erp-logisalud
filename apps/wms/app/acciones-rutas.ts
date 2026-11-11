@@ -17,13 +17,14 @@ async function quien(): Promise<Actor> {
 
 export async function crearRutaAccion(datos: { fecha: string; vehiculoId?: string; conductorId?: string; auxiliarId?: string }) { return repositorio().crearRuta(datos, await quien()) }
 export async function planificarRutaAccion(id: string, plan: PlanRuta) { return repositorio().planificarRuta(id, plan, await quien()) }
+export async function registrarMotivoContingenciaAccion(rutaId: string, motivo: string) { return repositorio().registrarMotivoContingencia(rutaId, motivo, await quien()) }
 export async function confirmarRutaAccion(id: string) { return repositorio().confirmarRuta(id, await quien()) }
 export async function cancelarRutaAccion(id: string, motivo: string) { return repositorio().cancelarRuta(id, motivo, await quien()) }
 export async function guardarPersonalAccion(p: { id?: string; nombre: string; funcion: PersonalTransporte['funcion']; activo: boolean }) { return repositorio().guardarPersonal(p, await quien()) }
 /** D-155 (temporal): quién figura como conductor en la guía y en el LS-FR.43.03 (`null` = el conductor real de cada ruta). */
 export async function cambiarConductorEnDocumentosAccion(personaId: string | null, motivo: string) { return repositorio().cambiarConductorEnDocumentos(personaId, motivo, await quien()) }
 export async function guardarDocumentosPersonalAccion(p: { id: string; documentoTipo: DocumentoTipo; dni: string; licencia?: string }) { return repositorio().guardarDocumentosPersonal(p, await quien()) }
-export async function guardarVehiculoAccion(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }) { return repositorio().guardarVehiculo(v, await quien()) }
+export async function guardarVehiculoAccion(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo' | 'contingencia'> & { id?: string }) { return repositorio().guardarVehiculo(v, await quien()) }
 
 // ── OS-7: LS-FR.43.03 (impresión, escaneo firmado) y cierre de ruta con el data logger ──────────────────────────────────────────────
 const falla = (mensaje: string, errores?: Record<string, string>): ResultadoAccion<never> => ({ ok: false, mensaje, errores })

@@ -95,7 +95,7 @@ describe('picking y conformidad (demo)', () => {
     expect((await repo.obtenerSalida(s.id))!.etapa).toBe('PENDIENTE_CONFORMIDAD')
     expect((await repo.colaConformidad()).map((x) => x.id)).toContain(orden.id)
     const primera = orden.lineasDetalle[0]
-    expect(await repo.darConformidad(primera.id, 'CONFORME', undefined, undefined, AUX)).toMatchObject({ ok: false, mensaje: 'No tienes permiso para dar la conformidad' })
+    expect(await repo.darConformidad(primera.id, 'CONFORME', undefined, undefined, AUX)).toMatchObject({ ok: false, mensaje: 'La conformidad la da otra persona, no quien hizo el picking' })
     expect(await repo.darConformidad(primera.id, 'CONFORME', undefined, undefined, { ...SANDRA, id: AUX.id })).toMatchObject({ ok: false, mensaje: 'La conformidad la da otra persona, no quien hizo el picking' })
     for (const l of orden.lineasDetalle) expect(await repo.darConformidad(l.id, 'CONFORME', undefined, undefined, SANDRA)).toMatchObject({ ok: true })
     expect((await repo.obtenerSalida(s.id))!.etapa).toBe('CONFORME')

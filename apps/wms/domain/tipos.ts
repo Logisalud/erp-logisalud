@@ -65,6 +65,7 @@ export type Accion =
   | 'registrar_ls_fr'
   | 'originar_retorno'
   | 'mis_rutas'
+  | 'inspeccion_unidad'
   | 'registrar_dictamen_cliente'
   | 'marcar_antecedentes_calidad'
   | 'liberar_stock_propietario'

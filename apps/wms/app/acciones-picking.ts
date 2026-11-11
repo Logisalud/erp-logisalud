@@ -48,6 +48,7 @@ export async function reabrirEmbalajeAccion(salidaId: string, motivo: string) { 
 
 export async function guardarChecklistAccion(rutaId: string, items: ItemChecklist[]) { return repositorio().guardarChecklist(rutaId, items, await quien()) }
 export async function cargarBultoAccion(rutaId: string, codigo: string) { return repositorio().cargarBulto(rutaId, codigo, await quien()) }
+export async function contarBultosCargadosAccion(rutaId: string, salidaId: string, contados: number) { return repositorio().contarBultosCargados(rutaId, salidaId, contados, await quien()) }
 export async function retirarBultoAccion(rutaId: string, codigo: string, motivo: string) { return repositorio().retirarBulto(rutaId, codigo, motivo, await quien()) }
 export async function excluirPedidoAccion(rutaId: string, salidaId: string, motivo: string) { return repositorio().excluirPedido(rutaId, salidaId, motivo, await quien()) }
 export async function liberarUnidadAccion(rutaId: string) { return repositorio().liberarUnidad(rutaId, await quien()) }
@@ -66,3 +67,7 @@ export async function reenviarAvisosPedidosAccion(salidaId?: string) { return en
 // SA-3: devolver lo picado (cambio o cancelación del pedido) y los controles de la fuente demo
 export async function ejecutarDevolucionPickingAccion(salidaId: string) { return repositorio().ejecutarDevolucionPicking(salidaId, await quien()) }
 export async function verificarDevolucionPickingAccion(salidaId: string) { return repositorio().verificarDevolucionPicking(salidaId, await quien()) }
+
+/** 0060: «Tomar para conformidad»: mientras la tengas tomada, nadie más da la conformidad; la suelta quien la tomó (o un Jefe, si alguien la dejó tomada). El Jefe no la asigna. */
+export async function tomarParaConformidadAccion(ordenId: string) { return repositorio().tomarParaConformidad(ordenId, await quien()) }
+export async function soltarConformidadAccion(ordenId: string) { return repositorio().soltarConformidad(ordenId, await quien()) }

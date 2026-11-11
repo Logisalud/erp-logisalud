@@ -1,12 +1,14 @@
 // Cómo iniciar una Orden de Salida (SA-2), en memoria (modo demostración): desde la bandeja, y a mano (tipos A, B y C). Aplica las mismas reglas que la migración 0028
 // (`crear_orden_salida_manual`, `crear_orden_de_pedido`, `crear_ordenes_pendientes`) y dice lo mismo con las mismas palabras.
 import { puedePrepararSalidas } from '@/domain/despacho'
+import { reglasDeEdicion, validarCambiosOrden, type CambiosOrden } from '@/domain/editar-orden'
 import { MENSAJE_SIN_PERMISO_ENTREGA, puedeEntregarAlTransportistaCliente, validarEntrega, type EntradaEntrega } from '@/domain/entrega-transportista'
 import {
   ETIQUETA_CODIGO, buscarProductosPorCodigos, mensajeAvisoSinMotivo, motivoNoPuedeCrear, normalizarNumeroPedido, mensajePedidoConOrden, mensajePedidoEnBandeja, partirPorMotivo, tipoDeClase, validarLineaSalidaCliente, validarOrdenManual,
   type CodigoProducto, type EntradaOrdenManual, type LineaOrdenManual, type LoteParaSalida, type ProductoHallado,
 } from '@/domain/salida-manual'
 import { requiereEmbalaje } from '@/domain/pedidos-despacho'
+import { embalajeActivoDemo } from './ajustes'
 import { normalizar } from '@/domain/busqueda'
 import { DIAS_AVISO_DEVOLUCION_DEFECTO, type MotivoSalida } from '@/domain/salidas'
 import { registrar, type EstadoDemo } from './estado'
@@ -150,6 +152,55 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
 
   // ── A mano ────────────────────────────────────────────────────────────────────────────────────────────────────
 
+  async editarOrden(salidaId: string, cambios: CambiosOrden, motivo: string | undefined, actor: Actor): Promise<ResultadoAccion<{ cambios: string[]; sinStock: number }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedePrepararSalidas(actor.roles)) return falla('No tienes permiso para editar la orden')
+    const s = desp(e).salidas.find((x) => x.id === salidaId)
+    if (!s) return falla('No encontramos esa orden')
+    if (s.estado !== 'ABIERTA') return falla('La orden ya no está abierta: no se edita')
+    const reglas = reglasDeEdicion({
+      estado: s.estado, creadaDesde: s.creadaDesde, origen: s.origen, clienteManual: s.clienteManual, sinPedido: undefined,
+      conPedido: !!e.pedidos?.filas.some((f) => f.vigente && f.salida === s.numero),
+      ordenPickingId: (desp(e).picking?.ordenes ?? []).some((o) => o.salidaId === s.id && o.estado !== 'CANCELADA') ? 'hay' : undefined,
+      guia: (desp(e).guias ?? []).some((g) => g.salidaId === s.id && g.guia.estado === 'VIGENTE') ? 'hay' : undefined,
+    }, actor.roles)
+    if (!reglas.editable) return falla('Esta orden viene de un pedido: se cambia desde Pedidos (llega como versión nueva). Los lotes se cambian en cada línea')
+    const tocaEstructura = !!cambios.destinatario || !!cambios.lineas?.length
+    if (tocaEstructura && !reglas.estructura) return falla(reglas.motivoSinEstructura ?? 'Esta orden no admite ese cambio')
+    const errores = validarCambiosOrden(cambios, motivo)
+    const primero = Object.values(errores)[0]
+    if (primero) return falla(primero, errores)
+    const hechos: string[] = []
+    if (cambios.nota !== undefined) {
+      const nota = cambios.nota.trim() || undefined
+      if (nota !== s.nota) { registrar(e, actor, 'orden_nota_editada', 'salidas', s.numero, `Nota de ${s.numero}`, motivo); s.nota = nota; hechos.push('nota') }
+    }
+    if (cambios.destinatario && s.clienteManual) {
+      const d = cambios.destinatario
+      const nuevo = { ...s.clienteManual, ...(d.ruc !== undefined ? { ruc: d.ruc.trim() } : {}), ...(d.razonSocial !== undefined ? { razonSocial: d.razonSocial.trim() } : {}), ...(d.direccion !== undefined ? { direccion: d.direccion.trim() } : {}), ...(d.ubigeo !== undefined ? { ubigeo: d.ubigeo.trim() } : {}) }
+      if (JSON.stringify(nuevo) !== JSON.stringify(s.clienteManual)) { s.clienteManual = nuevo; registrar(e, actor, 'orden_destinatario_editado', 'salidas', s.numero, `Destinatario de ${s.numero}`, motivo); hechos.push('destinatario') }
+    }
+    for (const c of cambios.lineas ?? []) {
+      const l = s.lineas.find((x) => x.id === c.lineaId)
+      if (!l) return falla('Una de las líneas no es de esta orden')
+      if (l.estado === 'CANCELADA') return falla('Una de las líneas ya está cancelada')
+      if (c.cantidad === l.cantidad) continue
+      if (c.cantidad < l.cantidad) {
+        // se suelta primero lo que vence más tarde (lo que vence antes sigue reservado)
+        let sobra = l.cantidad - c.cantidad
+        const vence = (loteId: string) => e.panorama.lotes.find((x) => x.id === loteId)?.vence ?? ''
+        const activas = desp(e).reservas.filter((r) => r.lineaId === l.id && r.estado === 'ACTIVA').sort((a, b) => vence(b.loteId).localeCompare(vence(a.loteId)))
+        for (const r of activas) { if (sobra <= 0) break; const t = Math.min(r.cantidad, sobra); if (t === r.cantidad) r.estado = 'LIBERADA'; else r.cantidad -= t; sobra -= t }
+      }
+      const antes = l.cantidad
+      l.cantidad = c.cantidad
+      asignarLineaDemo(e, s, l)
+      registrar(e, actor, 'orden_linea_editada', 'salida_lineas', l.id, `Línea de ${s.numero}: ${antes} → ${c.cantidad}`, motivo)
+      hechos.push(`linea:${l.id}`)
+    }
+    return { ok: true, cambios: hechos, sinStock: s.lineas.filter((l) => l.estado === 'SIN_STOCK').length }
+  }
+
   async crearOrdenManual(entrada: EntradaOrdenManual, actor: Actor): Promise<ResultadoAccion<{ ordenes: OrdenCreada[] }>> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const grupos: { motivo: MotivoSalida | undefined; lineas: LineaOrdenManual[] }[] = entrada.clase === 'B' ? partirPorMotivo(entrada.lineas) : [{ motivo: entrada.motivo, lineas: entrada.lineas }]
@@ -279,7 +330,7 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
     const cliente = (entrada.clase === 'A' || entrada.clase === 'C') && cm ? { ruc: cm.ruc.trim(), razonSocial: cm.razonSocial.trim(), direccion: cm.direccion.trim(), ubigeo: cm.ubigeo.trim(), vendedor: cm.vendedor?.trim() || undefined, tipoDocumento: esDni ? ('DNI' as const) : ('RUC' as const) } : undefined
     const salida: SalidaDemo = {
       id: nuevoId(), numero: '', pedidoId: entrada.clase === 'A' ? `manual:${numeroNorm}` : '', propietarioId, estado: 'ABIERTA', lineas, creadaEn: ahora(), creadaPor: actor.id,
-      requiereEmbalaje: cliente ? requiereEmbalaje(cliente.ubigeo) : true,
+      requiereEmbalaje: cliente ? requiereEmbalaje(cliente.ubigeo, undefined, embalajeActivoDemo()) : embalajeActivoDemo(),
       tipo, motivo, origen: 'MANUAL', creadaDesde: 'MANUAL', token,
       pedidoNumero: entrada.clase === 'A' ? (entrada.pedidoNumero ?? '').trim() : undefined, porConciliar: entrada.clase === 'A', clienteManual: cliente,
       greNumero: entrada.clase === 'B' ? (entrada.greNumero ?? '').trim().toUpperCase() : undefined, greArchivo: entrada.clase === 'B' ? entrada.greArchivo : undefined,

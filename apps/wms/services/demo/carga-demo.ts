@@ -3,6 +3,7 @@ import {
   ITEMS_CHECKLIST_POR_DEFECTO, motivosNoLiberar, normalizarCodigoBulto, puedeCargar, puedeConfirmarSalida, puedeLiberarUnidad,
   type CargaResumen, type CargaRuta, type ItemChecklist, type PedidoCarga,
 } from '@/domain/carga'
+import { llevaEtiqueta } from '@/domain/pedidos-despacho'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { registrar, type EstadoDemo } from './estado'
 import { ahora, estadoE, falla } from './entradas-demo'
@@ -10,6 +11,7 @@ import { desp, type CargaDemo, type RutaDemo, type SalidaDemo } from './despacho
 import { EmbalajeDemo, bultosVigentes } from './embalaje-demo'
 import { quitarSaldo } from './inventario-demo'
 import { anotar } from './libro'
+import { escaneoQrDemo } from './ajustes'
 import { origenDe } from './inventario-demo'
 import type { RepositorioCarga } from '../repositorio-carga'
 import type { Actor, ResultadoAccion } from '../repositorio'
@@ -31,7 +33,8 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
       const ex = c.exclusiones.find((x) => x.salidaId === s.id)
       const listo = !ex && ['LISTA_PARA_CARGA', 'CARGADA'].includes(res.etapa)
       const bultos = ex ? [] : bultosVigentes(e, s.id).map((b) => ({ bultoId: b.id, codigo: b.codigo, secuencia: b.secuencia, total: b.total, cargado: vivos(c).some((x) => x.codigo === b.codigo) }))
-      return { salidaId: s.id, salidaNumero: s.numero, pedidoNumero: res.pedidoNumero, cliente: res.cliente, secuencia: p.secuencia, listo, excluida: !!ex, motivoExclusion: ex?.motivo, bultos }
+      const ubigeo = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === s.pedidoId)?.snapshot.cliente.ubigeo ?? (s as { clienteManual?: { ubigeo?: string } }).clienteManual?.ubigeo
+      return { salidaId: s.id, salidaNumero: s.numero, pedidoNumero: res.pedidoNumero, cliente: res.cliente, secuencia: p.secuencia, listo, excluida: !!ex, motivoExclusion: ex?.motivo, bultos, llevaEtiqueta: llevaEtiqueta(ubigeo) }
     })
   }
 
@@ -54,7 +57,7 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
     if (!r) return null
     const c = cargaDe(e, r.id)
     const base: Omit<CargaRuta, 'motivosNoLiberar'> = {
-      ...this.resumenCarga(e, r), conductor: desp(e).personal.find((p) => p.id === r.conductorId)?.nombre, tieneVehiculoYConductor: !!r.vehiculoId && !!r.conductorId,
+      ...this.resumenCarga(e, r), escaneoQr: escaneoQrDemo(), conductor: desp(e).personal.find((p) => p.id === r.conductorId)?.nombre, tieneVehiculoYConductor: !!r.vehiculoId && !!r.conductorId,
       checklist: c.checklist ?? null, checklistPor: c.checklistPor, itemsChecklist: [...ITEMS_CHECKLIST_POR_DEFECTO], pedidosDetalle: this.pedidosDe(e, r), liberadaEn: c.liberadaEn, salioEn: c.salioEn,
     }
     return structuredClone({ ...base, motivosNoLiberar: r.estado === 'LIBERADA' || r.estado === 'EN_RUTA' ? [] : motivosNoLiberar(base) })
@@ -101,6 +104,30 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
     for (const [id, otro] of Object.entries(cargas(e))) if (id !== rutaId && vivos(otro).some((y) => y.codigo === cod)) return falla(`El bulto ${cod} ya está cargado en otra ruta`)
     c.cargados.push({ codigo: cod, estado: 'CARGADO' })
     return { ok: true, resultado: 'CARGADO' }
+  }
+
+  async contarBultosCargados(rutaId: string, salidaId: string, contados: number, actor: Actor): Promise<ResultadoAccion<{ contados: number }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const x = this.exigirEnCarga(e, rutaId, puedeCargar(actor.roles), 'No tienes permiso para cargar la unidad')
+    if ('error' in x) return x.error as ResultadoAccion<{ contados: number }>
+    if (!x.r.paradas.some((p) => p.activa && p.salidaId === salidaId)) return falla('Ese pedido no está en esta ruta')
+    const c = cargaDe(e, rutaId)
+    if (c.exclusiones.some((y) => y.salidaId === salidaId)) return falla('Ese pedido se dejó fuera de esta salida')
+    const pedido = this.pedidosDe(e, x.r).find((p) => p.salidaId === salidaId)!
+    if (!pedido.listo) return falla('Ese pedido todavía no está listo para carga: faltan la guía, el paquete documental completo o la conformidad')
+    const total = pedido.bultos.length
+    if (total === 0) return falla('Ese pedido todavía no tiene bultos registrados')
+    if (!Number.isInteger(contados) || contados < 0 || contados > total) return falla(`Este pedido tiene ${total} bultos: cuenta de 0 a ${total}`)
+    const propios = [...pedido.bultos].sort((a, b) => a.secuencia - b.secuencia)
+    for (const b of propios) {
+      for (const [id, otro] of Object.entries(cargas(e))) if (id !== rutaId && b.secuencia <= contados && vivos(otro).some((y) => y.codigo === b.codigo)) return falla('Un bulto de este pedido ya está cargado en otra ruta')
+    }
+    for (const b of propios) {
+      const vivo = vivos(c).find((y) => y.codigo === b.codigo)
+      if (b.secuencia <= contados) { if (!vivo) c.cargados.push({ codigo: b.codigo, estado: 'CARGADO' }) }
+      else if (vivo) { vivo.estado = 'RETIRADO'; vivo.motivo = `Conteo corregido: se contaron ${contados} de ${total}` }
+    }
+    return { ok: true, contados }
   }
 
   async retirarBulto(rutaId: string, codigo: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {

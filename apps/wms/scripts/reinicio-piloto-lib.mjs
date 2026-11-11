@@ -17,7 +17,7 @@ export const BORRAR = [
   'acta_firmas', 'actas_organolepticas', 'actas_recepcion', 'ajustes_conformidad', 'ajustes_inventario', 'diferencias_carga', 'alertas', 'antecedentes_calidad', 'bulto_contenido', 'bultos', 'cambios_lote_asignado',
   'carga_bultos', 'carga_exclusiones', 'cargas_coa', 'cargas_coa_items', 'cargas_iniciales', 'cargas_iniciales_lineas', 'cargas_informes', 'conteo_lineas', 'conteos', 'devoluciones_picking',
   'dictamenes_cliente', 'discrepancias_picking', 'entregas_transportista_cliente', 'eventos_pedidos', 'expediente_documentos', 'expediente_faltantes', 'expedientes', 'guia_numeros', 'guias_remision',
-  'importaciones_pedidos', 'ingreso_lotes', 'ingresos', 'lote_vencimiento_cambios', 'lotes', 'ls_fr_escaneos', 'ls_fr_impresiones', 'movimientos', 'observaciones_conformidad', 'observaciones_liberacion',
+  'importaciones_pedidos', 'ingreso_lotes', 'ingresos', 'inspecciones_unidad', 'lote_vencimiento_cambios', 'lotes', 'ls_fr_escaneos', 'ls_fr_impresiones', 'movimientos', 'observaciones_conformidad', 'observaciones_liberacion',
   'oc_versiones', 'ordenes_baja', 'ordenes_baja_evaluaciones', 'ordenes_baja_lineas', 'ordenes_baja_sustentos', 'ordenes_movimiento', 'ordenes_movimiento_lineas', 'ordenes_picking', 'ordenes_picking_lineas',
   'partidas', 'pedidos_despacho', 'programacion_conteos', 'quiebres_stock', 'registros_ls_fr_43_03', 'reservas', 'reservas_lote', 'revision_focos', 'revision_pendientes', 'revisiones_diarias', 'ruta_cierres',
   'ruta_logger_importes', 'ruta_logger_lecturas', 'seguimiento_intentos', 'seguimiento_tokens', 'ruta_paradas', 'ruta_paradas_eventos', 'ruta_versiones', 'rutas', 'saldos', 'salida_lineas', 'salida_movimientos', 'salidas', 'solicitud_ingreso_cambios',

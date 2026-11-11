@@ -68,6 +68,35 @@ describe('Mis rutas', () => {
     expect((await falla(evento(conductor, p1, 'NO_ENTREGADO', { motivo: 'cliente ausente' }))).message).toMatch(/ya tiene su resultado/)
     await evento(conductor, p1, 'INCIDENCIA', { motivo: 'Tráfico en la avenida' })   // una incidencia se puede anotar siempre
   })
+  it('conformidad del cliente (0056): sin marcar cuenta como conforme; «no» pide el tipo de diferencia (cantidad, descripción, lote o documento)', async () => {
+    const r3 = (await uno(`insert into wms.rutas (numero, fecha, estado, conductor_id, creada_por) values ('RUT-TEST-3', $1, 'EN_RUTA', (select id from wms.personal_transporte where usuario_id = $2), $3) returning id`, [hoy, conductor, jt])).id
+    const pd = (await uno(`select id from wms.pedidos_despacho limit 1`)).id
+    const mk = async (n: number) => (await uno(`insert into wms.ruta_paradas (ruta_id, secuencia, pedido_id, pedido_despacho_id, activa) values ($1, $2, $3, $4, true) returning id`, [r3, n, `conf-${n}`, pd])).id as string
+    const [a, b, c] = [await mk(1), await mk(2), await mk(3)]
+    for (const x of [a, b, c]) await evento(conductor, x, 'LLEGUE')
+    await evento(conductor, a, 'ENTREGADO', entrega)
+    expect(await uno(`select conforme, tipo_diferencia from wms.ruta_paradas_eventos where parada_id = $1 and evento = 'ENTREGADO'`, [a])).toMatchObject({ conforme: true, tipo_diferencia: null })
+    expect((await falla(evento(conductor, b, 'ENTREGADO', { ...entrega, conforme: false }))).message).toMatch(/Elige qué no coincidió/)
+    expect((await falla(evento(conductor, b, 'ENTREGADO', { ...entrega, conforme: false, tipo_diferencia: 'COLOR' }))).message).toMatch(/Elige qué no coincidió/)
+    await evento(conductor, b, 'ENTREGADO', { ...entrega, conforme: false, tipo_diferencia: 'lote', detalle_diferencia: 'Llegó otro lote' })
+    expect(await uno(`select conforme, tipo_diferencia, detalle_diferencia from wms.ruta_paradas_eventos where parada_id = $1 and evento = 'ENTREGADO'`, [b])).toMatchObject({ conforme: false, tipo_diferencia: 'LOTE', detalle_diferencia: 'Llegó otro lote' })
+    await evento(conductor, c, 'RECHAZADO', { motivo: 'No lo quiso recibir', conforme: false, tipo_diferencia: 'CANTIDAD' })   // en un rechazo la conformidad no aplica
+    expect(await uno(`select conforme, tipo_diferencia from wms.ruta_paradas_eventos where parada_id = $1 and evento = 'RECHAZADO'`, [c])).toMatchObject({ conforme: null, tipo_diferencia: null })
+    const vista = (await mias(conductor)).find((r) => r.id === r3)!.paradas.find((p) => p.id === b)!.eventos.find((e) => e.evento === 'ENTREGADO') as unknown as { conforme: boolean; tipo_diferencia: string }
+    expect(vista).toMatchObject({ conforme: false, tipo_diferencia: 'LOTE' })
+  })
+  it('foto del pedido con la caja abierta (0056): con la ruta liberada o en ruta, con foto y huella; puede haber varias; no es un resultado ni cambia la ruta', async () => {
+    const r4 = (await uno(`insert into wms.rutas (numero, fecha, estado, conductor_id, auxiliar_id, creada_por) values ('RUT-TEST-4', $1, 'LIBERADA', (select id from wms.personal_transporte where usuario_id = $2), (select id from wms.personal_transporte where usuario_id = $3), $4) returning id`, [hoy, conductor, auxiliarT, jt])).id
+    const pd = (await uno(`select id from wms.pedidos_despacho limit 1`)).id
+    const pf = (await uno(`insert into wms.ruta_paradas (ruta_id, secuencia, pedido_id, pedido_despacho_id, activa) values ($1, 1, 'foto-1', $2, true) returning id`, [r4, pd])).id as string
+    expect((await falla(evento(conductor, pf, 'FOTO_PEDIDO', { foto_nombre: 'x.jpg' }))).message).toMatch(/Falta la foto del pedido/)
+    await evento(conductor, pf, 'FOTO_PEDIDO', entrega)
+    await evento(auxiliarT, pf, 'FOTO_PEDIDO', { ...entrega, foto_hash: 'b'.repeat(64) })
+    expect(Number((await uno(`select count(*)::int n from wms.ruta_paradas_eventos where parada_id = $1 and evento = 'FOTO_PEDIDO' and foto_hash is not null`, [pf])).n)).toBe(2)
+    expect((await falla(evento(ajeno, pf, 'FOTO_PEDIDO', entrega))).code).toBe('42501')
+    expect((await falla(evento(conductor, pf, 'LLEGUE'))).message).toMatch(/todavía no salió/)   // las entregas siguen pidiendo la ruta en camino
+    expect((await uno(`select estado from wms.rutas where id = $1`, [r4])).estado).toBe('LIBERADA')
+  })
   it('otro conductor no registra nada en una ruta ajena; los eventos solo se agregan', async () => {
     expect((await falla(evento(ajeno, p2, 'LLEGUE'))).code).toBe('42501')
     expect((await falla(base.admin.query('delete from wms.ruta_paradas_eventos'))).message).toMatch(/solo admite agregar/)

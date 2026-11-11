@@ -34,7 +34,8 @@ describe('permisos: la base y el dominio dicen lo mismo', () => {
     const sandra = await persona('asistente_dt')
     await base.admin.query(`insert into wms.usuario_roles (user_id, rol) values ($1, 'conformidad_despacho')`, [sandra])
     expect(await consulta(sandra, 'dar_conformidad')).toBe(true)
-    expect(await consulta(base.personas.charlie.id, 'dar_conformidad')).toBe(false)
+    expect(await consulta(base.personas.sinRol.id, 'dar_conformidad')).toBe(false)
+    expect(await consulta(base.personas.charlie.id, 'dar_conformidad')).toBe(true)   // 0060: los auxiliares de almacén también la dan
     expect(await consulta(await persona('jefe_transporte'), 'cambiar_lote_asignado')).toBe(true)
     expect(await consulta(await persona('jefe_transporte'), 'ejecutar')).toBe(true) // tiene todo lo del auxiliar (DT, 2026-10-17)
     expect(await consulta(await persona('jefe_transporte'), 'ajustar')).toBe(false)

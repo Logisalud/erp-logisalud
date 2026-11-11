@@ -1,3 +1,4 @@
+import type { CambiosOrden } from '@/domain/editar-orden'
 import type { EntradaOrdenManual, LoteParaSalida, ProductoHallado } from '@/domain/salida-manual'
 export type { ProductoHallado } from '@/domain/salida-manual'
 import type { EntradaEntrega } from '@/domain/entrega-transportista'
@@ -47,6 +48,8 @@ export interface RepositorioSalidaManual {
   crearOrdenDePedido(pedidoId: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string; yaExistia: boolean; faltaStock: boolean }>>
   /** Cancela una orden que todavía no salió del rack (libera lo reservado); nada se borra: queda con su motivo. La usa quien se equivocó de número de pedido o de cliente. */
   cancelarOrden(salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  /** 0059: «Editar» la orden. La nota siempre (orden abierta); destinatario y cantidades solo en una orden manual, sin pedido unido, antes del picking y sin guía. */
+  editarOrden(salidaId: string, cambios: CambiosOrden, motivo: string | undefined, actor: Actor): Promise<ResultadoAccion<{ cambios: string[]; sinStock: number }>>
   /** «Crear las órdenes de todos los pedidos por planificar». */
   crearOrdenesPendientes(actor: Actor): Promise<ResultadoAccion<{ resumen: ResumenOrdenesPendientes }>>
   /**

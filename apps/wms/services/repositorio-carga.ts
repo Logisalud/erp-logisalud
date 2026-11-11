@@ -9,6 +9,8 @@ export interface RepositorioCarga {
   guardarChecklist(rutaId: string, items: ItemChecklist[], actor: Actor): Promise<ResultadoAccion>
   /** Escanear (o marcar) un bulto: 'CARGADO' o 'YA_CARGADO' (repetir el escaneo no falla ni duplica). */
   cargarBulto(rutaId: string, codigo: string, actor: Actor): Promise<ResultadoAccion<{ resultado: 'CARGADO' | 'YA_CARGADO' }>>
+  /** Carga por conteo: «cargué N de los bultos de este pedido» (deja cargados los primeros N; contar otra vez corrige). */
+  contarBultosCargados(rutaId: string, salidaId: string, contados: number, actor: Actor): Promise<ResultadoAccion<{ contados: number }>>
   retirarBulto(rutaId: string, codigo: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   /** Un pedido al que le falta un bulto se deja fuera de ESTA salida (con motivo). */
   excluirPedido(rutaId: string, salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>

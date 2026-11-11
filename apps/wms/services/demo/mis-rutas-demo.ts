@@ -1,5 +1,5 @@
 // «Mis rutas» en la demostración (memoria): mismas reglas que la migración 0043 (`wms.mis_rutas_del_dia` y `wms.registrar_evento_parada`).
-import { datosParaLsFr, estadoDeParada, esTerminal, motivoNoSePuede, RUTA_PERMITE_MARCAR, todasResueltas, validarEventoParada, type EventoParada, type EventoParadaVista, type ParadaMia, type RutaMia } from '@/domain/mis-rutas'
+import { datosParaLsFr, estadoDeParada, esTerminal, motivoNoSePuede, puedeFotografiarPedido, RUTA_PERMITE_MARCAR, todasResueltas, validarEventoParada, type EventoParada, type EventoParadaVista, type ParadaMia, type RutaMia } from '@/domain/mis-rutas'
 import { puedeVerMisRutas } from '@/domain/mis-rutas'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { claveDeOrden } from '@/domain/rutas'
@@ -47,15 +47,18 @@ export class MisRutasDemo extends PilotoDemo implements RepositorioMisRutas {
     const pv = v.paradas.find((p) => p.id === paradaId)!
     const previos = eventos(e).filter((x) => x.paradaId === paradaId)
     const estado = estadoDeParada(previos)
-    const no = motivoNoSePuede(evento, estado, RUTA_PERMITE_MARCAR.includes(r.estado))
+    const no = evento === 'FOTO_PEDIDO'
+      ? (puedeFotografiarPedido(r.estado, estado) ? null : 'La foto del pedido se toma cuando la ruta está liberada (al cargar la unidad)')
+      : motivoNoSePuede(evento, estado, RUTA_PERMITE_MARCAR.includes(r.estado))
     if (no) return falla(no)
-    const errores = validarEventoParada(evento, { motivo: datos.motivo, recibioNombre: datos.recibioNombre, recibioDocumento: datos.recibioDocumento, tieneFoto: !!datos.foto })
+    const errores = validarEventoParada(evento, { motivo: datos.motivo, recibioNombre: datos.recibioNombre, recibioDocumento: datos.recibioDocumento, tieneFoto: !!datos.foto, conforme: datos.conforme, tipoDiferencia: datos.tipoDiferencia })
     const primero = Object.values(errores)[0]
     if (primero) return falla(primero, errores)
     eventos(e).push({
       id: nuevoId(), paradaId, rutaId: r.id, evento, motivo: datos.motivo?.trim() || undefined,
       recibioNombre: evento === 'ENTREGADO' ? datos.recibioNombre!.trim() : undefined, recibioDocumento: evento === 'ENTREGADO' ? datos.recibioDocumento!.trim() : undefined,
-      fotoNombre: evento === 'ENTREGADO' ? datos.foto!.nombre : undefined, fotoRef: evento === 'ENTREGADO' ? datos.foto!.ref : undefined, fotoHash: evento === 'ENTREGADO' ? datos.foto!.hash : undefined,
+      conforme: evento === 'ENTREGADO' ? (datos.conforme ?? true) : undefined, tipoDiferencia: evento === 'ENTREGADO' && datos.conforme === false ? datos.tipoDiferencia : undefined, detalleDiferencia: evento === 'ENTREGADO' && datos.conforme === false ? datos.detalleDiferencia?.trim() || undefined : undefined,
+      fotoNombre: ['ENTREGADO', 'FOTO_PEDIDO'].includes(evento) ? datos.foto!.nombre : undefined, fotoRef: ['ENTREGADO', 'FOTO_PEDIDO'].includes(evento) ? datos.foto!.ref : undefined, fotoHash: ['ENTREGADO', 'FOTO_PEDIDO'].includes(evento) ? datos.foto!.hash : undefined,
       hora: ahora(), por: actor.id,
     })
     let retornoPorOriginar = false

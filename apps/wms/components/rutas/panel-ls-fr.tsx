@@ -8,9 +8,11 @@ import { AYUDA_TEMPERATURA_RUTA, LIMITE_TEMPERATURA_RUTA_C, type ResumenLeido } 
 import { leerTemperatura, motivoNoSeCierra, motivoNoSeEscanea, tamanoLegible } from '@/domain/cierre-ruta'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
 import { PENDIENTES_LS_FR, cierreVigente, escaneoVigente, textoTemperatura, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
+import type { PedidoParaPaquete } from '@/domain/documentacion'
 import type { RutaVista } from '@/domain/rutas'
 import { Aviso } from '../entradas/aviso'
 import { useAccion } from '../usar-accion'
+import { SelectorPaquete } from './selector-paquete'
 import { PanelLecturasLogger, ResumenLecturaLeida } from './lecturas-logger'
 
 const chip = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap'
@@ -56,7 +58,7 @@ function textoLogger(r: ResultadoLogger | undefined, maxima: number | null): str
  * El formato LS-FR.43.03 de la ruta: lo genera el WMS desde la ruta. Aquí se IMPRIME la copia que viaja con el conductor (queda registrado quién y cuándo),
  * se sube el ESCANEO firmado (conductor y Dirección Técnica; se conserva 5 años) y se CIERRA la ruta con el archivo del data logger y la temperatura mínima y máxima.
  */
-export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar = false }: { ruta: RutaVista; registro: RegistroLsFrVista | null; puedeCerrar?: boolean; puedeRegistrar?: boolean }) {
+export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar = false, pedidosPaquete }: { ruta: RutaVista; registro: RegistroLsFrVista | null; puedeCerrar?: boolean; puedeRegistrar?: boolean; pedidosPaquete?: PedidoParaPaquete[] }) {
   const impresion = useAccion()
   const escaneo = useAccion()
   const cierre = useAccion()
@@ -139,9 +141,10 @@ export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar 
             <button type="button" className="btn-primary" onClick={imprimir} disabled={impresion.pendiente} data-testid="imprimir-lsfr"><Printer className="h-5 w-5" aria-hidden />{impresion.pendiente ? 'Registrando…' : 'Imprimir la copia del conductor'}</button>
           )}
           <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/pdf`} target="_blank" rel="noopener" className="btn-secondary" data-testid="ver-lsfr"><FileText className="h-5 w-5" aria-hidden />Ver el PDF</a>
-          <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/paquete`} target="_blank" rel="noopener" className="btn-secondary" data-testid="paquete-ruta"><FileText className="h-5 w-5" aria-hidden />Imprimir el paquete documental de la ruta</a>
+          {!pedidosPaquete && <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/paquete`} target="_blank" rel="noopener" className="btn-secondary" data-testid="paquete-ruta"><FileText className="h-5 w-5" aria-hidden />Imprimir el paquete documental de la ruta</a>}
         </div>
       </div>
+      {pedidosPaquete && pedidosPaquete.length > 0 && <SelectorPaquete rutaId={ruta.id} pedidos={pedidosPaquete} />}
       {registro.conductorReal && (
         <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="lsfr-conductor-documentos">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />El formato lleva a {registro.conductor}. El conductor real de la ruta es {registro.conductorReal} y así queda registrado, junto con cada impresión.
