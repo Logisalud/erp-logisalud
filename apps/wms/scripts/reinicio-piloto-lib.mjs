@@ -14,7 +14,7 @@ export const CONSERVAR = [
 ]
 /** Lo que se BORRA: todo lo transaccional, incluidas las copias de pedidos y de OC, la carga de ensayo «piloto», las firmas dibujadas (están en `acta_firmas` y en el bucket) y las fotos de entrega. */
 export const BORRAR = [
-  'acta_firmas', 'actas_organolepticas', 'actas_recepcion', 'ajustes_conformidad', 'ajustes_inventario', 'alertas', 'antecedentes_calidad', 'bulto_contenido', 'bultos', 'cambios_lote_asignado',
+  'acta_firmas', 'actas_organolepticas', 'actas_recepcion', 'ajustes_conformidad', 'ajustes_inventario', 'diferencias_carga', 'alertas', 'antecedentes_calidad', 'bulto_contenido', 'bultos', 'cambios_lote_asignado',
   'carga_bultos', 'carga_exclusiones', 'cargas_coa', 'cargas_coa_items', 'cargas_iniciales', 'cargas_iniciales_lineas', 'cargas_informes', 'conteo_lineas', 'conteos', 'devoluciones_picking',
   'dictamenes_cliente', 'discrepancias_picking', 'entregas_transportista_cliente', 'eventos_pedidos', 'expediente_documentos', 'expediente_faltantes', 'expedientes', 'guia_numeros', 'guias_remision',
   'importaciones_pedidos', 'ingreso_lotes', 'ingresos', 'lote_vencimiento_cambios', 'lotes', 'ls_fr_escaneos', 'ls_fr_impresiones', 'movimientos', 'observaciones_conformidad', 'observaciones_liberacion',
