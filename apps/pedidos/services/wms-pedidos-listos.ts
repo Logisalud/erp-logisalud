@@ -34,6 +34,10 @@ const lotes = <T>(xs: T[], n: number): T[][] => {
   return out;
 };
 
+/** Esta base puede no tener una tabla auxiliar (p. ej. `facturas_emitidas` no existe en el proyecto Supabase de Pedidos): sin ella, ese dato simplemente no se entrega (el contrato lo marca opcional) y la ruta no falla. */
+const tablaAusente = (e: { code?: string; message: string }) =>
+  e.code === "42P01" || e.code === "PGRST205" || /does not exist|Could not find the table/i.test(e.message);
+
 export async function cargarPedidosListosParaWms(ahora = new Date()): Promise<RespuestaContrato> {
   const db = createAdminClient();
 
@@ -75,10 +79,10 @@ export async function cargarPedidosListosParaWms(ahora = new Date()): Promise<Re
     ]);
     if (h.error) throw new Error(h.error.message);
     if (o.error) throw new Error(o.error.message);
-    if (f.error) throw new Error(f.error.message);
+    if (f.error && !tablaAusente(f.error)) throw new Error(f.error.message);
     aux.historial.push(...((h.data ?? []) as FilaHistorial[]));
     aux.observaciones.push(...((o.data ?? []) as FilaObservacion[]));
-    aux.facturas.push(...((f.data ?? []) as FilaFactura[]));
+    if (!f.error) aux.facturas.push(...((f.data ?? []) as FilaFactura[]));
   }
 
   const codigos = Array.from(
@@ -89,7 +93,7 @@ export async function cargarPedidosListosParaWms(ahora = new Date()): Promise<Re
       .from("ubigeos")
       .select("codigo_inei, distrito")
       .in("codigo_inei", lote);
-    if (error) throw new Error(error.message);
+    if (error && !tablaAusente(error)) throw new Error(error.message);
     for (const u of (data ?? []) as Array<{ codigo_inei: string; distrito: string }>) {
       aux.distritos[u.codigo_inei] = u.distrito;
     }
