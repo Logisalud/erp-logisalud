@@ -14,7 +14,7 @@ import { puedeVerProveedores } from './vencimiento'
 
 export type IconoNav =
   | 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos'
-  | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'nuevasalida'
+  | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'nuevasalida' | 'guias'
   | 'picking' | 'conformidad' | 'embalaje' | 'cargaunidad' | 'bajas' | 'retornos'
 
 export interface ItemMenu {
@@ -45,7 +45,7 @@ export const TITULO_SECCION: Record<IdSeccion, string | null> = {
 }
 
 /** Los nombres exactos que pidió la gerencia para el grupo Salidas, en este orden. */
-export const SALIDAS_NOMBRES = ['Pedidos por despachar', 'Órdenes de salida', 'Nueva salida', 'Rutas'] as const
+export const SALIDAS_NOMBRES = ['Pedidos por despachar', 'Órdenes de salida', 'Nueva salida', 'Rutas', 'Guías'] as const
 
 const gestion = (roles: readonly Rol[]) => roles.some((r) => ['direccion_tecnica', 'asistente_dt', 'jefe_almacen', 'jefe_transporte', 'admin_wms', 'auditoria_lectura'].includes(r))
 
@@ -84,6 +84,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   ponerSi('salidas', puedeVerSalidas(roles), { href: '/salidas', etiqueta: SALIDAS_NOMBRES[1], icono: 'salidas', corta: 'Órdenes' })
   ponerSi('salidas', puedeCrearSalida(roles), { href: '/salidas/nueva', etiqueta: SALIDAS_NOMBRES[2], icono: 'nuevasalida', destacado: true, corta: 'Nueva salida' })
   ponerSi('salidas', puedeVerRutas(roles), { href: '/rutas', etiqueta: SALIDAS_NOMBRES[3], icono: 'rutas' })
+  ponerSi('salidas', puedeVerSalidas(roles), { href: '/guias', etiqueta: SALIDAS_NOMBRES[4], icono: 'guias' })
 
   // Despacho y transporte: los pasos de piso, solo para quien puede hacer ese paso (la lectura está en «Órdenes de salida»)
   const salidas = puedeVerSalidas(roles)

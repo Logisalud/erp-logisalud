@@ -19,11 +19,11 @@ describe('menú lateral por rol (D-131 a D-133)', () => {
     }
   })
 
-  it('el grupo Salidas del Jefe de Transporte tiene los cuatro nombres exactos, en orden, y «Nueva salida» destacada', () => {
+  it('el grupo Salidas del Jefe de Transporte tiene los cinco nombres exactos, en orden, y «Nueva salida» destacada', () => {
     const salidas = construirMenu(persona('jefe_transporte')).find((s) => s.id === 'salidas')!
     expect(salidas.titulo).toBe('Salidas')
     expect(salidas.items.map((i) => i.etiqueta)).toEqual([...SALIDAS_NOMBRES])
-    expect(salidas.items.map((i) => i.href)).toEqual(['/pedidos', '/salidas', '/salidas/nueva', '/rutas'])
+    expect(salidas.items.map((i) => i.href)).toEqual(['/pedidos', '/salidas', '/salidas/nueva', '/rutas', '/guias'])
     expect(salidas.items.filter((i) => i.destacado).map((i) => i.etiqueta)).toEqual(['Nueva salida'])
   })
 
@@ -47,7 +47,7 @@ describe('menú lateral por rol (D-131 a D-133)', () => {
 
   it('«Autoriza salidas sin venta» ve lo suyo (Nueva salida y las órdenes, para seguir su muestra: SA-2) y nada de las colas ni de la bandeja', () => {
     const sec = construirMenu(persona('autoriza_salidas_sin_venta'))
-    expect(sec.find((s) => s.id === 'salidas')!.items.map((i) => i.etiqueta)).toEqual(['Órdenes de salida', 'Nueva salida'])
+    expect(sec.find((s) => s.id === 'salidas')!.items.map((i) => i.etiqueta)).toEqual(['Órdenes de salida', 'Nueva salida', 'Guías'])
     expect(sec.some((s) => s.id === 'despacho')).toBe(false)
     expect(hrefs(persona('autoriza_salidas_sin_venta'))).not.toContain('/pedidos')
     for (const x of ['/entradas', '/movimientos', '/conteos', '/bajas', '/propietarios']) expect(hrefs(persona('autoriza_salidas_sin_venta')), x).not.toContain(x)

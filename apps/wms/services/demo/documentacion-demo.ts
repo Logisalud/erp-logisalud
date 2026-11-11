@@ -20,6 +20,7 @@ import { detalleUsoConductor } from '@/domain/conductor-documentos'
 import { pk } from './picking-demo'
 import { DocumentosDemo } from './documentos-demo'
 import { modoPilotoDemo } from './piloto-estado'
+import type { GuiaFila } from '@/domain/guias-busqueda'
 import type { RepositorioDocumentacion } from '../repositorio-documentacion'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
@@ -88,6 +89,25 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       guia: this.guiaVigente(e, s.id), guiasAnuladas: guias(e).filter((g) => g.salidaId === s.id && g.guia.estado === 'ANULADA').map((g) => g.guia),
       items, completo: paqueteDeItemsCompleto(items), faltantes: faltantesDelPaquete(items), copias: perfil?.copias ?? 1,
     })
+  }
+
+  async listarGuias(): Promise<GuiaFila[]> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const filas: GuiaFila[] = []
+    for (const { guia: g, salidaId } of guias(e)) {
+      const s = desp(e).salidas.find((x) => x.id === salidaId)
+      if (!s) continue
+      const ctx = this.rucYEntrega(e, s)
+      const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
+      const unidades = g.lineas.reduce((t, l) => t + l.cantidad, 0)
+      filas.push({
+        id: g.id, numero: g.numero, salidaId, salidaNumero: s.numero, pedidoNumero: ctx.pedidoNumero, tipoOrden: s.tipo, rolDestinatario: s.tipo === 'PROVEEDOR' ? 'PROVEEDOR' : 'CLIENTE',
+        destinatario: ctx.cliente, ruc: ctx.ruc, rutaNumero: ruta?.numero, placa: g.placa, conductor: ruta?.conductorId ? desp(e).personal.find((p) => p.id === ruta.conductorId)?.nombre : undefined,
+        fecha: g.fechaEmision ?? g.registradaEn.slice(0, 10), fechaTraslado: g.fechaInicio ?? g.fechaTraslado, bultos: g.bultos, pesoKg: g.pesoKg, unidades, origen: g.origen, entorno: g.entorno, estadoSunat: g.estadoSunat,
+        anulada: g.estado === 'ANULADA', motivoAnulacion: g.anuladaMotivo, enlace: g.enlace, registradaPor: g.registradaPor,
+      })
+    }
+    return structuredClone(filas.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)))
   }
 
   async registrarGre(salidaId: string, numero: string, nota: string | undefined, actor: Actor, _archivoRef?: string): Promise<ResultadoAccion<{ id: string }>> {
