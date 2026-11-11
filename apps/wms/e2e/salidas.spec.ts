@@ -185,6 +185,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await page.goto('/wms/rutas')
     const planificada = page.getByTestId(esTelefono(info) ? 'fila-ruta-movil' : 'fila-ruta').filter({ hasText: 'Planificada' }).first()
     await (esTelefono(info) ? planificada : planificada.getByRole('link', { name: /^Abrir/ })).click()
+    await expect(page.getByTestId('paquete-casilla').first(), 'su cliente pide documentos: viene marcado').toBeChecked()
     const hrefRuta = await page.getByTestId('paquete-ruta').getAttribute('href')
     const rr = await page.request.get(hrefRuta!)
     expect(rr.status()).toBe(200)

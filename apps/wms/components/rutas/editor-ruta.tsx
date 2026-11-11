@@ -25,12 +25,12 @@ const icono = 'inline-flex h-11 w-11 items-center justify-center rounded-md bord
 const diaLargo = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
 
 /** Una ruta ya cerrada o en ejecución: se mira, no se edita. */
-function VistaRuta({ ruta, registro, permisos }: { ruta: RutaVista; registro: RegistroLsFrVista | null; permisos: PermisosLsFr }) {
+function VistaRuta({ ruta, registro, permisos, pedidosPaquete }: { ruta: RutaVista; registro: RegistroLsFrVista | null; permisos: PermisosLsFr; pedidosPaquete?: PedidoParaPaquete[] }) {
   return (
     <div className="space-y-4" data-testid="ruta-solo-lectura">
       <Aviso tipo="info">Esta ruta no se puede cambiar desde aquí{' '}({ETIQUETA_ESTADO_RUTA[ruta.estado].toLowerCase()}).{ruta.motivoCancelacion ? ` Motivo: ${ruta.motivoCancelacion}.` : ''}</Aviso>
       <TablaParadas paradas={ruta.paradas} />
-      <PanelLsFr ruta={ruta} registro={registro} puedeCerrar={permisos.cerrar} puedeRegistrar={permisos.registrar} />
+      <PanelLsFr ruta={ruta} registro={registro} puedeCerrar={permisos.cerrar} puedeRegistrar={permisos.registrar} pedidosPaquete={pedidosPaquete} />
     </div>
   )
 }
@@ -49,9 +49,10 @@ function TablaParadas({ paradas }: { paradas: RutaVista['paradas'] }) {
   )
 }
 
+import type { PedidoParaPaquete } from '@/domain/documentacion'
 export interface PermisosLsFr { cerrar: boolean; registrar: boolean }
 
-export function EditorRuta({ ruta, panorama, registro = null, soloLectura = false, permisos = { cerrar: false, registrar: false } }: { ruta: RutaVista; panorama: PanoramaRutas; registro?: RegistroLsFrVista | null; soloLectura?: boolean; permisos?: PermisosLsFr }) {
+export function EditorRuta({ ruta, panorama, registro = null, soloLectura = false, permisos = { cerrar: false, registrar: false }, pedidosPaquete }: { pedidosPaquete?: PedidoParaPaquete[]; ruta: RutaVista; panorama: PanoramaRutas; registro?: RegistroLsFrVista | null; soloLectura?: boolean; permisos?: PermisosLsFr }) {
   const router = useRouter()
   const { pendiente, mensaje, ejecutar } = useAccion()
   const editable = RUTA_EDITABLE.includes(ruta.estado) && !soloLectura
@@ -86,7 +87,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const errores = useMemo(() => validarPlan({ hoy: panorama.hoy, corte: panorama.corte, corteEstricto: panorama.corteEstricto, plan: { fecha, vehiculoId, conductorId, auxiliarId, paradas }, vehiculo, pedidos: pedido, enOtraRuta, ordenes: ordenMap, ordenesEnOtraRuta }), [panorama, fecha, vehiculoId, conductorId, auxiliarId, paradas, vehiculo, pedido, enOtraRuta, ordenMap, ordenesEnOtraRuta])
   const requiereMotivo = ruta.estado === 'PLANIFICADA' && sucio
 
-  if (!editable) return <VistaRuta ruta={ruta} registro={registro} permisos={permisos} />
+  if (!editable) return <VistaRuta ruta={ruta} registro={registro} permisos={permisos} pedidosPaquete={pedidosPaquete} />
 
   const mover = (i: number, d: -1 | 1) => setParadas((a) => { const b = [...a]; const j = i + d; if (j < 0 || j >= b.length) return a; [b[i], b[j]] = [b[j], b[i]]; return b })
   const quitar = (i: number) => setParadas((a) => a.filter((_, k) => k !== i))
@@ -299,7 +300,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
         )}
       </section>
 
-      <PanelLsFr ruta={ruta} registro={registro} puedeCerrar={permisos.cerrar} puedeRegistrar={permisos.registrar} />
+      <PanelLsFr ruta={ruta} registro={registro} puedeCerrar={permisos.cerrar} puedeRegistrar={permisos.registrar} pedidosPaquete={pedidosPaquete} />
 
       <section aria-labelledby="t-hist" className="space-y-2">
         <h2 id="t-hist" className="flex items-center gap-2 font-heading text-xl font-semibold uppercase tracking-wide text-gray-900"><History className="h-5 w-5 text-gray-500" aria-hidden />Historial de versiones</h2>
