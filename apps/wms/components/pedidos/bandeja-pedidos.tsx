@@ -34,7 +34,8 @@ function ChipBandeja({ estado }: { estado: EstadoBandeja }) {
   return <span className={`${base} ${m.cls}`} data-testid="chip-estado-pedido"><m.Icono className="h-3.5 w-3.5" aria-hidden />{ETIQUETA_ESTADO_BANDEJA[estado]}</span>
 }
 
-const fechaDia = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+/** Siempre con el año («5 nov 2026»): la bandeja va a tener pedidos de más de un año. */
+const fechaDia = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 
 const SIMULACIONES: { cambio: CambioSimulado; texto: string }[] = [
   { cambio: 'REDUCIR', texto: 'Reducir una línea' }, { cambio: 'QUITAR', texto: 'Quitar una línea' }, { cambio: 'AGREGAR', texto: 'Agregar una línea' },
