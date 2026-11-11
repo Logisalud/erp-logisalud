@@ -301,7 +301,7 @@ export function siguientePaso(l: Pick<LineaPickingVista, 'picking'>[]): 'PICKEAR
 
 export function filtrarSalidas(salidas: readonly SalidaResumen[], f: { q: string; etapa: '' | EtapaSalida }): SalidaResumen[] {
   const q = normalizar(f.q.trim())
-  return salidas.filter((s) => (!f.etapa || s.etapa === f.etapa) && (!q || q.split(/\s+/).every((t) => normalizar(`${s.numero} ${s.pedidoNumero ?? ''} ${s.cliente ?? ''} ${s.rutaNumero ?? ''} ${s.ordenNumero ?? ''}`).includes(t))))
+  return salidas.filter((s) => (!f.etapa || s.etapa === f.etapa) && (!q || q.split(/\s+/).every((t) => normalizar(`${s.numero} ${s.pedidoNumero ?? ''} ${s.cliente ?? ''} ${s.rutaNumero ?? ''} ${s.ordenNumero ?? ''} ${s.guia ?? ''}`).includes(t))))
 }
 
 /** ¿Quién puede dar la conformidad de la orden? Otra persona, no quien hizo el picking (espejo de la base). Sin picker indicado todavía no hay conformidad. */
