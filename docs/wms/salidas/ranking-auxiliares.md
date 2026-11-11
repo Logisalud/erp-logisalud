@@ -1,26 +1,27 @@
-# Rankings mensuales de auxiliares de almacén (Sebas, 2026-11-11: simple y muy justo; la calidad pesa más)
+# Rankings mensuales de auxiliares de almacén (Sebas, 2026-11-11)
 
-Dos rankings separados (picking y conformidad), cada uno con **productividad y calidad en una sola fórmula**. **Entran** los auxiliares de almacén y Sandra; **no entran los jefes ni el transportista.** Periodo: el mes. Premio: 1.º día libre, 2.º medio día (ver «Pendiente»).
+Dos rankings separados (picking y conformidad). **Entran** los auxiliares de almacén y Sandra; **no entran los jefes ni el transportista.** Periodo: el mes. **Premio:** en cada ranking, el 1.º gana un día libre entero; el 2.º, medio día (como se dijo al inicio; si solo es para el 1.º, se quita).
 
-## La regla, en una frase para el equipo
+## Cómo se gana (lo que se les explica al equipo)
 
-> **Tu puntaje es tu carga de trabajo del mes, y cada 1 % de tus pedidos con error te quita 5 % del puntaje.** Gana quien más puntaje tenga.
+> **Para ganar el mes hay dos pasos, siempre los mismos:**
+> 1. **Cumple la meta de calidad:** que **máximo 3 de cada 100** de tus pedidos tengan error. Si te pasas, ese mes no entras al premio, aunque seas el que más trabaje.
+> 2. **Trabaja lo más que puedas:** entre todos los que cumplieron la meta, **gana quien hizo más carga de trabajo** (más pedidos y más difíciles).
+>
+> En la app ves «Cómo voy» todos los días: tu % de errores (en verde, amarillo o rojo), tu carga y tu posición del mes.
 
-## La fórmula
+Es el método estándar de los almacenes: una **puerta de calidad** y, dentro de ella, un **ranking de productividad**. Se entiende de un vistazo, no se puede ganar a costa de errores y no hay que hacer cuentas.
 
-`Puntaje = Puntos de carga × (100 % − 5 × % de pedidos con error)`   (mínimo 0)
-
-- **Puntos de carga:** suma de los pedidos del mes. Cada pedido vale categoría (A = 1, B = 3, C = 6, D = 10) + tamaño (S = 1, M = 2, L = 4, XL = 6), por tipo (Provincia ×2, Revisión ×0,5, Lima ×1). Es la productividad: más trabajo y más difícil, más puntos.
-- **% de pedidos con error:** pedidos con error ÷ pedidos del mes en ese rol. Se mide en porcentaje y no en cantidad, para que sea justo con quien hace más pedidos. Un mal despacho (el error llegó al cliente) cuenta como 3 pedidos con error.
-- **Picking:** un pedido tiene error si alguien (la conformidad, la carga, la entrega o una devolución) detecta una diferencia de cantidad, descripción, lote o documento en lo que picó.
-- **Conformidad:** un pedido tiene error si, habiéndolo dado por conforme, después aparece una diferencia (la detecta el transportista al cargar, o se descubre en la entrega o en una devolución). Detectar errores no suma ni resta: así nadie gana por rechazar de más ni por aprobar sin mirar.
-- **Por qué es justo:** (1) la calidad pesa 5 veces su tasa: un 4 % de errores quita el 20 % del puntaje; con 20 % de errores el puntaje es 0. (2) Se compara el porcentaje de errores, no la cantidad. (3) La carga sale de la dificultad real del pedido, no de cuántos pedidos fáciles se hicieron. (4) Quien trabaja poco no gana por no equivocarse: para entrar al ranking hace falta un mínimo de pedidos.
-- **Mínimo para entrar:** la mitad de los pedidos del promedio del equipo en ese rol ese mes, y nunca menos de 20.
-- **Ejemplo (picking):** A: 1.000 puntos, 1 % de pedidos con error → 1.000 × 0,95 = **950**. B: 800 puntos, sin errores → **800**. C: 1.100 puntos, 4 % de errores → 1.100 × 0,80 = **880**. Orden: A, C, B.
-- Los números (5, 3, 20, los puntos por categoría y tamaño) están en una tabla de parámetros que se puede cambiar sin tocar el código. Lo calcula el sistema solo; no se escribe nada que ya sabe.
-
-## Pendiente
-- ¿El premio es por cada ranking, o solo uno cuenta para el día libre? (Si una persona gana ambos, no acumula más de un día.)
+## Reglas
+- **Meta de calidad: 3 % de pedidos con error** (parametrizable). Sale de los datos reales de enero–agosto: el equipo ronda 3,6 %; los mejores, 1,7–1,9 %. Una meta de 1 % dejaría fuera a todos; con 3 % entran quienes trabajan bien y se puede bajar con el tiempo (por ejemplo a 2 % en unos meses).
+- **Carga de trabajo (productividad):** suma de los pedidos del mes; cada pedido vale categoría (A = 1, B = 3, C = 6, D = 10) + tamaño (S = 1, M = 2, L = 4, XL = 6), por tipo (Provincia ×2, Revisión ×0,5, Lima ×1).
+- **Pedido con error:**
+  - **Picking:** alguien detecta una diferencia (cantidad, descripción, lote o documento) en lo que picaste: la conformidad, la carga (transporte), la entrega o una devolución.
+  - **Conformidad:** después de darlo por conforme, aparece una diferencia (la detecta el transportista al cargar, o la entrega o una devolución). Detectar errores no suma ni resta: nadie gana por rechazar de más ni por aprobar sin mirar.
+  - Un **mal despacho** (el error llegó al cliente) descalifica el mes en ese ranking.
+- **Mínimo para entrar:** la mitad de los pedidos del promedio del equipo en ese rol ese mes, y nunca menos de 20 (así el % de errores es confiable y no gana quien casi no trabaja).
+- **«Cómo voy» (provisional):** el % de errores y la posición se muestran durante el mes y se cierran el último día; hasta tener 20 pedidos se muestran como «aún sin suficientes pedidos».
+- Lo calcula el sistema solo con sus registros; la meta, el mínimo y los puntos están en una tabla de parámetros.
 
 ## Por construir (en este orden)
-1. Conformidad: «pedido conforme sí/no» y el tipo de diferencia (cantidad, descripción, lote, documento). 2. «Diferencia detectada en la carga». 3. Los dos rankings del mes. 4. Inspecciones LS-FR.49.03 y LS-FR.52.03 (conductor y auxiliar, firma dibujada, descarga en Word del formato mensual; no bloquean la salida).
+1. Conformidad: «pedido conforme sí/no» y el tipo de diferencia (cantidad, descripción, lote, documento). 2. «Diferencia detectada en la carga» (transporte). 3. Los dos rankings del mes con «Cómo voy». 4. Inspecciones LS-FR.49.03 y LS-FR.52.03 (conductor y auxiliar, firma dibujada, descarga en Word del formato mensual; no bloquean la salida).
