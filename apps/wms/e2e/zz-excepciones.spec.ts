@@ -142,7 +142,8 @@ test.describe('excepciones del flujo de salida', () => {
     await capturar(page, info, 'guia-emitida', { completa: true })
     // SB-B: la numeración de la serie TTT1 está a la vista; el correlativo inicial sigue sin confirmar (no se emite una guía real) y rige la regla del panel
     await expect(page.getByTestId('numeracion-guias')).toContainText('Falta confirmar el correlativo inicial')
-    await expect(page.getByTestId('numeracion-ultimo')).toContainText('TTT1-00000001')
+    await expect(page.getByTestId('numeracion-ultimo')).toContainText(/TTT1-0000000[1-9]/)   // con pre-guías, el último reservado puede ser de otra orden
+    await expect(page.getByTestId('numeracion-pre-guias')).toContainText('Pre-guías con número reservado y sin enviar')
     await expect(page.getByTestId('regla-panel')).toContainText('el panel de Nubefact solo se usa para dar de baja')
     await expect(page.getByTestId('conexion-destino')).toContainText('Simulador')
     await capturar(page, info, 'guia-numeracion', { completa: true })

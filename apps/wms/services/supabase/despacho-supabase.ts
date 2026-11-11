@@ -74,7 +74,7 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
       const c = snap.cliente
       return {
         id: String(pa.id), secuencia: Number(pa.secuencia), clave: String(pa.pedido_id ?? claveDeOrden(salidaId ?? '')), origen: 'PEDIDO', pedidoId: s(pa.pedido_id), salidaId, tipoOrden: so?.tipo as ParadaVista['tipoOrden'], pedidoNumero: String(pd?.numero ?? '?'), cliente: c?.nombre ?? String(pd?.cliente_nombre ?? ''), ruc: c?.ruc,
-        direccion: c?.direccion, distrito: c?.distrito, ventanaCita: c?.ventanaCita, lineas: snap.lineas?.length ?? 0,
+        direccion: c?.direccion, distrito: c?.distrito, ventanaCita: c?.ventanaCita, vendedor: snap.vendedor, condicionPago: snap.condicionPago, lineas: snap.lineas?.length ?? 0,
         unidades: (snap.lineas ?? []).reduce((t, l) => t + l.cantidad, 0), salidaNumero: salidaId ? numSalida.get(salidaId) : undefined,
         stock: stockDe(), excepcionCorte: Boolean(pa.excepcion_corte), motivoExcepcion: s(pa.motivo_excepcion),
       }

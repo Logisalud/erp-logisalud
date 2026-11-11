@@ -32,6 +32,8 @@ const GENERADORES: Record<string, string> = {
   renderOrdenBaja: 'app/(app)/bajas/[id]/pdf/route.ts',
   renderSolicitudIngreso: 'app/(app)/entradas/[id]/pdf/route.ts',
   armarPaquetePdf: 'app/(app)/salidas/[id]/paquete/route.ts',
+  renderPreGuia: 'app/(app)/salidas/[id]/pre-guia/route.ts',
+  renderRutaDelDia: 'app/(app)/rutas/[id]/ruta-del-dia/route.ts',
 }
 /** Rutas que entregan un archivo SUBIDO por una persona (no lo genera el WMS): no llevan marca. */
 const ARCHIVOS_SUBIDOS = [

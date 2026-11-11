@@ -34,10 +34,11 @@ beforeAll(async () => {
 })
 afterAll(async () => { await base?.cerrar() })
 
-describe('apagado en el piloto', () => {
-  it('con modo_piloto = si responde «no disponible», no genera enlaces y no deja rastro (ni intentos ni tokens), aunque el interruptor esté encendido', async () => {
-    for (const interruptor of ['false', 'true']) {
-      await base.admin.query(`update wms.parametros set valor = $1 where clave = 'seguimiento_cliente_habilitado'`, [interruptor])
+describe('apagado mientras el interruptor esté apagado', () => {
+  it('con el interruptor apagado responde «no disponible» (en el piloto o fuera de él), no genera enlaces y no deja rastro (ni intentos ni tokens)', async () => {
+    for (const piloto of ['si', 'no']) {
+      await base.admin.query(`update wms.parametros set valor = $1 where clave = 'modo_piloto'`, [piloto])
+      await base.admin.query(`update wms.parametros set valor = 'false' where clave = 'seguimiento_cliente_habilitado'`)
       expect(await consultar('PED-SG1', RUC)).toEqual({ estado: 'NO_DISPONIBLE' })
       expect(await porToken('x'.repeat(64))).toEqual({ estado: 'NO_DISPONIBLE' })
       expect((await falla(crearEnlace(jt, 'PED-SG1'))).message).toMatch(/Seguimiento aún no disponible/)
@@ -46,10 +47,12 @@ describe('apagado en el piloto', () => {
     expect(Number((await uno('select count(*)::int n from wms.seguimiento_intentos')).n)).toBe(0)
     await apagar()
   })
-  it('fuera del piloto pero con el interruptor apagado (el valor de fábrica) tampoco está disponible', async () => {
-    await base.admin.query(`update wms.parametros set valor = 'no' where clave = 'modo_piloto'`)
-    expect((await uno(`select valor from wms.parametros where clave = 'seguimiento_cliente_habilitado'`)).valor).toBe('false')
-    expect(await consultar('PED-SG1', RUC)).toEqual({ estado: 'NO_DISPONIBLE' })
+  it('0054: en el piloto, con el interruptor encendido, funciona (pedido + RUC)', async () => {
+    await base.admin.query(`update wms.parametros set valor = 'si' where clave = 'modo_piloto'`)
+    await base.admin.query(`update wms.parametros set valor = 'true' where clave = 'seguimiento_cliente_habilitado'`)
+    expect((await consultar('PED-SG1', RUC)).estado).toBe('OK')
+    expect(await consultar('PED-SG1', '20000000001')).toEqual(await consultar('PED-NO-EXISTE', RUC))   // la respuesta no revela si el pedido existe
+    await limpiarIntentos()
     await apagar()
   })
   it('el interruptor solo lo cambia un administrador de la base: ni la aplicación (authenticated) ni anon', async () => {

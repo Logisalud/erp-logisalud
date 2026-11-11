@@ -122,7 +122,10 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
       <section className="rounded-lg border border-gray-200 bg-white p-4 md:p-5" aria-label="Datos de la ruta">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-heading text-xl font-semibold uppercase tracking-wide text-gray-900"><span className="tabular" data-testid="ruta-numero">{ruta.numero}</span> <span className="text-base normal-case tracking-normal text-gray-600">· {diaLargo(fecha)}</span></h2>
-          <div className="flex items-center gap-2"><span className="text-xs text-gray-600">Versión {ruta.version}</span><ChipEstadoRuta estado={ruta.estado} /></div>
+          <div className="flex flex-wrap items-center gap-2">
+            {ruta.paradas.length > 0 && <a href={`/wms/rutas/${ruta.id}/ruta-del-dia`} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm" data-testid="imprimir-ruta-del-dia"><FileText className="h-4 w-4" aria-hidden />Imprimir la ruta del día</a>}
+            <span className="text-xs text-gray-600">Versión {ruta.version}</span><ChipEstadoRuta estado={ruta.estado} />
+          </div>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div><label htmlFor="r-fecha" className="etiqueta">Fecha</label><input id="r-fecha" type="date" className="campo" min={panorama.hoy} value={fecha} onChange={(e) => setFecha(e.target.value)} data-testid="ruta-fecha" /></div>

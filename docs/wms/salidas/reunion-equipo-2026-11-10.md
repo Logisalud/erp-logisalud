@@ -20,3 +20,10 @@ Orden pedido por Sebas (donde choque con el mensaje del piloto, manda este). Est
 1. En la base real `guia_modo = PANEL`: la pantalla pide «Registrar guía emitida» y **no llama a Nubefact**. Para que el WMS envíe hay que poner `guia_modo = WMS` (parámetro de la base; decisión de Sebas).
 2. En producción están `NUBEFACT_ENTORNO`, `NUBEFACT_RUTA`, `NUBEFACT_TOKEN` y `WMS_MODO_PILOTO`, pero **no `NUBEFACT_MODO`**: caía en el simulador. Con este cambio, si `NUBEFACT_ENTORNO=DEMO` y están la ruta https y el token, el modo es PRUEBA sin más variables (una `NUBEFACT_MODO` escrita sigue mandando).
 3. La Preview solo tiene `WMS_DEMO`: sin `NUBEFACT_RUTA` ni `NUBEFACT_TOKEN` usa el simulador.
+
+
+## Actualización 2026-11-11 (rankings, carga y ruta del día)
+- **Hecho (en código, sin aplicar la 0053):** «Diferencia detectada en la carga» (botón en la carga de cada pedido; no la registra quien picó ni quien conformó; el Jefe de Transporte puede descartarla con motivo), `wms.pedidos_del_mes` y la pantalla **Ranking del mes** (menú Control): «Cómo voy», «Cómo se gana el mes» y las dos tablas (picking y conformidad), según `ranking-auxiliares.md`. Los jefes no entran.
+- **Pendiente:** conformidad con «pedido conforme sí/no» y tipo de diferencia (descripción, documento); el error del cliente/mal despacho desde la entrega; premio por ranking (parámetros).
+- **Foto del pedido con la caja abierta antes de cargarlo:** recomendación: la toma **quien carga (el transportista)**, un archivo por pedido, guardado en el bucket privado como las fotos de entrega; sirve de prueba del estado en que se recibió la mercadería. Pendiente de decisión de Sebas y de construir.
+- **Hoja interna de la ruta del día (Roberto → transportista), columnas** (del formato `RUTA DEL dd/mm/aaaa`, agrupado por propietario: LGS = Logisalud, DHP = Diphasac): CLIENTE · # CLIENTE (teléfono) · CONDICIÓN (despacho) · GUÍA · DIRECCIÓN · DESTINO (distrito) · TRANSPORTISTA · REPRESENTANTE (vendedor) · FORMA DE PAGO (crédito/contado) · HORARIO (ventana de entrega). Pendiente de construir (sección 6); la de DIGEMID (LS-FR.43.03) sigue aparte.

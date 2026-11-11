@@ -1,6 +1,6 @@
 # Seguimiento para el cliente (G.2)
 
-**Estado: construido en el WMS, APAGADO en el piloto. Nada se envía a ningún cliente.** El botón de Pedidos NO está implementado: queda planificado aquí para que Sebas lo apruebe.
+**Estado (2026-11-11): ENCENDIDO por decisión de Sebas (migración 0054: basta el interruptor, también en el piloto).** Nada se envía a ningún cliente: es una página pública donde el cliente escribe su pedido y su RUC; el enlace con token lo genera el personal. Para apagarlo: `update wms.parametros set valor = 'false' where clave = 'seguimiento_cliente_habilitado'` (administrador de la base). El botón de Pedidos NO está implementado: queda planificado aquí para que Sebas lo apruebe.
 
 ## Qué ve el cliente
 Una página pública (`/wms/seguimiento`, sin usuario, sin menú ni banner de empleados) donde escribe su **número de pedido y su RUC** y ve la **línea de tiempo con fecha y hora**: pedido recibido, en preparación, listo para salir, en ruta, entregado (o «no se pudo entregar» / «cancelado»). **Sin hora estimada, sin precios, lotes ni datos del personal.**

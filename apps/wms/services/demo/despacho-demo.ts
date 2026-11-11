@@ -38,7 +38,7 @@ export interface LineaSalidaDemo {
   loteIndicadoId?: string
 }
 /** El estado de una serie de guías en la demostración. */
-export interface NumeracionSerieDemo { ultimo: number; confirmado: boolean; numeros: { numero: number; estado: 'RESERVADO' | 'USADO' | 'LIBERADO' | 'OCUPADO'; salidaId?: string; entorno?: string }[] }
+export interface NumeracionSerieDemo { ultimo: number; confirmado: boolean; numeros: { numero: number; estado: 'RESERVADO' | 'USADO' | 'LIBERADO' | 'OCUPADO' | 'SIN_USAR'; salidaId?: string; entorno?: string; preGuia?: boolean; motivo?: string }[] }
 
 export interface SalidaDemo {
   id: string; numero: string; pedidoId: string; propietarioId: string; estado: 'ABIERTA' | 'CONFIRMADA' | 'CANCELADA'
@@ -366,7 +366,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     const c = f.snapshot.cliente
     return {
       id: p.id, secuencia: p.secuencia, clave: claveDeParada(p), origen: 'PEDIDO', pedidoId: f.snapshot.pedidoId, salidaId: s?.id, tipoOrden: s?.tipo, pedidoNumero: f.snapshot.numero, cliente: c.nombre, ruc: c.ruc, direccion: c.direccion, distrito: c.distrito,
-      ventanaCita: c.ventanaCita, lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0),
+      ventanaCita: c.ventanaCita, vendedor: f.snapshot.vendedor, condicionPago: f.snapshot.condicionPago, lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0),
       salidaNumero: s?.numero, stock, excepcionCorte: p.excepcionCorte, motivoExcepcion: p.motivoExcepcion,
     }
   }
