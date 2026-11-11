@@ -29,6 +29,22 @@ function inicioMes(): string {
   const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
+// Días del rango sin ningún cobro: el gráfico los puede omitir, pero la tabla
+// "día por día" no — un día en 0 es información (nadie cobró), que falte la
+// fila parece un error de carga. Se arma con aritmética sobre el ISO en UTC
+// para no correrse un día por la zona horaria.
+function conDiasEnCero(desde: string, hasta: string, dias: DiaRow[]): DiaRow[] {
+  if (!desde || !hasta || desde > hasta) return dias;
+  const porFecha = new Map(dias.map(d => [d.fecha, d]));
+  const out: DiaRow[] = [];
+  const fin = new Date(hasta + 'T00:00:00Z').getTime();
+  for (let t = new Date(desde + 'T00:00:00Z').getTime(); t <= fin; t += 86400000) {
+    const f = new Date(t).toISOString().slice(0, 10);
+    out.push(porFecha.get(f) ?? { fecha: f, total: 0, vencido: 0 });
+  }
+  return out;
+}
+
 type Orden = 'total' | 'vencido';
 
 export default function CobranzaPage() {
@@ -52,6 +68,7 @@ export default function CobranzaPage() {
 
   const ranking = data ? [...data.ranking].sort((a, b) => orden === 'total' ? b.total - a.total : b.vencido - a.vencido) : [];
   const maxDia = data && data.dias.length ? Math.max(...data.dias.map(d => d.total)) : 0;
+  const diasTabla = data ? conDiasEnCero(data.desde, data.hasta, data.dias) : [];
 
   return (
     <div>
@@ -141,6 +158,49 @@ export default function CobranzaPage() {
                 <div className="flex gap-4 mt-2 text-[11px] text-gray-400">
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#4BB168' }} /> Vencido</span>
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#cbe9ea' }} /> Al día</span>
+                </div>
+              </div>
+            )}
+
+            {/* Día por día — las mismas cifras del correo diario */}
+            {diasTabla.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-4">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <h3 className="font-oswald text-sm text-gray-600 tracking-wide uppercase">Día por día</h3>
+                  <a href={`/api/cobranza/exportar?desde=${desde}&hasta=${hasta}`}
+                    className="text-xs font-medium px-2.5 py-1.5 rounded-lg text-white" style={{ background: '#4BB168' }}>
+                    ⬇ Excel
+                  </a>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[420px]">
+                    <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                      <tr>
+                        <th className="px-4 py-2.5 text-left">Fecha</th>
+                        <th className="px-4 py-2.5 text-right">Cobrado</th>
+                        <th className="px-4 py-2.5 text-right" style={{ color: '#4BB168' }}>De lo vencido</th>
+                        <th className="px-4 py-2.5 text-right">Al día</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {diasTabla.map(d => (
+                        <tr key={d.fecha} className={d.total === 0 ? 'text-gray-300' : 'hover:bg-gray-50'}>
+                          <td className="px-4 py-2 tabular-nums">{fmtFecha(d.fecha)}</td>
+                          <td className="px-4 py-2 text-right tabular-nums font-semibold text-inherit">{fmt(d.total)}</td>
+                          <td className="px-4 py-2 text-right tabular-nums" style={d.vencido ? { color: '#4BB168' } : undefined}>{fmt(d.vencido)}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{fmt(d.total - d.vencido)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 font-semibold text-gray-800">
+                      <tr>
+                        <td className="px-4 py-2.5">TOTAL</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">{fmt(data.totalCobrado)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums" style={{ color: '#4BB168' }}>{fmt(data.totalVencido)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">{fmt(data.totalAlDia)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
               </div>
             )}
