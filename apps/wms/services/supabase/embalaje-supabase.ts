@@ -19,6 +19,11 @@ const mal = (error: { code?: string; message: string }) => ({ ok: false as const
 const sch = () => crearClienteServidor().schema('wms')
 
 export class EmbalajeSupabase extends DocumentacionSupabase implements RepositorioEmbalaje {
+  async embalajeActivo(): Promise<boolean> {
+    const { data } = await sch().from('parametros').select('valor').eq('clave', 'embalaje_activo').maybeSingle()
+    return String((data as Fila | null)?.valor ?? 'SI').toUpperCase() === 'SI'
+  }
+
   /** Lo confirmado de un pedido, lote por lote. */
   private async pendientes(salidaId: string): Promise<PendienteEmbalar[]> {
     const { data: ordenes } = await sch().from('ordenes_picking').select('id').eq('salida_id', salidaId).neq('estado', 'CANCELADA')

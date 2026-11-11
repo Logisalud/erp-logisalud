@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Ban, Check, CheckCircle2, ListChecks, PackageCheck, ScanLine, Truck, TriangleAlert, Undo2, XCircle } from 'lucide-react'
+import { ArrowLeft, Ban, Check, CheckCircle2, ListChecks, PackageCheck, Printer, ScanLine, Truck, TriangleAlert, Undo2, XCircle } from 'lucide-react'
 import { registrarDiferenciaCargaAccion } from '@/app/acciones-ranking'
-import { cargarBultoAccion, confirmarSalidaRutaAccion, excluirPedidoAccion, guardarChecklistAccion, liberarUnidadAccion, retirarBultoAccion } from '@/app/acciones-picking'
-import { ETIQUETA_ESTADO_CARGA, type CargaRuta, type ItemChecklist } from '@/domain/carga'
+import { cargarBultoAccion, confirmarSalidaRutaAccion, contarBultosCargadosAccion, excluirPedidoAccion, guardarChecklistAccion, liberarUnidadAccion, retirarBultoAccion } from '@/app/acciones-picking'
+import { ETIQUETA_ESTADO_CARGA, conteoDePedido, type CargaRuta, type ItemChecklist } from '@/domain/carga'
 import { textoNoImpreso } from '@/domain/ls-fr-43-03'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
@@ -27,6 +27,8 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
   const [motivo, setMotivo] = useState('')
   const [confirmando, setConfirmando] = useState(false)
   const [diferencia, setDiferencia] = useState<string | null>(null)
+  /** Carga por conteo: lo que se está contando en cada pedido (lo cargado guardado manda hasta que se toca). */
+  const [conteos, setConteos] = useState<Record<string, number>>({})
   const entrada = useRef<HTMLInputElement>(null)
   const guardado = JSON.stringify(carga.checklist)
   // el checklist guardado manda; lo que se está editando sin guardar no se pierde al escanear
@@ -78,8 +80,8 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
         {carga.checklist && <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-700" data-testid="checklist-guardado"><CheckCircle2 className="h-4 w-4 text-green-700" aria-hidden />Guardado por {carga.checklistPor ?? '—'}{carga.checklist.some((c) => !c.ok) ? ' · hay puntos sin cumplir' : ''}</p>}
       </section>
 
-      {/* 2. Escaneo */}
-      {enCarga && puedeCargar && (
+      {/* 2. Escaneo (apagado en el piloto: la carga se concilia contando los bultos de cada pedido) */}
+      {enCarga && puedeCargar && carga.escaneoQr && (
         <section className="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby="h-esc" data-testid="bloque-escaneo">
           <h2 id="h-esc" className="flex items-center gap-2 font-medium text-gray-900"><ScanLine className="h-5 w-5" aria-hidden />2. Cargar los bultos</h2>
           <p className="mt-1 text-sm text-gray-700">Escanea el QR de la etiqueta (lector o cámara) o escribe el código y pulsa Enter.</p>
@@ -94,7 +96,7 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
 
       {/* 3. Conciliación */}
       <section aria-labelledby="h-conc" data-testid="bloque-conciliacion">
-        <h2 id="h-conc" className="mb-2 flex items-center gap-2 font-heading text-xl font-medium tracking-wide text-gray-900"><PackageCheck className="h-5 w-5" aria-hidden />3. Conciliación por pedido</h2>
+        <h2 id="h-conc" className="mb-2 flex items-center gap-2 font-heading text-xl font-medium tracking-wide text-gray-900"><PackageCheck className="h-5 w-5" aria-hidden />3. {carga.escaneoQr ? 'Conciliación por pedido' : 'Cuenta los bultos de cada pedido'}</h2>
         <ul className="space-y-3">
           {carga.pedidosDetalle.map((p) => (
             <li key={p.salidaId} className="rounded-xl border border-gray-200 bg-white p-4" data-testid="pedido-carga" data-excluido={p.excluida ? 'si' : 'no'}>
@@ -106,7 +108,27 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
               </div>
               {p.excluida && <p className="mt-2 text-sm text-gray-700" data-testid="motivo-exclusion">Motivo: {p.motivoExclusion}</p>}
               {!p.excluida && !p.listo && <p className="mt-2 text-sm text-amber-900">Faltan la guía, el paquete documental completo o el embalaje. <Link href={`/salidas/${p.salidaId}`} className="underline">Abrir la salida</Link></p>}
-              {!p.excluida && p.bultos.length > 0 && (
+              {!p.excluida && p.bultos.length > 0 && (() => {
+                const { cargados, esperados } = conteoDePedido(p)
+                const n = conteos[p.salidaId] ?? cargados
+                return (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3" data-testid="conteo-pedido">
+                    <p className="tabular text-sm font-medium text-gray-900" data-testid="conteo-estado">{cargados} de {esperados} {esperados === 1 ? 'bulto contado' : 'bultos contados'}</p>
+                    {!carga.escaneoQr && enCarga && puedeCargar && p.listo && (
+                      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Bultos cargados del pedido ${p.pedidoNumero ?? p.salidaNumero}`}>
+                        <button type="button" className="btn-secondary btn-sm !min-w-11" onClick={() => setConteos((m) => ({ ...m, [p.salidaId]: Math.max(0, n - 1) }))} disabled={pendiente || n <= 0} aria-label="Uno menos">−</button>
+                        <span className="tabular w-10 text-center text-lg font-semibold" data-testid="conteo-valor" aria-live="polite">{n}</span>
+                        <button type="button" className="btn-secondary btn-sm !min-w-11" onClick={() => setConteos((m) => ({ ...m, [p.salidaId]: Math.min(esperados, n + 1) }))} disabled={pendiente || n >= esperados} aria-label="Uno más" data-testid="conteo-mas">+</button>
+                        <button type="button" className="btn-primary btn-sm" disabled={pendiente || n === cargados} onClick={() => ejecutar(() => contarBultosCargadosAccion(carga.rutaId, p.salidaId, n), { alExito: () => setConteos((m) => { const { [p.salidaId]: _quitar, ...resto } = m; return resto }) })} data-testid="registrar-conteo">Registrar conteo</button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+              {!p.excluida && p.bultos.length > 0 && (p.llevaEtiqueta === false
+                ? <p className="mt-2 text-sm text-gray-700" data-testid="sin-etiquetas">Va a Lima: no lleva etiquetas.</p>
+                : <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/embalaje/${p.salidaId}/etiquetas`} target="_blank" rel="noopener" className="btn-secondary btn-sm mt-2" data-testid="etiquetas-pedido"><Printer className="h-4 w-4" aria-hidden />Imprimir las etiquetas (provincia)</a>)}
+              {!p.excluida && p.bultos.length > 0 && carga.escaneoQr && (
                 <ul className="mt-3 flex flex-wrap gap-2" data-testid="bultos-pedido">
                   {p.bultos.map((b) => (
                     <li key={b.bultoId} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${b.cargado ? CHIP_OK : CHIP_AVISO}`} data-testid="bulto-carga" data-cargado={b.cargado ? 'si' : 'no'}>

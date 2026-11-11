@@ -10,6 +10,7 @@ import {
 } from '@/domain/rutas'
 import { AREAS_DE_SALIDA } from '@/domain/zonas'
 import { requiereEmbalaje } from '@/domain/pedidos-despacho'
+import { embalajeActivoDemo } from './ajustes'
 import { PARAMETROS_LS_FR_POR_DEFECTO, PENDIENTES_LS_FR, armarRegistroLsFr, puedeImprimirLsFr, type ExtrasLsFr, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import { errorDocumentoPersonal, quienFiguraEnDocumentos, type QuienFigura } from '@/domain/conductor-documentos'
 import { modoEjemplos } from '@/lib/demo'
@@ -288,7 +289,7 @@ export function ordenDelPedido(e: EstadoDemo, pedidoId: string, actor: Actor, de
     lineas.push({ id: nuevoId(), productoId: prod.id, cantidad: l.cantidad, pedidoLineaId: l.lineaId, estado: 'PENDIENTE', fefo: [] })
   }
   const salida: SalidaDemo = {
-    id: nuevoId(), numero: numeroDe(e.inv, 'OS', e.panorama.hoy.slice(0, 4)), pedidoId, requiereEmbalaje: requiereEmbalaje(fila.snapshot.cliente.ubigeo), propietarioId: duenoDelAlmacen(e), estado: 'ABIERTA', lineas,
+    id: nuevoId(), numero: numeroDe(e.inv, 'OS', e.panorama.hoy.slice(0, 4)), pedidoId, requiereEmbalaje: requiereEmbalaje(fila.snapshot.cliente.ubigeo, undefined, embalajeActivoDemo()), propietarioId: duenoDelAlmacen(e), estado: 'ABIERTA', lineas,
     creadaEn: ahora(), creadaPor: actor.id, tipo: 'DISTRIBUCION', motivo: 'VENTA', origen: 'PEDIDO', creadaDesde: desde, pedidoNumero: fila.snapshot.numero,
   }
   d.salidas.push(salida)

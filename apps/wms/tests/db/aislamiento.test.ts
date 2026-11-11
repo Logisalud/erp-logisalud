@@ -308,7 +308,7 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     // Ranking y diferencia en la carga (0053)
     'registrar_diferencia_carga', 'descartar_diferencia_carga', 'pedidos_del_mes',
     // Tomar para conformidad (0060)
-    'tomar_para_conformidad', 'soltar_conformidad',
+    'tomar_para_conformidad', 'soltar_conformidad', 'salida_lleva_etiqueta', 'registrar_conteo_carga',
     // Editar la orden (0059)
     'editar_orden_salida',
     // Inspecciones de la unidad (0058)

@@ -60,11 +60,13 @@ export class CargaSupabase extends EmbalajeSupabase implements RepositorioCarga 
       sch().from('personal_transporte').select('nombre').eq('id', String(fila.conductor_id ?? '00000000-0000-0000-0000-000000000000')).maybeSingle(),
       sch().from('parametros').select('valor').eq('clave', 'checklist_vehicular_items').maybeSingle(),
     ])
+    await Promise.all(pedidos.map(async (p) => { const { data } = await sch().rpc('salida_lleva_etiqueta', { p_salida: p.salidaId }); p.llevaEtiqueta = data !== false }))
+    const { data: qr } = await sch().from('parametros').select('valor').eq('clave', 'carga_escaneo_qr').maybeSingle()
     let items: string[] = [...ITEMS_CHECKLIST_POR_DEFECTO]
     try { const p = JSON.parse(String((pm as Fila | null)?.valor ?? '[]')); if (Array.isArray(p) && p.length) items = p.map(String) } catch { /* se usa la lista por defecto */ }
     const nombres = await nombresDe(fila.checklist_por ? [String(fila.checklist_por)] : [])
     const base: Omit<CargaRuta, 'motivosNoLiberar'> = {
-      ...this.resumenDe(fila, pedidos, s((v as Fila | null)?.placa)), conductor: s((c as Fila | null)?.nombre), tieneVehiculoYConductor: !!fila.vehiculo_id && !!fila.conductor_id,
+      ...this.resumenDe(fila, pedidos, s((v as Fila | null)?.placa)), escaneoQr: String((qr as Fila | null)?.valor ?? 'SI').toUpperCase() === 'SI', conductor: s((c as Fila | null)?.nombre), tieneVehiculoYConductor: !!fila.vehiculo_id && !!fila.conductor_id,
       checklist: Array.isArray(fila.checklist) ? (fila.checklist as ItemChecklist[]) : null, checklistPor: fila.checklist_por ? nombres.get(String(fila.checklist_por)) : undefined,
       itemsChecklist: items, pedidosDetalle: pedidos, liberadaEn: fila.liberada_en ? String(fila.liberada_en) : undefined, salioEn: fila.salio_en ? String(fila.salio_en) : undefined,
     }
@@ -79,6 +81,11 @@ export class CargaSupabase extends EmbalajeSupabase implements RepositorioCarga 
   async cargarBulto(rutaId: string, codigo: string, _actor: Actor): Promise<ResultadoAccion<{ resultado: 'CARGADO' | 'YA_CARGADO' }>> {
     const { data, error } = await rpc('cargar_bulto', { p_ruta: rutaId, p_codigo: normalizarCodigoBulto(codigo) })
     return error ? mal(error) : { ok: true, resultado: data === 'YA_CARGADO' ? 'YA_CARGADO' : 'CARGADO' }
+  }
+
+  async contarBultosCargados(rutaId: string, salidaId: string, contados: number, _actor: Actor): Promise<ResultadoAccion<{ contados: number }>> {
+    const { data, error } = await rpc('registrar_conteo_carga', { p_ruta: rutaId, p_salida: salidaId, p_contados: contados })
+    return error ? mal(error) : { ok: true, contados: Number(data) }
   }
 
   async retirarBulto(rutaId: string, codigo: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {

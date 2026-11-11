@@ -57,7 +57,7 @@ export const puedeCrearSalida = (roles: readonly Rol[]) => puedePrepararSalidas(
 /** Quién ve «Calidad», «Documentos regulatorios» y «Expedientes» (el auxiliar y los roles de una sola tarea no los usan). */
 const veCalidadYDocumentos = (roles: readonly Rol[]) => gestion(roles)
 
-export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): SeccionMenu[] {
+export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0, embalajeActivo = true): SeccionMenu[] {
   const inicio: ItemMenu = { href: '/', etiqueta: 'Inicio', icono: 'inicio' }
   // Quien no es personal (conductor, usuario de cliente) no lee el inventario: solo ve el Inicio.
   // Quien solo conduce o ayuda en la ruta (S9 y S10) ve su Inicio y «Mis rutas».
@@ -93,7 +93,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   const salidas = puedeVerSalidas(roles)
   ponerSi('despacho', salidas && puedePickear(roles), { href: '/picking', etiqueta: 'Preparar pedidos (picking)', icono: 'picking', corta: 'Picking' })
   ponerSi('despacho', salidas && puedeDarConformidad(roles), { href: '/conformidad', etiqueta: 'Dar conformidad', icono: 'conformidad', corta: 'Conformidad' })
-  ponerSi('despacho', salidas && puedeEmbalar(roles), { href: '/embalaje', etiqueta: 'Embalar', icono: 'embalaje' })
+  ponerSi('despacho', salidas && embalajeActivo && puedeEmbalar(roles), { href: '/embalaje', etiqueta: 'Embalar', icono: 'embalaje' })
   ponerSi('despacho', salidas && puedeCargar(roles), { href: '/carga', etiqueta: 'Cargar la unidad', icono: 'cargaunidad' })
   ponerSi('despacho', puedeVerInspecciones(roles) && !soloAutoriza, { href: '/inspecciones', etiqueta: 'Inspección de la unidad', icono: 'inspeccion', corta: 'Inspección' })
 

@@ -56,13 +56,24 @@ export const NOMBRE_DIA_ISO: Record<number, string> = { 1: 'Lunes', 2: 'Martes',
 
 export interface PedidoDescartado { indice: number; referencia?: string; motivo: string }
 
-/** Prefijos de ubigeo que se entregan en Lima Metropolitana y Callao: no necesitan embalaje (parámetro `ubigeos_lima_metropolitana`). */
-export const PREFIJOS_LIMA = ['1501', '0701'] as const
-/** Un pedido a provincia se embala; uno a Lima queda con los bultos de la conformidad. Sin ubigeo se embala (lo más prudente). Espejo de `wms._requiere_embalaje`. */
-export function requiereEmbalaje(ubigeo: string | undefined | null, prefijosLima: readonly string[] = PREFIJOS_LIMA): boolean {
+/** Prefijos de ubigeo de LIMA: el departamento de Lima (15) y Callao (07). Sus pedidos no llevan etiquetas (parámetro `ubigeos_lima_metropolitana`, decisión de Sebas, 11-nov-2026). Lo demás es provincia. */
+export const PREFIJOS_LIMA = ['15', '07'] as const
+/** ¿Es un pedido a Lima? Sin ubigeo no se sabe (se trata como provincia, lo más prudente). */
+export function esLima(ubigeo: string | undefined | null, prefijosLima: readonly string[] = PREFIJOS_LIMA): boolean {
+  const u = ubigeo?.trim()
+  return !!u && prefijosLima.some((p) => u.startsWith(p))
+}
+/** La etiqueta de bulto es para provincia; Lima no lleva. Espejo de `wms.salida_lleva_etiqueta`. */
+export const llevaEtiqueta = (ubigeo: string | undefined | null, prefijosLima: readonly string[] = PREFIJOS_LIMA) => !esLima(ubigeo, prefijosLima)
+/**
+ * ¿Pasa por «Embalar»? Con el embalaje apagado (parámetro `embalaje_activo` = NO, el piloto) ninguno: los bultos quedan en la conformidad. Encendido: provincia se embala y Lima queda con
+ * los bultos de la conformidad; sin ubigeo se embala. Espejo de `wms._requiere_embalaje`.
+ */
+export function requiereEmbalaje(ubigeo: string | undefined | null, prefijosLima: readonly string[] = PREFIJOS_LIMA, embalajeActivo = true): boolean {
+  if (!embalajeActivo) return false
   const u = ubigeo?.trim()
   if (!u) return true
-  return !prefijosLima.some((p) => u.startsWith(p))
+  return !esLima(u, prefijosLima)
 }
 
 const texto = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined)

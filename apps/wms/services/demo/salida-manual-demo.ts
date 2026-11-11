@@ -8,6 +8,7 @@ import {
   type CodigoProducto, type EntradaOrdenManual, type LineaOrdenManual, type LoteParaSalida, type ProductoHallado,
 } from '@/domain/salida-manual'
 import { requiereEmbalaje } from '@/domain/pedidos-despacho'
+import { embalajeActivoDemo } from './ajustes'
 import { normalizar } from '@/domain/busqueda'
 import { DIAS_AVISO_DEVOLUCION_DEFECTO, type MotivoSalida } from '@/domain/salidas'
 import { registrar, type EstadoDemo } from './estado'
@@ -329,7 +330,7 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
     const cliente = (entrada.clase === 'A' || entrada.clase === 'C') && cm ? { ruc: cm.ruc.trim(), razonSocial: cm.razonSocial.trim(), direccion: cm.direccion.trim(), ubigeo: cm.ubigeo.trim(), vendedor: cm.vendedor?.trim() || undefined, tipoDocumento: esDni ? ('DNI' as const) : ('RUC' as const) } : undefined
     const salida: SalidaDemo = {
       id: nuevoId(), numero: '', pedidoId: entrada.clase === 'A' ? `manual:${numeroNorm}` : '', propietarioId, estado: 'ABIERTA', lineas, creadaEn: ahora(), creadaPor: actor.id,
-      requiereEmbalaje: cliente ? requiereEmbalaje(cliente.ubigeo) : true,
+      requiereEmbalaje: cliente ? requiereEmbalaje(cliente.ubigeo, undefined, embalajeActivoDemo()) : embalajeActivoDemo(),
       tipo, motivo, origen: 'MANUAL', creadaDesde: 'MANUAL', token,
       pedidoNumero: entrada.clase === 'A' ? (entrada.pedidoNumero ?? '').trim() : undefined, porConciliar: entrada.clase === 'A', clienteManual: cliente,
       greNumero: entrada.clase === 'B' ? (entrada.greNumero ?? '').trim().toUpperCase() : undefined, greArchivo: entrada.clase === 'B' ? entrada.greArchivo : undefined,

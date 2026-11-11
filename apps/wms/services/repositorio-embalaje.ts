@@ -3,6 +3,8 @@ import type { Actor, ResultadoAccion } from './repositorio'
 
 /** S7: embalaje de los pedidos conformes en bultos con código (QR). */
 export interface RepositorioEmbalaje {
+  /** ¿Hay proceso de «Embalar»? (parámetro `embalaje_activo`; apagado en el piloto: los bultos quedan en la conformidad y solo se imprime la etiqueta de provincia). */
+  embalajeActivo(): Promise<boolean>
   /** Los pedidos conformes (por embalar y ya embalados) con su cantidad de bultos. */
   colaEmbalaje(): Promise<EmbalajeResumen[]>
   embalajeSalida(salidaId: string): Promise<EmbalajeVista | null>

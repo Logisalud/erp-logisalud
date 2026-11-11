@@ -3,6 +3,7 @@ import {
   bandejaDeFila, planificarImportacion, puedeActualizarBandeja, requiereEmbalaje, type ImportacionVista, type PedidoSnapshot, type ResumenImportacion,
 } from '@/domain/pedidos-despacho'
 import { normalizarNumeroPedido } from '@/domain/salida-manual'
+import { embalajeActivoDemo } from './ajustes'
 import { traerPedidos } from '../pedidos/importar'
 import { FuenteDemo } from '../pedidos/fuente-demo'
 import { registrar, type EstadoDemo } from './estado'
@@ -49,7 +50,7 @@ export function unirOrdenManual(e: EstadoDemo, fila: FilaPedidoDemo, salida: Non
   salida.porConciliar = false
   // SA-6 (0030): si la orden ya estaba en una ruta (parada por orden), la parada pasa a ser también del pedido: la ruta, la carga y la guía siguen valiendo
   for (const r of e.desp?.rutas ?? []) for (const pa of r.paradas) if (pa.activa && pa.salidaId === salida.id && !pa.pedidoId) pa.pedidoId = p.pedidoId
-  if (salida.bultosConformidad === undefined) salida.requiereEmbalaje = requiereEmbalaje(p.cliente.ubigeo)
+  if (salida.bultosConformidad === undefined) salida.requiereEmbalaje = requiereEmbalaje(p.cliente.ubigeo, undefined, embalajeActivoDemo())
   let aviso = ''
   if (salida.clienteManual && p.cliente.ruc && salida.clienteManual.ruc !== p.cliente.ruc) aviso += ` OJO: el RUC del cliente no coincide (orden ${salida.clienteManual.ruc}, pedido ${p.cliente.ruc}).`
   if (salida.lineas.filter((l) => l.estado !== 'CANCELADA').length !== p.lineas.length) aviso += ' OJO: la cantidad de líneas del pedido no es la de la orden.'

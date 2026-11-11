@@ -26,7 +26,12 @@ export interface PedidoCarga {
   excluida: boolean
   motivoExclusion?: string
   bultos: BultoCarga[]
+  /** Provincia: su etiqueta se imprime desde aquí (Lima no lleva). */
+  llevaEtiqueta?: boolean
 }
+
+/** Cuántos bultos de este pedido están cargados y cuántos esperan: la carga por conteo trabaja con estos dos números. */
+export const conteoDePedido = (p: Pick<PedidoCarga, 'bultos'>) => ({ cargados: p.bultos.filter((b) => b.cargado).length, esperados: p.bultos.length })
 
 export type EstadoCarga = 'EN_CARGA' | 'LIBERADA' | 'EN_RUTA'
 export interface CargaResumen {
@@ -40,6 +45,8 @@ export interface CargaResumen {
   bultosCargados: number
 }
 export interface CargaRuta extends CargaResumen {
+  /** Escaneo del QR de cada bulto (parámetro `carga_escaneo_qr`). Apagado en el piloto: la carga se concilia contando los bultos de cada pedido. */
+  escaneoQr: boolean
   conductor?: string
   tieneVehiculoYConductor: boolean
   /** null = todavía sin checklist. */

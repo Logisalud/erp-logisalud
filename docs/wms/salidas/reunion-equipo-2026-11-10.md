@@ -11,7 +11,7 @@ Orden pedido por Sebas (donde choque con el mensaje del piloto, manda este). Est
 | 1e | «Actualizar desde pedidos» (WMS_PEDIDOS_URL/SECRETO los carga Sebas) | Pendiente |
 | 2 | Flujo con pre-guía (TTT1 reservado, aviso a Arlette, números sin usar) | Pendiente |
 | 3 | Conformidad y bultos (tomar para conformidad) | **Hecho** (0060): «Tomar para conformidad», el Jefe asigna o suelta, una orden tomada queda bloqueada para otros, quien picó no la conforma. Los auxiliares de almacén y los jefes ahora tienen el permiso de dar la conformidad |
-| 4 | Embalaje, etiquetas y carga (Lima 15 y 07; conteo de bultos) | Pendiente |
+| 4 | Embalaje, etiquetas y carga (Lima 15 y 07; conteo de bultos) | Hecho (migración 0061, **sin aplicar**): sin embalaje para nadie, etiqueta solo provincia, carga por conteo (QR guardado y apagado) |
 | 5 | Paquete documental por casillas | Pendiente |
 | 6 | Hojas de ruta (cuando lleguen los formatos) | Esperando formatos |
 | + | **Pantalla nueva «Guías»** (pedido de Sebas durante el trabajo): buscador de guías con estado, destinatario (cliente o proveedor), fecha, serie-número, orden, pedido, ruta, placa, conductor, bultos, peso, modo, estado SUNAT y enlace; filtros por estado, fecha, destinatario y número | Pendiente (se arma sobre `guias_remision` + `salidas`) |
@@ -35,3 +35,11 @@ Orden pedido por Sebas (donde choque con el mensaje del piloto, manda este). Est
 - **Etiqueta de bulto de provincia (punto 4), hecha:** hoja LOGISALUD del formato de etiquetas (ORIGEN y DESTINO, destinatario, entrega a domicilio «DEPARTAMENTO - PROVINCIA - DISTRITO - dirección» desde el ubigeo, n.º de guía, «bulto k de N», QR del bulto, íconos de manipulación y logo). Tamaño de la etiquetera TSC TE200: **104,6 × 75,0 mm** (etiquetas troqueladas, anchuras expuestas 1,3 mm).
 - **Pendiente (pedido de Sebas, 11-nov):** pantalla «Rótulos de caja saldo» (formato **LS.ET.07**, «STATUS DEL PRODUCTO (Cajas Saldo)», 2 por hoja A4) para auxiliares, Jefe de Almacén (Charlie y Jasury) y quien tenga el permiso: se llenan solos USUARIO, PRODUCTO, R.S. N.°, LOTE/SERIE, VENCIMIENTO y STATUS (verde «APROBADO»); la **cantidad** queda en blanco (a mano), la **fecha de conteo** viene con el día de hoy y la **firma** en blanco para firmar a mano.
 
+
+## Punto 4 · decisión final de Sebas (11-nov-2026)
+
+- **Sin proceso de embalaje, ni siquiera para provincia** (parámetro `embalaje_activo` = NO; en SI vuelve para los pedidos nuevos). Los bultos quedan registrados en la conformidad.
+- **La etiqueta se mantiene para provincia** (hoja LOGISALUD, 104,6 × 75 mm, con el QR del bulto); se imprime desde «Cargar la unidad». **Lima** (departamento de Lima, ubigeo 15, y Callao, 07; parámetro `ubigeos_lima_metropolitana` = `15,07`) **no lleva etiquetas.**
+- **Carga por conteo de bultos en Lima y en provincia** (parámetro `carga_escaneo_qr` = NO): cada pedido se cuenta (`registrar_conteo_carga`) y la unidad se libera con todo contado. **El escaneo del QR queda en el código, apagado**, para cuando todo funcione.
+- Demo y pruebas siguen el flujo anterior por defecto; `WMS_DEMO_EMBALAJE=NO` y `WMS_DEMO_CARGA_QR=NO` imitan el piloto.
+- Paquete documental de la ruta por casillas por pedido: hecho (marcado de entrada si el cliente pide documentos).

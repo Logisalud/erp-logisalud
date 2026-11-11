@@ -1,4 +1,5 @@
 // S7 en memoria (modo demostración): embalaje en bultos. Mismas reglas que la migración 0020.
+import { embalajeActivoDemo } from './ajustes'
 import { guardiaDeOrden } from './cambio-pedido-demo'
 import { codigoDeBulto, puedeEmbalar, validarReparto, type BultoVista, type EmbalajeResumen, type EmbalajeVista, type PendienteEmbalar, type RepartoBulto } from '@/domain/embalaje'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
@@ -14,6 +15,8 @@ const bultos = (e: EstadoDemo) => (desp(e).bultos ??= [])
 export const bultosVigentes = (e: EstadoDemo, salidaId: string) => bultos(e).filter((b) => b.salidaId === salidaId && b.estado === 'EMBALADO').sort((a, b) => a.secuencia - b.secuencia)
 
 export class EmbalajeDemo extends DocumentacionDemo implements RepositorioEmbalaje {
+  async embalajeActivo(): Promise<boolean> { return embalajeActivoDemo() }
+
   /** Lo confirmado, lote por lote (lo que hay que embalar). */
   private pendientes(e: EstadoDemo, s: SalidaDemo): PendienteEmbalar[] {
     const o = pk(e).ordenes.find((x) => x.salidaId === s.id && x.estado !== 'CANCELADA')
