@@ -369,7 +369,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
     const c = f.snapshot.cliente
     return {
       id: p.id, secuencia: p.secuencia, clave: claveDeParada(p), origen: 'PEDIDO', pedidoId: f.snapshot.pedidoId, salidaId: s?.id, tipoOrden: s?.tipo, pedidoNumero: f.snapshot.numero, cliente: c.nombre, ruc: c.ruc, direccion: c.direccion, distrito: c.distrito,
-      ventanaCita: c.ventanaCita, vendedor: f.snapshot.vendedor, condicionPago: f.snapshot.condicionPago, lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0),
+      ventanaCita: c.ventanaCita, telefono: c.telefono, vendedor: f.snapshot.vendedor, condicionPago: f.snapshot.condicionPago, lineas: f.snapshot.lineas.length, unidades: f.snapshot.lineas.reduce((t, l) => t + l.cantidad, 0),
       salidaNumero: s?.numero, stock, excepcionCorte: p.excepcionCorte, motivoExcepcion: p.motivoExcepcion,
     }
   }

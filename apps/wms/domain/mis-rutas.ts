@@ -24,6 +24,8 @@ export const TEXTO_PILOTO_MIS_RUTAS = 'PILOTO: esto no reemplaza el proceso actu
 export interface EventoParadaVista { id: string; evento: EventoParada; motivo?: string; recibioNombre?: string; recibioDocumento?: string; fotoNombre?: string; hora: string; conforme?: boolean; tipoDiferencia?: TipoDiferenciaEntrega; detalleDiferencia?: string }
 export interface ParadaMia {
   id: string; secuencia: number; cliente: string; direccion?: string; distrito?: string; ventanaCita?: string; pedidoNumero?: string; ordenNumero?: string; unidades: number
+  /** Lo que la hoja interna «RUTA DEL dd/mm/aaaa» le da al transportista para iniciar la ruta (0062). */
+  telefono?: string; condicion?: string; guia?: string; representante?: string; formaPago?: string
   eventos: EventoParadaVista[]
   estado: EstadoParadaMia
 }

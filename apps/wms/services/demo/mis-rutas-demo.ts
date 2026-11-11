@@ -1,6 +1,7 @@
 // «Mis rutas» en la demostración (memoria): mismas reglas que la migración 0043 (`wms.mis_rutas_del_dia` y `wms.registrar_evento_parada`).
 import { datosParaLsFr, estadoDeParada, esTerminal, motivoNoSePuede, puedeFotografiarPedido, RUTA_PERMITE_MARCAR, todasResueltas, validarEventoParada, type EventoParada, type EventoParadaVista, type ParadaMia, type RutaMia } from '@/domain/mis-rutas'
 import { puedeVerMisRutas } from '@/domain/mis-rutas'
+import { condicionDeParada, guiaPorSalida } from '@/domain/ruta-del-dia'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import { claveDeOrden } from '@/domain/rutas'
 import { alertar, ahora, estadoE, falla, nuevoId } from './entradas-demo'
@@ -24,6 +25,7 @@ export class MisRutasDemo extends PilotoDemo implements RepositorioMisRutas {
     if (!puedeVerMisRutas(actor.roles)) return []
     const dia = fecha ?? e.panorama.hoy
     const panorama = await this.panoramaRutas()
+    const guias = guiaPorSalida(await this.listarGuias())
     return panorama.rutas
       .filter((v) => v.fecha === dia && ['LIBERADA', 'EN_RUTA', 'PENDIENTE_CIERRE', 'CERRADA'].includes(v.estado))
       .filter((v) => { const r = desp(e).rutas.find((x) => x.id === v.id); return !!r && this.suya(e, r, actor) })
@@ -31,7 +33,7 @@ export class MisRutasDemo extends PilotoDemo implements RepositorioMisRutas {
         const puedeMarcar = RUTA_PERMITE_MARCAR.includes(v.estado)
         const paradas: ParadaMia[] = v.paradas.map((p) => {
           const ev = eventos(e).filter((x) => x.paradaId === p.id).map(({ paradaId: _a, rutaId: _b, por: _c, fotoRef: _d, fotoHash: _e, ...x }) => x as EventoParadaVista)
-          return { id: p.id, secuencia: p.secuencia, cliente: p.cliente, direccion: p.direccion, distrito: p.distrito, ventanaCita: p.ventanaCita, pedidoNumero: p.pedidoNumero || undefined, ordenNumero: p.salidaNumero, unidades: p.unidades, eventos: ev, estado: estadoDeParada(ev) }
+          return { id: p.id, secuencia: p.secuencia, cliente: p.cliente, direccion: p.direccion, distrito: p.distrito, ventanaCita: p.ventanaCita, pedidoNumero: p.pedidoNumero || undefined, ordenNumero: p.salidaNumero, unidades: p.unidades, telefono: p.telefono, condicion: condicionDeParada(p.tipoOrden), guia: (p.salidaId && guias.get(p.salidaId)) || undefined, representante: p.vendedor, formaPago: p.condicionPago, eventos: ev, estado: estadoDeParada(ev) }
         })
         return { id: v.id, numero: v.numero, fecha: v.fecha, estado: v.estado, vehiculo: v.vehiculo?.placa, conductor: v.conductor?.nombre, auxiliar: v.auxiliar?.nombre, paradas, puedeMarcar }
       })

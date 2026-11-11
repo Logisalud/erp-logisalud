@@ -36,6 +36,9 @@ describe('mis rutas (demo)', () => {
       expect(r[0]).toMatchObject({ id, estado: 'EN_RUTA', puedeMarcar: true })
       expect(r[0].paradas).toHaveLength(1)
       expect(r[0].paradas.every((p) => p.estado === 'PENDIENTE' && p.cliente)).toBe(true)
+      // lo que necesita para iniciar la ruta (las columnas de la hoja interna): condición y las que trae el pedido
+      expect(r[0].paradas[0]).toMatchObject({ condicion: 'DESPACHO' })
+      expect(Object.keys(r[0].paradas[0])).toEqual(expect.arrayContaining(['condicion', 'guia', 'representante', 'formaPago']))
     }
     expect(await repo.misRutas(OTRO)).toEqual([])
     expect(await repo.misRutas(JT)).toEqual([])

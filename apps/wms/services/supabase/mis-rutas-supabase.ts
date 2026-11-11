@@ -3,6 +3,7 @@ import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { datosParaLsFr, estadoDeParada, esTerminal, RUTA_PERMITE_MARCAR, todasResueltas, type EventoParada, type EventoParadaVista, type ParadaMia, type RutaMia } from '@/domain/mis-rutas'
 import { claveDeOrden, type EstadoRuta } from '@/domain/rutas'
+import { condicionDeParada } from '@/domain/ruta-del-dia'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { DatosEventoParada, RepositorioMisRutas } from '../repositorio-mis-rutas'
@@ -21,7 +22,7 @@ function rutaDe(r: Fila): RutaMia {
   const estado = String(r.estado) as EstadoRuta
   const paradas: ParadaMia[] = ((r.paradas ?? []) as Fila[]).map((p) => {
     const eventos = ((p.eventos ?? []) as Fila[]).map(eventoDe)
-    return { id: String(p.id), secuencia: Number(p.secuencia), cliente: String(p.cliente), direccion: s(p.direccion), distrito: s(p.distrito), ventanaCita: s(p.ventana), pedidoNumero: s(p.pedido_numero), ordenNumero: s(p.orden_numero), unidades: Number(p.unidades ?? 0), eventos, estado: estadoDeParada(eventos) }
+    return { id: String(p.id), secuencia: Number(p.secuencia), cliente: String(p.cliente), direccion: s(p.direccion), distrito: s(p.distrito), ventanaCita: s(p.ventana), pedidoNumero: s(p.pedido_numero), ordenNumero: s(p.orden_numero), unidades: Number(p.unidades ?? 0), telefono: s(p.telefono), condicion: p.condicion ? condicionDeParada(String(p.condicion)) : undefined, guia: s(p.guia), representante: s(p.representante), formaPago: s(p.forma_pago), eventos, estado: estadoDeParada(eventos) }
   })
   return { id: String(r.id), numero: String(r.numero), fecha: String(r.fecha).slice(0, 10), estado, vehiculo: s(r.vehiculo), conductor: s(r.conductor), auxiliar: s(r.auxiliar), paradas, puedeMarcar: RUTA_PERMITE_MARCAR.includes(estado) }
 }

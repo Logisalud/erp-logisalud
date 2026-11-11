@@ -10,7 +10,7 @@ const s = StyleSheet.create({
   th: { fontFamily: 'Helvetica-Bold', fontSize: 7.5, padding: 4, color: '#FFFFFF' },
   td: { padding: 4, borderBottom: `0.5pt solid ${LINEA}` },
 })
-const W = { n: '3%', cliente: '18%', cond: '8%', guia: '11%', dir: '20%', dest: '8%', trans: '10%', rep: '10%', pago: '6%', hor: '6%' }
+const W = { n: '3%', cliente: '15%', tel: '8%', cond: '7%', guia: '11%', dir: '16%', dest: '8%', trans: '9%', rep: '11%', pago: '6%', hor: '6%' }
 const fecha = (iso: string) => iso.split('-').reverse().join('/')
 
 function Hoja({ r }: { r: RutaDelDia }) {
@@ -29,20 +29,20 @@ function Hoja({ r }: { r: RutaDelDia }) {
         </View>
         <View style={{ border: `0.75pt solid ${LINEA}`, borderRadius: 3, overflow: 'hidden' }}>
           <View style={{ flexDirection: 'row', backgroundColor: '#111827' }} fixed>
-            <Text style={[s.th, { width: W.n }]}>#</Text><Text style={[s.th, { width: W.cliente }]}>CLIENTE</Text><Text style={[s.th, { width: W.cond }]}>CONDICIÓN</Text><Text style={[s.th, { width: W.guia }]}>GUÍA</Text>
+            <Text style={[s.th, { width: W.n }]}>#</Text><Text style={[s.th, { width: W.cliente }]}>CLIENTE</Text><Text style={[s.th, { width: W.tel }]}># CLIENTE</Text><Text style={[s.th, { width: W.cond }]}>CONDICIÓN</Text><Text style={[s.th, { width: W.guia }]}>GUÍA</Text>
             <Text style={[s.th, { width: W.dir }]}>DIRECCIÓN</Text><Text style={[s.th, { width: W.dest }]}>DESTINO</Text><Text style={[s.th, { width: W.trans }]}>TRANSPORTISTA</Text>
             <Text style={[s.th, { width: W.rep }]}>REPRESENTANTE</Text><Text style={[s.th, { width: W.pago }]}>PAGO</Text><Text style={[s.th, { width: W.hor }]}>HORARIO</Text>
           </View>
           {r.filas.map((f) => (
             <View key={f.n} style={{ flexDirection: 'row', backgroundColor: f.n % 2 ? VERDE_CLARO : '#FFFFFF' }} wrap={false}>
               <Text style={[s.td, { width: W.n, fontFamily: 'Helvetica-Bold' }]}>{f.n}</Text><Text style={[s.td, { width: W.cliente, fontFamily: 'Helvetica-Bold' }]}>{f.cliente}</Text>
-              <Text style={[s.td, { width: W.cond }]}>{f.condicion}</Text><Text style={[s.td, { width: W.guia }]}>{f.guia}</Text><Text style={[s.td, { width: W.dir }]}>{f.direccion}</Text>
+              <Text style={[s.td, { width: W.tel }]}>{f.telefono}</Text><Text style={[s.td, { width: W.cond }]}>{f.condicion}</Text><Text style={[s.td, { width: W.guia }]}>{f.guia}</Text><Text style={[s.td, { width: W.dir }]}>{f.direccion}</Text>
               <Text style={[s.td, { width: W.dest }]}>{f.destino}</Text><Text style={[s.td, { width: W.trans }]}>{f.transportista}</Text><Text style={[s.td, { width: W.rep }]}>{f.representante}</Text>
               <Text style={[s.td, { width: W.pago }]}>{f.formaPago}</Text><Text style={[s.td, { width: W.hor }]}>{f.horario}</Text>
             </View>
           ))}
         </View>
-        <Text fixed style={{ position: 'absolute', bottom: 12, left: 24, right: 24, fontSize: 7, color: GRIS, textAlign: 'center' }}>Hoja interna de la ruta del día. El teléfono del cliente no lo entrega Pedidos todavía: se consulta en el pedido.</Text>
+        <Text fixed style={{ position: 'absolute', bottom: 12, left: 24, right: 24, fontSize: 7, color: GRIS, textAlign: 'center' }}>Hoja interna de la ruta del día. Lo que no se sabe se escribe «—»: nunca se inventa.</Text>
       </Page>
     </Document>
   )
