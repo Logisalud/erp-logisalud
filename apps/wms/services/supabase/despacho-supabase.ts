@@ -22,7 +22,7 @@ const sch = () => crearClienteServidor().schema('wms')
 
 const vehiculoDe = (v: Fila): VehiculoVista => ({
   id: String(v.id), placa: String(v.placa), descripcion: s(v.descripcion), tipo: v.tipo === 'EXTERNO' ? 'EXTERNO' : 'PROPIO', calificado: Boolean(v.calificado),
-  aptoCadenaFrio: Boolean(v.apto_cadena_frio), capacidadBultos: v.capacidad_bultos == null ? undefined : Number(v.capacidad_bultos), activo: Boolean(v.activo),
+  aptoCadenaFrio: Boolean(v.apto_cadena_frio), capacidadBultos: v.capacidad_bultos == null ? undefined : Number(v.capacidad_bultos), activo: Boolean(v.activo), contingencia: Boolean(v.contingencia),
 })
 const personalDe = (p: Fila): PersonalTransporte => ({ id: String(p.id), nombre: String(p.nombre), funcion: p.funcion === 'AUXILIAR' ? 'AUXILIAR' : 'CONDUCTOR', activo: Boolean(p.activo),
   dni: p.dni ? String(p.dni) : undefined, documentoTipo: p.documento_tipo === 'CE' || p.documento_tipo === 'PASAPORTE' ? p.documento_tipo : 'DNI', licencia: p.licencia ? String(p.licencia) : undefined,
@@ -84,7 +84,7 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
       return {
         id: String(r.id), numero: String(r.numero), fecha: dia(r.fecha), estado: r.estado as EstadoRuta, version: Number(r.version),
         vehiculo: veh.find((v) => v.id === s(r.vehiculo_id)), conductor: per.find((p) => p.id === s(r.conductor_id)), auxiliar: per.find((p) => p.id === s(r.auxiliar_id)),
-        paradas: ps,
+        motivoContingencia: s(r.motivo_contingencia), paradas: ps,
         versiones: versiones.filter((v) => String(v.ruta_id) === String(r.id)).sort((a, b) => Number(b.version) - Number(a.version))
           .map((v) => ({ version: Number(v.version), en: String(v.en), por: nombres.get(String(v.por)) ?? 'Usuario', motivo: String(v.motivo ?? ''), paradas: Array.isArray(v.paradas) ? v.paradas.length : 0 })),
         registroLsFr: registros.find((x) => String(x.ruta_id) === String(r.id))?.estado as RutaVista['registroLsFr'], motivoCancelacion: s(r.motivo_cancelacion),
@@ -170,6 +170,11 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
     return error ? mal(error) : { ok: true }
   }
 
+  async registrarMotivoContingencia(rutaId: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
+    const { error } = await rpc('registrar_motivo_contingencia', { p_ruta: rutaId, p_motivo: motivo })
+    return error ? mal(error) : { ok: true }
+  }
+
   async cancelarRuta(id: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
     const { error } = await rpc('cancelar_ruta', { p_ruta: id, p_motivo: motivo })
     return error ? mal(error) : { ok: true }
@@ -190,9 +195,9 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
     return error ? mal(error) : { ok: true }
   }
 
-  async guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo'> & { id?: string }, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
+  async guardarVehiculo(v: Pick<VehiculoVista, 'placa' | 'descripcion' | 'tipo' | 'calificado' | 'aptoCadenaFrio' | 'activo' | 'contingencia'> & { id?: string }, _actor: Actor): Promise<ResultadoAccion<{ id: string }>> {
     // La política de la tabla ya limita la escritura al Jefe de Transporte y a administración
-    const fila = { placa: v.placa.trim().toUpperCase(), descripcion: v.descripcion?.trim() || null, tipo: v.tipo, calificado: v.calificado, apto_cadena_frio: v.aptoCadenaFrio, activo: v.activo }
+    const fila = { placa: v.placa.trim().toUpperCase(), descripcion: v.descripcion?.trim() || null, tipo: v.tipo, calificado: v.calificado, apto_cadena_frio: v.aptoCadenaFrio, activo: v.activo, contingencia: Boolean(v.contingencia) }
     const q = v.id ? sch().from('vehiculos').update(fila).eq('id', v.id).select('id').single() : sch().from('vehiculos').insert(fila).select('id').single()
     const { data, error } = await q
     if (error) return mal(error)

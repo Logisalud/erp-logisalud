@@ -79,6 +79,29 @@ beforeAll(async () => {
 }, 120_000)
 afterAll(async () => { await base?.cerrar() })
 
+describe('vehículo de contingencia (0057)', () => {
+  it('con el vehículo de contingencia la ruta no se confirma sin su nota; la nota exige 5 letras, solo vale para ese vehículo y queda en la ruta y en la auditoría', async () => {
+    const a = await pedidoConStock(10)
+    const v = await vehiculo(); const cond = await personal('CONDUCTOR')
+    await base.admin.query('update wms.vehiculos set contingencia = true where id = $1', [v])
+    const ruta = await crearRuta(jt, en(1), v, cond, null)
+    await planificar(jt, ruta, en(1), v, cond, null, [{ pedido_id: a.ped.pedidoId }])
+    expect((await falla(confirmar(jt, ruta))).message).toMatch(/vehículo de contingencia/)
+    expect((await falla(como(jt, (c) => c.query('select wms.registrar_motivo_contingencia($1, $2)', [ruta, 'no'])))).message).toMatch(/al menos 5 letras/)
+    expect((await falla(como(soloAlmacen, (c) => c.query('select wms.registrar_motivo_contingencia($1, $2)', [ruta, 'Se averió el camión'])))).message).toMatch(/permiso/)
+    await como(jt, (c) => c.query('select wms.registrar_motivo_contingencia($1, $2)', [ruta, 'Se averió el camión habitual']))
+    await confirmar(jt, ruta)
+    expect(await uno('select estado, motivo_contingencia from wms.rutas where id = $1', [ruta])).toMatchObject({ estado: 'PLANIFICADA', motivo_contingencia: 'Se averió el camión habitual' })
+    expect((await uno(`select count(*)::int n from wms.audit_events where evento = 'ruta_contingencia' and entidad_id = $1`, [ruta])).n).toBe(1)
+    // un vehículo normal no pide nota ni acepta una
+    const normal = await vehiculo(); const b = await pedidoConStock(10); const c2 = await personal('CONDUCTOR')
+    const r2 = await crearRuta(jt, en(2), normal, c2, null)
+    await planificar(jt, r2, en(2), normal, c2, null, [{ pedido_id: b.ped.pedidoId }])
+    expect((await falla(como(jt, (c) => c.query('select wms.registrar_motivo_contingencia($1, $2)', [r2, 'Cualquier motivo'])))).message).toMatch(/no es de contingencia/)
+    await confirmar(jt, r2)
+  })
+})
+
 describe('planificar una ruta', () => {
   it('crea la ruta, mete dos pedidos en orden (crea su salida y asigna FEFO), guarda la versión y al confirmar nace el registro LS-FR.43.03', async () => {
     const a = await pedidoConStock(10); const b = await pedidoConStock(25)

@@ -4,9 +4,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowUp, Ban, CheckCircle2, ClipboardList, FileText, History, ListOrdered, Plus, Save, Trash2, TriangleAlert } from 'lucide-react'
-import { cancelarRutaAccion, confirmarRutaAccion, planificarRutaAccion } from '@/app/acciones-rutas'
+import { cancelarRutaAccion, confirmarRutaAccion, planificarRutaAccion, registrarMotivoContingenciaAccion } from '@/app/acciones-rutas'
 import {
-  ETIQUETA_ESTADO_RUTA, RUTA_EDITABLE, clavePlanParada, distritosDePedidos, filtrarOrdenesPlanificables, filtrarPedidosPlanificables, filtrarYOrdenarPorDistrito, fueraDeCorte, ordenSugerido, validarPlan,
+  ETIQUETA_ESTADO_RUTA, RUTA_EDITABLE, clavePlanParada, distritosDePedidos, filtrarOrdenesPlanificables, filtrarPedidosPlanificables, filtrarYOrdenarPorDistrito, fueraDeCorte, motivoFaltaContingencia, ordenSugerido, validarPlan,
   paradasDeZona, zonasConPedidos, type OrdenPlanificable, type PanoramaRutas, type PedidoPlanificable, type PlanParada, type RutaVista,
 } from '@/domain/rutas'
 import { formatoFechaHora } from '@/domain/fechas'
@@ -105,7 +105,12 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
   const guardar = () => { setAviso(null); ejecutar(() => planificarRutaAccion(ruta.id, { fecha, vehiculoId: vehiculoId || undefined, conductorId: conductorId || undefined, auxiliarId: auxiliarId || undefined, paradas, motivo: motivo || undefined }), {
     exito: 'Plan guardado.', alExito: (r) => { setMotivo(''); if (r.bloqueadosPorStock.length) setAviso(`No hay stock suficiente para: ${r.bloqueadosPorStock.join(', ')}. Quítalos de la ruta o espera el ingreso de stock antes de confirmarla.`) },
   }) }
-  const confirmar = () => ejecutar(() => confirmarRutaAccion(ruta.id), { exito: 'Ruta confirmada: ya nació su registro LS-FR.43.03.' })
+  const [notaContingencia, setNotaContingencia] = useState(ruta.motivoContingencia ?? '')
+  const faltaNota = motivoFaltaContingencia(vehiculo, notaContingencia)
+  const confirmar = () => ejecutar(async () => {
+    if (vehiculo?.contingencia && notaContingencia.trim() !== (ruta.motivoContingencia ?? '')) { const g = await registrarMotivoContingenciaAccion(ruta.id, notaContingencia); if (!g.ok) return g }
+    return confirmarRutaAccion(ruta.id)
+  }, { exito: 'Ruta confirmada: ya nació su registro LS-FR.43.03.' })
   const cancelar = () => ejecutar(() => cancelarRutaAccion(ruta.id, motivoCancelar), { refrescar: false, alExito: () => router.push('/rutas') })
 
   const porAgregar = panorama.pedidos.filter((p) => !paradas.some((x) => x.pedidoId === p.pedidoId))
@@ -134,6 +139,13 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
               <option value="">Elige el vehículo…</option>
               {panorama.vehiculos.filter((v) => v.activo || v.id === vehiculoId).map((v) => <option key={v.id} value={v.id}>{v.placa}{v.descripcion ? ` — ${v.descripcion}` : ''}{v.aptoCadenaFrio ? ' · frío' : ''}</option>)}
             </select></div>
+          {vehiculo?.contingencia && (
+            <div className="sm:col-span-2 xl:col-span-4 rounded-lg border border-amber-300 bg-amber-50 p-3" data-testid="contingencia">
+              <label htmlFor="r-contingencia" className="etiqueta">Vehículo de contingencia: ¿por qué sale este y no el habitual?</label>
+              <input id="r-contingencia" className="campo" value={notaContingencia} onChange={(e) => setNotaContingencia(e.target.value)} placeholder="Por ejemplo: el camión habitual está en mantenimiento" data-testid="ruta-contingencia" />
+              {faltaNota && <p className="mt-1 text-sm text-amber-900" data-testid="contingencia-falta">{faltaNota}.</p>}
+            </div>
+          )}
           <div><label htmlFor="r-cond" className="etiqueta">Conductor</label>
             <select id="r-cond" className="campo" value={conductorId} onChange={(e) => setConductorId(e.target.value)} data-testid="ruta-conductor">
               <option value="">Elige el conductor…</option>
@@ -214,7 +226,7 @@ export function EditorRuta({ ruta, panorama, registro = null, soloLectura = fals
       )}
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" className="btn-primary" disabled={pendiente || errores.length > 0 || !sucio || (requiereMotivo && !motivo.trim())} onClick={guardar} data-testid="guardar-plan"><Save className="h-5 w-5" aria-hidden />{pendiente ? 'Guardando…' : 'Guardar plan'}</button>
-        {ruta.estado === 'BORRADOR' && <button type="button" className="btn-secondary" disabled={pendiente || sucio || paradas.length === 0} onClick={confirmar} data-testid="confirmar-ruta"><CheckCircle2 className="h-5 w-5" aria-hidden />Confirmar ruta</button>}
+        {ruta.estado === 'BORRADOR' && <button type="button" className="btn-secondary" disabled={pendiente || sucio || paradas.length === 0 || !!faltaNota} onClick={confirmar} data-testid="confirmar-ruta"><CheckCircle2 className="h-5 w-5" aria-hidden />Confirmar ruta</button>}
         <button type="button" className="btn-secondary" onClick={() => setCancelando((c) => !c)} data-testid="abrir-cancelar"><Ban className="h-5 w-5" aria-hidden />Cancelar ruta</button>
         {sucio && <span className="text-sm text-amber-900" data-testid="cambios-sin-guardar">Hay cambios sin guardar.</span>}
       </div>
