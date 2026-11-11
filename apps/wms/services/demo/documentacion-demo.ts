@@ -21,6 +21,7 @@ import { pk } from './picking-demo'
 import { DocumentosDemo } from './documentos-demo'
 import { modoPilotoDemo } from './piloto-estado'
 import type { GuiaFila } from '@/domain/guias-busqueda'
+import { estadoDePreGuia, numeroDePreGuia, type PreGuiaVista } from '@/domain/pre-guia'
 import type { RepositorioDocumentacion } from '../repositorio-documentacion'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
@@ -105,6 +106,22 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
         destinatario: ctx.cliente, ruc: ctx.ruc, rutaNumero: ruta?.numero, placa: g.placa, conductor: ruta?.conductorId ? desp(e).personal.find((p) => p.id === ruta.conductorId)?.nombre : undefined,
         fecha: g.fechaEmision ?? g.registradaEn.slice(0, 10), fechaTraslado: g.fechaInicio ?? g.fechaTraslado, bultos: g.bultos, pesoKg: g.pesoKg, unidades, origen: g.origen, entorno: g.entorno, estadoSunat: g.estadoSunat,
         anulada: g.estado === 'ANULADA', motivoAnulacion: g.anuladaMotivo, enlace: g.enlace, registradaPor: g.registradaPor,
+      })
+    }
+    // pre-guías todavía sin enviar (con el número reservado) y las canceladas
+    for (const x of this.numeracionDe(e, 'TTT1')?.numeros ?? []) {
+      if (!x.preGuia || (x.estado !== 'RESERVADO' && x.estado !== 'SIN_USAR')) continue
+      const s = desp(e).salidas.find((y) => y.id === x.salidaId)
+      if (!s) continue
+      const ctx = this.rucYEntrega(e, s)
+      const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
+      const placa = ruta?.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId)?.placa : undefined
+      const conductor = ruta?.conductorId ? desp(e).personal.find((p) => p.id === ruta.conductorId)?.nombre : undefined
+      const estado = estadoDePreGuia({ cancelada: x.estado === 'SIN_USAR', placa, conductor })
+      filas.push({
+        id: `pre-${x.numero}`, numero: numeroDePreGuia('TTT1', x.numero), salidaId: s.id, salidaNumero: s.numero, pedidoNumero: ctx.pedidoNumero, tipoOrden: s.tipo, rolDestinatario: s.tipo === 'PROVEEDOR' ? 'PROVEEDOR' : 'CLIENTE',
+        destinatario: ctx.cliente, ruc: ctx.ruc, rutaNumero: ruta?.numero, placa, conductor, fecha: ruta?.fecha ?? e.panorama.hoy, origen: 'NUBEFACT', anulada: false, preGuia: estado === 'ENVIADA' ? undefined : estado,
+        motivoAnulacion: x.estado === 'SIN_USAR' ? x.motivo : undefined,
       })
     }
     return structuredClone(filas.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)))
@@ -267,7 +284,9 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     if (!n) return falla(`La serie ${k} de guías no está configurada`)
     if (entorno === 'PRODUCCION' && !n.confirmado) return falla(MENSAJE_SIN_CORRELATIVO(k))
     if (entorno !== 'PRODUCCION' && n.confirmado) return falla(mensajeSerieConfirmada(k))
-    const abierto = n.numeros.find((x) => x.estado === 'RESERVADO')
+    const propia = n.numeros.find((x) => x.estado === 'RESERVADO' && x.preGuia && x.salidaId === salidaId)
+    if (propia) return { ok: true, numero: propia.numero, reintento: false }      // 0055: el envío adopta el número de SU pre-guía
+    const abierto = n.numeros.find((x) => x.estado === 'RESERVADO' && !x.preGuia)
     if (abierto) {
       if (abierto.salidaId === salidaId) return { ok: true, numero: abierto.numero, reintento: true }
       return falla(mensajeGuiaEnCurso(abierto.numero, k, desp(e).salidas.find((s) => s.id === abierto.salidaId)?.numero))
@@ -282,7 +301,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
   async liberarNumeroGuia(serie: string, numero: number, _motivo?: string): Promise<ResultadoAccion> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const x = this.numeracionDe(e, serie)?.numeros.find((y) => y.numero === numero)
-    if (x?.estado === 'RESERVADO') x.estado = 'LIBERADO'
+    if (x?.estado === 'RESERVADO' && !x.preGuia) x.estado = 'LIBERADO'      // 0055: el número de una pre-guía no se libera
     return { ok: true }
   }
 
@@ -293,13 +312,67 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     return { ok: true }
   }
 
+  async crearPreGuia(salidaId: string, serie: string, entorno: ModoNubefact): Promise<ResultadoAccion<{ serie: string; numero: number; nueva: boolean }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const k = serie.trim().toUpperCase()
+    const n = this.numeracionDe(e, k)
+    if (!n) return falla(`La serie ${k} de guías no está configurada`)
+    const s = desp(e).salidas.find((x) => x.id === salidaId)
+    if (!s) return falla('No encontramos esa salida')
+    if (s.estado === 'CANCELADA') return falla('La orden está cancelada: no lleva guía')
+    if (!salidaConforme(e, salidaId)) return falla('La pre-guía se crea cuando el pedido tiene la conformidad')
+    const previa = n.numeros.find((x) => x.estado === 'RESERVADO' && x.preGuia && x.salidaId === salidaId)
+    if (previa) return { ok: true, serie: k, numero: previa.numero, nueva: false }
+    if (this.guiaVigente(e, salidaId)) return falla('La orden ya tiene su guía')
+    if (entorno === 'PRODUCCION' && !n.confirmado) return falla(MENSAJE_SIN_CORRELATIVO(k))
+    if (entorno !== 'PRODUCCION' && n.confirmado) return falla(mensajeSerieConfirmada(k))
+    const libre = n.numeros.filter((x) => x.estado === 'LIBERADO').sort((a, b) => a.numero - b.numero)[0]
+    if (libre) { Object.assign(libre, { estado: 'RESERVADO', salidaId, entorno, preGuia: true }); return { ok: true, serie: k, numero: libre.numero, nueva: true } }
+    n.ultimo += 1
+    n.numeros.push({ numero: n.ultimo, estado: 'RESERVADO', salidaId, entorno, preGuia: true })
+    return { ok: true, serie: k, numero: n.ultimo, nueva: true }
+  }
+
+  async cancelarPreGuia(salidaId: string, motivo: string): Promise<ResultadoAccion<{ cancelada: boolean }>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!motivo.trim()) return falla('Escribe por qué se cancela la pre-guía')
+    const x = this.numeracionDe(e, 'TTT1')?.numeros.find((y) => y.estado === 'RESERVADO' && y.preGuia && y.salidaId === salidaId)
+    if (!x) return { ok: true, cancelada: false }
+    Object.assign(x, { estado: 'SIN_USAR', motivo: motivo.trim() })
+    return { ok: true, cancelada: true }
+  }
+
+  async preGuiaDe(salidaId: string): Promise<PreGuiaVista | null> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const n = this.numeracionDe(e, 'TTT1')
+    const s = desp(e).salidas.find((x) => x.id === salidaId)
+    if (!n || !s) return null
+    const num = n.numeros.find((x) => x.salidaId === salidaId && x.preGuia && x.estado === 'RESERVADO')
+      ?? n.numeros.find((x) => x.salidaId === salidaId && x.preGuia && (x.estado === 'USADO'))
+      ?? [...n.numeros].reverse().find((x) => x.salidaId === salidaId && x.preGuia && x.estado === 'SIN_USAR')
+    if (!num) return null
+    const ruta = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
+    const placa = ruta?.vehiculoId ? desp(e).vehiculos.find((v) => v.id === ruta.vehiculoId)?.placa : undefined
+    const conductor = ruta?.conductorId ? desp(e).personal.find((p) => p.id === ruta.conductorId)?.nombre : undefined
+    const estado = estadoDePreGuia({ cancelada: num.estado === 'SIN_USAR', guiaEnviada: num.estado === 'USADO', placa, conductor })
+    return { salidaId, serie: 'TTT1', numero: num.numero, numeroCompleto: numeroDePreGuia('TTT1', num.numero), estado, rutaNumero: ruta?.numero, placa, conductor, entorno: num.entorno, motivoCancelacion: num.estado === 'SIN_USAR' ? num.motivo : undefined }
+  }
+
+  async numerosSinUsar(serie: string): Promise<{ numero: number; numeroCompleto: string; motivo?: string; salidaNumero?: string }[]> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    const k = serie.trim().toUpperCase()
+    return (this.numeracionDe(e, k)?.numeros ?? []).filter((x) => x.estado === 'SIN_USAR').sort((a, b) => a.numero - b.numero)
+      .map((x) => ({ numero: x.numero, numeroCompleto: numeroDePreGuia(k, x.numero), motivo: x.motivo, salidaNumero: desp(e).salidas.find((s) => s.id === x.salidaId)?.numero }))
+  }
+
   async estadoNumeracionGuia(serie: string): Promise<EstadoCorrelativo | null> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const n = this.numeracionDe(e, serie)
     if (!n) return null
-    const abierto = n.numeros.find((x) => x.estado === 'RESERVADO')
+    const abierto = n.numeros.find((x) => x.estado === 'RESERVADO' && !x.preGuia)
     const libre = n.numeros.filter((x) => x.estado === 'LIBERADO').sort((a, b) => a.numero - b.numero)[0]
     return {
+      preGuias: n.numeros.filter((x) => x.estado === 'RESERVADO' && x.preGuia).length, sinUsar: n.numeros.filter((x) => x.estado === 'SIN_USAR').map((x) => ({ numero: x.numero, motivo: x.motivo })),
       serie: serie.toUpperCase(), ultimo: n.ultimo, confirmado: n.confirmado, proximo: libre?.numero ?? abierto?.numero ?? n.ultimo + 1,
       enCurso: abierto ? { numero: abierto.numero, salidaNumero: desp(e).salidas.find((s) => s.id === abierto.salidaId)?.numero, incierta: true } : undefined,
     }

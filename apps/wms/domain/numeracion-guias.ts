@@ -27,6 +27,10 @@ export interface EstadoCorrelativo {
   proximo: number
   /** Hay una guía en curso (número reservado y todavía sin registrar). */
   enCurso?: { numero: number; salidaNumero?: string; incierta: boolean }
+  /** Pre-guías con número reservado y todavía sin enviar a Nubefact. */
+  preGuias?: number
+  /** Números de pre-guías canceladas: no se reutilizan; se deciden con la contadora. */
+  sinUsar?: { numero: number; motivo?: string }[]
 }
 
 /** El texto de la regla que el WMS pone a la vista (pantalla y documento). */

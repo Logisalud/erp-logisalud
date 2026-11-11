@@ -38,7 +38,7 @@ export interface LineaSalidaDemo {
   loteIndicadoId?: string
 }
 /** El estado de una serie de guías en la demostración. */
-export interface NumeracionSerieDemo { ultimo: number; confirmado: boolean; numeros: { numero: number; estado: 'RESERVADO' | 'USADO' | 'LIBERADO' | 'OCUPADO'; salidaId?: string; entorno?: string }[] }
+export interface NumeracionSerieDemo { ultimo: number; confirmado: boolean; numeros: { numero: number; estado: 'RESERVADO' | 'USADO' | 'LIBERADO' | 'OCUPADO' | 'SIN_USAR'; salidaId?: string; entorno?: string; preGuia?: boolean; motivo?: string }[] }
 
 export interface SalidaDemo {
   id: string; numero: string; pedidoId: string; propietarioId: string; estado: 'ABIERTA' | 'CONFIRMADA' | 'CANCELADA'

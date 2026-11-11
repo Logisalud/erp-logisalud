@@ -8,6 +8,7 @@ import {
   motivoDeTraslado, normalizarGuiaModo, validarRegistroGuiaPanel, parametroDescripcionOtros, parametroMotivoDeTipo, type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type RespuestaConsulta, type ModoNubefact, type OrigenGuia, type RegistroGuiaPanel, type RespuestaEmision, type TrasladoGuia,
 } from '@/domain/guia-electronica'
 import type { GuiaFila } from '@/domain/guias-busqueda'
+import { estadoDePreGuia, numeroDePreGuia, type PreGuiaVista } from '@/domain/pre-guia'
 import type { EstadoCorrelativo } from '@/domain/numeracion-guias'
 import { etapaConAvance, type SalidaResumen, type SalidaVista } from '@/domain/despacho'
 import type { EstadoRequisito, TipoDocumento } from '@/domain/documentos'
@@ -52,7 +53,20 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     const rutaPorNumero = new Map(rutas.map((r) => [String(r.numero), r]))
     const nombrePersona = new Map(personal.map((p) => [String(p.id), String(p.nombre)]))
     const placaDe = new Map(vehiculos.map((v) => [String(v.id), String(v.placa)]))
-    return gs.map((g): GuiaFila => {
+    const { data: pg } = await sch().from('guia_numeros').select('serie, numero, estado, detalle, salida_id, reservado_en').eq('pre_guia', true).eq('archivado', false).in('estado', ['RESERVADO', 'SIN_USAR'])
+    const prefilas: GuiaFila[] = ((pg ?? []) as Fila[]).map((f) => {
+      const so = porSalida.get(String(f.salida_id))
+      const ruta = so?.rutaNumero ? rutaPorNumero.get(so.rutaNumero) : undefined
+      const placa = ruta?.vehiculo_id ? placaDe.get(String(ruta.vehiculo_id)) : undefined
+      const conductor = ruta?.conductor_id ? nombrePersona.get(String(ruta.conductor_id)) : undefined
+      const estado = estadoDePreGuia({ cancelada: f.estado === 'SIN_USAR', placa, conductor })
+      return {
+        id: `pre-${f.serie}-${f.numero}`, numero: numeroDePreGuia(String(f.serie), Number(f.numero)), salidaId: String(f.salida_id), salidaNumero: so?.numero ?? '—', pedidoNumero: so?.pedidoNumero, tipoOrden: so?.tipo,
+        rolDestinatario: so?.tipo === 'PROVEEDOR' ? 'PROVEEDOR' : 'CLIENTE', destinatario: so?.cliente, rutaNumero: so?.rutaNumero, placa, conductor, fecha: String(f.reservado_en).slice(0, 10),
+        origen: 'NUBEFACT', anulada: false, preGuia: estado === 'ENVIADA' ? undefined : estado, motivoAnulacion: f.estado === 'SIN_USAR' ? s(f.detalle) : undefined,
+      }
+    })
+    const enviadas = gs.map((g): GuiaFila => {
       const v = guiaVista(g, nombres)
       const so = porSalida.get(String(g.salida_id))
       const ruta = so?.rutaNumero ? rutaPorNumero.get(so.rutaNumero) : undefined
@@ -63,7 +77,8 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
         fecha: v.fechaEmision ?? v.registradaEn.slice(0, 10), fechaTraslado: v.fechaInicio ?? v.fechaTraslado, bultos: v.bultos, pesoKg: v.pesoKg, unidades: v.lineas.reduce((t, l) => t + l.cantidad, 0),
         origen: v.origen, entorno: v.entorno, estadoSunat: v.estadoSunat, anulada: v.estado === 'ANULADA', motivoAnulacion: v.anuladaMotivo, enlace: v.enlace, registradaPor: v.registradaPor,
       }
-    }).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero))
+    })
+    return [...prefilas, ...enviadas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero))
   }
 
   async paqueteSalida(salidaId: string): Promise<PaqueteSalida | null> {
@@ -176,15 +191,51 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     return error ? mal(error) : { ok: true }
   }
 
+  async crearPreGuia(salidaId: string, serie: string, entorno: ModoNubefact): Promise<ResultadoAccion<{ serie: string; numero: number; nueva: boolean }>> {
+    const { data, error } = await rpc('crear_pre_guia', { p_serie: serie, p_entorno: entorno, p_salida: salidaId })
+    if (error) return mal(error)
+    const r = (data ?? {}) as { serie?: string; numero?: number; nueva?: boolean }
+    return { ok: true, serie: String(r.serie ?? serie), numero: Number(r.numero), nueva: Boolean(r.nueva) }
+  }
+
+  async cancelarPreGuia(salidaId: string, motivo: string): Promise<ResultadoAccion<{ cancelada: boolean }>> {
+    const { data, error } = await rpc('cancelar_pre_guia', { p_salida: salidaId, p_motivo: motivo })
+    return error ? mal(error) : { ok: true, cancelada: Boolean(data) }
+  }
+
+  async preGuiaDe(salidaId: string): Promise<PreGuiaVista | null> {
+    const { data } = await sch().from('guia_numeros').select('serie, numero, estado, entorno, detalle').eq('salida_id', salidaId).eq('pre_guia', true).eq('archivado', false).in('estado', ['RESERVADO', 'USADO', 'SIN_USAR']).order('reservado_en', { ascending: false })
+    const filas = (data ?? []) as Fila[]
+    const f = filas.find((x) => x.estado === 'RESERVADO') ?? filas.find((x) => x.estado === 'USADO') ?? filas[0]
+    if (!f) return null
+    const datos = await this.datosGuia(salidaId)
+    const placa = datos?.ruta?.placa ?? undefined; const conductor = datos?.ruta?.conductor ?? undefined
+    const estado = estadoDePreGuia({ cancelada: f.estado === 'SIN_USAR', guiaEnviada: f.estado === 'USADO', placa, conductor })
+    return { salidaId, serie: String(f.serie), numero: Number(f.numero), numeroCompleto: numeroDePreGuia(String(f.serie), Number(f.numero)), estado, rutaNumero: datos?.ruta?.numero, placa, conductor, entorno: s(f.entorno), motivoCancelacion: f.estado === 'SIN_USAR' ? s(f.detalle) : undefined }
+  }
+
+  async numerosSinUsar(serie: string): Promise<{ numero: number; numeroCompleto: string; motivo?: string; salidaNumero?: string }[]> {
+    const k = serie.toUpperCase()
+    const { data } = await sch().from('guia_numeros').select('numero, detalle, salida_id').eq('serie', k).eq('estado', 'SIN_USAR').eq('archivado', false).order('numero')
+    const filas = (data ?? []) as Fila[]
+    const ids = [...new Set(filas.map((f) => s(f.salida_id)).filter(Boolean) as string[])]
+    const nums = new Map<string, string>()
+    if (ids.length) for (const r of (((await sch().from('salidas').select('id, numero').in('id', ids)).data ?? []) as Fila[])) nums.set(String(r.id), String(r.numero))
+    return filas.map((f) => ({ numero: Number(f.numero), numeroCompleto: numeroDePreGuia(k, Number(f.numero)), motivo: s(f.detalle), salidaNumero: f.salida_id ? nums.get(String(f.salida_id)) : undefined }))
+  }
+
   async estadoNumeracionGuia(serie: string): Promise<EstadoCorrelativo | null> {
     const { data: c } = await sch().from('guia_correlativos').select('serie, ultimo, confirmado').eq('serie', serie.toUpperCase()).maybeSingle()
     if (!c) return null
-    const { data: r } = await sch().from('guia_numeros').select('numero, salida_id').eq('serie', serie.toUpperCase()).eq('estado', 'RESERVADO').eq('archivado', false).order('numero').limit(1).maybeSingle()
+    const { data: r } = await sch().from('guia_numeros').select('numero, salida_id').eq('serie', serie.toUpperCase()).eq('estado', 'RESERVADO').eq('pre_guia', false).eq('archivado', false).order('numero').limit(1).maybeSingle()
     let salidaNumero: string | undefined
     if (r && (r as Fila).salida_id) salidaNumero = s(((await sch().from('salidas').select('numero').eq('id', String((r as Fila).salida_id)).maybeSingle()).data as Fila | null)?.numero)
     const { data: libre } = await sch().from('guia_numeros').select('numero').eq('serie', serie.toUpperCase()).eq('estado', 'LIBERADO').eq('archivado', false).order('numero').limit(1).maybeSingle()
+    const { count: preGuias } = await sch().from('guia_numeros').select('numero', { count: 'exact', head: true }).eq('serie', serie.toUpperCase()).eq('estado', 'RESERVADO').eq('pre_guia', true).eq('archivado', false)
+    const sinUsar = (await this.numerosSinUsar(serie)).map((x) => ({ numero: x.numero, motivo: x.motivo }))
     const fila = c as Fila
     return {
+      preGuias: preGuias ?? 0, sinUsar,
       serie: String(fila.serie), ultimo: Number(fila.ultimo), confirmado: Boolean(fila.confirmado),
       proximo: libre ? Number((libre as Fila).numero) : r ? Number((r as Fila).numero) : Number(fila.ultimo) + 1,
       enCurso: r ? { numero: Number((r as Fila).numero), salidaNumero, incierta: true } : undefined,

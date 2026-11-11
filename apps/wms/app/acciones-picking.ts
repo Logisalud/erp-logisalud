@@ -8,7 +8,7 @@ import type { RepartoBulto } from '@/domain/embalaje'
 import type { ItemChecklist } from '@/domain/carga'
 import type { Actor } from '@/services/repositorio'
 import type { CasoAnulacion, RegistroGuiaPanel, TrasladoGuia } from '@/domain/guia-electronica'
-import { anularGuiaConCaso, consultarEstadoGuia, emitirGuiaElectronica, enviarEventosPedidos, probarConexionNubefact, registrarGuiaPanel } from '@/services/guia-electronica'
+import { crearPreGuiaDeOrden, anularGuiaConCaso, consultarEstadoGuia, emitirGuiaElectronica, enviarEventosPedidos, probarConexionNubefact, registrarGuiaPanel } from '@/services/guia-electronica'
 
 async function quien(): Promise<Actor> {
   const ctx = await exigirContexto()
@@ -22,7 +22,16 @@ export async function registrarPickingAccion(ordenLineaId: string, resultado: 'P
 export async function proponerReemplazoAccion(ordenLineaId: string) { await exigirContexto(); return repositorio().proponerReemplazo(ordenLineaId) }
 export async function resolverDiscrepanciaAccion(ordenLineaId: string, loteId: string, posicionId: string | undefined, nota?: string) { return repositorio().resolverDiscrepancia(ordenLineaId, loteId, posicionId, nota, await quien()) }
 export async function darConformidadAccion(ordenLineaId: string, resultado: 'CONFORME' | 'OBSERVADA', nota?: string, tipo?: TipoNoConformidad) { return repositorio().darConformidad(ordenLineaId, resultado, nota, tipo, await quien()) }
-export async function conformarOrdenAccion(ordenId: string, lineas: ResultadoLineaConformidad[], bultos: number, nota?: string) { return repositorio().conformarOrden(ordenId, lineas, bultos, nota, await quien()) }
+export async function conformarOrdenAccion(ordenId: string, lineas: ResultadoLineaConformidad[], bultos: number, nota?: string) {
+  const r = await repositorio().conformarOrden(ordenId, lineas, bultos, nota, await quien())
+  // Pre-guía: con la conformidad nace la pre-guía (número reservado). Si falla no estorba la conformidad: queda el botón «Crear pre-guía» en la orden.
+  if (r.ok) {
+    try { const o = await repositorio().obtenerOrdenPicking(ordenId); if (o) await crearPreGuiaDeOrden(o.salidaId) } catch (e) { console.error('[pre-guía] no se pudo crear tras la conformidad', e) }
+  }
+  return r
+}
+export async function crearPreGuiaAccion(salidaId: string) { await quien(); return crearPreGuiaDeOrden(salidaId) }
+export async function cancelarPreGuiaAccion(salidaId: string, motivo: string) { await quien(); return repositorio().cancelarPreGuia(salidaId, motivo) }
 export async function designarPickerAccion(ordenId: string, pickerId: string) { return repositorio().designarPicker(ordenId, pickerId, await quien()) }
 export async function reabrirObservadaAccion(ordenLineaId: string, nota?: string) { return repositorio().reabrirObservada(ordenLineaId, nota, await quien()) }
 

@@ -3,8 +3,9 @@ import { normalizar } from './busqueda'
 import type { EstadoSunat, ModoNubefact, OrigenGuia } from './guia-electronica'
 
 /** El estado que se muestra, en una sola palabra: lo que importa de la guía hoy. */
-export type EstadoGuiaBusqueda = 'ACEPTADA' | 'ENVIADA' | 'RECHAZADA' | 'ANULADA' | 'REGISTRADA'
+export type EstadoGuiaBusqueda = 'PRE_GUIA' | 'LISTA_PARA_ENVIAR' | 'ACEPTADA' | 'ENVIADA' | 'RECHAZADA' | 'ANULADA' | 'REGISTRADA' | 'CANCELADA'
 export const ETIQUETA_ESTADO_GUIA: Record<EstadoGuiaBusqueda, string> = {
+  PRE_GUIA: 'Pre-guía (sin enviar)', LISTA_PARA_ENVIAR: 'Lista para enviar', CANCELADA: 'Pre-guía cancelada',
   ACEPTADA: 'Aceptada por SUNAT', ENVIADA: 'Enviada (esperando a SUNAT)', RECHAZADA: 'Rechazada por SUNAT', ANULADA: 'Anulada', REGISTRADA: 'Registrada (sin consulta a SUNAT)',
 }
 export const ESTADOS_GUIA_BUSQUEDA = Object.keys(ETIQUETA_ESTADO_GUIA) as EstadoGuiaBusqueda[]
@@ -37,12 +38,15 @@ export interface GuiaFila {
   entorno?: ModoNubefact
   estadoSunat?: EstadoSunat
   anulada: boolean
+  /** Pre-guía todavía sin enviar a Nubefact (su estado). Una guía enviada no lleva este campo. */
+  preGuia?: 'PRE_GUIA' | 'LISTA_PARA_ENVIAR' | 'CANCELADA'
   motivoAnulacion?: string
   enlace?: string
   registradaPor?: string
 }
 
-export function estadoDeGuia(g: Pick<GuiaFila, 'anulada' | 'estadoSunat' | 'origen'>): EstadoGuiaBusqueda {
+export function estadoDeGuia(g: Pick<GuiaFila, 'anulada' | 'estadoSunat' | 'origen'> & { preGuia?: GuiaFila['preGuia'] }): EstadoGuiaBusqueda {
+  if (g.preGuia) return g.preGuia
   if (g.anulada) return 'ANULADA'
   if (g.estadoSunat === 'RECHAZADA') return 'RECHAZADA'
   if (g.estadoSunat === 'ACEPTADA') return 'ACEPTADA'

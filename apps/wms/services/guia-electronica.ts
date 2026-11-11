@@ -8,6 +8,7 @@ import { notificadorPedidos } from './pedidos/notificar'
 import { modoPilotoActivo } from '@/lib/modo-piloto'
 import { TEXTO_PEDIDOS_RETENIDO } from '@/domain/modo-piloto'
 import type { Actor, ResultadoAccion } from './repositorio'
+import type { PreGuiaVista } from '@/domain/pre-guia'
 
 const hoyLima = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
 const falla = (mensaje: string): { ok: false; mensaje: string } => ({ ok: false, mensaje })
@@ -164,3 +165,17 @@ export async function probarConexionNubefact(): Promise<{ ok: boolean; modo: str
   const base = `${NOMBRE_MODO[cliente.modo]}: ${r.ok ? r.detalle : r.error}`
   return { ok: r.ok, modo: cliente.modo, mensaje: incompleto ? `${incompleto} ${base}` : base }
 }
+
+/**
+ * Pre-guía: se crea apenas la orden tiene su conformidad. Reserva el siguiente número de la serie (T…) y NO se envía a Nubefact: eso lo hace Roberto con «Emitir guía» cuando la orden ya tiene ruta,
+ * vehículo y conductor (con ESTE mismo número). En el modo «guía desde el panel» (piloto, guia_modo = PANEL) no hay pre-guía: la guía se emite en el panel y aquí solo se registra.
+ */
+export async function crearPreGuiaDeOrden(salidaId: string): Promise<ResultadoAccion<{ serie: string; numero: number; nueva: boolean }> | { ok: true; omitida: true }> {
+  const repo = repositorio()
+  const datos = await repo.datosGuia(salidaId)
+  if (!datos) return falla('No encontramos esa salida')
+  if (datos.guiaModo === 'PANEL' || datos.tipo === 'CLIENTE') return { ok: true, omitida: true }
+  return repo.crearPreGuia(salidaId, datos.serie, modoNubefactActual())
+}
+
+export async function preGuiaDeOrden(salidaId: string): Promise<PreGuiaVista | null> { return repositorio().preGuiaDe(salidaId) }

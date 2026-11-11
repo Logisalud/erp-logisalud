@@ -43,10 +43,11 @@ export function NumeracionGuias({ estado, modo, roles }: { estado: EstadoCorrela
         <span className="rounded-full border border-gray-300 bg-gray-50 px-2.5 py-1" data-testid="numeracion-entorno" data-modo={modo}>{ETIQUETA_MODO[modo]}</span>
       </p>
       <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-        <div><dt className="text-gray-600">Último número del WMS</dt><dd className="tabular text-gray-900" data-testid="numeracion-ultimo">{estado.ultimo > 0 ? numeroConSerie(estado.serie, estado.ultimo) : 'Ninguno todavía'}</dd></div>
+        <div><dt className="text-gray-600">Último número reservado</dt><dd className="tabular text-gray-900" data-testid="numeracion-ultimo">{estado.ultimo > 0 ? numeroConSerie(estado.serie, estado.ultimo) : 'Ninguno todavía'}</dd></div>
         <div><dt className="text-gray-600">Próxima guía</dt><dd className="tabular text-gray-900" data-testid="numeracion-proximo">{numeroConSerie(estado.serie, estado.proximo)}</dd></div>
         <div><dt className="text-gray-600">En curso</dt><dd className="text-gray-900" data-testid="numeracion-en-curso">{estado.enCurso ? `${numeroConSerie(estado.serie, estado.enCurso.numero)}${estado.enCurso.salidaNumero ? ` (${estado.enCurso.salidaNumero})` : ''}` : 'Ninguna'}</dd></div>
       </dl>
+      <p className="text-sm text-gray-700" data-testid="numeracion-pre-guias">Pre-guías con número reservado y sin enviar: <span className="tabular font-medium text-gray-900">{estado.preGuias ?? 0}</span>.{(estado.sinUsar ?? []).length > 0 && <> Números sin usar (pre-guías canceladas; se deciden con Contabilidad y no se reutilizan): <span className="tabular font-medium text-gray-900" data-testid="numeracion-sin-usar">{(estado.sinUsar ?? []).map((x) => numeroConSerie(estado.serie, x.numero)).join(', ')}</span>.</>}</p>
       {!estado.confirmado && <p className="text-sm text-gray-800" data-testid="numeracion-bloqueo">Una guía real no sale hasta que se confirme con qué número empieza la serie: lo indica Sebas al salir a producción. Mientras tanto se emite en el simulador o en el entorno de pruebas.</p>}
       <p className="flex items-start gap-2 text-sm text-gray-800" data-testid="regla-panel"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-gray-600" aria-hidden />{REGLA_PANEL_NUBEFACT}</p>
       {mensaje && <Aviso tipo={mensaje.tipo === 'ok' ? 'ok' : 'error'} testid="numeracion-mensaje">{mensaje.texto}</Aviso>}
