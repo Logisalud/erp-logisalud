@@ -173,6 +173,10 @@ export function resumirCambios(anterior: PedidoSnapshot, nuevo: PedidoSnapshot):
 }
 
 export interface ResumenImportacion {
+  /** Lo que Pedidos entregó en esta actualización, su último número y cuántos listos dice tener (si algo no cuadra, se avisa). */
+  entregados?: number
+  ultimoNumero?: string
+  totalEnPedidos?: number
   nuevos: number
   nuevasVersiones: number
   iguales: number

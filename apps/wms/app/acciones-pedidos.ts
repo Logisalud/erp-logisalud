@@ -10,7 +10,7 @@ async function quien(): Promise<Actor> {
   return { id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles }
 }
 
-export interface ResumenActualizacion { nuevos: number; nuevasVersiones: number; iguales: number; antiguas: number; descartados: PedidoDescartado[] }
+export interface ResumenActualizacion { nuevos: number; nuevasVersiones: number; iguales: number; antiguas: number; descartados: PedidoDescartado[]; entregados?: number; ultimoNumero?: string; totalEnPedidos?: number }
 
 /** Trae los pedidos listos de Pedidos y guarda lo nuevo. Si Pedidos no responde, devuelve el motivo y la bandeja sigue con lo ya importado. */
 export async function actualizarBandejaAccion(): Promise<ResultadoAccion<{ resumen: ResumenActualizacion }>> {

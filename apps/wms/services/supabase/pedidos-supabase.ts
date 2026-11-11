@@ -80,6 +80,7 @@ export class PedidosSupabase extends OperacionSupabase implements RepositorioPed
     return {
       ok: true,
       resumen: {
+        entregados: r.entregados, ultimoNumero: r.ultimoNumero, totalEnPedidos: r.totalEnPedidos,
         nuevos: d.nuevos, nuevasVersiones: d.nuevas_versiones, iguales: d.iguales, antiguas: d.antiguas,
         descartados: [...r.descartados, ...(d.descartados ?? []).map((x, i) => ({ indice: -(i + 1), referencia: x.referencia, motivo: x.motivo }))],
       },

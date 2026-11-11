@@ -4,6 +4,7 @@ import { puedeVerBandeja } from './pedidos-despacho'
 import { puedeVerRutas } from './rutas'
 import { puedeVerMisRutas } from './mis-rutas'
 import { puedeVerInspecciones } from './inspecciones'
+import { puedeImprimirRotulos } from './rotulos'
 import { puedeOriginarRetorno } from './retornos'
 import { puedeDarConformidad, puedePickear, puedePrepararSalidas, puedeVerSalidas } from './despacho'
 import { puedeEmbalar } from './embalaje'
@@ -16,7 +17,7 @@ import { puedeVerProveedores } from './vencimiento'
 export type IconoNav =
   | 'inicio' | 'almacen' | 'entradas' | 'productos' | 'calidad' | 'alertas' | 'expedientes' | 'propietarios' | 'auditoria' | 'movimientos'
   | 'conteos' | 'kardex' | 'vencimientos' | 'carga' | 'revision' | 'reportes' | 'pedidos' | 'rutas' | 'documentos' | 'salidas' | 'nuevasalida' | 'guias' | 'ranking'
-  | 'picking' | 'conformidad' | 'embalaje' | 'cargaunidad' | 'bajas' | 'retornos' | 'inspeccion'
+  | 'picking' | 'conformidad' | 'embalaje' | 'cargaunidad' | 'bajas' | 'retornos' | 'inspeccion' | 'rotulo'
 
 export interface ItemMenu {
   href: string
@@ -79,6 +80,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0): Secci
   ponerSi('almacen', !soloAutoriza, { href: '/conteos', etiqueta: 'Conteos', icono: 'conteos' })
   ponerSi('almacen', !soloAutoriza, { href: '/revision-diaria', etiqueta: 'Revisión diaria', icono: 'revision' })
   ponerSi('almacen', !soloAutoriza, { href: '/bajas', etiqueta: 'Dar de baja', icono: 'bajas' })
+  ponerSi('almacen', !soloAutoriza && puedeImprimirRotulos(roles), { href: '/rotulos', etiqueta: 'Rótulos de caja saldo', icono: 'rotulo', corta: 'Rótulos' })
 
   // Salidas: cómo empieza y se sigue una salida
   ponerSi('salidas', puedeVerBandeja(roles), { href: '/pedidos', etiqueta: SALIDAS_NOMBRES[0], icono: 'pedidos' })

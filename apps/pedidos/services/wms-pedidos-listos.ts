@@ -41,8 +41,9 @@ const tablaAusente = (e: { code?: string; message: string }) =>
 export async function cargarPedidosListosParaWms(ahora = new Date()): Promise<RespuestaContrato> {
   const db = createAdminClient();
 
+  // Se pide de a páginas y se sigue hasta que una venga vacía: si la base corta cada respuesta antes de `PAGINA` filas (tope de PostgREST), una página corta NO es el final.
   const filas: FilaPedido[] = [];
-  for (let desde = 0; ; desde += PAGINA) {
+  for (let desde = 0, vueltas = 0; vueltas < 200; vueltas++) {
     const { data, error } = await db
       .from("orders")
       .select(
@@ -57,9 +58,16 @@ export async function cargarPedidosListosParaWms(ahora = new Date()): Promise<Re
       .range(desde, desde + PAGINA - 1);
     if (error) throw new Error(error.message);
     const pagina = (data ?? []) as unknown as FilaPedido[];
+    if (pagina.length === 0) break;
     filas.push(...pagina);
-    if (pagina.length < PAGINA) break;
+    desde += pagina.length;
   }
+
+  // Cuántos cuenta la base de verdad (para que el WMS note si algo se cortó por el camino).
+  const { count: totalListos } = await db
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .in("estado", ESTADOS_PARA_WMS);
 
   const ids = filas.map((f) => f.id);
   const aux: DatosAuxiliares = { historial: [], observaciones: [], facturas: [], distritos: {} };
@@ -139,5 +147,5 @@ export async function cargarPedidosListosParaWms(ahora = new Date()): Promise<Re
   }
   aux.ruteo = ruteo;
 
-  return armarRespuestaContrato(filas, aux, ahora);
+  return armarRespuestaContrato(filas, aux, ahora, typeof totalListos === "number" ? totalListos : undefined);
 }

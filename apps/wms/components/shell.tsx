@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Trophy, FileSearch, ArrowLeftRight, BadgeCheck, ChevronDown, ClipboardList, Package, PackageOpen, PackagePlus, PackageX, ScanLine, Bell, Truck, BarChart3, Boxes, CalendarClock, ClipboardCheck, FileSpreadsheet, FileText, FolderOpen, History, Home, Inbox, ListChecks, Map, MoreHorizontal, Route, Search, ShieldCheck, Undo2, Upload, Users, X } from 'lucide-react'
+import { Trophy, FileSearch, ArrowLeftRight, BadgeCheck, ChevronDown, ClipboardList, Package, PackageOpen, PackagePlus, PackageX, ScanLine, Bell, Truck, BarChart3, Boxes, CalendarClock, ClipboardCheck, FileSpreadsheet, FileText, FolderOpen, History, Home, Inbox, ListChecks, Map, MoreHorizontal, Route, Search, ShieldCheck, Tag, Undo2, Upload, Users, X } from 'lucide-react'
 import { Marca, MarcaIcono } from './marca'
 import { PaletaBusqueda } from './paleta-busqueda'
 import { NAV_ACTIVO, NAV_INACTIVO } from '@/components/estilos-opcion'
@@ -12,7 +12,7 @@ import { hrefActivo, type IconoNav, type ItemMenu, type SeccionMenu } from '@/do
 
 export type ItemNav = ItemMenu
 
-const ICONOS: Record<IconoNav, typeof Home> = { nuevasalida: PackagePlus, guias: FileSearch, ranking: Trophy, inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload, revision: ListChecks, reportes: BarChart3, pedidos: ClipboardList, rutas: Route, documentos: FileText, salidas: PackageOpen, picking: ScanLine, conformidad: BadgeCheck, embalaje: Package, cargaunidad: Truck, bajas: PackageX, retornos: Undo2, inspeccion: ClipboardCheck }
+const ICONOS: Record<IconoNav, typeof Home> = { nuevasalida: PackagePlus, guias: FileSearch, ranking: Trophy, inicio: Home, almacen: Map, entradas: Inbox, productos: Boxes, calidad: ShieldCheck, alertas: Bell, expedientes: FolderOpen, propietarios: Users, auditoria: History, movimientos: ArrowLeftRight, conteos: ClipboardCheck, kardex: FileSpreadsheet, vencimientos: CalendarClock, carga: Upload, revision: ListChecks, reportes: BarChart3, pedidos: ClipboardList, rutas: Route, documentos: FileText, salidas: PackageOpen, picking: ScanLine, conformidad: BadgeCheck, embalaje: Package, cargaunidad: Truck, bajas: PackageX, retornos: Undo2, inspeccion: ClipboardCheck, rotulo: Tag }
 
 /** Punto de aviso sobre el ícono (la cantidad exacta va en texto en la barra ancha y en el menú «Más»). */
 function Punto({ n }: { n?: number }) {

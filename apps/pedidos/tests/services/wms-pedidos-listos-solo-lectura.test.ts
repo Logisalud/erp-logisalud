@@ -41,10 +41,17 @@ describe("la ruta del WMS no escribe nada", () => {
 const llamadas: string[] = [];
 const tablas: Record<string, unknown[]> = {};
 
+/** Tope por respuesta de la base falsa (como el `max-rows` de PostgREST): 0 = sin tope. */
+let topePorRespuesta = 0;
+
 function constructor(tabla: string) {
   const b: Record<string, unknown> = {};
-  const anotar = (m: string) => (..._: unknown[]) => {
+  let rango: [number, number] | null = null;
+  let soloContar = false;
+  const anotar = (m: string) => (...args: unknown[]) => {
     llamadas.push(`${tabla}.${m}`);
+    if (m === "range") rango = [Number(args[0]), Number(args[1])];
+    if (m === "select" && (args[1] as { head?: boolean } | undefined)?.head) soloContar = true;
     return b;
   };
   for (const m of ["select", "in", "eq", "order", "range"]) b[m] = anotar(m);
@@ -54,7 +61,13 @@ function constructor(tabla: string) {
       throw new Error(`escritura prohibida: ${tabla}.${m}`);
     };
   }
-  b.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: tablas[tabla] ?? [], error: null }).then(ok);
+  b.then = (ok: (v: unknown) => unknown) => {
+    const todos = tablas[tabla] ?? [];
+    if (soloContar) return Promise.resolve({ data: null, count: todos.length, error: null }).then(ok);
+    let data = rango ? todos.slice(rango[0], rango[1] + 1) : todos;
+    if (topePorRespuesta > 0) data = data.slice(0, topePorRespuesta);
+    return Promise.resolve({ data, error: null }).then(ok);
+  };
   return b;
 }
 
@@ -109,6 +122,23 @@ describe("cargarPedidosListosParaWms con un cliente falso", () => {
     const metodos = new Set(llamadas.map((l) => l.split(".").pop()));
     for (const m of metodos) expect(["select", "in", "eq", "order", "range"]).toContain(m);
     expect(llamadas.some((l) => /insert|update|delete|upsert|rpc/.test(l))).toBe(false);
+  });
+
+  it("si la base corta cada respuesta antes del tamaño de página, sigue pidiendo hasta que no queden pedidos (no se pierden los últimos)", async () => {
+    const base = (tablas.orders as Record<string, unknown>[])[0];
+    tablas.orders = Array.from({ length: 11 }, (_, i) => ({ ...base, id: `p${i + 1}`, numero: 100 + i }));
+    topePorRespuesta = 4;   // como un `max-rows` bajo en PostgREST: 4, 4 y 3 filas, no 1000
+    try {
+      const r = await cargarPedidosListosParaWms(new Date("2026-11-07T15:00:00Z"));
+      expect(r.pedidos.map((x) => x.numero)).toEqual(Array.from({ length: 11 }, (_, i) => String(100 + i)));
+    } finally {
+      topePorRespuesta = 0;
+    }
+  });
+
+  it("entrega `total_listos`: cuántos cuenta la base, para que el WMS note si algo se cortó", async () => {
+    const r = await cargarPedidosListosParaWms(new Date("2026-11-07T15:00:00Z"));
+    expect(r.total_listos).toBe(1);
   });
 
   it("filtra por los estados del contrato y nunca consulta tablas fuera de la lista de lectura", async () => {
