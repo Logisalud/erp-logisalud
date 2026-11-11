@@ -1,34 +1,22 @@
-# Rankings mensuales de auxiliares de almacén (decisión de Sebas, 2026-11-11)
+# Rankings mensuales de auxiliares de almacén (Sebas, 2026-11-11: «algo más simple»)
 
-Son **dos rankings separados**, cada uno con productividad y calidad. **Quién entra:** los auxiliares de almacén y Sandra; **no entran los jefes ni el transportista.** **Periodo:** el mes. **Premio:** el 1.º gana un día libre entero y el 2.º, medio día (ver «Pendiente»: si es por cada ranking o uno solo).
+Dos rankings separados (picking y conformidad). **Entran** los auxiliares de almacén y Sandra; **no entran los jefes ni el transportista.** Periodo: el mes. Premio: 1.º día libre, 2.º medio día (ver «Pendiente»).
 
-La calidad de cada ranking la mide **el filtro que sigue**: al picking lo juzga la conformidad (y después el transporte); a la conformidad la juzga el transporte, que es el tercer filtro, cuando detecta un error posterior.
+## La regla, en una frase para el equipo
 
-## Cómo se mide (lo que se les explica al equipo)
+> **Cada pedido suma puntos según qué tan grande es; cada error resta. Gana quien más puntos tenga en el mes.**
 
-> **Hay dos rankings. En los dos pesan dos cosas: cuánto y qué tan rápido trabajas, y que no se te escapen errores.**
->
-> **Ranking de picking.** Cada pedido que picas vale más si es más grande (más productos y más volumen), y cuenta el tiempo que tardas. Tu calidad es el porcentaje de tus pedidos que salen sin diferencias (cantidad, descripción, lote y documento), lo encuentre quien da la conformidad o aparezca después, al cargar o en la entrega.
->
-> **Ranking de conformidad.** Cada pedido que verificas vale igual según su tamaño, y cuenta el tiempo que tardas. Tu calidad es que no se te escape nada: si después, al cargar el vehículo, el transportista detecta un error en un pedido que diste por conforme, baja tu calidad.
->
-> En los dos hay una **calidad mínima** para entrar al premio (aunque seas el más rápido) y un **mínimo de pedidos** en el mes. Gana quien, cumpliendo eso, trabaja más y más rápido.
-
-## Reglas para el sistema
-
-- **Puerta de calidad (cada ranking):** picking ≥ 99 % de pedidos sin diferencia; conformidad ≥ 99 % de pedidos verificados sin error posterior. Parametrizable.
-- **Mínimo de pedidos (recomendado), en cada ranking:** la mitad de lo que hizo el promedio del equipo ese mes en ese rol, y nunca menos de 20. Parametrizable.
-- **Puntaje de carga por pedido:** categoría por número de productos (A = 1, B = 2–5, C = 6–9, D = 10 o más) por volumen (S, M, L, XL, calculado desde unidades y bultos con umbrales configurables). Lo calcula el sistema.
-- **Productividad:** puntos de carga ÷ tiempo efectivo, de los registros del sistema (hora inicial y final del picking; inicio y fin de la conformidad).
-- **Calidad del picking:** pedidos sin diferencia ÷ pedidos picados. Una diferencia se cuenta contra quien picó sin importar quién la detectó (conformidad, carga, entrega o devolución).
-- **Calidad de la conformidad:** pedidos sin error posterior ÷ pedidos verificados. Un error posterior es una «Diferencia detectada en la carga» (o una incidencia de entrega atribuible al pedido) en un pedido que ya tenía conformidad; se cuenta contra quien dio esa conformidad. No hay bono por rechazar: así nadie gana por rechazar de más.
-- **Transportista:** registra «Diferencia detectada en la carga» con motivo; no entra a ningún ranking.
-- **Lo que el sistema ya sabe no se pide:** fecha, propietario, cliente, guía, horas, categoría, tipo (Lima/Provincia) y responsables.
-- En la pantalla de conformidad solo se agrega lo que el sistema no sabe: pedido conforme sí/no y el tipo de diferencia (cantidad, descripción, lote, documento); el n.º de bultos ya existe.
-- Pantalla «Ranking del mes» con las dos tablas, calculadas solas, y el detalle por persona.
+## Puntos (los mismos números que ya usan hoy, ahora en una sola tabla)
+- **Pedido:** categoría (A = 1, B = 3, C = 6, D = 10) **+** tamaño (S = 1, M = 2, L = 4, XL = 6). Provincia **×2**; Revisión **×0,5**; Lima **×1**.
+- **Picking:** suma los puntos de cada pedido que picó; **−15 por cada error** (cantidad, descripción, lote o documento) y **−80 por cada mal despacho** (error que llegó al cliente).
+- **Conformidad:** suma los puntos de cada pedido que verificó; **+10 por cada error que filtró** (lo detectó antes de salir); **−80 por cada mal despacho** de un pedido que dio por conforme, incluido el error que el transportista detecta al cargar.
+- **Sin bonos de mes, sin puertas, sin tablas aparte.** Para entrar al ranking: mínimo de **20 pedidos** en el mes en ese rol.
+- Lo calcula el sistema desde sus registros: categoría (número de productos), tamaño (unidades y bultos, umbrales configurables), tipo (ubigeo), quién picó y quién conformó, errores y mal despacho. No se vuelve a escribir nada que el sistema ya sabe.
+- Los valores salen de una tabla de parámetros que se puede cambiar sin tocar el código.
+- No se usa el tiempo hoy (en la hoja actual las horas estaban vacías). Se puede sumar después.
 
 ## Pendiente
-- ¿El premio es 1.º día libre y 2.º medio día **en cada ranking**, o uno solo de los dos? (Si una persona gana ambos, no se acumula más de un día.)
+- ¿El premio es por cada ranking o uno solo cuenta para el día libre? (Si una persona gana ambos, no acumula más de un día.)
 
-## Pendiente de construir (en este orden)
-1. Pantalla de conformidad con los datos de la hoja que faltan. 2. Botón «Diferencia detectada en la carga». 3. Los dos rankings del mes. 4. Inspecciones LS-FR.49.03 (vehículo) y LS-FR.52.03 (limpieza): conductor y auxiliar (uno hace, el otro supervisa), firma dibujada del conductor y de la Dirección Técnica, descarga en Word del formato mensual de la placa con lo marcado hasta ese día; **no bloquean la salida a ruta**.
+## Por construir (en este orden)
+1. Conformidad: «pedido conforme sí/no» y el tipo de diferencia (cantidad, descripción, lote, documento). 2. «Diferencia detectada en la carga». 3. Los dos rankings del mes. 4. Inspecciones LS-FR.49.03 y LS-FR.52.03 (conductor y auxiliar, firma dibujada, descarga en Word del formato mensual; no bloquean la salida).
