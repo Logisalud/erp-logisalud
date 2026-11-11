@@ -59,7 +59,7 @@ export function ConformidadOrden({ orden, roles, personaId, personal, puedeDesig
         <p className="mt-1 text-sm text-gray-700" data-testid="quien-pico">{orden.pickerId ? <>Pickeó <strong>{orden.picker ?? 'la persona indicada'}</strong>.</> : 'Todavía no se indicó quién pickeó.'}</p>
       </header>
 
-      {!hecha && orden.pickerId && <div className="rounded-xl border border-gray-200 bg-white p-3"><TomaConformidad orden={orden} roles={roles} personaId={personaId} personal={personal} /></div>}
+      {!hecha && orden.pickerId && <div className="rounded-xl border border-gray-200 bg-white p-3"><TomaConformidad orden={orden} roles={roles} personaId={personaId} /></div>}
       {hecho && <Aviso tipo="ok" testid="conformidad-hecha">{hecho}</Aviso>}
       {!hecho && hecha && <Aviso tipo="ok" testid="conformidad-ya-dada">Esta orden ya tiene su conformidad{orden.bultosConformidad ? `: ${orden.bultosConformidad} ${orden.bultosConformidad === 1 ? 'bulto' : 'bultos'}` : ''}.</Aviso>}
       {!hecha && !orden.pickerId && <PickerSelector orden={orden} personal={personal} puedeDesignar={puedeDesignar} />}

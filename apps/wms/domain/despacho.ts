@@ -230,10 +230,9 @@ export interface OrdenPickingResumen {
   observadas: number
   discrepancias: number
   generadaEn: string
-  /** 0060: quién tiene tomada la conformidad (nadie más la da mientras tanto) y, si la asignó un Jefe, quién. */
+  /** 0060: quién tiene tomada la conformidad (nadie más la da mientras tanto). */
   conformidadTomadaPor?: string
   conformidadTomadaNombre?: string
-  conformidadAsignadaPor?: string
   /** Quién hace el picking (se elige al imprimir la orden o al iniciarla). */
   pickerId?: string
   picker?: string
@@ -315,7 +314,7 @@ export function motivoNoPuedeConformar(roles: readonly Rol[], personaId: string,
   if (!puedeDarConformidad(roles)) return 'No tienes permiso para dar la conformidad'
   if (ordenSinPicker) return 'Antes de la conformidad se indica quién hizo el picking'
   if (pickerId && pickerId === personaId) return 'La conformidad la da otra persona, no quien hizo el picking'
-  if (tomada?.por && tomada.por !== personaId) return `La tomó ${tomada.nombre ?? 'otra persona'} para la conformidad: si hace falta, el Jefe la reasigna`
+  if (tomada?.por && tomada.por !== personaId) return `La tomó ${tomada.nombre ?? 'otra persona'} para la conformidad: si hace falta, que la suelte o el Jefe`
   return null
 }
 
@@ -326,8 +325,8 @@ export const tomaDeConformidad = (o: Pick<OrdenPickingResumen, 'conformidadTomad
 export function motivoNoPuedeTomar(roles: readonly Rol[], personaId: string, o: Pick<OrdenPickingResumen, 'pickerId' | 'conformidadTomadaPor' | 'conformidadTomadaNombre'>): string | null {
   if (!puedeDarConformidad(roles)) return 'No tienes permiso para dar la conformidad'
   if (o.pickerId && o.pickerId === personaId) return 'La conformidad la da otra persona, no quien hizo el picking'
-  if (o.conformidadTomadaPor && o.conformidadTomadaPor !== personaId) return `La tomó ${o.conformidadTomadaNombre ?? 'otra persona'}: pídele al Jefe que la reasigne`
+  if (o.conformidadTomadaPor && o.conformidadTomadaPor !== personaId) return `La tomó ${o.conformidadTomadaNombre ?? 'otra persona'}: pídele que la suelte (o avisa al Jefe si no está)`
   return null
 }
-/** El Jefe (quien prepara salidas) puede asignar o soltar la conformidad de cualquiera. */
-export const puedeAsignarConformidad = (roles: readonly Rol[]) => puede(roles, 'preparar_salidas')
+/** La suelta quien la tomó; un Jefe (quien prepara salidas) también, si alguien la dejó tomada y no está. El Jefe no la asigna. */
+export const puedeSoltarConformidadAjena = (roles: readonly Rol[]) => puede(roles, 'preparar_salidas')

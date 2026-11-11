@@ -1,4 +1,4 @@
-// «Editar» la Orden de Salida (migración 0059): qué se puede cambiar según DE DÓNDE viene la orden y EN QUÉ ETAPA está. Puro: lo usan la demo, la pantalla y las acciones;
+// «Editar» la Orden de Salida (migración 0059): solo una orden MANUAL (la que viene de Pedidos se cambia en Pedidos); qué se puede cambiar según EN QUÉ ETAPA está. Puro: lo usan la demo, la pantalla y las acciones;
 // la base (`wms.editar_orden_salida`) aplica las mismas reglas y manda.
 import { puedePrepararSalidas, type SalidaVista } from './despacho'
 import { validarUbigeo } from './salida-manual'
@@ -7,9 +7,9 @@ import type { Rol } from './tipos'
 export const puedeEditarOrden = (roles: readonly Rol[]) => puedePrepararSalidas(roles)
 
 export interface ReglasEdicion {
-  /** La orden está abierta y la persona puede editar algo. */
+  /** La orden es manual, está abierta y la persona puede editar algo. Una orden que viene de Pedidos no se edita aquí. */
   editable: boolean
-  /** La nota se puede cambiar siempre que la orden esté abierta. */
+  /** La nota de una orden manual se puede cambiar mientras esté abierta. */
   nota: boolean
   /** El destinatario escrito a mano y las cantidades de las líneas: solo una orden manual, sin pedido unido, antes del picking y sin guía. */
   estructura: boolean
@@ -17,16 +17,15 @@ export interface ReglasEdicion {
   motivoSinEstructura: string | null
 }
 
-export const MOTIVO_DE_PEDIDO = 'Esta orden viene de un pedido: sus productos y cantidades cambian desde Pedidos (llega como versión nueva). Aquí puedes cambiar la nota y los lotes.'
 export const MOTIVO_CON_PICKING = 'La orden ya empezó el picking: no se cambian sus líneas ni su destinatario desde aquí.'
 export const MOTIVO_CON_GUIA = 'La orden ya tiene su guía: no se cambian sus líneas ni su destinatario.'
 
 export function reglasDeEdicion(s: Pick<SalidaVista, 'estado' | 'creadaDesde' | 'origen' | 'conPedido' | 'ordenPickingId' | 'guia' | 'clienteManual' | 'sinPedido'>, roles: readonly Rol[]): ReglasEdicion {
   const abierta = s.estado === 'ABIERTA'
-  const puede = abierta && puedeEditarOrden(roles)
-  // Una orden manual que ya recibió su pedido (conPedido) pasa a seguir a Pedidos: sus líneas vienen de ahí.
+  // Una orden manual que ya recibió su pedido (conPedido) pasa a seguir a Pedidos: ya no se edita aquí.
   const deMano = s.creadaDesde === 'MANUAL' && !s.conPedido && !!s.clienteManual
-  const motivo = !deMano ? MOTIVO_DE_PEDIDO : s.ordenPickingId ? MOTIVO_CON_PICKING : s.guia ? MOTIVO_CON_GUIA : null
+  const puede = abierta && deMano && puedeEditarOrden(roles)
+  const motivo = s.ordenPickingId ? MOTIVO_CON_PICKING : s.guia ? MOTIVO_CON_GUIA : null
   return { editable: puede, nota: puede, estructura: puede && motivo === null, motivoSinEstructura: puede ? motivo : null }
 }
 

@@ -18,7 +18,7 @@ function ChipEstadoGuia({ estado }: { estado: EstadoGuiaBusqueda }) {
   const m = ({
     PRE_GUIA: { cls: CHIP_AVISO, Icono: Hourglass }, LISTA_PARA_ENVIAR: { cls: CHIP_OK, Icono: CheckCircle2 }, CANCELADA: { cls: ROJO, Icono: XCircle },
     ACEPTADA: { cls: CHIP_OK, Icono: CheckCircle2 }, ENVIADA: { cls: CHIP_AVISO, Icono: Hourglass }, RECHAZADA: { cls: ROJO, Icono: XCircle },
-    ANULADA: { cls: ROJO, Icono: XCircle }, REGISTRADA: { cls: CHIP_NEUTRO, Icono: TriangleAlert },
+    ANULADA: { cls: ROJO, Icono: XCircle }, REGISTRADA: { cls: CHIP_NEUTRO, Icono: TriangleAlert }, DECLARADA: { cls: CHIP_AVISO, Icono: TriangleAlert },
   } satisfies Record<EstadoGuiaBusqueda, { cls: string; Icono: typeof XCircle }>)[estado]
   return <span className={`${base} ${m.cls}`} data-testid="chip-estado-guia" data-estado={estado}><m.Icono className="h-3.5 w-3.5" aria-hidden />{ETIQUETA_ESTADO_GUIA[estado]}</span>
 }

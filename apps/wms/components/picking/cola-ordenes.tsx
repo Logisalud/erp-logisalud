@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ChevronRight, ClipboardCheck, PackageCheck } from 'lucide-react'
-import { avancePicking, type OrdenPickingResumen, type PersonaPicking } from '@/domain/despacho'
+import { avancePicking, type OrdenPickingResumen } from '@/domain/despacho'
 import type { Rol } from '@/domain/tipos'
 import { TomaConformidad } from './toma-conformidad'
 
@@ -12,7 +12,7 @@ const Barra = ({ o }: { o: OrdenPickingResumen }) => (
 )
 
 /** La cola de trabajo: picking (qué falta pickear) o conformidad (qué falta verificar). */
-export function ColaOrdenes({ ordenes, modo, roles = [], personaId = '', personal = [] }: { ordenes: OrdenPickingResumen[]; modo: 'picking' | 'conformidad'; roles?: readonly Rol[]; personaId?: string; personal?: PersonaPicking[] }) {
+export function ColaOrdenes({ ordenes, modo, roles = [], personaId = '' }: { ordenes: OrdenPickingResumen[]; modo: 'picking' | 'conformidad'; roles?: readonly Rol[]; personaId?: string }) {
   const base = modo === 'picking' ? '/picking' : '/conformidad'
   const Icono = modo === 'picking' ? ClipboardCheck : PackageCheck
   if (ordenes.length === 0) {
@@ -42,7 +42,7 @@ export function ColaOrdenes({ ordenes, modo, roles = [], personaId = '', persona
             </div>
             {o.discrepancias > 0 && <p className="mt-2 text-xs font-medium text-amber-900">{o.discrepancias} {o.discrepancias === 1 ? 'línea con discrepancia' : 'líneas con discrepancia'}</p>}
           </Link>
-          {modo === 'conformidad' && <div className="mt-2 rounded-xl border border-gray-200 bg-white p-3"><TomaConformidad orden={o} roles={roles} personaId={personaId} personal={personal} compacto /></div>}
+          {modo === 'conformidad' && <div className="mt-2 rounded-xl border border-gray-200 bg-white p-3"><TomaConformidad orden={o} roles={roles} personaId={personaId} compacto /></div>}
         </li>
       ))}
     </ul>

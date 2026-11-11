@@ -118,7 +118,7 @@ describe('Orden de Salida (demo)', () => {
 
 describe('tomar para conformidad (demo, espejo de la migración 0060)', () => {
   const OTRO = actor('auxiliar_b', 'auxiliar')   // otro auxiliar: puede conformar, pero no es Jefe
-  it('quien picó no la toma; quien la tomó es el único que la conforma; el Jefe la asigna o la suelta', async () => {
+  it('quien picó no la toma; quien la tomó es el único que la conforma; el Jefe no la asigna (solo la suelta si alguien la dejó tomada)', async () => {
     const { orden: o } = await orden('demo:auxiliar')
     expect(await repo.tomarParaConformidad(o.id, AUX)).toMatchObject({ ok: false, mensaje: expect.stringContaining('no quien hizo el picking') })
     expect(await repo.tomarParaConformidad(o.id, actor('conductor', 'conductor'))).toMatchObject({ ok: false, mensaje: expect.stringContaining('permiso') })
@@ -130,13 +130,8 @@ describe('tomar para conformidad (demo, espejo de la migración 0060)', () => {
     expect(await repo.soltarConformidad(o.id, OTRO)).toMatchObject({ ok: false, mensaje: expect.stringContaining('Solo quien la tomó o un Jefe') })
     expect(await repo.soltarConformidad(o.id, JT)).toEqual({ ok: true })                  // un Jefe puede soltar la de otro
     expect((await repo.colaConformidad())[0].conformidadTomadaPor).toBeUndefined()
-    expect(await repo.asignarConformidad(o.id, SANDRA.id, SANDRA)).toMatchObject({ ok: false, mensaje: 'Solo un Jefe asigna la conformidad' })
-    expect(await repo.asignarConformidad(o.id, 'demo:auxiliar', JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('no puede dar esta conformidad') })   // picó
-    expect(await repo.asignarConformidad(o.id, SANDRA.id, JT)).toEqual({ ok: true })
+    expect(await repo.tomarParaConformidad(o.id, SANDRA)).toEqual({ ok: true })
     expect(await repo.conformarOrden(o.id, [], 2, undefined, SANDRA)).toMatchObject({ ok: true })
     expect(await repo.tomarParaConformidad(o.id, OTRO)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya tiene su conformidad') })
-  })
-  it('los auxiliares y los jefes pueden dar la conformidad (reunión del 10-nov) y aparecen para asignarla', async () => {
-    expect((await repo.personalParaConformidad()).map((p) => p.id)).toEqual(expect.arrayContaining(['demo:auxiliar', 'demo:jefe_almacen', 'demo:jefe_transporte', 'demo:asistente_dt']))
   })
 })

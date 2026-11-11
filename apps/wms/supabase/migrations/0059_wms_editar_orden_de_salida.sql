@@ -1,10 +1,10 @@
 -- 0059 · «Editar» la Orden de Salida (Jefe de Almacén y quien tenga `preparar_salidas`; pedido de Sebas, reunión del 10-nov, punto 1c).
 --
--- Reglas por ORIGEN y por ETAPA:
---   · La NOTA de la orden se puede cambiar mientras la orden esté abierta, de donde venga y en la etapa que esté (queda el antes y el después en la auditoría).
---   · Una orden MANUAL (sin pedido unido) que todavía no empezó el picking ni tiene guía admite además cambiar el destinatario y las CANTIDADES de sus líneas (con motivo): lo reservado
---     se suelta o se vuelve a asignar por FEFO. Quitar o agregar productos se hace cancelando la orden y creando otra.
---   · Una orden que viene de PEDIDOS: productos y cantidades se cambian desde Pedidos (llega una versión nueva y el WMS la aplica); aquí solo la nota (y los lotes, que ya tienen su editor).
+-- Solo se edita una orden MANUAL (decisión de Sebas, 11-nov). Una orden que viene de Pedidos se cambia en Pedidos (llega una versión nueva y el WMS la aplica); sus lotes tienen su propio editor.
+-- Reglas por ETAPA, en una orden manual (sin pedido unido):
+--   · La NOTA se puede cambiar mientras la orden esté abierta, en la etapa que esté (queda el antes y el después en la auditoría).
+--   · Si todavía no empezó el picking ni tiene guía, además el destinatario y las CANTIDADES de sus líneas (con motivo): lo reservado se suelta o se vuelve a asignar por FEFO.
+--     Quitar o agregar productos se hace cancelando la orden y creando otra.
 --   · Cambiar líneas o destinatario una vez que el picking empezó (devolver la orden al paso anterior) NO se hace aquí: mueve stock físico y queda como decisión pendiente.
 -- Aditiva y re-ejecutable. Se aplica a mano (nunca al mergear).
 
@@ -26,8 +26,8 @@ begin
   v_guia := exists (select 1 from wms.guias_remision g where g.salida_id = p_salida and g.estado = 'VIGENTE');
   v_cambia_estructura := p_cambios ? 'lineas' or p_cambios ? 'destinatario';
 
+  if v_de_pedido then raise exception 'Esta orden viene de un pedido: se cambia desde Pedidos (llega como versión nueva). Los lotes se cambian en cada línea' using errcode = 'P0001'; end if;
   if v_cambia_estructura then
-    if v_de_pedido then raise exception 'Esta orden viene de un pedido: sus productos y cantidades cambian desde Pedidos (llega como versión nueva). Aquí puedes cambiar la nota y los lotes' using errcode = 'P0001'; end if;
     if v_picking then raise exception 'La orden ya empezó el picking: no se cambian sus líneas ni su destinatario desde aquí' using errcode = 'P0001'; end if;
     if v_guia then raise exception 'La orden ya tiene su guía: no se cambian sus líneas ni su destinatario' using errcode = 'P0001'; end if;
     if v_motivo is null or length(v_motivo) < 5 then raise exception 'Escribe por qué cambias la orden (al menos 5 letras)' using errcode = 'P0001'; end if;

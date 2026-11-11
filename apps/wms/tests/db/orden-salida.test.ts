@@ -272,9 +272,8 @@ describe('la migración 0023', () => {
 describe('tomar para conformidad (0060)', () => {
   const tomar = (quien: string, op: string) => como(quien, async (c) => (await c.query('select wms.tomar_para_conformidad($1) r', [op])).rows[0].r as { tomada_por: string })
   const soltar = (quien: string, op: string) => como(quien, async (c) => (await c.query('select wms.soltar_conformidad($1) r', [op])).rows[0].r as boolean)
-  const asignar = (quien: string, op: string, persona: string) => como(quien, async (c) => (await c.query('select wms.asignar_conformidad($1, $2) r', [op, persona])).rows[0].r as { tomada_por: string })
   const nueva = async () => { const prod = await producto(); await sembrar(prod, 'F-1.1', `TC-${randomUUID().slice(0, 4)}`, en(300), 50); return orden(prod, 5, { picker: aux1 }) }
-  const dueno = async (op: string) => (await uno('select conformidad_tomada_por p, conformidad_asignada_por a from wms.ordenes_picking where id = $1', [op])) as { p: string | null; a: string | null }
+  const dueno = async (op: string) => (await uno('select conformidad_tomada_por p from wms.ordenes_picking where id = $1', [op])) as { p: string | null }
 
   it('quien tomó la orden es el único que la conforma; quien picó no la toma; otra persona no la roba', async () => {
     const o = await nueva()
@@ -288,17 +287,15 @@ describe('tomar para conformidad (0060)', () => {
     expect((await uno(`select count(*)::int n from wms.audit_events where evento = 'conformidad_tomada' and entidad_id = $1`, [o.op])).n).toBe(1)
   })
 
-  it('el Jefe la asigna o la suelta; solo quien la tomó (o un Jefe) la suelta; no se asigna a quien picó ni a quien no puede', async () => {
+  it('solo quien la tomó (o un Jefe, si la dejaron tomada) la suelta; el Jefe no la asigna; y libre otra persona la toma', async () => {
     const o = await nueva()
-    expect((await falla(asignar(aux2, o.op, sandra))).message).toMatch(/Solo un Jefe asigna/)
-    expect((await falla(asignar(jt, o.op, aux1))).message).toMatch(/no puede dar esta conformidad/)           // picó
-    expect((await falla(asignar(jt, o.op, base.personas.sinRol.id))).message).toMatch(/no puede dar esta conformidad/)
-    expect(await asignar(jt, o.op, aux2)).toEqual({ tomada_por: aux2 }); expect(await dueno(o.op)).toEqual({ p: aux2, a: jt })
+    await expect(como(jt, (c) => c.query('select wms.asignar_conformidad($1, $2)', [o.op, aux2]))).rejects.toThrow()   // ya no existe: cada quien toma la suya
+    expect(await tomar(aux2, o.op)).toEqual({ tomada_por: aux2 })
     expect((await falla(soltar(sandra, o.op))).message).toMatch(/Solo quien la tomó o un Jefe/)
-    expect(await soltar(aux2, o.op)).toBe(true); expect(await dueno(o.op)).toEqual({ p: null, a: null })
+    expect(await soltar(aux2, o.op)).toBe(true); expect(await dueno(o.op)).toEqual({ p: null })
     expect(await soltar(aux2, o.op)).toBe(false)                                // ya estaba libre
     await tomar(sandra, o.op)
-    expect(await soltar(jt, o.op)).toBe(true)                                   // un Jefe puede soltar la de otro
+    expect(await soltar(jt, o.op)).toBe(true)                                   // un Jefe puede soltar la que dejaron tomada
     expect(await tomar(aux2, o.op)).toEqual({ tomada_por: aux2 })
   })
 

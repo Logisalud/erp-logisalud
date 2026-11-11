@@ -67,7 +67,6 @@ export async function reenviarAvisosPedidosAccion(salidaId?: string) { return en
 export async function ejecutarDevolucionPickingAccion(salidaId: string) { return repositorio().ejecutarDevolucionPicking(salidaId, await quien()) }
 export async function verificarDevolucionPickingAccion(salidaId: string) { return repositorio().verificarDevolucionPicking(salidaId, await quien()) }
 
-/** 0060: «Tomar para conformidad»: mientras la tengas tomada, nadie más da la conformidad; la suelta quien la tomó o un Jefe, y el Jefe también la asigna. */
+/** 0060: «Tomar para conformidad»: mientras la tengas tomada, nadie más da la conformidad; la suelta quien la tomó (o un Jefe, si alguien la dejó tomada). El Jefe no la asigna. */
 export async function tomarParaConformidadAccion(ordenId: string) { return repositorio().tomarParaConformidad(ordenId, await quien()) }
 export async function soltarConformidadAccion(ordenId: string) { return repositorio().soltarConformidad(ordenId, await quien()) }
-export async function asignarConformidadAccion(ordenId: string, personaId: string) { return repositorio().asignarConformidad(ordenId, personaId, await quien()) }

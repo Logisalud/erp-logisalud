@@ -106,21 +106,20 @@ describe('editar la orden (0059)', () => {
     expect(await reservado(l.id)).toBe(10)   // lo que falló no tocó nada
   })
 
-  it('una orden de un pedido solo admite la nota; con el picking empezado tampoco se cambian líneas; cancelada, nada', async () => {
+  it('una orden de un pedido no se edita (ni la nota); una manual con el picking empezado admite solo la nota; cancelada, nada', async () => {
     const p = await producto(); await stock(p.id, 'E3-A', en(300), 100)
     const ped = pedido(p.codigo, 20); await importar([ped])
     const deBand = (await deBandeja(ja, ped)).salida_id as string
-    expect((await falla(editar(ja, deBand, { lineas: [{ linea_id: (await lineasDe(deBand))[0].id, cantidad: 5 }] }, 'Cambio desde la orden'))).message).toMatch(/cambian desde Pedidos/)
-    expect((await falla(editar(ja, deBand, { destinatario: { razon_social: 'Otra' } }, 'Otro destino'))).message).toMatch(/cambian desde Pedidos/)
-    await editar(ja, deBand, { nota: 'Llamar antes de entregar' })
+    expect((await falla(editar(ja, deBand, { lineas: [{ linea_id: (await lineasDe(deBand))[0].id, cantidad: 5 }] }, 'Cambio desde la orden'))).message).toMatch(/se cambia desde Pedidos/)
+    expect((await falla(editar(ja, deBand, { nota: 'Llamar antes de entregar' }))).message).toMatch(/se cambia desde Pedidos/)
     // manual con picking generado
     const q2 = await producto(); await stock(q2.id, 'E3-B', en(300), 100)
     const man = await manual(jt, 'A', null, null, [{ producto_id: q2.id, cantidad: 10 }], { pedido: 'PED-E-003', cliente: CLIENTE })
     await como(jt, (c) => c.query('select wms.generar_orden_picking($1)', [man]))
     expect((await falla(editar(ja, man, { lineas: [{ linea_id: (await lineasDe(man))[0].id, cantidad: 5 }] }, 'Cambio con picking'))).message).toMatch(/ya empezó el picking/)
     await editar(ja, man, { nota: 'Nota con picking' })   // la nota sí
-    await como(jt, (c) => c.query('select wms.cancelar_orden_salida($1, $2)', [deBand, 'Se canceló']))
-    expect((await falla(editar(ja, deBand, { nota: 'ya no' }))).message).toMatch(/ya no está abierta/)
+    await como(jt, (c) => c.query('select wms.cancelar_orden_salida($1, $2)', [man, 'Se canceló']))
+    expect((await falla(editar(ja, man, { nota: 'ya no' }))).message).toMatch(/ya no está abierta/)
   })
 })
 

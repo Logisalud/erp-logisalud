@@ -398,4 +398,9 @@ describe('editar la orden (demo, espejo de la migración 0059)', () => {
     ok(await repo.cancelarOrden(otra, 'Se canceló', JT))
     expect(await repo.editarOrden(otra, { nota: 'ya no' }, undefined, JA)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya no está abierta') })
   })
+
+  it('una orden que viene de un pedido no se edita (ni la nota): se cambia en Pedidos', async () => {
+    const r = ok(await repo.crearOrdenDePedido('ped-demo-102', JT))
+    expect(await repo.editarOrden(r.id, { nota: 'hola' }, undefined, JA)).toMatchObject({ ok: false, mensaje: expect.stringContaining('se cambia desde Pedidos') })
+  })
 })

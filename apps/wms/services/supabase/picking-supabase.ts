@@ -89,7 +89,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
       id: String(o.id), numero: String(o.numero), salidaNumero: String(sal?.numero ?? ''), pedidoNumero: ped?.numero, cliente: ped?.cliente?.nombre, rutaNumero: c.rutaPorSalida.get(String(o.salida_id)),
       estado: String(o.estado) as EstadoOrdenPicking, lineas: ls.length, unidades: ls.reduce((t, x) => t + Number(x.cantidad), 0), pickeadas: ls.filter((x) => x.picking === 'PICKEADA').length,
       conformes: ls.filter((x) => x.conformidad === 'CONFORME').length, observadas: ls.filter((x) => x.conformidad === 'OBSERVADA').length, discrepancias: ls.filter((x) => x.picking === 'DISCREPANCIA').length, generadaEn: String(o.generada_en),
-      pickerId: s(o.picker_id), conformidadTomadaPor: s(o.conformidad_tomada_por), conformidadAsignadaPor: s(o.conformidad_asignada_por),
+      pickerId: s(o.picker_id), conformidadTomadaPor: s(o.conformidad_tomada_por),
     }
   }
 
@@ -191,23 +191,12 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     return filas.map((f) => (f.conformidadTomadaPor ? { ...f, conformidadTomadaNombre: nombres.get(f.conformidadTomadaPor) ?? 'otra persona' } : f))
   }
 
-  async personalParaConformidad(): Promise<PersonaPicking[]> {
-    const { data, error } = await rpc('personal_para_conformidad', {})
-    if (error) throw new Error(mensajeHumano(error))
-    const ids = ((data ?? []) as unknown[]).map(String)
-    const nombres = await nombresDe(ids)
-    return ids.map((id) => ({ id, nombre: nombres.get(id) ?? 'Usuario' })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-  }
   async tomarParaConformidad(ordenId: string, _actor: Actor): Promise<ResultadoAccion> {
     const { error } = await rpc('tomar_para_conformidad', { p_orden: ordenId })
     return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
   }
   async soltarConformidad(ordenId: string, _actor: Actor): Promise<ResultadoAccion> {
     const { error } = await rpc('soltar_conformidad', { p_orden: ordenId })
-    return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
-  }
-  async asignarConformidad(ordenId: string, personaId: string, _actor: Actor): Promise<ResultadoAccion> {
-    const { error } = await rpc('asignar_conformidad', { p_orden: ordenId, p_persona: personaId })
     return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true }
   }
 

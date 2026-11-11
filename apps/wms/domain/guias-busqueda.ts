@@ -3,10 +3,10 @@ import { normalizar } from './busqueda'
 import type { EstadoSunat, ModoNubefact, OrigenGuia } from './guia-electronica'
 
 /** El estado que se muestra, en una sola palabra: lo que importa de la guía hoy. */
-export type EstadoGuiaBusqueda = 'PRE_GUIA' | 'LISTA_PARA_ENVIAR' | 'ACEPTADA' | 'ENVIADA' | 'RECHAZADA' | 'ANULADA' | 'REGISTRADA' | 'CANCELADA'
+export type EstadoGuiaBusqueda = 'PRE_GUIA' | 'LISTA_PARA_ENVIAR' | 'ACEPTADA' | 'ENVIADA' | 'RECHAZADA' | 'ANULADA' | 'REGISTRADA' | 'DECLARADA' | 'CANCELADA'
 export const ETIQUETA_ESTADO_GUIA: Record<EstadoGuiaBusqueda, string> = {
   PRE_GUIA: 'Pre-guía (sin enviar)', LISTA_PARA_ENVIAR: 'Lista para enviar', CANCELADA: 'Pre-guía cancelada',
-  ACEPTADA: 'Aceptada por SUNAT', ENVIADA: 'Enviada (esperando a SUNAT)', RECHAZADA: 'Rechazada por SUNAT', ANULADA: 'Anulada', REGISTRADA: 'Registrada (sin consulta a SUNAT)',
+  ACEPTADA: 'Aceptada por SUNAT', ENVIADA: 'Enviada (esperando a SUNAT)', RECHAZADA: 'Rechazada por SUNAT', ANULADA: 'Anulada', REGISTRADA: 'Registrada (sin consulta a SUNAT)', DECLARADA: 'Registrada a mano: «aceptada» lo dijo quien la registró (sin verificar)',
 }
 export const ESTADOS_GUIA_BUSQUEDA = Object.keys(ETIQUETA_ESTADO_GUIA) as EstadoGuiaBusqueda[]
 
@@ -49,7 +49,8 @@ export function estadoDeGuia(g: Pick<GuiaFila, 'anulada' | 'estadoSunat' | 'orig
   if (g.preGuia) return g.preGuia
   if (g.anulada) return 'ANULADA'
   if (g.estadoSunat === 'RECHAZADA') return 'RECHAZADA'
-  if (g.estadoSunat === 'ACEPTADA') return 'ACEPTADA'
+  // Una guía registrada a mano (emitida en el panel o en Odoo) trae «aceptada» de quien la registró: el WMS no la verificó con Nubefact ni con SUNAT.
+  if (g.estadoSunat === 'ACEPTADA') return g.origen === 'PANEL' ? 'DECLARADA' : 'ACEPTADA'
   if (g.estadoSunat === 'PENDIENTE') return 'ENVIADA'
   return 'REGISTRADA'
 }

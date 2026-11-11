@@ -36,13 +36,9 @@ describe('Editar la orden (pantalla)', () => {
     await waitFor(() => expect(acc.editarOrdenAccion).toHaveBeenCalledWith('s1', { lineas: [{ lineaId: 'l1', cantidad: 30 }] }, 'El cliente pidió menos'))
   })
 
-  it('una orden de un pedido solo ofrece la nota y explica por qué no el resto', async () => {
+  it('una orden de un pedido no ofrece «Editar»: se cambia en Pedidos', () => {
     render(<EditarOrden salida={salida({ creadaDesde: 'BANDEJA', origen: 'PEDIDO' })} roles={['jefe_almacen']} />)
-    await userEvent.click(screen.getByTestId('editar-orden-abrir'))
-    expect(screen.getByTestId('editar-orden-limite')).toHaveTextContent('cambian desde Pedidos'); expect(screen.queryByTestId('editar-destinatario')).toBeNull(); expect(screen.queryByTestId('editar-lineas')).toBeNull()
-    await userEvent.type(screen.getByTestId('editar-nota'), 'Llamar antes')
-    await userEvent.click(screen.getByTestId('editar-orden-guardar'))
-    await waitFor(() => expect(acc.editarOrdenAccion).toHaveBeenCalledWith('s1', { nota: 'Llamar antes' }, undefined))
+    expect(screen.queryByTestId('editar-orden-abrir')).toBeNull()
   })
 
   it('con el picking empezado solo la nota, con su motivo', async () => {

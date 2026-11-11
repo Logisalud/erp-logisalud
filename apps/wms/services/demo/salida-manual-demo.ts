@@ -163,6 +163,7 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
       ordenPickingId: (desp(e).picking?.ordenes ?? []).some((o) => o.salidaId === s.id && o.estado !== 'CANCELADA') ? 'hay' : undefined,
       guia: (desp(e).guias ?? []).some((g) => g.salidaId === s.id && g.guia.estado === 'VIGENTE') ? 'hay' : undefined,
     }, actor.roles)
+    if (!reglas.editable) return falla('Esta orden viene de un pedido: se cambia desde Pedidos (llega como versión nueva). Los lotes se cambian en cada línea')
     const tocaEstructura = !!cambios.destinatario || !!cambios.lineas?.length
     if (tocaEstructura && !reglas.estructura) return falla(reglas.motivoSinEstructura ?? 'Esta orden no admite ese cambio')
     const errores = validarCambiosOrden(cambios, motivo)
