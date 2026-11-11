@@ -43,12 +43,12 @@ test.describe('menú lateral (SA-4)', () => {
 
     if (!esTelefono(info)) {
       const grupo = page.locator('aside [data-seccion="salidas"] a')
-      await expect(grupo).toHaveCount(4)
-      if (esAncho(info)) await expect(grupo).toContainText(['Pedidos por despachar', 'Órdenes de salida', 'Nueva salida', 'Rutas'])
+      await expect(grupo).toHaveCount(5)
+      if (esAncho(info)) await expect(grupo).toContainText(['Pedidos por despachar', 'Órdenes de salida', 'Nueva salida', 'Rutas', 'Guías'])
       await expect(grupo.nth(2)).toHaveAttribute('href', '/wms/salidas/nueva')
     } else {
       const hoja = await abrirMas(page)
-      await expect(hoja.locator('[data-seccion="salidas"] a')).toHaveText(['Pedidos por despachar', 'Órdenes de salida', 'Nueva salida', 'Rutas'])
+      await expect(hoja.locator('[data-seccion="salidas"] a')).toHaveText(['Pedidos por despachar', 'Órdenes de salida', 'Nueva salida', 'Rutas', 'Guías'])
       await expect(hoja.getByRole('link', { name: 'Nueva salida' })).toHaveAttribute('href', '/wms/salidas/nueva')
       await page.getByRole('dialog', { name: 'Más opciones' }).getByRole('button', { name: 'Cerrar', exact: true }).last().click()
     }
@@ -75,7 +75,7 @@ test.describe('menú lateral (SA-4)', () => {
     await expect(page.locator('a[href="/wms/salidas/nueva"]')).toHaveCount(0)
     await expect(page.locator('a[href="/wms/rutas"]')).toHaveCount(0)
     await expect(page.locator('a[href="/wms/picking"]').first()).toBeAttached()
-    await expect(menu.locator('[data-seccion="salidas"] a')).toHaveCount(1)  // solo «Órdenes de salida» (lectura)
+    await expect(menu.locator('[data-seccion="salidas"] a')).toHaveCount(2)  // solo lectura: «Órdenes de salida» y «Guías»
     await capturar(page, info, 'menu-lateral-auxiliar')
     if (esTelefono(info)) await page.getByRole('dialog', { name: 'Más opciones' }).getByRole('button', { name: 'Cerrar', exact: true }).last().click()
 
