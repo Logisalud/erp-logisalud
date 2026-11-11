@@ -41,7 +41,7 @@ describe('Orden de Salida (demo)', () => {
     expect(await repo.conformarOrden(o.id, [], 2, undefined, SANDRA)).toMatchObject({ ok: false, mensaje: expect.stringContaining('se indica quién hizo el picking') })
     await repo.designarPicker(o.id, 'demo:asistente_dt', JT)
     await repo.designarPicker(o.id, 'demo:auxiliar', JT)
-    expect(await repo.conformarOrden(o.id, [], 2, undefined, AUX)).toMatchObject({ ok: false, mensaje: 'No tienes permiso para dar la conformidad' })
+    expect(await repo.conformarOrden(o.id, [], 2, undefined, actor('conductor', 'conductor'))).toMatchObject({ ok: false, mensaje: 'No tienes permiso para dar la conformidad' })
     expect(await repo.conformarOrden(o.id, [], 0, undefined, SANDRA)).toMatchObject({ ok: false, mensaje: 'Registra el número de bultos (cajas master): de 1 a 99' })
     const antes = (await repo.panorama()).saldos.reduce((t, x) => t + x.cantidad, 0)
     expect(await repo.conformarOrden(o.id, [], 2, 'Todo coincide', SANDRA)).toMatchObject({ ok: true, unidades: 26, bultos: 2, ajustes: 0, requiereEmbalaje: true })
@@ -113,5 +113,30 @@ describe('Orden de Salida (demo)', () => {
     const v = (await repo.obtenerOrdenPicking(o.id))!
     expect(v.ajustes[0]).toMatchObject({ tipo: 'OTRO_LOTE', loteDespues: otro.lote })
     expect(v.lineasDetalle.some((l) => l.lote === otro.lote && l.conformidad === 'CONFORME')).toBe(true)
+  })
+})
+
+describe('tomar para conformidad (demo, espejo de la migración 0060)', () => {
+  const OTRO = actor('auxiliar_b', 'auxiliar')   // otro auxiliar: puede conformar, pero no es Jefe
+  it('quien picó no la toma; quien la tomó es el único que la conforma; el Jefe la asigna o la suelta', async () => {
+    const { orden: o } = await orden('demo:auxiliar')
+    expect(await repo.tomarParaConformidad(o.id, AUX)).toMatchObject({ ok: false, mensaje: expect.stringContaining('no quien hizo el picking') })
+    expect(await repo.tomarParaConformidad(o.id, actor('conductor', 'conductor'))).toMatchObject({ ok: false, mensaje: expect.stringContaining('permiso') })
+    expect(await repo.tomarParaConformidad(o.id, SANDRA)).toEqual({ ok: true })
+    expect(await repo.tomarParaConformidad(o.id, SANDRA)).toEqual({ ok: true })           // repetir es lo mismo
+    expect(await repo.tomarParaConformidad(o.id, OTRO)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya la tomó otra persona') })
+    expect(await repo.conformarOrden(o.id, [], 2, undefined, OTRO)).toMatchObject({ ok: false, mensaje: expect.stringContaining('la tomó otra persona para la conformidad') })
+    expect((await repo.colaConformidad())[0]).toMatchObject({ conformidadTomadaPor: SANDRA.id })
+    expect(await repo.soltarConformidad(o.id, OTRO)).toMatchObject({ ok: false, mensaje: expect.stringContaining('Solo quien la tomó o un Jefe') })
+    expect(await repo.soltarConformidad(o.id, JT)).toEqual({ ok: true })                  // un Jefe puede soltar la de otro
+    expect((await repo.colaConformidad())[0].conformidadTomadaPor).toBeUndefined()
+    expect(await repo.asignarConformidad(o.id, SANDRA.id, SANDRA)).toMatchObject({ ok: false, mensaje: 'Solo un Jefe asigna la conformidad' })
+    expect(await repo.asignarConformidad(o.id, 'demo:auxiliar', JT)).toMatchObject({ ok: false, mensaje: expect.stringContaining('no puede dar esta conformidad') })   // picó
+    expect(await repo.asignarConformidad(o.id, SANDRA.id, JT)).toEqual({ ok: true })
+    expect(await repo.conformarOrden(o.id, [], 2, undefined, SANDRA)).toMatchObject({ ok: true })
+    expect(await repo.tomarParaConformidad(o.id, OTRO)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya tiene su conformidad') })
+  })
+  it('los auxiliares y los jefes pueden dar la conformidad (reunión del 10-nov) y aparecen para asignarla', async () => {
+    expect((await repo.personalParaConformidad()).map((p) => p.id)).toEqual(expect.arrayContaining(['demo:auxiliar', 'demo:jefe_almacen', 'demo:jefe_transporte', 'demo:asistente_dt']))
   })
 })

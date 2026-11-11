@@ -99,7 +99,7 @@ describe('la Orden de Salida y quién pica', () => {
     expect((await uno('select picker_id from wms.ordenes_picking where id = $1', [o.op])).picker_id).toBe(aux2)
     // quien pickeó por el celular tampoco da la conformidad
     await como(jt, (c) => c.query('select wms.designar_picker($1, $2)', [o.op, aux1]))
-    expect((await falla(conformar(aux2, o.op))).message).toMatch(/No tienes permiso para dar la conformidad/)
+    expect((await falla(conformar(aux2, o.op))).message).toMatch(/La conformidad la da otra persona, no quien hizo el picking/)
   })
 })
 
@@ -109,7 +109,7 @@ describe('conformidad de toda la orden', () => {
     const o = await orden(p, 12, { picker: aux1 })
     expect((await falla(conformar(sandra, o.op, null, null))).message).toMatch(/número de bultos/)
     expect((await falla(conformar(sandra, o.op, null, 0))).message).toMatch(/número de bultos/)
-    expect((await falla(conformar(aux1, o.op))).message).toMatch(/No tienes permiso para dar la conformidad/)
+    expect((await falla(conformar(aux1, o.op))).message).toMatch(/La conformidad la da otra persona, no quien hizo el picking/)
     // la misma persona con permiso de conformidad que además fue la picker
     const doble = await persona(['auxiliar', 'conformidad_despacho'])
     await como(jt, (c) => c.query('select wms.designar_picker($1, $2)', [o.op, doble]))
@@ -263,6 +263,51 @@ describe('la migración 0023', () => {
     const { SQL } = await import('./helpers')
     await base.admin.query(SQL.m0023())
     await base.admin.query(SQL.m0023())
+    await base.admin.query(SQL.m0060())   // la 0023 deja la función sin la parte de «tomar para conformidad»: se vuelve a poner (la 0060 es re-ejecutable)
+    await base.admin.query(SQL.m0060())
     expect((await uno(`select to_regprocedure('wms.generar_orden_picking(uuid)') f`)).f).toBeNull()
   })
 })
+
+describe('tomar para conformidad (0060)', () => {
+  const tomar = (quien: string, op: string) => como(quien, async (c) => (await c.query('select wms.tomar_para_conformidad($1) r', [op])).rows[0].r as { tomada_por: string })
+  const soltar = (quien: string, op: string) => como(quien, async (c) => (await c.query('select wms.soltar_conformidad($1) r', [op])).rows[0].r as boolean)
+  const asignar = (quien: string, op: string, persona: string) => como(quien, async (c) => (await c.query('select wms.asignar_conformidad($1, $2) r', [op, persona])).rows[0].r as { tomada_por: string })
+  const nueva = async () => { const prod = await producto(); await sembrar(prod, 'F-1.1', `TC-${randomUUID().slice(0, 4)}`, en(300), 50); return orden(prod, 5, { picker: aux1 }) }
+  const dueno = async (op: string) => (await uno('select conformidad_tomada_por p, conformidad_asignada_por a from wms.ordenes_picking where id = $1', [op])) as { p: string | null; a: string | null }
+
+  it('quien tomó la orden es el único que la conforma; quien picó no la toma; otra persona no la roba', async () => {
+    const o = await nueva()
+    expect((await falla(tomar(aux1, o.op))).message).toMatch(/otra persona, no quien hizo el picking/)
+    expect((await falla(tomar(base.personas.sinRol.id, o.op))).message).toMatch(/permiso/)
+    expect(await tomar(sandra, o.op)).toEqual({ tomada_por: sandra })
+    expect(await tomar(sandra, o.op)).toEqual({ tomada_por: sandra })           // repetir es lo mismo
+    expect((await falla(tomar(aux2, o.op))).message).toMatch(/ya la tomó otra persona/)
+    expect((await falla(conformar(aux2, o.op))).message).toMatch(/la tomó otra persona para la conformidad/)
+    expect((await dueno(o.op)).p).toBe(sandra)
+    expect((await uno(`select count(*)::int n from wms.audit_events where evento = 'conformidad_tomada' and entidad_id = $1`, [o.op])).n).toBe(1)
+  })
+
+  it('el Jefe la asigna o la suelta; solo quien la tomó (o un Jefe) la suelta; no se asigna a quien picó ni a quien no puede', async () => {
+    const o = await nueva()
+    expect((await falla(asignar(aux2, o.op, sandra))).message).toMatch(/Solo un Jefe asigna/)
+    expect((await falla(asignar(jt, o.op, aux1))).message).toMatch(/no puede dar esta conformidad/)           // picó
+    expect((await falla(asignar(jt, o.op, base.personas.sinRol.id))).message).toMatch(/no puede dar esta conformidad/)
+    expect(await asignar(jt, o.op, aux2)).toEqual({ tomada_por: aux2 }); expect(await dueno(o.op)).toEqual({ p: aux2, a: jt })
+    expect((await falla(soltar(sandra, o.op))).message).toMatch(/Solo quien la tomó o un Jefe/)
+    expect(await soltar(aux2, o.op)).toBe(true); expect(await dueno(o.op)).toEqual({ p: null, a: null })
+    expect(await soltar(aux2, o.op)).toBe(false)                                // ya estaba libre
+    await tomar(sandra, o.op)
+    expect(await soltar(jt, o.op)).toBe(true)                                   // un Jefe puede soltar la de otro
+    expect(await tomar(aux2, o.op)).toEqual({ tomada_por: aux2 })
+  })
+
+  it('con la orden tomada por mí, la conformidad se da normal; una orden ya conformada no se toma', async () => {
+    const o = await nueva()
+    await tomar(sandra, o.op)
+    for (const l of o.lineas) await como(aux1, (c) => c.query(`select wms.registrar_picking($1, 'PICKEADA', $2)`, [l.id, l.cantidad]))
+    expect(await conformar(sandra, o.op)).toBeTruthy()
+    expect((await falla(tomar(aux2, o.op))).message).toMatch(/ya tiene su conformidad/)
+  })
+})
+

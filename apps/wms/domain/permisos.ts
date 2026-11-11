@@ -17,7 +17,7 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
 }
 
 /** Espejo de wms.permisos_rol (la base de datos es la que manda; esto solo oculta botones). */
-const PERMISOS_AUXILIAR: readonly Accion[] = ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta']
+const PERMISOS_AUXILIAR: readonly Accion[] = ['ver', 'ejecutar', 'verificar', 'cambiar_lote_asignado', 'embalar', 'cargar_ruta', 'dar_conformidad']
 /** Los jefes tienen TODO lo del auxiliar (DT, 2026-10-17) además de lo suyo. */
 const conAuxiliar = (...propias: Accion[]): readonly Accion[] => [...new Set<Accion>([...PERMISOS_AUXILIAR, ...propias])]
 

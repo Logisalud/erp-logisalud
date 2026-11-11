@@ -307,6 +307,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'actualizar_estado_guia', 'anular_guia', 'contexto_guia', 'marcar_evento_pedidos', 'registrar_guia_electronica', 'siguiente_numero_guia',
     // Ranking y diferencia en la carga (0053)
     'registrar_diferencia_carga', 'descartar_diferencia_carga', 'pedidos_del_mes',
+    // Tomar para conformidad (0060)
+    'tomar_para_conformidad', 'soltar_conformidad', 'asignar_conformidad', 'personal_para_conformidad',
     // Editar la orden (0059)
     'editar_orden_salida',
     // Inspecciones de la unidad (0058)

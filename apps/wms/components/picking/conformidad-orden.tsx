@@ -12,6 +12,7 @@ import { mesAnio } from '@/domain/salidas'
 import type { Rol } from '@/domain/tipos'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
+import { TomaConformidad } from './toma-conformidad'
 import { CHIP_NEUTRO, CHIP_OK } from '../estilos-opcion'
 
 interface Decision { resultado: ResultadoLineaOrden; loteId?: string; cantidad?: string; nota?: string }
@@ -34,7 +35,7 @@ export function ConformidadOrden({ orden, roles, personaId, personal, puedeDesig
   const [bultos, setBultos] = useState('')
   const [nota, setNota] = useState('')
   const [hecho, setHecho] = useState<string | null>(null)
-  const motivoBloqueo = motivoNoPuedeConformar(roles, personaId, orden.pickerId, !orden.pickerId)
+  const motivoBloqueo = motivoNoPuedeConformar(roles, personaId, orden.pickerId, !orden.pickerId, { por: orden.conformidadTomadaPor, nombre: orden.conformidadTomadaNombre })
 
   const resultados: ResultadoLineaConformidad[] = pendientes.map((l) => {
     const d = decisiones[l.id] ?? { resultado: 'CONFORME' as const }
@@ -58,6 +59,7 @@ export function ConformidadOrden({ orden, roles, personaId, personal, puedeDesig
         <p className="mt-1 text-sm text-gray-700" data-testid="quien-pico">{orden.pickerId ? <>Pickeó <strong>{orden.picker ?? 'la persona indicada'}</strong>.</> : 'Todavía no se indicó quién pickeó.'}</p>
       </header>
 
+      {!hecha && orden.pickerId && <div className="rounded-xl border border-gray-200 bg-white p-3"><TomaConformidad orden={orden} roles={roles} personaId={personaId} personal={personal} /></div>}
       {hecho && <Aviso tipo="ok" testid="conformidad-hecha">{hecho}</Aviso>}
       {!hecho && hecha && <Aviso tipo="ok" testid="conformidad-ya-dada">Esta orden ya tiene su conformidad{orden.bultosConformidad ? `: ${orden.bultosConformidad} ${orden.bultosConformidad === 1 ? 'bulto' : 'bultos'}` : ''}.</Aviso>}
       {!hecha && !orden.pickerId && <PickerSelector orden={orden} personal={personal} puedeDesignar={puedeDesignar} />}

@@ -5,12 +5,12 @@ Orden pedido por Sebas (donde choque con el mensaje del piloto, manda este). Est
 | # | Pieza | Estado |
 |---|-------|--------|
 | 1a | Guía y Nubefact: causa y arreglo | **Hecho en código** (modo por entorno + aviso de modo prueba). Causa en producción: `guia_modo = PANEL` (el WMS no envía a Nubefact) y falta `NUBEFACT_MODO` (cae en el simulador). Falta decisión: ver abajo |
-| 1b | Ruteo: auxiliares, columna/filtro/orden «Distrito», vehículo de contingencia | Auxiliares (0052) y Distrito: **hechos**. Contingencia: pendiente |
-| 1c | Orden de Salida: buscador por guía/orden, «Editar» | Pendiente |
+| 1b | Ruteo: auxiliares, columna/filtro/orden «Distrito», vehículo de contingencia | **Hecho**: auxiliares (0052), Distrito, y vehículo de contingencia (0057: marca en el vehículo y nota obligatoria para confirmar la ruta) |
+| 1c | Orden de Salida: buscador por guía/orden, «Editar» | **Hecho** (0059): la nota siempre; destinatario y cantidades solo en una orden manual antes del picking (con motivo); una orden de Pedidos solo la nota (y los lotes con su editor). **Pendiente de decisión:** «después del picking, editar devuelve la orden al paso anterior» (mueve stock físico; ver `decisiones-pendientes.md`) |
 | 1d | Etiqueta: dirección de destino | Pendiente |
 | 1e | «Actualizar desde pedidos» (WMS_PEDIDOS_URL/SECRETO los carga Sebas) | Pendiente |
 | 2 | Flujo con pre-guía (TTT1 reservado, aviso a Arlette, números sin usar) | Pendiente |
-| 3 | Conformidad y bultos (tomar para conformidad) | Pendiente |
+| 3 | Conformidad y bultos (tomar para conformidad) | **Hecho** (0060): «Tomar para conformidad», el Jefe asigna o suelta, una orden tomada queda bloqueada para otros, quien picó no la conforma. Los auxiliares de almacén y los jefes ahora tienen el permiso de dar la conformidad |
 | 4 | Embalaje, etiquetas y carga (Lima 15 y 07; conteo de bultos) | Pendiente |
 | 5 | Paquete documental por casillas | Pendiente |
 | 6 | Hojas de ruta (cuando lleguen los formatos) | Esperando formatos |
@@ -27,3 +27,8 @@ Orden pedido por Sebas (donde choque con el mensaje del piloto, manda este). Est
 - **Pendiente:** conformidad con «pedido conforme sí/no» y tipo de diferencia (descripción, documento); el error del cliente/mal despacho desde la entrega; premio por ranking (parámetros).
 - **Foto del pedido con la caja abierta antes de cargarlo:** recomendación: la toma **quien carga (el transportista)**, un archivo por pedido, guardado en el bucket privado como las fotos de entrega; sirve de prueba del estado en que se recibió la mercadería. Pendiente de decisión de Sebas y de construir.
 - **Hoja interna de la ruta del día (Roberto → transportista), columnas** (del formato `RUTA DEL dd/mm/aaaa`, agrupado por propietario: LGS = Logisalud, DHP = Diphasac): CLIENTE · # CLIENTE (teléfono) · CONDICIÓN (despacho) · GUÍA · DIRECCIÓN · DESTINO (distrito) · TRANSPORTISTA · REPRESENTANTE (vendedor) · FORMA DE PAGO (crédito/contado) · HORARIO (ventana de entrega). Pendiente de construir (sección 6); la de DIGEMID (LS-FR.43.03) sigue aparte.
+
+## Actualización 2026-11-11 (noche)
+- **Hecho y aplicado en la base real:** 0055 (pre-guía), 0056 (conformidad del cliente en la entrega y foto del pedido con la caja abierta), 0057 (vehículo de contingencia), 0058 (inspecciones de la unidad LS-FR.49.03 y LS-FR.52.03; la supervisa otro conductor; descarga del mes en Word).
+- **Hecho en código, sin aplicar:** 0059 («Editar» la orden) y 0060 («Tomar para conformidad»).
+- **Pendiente:** embalaje, etiquetas y carga (punto 4); paquete documental por casillas (5); firma dibujada del conductor y del Director Técnico en las inspecciones; aviso por correo a Arlette; hoja LS-FR.43.03 DIGEMID.

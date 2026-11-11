@@ -40,11 +40,10 @@ describe('permisos por rol', () => {
 })
 
 describe('S1: roles y permisos de salidas (D-57, D-70)', () => {
-  it('la conformidad es un permiso propio: no la tiene el Jefe de Almacén ni el de Transporte', () => {
+  it('la conformidad (reunión del 10-nov): la dan los auxiliares de almacén, Sandra y los jefes; no Dirección Técnica sola ni el asistente sin su rol de conformidad', () => {
     expect(puede(['conformidad_despacho'], 'dar_conformidad')).toBe(true)
-    for (const r of ['jefe_almacen', 'jefe_transporte', 'auxiliar', 'asistente_dt', 'direccion_tecnica'] as const) {
-      expect(puede([r], 'dar_conformidad'), r).toBe(false)
-    }
+    for (const r of ['jefe_almacen', 'jefe_transporte', 'auxiliar'] as const) expect(puede([r], 'dar_conformidad'), r).toBe(true)
+    for (const r of ['asistente_dt', 'direccion_tecnica'] as const) expect(puede([r], 'dar_conformidad'), r).toBe(false)
     // Un usuario con varios roles (p. ej. Sandra: asistente de DT + conformidad) suma sus permisos.
     expect(puede(['asistente_dt', 'conformidad_despacho'], 'dar_conformidad')).toBe(true)
   })

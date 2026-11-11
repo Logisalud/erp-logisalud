@@ -720,11 +720,11 @@ describe('picking → conformidad → salida → retorno (§4.3)', () => {
   it('la conformidad la da OTRA persona con el permiso propio; recién ahí se mueve rack → staging (D-51)', async () => {
     const { p, ols, linea } = await preparado()
     await pickear(aux1, ols[0].id, ols[0].cantidad)
-    expect((await falla(conformar(aux1, ols[0].id))).message).toMatch(/No tienes permiso para dar la conformidad/) // el picker no tiene el permiso
+    expect((await falla(conformar(aux1, ols[0].id))).message).toMatch(/La conformidad la da otra persona, no quien hizo el picking/) // el picker ya tiene el permiso (0060), pero no conforma lo que picó
     const picker = await persona(['auxiliar', 'conformidad_despacho'])
     await pickear(picker, ols[1].id, ols[1].cantidad)
     expect((await falla(conformar(picker, ols[1].id))).message).toMatch(/otra persona, no quien hizo el picking/) // ni con el permiso, sobre su propio picking
-    for (const quien of [jt, aux2, base.personas.charlie.id]) expect((await falla(conformar(quien, ols[0].id))).message).toMatch(/No tienes permiso para dar la conformidad/)
+    for (const quien of [base.personas.sinRol.id]) expect((await falla(conformar(quien, ols[0].id))).message).toMatch(/No tienes permiso para dar la conformidad/)   // los jefes y los auxiliares la dan desde la 0060; quien no tiene el permiso, no
     const rack = await saldoEn(p, 'F-1.1')
     const mov = await conformar(sandra, ols[0].id)
     expect(mov).toBeTruthy()

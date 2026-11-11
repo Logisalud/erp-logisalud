@@ -143,7 +143,7 @@ describe('conformidad, no conformidades y zona «Observado»', () => {
     const [linea] = await lineasOrden(orden)
     expect((await falla(conformidad(sandra, linea.id, 'CONFORME'))).message).toBe('Esa línea todavía no se pickeó')
     await picking(aux1, linea.id, 'PICKEADA', 8)
-    expect((await falla(conformidad(aux1, linea.id, 'CONFORME'))).message).toBe('No tienes permiso para dar la conformidad')
+    expect((await falla(conformidad(aux1, linea.id, 'CONFORME'))).message).toBe('La conformidad la da otra persona, no quien hizo el picking')   // el auxiliar ahora tiene el permiso (reunión del 10-nov), pero quien picó no la da
     expect((await falla(conformidad(sandra, linea.id, 'OBSERVADA', null, 'DANO'))).message).toMatch(/Cuéntanos qué observas/)
     expect((await falla(conformidad(sandra, linea.id, 'OBSERVADA', 'Caja rota', 'INVENTADO'))).message).toBe('Ese tipo de no conformidad no existe')
     await conformidad(sandra, linea.id, 'OBSERVADA', 'La caja llegó rota', 'DANO')

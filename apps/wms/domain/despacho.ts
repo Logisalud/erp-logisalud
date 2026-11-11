@@ -230,6 +230,10 @@ export interface OrdenPickingResumen {
   observadas: number
   discrepancias: number
   generadaEn: string
+  /** 0060: quién tiene tomada la conformidad (nadie más la da mientras tanto) y, si la asignó un Jefe, quién. */
+  conformidadTomadaPor?: string
+  conformidadTomadaNombre?: string
+  conformidadAsignadaPor?: string
   /** Quién hace el picking (se elige al imprimir la orden o al iniciarla). */
   pickerId?: string
   picker?: string
@@ -307,9 +311,23 @@ export function filtrarSalidas(salidas: readonly SalidaResumen[], f: { q: string
 }
 
 /** ¿Quién puede dar la conformidad de la orden? Otra persona, no quien hizo el picking (espejo de la base). Sin picker indicado todavía no hay conformidad. */
-export function motivoNoPuedeConformar(roles: readonly Rol[], personaId: string, pickerId?: string, ordenSinPicker = false): string | null {
+export function motivoNoPuedeConformar(roles: readonly Rol[], personaId: string, pickerId?: string, ordenSinPicker = false, tomada?: { por?: string; nombre?: string }): string | null {
   if (!puedeDarConformidad(roles)) return 'No tienes permiso para dar la conformidad'
   if (ordenSinPicker) return 'Antes de la conformidad se indica quién hizo el picking'
   if (pickerId && pickerId === personaId) return 'La conformidad la da otra persona, no quien hizo el picking'
+  if (tomada?.por && tomada.por !== personaId) return `La tomó ${tomada.nombre ?? 'otra persona'} para la conformidad: si hace falta, el Jefe la reasigna`
   return null
 }
+
+/** 0060: «Tomar para conformidad». Libre = nadie la tomó (cualquiera con permiso, que no haya picado, puede darla o tomarla); mía; de otra persona (bloqueada para los demás). */
+export type TomaConformidad = 'LIBRE' | 'MIA' | 'DE_OTRA'
+export const tomaDeConformidad = (o: Pick<OrdenPickingResumen, 'conformidadTomadaPor'>, personaId: string): TomaConformidad => (!o.conformidadTomadaPor ? 'LIBRE' : o.conformidadTomadaPor === personaId ? 'MIA' : 'DE_OTRA')
+/** Por qué esta persona no puede tomar la orden (vacío = puede). */
+export function motivoNoPuedeTomar(roles: readonly Rol[], personaId: string, o: Pick<OrdenPickingResumen, 'pickerId' | 'conformidadTomadaPor' | 'conformidadTomadaNombre'>): string | null {
+  if (!puedeDarConformidad(roles)) return 'No tienes permiso para dar la conformidad'
+  if (o.pickerId && o.pickerId === personaId) return 'La conformidad la da otra persona, no quien hizo el picking'
+  if (o.conformidadTomadaPor && o.conformidadTomadaPor !== personaId) return `La tomó ${o.conformidadTomadaNombre ?? 'otra persona'}: pídele al Jefe que la reasigne`
+  return null
+}
+/** El Jefe (quien prepara salidas) puede asignar o soltar la conformidad de cualquiera. */
+export const puedeAsignarConformidad = (roles: readonly Rol[]) => puede(roles, 'preparar_salidas')
