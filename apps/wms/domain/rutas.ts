@@ -51,6 +51,9 @@ export interface ParadaVista {
   direccion?: string
   distrito?: string
   ventanaCita?: string
+  /** El vendedor y la condición de pago que trae el pedido (la hoja de la ruta del día los muestra como «Representante» y «Forma de pago»). */
+  vendedor?: string
+  condicionPago?: string
   lineas: number
   unidades: number
   salidaNumero?: string
