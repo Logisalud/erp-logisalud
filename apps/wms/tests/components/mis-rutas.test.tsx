@@ -72,6 +72,21 @@ describe('Mis rutas (celular)', () => {
     const f = acc.registrarEventoParadaAccion.mock.calls[1][0] as FormData
     expect(f.get('recibioNombre')).toBe('María Pérez'); expect(f.get('recibioDocumento')).toBe('12345678'); expect(f.get('foto')).toBeTruthy()
   })
+  it('«Entregado»: la conformidad del cliente viene en «Sí»; con «No» pide qué no coincidió y lo manda con la entrega', async () => {
+    render(<MisRutas rutas={[ruta({ paradas: [parada(1, { estado: 'LLEGUE' })] })]} />)
+    await userEvent.click(screen.getByTestId('parada-ENTREGADO'))
+    expect(screen.getByTestId('conforme-si')).toBeChecked(); expect(screen.queryByTestId('tipo-diferencia')).toBeNull()
+    await userEvent.click(screen.getByTestId('conforme-no'))
+    expect(screen.getByTestId('tipo-diferencia')).toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByTestId('tipo-diferencia'), 'LOTE')
+    await userEvent.type(screen.getByTestId('detalle-diferencia'), 'Llegó otro lote')
+    await userEvent.type(screen.getByTestId('recibio-nombre'), 'María Pérez'); await userEvent.type(screen.getByTestId('recibio-dni'), '12345678')
+    await userEvent.upload(screen.getByTestId('foto-entrega'), new File([new Uint8Array(10)], 'foto.jpg', { type: 'image/jpeg' }))
+    await userEvent.click(screen.getByTestId('parada-confirmar'))
+    await waitFor(() => expect(acc.registrarEventoParadaAccion).toHaveBeenCalled())
+    const f = acc.registrarEventoParadaAccion.mock.calls[0][0] as FormData
+    expect(f.get('conforme')).toBe('NO'); expect(f.get('tipoDiferencia')).toBe('LOTE'); expect(f.get('detalleDiferencia')).toBe('Llegó otro lote')
+  })
   it('«Rechazado» y «No entregado» piden el motivo y avisan que el Jefe de Transporte registra el retorno', async () => {
     acc.registrarEventoParadaAccion.mockResolvedValueOnce({ ok: true, retornoPorOriginar: true, rutaPendienteDeCierre: false })
     render(<MisRutas rutas={[ruta({ paradas: [parada(1, { estado: 'LLEGUE' })] })]} />)

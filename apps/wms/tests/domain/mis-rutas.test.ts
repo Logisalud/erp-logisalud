@@ -54,6 +54,12 @@ describe('validaciones', () => {
   it('entregado pide nombre, DNI de 8 números y foto; los demás, el motivo', () => {
     expect(validarEventoParada('ENTREGADO', {})).toMatchObject({ recibioNombre: expect.any(String), recibioDocumento: expect.any(String), foto: expect.any(String) })
     expect(validarEventoParada('ENTREGADO', { recibioNombre: 'María Pérez', recibioDocumento: '1234567', tieneFoto: true })).toEqual({ recibioDocumento: 'El DNI de quien recibió tiene 8 números' })
+    // conformidad del cliente: sin marcar o «sí» no pide nada más; «no» pide el tipo de diferencia
+    const base = { recibioNombre: 'María Pérez', recibioDocumento: '12345678', tieneFoto: true }
+    expect(validarEventoParada('ENTREGADO', base)).toEqual({})
+    expect(validarEventoParada('ENTREGADO', { ...base, conforme: true })).toEqual({})
+    expect(validarEventoParada('ENTREGADO', { ...base, conforme: false })).toMatchObject({ tipoDiferencia: expect.stringContaining('Elige qué no coincidió') })
+    expect(validarEventoParada('ENTREGADO', { ...base, conforme: false, tipoDiferencia: 'LOTE' })).toEqual({})
     expect(validarEventoParada('ENTREGADO', { recibioNombre: 'María Pérez', recibioDocumento: '12345678', tieneFoto: true })).toEqual({})
     for (const e of ['NO_ENTREGADO', 'RECHAZADO', 'INCIDENCIA'] as const) { expect(validarEventoParada(e, { motivo: 'no' }).motivo).toBeTruthy(); expect(validarEventoParada(e, { motivo: 'Cliente ausente' })).toEqual({}) }
     expect(validarEventoParada('LLEGUE', {})).toEqual({})

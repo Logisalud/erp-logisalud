@@ -24,6 +24,10 @@ export async function registrarEventoParadaAccion(f: FormData): Promise<Resultad
   const archivo = f.get('foto')
   const foto = archivo instanceof File && archivo.size > 0 ? archivo : null
   const datos: DatosEventoParada = { motivo: texto(f, 'motivo') || undefined, recibioNombre: texto(f, 'recibioNombre') || undefined, recibioDocumento: texto(f, 'recibioDocumento') || undefined }
+  if (evento === 'ENTREGADO') {
+    datos.conforme = texto(f, 'conforme') !== 'NO'
+    if (!datos.conforme) { datos.tipoDiferencia = (texto(f, 'tipoDiferencia') || undefined) as DatosEventoParada['tipoDiferencia']; datos.detalleDiferencia = texto(f, 'detalleDiferencia') || undefined }
+  }
   const errores = validarEventoParada(evento, { ...datos, tieneFoto: !!foto })
   if (evento === 'ENTREGADO' && foto) { const malo = validarFoto(foto.name, foto.size, foto.type); if (malo) errores.foto = malo }
   const primero = Object.values(errores)[0]

@@ -15,7 +15,7 @@ import { mensajeHumano, rpc, s, type Fila } from './util'
 const sch = () => crearClienteServidor().schema('wms')
 
 function eventoDe(x: Fila): EventoParadaVista {
-  return { id: String(x.id), evento: String(x.evento) as EventoParada, motivo: s(x.motivo), recibioNombre: s(x.recibio_nombre), recibioDocumento: s(x.recibio_documento), fotoNombre: s(x.foto_nombre), hora: String(x.hora) }
+  return { id: String(x.id), evento: String(x.evento) as EventoParada, motivo: s(x.motivo), recibioNombre: s(x.recibio_nombre), recibioDocumento: s(x.recibio_documento), fotoNombre: s(x.foto_nombre), hora: String(x.hora), conforme: typeof x.conforme === 'boolean' ? x.conforme : undefined, tipoDiferencia: s(x.tipo_diferencia) as EventoParadaVista['tipoDiferencia'], detalleDiferencia: s(x.detalle_diferencia) }
 }
 function rutaDe(r: Fila): RutaMia {
   const estado = String(r.estado) as EstadoRuta
@@ -37,7 +37,7 @@ export class MisRutasSupabase extends PilotoSupabase implements RepositorioMisRu
     const f = datos.foto
     const { error } = await rpc('registrar_evento_parada', {
       p_parada: paradaId, p_evento: evento,
-      p_datos: { motivo: datos.motivo ?? null, recibio_nombre: datos.recibioNombre ?? null, recibio_documento: datos.recibioDocumento ?? null, foto_ref: f?.ref ?? null, foto_nombre: f?.nombre ?? null, foto_hash: f?.hash ?? null, foto_bytes: f?.bytes ?? null, foto_tipo: f?.tipo ?? null },
+      p_datos: { motivo: datos.motivo ?? null, recibio_nombre: datos.recibioNombre ?? null, recibio_documento: datos.recibioDocumento ?? null, foto_ref: f?.ref ?? null, foto_nombre: f?.nombre ?? null, foto_hash: f?.hash ?? null, foto_bytes: f?.bytes ?? null, foto_tipo: f?.tipo ?? null, conforme: evento === 'ENTREGADO' ? (datos.conforme ?? true) : null, tipo_diferencia: datos.tipoDiferencia ?? null, detalle_diferencia: datos.detalleDiferencia ?? null },
     })
     if (error) return { ok: false, mensaje: mensajeHumano(error) }
     const rutas = await this.misRutas(_actor).catch(() => [])

@@ -10,13 +10,18 @@ export const ETIQUETA_EVENTO: Record<EventoParada, string> = { LLEGUE: 'Llegué'
 export type EstadoParadaMia = 'PENDIENTE' | 'LLEGUE' | 'ENTREGADO' | 'NO_ENTREGADO' | 'RECHAZADO'
 export const ETIQUETA_ESTADO_PARADA: Record<EstadoParadaMia, string> = { PENDIENTE: 'Por visitar', LLEGUE: 'Llegué', ENTREGADO: 'Entregado', NO_ENTREGADO: 'No entregado', RECHAZADO: 'Rechazado' }
 
+/** La conformidad del cliente en la entrega (formato CONFORMIDAD): si no quedó conforme, qué no coincidió. */
+export type TipoDiferenciaEntrega = 'CANTIDAD' | 'DESCRIPCION' | 'LOTE' | 'DOCUMENTO'
+export const TIPOS_DIFERENCIA_ENTREGA: readonly TipoDiferenciaEntrega[] = ['CANTIDAD', 'DESCRIPCION', 'LOTE', 'DOCUMENTO']
+export const ETIQUETA_DIFERENCIA_ENTREGA: Record<TipoDiferenciaEntrega, string> = { CANTIDAD: 'Cantidad', DESCRIPCION: 'Descripción', LOTE: 'Lote', DOCUMENTO: 'Documento' }
+
 export const puedeVerMisRutas = (roles: readonly Rol[]) => puede(roles, 'mis_rutas')
 /** Quien solo tiene «Mis rutas» (conductor, auxiliar de transporte): no lee el inventario y su Inicio es esta pantalla. */
 export const soloMisRutas = (roles: readonly Rol[]) => puedeVerMisRutas(roles) && !roles.some((r) => !['conductor', 'auxiliar_transporte'].includes(r))
 
 export const TEXTO_PILOTO_MIS_RUTAS = 'PILOTO: esto no reemplaza el proceso actual. Sigue llenando el formato en papel y entregando con la guía firmada; lo que marques aquí es de prueba y se borra el 1 de diciembre.'
 
-export interface EventoParadaVista { id: string; evento: EventoParada; motivo?: string; recibioNombre?: string; recibioDocumento?: string; fotoNombre?: string; hora: string }
+export interface EventoParadaVista { id: string; evento: EventoParada; motivo?: string; recibioNombre?: string; recibioDocumento?: string; fotoNombre?: string; hora: string; conforme?: boolean; tipoDiferencia?: TipoDiferenciaEntrega; detalleDiferencia?: string }
 export interface ParadaMia {
   id: string; secuencia: number; cliente: string; direccion?: string; distrito?: string; ventanaCita?: string; pedidoNumero?: string; ordenNumero?: string; unidades: number
   eventos: EventoParadaVista[]
@@ -53,7 +58,7 @@ export function validarFoto(nombre: string, bytes: number, tipo?: string): strin
   return null
 }
 
-export interface DatosEvento { motivo?: string; recibioNombre?: string; recibioDocumento?: string; tieneFoto?: boolean }
+export interface DatosEvento { motivo?: string; recibioNombre?: string; recibioDocumento?: string; tieneFoto?: boolean; conforme?: boolean; tipoDiferencia?: string }
 /** Errores por campo, con los mismos textos que la base. Vacío = vale. */
 export function validarEventoParada(evento: EventoParada, d: DatosEvento): Record<string, string> {
   const e: Record<string, string> = {}
@@ -61,6 +66,7 @@ export function validarEventoParada(evento: EventoParada, d: DatosEvento): Recor
     if ((d.recibioNombre ?? '').trim().length < 3) e.recibioNombre = 'Escribe el nombre de quien recibió'
     if (!/^\d{8}$/.test((d.recibioDocumento ?? '').trim())) e.recibioDocumento = 'El DNI de quien recibió tiene 8 números'
     if (!d.tieneFoto) e.foto = 'Falta la foto de la entrega'
+    if (d.conforme === false && !TIPOS_DIFERENCIA_ENTREGA.includes(d.tipoDiferencia as TipoDiferenciaEntrega)) e.tipoDiferencia = 'Elige qué no coincidió: cantidad, descripción, lote o documento'
   } else if (evento === 'NO_ENTREGADO' || evento === 'RECHAZADO' || evento === 'INCIDENCIA') {
     if ((d.motivo ?? '').trim().length < 5) e.motivo = 'Cuéntanos el motivo (al menos 5 letras)'
   }

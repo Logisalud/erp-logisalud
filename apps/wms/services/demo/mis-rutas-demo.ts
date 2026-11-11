@@ -49,12 +49,13 @@ export class MisRutasDemo extends PilotoDemo implements RepositorioMisRutas {
     const estado = estadoDeParada(previos)
     const no = motivoNoSePuede(evento, estado, RUTA_PERMITE_MARCAR.includes(r.estado))
     if (no) return falla(no)
-    const errores = validarEventoParada(evento, { motivo: datos.motivo, recibioNombre: datos.recibioNombre, recibioDocumento: datos.recibioDocumento, tieneFoto: !!datos.foto })
+    const errores = validarEventoParada(evento, { motivo: datos.motivo, recibioNombre: datos.recibioNombre, recibioDocumento: datos.recibioDocumento, tieneFoto: !!datos.foto, conforme: datos.conforme, tipoDiferencia: datos.tipoDiferencia })
     const primero = Object.values(errores)[0]
     if (primero) return falla(primero, errores)
     eventos(e).push({
       id: nuevoId(), paradaId, rutaId: r.id, evento, motivo: datos.motivo?.trim() || undefined,
       recibioNombre: evento === 'ENTREGADO' ? datos.recibioNombre!.trim() : undefined, recibioDocumento: evento === 'ENTREGADO' ? datos.recibioDocumento!.trim() : undefined,
+      conforme: evento === 'ENTREGADO' ? (datos.conforme ?? true) : undefined, tipoDiferencia: evento === 'ENTREGADO' && datos.conforme === false ? datos.tipoDiferencia : undefined, detalleDiferencia: evento === 'ENTREGADO' && datos.conforme === false ? datos.detalleDiferencia?.trim() || undefined : undefined,
       fotoNombre: evento === 'ENTREGADO' ? datos.foto!.nombre : undefined, fotoRef: evento === 'ENTREGADO' ? datos.foto!.ref : undefined, fotoHash: evento === 'ENTREGADO' ? datos.foto!.hash : undefined,
       hora: ahora(), por: actor.id,
     })
