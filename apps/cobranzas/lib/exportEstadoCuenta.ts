@@ -27,7 +27,7 @@ export function estadoCuentaXlsx(
   desde: string | null,
   hasta: string | null,
 ): { buf: ArrayBuffer; filename: string } {
-  const { cliente: c, movimientos, porFactura, resumen, comentarioCliente, comentariosPorFactura } = datos;
+  const { cliente: c, movimientos, porFactura, resumen, comentarioCliente, comentariosPorFactura, saldoAFavor } = datos;
 
   const rango =
     desde || hasta
@@ -48,6 +48,10 @@ export function estadoCuentaXlsx(
     ['Total pagado (incluye letras y retención)', resumen.totalPagado],
     ['Total notas de crédito', resumen.totalNotasCredito],
     ['Total notas de débito', resumen.totalNotasDebito],
+    // Va en el resumen y no en una fila perdida: es plata que se le debe al
+    // cliente y no está descontada del saldo de arriba (`v_cobros` recorta
+    // cada factura en cero). Se compensa contra sus próximas compras.
+    ...(saldoAFavor > 0 ? [['Saldo a favor del cliente (se compensa)', saldoAFavor]] : []),
     [],
     // El acuerdo con el cliente va arriba, con el resumen, no perdido entre
     // las filas: es lo primero que pregunta quien recibe el archivo.
