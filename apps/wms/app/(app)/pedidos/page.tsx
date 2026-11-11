@@ -1,7 +1,7 @@
 import { Lock } from 'lucide-react'
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
-import { puedeActualizarBandeja, puedeVerBandeja } from '@/domain/pedidos-despacho'
+import { puedeActualizarBandeja, puedeVerBandeja, tocaTraerPedidos } from '@/domain/pedidos-despacho'
 import { modoDemoActivo } from '@/lib/demo'
 import { modoPilotoActivo } from '@/lib/modo-piloto'
 import { BandejaPedidosVista } from '@/components/pedidos/bandeja-pedidos'
@@ -20,7 +20,12 @@ export default async function Pedidos() {
       </div>
     )
   }
-  const bandeja = await repositorio().bandejaPedidos()
+  let bandeja = await repositorio().bandejaPedidos()
+  // 1e: con la conexión a Pedidos configurada, los pedidos del día se traen solos al abrir la bandeja (cada 15 min como máximo; lo hace quien puede actualizarla). Si Pedidos no responde, el intento queda anotado y la bandeja sigue con lo ya importado.
+  if (!modoDemoActivo() && process.env.WMS_PEDIDOS_URL && process.env.WMS_PEDIDOS_SECRETO && puedeActualizarBandeja(ctx.roles) && tocaTraerPedidos(bandeja.ultimoIntento?.en, Date.now())) {
+    const r = await repositorio().actualizarBandeja({ id: ctx.usuario.id, nombre: ctx.usuario.nombre, roles: ctx.roles }).catch(() => null)
+    if (r?.ok) bandeja = await repositorio().bandejaPedidos()
+  }
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <header>
