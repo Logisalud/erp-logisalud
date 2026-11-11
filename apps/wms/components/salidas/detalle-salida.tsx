@@ -23,6 +23,7 @@ import { PanelPreGuia } from './panel-pre-guia'
 import { EditorLotes } from './editor-lotes'
 import { EtiquetasOrigen } from './etiquetas-origen'
 import { CancelarOrden } from './cancelar-orden'
+import { EditarOrden } from './editar-orden'
 import { ETIQUETA_CREADA_DESDE } from '@/domain/salida-manual'
 import { ETIQUETA_MOTIVO_SALIDA } from '@/domain/salidas'
 import { FaltaDeStock } from './falta-de-stock'
@@ -62,6 +63,9 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
         </div>
         <ChipEtapa etapa={salida.etapa} />
       </header>
+
+      {salida.nota && <Aviso tipo="info" testid="nota-orden">Nota de la orden: {salida.nota}</Aviso>}
+      <EditarOrden key={`${salida.id}-${salida.nota ?? ''}-${salida.lineasDetalle.map((l) => l.cantidad).join(',')}`} salida={salida} roles={roles} />
 
       <AvancePasos avance={avanceDeSalida(salida.etapa, salida.id, { sinEmbalaje: !salida.requiereEmbalaje, guiaEnEspera: paquete?.guia?.estadoSunat === 'PENDIENTE' && paquete.guia.origen !== 'PANEL', guiaPanel: guia.datos?.guiaModo === 'PANEL', faltaGuiaVigente: salida.faltaGuiaVigente, tipo: salida.tipo, destruccion: salida.motivo === 'DESTRUCCION', sinRuta: salida.tipo === 'CLIENTE' ? undefined : !salida.rutaNumero, porRuta: salida.origen === 'MANUAL' && salida.tipo !== 'CLIENTE', vendedor: salida.vendedor, sinPedido: salida.conPedido === false, devolucion: salida.devolucion, devolucionHref: salida.devoluciones?.find((d) => d.movimientoId)?.movimientoId ? `/movimientos/${salida.devoluciones.find((d) => d.movimientoId)!.movimientoId}` : undefined })} roles={roles} />
 

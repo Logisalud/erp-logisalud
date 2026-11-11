@@ -48,6 +48,8 @@ export interface SalidaDemo {
   /** SA-2: de dónde nació la orden. Lo anterior (sin estos datos) es una venta de distribución de un pedido. */
   tipo?: TipoSalida; motivo?: MotivoSalida; origen?: OrigenOrden; creadaDesde?: CreadaDesde
   pedidoNumero?: string; porConciliar?: boolean; clienteManual?: ClienteManual
+  /** 0059: la nota de la orden. */
+  nota?: string
   /** Tipo B: la GRE del cliente (número y PDF) y a nombre de qué propietario se creó. */
   greNumero?: string; greArchivo?: string; enNombreDe?: string
   /** D-161: motivo escrito para continuar una devolución al proveedor con menos de 90 días para vencer. */

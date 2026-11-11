@@ -366,3 +366,36 @@ describe('buscar el producto por cualquiera de sus códigos (demo)', () => {
     expect(await repo.buscarProductosParaSalida('a')).toEqual([])
   })
 })
+
+describe('editar la orden (demo, espejo de la migración 0059)', () => {
+  it('manual antes del picking: nota, destinatario y cantidades con motivo; lo reservado se ajusta y queda en la auditoría', async () => {
+    const st = await conStock('LOGISSA', 60)
+    const r = ok(await repo.crearOrdenManual(A(st.productoId, 50, 'PED-EDIT-001'), JT)); const id = r.ordenes[0].id
+    let s = (await repo.obtenerSalida(id))!
+    expect(s.lineasDetalle[0].cantidad).toBe(50)
+    expect(await repo.editarOrden(id, { nota: 'Entregar por la puerta lateral' }, undefined, JA)).toMatchObject({ ok: true, cambios: ['nota'] })
+    expect((await repo.obtenerSalida(id))!.nota).toBe('Entregar por la puerta lateral')
+    const linea = s.lineasDetalle[0].id
+    expect(await repo.editarOrden(id, { lineas: [{ lineaId: linea, cantidad: 40 }] }, undefined, JA)).toMatchObject({ ok: false, mensaje: expect.stringContaining('por qué cambias la orden') })
+    ok(await repo.editarOrden(id, { lineas: [{ lineaId: linea, cantidad: 40 }] }, 'El cliente pidió menos', JA))
+    s = (await repo.obtenerSalida(id))!
+    expect(s.lineasDetalle[0]).toMatchObject({ cantidad: 40, estado: 'ASIGNADA' })
+    ok(await repo.editarOrden(id, { lineas: [{ lineaId: linea, cantidad: 55 }], destinatario: { razonSocial: 'Botica Nueva SAC' } }, 'Cambió el pedido y la sucursal', JA))
+    s = (await repo.obtenerSalida(id))!
+    expect(s.lineasDetalle[0].cantidad).toBe(55); expect(s.clienteManual).toMatchObject({ razonSocial: 'Botica Nueva SAC', ruc: CLIENTE.ruc })
+    expect(await repo.editarOrden(id, { lineas: [{ lineaId: linea, cantidad: 0 }] }, 'Quitar la línea', JA)).toMatchObject({ ok: false, mensaje: expect.stringContaining('cancela la orden y crea otra') })
+  })
+
+  it('solo quien prepara salidas; una orden con el picking generado admite solo la nota; cancelada, nada', async () => {
+    const st = await conStock('LOGISSA', 60)
+    const id = ok(await repo.crearOrdenManual(A(st.productoId, 10, 'PED-EDIT-002'), JT)).ordenes[0].id
+    expect(await repo.editarOrden(id, { nota: 'hola' }, undefined, AUX)).toMatchObject({ ok: false, mensaje: expect.stringContaining('permiso') })
+    ok(await repo.generarOrdenPicking(id, JT))
+    const linea = (await repo.obtenerSalida(id))!.lineasDetalle[0].id
+    expect(await repo.editarOrden(id, { lineas: [{ lineaId: linea, cantidad: 5 }] }, 'Cambio con picking', JA)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya empezó el picking') })
+    ok(await repo.editarOrden(id, { nota: 'Nota con picking' }, undefined, JA))
+    const otra = ok(await repo.crearOrdenManual(A(st.productoId, 10, 'PED-EDIT-003'), JT)).ordenes[0].id
+    ok(await repo.cancelarOrden(otra, 'Se canceló', JT))
+    expect(await repo.editarOrden(otra, { nota: 'ya no' }, undefined, JA)).toMatchObject({ ok: false, mensaje: expect.stringContaining('ya no está abierta') })
+  })
+})

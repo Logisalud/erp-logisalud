@@ -178,6 +178,8 @@ export interface SalidaVista extends SalidaResumen {
   pedidoCancelado?: { motivo: string; por?: string }
   motivoCancelacion?: string
   cancelacionPendiente?: boolean
+  /** 0059: la nota de la orden (la escribe y cambia quien prepara salidas). */
+  nota?: string
   devoluciones?: DevolucionPickingVista[]
   /** SA-6: la entrega al transportista del cliente (tipo B), si ya se registró. */
   entrega?: import('./entrega-transportista').EntregaTransportistaVista

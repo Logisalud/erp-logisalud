@@ -2,6 +2,7 @@ import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { puedePrepararSalidas } from '@/domain/despacho'
+import { validarCambiosOrden, type CambiosOrden } from '@/domain/editar-orden'
 import { MENSAJE_SIN_PERMISO_ENTREGA, puedeEntregarAlTransportistaCliente, validarEntrega, type EntradaEntrega } from '@/domain/entrega-transportista'
 import { DIAS_AVISO_DEVOLUCION_DEFECTO } from '@/domain/salidas'
 import { buscarProductosPorCodigos, partirPorMotivo, type CodigoProducto, type EntradaOrdenManual, type LoteParaSalida, type ProductoHallado, type TipoCodigoProducto } from '@/domain/salida-manual'
@@ -145,6 +146,22 @@ export class SalidaManualSupabase extends LiberacionSupabase implements Reposito
         ordenes: (r.ordenes ?? []).map((o) => ({ pedido: o.pedido, orden: o.orden, faltaStock: o.falta_stock, unida: o.unida })),
       },
     }
+  }
+
+  async editarOrden(salidaId: string, cambios: CambiosOrden, motivo: string | undefined, _actor: Actor): Promise<ResultadoAccion<{ cambios: string[]; sinStock: number }>> {
+    const errores = validarCambiosOrden(cambios, motivo)
+    const primero = Object.values(errores)[0]
+    if (primero) return { ok: false, mensaje: primero, errores }
+    const d = cambios.destinatario
+    const json: Record<string, unknown> = {
+      ...(cambios.nota !== undefined ? { nota: cambios.nota } : {}),
+      ...(d ? { destinatario: { ...(d.ruc !== undefined ? { ruc: d.ruc } : {}), ...(d.razonSocial !== undefined ? { razon_social: d.razonSocial } : {}), ...(d.direccion !== undefined ? { direccion: d.direccion } : {}), ...(d.ubigeo !== undefined ? { ubigeo: d.ubigeo } : {}) } } : {}),
+      ...(cambios.lineas?.length ? { lineas: cambios.lineas.map((l) => ({ linea_id: l.lineaId, cantidad: l.cantidad })) } : {}),
+    }
+    const { data, error } = await rpc('editar_orden_salida', { p_salida: salidaId, p_cambios: json, p_motivo: motivo?.trim() || null })
+    if (error) return mal(error)
+    const r = (data ?? {}) as { cambios?: string[]; sin_stock?: number }
+    return { ok: true, cambios: r.cambios ?? [], sinStock: Number(r.sin_stock ?? 0) }
   }
 
   async cancelarOrden(salidaId: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {

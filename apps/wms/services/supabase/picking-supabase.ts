@@ -129,7 +129,7 @@ export class PickingSupabase extends ReservasSupabase implements RepositorioPick
     return {
       ...this.resumenSalida(c, sal), estado: sal.estado as SalidaVista['estado'], requiereEmbalaje: sal.requiere_embalaje !== false, creadaPor: nombres.get(String(sal.creada_por)) ?? 'Usuario',
       lineasDetalle: c.lineas.filter((l) => String(l.salida_id) === id).map((l) => this.lineaVista(c, l, String(sal.tipo))),
-      clienteManual: sal.cliente_manual ? clienteDeJson(sal.cliente_manual as Record<string, unknown>) : undefined, greNumero: s(sal.gre_numero), greArchivo: s(sal.gre_archivo), devolucionAvisoMotivo: s(sal.devolucion_aviso_motivo),
+      nota: s(sal.nota_orden), clienteManual: sal.cliente_manual ? clienteDeJson(sal.cliente_manual as Record<string, unknown>) : undefined, greNumero: s(sal.gre_numero), greArchivo: s(sal.gre_archivo), devolucionAvisoMotivo: s(sal.devolucion_aviso_motivo),
       entrega: c.entregas.has(id) ? vistaEntrega(c.entregas.get(id)!, nombres) : undefined,
       ordenPickingId: s(c.ordenes.find((o) => String(o.salida_id) === id && o.estado !== 'CANCELADA')?.id), cambios,
     }

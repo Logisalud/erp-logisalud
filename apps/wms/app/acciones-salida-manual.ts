@@ -8,6 +8,7 @@ import { tipoDeMotivo } from '@/domain/salidas'
 import { tipoContenidoCargo, validarArchivoCargo, type EntradaEntrega } from '@/domain/entrega-transportista'
 import { hoyEnLima } from '@/domain/fechas'
 import type { MotivoSalida } from '@/domain/salidas'
+import type { CambiosOrden } from '@/domain/editar-orden'
 import type { Actor, ResultadoAccion } from '@/services/repositorio'
 
 // SA-2: las acciones de la pantalla «Nueva Orden de Salida» y de la bandeja. Cada una pasa por el repositorio: quien manda en los permisos y las reglas es la base de datos (en la
@@ -58,3 +59,6 @@ export async function subirCargoEntregaAccion(f: FormData): Promise<ResultadoAcc
 }
 
 export async function registrarEntregaTransportistaAccion(entrada: EntradaEntrega) { return repositorio().registrarEntregaTransportistaCliente(entrada, await quien()) }
+
+/** 0059: «Editar» la orden (nota; y, en una orden manual antes del picking, destinatario y cantidades con motivo). Las reglas las aplica la base. */
+export async function editarOrdenAccion(salidaId: string, cambios: CambiosOrden, motivo?: string) { return repositorio().editarOrden(salidaId, cambios, motivo, await quien()) }
