@@ -320,6 +320,7 @@ export class EntradasSupabase {
     const grupos = por(filas, 'oc_id')
     return [...grupos.entries()].map(([ocId, ls]) => ({
       ocId, codigo: String(ls[0].oc_codigo), proveedorNombre: String(ls[0].proveedor_nombre), proveedorRuc: String(ls[0].proveedor_ruc), estado: s(ls[0].estado_oc),
+      fechaEmision: s(ls[0].fecha_emision)?.slice(0, 10), fechaEntrega: s(ls[0].fecha_entrega_estimada)?.slice(0, 10),
       items: ls.map((l) => ({
         ocItemId: String(l.oc_item_id), productoId: String(l.producto_id), codigo: String(l.producto_codigo), descripcion: String(l.producto_descripcion),
         pedida: Number(l.cantidad_pedida), recibida: Number(l.cantidad_recibida), saldo: Number(l.saldo), facturada: Number(l.cantidad_facturada ?? 0),

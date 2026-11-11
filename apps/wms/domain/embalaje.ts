@@ -81,3 +81,12 @@ export function validarReparto(pendientes: readonly PendienteEmbalar[], reparto:
   }
   return null
 }
+
+/** 1d: el destino que lleva la etiqueta del bulto: la dirección de entrega (y el distrito si no está ya escrito en ella). Sin dirección, lo dice en vez de dejar el espacio en blanco. */
+export function textoDestinoEtiqueta(direccion?: string | null, distrito?: string | null): string {
+  const d = (direccion ?? '').trim().replace(/\s+/g, ' ')
+  const dist = (distrito ?? '').trim()
+  if (!d) return dist ? `Distrito: ${dist} (sin dirección registrada)` : 'SIN DIRECCIÓN DE DESTINO'
+  if (dist && !d.toLowerCase().includes(dist.toLowerCase())) return `${d} · ${dist}`
+  return d
+}

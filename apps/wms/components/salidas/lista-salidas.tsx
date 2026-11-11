@@ -28,7 +28,7 @@ export function ListaSalidas({ salidas, verCambios, puedeTraer = false, puedeCre
         <div className="min-w-0 flex-1 basis-64">
           <label htmlFor="q-salidas" className="etiqueta">Buscar</label>
           <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" aria-hidden />
-            <input id="q-salidas" type="search" className="campo pl-10" placeholder="Salida, pedido, cliente o ruta" value={q} onChange={(e) => setQ(e.target.value)} data-testid="buscar-salidas" /></div>
+            <input id="q-salidas" type="search" className="campo pl-10" placeholder="N.º de orden, n.º de guía, pedido, cliente o ruta" value={q} onChange={(e) => setQ(e.target.value)} data-testid="buscar-salidas" /></div>
         </div>
         <div>
           <label htmlFor="etapa-salidas" className="etiqueta">Etapa</label>

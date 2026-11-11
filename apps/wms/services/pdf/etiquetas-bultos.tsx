@@ -1,7 +1,7 @@
 import 'server-only'
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer'
 import QRCode from 'qrcode'
-import { etiquetaBulto, type BultoVista } from '@/domain/embalaje'
+import { etiquetaBulto, textoDestinoEtiqueta, type BultoVista } from '@/domain/embalaje'
 import { mesAnio } from '@/domain/salidas'
 import { LOGO_LOGISALUD } from '../pdf-logo'
 
@@ -11,7 +11,7 @@ const s = StyleSheet.create({
   pagina: { padding: 10 * MM, fontSize: 9, color: '#111827', fontFamily: 'Helvetica' },
 })
 
-export interface DatosEtiquetas { salidaNumero: string; pedidoNumero?: string; cliente?: string; rutaNumero?: string; bultos: BultoVista[] }
+export interface DatosEtiquetas { salidaNumero: string; pedidoNumero?: string; cliente?: string; rutaNumero?: string; direccion?: string; distrito?: string; bultos: BultoVista[] }
 
 export async function renderEtiquetasBultos(d: DatosEtiquetas): Promise<Buffer> {
   const qrs = await Promise.all(d.bultos.map((b) => QRCode.toDataURL(b.codigo, { margin: 1, width: 360, errorCorrectionLevel: 'M' })))
@@ -31,6 +31,7 @@ export async function renderEtiquetasBultos(d: DatosEtiquetas): Promise<Buffer> 
           <View style={{ marginTop: 8, borderTop: '1pt solid #111827', paddingTop: 5 }}>
             <Text style={{ fontFamily: 'Helvetica-Bold' }}>Pedido {d.pedidoNumero ?? '—'}</Text>
             <Text>{d.cliente ?? 'Sin cliente'}</Text>
+            <Text style={{ marginTop: 2 }}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Destino: </Text>{textoDestinoEtiqueta(d.direccion, d.distrito)}</Text>
             {d.rutaNumero && <Text>Ruta {d.rutaNumero}</Text>}
           </View>
           <View style={{ marginTop: 6 }}>

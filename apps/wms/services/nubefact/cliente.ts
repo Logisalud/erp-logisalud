@@ -32,7 +32,7 @@ export function clienteNubefact(piloto: boolean): ClienteNubefact {
     const demo = credencialesNubefactDemo()
     return demo ? new ClienteNubefactHttp({ url: demo.ruta, token: demo.token, modo: 'PRUEBA' }) : SimuladorNubefact.compartido()
   }
-  const modo = (process.env.NUBEFACT_MODO ?? 'SIMULADOR').toUpperCase()
+  const modo = modoNubefactDeEntorno(process.env)
   if (modo === 'SIMULADOR') return SimuladorNubefact.compartido()
   if (modo !== 'PRUEBA' && modo !== 'PRODUCCION') throw new NubefactNoConfigurado(`NUBEFACT_MODO no es válido (${modo}): usa SIMULADOR, PRUEBA o PRODUCCION`)
   // B.3: el cliente real solo con el entorno que corresponde (DEMO en el piloto, PRODUCCION en el go-live)
@@ -73,6 +73,19 @@ export function nubefactDemoIncompleto(env: Record<string, string | undefined> =
 /** El modo que se mostrará en pantalla antes de emitir (sin lanzar si falta configuración). */
 export function modoNubefactActual(): ModoNubefact {
   if (modoDemoActivo()) return credencialesNubefactDemo() ? 'PRUEBA' : 'SIMULADOR'
-  const m = (process.env.NUBEFACT_MODO ?? 'SIMULADOR').toUpperCase()
+  const m = modoNubefactDeEntorno(process.env)
   return m === 'PRUEBA' || m === 'PRODUCCION' ? m : 'SIMULADOR'
+}
+
+/**
+ * El modo según el entorno. Si NUBEFACT_MODO no está puesta pero el entorno trae las tres variables de la cuenta DEMO (NUBEFACT_ENTORNO=DEMO, ruta https y token), se usa PRUEBA:
+ * antes caía en el simulador sin avisar y no se creaba nada en el panel de Nubefact ni salía PDF. Una NUBEFACT_MODO escrita (SIMULADOR, PRUEBA, PRODUCCION) siempre manda.
+ */
+export function modoNubefactDeEntorno(env: Record<string, string | undefined>): string {
+  const escrito = (env.NUBEFACT_MODO ?? '').trim().toUpperCase()
+  if (escrito) return escrito
+  const ruta = (env.NUBEFACT_URL ?? env.NUBEFACT_RUTA ?? '').trim()
+  const token = (env.NUBEFACT_TOKEN ?? '').trim()
+  if ((env.NUBEFACT_ENTORNO ?? '').trim().toUpperCase() === 'DEMO' && /^https:\/\//i.test(ruta) && token) return 'PRUEBA'
+  return 'SIMULADOR'
 }

@@ -267,6 +267,28 @@ export function filtrarPedidosPlanificables(pedidos: readonly PedidoPlanificable
   return pedidos.filter((p) => t.split(/\s+/).every((x) => normalizar(`${p.numero} ${p.cliente} ${p.ruc ?? ''} ${p.distrito ?? ''} ${p.direccion ?? ''}`).includes(x)))
 }
 
+/** 1b: los distritos que hay entre los pedidos por planificar (para el filtro), sin repetir y en orden alfabético. */
+export function distritosDePedidos(pedidos: readonly { distrito?: string }[]): string[] {
+  const vistos = new Map<string, string>()
+  for (const p of pedidos) { const d = p.distrito?.trim(); if (d && !vistos.has(normalizar(d))) vistos.set(normalizar(d), d) }
+  return [...vistos.values()].sort((a, b) => normalizar(a).localeCompare(normalizar(b)))
+}
+
+/** 1b: filtra por distrito (vacío = todos) y ordena por distrito (ascendente o descendente); lo que no trae distrito va al final. El orden es estable. */
+export function filtrarYOrdenarPorDistrito<T extends { distrito?: string }>(pedidos: readonly T[], distrito: string, orden: 'ninguno' | 'asc' | 'desc'): T[] {
+  const f = normalizar(distrito.trim())
+  const lista = f ? pedidos.filter((p) => normalizar(p.distrito ?? '') === f) : [...pedidos]
+  if (orden === 'ninguno') return lista
+  const signo = orden === 'asc' ? 1 : -1
+  return lista.map((p, i) => ({ p, i })).sort((a, b) => {
+    const da = a.p.distrito?.trim(), db = b.p.distrito?.trim()
+    if (!da && !db) return a.i - b.i
+    if (!da) return 1
+    if (!db) return -1
+    return signo * normalizar(da).localeCompare(normalizar(db)) || a.i - b.i
+  }).map(({ p }) => p)
+}
+
 /** Lo que cambió entre dos versiones, en palabras (para el historial de la ruta). */
 export function resumenVersion(motivo: string, paradas: number): string { return `${motivo} · ${paradas} ${paradas === 1 ? 'parada' : 'paradas'}` }
 

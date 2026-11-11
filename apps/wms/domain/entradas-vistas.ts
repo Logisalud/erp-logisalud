@@ -17,6 +17,9 @@ export interface OcPendiente {
   proveedorNombre: string
   proveedorRuc: string
   estado?: string
+  /** Fecha de emisión de la OC en Compras (AAAA-MM-DD); ayuda a encontrar la OC que se quiere recepcionar. */
+  fechaEmision?: string
+  fechaEntrega?: string
   items: { ocItemId: string; productoId: string; codigo: string; descripcion: string; pedida: number; recibida: number; saldo: number; facturada: number }[]
 }
 

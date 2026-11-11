@@ -1,4 +1,5 @@
 import type { PaqueteSalida } from '@/domain/documentacion'
+import type { GuiaFila } from '@/domain/guias-busqueda'
 import type { CasoAnulacion, DatosGuia, RegistroGuiaPanel, EstadoSunat, EventoPedidos, ModoNubefact, RespuestaConsulta, RespuestaEmision, TrasladoGuia } from '@/domain/guia-electronica'
 import type { EstadoCorrelativo } from '@/domain/numeracion-guias'
 import type { Actor, ResultadoAccion } from './repositorio'
@@ -15,6 +16,8 @@ export interface RepositorioDocumentacion {
   registrarGuiaPanel(salidaId: string, registro: RegistroGuiaPanel, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string }>>
   /** Una guía no se edita: se anula con motivo y se registra otra (caso 1: datos del traslado). */
   anularGre(guiaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  /** El buscador de guías: una fila por guía (vigente o anulada), con su orden, destinatario, ruta y estado. */
+  listarGuias(): Promise<GuiaFila[]>
   /** El paquete de todas las salidas de una ruta, para imprimirlo junto. */
   salidasDeRuta(rutaId: string): Promise<string[]>
 

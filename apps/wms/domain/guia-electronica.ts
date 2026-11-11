@@ -16,6 +16,8 @@ export const ETIQUETA_MODO: Record<ModoNubefact, string> = {
 }
 /** El nombre corto con que la pantalla dice a qué está conectada la guía (D-210). Nunca lleva la ruta ni el token. */
 export const NOMBRE_MODO: Record<ModoNubefact, string> = { SIMULADOR: 'Simulador', PRUEBA: 'Nubefact (modo prueba)', PRODUCCION: 'Nubefact (producción)' }
+/** En modo prueba SUNAT no responde: la guía queda «en espera» y el enlace al PDF solo llega si SUNAT la acepta. Se dice en pantalla (no es un error del WMS). */
+export const AVISO_MODO_PRUEBA = 'En modo prueba SUNAT no responde: la guía queda «en espera de SUNAT» y el enlace al PDF solo llega si SUNAT la acepta. La guía sí se crea en el panel de la cuenta demo de Nubefact.'
 export type EstadoSunat = 'ACEPTADA' | 'PENDIENTE' | 'RECHAZADA'
 export const ETIQUETA_ESTADO_SUNAT: Record<EstadoSunat, string> = { ACEPTADA: 'Aceptada por SUNAT', PENDIENTE: 'SUNAT todavía no responde', RECHAZADA: 'Rechazada por SUNAT' }
 

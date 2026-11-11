@@ -325,6 +325,13 @@ export interface ImportacionVista { id: string; en: string; por: string; origen:
 export const puedeVerBandeja = (roles: readonly string[]) => roles.some((r) => ['jefe_transporte', 'jefe_almacen', 'direccion_tecnica', 'admin_wms', 'auditoria_lectura'].includes(r))
 export const puedeActualizarBandeja = (roles: readonly string[]) => roles.some((r) => ['jefe_transporte', 'jefe_almacen'].includes(r))
 
+/** 1e: ¿toca traer los pedidos solos al abrir la bandeja? Sí si nunca se intentó o si el último intento (bueno o malo) tiene más de `minutos` minutos: un intento fallido también frena el siguiente, para no insistir en cada pantalla. */
+export function tocaTraerPedidos(ultimoIntentoEn: string | undefined | null, ahoraMs: number, minutos = 15): boolean {
+  if (!ultimoIntentoEn) return true
+  const t = Date.parse(ultimoIntentoEn)
+  return Number.isNaN(t) || ahoraMs - t >= minutos * 60_000
+}
+
 /** Arma la fila de la bandeja desde lo guardado (la usan la demo y el adaptador de Supabase, para que digan lo mismo). */
 export function bandejaDeFila(f: {
   id: string; snapshot: PedidoSnapshot; cambios: string[]; cambioPendiente: boolean; salida?: string; salidaId?: string; importadoEn: string; codigosEnCatalogo: ReadonlySet<string>; avisoVendedor?: string

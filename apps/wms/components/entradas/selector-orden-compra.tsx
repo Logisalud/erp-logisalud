@@ -3,17 +3,25 @@
 import { useMemo, useState } from 'react'
 import { Check, ChevronRight, Search } from 'lucide-react'
 import type { OcPendiente } from '@/domain/entradas-vistas'
+import { formatoFecha } from '@/domain/fechas'
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 /** Las líneas de la orden que todavía tienen saldo por recibir. */
 const conSaldo = (o: OcPendiente) => o.items.filter((i) => i.saldo > 0)
 
-/** ¿La orden coincide con lo que se escribió? Busca por número de OC, proveedor o producto (código o nombre), sin tildes ni mayúsculas. */
+/** La fecha de la OC escrita de las formas en que se busca: 2026-11-08, 08/11/2026, 8 nov 2026 y 11/2026. */
+function textoDeFecha(iso?: string): string {
+  if (!iso) return ''
+  const [a, m, d] = iso.split('-')
+  return `${iso} ${d}/${m}/${a} ${formatoFecha(iso)} ${m}/${a}`
+}
+
+/** ¿La orden coincide con lo que se escribió? Busca por número de OC, fecha, proveedor o producto (código o nombre), sin tildes ni mayúsculas. */
 export function ocCoincide(o: OcPendiente, texto: string): boolean {
   const palabras = sinTildes(texto).split(/\s+/).filter(Boolean)
   if (palabras.length === 0) return true
-  const pajar = sinTildes([o.codigo, o.proveedorNombre, o.proveedorRuc, ...conSaldo(o).flatMap((i) => [i.codigo, i.descripcion])].join(' '))
+  const pajar = sinTildes([o.codigo, textoDeFecha(o.fechaEmision), o.proveedorNombre, o.proveedorRuc, ...conSaldo(o).flatMap((i) => [i.codigo, i.descripcion])].join(' '))
   return palabras.every((p) => pajar.includes(p))
 }
 
@@ -23,10 +31,16 @@ export function ocCoincide(o: OcPendiente, texto: string): boolean {
  */
 export function SelectorOrdenCompra({ ocs, ocId, onElegir }: { ocs: OcPendiente[]; ocId: string; onElegir: (id: string) => void }) {
   const [texto, setTexto] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
   const [abiertas, setAbiertas] = useState<ReadonlySet<string>>(new Set())
   const lista = useMemo(
-    () => [...ocs].sort((a, b) => b.codigo.localeCompare(a.codigo, 'es', { numeric: true })).filter((o) => ocCoincide(o, texto)),
-    [ocs, texto],
+    () => [...ocs]
+      // la más reciente primero; las que no traen fecha, al final
+      .sort((a, b) => (b.fechaEmision ?? '').localeCompare(a.fechaEmision ?? '') || b.codigo.localeCompare(a.codigo, 'es', { numeric: true }))
+      .filter((o) => ocCoincide(o, texto))
+      .filter((o) => (!desde || (!!o.fechaEmision && o.fechaEmision >= desde)) && (!hasta || (!!o.fechaEmision && o.fechaEmision <= hasta))),
+    [ocs, texto, desde, hasta],
   )
   const alternar = (id: string) => setAbiertas((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
@@ -34,8 +48,19 @@ export function SelectorOrdenCompra({ ocs, ocId, onElegir }: { ocs: OcPendiente[
     <div className="mt-3" data-testid="selector-oc">
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" aria-hidden />
-        <input type="search" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Buscar por número de OC, proveedor o producto" aria-label="Buscar orden de compra"
+        <input type="search" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Buscar por número de OC, fecha, proveedor o producto" aria-label="Buscar orden de compra"
           className="campo pl-10" data-testid="oc-buscar" />
+      </div>
+      <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-2">
+        <div>
+          <label htmlFor="oc-desde" className="block text-xs text-gray-700">Emitida desde</label>
+          <input id="oc-desde" type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} className="campo min-h-11 py-1" data-testid="oc-desde" />
+        </div>
+        <div>
+          <label htmlFor="oc-hasta" className="block text-xs text-gray-700">hasta</label>
+          <input id="oc-hasta" type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} className="campo min-h-11 py-1" data-testid="oc-hasta" />
+        </div>
+        {(desde || hasta || texto) && <button type="button" onClick={() => { setTexto(''); setDesde(''); setHasta('') }} className="min-h-11 text-sm text-gray-800 underline" data-testid="oc-limpiar">Limpiar búsqueda</button>}
       </div>
       <p className="mt-2 text-xs text-gray-600" role="status" data-testid="oc-conteo">
         {lista.length === ocs.length ? `${ocs.length} órdenes con saldo por recibir` : `${lista.length} de ${ocs.length} órdenes`}
@@ -45,8 +70,8 @@ export function SelectorOrdenCompra({ ocs, ocId, onElegir }: { ocs: OcPendiente[
         <p className="mt-3 rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-700" data-testid="oc-sin-resultados">Ninguna orden coincide con «{texto}». Prueba con otro número, proveedor o producto.</p>
       ) : (
         <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
-          <div className="hidden grid-cols-[2.75rem_9rem_1fr_6rem_8rem_8rem] items-center gap-3 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-700 md:grid" aria-hidden>
-            <span /><span>Orden</span><span>Proveedor</span><span className="text-right">Productos</span><span className="text-right">Por recibir</span><span />
+          <div className="hidden grid-cols-[2.75rem_9rem_7.5rem_1fr_6rem_8rem_8rem] items-center gap-3 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-700 md:grid" aria-hidden>
+            <span /><span>Orden</span><span>Emitida</span><span>Proveedor</span><span className="text-right">Productos</span><span className="text-right">Por recibir</span><span />
           </div>
           <ul role="radiogroup" aria-label="Órdenes de compra" className="divide-y divide-gray-100">
             {lista.map((o) => {
@@ -57,14 +82,15 @@ export function SelectorOrdenCompra({ ocs, ocId, onElegir }: { ocs: OcPendiente[
               const panel = `oc-detalle-${o.codigo}`
               return (
                 <li key={o.ocId} className={on ? 'bg-green-50' : undefined} data-testid="oc-fila">
-                  <div className="grid grid-cols-[2.75rem_1fr_auto] items-center gap-x-3 gap-y-1 px-3 py-2 md:grid-cols-[2.75rem_9rem_1fr_6rem_8rem_8rem]">
+                  <div className="grid grid-cols-[2.75rem_1fr_auto] items-center gap-x-3 gap-y-1 px-3 py-2 md:grid-cols-[2.75rem_9rem_7.5rem_1fr_6rem_8rem_8rem]">
                     <button type="button" onClick={() => alternar(o.ocId)} aria-expanded={abierta} aria-controls={panel} data-testid={`oc-detalle-boton-${o.codigo}`}
                       aria-label={`${abierta ? 'Ocultar' : 'Ver'} los productos de ${o.codigo}`}
                       className="row-span-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-700 hover:bg-gray-100 md:row-span-1">
                       <ChevronRight className={`h-5 w-5 transition-transform duration-fast ${abierta ? 'rotate-90' : ''}`} aria-hidden />
                     </button>
                     <span className="font-medium text-gray-900">{o.codigo}</span>
-                    <span className="col-start-2 row-start-2 min-w-0 truncate text-sm text-gray-700 md:col-start-auto md:row-start-auto">{o.proveedorNombre}</span>
+                    <span className="tabular hidden text-sm text-gray-800 md:block" data-testid="oc-fecha">{formatoFecha(o.fechaEmision)}</span>
+                    <span className="col-start-2 row-start-2 min-w-0 truncate text-sm text-gray-700 md:col-start-auto md:row-start-auto"><span className="md:hidden">{o.fechaEmision ? `${formatoFecha(o.fechaEmision)} · ` : ''}</span>{o.proveedorNombre}</span>
                     <span className="tabular hidden text-right text-sm text-gray-800 md:block">{items.length}</span>
                     <span className="tabular hidden text-right text-sm font-medium text-gray-900 md:block">{unidades.toLocaleString('es-PE')} uds</span>
                     <span className="col-start-3 row-span-2 row-start-1 flex flex-col items-end gap-1 md:col-start-auto md:row-span-1 md:row-start-auto md:block md:text-right">

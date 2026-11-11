@@ -7,6 +7,7 @@ import {
 import {
   motivoDeTraslado, normalizarGuiaModo, validarRegistroGuiaPanel, parametroDescripcionOtros, parametroMotivoDeTipo, type CasoAnulacion, type DatosGuia, type EventoPedidos, type EstadoSunat, type RespuestaConsulta, type ModoNubefact, type OrigenGuia, type RegistroGuiaPanel, type RespuestaEmision, type TrasladoGuia,
 } from '@/domain/guia-electronica'
+import type { GuiaFila } from '@/domain/guias-busqueda'
 import type { EstadoCorrelativo } from '@/domain/numeracion-guias'
 import { etapaConAvance, type SalidaResumen, type SalidaVista } from '@/domain/despacho'
 import type { EstadoRequisito, TipoDocumento } from '@/domain/documentos'
@@ -16,7 +17,7 @@ import type { RepositorioDocumentacion } from '../repositorio-documentacion'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { nombresDe } from './entradas-supabase'
 import { DocumentosSupabase } from './documentos-supabase'
-import { mensajeHumano, rpc, s, type Fila } from './util'
+import { mensajeHumano, rpc, s, traerTodo, type Fila } from './util'
 
 // ESTE ADAPTADOR NO SE EJECUTÓ CONTRA UNA BASE REAL (misma limitación que los demás). Está verificado contra el contrato de las funciones SQL de la migración
 // 0019 (probada en Postgres local: tests/db/documentacion.test.ts) y por tipos.
@@ -40,6 +41,31 @@ function guiaVista(g: Fila, nombres: Map<string, string>): GuiaVista {
 }
 
 export class DocumentacionSupabase extends DocumentosSupabase implements RepositorioDocumentacion {
+  /** El buscador de guías: todas las guías (vigentes y anuladas) unidas a su orden de salida (cliente o proveedor, pedido, ruta). */
+  async listarGuias(): Promise<GuiaFila[]> {
+    const [gs, salidas, rutas, personal, vehiculos] = await Promise.all([
+      traerTodo('guias_remision', 'wms', '*', ['registrada_en']), this.listarSalidas(),
+      traerTodo('rutas', 'wms', 'id, numero, conductor_id, vehiculo_id'), traerTodo('personal_transporte', 'wms', 'id, nombre'), traerTodo('vehiculos', 'wms', 'id, placa'),
+    ])
+    const nombres = await nombresDe(gs.map((g) => s(g.registrada_por)).filter(Boolean) as string[])
+    const porSalida = new Map(salidas.map((x) => [x.id, x]))
+    const rutaPorNumero = new Map(rutas.map((r) => [String(r.numero), r]))
+    const nombrePersona = new Map(personal.map((p) => [String(p.id), String(p.nombre)]))
+    const placaDe = new Map(vehiculos.map((v) => [String(v.id), String(v.placa)]))
+    return gs.map((g): GuiaFila => {
+      const v = guiaVista(g, nombres)
+      const so = porSalida.get(String(g.salida_id))
+      const ruta = so?.rutaNumero ? rutaPorNumero.get(so.rutaNumero) : undefined
+      return {
+        id: v.id, numero: v.numero, salidaId: String(g.salida_id), salidaNumero: so?.numero ?? '—', pedidoNumero: so?.pedidoNumero, tipoOrden: so?.tipo, rolDestinatario: so?.tipo === 'PROVEEDOR' ? 'PROVEEDOR' : 'CLIENTE',
+        destinatario: so?.cliente, rutaNumero: so?.rutaNumero, placa: v.placa ?? (ruta?.vehiculo_id ? placaDe.get(String(ruta.vehiculo_id)) : undefined),
+        conductor: ruta?.conductor_id ? nombrePersona.get(String(ruta.conductor_id)) : undefined,
+        fecha: v.fechaEmision ?? v.registradaEn.slice(0, 10), fechaTraslado: v.fechaInicio ?? v.fechaTraslado, bultos: v.bultos, pesoKg: v.pesoKg, unidades: v.lineas.reduce((t, l) => t + l.cantidad, 0),
+        origen: v.origen, entorno: v.entorno, estadoSunat: v.estadoSunat, anulada: v.estado === 'ANULADA', motivoAnulacion: v.anuladaMotivo, enlace: v.enlace, registradaPor: v.registradaPor,
+      }
+    }).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero))
+  }
+
   async paqueteSalida(salidaId: string): Promise<PaqueteSalida | null> {
     const salida = await this.obtenerSalida(salidaId)
     if (!salida) return null
