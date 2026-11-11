@@ -64,6 +64,7 @@ export const SQL = {
   m0050: () => leer('supabase/migrations/0050_wms_bonificacion_una_sola_ficha.sql'),
   m0051: () => leer('supabase/migrations/0051_wms_oc_con_fecha_de_emision.sql'),
   m0052: () => leer('supabase/migrations/0052_wms_auxiliares_de_transporte_en_el_desplegable.sql'),
+  m0058: () => leer('supabase/migrations/0058_wms_inspecciones_de_la_unidad.sql'),
   m0057: () => leer('supabase/migrations/0057_wms_vehiculo_de_contingencia.sql'),
   m0056: () => leer('supabase/migrations/0056_wms_conformidad_del_cliente_en_la_entrega.sql'),
   m0055: () => leer('supabase/migrations/0055_wms_pre_guia_numero_reservado_tras_la_conformidad.sql'),
@@ -163,6 +164,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0055())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0056())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0057())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0058())
   // Solo para las pruebas: los datos de prueba de producto_regulatorio nacen COMPLETOS (los seis datos que pide la 0041); las pruebas de «incompleto» los vacían con un UPDATE.
   await admin.query(`create or replace function public.zz_completar_regulatorio_prueba() returns trigger language plpgsql as $f$ begin
       new.fabricante := coalesce(new.fabricante, 'Laboratorio de prueba'); new.forma_presentacion := coalesce(new.forma_presentacion, 'Tableta');

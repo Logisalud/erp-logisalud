@@ -14,7 +14,7 @@ describe('permisos y menú', () => {
     expect(soloMisRutas(['conductor'])).toBe(true); expect(soloMisRutas(['conductor', 'jefe_transporte'])).toBe(false)
   })
   it('su menú es Inicio y Mis rutas; el de los demás no la trae', () => {
-    expect(construirMenu(['conductor']).flatMap((s) => s.items.map((i) => i.href))).toEqual(['/', '/mis-rutas'])
+    expect(construirMenu(['conductor']).flatMap((s) => s.items.map((i) => i.href))).toEqual(['/', '/mis-rutas', '/inspecciones'])
     expect(construirMenu(['auxiliar_transporte']).flatMap((s) => s.items.map((i) => i.href))).toContain('/mis-rutas')
     expect(construirMenu(['jefe_transporte']).flatMap((s) => s.items.map((i) => i.href))).not.toContain('/mis-rutas')
   })

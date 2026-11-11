@@ -307,6 +307,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'actualizar_estado_guia', 'anular_guia', 'contexto_guia', 'marcar_evento_pedidos', 'registrar_guia_electronica', 'siguiente_numero_guia',
     // Ranking y diferencia en la carga (0053)
     'registrar_diferencia_carga', 'descartar_diferencia_carga', 'pedidos_del_mes',
+    // Inspecciones de la unidad (0058)
+    'vehiculos_para_inspeccion', 'registrar_inspeccion_unidad', 'supervisar_inspeccion_unidad', 'inspecciones_del_mes',
     // Vehículo de contingencia (0057)
     'registrar_motivo_contingencia',
     // Pre-guía (0055)

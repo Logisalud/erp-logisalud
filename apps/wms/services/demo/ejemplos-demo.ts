@@ -1,6 +1,7 @@
 // Órdenes de ejemplo de la demostración (SA-1): al abrir Salidas (o cualquier pantalla de despacho) la demo ya trae una orden en cada etapa y de cada tipo, para recorrer
 // todos los flujos sin generarlos uno por uno. NO inventa estados: llama a las mismas acciones que usan las pantallas (asignar, designar picker, picking, conformidad, guía con el
 // simulador, COA, embalaje, ruta, carga, liberar y confirmar salida, cancelar). Qué se siembra lo dice la lista declarativa `EJEMPLOS_SALIDA` (domain/ejemplos.ts).
+import { InspeccionesDemo } from './inspecciones-demo'
 import { FIRMA_PNG_EJEMPLO } from '../firma-imagen'
 import { EJEMPLOS_DEVOLUCION, EJEMPLOS_SALIDA, type EjemploSalida } from '@/domain/ejemplos'
 import { validarPedidos, type PedidoSnapshot } from '@/domain/pedidos-despacho'
@@ -15,7 +16,6 @@ import { estadoE, conIdsDeterministas, checklistConforme } from './entradas-demo
 import { desp, duenoDelAlmacen, lotesDisponibles, type SalidaDemo } from './despacho-demo'
 import { sembrarInventario } from './inventario-demo'
 import type { EstadoDemo } from './estado'
-import { SeguimientoDemo } from './seguimiento-demo'
 import type { Actor } from '../repositorio'
 
 const actor = (clave: string, ...roles: Actor['roles']): Actor => ({ id: `demo:${clave}`, nombre: `${clave} (demo)`, roles })
@@ -74,7 +74,7 @@ function productosConStock(e: EstadoDemo, propietarioId: string, minimo: number)
   return out.sort((a, b) => b.codigo.localeCompare(a.codigo, 'es', { numeric: true }))
 }
 
-export class EjemplosDemo extends SeguimientoDemo {
+export class EjemplosDemo extends InspeccionesDemo {
   /** Las órdenes de ejemplo se siembran una sola vez, después del despacho de siempre. Con `WMS_DEMO_EJEMPLOS=0` (o `vacio`) no se siembra nada. */
   protected override async sembrarDespacho(e: EstadoDemo) {
     // la ruta de siempre (PED-DEMO-101) se arma dentro de `super` y vuelve a pasar por aquí: los ejemplos esperan a que termine para conservar su numeración
