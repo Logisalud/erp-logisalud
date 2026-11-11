@@ -307,6 +307,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'actualizar_estado_guia', 'anular_guia', 'contexto_guia', 'marcar_evento_pedidos', 'registrar_guia_electronica', 'siguiente_numero_guia',
     // Ranking y diferencia en la carga (0053)
     'registrar_diferencia_carga', 'descartar_diferencia_carga', 'pedidos_del_mes',
+    // Pre-guía (0055)
+    'crear_pre_guia', 'cancelar_pre_guia',
     // S6b (0019)
     'anular_gre', 'documentacion_resumen', 'paquete_documental', 'registrar_gre',
     // S5 (0018)
