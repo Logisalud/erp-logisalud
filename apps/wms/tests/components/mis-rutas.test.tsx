@@ -87,6 +87,23 @@ describe('Mis rutas (celular)', () => {
     const f = acc.registrarEventoParadaAccion.mock.calls[0][0] as FormData
     expect(f.get('conforme')).toBe('NO'); expect(f.get('tipoDiferencia')).toBe('LOTE'); expect(f.get('detalleDiferencia')).toBe('Llegó otro lote')
   })
+  it('foto del pedido con la caja abierta: se ofrece con la ruta liberada (al cargar), pide la foto y la manda; con la ruta aún planificada no se ofrece', async () => {
+    const { unmount } = render(<MisRutas rutas={[ruta({ estado: 'LIBERADA', puedeMarcar: false, paradas: [parada(1)] })]} />)
+    expect(screen.getByTestId('foto-pedido')).toHaveTextContent('Foto del pedido con la caja abierta')
+    expect(screen.queryByTestId('parada-LLEGUE')).toBeNull()   // todavía no salió: solo la foto
+    acc.registrarEventoParadaAccion.mockResolvedValueOnce({ ok: false, mensaje: 'Falta la foto del pedido con la caja abierta', errores: { foto: 'Falta la foto del pedido con la caja abierta' } })
+    await userEvent.click(screen.getByTestId('parada-FOTO_PEDIDO'))
+    await userEvent.click(screen.getByTestId('parada-confirmar'))
+    await waitFor(() => expect(screen.getByTestId('parada-error')).toHaveTextContent('Falta la foto'))   // la acción dice si falta la foto
+    await userEvent.upload(screen.getByTestId('foto-pedido-archivo'), new File([new Uint8Array(10)], 'caja.jpg', { type: 'image/jpeg' }))
+    await userEvent.click(screen.getByTestId('parada-confirmar'))
+    await waitFor(() => expect(screen.getByTestId('parada-exito')).toHaveTextContent('Foto del pedido guardada'))
+    const f = acc.registrarEventoParadaAccion.mock.calls.at(-1)![0] as FormData
+    expect(f.get('evento')).toBe('FOTO_PEDIDO'); expect(f.get('foto')).toBeTruthy()
+    unmount()
+    render(<MisRutas rutas={[ruta({ estado: 'PLANIFICADA' as never, puedeMarcar: false, paradas: [parada(1)] })]} />)
+    expect(screen.queryByTestId('foto-pedido')).toBeNull()
+  })
   it('«Rechazado» y «No entregado» piden el motivo y avisan que el Jefe de Transporte registra el retorno', async () => {
     acc.registrarEventoParadaAccion.mockResolvedValueOnce({ ok: true, retornoPorOriginar: true, rutaPendienteDeCierre: false })
     render(<MisRutas rutas={[ruta({ paradas: [parada(1, { estado: 'LLEGUE' })] })]} />)

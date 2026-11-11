@@ -5,9 +5,10 @@ import { Camera, CheckCircle2, CircleAlert, MapPin, PackageCheck, PackageX, Refr
 import { useRouter } from 'next/navigation'
 import { registrarEventoParadaAccion } from '@/app/acciones-mis-rutas'
 import {
-  AVISO_RETORNO_POR_ORIGINAR, ETIQUETA_DIFERENCIA_ENTREGA, ETIQUETA_ESTADO_PARADA, ETIQUETA_EVENTO, TEXTO_PILOTO_MIS_RUTAS, TIPOS_DIFERENCIA_ENTREGA, eventosPosibles, motivoNoSePuede,
+  AVISO_RETORNO_POR_ORIGINAR, ETIQUETA_DIFERENCIA_ENTREGA, ETIQUETA_ESTADO_PARADA, ETIQUETA_EVENTO, TEXTO_PILOTO_MIS_RUTAS, TIPOS_DIFERENCIA_ENTREGA, eventosPosibles, motivoNoSePuede, puedeFotografiarPedido,
   type EventoParada, type EstadoParadaMia, type ParadaMia, type RutaMia,
 } from '@/domain/mis-rutas'
+import type { EstadoRuta } from '@/domain/rutas'
 import { Aviso } from '../entradas/aviso'
 import { CHIP_AVISO, CHIP_NEUTRO, CHIP_OK } from '../estilos-opcion'
 
@@ -17,7 +18,7 @@ const ESTADO_ESTILO: Record<EstadoParadaMia, { cls: string; I: typeof CheckCircl
 }
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Lima' })
 
-function Parada({ p, puedeMarcar }: { p: ParadaMia; puedeMarcar: boolean }) {
+function Parada({ p, puedeMarcar, estadoRuta }: { p: ParadaMia; puedeMarcar: boolean; estadoRuta: EstadoRuta }) {
   const router = useRouter()
   const [abierto, setAbierto] = useState<EventoParada | null>(null)
   const [pendiente, setPendiente] = useState(false)
@@ -27,6 +28,8 @@ function Parada({ p, puedeMarcar }: { p: ParadaMia; puedeMarcar: boolean }) {
   const [conforme, setConforme] = useState(true)
   const E = ESTADO_ESTILO[p.estado]
   const posibles = eventosPosibles(p.estado, puedeMarcar)
+  const puedeFoto = puedeFotografiarPedido(estadoRuta, p.estado)
+  const fotosPedido = p.eventos.filter((e) => e.evento === 'FOTO_PEDIDO').length
 
   async function enviar(evento: EventoParada, form?: HTMLFormElement | null) {
     setPendiente(true); setError(null); setExito(null)
@@ -37,14 +40,14 @@ function Parada({ p, puedeMarcar }: { p: ParadaMia; puedeMarcar: boolean }) {
       const r = await registrarEventoParadaAccion(datos)
       if (r.ok) {
         setAbierto(null); setConforme(true)
-        setExito(evento === 'LLEGUE' ? 'Listo: avisamos que llegaste.' : evento === 'ENTREGADO' ? 'Entrega registrada con su foto.' : evento === 'INCIDENCIA' ? 'Incidencia anotada.' : `${ETIQUETA_EVENTO[evento]} registrado. ${r.retornoPorOriginar ? AVISO_RETORNO_POR_ORIGINAR : ''}`.trim())
+        setExito(evento === 'LLEGUE' ? 'Listo: avisamos que llegaste.' : evento === 'ENTREGADO' ? 'Entrega registrada con su foto.' : evento === 'FOTO_PEDIDO' ? 'Foto del pedido guardada.' : evento === 'INCIDENCIA' ? 'Incidencia anotada.' : `${ETIQUETA_EVENTO[evento]} registrado. ${r.retornoPorOriginar ? AVISO_RETORNO_POR_ORIGINAR : ''}`.trim())
         router.refresh()
       } else setError({ texto: r.mensaje, campos: r.errores })
     } catch { setError({ texto: 'No se pudo guardar. Revisa tu señal y vuelve a intentarlo.' }) }
     setPendiente(false)
   }
   const pulsar = (ev: EventoParada) => {
-    const no = motivoNoSePuede(ev, p.estado, puedeMarcar)
+    const no = ev === 'FOTO_PEDIDO' ? null : motivoNoSePuede(ev, p.estado, puedeMarcar)
     if (no) { setError({ texto: no }); return }
     setError(null); setExito(null)
     if (ev === 'LLEGUE') void enviar(ev); else setAbierto(abierto === ev ? null : ev)
@@ -80,10 +83,23 @@ function Parada({ p, puedeMarcar }: { p: ParadaMia; puedeMarcar: boolean }) {
           ))}
         </div>
       ) : !puedeMarcar ? <p className="mt-3 text-sm text-gray-600" data-testid="parada-aun-no">La ruta todavía no salió: aquí marcarás tus entregas cuando esté en ruta.</p> : null}
+      {puedeFoto && (
+        <div className="mt-3" data-testid="foto-pedido">
+          <button type="button" className="btn-secondary !min-h-14 w-full text-base" disabled={pendiente} onClick={() => pulsar('FOTO_PEDIDO')} aria-pressed={abierto === 'FOTO_PEDIDO'} data-testid="parada-FOTO_PEDIDO"><Camera className="h-5 w-5" aria-hidden />Foto del pedido con la caja abierta{fotosPedido > 0 ? ` (${fotosPedido})` : ''}</button>
+          <p className="mt-1 text-xs text-gray-600">La toma quien carga, antes de cargar el pedido en la unidad.</p>
+        </div>
+      )}
 
       {abierto && (
         <form ref={formulario} noValidate className="mt-3 space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3" onSubmit={(e) => { e.preventDefault(); void enviar(abierto, formulario.current) }} data-testid={`form-${abierto}`}>
-          {abierto === 'ENTREGADO' ? (
+          {abierto === 'FOTO_PEDIDO' ? (
+            <div>
+              <label className="btn-secondary cursor-pointer" htmlFor={`fp-${p.id}`}><Camera className="h-5 w-5" aria-hidden />Tomar la foto</label>
+              <input id={`fp-${p.id}`} name="foto" type="file" accept="image/*" capture="environment" className="sr-only" data-testid="foto-pedido-archivo" />
+              {campoError('foto') && <p role="alert" className="mt-1 text-sm text-red-800">{campoError('foto')}</p>}
+              <p className="mt-1 text-xs text-gray-700">Que se vea el contenido del pedido y la caja abierta.</p>
+            </div>
+          ) : abierto === 'ENTREGADO' ? (
             <>
               <div>
                 <label className="etiqueta" htmlFor={`rn-${p.id}`}>¿Quién recibió? (nombre)</label>
@@ -177,7 +193,7 @@ export function MisRutas({ rutas, error }: { rutas: RutaMia[]; error?: string | 
               {r.paradas.length > 0 && <p className="tabular text-sm text-gray-600">{r.paradas.filter((p) => p.estado === 'ENTREGADO' || p.estado === 'NO_ENTREGADO' || p.estado === 'RECHAZADO').length} de {r.paradas.length} paradas con resultado</p>}
             </div>
             {r.paradas.length === 0 ? <p className="flex items-center gap-2 text-sm text-gray-700"><CircleAlert className="h-4 w-4" aria-hidden />Esta ruta no tiene paradas.</p>
-              : <ul className="space-y-3">{r.paradas.map((p) => <Parada key={p.id} p={p} puedeMarcar={r.puedeMarcar} />)}</ul>}
+              : <ul className="space-y-3">{r.paradas.map((p) => <Parada key={p.id} p={p} puedeMarcar={r.puedeMarcar} estadoRuta={r.estado} />)}</ul>}
           </section>
         ))
       )}

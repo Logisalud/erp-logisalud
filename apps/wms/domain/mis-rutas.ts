@@ -4,9 +4,9 @@ import { puede } from './permisos'
 import type { EstadoRuta } from './rutas'
 import type { Rol } from './tipos'
 
-export type EventoParada = 'LLEGUE' | 'ENTREGADO' | 'NO_ENTREGADO' | 'RECHAZADO' | 'INCIDENCIA'
-export const EVENTOS_PARADA: readonly EventoParada[] = ['LLEGUE', 'ENTREGADO', 'NO_ENTREGADO', 'RECHAZADO', 'INCIDENCIA']
-export const ETIQUETA_EVENTO: Record<EventoParada, string> = { LLEGUE: 'Llegué', ENTREGADO: 'Entregado', NO_ENTREGADO: 'No entregado', RECHAZADO: 'Rechazado', INCIDENCIA: 'Incidencia' }
+export type EventoParada = 'LLEGUE' | 'ENTREGADO' | 'NO_ENTREGADO' | 'RECHAZADO' | 'INCIDENCIA' | 'FOTO_PEDIDO'
+export const EVENTOS_PARADA: readonly EventoParada[] = ['LLEGUE', 'ENTREGADO', 'NO_ENTREGADO', 'RECHAZADO', 'INCIDENCIA', 'FOTO_PEDIDO']
+export const ETIQUETA_EVENTO: Record<EventoParada, string> = { LLEGUE: 'Llegué', ENTREGADO: 'Entregado', NO_ENTREGADO: 'No entregado', RECHAZADO: 'Rechazado', INCIDENCIA: 'Incidencia', FOTO_PEDIDO: 'Foto del pedido' }
 export type EstadoParadaMia = 'PENDIENTE' | 'LLEGUE' | 'ENTREGADO' | 'NO_ENTREGADO' | 'RECHAZADO'
 export const ETIQUETA_ESTADO_PARADA: Record<EstadoParadaMia, string> = { PENDIENTE: 'Por visitar', LLEGUE: 'Llegué', ENTREGADO: 'Entregado', NO_ENTREGADO: 'No entregado', RECHAZADO: 'Rechazado' }
 
@@ -39,6 +39,10 @@ export function estadoDeParada(eventos: readonly Pick<EventoParadaVista, 'evento
   return eventos.some((e) => e.evento === 'LLEGUE') ? 'LLEGUE' : 'PENDIENTE'
 }
 
+/** La foto del pedido con la caja abierta se toma al cargar la unidad (ruta liberada) —o ya en ruta—, antes de cargarlo. Quien carga la toma; no es un resultado de la parada. */
+export const RUTA_PERMITE_FOTO_PEDIDO: readonly EstadoRuta[] = ['LIBERADA', 'EN_RUTA']
+export const puedeFotografiarPedido = (estadoRuta: EstadoRuta, estadoParada: EstadoParadaMia) => RUTA_PERMITE_FOTO_PEDIDO.includes(estadoRuta) && !esTerminal(estadoParada as EventoParada)
+
 /** Las entregas se registran con la ruta en camino. */
 export const RUTA_PERMITE_MARCAR: readonly EstadoRuta[] = ['EN_RUTA', 'PENDIENTE_CIERRE']
 
@@ -62,7 +66,9 @@ export interface DatosEvento { motivo?: string; recibioNombre?: string; recibioD
 /** Errores por campo, con los mismos textos que la base. Vacío = vale. */
 export function validarEventoParada(evento: EventoParada, d: DatosEvento): Record<string, string> {
   const e: Record<string, string> = {}
-  if (evento === 'ENTREGADO') {
+  if (evento === 'FOTO_PEDIDO') {
+    if (!d.tieneFoto) e.foto = 'Falta la foto del pedido con la caja abierta'
+  } else if (evento === 'ENTREGADO') {
     if ((d.recibioNombre ?? '').trim().length < 3) e.recibioNombre = 'Escribe el nombre de quien recibió'
     if (!/^\d{8}$/.test((d.recibioDocumento ?? '').trim())) e.recibioDocumento = 'El DNI de quien recibió tiene 8 números'
     if (!d.tieneFoto) e.foto = 'Falta la foto de la entrega'

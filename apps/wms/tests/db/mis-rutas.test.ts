@@ -85,6 +85,18 @@ describe('Mis rutas', () => {
     const vista = (await mias(conductor)).find((r) => r.id === r3)!.paradas.find((p) => p.id === b)!.eventos.find((e) => e.evento === 'ENTREGADO') as unknown as { conforme: boolean; tipo_diferencia: string }
     expect(vista).toMatchObject({ conforme: false, tipo_diferencia: 'LOTE' })
   })
+  it('foto del pedido con la caja abierta (0056): con la ruta liberada o en ruta, con foto y huella; puede haber varias; no es un resultado ni cambia la ruta', async () => {
+    const r4 = (await uno(`insert into wms.rutas (numero, fecha, estado, conductor_id, auxiliar_id, creada_por) values ('RUT-TEST-4', $1, 'LIBERADA', (select id from wms.personal_transporte where usuario_id = $2), (select id from wms.personal_transporte where usuario_id = $3), $4) returning id`, [hoy, conductor, auxiliarT, jt])).id
+    const pd = (await uno(`select id from wms.pedidos_despacho limit 1`)).id
+    const pf = (await uno(`insert into wms.ruta_paradas (ruta_id, secuencia, pedido_id, pedido_despacho_id, activa) values ($1, 1, 'foto-1', $2, true) returning id`, [r4, pd])).id as string
+    expect((await falla(evento(conductor, pf, 'FOTO_PEDIDO', { foto_nombre: 'x.jpg' }))).message).toMatch(/Falta la foto del pedido/)
+    await evento(conductor, pf, 'FOTO_PEDIDO', entrega)
+    await evento(auxiliarT, pf, 'FOTO_PEDIDO', { ...entrega, foto_hash: 'b'.repeat(64) })
+    expect(Number((await uno(`select count(*)::int n from wms.ruta_paradas_eventos where parada_id = $1 and evento = 'FOTO_PEDIDO' and foto_hash is not null`, [pf])).n)).toBe(2)
+    expect((await falla(evento(ajeno, pf, 'FOTO_PEDIDO', entrega))).code).toBe('42501')
+    expect((await falla(evento(conductor, pf, 'LLEGUE'))).message).toMatch(/todavía no salió/)   // las entregas siguen pidiendo la ruta en camino
+    expect((await uno(`select estado from wms.rutas where id = $1`, [r4])).estado).toBe('LIBERADA')
+  })
   it('otro conductor no registra nada en una ruta ajena; los eventos solo se agregan', async () => {
     expect((await falla(evento(ajeno, p2, 'LLEGUE'))).code).toBe('42501')
     expect((await falla(base.admin.query('delete from wms.ruta_paradas_eventos'))).message).toMatch(/solo admite agregar/)

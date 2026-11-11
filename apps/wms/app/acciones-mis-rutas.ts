@@ -29,10 +29,10 @@ export async function registrarEventoParadaAccion(f: FormData): Promise<Resultad
     if (!datos.conforme) { datos.tipoDiferencia = (texto(f, 'tipoDiferencia') || undefined) as DatosEventoParada['tipoDiferencia']; datos.detalleDiferencia = texto(f, 'detalleDiferencia') || undefined }
   }
   const errores = validarEventoParada(evento, { ...datos, tieneFoto: !!foto })
-  if (evento === 'ENTREGADO' && foto) { const malo = validarFoto(foto.name, foto.size, foto.type); if (malo) errores.foto = malo }
+  if ((evento === 'ENTREGADO' || evento === 'FOTO_PEDIDO') && foto) { const malo = validarFoto(foto.name, foto.size, foto.type); if (malo) errores.foto = malo }
   const primero = Object.values(errores)[0]
   if (primero) return falla(primero, errores)
-  if (evento === 'ENTREGADO' && foto) {
+  if ((evento === 'ENTREGADO' || evento === 'FOTO_PEDIDO') && foto) {
     const g = await guardarArchivo('ENTREGAS', foto.name, new Uint8Array(await foto.arrayBuffer()), foto.type || 'image/jpeg')
     datos.foto = { ref: g.ref, nombre: foto.name, hash: g.hash, bytes: foto.size, tipo: foto.type || undefined }
   }

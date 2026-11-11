@@ -1,13 +1,23 @@
--- 0056 piloto: la conformidad del cliente en la entrega (formato CONFORMIDAD): «¿el cliente recibió conforme?» Sí / No y, si no, qué no coincidió.
+-- 0056 piloto: (1) la conformidad del cliente en la entrega (formato CONFORMIDAD): «¿el cliente recibió conforme?» Sí / No y, si no, qué no coincidió; (2) la foto del pedido con la caja abierta, que toma quien carga antes de cargarlo.
 --
 -- Quien conduce ya registra la entrega (quién recibió, DNI y foto). Ahora también marca si el cliente quedó conforme; si no, el tipo de diferencia (cantidad, descripción, lote o documento)
 -- y, opcional, una línea de detalle. Lo que el sistema ya sabe (fecha, hora, propietario, guía, cliente) no se vuelve a pedir. Sin marcar nada la entrega cuenta como conforme (es lo normal).
--- No cambia el resultado de la parada ni el flujo de la ruta. Las filas anteriores quedan con `conforme` vacío. Re-ejecutable.
+-- No cambia el resultado de la parada ni el flujo de la ruta. Las filas anteriores quedan con `conforme` vacío.
+-- La foto del pedido es un evento más de la parada (`FOTO_PEDIDO`, con la foto y su huella): se toma con la ruta liberada (mientras se carga) o en ruta; puede haber varias; no es un resultado. Re-ejecutable.
 
 alter table wms.ruta_paradas_eventos add column if not exists conforme boolean;
 alter table wms.ruta_paradas_eventos add column if not exists tipo_diferencia text;
 alter table wms.ruta_paradas_eventos add column if not exists detalle_diferencia text;
 
+do $$ begin
+  if exists (select 1 from pg_constraint where conname = 'ruta_paradas_eventos_evento_check' and conrelid = 'wms.ruta_paradas_eventos'::regclass) then
+    alter table wms.ruta_paradas_eventos drop constraint ruta_paradas_eventos_evento_check;
+  end if;
+  alter table wms.ruta_paradas_eventos add constraint ruta_paradas_eventos_evento_check check (evento in ('LLEGUE', 'ENTREGADO', 'NO_ENTREGADO', 'RECHAZADO', 'INCIDENCIA', 'FOTO_PEDIDO'));
+  if not exists (select 1 from pg_constraint where conname = 'ruta_paradas_eventos_foto_pedido_check') then
+    alter table wms.ruta_paradas_eventos add constraint ruta_paradas_eventos_foto_pedido_check check (evento <> 'FOTO_PEDIDO' or (foto_ref is not null and foto_hash is not null));
+  end if;
+end $$;
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'ruta_paradas_eventos_diferencia_check') then
     alter table wms.ruta_paradas_eventos add constraint ruta_paradas_eventos_diferencia_check check (
@@ -66,8 +76,11 @@ begin
   if not found or not p.activa then raise exception 'No encontramos esa parada' using errcode = 'P0001'; end if;
   select * into r from wms.rutas where id = p.ruta_id for update;
   if not wms._es_de_la_ruta(r.id) then raise exception 'Esa parada no es de una ruta tuya' using errcode = '42501'; end if;
-  if v_ev not in ('LLEGUE', 'ENTREGADO', 'NO_ENTREGADO', 'RECHAZADO', 'INCIDENCIA') then raise exception 'Evento no válido' using errcode = 'P0001'; end if;
-  if r.estado not in ('EN_RUTA', 'PENDIENTE_CIERRE') then raise exception 'La ruta todavía no salió: las entregas se registran cuando está en ruta' using errcode = 'P0001'; end if;
+  if v_ev not in ('LLEGUE', 'ENTREGADO', 'NO_ENTREGADO', 'RECHAZADO', 'INCIDENCIA', 'FOTO_PEDIDO') then raise exception 'Evento no válido' using errcode = 'P0001'; end if;
+  if v_ev = 'FOTO_PEDIDO' then
+    if r.estado not in ('LIBERADA', 'EN_RUTA') then raise exception 'La foto del pedido se toma cuando la ruta está liberada (al cargar la unidad)' using errcode = 'P0001'; end if;
+  elsif r.estado not in ('EN_RUTA', 'PENDIENTE_CIERRE') then raise exception 'La ruta todavía no salió: las entregas se registran cuando está en ruta' using errcode = 'P0001';
+  end if;
   select exists (select 1 from wms.ruta_paradas_eventos where parada_id = p.id and evento in ('ENTREGADO', 'NO_ENTREGADO', 'RECHAZADO')),
          exists (select 1 from wms.ruta_paradas_eventos where parada_id = p.id and evento = 'LLEGUE')
     into v_terminal, v_llego;
@@ -79,14 +92,16 @@ begin
     if v_doc is null or v_doc !~ '^[0-9]{8}$' then raise exception 'El DNI de quien recibió tiene 8 números' using errcode = 'P0001'; end if;
     if nullif(p_datos->>'foto_ref', '') is null or nullif(p_datos->>'foto_hash', '') is null then raise exception 'Falta la foto de la entrega' using errcode = 'P0001'; end if;
     if not v_conforme and (v_tipo is null or v_tipo not in ('CANTIDAD', 'DESCRIPCION', 'LOTE', 'DOCUMENTO')) then raise exception 'Elige qué no coincidió: cantidad, descripción, lote o documento' using errcode = 'P0001'; end if;
+  elsif v_ev = 'FOTO_PEDIDO' then
+    if nullif(p_datos->>'foto_ref', '') is null or nullif(p_datos->>'foto_hash', '') is null then raise exception 'Falta la foto del pedido con la caja abierta' using errcode = 'P0001'; end if;
   elsif v_ev in ('NO_ENTREGADO', 'RECHAZADO', 'INCIDENCIA') and (v_motivo is null or length(v_motivo) < 5) then
     raise exception 'Cuéntanos el motivo (al menos 5 letras)' using errcode = 'P0001';
   end if;
   insert into wms.ruta_paradas_eventos (id, parada_id, ruta_id, evento, motivo, recibio_nombre, recibio_documento, foto_ref, foto_nombre, foto_hash, foto_bytes, foto_tipo, por, conforme, tipo_diferencia, detalle_diferencia)
   values (v_id, p.id, r.id, v_ev, v_motivo, case when v_ev = 'ENTREGADO' then v_nombre end, case when v_ev = 'ENTREGADO' then v_doc end,
-          case when v_ev = 'ENTREGADO' then p_datos->>'foto_ref' end, case when v_ev = 'ENTREGADO' then p_datos->>'foto_nombre' end,
-          case when v_ev = 'ENTREGADO' then p_datos->>'foto_hash' end, case when v_ev = 'ENTREGADO' then nullif(p_datos->>'foto_bytes', '')::integer end,
-          case when v_ev = 'ENTREGADO' then p_datos->>'foto_tipo' end, auth.uid(),
+          case when v_ev in ('ENTREGADO', 'FOTO_PEDIDO') then p_datos->>'foto_ref' end, case when v_ev in ('ENTREGADO', 'FOTO_PEDIDO') then p_datos->>'foto_nombre' end,
+          case when v_ev in ('ENTREGADO', 'FOTO_PEDIDO') then p_datos->>'foto_hash' end, case when v_ev in ('ENTREGADO', 'FOTO_PEDIDO') then nullif(p_datos->>'foto_bytes', '')::integer end,
+          case when v_ev in ('ENTREGADO', 'FOTO_PEDIDO') then p_datos->>'foto_tipo' end, auth.uid(),
           case when v_ev = 'ENTREGADO' then v_conforme end, case when v_ev = 'ENTREGADO' and not v_conforme then v_tipo end, case when v_ev = 'ENTREGADO' and not v_conforme then v_detalle end);
   if v_ev in ('NO_ENTREGADO', 'RECHAZADO') then
     select coalesce(pd.cliente_nombre, sa.cliente_manual->>'razon_social', 'el cliente') into v_cliente
