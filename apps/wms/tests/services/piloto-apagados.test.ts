@@ -40,7 +40,12 @@ describe('P1(a): el WMS no envía nada a Pedidos en el piloto', () => {
 describe('P1(b): sin enlaces de seguimiento ni correos a clientes', () => {
   it('no hay ninguna librería ni llamada de correo, SMS o WhatsApp en el código del WMS', () => {
     const t = codigo(['app', 'services', 'domain', 'lib', 'components']).filter((f) => /nodemailer|sendgrid|resend|@aws-sdk\/client-ses|twilio|smtp|sendMail|api\.whatsapp|wa\.me/i.test(f.texto)).map((f) => f.ruta)
-    expect(t).toEqual([])
+    // la única excepción: el aviso INTERNO «guía lista, ya puede facturar» (Resend) para quien factura, nunca para un cliente
+    expect(t).toEqual(['services/avisos-guia-lista.ts', 'services/correo/resend.ts'])
+    const usanEnviarCorreo = codigo(['app', 'services', 'domain', 'lib', 'components']).filter((f) => /enviarCorreo\(/.test(f.texto) && !f.ruta.endsWith('correo/resend.ts')).map((f) => f.ruta)
+    expect(usanEnviarCorreo).toEqual(['services/avisos-guia-lista.ts'])
+    const aviso = readFileSync(join(RAIZ, 'services/avisos-guia-lista.ts'), 'utf8')
+    expect(aviso).toMatch(/destinatariosDeAviso\(process\.env\.AVISO_FACTURACION_CORREOS\)/)     // los destinatarios salen SOLO de la configuración
     const dependencias = JSON.parse(readFileSync(join(RAIZ, 'package.json'), 'utf8')).dependencies as Record<string, string>
     expect(Object.keys(dependencias).filter((d) => /mail|sendgrid|resend|twilio|ses/i.test(d))).toEqual([])
   })
