@@ -138,6 +138,8 @@ export interface PagoCrudo {
   /** 'pago' | 'retencion'. */
   tipo: string | null;
   referencia: string | null;
+  /** Si está puesto, el pago es un abono a esa letra. */
+  letra_id?: string | null;
 }
 
 export interface LetraCruda {
@@ -147,6 +149,13 @@ export interface LetraCruda {
   /** Sólo las pagadas descuentan. */
   estado: string;
   monto_aplicado: number;
+  /**
+   * Abonos a esta letra (pagos con `letra_id`). Bajan su saldo sin cambiarle
+   * el estado, así que una letra protestada puede estar abonada entera y
+   * seguir diciendo protestada. Sin esto, el extracto decía
+   * "S/ 2.699,82 sin cobrar" sobre una letra ya cubierta.
+   */
+  abonado?: number;
 }
 
 export interface EntradaEstadoCuenta {
@@ -316,10 +325,20 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
   for (const l of letras) {
     const monto = aCentimos(l.monto_aplicado);
     const pagada = l.estado === 'pagada';
+    // Los abonos ya están en `pagos` y ya descontaron ahí. Acá sólo cambian
+    // lo que la fila DICE: una letra abonada entera no está "sin cobrar".
+    const abonado = aCentimos(l.abonado ?? 0);
+    const pendiente = aCentimos(Math.max(0, monto - abonado));
 
     if (pagada) sumar(cobrado, l.documento_id, monto);
 
     const numero = l.numero_letra ? `letra ${l.numero_letra}` : 'letra sin número';
+
+    let detalle: string;
+    if (pagada) detalle = numero;
+    else if (abonado <= 0.005) detalle = `${numero} · ${formatearImporte(monto)} sin cobrar`;
+    else if (pendiente <= 0.005) detalle = `${numero} · ${formatearImporte(monto)} abonada en los pagos de abajo`;
+    else detalle = `${numero} · ${formatearImporte(pendiente)} sin cobrar (abonado ${formatearImporte(abonado)})`;
 
     movimientos.push({
       fecha: l.fecha_vencimiento ?? '',
@@ -327,7 +346,7 @@ export function construirEstadoCuenta(entrada: EntradaEstadoCuenta): {
       etiqueta: pagada ? 'Letra pagada' : `Letra ${etiquetaDeEstadoDeLetra(l.estado)}`,
       documento: comprobantePorId.get(l.documento_id) ?? '—',
       facturaId: l.documento_id,
-      detalle: pagada ? numero : `${numero} · ${formatearImporte(monto)} sin cobrar`,
+      detalle,
       debe: 0,
       haber: pagada ? monto : 0,
       saldo: 0,
@@ -578,7 +597,10 @@ export function agruparPorFactura(
         case 'RETENCION':
         case 'LETRA':
           totalCobrado = aCentimos(totalCobrado + m.haber);
-          cantidadPagos += 1;
+          // Las filas de letra no pagada van en 0 y están para que se vea que
+          // la letra existe — no son un cobro. Contarlas inflaba el número de
+          // cobros de la factura (FFF1-910 decía 6 con 5 pagos).
+          if (m.haber > 0.005) cantidadPagos += 1;
           break;
         case 'AJUSTE':
           ajuste = aCentimos(ajuste + m.debe - m.haber);
