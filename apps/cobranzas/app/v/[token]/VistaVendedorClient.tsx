@@ -641,7 +641,12 @@ export default function VistaVendedorClient({
                   <div className="flex items-baseline justify-between gap-3 mt-0.5">
                     <p className="text-gray-400 text-xs font-mono">
                       {f.comprobante}
-                      {f.entidad && <span className="ml-1.5 font-sans" style={{ color: '#4ABCC2' }}>{f.entidad}</span>}
+                      {/* La palabra "factoring" va siempre, igual que una letra
+                          dice "protestada" o "en banco": el nombre de la
+                          entidad solo no le dice al vendedor en qué situación
+                          está la factura. */}
+                      <span className="ml-1.5 font-sans font-semibold" style={{ color: '#4ABCC2' }}>factoring</span>
+                      {f.entidad && <span className="ml-1 font-sans text-gray-400">· {f.entidad}</span>}
                     </p>
                     <p className="text-xs text-right">
                       <span className="text-gray-400">Vence {fmtFecha(f.fecha_vencimiento)}</span>
