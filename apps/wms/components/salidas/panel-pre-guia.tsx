@@ -41,7 +41,7 @@ export function PanelPreGuia({ salidaId, conforme, preGuia, puedeGestionar }: { 
             {preGuia.rutaNumero ? `Ruta ${preGuia.rutaNumero} · ${preGuia.placa ?? 'sin vehículo'} · ${preGuia.conductor ?? 'sin conductor'}` : 'Todavía sin ruta: el vehículo y el conductor salen de la ruta.'}
           </p>
           {faltaParaEnviar(preGuia) && preGuia.estado !== 'ENVIADA' && <p className={`${chip} ${CHIP_NEUTRO} whitespace-normal`} data-testid="pre-guia-falta">{faltaParaEnviar(preGuia)}</p>}
-          {preGuia.estado === 'CANCELADA' && <p className="text-sm text-red-900">Cancelada: {preGuia.motivoCancelacion ?? 'sin motivo'}. El número {preGuia.numeroCompleto} quedó «sin usar» para decidirlo con Contabilidad; no se reutiliza.</p>}
+          {preGuia.estado === 'CANCELADA' && <p className="text-sm text-red-900">Cancelada: {preGuia.motivoCancelacion ?? 'sin motivo'}. El número {preGuia.numeroCompleto} queda libre: lo toma la siguiente pre-guía, así la serie no tiene huecos.</p>}
           <p className="text-sm text-gray-600">La pre-guía no existe ante SUNAT: al enviar la guía, Nubefact la genera con este mismo número.</p>
           <div className="flex flex-wrap gap-2">
             {preGuia.estado !== 'CANCELADA' && <a href={`/wms/salidas/${salidaId}/pre-guia`} target="_blank" rel="noopener noreferrer" className="btn-secondary" data-testid="imprimir-pre-guia"><Printer className="h-5 w-5" aria-hidden />Imprimir la pre-guía</a>}
@@ -51,7 +51,7 @@ export function PanelPreGuia({ salidaId, conforme, preGuia, puedeGestionar }: { 
             <div className="space-y-2" data-testid="form-cancelar-pre-guia">
               <label htmlFor="motivo-pre-guia" className="etiqueta">¿Por qué se cancela la pre-guía?</label>
               <input id="motivo-pre-guia" className="campo" value={motivo} onChange={(e) => setMotivo(e.target.value)} data-testid="motivo-pre-guia" />
-              <p className="text-sm text-gray-700">El número quedará «sin usar»: no lo toma otro pedido, y se decide con Contabilidad qué hacer con él.</p>
+              <p className="text-sm text-gray-700">El número queda libre y lo toma la siguiente pre-guía. A quien factura le llega el aviso «NO factures» con ese número.</p>
               <div className="flex gap-2">
                 <button type="button" className="btn-primary btn-sm" disabled={pendiente || !motivo.trim()} onClick={() => ejecutar(() => cancelarPreGuiaAccion(salidaId, motivo), { alExito: () => { setCancelando(false); router.refresh() } })} data-testid="cancelar-pre-guia-confirmar">Cancelar la pre-guía</button>
                 <button type="button" className="btn-secondary btn-sm" onClick={() => setCancelando(false)}>Volver</button>

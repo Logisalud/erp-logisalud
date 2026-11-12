@@ -21,6 +21,8 @@ async function orden(conforme = true) {
   const dueno = (await uno(`select id from wms.propietarios where codigo = 'LOGISSA'`)).id
   return (await uno(`insert into wms.salidas (numero, tipo, motivo, propietario_id, estado, creada_por, conformada_por, conformada_en) values ($1, 'DISTRIBUCION', 'VENTA', $2, 'ABIERTA', $3, $3, ${conforme ? 'now()' : 'null'}) returning id`, [`SAL-2026-7${String(n).padStart(4, '0')}`, dueno, jt])).id as string
 }
+/** Deja la serie sin números abiertos de las pruebas anteriores (se archivan: nada se borra). */
+const limpiarSerie = () => q(`update wms.guia_numeros set archivado = true where serie = 'TTT1' and estado in ('RESERVADO', 'LIBERADO', 'SIN_USAR') and not archivado`)
 const como = <T>(fn: (c: import('pg').Client) => Promise<T>) => base.como(jt, fn)
 const crear = (salida: string) => como(async (c) => (await c.query(`select wms.crear_pre_guia('TTT1', 'PRUEBA', $1) r`, [salida])).rows[0].r as { serie: string; numero: number; nueva: boolean })
 const reservarEnvio = (salida: string) => como(async (c) => (await c.query(`select wms.reservar_numero_guia('TTT1', 'PRUEBA', $1) r`, [salida])).rows[0].r as { numero: number; reintento: boolean })
@@ -64,14 +66,36 @@ describe('0055 · pre-guía', () => {
     expect((await como((c) => c.query(`select wms.liberar_numero_guia('TTT1', $1, 'Nubefact lo rechazó') ok`, [p.numero]))).rows[0].ok).toBe(false)
     expect((await uno(`select estado, pre_guia from wms.guia_numeros where serie = 'TTT1' and numero = $1 and not archivado`, [p.numero]))).toMatchObject({ estado: 'RESERVADO', pre_guia: true })
   })
-  it('cancelar pasa el número a «sin usar» con motivo y nadie lo reutiliza', async () => {
-    const [a, b] = [await orden(), await orden()]
+  it('cancelar deja el número libre con su motivo y la siguiente pre-guía lo reutiliza (sin huecos)', async () => {
+    const [a, b, c] = [await orden(), await orden(), await orden()]
     const pa = await crear(a)
     await expect(como((c) => c.query(`select wms.cancelar_pre_guia($1, '  ')`, [a]))).rejects.toThrow(/Escribe por qué/)
     expect((await como((c) => c.query(`select wms.cancelar_pre_guia($1, 'Se cambió el cliente') ok`, [a]))).rows[0].ok).toBe(true)
     expect(await uno(`select estado, detalle from wms.guia_numeros where serie = 'TTT1' and numero = $1 and not archivado`, [pa.numero])).toMatchObject({ estado: 'SIN_USAR', detalle: 'Se cambió el cliente' })
+    expect((await uno(`select count(*)::int n from wms.audit_events where evento = 'pre_guia_cancelada' and entidad_id = $1`, ['TTT1-' + pa.numero])).n).toBe(1)
     const pb = await crear(b)
-    expect(pb.numero).toBeGreaterThan(pa.numero)      // el número sin usar no vuelve a asignarse
+    expect(pb.numero).toBe(pa.numero)      // 0066: el número de una pre-guía que nunca se envió lo toma la siguiente
+    expect(await uno(`select estado, pre_guia, salida_id, detalle from wms.guia_numeros where serie = 'TTT1' and numero = $1 and not archivado`, [pb.numero])).toMatchObject({ estado: 'RESERVADO', pre_guia: true, salida_id: b, detalle: null })
+    const pc = await crear(c)
+    expect(pc.numero).toBeGreaterThan(pb.numero)      // ya no hay libres: sigue el siguiente de la serie
     expect((await como((c) => c.query(`select wms.cancelar_pre_guia($1, 'otra vez') ok`, [a]))).rows[0].ok).toBe(false)
+  })
+  it('una pre-guía cancelada después de un intento de envío NO se reutiliza sola (se revisa en Nubefact)', async () => {
+    await limpiarSerie()
+    const [a, b] = [await orden(), await orden()]
+    await crear(a)
+    const env = await reservarEnvio(a)      // intento de envío: queda anotado
+    expect((await como((c) => c.query(`select wms.cancelar_pre_guia($1, 'Se cambió el cliente') ok`, [a]))).rows[0].ok).toBe(true)
+    const pb = await crear(b)
+    expect(pb.numero).toBeGreaterThan(env.numero)
+    expect(await uno(`select estado from wms.guia_numeros where serie = 'TTT1' and numero = $1 and not archivado`, [env.numero])).toMatchObject({ estado: 'SIN_USAR' })
+  })
+  it('un envío sin pre-guía también usa primero el número libre de una pre-guía cancelada', async () => {
+    await limpiarSerie()
+    const [a, sinPre] = [await orden(), await orden()]
+    const pa = await crear(a)
+    await como((c) => c.query(`select wms.cancelar_pre_guia($1, 'Se cambió el cliente') ok`, [a]))
+    expect(await reservarEnvio(sinPre)).toMatchObject({ numero: pa.numero, reintento: false })
+    expect(await uno(`select estado, pre_guia, salida_id from wms.guia_numeros where serie = 'TTT1' and numero = $1 and not archivado`, [pa.numero])).toMatchObject({ estado: 'RESERVADO', pre_guia: false, salida_id: sinPre })
   })
 })

@@ -8,8 +8,8 @@ Orden nuevo: **Orden de Salida → picking → conformidad → PRE-GUÍA → rut
 ## Numeración
 - **Contador propio del WMS** para la serie TTT1: `wms.guia_contador` (siguiente número). En la demo, uno de prueba; en diciembre inicia en el correlativo que indique Sebas (hoy se confirma con «Numeración de guías»).
 - La pre-guía se **crea al dar la conformidad** y **reserva el siguiente número en ese momento** (atómico). Nubefact permite que quien emite elija el campo `numero`; se envía **ese mismo número**.
-- **Un número reservado nunca se reutiliza.** Si la pre-guía se cancela (con motivo), su número pasa a la lista **«Números sin usar»**, que se decide con la contadora (anularlo, usarlo en una guía de relleno, etc.). Nunca se asigna solo a otro pedido.
-- **Salto:** como SUNAT pide correlativo, un número reservado y no enviado puede crear un hueco hasta que se envíe o se resuelva; por eso la pantalla de «Números sin usar» y las alertas de pre-guías sin ruta (más de X horas).
+- **El número de una pre-guía cancelada se reutiliza (0066, 12-nov-2026).** Si la pre-guía se cancela (con motivo) y nunca se envió a Nubefact, su número queda libre y lo toma primero la siguiente pre-guía (o la siguiente guía): Nubefact pide correlativos seguidos y así no hay huecos. Si se canceló después de un intento de envío, no se reutiliza sola: queda «por revisar en Nubefact».
+- **Salto:** como SUNAT pide correlativo, un número reservado y no enviado puede crear un hueco hasta que se envíe; por eso la pre-guía cancelada devuelve su número y hay alertas de pre-guías sin ruta (más de X horas).
 - Una guía por pedido (supuesto de Sebas; se corrige si no).
 
 ## Del pre-guía a la guía

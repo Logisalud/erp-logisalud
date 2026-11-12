@@ -38,7 +38,7 @@ Tres casos, solo el Jefe de Transporte y con motivo (D-90). La baja ante SUNAT *
 ## Pendiente antes de producción
 
 1. Probar el flujo completo contra el **entorno de pruebas de Nubefact** (los campos siguen el manual; falta ver cómo responde `consultar_guia` mientras SUNAT no acepta).
-2. Confirmar el **número con el que empieza el WMS** (lo indica Sebas al salir a producción; ver «Numeración de las guías»), la dirección exacta del almacén de Lurín, y licencia y DNI de los conductores. Un número consumido por un envío que Nubefact rechazó antes de SUNAT queda sin usar: confirmar con Contabilidad si un hueco en la serie es aceptable.
+2. Confirmar el **número con el que empieza el WMS** (lo indica Sebas al salir a producción; ver «Numeración de las guías»), la dirección exacta del almacén de Lurín, y licencia y DNI de los conductores. Un número de una pre-guía cancelada (o de un envío que Nubefact rechazó antes de SUNAT) se reutiliza en la siguiente pre-guía o guía: la serie no tiene huecos. Antes de producción, probar en la cuenta de prueba (TTT1) si Nubefact acepta el número N+1 sin haber enviado el N.
 3. Reglas de baja de SUNAT (Contabilidad y Nubefact).
 4. Conexión real con Pedidos (D-80, D-92).
 
