@@ -210,11 +210,32 @@ export interface FilaReporteFactoringCompleto {
   fecha_pago_al_factor: string | null;
   /** Días de atraso contra el vencimiento del factoring, si sigue sin pagar. */
   dias_atraso_al_factor: number | null;
+  /**
+   * El costo de la operación y lo que de verdad entró al banco, PRORRATEADOS
+   * entre las facturas del ingreso según lo que se factorizó de cada una.
+   *
+   * Los gastos y el neto se registran por ingreso, no por factura, y un
+   * ingreso puede juntar varias. Repartirlos permite que las columnas sumen
+   * y que se pueda ver cuánto costó cada factura; los totales del ingreso se
+   * recuperan sumando sus filas.
+   */
+  comision: number;
+  garantia: number;
+  otros_gastos: number;
+  neto_recibido: number;
 }
 
 export interface FiltrosReporteFactoring {
   cliente_ruc?: string | null;
-  /** 'todos' | 'en_factoring' | 'ingresada' | 'anulada' */
+  /**
+   * 'todos' | 'en_factoring' | 'ingresada' | 'anulada'.
+   *
+   * 'todos' significa **todo lo vigente**: deja afuera los canjes anulados.
+   * Es a propósito. Una factura que se canjeó, se anuló y se volvió a
+   * canjear aparecía DOS veces —una por cada canje— y el reporte parecía
+   * tener duplicados: le pasó a la FFF1-2002 y a la FFF1-2488 de BOTICAS
+   * PERU. Lo anulado se mira pidiéndolo, con estado = 'anulada'.
+   */
   estado?: string | null;
   /** Rango sobre la fecha del canje. */
   desde?: string | null;
@@ -258,18 +279,63 @@ export async function construirReporteFactoringCompleto(
 
   // El ingreso al banco de cada factura: su fecha y su entidad, que es la
   // que de verdad compró la factura.
-  const ingresoFacturas = await fetchAll<{ documento_id: string; ingreso_id: string }>((from, to) =>
-    db.from('factoring_ingreso_facturas').select('documento_id, ingreso_id').in('documento_id', documentoIds).order('id').range(from, to)
+  const ingresoFacturas = await fetchAll<{ documento_id: string; ingreso_id: string; monto_factorizado: number }>((from, to) =>
+    db.from('factoring_ingreso_facturas').select('documento_id, ingreso_id, monto_factorizado').in('documento_id', documentoIds).order('id').range(from, to)
   );
   const ingresoIds = Array.from(new Set(ingresoFacturas.map(f => f.ingreso_id)));
   const { data: ingresos } = ingresoIds.length
-    ? await db.from('factoring_ingresos').select('id, entidad, fecha_ingreso, anulado').in('id', ingresoIds)
-    : { data: [] as Array<{ id: string; entidad: string; fecha_ingreso: string; anulado: boolean }> };
+    ? await db.from('factoring_ingresos').select('id, entidad, fecha_ingreso, anulado, monto_neto_recibido').in('id', ingresoIds)
+    : { data: [] as Array<{ id: string; entidad: string; fecha_ingreso: string; anulado: boolean; monto_neto_recibido: number }> };
   const ingresoPorId = new Map((ingresos ?? []).map(i => [i.id, i]));
-  const ingresoPorDocumento = new Map<string, { entidad: string; fecha_ingreso: string }>();
+
+  // Los gastos y el neto viven en el INGRESO, no en la factura, y un ingreso
+  // puede juntar varias. Se prorratean por lo factorizado de cada una, así
+  // las columnas suman y se ve cuánto costó cada factura.
+  const { data: gastos } = ingresoIds.length
+    ? await db.from('factoring_gastos').select('ingreso_id, tipo, monto').in('ingreso_id', ingresoIds)
+    : { data: [] as Array<{ ingreso_id: string; tipo: string; monto: number }> };
+  const gastosPorIngreso = new Map<string, { comision: number; garantia: number; otros: number }>();
+  for (const g of gastos ?? []) {
+    const acc = gastosPorIngreso.get(g.ingreso_id) ?? { comision: 0, garantia: 0, otros: 0 };
+    const monto = Number(g.monto) || 0;
+    if (g.tipo === 'comision') acc.comision += monto;
+    else if (g.tipo === 'garantia') acc.garantia += monto;
+    else acc.otros += monto;
+    gastosPorIngreso.set(g.ingreso_id, acc);
+  }
+
+  const totalFactorizadoPorIngreso = new Map<string, number>();
+  for (const f of ingresoFacturas) {
+    totalFactorizadoPorIngreso.set(
+      f.ingreso_id,
+      (totalFactorizadoPorIngreso.get(f.ingreso_id) ?? 0) + (Number(f.monto_factorizado) || 0),
+    );
+  }
+
+  interface DatosIngreso {
+    entidad: string; fecha_ingreso: string;
+    comision: number; garantia: number; otros: number; neto: number;
+  }
+  const ingresoPorDocumento = new Map<string, DatosIngreso>();
   for (const f of ingresoFacturas) {
     const i = ingresoPorId.get(f.ingreso_id);
-    if (i && !i.anulado) ingresoPorDocumento.set(f.documento_id, { entidad: i.entidad, fecha_ingreso: i.fecha_ingreso });
+    if (!i || i.anulado) continue;
+    const total = totalFactorizadoPorIngreso.get(f.ingreso_id) ?? 0;
+    // Si el total diera 0 (no debería), se reparte en partes iguales antes
+    // que dividir por cero y llenar el Excel de NaN.
+    const parte = total > 0
+      ? (Number(f.monto_factorizado) || 0) / total
+      : 1 / Math.max(1, ingresoFacturas.filter(x => x.ingreso_id === f.ingreso_id).length);
+    const g = gastosPorIngreso.get(f.ingreso_id) ?? { comision: 0, garantia: 0, otros: 0 };
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+    ingresoPorDocumento.set(f.documento_id, {
+      entidad: i.entidad,
+      fecha_ingreso: i.fecha_ingreso,
+      comision: r2(g.comision * parte),
+      garantia: r2(g.garantia * parte),
+      otros: r2(g.otros * parte),
+      neto: r2((Number(i.monto_neto_recibido) || 0) * parte),
+    });
   }
 
   const facturas = await fetchAll<{ id: string; comprobante: string; cliente_ruc: string; razon_social: string; fecha_vencimiento: string | null }>(
@@ -292,7 +358,11 @@ export async function construirReporteFactoringCompleto(
     const ingreso = ingresoPorDocumento.get(cf.documento_id) ?? null;
     const estado: FilaReporteFactoringCompleto['estado'] =
       ingreso ? 'ingresada' : canje.anulado ? 'anulada' : 'en_factoring';
-    if (filtros.estado && filtros.estado !== 'todos' && filtros.estado !== estado) continue;
+    if (filtros.estado && filtros.estado !== 'todos') {
+      if (filtros.estado !== estado) continue;
+    } else if (estado === 'anulada') {
+      continue;   // 'todos' = todo lo vigente; lo anulado se pide aparte
+    }
 
     // Los días corren hasta que entra la plata; una factura ya ingresada
     // tiene los días que tardó, no los que pasaron desde entonces.
@@ -309,6 +379,10 @@ export async function construirReporteFactoringCompleto(
       fecha_canje: canje.fecha_canje,
       fecha_vencimiento: cf.fecha_vencimiento,
       fecha_vencimiento_factura: factura.fecha_vencimiento,
+      comision: ingreso?.comision ?? 0,
+      garantia: ingreso?.garantia ?? 0,
+      otros_gastos: ingreso?.otros ?? 0,
+      neto_recibido: ingreso?.neto ?? 0,
       pagado_al_factor: !!cf.pagado_al_factor,
       fecha_pago_al_factor: cf.fecha_pago_al_factor,
       // Solo cuenta atraso mientras siga sin pagar y haya contra qué medirlo.

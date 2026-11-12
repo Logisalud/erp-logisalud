@@ -43,6 +43,14 @@ export async function GET(req: NextRequest) {
       'Vencimiento Factura':    fmtFechaOpcional(f.fecha_vencimiento_factura),
       'Monto Factorizado':      f.monto,
       'Retención IGV':          f.retencion,
+      // El costo de la operación y lo que entró al banco. Se registran por
+      // ingreso y acá van prorrateados por factura, así la columna suma y se
+      // ve cuánto costó cada una.
+      'Comisión':               f.comision,
+      'Garantía':               f.garantia,
+      'Otros Gastos':           f.otros_gastos,
+      'Costo Total':            Math.round((f.comision + f.garantia + f.otros_gastos) * 100) / 100,
+      'Neto Recibido (prorrat.)': f.neto_recibido,
       'Estado':                 ESTADO_LABEL[f.estado] ?? f.estado,
       'Fecha de Ingreso':       fmtFechaOpcional(f.fecha_ingreso),
       'Días en Factoring':      f.dias_en_factoring,
@@ -57,7 +65,9 @@ export async function GET(req: NextRequest) {
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
       { wch: 16 }, { wch: 13 }, { wch: 38 }, { wch: 22 }, { wch: 15 },
-      { wch: 20 }, { wch: 19 }, { wch: 17 }, { wch: 14 }, { wch: 13 }, { wch: 16 }, { wch: 17 },
+      { wch: 20 }, { wch: 19 }, { wch: 17 }, { wch: 14 },
+      { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 13 }, { wch: 14 },
+      { wch: 13 }, { wch: 16 }, { wch: 17 },
       { wch: 14 }, { wch: 20 }, { wch: 22 },
     ];
     const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
