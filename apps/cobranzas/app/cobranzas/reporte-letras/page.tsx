@@ -10,6 +10,8 @@ interface Fila {
   comprobantes: string;
   fecha_vencimiento: string;
   importe: number;
+  abonado: number;
+  saldo_letra: number;
   estado: 'en_cartera' | 'en_banco' | 'pagada' | 'protestada';
   banco: string | null;
   fecha_pago: string | null;
@@ -211,6 +213,8 @@ export default function ReporteLetrasPage() {
                   <th className="px-3 py-2.5 text-left">Comprobante(s)</th>
                   <th className="px-3 py-2.5 text-left">Vencimiento</th>
                   <th className="px-3 py-2.5 text-right">Monto</th>
+                  <th className="px-3 py-2.5 text-right">Abonado</th>
+                  <th className="px-3 py-2.5 text-right">Saldo</th>
                   <th className="px-3 py-2.5 text-right">Retención</th>
                   <th className="px-3 py-2.5 text-left">Estado</th>
                   <th className="px-3 py-2.5 text-left">Banco</th>
@@ -228,6 +232,8 @@ export default function ReporteLetrasPage() {
                     <td className="px-3 py-2 font-mono text-xs text-gray-600">{f.comprobantes}</td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{fmtFecha(f.fecha_vencimiento)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-800">{fmt(f.importe)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-gray-500">{f.abonado ? fmt(f.abonado) : '—'}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-gray-800">{fmt(f.saldo_letra)}</td>
                     <td
                       className="px-3 py-2 text-right tabular-nums text-gray-600"
                       title={f.retencion_en_otra_letra ? 'La retención de esta factura va en otra de sus letras, para no contarla dos veces.' : undefined}

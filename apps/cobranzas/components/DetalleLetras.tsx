@@ -19,6 +19,12 @@ export interface LetraDetalle {
   fecha_vencimiento: string;
   banco: string | null;
   estado: string;
+  /**
+   * Lo abonado a esta letra sin marcarla pagada (pagos con `letra_id`).
+   * Opcional: las pantallas que todavía no lo traen simplemente no lo
+   * muestran, y la letra se ve como antes.
+   */
+  abonado?: number;
 }
 
 const fmt = (n: number) =>
@@ -88,7 +94,14 @@ export default function DetalleLetras({
               {letras.map(l => (
                 <tr key={l.numero_letra} className="hover:bg-white/60">
                   <td className="py-1.5 pr-4 font-mono">{l.numero_letra}</td>
-                  <td className="py-1.5 pr-4 text-right font-medium">{fmt(Number(l.importe))}</td>
+                  <td className="py-1.5 pr-4 text-right font-medium">
+                    {fmt(Number(l.importe))}
+                    {Number(l.abonado) > 0 && (
+                      <span className="block text-[10px] font-normal text-gray-400">
+                        queda {fmt(Math.max(0, Number(l.importe) - Number(l.abonado)))}
+                      </span>
+                    )}
+                  </td>
                   <td className="py-1.5 pr-4 text-gray-500">{fmtFecha(l.fecha_giro)}</td>
                   <td className={`py-1.5 pr-4 font-medium ${vencidaSinPagar(l, hoyISO) ? 'text-red-600' : 'text-gray-700'}`}>
                     {fmtFecha(l.fecha_vencimiento)}
@@ -108,7 +121,14 @@ export default function DetalleLetras({
               <li key={l.numero_letra} className="py-1.5">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-mono text-xs text-gray-700">{l.numero_letra}</span>
-                  <span className="text-xs font-medium text-gray-800">{fmt(Number(l.importe))}</span>
+                  <span className="text-xs font-medium text-gray-800">
+                    {fmt(Number(l.importe))}
+                    {Number(l.abonado) > 0 && (
+                      <span className="ml-1 text-[10px] font-normal text-gray-400">
+                        · queda {fmt(Math.max(0, Number(l.importe) - Number(l.abonado)))}
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <div className="flex items-baseline justify-between gap-2 mt-0.5">
                   <span className={`text-xs font-medium ${vencidaSinPagar(l, hoyISO) ? 'text-red-600' : 'text-gray-600'}`}>

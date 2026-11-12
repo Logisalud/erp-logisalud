@@ -21,6 +21,14 @@ export interface FilaReporteLetras {
   retencion: number;
   /** true cuando la factura tiene retención pero la lleva otra letra suya. */
   retencion_en_otra_letra: boolean;
+  /**
+   * Lo abonado a esta letra sin marcarla pagada (pagos con `letra_id`).
+   * Existe para el cliente que paga una letra en cuotas: la letra conserva su
+   * estado —una protestada sigue diciendo protestada— y lo que baja es esto.
+   */
+  abonado: number;
+  /** Lo que queda de la letra: importe − abonado, nunca menos de 0. */
+  saldo_letra: number;
 }
 
 export interface FiltrosReporteLetras {
@@ -77,6 +85,17 @@ export async function construirReporteLetras(db: SupabaseClient, filtros: Filtro
   const ld = await fetchAll<{ letra_id: string; documento_id: string }>((from, to) =>
     db.from('letra_documento').select('letra_id, documento_id').in('letra_id', letraIds).order('documento_id').order('letra_id').range(from, to)
   );
+
+  // Abonos: pagos que apuntan a una letra puntual (migración 20261112).
+  const abonadoPorLetra = new Map<string, number>();
+  for (let i = 0; i < letraIds.length; i += 300) {
+    const abonos = await fetchAll<{ letra_id: string; monto: number }>((from, to) =>
+      db.from('pagos').select('id, letra_id, monto').in('letra_id', letraIds.slice(i, i + 300)).order('id').range(from, to)
+    );
+    for (const a of abonos) {
+      abonadoPorLetra.set(a.letra_id, (abonadoPorLetra.get(a.letra_id) ?? 0) + (Number(a.monto) || 0));
+    }
+  }
 
   const documentoIds = Array.from(new Set(ld.map(x => x.documento_id)));
   const documentosPorId = new Map<string, { comprobante: string; cliente_ruc: string }>();
@@ -139,6 +158,7 @@ export async function construirReporteLetras(db: SupabaseClient, filtros: Filtro
     const docs = documentosPorLetra.get(l.id) ?? [];
     const clienteRuc = docs[0]?.cliente_ruc ?? '';
 
+    const abonado = abonadoPorLetra.get(l.id) ?? 0;
     const idsDeLaLetra = Array.from(new Set(documentosPorLetraId.get(l.id) ?? []));
     let retencion = 0;
     let hayRetencionEnOtra = false;
@@ -162,6 +182,8 @@ export async function construirReporteLetras(db: SupabaseClient, filtros: Filtro
       fecha_pago: l.fecha_pago,
       retencion,
       retencion_en_otra_letra: retencion === 0 && hayRetencionEnOtra,
+      abonado,
+      saldo_letra: Math.max(0, Math.round(((Number(l.importe) || 0) - abonado) * 100) / 100),
     };
   });
 

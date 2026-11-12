@@ -141,9 +141,17 @@ usa `@logisalud/design-system` como preset de Tailwind acá).
 - `digemid_zona_vendedor`: PK `codigo_zona`, tabla de una sola fila por zona
   → vendedor. Es la que hay que actualizar para que clientes NUEVOS o
   reasignados de esa zona caigan en el vendedor correcto vía el trigger.
-- `letras`: letras de cambio, independientes de `pagos` (estado propio:
-  `en_cartera`/`en_banco`/`pagada`/`protestada`). No pasan por
-  `estado_verificacion`.
+- `letras`: letras de cambio, con estado propio
+  (`en_cartera`/`en_banco`/`pagada`/`protestada`). No pasan por
+  `estado_verificacion`. **Casi** independientes de `pagos`: marcar una letra
+  pagada no escribe ninguna fila en `pagos`, pero desde nov-2026 un pago puede
+  ser un **abono a una letra** (`pagos.letra_id`, migración
+  `20261112_abono_a_letra`). El abono baja el saldo de esa letra en `v_cobros`
+  —`greatest(0, monto_aplicado − abonos)`— y **no le cambia el estado**: una
+  letra protestada que el cliente está pagando en cuotas sigue diciendo
+  protestada, que es su historia. Se descuenta del par (letra, documento), no
+  de la letra sola, porque hay letras repartidas entre varias facturas. Un pago
+  normal deja `letra_id` en NULL y se comporta igual que siempre.
 
 ## Convenciones de negocio importantes
 
