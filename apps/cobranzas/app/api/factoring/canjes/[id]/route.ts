@@ -9,8 +9,9 @@ const ES_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Dos cosas sobre un canje ya registrado, con permisos distintos:
  *
- *  - Anular: las facturas vuelven a cartera normal (nunca tuvieron el saldo
- *    tocado, así que no hay nada que revertir ahí). Solo admin.
+ *  - Anular: las facturas vuelven a cartera normal. Si el canje ya tuvo
+ *    ingreso al banco, ese ingreso se anula también y sus pagos se borran —
+ *    ver `anularIngresosDelCanje`. Solo admin.
  *  - Cargarle o corregirle el vencimiento del factoring a sus facturas.
  *    Eso es completar un dato, no deshacer una operación, así que alcanza
  *    con permiso de escritura. Hace falta porque los canjes registrados
@@ -35,15 +36,104 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Indica el motivo de la anulación' }, { status: 400 });
 
   const db = supabaseAdmin();
+  const motivo = body.anulado_motivo.trim();
+
+  // Primero el ingreso, después el canje: si el ingreso falla, el canje queda
+  // vigente y el estado sigue siendo coherente. Al revés quedaría un canje
+  // anulado con su plata todavía cobrada, que es justo el agujero que esto
+  // viene a tapar.
+  const reversa = await anularIngresosDelCanje(db, params.id, motivo);
+  if ('error' in reversa) return NextResponse.json({ error: reversa.error }, { status: reversa.status });
+
   const { data, error } = await db
     .from('factoring_canjes')
-    .update({ anulado: true, anulado_motivo: body.anulado_motivo.trim(), anulado_en: new Date().toISOString() })
+    .update({ anulado: true, anulado_motivo: motivo, anulado_en: new Date().toISOString() })
     .eq('id', params.id)
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ canje: data });
+  return NextResponse.json({ canje: data, ingresos_anulados: reversa.ingresos, pagos_borrados: reversa.pagos });
+}
+
+/**
+ * Anula los ingresos al banco del canje y borra los pagos que crearon.
+ *
+ * Hasta nov-2026 anular un canje solo marcaba el canje, con el argumento de
+ * que "las facturas nunca tuvieron el saldo tocado". Eso es cierto mientras
+ * el canje no haya llegado al ingreso al banco — pero si llegó, el ingreso
+ * creó un pago real por factura y la factura queda PAGADA. Pasó: el canje de
+ * CORPORACION BOTICAS PERU del 03/11 (FFF1-2002 + FFF1-2488) se anuló por un
+ * cambio de facturas aprobadas, y S/ 36.964,84 siguieron figurando cobrados
+ * de BANPRO en el estado de cuenta del cliente.
+ *
+ * Un ingreso puede juntar facturas de más de un canje. En ese caso NO se
+ * anula solo: anularlo borraría pagos de facturas que no son de este canje.
+ * Se rechaza y se dice qué hay que anular a mano.
+ */
+async function anularIngresosDelCanje(
+  db: ReturnType<typeof supabaseAdmin>,
+  canjeId: string,
+  motivo: string,
+): Promise<{ ingresos: number; pagos: number } | { error: string; status: number }> {
+  const { data: filasCanje, error: errCanje } = await db
+    .from('factoring_canje_facturas')
+    .select('documento_id')
+    .eq('canje_id', canjeId);
+  if (errCanje) return { error: errCanje.message, status: 500 };
+
+  const docsDelCanje = new Set((filasCanje ?? []).map(f => f.documento_id as string));
+  if (docsDelCanje.size === 0) return { ingresos: 0, pagos: 0 };
+
+  const { data: enIngresos, error: errIng } = await db
+    .from('factoring_ingreso_facturas')
+    .select('ingreso_id')
+    .in('documento_id', [...docsDelCanje]);
+  if (errIng) return { error: errIng.message, status: 500 };
+
+  const ingresoIds = [...new Set((enIngresos ?? []).map(r => r.ingreso_id as string))];
+  if (ingresoIds.length === 0) return { ingresos: 0, pagos: 0 };
+
+  const { data: ingresos, error: errIngresos } = await db
+    .from('factoring_ingresos')
+    .select('id, anulado')
+    .in('id', ingresoIds);
+  if (errIngresos) return { error: errIngresos.message, status: 500 };
+
+  const vigentes = (ingresos ?? []).filter(i => !i.anulado).map(i => i.id as string);
+  if (vigentes.length === 0) return { ingresos: 0, pagos: 0 };
+
+  // Todas las facturas de cada ingreso vigente, para detectar los mezclados.
+  const { data: todasSusFacturas, error: errTodas } = await db
+    .from('factoring_ingreso_facturas')
+    .select('ingreso_id, documento_id, pago_id')
+    .in('ingreso_id', vigentes);
+  if (errTodas) return { error: errTodas.message, status: 500 };
+
+  const ajenas = (todasSusFacturas ?? []).filter(f => !docsDelCanje.has(f.documento_id as string));
+  if (ajenas.length > 0)
+    return {
+      error: 'Este canje tiene un ingreso al banco que también cubre facturas de otro canje. Anulá ese ingreso a mano desde Factoring → Ingresos y volvé a intentar.',
+      status: 409,
+    };
+
+  const pagoIds = (todasSusFacturas ?? []).map(f => f.pago_id).filter((id): id is string => !!id);
+  if (pagoIds.length > 0) {
+    const { error: errDel } = await db.from('pagos').delete().in('id', pagoIds);
+    if (errDel) return { error: errDel.message, status: 500 };
+  }
+
+  const { error: errUpd } = await db
+    .from('factoring_ingresos')
+    .update({
+      anulado: true,
+      anulado_motivo: `${motivo} — se anula junto con su canje`,
+      anulado_en: new Date().toISOString(),
+    })
+    .in('id', vigentes);
+  if (errUpd) return { error: errUpd.message, status: 500 };
+
+  return { ingresos: vigentes.length, pagos: pagoIds.length };
 }
 
 async function guardarVencimientos(
