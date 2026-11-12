@@ -25,6 +25,7 @@ export default function SaldosAFavorPage() {
   const [error, setError] = useState<string | null>(null);
   const [ocultarChicos, setOcultarChicos] = useState(true);
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [soloLeDebemos, setSoloLeDebemos] = useState(false);
 
   useEffect(() => {
     fetch('/api/saldos-a-favor', { cache: 'no-store' })
@@ -33,7 +34,9 @@ export default function SaldosAFavorPage() {
       .catch(e => setError(String(e)));
   }, []);
 
-  const visibles = (clientes ?? []).filter(c => !ocultarChicos || c.a_favor >= MINIMO_POR_DEFECTO);
+  const visibles = (clientes ?? [])
+    .filter(c => !ocultarChicos || c.a_favor >= MINIMO_POR_DEFECTO)
+    .filter(c => !soloLeDebemos || c.neto < -0.09);
   const totalAFavor = visibles.reduce((s, c) => s + c.a_favor, 0);
   const leDebemos = visibles.filter(c => c.neto < -0.09);
   const totalLeDebemos = leDebemos.reduce((s, c) => s + (-c.neto), 0);
@@ -56,7 +59,8 @@ export default function SaldosAFavorPage() {
           Lo que se le aplicó de <strong>más</strong> a una factura: notas de crédito emitidas
           después de que el cliente pagó, o pagos por encima del importe. Como se{' '}
           <strong>compensa</strong> contra las compras siguientes, la columna que manda es el{' '}
-          <strong>neto</strong>: si es negativo, le debemos esa plata.
+          <strong>neto</strong>: si es negativo, le debemos esa plata; si es positivo, su propia
+          deuda se come el saldo a favor y todavía nos debe la diferencia.
         </p>
 
         {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">{error}</div>}
@@ -80,6 +84,10 @@ export default function SaldosAFavorPage() {
                   <input type="checkbox" checked={ocultarChicos} onChange={e => setOcultarChicos(e.target.checked)} />
                   Ocultar menores a {fmt(MINIMO_POR_DEFECTO)}
                 </label>
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input type="checkbox" checked={soloLeDebemos} onChange={e => setSoloLeDebemos(e.target.checked)} />
+                  Solo a los que le debemos
+                </label>
                 <p className="text-[11px] text-gray-400">{ocultos > 0 ? `${ocultos} oculto${ocultos !== 1 ? 's' : ''} (redondeos)` : 'Nada oculto'}</p>
                 <a href="/api/exportar/saldos-a-favor"
                   className="mt-2 inline-block text-center px-3 py-2 text-xs font-medium rounded-lg text-white" style={{ background: '#4BB168' }}>
@@ -90,14 +98,20 @@ export default function SaldosAFavorPage() {
 
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[760px]">
+                <table className="w-full text-sm min-w-[900px]">
                   <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
                     <tr>
                       <th className="px-4 py-2.5 text-left">Cliente</th>
                       <th className="px-4 py-2.5 text-left">Vendedor</th>
                       <th className="px-4 py-2.5 text-right">A favor</th>
                       <th className="px-4 py-2.5 text-right">Deuda vigente</th>
-                      <th className="px-4 py-2.5 text-right">Neto</th>
+                      <th className="px-4 py-2.5 text-right">
+                        Neto
+                        <span className="block font-normal normal-case text-[10px] text-gray-400 tracking-normal">
+                          deuda − a favor
+                        </span>
+                      </th>
+                      <th className="px-4 py-2.5 text-left">Situación</th>
                       <th className="px-4 py-2.5" />
                     </tr>
                   </thead>
@@ -107,7 +121,7 @@ export default function SaldosAFavorPage() {
                       const debemos = c.neto < -0.09;
                       return (
                         <tr key={c.cliente_ruc} className="align-top">
-                          <td colSpan={6} className="p-0">
+                          <td colSpan={7} className="p-0">
                             <div className="flex items-center hover:bg-gray-50 cursor-pointer"
                               onClick={() => setAbierto(abierta ? null : c.cliente_ruc)}>
                               <div className="px-4 py-2.5 flex-1 min-w-0">
@@ -122,6 +136,21 @@ export default function SaldosAFavorPage() {
                               <div className="px-4 py-2.5 w-36 text-right tabular-nums font-semibold"
                                 style={{ color: debemos ? '#c0392b' : '#4BB168' }}>
                                 {debemos ? `−${fmt(-c.neto)}` : fmt(c.neto)}
+                              </div>
+                              {/* Sin esta columna la tabla se lee al revés: un
+                                  neto POSITIVO en una pantalla titulada "a
+                                  quién le debemos" parece plata nuestra a
+                                  pagar, y es lo contrario — el cliente tiene
+                                  saldo a favor, pero su propia deuda se lo
+                                  come y todavía nos debe la diferencia. */}
+                              <div className="px-4 py-2.5 w-36">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                  debemos ? 'bg-red-100 text-red-700'
+                                  : c.neto > 0.09 ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-500'
+                                }`}>
+                                  {debemos ? 'Le debemos' : c.neto > 0.09 ? 'Nos debe' : 'Compensado'}
+                                </span>
                               </div>
                               <div className="px-3 py-2.5 w-10 text-gray-300 text-xs">{abierta ? '▲' : '▼'}</div>
                             </div>
@@ -163,7 +192,7 @@ export default function SaldosAFavorPage() {
                       );
                     })}
                     {visibles.length === 0 && (
-                      <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">
+                      <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm">
                         No hay saldos a favor{ocultarChicos && ocultos > 0 ? ` por encima de ${fmt(MINIMO_POR_DEFECTO)}` : ''}.
                       </td></tr>
                     )}
