@@ -27,6 +27,8 @@ describe('PDF de la pre-guía', () => {
     const antes = texto(await renderPreGuia({ pre: pre(), guia, piloto: false, generadaEn: 'hoy' }))
     expect(antes).not.toContain('RECIBÍ CONFORME'); expect(antes).toContain('Responsable de almacén')
     const despues = texto(await renderPreGuia({ pre: pre({ estado: 'LISTA_PARA_ENVIAR', rutaNumero: 'RUT-9', placa: 'ABC-123', conductor: 'Hans' }), guia, piloto: false, generadaEn: 'hoy' }))
+    const conAlisto = texto(await renderPreGuia({ pre: pre({ estado: 'LISTA_PARA_ENVIAR', rutaNumero: 'RUT-9', placa: 'ABC-123', conductor: 'Hans' }), guia, piloto: false, generadaEn: 'hoy', alistadoPor: 'Karen Ruiz' }))
+    expect(conAlisto).toContain('Karen Ruiz'); expect(despues).not.toContain('Karen Ruiz')      // quien alistó sale del picking; lo demás, a mano
     for (const x of ['T° de salida:', 'Responsable de alistar pedido:', 'Responsable de Atención:', 'Firma:', 'TRANSPORTISTA FIRMA EN CONFORMIDAD QUE RECIBIÓ PRODUCTOS EN ÓPTIMAS CONDICIONES DE EMBALAJE', 'CON SU RESPECTIVA ETIQUETA DE IDENTIFICACIÓN', 'DNI:', 'RECIBÍ CONFORME']) expect(despues, x).toContain(x)
   })
 })

@@ -34,6 +34,15 @@ export function estadoDePreGuia(d: { cancelada?: boolean; guiaEnviada?: boolean;
  */
 export const mostrarConstanciaDeRecepcion = (p: Pick<PreGuiaVista, 'placa' | 'conductor'>) => !!p.placa && !!p.conductor
 
+/** «Responsable de alistar pedido» de la constancia: quien hizo el picking, que el sistema ya sabe (la orden y sus líneas); si fueron varios, todos, sin repetir. */
+export function quienAlisto(orden: { picker?: string; lineasDetalle?: readonly { picker?: string }[] } | null | undefined): string | undefined {
+  if (!orden) return undefined
+  const nombres = new Set<string>()
+  if (orden.picker?.trim()) nombres.add(orden.picker.trim())
+  for (const l of orden.lineasDetalle ?? []) if (l.picker?.trim()) nombres.add(l.picker.trim())
+  return nombres.size ? [...nombres].join(', ') : undefined
+}
+
 export const numeroDePreGuia = (serie: string, numero: number) => numeroConSerie(serie, numero)
 
 /** Lo que falta para poder enviarla; vacío si ya se puede. */

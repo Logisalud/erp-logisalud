@@ -18,24 +18,28 @@ const s = StyleSheet.create({
 })
 const fecha = (iso?: string) => (iso ? iso.split('-').reverse().join('/') : '—')
 
-export interface DatosPreGuia { pre: PreGuiaVista; guia: DatosGuia; piloto: boolean; generadaEn: string }
+export interface DatosPreGuia {
+  pre: PreGuiaVista; guia: DatosGuia; piloto: boolean; generadaEn: string
+  /** Quién hizo el picking (el sistema lo sabe): sale impreso en «Responsable de alistar pedido». Lo demás de la constancia se llena a mano. */
+  alistadoPor?: string
+}
 
 function Campo({ nombre, valor, fuerte = false }: { nombre: string; valor?: string; fuerte?: boolean }) {
   return <View style={{ marginBottom: 5 }}><Text style={s.etiqueta}>{nombre.toUpperCase()}</Text><Text style={fuerte ? { fontFamily: 'Helvetica-Bold', fontSize: 11 } : {}}>{valor || '—'}</Text></View>
 }
 
 /** Un renglón para llenar a mano: «Etiqueta: ______». */
-function Renglon({ etiqueta, ancho }: { etiqueta: string; ancho: number }) {
-  return <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}><Text>{etiqueta}</Text><View style={{ width: ancho, borderBottom: `0.75pt solid ${TINTA}`, marginLeft: 4, height: 11 }} /></View>
+function Renglon({ etiqueta, ancho, valor }: { etiqueta: string; ancho: number; valor?: string }) {
+  return <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}><Text>{etiqueta}</Text><View style={{ width: ancho, borderBottom: `0.75pt solid ${TINTA}`, marginLeft: 4, minHeight: 11 }}>{valor ? <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8.5 }}>{valor}</Text> : null}</View></View>
 }
 
 /** La constancia de recepción (formato de la empresa): todo en blanco para llenarlo y firmarlo a mano. */
-function ConstanciaDeRecepcion() {
+function ConstanciaDeRecepcion({ alistadoPor }: { alistadoPor?: string }) {
   return (
     <View style={{ marginTop: 22 }} wrap={false} data-testid="constancia-recepcion">
       <Renglon etiqueta="T° de salida:" ancho={90} />
-      <View style={{ flexDirection: 'row', marginTop: 14 }}><Renglon etiqueta="Responsable de alistar pedido:" ancho={120} /><View style={{ width: 14 }} /><Renglon etiqueta="Firma:" ancho={110} /></View>
-      <View style={{ flexDirection: 'row', marginTop: 14 }}><Renglon etiqueta="Responsable de Atención:" ancho={135} /><View style={{ width: 14 }} /><Renglon etiqueta="Firma:" ancho={100} /></View>
+      <View style={{ flexDirection: 'row', marginTop: 14 }}><Renglon etiqueta="Responsable de alistar pedido:" ancho={130} valor={alistadoPor} /><View style={{ width: 14 }} /><Renglon etiqueta="Firma:" ancho={100} /></View>
+      <View style={{ flexDirection: 'row', marginTop: 14 }}><Renglon etiqueta="Responsable de Atención:" ancho={115} /><View style={{ width: 14 }} /><Renglon etiqueta="Firma:" ancho={90} /></View>
       <View style={{ width: 150, borderBottom: `0.75pt solid ${TINTA}`, marginTop: 40 }} />
       <Text style={{ marginTop: 3 }}>TRANSPORTISTA FIRMA EN CONFORMIDAD QUE RECIBIÓ PRODUCTOS EN ÓPTIMAS CONDICIONES DE EMBALAJE, CON SU RESPECTIVA ETIQUETA DE IDENTIFICACIÓN.</Text>
       <View style={{ marginTop: 18 }}><Renglon etiqueta="DNI:" ancho={90} /></View>
@@ -106,7 +110,7 @@ function Hoja({ d }: { d: DatosPreGuia }) {
 
           {falta && pre.estado !== 'ENVIADA' && <Text style={{ marginTop: 10, color: '#92400E', backgroundColor: '#FEF3C7', padding: 7, borderRadius: 4 }}>Pendiente para enviar: {falta}</Text>}
 
-          {mostrarConstanciaDeRecepcion(pre) ? <ConstanciaDeRecepcion /> : (
+          {mostrarConstanciaDeRecepcion(pre) ? <ConstanciaDeRecepcion alistadoPor={d.alistadoPor} /> : (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 44 }} wrap={false}>
             {['Responsable de almacén', 'Transportista'].map((t) => <View key={t} style={{ width: '42%' }}><View style={{ borderTop: `0.75pt solid ${TINTA}` }} /><Text style={{ textAlign: 'center', marginTop: 3, color: GRIS }}>{t}</Text></View>)}
           </View>
