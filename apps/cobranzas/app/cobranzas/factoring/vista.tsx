@@ -348,6 +348,14 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
     });
     const d = await res.json();
     if (d.error) { alert(d.error); return; }
+    // Si el canje ya se había cobrado, la anulación arrastra el ingreso y
+    // borra sus pagos: las facturas vuelven a deber. Hay que decirlo, no
+    // dejar que el usuario lo descubra en el estado de cuenta del cliente.
+    if (d.pagos_borrados > 0)
+      alert(
+        `Se anuló también el ingreso al banco de este canje y se borraron ${d.pagos_borrados} pago${d.pagos_borrados !== 1 ? 's' : ''}. ` +
+        'Las facturas volvieron a la cartera con su saldo pendiente.',
+      );
     setAnulandoId(null); setMotivo('');
     await cargarHistorial();
   };
@@ -566,6 +574,12 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                 {puedeAnular && !c.anulado && (
                   anulandoId === c.id ? (
                     <div className="mt-3 p-3 rounded-lg bg-red-50/40 border border-red-100 space-y-2">
+                      {c.facturas.some(f => f.estado === 'ingresada') && (
+                        <p className="text-xs text-red-700">
+                          Este canje ya tuvo ingreso al banco. Anularlo <strong>también anula el ingreso</strong> y
+                          borra sus pagos: las facturas vuelven a la cartera con su saldo pendiente.
+                        </p>
+                      )}
                       <input type="text" value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Motivo de la anulación"
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
                       <div className="flex gap-2">
