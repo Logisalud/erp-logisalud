@@ -46,7 +46,25 @@ export async function GET(
       .order('fecha_vencimiento', { ascending: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ letras: data ?? [] }, {
+
+    // Abonos: pagos que apuntan a una letra puntual (migración 20261112). Van
+    // acá y no en una llamada aparte porque sin ellos la letra se ve por su
+    // importe de giro aunque el cliente ya haya pagado parte.
+    const abonado = new Map<string, number>();
+    for (let i = 0; i < letraIds.length; i += 300) {
+      const { data: abonos } = await db
+        .from('pagos')
+        .select('letra_id, monto')
+        .in('letra_id', letraIds.slice(i, i + 300));
+      for (const a of abonos ?? []) {
+        const k = a.letra_id as string;
+        abonado.set(k, (abonado.get(k) ?? 0) + (Number(a.monto) || 0));
+      }
+    }
+
+    const letras = (data ?? []).map(l => ({ ...l, abonado: abonado.get(l.id as string) ?? 0 }));
+
+    return NextResponse.json({ letras }, {
       headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
     });
   } catch (err) {

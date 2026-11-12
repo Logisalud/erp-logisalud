@@ -30,6 +30,7 @@ interface FacturaPendiente {
 }
 
 interface LetraConDocumento extends LetraDetalle {
+  id: string;
   documento_id: string;
 }
 
@@ -155,11 +156,27 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
     for (let i = 0; i < idsConLetras.length; i += 500) {
       const { data } = await db
         .from('letras')
-        .select('documento_id, numero_letra, importe, fecha_giro, fecha_vencimiento, banco, estado')
+        .select('id, documento_id, numero_letra, importe, fecha_giro, fecha_vencimiento, banco, estado')
         .in('documento_id', idsConLetras.slice(i, i + 500))
         .order('fecha_vencimiento');
       letrasTodas.push(...(data ?? []));
     }
+    // Abonos a letra (migración 20261112): bajan el saldo de la letra sin
+    // cambiarle el estado. El vendedor tiene que verlos — si no, le dice al
+    // cliente que debe el importe entero de una letra que ya pagó a medias.
+    const abonadoPorLetra = new Map<string, number>();
+    const idsLetras = letrasTodas.map(l => l.id);
+    for (let i = 0; i < idsLetras.length; i += 500) {
+      const { data: abonos } = await db
+        .from('pagos')
+        .select('letra_id, monto')
+        .in('letra_id', idsLetras.slice(i, i + 500));
+      for (const a of abonos ?? []) {
+        const k = a.letra_id as string;
+        abonadoPorLetra.set(k, (abonadoPorLetra.get(k) ?? 0) + (Number(a.monto) || 0));
+      }
+    }
+
     for (const l of letrasTodas) {
       const detalle = letrasDetallePorDoc[l.documento_id] ?? [];
       detalle.push({
@@ -169,6 +186,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
         fecha_vencimiento: l.fecha_vencimiento,
         banco: l.banco,
         estado: l.estado,
+        abonado: abonadoPorLetra.get(l.id) ?? 0,
       });
       letrasDetallePorDoc[l.documento_id] = detalle;
 

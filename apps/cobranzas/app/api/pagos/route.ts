@@ -31,8 +31,9 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.respuesta;
 
   const body = await req.json();
-  const { documento_id, monto, fecha_pago, referencia, voucher_path, retencion, solo_retencion, registrado_por, medio_cobro, cuenta_bancaria_codigo } = body as {
+  const { documento_id, letra_id, monto, fecha_pago, referencia, voucher_path, retencion, solo_retencion, registrado_por, medio_cobro, cuenta_bancaria_codigo } = body as {
     documento_id: string;
+    letra_id?: string;       // abono a una letra puntual de una factura canjeada
     monto: number;
     fecha_pago: string;
     referencia?: string;
@@ -70,11 +71,62 @@ export async function POST(req: NextRequest) {
     .eq('id', documento_id)
     .single();
 
-  if (saldoRow?.tiene_letras)
+  // Una factura canjeada por letras solo admite pago si dice a QUÉ letra va.
+  //
+  // Antes se rechazaba sin más, y con razón: `v_cobros` saca esas facturas de
+  // la rama de facturas, su saldo son las letras pendientes, y un pago suelto
+  // no bajaba nada. Pero el cliente que paga su letra protestada en cuotas
+  // existe (KORMED pagó S/ 3.400 en seis transferencias) y antes terminaba
+  // cargado a otra factura. Con `letra_id`, el abono se descuenta de esa letra
+  // —ver la migración 20261112— y la letra CONSERVA su estado: una letra
+  // protestada que se está pagando de a poco sigue diciendo protestada.
+  if (saldoRow?.tiene_letras && !letra_id)
     return NextResponse.json(
-      { error: 'Esta factura tiene letras. Paga marcando la letra correspondiente.' },
+      { error: 'Esta factura tiene letras. Elegí a qué letra va el abono, o marcá la letra como pagada si se pagó entera.' },
       { status: 400 }
     );
+
+  if (letra_id) {
+    if (!saldoRow?.tiene_letras)
+      return NextResponse.json({ error: 'Esta factura no tiene letras: no corresponde un abono a letra.' }, { status: 400 });
+
+    // Dos consultas en vez de un join embebido: el embebido tipa `letras`
+    // como arreglo y obliga a castear a ciegas (mismo motivo por el que
+    // `lib/estado-cuenta-datos.ts` las separa).
+    const { data: vinculo } = await db
+      .from('letra_documento')
+      .select('monto_aplicado')
+      .eq('letra_id', letra_id)
+      .eq('documento_id', documento_id)
+      .maybeSingle();
+
+    if (!vinculo)
+      return NextResponse.json({ error: 'Esa letra no pertenece a esta factura.' }, { status: 400 });
+
+    const { data: letra } = await db
+      .from('letras')
+      .select('numero_letra, estado')
+      .eq('id', letra_id)
+      .single();
+
+    if (letra?.estado === 'pagada')
+      return NextResponse.json({ error: `La letra ${letra.numero_letra} ya está marcada como pagada.` }, { status: 400 });
+
+    // Se avisa, no se bloquea: igual que una factura, la letra se recorta en
+    // cero y de más no puede quedar.
+    const { data: previos } = await db
+      .from('pagos')
+      .select('monto')
+      .eq('letra_id', letra_id)
+      .eq('documento_id', documento_id);
+    const yaAbonado = (previos ?? []).reduce((acc: number, r: { monto: number }) => acc + (Number(r.monto) || 0), 0);
+    const pendiente = (Number(vinculo.monto_aplicado) || 0) - yaAbonado;
+    if (Number(monto) > pendiente + 0.09)
+      return NextResponse.json(
+        { error: `El abono (S/ ${Number(monto).toFixed(2)}) supera lo que queda de la letra ${letra?.numero_letra ?? ''} (S/ ${pendiente.toFixed(2)}).` },
+        { status: 400 },
+      );
+  }
 
   if (saldoRow?.factorizado)
     return NextResponse.json(
@@ -142,6 +194,7 @@ export async function POST(req: NextRequest) {
     voucher_path: voucher_path ?? null,
     tipo: 'pago',
     registrado_por: registrado_por?.trim() || null,
+    ...(letra_id ? { letra_id } : {}),
     ...(esEfectivo ? { medio_cobro: 'efectivo', estado_efectivo: 'cobrado_por_depositar' } : {}),
     ...(cuenta_bancaria_codigo ? { cuenta_bancaria_codigo } : {}),
   }];
@@ -154,6 +207,9 @@ export async function POST(req: NextRequest) {
       voucher_path: null,
       tipo: 'retencion',
       registrado_por: registrado_por?.trim() || null,
+      // La retención sigue al abono: si el pago bajó una letra, su retención
+      // tiene que bajar la misma letra y no la factura entera.
+      ...(letra_id ? { letra_id } : {}),
     });
   }
 

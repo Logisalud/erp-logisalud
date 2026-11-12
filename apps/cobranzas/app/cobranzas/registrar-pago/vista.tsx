@@ -64,6 +64,8 @@ interface Pago {
   estado_efectivo?: 'cobrado_por_depositar' | 'depositado' | null;
   fecha_deposito?: string | null;
   voucher_deposito_path?: string | null;
+  /** Abono a una letra puntual. NULL en un pago normal. */
+  letra_id?: string | null;
 }
 
 interface CuentaBancaria {
@@ -139,6 +141,8 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
   const [buscando, setBuscando]         = useState(false);
   const [factura, setFactura]           = useState<FacturaBuscar | null>(null);
   const [letras, setLetras]             = useState<Letra[]>([]);
+  const [modoLetra, setModoLetra]       = useState<'entera' | 'abono'>('entera');
+  const [montoAbono, setMontoAbono]     = useState('');
   const [pagos, setPagos]               = useState<Pago[]>([]);
   const [ncnds, setNcnds]               = useState<NcNd[]>([]);
   const [cargando, setCargando]         = useState(false);
@@ -490,6 +494,43 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
     }
   };
 
+  // Abono parcial a una letra. No la marca pagada: el estado de la letra es su
+  // historia (una protestada tiene que seguir diciéndolo) y lo que baja es el
+  // saldo, vía `pagos.letra_id` — ver la migración 20261112.
+  const registrarAbonoLetra = async () => {
+    if (!factura || enviandoRef.current) return;
+    if (!letraSelId) { setErrMsg('Selecciona una letra.'); return; }
+    const monto = Number(montoAbono);
+    if (!monto || monto <= 0) { setErrMsg('Ingresá el monto del abono.'); return; }
+    enviandoRef.current = true;
+    setGuardando(true); setErrMsg(''); setExitoMsg('');
+    try {
+      const res = await fetch('/api/pagos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documento_id: factura.id,
+          letra_id: letraSelId,
+          monto,
+          fecha_pago: fechaPago,
+          referencia: referencia || null,
+          voucher_path: voucherPath,
+          registrado_por: registradoPor || null,
+        }),
+      });
+      const d = await res.json();
+      if (d.error) { setErrMsg(d.error); return; }
+      const num = letras.find(l => l.id === letraSelId)?.numero_letra ?? '';
+      setExitoMsg(`✓ Abono de ${fmt(monto)} registrado a la letra ${num}.`);
+      setMontoAbono('');
+      limpiarForm();
+      await recargar(factura);
+    } finally {
+      enviandoRef.current = false;
+      setGuardando(false);
+    }
+  };
+
   const verVoucher = async (path: string) => {
     const res = await fetch(`/api/pagos/voucher-url?path=${encodeURIComponent(path)}`);
     const d   = await res.json();
@@ -539,6 +580,12 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
     setEliminandoId(null);
     if (factura) await recargar(factura);
   };
+
+  // Lo abonado a cada letra de ESTA factura. Un abono es un pago con
+  // `letra_id`: baja la letra sin cambiarle el estado, así una letra
+  // protestada que se está pagando de a poco sigue diciendo protestada.
+  const abonadoDe = (letraId: string) =>
+    pagos.filter(p => p.letra_id === letraId).reduce((s, p) => s + (Number(p.monto) || 0), 0);
 
   const letrasPendientes = letras.filter(l => l.estado !== 'pagada');
   const letraSel         = letras.find(l => l.id === letraSelId);
@@ -885,6 +932,14 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
                         </div>
                         <div className="text-right shrink-0">
                           <p className="font-semibold text-gray-900 text-sm">{fmt(Number(l.importe))}</p>
+                          {abonadoDe(l.id) > 0 && (
+                            <p className="text-[11px] text-gray-400 mt-0.5">
+                              abonado {fmt(abonadoDe(l.id))} · queda{' '}
+                              <span className="font-semibold text-gray-600">
+                                {fmt(Math.max(0, Number(l.importe) - abonadoDe(l.id)))}
+                              </span>
+                            </p>
+                          )}
                         </div>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
                           ESTADO_STYLE[l.estado] ?? 'bg-gray-100 text-gray-500'
@@ -902,7 +957,46 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
                       Registrar pago de&nbsp;
                       <span className="text-logisalud-green font-semibold">{letraSel.numero_letra}</span>
                       &nbsp;&mdash;&nbsp;{fmt(Number(letraSel.importe))}
+                      {abonadoDe(letraSel.id) > 0 && (
+                        <span className="text-gray-400 font-normal">
+                          {' '}· queda {fmt(Math.max(0, Number(letraSel.importe) - abonadoDe(letraSel.id)))}
+                        </span>
+                      )}
                     </p>
+
+                    {/* Entera vs. abono. El cliente que paga su letra en cuotas
+                        existe —KORMED pagó una protestada en seis
+                        transferencias— y antes no había dónde registrarlo, así
+                        que terminaba cargado a otra factura. */}
+                    <div className="flex gap-1.5">
+                      {([['entera', 'Se pagó entera'], ['abono', 'Abono parcial']] as const).map(([k, t]) => (
+                        <button
+                          key={k}
+                          onClick={() => { setModoLetra(k); setErrMsg(''); setExitoMsg(''); }}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition ${
+                            modoLetra === k ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}
+                          style={modoLetra === k ? { background: '#4ABCC2' } : undefined}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+
+                    {modoLetra === 'abono' && (
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Monto del abono *</label>
+                        <input
+                          type="number" step="0.01" min="0" value={montoAbono}
+                          onChange={e => setMontoAbono(e.target.value)}
+                          placeholder={String(Math.max(0, Number(letraSel.importe) - abonadoDe(letraSel.id)).toFixed(2))}
+                          className="w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                        />
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          La letra conserva su estado ({letraSel.estado.replace('_', ' ')}) — solo baja el saldo.
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Fecha de pago *</label>
                       <input
@@ -917,12 +1011,16 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
                       onChange={onArchivoChange}
                     />
                     <button
-                      onClick={registrarPagoLetra}
+                      onClick={modoLetra === 'abono' ? registrarAbonoLetra : registrarPagoLetra}
                       disabled={guardando || subiendo}
                       className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition"
                       style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
                     >
-                      {guardando ? 'Registrando…' : `Marcar ${letraSel.numero_letra} como pagada`}
+                      {guardando
+                        ? 'Registrando…'
+                        : modoLetra === 'abono'
+                          ? `Registrar abono a ${letraSel.numero_letra}`
+                          : `Marcar ${letraSel.numero_letra} como pagada`}
                     </button>
                   </div>
                 )}

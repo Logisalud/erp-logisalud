@@ -47,6 +47,8 @@ interface LetraRow {
   banco: string | null;
   observaciones: string | null;
   fecha_pago: string | null;
+  /** Abonos a esta letra, que bajan su saldo sin cambiarle el estado. */
+  abonado?: number;
 }
 
 interface HasAging {

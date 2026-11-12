@@ -38,6 +38,11 @@ export async function GET(req: NextRequest) {
       'Comprobante(s)': f.comprobantes,
       'Fecha de Vencimiento': fmtFecha(f.fecha_vencimiento),
       'Monto': f.importe,
+      // Las dos columnas van juntas y siempre: un abono baja el saldo de la
+      // letra sin tocar su estado, así que "Monto" solo ya no dice cuánto se
+      // debe de esa letra.
+      'Abonado': f.abonado,
+      'Saldo de la Letra': f.saldo_letra,
       'Estado': ESTADO_LABEL[f.estado] ?? f.estado,
       'Banco': f.banco ?? '',
       'Fecha de Pago': fmtFechaOpcional(f.fecha_pago),
@@ -46,7 +51,7 @@ export async function GET(req: NextRequest) {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      { wch: 14 }, { wch: 13 }, { wch: 38 }, { wch: 24 }, { wch: 16 }, { wch: 13 }, { wch: 12 }, { wch: 16 }, { wch: 16 },
+      { wch: 14 }, { wch: 13 }, { wch: 38 }, { wch: 24 }, { wch: 16 }, { wch: 13 }, { wch: 12 }, { wch: 17 }, { wch: 12 }, { wch: 16 }, { wch: 16 },
     ];
     const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
     ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
