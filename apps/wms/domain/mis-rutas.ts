@@ -94,6 +94,20 @@ export function motivoNoSePuede(evento: EventoParada, estado: EstadoParadaMia, r
 /** ¿Todas las paradas tienen su resultado? (la ruta pasa a «Pendiente de cierre»). */
 export const todasResueltas = (paradas: readonly Pick<ParadaMia, 'estado'>[]) => paradas.length > 0 && paradas.every((p) => esTerminal(p.estado as EventoParada))
 
+/** Lo que le falta a una parada para que el transportista pueda iniciar su ruta (lo ve el Jefe de Transporte para corregirlo): en palabras, sin inventar nada. */
+export function faltantesDeParada(p: Pick<ParadaMia, 'direccion' | 'telefono' | 'guia' | 'representante' | 'formaPago'>): string[] {
+  const falta: string[] = []
+  if (!p.direccion?.trim()) falta.push('la dirección')
+  if (!p.telefono?.trim()) falta.push('el teléfono del cliente')
+  if (!p.guia?.trim()) falta.push('la guía')
+  if (!p.representante?.trim()) falta.push('el representante')
+  if (!p.formaPago?.trim()) falta.push('la forma de pago')
+  return falta
+}
+
+/** ¿La parada quedó sin entregar? (su último estado es «no entregado» o «rechazado»): no va en la hoja de DIGEMID. */
+export const quedoSinEntregar = (eventos: readonly EventoParadaVista[]): boolean => { const t = eventos.find((e) => esTerminal(e.evento)); return !!t && t.evento !== 'ENTREGADO' }
+
 /** Lo que alimenta el LS-FR.43.03 por parada: hora de entrega y observaciones (quién recibió, o el motivo de lo que no se entregó). */
 export function datosParaLsFr(eventos: readonly EventoParadaVista[]): { horaEntrega?: string; observaciones?: string } {
   const t = eventos.find((e) => esTerminal(e.evento))

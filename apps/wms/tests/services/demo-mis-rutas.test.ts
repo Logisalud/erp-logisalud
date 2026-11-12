@@ -96,4 +96,12 @@ describe('mis rutas (demo)', () => {
     expect(fila.horaEntrega).toBeTruthy()
     expect(fila.observaciones).toBe('Recibió María Pérez (DNI 12345678)')
   })
+
+  it('el Jefe de Transporte ve la ruta como la ve el transportista, aunque todavía no salga, sin poder marcar nada', async () => {
+    const id = await rutaEnRuta()
+    const v = (await repo.rutaComoLaVeElTransportista(id))!
+    expect(v).toMatchObject({ id, puedeMarcar: false })
+    expect(v.paradas[0]).toMatchObject({ condicion: 'DESPACHO' })
+    expect(await repo.rutaComoLaVeElTransportista('no-existe')).toBeNull()
+  })
 })

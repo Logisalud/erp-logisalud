@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
-import { datosParaLsFr, estadoDeParada, esTerminal, RUTA_PERMITE_MARCAR, todasResueltas, type EventoParada, type EventoParadaVista, type ParadaMia, type RutaMia } from '@/domain/mis-rutas'
+import { datosParaLsFr, quedoSinEntregar, estadoDeParada, esTerminal, RUTA_PERMITE_MARCAR, todasResueltas, type EventoParada, type EventoParadaVista, type ParadaMia, type RutaMia } from '@/domain/mis-rutas'
 import { claveDeOrden, type EstadoRuta } from '@/domain/rutas'
 import { condicionDeParada } from '@/domain/ruta-del-dia'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
@@ -34,6 +34,12 @@ export class MisRutasSupabase extends PilotoSupabase implements RepositorioMisRu
     return ((data ?? []) as Fila[]).map(rutaDe)
   }
 
+  async rutaComoLaVeElTransportista(rutaId: string): Promise<RutaMia | null> {
+    const { data, error } = await rpc('ruta_como_la_ve_el_transportista', { p_ruta: rutaId })
+    if (error) throw new Error(mensajeHumano(error))
+    return data ? { ...rutaDe(data as Fila), puedeMarcar: false } : null
+  }
+
   async registrarEventoParada(paradaId: string, evento: EventoParada, datos: DatosEventoParada, _actor: Actor): Promise<ResultadoAccion<{ retornoPorOriginar: boolean; rutaPendienteDeCierre: boolean }>> {
     const f = datos.foto
     const { error } = await rpc('registrar_evento_parada', {
@@ -55,13 +61,16 @@ export class MisRutasSupabase extends PilotoSupabase implements RepositorioMisRu
     ])
     const horaEntrega: Record<string, string> = { ...(base.horaEntrega ?? {}) }
     const observaciones: Record<string, string> = { ...(base.observaciones ?? {}) }
+    const noEntregadas: string[] = []
     for (const p of (paradas ?? []) as Fila[]) {
       const clave = s(p.pedido_id) ?? (p.salida_id ? claveDeOrden(String(p.salida_id)) : undefined)
       if (!clave) continue
-      const d = datosParaLsFr(((ev ?? []) as Fila[]).filter((x) => String(x.parada_id) === String(p.id)).map(eventoDe))
+      const propios = ((ev ?? []) as Fila[]).filter((x) => String(x.parada_id) === String(p.id)).map(eventoDe)
+      const d = datosParaLsFr(propios)
+      if (quedoSinEntregar(propios)) noEntregadas.push(clave)
       if (d.horaEntrega) horaEntrega[clave] = d.horaEntrega
       if (d.observaciones) observaciones[clave] = d.observaciones
     }
-    return { ...base, horaEntrega, observaciones }
+    return { ...base, horaEntrega, observaciones, noEntregadas }
   }
 }

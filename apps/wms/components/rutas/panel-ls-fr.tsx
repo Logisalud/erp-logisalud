@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { Archive, CheckCircle2, Clock, FileText, Info, Printer, ScanLine, Thermometer, TriangleAlert, Upload } from 'lucide-react'
+import { Archive, CheckCircle2, Clock, Eye, FileText, Info, Printer, ScanLine, Thermometer, TriangleAlert, Upload } from 'lucide-react'
 import { corregirCierreRutaAccion, cerrarRutaAccion, leerLoggerAccion, registrarImpresionLsFrAccion, subirEscaneoLsFrAccion, type ResultadoLogger } from '@/app/acciones-rutas'
 import { AYUDA_TEMPERATURA_RUTA, LIMITE_TEMPERATURA_RUTA_C, type ResumenLeido } from '@/domain/data-logger'
 import { leerTemperatura, motivoNoSeCierra, motivoNoSeEscanea, tamanoLegible } from '@/domain/cierre-ruta'
@@ -140,6 +140,8 @@ export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar 
           {puedeRegistrar && (
             <button type="button" className="btn-primary" onClick={imprimir} disabled={impresion.pendiente} data-testid="imprimir-lsfr"><Printer className="h-5 w-5" aria-hidden />{impresion.pendiente ? 'Registrando…' : 'Imprimir la copia del conductor'}</button>
           )}
+          <Link href={`/rutas/${ruta.id}/vista-transportista`} className="btn-secondary" data-testid="ver-como-transportista"><Eye className="h-5 w-5" aria-hidden />Así la ve el transportista</Link>
+          <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/pdf?digemid=1`} target="_blank" rel="noopener" className="btn-secondary" data-testid="ver-digemid"><FileText className="h-5 w-5" aria-hidden />Hoja para DIGEMID (solo lo entregado)</a>
           <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/pdf`} target="_blank" rel="noopener" className="btn-secondary" data-testid="ver-lsfr"><FileText className="h-5 w-5" aria-hidden />Ver el PDF</a>
           {!pedidosPaquete && <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/paquete`} target="_blank" rel="noopener" className="btn-secondary" data-testid="paquete-ruta"><FileText className="h-5 w-5" aria-hidden />Imprimir el paquete documental de la ruta</a>}
         </div>

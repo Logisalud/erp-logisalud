@@ -98,6 +98,8 @@ export interface ExtrasLsFr {
   /** Hora real de salida (S8) y de llegada de la unidad (retorno). ISO. */
   horaSalida?: string
   horaLlegada?: string
+  /** Claves de las paradas que NO se entregaron (no entregado o rechazado): la hoja de DIGEMID es la misma ruta sin ellas (decisión de Sebas y Katia, 11-nov-2026). */
+  noEntregadas?: string[]
   /** clave de la parada → hora de entrega y observaciones (S9, fuera de este bloque). */
   horaEntrega?: Record<string, string>
   temperatura?: Record<string, string>
@@ -123,6 +125,8 @@ export interface FilaLsFr {
   temperatura?: string
   horaEntrega?: string
   observaciones?: string
+  /** false si la parada quedó sin entregar (no entregado o rechazado): la hoja de DIGEMID no la lleva. */
+  entregada?: boolean
 }
 
 export interface RegistroLsFrVista {
@@ -186,12 +190,18 @@ export function conservarHasta(fechaRuta: string, anios = CONSERVACION_ANIOS_POR
 export const textoNoImpreso = 'Todavía no imprimiste el formato LS-FR.43.03 de esta ruta: la copia impresa viaja con el conductor. Puedes liberar la unidad igual, pero imprímela antes de que salga.'
 export const faltaImprimir = (r: { impresiones: readonly ImpresionLsFr[] } | null | undefined) => !r || r.impresiones.length === 0
 
+/** La hoja de DIGEMID: la misma ruta sin lo que no se entregó (se renumera). El registro interno sigue completo, con los motivos (decisión de Sebas y Katia, 11-nov-2026). */
+export function soloEntregadas(r: RegistroLsFrVista): RegistroLsFrVista {
+  const filas = r.filas.filter((f) => f.entregada !== false).map((f, i) => ({ ...f, n: i + 1 }))
+  return { ...r, filas, paginas: Math.max(1, Math.ceil(filas.length / r.filasPorPagina)) }
+}
+
 export const COD_POE_LS_FR = 'LS-POE.07.05'
 
 export function armarRegistroLsFr(ruta: RutaVista, params: ParametrosLsFr = PARAMETROS_LS_FR_POR_DEFECTO, extras: ExtrasLsFr = {}): RegistroLsFrVista {
   const cierre = extras.cierres?.find((c) => c.vigente)
   const filas: FilaLsFr[] = ruta.paradas.map((p, i) => ({
-    n: i + 1, cliente: p.cliente, guia: extras.guias?.[p.clave], cajas: extras.cajas?.[p.clave], detalle: 'ENTREGA',
+    n: i + 1, cliente: p.cliente, entregada: !extras.noEntregadas?.includes(p.clave), guia: extras.guias?.[p.clave], cajas: extras.cajas?.[p.clave], detalle: 'ENTREGA',
     temperatura: extras.temperatura?.[p.clave] ?? (cierre ? textoTemperatura(cierre.tempMin, cierre.tempMax) : undefined), horaEntrega: extras.horaEntrega?.[p.clave], observaciones: extras.observaciones?.[p.clave],
   }))
   return {

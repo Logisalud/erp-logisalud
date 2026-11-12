@@ -43,3 +43,11 @@ Orden pedido por Sebas (donde choque con el mensaje del piloto, manda este). Est
 - **Carga por conteo de bultos en Lima y en provincia** (parámetro `carga_escaneo_qr` = NO): cada pedido se cuenta (`registrar_conteo_carga`) y la unidad se libera con todo contado. **El escaneo del QR queda en el código, apagado**, para cuando todo funcione.
 - Demo y pruebas siguen el flujo anterior por defecto; `WMS_DEMO_EMBALAJE=NO` y `WMS_DEMO_CARGA_QR=NO` imitan el piloto.
 - Paquete documental de la ruta por casillas por pedido: hecho (marcado de entrada si el cliente pide documentos).
+
+## Ruteo interno, aviso de facturación y hoja de DIGEMID (11-nov-2026)
+
+- **«Mis rutas» y la hoja «Ruta del día»** llevan las columnas del formato interno: cliente, # cliente (teléfono, que ahora entrega Pedidos), condición, guía (la vigente o la pre-guía), dirección, destino, transportista, representante, forma de pago y horario (migración 0062, aplicada).
+- **«Así la ve el transportista»:** el Jefe de Transporte (y quien ve las rutas) abre la ruta tal como le aparece al conductor, solo lectura, y ve qué le falta a cada parada (migración 0063).
+- **Hoja para DIGEMID:** es la misma ruta sin lo que no se entregó (no entregado o rechazado), renumerada. El registro interno sigue completo, con los motivos.
+- **Aviso por correo (Resend)** a quien factura cuando la guía de un pedido queda lista: `RESEND_API_KEY`, `RESEND_FROM` y `AVISO_FACTURACION_CORREOS`. Apagado hasta configurarlas.
+- **Inspección de la unidad:** se imprime para firma manuscrita al cerrar el mes (sin firma en pantalla).
