@@ -7,7 +7,7 @@ import { corregirCierreRutaAccion, cerrarRutaAccion, leerLoggerAccion, registrar
 import { AYUDA_TEMPERATURA_RUTA, LIMITE_TEMPERATURA_RUTA_C, type ResumenLeido } from '@/domain/data-logger'
 import { leerTemperatura, motivoNoSeCierra, motivoNoSeEscanea, tamanoLegible } from '@/domain/cierre-ruta'
 import { formatoFecha, formatoFechaHora } from '@/domain/fechas'
-import { PENDIENTES_LS_FR, cierreVigente, escaneoVigente, textoTemperatura, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
+import { PENDIENTES_LS_FR, TEXTO_HOJA_DIGEMID_AL_FINAL, hojaDigemidDisponible, cierreVigente, escaneoVigente, textoTemperatura, type RegistroLsFrVista } from '@/domain/ls-fr-43-03'
 import type { PedidoParaPaquete } from '@/domain/documentacion'
 import type { RutaVista } from '@/domain/rutas'
 import { Aviso } from '../entradas/aviso'
@@ -141,7 +141,9 @@ export function PanelLsFr({ ruta, registro, puedeCerrar = false, puedeRegistrar 
             <button type="button" className="btn-primary" onClick={imprimir} disabled={impresion.pendiente} data-testid="imprimir-lsfr"><Printer className="h-5 w-5" aria-hidden />{impresion.pendiente ? 'Registrando…' : 'Imprimir la copia del conductor'}</button>
           )}
           <Link href={`/rutas/${ruta.id}/vista-transportista`} className="btn-secondary" data-testid="ver-como-transportista"><Eye className="h-5 w-5" aria-hidden />Así la ve el transportista</Link>
-          <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/pdf?digemid=1`} target="_blank" rel="noopener" className="btn-secondary" data-testid="ver-digemid"><FileText className="h-5 w-5" aria-hidden />Hoja para DIGEMID (solo lo entregado)</a>
+          {hojaDigemidDisponible(ruta.estado)
+            ? <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/pdf?digemid=1`} target="_blank" rel="noopener" className="btn-secondary" data-testid="ver-digemid"><FileText className="h-5 w-5" aria-hidden />Hoja para DIGEMID (solo lo entregado)</a>
+            : <span className="inline-flex flex-col" data-testid="digemid-al-final"><button type="button" className="btn-secondary" disabled aria-describedby="digemid-ayuda" data-testid="ver-digemid"><FileText className="h-5 w-5" aria-hidden />Hoja para DIGEMID (solo lo entregado)</button><span id="digemid-ayuda" className="mt-1 max-w-xs text-xs text-gray-600">{TEXTO_HOJA_DIGEMID_AL_FINAL}</span></span>}
           <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/pdf`} target="_blank" rel="noopener" className="btn-secondary" data-testid="ver-lsfr"><FileText className="h-5 w-5" aria-hidden />Ver el PDF</a>
           {!pedidosPaquete && <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/rutas/${ruta.id}/paquete`} target="_blank" rel="noopener" className="btn-secondary" data-testid="paquete-ruta"><FileText className="h-5 w-5" aria-hidden />Imprimir el paquete documental de la ruta</a>}
         </div>
