@@ -6,7 +6,7 @@ import { calcularDescuento } from '@/lib/descuento';
 import { cobranzaDelMes } from '@/lib/cobranzaDelMes';
 import BotonImprimir from './BotonImprimir';
 import RegistrarAcceso from './RegistrarAcceso';
-import VistaVendedorClient, { FacturaVista, LetraVista } from './VistaVendedorClient';
+import VistaVendedorClient, { FacturaVista, LetraVista, FactoringVista } from './VistaVendedorClient';
 import { LetraDetalle } from '@/components/DetalleLetras';
 
 // Filtro SOLO de presentación en la vista del vendedor: se ocultan facturas
@@ -222,6 +222,84 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   }
   letrasVista.sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento));
 
+  // Facturas vendidas a una entidad de factoring que el cliente todavía no le
+  // pagó a esa entidad. No están en `facturasVisibles` —su saldo es cero,
+  // porque el factor ya nos pagó— pero el vendedor las tiene que seguir: si
+  // el cliente no paga, el factor vuelve sobre nosotros.
+  //
+  // El filtro de permisos es el mismo de siempre: se parte de v_saldos
+  // acotado a `vendedor_id = <el del token>`, y recién ahí se cruza con las
+  // tablas de factoring. Nunca se consulta factoring por otro criterio.
+  const factoringVista: FactoringVista[] = [];
+  {
+    const susFacturas = await fetchAll<{ id: string; comprobante: string; cliente_ruc: string; razon_social: string }>(
+      (from, to) => db.from('v_saldos')
+        .select('id, comprobante, cliente_ruc, razon_social')
+        .eq('vendedor_id', vendedor!.id)
+        .eq('factorizado', true)
+        .order('id').range(from, to)
+    );
+    const idsFact = susFacturas.map(f => f.id);
+    if (idsFact.length > 0) {
+      const porId = new Map(susFacturas.map(f => [f.id, f]));
+      const pendientes: Array<{ documento_id: string; monto_canje: number; fecha_vencimiento: string | null; canje_id: string }> = [];
+      for (let i = 0; i < idsFact.length; i += 500) {
+        const { data } = await db
+          .from('factoring_canje_facturas')
+          .select('documento_id, monto_canje, fecha_vencimiento, canje_id')
+          .in('documento_id', idsFact.slice(i, i + 500))
+          .eq('pagado_al_factor', false);
+        pendientes.push(...(data ?? []));
+      }
+
+      // Un canje anulado no es deuda con nadie, y sin ingreso al banco el
+      // cliente todavía no le debe nada a la entidad.
+      const canjeIds = Array.from(new Set(pendientes.map(p => p.canje_id)));
+      const { data: canjes } = canjeIds.length
+        ? await db.from('factoring_canjes').select('id, anulado').in('id', canjeIds)
+        : { data: [] as Array<{ id: string; anulado: boolean }> };
+      const canjeAnulado = new Map((canjes ?? []).map(c => [c.id, c.anulado]));
+
+      const docsPendientes = pendientes.map(p => p.documento_id);
+      const entidadPorDocumento = new Map<string, string>();
+      for (let i = 0; i < docsPendientes.length; i += 500) {
+        const { data: inf } = await db
+          .from('factoring_ingreso_facturas')
+          .select('documento_id, ingreso_id')
+          .in('documento_id', docsPendientes.slice(i, i + 500));
+        const ids = Array.from(new Set((inf ?? []).map(x => x.ingreso_id as string)));
+        const { data: ing } = ids.length
+          ? await db.from('factoring_ingresos').select('id, entidad, anulado').in('id', ids)
+          : { data: [] as Array<{ id: string; entidad: string; anulado: boolean }> };
+        const ingPorId = new Map((ing ?? []).map(x => [x.id, x]));
+        for (const x of inf ?? []) {
+          const i2 = ingPorId.get(x.ingreso_id as string);
+          if (i2 && !i2.anulado) entidadPorDocumento.set(x.documento_id as string, i2.entidad);
+        }
+      }
+
+      for (const p of pendientes) {
+        if (canjeAnulado.get(p.canje_id)) continue;
+        const entidad = entidadPorDocumento.get(p.documento_id);
+        if (!entidad) continue;   // sin ingreso al banco todavía no hay deuda con el factor
+        const f = porId.get(p.documento_id);
+        const vence = p.fecha_vencimiento;
+        if (!f || !vence) continue;
+        factoringVista.push({
+          documento_id: p.documento_id,
+          comprobante: f.comprobante,
+          cliente_ruc: f.cliente_ruc,
+          razon_social: f.razon_social,
+          distrito: distritoPorRuc.get(f.cliente_ruc) ?? null,
+          entidad,
+          monto: Number(p.monto_canje) || 0,
+          fecha_vencimiento: vence,
+        });
+      }
+      factoringVista.sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento));
+    }
+  }
+
   // Vencimiento efectivo: próxima letra si existe, si no el vencimiento de la factura
   const fechaEfectiva = (f: FacturaPendiente) => proximaLetra.get(f.id) ?? f.fecha_vencimiento;
 
@@ -349,6 +427,7 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
           contado={contado}
           contadoTotal={contadoTotal}
           letras={letrasVista}
+          factoring={factoringVista}
           letrasDetalle={letrasDetallePorDoc}
           cobranzaMes={cobranzaMes}
           token={token}

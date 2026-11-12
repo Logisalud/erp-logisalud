@@ -25,6 +25,9 @@ interface CanjeFactura {
   fecha_vencimiento_factura: string | null;
   retencion: number;
   estado: 'en_factoring' | 'ingresada' | 'anulada';
+  /** El cliente ya le pagó a la entidad de factoring. No afecta el saldo. */
+  pagado_al_factor: boolean;
+  fecha_pago_al_factor: string | null;
 }
 interface Canje {
   id: string; cliente_ruc: string; razon_social: string; fecha_canje: string;
@@ -186,12 +189,51 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
   const [editandoVenc, setEditandoVenc] = useState<string | null>(null);
   const [vencEdit, setVencEdit] = useState<Record<string, string>>({});
   const [guardandoVenc, setGuardandoVenc] = useState(false);
+  const [editandoFactor, setEditandoFactor] = useState<string | null>(null);
+  const [factorEdit, setFactorEdit] = useState<Record<string, { pagado: boolean; fecha: string }>>({});
+  const [guardandoFactor, setGuardandoFactor] = useState(false);
 
   const abrirVencimientos = (c: Canje) => {
     setEditandoVenc(c.id);
     setVencEdit(Object.fromEntries(
       c.facturas.map(f => [f.documento_id, f.fecha_vencimiento ?? f.fecha_vencimiento_factura ?? ''])
     ));
+  };
+
+  // Seguimiento del tramo que sigue a nuestro cobro: el cliente le paga a la
+  // entidad. Solo se sigue en las facturas ya ingresadas — antes del ingreso
+  // todavía no hay nada que el cliente le deba al factor.
+  const facturasConFactor = (c: Canje) => c.facturas.filter(f => f.estado === 'ingresada');
+
+  const abrirPagoAlFactor = (c: Canje) => {
+    setEditandoFactor(c.id);
+    setFactorEdit(Object.fromEntries(
+      facturasConFactor(c).map(f => [f.documento_id, {
+        pagado: f.pagado_al_factor,
+        fecha: f.fecha_pago_al_factor ?? new Date().toLocaleDateString('en-CA'),
+      }])
+    ));
+  };
+
+  const guardarPagoAlFactor = async (c: Canje) => {
+    setGuardandoFactor(true);
+    try {
+      const res = await fetch(`/api/factoring/canjes/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagos_al_factor: facturasConFactor(c).map(f => ({
+            documento_id: f.documento_id,
+            pagado: factorEdit[f.documento_id]?.pagado ?? false,
+            fecha_pago: factorEdit[f.documento_id]?.pagado ? (factorEdit[f.documento_id]?.fecha || null) : null,
+          })),
+        }),
+      });
+      const d = await res.json();
+      if (d.error) { alert(d.error); return; }
+      setEditandoFactor(null);
+      await cargarHistorial();
+    } finally { setGuardandoFactor(false); }
   };
 
   const guardarVencimientos = async (c: Canje) => {
@@ -523,6 +565,11 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                       {f.fecha_vencimiento
                         ? <> · vence {fmtFecha(f.fecha_vencimiento)}</>
                         : <span className="opacity-60"> · sin vencimiento</span>}
+                      {f.estado === 'ingresada' && (
+                        f.pagado_al_factor
+                          ? <> · <span className="font-semibold">pagó al factor</span>{f.fecha_pago_al_factor ? ` ${fmtFecha(f.fecha_pago_al_factor)}` : ''}</>
+                          : <> · <span className="font-semibold text-red-600">no pagó al factor</span></>
+                      )}
                     </span>
                   ))}
                 </div>
@@ -570,6 +617,68 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                       : 'Editar vencimiento'}
                   </button>
                 )}
+
+                {/* El cliente le paga a la ENTIDAD, no a nosotros. Nuestra
+                    factura ya está cobrada; esto sigue el tramo de después,
+                    porque si el cliente no le paga al factor, el factor
+                    vuelve sobre nosotros. No mueve ningún saldo. */}
+                {editandoFactor === c.id ? (
+                  <div className="mt-3 p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-2">
+                    <p className="text-xs text-gray-500">
+                      ¿El cliente ya le pagó a la entidad? Esto no cambia el saldo de la factura
+                      —ya la cobramos del factor— pero sí el seguimiento.
+                    </p>
+                    {facturasConFactor(c).map(f => (
+                      <div key={f.documento_id} className="flex items-center justify-between gap-3 flex-wrap">
+                        <label className="flex items-center gap-2 text-xs text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={factorEdit[f.documento_id]?.pagado ?? false}
+                            onChange={e => setFactorEdit(prev => ({
+                              ...prev,
+                              [f.documento_id]: { pagado: e.target.checked, fecha: prev[f.documento_id]?.fecha ?? '' },
+                            }))}
+                          />
+                          <span className="font-mono">{f.comprobante}</span>
+                          <span className="text-gray-400">{fmt(f.monto_canje)}</span>
+                        </label>
+                        <input
+                          type="date"
+                          disabled={!(factorEdit[f.documento_id]?.pagado ?? false)}
+                          value={factorEdit[f.documento_id]?.fecha ?? ''}
+                          onChange={e => setFactorEdit(prev => ({
+                            ...prev,
+                            [f.documento_id]: { pagado: prev[f.documento_id]?.pagado ?? false, fecha: e.target.value },
+                          }))}
+                          className="px-2 py-1 border border-gray-200 rounded-lg text-sm disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
+                        />
+                      </div>
+                    ))}
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => guardarPagoAlFactor(c)}
+                        disabled={guardandoFactor}
+                        className="px-4 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                        style={{ background: 'linear-gradient(135deg, #4BB168 0%, #4ABCC2 100%)' }}
+                      >
+                        {guardandoFactor ? 'Guardando…' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={() => setEditandoFactor(null)}
+                        className="px-4 py-1.5 rounded-lg text-sm text-gray-500 border border-gray-200 hover:bg-gray-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : facturasConFactor(c).length > 0 ? (
+                  <button
+                    onClick={() => abrirPagoAlFactor(c)}
+                    className="mt-3 mr-4 text-xs text-logisalud-teal hover:underline font-medium"
+                  >
+                    Pago del cliente al factor
+                  </button>
+                ) : null}
 
                 {puedeAnular && !c.anulado && (
                   anulandoId === c.id ? (

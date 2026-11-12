@@ -52,6 +52,24 @@ export interface LetraVista {
   estado: 'en_cartera' | 'en_banco' | 'protestada';
 }
 
+/**
+ * Factura que se vendió a una entidad de factoring y que el CLIENTE todavía
+ * no le pagó a esa entidad. Logisalud ya cobró —por eso no aparece en la
+ * cartera— pero el vendedor tiene que seguirla igual: si el cliente no le
+ * paga al factor, el factor vuelve sobre nosotros. El vencimiento que manda
+ * es el del contrato de factoring, no el de la factura.
+ */
+export interface FactoringVista {
+  documento_id: string;
+  comprobante: string;
+  cliente_ruc: string;
+  razon_social: string;
+  distrito: string | null;
+  entidad: string | null;
+  monto: number;
+  fecha_vencimiento: string;
+}
+
 export interface ItemMesVista {
   id: string;
   comprobante: string;
@@ -245,7 +263,7 @@ function agruparPorZona(facturas: FacturaVista[]): GrupoZona[] {
 }
 
 export default function VistaVendedorClient({
-  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, letras, letrasDetalle, cobranzaMes, token, mostrarWhatsapp,
+  facturas, hoyISO, total, totalNc, totalPagado, totalImporte, contado, contadoTotal, letras, letrasDetalle, factoring, cobranzaMes, token, mostrarWhatsapp,
 }: {
   facturas: FacturaVista[];
   hoyISO: string;
@@ -258,11 +276,13 @@ export default function VistaVendedorClient({
   letras: LetraVista[];
   /** Todas las letras de cada factura (pagadas incluidas), por documento_id. */
   letrasDetalle: Record<string, LetraDetalle[]>;
+  /** Facturas en factoring que el cliente todavía no le pagó a la entidad. */
+  factoring: FactoringVista[];
   cobranzaMes: ItemMesVista[];
   token: string;
   mostrarWhatsapp: boolean;
 }) {
-  const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes' | 'zona'>('tarjetas');
+  const [vista, setVista] = useState<'tarjetas' | 'tabla' | 'contado' | 'letras' | 'factoring' | 'mes' | 'zona'>('tarjetas');
   // Qué tarjetas tienen el detalle de letras abierto. Arranca vacío: la
   // tarjeta tiene que seguir cabiendo en una pantalla de celular.
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
@@ -288,11 +308,12 @@ export default function VistaVendedorClient({
     </div>
   );
 
-  const opciones: { key: 'tarjetas' | 'tabla' | 'contado' | 'letras' | 'mes' | 'zona'; label: string }[] = [
+  const opciones: { key: 'tarjetas' | 'tabla' | 'contado' | 'letras' | 'factoring' | 'mes' | 'zona'; label: string }[] = [
     { key: 'tarjetas', label: 'Tarjetas' },
     { key: 'tabla', label: 'Tabla' },
     { key: 'contado', label: `Contado${contado.length ? ` (${contado.length})` : ''}` },
     { key: 'letras', label: `Letras${letras.length ? ` (${letras.length})` : ''}` },
+    ...(factoring.length ? [{ key: 'factoring' as const, label: `Factoring (${factoring.length})` }] : []),
     { key: 'mes', label: `Este mes${cobranzaMes.length ? ` (${cobranzaMes.length})` : ''}` },
     ...(hayVariasZonas ? [{ key: 'zona' as const, label: 'Por Zona' }] : []),
   ];
@@ -590,6 +611,48 @@ export default function VistaVendedorClient({
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {vista === 'factoring' && (
+        <div className="max-w-2xl mx-auto mt-3">
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-[11px] uppercase tracking-wider" style={{ color: '#4ABCC2' }}>Facturas en factoring</p>
+            <p className="text-gray-500 text-xs mt-0.5">
+              Estas facturas ya las cobramos de la entidad financiera, así que no están en tu
+              cartera. Pero el cliente todavía <strong>no le pagó a la entidad</strong> — y si no
+              paga, la factura nos vuelve. La fecha que manda es la del factoring, no la de la
+              factura.
+            </p>
+          </div>
+
+          <div className="mt-2 space-y-2">
+            {factoring.map(f => {
+              const dias = diasParaVencer(f.fecha_vencimiento, hoyISO);
+              return (
+                <div key={f.documento_id} className="bg-white rounded-xl border border-gray-200 px-3.5 py-2.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-gray-800 text-sm font-semibold truncate">{f.razon_social}</p>
+                    <p className="font-oswald text-base text-gray-800 shrink-0">{fmt(f.monto)}</p>
+                  </div>
+                  <p className="text-gray-400 text-[11px] mt-0.5">
+                    RUC {f.cliente_ruc}{f.distrito && <span className="text-gray-500"> · {f.distrito}</span>}
+                  </p>
+                  <div className="flex items-baseline justify-between gap-3 mt-0.5">
+                    <p className="text-gray-400 text-xs font-mono">
+                      {f.comprobante}
+                      {f.entidad && <span className="ml-1.5 font-sans" style={{ color: '#4ABCC2' }}>{f.entidad}</span>}
+                    </p>
+                    <p className="text-xs text-right">
+                      <span className="text-gray-400">Vence {fmtFecha(f.fecha_vencimiento)}</span>
+                      <span className="mx-1 text-gray-300">·</span>
+                      <Plazo dias={dias} />
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

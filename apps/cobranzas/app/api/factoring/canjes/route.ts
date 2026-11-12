@@ -23,8 +23,13 @@ export async function GET() {
 
   const canjeIds = canjes.map(c => c.id);
   const canjeFacturas = canjeIds.length
-    ? await fetchAll<{ id: string; canje_id: string; documento_id: string; monto_canje: number; fecha_vencimiento: string | null }>((from, to) =>
-        db.from('factoring_canje_facturas').select('id, canje_id, documento_id, monto_canje, fecha_vencimiento').in('canje_id', canjeIds).order('id').range(from, to)
+    ? await fetchAll<{
+        id: string; canje_id: string; documento_id: string; monto_canje: number; fecha_vencimiento: string | null;
+        pagado_al_factor: boolean; fecha_pago_al_factor: string | null;
+      }>((from, to) =>
+        db.from('factoring_canje_facturas')
+          .select('id, canje_id, documento_id, monto_canje, fecha_vencimiento, pagado_al_factor, fecha_pago_al_factor')
+          .in('canje_id', canjeIds).order('id').range(from, to)
       )
     : [];
 
@@ -69,6 +74,11 @@ export async function GET() {
         fecha_vencimiento_factura: doc?.fecha_vencimiento ?? null,
         retencion: retencionPorDocumento.get(f.documento_id) ?? 0,
         estado: ingresada ? 'ingresada' : c.anulado ? 'anulada' : 'en_factoring',
+        // El tramo siguiente: el cliente le paga a la entidad. Solo tiene
+        // sentido mirarlo en las ya ingresadas (antes no hay deuda con el
+        // factor todavía).
+        pagado_al_factor: !!f.pagado_al_factor,
+        fecha_pago_al_factor: f.fecha_pago_al_factor,
       };
     }),
   }));
