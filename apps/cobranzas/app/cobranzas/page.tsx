@@ -5,7 +5,7 @@ import {
   Upload, CreditCard, Landmark, AlertTriangle, Banknote, Clock,
   Target, Wallet, Layers, BarChart3, Tag, Repeat,
   Users, ClipboardList, ScrollText, CalendarClock, FileOutput, FileSpreadsheet,
-  Link2, Eye, MessageCircle, FolderInput, HandCoins,
+  Link2, Eye, MessageCircle, FolderInput, HandCoins, Scale,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -70,6 +70,7 @@ export default async function Home() {
       tarjetas: [
         { href: '/cobranzas/reporte-letras', icono: CalendarClock, titulo: 'Reporte de letras', descripcion: 'Agenda plana de todas las letras, filtrable por estado, cliente y vencimiento.' },
         { href: '/cobranzas/reporte-factoring', icono: FileSpreadsheet, titulo: 'Reporte de factoring', descripcion: 'Todas las facturas que pasaron por factoring, con su vencimiento, su retención y su estado.' },
+        { href: '/cobranzas/saldo-contable', icono: Scale, titulo: 'Saldo contable por cliente', descripcion: 'Para Contabilidad: el saldo tal como lo dicen los documentos, con signo y sin reglas de cobranza.' },
         { href: '/cobranzas/exportar-nubecont', icono: FileOutput, titulo: 'Export a Nubecont', descripcion: 'Descarga los ingresos de cobranza en el formato de importación de Nubecont.' },
       ],
     },
