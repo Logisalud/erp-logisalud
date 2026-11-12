@@ -2,7 +2,7 @@ import 'server-only'
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer'
 import { mesAnio } from '@/domain/salidas'
 import type { DatosGuia } from '@/domain/guia-electronica'
-import { ETIQUETA_ESTADO_PRE_GUIA, faltaParaEnviar, type PreGuiaVista } from '@/domain/pre-guia'
+import { ETIQUETA_ESTADO_PRE_GUIA, faltaParaEnviar, mostrarConstanciaDeRecepcion, type PreGuiaVista } from '@/domain/pre-guia'
 import { LOGO_LOGISALUD } from '../pdf-logo'
 
 // Pre-guía de remisión para imprimir (A4 vertical). NO es un documento tributario: es el borrador del WMS que reserva el número de la guía; la guía se genera en Nubefact al enviarla.
@@ -22,6 +22,26 @@ export interface DatosPreGuia { pre: PreGuiaVista; guia: DatosGuia; piloto: bool
 
 function Campo({ nombre, valor, fuerte = false }: { nombre: string; valor?: string; fuerte?: boolean }) {
   return <View style={{ marginBottom: 5 }}><Text style={s.etiqueta}>{nombre.toUpperCase()}</Text><Text style={fuerte ? { fontFamily: 'Helvetica-Bold', fontSize: 11 } : {}}>{valor || '—'}</Text></View>
+}
+
+/** Un renglón para llenar a mano: «Etiqueta: ______». */
+function Renglon({ etiqueta, ancho }: { etiqueta: string; ancho: number }) {
+  return <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}><Text>{etiqueta}</Text><View style={{ width: ancho, borderBottom: `0.75pt solid ${TINTA}`, marginLeft: 4, height: 11 }} /></View>
+}
+
+/** La constancia de recepción (formato de la empresa): todo en blanco para llenarlo y firmarlo a mano. */
+function ConstanciaDeRecepcion() {
+  return (
+    <View style={{ marginTop: 22 }} wrap={false} data-testid="constancia-recepcion">
+      <Renglon etiqueta="T° de salida:" ancho={90} />
+      <View style={{ flexDirection: 'row', marginTop: 14 }}><Renglon etiqueta="Responsable de alistar pedido:" ancho={120} /><View style={{ width: 14 }} /><Renglon etiqueta="Firma:" ancho={110} /></View>
+      <View style={{ flexDirection: 'row', marginTop: 14 }}><Renglon etiqueta="Responsable de Atención:" ancho={135} /><View style={{ width: 14 }} /><Renglon etiqueta="Firma:" ancho={100} /></View>
+      <View style={{ width: 150, borderBottom: `0.75pt solid ${TINTA}`, marginTop: 40 }} />
+      <Text style={{ marginTop: 3 }}>TRANSPORTISTA FIRMA EN CONFORMIDAD QUE RECIBIÓ PRODUCTOS EN ÓPTIMAS CONDICIONES DE EMBALAJE, CON SU RESPECTIVA ETIQUETA DE IDENTIFICACIÓN.</Text>
+      <View style={{ marginTop: 18 }}><Renglon etiqueta="DNI:" ancho={90} /></View>
+      <Text style={{ marginTop: 14, fontFamily: 'Helvetica-Bold' }}>RECIBÍ CONFORME</Text>
+    </View>
+  )
 }
 
 function Hoja({ d }: { d: DatosPreGuia }) {
@@ -86,9 +106,11 @@ function Hoja({ d }: { d: DatosPreGuia }) {
 
           {falta && pre.estado !== 'ENVIADA' && <Text style={{ marginTop: 10, color: '#92400E', backgroundColor: '#FEF3C7', padding: 7, borderRadius: 4 }}>Pendiente para enviar: {falta}</Text>}
 
+          {mostrarConstanciaDeRecepcion(pre) ? <ConstanciaDeRecepcion /> : (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 44 }} wrap={false}>
             {['Responsable de almacén', 'Transportista'].map((t) => <View key={t} style={{ width: '42%' }}><View style={{ borderTop: `0.75pt solid ${TINTA}` }} /><Text style={{ textAlign: 'center', marginTop: 3, color: GRIS }}>{t}</Text></View>)}
           </View>
+          )}
         </View>
         <Text fixed style={{ position: 'absolute', bottom: 14, left: 34, right: 34, fontSize: 7.5, color: GRIS, textAlign: 'center' }}>
           Este borrador reserva el número {pre.numeroCompleto}. La guía de remisión se genera en Nubefact cuando se envía con ruta, vehículo y conductor. Impreso el {d.generadaEn}.

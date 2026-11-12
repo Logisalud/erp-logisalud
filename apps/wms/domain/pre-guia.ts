@@ -28,6 +28,12 @@ export function estadoDePreGuia(d: { cancelada?: boolean; guiaEnviada?: boolean;
   return d.placa && d.conductor ? 'LISTA_PARA_ENVIAR' : 'PRE_GUIA'
 }
 
+/**
+ * La constancia de recepción del transportista (T° de salida, quién alistó, quién atendió, la firma y el DNI del transportista, «Recibí conforme»): va en la pre-guía que se imprime
+ * DESPUÉS del ruteo, cuando ya hay vehículo y conductor y la hoja viaja con el pedido. Antes del ruteo no hay transportista a quien hacérsela firmar.
+ */
+export const mostrarConstanciaDeRecepcion = (p: Pick<PreGuiaVista, 'placa' | 'conductor'>) => !!p.placa && !!p.conductor
+
 export const numeroDePreGuia = (serie: string, numero: number) => numeroConSerie(serie, numero)
 
 /** Lo que falta para poder enviarla; vacío si ya se puede. */
