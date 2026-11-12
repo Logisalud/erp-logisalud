@@ -68,6 +68,9 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0, embala
   const secciones: Record<IdSeccion, ItemMenu[]> = { inicio: [inicio], entradas: [], almacen: [], salidas: [], despacho: [], control: [] }
   const ponerSi = (id: IdSeccion, cond: boolean, item: ItemMenu) => { if (cond) secciones[id].push(item) }
 
+  // Quien conduce o ayuda en la ruta y además opera el almacén (auxiliar) también ve «Mis rutas», junto al Inicio
+  ponerSi('inicio', puedeVerMisRutas(roles), { href: '/mis-rutas', etiqueta: 'Mis rutas', icono: 'rutas', destacado: true })
+
   // Entradas: lo que llega
   ponerSi('entradas', !soloAutoriza, { href: '/entradas', etiqueta: 'Recepciones', icono: 'entradas' })
   ponerSi('entradas', puedeOriginarRetorno(roles), { href: '/retornos', etiqueta: 'Devoluciones', icono: 'retornos' })
@@ -120,7 +123,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0, embala
  */
 export function principalesTelefono(roles: readonly Rol[], secciones: readonly SeccionMenu[]): string[] {
   const visibles = new Set(secciones.flatMap((s) => s.items.map((i) => i.href)))
-  const prioridad: string[] = roles.includes('conductor') || roles.includes('auxiliar_transporte') ? ['/', '/mis-rutas']
+  const prioridad: string[] = roles.includes('conductor') || roles.includes('auxiliar_transporte') ? (roles.includes('auxiliar') ? ['/', '/mis-rutas', '/picking'] : ['/', '/mis-rutas'])
     : roles.includes('jefe_transporte') ? ['/', '/salidas', '/rutas']
     : roles.includes('jefe_almacen') || roles.includes('auxiliar') ? ['/', '/picking', '/almacen']
     : roles.includes('conformidad_despacho') ? ['/', '/conformidad', '/almacen']
