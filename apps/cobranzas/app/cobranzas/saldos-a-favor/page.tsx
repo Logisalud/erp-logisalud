@@ -6,10 +6,15 @@ interface FacturaAFavor {
   id: string; comprobante: string; fecha_emision: string;
   importe_total: number; total_nc: number; total_pagado: number; a_favor: number;
 }
+interface FacturaDeuda {
+  id: string; comprobante: string; fecha_emision: string;
+  fecha_vencimiento: string | null; saldo: number; dias_retraso: number;
+}
 interface ClienteAFavor {
   cliente_ruc: string; razon_social: string;
   vendedor_nombre: string | null; vendedor_codigo: string | null;
-  a_favor: number; deuda: number; neto: number; facturas: FacturaAFavor[];
+  a_favor: number; deuda: number; neto: number;
+  facturas: FacturaAFavor[]; facturasDeuda: FacturaDeuda[];
 }
 
 const fmt = (n: number) => 'S/ ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -156,7 +161,9 @@ export default function SaldosAFavorPage() {
                             </div>
                             {abierta && (
                               <div className="bg-gray-50 border-t border-gray-100 px-4 py-3">
-                                <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">De dónde sale</p>
+                                <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">
+                                  Saldo a favor — de dónde sale
+                                </p>
                                 <table className="w-full text-xs">
                                   <thead className="text-gray-400">
                                     <tr>
@@ -176,11 +183,57 @@ export default function SaldosAFavorPage() {
                                         <td className="py-1.5 text-right tabular-nums text-gray-600">{fmt(f.importe_total)}</td>
                                         <td className="py-1.5 text-right tabular-nums text-gray-600">{f.total_nc ? fmt(f.total_nc) : '—'}</td>
                                         <td className="py-1.5 text-right tabular-nums text-gray-600">{fmt(f.total_pagado)}</td>
-                                        <td className="py-1.5 text-right tabular-nums font-semibold text-gray-800">{fmt(f.a_favor)}</td>
+                                        {/* En negativo: es plata del cliente, no nuestra.
+                                            Con el signo, la columna se suma de corrido contra
+                                            la deuda de abajo y da el neto. */}
+                                        <td className="py-1.5 text-right tabular-nums font-semibold" style={{ color: '#c0392b' }}>
+                                          −{fmt(f.a_favor)}
+                                        </td>
                                       </tr>
                                     ))}
                                   </tbody>
                                 </table>
+                                {c.facturasDeuda.length > 0 && (
+                                  <>
+                                    <p className="text-[11px] text-gray-400 uppercase tracking-wider mt-4 mb-2">
+                                      Deuda vigente — qué se lo come
+                                    </p>
+                                    <table className="w-full text-xs">
+                                      <thead className="text-gray-400">
+                                        <tr>
+                                          <th className="py-1 text-left font-medium">Comprobante</th>
+                                          <th className="py-1 text-left font-medium">Emisión</th>
+                                          <th className="py-1 text-left font-medium">Vence</th>
+                                          <th className="py-1 text-right font-medium">Atraso</th>
+                                          <th className="py-1 text-right font-medium">Saldo</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {c.facturasDeuda.map(f => (
+                                          <tr key={f.id} className="border-t border-gray-200">
+                                            <td className="py-1.5 font-medium text-gray-700">{f.comprobante}</td>
+                                            <td className="py-1.5 text-gray-500">{fmtFecha(f.fecha_emision)}</td>
+                                            <td className="py-1.5 text-gray-500">{f.fecha_vencimiento ? fmtFecha(f.fecha_vencimiento) : '—'}</td>
+                                            <td className="py-1.5 text-right tabular-nums" style={f.dias_retraso > 0 ? { color: '#c0392b' } : undefined}>
+                                              {f.dias_retraso > 0 ? `${f.dias_retraso} d` : '—'}
+                                            </td>
+                                            <td className="py-1.5 text-right tabular-nums font-semibold text-gray-800">{fmt(f.saldo)}</td>
+                                          </tr>
+                                        ))}
+                                        <tr className="border-t-2 border-gray-300">
+                                          <td className="py-1.5 font-semibold text-gray-700" colSpan={4}>
+                                            Neto {c.neto < -0.09 ? '— le debemos' : c.neto > 0.09 ? '— nos debe' : '— compensado'}
+                                          </td>
+                                          <td className="py-1.5 text-right tabular-nums font-semibold"
+                                            style={{ color: c.neto < -0.09 ? '#c0392b' : '#276b3b' }}>
+                                            {c.neto < -0.09 ? `−${fmt(-c.neto)}` : fmt(c.neto)}
+                                          </td>
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                  </>
+                                )}
+
                                 <a href={`/cobranzas/clientes/${c.cliente_ruc}/estado-cuenta`}
                                   className="inline-block mt-3 text-xs" style={{ color: '#4ABCC2' }}>
                                   Ver el estado de cuenta completo →

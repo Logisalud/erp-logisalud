@@ -35,7 +35,19 @@ export async function GET() {
       'Importe': f.importe_total,
       'Notas de crédito': f.total_nc,
       'Pagado': f.total_pagado,
-      'Saldo a favor': f.a_favor,
+      // En negativo, igual que en pantalla: es plata del cliente. Así la
+      // columna se puede sumar contra la deuda de la otra hoja.
+      'Saldo a favor': -f.a_favor,
+    })));
+
+    const deuda = clientes.flatMap(c => c.facturasDeuda.map(f => ({
+      'RUC': c.cliente_ruc,
+      'Cliente': c.razon_social,
+      'Comprobante': f.comprobante,
+      'Emisión': fmtFecha(f.fecha_emision),
+      'Vencimiento': f.fecha_vencimiento ? fmtFecha(f.fecha_vencimiento) : '',
+      'Días de atraso': f.dias_retraso,
+      'Saldo': f.saldo,
     })));
 
     const wb = XLSX.utils.book_new();
@@ -44,7 +56,13 @@ export async function GET() {
     XLSX.utils.book_append_sheet(wb, wsR, 'Por cliente');
     const wsD = XLSX.utils.json_to_sheet(detalle.length ? detalle : [{ 'RUC': '', 'Cliente': 'Sin saldos a favor' }]);
     wsD['!cols'] = [{ wch: 13 }, { wch: 38 }, { wch: 14 }, { wch: 12 }, { wch: 13 }, { wch: 16 }, { wch: 13 }, { wch: 14 }];
-    XLSX.utils.book_append_sheet(wb, wsD, 'Detalle por factura');
+    XLSX.utils.book_append_sheet(wb, wsD, 'Saldo a favor por factura');
+    // La contracara: qué facturas abiertas se van a comer ese saldo. Sin esta
+    // hoja, un cliente con neto positivo queda con una "deuda vigente" sin
+    // explicación y el Excel se lee al revés.
+    const wsE = XLSX.utils.json_to_sheet(deuda.length ? deuda : [{ 'RUC': '', 'Cliente': 'Sin deuda vigente' }]);
+    wsE['!cols'] = [{ wch: 13 }, { wch: 38 }, { wch: 14 }, { wch: 12 }, { wch: 13 }, { wch: 14 }, { wch: 13 }];
+    XLSX.utils.book_append_sheet(wb, wsE, 'Deuda que lo absorbe');
 
     const raw: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
     const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
