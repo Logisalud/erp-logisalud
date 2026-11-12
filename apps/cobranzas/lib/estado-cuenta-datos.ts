@@ -137,10 +137,19 @@ export async function cargarEstadoCuenta(
 
     const { data: pg, error: ePg } = await db
       .from('pagos')
-      .select('documento_id, fecha_pago, monto, tipo, referencia')
+      .select('documento_id, fecha_pago, monto, tipo, referencia, letra_id')
       .in('documento_id', tanda);
     if (ePg) throw new Error(ePg.message);
     pagos.push(...((pg ?? []) as PagoCrudo[]));
+
+    // Abonos a letra, por (letra, documento). Salen de los mismos pagos que
+    // ya se trajeron: un abono ES un pago, con `letra_id` puesto.
+    const abonoPorLetraYDoc = new Map<string, number>();
+    for (const p of (pg ?? []) as Array<{ letra_id?: string | null; documento_id: string; monto: number }>) {
+      if (!p.letra_id) continue;
+      const k = `${p.letra_id}|${p.documento_id}`;
+      abonoPorLetraYDoc.set(k, (abonoPorLetraYDoc.get(k) ?? 0) + (Number(p.monto) || 0));
+    }
 
     const { data: ld, error: eLd } = await db
       .from('letra_documento')
@@ -177,6 +186,7 @@ export async function cargarEstadoCuenta(
         numero_letra: l.numero_letra,
         fecha_vencimiento: l.fecha_vencimiento,
         estado: l.estado,
+        abonado: abonoPorLetraYDoc.get(`${x.letra_id as string}|${x.documento_id as string}`) ?? 0,
       });
     }
   }
