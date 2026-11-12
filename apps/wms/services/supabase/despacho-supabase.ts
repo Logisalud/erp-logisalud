@@ -39,12 +39,13 @@ async function leerConductorEnDocumentos(personal: readonly PersonalTransporte[]
 
 export class DespachoSupabase extends PedidosSupabase implements RepositorioRutas {
   private async armarRutas(filtroId?: string): Promise<{ rutas: RutaVista[]; vehiculos: VehiculoVista[]; personal: PersonalTransporte[]; planificables: PedidoPlanificable[]; ordenes: OrdenPlanificable[] }> {
-    const [rutas, paradas, versiones, vehiculos, personal, pedidos, salidas, lineas, registros, prods] = await Promise.all([
+    const [rutas, paradas, versiones, vehiculos, personal, pedidos, salidas, lineas, registros, prods, exclusiones] = await Promise.all([
       traerTodo('rutas', 'wms', '*', ['fecha']), traerTodo('ruta_paradas', 'wms', '*'), traerTodo('ruta_versiones', 'wms', '*', ['version']),
       traerTodo('vehiculos', 'wms', '*', ['placa']), traerTodo('personal_transporte', 'wms', '*', ['nombre']),
       traerTodo('pedidos_despacho', 'wms', '*', ['fecha']), traerTodo('salidas', 'wms', 'id, numero, tipo, origen, estado, pedido_numero, cliente_manual, creada_en'), traerTodo('salida_lineas', 'wms', 'id, salida_id, estado, cantidad'),
-      traerTodo('registros_ls_fr_43_03', 'wms', 'id, ruta_id, estado'), traerTodo('productos', 'catalogo', 'codigo'),
+      traerTodo('registros_ls_fr_43_03', 'wms', 'id, ruta_id, estado'), traerTodo('productos', 'catalogo', 'codigo'), traerTodo('carga_exclusiones', 'wms', 'id, ruta_id, salida_id, tipo, motivo'),
     ])
+    const exclusionDe = new Map(exclusiones.map((x) => [`${x.ruta_id}:${x.salida_id}`, { tipo: String(x.tipo ?? 'FUERA') as 'FUERA' | 'ANULADO' | 'REPROGRAMADO', motivo: String(x.motivo) }]))
     const vig = pedidos.filter((p) => p.vigente)
     const pedidoPorId = new Map(vig.map((p) => [String(p.id), p]))
     const veh = vehiculos.map(vehiculoDe); const per = personal.map(personalDe)
@@ -80,7 +81,7 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
       }
     }
     const vistas: RutaVista[] = rutas.filter((r) => !filtroId || String(r.id) === filtroId).map((r) => {
-      const ps = paradas.filter((x) => String(x.ruta_id) === String(r.id) && x.activa).sort((a, b) => Number(a.secuencia) - Number(b.secuencia)).map(vistaParada)
+      const ps = paradas.filter((x) => String(x.ruta_id) === String(r.id) && x.activa).sort((a, b) => Number(a.secuencia) - Number(b.secuencia)).map((pa) => ({ ...vistaParada(pa), exclusion: pa.salida_id ? exclusionDe.get(`${r.id}:${pa.salida_id}`) : undefined }))
       return {
         id: String(r.id), numero: String(r.numero), fecha: dia(r.fecha), estado: r.estado as EstadoRuta, version: Number(r.version),
         vehiculo: veh.find((v) => v.id === s(r.vehiculo_id)), conductor: per.find((p) => p.id === s(r.conductor_id)), auxiliar: per.find((p) => p.id === s(r.auxiliar_id)),

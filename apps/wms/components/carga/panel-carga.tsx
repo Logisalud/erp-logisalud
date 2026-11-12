@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Ban, Check, CheckCircle2, ListChecks, PackageCheck, Printer, ScanLine, Truck, TriangleAlert, Undo2, XCircle } from 'lucide-react'
 import { registrarDiferenciaCargaAccion } from '@/app/acciones-ranking'
 import { cargarBultoAccion, confirmarSalidaRutaAccion, contarBultosCargadosAccion, excluirPedidoAccion, guardarChecklistAccion, liberarUnidadAccion, retirarBultoAccion } from '@/app/acciones-picking'
-import { ETIQUETA_ESTADO_CARGA, conteoDePedido, type CargaRuta, type ItemChecklist } from '@/domain/carga'
+import { ETIQUETA_ESTADO_CARGA, ETIQUETA_TIPO_EXCLUSION, conteoDePedido, type CargaRuta, type ItemChecklist, type TipoExclusion } from '@/domain/carga'
 import { textoNoImpreso } from '@/domain/ls-fr-43-03'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
@@ -24,6 +24,7 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
   const [items, setItems] = useState<ItemChecklist[]>(() => carga.checklist ?? carga.itemsChecklist.map((item) => ({ item, ok: true, nota: '' })))
   const [retirando, setRetirando] = useState<string | null>(null)
   const [excluyendo, setExcluyendo] = useState<string | null>(null)
+  const [tipoExclusion, setTipoExclusion] = useState<TipoExclusion | ''>('')
   const [motivo, setMotivo] = useState('')
   const [confirmando, setConfirmando] = useState(false)
   const [diferencia, setDiferencia] = useState<string | null>(null)
@@ -102,7 +103,7 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
             <li key={p.salidaId} className="rounded-xl border border-gray-200 bg-white p-4" data-testid="pedido-carga" data-excluido={p.excluida ? 'si' : 'no'}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div><p className="tabular font-semibold text-gray-900">{p.secuencia}. {p.pedidoNumero ?? p.salidaNumero}</p><p className="text-sm text-gray-700">{p.cliente ?? 'Sin cliente'} · {p.salidaNumero}</p></div>
-                {p.excluida ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${CHIP_NEUTRO}`}><Ban className="h-3.5 w-3.5" aria-hidden />Fuera de esta salida</span>
+                {p.excluida ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${CHIP_NEUTRO}`}><Ban className="h-3.5 w-3.5" aria-hidden /><span data-testid="tipo-exclusion">{ETIQUETA_TIPO_EXCLUSION[p.tipoExclusion ?? 'FUERA']}</span></span>
                   : p.listo ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${CHIP_OK}`}><Check className="h-3.5 w-3.5" aria-hidden />Listo para carga</span>
                   : <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${ROJO}`}><XCircle className="h-3.5 w-3.5" aria-hidden />No está listo para carga</span>}
               </div>
@@ -157,11 +158,17 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
               ) : <button type="button" className="btn-secondary btn-sm mt-3 mr-2" onClick={() => { setDiferencia(p.salidaId); setMotivo('') }} data-testid="diferencia-carga"><TriangleAlert className="h-4 w-4" aria-hidden />Diferencia detectada en la carga</button>)}
               {enCarga && puedeLiberar && !p.excluida && (excluyendo === p.salidaId ? (
                 <div className="mt-3 space-y-2" data-testid="form-excluir">
+                  <fieldset className="space-y-1">
+                    <legend className="etiqueta">¿Qué pasa con este pedido?</legend>
+                    {([['ANULADO', 'Ya no sale (anulado)'], ['REPROGRAMADO', 'Sale otro día (reprogramado)']] as const).map(([valor, texto]) => (
+                      <label key={valor} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-gray-900"><input type="radio" name={`tipo-excluir-${p.salidaId}`} className="h-5 w-5" checked={tipoExclusion === valor} onChange={() => setTipoExclusion(valor)} data-testid={`tipo-excluir-${valor}`} />{texto}</label>
+                    ))}
+                  </fieldset>
                   <label htmlFor="motivo-excluir" className="etiqueta">¿Por qué el pedido se deja fuera de esta salida?</label>
                   <input id="motivo-excluir" className="campo" value={motivo} onChange={(e) => setMotivo(e.target.value)} data-testid="motivo-excluir" />
-                  <div className="flex gap-2"><button type="button" className="btn-primary btn-sm" disabled={pendiente || !motivo.trim()} onClick={() => ejecutar(() => excluirPedidoAccion(carga.rutaId, p.salidaId, motivo), { alExito: () => setExcluyendo(null) })} data-testid="confirmar-excluir">Dejarlo fuera</button><button type="button" className="btn-secondary btn-sm" onClick={() => setExcluyendo(null)}>Cancelar</button></div>
+                  <div className="flex gap-2"><button type="button" className="btn-primary btn-sm" disabled={pendiente || !motivo.trim() || !tipoExclusion} onClick={() => ejecutar(() => excluirPedidoAccion(carga.rutaId, p.salidaId, motivo, tipoExclusion || undefined), { alExito: () => { setExcluyendo(null); setTipoExclusion('') } })} data-testid="confirmar-excluir">Dejarlo fuera</button><button type="button" className="btn-secondary btn-sm" onClick={() => setExcluyendo(null)}>Cancelar</button></div>
                 </div>
-              ) : <button type="button" className="btn-secondary btn-sm mt-3" onClick={() => { setExcluyendo(p.salidaId); setMotivo('') }} data-testid="excluir-pedido"><Ban className="h-4 w-4" aria-hidden />Dejar este pedido fuera de la salida</button>)}
+              ) : <button type="button" className="btn-secondary btn-sm mt-3" onClick={() => { setExcluyendo(p.salidaId); setMotivo(''); setTipoExclusion('') }} data-testid="excluir-pedido"><Ban className="h-4 w-4" aria-hidden />Dejar este pedido fuera de la salida</button>)}
             </li>
           ))}
         </ul>

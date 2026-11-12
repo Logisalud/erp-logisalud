@@ -34,8 +34,8 @@ function Hoja({ r }: { r: RutaDelDia }) {
             <Text style={[s.th, { width: W.rep }]}>REPRESENTANTE</Text><Text style={[s.th, { width: W.pago }]}>PAGO</Text><Text style={[s.th, { width: W.hor }]}>HORARIO</Text>
           </View>
           {r.filas.map((f) => (
-            <View key={f.n} style={{ flexDirection: 'row', backgroundColor: f.n % 2 ? VERDE_CLARO : '#FFFFFF' }} wrap={false}>
-              <Text style={[s.td, { width: W.n, fontFamily: 'Helvetica-Bold' }]}>{f.n}</Text><Text style={[s.td, { width: W.cliente, fontFamily: 'Helvetica-Bold' }]}>{f.cliente}</Text>
+            <View key={f.n} style={{ flexDirection: 'row', backgroundColor: f.marca ? '#F3F4F6' : f.n % 2 ? VERDE_CLARO : '#FFFFFF' }} wrap={false}>
+              <Text style={[s.td, { width: W.n, fontFamily: 'Helvetica-Bold' }]}>{f.n}</Text><View style={[s.td, { width: W.cliente }]}><Text style={{ fontFamily: 'Helvetica-Bold' }}>{f.cliente}</Text>{f.marca && <Text style={{ fontFamily: 'Helvetica-Bold', color: '#B91C1C', fontSize: 7.5 }}>{f.marca}</Text>}</View>
               <Text style={[s.td, { width: W.tel }]}>{f.telefono}</Text><Text style={[s.td, { width: W.cond }]}>{f.condicion}</Text><Text style={[s.td, { width: W.guia }]}>{f.guia}</Text><Text style={[s.td, { width: W.dir }]}>{f.direccion}</Text>
               <Text style={[s.td, { width: W.dest }]}>{f.destino}</Text><Text style={[s.td, { width: W.trans }]}>{f.transportista}</Text><Text style={[s.td, { width: W.rep }]}>{f.representante}</Text>
               <Text style={[s.td, { width: W.pago }]}>{f.formaPago}</Text><Text style={[s.td, { width: W.hor }]}>{f.horario}</Text>

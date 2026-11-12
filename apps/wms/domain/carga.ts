@@ -25,6 +25,7 @@ export interface PedidoCarga {
   listo: boolean
   excluida: boolean
   motivoExclusion?: string
+  tipoExclusion?: TipoExclusion
   bultos: BultoCarga[]
   /** Provincia: su etiqueta se imprime desde aquí (Lima no lleva). */
   llevaEtiqueta?: boolean
@@ -32,6 +33,10 @@ export interface PedidoCarga {
 
 /** Cuántos bultos de este pedido están cargados y cuántos esperan: la carga por conteo trabaja con estos dos números. */
 export const conteoDePedido = (p: Pick<PedidoCarga, 'bultos'>) => ({ cargados: p.bultos.filter((b) => b.cargado).length, esperados: p.bultos.length })
+
+/** Por qué un pedido se deja fuera de la salida: ANULADO (ya no sale) o REPROGRAMADO (sale otro día). FUERA es el de antes, sin distinguir. */
+export type TipoExclusion = 'FUERA' | 'ANULADO' | 'REPROGRAMADO'
+export const ETIQUETA_TIPO_EXCLUSION: Record<TipoExclusion, string> = { FUERA: 'Fuera de esta salida', ANULADO: 'Anulado: ya no sale', REPROGRAMADO: 'Reprogramado: sale otro día' }
 
 export type EstadoCarga = 'EN_CARGA' | 'LIBERADA' | 'EN_RUTA'
 export interface CargaResumen {

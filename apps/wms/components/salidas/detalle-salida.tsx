@@ -23,6 +23,8 @@ import { PanelPreGuia } from './panel-pre-guia'
 import { EditorLotes } from './editor-lotes'
 import { EtiquetasOrigen } from './etiquetas-origen'
 import { CancelarOrden } from './cancelar-orden'
+import { YaNoSale } from './ya-no-sale'
+import { ofrecerYaNoSale } from '@/domain/ya-no-sale'
 import { EditarOrden } from './editar-orden'
 import { ETIQUETA_CREADA_DESDE } from '@/domain/salida-manual'
 import { ETIQUETA_MOTIVO_SALIDA } from '@/domain/salidas'
@@ -135,6 +137,8 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
         {salida.ordenPickingId && <Link href={`/conformidad/${salida.ordenPickingId}`} className="btn-secondary" data-testid="ir-conformidad">Ver la conformidad</Link>}
         {ETAPAS_CONFORMES.includes(salida.etapa) && <Link href={`/embalaje/${salida.id}`} className="btn-secondary" data-testid="ir-embalaje">Embalaje y bultos</Link>}
         {puedePreparar && salida.estado === 'ABIERTA' && !salida.ordenPickingId && (salida.origen === 'MANUAL' || salida.creadaDesde === 'BANDEJA') && <CancelarOrden salidaId={salida.id} numero={salida.numero} />}
+        {puedePreparar && ofrecerYaNoSale(salida, !!paquete?.guia) === 'SI' && <YaNoSale salidaId={salida.id} numero={salida.numero} preGuia={preGuia && preGuia.estado !== 'CANCELADA' ? preGuia.numeroCompleto : undefined} />}
+        {puedePreparar && ofrecerYaNoSale(salida, !!paquete?.guia) === 'ANULAR_GUIA' && <p className="max-w-xl text-sm text-gray-700" data-testid="ya-no-sale-anular-guia">Si el pedido ya no sale: esta orden ya tiene su guía. Primero anula la guía (más abajo) y después podrás usar «Ya no sale».</p>}
       </section>
 
       {paquete && salida.tipo !== 'CLIENTE' && (paquete.conforme || preGuia) && !paquete.guia && <PanelPreGuia salidaId={salida.id} conforme={paquete.conforme} preGuia={preGuia} puedeGestionar={puedeGestionarPreGuia} />}

@@ -96,6 +96,7 @@ export class MisRutasDemo extends PilotoDemo implements RepositorioMisRutas {
     for (const p of r.paradas.filter((x) => x.activa)) {
       const clave = p.pedidoId ?? (p.salidaId ? claveDeOrden(p.salidaId) : undefined)
       if (!clave) continue
+      if (p.salidaId && ((desp(e).carga ?? {})[r.id]?.exclusiones ?? []).some((x) => x.salidaId === p.salidaId)) noEntregadas.push(clave)
       const propios = eventos(e).filter((x) => x.paradaId === p.id)
       const d = datosParaLsFr(propios)
       if (quedoSinEntregar(propios)) noEntregadas.push(clave)

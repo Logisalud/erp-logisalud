@@ -63,6 +63,8 @@ export interface SalidaDemo {
   ejemplo?: boolean
   /** SA-3: el pedido se canceló en Pedidos; mientras falte devolver lo picado, la orden sigue abierta con `cancelacionPendiente`. */
   motivoCancelacion?: string; canceladaEn?: string; cancelacionPendiente?: boolean
+  /** 0064 «Ya no sale» con rehacer: al cancelarse la orden, el pedido vuelve a la bandeja. */
+  rehacerAlCancelar?: boolean
 }
 
 /** SA-3: lo picado (o en Despacho) que un cambio o la cancelación del pedido dejó sin pedido: se devuelve a su ubicación con un movimiento verificado. */
@@ -121,7 +123,7 @@ export interface DespachoDemoEstado {
 export interface CargaDemo {
   checklist?: import('@/domain/carga').ItemChecklist[]; checklistPor?: string
   cargados: { codigo: string; estado: 'CARGADO' | 'RETIRADO'; motivo?: string }[]
-  exclusiones: { salidaId: string; motivo: string; por: string; en: string }[]
+  exclusiones: { salidaId: string; motivo: string; por: string; en: string; tipo?: 'FUERA' | 'ANULADO' | 'REPROGRAMADO' }[]
   liberadaEn?: string; salioEn?: string
 }
 export interface GuiaDemo { id: string; salidaId: string; guia: import('@/domain/documentacion').GuiaVista }
@@ -376,7 +378,7 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
 
   protected vistaRuta(e: EstadoDemo, r: RutaDemo): RutaVista {
     const d = desp(e)
-    const paradas = r.paradas.filter((p) => p.activa).sort((a, b) => a.secuencia - b.secuencia).map((p) => this.vistaParada(e, p))
+    const paradas = r.paradas.filter((p) => p.activa).sort((a, b) => a.secuencia - b.secuencia).map((p) => { const ex = p.salidaId ? (desp(e).carga ?? {})[r.id]?.exclusiones.find((x) => x.salidaId === p.salidaId) : undefined; return { ...this.vistaParada(e, p), exclusion: ex ? { tipo: ex.tipo ?? 'FUERA' as const, motivo: ex.motivo } : undefined } })
     return {
       id: r.id, numero: r.numero, fecha: r.fecha, estado: r.estado, version: r.version,
       vehiculo: d.vehiculos.find((v) => v.id === r.vehiculoId), conductor: d.personal.find((p) => p.id === r.conductorId), auxiliar: d.personal.find((p) => p.id === r.auxiliarId),

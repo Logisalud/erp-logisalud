@@ -94,6 +94,7 @@ export function cancelarSalidaPorPedido(e: EstadoDemo, s: SalidaDemo, motivo: st
   for (const o of pk(e).ordenes) if (o.salidaId === s.id && o.estado !== 'CANCELADA') o.estado = 'CANCELADA'
   for (const l of s.lineas) { atenderAlertaStock(e, l, 'La orden se canceló'); l.estado = 'CANCELADA'; l.cantidadNueva = undefined }
   s.estado = 'CANCELADA'; s.motivoCancelacion = motivo; s.canceladaEn = ahora(); s.cancelacionPendiente = false
+  if (s.rehacerAlCancelar) { const fila = e.pedidos?.filas.find((f) => f.salida === s.numero); if (fila) fila.salida = undefined }      // «Ya no sale» con rehacer: el pedido vuelve a la bandeja
   for (const r of d.rutas) if (r.estado === 'BORRADOR' || r.estado === 'PLANIFICADA') for (const p of r.paradas) if (p.salidaId === s.id && p.activa) p.activa = false
   if (actor) registrar(e, actor, 'salida_cancelada_por_pedido', 'salidas', s.numero, `Orden ${s.numero} cancelada`, motivo)
 }

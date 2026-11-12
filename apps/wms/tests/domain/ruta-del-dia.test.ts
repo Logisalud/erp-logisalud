@@ -19,4 +19,10 @@ describe('ruta del día', () => {
     expect(condicionDeParada('DISTRIBUCION')).toBe('DESPACHO'); expect(condicionDeParada(undefined)).toBe('DESPACHO')
     expect(condicionDeParada('PROVEEDOR')).toBe('DEVOLUCIÓN AL PROVEEDOR')
   })
+  it('un pedido anulado o reprogramado se queda en la hoja con su marca (nada se borra); «fuera» sin tipo no lleva marca', () => {
+    const con = (tipos: Record<string, 'ANULADO' | 'REPROGRAMADO' | 'FUERA'>) => armarRutaDelDia({ ...ruta, paradas: ruta.paradas.map((p) => (tipos[p.id] ? { ...p, exclusion: { tipo: tipos[p.id], motivo: 'x' } } : p)) }, new Map())
+    expect(con({}).filas.map((f) => f.marca)).toEqual([undefined, undefined])
+    expect(con({ a: 'ANULADO', b: 'REPROGRAMADO' }).filas.map((f) => [f.cliente, f.marca])).toEqual([['Primero', 'ANULADO'], ['Segundo', 'REPROGRAMADO']])
+    expect(con({ a: 'FUERA' }).filas.map((f) => f.marca)).toEqual([undefined, undefined])
+  })
 })

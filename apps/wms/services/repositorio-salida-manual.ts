@@ -1,3 +1,4 @@
+import type { ResultadoYaNoSale } from '@/domain/ya-no-sale'
 import type { CambiosOrden } from '@/domain/editar-orden'
 import type { EntradaOrdenManual, LoteParaSalida, ProductoHallado } from '@/domain/salida-manual'
 export type { ProductoHallado } from '@/domain/salida-manual'
@@ -48,6 +49,8 @@ export interface RepositorioSalidaManual {
   crearOrdenDePedido(pedidoId: string, actor: Actor): Promise<ResultadoAccion<{ id: string; numero: string; yaExistia: boolean; faltaStock: boolean }>>
   /** Cancela una orden que todavía no salió del rack (libera lo reservado); nada se borra: queda con su motivo. La usa quien se equivocó de número de pedido o de cliente. */
   cancelarOrden(salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  /** 0064: «Ya no sale» (orden ya pickeada o con pre-guía): cancela la pre-guía, devuelve lo picado a su ubicación (verificado por otra persona) y cancela la orden; con `rehacer` el pedido vuelve a la bandeja. */
+  yaNoSale(salidaId: string, motivo: string, rehacer: boolean, actor: Actor): Promise<ResultadoAccion<ResultadoYaNoSale>>
   /** 0059: «Editar» la orden. La nota siempre (orden abierta); destinatario y cantidades solo en una orden manual, sin pedido unido, antes del picking y sin guía. */
   editarOrden(salidaId: string, cambios: CambiosOrden, motivo: string | undefined, actor: Actor): Promise<ResultadoAccion<{ cambios: string[]; sinStock: number }>>
   /** «Crear las órdenes de todos los pedidos por planificar». */

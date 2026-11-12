@@ -16,6 +16,8 @@ export interface FilaRutaDelDia {
   representante: string
   formaPago: string
   horario: string
+  /** ANULADO (ya no sale) o REPROGRAMADO (sale otro día): la fila se queda en la hoja, marcada. */
+  marca?: 'ANULADO' | 'REPROGRAMADO'
 }
 export interface RutaDelDia { numero: string; fecha: string; vehiculo?: string; conductor?: string; auxiliar?: string; filas: FilaRutaDelDia[] }
 
@@ -35,6 +37,7 @@ export function armarRutaDelDia(ruta: RutaVista, guiaPorSalida: ReadonlyMap<stri
   const filas = [...ruta.paradas].sort((a, b) => a.secuencia - b.secuencia).map((p, i): FilaRutaDelDia => ({
     n: i + 1, cliente: p.cliente || '—', telefono: p.telefono || '—', condicion: condicionDeParada(p.tipoOrden), guia: (p.salidaId && guiaPorSalida.get(p.salidaId)) || '—',
     direccion: p.direccion || '—', destino: p.distrito || '—', transportista, representante: p.vendedor || '—', formaPago: p.condicionPago || '—', horario: p.ventanaCita || '—',
+    marca: p.exclusion?.tipo === 'ANULADO' || p.exclusion?.tipo === 'REPROGRAMADO' ? p.exclusion.tipo : undefined,
   }))
   return { numero: ruta.numero, fecha: ruta.fecha, vehiculo: ruta.vehiculo?.placa, conductor: ruta.conductor?.nombre, auxiliar: ruta.auxiliar?.nombre, filas }
 }

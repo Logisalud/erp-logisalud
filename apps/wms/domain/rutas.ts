@@ -36,6 +36,8 @@ export type EstadoStockParada = 'ASIGNADA' | 'SIN_STOCK' | 'PENDIENTE'
 export const ETIQUETA_STOCK_PARADA: Record<EstadoStockParada, string> = { ASIGNADA: 'Stock asignado', SIN_STOCK: 'Sin stock suficiente', PENDIENTE: 'Por asignar' }
 
 export interface ParadaVista {
+  /** El pedido se dejó fuera de la salida: anulado (ya no sale) o reprogramado (sale otro día). Su fila no se borra: la hoja de la ruta la marca y la de DIGEMID la deja fuera. */
+  exclusion?: { tipo: 'FUERA' | 'ANULADO' | 'REPROGRAMADO'; motivo: string }
   id: string
   secuencia: number
   /** Cómo se reconoce la parada en el plan: el id del pedido o, en una parada por orden, `orden:<id de la orden>` (SA-6). */

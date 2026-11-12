@@ -12,7 +12,9 @@ import { embalajeActivoDemo } from './ajustes'
 import { normalizar } from '@/domain/busqueda'
 import { DIAS_AVISO_DEVOLUCION_DEFECTO, type MotivoSalida } from '@/domain/salidas'
 import { registrar, type EstadoDemo } from './estado'
-import { ahora, estadoE, falla, nuevoId } from './entradas-demo'
+import { ahora, alertar, estadoE, falla, nuevoId } from './entradas-demo'
+import { cancelarSalidaPorPedido, soltarLineaDemo } from './cambio-pedido-demo'
+import { MINIMO_MOTIVO_YA_NO_SALE, type ResultadoYaNoSale } from '@/domain/ya-no-sale'
 import { asignarLineaDemo, desp, duenoDelAlmacen, liberarSalida, loteEnReserva, lotesDisponibles, ordenDelPedido, type LineaSalidaDemo, type SalidaDemo } from './despacho-demo'
 import { LiberacionDemo } from './liberacion-demo'
 import { numeroDe } from './libro'
@@ -130,6 +132,43 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
       registrar(e, actor, 'orden_creada_desde_bandeja', 'salidas', s.numero, `Orden creada desde la bandeja para el pedido ${f.snapshot.numero}`, 'Todas las pendientes')
     }
     return { ok: true, resumen }
+  }
+
+  async yaNoSale(salidaId: string, motivo: string, rehacer: boolean, actor: Actor): Promise<ResultadoAccion<ResultadoYaNoSale>> {
+    const e = estadoE(); await this.sembrarDespacho(e)
+    if (!puedePrepararSalidas(actor.roles)) return falla('No tienes permiso para cancelar una salida')
+    const mot = (motivo ?? '').trim()
+    if (mot.length < MINIMO_MOTIVO_YA_NO_SALE) return falla('Cuenta por qué ya no sale (al menos 5 letras)', { motivo: 'Cuenta por qué ya no sale (al menos 5 letras).' })
+    const s = desp(e).salidas.find((x) => x.id === salidaId)
+    if (!s) return falla('No encontramos esa orden')
+    if (s.estado !== 'ABIERTA') return falla('La orden ya no está abierta: si ya salió, el transportista marca el pedido como no entregado o rechazado')
+    if (s.cancelacionPendiente) return falla('Esta orden ya está por cancelarse: falta devolver lo picado a su ubicación')
+    if ((await this.paqueteSalida(salidaId))?.guia) return falla('La orden ya tiene su guía: anula la guía primero y después usa «Ya no sale»')
+    const rutaDe = desp(e).rutas.find((r) => r.estado !== 'CANCELADA' && r.paradas.some((p) => p.activa && p.salidaId === s.id))
+    const codigos = new Set(((desp(e).bultos ?? []).filter((b) => b.salidaId === s.id)).map((b) => b.codigo))
+    if (Object.values(desp(e).carga ?? {}).some((c) => c.cargados.some((x) => x.estado === 'CARGADO' && codigos.has(x.codigo)))) return falla('Ya hay bultos de este pedido cargados en el vehículo: retíralos de la carga primero')
+    if (rutaDe && ['EN_RUTA', 'PENDIENTE_CIERRE', 'CERRADA'].includes(rutaDe.estado)) return falla(`La ruta ${rutaDe.numero} ya salió: el transportista marca el pedido como no entregado o rechazado`)
+
+    // 1. la pre-guía (si la hay) se cancela: su número no se reutiliza
+    const pre = await this.preGuiaDe(salidaId)
+    if (pre && pre.estado !== 'CANCELADA' && pre.estado !== 'ENVIADA') await this.cancelarPreGuia(salidaId, `Ya no sale: ${mot}`)
+    // 2. en una ruta que todavía no sale, el pedido queda marcado «anulado»
+    if (rutaDe && ['LISTA_PARA_CARGA', 'LIBERADA'].includes(rutaDe.estado)) {
+      const carga = ((desp(e).carga ??= {})[rutaDe.id] ??= { cargados: [], exclusiones: [] })
+      if (!carga.exclusiones.some((x) => x.salidaId === s.id)) carga.exclusiones.push({ salidaId: s.id, motivo: `Ya no sale: ${mot}`, por: actor.nombre, en: ahora(), tipo: 'ANULADO' })
+    }
+    // 3. lo que nadie pickeó se libera; lo pickeado queda por devolver, con verificación de otra persona
+    s.rehacerAlCancelar = rehacer
+    let liberadas = 0, porDevolver = 0
+    for (const l of s.lineas.filter((x) => x.estado !== 'CANCELADA')) { const r = soltarLineaDemo(e, l, null, 'PEDIDO_CANCELADO', undefined); liberadas += r.liberadas; porDevolver += r.porDevolver }
+    if (porDevolver === 0) cancelarSalidaPorPedido(e, s, `Ya no sale: ${mot}`, actor)
+    else {
+      s.cancelacionPendiente = true; s.motivoCancelacion = `Ya no sale: ${mot}`
+      alertar(e, 'DEVOLUCION_PICKING', 'jefe_almacen', `La orden ${s.numero} ya no sale: tiene ${porDevolver} unidades ya picadas por devolver a su ubicación. El auxiliar las devuelve y otra persona lo verifica; después la orden se cancela sola.`, `devolucion:${s.id}`)
+    }
+    if (!rehacer) alertar(e, 'PEDIDO_CANCELADO', 'jefe_transporte', `El pedido ${s.pedidoNumero ?? '—'} ya no sale (orden ${s.numero}): avisa al área comercial para que lo cancele en Pedidos. Motivo: ${mot}`, `ya-no-sale:${s.id}`)
+    registrar(e, actor, 'ya_no_sale', 'salidas', s.numero, `Orden ${s.numero}: ya no sale`, mot)
+    return { ok: true, cancelada: porDevolver === 0, porDevolver, preGuia: pre && pre.estado !== 'CANCELADA' && pre.estado !== 'ENVIADA' ? pre.numeroCompleto : undefined }
   }
 
   async cancelarOrden(salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {

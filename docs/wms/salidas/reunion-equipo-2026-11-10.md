@@ -51,3 +51,10 @@ Orden pedido por Sebas (donde choque con el mensaje del piloto, manda este). Est
 - **Hoja para DIGEMID:** es la misma ruta sin lo que no se entregó (no entregado o rechazado), renumerada. El registro interno sigue completo, con los motivos.
 - **Aviso por correo (Resend)** a quien factura cuando la guía de un pedido queda lista: `RESEND_API_KEY`, `RESEND_FROM` y `AVISO_FACTURACION_CORREOS`. Apagado hasta configurarlas.
 - **Inspección de la unidad:** se imprime para firma manuscrita al cerrar el mes (sin firma en pantalla).
+
+## «Ya no sale», anulado / reprogramado y aviso a quien factura (12-nov-2026; migración 0064)
+
+- **«Ya no sale»** (botón del Jefe en la orden ya pickeada): una sola acción con motivo. Cancela la pre-guía (su número pasa a «Números sin usar»), libera lo que nadie pickeó, deja lo pickeado «por devolver a su ubicación» (el auxiliar lo devuelve y otra persona lo verifica, el mismo camino de un cambio o cancelación desde Pedidos) y cancela la orden. Si el pedido sigue, vuelve a la bandeja para rehacer la orden; si se cancela, se avisa al Jefe de Transporte para que el área comercial lo cancele en Pedidos (el WMS no cancela nada en Pedidos). No sirve con guía registrada o enviada (se anula primero la guía), con bultos ya cargados ni con la ruta ya en camino.
+- **«Dejar fuera de la salida»** pide el tipo: **anulado** (ya no sale) o **reprogramado** (sale otro día). La hoja de la ruta deja la fila marcada y la hoja para DIGEMID la deja fuera. Nada se borra.
+- **Aviso por correo a quien factura:** al crearse la pre-guía («ya puede facturar», con productos y lotes) y al cancelarse («NO factures»).
+- En lo que ve la gente no se usa «staging»: se dice «zona de despacho» o «a su ubicación».

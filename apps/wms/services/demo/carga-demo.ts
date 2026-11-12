@@ -1,7 +1,7 @@
 // S8 en memoria (modo demostración): carga por bultos, conciliación, liberar la unidad y salida confirmada. Mismas reglas que la migración 0021.
 import {
   ITEMS_CHECKLIST_POR_DEFECTO, motivosNoLiberar, normalizarCodigoBulto, puedeCargar, puedeConfirmarSalida, puedeLiberarUnidad,
-  type CargaResumen, type CargaRuta, type ItemChecklist, type PedidoCarga,
+  type CargaResumen, type CargaRuta, type ItemChecklist, type PedidoCarga, type TipoExclusion,
 } from '@/domain/carga'
 import { llevaEtiqueta } from '@/domain/pedidos-despacho'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
@@ -34,7 +34,7 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
       const listo = !ex && ['LISTA_PARA_CARGA', 'CARGADA'].includes(res.etapa)
       const bultos = ex ? [] : bultosVigentes(e, s.id).map((b) => ({ bultoId: b.id, codigo: b.codigo, secuencia: b.secuencia, total: b.total, cargado: vivos(c).some((x) => x.codigo === b.codigo) }))
       const ubigeo = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === s.pedidoId)?.snapshot.cliente.ubigeo ?? (s as { clienteManual?: { ubigeo?: string } }).clienteManual?.ubigeo
-      return { salidaId: s.id, salidaNumero: s.numero, pedidoNumero: res.pedidoNumero, cliente: res.cliente, secuencia: p.secuencia, listo, excluida: !!ex, motivoExclusion: ex?.motivo, bultos, llevaEtiqueta: llevaEtiqueta(ubigeo) }
+      return { salidaId: s.id, salidaNumero: s.numero, pedidoNumero: res.pedidoNumero, cliente: res.cliente, secuencia: p.secuencia, listo, excluida: !!ex, motivoExclusion: ex?.motivo, tipoExclusion: ex?.tipo, bultos, llevaEtiqueta: llevaEtiqueta(ubigeo) }
     })
   }
 
@@ -141,15 +141,16 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
     return { ok: true }
   }
 
-  async excluirPedido(rutaId: string, salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {
+  async excluirPedido(rutaId: string, salidaId: string, motivo: string, actor: Actor, tipo: TipoExclusion = 'FUERA'): Promise<ResultadoAccion> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const x = this.exigirEnCarga(e, rutaId, puedeLiberarUnidad(actor.roles), 'No tienes permiso para dejar un pedido fuera de la salida')
     if ('error' in x) return x.error
     if (!motivo.trim()) return falla('Cuenta por qué el pedido se deja fuera de la salida')
+    if (!['FUERA', 'ANULADO', 'REPROGRAMADO'].includes(tipo)) return falla('Elige si el pedido se anula o se reprograma')
     if (!x.r.paradas.some((p) => p.activa && p.salidaId === salidaId)) return falla('Ese pedido no está en esta ruta')
     const c = cargaDe(e, rutaId)
     if (c.exclusiones.some((y) => y.salidaId === salidaId)) return falla('Ese pedido ya se dejó fuera de la salida')
-    c.exclusiones.push({ salidaId, motivo: motivo.trim(), por: actor.nombre, en: ahora() })
+    c.exclusiones.push({ salidaId, motivo: motivo.trim(), por: actor.nombre, en: ahora(), tipo })
     const codigos = new Set(bultosVigentes(e, salidaId).map((b) => b.codigo))
     for (const y of vivos(c)) if (codigos.has(y.codigo)) { y.estado = 'RETIRADO'; y.motivo = `El pedido se dejó fuera de la salida: ${motivo.trim()}` }
     registrar(e, actor, 'pedido_fuera_de_la_salida', 'rutas', rutaId, x.r.numero, motivo.trim())

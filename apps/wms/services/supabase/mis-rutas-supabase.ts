@@ -54,17 +54,20 @@ export class MisRutasSupabase extends PilotoSupabase implements RepositorioMisRu
 
   /** Lo que marcó quien conduce alimenta el LS-FR.43.03: hora de entrega y observaciones por parada. */
   protected override async extrasLsFr(rutaId: string): Promise<ExtrasLsFr> {
-    const [base, { data: paradas }, { data: ev }] = await Promise.all([
+    const [base, { data: paradas }, { data: ev }, { data: exs }] = await Promise.all([
       super.extrasLsFr(rutaId),
       sch().from('ruta_paradas').select('id, pedido_id, salida_id').eq('ruta_id', rutaId).eq('activa', true),
       sch().from('ruta_paradas_eventos').select('*').eq('ruta_id', rutaId).order('creado_en'),
+      sch().from('carga_exclusiones').select('salida_id').eq('ruta_id', rutaId),
     ])
+    const fuera = new Set(((exs ?? []) as Fila[]).map((x) => String(x.salida_id)))
     const horaEntrega: Record<string, string> = { ...(base.horaEntrega ?? {}) }
     const observaciones: Record<string, string> = { ...(base.observaciones ?? {}) }
     const noEntregadas: string[] = []
     for (const p of (paradas ?? []) as Fila[]) {
       const clave = s(p.pedido_id) ?? (p.salida_id ? claveDeOrden(String(p.salida_id)) : undefined)
       if (!clave) continue
+      if (p.salida_id && fuera.has(String(p.salida_id))) noEntregadas.push(clave)       // anulado, reprogramado o fuera de la salida: no se entregó
       const propios = ((ev ?? []) as Fila[]).filter((x) => String(x.parada_id) === String(p.id)).map(eventoDe)
       const d = datosParaLsFr(propios)
       if (quedoSinEntregar(propios)) noEntregadas.push(clave)

@@ -3,6 +3,7 @@ import 'server-only'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { puedePrepararSalidas } from '@/domain/despacho'
 import { validarCambiosOrden, type CambiosOrden } from '@/domain/editar-orden'
+import type { ResultadoYaNoSale } from '@/domain/ya-no-sale'
 import { MENSAJE_SIN_PERMISO_ENTREGA, puedeEntregarAlTransportistaCliente, validarEntrega, type EntradaEntrega } from '@/domain/entrega-transportista'
 import { DIAS_AVISO_DEVOLUCION_DEFECTO } from '@/domain/salidas'
 import { buscarProductosPorCodigos, partirPorMotivo, type CodigoProducto, type EntradaOrdenManual, type LoteParaSalida, type ProductoHallado, type TipoCodigoProducto } from '@/domain/salida-manual'
@@ -162,6 +163,13 @@ export class SalidaManualSupabase extends LiberacionSupabase implements Reposito
     if (error) return mal(error)
     const r = (data ?? {}) as { cambios?: string[]; sin_stock?: number }
     return { ok: true, cambios: r.cambios ?? [], sinStock: Number(r.sin_stock ?? 0) }
+  }
+
+  async yaNoSale(salidaId: string, motivo: string, rehacer: boolean, _actor: Actor): Promise<ResultadoAccion<ResultadoYaNoSale>> {
+    const { data, error } = await rpc('ya_no_sale', { p_salida: salidaId, p_motivo: motivo, p_rehacer: rehacer })
+    if (error) return { ok: false, mensaje: mensajeHumano(error) }
+    const d = (data ?? {}) as Fila
+    return { ok: true, cancelada: Boolean(d.cancelada), porDevolver: Number(d.por_devolver ?? 0), preGuia: s(d.pre_guia) }
   }
 
   async cancelarOrden(salidaId: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
