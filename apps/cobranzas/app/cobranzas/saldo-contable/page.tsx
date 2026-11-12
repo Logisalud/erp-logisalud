@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
 interface FacturaContable {
   id: string; comprobante: string; fecha_emision: string; fecha_vencimiento: string | null;
@@ -117,7 +117,7 @@ export default function SaldoContablePage() {
 
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[820px]">
+                <table className="w-full text-sm min-w-[700px]">
                   <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
                     <tr>
                       <th className="px-4 py-2.5 text-left">Cliente</th>
@@ -133,28 +133,29 @@ export default function SaldoContablePage() {
                       const abierta = abierto === c.cliente_ruc;
                       const negativo = c.saldo_contable < -0.005;
                       return (
-                        <tr key={c.cliente_ruc} className="align-top">
-                          <td colSpan={6} className="p-0">
-                            <div className="flex items-center hover:bg-gray-50 cursor-pointer"
-                              onClick={() => setAbierto(abierta ? null : c.cliente_ruc)}>
-                              <div className="px-4 py-2.5 flex-1 min-w-0">
-                                <p className="font-semibold text-gray-800 truncate">{c.razon_social}</p>
-                                <p className="text-xs text-gray-400">{c.cliente_ruc}</p>
-                              </div>
-                              <div className="px-4 py-2.5 w-48 text-xs text-gray-500 truncate">{c.vendedor_nombre ?? 'Sin vendedor'}</div>
-                              <div className="px-4 py-2.5 w-36 text-right tabular-nums font-semibold"
-                                style={{ color: negativo ? '#c0392b' : '#374151' }}>
-                                {conSigno(c.saldo_contable)}
-                              </div>
-                              <div className="px-4 py-2.5 w-32 text-right tabular-nums text-gray-500">{fmt(c.saldo_cartera)}</div>
-                              <div className="px-4 py-2.5 w-32 text-right tabular-nums"
-                                style={{ color: Math.abs(c.diferencia) > 0.005 ? '#b45309' : '#9ca3af' }}>
-                                {Math.abs(c.diferencia) > 0.005 ? conSigno(c.diferencia) : '—'}
-                              </div>
-                              <div className="px-3 py-2.5 w-10 text-gray-300 text-xs">{abierta ? '▲' : '▼'}</div>
-                            </div>
-                            {abierta && (
-                              <div className="bg-gray-50 border-t border-gray-100 px-4 py-3 overflow-x-auto">
+                        <Fragment key={c.cliente_ruc}>
+                          <tr className="hover:bg-gray-50 cursor-pointer"
+                            onClick={() => setAbierto(abierta ? null : c.cliente_ruc)}>
+                            <td className="px-4 py-2.5">
+                              <p className="font-semibold text-gray-800">{c.razon_social}</p>
+                              <p className="text-xs text-gray-400">{c.cliente_ruc}</p>
+                            </td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500">{c.vendedor_nombre ?? 'Sin vendedor'}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap"
+                              style={{ color: negativo ? '#c0392b' : '#374151' }}>
+                              {conSigno(c.saldo_contable)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmt(c.saldo_cartera)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap"
+                              style={{ color: Math.abs(c.diferencia) > 0.005 ? '#b45309' : '#9ca3af' }}>
+                              {Math.abs(c.diferencia) > 0.005 ? conSigno(c.diferencia) : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-gray-300 text-xs">{abierta ? '▲' : '▼'}</td>
+                          </tr>
+                          {abierta && (
+                            <tr>
+                              <td colSpan={6} className="bg-gray-50 border-t border-gray-100 px-4 py-3">
+                                <div className="overflow-x-auto">
                                 <table className="w-full text-xs min-w-[860px]">
                                   <thead className="text-gray-400">
                                     <tr>
@@ -190,14 +191,15 @@ export default function SaldoContablePage() {
                                     ))}
                                   </tbody>
                                 </table>
+                                </div>
                                 <a href={`/cobranzas/clientes/${c.cliente_ruc}/estado-cuenta`}
                                   className="inline-block mt-3 text-xs" style={{ color: '#4ABCC2' }}>
                                   Ver el estado de cuenta completo →
                                 </a>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                     {visibles.length === 0 && (
