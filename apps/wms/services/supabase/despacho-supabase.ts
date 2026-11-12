@@ -82,7 +82,10 @@ export class DespachoSupabase extends PedidosSupabase implements RepositorioRuta
     }
     const vistas: RutaVista[] = rutas.filter((r) => !filtroId || String(r.id) === filtroId).map((r) => {
       const ps = paradas.filter((x) => String(x.ruta_id) === String(r.id) && x.activa).sort((a, b) => Number(a.secuencia) - Number(b.secuencia)).map((pa) => ({ ...vistaParada(pa), exclusion: pa.salida_id ? exclusionDe.get(`${r.id}:${pa.salida_id}`) : undefined }))
+      const excluidas = paradas.filter((x) => String(x.ruta_id) === String(r.id) && !x.activa && x.salida_id && exclusionDe.has(`${r.id}:${x.salida_id}`)).sort((a, b) => Number(a.secuencia) - Number(b.secuencia))
+        .map((pa) => ({ ...vistaParada(pa), exclusion: exclusionDe.get(`${r.id}:${pa.salida_id}`) }))
       return {
+        excluidas,
         id: String(r.id), numero: String(r.numero), fecha: dia(r.fecha), estado: r.estado as EstadoRuta, version: Number(r.version),
         vehiculo: veh.find((v) => v.id === s(r.vehiculo_id)), conductor: per.find((p) => p.id === s(r.conductor_id)), auxiliar: per.find((p) => p.id === s(r.auxiliar_id)),
         motivoContingencia: s(r.motivo_contingencia), paradas: ps,

@@ -41,14 +41,14 @@ async function sembrar(prod: string, pos: string, lote: string, cantidad: number
   return loteId
 }
 /** Un pedido «listo para carga» SIN embalaje: conformado con `bultos` bultos (quedan registrados en la conformidad), con guía y paquete completo. */
-async function pedidoListo(pos: string, cantidad: number, bultos = 1, conGre = true, hastaConformidad = true) {
+async function pedidoListo(pos: string, cantidad: number, bultos = 1, conGre = true, hastaConformidad = true, pickear = hastaConformidad) {
   const prod = await producto()
   const lote = await sembrar(prod, pos, `L-${randomUUID().slice(0, 6)}`, 100)
   const id = await como(jt, async (c) => (await c.query(`select wms.crear_salida('DISTRIBUCION', 'VENTA', $1, $2::jsonb) id`, [logissa, JSON.stringify([{ producto_id: prod, cantidad }])])).rows[0].id as string)
   await como(jt, (c) => c.query('select * from wms.asignar_salida($1)', [id]))
   const orden = await como(jt, async (c) => (await c.query('select wms.generar_orden_picking($1) id', [id])).rows[0].id as string)
   const lineas = await q('select id, cantidad from wms.ordenes_picking_lineas where orden_id = $1 order by id', [orden])
-  for (const l of lineas) if (hastaConformidad) await como(aux1, (c) => c.query('select wms.registrar_picking($1, $2, $3, $4)', [l.id, 'PICKEADA', l.cantidad, null]))
+  for (const l of lineas) if (pickear) await como(aux1, (c) => c.query('select wms.registrar_picking($1, $2, $3, $4)', [l.id, 'PICKEADA', l.cantidad, null]))
   if (hastaConformidad) await como(sandra, (c) => c.query('select wms.conformar_orden($1, null, $2, null)', [orden, bultos]))
   if (conGre) await como(jt, (c) => c.query('select wms.registrar_gre($1, $2, null)', [id, `T${String(100 + nPed).padStart(3, '0')}-${String(++nPed).padStart(8, '0')}`]))
   const numero = (await uno('select numero from wms.salidas where id = $1', [id])).numero as string
@@ -139,10 +139,9 @@ describe('«Ya no sale» (0064)', () => {
     expect((await falla(yaNoSale(jt, b.id, 'Motivo suficiente'))).message).toMatch(/ya no está abierta/)
   })
 
-  it('en una ruta lista para carga queda marcado «anulado»; con la ruta ya en camino no se puede; con bultos cargados pide retirarlos', async () => {
+  it('en una ruta PLANIFICADA (el estado real de carga) el pedido sale del plan pero queda marcado «anulado»; con la ruta ya en camino no se puede; con bultos cargados pide retirarlos', async () => {
     const a = await pedidoListo('F-8.1', 6, 2, false); const b = await pedidoListo('F-8.1', 6, 1, false)
     const r = await ruta([a, b])
-    await base.admin.query(`update wms.rutas set estado = 'LISTA_PARA_CARGA' where id = $1`, [r])
     // un bulto del pedido a ya está cargado en el vehículo: primero se retira
     const bulto = (await uno(`select id from wms.bultos where salida_id = $1 and secuencia = 1`, [a.id])).id as string
     await base.admin.query(`insert into wms.carga_bultos (ruta_id, bulto_id, cargado_por) values ($1, $2, $3)`, [r, bulto, jt])
@@ -150,6 +149,10 @@ describe('«Ya no sale» (0064)', () => {
     await como(jt, (cl) => cl.query(`select wms.retirar_bulto_carga($1, $2, 'Se descarga')`, [r, `${a.numero}-B1`]))
     await yaNoSale(jt, a.id, 'El cliente canceló')
     expect(await uno(`select tipo, motivo from wms.carga_exclusiones where ruta_id = $1 and salida_id = $2`, [r, a.id])).toMatchObject({ tipo: 'ANULADO', motivo: expect.stringContaining('Ya no sale') })
+    expect((await uno(`select activa from wms.ruta_paradas where ruta_id = $1 and salida_id = $2`, [r, a.id])).activa).toBe(false)      // sale del plan: el pedido queda libre
+    // la pantalla de carga lo sigue mostrando, marcado como dejado fuera
+    const conc = await como(jt, async (cl) => (await cl.query('select salida_id, excluida from wms.conciliacion_carga($1)', [r])).rows as { salida_id: string; excluida: boolean }[])
+    expect(conc.find((x) => x.salida_id === a.id)).toMatchObject({ excluida: true })
     await base.admin.query(`update wms.rutas set estado = 'EN_RUTA' where id = $1`, [r])
     expect((await falla(yaNoSale(jt, b.id, 'Motivo suficiente'))).message).toMatch(/ya salió/)
   })
@@ -162,9 +165,38 @@ describe('dejar un pedido fuera de la salida: anulado o reprogramado (0064)', ()
     const excluir = (salida: string, tipo?: string) => como(jt, (cl) => (tipo === undefined ? cl.query('select wms.excluir_pedido_de_carga($1, $2, $3)', [r, salida, 'Motivo de prueba']) : cl.query('select wms.excluir_pedido_de_carga($1, $2, $3, $4)', [r, salida, 'Motivo de prueba', tipo])))
     await excluir(a.id, 'REPROGRAMADO'); await excluir(b.id, 'anulado'); await excluir(c.id)
     expect((await q('select tipo from wms.carga_exclusiones where ruta_id = $1 order by tipo', [r])).map((x) => x.tipo)).toEqual(['ANULADO', 'FUERA', 'REPROGRAMADO'])
+    // cada uno sale del plan de esa ruta (queda libre para planificarlo otro día) y la fila se sigue mostrando
+    expect((await q('select count(*)::int n from wms.ruta_paradas where ruta_id = $1 and activa', [r]))[0].n).toBe(0)
+    expect((await como(jt, async (cl) => (await cl.query('select salida_id from wms.conciliacion_carga($1) where excluida', [r])).rows)).length).toBe(3)
+    const otra = await ruta([a])         // el pedido reprogramado entra a otra ruta sin chocar con la anterior
     const d = await pedidoListo('F-8.1', 4, 1, false)
     const rd = await ruta([d])
     expect((await falla(como(jt, (cl) => cl.query(`select wms.excluir_pedido_de_carga($1, $2, 'Motivo', 'OTRO')`, [rd, d.id])))).message).toMatch(/Elige si el pedido se anula o se reprograma/)
     expect((await falla(base.admin.query(`update wms.carga_exclusiones set tipo = 'FUERA' where ruta_id = $1`, [r]))).message).toMatch(/no se edita ni se borra/)
+  })
+})
+
+describe('correcciones de la auditoría (0065)', () => {
+  it('cancelar la orden porque el pedido se canceló también cancela su pre-guía: el número no queda retenido', async () => {
+    const b = await pedidoListo('F-8.1', 4, 1, false)
+    await crearPreGuia(b.id)
+    expect((await preGuia(b.id)).estado).toBe('RESERVADO')
+    await base.admin.query(`select wms._cancelar_salida_por_pedido($1, 'El pedido se canceló en Pedidos')`, [b.id])
+    expect(await preGuia(b.id)).toMatchObject({ estado: 'SIN_USAR', detalle: expect.stringContaining('La orden se canceló') })
+  })
+
+  it('«Editar» no cambia las líneas de una orden con lote indicado (tipo B); sí su nota', async () => {
+    const a = await pedidoListo('F-8.1', 6, 1, false, false)
+    await base.admin.query(`update wms.salida_lineas set lote_indicado_id = $2 where salida_id = $1`, [a.id, a.lote])
+    const linea = (await uno('select id from wms.salida_lineas where salida_id = $1', [a.id])).id as string
+    expect((await falla(como(jt, (c) => c.query(`select wms.editar_orden_salida($1, $2::jsonb, 'Cambio de cantidad')`, [a.id, JSON.stringify({ lineas: [{ linea_id: linea, cantidad: 3 }] })])))).message).toMatch(/lote indicado/)
+    await como(jt, (c) => c.query(`select wms.editar_orden_salida($1, $2::jsonb, null)`, [a.id, JSON.stringify({ nota: 'Entregar por la tarde' })]))
+  })
+
+  it('dar_conformidad por línea respeta lo mismo que conformar_orden: una orden tomada por otra persona queda bloqueada', async () => {
+    const a = await pedidoListo('F-8.1', 6, 1, false, false, true)      // pickeada, sin conformidad todavía
+    const lineas = await q('select id from wms.ordenes_picking_lineas where orden_id = $1', [a.orden])
+    await como(sandra, (c) => c.query('select wms.tomar_para_conformidad($1)', [a.orden]))
+    expect((await falla(como(aux2, (c) => c.query(`select wms.dar_conformidad($1, 'CONFORME', null, null)`, [lineas[0].id])))).message).toMatch(/la tomó otra persona/)
   })
 })

@@ -25,4 +25,10 @@ describe('ruta del día', () => {
     expect(con({ a: 'ANULADO', b: 'REPROGRAMADO' }).filas.map((f) => [f.cliente, f.marca])).toEqual([['Primero', 'ANULADO'], ['Segundo', 'REPROGRAMADO']])
     expect(con({ a: 'FUERA' }).filas.map((f) => f.marca)).toEqual([undefined, undefined])
   })
+  it('los pedidos que salieron del plan (anulado / reprogramado) siguen en la hoja, marcados y en su lugar', () => {
+    const [primero, segundo] = [...ruta.paradas].sort((a, b) => a.secuencia - b.secuencia)
+    const sale = { ...segundo, secuencia: 2, salidaId: 's9', cliente: 'Se reprograma', exclusion: { tipo: 'REPROGRAMADO' as const, motivo: 'Sale mañana' } }
+    const hoja = armarRutaDelDia({ ...ruta, paradas: [primero], excluidas: [sale] }, new Map())
+    expect(hoja.filas.map((f) => [f.n, f.cliente, f.marca])).toEqual([[1, 'Primero', undefined], [2, 'Se reprograma', 'REPROGRAMADO']])
+  })
 })

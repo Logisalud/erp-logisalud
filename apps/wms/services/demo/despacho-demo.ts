@@ -379,7 +379,10 @@ export class DespachoDemo extends PedidosDemo implements RepositorioRutas {
   protected vistaRuta(e: EstadoDemo, r: RutaDemo): RutaVista {
     const d = desp(e)
     const paradas = r.paradas.filter((p) => p.activa).sort((a, b) => a.secuencia - b.secuencia).map((p) => { const ex = p.salidaId ? (desp(e).carga ?? {})[r.id]?.exclusiones.find((x) => x.salidaId === p.salidaId) : undefined; return { ...this.vistaParada(e, p), exclusion: ex ? { tipo: ex.tipo ?? 'FUERA' as const, motivo: ex.motivo } : undefined } })
+    const excluidas = r.paradas.filter((p) => !p.activa && p.salidaId && (desp(e).carga ?? {})[r.id]?.exclusiones.some((x) => x.salidaId === p.salidaId)).sort((a, b) => a.secuencia - b.secuencia)
+      .map((p) => { const ex = (desp(e).carga ?? {})[r.id]!.exclusiones.find((x) => x.salidaId === p.salidaId)!; return { ...this.vistaParada(e, p), exclusion: { tipo: ex.tipo ?? 'FUERA' as const, motivo: ex.motivo } } })
     return {
+      excluidas,
       id: r.id, numero: r.numero, fecha: r.fecha, estado: r.estado, version: r.version,
       vehiculo: d.vehiculos.find((v) => v.id === r.vehiculoId), conductor: d.personal.find((p) => p.id === r.conductorId), auxiliar: d.personal.find((p) => p.id === r.auxiliarId),
       paradas, versiones: [...r.versiones].sort((a, b) => b.version - a.version), registroLsFr: r.registroLsFr, motivoCancelacion: r.motivoCancelacion, motivoContingencia: r.motivoContingencia,

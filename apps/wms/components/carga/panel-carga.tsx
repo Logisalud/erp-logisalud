@@ -164,6 +164,7 @@ export function PanelCarga({ carga, puedeCargar, puedeLiberar, puedeConfirmar, n
                       <label key={valor} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-gray-900"><input type="radio" name={`tipo-excluir-${p.salidaId}`} className="h-5 w-5" checked={tipoExclusion === valor} onChange={() => setTipoExclusion(valor)} data-testid={`tipo-excluir-${valor}`} />{texto}</label>
                     ))}
                   </fieldset>
+                  {tipoExclusion === 'ANULADO' && <p className="text-sm text-amber-900" data-testid="ayuda-anulado">Esto solo lo marca en la ruta. Si el pedido ya no sale, además usa «Ya no sale» en su orden: así se cancela la pre-guía y lo pickeado vuelve a su ubicación.</p>}
                   <label htmlFor="motivo-excluir" className="etiqueta">¿Por qué el pedido se deja fuera de esta salida?</label>
                   <input id="motivo-excluir" className="campo" value={motivo} onChange={(e) => setMotivo(e.target.value)} data-testid="motivo-excluir" />
                   <div className="flex gap-2"><button type="button" className="btn-primary btn-sm" disabled={pendiente || !motivo.trim() || !tipoExclusion} onClick={() => ejecutar(() => excluirPedidoAccion(carga.rutaId, p.salidaId, motivo, tipoExclusion || undefined), { alExito: () => { setExcluyendo(null); setTipoExclusion('') } })} data-testid="confirmar-excluir">Dejarlo fuera</button><button type="button" className="btn-secondary btn-sm" onClick={() => setExcluyendo(null)}>Cancelar</button></div>

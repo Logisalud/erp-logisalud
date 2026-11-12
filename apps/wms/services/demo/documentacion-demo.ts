@@ -22,7 +22,7 @@ import { DocumentosDemo } from './documentos-demo'
 import { modoPilotoDemo } from './piloto-estado'
 import type { GuiaFila } from '@/domain/guias-busqueda'
 import { estadoDePreGuia, numeroDePreGuia, type PreGuiaVista } from '@/domain/pre-guia'
-import type { RepositorioDocumentacion } from '../repositorio-documentacion'
+import type { IntercambioNumero, RepositorioDocumentacion } from '../repositorio-documentacion'
 import type { Actor, ResultadoAccion } from '../repositorio'
 
 const guias = (e: EstadoDemo) => (desp(e).guias ??= [])
@@ -277,7 +277,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     return (m[k] ??= { ultimo: 0, confirmado: false, numeros: [] })
   }
 
-  async reservarNumeroGuia(serie: string, entorno: ModoNubefact, salidaId: string): Promise<ResultadoAccion<{ numero: number; reintento: boolean }>> {
+  async reservarNumeroGuia(serie: string, entorno: ModoNubefact, salidaId: string): Promise<ResultadoAccion<{ numero: number; reintento: boolean; intercambio?: IntercambioNumero }>> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const k = serie.trim().toUpperCase()
     const n = this.numeracionDe(e, k)
@@ -287,14 +287,20 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const propia = n.numeros.find((x) => x.estado === 'RESERVADO' && x.preGuia && x.salidaId === salidaId)
     if (propia) {
       // 0055: Nubefact exige correlativo seguido. Si otra pre-guía sin enviar tiene un número menor, intercambian números (ninguno se pierde).
-      const menor = n.numeros.filter((x) => x.estado === 'RESERVADO' && x.preGuia && x !== propia).sort((a, b) => a.numero - b.numero)[0]
-      if (menor && menor.numero < propia.numero) {
+      // 0065: una pre-guía con un intento de envío anotado no se intercambia (el envío pudo llegar a Nubefact)
+      const marca = (x: unknown) => (x as { enviado?: boolean }).enviado === true
+      const menor = n.numeros.filter((x) => x.estado === 'RESERVADO' && x.preGuia && x !== propia && !marca(x)).sort((a, b) => a.numero - b.numero)[0]
+      let intercambio: IntercambioNumero | undefined
+      if (menor && menor.numero < propia.numero && !marca(propia)) {
         const mio = propia.numero
+        const anteriorOtra = menor.numero
         propia.numero = menor.numero
         menor.numero = mio
         ;(menor as { detalle?: string }).detalle = `Su número pasó de ${propia.numero} a ${mio}: otra pre-guía se envió antes y Nubefact pide números seguidos.`
+        intercambio = { salidaIdOtra: menor.salidaId!, numeroAnteriorOtra: anteriorOtra, numeroNuevoOtra: mio, miNumeroAnterior: mio, miNumeroNuevo: propia.numero }
       }
-      return { ok: true, numero: propia.numero, reintento: false }
+      ;(propia as { enviado?: boolean }).enviado = true      // se va a llamar a Nubefact: el envío se consulta antes de repetirlo
+      return { ok: true, numero: propia.numero, reintento: true, intercambio }
     }
     const abierto = n.numeros.find((x) => x.estado === 'RESERVADO' && !x.preGuia)
     if (abierto) {
@@ -312,6 +318,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const e = estadoE(); await this.sembrarDespacho(e)
     const x = this.numeracionDe(e, serie)?.numeros.find((y) => y.numero === numero)
     if (x?.estado === 'RESERVADO' && !x.preGuia) x.estado = 'LIBERADO'      // 0055: el número de una pre-guía no se libera
+    else if (x?.estado === 'RESERVADO' && x.preGuia) (x as { enviado?: boolean }).enviado = false      // 0065: Nubefact no la recibió: se borra el intento
     return { ok: true }
   }
 

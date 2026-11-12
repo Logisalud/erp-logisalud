@@ -153,22 +153,24 @@ export class SalidaManualDemo extends LiberacionDemo implements RepositorioSalid
     const pre = await this.preGuiaDe(salidaId)
     if (pre && pre.estado !== 'CANCELADA' && pre.estado !== 'ENVIADA') await this.cancelarPreGuia(salidaId, `Ya no sale: ${mot}`)
     // 2. en una ruta que todavía no sale, el pedido queda marcado «anulado»
-    if (rutaDe && ['LISTA_PARA_CARGA', 'LIBERADA'].includes(rutaDe.estado)) {
+    if (rutaDe && ['PLANIFICADA', 'LISTA_PARA_CARGA', 'LIBERADA'].includes(rutaDe.estado)) {
       const carga = ((desp(e).carga ??= {})[rutaDe.id] ??= { cargados: [], exclusiones: [] })
       if (!carga.exclusiones.some((x) => x.salidaId === s.id)) carga.exclusiones.push({ salidaId: s.id, motivo: `Ya no sale: ${mot}`, por: actor.nombre, en: ahora(), tipo: 'ANULADO' })
+      for (const p of rutaDe.paradas) if (p.activa && p.salidaId === s.id) p.activa = false      // sale del plan; la fila se sigue mostrando, marcada
     }
     // 3. lo que nadie pickeó se libera; lo pickeado queda por devolver, con verificación de otra persona
     s.rehacerAlCancelar = rehacer
     let liberadas = 0, porDevolver = 0
     for (const l of s.lineas.filter((x) => x.estado !== 'CANCELADA')) { const r = soltarLineaDemo(e, l, null, 'PEDIDO_CANCELADO', undefined); liberadas += r.liberadas; porDevolver += r.porDevolver }
-    if (porDevolver === 0) cancelarSalidaPorPedido(e, s, `Ya no sale: ${mot}`, actor)
+    const otrasDevoluciones = (desp(e).devoluciones ?? []).some((d) => d.salidaId === s.id && d.estado !== 'VERIFICADA')
+    if (porDevolver === 0 && !otrasDevoluciones) cancelarSalidaPorPedido(e, s, `Ya no sale: ${mot}`, actor)
     else {
       s.cancelacionPendiente = true; s.motivoCancelacion = `Ya no sale: ${mot}`
       alertar(e, 'DEVOLUCION_PICKING', 'jefe_almacen', `La orden ${s.numero} ya no sale: tiene ${porDevolver} unidades ya picadas por devolver a su ubicación. El auxiliar las devuelve y otra persona lo verifica; después la orden se cancela sola.`, `devolucion:${s.id}`)
     }
     if (!rehacer) alertar(e, 'PEDIDO_CANCELADO', 'jefe_transporte', `El pedido ${s.pedidoNumero ?? '—'} ya no sale (orden ${s.numero}): avisa al área comercial para que lo cancele en Pedidos. Motivo: ${mot}`, `ya-no-sale:${s.id}`)
     registrar(e, actor, 'ya_no_sale', 'salidas', s.numero, `Orden ${s.numero}: ya no sale`, mot)
-    return { ok: true, cancelada: porDevolver === 0, porDevolver, preGuia: pre && pre.estado !== 'CANCELADA' && pre.estado !== 'ENVIADA' ? pre.numeroCompleto : undefined }
+    return { ok: true, cancelada: (s.estado as string) === 'CANCELADA', porDevolver, preGuia: pre && pre.estado !== 'CANCELADA' && pre.estado !== 'ENVIADA' ? pre.numeroCompleto : undefined }
   }
 
   async cancelarOrden(salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {

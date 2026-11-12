@@ -26,6 +26,12 @@ describe('aviso a quien factura', () => {
     const t = textoAvisoGuia(c)
     expect(t).toContain('NO factures'); expect(t).toContain('Motivo: El cliente canceló'); expect(t).not.toContain('Productos y lotes')
   })
+  it('si dos pre-guías intercambian números, el aviso dice el anterior y el nuevo y que se use el nuevo', () => {
+    const c = d({ evento: 'NUMERO_CAMBIADO', guiaNumero: 'TTT1-00000001', numeroAnterior: 'TTT1-00000002' })
+    expect(asuntoAvisoGuia(c)).toBe('Pedido PED-502: la guía cambió de número (TTT1-00000002 → TTT1-00000001): usa el nuevo')
+    const t = textoAvisoGuia(c)
+    expect(t).toContain('cambió de TTT1-00000002 a TTT1-00000001'); expect(t).toContain('Número anterior: TTT1-00000002')
+  })
   it('guía registrada a mano en el panel: dice que ya está registrada', () => {
     expect(textoAvisoGuia(d({ evento: 'GUIA_REGISTRADA' }))).toContain('ya está registrada')
   })

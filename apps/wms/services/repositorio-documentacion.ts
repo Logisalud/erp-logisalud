@@ -6,6 +6,9 @@ import type { EstadoCorrelativo } from '@/domain/numeracion-guias'
 import type { Actor, ResultadoAccion } from './repositorio'
 
 /** S6b + OS-3: guía de remisión (electrónica con Nubefact, a mano o la GRE del cliente) y paquete documental de una salida. */
+/** 0065: al enviar una pre-guía fuera de orden, dos pre-guías intercambian números (Nubefact pide correlativo seguido): hay que avisarle a quien factura el número nuevo de las dos órdenes. */
+export interface IntercambioNumero { salidaIdOtra: string; numeroAnteriorOtra: number; numeroNuevoOtra: number; miNumeroAnterior: number; miNumeroNuevo: number }
+
 export interface RepositorioDocumentacion {
   /** Los lotes que salen, lo que pide el cliente de cada uno, la guía vigente y las anuladas. */
   paqueteSalida(salidaId: string): Promise<PaqueteSalida | null>
@@ -36,7 +39,7 @@ export interface RepositorioDocumentacion {
    * Reserva el número de la próxima guía de la serie, de forma atómica (D-162): una sola guía en curso por serie, y una guía REAL no se reserva hasta que alguien confirme el
    * correlativo inicial. `reintento`: ese número ya estaba reservado para esta misma orden (un envío anterior no terminó): se pregunta a Nubefact antes de volver a enviar.
    */
-  reservarNumeroGuia(serie: string, entorno: ModoNubefact, salidaId: string): Promise<ResultadoAccion<{ numero: number; reintento: boolean }>>
+  reservarNumeroGuia(serie: string, entorno: ModoNubefact, salidaId: string): Promise<ResultadoAccion<{ numero: number; reintento: boolean; intercambio?: IntercambioNumero }>>
   /** Nubefact no recibió la guía: el número queda libre y la siguiente guía lo usa primero (la API no admite saltos). */
   liberarNumeroGuia(serie: string, numero: number, motivo?: string): Promise<ResultadoAccion>
   /** «Ya existe»: alguien emitió ese número desde el panel de Nubefact; se da por usado y se sigue con el siguiente. */

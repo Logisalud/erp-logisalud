@@ -70,6 +70,8 @@ export interface ParadaVista {
 export interface VersionRuta { version: number; en: string; por: string; motivo: string; paradas: number }
 
 export interface RutaVista {
+  /** 0065: los pedidos que salieron del plan por «anulado», «reprogramado» o «fuera de la salida». No cuentan en la ruta, pero la hoja de la ruta los muestra marcados (nada se borra). */
+  excluidas?: ParadaVista[]
   id: string
   numero: string
   fecha: string

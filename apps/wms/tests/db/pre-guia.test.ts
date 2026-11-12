@@ -46,13 +46,16 @@ describe('0055 · pre-guía', () => {
     const antes = (await q(`select numero from wms.guia_numeros where pre_guia and estado = 'RESERVADO' and not archivado order by numero`)).map((r) => r.numero as number)
     const menor = antes[0]
     expect(pb.numero).toBeGreaterThan(menor)
-    expect(await reservarEnvio(b)).toEqual({ numero: menor, reintento: false })   // sale primero b: toma el número que sigue
+    const envio = await reservarEnvio(b)
+    expect(envio).toMatchObject({ numero: menor, reintento: true, intercambio: { numero_anterior: menor, numero_nuevo: pb.numero, mi_numero_anterior: pb.numero, mi_numero_nuevo: menor } })   // sale primero b: toma el número que sigue
+    // el intento queda anotado: ya no se intercambia (el envío pudo llegar a Nubefact) y se consulta antes de repetirlo
+    expect((await uno(`select enviado_en is not null as marcado from wms.guia_numeros where serie = 'TTT1' and numero = $1 and not archivado`, [menor])).marcado).toBe(true)
     const despues = (await q(`select numero from wms.guia_numeros where pre_guia and estado = 'RESERVADO' and not archivado order by numero`)).map((r) => r.numero as number)
     expect(despues).toEqual(antes)   // los mismos números siguen reservados: solo cambiaron de dueño
     const quien = await uno(`select salida_id, detalle from wms.guia_numeros where serie = 'TTT1' and numero = $1 and not archivado`, [pb.numero])
     expect(quien.detalle).toMatch(/pasó de/)
     expect((await uno(`select count(*)::int n from wms.audit_events where evento = 'pre_guia_numero_intercambiado'`)).n).toBeGreaterThanOrEqual(1)
-    expect(await reservarEnvio(b)).toEqual({ numero: menor, reintento: false })   // repetir es lo mismo
+    expect(await reservarEnvio(b)).toMatchObject({ numero: menor, reintento: true, intercambio: null })   // repetir es lo mismo, pero se pregunta a Nubefact antes de volver a enviar
     const libre = await reservarEnvio(sinPre)
     expect(libre.reintento).toBe(false); expect(libre.numero).toBeGreaterThan(Math.max(...antes))
   })

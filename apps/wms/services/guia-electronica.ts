@@ -56,6 +56,12 @@ export async function emitirGuiaElectronica(salidaId: string, traslado: Traslado
     const res = await repo.reservarNumeroGuia(datos.serie, cliente.modo, salidaId)
     if (!res.ok) return falla(res.mensaje)
     const numero = res.numero
+    // dos pre-guías intercambiaron números: quien factura recibe el número nuevo de las dos órdenes (el aviso anterior ya no vale)
+    if (res.intercambio) {
+      const x = res.intercambio
+      await avisarGuia('NUMERO_CAMBIADO', salidaId, numeroConSerie(datos.serie, x.miNumeroNuevo), undefined, numeroConSerie(datos.serie, x.miNumeroAnterior))
+      await avisarGuia('NUMERO_CAMBIADO', x.salidaIdOtra, numeroConSerie(datos.serie, x.numeroNuevoOtra), undefined, numeroConSerie(datos.serie, x.numeroAnteriorOtra))
+    }
     if (res.reintento) {
       // un envío anterior no terminó: ¿Nubefact ya tiene esa guía?
       const previa = await cliente.consultarGuia(construirConsulta(datos.serie, numero))

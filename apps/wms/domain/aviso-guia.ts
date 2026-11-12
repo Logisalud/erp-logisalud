@@ -1,7 +1,7 @@
 // Aviso por correo a quien factura (decisión de Sebas, 11-nov-2026): «la guía de este pedido ya está lista, puedes facturar» cuando se crea la pre-guía (con su número reservado) y
 // «NO factures» si esa pre-guía se cancela porque el pedido ya no sale. Puro: arma el asunto y el cuerpo; el envío está en services/correo.
 
-export type EventoAvisoGuia = 'PRE_GUIA' | 'GUIA_REGISTRADA' | 'CANCELADA'
+export type EventoAvisoGuia = 'PRE_GUIA' | 'GUIA_REGISTRADA' | 'CANCELADA' | 'NUMERO_CAMBIADO'
 
 export interface LineaAvisoGuia { producto: string; lote: string; cantidad: number }
 
@@ -18,6 +18,8 @@ export interface DatosAvisoGuia {
   lineas?: LineaAvisoGuia[]
   /** Solo al cancelar: por qué ya no sale. */
   motivo?: string
+  /** Solo si el número cambió (dos pre-guías intercambiaron números porque Nubefact pide números seguidos): el que se había avisado antes. */
+  numeroAnterior?: string
   /** En el piloto las guías son de prueba: el aviso lo dice en el asunto. */
   piloto: boolean
 }
@@ -28,11 +30,13 @@ export function asuntoAvisoGuia(d: DatosAvisoGuia): string {
   const pedido = d.pedidoNumero ?? d.ordenNumero
   const marca = d.piloto ? '[PILOTO] ' : ''
   if (d.evento === 'CANCELADA') return `${marca}Guía ${d.guiaNumero} cancelada · pedido ${pedido}: NO factures`
+  if (d.evento === 'NUMERO_CAMBIADO') return `${marca}Pedido ${pedido}: la guía cambió de número (${d.numeroAnterior ?? '—'} → ${d.guiaNumero}): usa el nuevo`
   return `${marca}Guía ${d.guiaNumero} lista · pedido ${pedido}: ya puede facturar`
 }
 
 /** La frase principal del aviso. */
 export function titularAvisoGuia(d: DatosAvisoGuia): string {
+  if (d.evento === 'NUMERO_CAMBIADO') return `${d.piloto ? 'PILOTO: aviso de prueba. ' : ''}El número de la guía de este pedido cambió de ${d.numeroAnterior ?? '—'} a ${d.guiaNumero}: usa el nuevo. Nubefact pide números seguidos y otra guía se envió antes.`
   if (d.piloto) return d.evento === 'CANCELADA' ? 'PILOTO: aviso de prueba, no hay nada que cancelar.' : 'PILOTO: esta guía es de prueba, no factures.'
   if (d.evento === 'CANCELADA') return 'Este pedido ya no sale: NO factures. La guía quedó cancelada.'
   if (d.evento === 'GUIA_REGISTRADA') return 'La guía de este pedido ya está registrada: puedes facturar.'
@@ -47,6 +51,7 @@ export function lineasDeDatos(d: DatosAvisoGuia): { etiqueta: string; valor: str
     { etiqueta: 'Cliente', valor: [d.cliente, d.ruc ? `RUC ${d.ruc}` : ''].filter(Boolean).join(' · ') || '—' },
     { etiqueta: 'Guía de remisión', valor: d.guiaNumero },
     ...(d.bultos ? [{ etiqueta: 'Bultos', valor: String(d.bultos) }] : []),
+    ...(d.evento === 'NUMERO_CAMBIADO' ? [{ etiqueta: 'Número anterior', valor: d.numeroAnterior ?? '—' }] : []),
     ...(d.evento === 'CANCELADA' && d.motivo ? [{ etiqueta: 'Motivo', valor: d.motivo }] : []),
   ]
 }
