@@ -27,6 +27,9 @@ interface Fila {
   fecha_ingreso: string | null;
   estado: 'en_factoring' | 'ingresada' | 'anulada';
   dias_en_factoring: number;
+  pagado_al_factor: boolean;
+  fecha_pago_al_factor: string | null;
+  dias_atraso_al_factor: number | null;
 }
 
 interface ClienteBuscado {
@@ -222,6 +225,7 @@ export default function ReporteFactoringPage() {
                   <th className="px-3 py-2.5 text-left">Estado</th>
                   <th className="px-3 py-2.5 text-left">F. ingreso</th>
                   <th className="px-3 py-2.5 text-right">Días</th>
+                  <th className="px-3 py-2.5 text-left">Pagó al factor</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -250,6 +254,19 @@ export default function ReporteFactoringPage() {
                     </td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{fmtFechaOpcional(f.fecha_ingreso)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-600">{f.dias_en_factoring}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {f.estado !== 'ingresada' ? (
+                        <span className="text-gray-300">—</span>
+                      ) : f.pagado_al_factor ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                          Sí{f.fecha_pago_al_factor ? ` · ${fmtFecha(f.fecha_pago_al_factor)}` : ''}
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                          No{f.dias_atraso_al_factor ? ` · ${f.dias_atraso_al_factor} d` : ''}
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

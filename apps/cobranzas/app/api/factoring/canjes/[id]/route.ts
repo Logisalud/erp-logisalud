@@ -21,7 +21,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json() as {
     anulado_motivo?: string;
     vencimientos?: Array<{ documento_id: string; fecha_vencimiento: string | null }>;
+    pagos_al_factor?: Array<{ documento_id: string; pagado: boolean; fecha_pago: string | null }>;
+    registrado_por?: string;
   };
+
+  // Marcar que el cliente ya le pagó a la entidad. Es anotar un hecho, no
+  // deshacer una operación, así que alcanza con permiso de escritura — igual
+  // que los vencimientos, y a diferencia de la anulación.
+  if (Array.isArray(body.pagos_al_factor)) {
+    const auth = await exigirArea(AREAS_ESCRITURA);
+    if (!auth.ok) return auth.respuesta;
+    return guardarPagosAlFactor(params.id, body.pagos_al_factor, body.registrado_por ?? null);
+  }
 
   if (Array.isArray(body.vencimientos)) {
     const auth = await exigirArea(AREAS_ESCRITURA);
@@ -134,6 +145,58 @@ async function anularIngresosDelCanje(
   if (errUpd) return { error: errUpd.message, status: 500 };
 
   return { ingresos: vigentes.length, pagos: pagoIds.length };
+}
+
+/**
+ * El tramo que sigue después de que cobramos del factor: el cliente le paga
+ * —o no— a la entidad.
+ *
+ * No toca saldos. La factura ya quedó en cero cuando entró la plata del
+ * factor, y que el cliente le pague o no al factor no cambia lo que el
+ * cliente nos debe a NOSOTROS. Si el factor devolviera la factura, eso se
+ * resuelve anulando el canje (que desde nov-2026 anula también el ingreso),
+ * no con un estado más acá.
+ */
+async function guardarPagosAlFactor(
+  canjeId: string,
+  pagos: Array<{ documento_id: string; pagado: boolean; fecha_pago: string | null }>,
+  registradoPor: string | null,
+) {
+  const db = supabaseAdmin();
+
+  const { data: filas, error: errFilas } = await db
+    .from('factoring_canje_facturas')
+    .select('id, documento_id')
+    .eq('canje_id', canjeId);
+  if (errFilas) return NextResponse.json({ error: errFilas.message }, { status: 500 });
+  if (!filas?.length) return NextResponse.json({ error: 'El canje no tiene facturas' }, { status: 404 });
+
+  const filaPorDocumento = new Map(filas.map(f => [f.documento_id as string, f.id as string]));
+
+  for (const p of pagos) {
+    if (!filaPorDocumento.has(p.documento_id))
+      return NextResponse.json({ error: 'Esa factura no es de este canje' }, { status: 400 });
+    // Un "pagado" sin cuándo no sirve para hacer seguimiento, y la base lo
+    // rechaza igual (chk_pago_al_factor_con_fecha). Mejor decirlo acá.
+    if (p.pagado && !ES_FECHA.test(p.fecha_pago ?? ''))
+      return NextResponse.json({ error: 'Indicá la fecha en que el cliente le pagó al factor' }, { status: 400 });
+  }
+
+  const ahora = new Date().toISOString();
+  for (const p of pagos) {
+    const { error } = await db
+      .from('factoring_canje_facturas')
+      .update({
+        pagado_al_factor: p.pagado,
+        fecha_pago_al_factor: p.pagado ? p.fecha_pago : null,
+        pago_al_factor_registrado_por: p.pagado ? (registradoPor?.trim() || null) : null,
+        pago_al_factor_en: p.pagado ? ahora : null,
+      })
+      .eq('id', filaPorDocumento.get(p.documento_id)!);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, actualizadas: pagos.length });
 }
 
 async function guardarVencimientos(

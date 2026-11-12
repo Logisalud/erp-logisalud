@@ -201,6 +201,15 @@ export interface FilaReporteFactoringCompleto {
   fecha_ingreso: string | null;
   estado: 'en_factoring' | 'ingresada' | 'anulada';
   dias_en_factoring: number;
+  /**
+   * El tramo que sigue después de que cobramos: el cliente le paga —o no—
+   * a la entidad. No afecta el saldo de la factura (ya está en cero), pero
+   * si el cliente no paga, el factor vuelve sobre nosotros.
+   */
+  pagado_al_factor: boolean;
+  fecha_pago_al_factor: string | null;
+  /** Días de atraso contra el vencimiento del factoring, si sigue sin pagar. */
+  dias_atraso_al_factor: number | null;
 }
 
 export interface FiltrosReporteFactoring {
@@ -236,9 +245,12 @@ export async function construirReporteFactoringCompleto(
   if (canjes.length === 0) return [];
 
   const canjeIds = canjes.map(c => c.id);
-  const canjeFacturas = await fetchAll<{ canje_id: string; documento_id: string; monto_canje: number; fecha_vencimiento: string | null }>(
+  const canjeFacturas = await fetchAll<{
+    canje_id: string; documento_id: string; monto_canje: number; fecha_vencimiento: string | null;
+    pagado_al_factor: boolean; fecha_pago_al_factor: string | null;
+  }>(
     (from, to) => db.from('factoring_canje_facturas')
-      .select('canje_id, documento_id, monto_canje, fecha_vencimiento')
+      .select('canje_id, documento_id, monto_canje, fecha_vencimiento, pagado_al_factor, fecha_pago_al_factor')
       .in('canje_id', canjeIds).order('id').range(from, to)
   );
   const documentoIds = Array.from(new Set(canjeFacturas.map(cf => cf.documento_id)));
@@ -297,6 +309,13 @@ export async function construirReporteFactoringCompleto(
       fecha_canje: canje.fecha_canje,
       fecha_vencimiento: cf.fecha_vencimiento,
       fecha_vencimiento_factura: factura.fecha_vencimiento,
+      pagado_al_factor: !!cf.pagado_al_factor,
+      fecha_pago_al_factor: cf.fecha_pago_al_factor,
+      // Solo cuenta atraso mientras siga sin pagar y haya contra qué medirlo.
+      dias_atraso_al_factor:
+        !cf.pagado_al_factor && cf.fecha_vencimiento && estado === 'ingresada'
+          ? Math.max(0, Math.floor((hoy.getTime() - new Date(cf.fecha_vencimiento).getTime()) / 86400000))
+          : null,
       monto: Number(cf.monto_canje) || 0,
       retencion: retencionPorDocumento.get(cf.documento_id) ?? 0,
       fecha_ingreso: ingreso?.fecha_ingreso ?? null,

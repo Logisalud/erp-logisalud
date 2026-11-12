@@ -46,6 +46,11 @@ export async function GET(req: NextRequest) {
       'Estado':                 ESTADO_LABEL[f.estado] ?? f.estado,
       'Fecha de Ingreso':       fmtFechaOpcional(f.fecha_ingreso),
       'Días en Factoring':      f.dias_en_factoring,
+      // El tramo de después: nosotros ya cobramos del factor, el cliente le
+      // debe a la entidad. Si no le paga, el factor vuelve sobre nosotros.
+      'Pagó al Factor':         f.estado === 'ingresada' ? (f.pagado_al_factor ? 'Sí' : 'No') : '',
+      'Fecha Pago al Factor':   fmtFechaOpcional(f.fecha_pago_al_factor),
+      'Días de Atraso al Factor': f.dias_atraso_al_factor ?? '',
     }));
 
     const wb = XLSX.utils.book_new();
@@ -53,6 +58,7 @@ export async function GET(req: NextRequest) {
     ws['!cols'] = [
       { wch: 16 }, { wch: 13 }, { wch: 38 }, { wch: 22 }, { wch: 15 },
       { wch: 20 }, { wch: 19 }, { wch: 17 }, { wch: 14 }, { wch: 13 }, { wch: 16 }, { wch: 17 },
+      { wch: 14 }, { wch: 20 }, { wch: 22 },
     ];
     const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
     ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
