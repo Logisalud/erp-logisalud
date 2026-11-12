@@ -141,6 +141,17 @@ usa `@logisalud/design-system` como preset de Tailwind acá).
 - `digemid_zona_vendedor`: PK `codigo_zona`, tabla de una sola fila por zona
   → vendedor. Es la que hay que actualizar para que clientes NUEVOS o
   reasignados de esa zona caigan en el vendedor correcto vía el trigger.
+- **Factoring: hay dos generaciones de tablas y solo una está viva.** El
+  flujo real es `factoring_canjes` + `factoring_canje_facturas` (el canje) y
+  `factoring_ingresos` + `factoring_ingreso_facturas` (el ingreso al banco,
+  que crea un pago real por factura y guarda su `pago_id`). Las tablas
+  `factoring_facturas` + `factoring_operaciones` son de la primera versión y
+  quedaron con **una sola fila huérfana**: `v_saldos.factorizado` sale de
+  ahí, así que hoy es `false` en las 3.012 filas. **No lo uses para saber si
+  una factura está en factoring** — ya dejó la pestaña de Factoring del link
+  del vendedor vacía una vez (nov-2026). Para eso se cruza contra
+  `factoring_canje_facturas`, descartando el canje anulado y pidiendo que
+  tenga un ingreso no anulado.
 - `letras`: letras de cambio, con estado propio
   (`en_cartera`/`en_banco`/`pagada`/`protestada`). No pasan por
   `estado_verificacion`. **Casi** independientes de `pagos`: marcar una letra
