@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
 interface FacturaAFavor {
   id: string; comprobante: string; fecha_emision: string;
@@ -103,7 +103,7 @@ export default function SaldosAFavorPage() {
 
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[900px]">
+                <table className="w-full text-sm min-w-[760px]">
                   <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
                     <tr>
                       <th className="px-4 py-2.5 text-left">Cliente</th>
@@ -125,42 +125,39 @@ export default function SaldosAFavorPage() {
                       const abierta = abierto === c.cliente_ruc;
                       const debemos = c.neto < -0.09;
                       return (
-                        <tr key={c.cliente_ruc} className="align-top">
-                          <td colSpan={7} className="p-0">
-                            <div className="flex items-center hover:bg-gray-50 cursor-pointer"
-                              onClick={() => setAbierto(abierta ? null : c.cliente_ruc)}>
-                              <div className="px-4 py-2.5 flex-1 min-w-0">
-                                <p className="font-semibold text-gray-800 truncate">{c.razon_social}</p>
-                                <p className="text-xs text-gray-400">{c.cliente_ruc}</p>
-                              </div>
-                              <div className="px-4 py-2.5 w-48 text-xs text-gray-500 truncate">
-                                {c.vendedor_nombre ?? 'Sin vendedor'}
-                              </div>
-                              <div className="px-4 py-2.5 w-32 text-right tabular-nums font-semibold text-gray-800">{fmt(c.a_favor)}</div>
-                              <div className="px-4 py-2.5 w-32 text-right tabular-nums text-gray-500">{fmt(c.deuda)}</div>
-                              <div className="px-4 py-2.5 w-36 text-right tabular-nums font-semibold"
-                                style={{ color: debemos ? '#c0392b' : '#4BB168' }}>
-                                {debemos ? `−${fmt(-c.neto)}` : fmt(c.neto)}
-                              </div>
-                              {/* Sin esta columna la tabla se lee al revés: un
-                                  neto POSITIVO en una pantalla titulada "a
-                                  quién le debemos" parece plata nuestra a
-                                  pagar, y es lo contrario — el cliente tiene
-                                  saldo a favor, pero su propia deuda se lo
-                                  come y todavía nos debe la diferencia. */}
-                              <div className="px-4 py-2.5 w-36">
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                  debemos ? 'bg-red-100 text-red-700'
-                                  : c.neto > 0.09 ? 'bg-green-100 text-green-700'
-                                  : 'bg-gray-100 text-gray-500'
-                                }`}>
-                                  {debemos ? 'Le debemos' : c.neto > 0.09 ? 'Nos debe' : 'Compensado'}
-                                </span>
-                              </div>
-                              <div className="px-3 py-2.5 w-10 text-gray-300 text-xs">{abierta ? '▲' : '▼'}</div>
-                            </div>
-                            {abierta && (
-                              <div className="bg-gray-50 border-t border-gray-100 px-4 py-3">
+                        <Fragment key={c.cliente_ruc}>
+                          <tr className="hover:bg-gray-50 cursor-pointer"
+                            onClick={() => setAbierto(abierta ? null : c.cliente_ruc)}>
+                            <td className="px-4 py-2.5">
+                              <p className="font-semibold text-gray-800">{c.razon_social}</p>
+                              <p className="text-xs text-gray-400">{c.cliente_ruc}</p>
+                            </td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500">{c.vendedor_nombre ?? 'Sin vendedor'}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-800 whitespace-nowrap">{fmt(c.a_favor)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmt(c.deuda)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap"
+                              style={{ color: debemos ? '#c0392b' : '#4BB168' }}>
+                              {debemos ? `−${fmt(-c.neto)}` : fmt(c.neto)}
+                            </td>
+                            {/* Sin esta columna la tabla se lee al revés: un neto
+                                POSITIVO en una pantalla titulada "a quién le
+                                debemos" parece plata nuestra a pagar, y es lo
+                                contrario — el cliente tiene saldo a favor, pero su
+                                propia deuda se lo come y todavía nos debe. */}
+                            <td className="px-4 py-2.5 whitespace-nowrap">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                debemos ? 'bg-red-100 text-red-700'
+                                : c.neto > 0.09 ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-100 text-gray-500'
+                              }`}>
+                                {debemos ? 'Le debemos' : c.neto > 0.09 ? 'Nos debe' : 'Compensado'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-gray-300 text-xs">{abierta ? '▲' : '▼'}</td>
+                          </tr>
+                          {abierta && (
+                            <tr>
+                              <td colSpan={7} className="bg-gray-50 border-t border-gray-100 px-4 py-3">
                                 <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">
                                   Saldo a favor — de dónde sale
                                 </p>
@@ -238,10 +235,10 @@ export default function SaldosAFavorPage() {
                                   className="inline-block mt-3 text-xs" style={{ color: '#4ABCC2' }}>
                                   Ver el estado de cuenta completo →
                                 </a>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                     {visibles.length === 0 && (
