@@ -28,7 +28,7 @@ async function persona(rol: string): Promise<string> {
 }
 async function parada(n: number): Promise<string> {
   const pd = (await uno(`insert into wms.pedidos_despacho (pedido_id, version, numero, fecha, cliente_id, cliente_nombre, cliente_ruc, snapshot, cambios, vigente, importado_por)
-    values ($1, 1, $1, current_date, 'c1', $2, null, $3::jsonb, '{}', true, $4) returning id`, [`mr-${n}-${randomUUID().slice(0, 4)}`, `Botica ${n} SAC`, JSON.stringify({ cliente: { direccion: `Av. Prueba ${n}`, distrito: 'Lima' }, lineas: [{ cantidad: 10 }] }), jt])).id
+    values ($1, 1, $1, current_date, 'c1', $2, null, $3::jsonb, '{}', true, $4) returning id`, [`mr-${n}-${randomUUID().slice(0, 4)}`, `Botica ${n} SAC`, JSON.stringify({ cliente: { direccion: `Av. Prueba ${n}`, distrito: 'Lima', telefono: '995021257' }, vendedor: 'Cintya Vilchez', condicionPago: 'CREDITO', lineas: [{ cantidad: 10 }] }), jt])).id
   const pedidoId = (await uno('select pedido_id from wms.pedidos_despacho where id = $1', [pd])).pedido_id
   return (await uno(`insert into wms.ruta_paradas (ruta_id, secuencia, pedido_id, pedido_despacho_id) values ($1, $2, $3, $4) returning id`, [ruta, n, pedidoId, pd])).id
 }
@@ -55,6 +55,22 @@ describe('Mis rutas', () => {
     expect(await mias(ajeno)).toEqual([])
     expect(Number((await como(conductor, (c) => c.query('select count(*)::int n from wms.saldos'))).rows[0].n)).toBe(0)   // no lee el inventario (RLS)
     expect((await falla(mias(base.personas.charlie.id))).code).toBe('42501')
+  })
+  it('trae lo que el transportista necesita para iniciar la ruta: teléfono, representante, forma de pago, condición y guía (0062)', async () => {
+    const r = (await como(conductor, async (c) => (await c.query('select wms.mis_rutas_del_dia() r')).rows[0].r)) as { paradas: Record<string, unknown>[] }[]
+    expect(r[0].paradas[0]).toMatchObject({ telefono: '995021257', representante: 'Cintya Vilchez', forma_pago: 'CREDITO' })
+    expect(Object.keys(r[0].paradas[0])).toEqual(expect.arrayContaining(['condicion', 'guia', 'telefono', 'representante', 'forma_pago']))
+    // re-ejecutar la migración no duplica nada
+    await base.admin.query(await (await import('node:fs/promises')).readFile('supabase/migrations/0062_wms_mis_rutas_con_los_datos_de_la_ruta_interna.sql', 'utf8'))
+    expect((await uno(`select (length(pg_get_functiondef(p.oid)) - length(replace(pg_get_functiondef(p.oid), '''representante''', ''))) / length('''representante''') n from pg_proc p where p.pronamespace = 'wms'::regnamespace and p.proname = 'mis_rutas_del_dia'`)).n).toBe(1)
+  })
+  it('el Jefe de Transporte ve la ruta como la ve el transportista (solo lectura, antes de salir); el conductor y quien no es de transporte, no (0063)', async () => {
+    const r = (await como(jt, async (c) => (await c.query('select wms.ruta_como_la_ve_el_transportista($1) r', [ruta])).rows[0].r)) as { numero: string; conductor: string; paradas: Record<string, unknown>[] }
+    expect(r).toMatchObject({ numero: 'RUT-TEST-1', conductor: 'Luis Prueba' })
+    expect(r.paradas.map((p) => p.cliente)).toEqual(['Botica 1 SAC', 'Botica 2 SAC'])
+    expect(r.paradas[0]).toMatchObject({ telefono: '995021257', representante: 'Cintya Vilchez', forma_pago: 'CREDITO' })
+    expect((await falla(como(conductor, (c) => c.query('select wms.ruta_como_la_ve_el_transportista($1)', [ruta])))).code).toBe('42501')
+    expect((await falla(como(base.personas.sinRol.id, (c) => c.query('select wms.ruta_como_la_ve_el_transportista($1)', [ruta])))).code).toBe('42501')
   })
   it('llegué → entregado con quién recibió (nombre y DNI) y la foto; el orden y las reglas se aplican en la base', async () => {
     expect((await falla(evento(conductor, p1, 'ENTREGADO', entrega))).message).toMatch(/Primero marca «Llegué»/)

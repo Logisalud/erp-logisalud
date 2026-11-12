@@ -1,7 +1,7 @@
 // Fase 4 · P4: reglas puras de «Mis rutas» (espejo de wms.registrar_evento_parada, migración 0043).
 import { describe, expect, it } from 'vitest'
 import { construirMenu } from '@/domain/menu'
-import { datosParaLsFr, estadoDeParada, eventosPosibles, motivoNoSePuede, puedeFotografiarPedido, puedeVerMisRutas, soloMisRutas, todasResueltas, validarEventoParada, validarFoto, type EventoParadaVista } from '@/domain/mis-rutas'
+import { datosParaLsFr, quedoSinEntregar, estadoDeParada, eventosPosibles, motivoNoSePuede, puedeFotografiarPedido, puedeVerMisRutas, soloMisRutas, todasResueltas, validarEventoParada, validarFoto, type EventoParadaVista } from '@/domain/mis-rutas'
 import { puede } from '@/domain/permisos'
 
 const ev = (evento: EventoParadaVista['evento'], extra: Partial<EventoParadaVista> = {}): EventoParadaVista => ({ id: evento, evento, hora: '2026-11-05T15:30:00Z', ...extra })
@@ -82,5 +82,16 @@ describe('lo que alimenta el LS-FR.43.03', () => {
     expect(datosParaLsFr([ev('LLEGUE'), ev('ENTREGADO', { recibioNombre: 'María Pérez', recibioDocumento: '12345678', hora: '2026-11-05T16:00:00Z' })])).toEqual({ horaEntrega: '2026-11-05T16:00:00Z', observaciones: 'Recibió María Pérez (DNI 12345678)' })
     expect(datosParaLsFr([ev('NO_ENTREGADO', { motivo: 'Local cerrado' }), ev('INCIDENCIA', { motivo: 'Tráfico' })])).toEqual({ horaEntrega: undefined, observaciones: 'No entregado: Local cerrado · Incidencia: Tráfico' })
     expect(datosParaLsFr([])).toEqual({ horaEntrega: undefined, observaciones: undefined })
+  })
+})
+
+describe('lo que no se entregó no va en la hoja de DIGEMID', () => {
+  it('queda sin entregar quien terminó en «no entregado» o «rechazado»; entregado, en curso o sin eventos, no', () => {
+    const e = (evento: EventoParadaVista['evento']) => ({ id: evento, evento, hora: '2026-11-05T16:00:00Z' }) as EventoParadaVista
+    expect(quedoSinEntregar([e('LLEGUE'), e('NO_ENTREGADO')])).toBe(true)
+    expect(quedoSinEntregar([e('RECHAZADO')])).toBe(true)
+    expect(quedoSinEntregar([e('LLEGUE'), e('ENTREGADO')])).toBe(false)
+    expect(quedoSinEntregar([e('LLEGUE')])).toBe(false)
+    expect(quedoSinEntregar([])).toBe(false)
   })
 })

@@ -20,6 +20,8 @@ export interface ClientePedido {
   coordenadas?: { lat: number; lng: number }
   /** Ventana de cita de entrega, tal como la dio el cliente (texto: «L-V 8:00–12:00»). */
   ventanaCita?: string
+  /** Teléfono del contacto principal del cliente (Pedidos): lo que el transportista llama al llegar. */
+  telefono?: string
   // «Vehículo calificado» ya no se trae de Pedidos (D-153): el Jefe de Transporte decide el vehículo por experiencia. Si un pedido viejo trae el dato, se ignora.
 }
 
@@ -138,7 +140,7 @@ export function validarPedidos(entrada: unknown): { pedidos: PedidoSnapshot[]; d
       modificadoEn: esFecha(crudo.modificadoEn) ? String(crudo.modificadoEn) : String(crudo.fecha).slice(0, 10) + 'T00:00:00Z',
       cliente: {
         id: texto(c.id)!, nombre: texto(c.nombre)!, ruc: texto(c.ruc), direccion: texto(c.direccion), distrito: texto(c.distrito), ubigeo: texto(c.ubigeo), coordenadas: coord,
-        ventanaCita: texto(c.ventanaCita),
+        ventanaCita: texto(c.ventanaCita), telefono: texto(c.telefono),
       },
       vendedor: texto(crudo.vendedor), condicionPago: texto(crudo.condicionPago), factura: texto(crudo.factura), observaciones: texto(crudo.observaciones),
       ...ruteoDe(crudo),
@@ -241,6 +243,7 @@ export interface PedidoBandeja {
   direccion?: string
   distrito?: string
   ventanaCita?: string
+  telefono?: string
   vendedor?: string
   condicionPago?: string
   factura?: string
@@ -354,7 +357,7 @@ export function bandejaDeFila(f: {
   const p = f.snapshot
   return armarBandeja({
     id: f.id, pedidoId: p.pedidoId, numero: p.numero, version: p.version, fecha: p.fecha, clienteId: p.cliente.id, cliente: p.cliente.nombre, ruc: p.cliente.ruc,
-    direccion: p.cliente.direccion, distrito: p.cliente.distrito, ventanaCita: p.cliente.ventanaCita,
+    direccion: p.cliente.direccion, distrito: p.cliente.distrito, ventanaCita: p.cliente.ventanaCita, telefono: p.cliente.telefono,
     vendedor: p.vendedor, condicionPago: p.condicionPago, factura: p.factura, observaciones: p.observaciones,
     lineas: p.lineas.map((l) => ({ ...l, enCatalogo: f.codigosEnCatalogo.has(l.productoCodigo) })),
     estado: p.estado === ESTADO_PEDIDO_CANCELADO ? 'CANCELADO_EN_PEDIDOS' : f.cambioPendiente ? 'CAMBIO_POR_REVISAR' : f.salida ? 'EN_SALIDA' : 'POR_PLANIFICAR',

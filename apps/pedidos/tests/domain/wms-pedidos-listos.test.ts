@@ -226,3 +226,12 @@ describe("ruteo: zona de reparto, orden y día planificado", () => {
     });
   });
 });
+
+describe("teléfono del cliente para la hoja del transportista", () => {
+  it("sale el del contacto principal; sin teléfono, el pedido sale igual", () => {
+    const con = armarRespuestaContrato([base], { ...aux, telefonos: { [base.customer!.id]: " 995021257 " } }, new Date("2026-10-14T12:00:00Z"));
+    expect(con.pedidos[0].cliente.telefono).toBe("995021257");
+    const sin = armarRespuestaContrato([base], aux, new Date("2026-10-14T12:00:00Z"));
+    expect(sin.pedidos[0].cliente.telefono).toBeUndefined();
+  });
+});

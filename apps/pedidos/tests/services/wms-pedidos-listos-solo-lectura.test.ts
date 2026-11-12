@@ -146,6 +146,7 @@ describe("cargarPedidosListosParaWms con un cliente falso", () => {
     const tocadas = new Set(llamadas.map((l) => l.split(".")[0]));
     expect([...tocadas].sort()).toEqual(
       [
+        "customer_contacts",
         "facturas_emitidas",
         "order_observations",
         "order_status_history",

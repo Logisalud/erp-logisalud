@@ -55,6 +55,8 @@ export type DatosAuxiliares = {
   distritos: Record<string, string>;
   /** Ruteo de Pedidos (zonas de reparto y plan semanal). Opcional: sin esto los cuatro campos salen null. */
   ruteo?: DatosRuteo;
+  /** customer_id -> teléfono del contacto principal (el que el transportista llama al llegar). Opcional: sin esto el pedido sale sin teléfono. */
+  telefonos?: Record<string, string>;
 };
 
 export type DatosRuteo = {
@@ -96,6 +98,7 @@ export type PedidoContrato = RuteoContrato & {
     ruc?: string;
     direccion?: string;
     distrito?: string;
+    telefono?: string;
   };
   vendedor?: string;
   condicionPago?: string;
@@ -222,6 +225,8 @@ export function armarPedidoContrato(
   if (ruc) pedido.cliente.ruc = ruc;
   if (p.direccion_snapshot) pedido.cliente.direccion = p.direccion_snapshot;
   if (distrito) pedido.cliente.distrito = distrito;
+  const telefono = p.customer?.id ? aux.telefonos?.[p.customer.id]?.trim() : undefined;
+  if (telefono) pedido.cliente.telefono = telefono;
   if (p.vendedor_snapshot) pedido.vendedor = p.vendedor_snapshot;
   if (p.payment_term?.nombre) pedido.condicionPago = p.payment_term.nombre;
   if (factura) pedido.factura = numeroDeFactura(factura);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { armarRegistroLsFr, cierreVigente, conservarHasta, faltaImprimir, fueraDeRangoTemperatura, textoTemperatura, paginarFilas, parametrosDesdeClaves, puedeImprimirLsFr, type FilaLsFr } from '@/domain/ls-fr-43-03'
+import { soloEntregadas, armarRegistroLsFr, cierreVigente, conservarHasta, faltaImprimir, fueraDeRangoTemperatura, textoTemperatura, paginarFilas, parametrosDesdeClaves, puedeImprimirLsFr, type FilaLsFr } from '@/domain/ls-fr-43-03'
 import type { ParadaVista, RutaVista } from '@/domain/rutas'
 
 const parada = (n: number): ParadaVista => ({ id: `p${n}`, secuencia: n, clave: `ped-${n}`, origen: 'PEDIDO', pedidoId: `ped-${n}`, pedidoNumero: `PED-${n}`, cliente: `Cliente ${n}`, lineas: 1, unidades: 10, stock: 'ASIGNADA', excepcionCorte: false })
@@ -15,6 +15,13 @@ describe('registro LS-FR.43.03', () => {
     expect(r).toMatchObject({ codigo: 'LS-FR.43.03', poe: 'LS-POE.07.05', version: '01', placa: 'BKW-757', conductor: 'Luis Quispe', paginas: 1, horaSalida: '2026-10-15T13:30:00Z' })
     expect(r.filas[0]).toMatchObject({ n: 1, cliente: 'Cliente 1', guia: 'T001-123', cajas: 3, detalle: 'ENTREGA' })
     expect(r.filas[1]).toMatchObject({ n: 2, cliente: 'Cliente 2', guia: undefined, cajas: undefined })
+  })
+  it('la hoja de DIGEMID es la misma ruta sin lo que no se entregó: las filas se renumeran y las demás quedan igual', () => {
+    const r = armarRegistroLsFr(ruta(3), undefined, { guias: { 'ped-1': 'T001-1', 'ped-3': 'T001-3' }, noEntregadas: ['ped-2'] })
+    expect(r.filas).toHaveLength(3)                                                      // el registro interno sigue completo, con los motivos
+    const d = soloEntregadas(r)
+    expect(d.filas.map((f) => [f.n, f.cliente, f.guia])).toEqual([[1, 'Cliente 1', 'T001-1'], [2, 'Cliente 3', 'T001-3']])
+    expect(armarRegistroLsFr(ruta(3)).filas.every((f) => f.entregada)).toBe(true)        // sin marcas (antes de salir) todas cuentan
   })
   it('10 filas por página: 10 → 1 página, 11 → 2, 0 → 1; la última se completa con filas numeradas vacías', () => {
     expect(armarRegistroLsFr(ruta(10)).paginas).toBe(1)

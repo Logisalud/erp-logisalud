@@ -107,6 +107,21 @@ export async function cargarPedidosListosParaWms(ahora = new Date()): Promise<Re
     }
   }
 
+  // Teléfono del contacto principal de cada cliente (para la hoja del transportista). Es un dato de ayuda: si la tabla no está o falla, los pedidos salen igual, sin teléfono.
+  aux.telefonos = {};
+  const clientes = Array.from(new Set(filas.map((f) => f.customer?.id).filter((x): x is string => !!x)));
+  for (const lote of lotes(clientes, LOTE_IDS)) {
+    const { data, error } = await db
+      .from("customer_contacts")
+      .select("customer_id, telefono, es_principal")
+      .in("customer_id", lote)
+      .order("es_principal", { ascending: false });
+    if (error) break;
+    for (const c of (data ?? []) as Array<{ customer_id: string; telefono: string | null }>) {
+      if (c.telefono?.trim() && !aux.telefonos[c.customer_id]) aux.telefonos[c.customer_id] = c.telefono.trim();
+    }
+  }
+
   // Ruteo de Andrés (solo lectura de sus tablas): zona, orden y plan semanal.
   const ruteo: DatosRuteo = { zonas: [], ubigeoZona: {}, plan: [] };
   const [zonasRes, planRes] = await Promise.all([

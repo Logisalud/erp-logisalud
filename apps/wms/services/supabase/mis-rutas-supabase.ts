@@ -1,8 +1,9 @@
 import 'server-only'
 
 import { crearClienteServidor } from '@logisalud/auth/server'
-import { datosParaLsFr, estadoDeParada, esTerminal, RUTA_PERMITE_MARCAR, todasResueltas, type EventoParada, type EventoParadaVista, type ParadaMia, type RutaMia } from '@/domain/mis-rutas'
+import { datosParaLsFr, quedoSinEntregar, estadoDeParada, esTerminal, RUTA_PERMITE_MARCAR, todasResueltas, type EventoParada, type EventoParadaVista, type ParadaMia, type RutaMia } from '@/domain/mis-rutas'
 import { claveDeOrden, type EstadoRuta } from '@/domain/rutas'
+import { condicionDeParada } from '@/domain/ruta-del-dia'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { DatosEventoParada, RepositorioMisRutas } from '../repositorio-mis-rutas'
@@ -21,7 +22,7 @@ function rutaDe(r: Fila): RutaMia {
   const estado = String(r.estado) as EstadoRuta
   const paradas: ParadaMia[] = ((r.paradas ?? []) as Fila[]).map((p) => {
     const eventos = ((p.eventos ?? []) as Fila[]).map(eventoDe)
-    return { id: String(p.id), secuencia: Number(p.secuencia), cliente: String(p.cliente), direccion: s(p.direccion), distrito: s(p.distrito), ventanaCita: s(p.ventana), pedidoNumero: s(p.pedido_numero), ordenNumero: s(p.orden_numero), unidades: Number(p.unidades ?? 0), eventos, estado: estadoDeParada(eventos) }
+    return { id: String(p.id), secuencia: Number(p.secuencia), cliente: String(p.cliente), direccion: s(p.direccion), distrito: s(p.distrito), ventanaCita: s(p.ventana), pedidoNumero: s(p.pedido_numero), ordenNumero: s(p.orden_numero), unidades: Number(p.unidades ?? 0), telefono: s(p.telefono), condicion: p.condicion ? condicionDeParada(String(p.condicion)) : undefined, guia: s(p.guia), representante: s(p.representante), formaPago: s(p.forma_pago), eventos, estado: estadoDeParada(eventos) }
   })
   return { id: String(r.id), numero: String(r.numero), fecha: String(r.fecha).slice(0, 10), estado, vehiculo: s(r.vehiculo), conductor: s(r.conductor), auxiliar: s(r.auxiliar), paradas, puedeMarcar: RUTA_PERMITE_MARCAR.includes(estado) }
 }
@@ -31,6 +32,12 @@ export class MisRutasSupabase extends PilotoSupabase implements RepositorioMisRu
     const { data, error } = await rpc('mis_rutas_del_dia', { p_fecha: fecha ?? null })
     if (error) throw new Error(mensajeHumano(error))
     return ((data ?? []) as Fila[]).map(rutaDe)
+  }
+
+  async rutaComoLaVeElTransportista(rutaId: string): Promise<RutaMia | null> {
+    const { data, error } = await rpc('ruta_como_la_ve_el_transportista', { p_ruta: rutaId })
+    if (error) throw new Error(mensajeHumano(error))
+    return data ? { ...rutaDe(data as Fila), puedeMarcar: false } : null
   }
 
   async registrarEventoParada(paradaId: string, evento: EventoParada, datos: DatosEventoParada, _actor: Actor): Promise<ResultadoAccion<{ retornoPorOriginar: boolean; rutaPendienteDeCierre: boolean }>> {
@@ -54,13 +61,16 @@ export class MisRutasSupabase extends PilotoSupabase implements RepositorioMisRu
     ])
     const horaEntrega: Record<string, string> = { ...(base.horaEntrega ?? {}) }
     const observaciones: Record<string, string> = { ...(base.observaciones ?? {}) }
+    const noEntregadas: string[] = []
     for (const p of (paradas ?? []) as Fila[]) {
       const clave = s(p.pedido_id) ?? (p.salida_id ? claveDeOrden(String(p.salida_id)) : undefined)
       if (!clave) continue
-      const d = datosParaLsFr(((ev ?? []) as Fila[]).filter((x) => String(x.parada_id) === String(p.id)).map(eventoDe))
+      const propios = ((ev ?? []) as Fila[]).filter((x) => String(x.parada_id) === String(p.id)).map(eventoDe)
+      const d = datosParaLsFr(propios)
+      if (quedoSinEntregar(propios)) noEntregadas.push(clave)
       if (d.horaEntrega) horaEntrega[clave] = d.horaEntrega
       if (d.observaciones) observaciones[clave] = d.observaciones
     }
-    return { ...base, horaEntrega, observaciones }
+    return { ...base, horaEntrega, observaciones, noEntregadas }
   }
 }

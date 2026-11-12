@@ -36,6 +36,9 @@ describe('mis rutas (demo)', () => {
       expect(r[0]).toMatchObject({ id, estado: 'EN_RUTA', puedeMarcar: true })
       expect(r[0].paradas).toHaveLength(1)
       expect(r[0].paradas.every((p) => p.estado === 'PENDIENTE' && p.cliente)).toBe(true)
+      // lo que necesita para iniciar la ruta (las columnas de la hoja interna): condición y las que trae el pedido
+      expect(r[0].paradas[0]).toMatchObject({ condicion: 'DESPACHO' })
+      expect(Object.keys(r[0].paradas[0])).toEqual(expect.arrayContaining(['condicion', 'guia', 'representante', 'formaPago']))
     }
     expect(await repo.misRutas(OTRO)).toEqual([])
     expect(await repo.misRutas(JT)).toEqual([])
@@ -92,5 +95,13 @@ describe('mis rutas (demo)', () => {
     const fila = (await repo.registroLsFr(id))!.filas.find((f) => f.observaciones?.includes('María Pérez'))!
     expect(fila.horaEntrega).toBeTruthy()
     expect(fila.observaciones).toBe('Recibió María Pérez (DNI 12345678)')
+  })
+
+  it('el Jefe de Transporte ve la ruta como la ve el transportista, aunque todavía no salga, sin poder marcar nada', async () => {
+    const id = await rutaEnRuta()
+    const v = (await repo.rutaComoLaVeElTransportista(id))!
+    expect(v).toMatchObject({ id, puedeMarcar: false })
+    expect(v.paradas[0]).toMatchObject({ condicion: 'DESPACHO' })
+    expect(await repo.rutaComoLaVeElTransportista('no-existe')).toBeNull()
   })
 })

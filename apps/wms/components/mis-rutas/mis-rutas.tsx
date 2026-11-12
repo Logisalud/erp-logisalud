@@ -61,7 +61,14 @@ function Parada({ p, puedeMarcar, estadoRuta }: { p: ParadaMia; puedeMarcar: boo
           <p className="tabular text-xs font-medium text-gray-600">Parada {p.secuencia}{p.pedidoNumero ? ` · ${p.pedidoNumero}` : ''}</p>
           <h3 className="font-medium text-gray-900">{p.cliente}</h3>
           <p className="text-sm text-gray-700">{[p.direccion, p.distrito].filter(Boolean).join(' · ') || 'Sin dirección'}</p>
-          {p.ventanaCita && <p className="text-sm text-gray-600">Cita: {p.ventanaCita}</p>}
+          {p.ventanaCita && <p className="text-sm text-gray-600">Horario: {p.ventanaCita}</p>}
+          <dl className="mt-1 grid grid-cols-[auto,1fr] gap-x-2 gap-y-0.5 text-sm text-gray-700" data-testid="mi-parada-datos">
+            {p.telefono && <><dt className="text-gray-600">Teléfono</dt><dd><a href={`tel:${p.telefono.replace(/[^0-9+]/g, '')}`} className="tabular font-medium text-gray-900 underline" data-testid="mi-parada-telefono">{p.telefono}</a></dd></>}
+            {p.condicion && <><dt className="text-gray-600">Condición</dt><dd>{p.condicion}</dd></>}
+            <dt className="text-gray-600">Guía</dt><dd className="tabular" data-testid="mi-parada-guia">{p.guia ?? '—'}</dd>
+            {p.representante && <><dt className="text-gray-600">Representante</dt><dd>{p.representante}</dd></>}
+            {p.formaPago && <><dt className="text-gray-600">Forma de pago</dt><dd>{p.formaPago}</dd></>}
+          </dl>
           <p className="tabular text-sm text-gray-600">{p.unidades.toLocaleString('es-PE')} unidades</p>
         </div>
         <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none ${E.cls}`} data-testid="mi-parada-estado"><E.I className="h-3.5 w-3.5" aria-hidden />{ETIQUETA_ESTADO_PARADA[p.estado]}</span>

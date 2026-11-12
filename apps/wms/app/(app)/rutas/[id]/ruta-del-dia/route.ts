@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { marcarPiloto } from '@/services/pdf/marca-piloto'
 import { obtenerContexto } from '@/lib/contexto'
 import { puedeVerRutas } from '@/domain/rutas'
-import { armarRutaDelDia } from '@/domain/ruta-del-dia'
+import { armarRutaDelDia, guiaPorSalida } from '@/domain/ruta-del-dia'
 import { repositorio } from '@/services/repositorio-actual'
 import { renderRutaDelDia } from '@/services/pdf/ruta-del-dia'
 
@@ -17,9 +17,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const ruta = await repo.obtenerRuta(params.id)
   if (!ruta) return new NextResponse('No encontramos esa ruta.', { status: 404 })
   // el serie-número de cada orden: la guía enviada manda sobre la pre-guía
-  const guias = await repo.listarGuias()
-  const porSalida = new Map<string, string>()
-  for (const g of [...guias].sort((a, b) => Number(!!b.preGuia) - Number(!!a.preGuia))) if (!g.anulada && g.preGuia !== 'CANCELADA') porSalida.set(g.salidaId, g.numero)
-  const pdf = await marcarPiloto(await renderRutaDelDia(armarRutaDelDia(ruta, porSalida)))
+  const pdf = await marcarPiloto(await renderRutaDelDia(armarRutaDelDia(ruta, guiaPorSalida(await repo.listarGuias()))))
   return new NextResponse(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Ruta del dia ${ruta.numero}.pdf"`, 'Cache-Control': 'private, no-store' } })
 }
