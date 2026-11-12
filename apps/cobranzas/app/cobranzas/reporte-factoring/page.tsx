@@ -27,6 +27,10 @@ interface Fila {
   fecha_ingreso: string | null;
   estado: 'en_factoring' | 'ingresada' | 'anulada';
   dias_en_factoring: number;
+  comision: number;
+  garantia: number;
+  otros_gastos: number;
+  neto_recibido: number;
   pagado_al_factor: boolean;
   fecha_pago_al_factor: string | null;
   dias_atraso_al_factor: number | null;
@@ -38,7 +42,7 @@ interface ClienteBuscado {
 }
 
 const ESTADOS: { value: string; label: string }[] = [
-  { value: 'todos', label: 'Todos' },
+  { value: 'todos', label: 'Vigentes (sin anuladas)' },
   { value: 'en_factoring', label: 'En factoring' },
   { value: 'ingresada', label: 'Ingresada' },
   { value: 'anulada', label: 'Anulada' },
@@ -222,6 +226,8 @@ export default function ReporteFactoringPage() {
                   <th className="px-3 py-2.5 text-left">Venc. factura</th>
                   <th className="px-3 py-2.5 text-right">Monto</th>
                   <th className="px-3 py-2.5 text-right">Retención</th>
+                  <th className="px-3 py-2.5 text-right">Costo</th>
+                  <th className="px-3 py-2.5 text-right">Neto recibido</th>
                   <th className="px-3 py-2.5 text-left">Estado</th>
                   <th className="px-3 py-2.5 text-left">F. ingreso</th>
                   <th className="px-3 py-2.5 text-right">Días</th>
@@ -247,6 +253,11 @@ export default function ReporteFactoringPage() {
                     <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtFechaOpcional(f.fecha_vencimiento_factura)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-800">{fmt(f.monto)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-600">{f.retencion > 0 ? fmt(f.retencion) : '—'}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-gray-600"
+                      title={`Comisión ${fmt(f.comision)} · Garantía ${fmt(f.garantia)} · Otros ${fmt(f.otros_gastos)}`}>
+                      {f.comision + f.garantia + f.otros_gastos > 0 ? fmt(f.comision + f.garantia + f.otros_gastos) : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-gray-800">{f.neto_recibido > 0 ? fmt(f.neto_recibido) : '—'}</td>
                     <td className="px-3 py-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_BADGE[f.estado]}`}>
                         {ESTADOS.find(e => e.value === f.estado)?.label ?? f.estado}
