@@ -232,11 +232,15 @@ export default async function VistaVendedorPage({ params }: { params: { token: s
   // tablas de factoring. Nunca se consulta factoring por otro criterio.
   const factoringVista: FactoringVista[] = [];
   {
+    // NO se filtra por `v_saldos.factorizado`: esa columna lee las tablas
+    // VIEJAS de factoring (`factoring_facturas` + `factoring_operaciones`),
+    // que el flujo actual no usa — hoy es `true` en CERO facturas, así que
+    // filtrar por ahí dejaba la pestaña siempre vacía. El flujo real son los
+    // canjes (`factoring_canje_facturas`), que es lo que se cruza abajo.
     const susFacturas = await fetchAll<{ id: string; comprobante: string; cliente_ruc: string; razon_social: string }>(
       (from, to) => db.from('v_saldos')
         .select('id, comprobante, cliente_ruc, razon_social')
         .eq('vendedor_id', vendedor!.id)
-        .eq('factorizado', true)
         .order('id').range(from, to)
     );
     const idsFact = susFacturas.map(f => f.id);
