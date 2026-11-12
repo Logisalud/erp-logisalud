@@ -1,7 +1,7 @@
 // Fase 4 · P4: reglas puras de «Mis rutas» (espejo de wms.registrar_evento_parada, migración 0043).
 import { describe, expect, it } from 'vitest'
 import { construirMenu } from '@/domain/menu'
-import { datosParaLsFr, quedoSinEntregar, estadoDeParada, eventosPosibles, motivoNoSePuede, puedeFotografiarPedido, puedeVerMisRutas, soloMisRutas, todasResueltas, validarEventoParada, validarFoto, type EventoParadaVista } from '@/domain/mis-rutas'
+import { datosParaLsFr, quedoSinEntregar, estadoDeParada, eventosPosibles, motivoNoSePuede, puedeFotografiarPedido, inicioEsMisRutas, puedeVerMisRutas, soloMisRutas, todasResueltas, validarEventoParada, validarFoto, type EventoParadaVista } from '@/domain/mis-rutas'
 import { puede } from '@/domain/permisos'
 
 const ev = (evento: EventoParadaVista['evento'], extra: Partial<EventoParadaVista> = {}): EventoParadaVista => ({ id: evento, evento, hora: '2026-11-05T15:30:00Z', ...extra })
@@ -12,6 +12,20 @@ describe('permisos y menú', () => {
     for (const r of ['auxiliar', 'jefe_transporte', 'jefe_almacen', 'admin_wms', 'direccion_tecnica', 'usuario_cliente'] as const) expect(puedeVerMisRutas([r]), r).toBe(false)
     expect(puede(['conductor'], 'ver')).toBe(false)
     expect(soloMisRutas(['conductor'])).toBe(true); expect(soloMisRutas(['conductor', 'jefe_transporte'])).toBe(false)
+  })
+  it('el conductor que también pica como auxiliar: su Inicio es «Mis rutas» y el menú trae «Mis rutas» y el picking', () => {
+    const roles = ['conductor', 'auxiliar'] as const
+    expect(soloMisRutas(roles)).toBe(false)
+    expect(inicioEsMisRutas(roles)).toBe(true)
+    expect(inicioEsMisRutas(['auxiliar_transporte', 'auxiliar'])).toBe(true)
+    expect(inicioEsMisRutas(['conductor', 'jefe_transporte'])).toBe(false)      // un jefe conserva el Inicio general
+    expect(inicioEsMisRutas(['auxiliar'])).toBe(false)                          // quien solo pica no tiene «Mis rutas»
+    // su menú es solo lo que usa: Mis rutas, picking, conformidad, cargar la unidad e inspección (sin mapa, kardex, reportes ni el resto del almacén)
+    const hrefs = construirMenu(roles, 0, false).flatMap((s) => s.items.map((i) => i.href))
+    expect(hrefs).toEqual(['/mis-rutas', '/picking', '/conformidad', '/carga', '/inspecciones'])
+    expect(construirMenu(roles, 0, true).flatMap((s) => s.items.map((i) => i.href))).toContain('/embalaje')      // si algún día se activa el embalaje, lo ve
+    expect(construirMenu(['auxiliar']).flatMap((s) => s.items.map((i) => i.href))).not.toContain('/mis-rutas')   // quien solo pica conserva su menú de siempre
+    expect(construirMenu(['conductor', 'jefe_transporte']).flatMap((s) => s.items.map((i) => i.href))).toEqual(expect.arrayContaining(['/', '/mis-rutas', '/rutas']))
   })
   it('su menú es Inicio y Mis rutas; el de los demás no la trae', () => {
     expect(construirMenu(['conductor']).flatMap((s) => s.items.map((i) => i.href))).toEqual(['/', '/mis-rutas', '/inspecciones'])

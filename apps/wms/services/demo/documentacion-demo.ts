@@ -29,6 +29,13 @@ const guias = (e: EstadoDemo) => (desp(e).guias ??= [])
 const bultosDeSalidaVivos = (e: EstadoDemo, salidaId: string) => (desp(e).bultos ?? []).filter((b) => b.salidaId === salidaId && b.estado === 'EMBALADO')
 const bultosDeSalida = (e: EstadoDemo, salidaId: string) => bultosDeSalidaVivos(e, salidaId).length
 const bultosCodigos = (e: EstadoDemo, salidaId: string) => bultosDeSalidaVivos(e, salidaId).map((b) => b.codigo)
+type NumeroDemo = NumeracionSerieDemo['numeros'][number]
+const fueEnviado = (x: NumeroDemo) => (x as { enviado?: boolean }).enviado === true
+/** 0066: un número devuelto (LIBERADO) o de una pre-guía cancelada que nunca se envió a Nubefact (SIN_USAR sin envío) lo toma primero la siguiente pre-guía o guía: sin huecos. */
+const numeroLibre = (n: NumeracionSerieDemo): NumeroDemo | undefined =>
+  n.numeros.filter((x) => x.estado === 'LIBERADO' || (x.estado === 'SIN_USAR' && !fueEnviado(x))).sort((a, b) => a.numero - b.numero)[0]
+/** Una pre-guía cancelada después de un intento de envío no se reutiliza sola: hay que revisar en Nubefact si la recibió. */
+const numeroPorRevisar = (x: NumeroDemo) => x.estado === 'SIN_USAR' && fueEnviado(x)
 
 /** ¿Todas las líneas de la orden vigente están conformes? */
 export function salidaConforme(e: EstadoDemo, salidaId: string): boolean {
@@ -307,8 +314,8 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
       if (abierto.salidaId === salidaId) return { ok: true, numero: abierto.numero, reintento: true }
       return falla(mensajeGuiaEnCurso(abierto.numero, k, desp(e).salidas.find((s) => s.id === abierto.salidaId)?.numero))
     }
-    const libre = n.numeros.filter((x) => x.estado === 'LIBERADO').sort((a, b) => a.numero - b.numero)[0]
-    if (libre) { Object.assign(libre, { estado: 'RESERVADO', salidaId, entorno }); return { ok: true, numero: libre.numero, reintento: false } }
+    const libre = numeroLibre(n)
+    if (libre) { Object.assign(libre, { estado: 'RESERVADO', salidaId, entorno, preGuia: false, motivo: undefined }); return { ok: true, numero: libre.numero, reintento: false } }
     n.ultimo += 1
     n.numeros.push({ numero: n.ultimo, estado: 'RESERVADO', salidaId, entorno })
     return { ok: true, numero: n.ultimo, reintento: false }
@@ -343,8 +350,8 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     if (this.guiaVigente(e, salidaId)) return falla('La orden ya tiene su guía')
     if (entorno === 'PRODUCCION' && !n.confirmado) return falla(MENSAJE_SIN_CORRELATIVO(k))
     if (entorno !== 'PRODUCCION' && n.confirmado) return falla(mensajeSerieConfirmada(k))
-    const libre = n.numeros.filter((x) => x.estado === 'LIBERADO').sort((a, b) => a.numero - b.numero)[0]
-    if (libre) { Object.assign(libre, { estado: 'RESERVADO', salidaId, entorno, preGuia: true }); return { ok: true, serie: k, numero: libre.numero, nueva: true } }
+    const libre = numeroLibre(n)
+    if (libre) { Object.assign(libre, { estado: 'RESERVADO', salidaId, entorno, preGuia: true, motivo: undefined }); return { ok: true, serie: k, numero: libre.numero, nueva: true } }
     n.ultimo += 1
     n.numeros.push({ numero: n.ultimo, estado: 'RESERVADO', salidaId, entorno, preGuia: true })
     return { ok: true, serie: k, numero: n.ultimo, nueva: true }
@@ -378,7 +385,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
   async numerosSinUsar(serie: string): Promise<{ numero: number; numeroCompleto: string; motivo?: string; salidaNumero?: string }[]> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const k = serie.trim().toUpperCase()
-    return (this.numeracionDe(e, k)?.numeros ?? []).filter((x) => x.estado === 'SIN_USAR').sort((a, b) => a.numero - b.numero)
+    return (this.numeracionDe(e, k)?.numeros ?? []).filter(numeroPorRevisar).sort((a, b) => a.numero - b.numero)
       .map((x) => ({ numero: x.numero, numeroCompleto: numeroDePreGuia(k, x.numero), motivo: x.motivo, salidaNumero: desp(e).salidas.find((s) => s.id === x.salidaId)?.numero }))
   }
 
@@ -387,9 +394,9 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const n = this.numeracionDe(e, serie)
     if (!n) return null
     const abierto = n.numeros.find((x) => x.estado === 'RESERVADO' && !x.preGuia)
-    const libre = n.numeros.filter((x) => x.estado === 'LIBERADO').sort((a, b) => a.numero - b.numero)[0]
+    const libre = numeroLibre(n)
     return {
-      preGuias: n.numeros.filter((x) => x.estado === 'RESERVADO' && x.preGuia).length, sinUsar: n.numeros.filter((x) => x.estado === 'SIN_USAR').map((x) => ({ numero: x.numero, motivo: x.motivo })),
+      preGuias: n.numeros.filter((x) => x.estado === 'RESERVADO' && x.preGuia).length, sinUsar: n.numeros.filter(numeroPorRevisar).map((x) => ({ numero: x.numero, motivo: x.motivo })),
       serie: serie.toUpperCase(), ultimo: n.ultimo, confirmado: n.confirmado, proximo: libre?.numero ?? abierto?.numero ?? n.ultimo + 1,
       enCurso: abierto ? { numero: abierto.numero, salidaNumero: desp(e).salidas.find((s) => s.id === abierto.salidaId)?.numero, incierta: true } : undefined,
     }

@@ -18,6 +18,11 @@ export const ETIQUETA_DIFERENCIA_ENTREGA: Record<TipoDiferenciaEntrega, string> 
 export const puedeVerMisRutas = (roles: readonly Rol[]) => puede(roles, 'mis_rutas')
 /** Quien solo tiene «Mis rutas» (conductor, auxiliar de transporte): no lee el inventario y su Inicio es esta pantalla. */
 export const soloMisRutas = (roles: readonly Rol[]) => puedeVerMisRutas(roles) && !roles.some((r) => !['conductor', 'auxiliar_transporte'].includes(r))
+/**
+ * Quien conduce o ayuda en la ruta y, además, pica o da conformidad como auxiliar: su Inicio también es «Mis rutas» (el picking, la conformidad y la carga los abre desde el menú).
+ * Si tiene cualquier otro rol (jefes, dirección técnica, conformidad de despacho…), su Inicio es el general.
+ */
+export const inicioEsMisRutas = (roles: readonly Rol[]) => puedeVerMisRutas(roles) && !roles.some((r) => !['conductor', 'auxiliar_transporte', 'auxiliar'].includes(r))
 
 export const TEXTO_PILOTO_MIS_RUTAS = 'PILOTO: esto no reemplaza el proceso actual. Sigue llenando el formato en papel y entregando con la guía firmada; lo que marques aquí es de prueba y se borra el 1 de diciembre.'
 

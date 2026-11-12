@@ -217,7 +217,7 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
 
   async numerosSinUsar(serie: string): Promise<{ numero: number; numeroCompleto: string; motivo?: string; salidaNumero?: string }[]> {
     const k = serie.toUpperCase()
-    const { data } = await sch().from('guia_numeros').select('numero, detalle, salida_id').eq('serie', k).eq('estado', 'SIN_USAR').eq('archivado', false).order('numero')
+    const { data } = await sch().from('guia_numeros').select('numero, detalle, salida_id').eq('serie', k).eq('estado', 'SIN_USAR').eq('archivado', false).not('enviado_en', 'is', null).order('numero')
     const filas = (data ?? []) as Fila[]
     const ids = [...new Set(filas.map((f) => s(f.salida_id)).filter(Boolean) as string[])]
     const nums = new Map<string, string>()
@@ -231,7 +231,7 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     const { data: r } = await sch().from('guia_numeros').select('numero, salida_id').eq('serie', serie.toUpperCase()).eq('estado', 'RESERVADO').eq('pre_guia', false).eq('archivado', false).order('numero').limit(1).maybeSingle()
     let salidaNumero: string | undefined
     if (r && (r as Fila).salida_id) salidaNumero = s(((await sch().from('salidas').select('numero').eq('id', String((r as Fila).salida_id)).maybeSingle()).data as Fila | null)?.numero)
-    const { data: libre } = await sch().from('guia_numeros').select('numero').eq('serie', serie.toUpperCase()).eq('estado', 'LIBERADO').eq('archivado', false).order('numero').limit(1).maybeSingle()
+    const { data: libre } = await sch().from('guia_numeros').select('numero').eq('serie', serie.toUpperCase()).or('estado.eq.LIBERADO,and(estado.eq.SIN_USAR,enviado_en.is.null)').eq('archivado', false).order('numero').limit(1).maybeSingle()
     const { count: preGuias } = await sch().from('guia_numeros').select('numero', { count: 'exact', head: true }).eq('serie', serie.toUpperCase()).eq('estado', 'RESERVADO').eq('pre_guia', true).eq('archivado', false)
     const sinUsar = (await this.numerosSinUsar(serie)).map((x) => ({ numero: x.numero, motivo: x.motivo }))
     const fila = c as Fila

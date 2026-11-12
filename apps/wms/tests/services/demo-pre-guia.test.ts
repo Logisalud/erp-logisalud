@@ -60,15 +60,16 @@ describe('pre-guía (demo)', () => {
     expect((await repo.preGuiaDe(id))!.estado).toBe('ENVIADA')
   })
 
-  it('cancelar pasa el número a «sin usar», con motivo, y no se reutiliza', async () => {
+  it('cancelar deja el número libre, con motivo, y la siguiente pre-guía lo reutiliza', async () => {
     const id = await conformada(0)
     const pre = await repo.crearPreGuia(id, 'TTT1', 'SIMULADOR'); if (!pre.ok) throw new Error(pre.mensaje)
     expect(await repo.cancelarPreGuia(id, '  ')).toMatchObject({ ok: false })
     expect(await repo.cancelarPreGuia(id, 'Se cambió el cliente')).toEqual({ ok: true, cancelada: true })
     expect((await repo.preGuiaDe(id))!).toMatchObject({ estado: 'CANCELADA', motivoCancelacion: 'Se cambió el cliente' })
-    expect(await repo.numerosSinUsar('TTT1')).toEqual([expect.objectContaining({ numero: pre.numero, motivo: 'Se cambió el cliente' })])
-    const p2 = await repo.crearPreGuia(id, 'TTT1', 'SIMULADOR'); if (!p2.ok) throw new Error(p2.mensaje)     // se vuelve a crear: número NUEVO
-    expect(p2.numero).toBeGreaterThan(pre.numero)
-    expect((await repo.numerosSinUsar('TTT1')).map((x) => x.numero)).toEqual([pre.numero])
+    expect(await repo.numerosSinUsar('TTT1')).toEqual([])      // no queda nada por decidir: el número está libre
+    expect((await repo.estadoNumeracionGuia('TTT1'))!.proximo).toBe(pre.numero)
+    const p2 = await repo.crearPreGuia(id, 'TTT1', 'SIMULADOR'); if (!p2.ok) throw new Error(p2.mensaje)     // se vuelve a crear: el MISMO número
+    expect(p2).toMatchObject({ numero: pre.numero, nueva: true })
+    expect((await repo.preGuiaDe(id))!).toMatchObject({ estado: 'LISTA_PARA_ENVIAR', numero: pre.numero })
   })
 })
