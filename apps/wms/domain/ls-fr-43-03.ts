@@ -196,6 +196,10 @@ export function soloEntregadas(r: RegistroLsFrVista): RegistroLsFrVista {
   return { ...r, filas, paginas: Math.max(1, Math.ceil(filas.length / r.filasPorPagina)) }
 }
 
+/** La hoja para DIGEMID se arma al final de la ruta: cuando todas las paradas ya tienen su resultado (pendiente de cierre o cerrada). Antes saldría incompleta. */
+export const hojaDigemidDisponible = (estadoRuta: string) => estadoRuta === 'PENDIENTE_CIERRE' || estadoRuta === 'CERRADA'
+export const TEXTO_HOJA_DIGEMID_AL_FINAL = 'Se habilita al final de la ruta, cuando todas las paradas tienen su resultado.'
+
 export const COD_POE_LS_FR = 'LS-POE.07.05'
 
 export function armarRegistroLsFr(ruta: RutaVista, params: ParametrosLsFr = PARAMETROS_LS_FR_POR_DEFECTO, extras: ExtrasLsFr = {}): RegistroLsFrVista {

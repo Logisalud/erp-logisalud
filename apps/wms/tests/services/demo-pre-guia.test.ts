@@ -50,7 +50,7 @@ describe('pre-guía (demo)', () => {
     const pre = await repo.crearPreGuia(id, 'TTT1', 'SIMULADOR'); if (!pre.ok) throw new Error(pre.mensaje)
     const datos = (await repo.datosGuia(id))!
     const n = await repo.reservarNumeroGuia(datos.serie, 'SIMULADOR', id)
-    expect(n).toMatchObject({ ok: true, numero: pre.numero, reintento: false })
+    expect(n).toMatchObject({ ok: true, numero: pre.numero, reintento: true })
     if (!n.ok) return
     const payload = construirPayloadNubefact(datos, traslado, '2026-10-19', n.numero)
     const sim = new SimuladorNubefact(); const r = await sim.emitirGuia(payload); if (!r.ok) throw new Error(r.error)

@@ -5,7 +5,7 @@ import { MENSAJE_RESULTADO_INCIERTO, mensajeNumeroOcupado, mensajeSalto, numeroC
 import { repositorio } from './repositorio-actual'
 import { clienteNubefact, modoNubefactActual, nubefactDemoIncompleto, NubefactNoConfigurado, type ResultadoPruebaConexion } from './nubefact/cliente'
 import { notificadorPedidos } from './pedidos/notificar'
-import { avisarGuiaLista } from './avisos-guia-lista'
+import { avisarGuia } from './avisos-guia'
 import { modoPilotoActivo } from '@/lib/modo-piloto'
 import { TEXTO_PEDIDOS_RETENIDO } from '@/domain/modo-piloto'
 import type { Actor, ResultadoAccion } from './repositorio'
@@ -56,6 +56,12 @@ export async function emitirGuiaElectronica(salidaId: string, traslado: Traslado
     const res = await repo.reservarNumeroGuia(datos.serie, cliente.modo, salidaId)
     if (!res.ok) return falla(res.mensaje)
     const numero = res.numero
+    // dos pre-guías intercambiaron números: quien factura recibe el número nuevo de las dos órdenes (el aviso anterior ya no vale)
+    if (res.intercambio) {
+      const x = res.intercambio
+      await avisarGuia('NUMERO_CAMBIADO', salidaId, numeroConSerie(datos.serie, x.miNumeroNuevo), undefined, numeroConSerie(datos.serie, x.miNumeroAnterior))
+      await avisarGuia('NUMERO_CAMBIADO', x.salidaIdOtra, numeroConSerie(datos.serie, x.numeroNuevoOtra), undefined, numeroConSerie(datos.serie, x.numeroAnteriorOtra))
+    }
     if (res.reintento) {
       // un envío anterior no terminó: ¿Nubefact ya tiene esa guía?
       const previa = await cliente.consultarGuia(construirConsulta(datos.serie, numero))
@@ -104,7 +110,6 @@ export async function emitirGuiaElectronica(salidaId: string, traslado: Traslado
     }
   }
   const envio = estado === 'ACEPTADA' ? await enviarEventosPedidos(actor, salidaId) : { pendientes: 0 }
-  if (!adoptada) await avisarGuiaLista(salidaId, reg.numero, 'WMS')   // quien factura se entera; nunca frena la guía
   return { ok: true, id: reg.id, numero: reg.numero, entorno: r.entorno, estadoSunat: estado, saltados, adoptada, pedidos: estado !== 'ACEPTADA' ? 'NO_AUN' : estadoEnvio(envio) }
 }
 
@@ -113,7 +118,7 @@ export async function registrarGuiaPanel(salidaId: string, registro: RegistroGui
   const r = await repositorio().registrarGuiaPanel(salidaId, registro, actor)
   if (!r.ok) return r
   const envio = await enviarEventosPedidos(actor, salidaId)
-  await avisarGuiaLista(salidaId, r.numero, 'PANEL')
+  await avisarGuia('GUIA_REGISTRADA', salidaId, r.numero)   // quien factura se entera; nunca frena la guía
   return { ...r, pedidos: estadoEnvio(envio) }
 }
 
@@ -178,7 +183,10 @@ export async function crearPreGuiaDeOrden(salidaId: string): Promise<ResultadoAc
   const datos = await repo.datosGuia(salidaId)
   if (!datos) return falla('No encontramos esa salida')
   if (datos.guiaModo === 'PANEL' || datos.tipo === 'CLIENTE') return { ok: true, omitida: true }
-  return repo.crearPreGuia(salidaId, datos.serie, modoNubefactActual())
+  const r = await repo.crearPreGuia(salidaId, datos.serie, modoNubefactActual())
+  // la pre-guía nueva (con su número reservado) le avisa a quien factura; repetir la creación no vuelve a avisar
+  if (r.ok && 'nueva' in r && r.nueva) await avisarGuia('PRE_GUIA', salidaId, numeroConSerie(r.serie, r.numero))
+  return r
 }
 
 export async function preGuiaDeOrden(salidaId: string): Promise<PreGuiaVista | null> { return repositorio().preGuiaDe(salidaId) }

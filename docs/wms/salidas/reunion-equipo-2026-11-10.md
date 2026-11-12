@@ -51,3 +51,19 @@ Orden pedido por Sebas (donde choque con el mensaje del piloto, manda este). Est
 - **Hoja para DIGEMID:** es la misma ruta sin lo que no se entregó (no entregado o rechazado), renumerada. El registro interno sigue completo, con los motivos.
 - **Aviso por correo (Resend)** a quien factura cuando la guía de un pedido queda lista: `RESEND_API_KEY`, `RESEND_FROM` y `AVISO_FACTURACION_CORREOS`. Apagado hasta configurarlas.
 - **Inspección de la unidad:** se imprime para firma manuscrita al cerrar el mes (sin firma en pantalla).
+
+## «Ya no sale», anulado / reprogramado y aviso a quien factura (12-nov-2026; migración 0064)
+
+- **«Ya no sale»** (botón del Jefe en la orden ya pickeada): una sola acción con motivo. Cancela la pre-guía (su número pasa a «Números sin usar»), libera lo que nadie pickeó, deja lo pickeado «por devolver a su ubicación» (el auxiliar lo devuelve y otra persona lo verifica, el mismo camino de un cambio o cancelación desde Pedidos) y cancela la orden. Si el pedido sigue, vuelve a la bandeja para rehacer la orden; si se cancela, se avisa al Jefe de Transporte para que el área comercial lo cancele en Pedidos (el WMS no cancela nada en Pedidos). No sirve con guía registrada o enviada (se anula primero la guía), con bultos ya cargados ni con la ruta ya en camino.
+- **«Dejar fuera de la salida»** pide el tipo: **anulado** (ya no sale) o **reprogramado** (sale otro día). La hoja de la ruta deja la fila marcada y la hoja para DIGEMID la deja fuera. Nada se borra.
+- **Aviso por correo a quien factura:** al crearse la pre-guía («ya puede facturar», con productos y lotes) y al cancelarse («NO factures»).
+- En lo que ve la gente no se usa «staging»: se dice «zona de despacho» o «a su ubicación».
+
+## Auditoría de salidas y correcciones (12-nov-2026; migración 0065)
+
+- **Envío incierto a Nubefact:** al enviar una pre-guía el WMS ahora consulta primero a Nubefact si ya la tiene (antes, con una pre-guía, nunca lo hacía y podía duplicar la guía). El intento queda anotado; una pre-guía con intento anotado no se intercambia de número, y cuando dos pre-guías sí intercambian números, quien factura recibe el aviso del número nuevo de las dos órdenes.
+- **Pedido anulado o reprogramado:** sale del plan de la ruta (queda libre para otra ruta, p. ej. otro día) pero la fila se sigue mostrando, marcada, en la hoja de la ruta y en la pantalla de carga. «Ya no sale» también marca las rutas planificadas.
+- **Cancelar la orden porque el pedido se canceló en Pedidos** también cancela su pre-guía (el número pasa a «Números sin usar»).
+- **«Editar»** no cambia las líneas de una orden con lote indicado; **dar la conformidad por línea** respeta que quien picó no la da y que una orden tomada por otra persona queda bloqueada.
+- **Hoja para DIGEMID:** el servidor también la bloquea hasta el final de la ruta.
+- **Pendiente (bajo):** exigir el motivo de contingencia también al liberar la unidad; avisar a quien factura cuando Pedidos cancela una orden con pre-guía (hoy solo avisa si se cancela con «Ya no sale»).

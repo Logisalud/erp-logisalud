@@ -1,7 +1,7 @@
 // S8 en memoria (modo demostración): carga por bultos, conciliación, liberar la unidad y salida confirmada. Mismas reglas que la migración 0021.
 import {
   ITEMS_CHECKLIST_POR_DEFECTO, motivosNoLiberar, normalizarCodigoBulto, puedeCargar, puedeConfirmarSalida, puedeLiberarUnidad,
-  type CargaResumen, type CargaRuta, type ItemChecklist, type PedidoCarga,
+  type CargaResumen, type CargaRuta, type ItemChecklist, type PedidoCarga, type TipoExclusion,
 } from '@/domain/carga'
 import { llevaEtiqueta } from '@/domain/pedidos-despacho'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
@@ -23,18 +23,22 @@ const enCarga = (r: RutaDemo) => r.estado === 'PLANIFICADA' || r.estado === 'LIS
 
 export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
   private ruta(e: EstadoDemo, id: string) { return desp(e).rutas.find((r) => r.id === id) }
-  private paradasConSalida(r: RutaDemo) { return r.paradas.filter((p) => p.activa && p.salidaId).sort((a, b) => a.secuencia - b.secuencia) }
+  /** Las paradas del plan y, para mostrarlas marcadas, las que salieron por una exclusión (0065). */
+  private paradasConSalida(r: RutaDemo, e?: EstadoDemo) {
+    const excl = new Set(e ? (cargas(e)[r.id]?.exclusiones ?? []).map((x) => x.salidaId) : [])
+    return r.paradas.filter((p) => p.salidaId && (p.activa || excl.has(p.salidaId))).sort((a, b) => a.secuencia - b.secuencia)
+  }
 
   private pedidosDe(e: EstadoDemo, r: RutaDemo): PedidoCarga[] {
     const c = cargaDe(e, r.id)
-    return this.paradasConSalida(r).map((p) => {
+    return this.paradasConSalida(r, e).map((p) => {
       const s = desp(e).salidas.find((x) => x.id === p.salidaId)!
       const res = this.resumenSalida(e, s)
       const ex = c.exclusiones.find((x) => x.salidaId === s.id)
       const listo = !ex && ['LISTA_PARA_CARGA', 'CARGADA'].includes(res.etapa)
       const bultos = ex ? [] : bultosVigentes(e, s.id).map((b) => ({ bultoId: b.id, codigo: b.codigo, secuencia: b.secuencia, total: b.total, cargado: vivos(c).some((x) => x.codigo === b.codigo) }))
       const ubigeo = e.pedidos?.filas.find((f) => f.vigente && f.snapshot.pedidoId === s.pedidoId)?.snapshot.cliente.ubigeo ?? (s as { clienteManual?: { ubigeo?: string } }).clienteManual?.ubigeo
-      return { salidaId: s.id, salidaNumero: s.numero, pedidoNumero: res.pedidoNumero, cliente: res.cliente, secuencia: p.secuencia, listo, excluida: !!ex, motivoExclusion: ex?.motivo, bultos, llevaEtiqueta: llevaEtiqueta(ubigeo) }
+      return { salidaId: s.id, salidaNumero: s.numero, pedidoNumero: res.pedidoNumero, cliente: res.cliente, secuencia: p.secuencia, listo, excluida: !!ex, motivoExclusion: ex?.motivo, tipoExclusion: ex?.tipo, bultos, llevaEtiqueta: llevaEtiqueta(ubigeo) }
     })
   }
 
@@ -48,7 +52,7 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
 
   async colaCarga(): Promise<CargaResumen[]> {
     const e = estadoE(); await this.sembrarDespacho(e)
-    return structuredClone(desp(e).rutas.filter((r) => ['PLANIFICADA', 'LISTA_PARA_CARGA', 'LIBERADA', 'EN_RUTA'].includes(r.estado) && this.paradasConSalida(r).length > 0).map((r) => this.resumenCarga(e, r)).sort((a, b) => b.fecha.localeCompare(a.fecha) || a.rutaNumero.localeCompare(b.rutaNumero)))
+    return structuredClone(desp(e).rutas.filter((r) => ['PLANIFICADA', 'LISTA_PARA_CARGA', 'LIBERADA', 'EN_RUTA'].includes(r.estado) && this.paradasConSalida(r, e).length > 0).map((r) => this.resumenCarga(e, r)).sort((a, b) => b.fecha.localeCompare(a.fecha) || a.rutaNumero.localeCompare(b.rutaNumero)))
   }
 
   async cargaRuta(rutaId: string): Promise<CargaRuta | null> {
@@ -92,6 +96,7 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
     if (!todos) return falla((desp(e).bultos ?? []).some((b) => b.codigo === cod) ? 'Ese bulto se anuló al reabrir el embalaje: usa la etiqueta nueva' : `No encontramos el bulto ${cod}`)
     const s = desp(e).salidas.find((y) => y.id === todos.salidaId)!
     const parada = x.r.paradas.find((p) => p.activa && p.salidaId === s.id)
+    if (!parada && cargaDe(e, rutaId).exclusiones.some((y) => y.salidaId === s.id)) return falla(`El pedido de la salida ${s.numero} se dejó fuera de esta salida`)
     if (!parada) {
       const otra = desp(e).rutas.find((r) => r.id !== rutaId && r.paradas.some((p) => p.activa && p.salidaId === s.id))
       return falla(`El bulto ${cod} es del pedido de la salida ${s.numero}, que no está en esta ruta${otra ? ` (va en ${otra.numero})` : ''}`)
@@ -110,8 +115,8 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
     const e = estadoE(); await this.sembrarDespacho(e)
     const x = this.exigirEnCarga(e, rutaId, puedeCargar(actor.roles), 'No tienes permiso para cargar la unidad')
     if ('error' in x) return x.error as ResultadoAccion<{ contados: number }>
-    if (!x.r.paradas.some((p) => p.activa && p.salidaId === salidaId)) return falla('Ese pedido no está en esta ruta')
     const c = cargaDe(e, rutaId)
+    if (!x.r.paradas.some((p) => p.activa && p.salidaId === salidaId) && !c.exclusiones.some((y) => y.salidaId === salidaId)) return falla('Ese pedido no está en esta ruta')
     if (c.exclusiones.some((y) => y.salidaId === salidaId)) return falla('Ese pedido se dejó fuera de esta salida')
     const pedido = this.pedidosDe(e, x.r).find((p) => p.salidaId === salidaId)!
     if (!pedido.listo) return falla('Ese pedido todavía no está listo para carga: faltan la guía, el paquete documental completo o la conformidad')
@@ -141,15 +146,17 @@ export class CargaDemo_ extends EmbalajeDemo implements RepositorioCarga {
     return { ok: true }
   }
 
-  async excluirPedido(rutaId: string, salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion> {
+  async excluirPedido(rutaId: string, salidaId: string, motivo: string, actor: Actor, tipo: TipoExclusion = 'FUERA'): Promise<ResultadoAccion> {
     const e = estadoE(); await this.sembrarDespacho(e)
     const x = this.exigirEnCarga(e, rutaId, puedeLiberarUnidad(actor.roles), 'No tienes permiso para dejar un pedido fuera de la salida')
     if ('error' in x) return x.error
     if (!motivo.trim()) return falla('Cuenta por qué el pedido se deja fuera de la salida')
-    if (!x.r.paradas.some((p) => p.activa && p.salidaId === salidaId)) return falla('Ese pedido no está en esta ruta')
+    if (!['FUERA', 'ANULADO', 'REPROGRAMADO'].includes(tipo)) return falla('Elige si el pedido se anula o se reprograma')
     const c = cargaDe(e, rutaId)
     if (c.exclusiones.some((y) => y.salidaId === salidaId)) return falla('Ese pedido ya se dejó fuera de la salida')
-    c.exclusiones.push({ salidaId, motivo: motivo.trim(), por: actor.nombre, en: ahora() })
+    if (!x.r.paradas.some((p) => p.activa && p.salidaId === salidaId)) return falla('Ese pedido no está en esta ruta')
+    c.exclusiones.push({ salidaId, motivo: motivo.trim(), por: actor.nombre, en: ahora(), tipo })
+    for (const p of x.r.paradas) if (p.activa && p.salidaId === salidaId) p.activa = false      // 0065: sale del plan (queda libre para otra ruta); la fila se sigue mostrando, marcada
     const codigos = new Set(bultosVigentes(e, salidaId).map((b) => b.codigo))
     for (const y of vivos(c)) if (codigos.has(y.codigo)) { y.estado = 'RETIRADO'; y.motivo = `El pedido se dejó fuera de la salida: ${motivo.trim()}` }
     registrar(e, actor, 'pedido_fuera_de_la_salida', 'rutas', rutaId, x.r.numero, motivo.trim())

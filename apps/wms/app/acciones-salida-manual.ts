@@ -2,6 +2,7 @@
 
 import { exigirContexto } from '@/lib/contexto'
 import { repositorio } from '@/services/repositorio-actual'
+import { avisarGuia } from '@/services/avisos-guia'
 import { guardarArchivo } from '@/services/archivos'
 import { validarLineaSalidaCliente, validarPdfGre, type EntradaOrdenManual } from '@/domain/salida-manual'
 import { tipoDeMotivo } from '@/domain/salidas'
@@ -46,6 +47,14 @@ export async function crearOrdenManualAccion(entrada: EntradaOrdenManual) { retu
 export async function crearOrdenDePedidoAccion(pedidoId: string) { return repositorio().crearOrdenDePedido(pedidoId, await quien()) }
 export async function crearOrdenesPendientesAccion() { return repositorio().crearOrdenesPendientes(await quien()) }
 export async function cancelarOrdenAccion(salidaId: string, motivo: string) { return repositorio().cancelarOrden(salidaId, motivo, await quien()) }
+/** «Ya no sale»: cancela la pre-guía y la orden. Quien factura se entera por correo («NO factures»). */
+export async function yaNoSaleAccion(salidaId: string, motivo: string, rehacer: boolean) {
+  const repo = repositorio()
+  const pre = await repo.preGuiaDe(salidaId).catch(() => null)
+  const r = await repo.yaNoSale(salidaId, motivo, rehacer, await quien())
+  if (r.ok && r.preGuia) await avisarGuia('CANCELADA', salidaId, pre?.numeroCompleto ?? r.preGuia, motivo)
+  return r
+}
 
 /** Guarda la foto o el PDF del cargo de la entrega al transportista del cliente (opcional) y devuelve su referencia. */
 export async function subirCargoEntregaAccion(f: FormData): Promise<ResultadoAccion<{ ref: string; nombre: string }>> {

@@ -1,4 +1,4 @@
-import type { CargaResumen, CargaRuta, ItemChecklist } from '@/domain/carga'
+import type { CargaResumen, CargaRuta, ItemChecklist, TipoExclusion } from '@/domain/carga'
 import type { Actor, ResultadoAccion } from './repositorio'
 
 /** S8: carga de la unidad, conciliación, liberar la unidad y confirmar la salida (aquí el stock sale de verdad). */
@@ -13,7 +13,7 @@ export interface RepositorioCarga {
   contarBultosCargados(rutaId: string, salidaId: string, contados: number, actor: Actor): Promise<ResultadoAccion<{ contados: number }>>
   retirarBulto(rutaId: string, codigo: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
   /** Un pedido al que le falta un bulto se deja fuera de ESTA salida (con motivo). */
-  excluirPedido(rutaId: string, salidaId: string, motivo: string, actor: Actor): Promise<ResultadoAccion>
+  excluirPedido(rutaId: string, salidaId: string, motivo: string, actor: Actor, tipo?: TipoExclusion): Promise<ResultadoAccion>
   liberarUnidad(rutaId: string, actor: Actor): Promise<ResultadoAccion>
   /** Una sola transacción e idempotente: el stock sale aquí y solo aquí. Devuelve cuántas reservas descontó (0 si ya estaba confirmada). */
   confirmarSalidaRuta(rutaId: string, actor: Actor): Promise<ResultadoAccion<{ reservas: number }>>

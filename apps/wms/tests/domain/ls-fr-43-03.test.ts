@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { soloEntregadas, armarRegistroLsFr, cierreVigente, conservarHasta, faltaImprimir, fueraDeRangoTemperatura, textoTemperatura, paginarFilas, parametrosDesdeClaves, puedeImprimirLsFr, type FilaLsFr } from '@/domain/ls-fr-43-03'
+import { hojaDigemidDisponible, soloEntregadas, armarRegistroLsFr, cierreVigente, conservarHasta, faltaImprimir, fueraDeRangoTemperatura, textoTemperatura, paginarFilas, parametrosDesdeClaves, puedeImprimirLsFr, type FilaLsFr } from '@/domain/ls-fr-43-03'
 import type { ParadaVista, RutaVista } from '@/domain/rutas'
 
 const parada = (n: number): ParadaVista => ({ id: `p${n}`, secuencia: n, clave: `ped-${n}`, origen: 'PEDIDO', pedidoId: `ped-${n}`, pedidoNumero: `PED-${n}`, cliente: `Cliente ${n}`, lineas: 1, unidades: 10, stock: 'ASIGNADA', excepcionCorte: false })
@@ -80,5 +80,9 @@ describe('LS-FR.43.03 con las respuestas de Dirección Técnica (OS-7)', () => {
     expect(faltaImprimir(null)).toBe(true)
     expect(faltaImprimir({ impresiones: [] })).toBe(true)
     expect(faltaImprimir({ impresiones: [{ por: 'Roberto', en: 'x', antesDeSalir: true }] })).toBe(false)
+  })
+  it('la hoja para DIGEMID se habilita solo al final de la ruta (todas las paradas con resultado)', () => {
+    for (const e of ['BORRADOR', 'PLANIFICADA', 'LISTA_PARA_CARGA', 'LIBERADA', 'EN_RUTA', 'CANCELADA']) expect(hojaDigemidDisponible(e), e).toBe(false)
+    for (const e of ['PENDIENTE_CIERRE', 'CERRADA']) expect(hojaDigemidDisponible(e), e).toBe(true)
   })
 })

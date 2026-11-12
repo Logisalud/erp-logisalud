@@ -5,9 +5,10 @@ import { repositorio } from '@/services/repositorio-actual'
 import type { AsignacionLote } from '@/domain/salidas'
 import type { ResultadoLineaConformidad, TipoNoConformidad } from '@/domain/despacho'
 import type { RepartoBulto } from '@/domain/embalaje'
-import type { ItemChecklist } from '@/domain/carga'
+import type { ItemChecklist, TipoExclusion } from '@/domain/carga'
 import type { Actor } from '@/services/repositorio'
 import type { CasoAnulacion, RegistroGuiaPanel, TrasladoGuia } from '@/domain/guia-electronica'
+import { avisarGuia } from '@/services/avisos-guia'
 import { crearPreGuiaDeOrden, anularGuiaConCaso, consultarEstadoGuia, emitirGuiaElectronica, enviarEventosPedidos, probarConexionNubefact, registrarGuiaPanel } from '@/services/guia-electronica'
 
 async function quien(): Promise<Actor> {
@@ -31,7 +32,13 @@ export async function conformarOrdenAccion(ordenId: string, lineas: ResultadoLin
   return r
 }
 export async function crearPreGuiaAccion(salidaId: string) { await quien(); return crearPreGuiaDeOrden(salidaId) }
-export async function cancelarPreGuiaAccion(salidaId: string, motivo: string) { await quien(); return repositorio().cancelarPreGuia(salidaId, motivo) }
+export async function cancelarPreGuiaAccion(salidaId: string, motivo: string) {
+  await quien()
+  const pre = await repositorio().preGuiaDe(salidaId).catch(() => null)
+  const r = await repositorio().cancelarPreGuia(salidaId, motivo)
+  if (r.ok && r.cancelada && pre) await avisarGuia('CANCELADA', salidaId, pre.numeroCompleto, motivo)      // quien factura se entera: NO factures
+  return r
+}
 export async function designarPickerAccion(ordenId: string, pickerId: string) { return repositorio().designarPicker(ordenId, pickerId, await quien()) }
 export async function reabrirObservadaAccion(ordenLineaId: string, nota?: string) { return repositorio().reabrirObservada(ordenLineaId, nota, await quien()) }
 
@@ -50,7 +57,7 @@ export async function guardarChecklistAccion(rutaId: string, items: ItemChecklis
 export async function cargarBultoAccion(rutaId: string, codigo: string) { return repositorio().cargarBulto(rutaId, codigo, await quien()) }
 export async function contarBultosCargadosAccion(rutaId: string, salidaId: string, contados: number) { return repositorio().contarBultosCargados(rutaId, salidaId, contados, await quien()) }
 export async function retirarBultoAccion(rutaId: string, codigo: string, motivo: string) { return repositorio().retirarBulto(rutaId, codigo, motivo, await quien()) }
-export async function excluirPedidoAccion(rutaId: string, salidaId: string, motivo: string) { return repositorio().excluirPedido(rutaId, salidaId, motivo, await quien()) }
+export async function excluirPedidoAccion(rutaId: string, salidaId: string, motivo: string, tipo?: TipoExclusion) { return repositorio().excluirPedido(rutaId, salidaId, motivo, await quien(), tipo) }
 export async function liberarUnidadAccion(rutaId: string) { return repositorio().liberarUnidad(rutaId, await quien()) }
 export async function confirmarSalidaRutaAccion(rutaId: string) { return repositorio().confirmarSalidaRuta(rutaId, await quien()) }
 

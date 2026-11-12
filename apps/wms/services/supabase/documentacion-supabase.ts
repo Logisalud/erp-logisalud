@@ -14,7 +14,7 @@ import { etapaConAvance, type SalidaResumen, type SalidaVista } from '@/domain/d
 import type { EstadoRequisito, TipoDocumento } from '@/domain/documentos'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import type { Actor, ResultadoAccion } from '../repositorio'
-import type { RepositorioDocumentacion } from '../repositorio-documentacion'
+import type { IntercambioNumero, RepositorioDocumentacion } from '../repositorio-documentacion'
 import { crearClienteServidor } from '@logisalud/auth/server'
 import { nombresDe } from './entradas-supabase'
 import { DocumentosSupabase } from './documentos-supabase'
@@ -174,11 +174,12 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
     return error ? mal(error) : { ok: true, id: String(data), numero: r.numero }
   }
 
-  async reservarNumeroGuia(serie: string, entorno: ModoNubefact, salidaId: string): Promise<ResultadoAccion<{ numero: number; reintento: boolean }>> {
+  async reservarNumeroGuia(serie: string, entorno: ModoNubefact, salidaId: string): Promise<ResultadoAccion<{ numero: number; reintento: boolean; intercambio?: IntercambioNumero }>> {
     const { data, error } = await rpc('reservar_numero_guia', { p_serie: serie, p_entorno: entorno, p_salida: salidaId })
     if (error) return mal(error)
-    const r = (data ?? {}) as { numero?: number; reintento?: boolean }
-    return { ok: true, numero: Number(r.numero), reintento: Boolean(r.reintento) }
+    const r = (data ?? {}) as { numero?: number; reintento?: boolean; intercambio?: { salida: string; numero_anterior: number; numero_nuevo: number; mi_numero_anterior: number; mi_numero_nuevo: number } | null }
+    const x = r.intercambio
+    return { ok: true, numero: Number(r.numero), reintento: Boolean(r.reintento), intercambio: x ? { salidaIdOtra: String(x.salida), numeroAnteriorOtra: Number(x.numero_anterior), numeroNuevoOtra: Number(x.numero_nuevo), miNumeroAnterior: Number(x.mi_numero_anterior), miNumeroNuevo: Number(x.mi_numero_nuevo) } : undefined }
   }
 
   async liberarNumeroGuia(serie: string, numero: number, motivo?: string): Promise<ResultadoAccion> {

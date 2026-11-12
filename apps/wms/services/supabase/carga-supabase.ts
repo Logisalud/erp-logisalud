@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { ITEMS_CHECKLIST_POR_DEFECTO, motivosNoLiberar, normalizarCodigoBulto, type BultoCarga, type CargaResumen, type CargaRuta, type EstadoCarga, type ItemChecklist, type PedidoCarga } from '@/domain/carga'
+import { ITEMS_CHECKLIST_POR_DEFECTO, motivosNoLiberar, normalizarCodigoBulto, type BultoCarga, type CargaResumen, type CargaRuta, type EstadoCarga, type ItemChecklist, type PedidoCarga, type TipoExclusion } from '@/domain/carga'
 import type { ExtrasLsFr } from '@/domain/ls-fr-43-03'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioCarga } from '../repositorio-carga'
@@ -19,13 +19,14 @@ const ESTADOS_CARGA = ['PLANIFICADA', 'LISTA_PARA_CARGA', 'LIBERADA', 'EN_RUTA']
 
 export class CargaSupabase extends EmbalajeSupabase implements RepositorioCarga {
   private async pedidos(rutaId: string): Promise<PedidoCarga[]> {
-    const [{ data: conc, error }, { data: ex }] = await Promise.all([sch().rpc('conciliacion_carga', { p_ruta: rutaId }), sch().from('carga_exclusiones').select('salida_id, motivo').eq('ruta_id', rutaId)])
+    const [{ data: conc, error }, { data: ex }] = await Promise.all([sch().rpc('conciliacion_carga', { p_ruta: rutaId }), sch().from('carga_exclusiones').select('salida_id, motivo, tipo').eq('ruta_id', rutaId)])
     if (error) throw new Error(mensajeHumano(error))
     const motivo = new Map(((ex ?? []) as Fila[]).map((x) => [String(x.salida_id), String(x.motivo)]))
+    const tipo = new Map(((ex ?? []) as Fila[]).map((x) => [String(x.salida_id), String(x.tipo ?? 'FUERA') as TipoExclusion]))
     const por = new Map<string, PedidoCarga>()
     for (const f of (conc ?? []) as Fila[]) {
       const id = String(f.salida_id)
-      const p = por.get(id) ?? { salidaId: id, salidaNumero: String(f.salida_numero), pedidoNumero: s(f.pedido_numero), secuencia: Number(f.secuencia), listo: Boolean(f.listo), excluida: Boolean(f.excluida), motivoExclusion: motivo.get(id), bultos: [] }
+      const p = por.get(id) ?? { salidaId: id, salidaNumero: String(f.salida_numero), pedidoNumero: s(f.pedido_numero), secuencia: Number(f.secuencia), listo: Boolean(f.listo), excluida: Boolean(f.excluida), motivoExclusion: motivo.get(id), tipoExclusion: tipo.get(id), bultos: [] }
       if (f.bulto_id) p.bultos.push({ bultoId: String(f.bulto_id), codigo: String(f.codigo), secuencia: Number(f.bulto_secuencia), total: Number(f.bulto_total), cargado: Boolean(f.cargado) } satisfies BultoCarga)
       por.set(id, p)
     }
@@ -93,8 +94,8 @@ export class CargaSupabase extends EmbalajeSupabase implements RepositorioCarga 
     return error ? mal(error) : { ok: true }
   }
 
-  async excluirPedido(rutaId: string, salidaId: string, motivo: string, _actor: Actor): Promise<ResultadoAccion> {
-    const { error } = await rpc('excluir_pedido_de_carga', { p_ruta: rutaId, p_salida: salidaId, p_motivo: motivo })
+  async excluirPedido(rutaId: string, salidaId: string, motivo: string, _actor: Actor, tipo: TipoExclusion = 'FUERA'): Promise<ResultadoAccion> {
+    const { error } = await rpc('excluir_pedido_de_carga', { p_ruta: rutaId, p_salida: salidaId, p_motivo: motivo, p_tipo: tipo })
     return error ? mal(error) : { ok: true }
   }
 
