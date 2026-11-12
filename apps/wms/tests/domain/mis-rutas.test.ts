@@ -20,9 +20,12 @@ describe('permisos y menú', () => {
     expect(inicioEsMisRutas(['auxiliar_transporte', 'auxiliar'])).toBe(true)
     expect(inicioEsMisRutas(['conductor', 'jefe_transporte'])).toBe(false)      // un jefe conserva el Inicio general
     expect(inicioEsMisRutas(['auxiliar'])).toBe(false)                          // quien solo pica no tiene «Mis rutas»
-    const hrefs = construirMenu(roles).flatMap((s) => s.items.map((i) => i.href))
-    expect(hrefs).toEqual(expect.arrayContaining(['/', '/mis-rutas', '/picking', '/conformidad', '/inspecciones']))
-    expect(construirMenu(['auxiliar']).flatMap((s) => s.items.map((i) => i.href))).not.toContain('/mis-rutas')
+    // su menú es solo lo que usa: Mis rutas, picking, conformidad, cargar la unidad e inspección (sin mapa, kardex, reportes ni el resto del almacén)
+    const hrefs = construirMenu(roles, 0, false).flatMap((s) => s.items.map((i) => i.href))
+    expect(hrefs).toEqual(['/mis-rutas', '/picking', '/conformidad', '/carga', '/inspecciones'])
+    expect(construirMenu(roles, 0, true).flatMap((s) => s.items.map((i) => i.href))).toContain('/embalaje')      // si algún día se activa el embalaje, lo ve
+    expect(construirMenu(['auxiliar']).flatMap((s) => s.items.map((i) => i.href))).not.toContain('/mis-rutas')   // quien solo pica conserva su menú de siempre
+    expect(construirMenu(['conductor', 'jefe_transporte']).flatMap((s) => s.items.map((i) => i.href))).toEqual(expect.arrayContaining(['/', '/mis-rutas', '/rutas']))
   })
   it('su menú es Inicio y Mis rutas; el de los demás no la trae', () => {
     expect(construirMenu(['conductor']).flatMap((s) => s.items.map((i) => i.href))).toEqual(['/', '/mis-rutas', '/inspecciones'])

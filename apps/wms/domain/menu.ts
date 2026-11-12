@@ -2,7 +2,7 @@ import type { Rol } from './tipos'
 import { esPersonal, puede } from './permisos'
 import { puedeVerBandeja } from './pedidos-despacho'
 import { puedeVerRutas } from './rutas'
-import { puedeVerMisRutas } from './mis-rutas'
+import { inicioEsMisRutas, puedeVerMisRutas } from './mis-rutas'
 import { puedeVerInspecciones } from './inspecciones'
 import { puedeImprimirRotulos } from './rotulos'
 import { puedeOriginarRetorno } from './retornos'
@@ -62,6 +62,22 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0, embala
   // Quien no es personal (conductor, usuario de cliente) no lee el inventario: solo ve el Inicio.
   // Quien solo conduce o ayuda en la ruta (S9 y S10) ve su Inicio y «Mis rutas».
   if (!esPersonal(roles)) return [{ id: 'inicio', titulo: null, items: puedeVerMisRutas(roles) ? [inicio, { href: '/mis-rutas', etiqueta: 'Mis rutas', icono: 'rutas', destacado: true }, ...(puedeVerInspecciones(roles) ? [{ href: '/inspecciones', etiqueta: 'Inspección de la unidad', icono: 'inspeccion' as const, corta: 'Inspección' }] : [])] : [inicio] }]
+
+  // Quien conduce o ayuda en la ruta y además pica o da conformidad como auxiliar (conductor + auxiliar): solo lo que usa, para que no se maree.
+  // Su Inicio es «Mis rutas» (el menú no repite «Inicio»); sin mapa, kardex, reportes ni lo demás del almacén. Es solo lo que se muestra: los permisos no cambian.
+  if (inicioEsMisRutas(roles)) {
+    const salidas = puedeVerSalidas(roles)
+    const pasos: ItemMenu[] = []
+    if (salidas && puedePickear(roles)) pasos.push({ href: '/picking', etiqueta: 'Preparar pedidos (picking)', icono: 'picking', corta: 'Picking' })
+    if (salidas && puedeDarConformidad(roles)) pasos.push({ href: '/conformidad', etiqueta: 'Dar conformidad', icono: 'conformidad', corta: 'Conformidad' })
+    if (salidas && embalajeActivo && puedeEmbalar(roles)) pasos.push({ href: '/embalaje', etiqueta: 'Embalar', icono: 'embalaje' })
+    if (salidas && puedeCargar(roles)) pasos.push({ href: '/carga', etiqueta: 'Cargar la unidad', icono: 'cargaunidad' })
+    if (puedeVerInspecciones(roles)) pasos.push({ href: '/inspecciones', etiqueta: 'Inspección de la unidad', icono: 'inspeccion', corta: 'Inspección' })
+    return [
+      { id: 'inicio', titulo: null, items: [{ href: '/mis-rutas', etiqueta: 'Mis rutas', icono: 'rutas', destacado: true }] },
+      ...(pasos.length ? [{ id: 'despacho' as const, titulo: TITULO_SECCION.despacho, items: pasos }] : []),
+    ]
+  }
 
   // Quien solo autoriza salidas sin venta no opera el almacén: ve el stock para elegir y su pantalla, no recepciones, movimientos, conteos ni bajas.
   const soloAutoriza = roles.every((r) => r === 'autoriza_salidas_sin_venta')
@@ -123,7 +139,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0, embala
  */
 export function principalesTelefono(roles: readonly Rol[], secciones: readonly SeccionMenu[]): string[] {
   const visibles = new Set(secciones.flatMap((s) => s.items.map((i) => i.href)))
-  const prioridad: string[] = roles.includes('conductor') || roles.includes('auxiliar_transporte') ? (roles.includes('auxiliar') ? ['/', '/mis-rutas', '/picking'] : ['/', '/mis-rutas'])
+  const prioridad: string[] = roles.includes('conductor') || roles.includes('auxiliar_transporte') ? (inicioEsMisRutas(roles) && roles.includes('auxiliar') ? ['/mis-rutas', '/picking', '/conformidad'] : ['/', '/mis-rutas'])
     : roles.includes('jefe_transporte') ? ['/', '/salidas', '/rutas']
     : roles.includes('jefe_almacen') || roles.includes('auxiliar') ? ['/', '/picking', '/almacen']
     : roles.includes('conformidad_despacho') ? ['/', '/conformidad', '/almacen']
