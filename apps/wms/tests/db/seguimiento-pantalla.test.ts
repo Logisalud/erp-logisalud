@@ -180,6 +180,7 @@ describe('«Escribir a mi vendedor»', () => {
       expect(r.prueba).toBe(true)
       expect(r.contacto).toMatchObject({ telefono: '+51911222333' })
       expect(JSON.stringify(r)).not.toContain('987654321'); expect(JSON.stringify(r)).not.toContain('999888777')
+      expect((await ver((await pedido({ vendedor: 'Susana Sin Número' })).numero)).contacto).toBeNull()   // vendedor sin número cargado: sin botón, también en piloto
       await param('seguimiento_whatsapp_prueba', '')
       expect((await ver(p.numero)).contacto).toBeNull()      // sin número de prueba no hay botón: no se usa el real
     } finally { await param('modo_piloto', 'no'); await param('seguimiento_whatsapp_prueba', '911222333') }
