@@ -105,7 +105,7 @@ describe('con el interruptor encendido', () => {
 describe('seguridad', () => {
   it('el cliente sin usuario sigue llamando solo a las dos consultas: la deuda no se puede pedir por su cuenta', async () => {
     const fns = (await q(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'wms' and has_function_privilege('anon', p.oid, 'execute') order by 1`)).map((r) => r.proname)
-    expect(fns).toEqual(['kardex_cliente_por_token', 'seguimiento_consultar', 'seguimiento_por_token', 'stock_cliente_por_token'])
+    expect(fns).toEqual(['kardex_cliente_por_token', 'seguimiento_consultar', 'seguimiento_por_token', 'seguimiento_responder', 'stock_cliente_por_token'])
     await anon(async () => { await expect(base.admin.query(`select wms._deuda_cliente($1)`, [R_MOROSO])).rejects.toThrow(/permission denied/) })
     await anon(async () => { await expect(base.admin.query(`select * from public.fn_documentos_cobranza()`)).rejects.toThrow(/permission denied/) })
   })

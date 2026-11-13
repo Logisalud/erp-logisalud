@@ -75,13 +75,13 @@ describe('con el seguimiento encendido (fuera del piloto)', () => {
     await limpiarIntentos()
     const r = await consultar('ped-sg1', RUC)
     expect(r.estado).toBe('OK'); expect(r.pedido).toBe('PED-SG1')
-    expect(r.hitos.map((h: R) => h.estado)).toEqual(['RECIBIDO'])
+    expect(r.hitos).toEqual([])           // 0069: «Pedido recibido» es la Orden de Salida creada; este pedido todavía no la tiene
     const e = await consultar(' PED-SG2 ', RUC)
-    expect(e.hitos.map((h: R) => h.estado)).toEqual(['RECIBIDO', 'EN_RUTA', 'ENTREGADO'])
+    expect(e.hitos.map((h: R) => h.estado)).toEqual(['ENTREGADO'])
     expect(e.hitos.every((h: R) => Object.keys(h).sort().join() === 'en,estado' && !Number.isNaN(Date.parse(h.en)))).toBe(true)
     const texto = JSON.stringify(e)
     for (const secreto of ['Av. Secreta', 'Crédito', 'María Pérez', '12345678', 'Dapagliflozina', 'lote', 'precio', 'estimad', 'entregas/x.jpg']) expect(texto.toLowerCase()).not.toContain(secreto.toLowerCase())
-    expect(Object.keys(e).sort()).toEqual(['deuda', 'estado', 'hitos', 'pedido'])      // 0068: la deuda va en null mientras su interruptor esté apagado (tests/db/seguimiento-deuda.test.ts)
+    expect(Object.keys(e).sort()).toEqual(['cliente', 'contacto', 'deuda', 'estado', 'guia', 'hitos', 'pedido', 'prueba', 'respuesta', 'ruta', 'tiene_parada'])      // 0068: la deuda va en null mientras su interruptor esté apagado (tests/db/seguimiento-deuda.test.ts)
     expect(e.deuda).toBeNull()
   })
   it('no revela si el pedido existe: pedido inexistente y RUC equivocado dan exactamente la misma respuesta', async () => {
@@ -137,9 +137,9 @@ describe('con el seguimiento encendido (fuera del piloto)', () => {
 })
 
 describe('lo que ve quien no tiene usuario (anon)', () => {
-  it('solo puede llamar a las consultas del cliente (las dos del seguimiento y las dos del stock, 0067): ninguna tabla, ni la vista, ni las demás funciones', async () => {
+  it('solo puede llamar a las consultas del cliente (las tres del seguimiento y las dos del stock, 0067 y 0069): ninguna tabla, ni la vista, ni las demás funciones', async () => {
     const fns = (await q(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'wms' and has_function_privilege('anon', p.oid, 'execute') order by 1`)).map((r) => r.proname)
-    expect(fns).toEqual(['kardex_cliente_por_token', 'seguimiento_consultar', 'seguimiento_por_token', 'stock_cliente_por_token'])
+    expect(fns).toEqual(['kardex_cliente_por_token', 'seguimiento_consultar', 'seguimiento_por_token', 'seguimiento_responder', 'stock_cliente_por_token'])
     for (const t of ['pedidos_despacho', 'seguimiento_tokens', 'seguimiento_intentos', 'v_seguimiento_pedido', 'parametros', 'rutas']) {
       await anon(async () => { await expect(base.admin.query(`select 1 from wms.${t} limit 1`)).rejects.toThrow(/permission denied/) })
     }
