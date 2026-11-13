@@ -23,7 +23,7 @@ Riesgos a decidir: quién puede generar enlaces y la vigencia por defecto (propu
 
 ## Estado de pagos del cliente (0068, 13-nov-2026)
 Debajo de la línea de tiempo del pedido, el cliente ve su **estado de pagos** (decisión de Sebas, ver `decisiones-pendientes.md`):
-- **Con documentos vencidos:** «Tienes pagos vencidos», el total vencido, cada documento (número, cuándo venció, días de atraso y saldo; hasta 30, los más atrasados primero) y qué hacer («Si ya pagaste, puede que aún no lo hayamos registrado: avísale a tu asesor comercial…»). Palabras llanas: nunca «moroso» ni «deuda».
+- **Con documentos vencidos:** «Tus pagos pendientes» y una **tabla simple** (Documento · Venció · Atraso · Saldo; hasta 30 documentos, los más atrasados primero) con el **total al pie**, y qué hacer («Si ya pagaste, puede que aún no lo hayamos registrado: avísale a tu asesor comercial… Gracias por tu comprensión.»). Tono tranquilo, a pedido de Sebas: tarjeta neutra, sin colores de alarma y sin las palabras «moroso», «deuda» ni «urgente».
 - **Al día:** «¡Estás al día en tus pagos! 😊 Gracias por la confianza.»
 - **Sin datos** (Cobranzas no conoce el RUC, está apagado o falta Cobranzas): no se muestra nada.
 - Sale de `public.fn_documentos_cobranza(fecha)` y `public.clientes` (Cobranzas): el WMS solo los lee. Ver `supabase/migrations/0068_wms_seguimiento_estado_de_pagos_del_cliente.sql`.

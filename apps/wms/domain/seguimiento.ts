@@ -63,8 +63,9 @@ export const ipDe = (xForwardedFor: string | null | undefined, xRealIp?: string 
 
 export const TITULO_AL_DIA = '¡Estás al día en tus pagos! 😊'
 export const TEXTO_AL_DIA = 'Gracias por la confianza.'
-export const TITULO_MOROSO = 'Tienes pagos vencidos'
-export const TEXTO_MOROSO = 'Si ya pagaste, puede que aún no lo hayamos registrado: avísale a tu asesor comercial y lo actualizamos. Para ponerte al día, también puedes coordinar con él.'
+export const TITULO_MOROSO = 'Tus pagos pendientes'
+export const TEXTO_INTRO_MOROSO = 'Estos documentos ya pasaron su fecha de pago:'
+export const TEXTO_MOROSO = 'Si ya pagaste, puede que aún no lo hayamos registrado: avísale a tu asesor comercial y lo actualizamos. Gracias por tu comprensión.'
 
 /** «S/ 1,234.50» (los saldos vienen en soles). */
 export const soles = (n: number) => `S/ ${new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`
@@ -72,5 +73,5 @@ export const soles = (n: number) => `S/ ${new Intl.NumberFormat('es-PE', { minim
 /** «1 documento vencido», «3 documentos vencidos». */
 export const textoCantidadVencidos = (n: number) => `${n} ${n === 1 ? 'documento vencido' : 'documentos vencidos'}`
 
-/** «Venció hace 10 días» (el atraso mínimo de un documento vencido es 1 día). */
-export const textoAtraso = (dias: number) => `${dias} ${dias === 1 ? 'día' : 'días'} de atraso`
+/** «1 día», «95 días» (el atraso mínimo de un documento vencido es 1 día). */
+export const textoAtraso = (dias: number) => `${dias} ${dias === 1 ? 'día' : 'días'}`

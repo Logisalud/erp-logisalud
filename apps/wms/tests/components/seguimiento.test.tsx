@@ -2,7 +2,7 @@
 // Fase 4 · P9: la página pública del cliente: formulario (vacío, error, espera, éxito), línea de tiempo y sin banners de empleados.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -94,18 +94,23 @@ describe('estado de pagos del cliente (0068)', () => {
     expect(screen.getByTestId('pagos-titulo')).toHaveTextContent('¡Estás al día en tus pagos! 😊')
     expect(s).toHaveTextContent('Gracias por la confianza.'); expect(s).toHaveTextContent('Información al 13 nov 2026')
   })
-  it('con documentos vencidos: el total, cada documento (número, vencimiento, atraso y saldo), cuántos faltan y qué hacer', async () => {
+  it('con documentos vencidos: una tabla simple (documento, cuándo venció, atraso y saldo), el total al pie y qué hacer, en tono tranquilo', async () => {
     const { EstadoDePagosCliente } = await import('@/components/seguimiento/estado-de-pagos')
     render(<EstadoDePagosCliente deuda={{ estado: 'MOROSO', al: '2026-11-13', total: 2100.5, maxDias: 95, cantidad: 5, documentos: [
       { documento: 'F001-00007', vence: '2026-08-10', dias: 95, saldo: 800 }, { documento: 'F001-00010', vence: '2026-11-03', dias: 10, saldo: 1300.5 }] }} />)
     const s = screen.getByTestId('estado-pagos')
     expect(s).toHaveAttribute('data-estado', 'MOROSO')
-    expect(screen.getByTestId('pagos-titulo')).toHaveTextContent('Tienes pagos vencidos')
+    expect(screen.getByTestId('pagos-titulo')).toHaveTextContent('Tus pagos pendientes')
+    expect(s).toHaveTextContent('Estos documentos ya pasaron su fecha de pago')
+    const tabla = screen.getByTestId('pagos-documentos')
+    expect(within(tabla).getAllByRole('columnheader').map((c) => c.textContent)).toEqual(['Documento', 'Venció', 'Atraso', 'Saldo'])
+    const fila = screen.getByTestId('pagos-documento-F001-00007')
+    expect(within(fila).getAllByRole('cell').map((c) => c.textContent)).toEqual(['F001-00007', '10 ago 2026', '95 días', 'S/ 800.00'])
     expect(screen.getByTestId('pagos-total')).toHaveTextContent('S/ 2,100.50'); expect(screen.getByTestId('pagos-cantidad')).toHaveTextContent('5 documentos vencidos')
-    expect(screen.getByTestId('pagos-documento-F001-00007')).toHaveTextContent('Venció el 10 ago 2026'); expect(screen.getByTestId('pagos-documento-F001-00007')).toHaveTextContent('95 días de atraso'); expect(screen.getByTestId('pagos-documento-F001-00007')).toHaveTextContent('S/ 800.00')
     expect(screen.getByTestId('pagos-faltan')).toHaveTextContent('Y 3 documentos vencidos más')
-    expect(s).toHaveTextContent('Si ya pagaste'); expect(s).toHaveTextContent('asesor comercial')
-    expect(document.body.textContent).not.toMatch(/moroso|deuda/i)       // palabras llanas: «pagos vencidos», no «moroso»
+    expect(s).toHaveTextContent('Si ya pagaste'); expect(s).toHaveTextContent('asesor comercial'); expect(s).toHaveTextContent('Gracias por tu comprensión')
+    expect(document.body.textContent).not.toMatch(/moroso|deuda|urgente|incumpl/i)       // palabras llanas, sin dramatismo
+    expect(s.className).not.toMatch(/amber|red/)                                           // sin colores de alarma
   })
   it('con todos sus documentos a la vista no dice «y más»', async () => {
     const { EstadoDePagosCliente } = await import('@/components/seguimiento/estado-de-pagos')
