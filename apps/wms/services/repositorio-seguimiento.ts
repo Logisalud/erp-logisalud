@@ -13,7 +13,6 @@ export interface RepositorioSeguimiento {
   // Del Administrador (permiso `configurar`): a quién escribe «Escribir a mi vendedor» y las opciones del seguimiento.
   listarContactosVendedores(): Promise<ContactoVendedorVista[]>
   guardarContactoVendedor(nombre: string, telefono: string, actor: Actor): Promise<ResultadoAccion<{ id: string }>>
-  eliminarContactoVendedor(id: string, actor: Actor): Promise<ResultadoAccion<{ eliminado: boolean }>>
   /** Carga por CSV: guarda las filas buenas y dice cuáles no (no es todo o nada). */
   cargarContactosVendedores(filas: { nombre: string; telefono: string }[], actor: Actor): Promise<ResultadoAccion<{ guardados: number; errores: ErrorFilaContacto[] }>>
   opcionesSeguimiento(): Promise<OpcionesSeguimiento>

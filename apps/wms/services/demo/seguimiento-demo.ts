@@ -169,15 +169,6 @@ export class SeguimientoDemo extends MisRutasDemo implements RepositorioSeguimie
     registrar(e, actor, 'contacto_vendedor_guardado', 'contactos_vendedores', r, `Contacto de ${nombre.trim()}`)
     return { ok: true, id: r }
   }
-  async eliminarContactoVendedor(id: string, actor: Actor): Promise<ResultadoAccion<{ eliminado: boolean }>> {
-    const e = estadoE()
-    if (!puede(actor.roles, 'configurar')) return falla('No tienes permiso para editar los contactos de los vendedores')
-    const s = seg(e); const c = s.contactos.find((x) => x.id === id)
-    if (!c) return { ok: true, eliminado: false }
-    s.contactos = s.contactos.filter((x) => x.id !== id)
-    registrar(e, actor, 'contacto_vendedor_eliminado', 'contactos_vendedores', id, `Contacto de ${c.nombre}`)
-    return { ok: true, eliminado: true }
-  }
   async cargarContactosVendedores(filas: { nombre: string; telefono: string }[], actor: Actor): Promise<ResultadoAccion<{ guardados: number; errores: ErrorFilaContacto[] }>> {
     const e = estadoE()
     if (!puede(actor.roles, 'configurar')) return falla('No tienes permiso para editar los contactos de los vendedores')

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Trash2, Upload, UserPlus } from 'lucide-react'
-import { cargarContactosCsvAccion, eliminarContactoVendedorAccion, guardarContactoVendedorAccion, guardarOpcionSeguimientoAccion } from '@/app/acciones-contactos'
+import { Upload, UserPlus } from 'lucide-react'
+import { cargarContactosCsvAccion, guardarContactoVendedorAccion, guardarOpcionSeguimientoAccion } from '@/app/acciones-contactos'
 import { telefonoBonito, type ClaveOpcionSeguimiento, type ContactoVendedorVista, type ErrorFilaContacto, type OpcionesSeguimiento } from '@/domain/seguimiento'
 import { useAccion } from '../usar-accion'
 import { Aviso } from '../entradas/aviso'
@@ -44,11 +44,10 @@ export function ConfigSeguimiento({ contactos, opciones }: { contactos: Contacto
         {guardados !== null && <Aviso tipo={errores.length ? 'error' : 'ok'} testid="cv-resultado">Se guardaron {guardados} contactos{errores.length ? `; ${errores.length} filas no sirven:` : '.'}{errores.length > 0 && <ul className="mt-1 list-disc pl-5">{errores.map((e) => <li key={e.fila}>Fila {e.fila} {e.nombre && `(${e.nombre})`}: {e.motivo}</li>)}</ul>}</Aviso>}
         {contactos.length === 0 ? <p className="text-sm text-gray-700" data-testid="cv-vacio">Aún no hay teléfonos cargados.</p> : (
           <div className="overflow-x-auto"><table className="w-full text-left" data-testid="cv-tabla">
-            <thead><tr className="border-b border-gray-200 text-sm text-gray-700"><th className="py-2 pr-3 font-medium">Vendedor</th><th className="py-2 pr-3 font-medium">Celular</th><th className="py-2"><span className="sr-only">Acciones</span></th></tr></thead>
+            <thead><tr className="border-b border-gray-200 text-sm text-gray-700"><th className="py-2 pr-3 font-medium">Vendedor</th><th className="py-2 pr-3 font-medium">Celular</th></tr></thead>
             <tbody>{contactos.map((c) => (
               <tr key={c.id} className="border-b border-gray-100" data-testid={`cv-fila-${c.id}`}>
                 <td className="py-2 pr-3 text-gray-900">{c.nombre}</td><td className="tabular py-2 pr-3 text-gray-900">{telefonoBonito(c.telefono)}</td>
-                <td className="py-2 text-right"><button type="button" className="btn-secondary" disabled={a.pendiente} aria-label={`Quitar a ${c.nombre}`} onClick={() => a.ejecutar(() => eliminarContactoVendedorAccion(c.id), { exito: 'Contacto quitado.' })}><Trash2 className="h-5 w-5" aria-hidden /></button></td>
               </tr>))}</tbody>
           </table></div>
         )}

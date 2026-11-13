@@ -14,9 +14,6 @@ async function quien(): Promise<Actor> {
 export async function guardarContactoVendedorAccion(nombre: string, telefono: string) {
   return repositorio().guardarContactoVendedor(nombre.trim().slice(0, 120), telefono.trim().slice(0, 30), await quien())
 }
-export async function eliminarContactoVendedorAccion(id: string) {
-  return repositorio().eliminarContactoVendedor(id, await quien())
-}
 export async function cargarContactosCsvAccion(texto: string) {
   const filas = leerCsvContactos(texto.slice(0, 500_000))
   if (!filas.length) return { ok: false as const, mensaje: 'El archivo no trae filas. Usa dos columnas: nombre y teléfono.' }

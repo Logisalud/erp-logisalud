@@ -66,10 +66,6 @@ export class SeguimientoSupabase extends MisRutasSupabase implements Repositorio
     const { data, error } = await rpc('guardar_contacto_vendedor', { p_nombre: nombre, p_telefono: telefono })
     return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true, id: String(data) }
   }
-  async eliminarContactoVendedor(id: string, _a: Actor): Promise<ResultadoAccion<{ eliminado: boolean }>> {
-    const { data, error } = await rpc('eliminar_contacto_vendedor', { p_id: id })
-    return error ? { ok: false, mensaje: mensajeHumano(error) } : { ok: true, eliminado: Boolean(data) }
-  }
   async cargarContactosVendedores(filas: { nombre: string; telefono: string }[], _a: Actor): Promise<ResultadoAccion<{ guardados: number; errores: ErrorFilaContacto[] }>> {
     const { data, error } = await rpc('cargar_contactos_vendedores', { p_filas: filas })
     if (error) return { ok: false, mensaje: mensajeHumano(error) }

@@ -206,17 +206,6 @@ begin
   return v_id;
 end $$;
 
-create or replace function wms.eliminar_contacto_vendedor(p_id uuid) returns boolean
-language plpgsql security definer set search_path = wms, pg_temp as $$
-declare v_nombre text;
-begin
-  perform wms._exigir_accion('configurar', 'No tienes permiso para editar los contactos de los vendedores');
-  delete from wms.contactos_vendedores where id = p_id returning nombre into v_nombre;
-  if v_nombre is null then return false; end if;
-  perform wms.registrar_audit('contacto_vendedor_eliminado', 'contactos_vendedores', p_id::text, null, jsonb_build_object('nombre', v_nombre), null);
-  return true;
-end $$;
-
 -- Carga por CSV: [{nombre, telefono}, …]. Guarda las filas buenas y dice cuáles no (fila, nombre y motivo); no es todo o nada.
 create or replace function wms.cargar_contactos_vendedores(p_filas jsonb) returns jsonb
 language plpgsql security definer set search_path = wms, pg_temp as $$
@@ -260,4 +249,4 @@ revoke execute on all functions in schema wms from public;
 grant usage on schema wms to anon;
 revoke all on all tables in schema wms from anon;
 grant execute on function wms.seguimiento_consultar(text, text, text), wms.seguimiento_por_token(text, text), wms.seguimiento_responder(text, text, integer, text) to anon, authenticated;
-grant execute on function wms.guardar_contacto_vendedor(text, text), wms.eliminar_contacto_vendedor(uuid), wms.cargar_contactos_vendedores(jsonb), wms.guardar_opcion_seguimiento(text, text) to authenticated;
+grant execute on function wms.guardar_contacto_vendedor(text, text), wms.cargar_contactos_vendedores(jsonb), wms.guardar_opcion_seguimiento(text, text) to authenticated;

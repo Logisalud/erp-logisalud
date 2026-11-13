@@ -241,8 +241,7 @@ describe('contactos de los vendedores y opciones (Administrador)', () => {
     expect((await uno('select telefono from wms.contactos_vendedores where id = $1', [id])).telefono).toBe('+51912345678')
     await como(admin, (c) => c.query(`select wms.guardar_contacto_vendedor('ANA RIOS', '900111222')`))      // mismo vendedor: se actualiza, no se duplica
     expect((await uno(`select count(*)::int n from wms.contactos_vendedores where wms._norm_nombre(nombre) = 'ana rios'`)).n).toBe(1)
-    expect(await como(admin, async (c) => (await c.query('select wms.eliminar_contacto_vendedor($1) r', [id])).rows[0].r)).toBe(true)
-    expect((await uno(`select count(*)::int n from wms.audit_events where evento in ('contacto_vendedor_guardado', 'contacto_vendedor_eliminado')`)).n).toBeGreaterThanOrEqual(3)
+    expect((await uno(`select count(*)::int n from wms.audit_events where evento = 'contacto_vendedor_guardado'`)).n).toBeGreaterThanOrEqual(2)
   })
   it('el CSV guarda las filas buenas y dice cuáles no, sin frenar todo', async () => {
     const r = await como(admin, async (c) => (await c.query('select wms.cargar_contactos_vendedores($1::jsonb) r', [JSON.stringify([
