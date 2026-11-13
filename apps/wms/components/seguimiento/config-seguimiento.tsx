@@ -29,7 +29,7 @@ export function ConfigSeguimiento({ contactos, opciones }: { contactos: Contacto
       <section className="card space-y-4 p-5" aria-labelledby="h-contactos">
         <div>
           <h2 id="h-contactos" className="font-heading text-xl font-medium tracking-wide text-gray-900">Teléfonos de los vendedores</h2>
-          <p className="mt-1 max-w-3xl text-sm text-gray-700">Escribe el nombre del vendedor tal como llega de Pedidos y su celular (9 dígitos, se guarda con +51). Si un vendedor no tiene número, el cliente escribe al contacto público de Logisalud.</p>
+          <p className="mt-1 max-w-3xl text-sm text-gray-700">Escribe el nombre del vendedor tal como llega de Pedidos y su celular (9 dígitos, se guarda con +51). Si un vendedor no tiene número, el cliente no ve el botón «Escribir a mi vendedor»: no hay otro contacto.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-end">
           <div><label htmlFor="cv-nombre" className="etiqueta">Vendedor</label><input id="cv-nombre" className="campo" value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete="off" data-testid="cv-nombre" /></div>
@@ -61,8 +61,7 @@ export function ConfigSeguimiento({ contactos, opciones }: { contactos: Contacto
         <div><label htmlFor="op-guia" className="etiqueta">¿Cuándo se ve la guía de remisión?</label>
           <select id="op-guia" className="campo sm:max-w-sm" value={ver.guiaVisible} data-testid="op-guia" onChange={(e) => { setVer({ ...ver, guiaVisible: e.target.value as 'SIEMPRE' | 'DESPUES_ENTREGA' }); opcion('seguimiento_guia_visible', e.target.value) }}>
             <option value="SIEMPRE">Siempre, apenas esté aceptada</option><option value="DESPUES_ENTREGA">Solo después de entregado</option></select></div>
-        {([['contacto_logisalud_telefono', 'contactoLogisalud', 'Contacto público de Logisalud', 'Si el vendedor no tiene número, el cliente escribe aquí.'],
-          ['seguimiento_whatsapp_prueba', 'whatsappPrueba', 'Número de prueba (modo piloto)', 'En piloto el botón escribe a este número, nunca al vendedor real.'],
+        {([['seguimiento_whatsapp_prueba', 'whatsappPrueba', 'Número de prueba (modo piloto)', 'En piloto el botón escribe a este número, nunca al vendedor real.'],
           ['seguimiento_base_url', 'baseUrl', 'Dirección propia para los clientes', 'Por ejemplo https://seguimiento.logisalud.pe — se usa al salir a producción.']] as const).map(([clave, campo, titulo, ayuda]) => (
           <div key={clave}><label htmlFor={`op-${clave}`} className="etiqueta">{titulo}</label>
             <input id={`op-${clave}`} className="campo sm:max-w-sm" value={ver[campo]} data-testid={`op-${campo}`} onChange={(e) => setVer({ ...ver, [campo]: e.target.value })} onBlur={() => { if (ver[campo] !== opciones[campo]) opcion(clave, ver[campo]) }} autoComplete="off" />

@@ -8,8 +8,8 @@ export const ETIQUETA_HITO: Record<HitoSeguimiento, string> = {
 export const ORDEN_HITOS: readonly HitoSeguimiento[] = ['RECIBIDO', 'PREPARANDO', 'EN_CAMINO', 'LLEGO', 'ENTREGADO']
 export interface HitoVista { estado: HitoSeguimiento; en: string }
 
-/** A quién escribe el botón «Escribir a mi vendedor»: el vendedor del pedido, o el contacto público de Logisalud; en modo piloto, el número de prueba. */
-export interface ContactoSeguimiento { nombre: string; telefono: string; esVendedor: boolean }
+/** A quién escribe el botón «Escribir a mi vendedor»: solo el vendedor del pedido (sin número cargado no hay botón; no existe contacto público de Logisalud); en modo piloto, el número de prueba. */
+export interface ContactoSeguimiento { nombre: string; telefono: string }
 /** La carita de «¿Cómo fue tu entrega?»: 1 = Mal, 2 = Regular, 3 = Muy bien. */
 export type ValorCarita = 1 | 2 | 3
 
@@ -110,7 +110,7 @@ export function primerNombre(nombre: string): string {
 
 /** El enlace de WhatsApp (wa.me) con el mensaje «Hola [vendedor], consulto por mi pedido [n.°]». El teléfono viene en formato +51. */
 export function enlaceWhatsApp(contacto: ContactoSeguimiento, pedido: string): string {
-  const nombre = contacto.esVendedor ? primerNombre(contacto.nombre) || 'Logisalud' : 'Logisalud'
+  const nombre = primerNombre(contacto.nombre) || 'vendedor'
   return `https://wa.me/${contacto.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${nombre}, consulto por mi pedido ${pedido}`)}`
 }
 
@@ -146,9 +146,9 @@ export type RespuestaCarita =
   | { estado: 'ESPERA'; esperaSegundos: number }
 
 export interface ContactoVendedorVista { id: string; nombre: string; telefono: string; actualizadoEn: string }
-export type ClaveOpcionSeguimiento = 'seguimiento_ruta_visible' | 'seguimiento_guia_visible' | 'contacto_logisalud_telefono' | 'seguimiento_whatsapp_prueba' | 'seguimiento_base_url'
-export interface OpcionesSeguimiento { rutaVisible: boolean; guiaVisible: 'SIEMPRE' | 'DESPUES_ENTREGA'; contactoLogisalud: string; whatsappPrueba: string; baseUrl: string }
-export const OPCIONES_POR_DEFECTO: OpcionesSeguimiento = { rutaVisible: true, guiaVisible: 'SIEMPRE', contactoLogisalud: '', whatsappPrueba: '', baseUrl: '' }
+export type ClaveOpcionSeguimiento = 'seguimiento_ruta_visible' | 'seguimiento_guia_visible' | 'seguimiento_whatsapp_prueba' | 'seguimiento_base_url'
+export interface OpcionesSeguimiento { rutaVisible: boolean; guiaVisible: 'SIEMPRE' | 'DESPUES_ENTREGA'; whatsappPrueba: string; baseUrl: string }
+export const OPCIONES_POR_DEFECTO: OpcionesSeguimiento = { rutaVisible: true, guiaVisible: 'SIEMPRE', whatsappPrueba: '', baseUrl: '' }
 export interface ErrorFilaContacto { fila: number; nombre: string; motivo: string }
 
 /** «+51 987 654 321», «987654321» o «51987654321» → «+51987654321»; otra cosa → null (espejo de `wms._tel_pe`). */

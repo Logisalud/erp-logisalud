@@ -21,7 +21,7 @@ interface SegDemo {
 /** En la demostración el seguimiento nace apagado (como en producción); `WMS_DEMO_SEGUIMIENTO=1` lo enciende para verlo en la Preview. Trae un contacto público y uno de prueba para ver el botón. */
 const seg = (e: EstadoDemo): SegDemo => ((e as EstadoDemo & { seguimiento?: SegDemo }).seguimiento ??= {
   habilitado: process.env.WMS_DEMO_SEGUIMIENTO === '1', intentos: [], tokens: [], contactos: [], respuestas: {},
-  opciones: { ...OPCIONES_POR_DEFECTO, contactoLogisalud: '+51900000000', whatsappPrueba: '+51900000001' },
+  opciones: { ...OPCIONES_POR_DEFECTO, whatsappPrueba: '+51900000001' },
 })
 const hash = (t: string) => createHash('sha256').update(t, 'utf8').digest('hex')
 const QUINCE_MIN = 15 * 60_000
@@ -98,9 +98,8 @@ export class SeguimientoDemo extends MisRutasDemo implements RepositorioSeguimie
     const vendedor = fila.snapshot.vendedor?.trim() || undefined
     const piloto = modoPilotoDemo(e) === 'si'
     const telVendedor = vendedor ? s.contactos.find((c) => normalizarNombre(c.nombre) === normalizarNombre(vendedor))?.telefono : undefined
-    const telefono = piloto ? telefonoPeruano(s.opciones.whatsappPrueba) : telVendedor ?? telefonoPeruano(s.opciones.contactoLogisalud)
-    const esVendedor = piloto ? !!vendedor : !!telVendedor
-    const contacto: ContactoSeguimiento | null = telefono ? { nombre: esVendedor ? vendedor! : 'Logisalud', telefono, esVendedor } : null
+    const telefono = piloto ? (vendedor ? telefonoPeruano(s.opciones.whatsappPrueba) : null) : telVendedor
+    const contacto: ContactoSeguimiento | null = telefono && vendedor ? { nombre: vendedor, telefono } : null
     const salida = fila.salida ? d.salidas.find((x) => x.numero === fila.salida) : undefined
     const g = salida && (s.opciones.guiaVisible === 'SIEMPRE' || entregado) ? d.guias?.find((x) => x.salidaId === salida.id && x.guia.estado === 'VIGENTE' && x.guia.estadoSunat === 'ACEPTADA' && /^https?:\/\/\S+$/i.test(x.guia.enlace ?? '')) : undefined
     return { estado: 'OK', pedido: fila.snapshot.numero, cliente: fila.snapshot.cliente.nombre, hitos, tieneParada: !!ruta, ruta: rutaVista, contacto, guia: g ? { enlace: g.guia.enlace! } : null,
@@ -199,9 +198,9 @@ export class SeguimientoDemo extends MisRutasDemo implements RepositorioSeguimie
     const o = seg(e).opciones; const v = valor.trim()
     if (clave === 'seguimiento_ruta_visible') { if (!['true', 'false'].includes(v)) return falla('Elige si se muestra o no'); o.rutaVisible = v === 'true' }
     else if (clave === 'seguimiento_guia_visible') { const u = v.toUpperCase(); if (u !== 'SIEMPRE' && u !== 'DESPUES_ENTREGA') return falla('Elige «siempre» o «solo después de entregado»'); o.guiaVisible = u }
-    else if (clave === 'contacto_logisalud_telefono' || clave === 'seguimiento_whatsapp_prueba') {
+    else if (clave === 'seguimiento_whatsapp_prueba') {
       const tel = v === '' ? '' : telefonoPeruano(v); if (tel === null) return falla('El teléfono debe ser de 9 dígitos, por ejemplo 987654321')
-      if (clave === 'contacto_logisalud_telefono') o.contactoLogisalud = tel; else o.whatsappPrueba = tel
+      o.whatsappPrueba = tel
     } else if (clave === 'seguimiento_base_url') { if (v !== '' && !/^https:\/\/\S+$/i.test(v)) return falla('La dirección empieza con https://'); o.baseUrl = v }
     else return falla('Esa opción no se cambia aquí')
     registrar(e, actor, 'opcion_seguimiento_cambiada', 'parametros', clave, `Opción ${clave}`)

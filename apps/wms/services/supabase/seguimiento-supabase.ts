@@ -21,7 +21,7 @@ function respuesta(data: unknown): RespuestaSeguimiento {
   const r = (data ?? {}) as Fila
   switch (String(r.estado)) {
     case 'OK': return { estado: 'OK', pedido: String(r.pedido), cliente: s(r.cliente), tieneParada: Boolean(r.tiene_parada), ruta: r.ruta ? { atendidas: Number((r.ruta as Fila).atendidas), total: Number((r.ruta as Fila).total) } : null,
-      contacto: r.contacto ? { nombre: String((r.contacto as Fila).nombre), telefono: String((r.contacto as Fila).telefono), esVendedor: Boolean((r.contacto as Fila).es_vendedor) } : null,
+      contacto: r.contacto ? { nombre: String((r.contacto as Fila).nombre), telefono: String((r.contacto as Fila).telefono) } : null,
       guia: r.guia ? { enlace: String((r.guia as Fila).enlace) } : null, respuesta: r.respuesta == null ? null : (Number(r.respuesta) as ValorCarita), prueba: Boolean(r.prueba), hitos: ((r.hitos ?? []) as Fila[]).map((h): HitoVista => ({ estado: String(h.estado) as HitoVista['estado'], en: String(h.en) })), deuda: deuda(r.deuda) }
     case 'ESPERA': return { estado: 'ESPERA', esperaSegundos: Number(r.espera_segundos ?? 60) }
     case 'NO_ENCONTRADO': return { estado: 'NO_ENCONTRADO' }
@@ -81,7 +81,7 @@ export class SeguimientoSupabase extends MisRutasSupabase implements Repositorio
     const v = (clave: string) => s(filas.find((f) => f.clave === clave)?.valor)
     return {
       rutaVisible: (v('seguimiento_ruta_visible') ?? 'true') === 'true', guiaVisible: (v('seguimiento_guia_visible') ?? 'SIEMPRE').toUpperCase() === 'DESPUES_ENTREGA' ? 'DESPUES_ENTREGA' : 'SIEMPRE',
-      contactoLogisalud: v('contacto_logisalud_telefono') ?? OPCIONES_POR_DEFECTO.contactoLogisalud, whatsappPrueba: v('seguimiento_whatsapp_prueba') ?? OPCIONES_POR_DEFECTO.whatsappPrueba, baseUrl: v('seguimiento_base_url') ?? OPCIONES_POR_DEFECTO.baseUrl,
+whatsappPrueba: v('seguimiento_whatsapp_prueba') ?? OPCIONES_POR_DEFECTO.whatsappPrueba, baseUrl: v('seguimiento_base_url') ?? OPCIONES_POR_DEFECTO.baseUrl,
     }
   }
   async guardarOpcionSeguimiento(clave: ClaveOpcionSeguimiento, valor: string, _a: Actor): Promise<ResultadoAccion> {

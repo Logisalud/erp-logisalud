@@ -160,22 +160,19 @@ describe('«Van X de Y entregas de tu ruta»', () => {
 describe('«Escribir a mi vendedor»', () => {
   beforeAll(async () => {
     await como(admin, (c) => c.query(`select wms.guardar_contacto_vendedor('JUAN PÉREZ  ', '+51 987 654 321')`))
-    await param('contacto_logisalud_telefono', '+51 999 888 777')
     await param('seguimiento_whatsapp_prueba', '911222333')
   })
   it('con número cargado: el del vendedor (el nombre se compara sin tildes, mayúsculas ni espacios de más)', async () => {
     const p = await pedido({ vendedor: 'juan perez' })
-    expect((await ver(p.numero)).contacto).toEqual({ nombre: 'juan perez', telefono: '+51987654321', es_vendedor: true })
+    expect((await ver(p.numero)).contacto).toEqual({ nombre: 'juan perez', telefono: '+51987654321' })
   })
-  it('sin número cargado: el contacto público de Logisalud; sin ninguno, no hay botón', async () => {
+  it('sin número cargado: no hay botón (no existe un contacto público de Logisalud); sin vendedor tampoco', async () => {
     const p = await pedido({ vendedor: 'Rosa Sin Número' })
-    expect((await ver(p.numero)).contacto).toEqual({ nombre: 'Logisalud', telefono: '+51999888777', es_vendedor: false })
-    await param('contacto_logisalud_telefono', '')
-    try { expect((await ver(p.numero)).contacto).toBeNull() } finally { await param('contacto_logisalud_telefono', '+51 999 888 777') }
-    const sinVendedor = await pedido({ vendedor: '' })
-    expect((await ver(sinVendedor.numero)).contacto).toMatchObject({ nombre: 'Logisalud', es_vendedor: false })
+    expect((await ver(p.numero)).contacto).toBeNull()
+    expect((await ver((await pedido({ vendedor: '' })).numero)).contacto).toBeNull()
+    expect((await uno(`select count(*)::int n from wms.parametros where clave = 'contacto_logisalud_telefono'`)).n).toBe(0)
   })
-  it('en modo piloto SIEMPRE el número de prueba, nunca el del vendedor real (ni el de Logisalud)', async () => {
+  it('en modo piloto SIEMPRE el número de prueba, nunca el del vendedor real', async () => {
     await param('modo_piloto', 'si')
     try {
       const p = await pedido({ vendedor: 'Juan Pérez' })
@@ -258,9 +255,9 @@ describe('contactos de los vendedores y opciones (Administrador)', () => {
     await como(admin, (c) => c.query(`select wms.guardar_opcion_seguimiento('seguimiento_guia_visible', 'despues_entrega')`))
     expect((await uno(`select valor from wms.parametros where clave = 'seguimiento_guia_visible'`)).valor).toBe('DESPUES_ENTREGA')
     await como(admin, (c) => c.query(`select wms.guardar_opcion_seguimiento('seguimiento_guia_visible', 'SIEMPRE')`))
-    await como(admin, (c) => c.query(`select wms.guardar_opcion_seguimiento('contacto_logisalud_telefono', '999 888 777')`))
-    expect((await uno(`select valor from wms.parametros where clave = 'contacto_logisalud_telefono'`)).valor).toBe('+51999888777')
-    for (const [clave, valor, msj] of [['seguimiento_guia_visible', 'nunca', /siempre/i], ['contacto_logisalud_telefono', '12', /9 dígitos/], ['seguimiento_base_url', 'http://x.com', /https/], ['seguimiento_cliente_habilitado', 'true', /no se cambia aquí/]] as const) {
+    await como(admin, (c) => c.query(`select wms.guardar_opcion_seguimiento('seguimiento_whatsapp_prueba', '999 888 777')`))
+    expect((await uno(`select valor from wms.parametros where clave = 'seguimiento_whatsapp_prueba'`)).valor).toBe('+51999888777')
+    for (const [clave, valor, msj] of [['seguimiento_guia_visible', 'nunca', /siempre/i], ['seguimiento_whatsapp_prueba', '12', /9 dígitos/], ['seguimiento_base_url', 'http://x.com', /https/], ['seguimiento_cliente_habilitado', 'true', /no se cambia aquí/]] as const) {
       expect((await falla(como(admin, (c) => c.query(`select wms.guardar_opcion_seguimiento($1, $2)`, [clave, valor])))).message).toMatch(msj)
     }
     expect((await falla(como(jt, (c) => c.query(`select wms.guardar_opcion_seguimiento('seguimiento_ruta_visible', 'true')`)))).message).toMatch(/No tienes permiso/)

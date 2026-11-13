@@ -136,7 +136,7 @@ describe('pantalla del cliente (0069)', () => {
     expect(screen.getAllByTestId('paso-seguimiento')).toHaveLength(3)
   })
   it('«Escribir a mi vendedor» abre WhatsApp con el mensaje; sin contacto no hay botón; la guía solo si hay enlace', () => {
-    const { unmount } = render(<PantallaSeguimiento inicial={{ ...base, contacto: { nombre: 'ANA LÓPEZ', telefono: '+51912345678', esVendedor: true }, guia: { enlace: 'https://nubefact.example/g/1' } }} origen={origen} />)
+    const { unmount } = render(<PantallaSeguimiento inicial={{ ...base, contacto: { nombre: 'ANA LÓPEZ', telefono: '+51912345678' }, guia: { enlace: 'https://nubefact.example/g/1' } }} origen={origen} />)
     expect(screen.getByTestId('boton-escribir')).toHaveAttribute('href', `https://wa.me/51912345678?text=${encodeURIComponent('Hola Ana, consulto por mi pedido PED-0123')}`)
     expect(screen.getByTestId('boton-guia')).toHaveAttribute('href', 'https://nubefact.example/g/1'); expect(screen.getByTestId('boton-guia')).toHaveTextContent('Ver guía de remisión')
     unmount()

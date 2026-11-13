@@ -52,9 +52,9 @@ describe('mensaje grande por estado', () => {
 
 describe('WhatsApp, caritas y contactos', () => {
   it('el enlace dice «Hola [vendedor], consulto por mi pedido [n.°]» con el primer nombre del vendedor', () => {
-    const url = enlaceWhatsApp({ nombre: 'JUAN PÉREZ GÓMEZ', telefono: '+51987654321', esVendedor: true }, 'PED-0123')
+    const url = enlaceWhatsApp({ nombre: 'JUAN PÉREZ GÓMEZ', telefono: '+51987654321' }, 'PED-0123')
     expect(url).toBe(`https://wa.me/51987654321?text=${encodeURIComponent('Hola Juan, consulto por mi pedido PED-0123')}`)
-    expect(enlaceWhatsApp({ nombre: 'Logisalud', telefono: '+51900111222', esVendedor: false }, 'PED-9')).toContain(encodeURIComponent('Hola Logisalud, consulto'))
+    expect(enlaceWhatsApp({ nombre: 'ana', telefono: '+51900111222' }, 'PED-9')).toContain(encodeURIComponent('Hola Ana, consulto'))
   })
   it('teléfonos peruanos: se normalizan a +51 y lo demás se rechaza', () => {
     expect(telefonoPeruano('987 654 321')).toBe('+51987654321'); expect(telefonoPeruano('+51 987654321')).toBe('+51987654321'); expect(telefonoPeruano('51987654321')).toBe('+51987654321')

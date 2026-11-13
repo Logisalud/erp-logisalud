@@ -5,8 +5,8 @@
 --   · 5 pasos, de lo que ya registra el WMS: Pedido recibido (Orden de Salida creada) · Preparando (picking, conformidad, pre-guía y embalaje) · En camino (Salida confirmada) · Llegó (evento «Llegué»
 --     de «Mis rutas») · Entregado (evento «Entregado»). «No entregado» y «Rechazado» salen como un solo aviso neutral. Sin hora estimada y sin GPS.
 --   · «Van X de Y entregas de tu ruta»: solo cuenta paradas (parámetro `seguimiento_ruta_visible`); sin nombres ni datos de otros clientes; no sale si la ruta tiene una sola parada.
---   · Contacto para «Escribir a mi vendedor» (WhatsApp): tabla `contactos_vendedores` (nombre tal como llega de Pedidos → teléfono +51…); sin número, el contacto público de Logisalud (parámetro
---     `contacto_logisalud_telefono`); en modo piloto SIEMPRE el número de prueba (`seguimiento_whatsapp_prueba`), nunca el del vendedor real.
+--   · Contacto para «Escribir a mi vendedor» (WhatsApp): SOLO el número del vendedor, de la tabla `contactos_vendedores` (nombre tal como llega de Pedidos → teléfono +51…). Si el vendedor no tiene
+--     número cargado no hay botón: NO existe un contacto público de Logisalud (decisión de Sebas). En modo piloto SIEMPRE el número de prueba (`seguimiento_whatsapp_prueba`), nunca el del vendedor real.
 --   · «Ver guía de remisión»: solo si la guía fue ACEPTADA y existe su enlace de Nubefact (en modo prueba el enlace no llega: no hay botón, sin error). Parámetro `seguimiento_guia_visible`:
 --     `SIEMPRE` (por defecto) o `DESPUES_ENTREGA`.
 --   · «¿Cómo fue tu entrega?» (1 = Mal, 2 = Regular, 3 = Muy bien): `seguimiento_responder` guarda UNA respuesta por pedido ya entregado. No se envía a Pedidos.
@@ -17,7 +17,6 @@
 insert into wms.parametros (clave, valor, nota) values
   ('seguimiento_ruta_visible', 'true', 'Seguimiento: «Van X de Y entregas de tu ruta» (true/false)'),
   ('seguimiento_guia_visible', 'SIEMPRE', 'Seguimiento: SIEMPRE o DESPUES_ENTREGA (el PDF de la guía trae productos, lotes y datos del conductor)'),
-  ('contacto_logisalud_telefono', '', 'Contacto público de Logisalud (+51…) para «Escribir»: se usa si el vendedor del pedido no tiene número cargado'),
   ('seguimiento_whatsapp_prueba', '', 'Número de prueba (+51…) que usa «Escribir a mi vendedor» en modo piloto; nunca el del vendedor real'),
   ('seguimiento_base_url', '', 'Dirección propia del seguimiento para el go-live (https://…/seguimiento); la usará el botón «Copiar seguimiento» de Pedidos')
 on conflict (clave) do nothing;
@@ -90,7 +89,7 @@ grant select on wms.v_seguimiento_pedido to authenticated;
 create or replace function wms._seguimiento_datos(p_pedido_id text) returns jsonb
 language plpgsql stable security definer set search_path = wms, pg_temp as $$
 declare
-  pd record; v_hitos jsonb; v_ruta record; v_total integer; v_atendidas integer; v_ruta_json jsonb; v_vend text; v_tel_v text; v_tel text; v_nombre text; v_es_vend boolean := false;
+  pd record; v_hitos jsonb; v_ruta record; v_total integer; v_atendidas integer; v_ruta_json jsonb; v_vend text; v_tel_v text; v_tel text;
   v_contacto jsonb; v_guia text; v_entregado boolean; v_guia_param text; v_resp smallint; v_prueba boolean := coalesce(wms._modo_piloto(), true);
 begin
   select p.pedido_id, p.numero, p.cliente_ruc, p.salida_id, p.snapshot into pd from wms.pedidos_despacho p where p.pedido_id = p_pedido_id and p.vigente limit 1;
@@ -108,18 +107,16 @@ begin
     end if;
   end if;
 
-  -- a quién escribir: el vendedor del pedido, o el contacto público de Logisalud; en modo piloto, solo el número de prueba
+  -- a quién escribir: solo el vendedor del pedido (si tiene número cargado); en modo piloto, solo el número de prueba
   v_vend := nullif(btrim(coalesce(pd.snapshot->>'vendedor', '')), '');
   select c.telefono into v_tel_v from wms.contactos_vendedores c where v_vend is not null and wms._norm_nombre(c.nombre) = wms._norm_nombre(v_vend) limit 1;
   if v_prueba then
     v_tel := nullif(wms._tel_pe((select valor from wms.parametros where clave = 'seguimiento_whatsapp_prueba')), '');
-    v_es_vend := v_vend is not null;
+    if v_vend is null then v_tel := null; end if;   -- sin vendedor no hay a quién escribir, ni en la prueba
   else
-    v_tel := coalesce(v_tel_v, nullif(wms._tel_pe((select valor from wms.parametros where clave = 'contacto_logisalud_telefono')), ''));
-    v_es_vend := v_tel_v is not null;
+    v_tel := v_tel_v;                                -- sin número del vendedor no hay botón
   end if;
-  v_nombre := case when v_es_vend then v_vend else 'Logisalud' end;
-  v_contacto := case when v_tel is null then null else jsonb_build_object('nombre', v_nombre, 'telefono', v_tel, 'es_vendedor', v_es_vend) end;
+  v_contacto := case when v_tel is null then null else jsonb_build_object('nombre', v_vend, 'telefono', v_tel) end;
 
   -- la guía: aceptada y con su enlace de Nubefact (en modo prueba no llega: sin botón)
   v_guia_param := upper(coalesce((select valor from wms.parametros where clave = 'seguimiento_guia_visible'), 'SIEMPRE'));
@@ -249,7 +246,7 @@ begin
     if v not in ('true', 'false') then raise exception 'Elige si se muestra o no' using errcode = 'P0001'; end if;
   elsif p_clave = 'seguimiento_guia_visible' then
     v := upper(v); if v not in ('SIEMPRE', 'DESPUES_ENTREGA') then raise exception 'Elige «siempre» o «solo después de entregado»' using errcode = 'P0001'; end if;
-  elsif p_clave in ('contacto_logisalud_telefono', 'seguimiento_whatsapp_prueba') then
+  elsif p_clave = 'seguimiento_whatsapp_prueba' then
     if v <> '' then v := coalesce(wms._tel_pe(v), null); if v is null then raise exception 'El teléfono debe ser de 9 dígitos, por ejemplo 987654321' using errcode = 'P0001'; end if; end if;
   elsif p_clave = 'seguimiento_base_url' then
     if v <> '' and v !~* '^https://\S+$' then raise exception 'La dirección empieza con https://' using errcode = 'P0001'; end if;
