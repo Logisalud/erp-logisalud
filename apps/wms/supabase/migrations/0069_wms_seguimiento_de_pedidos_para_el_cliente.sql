@@ -112,7 +112,7 @@ begin
   select c.telefono into v_tel_v from wms.contactos_vendedores c where v_vend is not null and wms._norm_nombre(c.nombre) = wms._norm_nombre(v_vend) limit 1;
   if v_prueba then
     v_tel := nullif(wms._tel_pe((select valor from wms.parametros where clave = 'seguimiento_whatsapp_prueba')), '');
-    if v_vend is null then v_tel := null; end if;   -- sin vendedor no hay a quién escribir, ni en la prueba
+    if v_tel_v is null then v_tel := null; end if;   -- sin número cargado del vendedor no hay botón, ni en la prueba (así se ve igual que en producción)
   else
     v_tel := v_tel_v;                                -- sin número del vendedor no hay botón
   end if;

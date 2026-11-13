@@ -98,7 +98,7 @@ export class SeguimientoDemo extends MisRutasDemo implements RepositorioSeguimie
     const vendedor = fila.snapshot.vendedor?.trim() || undefined
     const piloto = modoPilotoDemo(e) === 'si'
     const telVendedor = vendedor ? s.contactos.find((c) => normalizarNombre(c.nombre) === normalizarNombre(vendedor))?.telefono : undefined
-    const telefono = piloto ? (vendedor ? telefonoPeruano(s.opciones.whatsappPrueba) : null) : telVendedor
+    const telefono = piloto ? (telVendedor ? telefonoPeruano(s.opciones.whatsappPrueba) : null) : telVendedor
     const contacto: ContactoSeguimiento | null = telefono && vendedor ? { nombre: vendedor, telefono } : null
     const salida = fila.salida ? d.salidas.find((x) => x.numero === fila.salida) : undefined
     const g = salida && (s.opciones.guiaVisible === 'SIEMPRE' || entregado) ? d.guias?.find((x) => x.salidaId === salida.id && x.guia.estado === 'VIGENTE' && x.guia.estadoSunat === 'ACEPTADA' && /^https?:\/\/\S+$/i.test(x.guia.enlace ?? '')) : undefined
