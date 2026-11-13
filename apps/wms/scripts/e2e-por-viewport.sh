@@ -10,6 +10,7 @@
 #   · puerto base+2  → e2e/salidas-vacio.spec.ts, con la demo sin ninguna salida (WMS_DEMO_EJEMPLOS=vacio).
 #   · puerto base+3  → e2e/guia-panel.spec.ts, con la guía emitida en el panel (WMS_DEMO_GUIA_MODO=PANEL).
 #   · puerto base+4  → e2e/modo-piloto.spec.ts, con el modo piloto encendido (WMS_DEMO_MODO_PILOTO=1).
+#   · puerto base+5  → e2e/seguimiento-cliente.spec.ts, con el seguimiento al cliente encendido y el modo piloto (WMS_DEMO_SEGUIMIENTO=1).
 # Para correr solo la suite de siempre: WMS_E2E_SOLO_PRINCIPAL=1.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -19,7 +20,7 @@ resultado=0
 # El servidor corre en su propio grupo de procesos: se mata el grupo entero (npx deja a next-server huérfano si solo se mata al padre).
 cleanup() { [ -s "$PID_FILE" ] && kill -- "-$(cat "$PID_FILE")" 2>/dev/null; : > "$PID_FILE"; }
 trap 'cleanup; rm -f "$PID_FILE"' EXIT
-for p in "$BASE" "$((BASE + 1))" "$((BASE + 2))" "$((BASE + 3))" "$((BASE + 4))"; do
+for p in "$BASE" "$((BASE + 1))" "$((BASE + 2))" "$((BASE + 3))" "$((BASE + 4))" "$((BASE + 5))"; do
   if curl -s -o /dev/null "http://localhost:${p}/wms/login"; then
     echo "El puerto ${p} ya está ocupado (¿un servidor viejo?). Detén ese servidor y vuelve a correr." >&2
     exit 1
@@ -30,7 +31,7 @@ done
 servir() {
   cleanup
   sleep 1
-  WMS_DEMO_LOCAL=1 WMS_DEMO_DATOS=sintetico WMS_DEMO_EJEMPLOS="$2" WMS_DEMO_GUIA_MODO="${3:-WMS}" WMS_DEMO_MODO_PILOTO="${4:-0}" PORT="$1" setsid npx next start -p "$1" >/dev/null 2>&1 &
+  WMS_DEMO_LOCAL=1 WMS_DEMO_DATOS=sintetico WMS_DEMO_EJEMPLOS="$2" WMS_DEMO_GUIA_MODO="${3:-WMS}" WMS_DEMO_MODO_PILOTO="${4:-0}" WMS_DEMO_SEGUIMIENTO="${5:-0}" PORT="$1" setsid npx next start -p "$1" >/dev/null 2>&1 &
   echo $! > "$PID_FILE"
   until curl -s -o /dev/null "http://localhost:${1}/wms/login"; do sleep 1; done
 }
@@ -53,5 +54,8 @@ for proyecto in ${WMS_E2E_VIEWPORTS:-desktop-1440x900 laptop-1280x800 tablet-102
   echo "── $proyecto · modo piloto"
   servir "$((BASE + 4))" 0 WMS 1
   WMS_E2E_MODO=piloto WMS_E2E_PUERTO="$BASE" npx playwright test --project="$proyecto" || resultado=1
+  echo "── $proyecto · seguimiento al cliente"
+  servir "$((BASE + 5))" 0 WMS 1 1
+  WMS_E2E_MODO=seguimiento WMS_E2E_PUERTO="$BASE" npx playwright test --project="$proyecto" || resultado=1
 done
 exit $resultado
