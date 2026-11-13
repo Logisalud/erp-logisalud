@@ -283,6 +283,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'seguimiento_consultar', 'seguimiento_por_token', 'crear_enlace_seguimiento', 'revocar_enlaces_seguimiento',
     // Stock del cliente (0067): las dos consultas también las ve `anon` (ver tests/db/stock-cliente.test.ts)
     'stock_cliente_por_token', 'kardex_cliente_por_token', 'crear_enlace_stock_cliente', 'revocar_enlace_stock_cliente',
+    // Seguimiento para el cliente (0069): la carita también la llama `anon`; los contactos de vendedores y las opciones son del Administrador (tests/db/seguimiento-pantalla.test.ts)
+    'seguimiento_responder', 'guardar_contacto_vendedor', 'cargar_contactos_vendedores', 'guardar_opcion_seguimiento',
     // S2 (0012)
     'aprobar_salida_vencida', 'asignar_salida', 'editar_asignacion', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
     'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',

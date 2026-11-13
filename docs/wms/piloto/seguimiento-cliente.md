@@ -20,3 +20,13 @@ También hay un **enlace con token** (`/wms/seguimiento/<token>`): 4 UUID aleato
 3. «Revocar enlaces» en el mismo pedido (`revocar_enlaces_seguimiento`).
 4. El vendedor lo pega en WhatsApp: el WMS no envía correos ni mensajes.
 Riesgos a decidir: quién puede generar enlaces y la vigencia por defecto (propuesta: 30 días).
+
+## Estado de pagos del cliente (0068, 13-nov-2026)
+Debajo de la línea de tiempo del pedido, el cliente ve su **estado de pagos** (decisión de Sebas, ver `decisiones-pendientes.md`):
+- **Con documentos vencidos:** «Tus pagos pendientes» y una **tabla simple** (Documento · Venció · Atraso · Saldo; hasta 30 documentos, los más atrasados primero) con el **total al pie**, y qué hacer («Si ya pagaste, puede que aún no lo hayamos registrado: avísanos… Gracias por tu comprensión.»). Tono tranquilo, a pedido de Sebas: tarjeta neutra, sin colores de alarma y sin las palabras «moroso», «deuda» ni «urgente».
+- **Al día:** «¡Estás al día en tus pagos! 😊 Gracias por la confianza.»
+- **Sin datos** (Cobranzas no conoce el RUC, está apagado o falta Cobranzas): no se muestra nada.
+- Sale de `public.fn_documentos_cobranza(fecha)` y `public.clientes` (Cobranzas): el WMS solo los lee. Ver `supabase/migrations/0068_wms_seguimiento_estado_de_pagos_del_cliente.sql`.
+
+**Para encenderlo (con aprobación de Sebas):** aplicar la 0068 a mano y, un administrador de la base: `update wms.parametros set valor = 'true' where clave = 'seguimiento_deuda_habilitado'`. Para apagarlo: `… valor = 'false'`. Depende de que el seguimiento (`seguimiento_cliente_habilitado`) esté encendido.
+Pruebas: `tests/db/seguimiento-deuda.test.ts` (Cobranzas simulada), `tests/services/demo-seguimiento.test.ts`, `tests/components/seguimiento.test.tsx`, `tests/domain/seguimiento.test.ts`.

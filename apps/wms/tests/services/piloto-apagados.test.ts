@@ -41,7 +41,8 @@ describe('P1(b): sin enlaces de seguimiento ni correos a clientes', () => {
   it('no hay ninguna librería ni llamada de correo, SMS o WhatsApp en el código del WMS', () => {
     const t = codigo(['app', 'services', 'domain', 'lib', 'components']).filter((f) => /nodemailer|sendgrid|resend|@aws-sdk\/client-ses|twilio|smtp|sendMail|api\.whatsapp|wa\.me/i.test(f.texto)).map((f) => f.ruta)
     // la única excepción: el aviso INTERNO «guía lista, ya puede facturar» (Resend) para quien factura, nunca para un cliente
-    expect(t).toEqual(['services/avisos-guia.ts', 'services/correo/resend.ts'])
+    // y el botón «Escribir a mi vendedor» (0069): un enlace wa.me que el propio cliente toca; el sistema no envía nada
+    expect(t.sort()).toEqual(['domain/seguimiento.ts', 'services/avisos-guia.ts', 'services/correo/resend.ts'])
     const usanEnviarCorreo = codigo(['app', 'services', 'domain', 'lib', 'components']).filter((f) => /enviarCorreo\(/.test(f.texto) && !f.ruta.endsWith('correo/resend.ts')).map((f) => f.ruta)
     expect(usanEnviarCorreo).toEqual(['services/avisos-guia.ts'])
     const aviso = readFileSync(join(RAIZ, 'services/avisos-guia.ts'), 'utf8')

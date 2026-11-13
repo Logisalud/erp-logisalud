@@ -126,6 +126,7 @@ export function construirMenu(roles: readonly Rol[], alertasAbiertas = 0, embala
   ponerSi('control', !soloAutoriza, { href: '/ranking', etiqueta: 'Ranking del mes', icono: 'ranking', corta: 'Ranking' })
   ponerSi('control', !soloAutoriza && roles.some((r) => r !== 'auxiliar'), { href: '/propietarios', etiqueta: 'Propietarios', icono: 'propietarios' })
   ponerSi('control', puedeVerProveedores(roles), { href: '/proveedores', etiqueta: 'Proveedores', icono: 'propietarios' })
+  ponerSi('control', puede(roles, 'configurar'), { href: '/contactos-vendedores', etiqueta: 'Seguimiento a clientes', icono: 'propietarios' })
   ponerSi('control', puede(roles, 'auditar'), { href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })
   ponerSi('control', roles.includes('admin_wms') || roles.includes('direccion_tecnica'), { href: '/carga-inicial', etiqueta: 'Carga inicial', icono: 'carga' })
 

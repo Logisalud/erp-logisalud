@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 /** Lo que se CONSERVA: topología, propietarios, usuarios, roles, parámetros y datos regulatorios (docs/wms/piloto/plan-noviembre.md). */
 export const CONSERVAR = [
-  'area_estado_admitido', 'asignaciones_posicion', 'cargos_usuario', 'documentos_regulatorios', 'documentos_sustento', 'estados_sanitarios', 'fabricantes', 'origenes', 'parametros',
+  'area_estado_admitido', 'contactos_vendedores', 'asignaciones_posicion', 'cargos_usuario', 'documentos_regulatorios', 'documentos_sustento', 'estados_sanitarios', 'fabricantes', 'origenes', 'parametros',
   'perfil_documental_cliente', 'permisos_rol', 'personal_transporte', 'posicion_geometria', 'posiciones', 'producto_codigos', 'producto_regulatorio', 'producto_regulatorio_cambios',
   'propietarios', 'tablas_muestreo', 'tablas_muestreo_tramos', 'tipos_area', 'tipos_movimiento', 'transiciones_estado', 'usuario_roles', 'vehiculos', 'vistas_guardadas',
   'formatos_versiones', 'proveedores_config',
@@ -20,7 +20,7 @@ export const BORRAR = [
   'importaciones_pedidos', 'ingreso_lotes', 'ingresos', 'inspecciones_unidad', 'lote_vencimiento_cambios', 'lotes', 'ls_fr_escaneos', 'ls_fr_impresiones', 'movimientos', 'observaciones_conformidad', 'observaciones_liberacion',
   'oc_versiones', 'ordenes_baja', 'ordenes_baja_evaluaciones', 'ordenes_baja_lineas', 'ordenes_baja_sustentos', 'ordenes_movimiento', 'ordenes_movimiento_lineas', 'ordenes_picking', 'ordenes_picking_lineas',
   'partidas', 'pedidos_despacho', 'programacion_conteos', 'quiebres_stock', 'registros_ls_fr_43_03', 'reservas', 'reservas_lote', 'revision_focos', 'revision_pendientes', 'revisiones_diarias', 'ruta_cierres',
-  'ruta_logger_importes', 'ruta_logger_lecturas', 'seguimiento_intentos', 'seguimiento_tokens', 'enlaces_stock_cliente', 'ruta_paradas', 'ruta_paradas_eventos', 'ruta_versiones', 'rutas', 'saldos', 'salida_lineas', 'salida_movimientos', 'salidas', 'solicitud_ingreso_cambios',
+  'ruta_logger_importes', 'ruta_logger_lecturas', 'respuestas_entrega', 'seguimiento_intentos', 'seguimiento_tokens', 'enlaces_stock_cliente', 'ruta_paradas', 'ruta_paradas_eventos', 'ruta_versiones', 'rutas', 'saldos', 'salida_lineas', 'salida_movimientos', 'salidas', 'solicitud_ingreso_cambios',
   'solicitud_ingreso_lineas', 'solicitud_ingreso_versiones', 'solicitudes_ingreso',
 ]
 /** Se REINICIAN (decisión de Sebas, 7-nov): la fila se conserva, el contador vuelve a su base. `correlativos` (actas, órdenes, movimientos…) vuelve a 0. `guia_correlativos` NO vuelve a 0: la serie TTT1 es la REAL
