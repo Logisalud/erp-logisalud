@@ -103,21 +103,66 @@ export async function xlsxActaOrganoleptica(a: OrganolepticaVista, extra: ExtraA
   return salida(await hojaActaOrganoleptica(a, extra))
 }
 
-/** Kardex en Excel: las mismas columnas del formato de ejemplo. El RUC siempre va como texto de 11 dígitos. */
-export async function xlsxKardex(filas: FilaKardex[], filtro: FiltroKardex, producto: string, formato: string): Promise<Buffer> {
+const COLUMNAS_KARDEX = ['Producto', 'Tipo Documento', 'Nro Acta', 'Fecha Acta', 'Lote', 'Proveedor/Cliente', 'Ruc', 'Documento', 'Nro Doc.', 'Ubicación', 'Entrada', 'Salida', 'Saldo', 'Tipo de ingreso', 'Propietario']
+const ANCHOS_KARDEX = [38, 22, 14, 14, 16, 34, 14, 22, 14, 14, 10, 10, 10, 18, 18]
+
+/** Llena la hoja de un producto con el modelo de Kardex de Logisalud. `sinUbicacion` quita la columna «Ubicación» (el cliente no ve dónde está su mercadería). El RUC va como texto. */
+function llenarHojaKardex(ws: ExcelJS.Worksheet, filas: FilaKardex[], filtro: { desde?: string; hasta?: string }, producto: string, sinUbicacion: boolean) {
   const t = totalesKardex(filas)
-  const { wb, ws } = libro('Tarjeta de Control de Existencias (Kardex)', 'Kardex', `${producto} · Cód. Formato: ${formato}${formato.includes('provisional') ? ' (provisional, pendiente de código controlado)' : ''}`)
+  const quitar = (v: unknown[]) => (sinUbicacion ? v.filter((_, i) => i !== 9) : v)
   ws.getCell('A3').value = `Rango: ${filtro.desde ? formatoFecha(filtro.desde) : 'desde el inicio'} — ${filtro.hasta ? formatoFecha(filtro.hasta) : 'hoy'} · Saldo inicial ${t.saldoInicial} · Entradas ${t.entradas} · Salidas ${t.salidas} · Saldo final ${t.saldoFinal}`
-  ws.columns = [{ width: 38 }, { width: 22 }, { width: 14 }, { width: 14 }, { width: 16 }, { width: 34 }, { width: 14 }, { width: 22 }, { width: 14 }, { width: 14 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 18 }, { width: 18 }]
-  encabezado(ws, ['Producto', 'Tipo Documento', 'Nro Acta', 'Fecha Acta', 'Lote', 'Proveedor/Cliente', 'Ruc', 'Documento', 'Nro Doc.', 'Ubicación', 'Entrada', 'Salida', 'Saldo', 'Tipo de ingreso', 'Propietario'])
+  ws.columns = quitar(ANCHOS_KARDEX).map((width) => ({ width: width as number }))
+  encabezado(ws, quitar(COLUMNAS_KARDEX) as string[])
   ws.views = [{ state: 'frozen', ySplit: ws.rowCount }]
+  const colRuc = 7
   for (const f of filas) {
-    const r = ws.addRow([f.producto ?? producto, f.tipoDocumento, f.numeroActa ?? '', f.fechaActa ? formatoFecha(f.fechaActa.slice(0, 10)) : '', f.lote ?? '', f.contraparte ?? '',
-      f.ruc ? String(f.ruc) : '', f.tipoDocRef ?? '', f.numeroDocRef ?? '', f.posicion ?? '', f.entrada ?? 0, f.salida ?? 0, f.saldo, f.tipoIngreso ?? '', f.propietario ?? ''])
-    r.getCell(7).numFmt = '@'
+    const r = ws.addRow(quitar([f.producto ?? producto, f.tipoDocumento, f.numeroActa ?? '', f.fechaActa ? formatoFecha(f.fechaActa.slice(0, 10)) : '', f.lote ?? '', f.contraparte ?? '',
+      f.ruc ? String(f.ruc) : '', f.tipoDocRef ?? '', f.numeroDocRef ?? '', f.posicion ?? '', f.entrada ?? 0, f.salida ?? 0, f.saldo, f.tipoIngreso ?? '', f.propietario ?? '']))
+    r.getCell(colRuc).numFmt = '@'
     if (f.esReversa) r.font = { color: { argb: 'FFB91C1C' } }
   }
+}
+
+const textoFormato = (formato: string) => `Cód. Formato: ${formato}${formato.includes('provisional') ? ' (provisional, pendiente de código controlado)' : ''}`
+
+/** Kardex en Excel: las mismas columnas del formato de ejemplo. El RUC siempre va como texto de 11 dígitos. */
+export async function xlsxKardex(filas: FilaKardex[], filtro: FiltroKardex, producto: string, formato: string): Promise<Buffer> {
+  const { wb, ws } = libro('Tarjeta de Control de Existencias (Kardex)', 'Kardex', `${producto} · ${textoFormato(formato)}`)
+  llenarHojaKardex(ws, filas, filtro, producto, false)
   return salida(wb)
+}
+
+const nombreHoja = (codigo: string, usados: Set<string>) => {
+  const base = codigo.replace(/[\\/?*[\]:]/g, '-').slice(0, 28) || 'Producto'
+  let n = base; let i = 2
+  while (usados.has(n.toLowerCase())) n = `${base.slice(0, 26)}-${i++}`
+  usados.add(n.toLowerCase())
+  return n
+}
+
+/** El Kardex que descarga el cliente: el mismo modelo, una hoja por producto y SIN la ubicación. Sin movimientos, una hoja que lo dice. */
+export async function xlsxKardexCliente(cliente: string, productos: { codigo: string; descripcion: string; filas: FilaKardex[] }[], filtro: { desde?: string; hasta?: string }, formato: string): Promise<Buffer> {
+  const usados = new Set<string>()
+  let wb: ExcelJS.Workbook | undefined
+  const subtitulo = (p: { codigo: string; descripcion: string }) => `${cliente} · ${p.codigo} · ${p.descripcion} · ${textoFormato(formato)}`
+  if (productos.length === 0) {
+    const l = libro('Tarjeta de Control de Existencias (Kardex)', 'Kardex', `${cliente} · ${textoFormato(formato)}`)
+    l.ws.getCell('A3').value = 'No hay movimientos para este rango.'
+    return salida(l.wb)
+  }
+  for (const p of productos) {
+    const nombre = nombreHoja(p.codigo, usados)
+    let ws: ExcelJS.Worksheet
+    if (!wb) { const l = libro('Tarjeta de Control de Existencias (Kardex)', nombre, subtitulo(p)); wb = l.wb; ws = l.ws }
+    else {
+      ws = wb.addWorksheet(nombre, { pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } })
+      ws.getCell('A1').value = 'Tarjeta de Control de Existencias (Kardex)'; ws.getCell('A1').font = { bold: true, size: 14 }
+      ws.getCell('A2').value = subtitulo(p); ws.getCell('A2').font = { color: { argb: 'FF6B7280' } }
+      ws.addRow([])
+    }
+    llenarHojaKardex(ws, p.filas, filtro, `${p.codigo} · ${p.descripcion}`, true)
+  }
+  return salida(wb!)
 }
 
 export const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
