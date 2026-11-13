@@ -28,7 +28,8 @@ end $$;
 
 -- El estado de pagos de un RUC: null (no se muestra nada), {estado: AL_DIA} o {estado: MOROSO, total, max_dias, cantidad, documentos[]}. Interna: solo la llaman las dos consultas del seguimiento.
 create or replace function wms._deuda_cliente(p_ruc text) returns jsonb
-language plpgsql stable security definer set search_path = wms, pg_temp as $$
+-- search_path = public: `public.fn_documentos_cobranza` (Cobranzas) busca sus tablas y vistas (`v_saldos`, `letras`…) sin esquema; todo lo del WMS va calificado con `wms.`
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_ruc text := btrim(coalesce(p_ruc, '')); v_hoy date := wms._hoy_lima(); r jsonb;
 begin
   if coalesce((select valor from wms.parametros where clave = 'seguimiento_deuda_habilitado'), 'false') <> 'true' then return null; end if;
