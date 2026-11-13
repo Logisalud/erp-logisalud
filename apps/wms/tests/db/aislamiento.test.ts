@@ -281,6 +281,8 @@ describe('P0: ninguna función interna es llamable por cualquiera', () => {
     'sincronizar_ocs_si_toca',
     // Fase 4 · P9 (0047): las dos consultas del cliente también las ve `anon` (ver el test de seguimiento)
     'seguimiento_consultar', 'seguimiento_por_token', 'crear_enlace_seguimiento', 'revocar_enlaces_seguimiento',
+    // Stock del cliente (0067): las dos consultas también las ve `anon` (ver tests/db/stock-cliente.test.ts)
+    'stock_cliente_por_token', 'kardex_cliente_por_token', 'crear_enlace_stock_cliente', 'revocar_enlace_stock_cliente',
     // S2 (0012)
     'aprobar_salida_vencida', 'asignar_salida', 'editar_asignacion', 'cancelar_salida', 'confirmar_salida', 'crear_salida',
     'dar_conformidad', 'disponibilidad_por_lote', 'generar_orden_picking', 'lote_bloqueado', 'proponer_reemplazo', 'registrar_picking',

@@ -6,6 +6,8 @@ import { ocupacionPorPropietario } from '@/domain/panorama'
 import { asignacionVigente, ETIQUETA_AREA } from '@/domain/zonas'
 import { formatoFecha } from '@/domain/fechas'
 import { vistaPropietario } from '@/components/propietarios-color'
+import { EnlaceStockCliente } from '@/components/stock-cliente/enlace-stock-cliente'
+import { puede } from '@/domain/permisos'
 import type { TipoArea } from '@/domain/tipos'
 
 export const metadata = { title: 'Propietarios — WMS LOGISALUD' }
@@ -13,7 +15,12 @@ export const metadata = { title: 'Propietarios — WMS LOGISALUD' }
 export default async function Propietarios() {
   const ctx = await exigirContexto()
   if (ctx.roles.every((r) => r === 'auxiliar')) redirect('/')
-  const p = await repositorio().panorama()
+  const repo = repositorio()
+  const p = await repo.panorama()
+  // Stock del cliente (0067): el Administrador genera y revoca el enlace de cada cliente que guarda su mercadería
+  const veEnlaces = puede(ctx.roles, 'configurar')
+  const enlaces = veEnlaces ? await repo.listarEnlacesStockCliente().catch(() => []) : []
+  const prefijo = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
   const ocup = ocupacionPorPropietario(p)
   const posPorId = new Map(p.posiciones.map((x) => [x.id, x]))
   const docPorId = new Map(p.documentos.map((d) => [d.id, d]))
@@ -70,6 +77,7 @@ export default async function Propietarios() {
                   </tbody>
                 </table>
               </div>
+              {veEnlaces && !o.propietario.esDuenoAlmacen && <EnlaceStockCliente propietarioId={o.propietario.id} cliente={o.propietario.razonSocial} enlaces={enlaces.filter((e) => e.propietarioId === o.propietario.id)} prefijo={prefijo} />}
             </li>
           )
         })}

@@ -3,8 +3,8 @@ import { middlewareSesion } from '@logisalud/auth/middleware'
 import { modoDemoActivo } from '@/lib/demo'
 import { COOKIE_ROL_DEMO } from '@/lib/sesion-demo'
 
-/** Las páginas públicas del cliente (P9): sin usuario. Solo `/seguimiento` y lo que cuelga de él. */
-const esRutaPublicaDelCliente = (pathname: string) => pathname === '/seguimiento' || pathname.startsWith('/seguimiento/')
+/** Las páginas públicas del cliente (P9 y stock, 0067): sin usuario. Solo `/seguimiento` y `/stock/<enlace>` con lo que cuelga de ellos. */
+const esRutaPublicaDelCliente = (pathname: string) => pathname === '/seguimiento' || pathname.startsWith('/seguimiento/') || pathname.startsWith('/stock/')
 
 export async function middleware(request: NextRequest) {
   if (modoDemoActivo()) {
@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
     }
     return NextResponse.next()
   }
-  return middlewareSesion(request, { rutasPublicas: ['/sin-acceso', '/seguimiento'] })
+  return middlewareSesion(request, { rutasPublicas: ['/sin-acceso', '/seguimiento', '/stock'] })
 }
 
 // Matcher literal (Next lo lee en build). Los paths se escriben SIN basePath.

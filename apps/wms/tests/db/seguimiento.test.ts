@@ -136,9 +136,9 @@ describe('con el seguimiento encendido (fuera del piloto)', () => {
 })
 
 describe('lo que ve quien no tiene usuario (anon)', () => {
-  it('solo puede llamar a las dos consultas: ninguna tabla, ni la vista, ni las demás funciones', async () => {
+  it('solo puede llamar a las consultas del cliente (las dos del seguimiento y las dos del stock, 0067): ninguna tabla, ni la vista, ni las demás funciones', async () => {
     const fns = (await q(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'wms' and has_function_privilege('anon', p.oid, 'execute') order by 1`)).map((r) => r.proname)
-    expect(fns).toEqual(['seguimiento_consultar', 'seguimiento_por_token'])
+    expect(fns).toEqual(['kardex_cliente_por_token', 'seguimiento_consultar', 'seguimiento_por_token', 'stock_cliente_por_token'])
     for (const t of ['pedidos_despacho', 'seguimiento_tokens', 'seguimiento_intentos', 'v_seguimiento_pedido', 'parametros', 'rutas']) {
       await anon(async () => { await expect(base.admin.query(`select 1 from wms.${t} limit 1`)).rejects.toThrow(/permission denied/) })
     }

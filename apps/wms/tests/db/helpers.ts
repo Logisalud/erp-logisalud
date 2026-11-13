@@ -64,6 +64,7 @@ export const SQL = {
   m0050: () => leer('supabase/migrations/0050_wms_bonificacion_una_sola_ficha.sql'),
   m0051: () => leer('supabase/migrations/0051_wms_oc_con_fecha_de_emision.sql'),
   m0052: () => leer('supabase/migrations/0052_wms_auxiliares_de_transporte_en_el_desplegable.sql'),
+  m0067: () => leer('supabase/migrations/0067_wms_stock_para_el_cliente_de_almacenamiento.sql'),
   m0066: () => leer('supabase/migrations/0066_wms_numero_de_pre_guia_cancelada_se_reutiliza.sql'),
   m0065: () => leer('supabase/migrations/0065_wms_correcciones_de_la_auditoria_de_salidas.sql'),
   m0064: () => leer('supabase/migrations/0064_wms_ya_no_sale_y_pedido_anulado_o_reprogramado.sql'),
@@ -181,6 +182,7 @@ export async function crearBaseDePrueba(opciones: { conSeed?: boolean; sinMigrac
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0064())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0065())
   if (!opciones.sinMigracion0012) await admin.query(SQL.m0066())
+  if (!opciones.sinMigracion0012) await admin.query(SQL.m0067())
   // La 0061 apaga el embalaje y el escaneo del QR (decisión de producción); las pruebas de siempre corren con el flujo anterior y las de la 0061 los apagan a propósito.
   if (!opciones.sinMigracion0012) await admin.query(`update wms.parametros set valor = 'SI' where clave in ('embalaje_activo', 'carga_escaneo_qr'); update wms.parametros set valor = '1501,0701' where clave = 'ubigeos_lima_metropolitana'`)
   // Solo para las pruebas: los datos de prueba de producto_regulatorio nacen COMPLETOS (los seis datos que pide la 0041); las pruebas de «incompleto» los vacían con un UPDATE.
