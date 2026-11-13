@@ -81,7 +81,8 @@ describe('con el seguimiento encendido (fuera del piloto)', () => {
     expect(e.hitos.every((h: R) => Object.keys(h).sort().join() === 'en,estado' && !Number.isNaN(Date.parse(h.en)))).toBe(true)
     const texto = JSON.stringify(e)
     for (const secreto of ['Av. Secreta', 'Crédito', 'María Pérez', '12345678', 'Dapagliflozina', 'lote', 'precio', 'estimad', 'entregas/x.jpg']) expect(texto.toLowerCase()).not.toContain(secreto.toLowerCase())
-    expect(Object.keys(e).sort()).toEqual(['estado', 'hitos', 'pedido'])
+    expect(Object.keys(e).sort()).toEqual(['deuda', 'estado', 'hitos', 'pedido'])      // 0068: la deuda va en null mientras su interruptor esté apagado (tests/db/seguimiento-deuda.test.ts)
+    expect(e.deuda).toBeNull()
   })
   it('no revela si el pedido existe: pedido inexistente y RUC equivocado dan exactamente la misma respuesta', async () => {
     await limpiarIntentos()

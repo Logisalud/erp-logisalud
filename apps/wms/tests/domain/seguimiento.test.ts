@@ -40,3 +40,14 @@ describe('lo que se escribe', () => {
     expect(ipDe('1.2.3.4, 10.0.0.1')).toBe('1.2.3.4'); expect(ipDe(null, '9.9.9.9')).toBe('9.9.9.9'); expect(ipDe(undefined)).toBe('')
   })
 })
+
+describe('estado de pagos (0068)', () => {
+  it('los textos del cliente: alegre si está al día, claro y sin dramatismo si debe', async () => {
+    const { TITULO_AL_DIA, TEXTO_AL_DIA, TITULO_MOROSO, TEXTO_MOROSO, soles, textoAtraso, textoCantidadVencidos } = await import('@/domain/seguimiento')
+    expect(TITULO_AL_DIA).toBe('¡Estás al día en tus pagos! 😊'); expect(TEXTO_AL_DIA).toBe('Gracias por la confianza.')
+    expect(TITULO_MOROSO).toBe('Tienes pagos vencidos'); expect(TEXTO_MOROSO).toMatch(/Si ya pagaste.*asesor comercial/)
+    expect(soles(1234.5)).toBe('S/ 1,234.50'); expect(soles(0)).toBe('S/ 0.00'); expect(soles(99.999)).toBe('S/ 100.00')
+    expect(textoAtraso(1)).toBe('1 día de atraso'); expect(textoAtraso(95)).toBe('95 días de atraso')
+    expect(textoCantidadVencidos(1)).toBe('1 documento vencido'); expect(textoCantidadVencidos(3)).toBe('3 documentos vencidos')
+  })
+})

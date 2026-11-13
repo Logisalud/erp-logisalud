@@ -3,7 +3,7 @@ import { lineaDeTiempo, type HitoVista } from '@/domain/seguimiento'
 
 const fechaHora = (iso: string) => new Date(iso).toLocaleString('es-PE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Lima' })
 
-/** La línea de tiempo del pedido: cada paso con su fecha y hora si ya ocurrió. Ícono + texto, nunca solo color. Sin hora estimada, sin precios, lotes ni personal. */
+/** La línea de tiempo del pedido: cada paso con su fecha y hora si ya ocurrió. Ícono + texto, nunca solo color. Sin hora estimada, sin precios, lotes ni personal (el estado de pagos va aparte, debajo: `estado-de-pagos.tsx`). */
 export function LineaDeTiempo({ pedido, hitos }: { pedido: string; hitos: HitoVista[] }) {
   const pasos = lineaDeTiempo(hitos)
   return (

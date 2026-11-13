@@ -7,8 +7,15 @@ export const ETIQUETA_HITO: Record<HitoSeguimiento, string> = {
 export const ORDEN_HITOS: readonly HitoSeguimiento[] = ['RECIBIDO', 'EN_PREPARACION', 'LISTO', 'EN_RUTA', 'ENTREGADO']
 export interface HitoVista { estado: HitoSeguimiento; en: string }
 
+/** Un documento vencido del cliente (0068): su número, cuándo venció, cuántos días de atraso lleva y cuánto falta pagar. */
+export interface DocumentoVencido { documento: string; vence: string; dias: number; saldo: number }
+/** El estado de pagos del cliente que consulta (0068). Sin esta información (Cobranzas no lo conoce o está apagado) no se dice nada: nunca «al día» sin datos. */
+export type EstadoDePagos =
+  | { estado: 'AL_DIA'; al: string }
+  | { estado: 'MOROSO'; al: string; total: number; maxDias: number; cantidad: number; documentos: DocumentoVencido[] }
+
 export type RespuestaSeguimiento =
-  | { estado: 'OK'; pedido: string; hitos: HitoVista[] }
+  | { estado: 'OK'; pedido: string; hitos: HitoVista[]; deuda?: EstadoDePagos | null }
   | { estado: 'NO_ENCONTRADO' }
   | { estado: 'ESPERA'; esperaSegundos: number }
   | { estado: 'NO_DISPONIBLE' }
@@ -51,3 +58,19 @@ export function lineaDeTiempo(hitos: readonly HitoVista[]): PasoLinea[] {
 
 /** La IP de quien consulta, tal como la ve el servidor detrás de Vercel (la primera de `x-forwarded-for`). Solo sirve para el límite de intentos. */
 export const ipDe = (xForwardedFor: string | null | undefined, xRealIp?: string | null): string => (xForwardedFor?.split(',')[0] ?? xRealIp ?? '').trim()
+
+// ── Estado de pagos (0068) ──────────────────────────────────────────────────
+
+export const TITULO_AL_DIA = '¡Estás al día en tus pagos! 😊'
+export const TEXTO_AL_DIA = 'Gracias por la confianza.'
+export const TITULO_MOROSO = 'Tienes pagos vencidos'
+export const TEXTO_MOROSO = 'Si ya pagaste, puede que aún no lo hayamos registrado: avísale a tu asesor comercial y lo actualizamos. Para ponerte al día, también puedes coordinar con él.'
+
+/** «S/ 1,234.50» (los saldos vienen en soles). */
+export const soles = (n: number) => `S/ ${new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`
+
+/** «1 documento vencido», «3 documentos vencidos». */
+export const textoCantidadVencidos = (n: number) => `${n} ${n === 1 ? 'documento vencido' : 'documentos vencidos'}`
+
+/** «Venció hace 10 días» (el atraso mínimo de un documento vencido es 1 día). */
+export const textoAtraso = (dias: number) => `${dias} ${dias === 1 ? 'día' : 'días'} de atraso`

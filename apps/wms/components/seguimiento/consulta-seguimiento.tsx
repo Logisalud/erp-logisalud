@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Search } from 'lucide-react'
 import { consultarSeguimientoAccion, type EstadoConsulta } from '@/app/seguimiento/acciones'
 import { TEXTO_ERROR, TEXTO_NO_DISPONIBLE, TEXTO_NO_ENCONTRADO, textoEspera } from '@/domain/seguimiento'
+import { EstadoDePagosCliente } from './estado-de-pagos'
 import { LineaDeTiempo } from './linea-de-tiempo'
 
 /** El formulario público: número de pedido y RUC. Vacío, consultando, error y éxito. No muestra nada hasta que se consulta. */
@@ -32,7 +33,7 @@ export function ConsultaSeguimiento() {
         <button type="submit" className="btn-primary w-full sm:w-auto" disabled={pendiente} data-testid="seguimiento-consultar"><Search className="h-5 w-5" aria-hidden />{pendiente ? 'Consultando…' : 'Ver mi pedido'}</button>
       </form>
       <div aria-live="polite">
-        {r?.estado === 'OK' && <LineaDeTiempo pedido={r.pedido} hitos={r.hitos} />}
+        {r?.estado === 'OK' && <div className="space-y-5"><LineaDeTiempo pedido={r.pedido} hitos={r.hitos} />{r.deuda && <EstadoDePagosCliente deuda={r.deuda} />}</div>}
         {r?.estado === 'NO_ENCONTRADO' && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950" data-testid="seguimiento-no-encontrado">{TEXTO_NO_ENCONTRADO}</p>}
         {r?.estado === 'ESPERA' && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950" data-testid="seguimiento-espera">{textoEspera(r.esperaSegundos)}</p>}
         {r?.estado === 'NO_DISPONIBLE' && <p role="status" className="rounded-lg border border-gray-200 bg-white p-4 text-gray-800" data-testid="seguimiento-no-disponible">{TEXTO_NO_DISPONIBLE}</p>}

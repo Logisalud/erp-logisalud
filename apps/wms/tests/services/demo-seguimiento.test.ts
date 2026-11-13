@@ -80,3 +80,20 @@ describe('encendido', () => {
     expect((await repo.consultarSeguimientoPorToken('otro', '8.8.8.99')).estado).toBe('ESPERA')
   })
 })
+
+describe('estado de pagos del cliente en la demo (0068)', () => {
+  it('lo trae el pedido + RUC y el enlace con token, igual; apagado no trae nada', async () => {
+    encender()
+    const r = await repo.consultarSeguimiento('PED-DEMO-101', RUC, '5.5.5.5')
+    if (r.estado !== 'OK') throw new Error(r.estado)
+    const ultimo = Number(RUC.slice(-1))
+    if (ultimo === 9) expect(r.deuda).toBeNull()
+    else if (ultimo <= 3) expect(r.deuda).toMatchObject({ estado: 'AL_DIA' })
+    else expect(r.deuda).toMatchObject({ estado: 'MOROSO', cantidad: 2, total: 1800.5 })
+    const enlace = await repo.crearEnlaceSeguimiento('PED-DEMO-101', 30, JT); if (!enlace.ok) throw new Error(enlace.mensaje)
+    const t = await repo.consultarSeguimientoPorToken(enlace.token, '5.5.5.5')
+    expect(t.estado === 'OK' && t.deuda).toEqual(r.deuda)
+    repo.fijarSeguimientoDeudaHabilitado(false)
+    expect((await repo.consultarSeguimiento('PED-DEMO-101', RUC, '5.5.5.6')) ).toMatchObject({ estado: 'OK', deuda: null })
+  })
+})

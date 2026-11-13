@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { TEXTO_NO_DISPONIBLE, type HitoVista, type RespuestaSeguimiento } from '@/domain/seguimiento'
+import { TEXTO_NO_DISPONIBLE, type EstadoDePagos, type HitoVista, type RespuestaSeguimiento } from '@/domain/seguimiento'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioSeguimiento } from '../repositorio-seguimiento'
 import { MisRutasSupabase } from './mis-rutas-supabase'
@@ -9,10 +9,18 @@ import { mensajeHumano, rpc, type Fila } from './util'
 // ESTE ADAPTADOR NO SE EJECUTÓ CONTRA UNA BASE REAL. Verificado contra el contrato de las funciones de la migración 0047 (probadas en Postgres local, tests/db/seguimiento.test.ts) y por tipos.
 // La consulta pública corre SIN sesión (rol `anon`): solo puede llamar a las dos funciones de consulta; no hay service role.
 
+function deuda(d: unknown): EstadoDePagos | null {
+  if (!d || typeof d !== 'object') return null
+  const r = d as Fila
+  if (r.estado === 'AL_DIA') return { estado: 'AL_DIA', al: String(r.al) }
+  if (r.estado === 'MOROSO') return { estado: 'MOROSO', al: String(r.al), total: Number(r.total), maxDias: Number(r.max_dias), cantidad: Number(r.cantidad), documentos: ((r.documentos ?? []) as Fila[]).map((x) => ({ documento: String(x.documento), vence: String(x.vence), dias: Number(x.dias), saldo: Number(x.saldo) })) }
+  return null
+}
+
 function respuesta(data: unknown): RespuestaSeguimiento {
   const r = (data ?? {}) as Fila
   switch (String(r.estado)) {
-    case 'OK': return { estado: 'OK', pedido: String(r.pedido), hitos: ((r.hitos ?? []) as Fila[]).map((h): HitoVista => ({ estado: String(h.estado) as HitoVista['estado'], en: String(h.en) })) }
+    case 'OK': return { estado: 'OK', pedido: String(r.pedido), hitos: ((r.hitos ?? []) as Fila[]).map((h): HitoVista => ({ estado: String(h.estado) as HitoVista['estado'], en: String(h.en) })), deuda: deuda(r.deuda) }
     case 'ESPERA': return { estado: 'ESPERA', esperaSegundos: Number(r.espera_segundos ?? 60) }
     case 'NO_ENCONTRADO': return { estado: 'NO_ENCONTRADO' }
     case 'NO_DISPONIBLE': return { estado: 'NO_DISPONIBLE' }

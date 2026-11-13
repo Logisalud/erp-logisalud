@@ -2,7 +2,7 @@
 // límite de intentos por pedido, por IP y global). APAGADO en el piloto y con el interruptor apagado (el valor de fábrica).
 import { createHash, randomUUID } from 'node:crypto'
 import { puede } from '@/domain/permisos'
-import type { HitoVista, RespuestaSeguimiento } from '@/domain/seguimiento'
+import type { EstadoDePagos, HitoVista, RespuestaSeguimiento } from '@/domain/seguimiento'
 import { ahora, estadoE, falla } from './entradas-demo'
 import { desp } from './despacho-demo'
 import type { EstadoDemo } from './estado'
@@ -12,7 +12,7 @@ import { modoPilotoDemo } from './piloto-estado'
 import type { Actor, ResultadoAccion } from '../repositorio'
 import type { RepositorioSeguimiento } from '../repositorio-seguimiento'
 
-interface SegDemo { habilitado: boolean; intentos: { ip: string; clave: string; ok: boolean; en: number }[]; tokens: { id: string; hash: string; pedidoId: string; numero: string; venceEn: number; revocado?: boolean }[] }
+interface SegDemo { habilitado: boolean; deudaHabilitada?: boolean; intentos: { ip: string; clave: string; ok: boolean; en: number }[]; tokens: { id: string; hash: string; pedidoId: string; numero: string; venceEn: number; revocado?: boolean }[] }
 const seg = (e: EstadoDemo): SegDemo => ((e as EstadoDemo & { seguimiento?: SegDemo }).seguimiento ??= { habilitado: false, intentos: [], tokens: [] })
 const hash = (t: string) => createHash('sha256').update(t, 'utf8').digest('hex')
 const QUINCE_MIN = 15 * 60_000
@@ -34,6 +34,22 @@ export class SeguimientoDemo extends MisRutasDemo implements RepositorioSeguimie
   }
   private intento(e: EstadoDemo, ip: string, clave: string, ok: boolean) {
     const s = seg(e); s.intentos.push({ ip, clave, ok, en: Date.now() }); s.intentos = s.intentos.filter((i) => Date.now() - i.en < 2 * 24 * 3600_000)
+  }
+
+  /** Pruebas: el interruptor `seguimiento_deuda_habilitado` (en la base solo lo cambia un administrador de la base). En la demo nace encendido para poder verlo. */
+  fijarSeguimientoDeudaHabilitado(v: boolean) { seg(estadoE()).deudaHabilitada = v }
+  /**
+   * El estado de pagos en la demostración (no hay Cobranzas): según el último dígito del RUC, 0 a 3 «al día», 4 a 8 con documentos vencidos y 9 «Cobranzas no lo conoce» (no se dice nada).
+   * Mismas reglas que `wms._deuda_cliente` (0068): lo más atrasado primero y el total.
+   */
+  private deudaDemo(e: EstadoDemo, ruc: string | undefined): EstadoDePagos | null {
+    if (!(seg(e).deudaHabilitada ?? true) || !ruc || !/^\d{8,11}$/.test(ruc)) return null
+    const d = Number(ruc.slice(-1)); const al = e.panorama.hoy
+    if (d === 9) return null
+    if (d <= 3) return { estado: 'AL_DIA', al }
+    const dia = (n: number) => new Date(Date.parse(`${al}T12:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10)
+    const documentos = [{ documento: `F001-00${100 + d}`, vence: dia(60 + d), dias: 60 + d, saldo: 1480.5 }, { documento: `F001-00${90 + d}`, vence: dia(12 + d), dias: 12 + d, saldo: 320 }]
+    return { estado: 'MOROSO', al, total: 1800.5, maxDias: documentos[0].dias, cantidad: documentos.length, documentos }
   }
 
   /** Solo estado y hora: nunca precios, lotes ni personal. */
@@ -68,7 +84,7 @@ export class SeguimientoDemo extends MisRutasDemo implements RepositorioSeguimie
     const fila = (e.pedidos?.filas ?? []).find((f) => f.vigente && f.snapshot.numero.toUpperCase() === clave && /^\d{11}$/.test(r) && f.snapshot.cliente.ruc === r)
     if (!fila) { this.intento(e, ip, clave, false); return { estado: 'NO_ENCONTRADO' } }   // la misma respuesta si el pedido no existe o el RUC no coincide
     this.intento(e, ip, clave, true)
-    return { estado: 'OK', pedido: fila.snapshot.numero, hitos: this.hitos(e, fila.snapshot.pedidoId) }
+    return { estado: 'OK', pedido: fila.snapshot.numero, hitos: this.hitos(e, fila.snapshot.pedidoId), deuda: this.deudaDemo(e, fila.snapshot.cliente.ruc) }
   }
 
   async consultarSeguimientoPorToken(token: string, ipCruda: string): Promise<RespuestaSeguimiento> {
@@ -80,7 +96,7 @@ export class SeguimientoDemo extends MisRutasDemo implements RepositorioSeguimie
     const t = seg(e).tokens.find((x) => x.hash === hash(token.trim()) && !x.revocado && x.venceEn > Date.now())
     const fila = t ? (e.pedidos?.filas ?? []).find((f) => f.vigente && f.snapshot.pedidoId === t.pedidoId) : undefined
     if (!t || !fila) { this.intento(e, ip, 'token', false); return { estado: 'NO_ENCONTRADO' } }
-    return { estado: 'OK', pedido: fila.snapshot.numero, hitos: this.hitos(e, fila.snapshot.pedidoId) }
+    return { estado: 'OK', pedido: fila.snapshot.numero, hitos: this.hitos(e, fila.snapshot.pedidoId), deuda: this.deudaDemo(e, fila.snapshot.cliente.ruc) }
   }
 
   async crearEnlaceSeguimiento(pedidoNumero: string, dias: number, actor: Actor): Promise<ResultadoAccion<{ token: string; venceEn: string }>> {
