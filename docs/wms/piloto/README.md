@@ -25,7 +25,7 @@ Marcados con su dueño.
 
 | # | Qué falta | Dueño |
 |---|---|---|
-| 1 | **Completar los datos de los productos** con el «Excel para completar»: 92 sin ficha, 10 con datos obligatorios faltantes y 50 sin forma, concentración o principio activo. 90 más esperan la **validación de Dirección Técnica**. Todos los productos controlan lote y vencimiento (hoy ninguno lo tiene marcado en el catálogo de Compras: se marcan los 643 activos con el OK de Sebas). | Sebas, Katia |
+| 1 | **Completar los datos de los productos** con el «Excel para completar»: 92 sin ficha, 10 con datos obligatorios faltantes y 50 sin forma, concentración o principio activo. 90 más esperan la **validación de Dirección Técnica**. **Lote y vencimiento:** solo la mercadería los controla; un bien o un servicio no. Sebas marca en el Excel cuáles sí y cuáles no; hoy ningún producto lo tiene marcado en el catálogo de Compras (esa tabla es de Compras: se actualiza con el OK de Sebas). | Sebas, Katia |
 | 2 | **Stock al 1 de diciembre** de cada cliente y de Logisalud, con lote y vencimiento (hoja «Stock al 1 de diciembre» del Excel maestro; misma carga inicial con informe «Lista para cargar»). Lo que entre después va por Recepciones. | Sebas, Katia |
 | 3 | **COA por lote:** subir la carpeta de PDF con **Documentos → Cargar COA en bloque** (el nombre del archivo lleva el código del lote). Se hace **después** de cargar el stock, porque el lote debe existir. | Katia, Sandra |
 | 4 | **Qué pide cada cliente** (COA, registro sanitario, BPM, copias) y los **códigos propios de cada cliente** (para su página de stock y su Kardex). | Katia, Sebas |
