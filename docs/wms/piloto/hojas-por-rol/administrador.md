@@ -8,7 +8,9 @@
 3. Descargo el informe con **Descargar Excel** o **Descargar CSV** y se lo paso a Katia.
 4. **Control → Propietarios:** reviso de quién es cada ubicación, con su vigencia y el documento que la respalda (cambiar una asignación nunca mueve stock).
 5. Cada semana reviso el Go/No-Go (`docs/wms/piloto/go-no-go.md`): saldos negativos, `verificar_saldos()`, incidencias abiertas y el respaldo diario.
-6. El modo de la guía (`guia_modo`: **PANEL** en el piloto, **WMS** si algún día el WMS emite) se cambia en la base de datos, con el equipo técnico y con aprobación de Sebas. No hay pantalla para eso.
+6. El modo de la guía (`guia_modo`) es hoy **WMS** (el WMS prepara la guía y la envía a Nubefact en modo PRUEBA); `PANEL` es la contingencia. Se cambia en la base de datos, con el equipo técnico y con aprobación de Sebas. No hay pantalla para eso.
+7. **Control → Seguimiento a clientes:** cargo el teléfono de cada vendedor (uno por uno o con un **CSV de nombre y teléfono**; el nombre debe ser como llega de Pedidos) y reviso las opciones de la pantalla del cliente: mostrar «Van X de Y», cuándo se ve la guía, número de prueba del piloto y dirección propia. Sin número cargado, el cliente no ve el botón «Escribir a mi vendedor». En el piloto el botón va al número de prueba.
+8. **Control → Propietarios:** genero, copio y revoco el **enlace de stock** de cada cliente que guarda mercadería con nosotros (solo lectura).
 
 ## Qué NO hago
 - No apruebo lotes, no autorizo ajustes ni bajas, no valido productos.

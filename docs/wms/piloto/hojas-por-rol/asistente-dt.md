@@ -13,7 +13,7 @@
 ## Qué NO hago
 - No apruebo ni envío a Bajas un lote: lo decide Dirección Técnica.
 - No doy la conformidad de un picking que hice yo.
-- No emito la guía en el WMS: se emite en el panel de Nubefact (o en Odoo).
+- No emito guías: las prepara el Jefe de Transporte desde la orden (en el piloto, a la cuenta de prueba de Nubefact).
 
 ## A quién aviso
 - Falta un documento del paquete o un registro sanitario vencido: **Katia**.

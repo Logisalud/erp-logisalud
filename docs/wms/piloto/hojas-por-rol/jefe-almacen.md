@@ -13,7 +13,7 @@
 ## Qué NO hago
 - No apruebo lotes ni autorizo ajustes o bajas: lo decide Dirección Técnica.
 - No verifico un movimiento que yo ejecuté.
-- No emito guías en el WMS: se emiten en el panel de Nubefact (o en Odoo).
+- No emito guías: las prepara el Jefe de Transporte desde la orden (en el piloto, a la cuenta de prueba de Nubefact).
 
 ## A quién aviso
 - Diferencia en una recepción o un acta trabada: **Sandra** y **Katia**.

@@ -1,20 +1,22 @@
 # Ventana del piloto en Supabase real (una página)
 
-Proyecto consolidado **`qpkigzniatidsvnxikox`**. **Nada de esto se ejecutó en ninguna base real.** Se aplica a mano, con tu OK, con una herramienta que deje historial. Si una herramienta falla o se cuelga: **detenerse y avisar** (no cambiar de método ni editar el SQL).
+Proyecto consolidado **`qpkigzniatidsvnxikox`**. > **Actualización 15-nov-2026:** la ventana ya se aplicó en la base real: migraciones **0001 a 0069, sin la 0008**, a mano. Este documento queda como guía para repetirla en otra base y para aplicar migraciones nuevas. Las secciones 4 y 5 dicen lo que hoy está en producción.
+
+Se aplica a mano, con tu OK, con una herramienta que deje historial. Si una herramienta falla o se cuelga: **detenerse y avisar** (no cambiar de método ni editar el SQL).
 
 ## 1. Antes de empezar (prerrequisitos)
 1. **Copia de Supabase del mismo día**, verificada en el panel (Database → Backups). Sin ella no se empieza.
 2. Bucket **privado** `wms-documentos` creado en Storage **antes de la 0025** (sin acceso público; `authenticated` puede subir y leer).
 3. Esquema **`wms`** expuesto en Settings → Data API → Exposed schemas (si falta: error 406 «Invalid schema»).
 4. `wms` agregado a `public.schemas_compras_y_pagos()` y luego `select public.aplicar_grants_del_modulo();` (si falta: 403). Las tablas del ledger siguen sin INSERT/UPDATE por RLS (`tests/db/rls.test.ts`).
-5. Parámetro `guia_modo = PANEL` (lo siembra la 0036; confirmarlo después) y `modo_piloto = si` (0038).
+5. Parámetros: `modo_piloto = si` (0038) y `guia_modo`. **Hoy `guia_modo = WMS`** con Nubefact en modo PRUEBA (decisión de Sebas); `PANEL` es la contingencia (la 0036 lo siembra así en una base nueva: cambiarlo si corresponde).
 6. Compras tiene `ordenes_compra.estado` y `ordenes_compra_items.cantidad_recibida` y existe `catalogo.productos` (verificar contra la base real).
 
 ## 2. Orden exacto de migraciones (`apps/wms/supabase/migrations/`)
-**0001 → 0051, SIN la 0008** (la 0010 no existe; la 0008 va solo en el go-live). Cada archivo se corre una vez, en orden numérico: 0001–0007, 0009, 0011–0051. Después, las semillas `seeds/0001_topologia.sql` y `seeds/0002_transporte_inicial.sql`. Nuevas del piloto: 0042 carga de ensayo, 0043 Mis rutas, 0044 registro de reinicios, 0045 sincronización automática de OC, 0046 ruteo de Pedidos en la copia del pedido, 0047 seguimiento para el cliente (apagado en el piloto).
+**0001 → 0069, SIN la 0008** (la 0010 no existe; la 0008 va solo en el go-live). Cada archivo se corre una vez, en orden numérico: 0001–0007, 0009, 0011–0069. Después, las semillas `seeds/0001_topologia.sql` y `seeds/0002_transporte_inicial.sql`. Nuevas del piloto: 0042 carga de ensayo, 0043 Mis rutas, 0044 registro de reinicios, 0045 sincronización automática de OC, 0046 ruteo de Pedidos en la copia del pedido, 0047 seguimiento para el cliente; **0052–0069** (auxiliares de transporte, ranking, seguimiento en el piloto, pre-guía con número reservado, conformidad del cliente, vehículo de contingencia, inspecciones de la unidad, editar orden de salida, sin embalaje y carga por conteo, «Mis rutas» con la ruta interna, correcciones de la auditoría de salidas, stock para el cliente de almacenamiento, estado de pagos y la pantalla de seguimiento del pedido).
 Ensayo previo (ya hecho en Postgres 17.5): `WMS_OMITIR=0008 WMS_PROBAR_REVERSA=1 apps/wms/scripts/ensayo-migraciones.sh <url-de-un-Postgres-desechable>`.
 
-## 3. Verificación después de cada bloque (0001–0009 · 0011–0024 · 0025–0036 · 0037–0051 y semillas)
+## 3. Verificación después de cada bloque (0001–0009 · 0011–0024 · 0025–0036 · 0037–0069 y semillas)
 ```sql
 select * from wms.verificar_saldos();                                   -- 0 filas
 select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -24,12 +26,12 @@ select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'wms' and has_function_privilege('authenticated', p.oid, 'execute');  -- = la lista de tests/db/aislamiento.test.ts
 select count(*) from wms.v_oc_items;     -- al final: ver la sección 6
 ```
-Esperado al terminar: 108 tablas con RLS, 189 funciones para `authenticated`, ninguna para PUBLIC.
+Esperado al terminar: todas las tablas con RLS y ninguna función para PUBLIC; la lista de funciones de `authenticated` y de `anon` es la de `tests/db/aislamiento.test.ts` (las cifras de la ventana original, 108 tablas y 189 funciones, ya no valen).
 
-## 4. Variables de entorno en Production del proyecto Vercel `erp-logisalud-wms` (solo NOMBRES; los valores los carga Sebas, nunca se escriben aquí ni en el chat)
-`WMS_MODO_PILOTO=1` (valor fijo) · `NUBEFACT_ENTORNO=DEMO` · `NUBEFACT_RUTA` y `NUBEFACT_TOKEN` (credenciales DEMO) · `NEXT_PUBLIC_SUPABASE_URL` · `NEXT_PUBLIC_SUPABASE_ANON_KEY` · `SUPABASE_SERVICE_ROLE_KEY` (solo servidor) · `NEXT_PUBLIC_BASE_PATH` si corresponde. **Nunca** `WMS_DEMO`, `WMS_DEMO_LOCAL` ni `WMS_GO_LIVE` (con cualquiera la app se niega a arrancar). `WMS_PEDIDOS_URL` y `WMS_PEDIDOS_SECRETO`: **solo cuando se apruebe la ruta de Pedidos**; mientras tanto el WMS no envía nada a Pedidos aunque estén puestas.
+## 4. Variables de entorno en Production (estado al 15-nov: ya cargadas) del proyecto Vercel `erp-logisalud-wms` (solo NOMBRES; los valores los carga Sebas, nunca se escriben aquí ni en el chat)
+`WMS_MODO_PILOTO=1` (valor fijo) · `NUBEFACT_MODO=PRUEBA` · `NUBEFACT_ENTORNO=DEMO` · `NUBEFACT_RUTA` y `NUBEFACT_TOKEN` (credenciales DEMO) · `NEXT_PUBLIC_SUPABASE_URL` · `NEXT_PUBLIC_SUPABASE_ANON_KEY` · `SUPABASE_SERVICE_ROLE_KEY` (solo servidor) · `NEXT_PUBLIC_BASE_PATH` si corresponde. **Nunca** `WMS_DEMO`, `WMS_DEMO_LOCAL` ni `WMS_GO_LIVE` (con cualquiera la app se niega a arrancar). `WMS_PEDIDOS_URL` y `WMS_PEDIDOS_SECRETO`: **ya están cargadas**; el WMS lee los pedidos reales, pero los avisos hacia Pedidos quedan retenidos (`RETENIDO_PILOTO`) mientras `modo_piloto = si`. También están `RESEND_API_KEY`, `RESEND_FROM` y `AVISO_FACTURACION_CORREOS` (aviso interno «guía lista, ya puede facturar»).
 
-## 5. Cambio propuesto en `apps/wms/vercel.json` (NO aplicado; solo texto)
+## 5. Cambio en `apps/wms/vercel.json` (aplicado: el WMS despliega a producción desde `main`)
 ```diff
  {
    "$schema": "https://openapi.vercel.sh/vercel.json",

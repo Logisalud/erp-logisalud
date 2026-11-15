@@ -7,7 +7,7 @@
 2. **Control → Kardex (historial):** sigo el recorrido de un lote, de la entrada a la salida.
 3. **Control → Reportes:** reviso **Inventario**, **Vencimientos**, **Recepciones**, **Movimientos**, **Calidad** y **Exactitud del inventario**, y los bajo con el botón **Excel**.
 4. **Control → Alertas** y **Almacén → Revisión diaria:** compruebo que las alertas se atienden y que la revisión de cada día se cerró.
-5. **Salidas → Órdenes de salida:** verifico que cada salida del piloto tenga su número de pedido, su guía registrada (origen «Emitida en el panel de Nubefact (o en Odoo)») y su salida confirmada.
+5. **Salidas → Órdenes de salida:** verifico que cada salida del piloto tenga su número de pedido, su pre-guía y su guía (en el piloto, de prueba, enviada a Nubefact en modo PRUEBA) y su salida confirmada.
 6. Cada semana anoto lo que encuentro y se lo paso a **Sebas** para el Go/No-Go (`docs/wms/piloto/go-no-go.md`).
 
 ## Qué NO hago
