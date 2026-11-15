@@ -13,7 +13,7 @@
 8. **Control → Carga inicial:** solo confirmo una carga cuando el **Informe de la carga** dice «Lista para cargar».
 
 ## Qué NO hago
-- No emito guías en el WMS: en el piloto se emiten en el panel de Nubefact (o en Odoo) y el WMS solo las registra.
+- No emito guías: las prepara el Jefe de Transporte desde la orden (en el piloto, a la cuenta de prueba de Nubefact).
 - No muevo stock a mano ni corrijo un saldo por fuera de un conteo o una baja.
 - No confirmo una carga con el informe en «No lista para cargar».
 

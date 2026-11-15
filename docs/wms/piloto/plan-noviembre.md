@@ -1,5 +1,7 @@
 # Plan de noviembre: conexión real a las OC y piloto «como real»
 
+> **Actualización 15-nov-2026 (leer primero).** Este plan es del 3-nov y varias respuestas cambiaron: **la ventana ya se hizo** (migraciones 0001–0069 sin la 0008, en la base real); el **seguimiento del cliente** y **«Mis rutas»** ya existen; `modo_piloto` existe; la firma dibujada del acta existe; la guía se emite desde el WMS a Nubefact en **modo PRUEBA** (`guia_modo = WMS`); los pedidos reales se leen de Pedidos (los avisos hacia Pedidos siguen retenidos). El estado y los pendientes actuales están en `README.md` («Estado al 15 de noviembre de 2026»). Lo que sigue se conserva como historia.
+
 Respuestas de Claude a las preguntas H del mensaje del 3-nov-2026, con las propuestas que piden tu aprobación. **Nada de esto se aplicó en ninguna base real ni se desplegó.** Fecha de lectura de datos: 3-nov-2026 (solo lectura).
 
 > **Actualización 4-nov (Sebas):** la ventana aplica **todo MENOS la 0008**; la 0008 va solo en el go-live, al final (PIL-16). Se suman las migraciones 0039 (firma), 0040 (reglas de vencimiento y formato) y 0041 (PIL-8).

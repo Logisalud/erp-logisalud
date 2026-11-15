@@ -15,7 +15,7 @@ Cómo se mide: «Reportes», «Auditoría», `verificar_saldos()` (consulta de l
 | A5 | La **contadora confirmó** lo pendiente que afecta al piloto (baja de guías ante SUNAT, serie y correlativo de guías del panel) | Respuesta por escrito | Sebas |
 | A6 | Definida **la ruta o el día fijo** de salidas del piloto y quién emite la guía en el panel | Acta corta de acuerdo | Roberto y Sebas |
 | A7 | **Plan de archivo y recreación** de la base (qué se archiva, cómo, con respaldo) escrito y aprobado | Documento del plan | Sebas |
-| A8 | `guia_modo = PANEL` verificado en la base del piloto | Consulta del equipo técnico | Equipo técnico |
+| A8 | `guia_modo` verificado en la base del piloto (hoy **`WMS`**, con Nubefact en modo PRUEBA; `PANEL` es la contingencia) | Consulta del equipo técnico | Equipo técnico |
 
 **Go:** los 8 cumplidos. **No-Go:** cualquiera sin cumplir.
 **Si es No-Go:** el piloto no arranca ese día. El dueño del criterio dice qué falta y para cuándo; se vuelve a revisar el siguiente lunes. Nada se carga en la base real mientras tanto.
@@ -51,3 +51,6 @@ Se evalúa al **terminar al menos 2 semanas** de piloto.
 ## Quién decide qué
 - **Sebas** decide el Go o No-Go final de (a) y de (b), y acepta cualquier excepción por escrito.
 - **Katia** confirma lo sanitario y el informe de la carga; **Charlie** y **Roberto**, lo operativo; **Sandra**, las actas; el **equipo técnico**, saldos y respaldos.
+
+## Nota del 15-nov-2026
+Para (b) se suman estos requisitos de datos antes de producción: **productos completos** (todos con ficha validada, registro sanitario y vencimiento), **stock inicial al 1 de diciembre** cargado con «Lista para cargar», **COA por lote** subidos y **Nubefact probado de punta a punta** con el correlativo nuevo confirmado. Estado y dueños: `README.md`.
