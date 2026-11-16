@@ -34,6 +34,11 @@ export default function Reportes() {
 
       <GrupoReportes titulo="Financiero — Contabilidad y Tesorería">
         <ItemReporte
+          href="/reportes/notas-pendientes"
+          titulo="Notas pendientes de proveedores"
+          descripcion="Lo que cada proveedor debe regularizar porque llegó menos (nota de crédito) o más (factura o nota de débito) de lo facturado."
+        />
+        <ItemReporte
           href="/reportes/cuentas-por-pagar/antiguedad"
           titulo="Antigüedad de saldos"
           descripcion="Cuánto le debes a cada proveedor, repartido por cuánto lleva vencido (por vencer, 1-30, 31-60, 61-90, +90 días)."
