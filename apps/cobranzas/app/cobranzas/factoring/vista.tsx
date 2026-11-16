@@ -53,6 +53,32 @@ const fmt = (n: number) =>
 const fmtFecha = (s: string | null) => { if (!s) return '—'; const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
 const hoy = () => new Date().toISOString().split('T')[0];
 
+/**
+ * Cómo viene el vencimiento del factoring de una factura que el cliente
+ * todavía no le pagó a la entidad.
+ *
+ * Importa porque si el cliente no le paga al factor, el factor vuelve sobre
+ * nosotros: una factura vencida con la entidad es un problema nuestro, no
+ * del cliente, y hasta ahora había que compararle la fecha a ojo.
+ *
+ * Se compara en texto (YYYY-MM-DD) a propósito: construir un Date con la
+ * fecha sola la interpreta en UTC y en Lima corre un día.
+ */
+const UMBRAL_POR_VENCER = 7;
+
+function avisoVencimientoFactor(fecha: string | null, hoyISO: string):
+  { texto: string; clase: string } | null {
+  if (!fecha) return null;
+  const dias = Math.round(
+    (Date.parse(`${fecha}T00:00:00Z`) - Date.parse(`${hoyISO}T00:00:00Z`)) / 86400000,
+  );
+  if (dias < 0) return { texto: `vencida hace ${-dias} d`, clase: 'bg-red-600 text-white' };
+  if (dias === 0) return { texto: 'vence hoy', clase: 'bg-red-100 text-red-700' };
+  if (dias <= UMBRAL_POR_VENCER) return { texto: `por vencer en ${dias} d`, clase: 'bg-amber-200 text-amber-900' };
+  return null;
+}
+
+
 function useBuscadorCliente() {
   const [busqueda, setBusqueda] = useState('');
   const [sugerencias, setSugerencias] = useState<ClienteBuscado[]>([]);
@@ -570,6 +596,14 @@ function TabCanjear({ puedeAnular }: { puedeAnular: boolean }) {
                           ? <> · <span className="font-semibold">pagó al factor</span>{f.fecha_pago_al_factor ? ` ${fmtFecha(f.fecha_pago_al_factor)}` : ''}</>
                           : <> · <span className="font-semibold text-red-600">no pagó al factor</span></>
                       )}
+                      {/* El aviso solo tiene sentido si la plata todavía no
+                          entró: una factura ya pagada al factor no vence. */}
+                      {f.estado === 'ingresada' && !f.pagado_al_factor && (() => {
+                        const aviso = avisoVencimientoFactor(f.fecha_vencimiento, hoy());
+                        return aviso
+                          ? <span className={`ml-1.5 px-1.5 py-0.5 rounded-full font-sans font-semibold ${aviso.clase}`}>{aviso.texto}</span>
+                          : null;
+                      })()}
                     </span>
                   ))}
                 </div>
