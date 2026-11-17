@@ -5,6 +5,7 @@ import type { FaltanteLineaVista } from './faltante'
 import { puede } from './permisos'
 import type { CreadaDesde, ClienteManual, OrigenOrden } from './salida-manual'
 import type { MotivoSalida, TipoSalida } from './salidas'
+import { estadoDeOrden, type EstadoOrden } from './estado-orden'
 import type { Rol } from './tipos'
 
 // ── Permisos ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -120,6 +121,8 @@ export interface SalidaResumen {
   /** N.° de la guía de remisión vigente y documentos exigidos que faltan o están vencidos (S6b). */
   guia?: string
   documentosFaltantes?: number
+  /** Lo que marcó el conductor en «Mis rutas» para este pedido (solo cuando la orden ya salió): entregado, o no entregado/rechazado. */
+  resultadoEntrega?: 'ENTREGADA' | 'NO_ENTREGADA'
   /** D-191: la orden ya salió, su guía se anuló y no hay otra vigente (el stock no se toca; falta emitir la nueva). */
   faltaGuiaVigente?: boolean
   /** SA-2: de dónde nació la orden y quién la creó (las órdenes viejas no traen estos datos: son de un pedido). */
@@ -304,9 +307,9 @@ export function siguientePaso(l: Pick<LineaPickingVista, 'picking'>[]): 'PICKEAR
   return l.some((x) => x.picking === 'PENDIENTE') ? 'PICKEAR' : 'LISTA'
 }
 
-export function filtrarSalidas(salidas: readonly SalidaResumen[], f: { q: string; etapa: '' | EtapaSalida }): SalidaResumen[] {
+export function filtrarSalidas(salidas: readonly SalidaResumen[], f: { q: string; etapa?: '' | EtapaSalida; estado?: '' | EstadoOrden }): SalidaResumen[] {
   const q = normalizar(f.q.trim())
-  return salidas.filter((s) => (!f.etapa || s.etapa === f.etapa) && (!q || q.split(/\s+/).every((t) => normalizar(`${s.numero} ${s.pedidoNumero ?? ''} ${s.cliente ?? ''} ${s.rutaNumero ?? ''} ${s.ordenNumero ?? ''} ${s.guia ?? ''}`).includes(t))))
+  return salidas.filter((s) => (!f.etapa || s.etapa === f.etapa) && (!f.estado || estadoDeOrden(s) === f.estado) && (!q || q.split(/\s+/).every((t) => normalizar(`${s.numero} ${s.pedidoNumero ?? ''} ${s.cliente ?? ''} ${s.rutaNumero ?? ''} ${s.ordenNumero ?? ''} ${s.guia ?? ''}`).includes(t))))
 }
 
 /** ¿Quién puede dar la conformidad de la orden? Otra persona, no quien hizo el picking (espejo de la base). Sin picker indicado todavía no hay conformidad. */

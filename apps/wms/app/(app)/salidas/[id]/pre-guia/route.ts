@@ -16,11 +16,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!ctx || !puedeVerSalidas(ctx.roles)) return new NextResponse('Inicia sesión con un perfil de almacén o transporte.', { status: 401 })
   const repo = repositorio()
   const [pre, guia] = await Promise.all([repo.preGuiaDe(params.id), repo.datosGuia(params.id)])
-  if (!pre || !guia) return new NextResponse('Esta orden todavía no tiene pre-guía (se crea al dar la conformidad).', { status: 404 })
+  if (!pre || !guia) return new NextResponse('Esta orden todavía no tiene su Orden de Salida (se genera al dar la conformidad).', { status: 404 })
   // quien hizo el picking sale impreso en la constancia de recepción (quien atiende la ruta se escribe a mano)
   const salida = await repo.obtenerSalida(params.id)
   const orden = salida?.ordenPickingId ? await repo.obtenerOrdenPicking(salida.ordenPickingId) : null
   const generadaEn = new Date().toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'short', timeStyle: 'short' })
   const pdf = await marcarPiloto(await renderPreGuia({ pre, guia, piloto: await modoPilotoActivo(), generadaEn, alistadoPor: quienAlisto(orden) }))
-  return new NextResponse(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Pre-guia ${pre.numeroCompleto}.pdf"`, 'Cache-Control': 'private, no-store' } })
+  return new NextResponse(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Orden de Salida ${guia.salidaNumero}.pdf"`, 'Cache-Control': 'private, no-store' } })
 }

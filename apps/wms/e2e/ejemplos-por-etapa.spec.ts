@@ -46,9 +46,9 @@ test.describe('órdenes de ejemplo (SA-1)', () => {
   test('filtrar por etapa y buscar sin resultados: «Ninguna orden coincide» con «Quitar filtros»', async ({ page }, info) => {
     await entrarComo(page, 'jefe_transporte')
     await page.goto('/wms/salidas')
-    await page.getByTestId('filtro-etapa').selectOption('SIN_STOCK')
+    await page.getByTestId('filtro-estado').selectOption('CREADA')
     await expect(filaDe(page, info)).toContainText('PED-DEMO-209')
-    await page.getByTestId('filtro-etapa').selectOption('')
+    await page.getByTestId('filtro-estado').selectOption('')
     await page.getByTestId('buscar-salidas').fill('zzzz-no-existe')
     await expect(page.getByTestId('salidas-sin-coincidencias')).toContainText('Ninguna orden coincide con tu búsqueda')
     await expect(page.getByTestId('salidas-vacio')).toHaveCount(0)

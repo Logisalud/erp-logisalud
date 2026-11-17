@@ -110,7 +110,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     // el detalle de A cuenta el camino con el paso «Ruta planificada»
     await entrarComo(page, 'jefe_transporte')
     await abrirOrden(page, info, estado.A)
-    await expect(page.getByTestId('chip-etapa')).toContainText('Stock asignado')
+    await expect(page.getByTestId('chip-estado-orden')).toContainText('Creada')
     await expect(page.getByTestId('avance-pasos')).toContainText('Ruta planificada')
     await sinDesborde(page)
     await capturar(page, info, 'rutas-orden-manual-detalle', { completa: true })
@@ -179,7 +179,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
       } else await expect(page.getByTestId('datos-guia')).toContainText('Clínica Destino SAC')
       await page.getByTestId('emitir-guia-boton').click()
       await expect(page.getByTestId('resultado-guia')).toContainText('emitida')
-      await expect(page.getByTestId('chip-etapa')).toContainText('Lista para carga')
+      await expect(page.getByTestId('chip-estado-orden')).toContainText('Guía electrónica enviada')
     }
   })
 
@@ -211,7 +211,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await capturar(page, info, 'rutas-ordenes-manuales-salida', { completa: true })
     for (const t of ['A', 'C'] as const) {
       await abrirOrden(page, info, estado[t])
-      await expect(page.getByTestId('chip-etapa')).toContainText('Salida confirmada')
+      await expect(page.getByTestId('chip-estado-orden')).toContainText('En ruta')
     }
     // el formato LS-FR.43.03 de la ruta sale en PDF con las dos paradas
     const r = await page.request.get(`/wms/rutas/${rutaId}/pdf`)
@@ -257,8 +257,8 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     // la orden sigue viva, con su stock asignado, y vuelve a ofrecerse
     await expect(page.getByTestId('orden-disponible').filter({ hasText: numero })).toBeVisible()
     await abrirOrden(page, info, ref)
-    await expect(page.getByTestId('chip-etapa')).toContainText('Stock asignado')
-    await expect(page.getByTestId('chip-etapa')).not.toContainText('Cancelada')
+    await expect(page.getByTestId('chip-estado-orden')).toContainText('Creada')
+    await expect(page.getByTestId('chip-estado-orden')).not.toContainText('Cancelada')
     await expect(page.getByTestId('avance-pasos-texto')).toContainText('Designar a quien hace el picking')
   })
 
@@ -310,7 +310,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     // lista: el paso que sigue es la entrega, que hace el Jefe de Almacén o el de Transporte
     await entrarComo(page, 'jefe_almacen')
     await abrirOrden(page, info, ref)
-    await expect(page.getByTestId('chip-etapa')).toContainText('Lista para carga')
+    await expect(page.getByTestId('chip-estado-orden')).toContainText('Guía electrónica enviada')
     await expect(page.getByTestId('entrega-form')).toBeVisible()
     await expect(page.getByTestId('entrega-form')).toContainText('no lleva ruta ni guía del WMS')
     await page.getByTestId('registrar-entrega').click()
@@ -323,7 +323,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     await expect(page.getByTestId('entrega-registrada')).toContainText('Entregada al transportista del cliente', { timeout: 15_000 })
     await expect(page.getByTestId('entrega-registrada')).toContainText('Transportes Andes SAC')
     await expect(page.getByTestId('entrega-registrada')).toContainText('ABC-123')
-    await expect(page.getByTestId('chip-etapa')).toContainText('Entregada al transportista')
+    await expect(page.getByTestId('chip-estado-orden')).toContainText('Entregada al transportista')
     await sinDesborde(page)
     await capturar(page, info, 'rutas-B-entregada', { completa: true })
     // el auxiliar no puede registrar entregas: no ve el formulario

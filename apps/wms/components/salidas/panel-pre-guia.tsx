@@ -12,8 +12,11 @@ import { CHIP_AVISO, CHIP_NEUTRO, CHIP_OK } from '../estilos-opcion'
 const ROJO = 'border-red-200 bg-red-50 text-red-800'
 const chip = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap'
 
-/** La pre-guía de la orden: el borrador con el número ya reservado. Se imprime; se envía a Nubefact (con ese mismo número) cuando la orden tiene ruta, vehículo y conductor. */
-export function PanelPreGuia({ salidaId, conforme, preGuia, puedeGestionar }: { salidaId: string; conforme: boolean; preGuia: PreGuiaVista | null; puedeGestionar: boolean }) {
+/**
+ * El documento «Orden de Salida» (lo que antes se llamaba pre-guía): se descarga cuando la orden queda «Lista» (conformidad completa y guía asignada). Lleva el número de la orden (OS-…) y la guía asignada
+ * (TTT1-…); la guía se envía a Nubefact con ese mismo número cuando la orden tiene ruta, vehículo y conductor.
+ */
+export function PanelPreGuia({ salidaId, salidaNumero, conforme, preGuia, puedeGestionar }: { salidaId: string; salidaNumero: string; conforme: boolean; preGuia: PreGuiaVista | null; puedeGestionar: boolean }) {
   const router = useRouter()
   const { pendiente, mensaje, ejecutar } = useAccion()
   const [cancelando, setCancelando] = useState(false)
@@ -24,36 +27,36 @@ export function PanelPreGuia({ salidaId, conforme, preGuia, puedeGestionar }: { 
   }
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4" aria-labelledby="t-pre-guia" data-testid="panel-pre-guia">
-      <h2 id="t-pre-guia" className="flex items-center gap-2 font-heading text-xl font-medium tracking-wide text-gray-900"><FileText className="h-5 w-5" aria-hidden />Pre-guía</h2>
+      <h2 id="t-pre-guia" className="flex items-center gap-2 font-heading text-xl font-medium tracking-wide text-gray-900"><FileText className="h-5 w-5" aria-hidden />Orden de Salida (documento)</h2>
       {!preGuia ? (
         <div className="mt-2 space-y-2">
-          <p className="text-sm text-gray-700">Esta orden ya tiene su conformidad pero todavía no tiene pre-guía. Al crearla se reserva el siguiente número de la serie.</p>
-          {puedeGestionar && <button type="button" className="btn-primary" disabled={pendiente} onClick={() => ejecutar(() => crearPreGuiaAccion(salidaId), { alExito: () => router.refresh() })} data-testid="crear-pre-guia">Crear la pre-guía</button>}
+          <p className="text-sm text-gray-700">Esta orden ya tiene su conformidad, pero todavía no se generó su documento. Al generarlo se le asigna el siguiente número de guía de la serie.</p>
+          {puedeGestionar && <button type="button" className="btn-primary" disabled={pendiente} onClick={() => ejecutar(() => crearPreGuiaAccion(salidaId), { alExito: () => router.refresh() })} data-testid="crear-pre-guia">Generar la Orden de Salida</button>}
           {mensaje?.tipo === 'error' && <Aviso tipo="error">{mensaje.texto}</Aviso>}
         </div>
       ) : (
         <div className="mt-2 space-y-3">
           <div className="flex flex-wrap items-center gap-3">
-            <p className="font-heading text-3xl font-semibold tabular text-gray-900" data-testid="pre-guia-numero">{preGuia.numeroCompleto}</p>
+            <div><p className="font-heading text-3xl font-semibold tabular text-gray-900" data-testid="orden-salida-numero">{salidaNumero}</p><p className="mt-0.5 text-sm text-gray-700">Guía asignada: <span className="tabular font-medium text-gray-900" data-testid="pre-guia-numero">{preGuia.numeroCompleto}</span></p></div>
             {(() => { const x = m[preGuia.estado]; return <span className={`${chip} ${x.cls}`} data-testid="pre-guia-estado" data-estado={preGuia.estado}><x.Icono className="h-3.5 w-3.5" aria-hidden />{ETIQUETA_ESTADO_PRE_GUIA[preGuia.estado]}</span> })()}
           </div>
           <p className="text-sm text-gray-700">
             {preGuia.rutaNumero ? `Ruta ${preGuia.rutaNumero} · ${preGuia.placa ?? 'sin vehículo'} · ${preGuia.conductor ?? 'sin conductor'}` : 'Todavía sin ruta: el vehículo y el conductor salen de la ruta.'}
           </p>
           {faltaParaEnviar(preGuia) && preGuia.estado !== 'ENVIADA' && <p className={`${chip} ${CHIP_NEUTRO} whitespace-normal`} data-testid="pre-guia-falta">{faltaParaEnviar(preGuia)}</p>}
-          {preGuia.estado === 'CANCELADA' && <p className="text-sm text-red-900">Cancelada: {preGuia.motivoCancelacion ?? 'sin motivo'}. El número {preGuia.numeroCompleto} queda libre: lo toma la siguiente pre-guía, así la serie no tiene huecos.</p>}
-          <p className="text-sm text-gray-600">La pre-guía no existe ante SUNAT: al enviar la guía, Nubefact la genera con este mismo número.</p>
+          {preGuia.estado === 'CANCELADA' && <p className="text-sm text-red-900">Cancelada: {preGuia.motivoCancelacion ?? 'sin motivo'}. El número {preGuia.numeroCompleto} queda libre: lo toma la siguiente guía, así la serie no tiene huecos.</p>}
+          <p className="text-sm text-gray-600">La guía asignada no existe ante SUNAT todavía: al enviar la guía electrónica, Nubefact la genera con este mismo número.</p>
           <div className="flex flex-wrap gap-2">
-            {preGuia.estado !== 'CANCELADA' && <a href={`/wms/salidas/${salidaId}/pre-guia`} target="_blank" rel="noopener noreferrer" className="btn-secondary" data-testid="imprimir-pre-guia"><Printer className="h-5 w-5" aria-hidden />Imprimir la pre-guía</a>}
-            {puedeGestionar && (preGuia.estado === 'PRE_GUIA' || preGuia.estado === 'LISTA_PARA_ENVIAR') && !cancelando && <button type="button" className="btn-secondary" onClick={() => { setCancelando(true); setMotivo('') }} data-testid="cancelar-pre-guia">Cancelar la pre-guía</button>}
+            {preGuia.estado !== 'CANCELADA' && <a href={`/wms/salidas/${salidaId}/pre-guia`} target="_blank" rel="noopener noreferrer" className="btn-secondary" data-testid="imprimir-pre-guia"><Printer className="h-5 w-5" aria-hidden />Descargar la Orden de Salida</a>}
+            {puedeGestionar && (preGuia.estado === 'PRE_GUIA' || preGuia.estado === 'LISTA_PARA_ENVIAR') && !cancelando && <button type="button" className="btn-secondary" onClick={() => { setCancelando(true); setMotivo('') }} data-testid="cancelar-pre-guia">Cancelar la guía asignada</button>}
           </div>
           {cancelando && (
             <div className="space-y-2" data-testid="form-cancelar-pre-guia">
-              <label htmlFor="motivo-pre-guia" className="etiqueta">¿Por qué se cancela la pre-guía?</label>
+              <label htmlFor="motivo-pre-guia" className="etiqueta">¿Por qué se cancela la guía asignada?</label>
               <input id="motivo-pre-guia" className="campo" value={motivo} onChange={(e) => setMotivo(e.target.value)} data-testid="motivo-pre-guia" />
-              <p className="text-sm text-gray-700">El número queda libre y lo toma la siguiente pre-guía. A quien factura le llega el aviso «NO factures» con ese número.</p>
+              <p className="text-sm text-gray-700">El número queda libre y lo toma la siguiente guía. A quien factura le llega el aviso «NO factures» con ese número.</p>
               <div className="flex gap-2">
-                <button type="button" className="btn-primary btn-sm" disabled={pendiente || !motivo.trim()} onClick={() => ejecutar(() => cancelarPreGuiaAccion(salidaId, motivo), { alExito: () => { setCancelando(false); router.refresh() } })} data-testid="cancelar-pre-guia-confirmar">Cancelar la pre-guía</button>
+                <button type="button" className="btn-primary btn-sm" disabled={pendiente || !motivo.trim()} onClick={() => ejecutar(() => cancelarPreGuiaAccion(salidaId, motivo), { alExito: () => { setCancelando(false); router.refresh() } })} data-testid="cancelar-pre-guia-confirmar">Cancelar la guía asignada</button>
                 <button type="button" className="btn-secondary btn-sm" onClick={() => setCancelando(false)}>Volver</button>
               </div>
               {mensaje?.tipo === 'error' && <Aviso tipo="error">{mensaje.texto}</Aviso>}

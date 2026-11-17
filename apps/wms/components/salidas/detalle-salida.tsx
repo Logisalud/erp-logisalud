@@ -13,7 +13,9 @@ import { useAccion } from '../usar-accion'
 import { useEsMovil } from '../usar-movil'
 import { Aviso } from '../entradas/aviso'
 import { HojaInferior } from '../hoja-inferior'
-import { ChipEtapa } from './chip-etapa'
+import { ChipEstadoOrden } from './chip-estado-orden'
+import { LeyendaEstadosOrden } from './leyenda-estados-orden'
+import { estadoDeOrden } from '@/domain/estado-orden'
 import { AvancePasos } from '../guia/avance-pasos'
 import { avanceDeSalida } from '@/domain/pasos'
 import { PanelDocumentacion } from './panel-documentacion'
@@ -63,8 +65,10 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
             <span className="text-gray-600"> · la emite Pedidos; aquí solo se mira</span>
           </p>
         </div>
-        <ChipEtapa etapa={salida.etapa} />
+        <ChipEstadoOrden s={salida} />
       </header>
+
+      <LeyendaEstadosOrden abierta={false} actual={estadoDeOrden(salida)} titulo="¿Qué significa el estado de esta orden?" />
 
       {salida.nota && <Aviso tipo="info" testid="nota-orden">Nota de la orden: {salida.nota}</Aviso>}
       <EditarOrden key={`${salida.id}-${salida.nota ?? ''}-${salida.lineasDetalle.map((l) => l.cantidad).join(',')}`} salida={salida} roles={roles} />
@@ -141,7 +145,7 @@ export function DetalleSalida({ salida, puedeEditar, puedePreparar, paquete, gui
         {puedePreparar && ofrecerYaNoSale(salida, !!paquete?.guia) === 'ANULAR_GUIA' && <p className="max-w-xl text-sm text-gray-700" data-testid="ya-no-sale-anular-guia">Si el pedido ya no sale: esta orden ya tiene su guía. Primero anula la guía (más abajo) y después podrás usar «Ya no sale».</p>}
       </section>
 
-      {paquete && salida.tipo !== 'CLIENTE' && (paquete.conforme || preGuia) && !paquete.guia && <PanelPreGuia salidaId={salida.id} conforme={paquete.conforme} preGuia={preGuia} puedeGestionar={puedeGestionarPreGuia} />}
+      {paquete && salida.tipo !== 'CLIENTE' && (paquete.conforme || preGuia) && !paquete.guia && <PanelPreGuia salidaId={salida.id} salidaNumero={salida.numero} conforme={paquete.conforme} preGuia={preGuia} puedeGestionar={puedeGestionarPreGuia} />}
       {paquete && (paquete.conforme || paquete.guia || paquete.guiasAnuladas.length > 0) && <PanelDocumentacion salioYa={esSalidaConfirmada(salida.etapa)} paquete={paquete} roles={roles} datos={guia.datos} modo={guia.modo} bloqueo={guia.bloqueo} hoy={guia.hoy} eventos={guia.eventos} numeracion={guia.numeracion} greCliente={salida.tipo === 'CLIENTE' ? { numero: salida.greNumero, salidaId: salida.id, conArchivo: !!salida.greArchivo } : undefined} />}
 
       {salida.tipo === 'PROVEEDOR' && <CorreoProveedor salida={salida} guiaNumero={paquete?.guia?.numero} />}

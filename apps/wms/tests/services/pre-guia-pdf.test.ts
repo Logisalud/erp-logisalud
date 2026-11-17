@@ -14,10 +14,10 @@ const guia = {
 } as unknown as DatosGuia
 const pre = (o: Partial<PreGuiaVista> = {}): PreGuiaVista => ({ salidaId: 's', serie: 'TTT1', numero: 7, numeroCompleto: 'TTT1-00000007', estado: 'PRE_GUIA', ...o })
 
-describe('PDF de la pre-guía', () => {
+describe('PDF de la Orden de Salida (ex pre-guía)', () => {
   it('lleva el número reservado, el cliente, el detalle por lote y dice que vehículo y conductor están por asignar', async () => {
     const t = texto(await renderPreGuia({ pre: pre(), guia, piloto: true, generadaEn: '11/11/26 10:00' }))
-    for (const x of ['TTT1-00000007', 'PRE-GUÍA DE REMISIÓN', 'Botica Salud Total SAC', '20512345671', 'Lizinopril 10 mg', 'L-77', 'Por asignar con la ruta', 'PRUEBA, NO FACTURAR', 'Todavía no hay ruta']) expect(t, x).toContain(x)
+    for (const x of ['TTT1-00000007', 'ORDEN DE SALIDA', 'SAL-2026-00001', 'Guía asignada', 'Botica Salud Total SAC', '20512345671', 'Lizinopril 10 mg', 'L-77', 'Por asignar con la ruta', 'PRUEBA, NO FACTURAR', 'Todavía no hay ruta']) expect(t, x).toContain(x)
   })
   it('con ruta, vehículo y conductor los muestra y ya no pide nada', async () => {
     const t = texto(await renderPreGuia({ pre: pre({ estado: 'LISTA_PARA_ENVIAR', rutaNumero: 'RUT-9', placa: 'ABC-123', conductor: 'Hans' }), guia, piloto: false, generadaEn: 'hoy' }))
