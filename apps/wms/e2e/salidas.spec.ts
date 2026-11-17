@@ -14,7 +14,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await page.goto('/wms/salidas')
     await expect(page.getByTestId('lista-salidas')).toBeVisible()
     const fila = page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })
-    await expect(fila).toContainText('Stock asignado')
+    await expect(fila).toContainText('Creada')
     await sinDesborde(page)
     await capturar(page, info, 'salidas-lista', { completa: true })
     await (esTelefono(info) ? fila : fila.getByRole('link', { name: /^Abrir/ })).click()
@@ -239,7 +239,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     // con guía + paquete + embalaje el pedido queda «Lista para carga»
     await entrarComo(page, 'jefe_transporte')
     await page.goto('/wms/salidas')
-    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Lista para carga')
+    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Guía electrónica enviada')
   })
 
   test('reabrir el embalaje pide motivo y deja el reparto anterior anulado; el LS-FR muestra los bultos del pedido', async ({ page }, info) => {
@@ -347,6 +347,6 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     expect(despues.salidas).toBe(antes.salidas + 2)   // una fila de Salida por cada lote en que se partió la línea
     await entrarComo(page, 'jefe_transporte')
     await page.goto('/wms/salidas')
-    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Salida confirmada')
+    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('En ruta')
   })
 })

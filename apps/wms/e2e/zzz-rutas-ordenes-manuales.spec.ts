@@ -310,7 +310,7 @@ test.describe('órdenes manuales hasta el despacho (SA-6)', () => {
     // lista: el paso que sigue es la entrega, que hace el Jefe de Almacén o el de Transporte
     await entrarComo(page, 'jefe_almacen')
     await abrirOrden(page, info, ref)
-    await expect(page.getByTestId('chip-estado-orden')).toContainText('Guía electrónica enviada')
+    await expect(page.getByTestId('chip-estado-orden')).toContainText('Guía del cliente registrada')
     await expect(page.getByTestId('entrega-form')).toBeVisible()
     await expect(page.getByTestId('entrega-form')).toContainText('no lleva ruta ni guía del WMS')
     await page.getByTestId('registrar-entrega').click()

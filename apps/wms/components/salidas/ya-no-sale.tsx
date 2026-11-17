@@ -26,7 +26,7 @@ export function YaNoSale({ salidaId, numero, preGuia, rutaNumero }: { salidaId: 
     <div className="w-full max-w-xl space-y-3 rounded-lg border border-gray-200 bg-white p-4" data-testid="ya-no-sale">
       <p className="text-sm font-medium text-gray-900">El pedido de la orden <span className="tabular">{numero}</span> ya no sale. Esto es lo que va a pasar:</p>
       <ul className="list-disc space-y-1 pl-5 text-sm text-gray-800">
-        {preGuia && <li data-testid="ya-no-sale-pre-guia">La pre-guía <span className="tabular">{preGuia}</span> se cancela y su número no se reutiliza. Quien factura recibe un aviso: no facturar.</li>}
+        {preGuia && <li data-testid="ya-no-sale-pre-guia">La guía asignada <span className="tabular">{preGuia}</span> se cancela y su número no se reutiliza. Quien factura recibe un aviso: no facturar.</li>}
         <li>Lo que ya se pickeó vuelve a su ubicación: un auxiliar lo devuelve y otra persona lo verifica. Mientras tanto la orden queda bloqueada.</li>
         {rutaNumero && <li>El pedido queda marcado «anulado» en la ruta <span className="tabular">{rutaNumero}</span>; su fila no se borra.</li>}
         <li>La orden no se borra: queda cancelada con tu motivo.</li>

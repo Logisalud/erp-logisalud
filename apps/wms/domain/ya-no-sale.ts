@@ -20,7 +20,7 @@ export function ofrecerYaNoSale(s: { estado: string; etapa: string; tipo?: strin
 
 /** Lo que se le cuenta a quien lo hizo cuando termina. */
 export function textoResultadoYaNoSale(r: ResultadoYaNoSale, rehacer: boolean): string {
-  const preGuia = r.preGuia ? ` La pre-guía ${r.preGuia} se canceló y su número no se reutiliza.` : ''
+  const preGuia = r.preGuia ? ` La guía asignada ${r.preGuia} se canceló y su número no se reutiliza.` : ''
   if (r.cancelada) return `Listo: la orden se canceló.${preGuia} ${rehacer ? 'El pedido volvió a la bandeja para crear una orden nueva.' : 'Se avisó al Jefe de Transporte para que el área comercial cancele el pedido en Pedidos.'}`
   return `La orden quedó por cancelarse: falta devolver ${r.porDevolver.toLocaleString('es-PE')} ${r.porDevolver === 1 ? 'unidad' : 'unidades'} a su ubicación. El auxiliar las devuelve y otra persona lo verifica; después la orden se cancela sola.${preGuia}`
 }
