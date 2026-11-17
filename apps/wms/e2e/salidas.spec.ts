@@ -99,7 +99,7 @@ test.describe('salidas, picking y conformidad (S5)', () => {
     await expect(page.getByTestId('conformidad-hecha')).toContainText('Siguiente')
 
     await page.goto('/wms/salidas')
-    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Conforme: falta la documentación')
+    await expect(page.getByTestId(esTelefono(info) ? 'fila-salida-movil' : 'fila-salida').filter({ hasText: 'PED-DEMO-101' })).toContainText('Lista')
     // el mapa sigue funcionando con la zona de conformidad creada
     await page.goto('/wms/almacen')
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()

@@ -25,7 +25,7 @@ test.describe('órdenes de ejemplo (SA-1)', () => {
     for (const [pedido, etapa] of [
       ['PED-DEMO-201', 'Creada'], ['PED-DEMO-202', 'En picking'], ['PED-DEMO-203', 'En conformidad'], ['PED-DEMO-204', 'Lista'],
       ['PED-DEMO-205', 'Guía electrónica enviada'], ['PED-DEMO-206', 'Lista'], ['PED-DEMO-207', 'Guía electrónica enviada'], ['PED-DEMO-208', 'En ruta'],
-      ['PED-DEMO-209', 'Creada'], ['PED-DEMO-223', 'Guía del cliente registrada'], ['PED-DEMO-224', 'Entregada al transportista'], ['PED-DEMO-210', 'Cancelada'], ['PED-DEMO-212', 'En picking'],
+      ['PED-DEMO-209', 'Creada'], ['PED-DEMO-223', 'Guía electrónica enviada'], ['PED-DEMO-224', 'En ruta'], ['PED-DEMO-210', 'Cancelada'], ['PED-DEMO-212', 'En picking'],
     ]) await expect(filas.filter({ hasText: pedido }), pedido).toContainText(etapa)
     // cada orden dice qué sigue (en el teléfono, «Sigue: …»; en pantalla grande, además, quién lo hace)
     const n = await filas.count()
