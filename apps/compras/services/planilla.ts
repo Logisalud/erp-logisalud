@@ -2,7 +2,7 @@ import 'server-only'
 import { crearClienteServidor, exigirUsuario, perfilActual } from '@logisalud/auth/server'
 import {
   descripcionDeObligacion, puedeCargarPlanilla, puedeCorregirse,
-  puedeDarConformidadPlanilla, puedeDarseConformidad, validarPagoPlanilla,
+  puedeDarConformidadPlanilla, puedeDarseConformidad, usaSecuencia, usaTrabajador, validarPagoPlanilla,
   type BorradorPagoPlanilla, type ConceptoPlanilla, type EstadoPagoPlanilla,
 } from '@/domain/planilla'
 
@@ -48,20 +48,24 @@ export type PagoPlanillaListado = {
  * `pagos_planilla_forma_check` de la base lo rechazaría igual).
  */
 function columnasDe(b: BorradorPagoPlanilla) {
-  const esLbs = b.concepto === 'lbs'
   return {
     concepto: b.concepto,
     periodo: b.periodo,
-    secuencia: esLbs ? null : b.secuencia,
-    trabajador: esLbs ? b.trabajador?.trim() ?? null : null,
+    secuencia: usaSecuencia(b.concepto) ? b.secuencia : null,
+    trabajador: usaTrabajador(b.concepto) ? b.trabajador?.trim() ?? null : null,
     monto: b.monto,
     moneda: b.moneda,
     fecha_pago: b.fechaPago,
   }
 }
 
-const ERROR_DUPLICADO =
-  'Ya hay un pago cargado para ese periodo y esa quincena. Si el anterior está mal, anúlalo primero.'
+/** Planilla: un pago por (periodo, quincena). CTS y gratificación: uno por
+ *  periodo (0090). Los índices únicos de la base son la defensa real. */
+function errorDuplicado(concepto: string): string {
+  if (concepto === 'cts') return 'Ya hay una CTS cargada para ese mes. Si la anterior está mal, anúlala primero.'
+  if (concepto === 'gratificacion') return 'Ya hay una gratificación cargada para ese mes. Si la anterior está mal, anúlala primero.'
+  return 'Ya hay un pago cargado para ese periodo y esa quincena. Si el anterior está mal, anúlalo primero.'
+}
 
 export async function crearPagoPlanilla(
   borrador: BorradorPagoPlanilla
@@ -87,7 +91,7 @@ export async function crearPagoPlanilla(
     // contra cargar dos veces la misma quincena — un chequeo previo pierde
     // contra dos pestañas abiertas. Acá solo se traduce a algo legible. Solo
     // aplica a la planilla: una LBS no tiene secuencia y no choca nunca.
-    if (error.code === '23505') throw new Error(ERROR_DUPLICADO)
+    if (error.code === '23505') throw new Error(errorDuplicado(borrador.concepto))
     throw new Error(`No se pudo cargar el pago de planilla: ${error.message}`)
   }
   return data
@@ -186,7 +190,7 @@ export async function editarPagoPlanilla(
     .update(columnasDe(borrador))
     .eq('id', id)
   if (error) {
-    if (error.code === '23505') throw new Error(ERROR_DUPLICADO)
+    if (error.code === '23505') throw new Error(errorDuplicado(borrador.concepto))
     throw new Error(`No se pudo guardar: ${error.message}`)
   }
 }
