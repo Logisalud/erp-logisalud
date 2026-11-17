@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ESTADOS_ORDEN, ETIQUETA_ESTADO_ORDEN, SIGNIFICADO_ESTADO_ORDEN, estadoDeOrden, etiquetaEstadoOrden } from '@/domain/estado-orden'
-import type { EtapaSalida } from '@/domain/pasos'
+import type { EtapaSalida } from '@/domain/despacho'
 
 describe('Estados de la Orden de Salida', () => {
   it('cada etapa cae en un estado y el camino normal tiene los 7 pasos en orden', () => {
