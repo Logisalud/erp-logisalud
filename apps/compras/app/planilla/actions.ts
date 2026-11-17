@@ -5,22 +5,21 @@ import { revalidatePath } from 'next/cache'
 import {
   anularPagoPlanilla, crearPagoPlanilla, darConformidadPlanilla, editarPagoPlanilla,
 } from '@/services/planilla'
-import { validarPagoPlanilla, type BorradorPagoPlanilla } from '@/domain/planilla'
+import { usaSecuencia, usaTrabajador, validarPagoPlanilla, type BorradorPagoPlanilla } from '@/domain/planilla'
 
 export type EstadoFormulario = { errores: { campo: string; mensaje: string }[] } | null
 export type EstadoAccion = { error: string } | null
 
 function leerBorrador(form: FormData): BorradorPagoPlanilla {
   const concepto = String(form.get('concepto') ?? 'planilla')
-  const esLbs = concepto === 'lbs'
   return {
     // Se pasa tal cual y lo rechaza `validarPagoPlanilla` si no es uno de los
-    // dos: castearlo a 'planilla' por defecto escondería un formulario roto.
+    // cuatro: castearlo a 'planilla' por defecto escondería un formulario roto.
     concepto: concepto as BorradorPagoPlanilla['concepto'],
     periodo: String(form.get('periodo') ?? ''),
     // Cada concepto trae solo su campo; el del otro ni viaja en el form.
-    secuencia: esLbs ? null : Number(form.get('secuencia') ?? 0),
-    trabajador: esLbs ? String(form.get('trabajador') ?? '').trim() || null : null,
+    secuencia: usaSecuencia(concepto) ? Number(form.get('secuencia') ?? 0) : null,
+    trabajador: usaTrabajador(concepto) ? String(form.get('trabajador') ?? '').trim() || null : null,
     monto: Number(form.get('monto') ?? 0),
     moneda: String(form.get('moneda') ?? 'PEN'),
     fechaPago: String(form.get('fechaPago') ?? ''),

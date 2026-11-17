@@ -144,7 +144,7 @@ describe('LBS — liquidación de beneficios sociales (migración 0076)', () => 
   })
 
   it('un concepto inventado se rechaza en vez de caer en planilla', () => {
-    expect(validarPagoPlanilla({ ...base, concepto: 'cts' as any }).map((e) => e.campo)).toContain('concepto')
+    expect(validarPagoPlanilla({ ...base, concepto: 'bono' as any }).map((e) => e.campo)).toContain('concepto')
   })
 
   it('se nombra por la persona, que es lo que distingue dos LBS del mismo mes', () => {
@@ -160,5 +160,31 @@ describe('LBS — liquidación de beneficios sociales (migración 0076)', () => 
     expect(d).toContain('Liquidación de beneficios sociales')
     expect(d).toContain('Juan Pérez Quispe')
     expect(d).toContain('setiembre 2026')
+  })
+})
+
+describe('CTS y gratificación (0090, para Arlette)', () => {
+  const base = { periodo: '2026-11', monto: 85000, moneda: 'PEN', fechaPago: '2026-11-14' }
+
+  it('se cargan solo con el periodo: sin quincena ni trabajador', () => {
+    expect(validarPagoPlanilla({ ...base, concepto: 'cts', secuencia: null, trabajador: null })).toEqual([])
+    expect(validarPagoPlanilla({ ...base, concepto: 'gratificacion', periodo: '2026-12', secuencia: null, trabajador: null })).toEqual([])
+  })
+
+  it('se nombran por lo que son, no como "Pago 3 del mes"', () => {
+    expect(etiquetaPagoPlanilla({ concepto: 'cts', secuencia: null, trabajador: null })).toBe('CTS')
+    expect(etiquetaPagoPlanilla({ concepto: 'gratificacion', secuencia: null, trabajador: null })).toBe('Gratificación')
+  })
+
+  it('la CTS le dice a Tesorería que va a las cuentas CTS, no a la cuenta sueldo', () => {
+    expect(descripcionDeObligacion({ concepto: 'cts', periodo: '2026-11', secuencia: null, trabajador: null }))
+      .toBe('CTS — depósito en las cuentas CTS de los trabajadores · noviembre 2026')
+    expect(descripcionDeObligacion({ concepto: 'gratificacion', periodo: '2026-12', secuencia: null, trabajador: null }))
+      .toBe('Gratificación — transferencia masiva a trabajadores · diciembre 2026')
+  })
+
+  it('la planilla sigue pidiendo la quincena', () => {
+    expect(validarPagoPlanilla({ ...base, concepto: 'planilla', secuencia: null, trabajador: null }).map((e) => e.campo))
+      .toContain('secuencia')
   })
 })

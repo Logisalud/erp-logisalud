@@ -5,7 +5,9 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { AvisoErrores, useScrollAlPrimerError } from '@/components/errores-formulario'
 import { crearPagoPlanillaAction, type EstadoFormulario } from './actions'
 import { mesActualLima } from '@/domain/fecha'
-import { CONCEPTOS_PLANILLA, ETIQUETA_CONCEPTO_PLANILLA, type ConceptoPlanilla } from '@/domain/planilla'
+import {
+  CONCEPTOS_PLANILLA, ETIQUETA_CONCEPTO_PLANILLA, usaSecuencia, type ConceptoPlanilla,
+} from '@/domain/planilla'
 
 export type ValoresPlanilla = {
   concepto: ConceptoPlanilla
@@ -24,10 +26,11 @@ const ID_AVISO_ERRORES = 'errores-planilla'
  * Arlette y ella lo transcribe — el sistema nunca lo calcula, y por eso no
  * hay líneas ni desglose por trabajador que llenar.
  *
- * Dos conceptos (migración 0076): la PLANILLA de todos, que se identifica por
- * cuál pago del mes es, y la LBS de una persona que se va, que se identifica
- * por a quién. Cada uno pide solo su dato — preguntarle "¿cuál quincena?" a
- * una LBS sería pedir algo que no existe.
+ * Cuatro conceptos (migraciones 0076 y 0090): la PLANILLA de todos, que se
+ * identifica por cuál pago del mes es; la CTS y la GRATIFICACIÓN, una por
+ * mes; y la LBS de una persona que se va, que se identifica por a quién.
+ * Cada uno pide solo su dato — preguntarle "¿cuál quincena?" a una LBS o a
+ * una CTS sería pedir algo que no existe.
  */
 export function FormularioPlanilla({
   inicial,
@@ -47,18 +50,24 @@ export function FormularioPlanilla({
   const mesActual = mesActualLima()
   const [concepto, setConcepto] = useState<ConceptoPlanilla>(inicial?.concepto ?? 'planilla')
   const esLbs = concepto === 'lbs'
+  const textoPeriodo: Record<ConceptoPlanilla, string> = {
+    planilla: 'El mes que cubre esta planilla.',
+    cts: 'El mes del depósito (mayo o noviembre).',
+    gratificacion: 'El mes en que se paga (julio o diciembre).',
+    lbs: 'El mes en que se liquida.',
+  }
 
   return (
     <form action={accion} className="space-y-4">
       <AvisoErrores errores={estado?.errores} />
 
       <section className="card space-y-3">
-        {/* Botones y no un desplegable: son dos opciones y cambian qué se
-            pregunta debajo, así que tienen que verse las dos de una vez. */}
+        {/* Botones y no un desplegable: son pocas opciones y cambian qué se
+            pregunta debajo, así que tienen que verse todas de una vez. */}
         <div className="block text-sm">
           <span className="font-medium text-gray-800">¿Qué se paga? *</span>
           <input type="hidden" name="concepto" value={concepto} />
-          <div className="mt-1 grid gap-2 sm:grid-cols-2">
+          <div className="mt-1 grid grid-cols-2 gap-2">
             {CONCEPTOS_PLANILLA.map((c) => (
               <button
                 key={c} type="button" aria-pressed={concepto === c}
@@ -83,7 +92,7 @@ export function FormularioPlanilla({
             className="min-h-12 w-full rounded-md border border-gray-300 px-3"
           />
           <p className="mt-1 text-xs text-gray-500">
-            {esLbs ? 'El mes en que se liquida.' : 'El mes que cubre esta planilla.'}
+            {textoPeriodo[concepto]}
           </p>
         </Campo>
 
@@ -100,7 +109,7 @@ export function FormularioPlanilla({
               transferencia masiva de la planilla.
             </p>
           </Campo>
-        ) : (
+        ) : usaSecuencia(concepto) ? (
           <Campo etiqueta="¿Cuál pago del mes? *" error={errorDe('secuencia')}>
             <select
               name="secuencia" required defaultValue={inicial?.secuencia ?? '1'}
@@ -108,9 +117,9 @@ export function FormularioPlanilla({
             >
               <option value="1">1ra quincena</option>
               <option value="2">Fin de mes</option>
-              {/* Los extra existen (gratificación, CTS, un reintegro) y no
-                  tienen nombre fijo — por eso se numeran en vez de inventarles
-                  una etiqueta que después no coincida con lo que pasó. */}
+              {/* Los extra (un reintegro, un bono) no tienen nombre fijo —
+                  por eso se numeran. La CTS y la gratificación ya no van
+                  acá: tienen su propio botón arriba (0090). */}
               <option value="3">Pago 3 del mes</option>
               <option value="4">Pago 4 del mes</option>
             </select>
@@ -119,7 +128,7 @@ export function FormularioPlanilla({
               anúlalo primero.
             </p>
           </Campo>
-        )}
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo etiqueta="Moneda *" error={errorDe('moneda')}>
@@ -140,7 +149,9 @@ export function FormularioPlanilla({
             <p className="mt-1 text-xs text-gray-500">
               {esLbs
                 ? 'El neto a pagar de la liquidación, tal cual. No lo calcules aquí.'
-                : 'El total que arroja BUK, tal cual. No lo calcules aquí.'}
+                : concepto === 'cts'
+                  ? 'El total a depositar en las cuentas CTS que arroja BUK, tal cual. No lo calcules aquí.'
+                  : 'El total que arroja BUK, tal cual. No lo calcules aquí.'}
             </p>
           </Campo>
         </div>
