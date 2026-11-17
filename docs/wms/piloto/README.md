@@ -8,7 +8,7 @@
 **Qué entra al piloto (alcance vigente)**
 - **Como real:** entradas, calidad, movimientos, conteos y revisión diaria.
 - **Pedidos:** el WMS **lee los pedidos reales** de Pedidos y las OC de Compras. Lo que el WMS avisa a Pedidos queda **retenido** mientras dure el piloto (hoy hay 1 aviso retenido); se libera al salir del piloto.
-- **Salidas:** orden de salida, picking, conformidad, **pre-guía** (con número reservado) y **guía**. En el piloto la guía se envía a Nubefact en **modo PRUEBA (cuenta DEMO)**: no es documento oficial. `guia_modo = WMS`; el modo `PANEL` (registrar una guía emitida afuera) queda como contingencia.
+- **Salidas:** orden de salida, picking, conformidad, **Orden de Salida** (el documento que se descarga, con su guía asignada TTT1-…) y **guía electrónica**. En el piloto la guía se envía a Nubefact en **modo PRUEBA (cuenta DEMO)**: no es documento oficial. `guia_modo = WMS`; el modo `PANEL` (registrar una guía emitida afuera) queda como contingencia.
 - **Transporte:** «Mis rutas» para el conductor y el auxiliar de transporte (Llegué, Entregado, No entregado, Rechazado, Incidencia), inspección de la unidad, ruta y vehículo de contingencia.
 - **Sin embalaje** (`embalaje_activo = NO`) y **carga por conteo de bultos** (`carga_escaneo_qr = NO`); Lima = ubigeo 15 y 07.
 - **Clientes:** seguimiento del pedido por **número de pedido + RUC** (5 pasos, «Van X de Y», botón al vendedor —en el piloto va a un número de prueba—, guía y estado de pagos) y **stock del cliente de almacenamiento** por enlace con token.
@@ -43,3 +43,7 @@ Marcados con su dueño.
 ## Firma del acta de recepción (C)
 Cada persona firma desde **su propio celular o PC, con su propio usuario** (no hay PIN ni celular compartido). El orden es: **transportista → responsable de conteo → Jefe de Almacén → Dirección Técnica**; la pantalla dice a quién le toca y no deja firmar antes. Al transportista lo atiende quien recibe: registra su nombre, DNI y placa y le da la pantalla para que dibuje su firma (**Borrar** / **Listo**).
 
+
+## Estados de la Orden de Salida (nov-2026, confirmado con Dirección Técnica)
+
+Creada · En picking · En conformidad · **Lista** (aquí se descarga la Orden de Salida, con su guía asignada) · **Guía electrónica enviada** · En ruta · Entregada (y, al costado, No entregada y Cancelada). La leyenda está dentro de la app: al pie de Salidas y en el detalle de cada orden. Pendiente de confirmar: formato del documento (hoy PDF) y qué campos son obligatorios para pasar a «Lista».

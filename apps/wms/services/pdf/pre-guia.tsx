@@ -5,7 +5,7 @@ import type { DatosGuia } from '@/domain/guia-electronica'
 import { ETIQUETA_ESTADO_PRE_GUIA, faltaParaEnviar, mostrarConstanciaDeRecepcion, type PreGuiaVista } from '@/domain/pre-guia'
 import { LOGO_LOGISALUD } from '../pdf-logo'
 
-// Pre-guía de remisión para imprimir (A4 vertical). NO es un documento tributario: es el borrador del WMS que reserva el número de la guía; la guía se genera en Nubefact al enviarla.
+// Orden de Salida para descargar o imprimir (A4 vertical; antes «pre-guía»). NO es un documento tributario: es el documento interno del WMS, con la guía de remisión ya asignada (TTT1-…); la guía electrónica se genera en Nubefact al enviarla.
 // Diseño: banda de marca arriba, el número reservado grande, tres bloques claros (destinatario, traslado, partida), el detalle por lote y dos firmas. Solo tipografía estándar (Helvetica).
 const VERDE = '#2F8F4E', VERDE_CLARO = '#E8F5EC', TEAL = '#1F8A90', GRIS = '#4B5563', LINEA = '#D1D5DB', TINTA = '#111827'
 const s = StyleSheet.create({
@@ -53,18 +53,19 @@ function Hoja({ d }: { d: DatosPreGuia }) {
   const unidades = g.lineas.reduce((t, l) => t + l.cantidad, 0)
   const falta = faltaParaEnviar(pre)
   return (
-    <Document title={`Pre-guía ${pre.numeroCompleto}`} author="WMS LOGISALUD" subject="Pre-guía de remisión">
+    <Document title={`Orden de Salida ${g.salidaNumero}`} author="WMS LOGISALUD" subject="Orden de Salida">
       <Page size="A4" style={s.pagina}>
         <View style={{ backgroundColor: VERDE, paddingVertical: 14, paddingHorizontal: 34, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 4, padding: 5 }}><Image src={LOGO_LOGISALUD} style={{ height: 26, objectFit: 'contain' }} /></View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ color: '#FFFFFF', fontSize: 8, letterSpacing: 1.2, fontFamily: 'Helvetica-Bold' }}>PRE-GUÍA DE REMISIÓN</Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 22, fontFamily: 'Helvetica-Bold' }}>{pre.numeroCompleto}</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 8, letterSpacing: 1.2, fontFamily: 'Helvetica-Bold' }}>ORDEN DE SALIDA</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 22, fontFamily: 'Helvetica-Bold' }}>{g.salidaNumero}</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 9, marginTop: 2 }}>Guía asignada {pre.numeroCompleto}</Text>
           </View>
         </View>
         <View style={{ backgroundColor: VERDE_CLARO, paddingVertical: 6, paddingHorizontal: 34, flexDirection: 'row', justifyContent: 'space-between' }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', color: VERDE }}>{ETIQUETA_ESTADO_PRE_GUIA[pre.estado].toUpperCase()}</Text>
-          <Text style={{ color: GRIS }}>{d.piloto ? 'PRUEBA, NO FACTURAR · ' : ''}Borrador, no es un documento tributario</Text>
+          <Text style={{ color: GRIS }}>{d.piloto ? 'PRUEBA, NO FACTURAR · ' : ''}Documento interno, no es un documento tributario</Text>
         </View>
 
         <View style={[s.cuerpo, { marginTop: 14 }]}>
@@ -77,7 +78,7 @@ function Hoja({ d }: { d: DatosPreGuia }) {
             </View>
             <View style={s.bloque}>
               <Text style={{ fontFamily: 'Helvetica-Bold', color: TEAL, marginBottom: 6 }}>TRASLADO</Text>
-              <Campo nombre="Pedido · Orden" valor={`${g.pedidoNumero ?? '—'} · ${g.salidaNumero}`} fuerte />
+              <Campo nombre="Pedido · Guía asignada" valor={`${g.pedidoNumero ?? '—'} · ${pre.numeroCompleto}`} fuerte />
               <Campo nombre="Motivo · Modalidad" valor={`${g.motivoTraslado} · ${g.modalidad}`} />
               <Campo nombre="Ruta" valor={pre.rutaNumero ? `${pre.rutaNumero}${g.ruta?.fecha ? ` · ${fecha(g.ruta.fecha)}` : ''}` : 'Por asignar'} />
               <Campo nombre="Vehículo · Conductor" valor={pre.placa || pre.conductor ? `${pre.placa ?? 'sin vehículo'} · ${pre.conductor ?? 'sin conductor'}` : 'Por asignar con la ruta'} />
@@ -117,7 +118,7 @@ function Hoja({ d }: { d: DatosPreGuia }) {
           )}
         </View>
         <Text fixed style={{ position: 'absolute', bottom: 14, left: 34, right: 34, fontSize: 7.5, color: GRIS, textAlign: 'center' }}>
-          Este borrador reserva el número {pre.numeroCompleto}. La guía de remisión se genera en Nubefact cuando se envía con ruta, vehículo y conductor. Impreso el {d.generadaEn}.
+          Esta Orden de Salida tiene asignada la guía {pre.numeroCompleto}. La guía de remisión electrónica se genera en Nubefact cuando se envía con ruta, vehículo y conductor. Impreso el {d.generadaEn}.
         </Text>
       </Page>
     </Document>

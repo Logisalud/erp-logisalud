@@ -23,9 +23,9 @@ test.describe('órdenes de ejemplo (SA-1)', () => {
     const filas = filaDe(page, info)
     await expect(filas).toHaveCount(25)    // la de siempre (PED-DEMO-101) + 24 de ejemplo
     for (const [pedido, etapa] of [
-      ['PED-DEMO-201', 'Stock asignado'], ['PED-DEMO-202', 'En picking'], ['PED-DEMO-203', 'Pendiente de conformidad'], ['PED-DEMO-204', 'Conforme'],
-      ['PED-DEMO-205', 'Documentación completa'], ['PED-DEMO-206', 'Embalada'], ['PED-DEMO-207', 'Lista para carga'], ['PED-DEMO-208', 'Salida confirmada'],
-      ['PED-DEMO-209', 'Sin stock suficiente'], ['PED-DEMO-223', 'Lista para carga'], ['PED-DEMO-224', 'Salida confirmada'], ['PED-DEMO-210', 'Cancelada'], ['PED-DEMO-212', 'Por devolver lo picado'],
+      ['PED-DEMO-201', 'Creada'], ['PED-DEMO-202', 'En picking'], ['PED-DEMO-203', 'En conformidad'], ['PED-DEMO-204', 'Lista'],
+      ['PED-DEMO-205', 'Guía electrónica enviada'], ['PED-DEMO-206', 'Lista'], ['PED-DEMO-207', 'Guía electrónica enviada'], ['PED-DEMO-208', 'En ruta'],
+      ['PED-DEMO-209', 'Creada'], ['PED-DEMO-223', 'Guía electrónica enviada'], ['PED-DEMO-224', 'En ruta'], ['PED-DEMO-210', 'Cancelada'], ['PED-DEMO-212', 'En picking'],
     ]) await expect(filas.filter({ hasText: pedido }), pedido).toContainText(etapa)
     // cada orden dice qué sigue (en el teléfono, «Sigue: …»; en pantalla grande, además, quién lo hace)
     const n = await filas.count()
@@ -46,9 +46,10 @@ test.describe('órdenes de ejemplo (SA-1)', () => {
   test('filtrar por etapa y buscar sin resultados: «Ninguna orden coincide» con «Quitar filtros»', async ({ page }, info) => {
     await entrarComo(page, 'jefe_transporte')
     await page.goto('/wms/salidas')
-    await page.getByTestId('filtro-etapa').selectOption('SIN_STOCK')
-    await expect(filaDe(page, info)).toContainText('PED-DEMO-209')
-    await page.getByTestId('filtro-etapa').selectOption('')
+    await page.getByTestId('filtro-estado').selectOption('CREADA')
+    await expect(filaDe(page, info).filter({ hasText: 'PED-DEMO-209' })).toHaveCount(1)
+    await expect(filaDe(page, info).filter({ hasText: 'PED-DEMO-202' })).toHaveCount(0)   // en picking: otro estado
+    await page.getByTestId('filtro-estado').selectOption('')
     await page.getByTestId('buscar-salidas').fill('zzzz-no-existe')
     await expect(page.getByTestId('salidas-sin-coincidencias')).toContainText('Ninguna orden coincide con tu búsqueda')
     await expect(page.getByTestId('salidas-vacio')).toHaveCount(0)

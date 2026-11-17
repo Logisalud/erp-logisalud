@@ -1,9 +1,9 @@
-// Pre-guía: el borrador de la guía de remisión que el WMS arma al dar la conformidad. Reserva el número de la serie (T…) pero NO existe ante SUNAT: al enviar, Nubefact la genera con ese mismo número.
+// Guía asignada (antes «pre-guía»; el documento que se descarga es la «Orden de Salida»): el borrador de la guía de remisión que el WMS arma al dar la conformidad. Reserva el número de la serie (T…) pero NO existe ante SUNAT: al enviar, Nubefact la genera con ese mismo número.
 import { numeroConSerie } from './numeracion-guias'
 
 export type EstadoPreGuia = 'PRE_GUIA' | 'LISTA_PARA_ENVIAR' | 'ENVIADA' | 'CANCELADA'
 export const ETIQUETA_ESTADO_PRE_GUIA: Record<EstadoPreGuia, string> = {
-  PRE_GUIA: 'Pre-guía', LISTA_PARA_ENVIAR: 'Lista para enviar', ENVIADA: 'Enviada a Nubefact', CANCELADA: 'Pre-guía cancelada',
+  PRE_GUIA: 'Guía asignada', LISTA_PARA_ENVIAR: 'Lista para enviar', ENVIADA: 'Guía electrónica enviada', CANCELADA: 'Guía asignada cancelada',
 }
 
 export interface PreGuiaVista {
@@ -48,7 +48,7 @@ export const numeroDePreGuia = (serie: string, numero: number) => numeroConSerie
 /** Lo que falta para poder enviarla; vacío si ya se puede. */
 export function faltaParaEnviar(p: Pick<PreGuiaVista, 'estado' | 'placa' | 'conductor' | 'rutaNumero'>): string | null {
   if (p.estado === 'ENVIADA') return 'Esta guía ya se envió a Nubefact.'
-  if (p.estado === 'CANCELADA') return 'La pre-guía está cancelada.'
+  if (p.estado === 'CANCELADA') return 'La guía asignada está cancelada.'
   if (!p.rutaNumero) return 'Todavía no hay ruta: asigna este pedido a una ruta con vehículo y conductor para poder enviar la guía.'
   if (!p.placa || !p.conductor) return 'La ruta todavía no tiene vehículo y conductor: complétalos para poder enviar la guía.'
   return null

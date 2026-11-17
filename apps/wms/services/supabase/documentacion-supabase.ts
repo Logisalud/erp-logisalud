@@ -306,7 +306,12 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
   /** La lista de salidas suma lo de la documentación: la guía vigente y cuántos documentos exigidos faltan. */
   private async conDocumentacion<T extends SalidaResumen>(salidas: T[]): Promise<T[]> {
     if (salidas.length === 0) return salidas
-    const [res, gs, extra, anuladas] = await Promise.all([sch().rpc('documentacion_resumen'), sch().from('guias_remision').select('salida_id, numero').eq('estado', 'VIGENTE'), this.avancePorSalida(), sch().from('guias_remision').select('salida_id').eq('estado', 'ANULADA')])
+    const [res, gs, extra, anuladas, pars, evs] = await Promise.all([sch().rpc('documentacion_resumen'), sch().from('guias_remision').select('salida_id, numero').eq('estado', 'VIGENTE'), this.avancePorSalida(), sch().from('guias_remision').select('salida_id').eq('estado', 'ANULADA'), traerTodo('ruta_paradas', 'wms', 'id, salida_id, activa'), traerTodo('ruta_paradas_eventos', 'wms', 'parada_id, evento, creado_en')])
+    // Resultado de la entrega marcado por el conductor: alimenta «Entregada» / «No entregada».
+    const salidaDeParada = new Map(pars.filter((p) => p.activa && p.salida_id).map((p) => [String(p.id), String(p.salida_id)]))
+    const resultado = new Map<string, 'ENTREGADA' | 'NO_ENTREGADA'>()
+    const finales = evs.filter((ev) => ['ENTREGADO', 'NO_ENTREGADO', 'RECHAZADO'].includes(String(ev.evento)) && salidaDeParada.has(String(ev.parada_id))).sort((a, b) => String(a.creado_en).localeCompare(String(b.creado_en)))
+    for (const ev of finales) resultado.set(salidaDeParada.get(String(ev.parada_id))!, ev.evento === 'ENTREGADO' ? 'ENTREGADA' : 'NO_ENTREGADA')   // vale el último
     const falta = new Map(((res.data ?? []) as Fila[]).map((r) => [String(r.salida_id), Number(r.faltantes)]))
     const guia = new Map(((gs.data ?? []) as Fila[]).map((g) => [String(g.salida_id), String(g.numero)]))
     const conAnulada = new Set(((anuladas.data ?? []) as Fila[]).map((g) => String(g.salida_id)))
@@ -314,7 +319,7 @@ export class DocumentacionSupabase extends DocumentosSupabase implements Reposit
       const conforme = x.etapa === 'CONFORME'
       const faltantes = conforme ? falta.get(x.id) : undefined
       const numero = guia.get(x.id)
-      return { ...x, guia: numero, documentosFaltantes: faltantes, faltaGuiaVigente: (x.etapa === 'CONFIRMADA' || x.etapa === 'ENTREGADA_AL_TRANSPORTISTA') && !numero && conAnulada.has(x.id) ? true : undefined, etapa: etapaConAvance(x.etapa, { guia: !!numero, paquete: faltantes === 0, ...extra.get(x.id) }) }
+      return { ...x, resultadoEntrega: x.etapa === 'CONFIRMADA' ? resultado.get(x.id) : undefined, guia: numero, documentosFaltantes: faltantes, faltaGuiaVigente: (x.etapa === 'CONFIRMADA' || x.etapa === 'ENTREGADA_AL_TRANSPORTISTA') && !numero && conAnulada.has(x.id) ? true : undefined, etapa: etapaConAvance(x.etapa, { guia: !!numero, paquete: faltantes === 0, ...extra.get(x.id) }) }
     })
   }
 

@@ -344,7 +344,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     const s = desp(e).salidas.find((x) => x.id === salidaId)
     if (!s) return falla('No encontramos esa salida')
     if (s.estado === 'CANCELADA') return falla('La orden está cancelada: no lleva guía')
-    if (!salidaConforme(e, salidaId)) return falla('La pre-guía se crea cuando el pedido tiene la conformidad')
+    if (!salidaConforme(e, salidaId)) return falla('La Orden de Salida se genera cuando el pedido tiene la conformidad')
     const previa = n.numeros.find((x) => x.estado === 'RESERVADO' && x.preGuia && x.salidaId === salidaId)
     if (previa) return { ok: true, serie: k, numero: previa.numero, nueva: false }
     if (this.guiaVigente(e, salidaId)) return falla('La orden ya tiene su guía')
@@ -359,7 +359,7 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
 
   async cancelarPreGuia(salidaId: string, motivo: string): Promise<ResultadoAccion<{ cancelada: boolean }>> {
     const e = estadoE(); await this.sembrarDespacho(e)
-    if (!motivo.trim()) return falla('Escribe por qué se cancela la pre-guía')
+    if (!motivo.trim()) return falla('Escribe por qué se cancela la guía asignada')
     const x = this.numeracionDe(e, 'TTT1')?.numeros.find((y) => y.estado === 'RESERVADO' && y.preGuia && y.salidaId === salidaId)
     if (!x) return { ok: true, cancelada: false }
     Object.assign(x, { estado: 'SIN_USAR', motivo: motivo.trim() })
@@ -517,7 +517,15 @@ export class DocumentacionDemo extends DocumentosDemo implements RepositorioDocu
     }
     const o = this.ordenDe(e, s.id)
     const etapa = etapaDeSalida({ estado: s.estado, lineas: s.lineas, orden: o ? { lineas: o.lineas } : null, devolucionPendiente: base.etapa === 'POR_DEVOLVER_PICKING', entregadaAlTransportista: !!s.entrega }, { guia: !!guia, paquete: faltantes === 0, ...this.avanceExtra(e, s) })
-    return { ...base, etapa, guia: guia?.numero, documentosFaltantes: faltantes, faltaGuiaVigente: this.faltaGuiaVigente(e, s) || undefined }
+    // Lo que marcó el conductor (entregado / no entregado) para el estado «Entregada» o «No entregada» de la Orden de Salida.
+    let resultadoEntrega: 'ENTREGADA' | 'NO_ENTREGADA' | undefined
+    if (etapa === 'CONFIRMADA') {
+      const paradas = desp(e).rutas.flatMap((r) => r.paradas).filter((p) => p.activa && p.salidaId === s.id).map((p) => p.id)
+      const evs = ((e as EstadoDemo & { eventosParada?: { paradaId: string; evento: string }[] }).eventosParada ?? []).filter((x) => paradas.includes(x.paradaId))
+      const fin = evs.filter((x) => ['ENTREGADO', 'NO_ENTREGADO', 'RECHAZADO'].includes(x.evento)).pop()   // vale el último
+      if (fin) resultadoEntrega = fin.evento === 'ENTREGADO' ? 'ENTREGADA' : 'NO_ENTREGADA'
+    }
+    return { ...base, etapa, guia: guia?.numero, documentosFaltantes: faltantes, faltaGuiaVigente: this.faltaGuiaVigente(e, s) || undefined, resultadoEntrega }
   }
 
   /** El formato LS-FR.43.03 toma el N.° de guía de lo registrado (nada se copia: se lee de la guía vigente de cada pedido). */
