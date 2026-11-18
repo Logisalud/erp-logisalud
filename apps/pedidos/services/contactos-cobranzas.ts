@@ -31,7 +31,7 @@ import { claveDeCobranzas } from "@/domain/documentos";
  */
 
 /** Las dos variables que hacen falta para escribir en la cartera de cobranzas. */
-function accesoACobranzas(): { url: string; key: string } | null {
+export function accesoACobranzas(): { url: string; key: string } | null {
   const url = cleanEnv(process.env.COBRANZAS_SUPABASE_URL ?? "");
   const key = cleanEnv(process.env.COBRANZAS_SERVICE_ROLE_KEY ?? "");
   return url && key ? { url, key } : null;
@@ -67,7 +67,7 @@ export type ResultadoContactos = {
 };
 
 /** Vacío de verdad: null, cadena vacía o solo espacios. */
-function vacio(v: string | null | undefined): boolean {
+export function vacio(v: string | null | undefined): boolean {
   return (v ?? "").trim() === "";
 }
 
@@ -80,18 +80,18 @@ function vacio(v: string | null | undefined): boolean {
  */
 const DIRECCION_BASURA = /^(\.|-|\*|#?n\/?d|s\/?n|sin\s*direcc?ion|no\s*tiene|ninguna?|0+)$/i;
 
-function limpiarDireccion(v: string | null): string | null {
+export function limpiarDireccion(v: string | null): string | null {
   const t = (v ?? "").trim();
   if (t === "" || DIRECCION_BASURA.test(t)) return null;
   return t;
 }
 
 /** Lee todas las páginas de una tabla de cobranzas por REST. */
-async function leerCobranzas(
+export async function leerCobranzas<T>(
   acceso: { url: string; key: string },
   recurso: string,
-): Promise<ClienteCobranzas[]> {
-  const filas: ClienteCobranzas[] = [];
+): Promise<T[]> {
+  const filas: T[] = [];
   const pagina = 1000;
   for (let offset = 0; ; offset += pagina) {
     const r = await fetch(`${acceso.url}/rest/v1/${recurso}&limit=${pagina}&offset=${offset}`, {
@@ -101,7 +101,7 @@ async function leerCobranzas(
     if (!r.ok) {
       throw new Error(`El ERP de cobranzas respondió ${r.status} al leer la cartera. No se escribió nada.`);
     }
-    const lote = (await r.json()) as ClienteCobranzas[];
+    const lote = (await r.json()) as T[];
     if (!Array.isArray(lote)) {
       throw new Error("El ERP de cobranzas devolvió algo inesperado. No se escribió nada.");
     }
@@ -181,7 +181,7 @@ export async function sincronizarContactosACobranzas(actor: string | null): Prom
   }
 
   const [cartera, contactos] = await Promise.all([
-    leerCobranzas(
+    leerCobranzas<ClienteCobranzas>(
       acceso,
       "clientes?select=ruc,celular,direccion,distrito,provincia,departamento&order=ruc",
     ),
