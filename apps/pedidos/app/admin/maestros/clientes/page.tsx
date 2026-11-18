@@ -51,6 +51,24 @@ export default async function ClientesPage() {
       </section>
 
       <section>
+        <h3 className="font-heading text-lg">Cartera de clientes</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          La cartera completa, un cliente por fila, con su vendedor, su zona, su distrito y su
+          dirección fiscal. Son las mismas columnas que la cartera que se baja en Cobranzas, para
+          que los dos sistemas muestren lo mismo. Acá entran todos los clientes, tengan o no
+          celular.
+        </p>
+        <div className="mt-3">
+          <a
+            href="/admin/maestros/clientes/exportar-cartera"
+            className="btn-secondary inline-flex items-center justify-center"
+          >
+            Exportar cartera (Excel)
+          </a>
+        </div>
+      </section>
+
+      <section>
         <h3 className="font-heading text-lg">Estado actual de la cartera</h3>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="card p-4">
