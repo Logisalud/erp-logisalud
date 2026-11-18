@@ -134,6 +134,88 @@ export async function construirExcelContactos(): Promise<ResultadoExcel> {
   return { buffer, filas: filas.length };
 }
 
+// ─── 1b. Cartera de clientes ───────────────────────────────────────────────
+
+interface FilaCartera {
+  razon_social: string;
+  ruc_o_documento: string;
+  whatsapp: string | null;
+  direccion_fiscal: string | null;
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
+  zona: { nombre: string; codigo_zona: string | null } | null;
+  vendedor: { nombre_completo: string; codigo_representante: string | null } | null;
+}
+
+/**
+ * La cartera completa: un cliente por fila, con su vendedor, su zona y su
+ * dirección fiscal. Es el mismo archivo que se baja en Cobranzas, con las
+ * mismas columnas, para que los dos ERP muestren la cartera igual.
+ *
+ * A diferencia de los contactos, acá entran TODOS los clientes, tengan o no
+ * celular: el archivo se usa para ver la cartera, no para escribirle.
+ */
+export async function construirExcelCartera(): Promise<ResultadoExcel> {
+  const supabase = createClient();
+
+  const filas = await leerTodo<FilaCartera>((from, to) =>
+    supabase
+      .from("customers")
+      .select(
+        `razon_social, ruc_o_documento, whatsapp, direccion_fiscal,
+         departamento, provincia, distrito,
+         zona:zones(nombre, codigo_zona),
+         vendedor:sellers(nombre_completo, codigo_representante)`,
+      )
+      // El orden de la consulta solo tiene que ser estable y único para que
+      // `.range()` no repita ni saltee filas al paginar; el orden que se ve
+      // en el archivo se arma abajo.
+      .order("ruc_o_documento")
+      .range(from, to),
+  );
+
+  const cmp = (a: string, b: string) => a.localeCompare(b, "es-PE");
+  filas.sort(
+    (a, b) =>
+      cmp(a.vendedor?.nombre_completo ?? "zzz", b.vendedor?.nombre_completo ?? "zzz") ||
+      cmp(a.razon_social, b.razon_social),
+  );
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "LOGISALUD Pedidos";
+  const sheet = workbook.addWorksheet("Cartera de Clientes");
+  sheet.columns = [
+    { width: 24 }, { width: 12 }, { width: 44 }, { width: 16 },
+    { width: 12 }, { width: 18 }, { width: 24 }, { width: 20 },
+    { width: 52 }, { width: 14 },
+  ];
+  encabezado(sheet, [
+    "Vendedor", "Código RV", "Cliente", "RUC / Documento", "Zona",
+    "Departamento", "Distrito", "Provincia", "Dirección", "Celular",
+  ]);
+
+  for (const c of filas) {
+    sheet.addRow([
+      c.vendedor?.nombre_completo ?? "",
+      c.vendedor?.codigo_representante ?? "",
+      c.razon_social,
+      // Como texto: un RUC en celda numérica se muestra en notación
+      // científica y pierde los ceros de la izquierda del documento.
+      c.ruc_o_documento,
+      c.zona?.codigo_zona ?? c.zona?.nombre ?? "",
+      c.departamento ?? "",
+      c.distrito ?? "",
+      c.provincia ?? "",
+      c.direccion_fiscal ?? "",
+      c.whatsapp ?? "",
+    ]);
+  }
+
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  return { buffer, filas: filas.length };
+}
+
 // ─── 2. Pedidos enviados, una fila por línea ───────────────────────────────
 
 interface FilaPedido {
