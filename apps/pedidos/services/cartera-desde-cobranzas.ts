@@ -2,6 +2,10 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit, ultimaCorrida } from "./audit-log";
 import { claveDeCobranzas } from "@/domain/documentos";
+import {
+  resolveEstadoInicialImportacion,
+  resolveTipoComprobantePermitido,
+} from "@/domain/customers";
 import { leerTodo } from "@/lib/paginar";
 import {
   accesoACobranzas,
@@ -25,10 +29,25 @@ import {
  * 1. SOLO SE LLENAN VACÍOS. Nunca se pisa un dato que ya está en pedidos.
  *    Si el vendedor corrigió la dirección desde la ficha, esa corrección
  *    gana: él estuvo en la puerta, el padrón no.
- * 2. NO SE CREAN CLIENTES. Un cliente que está en cobranzas y no en
- *    pedidos se cuenta y se informa, pero no se inserta: en pedidos un
- *    cliente nace validado, con canal, zona y vendedor, y nada de eso se
- *    puede deducir de la cartera de cobranzas sin adivinar.
+ * 2. LOS CLIENTES QUE FALTAN SE CREAN, pero solo cuando se los puede
+ *    ubicar. La cartera es a quién se le PUEDE vender, no a quién ya
+ *    compró: un cliente registrado hace dos años que no compra desde
+ *    entonces sigue siendo visitable, y si no está en pedidos el vendedor
+ *    no le puede tomar el pedido.
+ *
+ *    Durante un tiempo esto no se hacía porque parecía que zona y vendedor
+ *    no se podían deducir. Sí se puede: cobranzas tiene los dos para sus
+ *    6.621 clientes, y los códigos coinciden con los de pedidos (las 20
+ *    zonas, 23 de los 24 vendedores; el que falta no tiene clientes). Lo
+ *    que NO tiene cobranzas es el canal, y sin canal no se puede vender
+ *    —`orders.ts` rechaza el pedido con NO_CHANNEL porque el precio vive
+ *    por canal—, así que entran con el canal por defecto, el mismo que usa
+ *    el importador de la cartera: Horizontal. La clasificación real se
+ *    corrige después, cliente por cliente.
+ *
+ *    Si la zona o el vendedor no se pueden mapear, el cliente NO se crea:
+ *    se cuenta y se informa. Un cliente sin dueño en la cartera es un
+ *    cliente que nadie visita.
  *
  * Y una tercera que este lado sí necesita: EL UBIGEO SE VALIDA CONTRA EL
  * CATÁLOGO. Pedidos usa departamento/provincia/distrito para la guía de
@@ -41,11 +60,27 @@ import {
 
 type ClienteDeCobranzas = {
   ruc: string;
+  razon_social: string;
   direccion: string | null;
   distrito: string | null;
   provincia: string | null;
   departamento: string | null;
+  codigo_zona: string | null;
+  vendedor_actual_id: string | null;
 };
+
+type VendedorDeCobranzas = { id: string; codigo: string | null };
+
+/**
+ * El canal con el que entra un cliente que viene de cobranzas.
+ *
+ * Es el mismo que usa `services/customers-import.ts` para la carga de la
+ * cartera real, y por el mismo motivo: sin canal no se puede calcular el
+ * precio y el cliente queda inoperativo. La clasificación real
+ * (Mayorista/Horizontal/Minicadenas/Tops/Clínicas/Subdistribuidores) se
+ * corrige cliente por cliente cuando el negocio la entrega.
+ */
+const CANAL_POR_DEFECTO = "Horizontal";
 
 type ClienteDePedidos = {
   id: string;
@@ -57,13 +92,17 @@ type ClienteDePedidos = {
 };
 
 export type ResultadoCartera = {
+  /** Clientes que estaban en cobranzas y ahora también están en pedidos. */
+  creados: number;
+  /** Los que no se crearon porque no se pudo ubicar su zona o su vendedor. */
+  sinUbicar: number;
   /** Clientes de pedidos que ahora tienen dirección fiscal y antes no. */
   direcciones: number;
   /** Clientes a los que se les completó departamento/provincia/distrito. */
   ubicaciones: number;
   /** Tríos que cobranzas tiene pero que no existen en el catálogo de ubigeos. */
   ubigeosDesconocidos: number;
-  /** Clientes de cobranzas que no existen en pedidos (no se crean: ver arriba). */
+  /** Clientes de cobranzas que no existen en pedidos, antes de crearlos. */
   soloEnCobranzas: number;
   cuando: string;
 };
@@ -100,9 +139,52 @@ async function catalogoDeUbigeos(): Promise<Set<string>> {
   return validos;
 }
 
+/** Las tablas de pedidos que hacen falta para ubicar a un cliente nuevo. */
+async function catalogosDePedidos(): Promise<{
+  zonaPorCodigo: Map<string, number>;
+  vendedorPorCodigo: Map<string, string>;
+  canalPorDefectoId: number;
+}> {
+  const admin = createAdminClient();
+
+  const [zonas, vendedores, canal] = await Promise.all([
+    admin.from("zones").select("id, codigo_zona"),
+    admin.from("sellers").select("id, codigo_representante").eq("estado", "activo"),
+    admin.from("sales_channels").select("id").eq("nombre", CANAL_POR_DEFECTO).maybeSingle(),
+  ]);
+
+  if (zonas.error) throw new Error(zonas.error.message);
+  if (vendedores.error) throw new Error(vendedores.error.message);
+  if (canal.error) throw new Error(canal.error.message);
+  if (!canal.data) {
+    // Sin canal no hay precio, y sin precio el cliente creado no sirve.
+    // Mejor no crear ninguno que crear 3.000 que nadie puede atender.
+    throw new Error(
+      `No existe el canal "${CANAL_POR_DEFECTO}" en el catálogo de pedidos: no se crea ningún cliente.`,
+    );
+  }
+
+  const zonaPorCodigo = new Map<string, number>();
+  for (const z of (zonas.data ?? []) as Array<{ id: number; codigo_zona: string | null }>) {
+    if (z.codigo_zona) zonaPorCodigo.set(z.codigo_zona.trim().toUpperCase(), z.id);
+  }
+
+  const vendedorPorCodigo = new Map<string, string>();
+  for (const v of (vendedores.data ?? []) as Array<{
+    id: string;
+    codigo_representante: string | null;
+  }>) {
+    if (v.codigo_representante) {
+      vendedorPorCodigo.set(v.codigo_representante.trim().toUpperCase(), v.id);
+    }
+  }
+
+  return { zonaPorCodigo, vendedorPorCodigo, canalPorDefectoId: (canal.data as { id: number }).id };
+}
+
 /**
- * Completa en pedidos la dirección y el ubigeo que faltan, con lo que sabe
- * cobranzas.
+ * Completa en pedidos la dirección y el ubigeo que faltan, y da de alta a
+ * los clientes que están en cobranzas y no en pedidos.
  *
  * Si la lectura de cobranzas falla no se escribe nada. Si falla la escritura
  * de un cliente se sigue con los demás y el error se levanta al final: a
@@ -121,11 +203,12 @@ export async function sincronizarCarteraDesdeCobranzas(
 
   const admin = createAdminClient();
 
-  const [cartera, ubigeos, propios] = await Promise.all([
+  const [cartera, vendedoresCobranzas, ubigeos, propios, catalogos] = await Promise.all([
     leerCobranzas<ClienteDeCobranzas>(
       acceso,
-      "clientes?select=ruc,direccion,distrito,provincia,departamento&order=ruc",
+      "clientes?select=ruc,razon_social,direccion,distrito,provincia,departamento,codigo_zona,vendedor_actual_id&order=ruc",
     ),
+    leerCobranzas<VendedorDeCobranzas>(acceso, "vendedores?select=id,codigo&order=id"),
     catalogoDeUbigeos(),
     // Paginado y ordenado por `id`: son 3.568 clientes y PostgREST corta
     // en 1.000. Sin esto se comparaban los primeros mil contra toda la
@@ -137,6 +220,7 @@ export async function sincronizarCarteraDesdeCobranzas(
         .order("id")
         .range(desde, hasta),
     ),
+    catalogosDePedidos(),
   ]);
 
   // Indexada por la llave que usa cobranzas, no por el documento pelado:
@@ -207,10 +291,77 @@ export async function sincronizarCarteraDesdeCobranzas(
     );
   }
 
-  let soloEnCobranzas = 0;
-  deCobranzas.forEach((_, k) => {
-    if (!enPedidos.has(k)) soloEnCobranzas += 1;
+  // ─── Los que faltan en pedidos ───────────────────────────────────────
+  const faltantes: ClienteDeCobranzas[] = [];
+  deCobranzas.forEach((c, k) => {
+    if (!enPedidos.has(k)) faltantes.push(c);
   });
+  const soloEnCobranzas = faltantes.length;
+
+  const codigoDeVendedor = new Map<string, string>();
+  for (const v of vendedoresCobranzas) {
+    if (v.codigo) codigoDeVendedor.set(v.id, v.codigo.trim().toUpperCase());
+  }
+
+  const nuevos: Array<Record<string, unknown>> = [];
+  let sinUbicar = 0;
+
+  for (const c of faltantes) {
+    const zonaId = c.codigo_zona
+      ? catalogos.zonaPorCodigo.get(c.codigo_zona.trim().toUpperCase())
+      : undefined;
+    const codigo = c.vendedor_actual_id ? codigoDeVendedor.get(c.vendedor_actual_id) : undefined;
+    const vendedorId = codigo ? catalogos.vendedorPorCodigo.get(codigo) : undefined;
+
+    // Sin zona o sin vendedor no entra: un cliente que no le cuelga a
+    // nadie es un cliente que nadie visita.
+    if (!zonaId || !vendedorId) {
+      sinUbicar += 1;
+      continue;
+    }
+
+    const ruc = c.ruc.trim();
+    const departamento = (c.departamento ?? "").trim();
+    const provincia = (c.provincia ?? "").trim();
+    const distrito = (c.distrito ?? "").trim();
+    const ubigeoValido =
+      departamento !== "" &&
+      provincia !== "" &&
+      distrito !== "" &&
+      ubigeos.has(clave(departamento, provincia, distrito));
+
+    nuevos.push({
+      ruc_o_documento: ruc,
+      razon_social: (c.razon_social ?? "").trim() || ruc,
+      direccion_fiscal: limpiarDireccion(c.direccion),
+      departamento: ubigeoValido ? departamento : null,
+      provincia: ubigeoValido ? provincia : null,
+      distrito: ubigeoValido ? distrito : null,
+      canal_id: catalogos.canalPorDefectoId,
+      zona_id: zonaId,
+      vendedor_id: vendedorId,
+      // Las dos reglas del repo para la cartera que ya opera: el RUC
+      // válido entra ACTIVO y el DNI cargado en el campo de RUC queda a
+      // validar; el comprobante se deriva del documento, nunca del
+      // default de la tabla, porque el CHECK rechaza FACTURA sin RUC.
+      estado: resolveEstadoInicialImportacion(ruc),
+      tipo_comprobante_permitido: resolveTipoComprobantePermitido(ruc),
+    });
+  }
+
+  let creados = 0;
+  // De a 200: un insert por cliente serían miles de viajes, y uno solo con
+  // 3.000 filas es un payload que el REST corta.
+  const LOTE = 200;
+  for (let i = 0; i < nuevos.length; i += LOTE) {
+    const { error } = await admin.from("customers").insert(nuevos.slice(i, i + LOTE));
+    if (error) {
+      ultimoError = `pedidos rechazó un lote de clientes nuevos: ${error.message}`;
+      break;
+    }
+    creados += Math.min(LOTE, nuevos.length - i);
+  }
+
   const cuando = new Date().toISOString();
 
   await logAudit({
@@ -223,20 +374,26 @@ export async function sincronizarCarteraDesdeCobranzas(
       ubicaciones,
       ubigeosDesconocidos,
       soloEnCobranzas,
+      creados,
+      sinUbicar,
       origen: actor ? "persona" : "cron",
     },
   });
 
   if (ultimoError) {
-    throw new Error(`${ultimoError}. Se completaron ${direcciones + ubicaciones} datos antes de fallar.`);
+    throw new Error(
+      `${ultimoError}. Se completaron ${direcciones + ubicaciones} datos y se crearon ${creados} clientes antes de fallar.`,
+    );
   }
 
-  return { direcciones, ubicaciones, ubigeosDesconocidos, soloEnCobranzas, cuando };
+  return { creados, sinUbicar, direcciones, ubicaciones, ubigeosDesconocidos, soloEnCobranzas, cuando };
 }
 
 export type UltimaCorridaDeCartera = {
   cuando: string;
   porElCron: boolean;
+  creados: number;
+  sinUbicar: number;
   direcciones: number;
   ubicaciones: number;
   ubigeosDesconocidos: number;
@@ -250,6 +407,8 @@ export async function ultimaCorridaDeCartera(): Promise<UltimaCorridaDeCartera> 
   return {
     cuando: c.cuando,
     porElCron: c.porElCron,
+    creados: n("creados"),
+    sinUbicar: n("sinUbicar"),
     direcciones: n("direcciones"),
     ubicaciones: n("ubicaciones"),
     ubigeosDesconocidos: n("ubigeosDesconocidos"),
