@@ -6,41 +6,67 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // supabase/migrations/20261102_fn_documentos_cobranza.sql para la regla
 // exacta de letras).
 
-export type NumeroFase = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export type NumeroFase = 0 | 1 | 2 | 3 | 4;
 
+/**
+ * Cinco fases, no siete.
+ *
+ * Hasta nov-2026 eran siete, heredadas del Excel de Finanzas: Preventivo /
+ * Recordatorio / Gestión / Alerta / Bloqueo / Pre-legal / Legal. En la
+ * práctica nadie distinguía "Recordatorio" de "Gestión" ni "Bloqueo" de
+ * "Pre-legal" —la acción era la misma y el responsable también—, así que
+ * el negocio las fusionó. Lo que define una fase es QUIÉN la trabaja:
+ * cuando dos tramos tienen el mismo responsable y la misma acción, son
+ * una sola fase.
+ *
+ * La fase legal (reporte a Infocorp) ya no es un tramo de días: no se
+ * entra por antigüedad sino porque alguien decide reportar al cliente.
+ * Vive aparte, en la pantalla de Infocorp.
+ */
 export const FASE_NOMBRE: Record<NumeroFase, string> = {
   0: 'Preventivo',
-  1: 'Recordatorio',
-  2: 'Gestión',
-  3: 'Alerta',
-  4: 'Bloqueo',
-  5: 'Pre-legal',
-  6: 'Legal',
+  1: 'Gestión',
+  2: 'Alerta',
+  3: 'Pre bloqueo',
+  4: 'Bloqueo y Pre legal',
 };
 
-// Texto oficial de la pestaña RESUMEN del Excel de Finanzas (corte
-// 26/10/2026), confirmado por Sebastián. La lámina 10 del PPT redacta
-// distinto las fases 0 y 5 (agrega carta preventiva a MOROSOS en fase 0;
-// carta de aviso Equifax + notarial en fase 5) — se usa el texto del
-// Excel, que es la fuente indicada.
+/**
+ * Los días que incluye cada fase, para mostrarlos en pantalla: la pregunta
+ * "¿por qué este cliente está acá?" se contesta sola si el tramo está a la
+ * vista.
+ */
+export const FASE_DIAS: Record<NumeroFase, string> = {
+  0: '1 semana antes del vencimiento',
+  1: '1 a 15 días vencido',
+  2: '16 a 30 días vencido',
+  3: '31 a 60 días vencido',
+  4: 'más de 60 días vencido',
+};
+
+/** Quién trabaja cada fase. Es lo que las separa. */
+export const FASE_RESPONSABLE: Record<NumeroFase, string> = {
+  0: 'Vendedor',
+  1: 'Vendedor',
+  2: 'Vendedor con apoyo de Mily',
+  3: 'Vendedor, Mily y Natalia',
+  4: 'Andrés (bloqueo) y Finanzas (Equifax)',
+};
+
 export const FASE_ACCION: Record<NumeroFase, string> = {
-  0: 'Recordatorio: correo/mensaje confirmando fecha y monto',
-  1: 'Mensaje o correo automático de cobranza',
-  2: 'Llamada y visita del vendedor',
-  3: 'Cobranzas llama; nuevos pedidos solo con aprobación',
-  4: 'Crédito suspendido; solo contado',
-  5: 'Carta notarial y reporte a Infocorp',
-  6: 'Abogado o provisión como incobrable',
+  0: 'El vendedor manda el mensaje recordatorio y acuerda una fecha de compromiso de pago, al menos con los clientes de mayor deuda',
+  1: 'El vendedor cobra y visita al cliente',
+  2: 'El vendedor sigue la cobranza apoyándose en Mily',
+  3: 'El vendedor, Mily y Natalia trabajan al cliente juntos',
+  4: 'Andrés bloquea al cliente en el ERP y Finanzas lo pasa a Equifax (Infocorp)',
 };
 
 export function faseDeDiasVencido(diasVencido: number): NumeroFase {
   if (diasVencido <= 0) return 0;
-  if (diasVencido <= 7) return 1;
-  if (diasVencido <= 15) return 2;
-  if (diasVencido <= 30) return 3;
-  if (diasVencido <= 60) return 4;
-  if (diasVencido <= 90) return 5;
-  return 6;
+  if (diasVencido <= 15) return 1;
+  if (diasVencido <= 30) return 2;
+  if (diasVencido <= 60) return 3;
+  return 4;
 }
 
 type FilaDocumento = {
@@ -85,6 +111,8 @@ export type ClienteFase = {
 export type ResumenFase = {
   fase: NumeroFase;
   nombre: string;
+  dias: string;
+  responsable: string;
   accion: string;
   nClientes: number;
   monto: number;
@@ -182,7 +210,7 @@ export async function construirFasesCobranza(
   const resumen: ResumenFase[] = [];
   const totalMonto = clientes.reduce((s, c) => s + c.montoAGestionar, 0);
 
-  for (let fase = 0 as NumeroFase; fase <= 6; fase++) {
+  for (let fase = 0 as NumeroFase; fase <= 4; fase++) {
     const deLaFase = clientes.filter(c => c.fase === fase).sort((a, b) => b.montoAGestionar - a.montoAGestionar);
     const montoFase = deLaFase.reduce((s, c) => s + c.montoAGestionar, 0);
     let acumulado = 0;
@@ -203,6 +231,8 @@ export async function construirFasesCobranza(
     resumen.push({
       fase,
       nombre: FASE_NOMBRE[fase],
+      dias: FASE_DIAS[fase],
+      responsable: FASE_RESPONSABLE[fase],
       accion: FASE_ACCION[fase],
       nClientes: deLaFase.length,
       monto: montoFase,
