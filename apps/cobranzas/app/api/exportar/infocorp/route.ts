@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { exigirArea } from '@logisalud/auth/api';
 import { AREAS_LECTURA } from '@/lib/autorizacion';
 import { candidatosAInfocorp, type FilaCobranza } from '@/lib/infocorp';
+import { FASE_NOMBRE } from '@/lib/fasesCobranza';
 
 /**
  * La lista de Infocorp en Excel, en tres hojas: los que hay que reportar,
@@ -80,6 +81,7 @@ export async function GET() {
       candidatos.map(c => ({
         'RUC': c.clienteRuc,
         'Cliente': c.razonSocial,
+        'Fase': `${c.fase} ${FASE_NOMBRE[c.fase]}`,
         'Vendedor': c.vendedor,
         'Días vencido': c.maxDiasVencido,
         'Documentos': c.nDocs,

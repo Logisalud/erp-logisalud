@@ -9,6 +9,7 @@ import {
 import type { Columna } from '@/components/ds';
 import { fmtMoneda, fmtFecha, fmtEntero } from '@/lib/formato';
 import type { CandidatoInfocorp } from '@/lib/infocorp';
+import { FASE_NOMBRE } from '@/lib/fasesCobranza';
 
 type Marcado = {
   cliente_ruc: string;
@@ -137,6 +138,11 @@ export default function Infocorp() {
         <p className="font-medium text-ink-900">{c.razonSocial}</p>
         <p className="text-xs text-ink-400">{c.clienteRuc}</p>
       </div>
+    ) },
+    { clave: 'fase', titulo: 'Fase', render: c => (
+      <Badge tono={c.fase >= 4 ? 'critico' : 'riesgo'} conPunto={false}>
+        {c.fase} {FASE_NOMBRE[c.fase]}
+      </Badge>
     ) },
     { clave: 'vendedor', titulo: 'Vendedor', render: c => c.vendedor },
     { clave: 'dias', titulo: 'Días', align: 'right', valorOrden: c => c.maxDiasVencido, render: c => fmtEntero(c.maxDiasVencido) },
@@ -285,10 +291,10 @@ export default function Infocorp() {
               Candidatos <Badge tono="alerta" conPunto={false}>{fmtEntero(candidatosFiltrados.length)}</Badge>
             </h2>
             <p className="mb-3 text-sm text-ink-500 font-poppins">
-              Clientes de la fase 4 —más de 60 días vencido— que todavía nadie marcó.
+              Clientes desde Pre bloqueo —más de 30 días vencido— que todavía nadie marcó.
             </p>
             {candidatosFiltrados.length === 0 ? (
-              <EstadoVacio titulo="Sin candidatos nuevos" descripcion="Nadie supera los 60 días sin estar ya en la lista." />
+              <EstadoVacio titulo="Sin candidatos nuevos" descripcion="Nadie supera los 30 días sin estar ya en la lista." />
             ) : (
               <DataTable columnas={columnasCandidatos} filas={candidatosFiltrados} claveFila={c => c.clienteRuc} />
             )}
