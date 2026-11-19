@@ -19,6 +19,12 @@ const escrito = {
 let errorDeInsert: { code: string; message: string } | null = null;
 /** Lo que devuelve la búsqueda del cliente que ya tenía el documento. */
 let clienteQueYaExiste: Record<string, unknown> | null = null;
+/**
+ * Lo que devuelve la búsqueda del vendedor que registra. `null` es el caso
+ * de quien registra sin ser vendedor de esa zona: un administrador, o un
+ * vendedor de otra zona.
+ */
+let vendedorQueRegistra: { id: string } | null = null;
 
 function tabla(nombre: string): any {
   if (nombre === "customers") {
@@ -50,6 +56,17 @@ function tabla(nombre: string): any {
           }),
         };
       },
+    };
+  }
+  if (nombre === "sellers") {
+    return {
+      select: () => ({
+        eq: () => ({
+          eq: () => ({
+            eq: () => ({ maybeSingle: async () => ({ data: vendedorQueRegistra, error: null }) }),
+          }),
+        }),
+      }),
     };
   }
   if (nombre === "customer_addresses") {
@@ -88,6 +105,7 @@ beforeEach(() => {
   escrito.addresses = [];
   errorDeInsert = null;
   clienteQueYaExiste = null;
+  vendedorQueRegistra = { id: "v1" };
 });
 
 describe("alta de cliente nuevo", () => {
@@ -113,6 +131,32 @@ describe("alta de cliente nuevo", () => {
     expect(escrito.customers[0].whatsapp).toBeNull();
     expect(escrito.customers[0].direccion_fiscal).toBeNull();
     expect(escrito.addresses[0].ubigeo).toBe("150140");
+  });
+
+  /**
+   * El cliente es del vendedor que lo registró: es el que estuvo en la
+   * puerta. Sin esto el cliente nuevo quedaba sin dueño — salía con la
+   * columna Vendedor en blanco en la cartera y no le colgaba a nadie en
+   * los reportes.
+   */
+  it("le asigna el cliente al vendedor que lo registra", async () => {
+    await requestNewCustomer(BASE);
+
+    expect(escrito.customers[0].vendedor_id).toBe("v1");
+  });
+
+  /**
+   * Quién se queda el cliente cuando lo registra alguien que no es el
+   * vendedor de esa zona —un administrador, o un vendedor de otra— es una
+   * decisión de la cartera, no un dato que se pueda deducir en el alta.
+   * Queda sin asignar, que es visible, en vez de colgado del que pasaba.
+   */
+  it("no le inventa dueño al cliente si quien lo registra no es vendedor de esa zona", async () => {
+    vendedorQueRegistra = null;
+
+    await requestNewCustomer(BASE);
+
+    expect(escrito.customers[0].vendedor_id).toBeNull();
   });
 });
 
