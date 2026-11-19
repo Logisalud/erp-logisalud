@@ -14,10 +14,33 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = {
   customers: [] as Array<Record<string, unknown>>,
   ubigeos: [] as Array<Record<string, string>>,
+  zones: [] as Array<{ id: number; codigo_zona: string }>,
+  sellers: [] as Array<{ id: string; codigo_representante: string }>,
+  canal: null as { id: number } | null,
   updates: [] as Array<{ id: string; cambios: Record<string, unknown> }>,
+  insertados: [] as Array<Record<string, unknown>>,
 };
 
 function tabla(nombre: string): any {
+  if (nombre === "zones") {
+    return {
+      select: () => ({ then: (res: (r: unknown) => unknown) => res({ data: db.zones, error: null }) }),
+    };
+  }
+  if (nombre === "sellers") {
+    return {
+      select: () => ({
+        eq: () => ({ then: (res: (r: unknown) => unknown) => res({ data: db.sellers, error: null }) }),
+      }),
+    };
+  }
+  if (nombre === "sales_channels") {
+    return {
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => ({ data: db.canal, error: null }) }),
+      }),
+    };
+  }
   return {
     select: () => ({
       // `ubigeos` se lee entero: `await select()`.
@@ -30,6 +53,10 @@ function tabla(nombre: string): any {
         }),
       }),
     }),
+    insert: async (filas: Array<Record<string, unknown>>) => {
+      db.insertados.push(...filas);
+      return { error: null };
+    },
     update: (cambios: Record<string, unknown>) => ({
       eq: async (_col: string, id: string) => {
         db.updates.push({ id, cambios });
@@ -51,6 +78,7 @@ vi.mock("@/services/audit-log", () => ({
 import { sincronizarCarteraDesdeCobranzas } from "@/services/cartera-desde-cobranzas";
 
 let respuestaDeCobranzas: Array<Record<string, unknown>> = [];
+let vendedoresDeCobranzas: Array<Record<string, unknown>> = [];
 
 beforeEach(() => {
   db.customers = [];
@@ -59,8 +87,13 @@ beforeEach(() => {
     { departamento: "LIMA", provincia: "LIMA", distrito: "PUCUSANA" },
     { departamento: "CALLAO", provincia: "CALLAO", distrito: "CARMEN DE LA LEGUA-REYNOSO" },
   ];
+  db.insertados = [];
+  db.zones = [{ id: 7, codigo_zona: "LIMH08" }];
+  db.sellers = [{ id: "v-romina", codigo_representante: "CRP1013" }];
+  db.canal = { id: 3 };
   auditoria.length = 0;
   respuestaDeCobranzas = [];
+  vendedoresDeCobranzas = [{ id: "vc-1", codigo: "CRP1013" }];
   process.env.COBRANZAS_SUPABASE_URL = "https://cobranzas.example";
   process.env.COBRANZAS_SERVICE_ROLE_KEY = "clave-de-prueba";
   // El REST de cobranzas pagina con limit/offset, y el stub tiene que
@@ -70,10 +103,8 @@ beforeEach(() => {
     const u = new URL(url);
     const limit = Number(u.searchParams.get("limit") ?? 1000);
     const offset = Number(u.searchParams.get("offset") ?? 0);
-    return new Response(
-      JSON.stringify(respuestaDeCobranzas.slice(offset, offset + limit)),
-      { status: 200 },
-    );
+    const fuente = u.pathname.includes("vendedores") ? vendedoresDeCobranzas : respuestaDeCobranzas;
+    return new Response(JSON.stringify(fuente.slice(offset, offset + limit)), { status: 200 });
   });
 });
 
@@ -195,17 +226,128 @@ describe("sincronizar la cartera desde cobranzas", () => {
     expect(r.direcciones).toBe(0);
   });
 
-  it("cuenta los clientes que están solo en cobranzas, pero no los crea", async () => {
+  /**
+   * La cartera es a quién se le PUEDE vender, no a quién ya compró: un
+   * cliente registrado que no compra hace dos años sigue siendo visitable,
+   * y si no está en pedidos el vendedor no le puede tomar el pedido.
+   */
+  it("da de alta en pedidos a los clientes que solo están en cobranzas", async () => {
     db.customers = [];
     respuestaDeCobranzas = [
-      { ruc: "10078960359", direccion: "AV. LIMA 604", distrito: null, provincia: null, departamento: null },
-      { ruc: "20100047218", direccion: "AV. OTRA 100", distrito: null, provincia: null, departamento: null },
+      {
+        ruc: "20100047218",
+        razon_social: "BOTICA LA ESPERANZA S.A.C.",
+        direccion: "AV. LIMA 604",
+        distrito: "PUCUSANA",
+        provincia: "LIMA",
+        departamento: "LIMA",
+        codigo_zona: "LIMH08",
+        vendedor_actual_id: "vc-1",
+      },
     ];
 
     const r = await sincronizarCarteraDesdeCobranzas(null);
 
-    expect(r.soloEnCobranzas).toBe(2);
-    expect(db.updates).toEqual([]);
+    expect(r.soloEnCobranzas).toBe(1);
+    expect(r.creados).toBe(1);
+    expect(db.insertados).toHaveLength(1);
+    expect(db.insertados[0]).toMatchObject({
+      ruc_o_documento: "20100047218",
+      razon_social: "BOTICA LA ESPERANZA S.A.C.",
+      direccion_fiscal: "AV. LIMA 604",
+      // El canal por defecto: sin canal no hay precio y el cliente no se
+      // puede atender.
+      canal_id: 3,
+      zona_id: 7,
+      vendedor_id: "v-romina",
+      // RUC válido: ya opera, entra activo.
+      estado: "ACTIVO",
+      tipo_comprobante_permitido: "FACTURA",
+      distrito: "PUCUSANA",
+    });
+  });
+
+  /**
+   * Un cliente que no le cuelga a nadie es un cliente que nadie visita.
+   * Entre crearlo huérfano y no crearlo, no crearlo se ve.
+   */
+  it("no crea al cliente si no puede ubicar su zona o su vendedor", async () => {
+    db.customers = [];
+    respuestaDeCobranzas = [
+      {
+        ruc: "20100047218",
+        razon_social: "BOTICA SIN ZONA",
+        direccion: "AV. LIMA 604",
+        distrito: null,
+        provincia: null,
+        departamento: null,
+        codigo_zona: "ZONA_QUE_NO_EXISTE",
+        vendedor_actual_id: "vc-1",
+      },
+      {
+        ruc: "20100047219",
+        razon_social: "BOTICA SIN VENDEDOR",
+        direccion: "AV. LIMA 605",
+        distrito: null,
+        provincia: null,
+        departamento: null,
+        codigo_zona: "LIMH08",
+        vendedor_actual_id: "vc-desconocido",
+      },
+    ];
+
+    const r = await sincronizarCarteraDesdeCobranzas(null);
+
+    expect(r.creados).toBe(0);
+    expect(r.sinUbicar).toBe(2);
+    expect(db.insertados).toEqual([]);
+  });
+
+  /**
+   * El DNI cargado en el campo de RUC entra a validar y solo con boleta:
+   * el CHECK de la tabla rechaza FACTURA sin RUC de contribuyente.
+   */
+  it("el cliente con DNI entra como boleta y a validar", async () => {
+    db.customers = [];
+    respuestaDeCobranzas = [
+      {
+        ruc: "00003695392",
+        razon_social: "GOYES SAAVEDRA JUAN MANUEL",
+        direccion: "SANTIAGO ROSALES 511",
+        distrito: null,
+        provincia: null,
+        departamento: null,
+        codigo_zona: "LIMH08",
+        vendedor_actual_id: "vc-1",
+      },
+    ];
+
+    await sincronizarCarteraDesdeCobranzas(null);
+
+    expect(db.insertados[0]).toMatchObject({
+      estado: "PENDIENTE_DE_VALIDACION",
+      tipo_comprobante_permitido: "BOLETA",
+    });
+  });
+
+  it("si falta el canal por defecto no crea ningún cliente", async () => {
+    db.canal = null;
+    db.customers = [];
+    respuestaDeCobranzas = [
+      {
+        ruc: "20100047218",
+        razon_social: "BOTICA LA ESPERANZA S.A.C.",
+        direccion: null,
+        distrito: null,
+        provincia: null,
+        departamento: null,
+        codigo_zona: "LIMH08",
+        vendedor_actual_id: "vc-1",
+      },
+    ];
+
+    await expect(sincronizarCarteraDesdeCobranzas(null)).rejects.toThrow(/Horizontal/);
+    expect(db.insertados).toEqual([]);
   });
 
   it("cruza al cliente con DNI, que en cobranzas va relleno con ceros", async () => {
