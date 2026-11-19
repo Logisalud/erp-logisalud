@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
   const wsResumen = XLSX.utils.json_to_sheet(reporte.resumen.map(r => ({
     'Fase': r.fase,
     'Nombre': r.nombre,
+    'Días que incluye': r.dias,
+    'Responsable': r.responsable,
     'N° Clientes': r.nClientes,
     'Monto a gestionar': r.monto,
     '% del total': Number(r.pctDelTotal.toFixed(1)),
@@ -56,7 +58,7 @@ export async function GET(req: NextRequest) {
   wsDetalle['!autofilter'] = { ref: XLSX.utils.encode_range(rD) };
   XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle por factura');
 
-  for (let fase = 0 as NumeroFase; fase <= 6; fase++) {
+  for (let fase = 0 as NumeroFase; fase <= 4; fase++) {
     const clientesFase = reporte.clientes.filter(c => c.fase === fase);
     if (clientesFase.length === 0) continue;
     const rows = clientesFase.map(c => ({

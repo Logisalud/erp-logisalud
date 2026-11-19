@@ -11,7 +11,7 @@ import { fmtMoneda, fmtFecha, fmtPorcentaje, fmtEntero } from '@/lib/formato';
 import type { ReporteFasesCobranza, ClienteFase, FacturaCobranza, NumeroFase } from '@/lib/fasesCobranza';
 
 const FASE_SEMAFORO: Record<NumeroFase, Semaforo> = {
-  0: 'ok', 1: 'ok', 2: 'alerta', 3: 'alerta', 4: 'riesgo', 5: 'critico', 6: 'critico',
+  0: 'ok', 1: 'alerta', 2: 'alerta', 3: 'riesgo', 4: 'critico',
 };
 
 function hoyLima() {
@@ -117,7 +117,7 @@ export default function FasesCobranza() {
         <EstadoVacio titulo="Sin clientes con deuda vencida ni próxima a vencer" />
       ) : (
         <>
-          <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+          <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {reporte.resumen.map(r => (
               <button
                 key={r.fase}
@@ -128,7 +128,8 @@ export default function FasesCobranza() {
               >
                 <Badge tono={FASE_SEMAFORO[r.fase]} conPunto={false}>Fase {r.fase}</Badge>
                 <p className="mt-1.5 text-xs font-medium text-ink-500 font-poppins">{r.nombre}</p>
-                <p className="font-oswald text-lg text-ink-900">{fmtMoneda(r.monto)}</p>
+                <p className="text-[11px] leading-tight text-ink-400 font-poppins">{r.dias}</p>
+                <p className="mt-1 font-oswald text-lg text-ink-900">{fmtMoneda(r.monto)}</p>
                 <p className="text-xs text-ink-400 font-poppins">{fmtEntero(r.nClientes)} clientes · {fmtPorcentaje(r.pctDelTotal)}</p>
               </button>
             ))}
@@ -136,7 +137,11 @@ export default function FasesCobranza() {
 
           {faseSeleccionada !== null && (
             <div className="mb-3 rounded-ds-card border border-ink-200 bg-ink-50/60 p-3 text-sm text-ink-700 font-poppins">
-              <strong>Acción — Fase {faseSeleccionada} ({reporte.resumen[faseSeleccionada].nombre}):</strong> {reporte.resumen[faseSeleccionada].accion}
+              <strong>
+                Fase {faseSeleccionada} — {reporte.resumen[faseSeleccionada].nombre} ({reporte.resumen[faseSeleccionada].dias}):
+              </strong>{' '}
+              {reporte.resumen[faseSeleccionada].accion}.{' '}
+              <span className="text-ink-500">Responsable: {reporte.resumen[faseSeleccionada].responsable}.</span>
             </div>
           )}
 
