@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Paperclip, Plus, Trash2 } from 'lucide-react';
 import {
-  PageHeader, Badge, Button, FilterBar, FilterField,
+  PageHeader, Badge, Button,
   DataTable, EstadoVacio, EstadoCargando, EstadoError, ConfirmDialog,
 } from '@/components/ds';
 import type { Columna } from '@/components/ds';
@@ -15,7 +15,7 @@ type Marcado = {
   cliente_ruc: string;
   marcado_en: string;
   marcado_por: string;
-  motivo: string | null;
+  observaciones: string | null;
   saldo_al_marcar: number | string | null;
   dias_vencido_al_marcar: number | null;
   reportado: boolean;
@@ -25,6 +25,77 @@ type Marcado = {
   adjunto_nombre: string | null;
   cliente: { razon_social: string } | null;
 };
+
+/**
+ * El encabezado de cada bloque, con su buscador al lado.
+ *
+ * El buscador está en los tres y no arriba de la pantalla a propósito: la
+ * lista de candidatos son 84 y queda al final, así que uno en el tope
+ * obliga a subir, escribir y volver a bajar. Filtra los tres bloques a la
+ * vez porque la pregunta es siempre la misma —"¿dónde está este
+ * cliente?"— y la respuesta puede estar en cualquiera.
+ *
+ * Va acá afuera y no dentro de Infocorp: un componente declarado adentro
+ * se vuelve a crear en cada render, React lo trata como otro componente y
+ * lo remonta — el input perdería el foco a cada letra que se escribe.
+ */
+function Encabezado({ titulo, cuenta, tono, busqueda, onBuscar, children }: {
+  titulo: string;
+  cuenta: number;
+  tono: 'critico' | 'ok' | 'alerta';
+  busqueda: string;
+  onBuscar: (v: string) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 className="flex items-center gap-2 font-oswald text-lg text-ink-900">
+          {titulo} <Badge tono={tono} conPunto={false}>{fmtEntero(cuenta)}</Badge>
+        </h2>
+        {children}
+      </div>
+      <input
+        value={busqueda}
+        onChange={e => onBuscar(e.target.value)}
+        placeholder="Buscar por RUC o razón social"
+        className="w-full rounded-ds-input border border-ink-200 px-2.5 py-1.5 text-sm font-poppins sm:w-72"
+      />
+    </div>
+  );
+}
+
+/**
+ * La observación se guarda al salir del campo, no en cada tecla: una
+ * llamada por letra es ruido, y el caso se anota de una sentada.
+ *
+ * También vive afuera, por lo mismo que el encabezado: adentro se
+ * remontaría en cada render del padre —por ejemplo, al escribir en el
+ * buscador— y se perdería lo que se está escribiendo.
+ */
+function CeldaObservaciones({ fila, onGuardar }: {
+  fila: { cliente_ruc: string; observaciones: string | null };
+  onGuardar: (ruc: string, texto: string) => Promise<void>;
+}) {
+  const [texto, setTexto] = useState(fila.observaciones ?? '');
+  const [guardando, setGuardando] = useState(false);
+
+  return (
+    <textarea
+      value={texto}
+      onChange={e => setTexto(e.target.value)}
+      onBlur={async () => {
+        if ((fila.observaciones ?? '') === texto.trim()) return;
+        setGuardando(true);
+        await onGuardar(fila.cliente_ruc, texto);
+        setGuardando(false);
+      }}
+      rows={2}
+      placeholder={guardando ? 'Guardando…' : 'Anotar…'}
+      className="w-56 resize-y rounded-ds-input border border-ink-200 px-2 py-1 text-xs font-poppins focus:border-brand-green-500 focus:outline-none"
+    />
+  );
+}
 
 export default function Infocorp() {
   const [candidatos, setCandidatos] = useState<CandidatoInfocorp[]>([]);
@@ -101,6 +172,20 @@ export default function Infocorp() {
     }
   }
 
+  async function guardarObservaciones(ruc: string, texto: string) {
+    const r = await fetch('/api/infocorp', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cliente_ruc: ruc, observaciones: texto }),
+    });
+    if (!r.ok) { const j = await r.json(); alert(j.error ?? 'No se pudo guardar la observación'); return; }
+    // Se refleja en el estado local en vez de recargar la lista entera:
+    // recargar mientras alguien escribe en otra fila le borra lo tipeado.
+    setMarcados(prev =>
+      prev.map(m => (m.cliente_ruc === ruc ? { ...m, observaciones: texto.trim() || null } : m)),
+    );
+  }
+
   async function verAdjunto(path: string) {
     const r = await fetch(`/api/infocorp/adjunto-url?path=${encodeURIComponent(path)}`);
     const j = await r.json();
@@ -173,6 +258,10 @@ export default function Infocorp() {
           <p className="text-xs text-ink-400">{m.marcado_por}</p>
         </div>
       ) },
+      { clave: 'observaciones', titulo: 'Observaciones',
+        render: m => (
+          <CeldaObservaciones key={m.cliente_ruc} fila={m} onGuardar={guardarObservaciones} />
+        ) },
     ];
 
     if (conReporte) {
@@ -250,24 +339,12 @@ export default function Infocorp() {
         <EstadoError mensaje={error} />
       ) : (
         <>
-          <FilterBar>
-            <FilterField label="Buscar cliente">
-              <input
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                placeholder="RUC o razón social"
-                className="w-full rounded-ds-input border border-ink-200 px-2.5 py-1.5 text-sm"
-              />
-            </FilterField>
-          </FilterBar>
-
           <section className="mb-7">
-            <h2 className="mb-2 flex items-center gap-2 font-oswald text-lg text-ink-900">
-              Por reportar <Badge tono="critico" conPunto={false}>{fmtEntero(pendientes.length)}</Badge>
-            </h2>
-            <p className="mb-3 text-sm text-ink-500 font-poppins">
-              Los que cobranzas marcó. Cuando Finanzas los reporte a Equifax, tildá &ldquo;Ya reportado&rdquo; y adjuntá la constancia.
-            </p>
+            <Encabezado titulo="Por reportar" cuenta={pendientes.length} tono="critico" busqueda={busqueda} onBuscar={setBusqueda}>
+              <p className="mt-1 text-sm text-ink-500 font-poppins">
+                Los que cobranzas marcó. Cuando Finanzas los reporte a Equifax, tildá &ldquo;Ya reportado&rdquo; y adjuntá la constancia.
+              </p>
+            </Encabezado>
             {pendientes.length === 0 ? (
               <EstadoVacio titulo="Nadie pendiente de reportar" />
             ) : (
@@ -276,9 +353,7 @@ export default function Infocorp() {
           </section>
 
           <section className="mb-7">
-            <h2 className="mb-2 flex items-center gap-2 font-oswald text-lg text-ink-900">
-              Ya reportados <Badge tono="ok" conPunto={false}>{fmtEntero(reportados.length)}</Badge>
-            </h2>
+            <Encabezado titulo="Ya reportados" cuenta={reportados.length} tono="ok" busqueda={busqueda} onBuscar={setBusqueda} />
             {reportados.length === 0 ? (
               <EstadoVacio titulo="Todavía no se reportó a nadie" />
             ) : (
@@ -287,12 +362,11 @@ export default function Infocorp() {
           </section>
 
           <section>
-            <h2 className="mb-2 flex items-center gap-2 font-oswald text-lg text-ink-900">
-              Candidatos <Badge tono="alerta" conPunto={false}>{fmtEntero(candidatosFiltrados.length)}</Badge>
-            </h2>
-            <p className="mb-3 text-sm text-ink-500 font-poppins">
-              Clientes desde Pre bloqueo —más de 30 días vencido— que todavía nadie marcó.
-            </p>
+            <Encabezado titulo="Candidatos" cuenta={candidatosFiltrados.length} tono="alerta" busqueda={busqueda} onBuscar={setBusqueda}>
+              <p className="mt-1 text-sm text-ink-500 font-poppins">
+                Clientes desde Pre bloqueo —más de 30 días vencido— que todavía nadie marcó.
+              </p>
+            </Encabezado>
             {candidatosFiltrados.length === 0 ? (
               <EstadoVacio titulo="Sin candidatos nuevos" descripcion="Nadie supera los 30 días sin estar ya en la lista." />
             ) : (
