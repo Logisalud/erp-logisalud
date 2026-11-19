@@ -186,6 +186,24 @@ export async function requestNewCustomer(input: {
   // con DNI — el caso más común de cliente nuevo.
   const tipoComprobante = resolveTipoComprobantePermitido(input.rucODocumento);
 
+  // El cliente es del vendedor que lo registró: es el que estuvo en la
+  // puerta. Sin esto el cliente nuevo quedaba sin dueño — salía con la
+  // columna Vendedor en blanco en la cartera y no le colgaba a nadie en
+  // los reportes (86 clientes así entre agosto y noviembre de 2026).
+  //
+  // Se exige la misma zona, y no solo que el que registra sea vendedor:
+  // si registra uno de otra zona, quién se queda el cliente es una
+  // decisión de la cartera, no un dato que se pueda deducir acá. En ese
+  // caso queda sin asignar, igual que cuando lo registra un administrador,
+  // que no es vendedor de nadie.
+  const { data: vendedor } = await supabase
+    .from("sellers")
+    .select("id")
+    .eq("user_id", input.solicitadoPor)
+    .eq("estado", "activo")
+    .eq("zone_id", input.zonaId)
+    .maybeSingle();
+
   const { data: customer, error: customerError } = await supabase
     .from("customers")
     .insert({
@@ -204,6 +222,7 @@ export async function requestNewCustomer(input: {
       provincia: input.provincia ?? null,
       distrito: input.distrito ?? null,
       estado: "PENDIENTE_DE_VALIDACION",
+      vendedor_id: vendedor?.id ?? null,
       solicitado_por: input.solicitadoPor,
     })
     .select(CUSTOMER_OPTION_COLUMNS)
