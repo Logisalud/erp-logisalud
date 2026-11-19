@@ -36,7 +36,7 @@ export async function GET() {
     cliente_ruc: string;
     marcado_en: string;
     marcado_por: string;
-    motivo: string | null;
+    observaciones: string | null;
     saldo_al_marcar: number | string | null;
     dias_vencido_al_marcar: number | null;
     reportado: boolean;
@@ -57,7 +57,7 @@ export async function GET() {
     'Días al marcar': m.dias_vencido_al_marcar ?? '',
     'Marcado el': m.marcado_en?.slice(0, 10) ?? '',
     'Marcado por': m.marcado_por,
-    'Motivo': m.motivo ?? '',
+    'Observaciones': m.observaciones ?? '',
     'Reportado el': m.reportado_en?.slice(0, 10) ?? '',
     'Reportado por': m.reportado_por ?? '',
     'Constancia': m.adjunto_nombre ?? '',

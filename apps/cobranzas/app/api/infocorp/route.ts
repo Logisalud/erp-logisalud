@@ -57,7 +57,10 @@ export async function POST(req: NextRequest) {
   const auth = await exigirArea(AREAS_ESCRITURA);
   if (!auth.ok) return auth.respuesta;
 
-  const { cliente_ruc, motivo } = (await req.json()) as { cliente_ruc?: string; motivo?: string };
+  const { cliente_ruc, observaciones } = (await req.json()) as {
+    cliente_ruc?: string;
+    observaciones?: string;
+  };
   if (!cliente_ruc) return NextResponse.json({ error: 'cliente_ruc requerido' }, { status: 400 });
 
   const db = supabaseAdmin();
@@ -71,7 +74,7 @@ export async function POST(req: NextRequest) {
   const { error } = await db.from('infocorp_clientes').insert({
     cliente_ruc,
     marcado_por: auth.perfil.nombre ?? 'sin nombre',
-    motivo: motivo?.trim() || null,
+    observaciones: observaciones?.trim() || null,
     saldo_al_marcar: hoy?.saldoVencido ?? null,
     dias_vencido_al_marcar: hoy?.maxDiasVencido ?? null,
   });
@@ -89,15 +92,31 @@ export async function PATCH(req: NextRequest) {
   const auth = await exigirArea(AREAS_ESCRITURA);
   if (!auth.ok) return auth.respuesta;
 
-  const { cliente_ruc, reportado, adjunto_path, adjunto_nombre } = (await req.json()) as {
-    cliente_ruc?: string;
-    reportado?: boolean;
-    adjunto_path?: string | null;
-    adjunto_nombre?: string | null;
-  };
+  const { cliente_ruc, reportado, adjunto_path, adjunto_nombre, observaciones } =
+    (await req.json()) as {
+      cliente_ruc?: string;
+      reportado?: boolean;
+      adjunto_path?: string | null;
+      adjunto_nombre?: string | null;
+      observaciones?: string | null;
+    };
   if (!cliente_ruc) return NextResponse.json({ error: 'cliente_ruc requerido' }, { status: 400 });
 
   const db = supabaseAdmin();
+
+  // Guardar una observación es su propia operación: se escribe mientras se
+  // gestiona el caso, mucho antes de que haya un reporte que marcar. Si
+  // viniera junto con el estado, anotar algo tildaría "ya reportado" sin
+  // que nadie lo pidiera.
+  if (reportado === undefined) {
+    const { error } = await db
+      .from('infocorp_clientes')
+      .update({ observaciones: observaciones?.trim() || null })
+      .eq('cliente_ruc', cliente_ruc);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
   const marcarlo = reportado !== false;
 
   const { error } = await db
