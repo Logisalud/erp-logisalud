@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanEnv } from "@/lib/env";
 import { logAudit, ultimaCorrida } from "./audit-log";
 import { claveDeCobranzas } from "@/domain/documentos";
+import { leerTodo } from "@/lib/paginar";
 
 /**
  * El viaje de vuelta del puente: el contacto del cliente, que lo tiene
@@ -115,12 +116,9 @@ export async function leerCobranzas<T>(
 async function contactosDePedidos(): Promise<Map<string, ContactoPedidos>> {
   const admin = createAdminClient();
 
-  const { data: clientes, error } = await admin
-    .from("customers")
-    .select("id, ruc_o_documento, whatsapp, direccion_fiscal, distrito, provincia, departamento");
-  if (error) throw new Error(error.message);
-
-  const filas = (clientes ?? []) as Array<{
+  // Paginado y ordenado por `id`: PostgREST corta en 1.000 filas y acá hay
+  // 3.568 clientes. Sin esto solo viajaban los contactos de los primeros mil.
+  const filas = await leerTodo<{
     id: string;
     ruc_o_documento: string | null;
     whatsapp: string | null;
@@ -128,19 +126,31 @@ async function contactosDePedidos(): Promise<Map<string, ContactoPedidos>> {
     distrito: string | null;
     provincia: string | null;
     departamento: string | null;
-  }>;
+  }>((desde, hasta) =>
+    admin
+      .from("customers")
+      .select("id, ruc_o_documento, whatsapp, direccion_fiscal, distrito, provincia, departamento")
+      .order("id")
+      .range(desde, hasta),
+  );
 
   // La dirección de entrega manda sobre la fiscal: es a donde va el
   // camión, que es lo que el vendedor necesita para ir a visitar.
-  const { data: direcciones, error: errorDir } = await admin
-    .from("customer_addresses")
-    .select("customer_id, direccion, es_principal, created_at")
-    .order("es_principal", { ascending: false })
-    .order("created_at", { ascending: true });
-  if (errorDir) throw new Error(errorDir.message);
+  // El `id` al final no es decorativo: `es_principal` y `created_at` se
+  // repiten, y sin una columna única el orden entre páginas no es estable.
+  const direcciones = await leerTodo<{ customer_id: string; direccion: string | null }>(
+    (desde, hasta) =>
+      admin
+        .from("customer_addresses")
+        .select("customer_id, direccion, es_principal, created_at")
+        .order("es_principal", { ascending: false })
+        .order("created_at", { ascending: true })
+        .order("id")
+        .range(desde, hasta),
+  );
 
   const entrega = new Map<string, string>();
-  for (const d of (direcciones ?? []) as Array<{ customer_id: string; direccion: string | null }>) {
+  for (const d of direcciones) {
     if (!entrega.has(d.customer_id) && !vacio(d.direccion)) {
       entrega.set(d.customer_id, (d.direccion ?? "").trim());
     }
