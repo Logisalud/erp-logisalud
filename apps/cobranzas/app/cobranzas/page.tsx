@@ -6,8 +6,7 @@ import {
   Target, Wallet, Layers, BarChart3, Tag, Repeat,
   Users, ClipboardList, ScrollText, CalendarClock, FileOutput, FileSpreadsheet,
   Link2, Eye, MessageCircle, FolderInput, HandCoins, Scale,
-  type LucideIcon,
-} from 'lucide-react';
+  Gavel, type LucideIcon } from 'lucide-react';
 
 type Tarjeta = {
   href: string;
@@ -41,7 +40,8 @@ export default async function Home() {
         { href: '/cobranzas/concentracion-cartera', icono: Target, titulo: 'Concentración de cartera vencida', descripcion: 'Qué clientes concentran la deuda vencida — por vendedor, con reincidentes.' },
         { href: '/cobranzas/pagos-sin-confirmar', icono: AlertTriangle, titulo: 'Pagos sin confirmar', descripcion: 'Pagos registrados por voucher que aún no se confirmaron contra el extracto bancario.' },
         { href: '/cobranzas/cobranza', icono: Wallet, titulo: 'Cobranza del período', descripcion: 'Cuánto se cobró (total y de lo vencido) por vendedor, en el rango que elijas.' },
-        { href: '/cobranzas/fases-cobranza', icono: Layers, titulo: 'Fases de cobranza', descripcion: 'Agenda de gestión por cliente — fases 0 a 6, con Pareto 80% por fase.' },
+        { href: '/cobranzas/fases-cobranza', icono: Layers, titulo: 'Fases de cobranza', descripcion: 'Agenda de gestión por cliente — las 5 fases, con sus días y su responsable.' },
+        { href: '/cobranzas/infocorp', icono: Gavel, titulo: 'Infocorp — fase legal', descripcion: 'A quién hay que reportar a Equifax y a quién ya se reportó, con su constancia.' },
         { href: '/cobranzas/indicadores-cobranza', icono: BarChart3, titulo: 'Indicadores de cobranza', descripcion: 'Los 6 indicadores de Finanzas: efectividad, DSO, morosidad y más.' },
       ],
     },
