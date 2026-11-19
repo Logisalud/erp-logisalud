@@ -97,6 +97,48 @@ function CeldaObservaciones({ fila, onGuardar }: {
   );
 }
 
+/**
+ * La nota con la que se marca a un candidato, y el botón que lo marca.
+ *
+ * Van juntos en la misma celda porque son una sola decisión: la nota es
+ * el porqué de marcarlo. Un candidato todavía no existe como fila —se
+ * calcula de la cartera—, así que no hay dónde guardar la nota antes de
+ * marcar; al marcar, las dos cosas viajan en la misma operación.
+ *
+ * El texto vive acá adentro y no en el padre: con 84 candidatos, un
+ * estado en el padre redibuja la tabla entera a cada letra.
+ */
+function MarcarCandidato({ ruc, onMarcar }: {
+  ruc: string;
+  onMarcar: (ruc: string, observaciones: string) => Promise<void>;
+}) {
+  const [texto, setTexto] = useState('');
+  const [marcando, setMarcando] = useState(false);
+
+  return (
+    <div className="flex items-start gap-2">
+      <textarea
+        value={texto}
+        onChange={e => setTexto(e.target.value)}
+        rows={2}
+        placeholder="Observaciones (opcional)"
+        className="w-52 resize-y rounded-ds-input border border-ink-200 px-2 py-1 text-xs font-poppins focus:border-brand-green-500 focus:outline-none"
+      />
+      <Button
+        variante="secundario"
+        cargando={marcando}
+        onClick={async () => {
+          setMarcando(true);
+          await onMarcar(ruc, texto);
+          setMarcando(false);
+        }}
+      >
+        <Plus size={14} /> Marcar
+      </Button>
+    </div>
+  );
+}
+
 export default function Infocorp() {
   const [candidatos, setCandidatos] = useState<CandidatoInfocorp[]>([]);
   const [marcados, setMarcados] = useState<Marcado[]>([]);
@@ -124,11 +166,11 @@ export default function Infocorp() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  async function marcar(ruc: string) {
+  async function marcar(ruc: string, observaciones = '') {
     const r = await fetch('/api/infocorp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cliente_ruc: ruc }),
+      body: JSON.stringify({ cliente_ruc: ruc, observaciones }),
     });
     if (!r.ok) { const j = await r.json(); alert(j.error ?? 'No se pudo marcar'); return; }
     await cargar();
@@ -233,10 +275,8 @@ export default function Infocorp() {
     { clave: 'dias', titulo: 'Días', align: 'right', valorOrden: c => c.maxDiasVencido, render: c => fmtEntero(c.maxDiasVencido) },
     { clave: 'docs', titulo: 'Docs', align: 'right', render: c => fmtEntero(c.nDocs) },
     { clave: 'saldo', titulo: 'Deuda vencida', align: 'right', valorOrden: c => c.saldoVencido, render: c => fmtMoneda(c.saldoVencido) },
-    { clave: 'accion', titulo: '', render: c => (
-      <Button variante="secundario" onClick={() => void marcar(c.clienteRuc)}>
-        <Plus size={14} /> Marcar
-      </Button>
+    { clave: 'observaciones', titulo: 'Observaciones', render: c => (
+      <MarcarCandidato key={c.clienteRuc} ruc={c.clienteRuc} onMarcar={marcar} />
     ) },
   ];
 
