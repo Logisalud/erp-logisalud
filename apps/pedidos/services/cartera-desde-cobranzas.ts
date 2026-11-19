@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit, ultimaCorrida } from "./audit-log";
 import { claveDeCobranzas } from "@/domain/documentos";
+import { leerTodo } from "@/lib/paginar";
 import {
   accesoACobranzas,
   leerCobranzas,
@@ -126,13 +127,16 @@ export async function sincronizarCarteraDesdeCobranzas(
       "clientes?select=ruc,direccion,distrito,provincia,departamento&order=ruc",
     ),
     catalogoDeUbigeos(),
-    (async () => {
-      const { data, error } = await admin
+    // Paginado y ordenado por `id`: son 3.568 clientes y PostgREST corta
+    // en 1.000. Sin esto se comparaban los primeros mil contra toda la
+    // cartera de cobranzas, y los otros 2.568 nunca se completaban.
+    leerTodo<ClienteDePedidos>((desde, hasta) =>
+      admin
         .from("customers")
-        .select("id, ruc_o_documento, direccion_fiscal, distrito, provincia, departamento");
-      if (error) throw new Error(error.message);
-      return (data ?? []) as ClienteDePedidos[];
-    })(),
+        .select("id, ruc_o_documento, direccion_fiscal, distrito, provincia, departamento")
+        .order("id")
+        .range(desde, hasta),
+    ),
   ]);
 
   // Indexada por la llave que usa cobranzas, no por el documento pelado:

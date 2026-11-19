@@ -19,10 +19,17 @@ const db = {
 
 function tabla(nombre: string): any {
   return {
-    select: () => {
-      const filas = nombre === "ubigeos" ? db.ubigeos : db.customers;
-      return { then: (res: (r: unknown) => unknown) => res({ data: filas, error: null }) };
-    },
+    select: () => ({
+      // `ubigeos` se lee entero: `await select()`.
+      then: (res: (r: unknown) => unknown) => res({ data: db.ubigeos, error: null }),
+      // `customers` se lee paginado: `select().order().range()`.
+      order: () => ({
+        range: async (desde: number, hasta: number) => ({
+          data: db.customers.slice(desde, hasta + 1),
+          error: null,
+        }),
+      }),
+    }),
     update: (cambios: Record<string, unknown>) => ({
       eq: async (_col: string, id: string) => {
         db.updates.push({ id, cambios });
@@ -56,9 +63,18 @@ beforeEach(() => {
   respuestaDeCobranzas = [];
   process.env.COBRANZAS_SUPABASE_URL = "https://cobranzas.example";
   process.env.COBRANZAS_SERVICE_ROLE_KEY = "clave-de-prueba";
-  vi.stubGlobal("fetch", async () =>
-    new Response(JSON.stringify(respuestaDeCobranzas), { status: 200 }),
-  );
+  // El REST de cobranzas pagina con limit/offset, y el stub tiene que
+  // respetarlo: si devolviera la lista entera en cada página, el lector
+  // nunca vería una página corta y no cortaría nunca.
+  vi.stubGlobal("fetch", async (url: string) => {
+    const u = new URL(url);
+    const limit = Number(u.searchParams.get("limit") ?? 1000);
+    const offset = Number(u.searchParams.get("offset") ?? 0);
+    return new Response(
+      JSON.stringify(respuestaDeCobranzas.slice(offset, offset + limit)),
+      { status: 200 },
+    );
+  });
 });
 
 describe("sincronizar la cartera desde cobranzas", () => {
@@ -214,6 +230,38 @@ describe("sincronizar la cartera desde cobranzas", () => {
     expect(db.updates).toEqual([
       { id: "c1", cambios: { direccion_fiscal: "SANTIAGO ROSALES 511" } },
     ]);
+    expect(r.soloEnCobranzas).toBe(0);
+  });
+
+  /**
+   * PostgREST corta en 1.000 filas. La primera versión de esto leía
+   * `customers` con un `select()` pelado: comparaba los primeros mil
+   * clientes contra toda la cartera de cobranzas y los otros 2.568 no se
+   * completaban nunca. Nadie se enteraba, porque el proceso terminaba bien.
+   */
+  it("lee la cartera entera, no solo las primeras mil filas", async () => {
+    db.customers = Array.from({ length: 1200 }, (_, i) => ({
+      id: `c${i}`,
+      // RUC de 11 dígitos, distinto para cada uno.
+      ruc_o_documento: String(20000000000 + i),
+      direccion_fiscal: null,
+      distrito: null,
+      provincia: null,
+      departamento: null,
+    }));
+    respuestaDeCobranzas = db.customers.map((c) => ({
+      ruc: c.ruc_o_documento,
+      direccion: "AV. SIEMPRE VIVA 123",
+      distrito: null,
+      provincia: null,
+      departamento: null,
+    }));
+
+    const r = await sincronizarCarteraDesdeCobranzas(null);
+
+    expect(db.updates).toHaveLength(1200);
+    expect(r.direcciones).toBe(1200);
+    // Y ninguno queda contado como "solo en cobranzas".
     expect(r.soloEnCobranzas).toBe(0);
   });
 
