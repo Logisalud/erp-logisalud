@@ -6,6 +6,8 @@ const soles = (n: number) =>
 const cuando = (iso: string) =>
   new Date(iso).toLocaleDateString("es-PE", { timeZone: "America/Lima" });
 
+const dias = (n: number) => `${n} ${n === 1 ? "día" : "días"}`;
+
 /**
  * Lo que el cliente debe, a la vista mientras se arma el pedido.
  *
@@ -24,11 +26,18 @@ export function DeudaDelClienteAviso({ deuda }: { deuda: DeudaDelCliente }) {
     >
       <h3 className="font-heading text-base text-gray-900">Deuda del cliente</h3>
 
+      {/*
+        El total y los días son cosas distintas —el monto suma TODAS las
+        facturas vencidas y los días son los de la más vieja— y pegados en
+        una frase se leían como una sola factura de ese monto con esa
+        antigüedad. Por eso se nombran por separado y abajo va el detalle.
+      */}
       <p className="mt-1 text-sm">
         {hayVencido ? (
           <span className="font-medium text-red-700">
-            {soles(deuda.vencido)} vencidos · {deuda.diasAtraso}{" "}
-            {deuda.diasAtraso === 1 ? "día" : "días"} de atraso
+            {soles(deuda.vencido)} vencidos en {deuda.documentosVencidos}{" "}
+            {deuda.documentosVencidos === 1 ? "factura" : "facturas"} · la más vieja,{" "}
+            {dias(deuda.diasAtraso)} de atraso
           </span>
         ) : (
           <span className="font-medium text-gray-900">Sin nada vencido</span>
@@ -36,10 +45,46 @@ export function DeudaDelClienteAviso({ deuda }: { deuda: DeudaDelCliente }) {
         <span className="text-gray-600"> · deuda total {soles(deuda.saldo)}</span>
       </p>
 
+      {deuda.documentos.length > 0 && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[22rem] text-left text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-xs text-gray-600">
+                <th className="py-1 pr-3 font-medium">Factura</th>
+                <th className="py-1 pr-3 text-right font-medium">Vencido</th>
+                <th className="py-1 text-right font-medium">Atraso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deuda.documentos.map((d) => (
+                <tr key={d.comprobante} className="border-b border-gray-100 last:border-0">
+                  <td className="cifra py-1 pr-3">
+                    {d.comprobante}
+                    {d.tieneLetras && (
+                      <span className="ml-1 text-xs text-gray-500">(en letras)</span>
+                    )}
+                  </td>
+                  <td className="cifra py-1 pr-3 text-right">{soles(d.saldoVencido)}</td>
+                  <td className="cifra py-1 text-right">{dias(d.diasAtraso)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {deuda.documentos.some((d) => d.tieneLetras) && (
+            <p className="mt-1 text-xs text-gray-500">
+              En las facturas canjeadas por letras solo se muestra lo que ya venció: el resto son
+              letras que todavía no vencen.
+            </p>
+          )}
+        </div>
+      )}
+
       {grave && (
         <p className="mt-2 text-sm text-red-700">
           Con este atraso el pedido <strong>no se puede enviar</strong>. No es algo que se apruebe:
-          hay que regularizar la deuda con Cobranzas y volver a intentarlo.
+          hay que regularizar la deuda con Cobranzas y volver a intentarlo. Pagando las facturas
+          más viejas el pedido vuelve a salir, porque los días que cuentan son los de la más
+          antigua que siga impaga.
         </p>
       )}
 
