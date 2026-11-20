@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getStockResumen, listStockLotesCompleto, type StockOrden } from "@/services/stock";
+import {
+  getStockResumen,
+  listStockLotesCompleto,
+  normalizarStockOrden,
+} from "@/services/stock";
 import { buildStockExcel, buildStockExcelFilename } from "@/services/stock-excel";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +30,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const busqueda = (url.searchParams.get("q") ?? "").trim();
-  const orden: StockOrden = url.searchParams.get("orden") === "vencimiento" ? "vencimiento" : "producto";
+  const orden = normalizarStockOrden(url.searchParams.get("orden"));
 
   const volver = (motivo: string) => {
     const destino = new URL("/stock", request.url);
