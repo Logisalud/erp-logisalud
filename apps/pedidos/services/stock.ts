@@ -19,7 +19,18 @@ export const STOCK_PAGE_SIZE = 50;
 /** Tope de PostgREST. Se usa como guarda explícita, no como supuesto. */
 const TOPE_POSTGREST = 1000;
 
-export type StockOrden = "producto" | "vencimiento";
+export type StockOrden = "producto" | "vencimiento" | "proveedor";
+
+/**
+ * El orden que pidió la URL, o el alfabético.
+ *
+ * Vive en un solo lugar porque lo leen tres: la pantalla, el Excel y el
+ * servicio. Si cada uno lo interpretara por su cuenta, un orden nuevo
+ * entraría en la tabla y no en el archivo.
+ */
+export function normalizarStockOrden(valor: string | null | undefined): StockOrden {
+  return valor === "vencimiento" || valor === "proveedor" ? valor : "producto";
+}
 
 export type StockLoteRow = {
   id: string;
@@ -100,7 +111,7 @@ async function resolverProductosConStock(
   supabase: ReturnType<typeof createClient>,
   opciones: { busqueda?: string; orden?: StockOrden },
 ): Promise<{ ordenados: ProductoConStock[]; conStock: Map<string, Nivel> }> {
-  const orden: StockOrden = opciones.orden === "vencimiento" ? "vencimiento" : "producto";
+  const orden = normalizarStockOrden(opciones.orden);
   const termino = (opciones.busqueda ?? "").trim();
 
   const { data: niveles, error: errorNiveles } = await supabase
@@ -120,9 +131,27 @@ async function resolverProductosConStock(
     .limit(TOPE_POSTGREST);
 
   if (termino !== "") {
-    queryProductos = queryProductos.or(
-      `codigo_interno.ilike.%${termino}%,descripcion.ilike.%${termino}%`,
-    );
+    // La búsqueda también encuentra por PROVEEDOR, que es como se filtra
+    // "mostrame lo de Diphasac". El nombre vive en `suppliers`, no en
+    // `products`, y PostgREST no filtra una tabla por una columna de la
+    // embebida: se resuelven primero los proveedores que coinciden y se
+    // suman sus ids al mismo `or`, en vez de traer el catálogo entero y
+    // filtrarlo acá (eso lo dejaría a merced del tope de 1.000 filas).
+    const { data: proveedores, error: errorProveedores } = await supabase
+      .from("suppliers")
+      .select("id")
+      .ilike("nombre", `%${termino}%`)
+      .limit(TOPE_POSTGREST);
+    if (errorProveedores) throw new Error(errorProveedores.message);
+
+    const idsProveedor = ((proveedores ?? []) as unknown as Array<{ id: string }>).map((p) => p.id);
+    const condiciones = [
+      `codigo_interno.ilike.%${termino}%`,
+      `descripcion.ilike.%${termino}%`,
+    ];
+    if (idsProveedor.length > 0) condiciones.push(`supplier_id.in.(${idsProveedor.join(",")})`);
+
+    queryProductos = queryProductos.or(condiciones.join(","));
   }
 
   const { data: productos, error: errorProductos } = await queryProductos;
@@ -132,6 +161,21 @@ async function resolverProductosConStock(
     conStock.has(p.id),
   );
 
+  // El orden por proveedor deja juntos todos los productos de uno, que es
+  // como se mira el stock cuando la pregunta es "¿qué tengo de Diphasac?".
+  // Los que no tienen proveedor en el maestro van al final: son el hueco a
+  // completar, no el principio de la lista.
+  const ordenarPorProveedor = (a: ProductoConStock, b: ProductoConStock) => {
+    const pa = a.supplier?.nombre ?? "";
+    const pb = b.supplier?.nombre ?? "";
+    if (pa !== pb) {
+      if (pa === "") return 1;
+      if (pb === "") return -1;
+      return pa.localeCompare(pb, "es");
+    }
+    return a.descripcion.localeCompare(b.descripcion, "es");
+  };
+
   const ordenados =
     orden === "vencimiento"
       ? [...candidatos].sort((a, b) => {
@@ -139,7 +183,9 @@ async function resolverProductosConStock(
           const vb = conStock.get(b.id)?.vence_primero ?? "9999-12-31";
           return va === vb ? a.descripcion.localeCompare(b.descripcion, "es") : va < vb ? -1 : 1;
         })
-      : candidatos;
+      : orden === "proveedor"
+        ? [...candidatos].sort(ordenarPorProveedor)
+        : candidatos;
 
   return { ordenados, conStock };
 }
@@ -217,7 +263,7 @@ export async function listStockLotes(
 ): Promise<StockPage> {
   const supabase = createClient();
   const pagina = Math.max(1, Math.trunc(opciones.pagina ?? 1));
-  const orden: StockOrden = opciones.orden === "vencimiento" ? "vencimiento" : "producto";
+  const orden = normalizarStockOrden(opciones.orden);
 
   const { ordenados, conStock } = await resolverProductosConStock(supabase, opciones);
   if (ordenados.length === 0) {
