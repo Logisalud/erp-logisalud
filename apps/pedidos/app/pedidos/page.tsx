@@ -70,13 +70,25 @@ export default async function PedidosHomePage({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Link href="/pedidos/nuevo" className="card p-5 hover:shadow-md">
           <h3 className="font-semibold text-logisalud-green">Nuevo pedido</h3>
           <p className="mt-1 text-sm text-gray-600">
             {isAdmin
               ? "Elige a nombre de qué vendedor se registra."
               : "Arma un pedido para uno de tus clientes."}
+          </p>
+        </Link>
+        <Link href="/pedidos/dashboard" className="card p-5 hover:shadow-md border-l-4 border-l-logisalud-teal">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-logisalud-teal">Dashboard en Vivo</h3>
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-gray-600">
+            Monitoreo en tiempo real con mapa interactivo de despachos y pedidos (Móvil a TV).
           </p>
         </Link>
       </div>
