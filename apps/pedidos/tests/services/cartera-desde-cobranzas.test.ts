@@ -88,7 +88,10 @@ vi.mock("@/services/audit-log", () => ({
   ultimaCorrida: async () => null,
 }));
 
-import { sincronizarCarteraDesdeCobranzas } from "@/services/cartera-desde-cobranzas";
+import {
+  crearResolutorDeUbigeos,
+  sincronizarCarteraDesdeCobranzas,
+} from "@/services/cartera-desde-cobranzas";
 
 let respuestaDeCobranzas: Array<Record<string, unknown>> = [];
 let vendedoresDeCobranzas: Array<Record<string, unknown>> = [];
@@ -482,5 +485,66 @@ describe("sincronizar la cartera desde cobranzas", () => {
 
     await expect(sincronizarCarteraDesdeCobranzas(null)).rejects.toThrow(/COBRANZAS_SUPABASE_URL/);
     expect(db.updates).toEqual([]);
+  });
+});
+
+/**
+ * Las dos bases escriben los mismos distritos distinto, y hasta el
+ * 2026-11-24 el que perdía era el cliente: el trío no coincidía al carácter
+ * y se guardaba vacío. Quedaron 109 clientes así después de completar los
+ * 1.878 que sí calzaban.
+ */
+describe("el resolutor de ubigeos", () => {
+  const catalogo = [
+    { departamento: "TACNA", provincia: "TACNA", distrito: "CORONEL GREGORIO ALBARRACIN L." },
+    { departamento: "LIMA", provincia: "LIMA", distrito: "SAN JUAN DE MIRAFLORES" },
+    { departamento: "CALLAO", provincia: "CALLAO", distrito: "MI PERU" },
+    { departamento: "AREQUIPA", provincia: "ISLAY", distrito: "COCACHACRA" },
+    { departamento: "AREQUIPA", provincia: "AREQUIPA", distrito: "AREQUIPA" },
+    { departamento: "PUNO", provincia: "SAN ROMAN", distrito: "JULIACA" },
+  ];
+  const resolver = crearResolutorDeUbigeos(catalogo);
+
+  it("el trío exacto pasa derecho", () => {
+    expect(resolver("AREQUIPA", "AREQUIPA", "AREQUIPA")).toMatchObject({ distrito: "AREQUIPA" });
+  });
+
+  it("acepta el nombre completo cuando el catálogo lo tiene abreviado", () => {
+    // Cobranzas escribe el nombre entero; el catálogo lo guarda cortado.
+    expect(resolver("TACNA", "TACNA", "CORONEL GREGORIO ALBARRACÍN LANCHIPA")).toMatchObject({
+      distrito: "CORONEL GREGORIO ALBARRACIN L.",
+    });
+  });
+
+  it("acepta el nombre cortado cuando el catálogo lo tiene completo", () => {
+    expect(resolver("LIMA", "LIMA", "SAN JUAN DE MIRAFLOR")).toMatchObject({
+      distrito: "SAN JUAN DE MIRAFLORES",
+    });
+    expect(resolver("CALLAO", "CALLAO", "MI")).toMatchObject({ distrito: "MI PERU" });
+  });
+
+  it("corrige la provincia cuando el distrito existe una sola vez en el departamento", () => {
+    // Cocachacra es de Islay, no de la provincia de Arequipa.
+    expect(resolver("AREQUIPA", "AREQUIPA", "COCACHACRA")).toMatchObject({
+      provincia: "ISLAY",
+      distrito: "COCACHACRA",
+    });
+  });
+
+  it("devuelve el trío CANÓNICO, no el que vino", () => {
+    const r = resolver("TACNA", "TACNA", "CORONEL GREGORIO ALBARRACIN LANCHIP");
+    expect(r).toEqual(catalogo[0]);
+  });
+
+  it("no adivina cuando los dos datos se contradicen", () => {
+    // Juliaca es de Puno: si el departamento dice CUSCO, elegir uno de los
+    // dos sería inventar. Queda sin ubigeo, que se ve y se corrige a mano.
+    expect(resolver("CUSCO", "SAN ROMAN", "JULIACA")).toBeNull();
+    expect(resolver("CALLAO", "CALLAO", "CHORRILLOS")).toBeNull();
+  });
+
+  it("un trío incompleto no se resuelve", () => {
+    expect(resolver("LIMA", "", "SAN JUAN DE MIRAFLORES")).toBeNull();
+    expect(resolver("", "", "")).toBeNull();
   });
 });
