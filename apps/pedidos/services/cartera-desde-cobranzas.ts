@@ -120,22 +120,37 @@ function clave(departamento: string, provincia: string, distrito: string): strin
   return `${normalizar(departamento)}|${normalizar(provincia)}|${normalizar(distrito)}`;
 }
 
-/** Los tríos válidos, tal como los conoce la guía de remisión. */
+/**
+ * Los tríos válidos, tal como los conoce la guía de remisión.
+ *
+ * Se pagina, y no es una precaución teórica: la tabla tiene 1.884 filas y
+ * PostgREST corta en 1.000. Ordenado por código INEI, lo que entraba en esas
+ * 1.000 iba de Amazonas a Ica, así que **Lima quedaba entera afuera** —sus
+ * 171 distritos empiezan recién en la fila 1.001—. Como el trío se valida
+ * contra este catálogo, a todo cliente de Lima, Junín y La Libertad se le
+ * descartaba el ubigeo y se guardaba vacío: 2.022 clientes sin
+ * departamento/provincia/distrito en la carga del 2026-11-20, aunque
+ * cobranzas sí los tenía. Un catálogo incompleto acá no falla: miente en
+ * silencio y borra datos buenos.
+ */
 async function catalogoDeUbigeos(): Promise<Set<string>> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("ubigeos")
-    .select("departamento, provincia, distrito");
-  if (error) throw new Error(error.message);
-
-  const validos = new Set<string>();
-  for (const u of (data ?? []) as Array<{
+  const filas = await leerTodo<{
     departamento: string;
     provincia: string;
     distrito: string;
-  }>) {
-    validos.add(clave(u.departamento, u.provincia, u.distrito));
-  }
+  }>((from, to) =>
+    admin
+      .from("ubigeos")
+      // `codigo_inei` es la clave de la tabla: orden único y estable, que es
+      // lo que `.range()` necesita para no repetir ni saltear filas.
+      .select("departamento, provincia, distrito")
+      .order("codigo_inei")
+      .range(from, to),
+  );
+
+  const validos = new Set<string>();
+  for (const u of filas) validos.add(clave(u.departamento, u.provincia, u.distrito));
   return validos;
 }
 

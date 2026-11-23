@@ -41,10 +41,23 @@ function tabla(nombre: string): any {
       }),
     };
   }
+  if (nombre === "ubigeos") {
+    // Paginado igual que en producción: `select().order().range()`. El stub
+    // corta por rango a propósito —si devolviera la tabla entera no se
+    // notaría un catálogo recortado, que es justo el bug que se cuida acá—.
+    return {
+      select: () => ({
+        order: () => ({
+          range: async (desde: number, hasta: number) => ({
+            data: db.ubigeos.slice(desde, hasta + 1),
+            error: null,
+          }),
+        }),
+      }),
+    };
+  }
   return {
     select: () => ({
-      // `ubigeos` se lee entero: `await select()`.
-      then: (res: (r: unknown) => unknown) => res({ data: db.ubigeos, error: null }),
       // `customers` se lee paginado: `select().order().range()`.
       order: () => ({
         range: async (desde: number, hasta: number) => ({
@@ -172,6 +185,45 @@ describe("sincronizar la cartera desde cobranzas", () => {
 
     expect(db.updates).toEqual([]);
     expect(r.direcciones).toBe(0);
+  });
+
+  it("lee el catálogo de ubigeos COMPLETO, más allá del tope de 1.000", async () => {
+    /**
+     * Pasó en producción el 2026-11-20: el catálogo se leía sin paginar,
+     * PostgREST cortaba en 1.000 de las 1.884 filas y, por código INEI,
+     * Lima entra recién en la 1.001. A todo cliente limeño se le descartó
+     * el ubigeo y se guardó vacío: 2.022 clientes sin distrito, con el dato
+     * bueno ahí al lado en cobranzas.
+     */
+    db.ubigeos = Array.from({ length: 1200 }, (_, i) => ({
+      departamento: "RELLENO",
+      provincia: "RELLENO",
+      distrito: `DISTRITO ${i}`,
+    }));
+    // El que hace falta vive DESPUÉS del tope.
+    db.ubigeos[1100] = { departamento: "LIMA", provincia: "LIMA", distrito: "SANTA ANITA" };
+
+    respuestaDeCobranzas = [
+      {
+        ruc: "20600000001",
+        razon_social: "BOTICA SAN GABRIEL",
+        direccion: "AV. SANTA ANA S/N",
+        departamento: "LIMA",
+        provincia: "LIMA",
+        distrito: "SANTA ANITA",
+        codigo_zona: "LIMH08",
+        vendedor_actual_id: "vc-1",
+      },
+    ];
+
+    const r = await sincronizarCarteraDesdeCobranzas("cron");
+
+    expect(r.creados).toBe(1);
+    expect(db.insertados[0]).toMatchObject({
+      departamento: "LIMA",
+      provincia: "LIMA",
+      distrito: "SANTA ANITA",
+    });
   });
 
   it("rechaza un ubigeo que no existe en el catálogo y lo cuenta aparte", async () => {
