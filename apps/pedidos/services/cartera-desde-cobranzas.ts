@@ -133,13 +133,99 @@ function clave(departamento: string, provincia: string, distrito: string): strin
  * cobranzas sí los tenía. Un catálogo incompleto acá no falla: miente en
  * silencio y borra datos buenos.
  */
-async function catalogoDeUbigeos(): Promise<Set<string>> {
+export type Ubigeo = { departamento: string; provincia: string; distrito: string };
+
+/**
+ * Resuelve un trío de cobranzas contra el catálogo y devuelve el trío
+ * CANÓNICO, o null si no hay forma de ubicarlo.
+ *
+ * No alcanza con comparar el trío tal cual, porque las dos bases escriben
+ * los mismos distritos distinto y el que pierde es el cliente, que se queda
+ * sin ubigeo. Los tres casos que aparecieron en producción, en orden:
+ *
+ *  1. **Exacto.** Lo normal.
+ *  2. **Nombre abreviado o cortado.** El catálogo guarda
+ *     `CORONEL GREGORIO ALBARRACIN L.` y `ANDRES AVELINO CACERES D.`,
+ *     mientras cobranzas los escribe completos; y al revés, cobranzas trae
+ *     `SAN JUAN DE MIRAFLOR` y `MI` por nombres cortados al cargarlos. Si
+ *     uno de los dos nombres es el principio del otro, dentro del mismo
+ *     departamento y provincia, es el mismo distrito.
+ *  3. **Provincia equivocada.** `AREQUIPA/AREQUIPA/COCACHACRA` (Cocachacra
+ *     es de Islay) o `LIMA/LIMA/SAN VICENTE DE CAÑETE`. Si el distrito
+ *     existe UNA sola vez en ese departamento, se toma esa provincia: el
+ *     distrito es el dato fino y la provincia se deduce, nunca al revés.
+ *
+ * Lo que NO se adivina: un distrito que no existe en ese departamento
+ * (`CUSCO/SAN ROMAN/JULIACA`, `CALLAO/CALLAO/CHORRILLOS`). Ahí los dos
+ * datos se contradicen y elegir uno sería inventar; se devuelve null y el
+ * cliente queda sin ubigeo, que es visible y se puede corregir a mano.
+ */
+export function crearResolutorDeUbigeos(filas: Ubigeo[]) {
+  const porTrio = new Map<string, Ubigeo>();
+  const porDepartamentoYDistrito = new Map<string, Ubigeo[]>();
+  const porDepartamentoYProvincia = new Map<string, Ubigeo[]>();
+
+  for (const u of filas) {
+    porTrio.set(clave(u.departamento, u.provincia, u.distrito), u);
+
+    const kd = `${normalizar(u.departamento)}|${normalizar(u.distrito)}`;
+    const listaD = porDepartamentoYDistrito.get(kd);
+    if (listaD) listaD.push(u);
+    else porDepartamentoYDistrito.set(kd, [u]);
+
+    const kp = `${normalizar(u.departamento)}|${normalizar(u.provincia)}`;
+    const listaP = porDepartamentoYProvincia.get(kp);
+    if (listaP) listaP.push(u);
+    else porDepartamentoYProvincia.set(kp, [u]);
+  }
+
+  return function resolver(
+    departamento: string,
+    provincia: string,
+    distrito: string,
+  ): Ubigeo | null {
+    if (!departamento.trim() || !provincia.trim() || !distrito.trim()) return null;
+
+    const exacto = porTrio.get(clave(departamento, provincia, distrito));
+    if (exacto) return exacto;
+
+    // Se comparan sin espacios ni puntuación: `MI PERU` contra `MI` no
+    // empieza igual si el espacio cuenta, y la abreviatura del catálogo
+    // termina en punto (`CORONEL GREGORIO ALBARRACIN L.`), que cortaría la
+    // comparación justo antes de servir. Los dos casos son reales.
+    const soloLetras = (v: string) => normalizar(v).replace(/[^A-Z0-9]/g, "");
+    const buscado = soloLetras(distrito);
+    const mismaProvincia =
+      porDepartamentoYProvincia.get(`${normalizar(departamento)}|${normalizar(provincia)}`) ?? [];
+    for (const u of mismaProvincia) {
+      const candidato = soloLetras(u.distrito);
+      if (candidato.startsWith(buscado) || buscado.startsWith(candidato)) return u;
+    }
+
+    const enElDepartamento =
+      porDepartamentoYDistrito.get(`${normalizar(departamento)}|${normalizar(distrito)}`) ?? [];
+    if (enElDepartamento.length === 1) return enElDepartamento[0];
+
+    return null;
+  };
+}
+
+/**
+ * Los tríos válidos, tal como los conoce la guía de remisión.
+ *
+ * Se pagina, y no es una precaución teórica: la tabla tiene 1.884 filas y
+ * PostgREST corta en 1.000. Ordenado por código INEI, lo que entraba en esas
+ * 1.000 iba de Amazonas a Ica, así que **Lima quedaba entera afuera** —sus
+ * 171 distritos empiezan recién en la fila 1.001—. Como el trío se valida
+ * contra este catálogo, a todo cliente de Lima, Junín y La Libertad se le
+ * descartaba el ubigeo y se guardaba vacío: 2.022 clientes sin
+ * departamento/provincia/distrito en la carga del 2026-11-20, aunque
+ * cobranzas sí los tenía. Un catálogo incompleto acá no falla: miente en
+ * silencio y borra datos buenos.
+ */
+async function catalogoDeUbigeos(): Promise<ReturnType<typeof crearResolutorDeUbigeos>> {
   const admin = createAdminClient();
-  const filas = await leerTodo<{
-    departamento: string;
-    provincia: string;
-    distrito: string;
-  }>((from, to) =>
+  const filas = await leerTodo<Ubigeo>((from, to) =>
     admin
       .from("ubigeos")
       // `codigo_inei` es la clave de la tabla: orden único y estable, que es
@@ -149,9 +235,7 @@ async function catalogoDeUbigeos(): Promise<Set<string>> {
       .range(from, to),
   );
 
-  const validos = new Set<string>();
-  for (const u of filas) validos.add(clave(u.departamento, u.provincia, u.distrito));
-  return validos;
+  return crearResolutorDeUbigeos(filas);
 }
 
 /** Las tablas de pedidos que hacen falta para ubicar a un cliente nuevo. */
@@ -273,10 +357,13 @@ export async function sincronizarCarteraDesdeCobranzas(
     const faltaAlguno = vacio(p.departamento) || vacio(p.provincia) || vacio(p.distrito);
 
     if (faltaAlguno && departamento && provincia && distrito) {
-      if (ubigeos.has(clave(departamento, provincia, distrito))) {
-        if (vacio(p.departamento)) parche.departamento = departamento;
-        if (vacio(p.provincia)) parche.provincia = provincia;
-        if (vacio(p.distrito)) parche.distrito = distrito;
+      // Se guarda el trío CANÓNICO, no el que venía: si el distrito entró
+      // por nombre cortado, lo que queda escrito es el nombre del catálogo.
+      const resuelto = ubigeos(departamento, provincia, distrito);
+      if (resuelto) {
+        if (vacio(p.departamento)) parche.departamento = resuelto.departamento;
+        if (vacio(p.provincia)) parche.provincia = resuelto.provincia;
+        if (vacio(p.distrito)) parche.distrito = resuelto.distrito;
       } else {
         ubigeosDesconocidos += 1;
       }
@@ -339,19 +426,15 @@ export async function sincronizarCarteraDesdeCobranzas(
     const departamento = (c.departamento ?? "").trim();
     const provincia = (c.provincia ?? "").trim();
     const distrito = (c.distrito ?? "").trim();
-    const ubigeoValido =
-      departamento !== "" &&
-      provincia !== "" &&
-      distrito !== "" &&
-      ubigeos.has(clave(departamento, provincia, distrito));
+    const ubigeo = ubigeos(departamento, provincia, distrito);
 
     nuevos.push({
       ruc_o_documento: ruc,
       razon_social: (c.razon_social ?? "").trim() || ruc,
       direccion_fiscal: limpiarDireccion(c.direccion),
-      departamento: ubigeoValido ? departamento : null,
-      provincia: ubigeoValido ? provincia : null,
-      distrito: ubigeoValido ? distrito : null,
+      departamento: ubigeo?.departamento ?? null,
+      provincia: ubigeo?.provincia ?? null,
+      distrito: ubigeo?.distrito ?? null,
       canal_id: catalogos.canalPorDefectoId,
       zona_id: zonaId,
       vendedor_id: vendedorId,
