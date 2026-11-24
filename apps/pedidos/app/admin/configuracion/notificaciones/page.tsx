@@ -28,7 +28,9 @@ export default async function NotificacionesPage() {
         <h2 className="text-xl font-semibold">Notificaciones de pedidos</h2>
         <p className="mt-1 text-sm text-gray-600">
           Cada vez que un vendedor envía un pedido, se manda un correo con el detalle a todos los
-          destinatarios activos de esta lista. Si el correo falla, el pedido igual queda enviado.
+          destinatarios activos de esta lista, más el vendedor del pedido. Si el correo falla, el
+          pedido igual queda enviado. &ldquo;Enviado&rdquo; significa que el proveedor lo aceptó; si
+          después rebota, el aviso aparece debajo del envío.
         </p>
       </div>
 
@@ -73,6 +75,19 @@ export default async function NotificacionesPage() {
                       ? log.destinatarios.join(", ")
                       : "Sin destinatarios configurados, correo no enviado."}
                   </p>
+                  {/*
+                    "Enviado" dice que Resend aceptó el correo, no que haya
+                    llegado. Un rebote se avisa acá: pasó dos meses sin que
+                    nadie lo viera con la vendedora SUSANA RAMOS, cuyo buzón
+                    había quedado en la lista de supresión de Resend.
+                  */}
+                  {log.rebotados.length > 0 && (
+                    <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+                      <span aria-hidden>⚠</span> No llegó a:{" "}
+                      <span className="font-semibold">{log.rebotados.join(", ")}</span>. Revisá la
+                      lista de supresión en Resend y que el buzón exista.
+                    </p>
+                  )}
                   {log.error_mensaje && (
                     <p className="mt-1 break-words text-xs text-red-700">{log.error_mensaje}</p>
                   )}

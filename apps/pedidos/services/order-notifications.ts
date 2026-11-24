@@ -121,6 +121,12 @@ export type NotificationLogEntry = {
   order_id: string | null;
   estado: "enviado" | "fallido" | "sin_destinatarios";
   destinatarios: string[];
+  /**
+   * A quiénes NO les llegó, según lo que contó el proveedor después del
+   * envío (webhook de rebotes). Vacío mientras no haya novedades: un
+   * correo aceptado y sin rebote es lo normal.
+   */
+  rebotados: string[];
   proveedor: string | null;
   error_mensaje: string | null;
   created_at: string;
@@ -130,7 +136,7 @@ export async function listNotificationLogs(limit = 30): Promise<NotificationLogE
   const supabase = createClient();
   const { data, error } = await supabase
     .from("notification_logs")
-    .select("id, order_id, estado, destinatarios, proveedor, error_mensaje, created_at")
+    .select("id, order_id, estado, destinatarios, rebotados, proveedor, error_mensaje, created_at")
     .order("created_at", { ascending: false })
     .limit(limit);
 
