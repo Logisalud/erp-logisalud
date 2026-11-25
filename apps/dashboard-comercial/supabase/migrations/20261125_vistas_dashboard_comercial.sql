@@ -70,3 +70,29 @@ where exists (
   where d.cliente_ruc = c.ruc and not d.anulado
     and d.fecha_emision >= (current_date - interval '18 months')::date
 );
+
+-- ── Quién puede leerlas ────────────────────────────────────────────────
+--
+-- Supabase da `select` a `anon` y `authenticated` por defecto sobre todo
+-- lo que se crea en `public`. Para una vista eso no es un detalle: una
+-- vista corre con los permisos de su dueño (postgres) salvo que se diga
+-- lo contrario, así que **ignora el RLS de las tablas de abajo**. Con el
+-- default, cualquiera con la clave anon —que viaja en el JavaScript del
+-- ERP, es pública por diseño— podía leer la cartera entera por PostgREST.
+--
+-- Dos candados, no uno:
+--  · se le saca el permiso a anon y authenticated: solo lee la service
+--    role key, desde el servidor, después de pasar por `exigirArea`;
+--  · `security_invoker = on`, para que si alguna vez vuelve el grant por
+--    default, el RLS de `documentos` y `v_saldos` siga aplicando.
+revoke all on
+  public.v_dash_venta_mensual,
+  public.v_dash_cartera_vendedor,
+  public.v_dash_cobranza_kpi,
+  public.v_dash_cartera_actual
+from anon, authenticated;
+
+alter view public.v_dash_venta_mensual    set (security_invoker = on);
+alter view public.v_dash_cartera_vendedor set (security_invoker = on);
+alter view public.v_dash_cobranza_kpi     set (security_invoker = on);
+alter view public.v_dash_cartera_actual   set (security_invoker = on);
