@@ -6,14 +6,17 @@
 <title>Dashboard Comercial — LOGISALUD</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Poppins:wght@400;500;600&display=swap">
 <style>
 /* ── Los tokens que el runtime de Claude ponía solo ────────────────────
    La página viene del artifact y pide estas variables por nombre. Acá no
    hay runtime que las defina, así que se definen igual: mismos nombres,
    mismos valores, y con tema oscuro cuando el sistema lo pide. */
 :root{
-  --font-anthropic-sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+  /* Poppins es la voz del ERP (cobranzas, compras, el login). El tablero
+     ahora vive adentro, así que usa la misma. Lora queda para los números
+     grandes y los títulos, que es lo que le daba carácter al original. */
+  --font-anthropic-sans:'Poppins',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
   --font-anthropic-serif:'Lora',ui-serif,Georgia,'Times New Roman',serif;
 
   --color-bg:#faf9f7;
