@@ -44,6 +44,17 @@ export async function PATCH(
   return NextResponse.json({ pago: data });
 }
 
+/**
+ * Borrar un pago: admin y tesorería (ver AREAS_BORRADO).
+ *
+ * Antes de borrar se guarda la fila entera en `pagos_eliminados`. Esa era
+ * la objeción que mantuvo el borrado cerrado desde ago-2026 —"borrarlo lo
+ * saca del historial"— y se resuelve acá: el pago deja de contar para el
+ * saldo, pero no desaparece.
+ *
+ * Si el respaldo falla, NO se borra. Un pago borrado sin rastro es
+ * exactamente lo que este cambio vino a evitar.
+ */
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -52,6 +63,29 @@ export async function DELETE(
   if (!auth.ok) return auth.respuesta;
 
   const db = supabaseAdmin();
+
+  const { data: pago, error: errorLectura } = await db
+    .from('pagos')
+    .select('*')
+    .eq('id', params.id)
+    .maybeSingle();
+  if (errorLectura) return NextResponse.json({ error: errorLectura.message }, { status: 500 });
+  if (!pago) return NextResponse.json({ error: 'No se encontró el pago' }, { status: 404 });
+
+  const { error: errorRespaldo } = await db.from('pagos_eliminados').insert({
+    pago_id: pago.id,
+    documento_id: pago.documento_id,
+    monto: pago.monto,
+    fecha_pago: pago.fecha_pago,
+    pago,
+    eliminado_por: auth.perfil.nombre ?? null,
+  });
+  if (errorRespaldo)
+    return NextResponse.json(
+      { error: `No se pudo guardar el respaldo del pago, así que no se borró: ${errorRespaldo.message}` },
+      { status: 500 }
+    );
+
   const { error } = await db.from('pagos').delete().eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

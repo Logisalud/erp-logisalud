@@ -15,9 +15,8 @@
  * - IMPORTACION es más chica todavía — un importador reescribe cientos de
  *   filas de documentos o de cartera de una sola vez; tesorería registra
  *   pagos uno por uno, no hace cargas masivas.
- * - BORRADO es solo admin (decisión explícita del usuario, ago-2026):
- *   contabilidad y tesorería crean y editan, pero no borran. Un pago mal
- *   cargado se corrige con PATCH; borrarlo lo saca del historial.
+ * - BORRADO era solo admin (ago-2026) y desde nov-2026 incluye tesorería:
+ *   ver el comentario de la constante.
  */
 
 export const AREAS_LECTURA = ['contabilidad', 'tesoreria', 'gerencia'] as const
@@ -26,8 +25,27 @@ export const AREAS_ESCRITURA = ['contabilidad', 'tesoreria'] as const
 
 export const AREAS_IMPORTACION = ['contabilidad'] as const
 
-/** Solo admin. La lista vacía + el pase de admin en exigirArea() lo logran. */
-export const AREAS_BORRADO = [] as const
+/**
+ * Borrar: admin y tesorería (nov-2026).
+ *
+ * Cubre borrar un PAGO o una LETRA y anular un canje o un ingreso de
+ * factoring. Las cuatro cosas le devuelven saldo pendiente a una factura —
+ * el ingreso de factoring, a varias de una vez.
+ *
+ * Hasta ago-2026 era solo admin, con un argumento bueno: "un pago mal
+ * cargado se corrige con PATCH; borrarlo lo saca del historial". Lo que
+ * cambió no es el argumento sino quién hace el trabajo: tesorería carga los
+ * pagos, los canjes y los ingresos todo el día, así que es quien produce
+ * los duplicados y quien los detecta. Tenerlos que pedir por WhatsApp a un
+ * admin convierte un error de tipeo en un trámite, y mientras tanto la
+ * factura figura pagada de más. Decisión explícita del usuario
+ * (2026-11-25), tomada sabiendo que esto incluye letras y factoring.
+ *
+ * La objeción del historial se resolvió donde más dolía: borrar un pago
+ * deja la fila completa en `public.pagos_eliminados`, con quién lo borró y
+ * cuándo. Lo que NO se amplió es `AREAS_INCOBRABLE`, que sigue en admin.
+ */
+export const AREAS_BORRADO = ['tesoreria'] as const
 
 /**
  * Asignación de cartera y links de vendedor (grupo F).
