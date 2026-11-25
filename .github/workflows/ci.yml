@@ -76,6 +76,25 @@ jobs:
 
       - run: npm run build --workspace erp-logisalud-compras
 
+  dashboard:
+    name: apps/dashboard-comercial — build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Sin lint ni test: la app es una ruta de datos y una página HTML
+      # suelta, y no tiene configuración de ESLint (`next lint` arrancaría
+      # el asistente interactivo). El build corre el type-check completo,
+      # que es lo que hay que proteger acá.
+      - run: npm run build --workspace erp-logisalud-dashboard
+
   wms:
     name: apps/wms — dominio, base de datos, build y E2E
     runs-on: ubuntu-latest
