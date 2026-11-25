@@ -18,6 +18,8 @@
  * - BORRADO es solo admin (decisión explícita del usuario, ago-2026):
  *   contabilidad y tesorería crean y editan, pero no borran. Un pago mal
  *   cargado se corrige con PATCH; borrarlo lo saca del historial.
+ * - BORRADO_PAGOS es la única excepción a lo anterior, y se abrió a
+ *   tesorería en nov-2026: ver el comentario de la constante.
  */
 
 export const AREAS_LECTURA = ['contabilidad', 'tesoreria', 'gerencia'] as const
@@ -28,6 +30,26 @@ export const AREAS_IMPORTACION = ['contabilidad'] as const
 
 /** Solo admin. La lista vacía + el pase de admin en exigirArea() lo logran. */
 export const AREAS_BORRADO = [] as const
+
+/**
+ * Borrar un PAGO: admin y tesorería (nov-2026).
+ *
+ * Tesorería es quien carga los pagos todo el día, así que es quien produce
+ * los duplicados —el mismo voucher entrado dos veces— y quien los detecta.
+ * Tenerlos que pedir por WhatsApp a un admin para que los borre convierte
+ * un error de tipeo en un trámite, y mientras tanto la factura figura
+ * pagada de más.
+ *
+ * Es una lista aparte y no `tesoreria` dentro de `AREAS_BORRADO` a
+ * propósito: esa lista también cubre borrar una LETRA y anular un canje o
+ * un ingreso de factoring, que le devuelven saldo pendiente a varias
+ * facturas de una vez. Eso sigue siendo solo de admin.
+ *
+ * La razón por la que el borrado estaba cerrado —"borrarlo lo saca del
+ * historial"— se resolvió antes de abrirlo: cada eliminación deja la fila
+ * completa en `public.pagos_eliminados`, con quién la borró y cuándo.
+ */
+export const AREAS_BORRADO_PAGOS = ['tesoreria'] as const
 
 /**
  * Asignación de cartera y links de vendedor (grupo F).
