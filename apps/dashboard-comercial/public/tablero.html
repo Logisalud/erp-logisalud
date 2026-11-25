@@ -1,686 +1,412 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es-PE">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard Comercial — LOGISALUD</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Poppins:wght@400;500;600&display=swap">
-<style>
-/* ── Los tokens que el runtime de Claude ponía solo ────────────────────
-   La página viene del artifact y pide estas variables por nombre. Acá no
-   hay runtime que las defina, así que se definen igual: mismos nombres,
-   mismos valores, y con tema oscuro cuando el sistema lo pide. */
-:root{
-  /* Poppins es la voz del ERP (cobranzas, compras, el login). El tablero
-     ahora vive adentro, así que usa la misma. Lora queda para los números
-     grandes y los títulos, que es lo que le daba carácter al original. */
-  --font-anthropic-sans:'Poppins',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
-  --font-anthropic-serif:'Lora',ui-serif,Georgia,'Times New Roman',serif;
-
-  --color-bg:#faf9f7;
-  --color-panel:#ffffff;
-  --color-fg:#1f1e1c;
-  --color-fg-muted:#6b6862;
-  --color-border-line:#e5e2dc;
-  --color-ok:#1a7f5a;
-  --color-bad:#b3391f;
-
-  --cds-border:#e5e2dc;
-  --cds-surface-popover:#ffffff;
-  --cds-shadow-popover:0 6px 24px rgba(31,30,28,.14);
-  --cds-text-secondary:#6b6862;
-  --cds-chart-grid:#ece9e3;
-  --cds-chart-axis:#c9c5bd;
-  --cds-chart-status-critical:#b3391f;
-
-  --cds-radius:8px;
-  --cds-gap-xs:4px;
-  --cds-gap-sm:8px;
-  --cds-gap-md:16px;
-  --cds-gap-lg:24px;
-  --cds-gap-xl:36px;
-  --cds-pad-xs:6px;
-  --cds-pad-sm:10px;
-  --cds-pad-lg:16px;
-
-  --cds-font-size-caption:12.5px;
-  --cds-font-size-body:15px;
-  --cds-font-size-heading:19px;
-  --cds-font-size-title:30px;
-  --cds-font-weight-medium:600;
-}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --color-bg:#191817;
-    --color-panel:#22211f;
-    --color-fg:#f2f0ec;
-    --color-fg-muted:#a09c94;
-    --color-border-line:#34322e;
-    --color-ok:#52b98d;
-    --color-bad:#e8795c;
-    --cds-border:#34322e;
-    --cds-surface-popover:#2a2825;
-    --cds-shadow-popover:0 6px 24px rgba(0,0,0,.5);
-    --cds-text-secondary:#a09c94;
-    --cds-chart-grid:#2d2b28;
-    --cds-chart-axis:#4a4741;
-    --cds-chart-status-critical:#e8795c;
-  }
-}
-:root[data-theme="dark"]{
-  --color-bg:#191817;--color-panel:#22211f;--color-fg:#f2f0ec;--color-fg-muted:#a09c94;
-  --color-border-line:#34322e;--color-ok:#52b98d;--color-bad:#e8795c;
-  --cds-border:#34322e;--cds-surface-popover:#2a2825;--cds-shadow-popover:0 6px 24px rgba(0,0,0,.5);
-  --cds-text-secondary:#a09c94;--cds-chart-grid:#2d2b28;--cds-chart-axis:#4a4741;
-  --cds-chart-status-critical:#e8795c;
-}
-
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--color-bg)}
-body{padding:var(--cds-gap-lg) 16px 64px}
-.lg{max-width:1280px;margin:0 auto}
-
-/* Clases que el runtime traía puestas y la página usa. */
-.dash-skeleton{color:transparent!important;background:linear-gradient(90deg,var(--color-border-line) 25%,var(--color-panel) 50%,var(--color-border-line) 75%);background-size:200% 100%;animation:dash-brillo 1.4s linear infinite;border-radius:4px;min-height:1em}
-@keyframes dash-brillo{to{background-position:-200% 0}}
-@media (prefers-reduced-motion:reduce){.dash-skeleton{animation:none}}
-.dash-select{font:inherit;font-size:var(--cds-font-size-caption);padding:6px 10px;border:1px solid var(--color-border-line);border-radius:var(--cds-radius);background:var(--color-panel);color:var(--color-fg)}
-
-/* Barra de estado: de dónde salen los datos y cuándo se leyeron. */
-.lg-barra{display:flex;gap:var(--cds-gap-sm);align-items:center;flex-wrap:wrap;font-family:var(--font-anthropic-sans);font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);margin:0 0 var(--cds-gap-md)}
-.lg-barra button{font:inherit;cursor:pointer;padding:4px 10px;border:1px solid var(--color-border-line);border-radius:var(--cds-radius);background:var(--color-panel);color:var(--color-fg)}
-.lg-barra .malo{color:var(--color-bad)}
-</style>
-<!-- d3 7.9.0, servido por la propia app: el tablero no depende de que un CDN
-     esté arriba, ni filtra a un tercero quién lo mira. -->
+<meta name="robots" content="noindex, nofollow">
+<title>Dashboard Comercial · Logisalud</title>
 <script src="/d3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#12302b;--ink2:#3d5a54;--muted:#6b807b;--bg:#eef4f2;--surface:#fff;--soft:#f6faf9;--line:#dbe7e3;
+  --brand:#0f766e;--brand2:#14b8a6;--brandsoft:#ddf3ef;--coral:#e4683f;--coralsoft:#fde9e1;
+  --ok:#15803d;--oksoft:#dcfce7;--warn:#b45309;--warnsoft:#fef3c7;--bad:#c0362c;--badsoft:#fde2df;
+  --gold:#b7860b;--goldsoft:#fdf3d1;--silver:#5b6b82;--silversoft:#e9eef5;--bronze:#a4572a;--bronzesoft:#f8e6d9;
+  --r:16px;--shadow:0 1px 2px rgba(18,48,43,.05),0 6px 20px rgba(18,48,43,.06)}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:"Plus Jakarta Sans",system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+.top{background:linear-gradient(120deg,#0b4f49 0%,var(--brand) 60%,#139b8f 100%);color:#fff}
+.top .in{max-width:1280px;margin:0 auto;padding:22px 24px 70px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.brand{display:flex;gap:14px;align-items:center}
+.logo{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.16);display:grid;place-items:center;flex:none}
+h1{font-size:24px;font-weight:800;margin:0;letter-spacing:-.02em}
+.top .meta{font-size:13px;opacity:.85;margin-top:3px}
+.top .meta b{font-weight:600}
+.userbox{display:flex;align-items:center;gap:10px;font-size:13px}
+.avatar{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;font-weight:700;font-size:13px}
+.wrap{max-width:1280px;margin:-48px auto 0;padding:0 24px 60px}
+.take{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 20px;font-size:15px;line-height:1.55;margin:0 0 16px;display:flex;gap:12px;align-items:flex-start}
+.take::before{content:"";flex:none;width:6px;align-self:stretch;border-radius:3px;background:linear-gradient(var(--brand2),var(--brand))}
+nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 18px;position:sticky;top:0;z-index:5;padding:10px 0;background:var(--bg)}
+nav.tabs a{text-decoration:none;color:var(--ink2);font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
+nav.tabs a:hover{background:var(--brandsoft);color:var(--brand);border-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.kpi{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 18px 16px;position:relative;overflow:hidden}
+.kpi .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;margin-bottom:10px}
+.kpi .ic svg{width:19px;height:19px}
+.lab{font-size:12.5px;color:var(--muted);font-weight:500}
+.big{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:4px 0 6px;font-variant-numeric:tabular-nums}
+.chg{font-size:12.5px;color:var(--muted)}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-weight:700;font-size:12px}
+.badge.ok{background:var(--oksoft);color:var(--ok)} .badge.bad{background:var(--badsoft);color:var(--bad)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.muted{color:var(--muted)}
+section.panel{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:20px 20px 18px;margin-top:18px;scroll-margin-top:64px}
+.ph{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+h2{font-size:17px;font-weight:700;margin:0;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+h2 .dot{width:10px;height:10px;border-radius:3px;background:var(--brand)}
+.sub{color:var(--muted);font-size:12.5px;margin:4px 0 0;max-width:90ch;line-height:1.5}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink2)} .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.chart{position:relative;min-height:270px}
+.chart text{fill:var(--muted);font-size:11px;font-family:inherit}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;border-radius:10px;padding:7px 10px;font-size:12px;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.tw{overflow:auto;max-height:560px;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.8px;font-variant-numeric:tabular-nums}
+th{position:sticky;top:0;z-index:1;background:var(--soft);color:var(--ink2);text-align:left;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;padding:10px 10px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer}
+td{padding:9px 10px;border-bottom:1px solid #edf3f1;white-space:nowrap}
+tbody tr:hover td{background:#f4faf8}
+td.n,th.n{text-align:right} td.w{white-space:normal;min-width:230px;font-weight:500}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.ORO{background:var(--goldsoft);color:var(--gold)}.PLATA{background:var(--silversoft);color:var(--silver)}.BRONCE{background:var(--bronzesoft);color:var(--bronze)}
+.sc{display:inline-block;min-width:34px;text-align:center;padding:2px 6px;border-radius:7px;font-weight:700;font-size:12px}
+.s-hi{background:var(--oksoft);color:var(--ok)}.s-mid{background:var(--warnsoft);color:var(--warn)}.s-lo{background:var(--badsoft);color:var(--bad)}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+select,input{font:inherit;font-size:13px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
+select:focus,input:focus{outline:2px solid var(--brand2);outline-offset:1px}
+button{font:inherit;font-size:13px;font-weight:700;padding:9px 16px;border-radius:10px;border:0;background:var(--brand);color:#fff;cursor:pointer}
+button:hover{filter:brightness(1.08)}
+button:disabled{opacity:.6;cursor:not-allowed}
+button.ghost{background:rgba(255,255,255,.15);color:#fff}
+.bar{display:inline-block;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--brand2),var(--brand));vertical-align:middle}
+.cat{border-radius:var(--r);padding:18px;position:relative;overflow:hidden}
+.cat.ORO{background:linear-gradient(140deg,#fff8e1,#fbe9ad)} .cat.PLATA{background:linear-gradient(140deg,#f5f8fc,#dfe6f0)} .cat.BRONCE{background:linear-gradient(140deg,#fcf1e8,#f1d5c0)}
+.cat .medal{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;font-size:15px}
+.cat.ORO .medal{background:linear-gradient(140deg,#e5b625,#b7860b)}.cat.PLATA .medal{background:linear-gradient(140deg,#9aa8bc,#5b6b82)}.cat.BRONCE .medal{background:linear-gradient(140deg,#d38a56,#a4572a)}
+.cat .big{color:var(--ink);margin-top:10px}
+.cat .meter{height:8px;border-radius:4px;background:rgba(255,255,255,.7);margin:10px 0 8px;overflow:hidden}
+.cat .meter span{display:block;height:100%;border-radius:4px;background:currentColor}
+.cat .facts{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:12px;color:var(--ink2)}
+.movs{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.mv{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:13px}
+.mv b{font-size:18px;margin-right:4px}
+details{margin-top:18px;font-size:13px;line-height:1.55;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:14px 20px}
+details summary{cursor:pointer;font-weight:700} details li{margin-bottom:5px}
+.aviso{background:var(--warnsoft);color:var(--warn);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;margin:0 0 14px}
+.hidden{display:none!important}
+.loading{min-height:100vh;display:grid;place-items:center;color:var(--muted);font-weight:600}
+@media (max-width:600px){.top .in{padding-bottom:64px}.big{font-size:26px}section.panel{padding:16px 14px}}
+</style>
 </head>
 <body>
-<div class="lg">
-  <p class="lg-barra">
-    <span id="lg-estado">Cargando…</span>
-    <button type="button" id="lg-recargar">Actualizar</button>
-  </p>
-</div>
-<script>
-// ── El runtime del artifact, reimplementado acá ────────────────────────
-//
-// La página es la misma que corre en el artifact de Claude y habla con un
-// objeto `dash` que allá pone el runtime: `dash.data` para pedir un
-// conjunto, `dash.draw` para registrar y redibujar, `dash.calc` para
-// derivar. Reescribir la página para que leyera un JSON directo habría
-// sido reescribir sus 700 líneas y mantener dos versiones del mismo
-// tablero. Se reimplementa el contrato, que es chico, y la página queda
-// intacta.
-//
-// Una diferencia de fondo: allá cada navegador consulta Supabase con el
-// conector de quien mira; acá consulta `/api/datos`, que ya pasó por el
-// login y lee con la service role key. Por eso `dash.loader` no hace nada
-// —no hay texto del que extraer un arreglo, las filas vienen parseadas— y
-// se deja registrado solo para que la página no explote al llamarlo.
-window.dash = (function () {
-  const dibujos = new Map()   // id -> función que pinta
-  const calculos = new Map()  // id -> {inputs, fn}
-  const cache = new Map()     // id de cálculo -> resultado ya computado
-  const datos = new Map()     // id -> {status, data}
+<div id="app" class="hidden">
+<div class="top"><div class="in">
+  <div class="brand"><div class="logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+    <div><h1>Dashboard Comercial Logisalud</h1>
+    <div class="meta">Ventas directas LOGISSA · datos hasta <b id="actualizado">—</b> · 12 meses <span id="ventana">—</span></div></div></div>
+  <div class="userbox"><div class="avatar" id="avatar">·</div><span id="usuario"></span><button class="ghost" id="salir">Salir</button></div>
+</div></div>
+<div class="wrap">
+  <p class="aviso hidden" id="aviso"></p>
+  <p class="take" id="take">—</p>
+  <nav class="tabs"><a href="#resumen">Resumen</a><a href="#cobranzas">Cartera</a><a href="#lineas">Líneas</a><a href="#productos">Productos</a><a href="#categorias">Oro · Plata · Bronce</a><a href="#clientes">Clientes</a><a href="#reposicion">Reposición</a></nav>
 
-  const PENDIENTE = { status: 'pending' }
-
-  function data(id) {
-    if (calculos.has(id)) {
-      if (cache.has(id)) return cache.get(id)
-      const { inputs, fn } = calculos.get(id)
-      const partes = inputs.map(data)
-      const malo = partes.find((p) => p.status !== 'ok')
-      if (malo) return malo
-      let r
-      try {
-        r = { status: 'ok', data: fn(...partes.map((p) => p.data)) }
-      } catch (err) {
-        r = { status: 'error', error: String(err) }
-      }
-      cache.set(id, r)
-      return r
-    }
-    return datos.get(id) || PENDIENTE
-  }
-
-  function pintar(id) {
-    const fn = dibujos.get(id)
-    if (!fn) return
-    document.querySelectorAll(`[data-draw="${id}"]`).forEach((el) => {
-      // El esqueleto gris que marca "todavía no hay dato". Lo saca el
-      // runtime, no la página: varios dibujos pintan el número y confían
-      // en que alguien le quite la clase, que deja el texto transparente.
-      const fuente = el.dataset.source
-      if (fuente && data(fuente).status === 'ok') el.classList.remove('dash-skeleton')
-      try {
-        fn(el)
-      } catch (err) {
-        // Un dibujo que falla no se lleva al resto de la pantalla: el
-        // tablero tiene doce secciones y once pueden seguir sirviendo.
-        console.error('dash.draw', id, err)
-      }
-    })
-  }
-
-  return {
-    // Dos usos: con función registra y pinta; sin función, redibuja. La
-    // página usa el segundo para reaccionar a los filtros.
-    draw(id, fn) {
-      if (fn) dibujos.set(id, fn)
-      pintar(id)
-    },
-    data,
-    calc(id, def) {
-      calculos.set(id, def)
-      cache.delete(id)
-    },
-    loader() {},
-    colors: ['#6b8f71', '#c4895c', '#7a8db0', '#b07a9b', '#8c8577', '#5f9ea0'],
-
-    // Lo que usa el arranque, no la página.
-    _poner(id, filas) {
-      datos.set(id, { status: 'ok', data: filas })
-    },
-    _fallar(id, error) {
-      datos.set(id, { status: 'error', error })
-    },
-    _repintar() {
-      cache.clear()
-      dibujos.forEach((_, id) => pintar(id))
-    },
-  }
-})()
-</script>
-<style>
-.lg{font-family:var(--font-anthropic-sans);color:var(--color-fg)}
-.lg h1{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);margin:0 0 var(--cds-gap-xs)}
-.lg h2{font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium);margin:var(--cds-gap-xl) 0 var(--cds-gap-xs)}
-.lg .sub{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption);margin:0 0 var(--cds-gap-md)}
-.lg .take{font-size:var(--cds-font-size-body);margin:0 0 var(--cds-gap-lg);max-width:70ch}
-.lg .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--cds-gap-md)}
-.lg .card{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-lg)}
-.lg .lab{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
-.lg .big{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);font-variant-numeric:tabular-nums;margin:var(--cds-gap-xs) 0}
-.lg .chg{font-size:var(--cds-font-size-caption)}
-.lg .ok{color:var(--color-ok)} .lg .bad{color:var(--color-bad)} .lg .muted{color:var(--color-fg-muted)}
-.lg .chart{position:relative;min-height:260px}
-.lg .tip{position:absolute;pointer-events:none;background:var(--cds-surface-popover);border:1px solid var(--cds-border);box-shadow:var(--cds-shadow-popover);border-radius:var(--cds-radius);padding:var(--cds-pad-xs) var(--cds-pad-sm);font-size:var(--cds-font-size-caption);white-space:nowrap}
-.lg .chart text{fill:var(--cds-text-secondary);font-size:var(--cds-font-size-caption)}
-.lg .tw{overflow-x:auto;max-height:560px;overflow-y:auto;border:1px solid var(--color-border-line);border-radius:var(--cds-radius)}
-.lg table{border-collapse:collapse;width:100%;font-size:var(--cds-font-size-caption);font-variant-numeric:tabular-nums}
-.lg th{position:sticky;top:0;background:var(--color-panel);text-align:left;font-weight:var(--cds-font-weight-medium);padding:var(--cds-pad-xs) var(--cds-pad-sm);border-bottom:1px solid var(--color-border-line);white-space:nowrap}
-.lg td{padding:var(--cds-pad-xs) var(--cds-pad-sm);border-bottom:1px solid var(--color-border-line);white-space:nowrap}
-.lg td.n,.lg th.n{text-align:right}
-.lg td.w{white-space:normal;min-width:200px}
-.lg .pill{display:inline-block;padding:0 6px;border-radius:999px;font-size:11px;font-weight:var(--cds-font-weight-medium)}
-.lg .ORO{background:#d4a01733;color:#a77a00} .lg .PLATA{background:#8a94a633;color:#5c6678} .lg .BRONCE{background:#b8733333;color:#8f5220}
-.lg .ctl{display:flex;gap:var(--cds-gap-sm);flex-wrap:wrap;align-items:center;margin:0 0 var(--cds-gap-sm)}
-.lg input.q{font:inherit;font-size:var(--cds-font-size-caption);padding:6px 10px;border:1px solid var(--color-border-line);border-radius:var(--cds-radius);background:var(--color-bg);color:var(--color-fg);min-width:200px}
-.lg .bar{display:inline-block;height:6px;border-radius:3px;background:var(--color-fg-muted);opacity:.5;vertical-align:middle}
-.lg details{margin-top:var(--cds-gap-xl);font-size:var(--cds-font-size-caption)}
-.lg details li{margin-bottom:4px}
-</style>
-<div class="lg">
-  <h1 id="titulo">Dashboard Comercial Logisalud</h1>
-  <p class="sub">Ventas directas LOGISSA · facturas, boletas y notas de crédito no anuladas · corte <span data-draw="corte" data-source="kpi" data-field="corte" data-row="0">—</span></p>
-  <p class="take" data-draw="take">—</p>
-
-  <div class="grid" id="kpis">
-    <div class="card"><div class="lab">Venta neta · últimos 12 meses (oct 2025–set 2026)</div><div class="big dash-skeleton" data-draw="k_neta" data-source="kpi" data-field="venta_neta_12m" data-row="0"></div><div class="chg muted">Neto de notas de crédito, sin IGV</div></div>
-    <div class="card"><div class="lab">Venta neta · 3er trimestre 2026</div><div class="big dash-skeleton" data-draw="k_q3" data-source="kpi" data-field="q3" data-row="0"></div><div class="chg" data-draw="k_q3chg" data-source="crec_q3">—</div></div>
-    <div class="card"><div class="lab">Notas de crédito · 12 meses</div><div class="big dash-skeleton" data-draw="k_nc" data-source="kpi" data-field="nc_12m" data-row="0"></div><div class="chg muted"><span data-draw="k_ncpct" data-source="pct_nc">—</span> de la venta bruta</div></div>
-    <div class="card"><div class="lab">Clientes con compra · 12 meses</div><div class="big dash-skeleton" data-draw="k_cli" data-source="kpi" data-field="clientes_12m" data-row="0"></div><div class="chg muted">Ticket promedio por comprobante: <span data-draw="k_ticket" data-source="kpi" data-field="ticket" data-row="0">—</span></div></div>
+  <div class="grid" id="resumen">
+    <div class="kpi"><div class="ic" style="background:var(--brandsoft);color:var(--brand)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg></div><div class="lab">Venta neta · últimos 12 meses</div><div class="big" id="k_neta">—</div><div class="chg">Neto de notas de crédito, sin IGV</div></div>
+    <div class="kpi"><div class="ic" style="background:#e0ecff;color:#2554b0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div><div class="lab">Último trimestre cerrado</div><div class="big" id="k_q">—</div><div class="chg" id="k_qchg">—</div></div>
+    <div class="kpi"><div class="ic" style="background:var(--coralsoft);color:var(--coral)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 14l-4-4 4-4"/><path d="M5 10h10a5 5 0 010 10h-3"/></svg></div><div class="lab">Notas de crédito · 12 meses</div><div class="big" id="k_nc">—</div><div class="chg" id="k_ncpct">—</div></div>
+    <div class="kpi"><div class="ic" style="background:#efe6fb;color:#6d3fc0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 4.5a3.5 3.5 0 010 7M21.5 20a6.5 6.5 0 00-4-6"/></svg></div><div class="lab">Clientes con compra · 12 meses</div><div class="big" id="k_cli">—</div><div class="chg" id="k_ticket">—</div></div>
   </div>
 
+  <section class="panel">
+    <div class="ph"><div><h2><span class="dot"></span>Venta neta mensual</h2><p class="sub">El último mes puede estar incompleto. Pasa el cursor por una barra para ver el detalle.</p></div>
+    <div class="legend"><span><i style="background:var(--brand)"></i>Venta neta</span><span><i style="background:var(--coral);border-radius:50%"></i>Notas de crédito</span></div></div>
+    <div class="chart" id="ch_mes"></div>
+  </section>
 
-  <h2 id="envivo">En vivo desde el ERP de cobranzas</h2>
-  <p class="sub">Esta parte se consulta a la base de cobranzas cada vez que alguien abre el dashboard, así que no tiene fecha de corte. Los montos van <b>con IGV</b>, porque la base guarda el total del comprobante y no la base imponible por separado. El resto del dashboard va <b>sin IGV</b>, desde el Excel de ventas: por eso las dos cifras de venta no coinciden aunque sean las mismas facturas.</p>
+  <section class="panel" id="cobranzas">
+    <div class="ph"><div><h2><span class="dot" style="background:var(--coral)"></span>Cartera y cobranza · hoy</h2><p class="sub">Se lee del ERP de cobranzas cada vez que alguien abre el tablero, así que no tiene fecha de corte. Estos montos van <b>con IGV</b>, porque la base guarda el total del comprobante y no la base imponible por separado. El resto del tablero va <b>sin IGV</b>: por eso las dos cifras de venta no coinciden aunque sean las mismas facturas.</p></div></div>
+    <div class="grid">
+      <div class="kpi"><div class="ic" style="background:var(--brandsoft);color:var(--brand)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 10h19"/></svg></div><div class="lab">Cartera por cobrar</div><div class="big" id="c_cartera">—</div><div class="chg" id="c_clientes">—</div></div>
+      <div class="kpi"><div class="ic" style="background:var(--badsoft);color:var(--bad)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg></div><div class="lab">Vencido</div><div class="big" id="c_vencido">—</div><div class="chg" id="c_mora">—</div></div>
+      <div class="kpi"><div class="ic" style="background:#e0ecff;color:#2554b0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg></div><div class="lab">Venta neta · 12 meses cerrados (con IGV)</div><div class="big" id="c_neta12">—</div><div class="chg">Facturas y boletas menos notas de crédito</div></div>
+      <div class="kpi"><div class="ic" style="background:var(--warnsoft);color:var(--warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div><div class="lab">Venta neta · mes en curso (con IGV)</div><div class="big" id="c_mes">—</div><div class="chg" id="c_mes_lab">—</div></div>
+    </div>
+    <div class="ph" style="margin:22px 0 12px"><div><h2 style="font-size:15px"><span class="dot" style="background:var(--brand2)"></span>Cartera por vendedor</h2><p class="sub">Saldo pendiente y cuánto de eso ya está vencido, al momento de abrir esta página.</p></div></div>
+    <div class="tw"><table><thead><tr><th>Vendedor</th><th>Código</th><th class="n">Cartera</th><th class="n">Vencido</th><th class="n">% mora</th><th class="n">Docs. vencidos</th></tr></thead><tbody id="t_cartera"></tbody></table></div>
+  </section>
 
-  <div class="grid" id="kpis-vivo">
-    <div class="card"><div class="lab">Cartera por cobrar · hoy</div><div class="big dash-skeleton" data-draw="v_cartera" data-source="cobranza_kpi" data-field="cartera" data-row="0"></div><div class="chg muted"><span data-draw="v_clientes" data-source="cobranza_kpi" data-field="clientes_con_deuda" data-row="0">—</span> clientes con deuda</div></div>
-    <div class="card"><div class="lab">Vencido · hoy</div><div class="big dash-skeleton" data-draw="v_vencido" data-source="cobranza_kpi" data-field="vencido" data-row="0"></div><div class="chg bad"><span data-draw="v_mora" data-source="cobranza_kpi" data-field="pct_mora" data-row="0">—</span> de la cartera</div></div>
-    <div class="card"><div class="lab">Venta neta · 12 meses cerrados (con IGV)</div><div class="big dash-skeleton" data-draw="v_neta12" data-source="neta12"></div><div class="chg muted">Facturas y boletas menos notas de crédito</div></div>
-    <div class="card"><div class="lab">Venta neta · mes en curso (con IGV)</div><div class="big dash-skeleton" data-draw="v_mes" data-source="mes_actual" data-field="neta" data-row="0"></div><div class="chg muted">Mes incompleto: <span data-draw="v_mes_lab" data-source="mes_actual" data-field="mes" data-row="0">—</span></div></div>
-  </div>
+  <section class="panel" id="lineas">
+    <div class="ph"><div><h2><span class="dot"></span>Ranking de líneas · 12 meses</h2><p class="sub">Participación sobre la venta neta y comparación de los dos últimos trimestres cerrados.</p></div></div>
+    <div class="tw"><table><thead><tr><th>#</th><th>Línea</th><th class="n">Venta neta 12m</th><th class="n">Share</th><th></th><th class="n">Trim. anterior</th><th class="n">Último trim.</th><th class="n">Var.</th><th class="n">Clientes</th><th class="n">SKUs</th></tr></thead><tbody id="t_lineas"></tbody></table></div>
+  </section>
 
-  <h2 id="vivo-mensual">Venta mensual del ERP · con IGV</h2>
-  <p class="sub">Barras: venta neta del mes. Punto: notas de crédito del mes. El último mes va incompleto.</p>
-  <div class="chart" data-draw="ch_vivo" data-source="venta_mensual_erp"></div>
+  <section class="panel" id="productos">
+    <div class="ph"><div><h2><span class="dot"></span>Ranking de productos · 12 meses</h2><p class="sub">Reposición: mediana de días entre compras del mismo producto por un mismo cliente. Recompra: % de clientes que lo compraron más de una vez.</p></div>
+    <div class="ctl" style="margin:0"><select id="sel_linea" aria-label="Línea"></select><span class="muted" id="n_prod" style="font-size:12.5px"></span></div></div>
+    <div class="tw"><table><thead><tr><th class="n">#Total</th><th class="n">#Línea</th><th>Producto</th><th>Línea</th><th class="n">Venta neta</th><th class="n">Share total</th><th class="n">Share línea</th><th class="n">Unidades</th><th class="n">Clientes</th><th class="n">Reposición (días)</th><th class="n">Recompra</th></tr></thead><tbody id="t_prod"></tbody></table></div>
+  </section>
 
-  <h2 id="vivo-cartera">Cartera por vendedor · hoy</h2>
-  <p class="sub">Saldo pendiente y cuánto de eso ya está vencido, al momento de abrir esta página.</p>
-  <div class="tw">
-    <table data-source="cartera_vendedor" data-row-key="codigo">
-      <thead><tr><th data-field="vendedor">Vendedor</th><th data-field="codigo">Código</th><th class="n" data-field="saldo">Cartera</th><th class="n" data-field="vencido">Vencido</th><th class="n" data-field="pct_mora">% mora</th><th class="n" data-field="docs_vencidos">Docs. vencidos</th></tr></thead>
-      <tbody data-draw="t_cartera"></tbody>
-    </table>
-  </div>
+  <section class="panel" id="categorias">
+    <div class="ph"><div><h2><span class="dot" style="background:var(--gold)"></span>Clasificación de clientes</h2><p class="sub">Periodo <b id="periodo">—</b> (últimos 2 trimestres cerrados). Pesos: volumen 30%, pago 25%, frecuencia 15%, mix 15%, devoluciones 15%. Oro desde 70 puntos, plata de 50 a 69, bronce debajo de 50. No incluye las distribuidoras atendidas por Oficina Logissa.</p></div></div>
+    <div class="grid" id="cards_cat"></div>
+    <div class="movs" id="mov"></div>
+  </section>
 
-  <h2 id="tendencia">Venta neta mensual</h2>
-  <p class="sub">Barras: venta neta del mes. Punto rojo: notas de crédito del mes. Noviembre 2026 va hasta el día 24.</p>
-  <div class="chart" data-draw="ch_mes" data-source="mensual"></div>
+  <section class="panel" id="clientes">
+    <div class="ph"><div><h2><span class="dot"></span>Clientes</h2><p class="sub">Puntajes de 0 a 100 por criterio (verde 70+, ámbar 40–69, rojo menos de 40). Penetración: líneas compradas sobre las activas, aproximación al share of wallet. El vendedor es el que atiende al cliente <b>hoy</b> según el ERP de cobranzas; cuando cambió de manos, el de la ventana evaluada queda en «Antes». Clic en un encabezado para ordenar.</p></div></div>
+    <div class="ctl">
+      <select id="sel_cat" aria-label="Categoría"><option value="">Todas las categorías</option><option value="ORO">Oro</option><option value="PLATA">Plata</option><option value="BRONCE">Bronce</option></select>
+      <select id="sel_vend" aria-label="Vendedor"></select>
+      <input id="buscar" type="search" placeholder="Buscar cliente o RUC" aria-label="Buscar">
+      <span class="muted" id="n_cli" style="font-size:12.5px"></span>
+    </div>
+    <div class="tw"><table id="tabla_cli"><thead><tr>
+      <th data-k="razon">Cliente</th><th data-k="ruc">RUC</th><th data-k="vendedor">Vendedor</th><th data-k="vendedor_antes">Antes</th><th data-k="cat">Categoría</th><th data-k="cat_prev">Cat. anterior</th>
+      <th class="n" data-k="puntaje">Puntaje</th><th class="n" data-k="s_vol">Volumen</th><th class="n" data-k="s_pago">Pago</th><th class="n" data-k="s_frec">Frecuencia</th><th class="n" data-k="s_mix">Mix</th><th class="n" data-k="s_dev">Devol.</th>
+      <th class="n" data-k="venta">Venta neta</th><th class="n" data-k="pct_puntual">% pagado a tiempo</th><th class="n" data-k="atraso">Atraso pond. (días)</th><th class="n" data-k="tasa_dev">% devolución</th><th class="n" data-k="penetracion">Penetración</th>
+    </tr></thead><tbody id="t_cli"></tbody></table></div>
+  </section>
 
-  <h2 id="lineas">Ranking de líneas · 12 meses</h2>
-  <p class="sub">Participación sobre la venta neta total y comparación 2do vs 3er trimestre 2026.</p>
-  <div class="tw">
-    <table data-source="lineas" data-row-key="linea">
-      <thead><tr><th>#</th><th data-field="linea">Línea</th><th class="n" data-field="neta">Venta neta 12m</th><th class="n" data-field="share">Share</th><th></th><th class="n" data-field="q2">2T 2026</th><th class="n" data-field="q3">3T 2026</th><th class="n">Var.</th><th class="n" data-field="clientes">Clientes</th><th class="n" data-field="skus">SKUs</th></tr></thead>
-      <tbody data-draw="t_lineas"></tbody>
-    </table>
-  </div>
+  <section class="panel" id="reposicion">
+    <div class="ph"><div><h2><span class="dot" style="background:var(--coral)"></span>Alertas de reposición</h2><p class="sub">Clientes que llevan más de 1.5 veces su ciclo habitual sin comprar (y menos de 180 días), ordenados por venta. Es la lista de llamadas de la semana.</p></div></div>
+    <div class="tw"><table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Categoría</th><th class="n">Ciclo habitual (días)</th><th class="n">Días sin comprar</th><th class="n">Venta neta</th></tr></thead><tbody id="t_alert"></tbody></table></div>
+  </section>
 
-  <h2 id="productos">Ranking de productos · 12 meses</h2>
-  <p class="sub">Reposición: mediana de días entre compras del mismo producto por un mismo cliente. Recompra: % de clientes que lo compraron más de una vez.</p>
-  <div class="ctl">
-    <select class="dash-select" data-draw="sel_linea" data-source="lineas" aria-label="Línea"></select>
-    <span class="muted" data-draw="n_prod">—</span>
-  </div>
-  <div class="tw">
-    <table data-source="productos" data-row-key="cod">
-      <thead><tr><th class="n" data-field="rank_total">#Total</th><th class="n" data-field="rank_linea">#Línea</th><th data-field="producto">Producto</th><th data-field="linea">Línea</th><th class="n" data-field="neta">Venta neta</th><th class="n" data-field="share_total">Share total</th><th class="n" data-field="share_linea">Share línea</th><th class="n" data-field="cant">Unidades</th><th class="n" data-field="clientes">Clientes</th><th class="n" data-field="ciclo_dias">Reposición (días)</th><th class="n" data-field="pct_recompra">Recompra</th></tr></thead>
-      <tbody data-draw="t_prod"></tbody>
-    </table>
-  </div>
-
-  <h2 id="categorias">Clasificación de clientes · oro, plata y bronce</h2>
-  <p class="sub">Ventana de evaluación: abril–setiembre 2026 (2 trimestres cerrados). Pesos: volumen 30%, compromiso de pago 25%, frecuencia 15%, mix 15%, devoluciones 15%. Oro desde 70 puntos, plata de 50 a 69, bronce debajo de 50. No incluye las distribuidoras atendidas por Oficina Logissa (MIDHCO, M&amp;M, San Pedro y otras).</p>
-  <div class="grid" data-draw="cards_cat" data-source="categorias"></div>
-  <p class="sub" style="margin-top:var(--cds-gap-sm)">Frente a la ventana anterior (oct 2025–mar 2026): <b data-draw="m_sub" data-source="kpi" data-field="mov_subieron" data-row="0">—</b> clientes subieron de categoría, <b data-draw="m_baj" data-source="kpi" data-field="mov_bajaron" data-row="0">—</b> bajaron y <b data-draw="m_new" data-source="kpi" data-field="mov_nuevos" data-row="0">—</b> no compraban en esa ventana.</p>
-
-  <h2 id="clientes">Clientes</h2>
-  <p class="sub">Puntajes de 0 a 100 por criterio. Penetración: líneas compradas sobre las líneas activas (aproximación al share of wallet mientras no tengamos el potencial de compra de cada cliente). <b>El vendedor es el que tiene el cliente hoy</b>, leído en vivo del ERP de cobranzas; la columna «Antes» muestra quién lo atendía en la ventana de evaluación cuando cambió de manos, porque el puntaje se ganó con ese.</p>
-  <div class="ctl">
-    <select class="dash-select" data-draw="sel_cat" aria-label="Categoría"></select>
-    <select class="dash-select" data-draw="sel_vend" data-source="clientes_hoy" aria-label="Vendedor"></select>
-    <input class="q" type="search" placeholder="Buscar cliente o RUC" aria-label="Buscar cliente" id="buscar">
-    <span class="muted" data-draw="n_cli">—</span>
-  </div>
-  <div class="tw">
-    <table data-source="clientes_hoy" data-row-key="ruc">
-      <thead><tr><th data-field="razon">Cliente</th><th data-field="ruc">RUC</th><th data-field="vendedor">Vendedor</th><th data-field="vendedor_antes">Antes</th><th data-field="cat">Categoría</th><th data-field="cat_prev">Anterior</th><th class="n" data-field="puntaje">Puntaje</th><th class="n" data-field="s_vol">Volumen</th><th class="n" data-field="s_pago">Pago</th><th class="n" data-field="s_frec">Frecuencia</th><th class="n" data-field="s_mix">Mix</th><th class="n" data-field="s_dev">Devol.</th><th class="n" data-field="venta">Venta neta</th><th class="n" data-field="pct_puntual">% pagado a tiempo</th><th class="n" data-field="atraso">Atraso pond. (días)</th><th class="n" data-field="tasa_dev">% devolución</th><th class="n" data-field="penetracion">Penetración</th></tr></thead>
-      <tbody data-draw="t_cli"></tbody>
-    </table>
-  </div>
-
-  <h2 id="reposicion">Alertas de reposición</h2>
-  <p class="sub">Clientes que llevan más de 1.5 veces su ciclo habitual sin comprar (y menos de 180 días), ordenados por venta. Son la lista de llamadas de la semana.</p>
-  <div class="tw">
-    <table data-source="clientes_hoy" data-row-key="ruc">
-      <thead><tr><th data-field="razon">Cliente</th><th data-field="vendedor">Vendedor</th><th data-field="cat">Categoría</th><th class="n" data-field="ciclo">Ciclo habitual (días)</th><th class="n" data-field="dias_sin_compra">Días sin comprar</th><th class="n" data-field="venta">Venta neta</th></tr></thead>
-      <tbody data-draw="t_alert"></tbody>
-    </table>
-  </div>
-
-  <details id="definiciones">
+  <details>
     <summary>Cómo se calcula cada indicador</summary>
     <ul>
       <li><b>Venta neta:</b> facturas, boletas y notas de débito menos notas de crédito, sin IGV. Se excluyen comprobantes anulados. Solo origen LOGISSA (pedidos directos).</li>
-      <li><b>Volumen (30%):</b> percentil de la venta neta del cliente frente a los demás clientes de la ventana.</li>
-      <li><b>Compromiso de pago (25%):</b> 60% según el % del monto pagado hasta 3 días después del vencimiento y 40% según el atraso ponderado (0 días = 100, 60 días o más = 0), tomado del ERP de cobranzas. Clientes solo al contado: 100.</li>
-      <li><b>Frecuencia (15%):</b> meses con compra sobre los 6 meses de la ventana.</li>
+      <li><b>Volumen (30%):</b> percentil de la venta neta del cliente frente a los demás clientes del periodo.</li>
+      <li><b>Compromiso de pago (25%):</b> 60% según el % del monto pagado hasta 3 días después del vencimiento y 40% según el atraso ponderado (0 días = 100, 60 días o más = 0), del ERP de cobranzas. Clientes solo al contado: 100.</li>
+      <li><b>Frecuencia (15%):</b> meses con compra sobre los 6 meses del periodo.</li>
       <li><b>Mix (15%):</b> mitad percentil de líneas distintas y mitad percentil de SKUs distintos comprados.</li>
-      <li><b>Devoluciones y vencimientos (15%):</b> notas de crédito sobre la venta bruta; 0% = 100 puntos, 20% o más = 0. Todas las notas de crédito cuentan, salvo las de refacturación (anulación seguida de una nueva factura al mismo cliente en 30 días por un monto similar, o marcadas como refacturación, cambio de guía, error o pedido duplicado).</li>
-      <li><b>Refresco:</b> la clasificación se recalcula al cierre de cada trimestre con los últimos 2 trimestres.</li>
+      <li><b>Devoluciones y vencimientos (15%):</b> notas de crédito sobre la venta bruta; 0% = 100 puntos, 20% o más = 0. Cuentan todas salvo las de refacturación.</li>
+      <li><b>Cartera y cobranza:</b> del ERP de cobranzas, en vivo y <b>con IGV</b>. Vencido es lo que ya pasó su fecha de vencimiento y sigue sin pagarse.</li>
     </ul>
   </details>
 </div>
+</div>
+<div id="cargando" class="loading">Cargando…</div>
 <script>
-window.LG = { fmt: d3.format(',.0f'), soles: v => 'S/ ' + d3.format(',.0f')(v), short: v => 'S/ ' + d3.format('.3~s')(v).replace('G','B'), linea: '', cat: '', vend: '', q: '' };
-dash.calc('crec_q3', { title: 'Crecimiento 3T vs 2T 2026', description: 'Variación % de la venta neta del 3er trimestre frente al 2do.', inputs: ['kpi'], fn: (kpi) => kpi.length ? +(100 * (kpi[0].q3 / kpi[0].q2 - 1)).toFixed(1) : null });
-dash.calc('pct_nc', { title: '% notas de crédito', description: 'Notas de crédito de 12 meses sobre la venta bruta de 12 meses.', inputs: ['kpi'], fn: (kpi) => kpi.length ? +(100 * kpi[0].nc_12m / kpi[0].venta_bruta_12m).toFixed(1) : null });
-window.lgOk = function (el, id) { const r = dash.data(id); if (r.status !== 'ok') { if (r.status === 'error') el.textContent = 'No se pudo cargar'; else if (!el.firstChild) el.textContent = '—'; return null; } el.classList.remove('dash-skeleton'); return r.data; }
-window.lgTd = function (tr, txt, cls) { const td = document.createElement('td'); td.textContent = txt == null ? '—' : txt; if (cls) td.className = cls; tr.appendChild(td); return td; }
-</script>
-<script>
-dash.draw('corte', el => { const d = lgOk(el, 'kpi'); if (d) el.textContent = d[0].corte; });
-dash.draw('k_neta', el => { const d = lgOk(el, 'kpi'); if (d) el.textContent = LG.short(d[0].venta_neta_12m); });
-dash.draw('k_q3', el => { const d = lgOk(el, 'kpi'); if (d) el.textContent = LG.short(d[0].q3); });
-dash.draw('k_nc', el => { const d = lgOk(el, 'kpi'); if (d) el.textContent = LG.short(d[0].nc_12m); });
-dash.draw('k_cli', el => { const d = lgOk(el, 'kpi'); if (d) el.textContent = LG.fmt(d[0].clientes_12m); });
-dash.draw('k_ticket', el => { const d = lgOk(el, 'kpi'); if (d) el.textContent = LG.soles(d[0].ticket); });
-dash.draw('k_q3chg', el => { const r = dash.data('crec_q3'); if (r.status !== 'ok' || r.data == null) { el.textContent = '—'; return; } const v = r.data; el.className = 'chg ' + (v >= 0 ? 'ok' : 'bad'); el.textContent = (v >= 0 ? '+' : '') + v + '% vs 2do trimestre'; });
-dash.draw('k_ncpct', el => { const r = dash.data('pct_nc'); el.textContent = r.status === 'ok' && r.data != null ? r.data + '%' : '—'; });
-dash.draw('m_sub', el => { const d = lgOk(el, 'kpi'); if (d) el.textContent = d[0].mov_subieron; });
-dash.draw('m_baj', el => { const d = lgOk(el, 'kpi'); if (d) el.textContent = d[0].mov_bajaron; });
-dash.draw('m_new', el => { const d = lgOk(el, 'kpi'); if (d) el.textContent = d[0].mov_nuevos; });
-dash.draw('take', el => {
-  const k = dash.data('kpi'), l = dash.data('lineas'), c = dash.data('categorias'), g = dash.data('crec_q3');
-  if ([k, l, c].some(r => r.status !== 'ok') || g.status !== 'ok') { el.textContent = '—'; return; }
-  const kk = k.data[0], top = l.data[0], oro = c.data.find(x => x.cat === 'ORO'), tot = d3.sum(c.data, x => x.venta);
-  el.textContent = `El 3er trimestre cerró en ${LG.short(kk.q3)} (${g.data >= 0 ? '+' : ''}${g.data}% frente al 2do). ${top.linea} lidera con ${top.share}% de la venta neta, y ${oro ? oro.n : 0} clientes oro concentran el ${oro ? Math.round(100 * oro.venta / tot) : 0}% de la venta de la ventana evaluada.`;
-});
-</script>
-<script>
-dash.draw('ch_mes', el => {
-  const r = dash.data('mensual');
-  if (r.status !== 'ok') { el.textContent = r.status === 'error' ? 'No se pudo cargar la serie mensual' : ''; return; }
-  el.replaceChildren();
-  const data = r.data, W = el.clientWidth || 600, H = 260, m = { t: 10, r: 10, b: 28, l: 64 };
-  const x = d3.scaleBand(data.map(d => d.mes), [m.l, W - m.r]).padding(0.25);
-  const y = d3.scaleLinear([0, d3.max(data, d => Math.max(d.neta, d.nc)) * 1.08], [H - m.b, m.t]).nice();
-  const svg = d3.select(el).append('svg').attr('width', W).attr('height', H).attr('role', 'img').attr('aria-label', 'Venta neta y notas de crédito por mes');
-  svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickFormat(v => d3.format('.2~s')(v))).call(g => g.select('.domain').remove()).call(g => g.selectAll('line').attr('x2', W - m.l - m.r).style('stroke', 'var(--cds-chart-grid)'));
-  const mes = s => { const [a, b] = s.split('-'); return ['ene','feb','mar','abr','may','jun','jul','ago','set','oct','nov','dic'][+b - 1] + (W < 520 ? '' : ' ' + a.slice(2)); };
-  const ax = svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).tickFormat(mes).tickSizeOuter(0));
-  ax.select('.domain').style('stroke', 'var(--cds-chart-axis)');
-  if (W < 460) ax.selectAll('.tick text').attr('opacity', (d, i) => i % 2 ? 0 : 1);
-  const tip = d3.select(el).append('div').attr('class', 'tip').style('opacity', 0);
-  svg.append('g').selectAll('rect').data(data).join('rect').attr('x', d => x(d.mes)).attr('width', x.bandwidth()).attr('y', d => y(Math.max(0, d.neta))).attr('height', d => y(0) - y(Math.max(0, d.neta))).style('fill', dash.colors[0]).attr('rx', 2)
-    .on('pointermove', (ev, d) => { const [px, py] = d3.pointer(ev, el); tip.style('opacity', 1).style('left', Math.min(px + 12, W - 190) + 'px').style('top', (py - 10) + 'px').text(`${d.mes} · neta ${LG.soles(d.neta)} · NC ${LG.soles(d.nc)} · ${d.clientes} clientes`); })
-    .on('pointerleave', () => tip.style('opacity', 0));
-  svg.append('g').selectAll('circle').data(data).join('circle').attr('cx', d => x(d.mes) + x.bandwidth() / 2).attr('cy', d => y(d.nc)).attr('r', 3.5).style('fill', 'var(--cds-chart-status-critical)');
-});
-</script>
-<script>
-dash.draw('t_lineas', el => {
-  const r = dash.data('lineas'); el.replaceChildren(); if (r.status !== 'ok') return;
-  const mx = d3.max(r.data, d => d.share);
-  r.data.forEach((d, i) => {
-    const tr = document.createElement('tr'); tr.dataset.key = encodeURIComponent(d.linea);
-    lgTd(tr, i + 1); lgTd(tr, d.linea); lgTd(tr, LG.soles(d.neta), 'n'); lgTd(tr, d.share.toFixed(1) + '%', 'n');
-    const b = lgTd(tr, ''); b.textContent = ''; const s = document.createElement('span'); s.className = 'bar'; s.style.width = Math.max(2, 80 * d.share / mx) + 'px'; b.appendChild(s);
-    lgTd(tr, LG.soles(d.q2), 'n'); lgTd(tr, LG.soles(d.q3), 'n');
-    const v = d.q2 > 0 ? 100 * (d.q3 / d.q2 - 1) : null; const t = lgTd(tr, v == null ? 'nuevo' : (v >= 0 ? '+' : '') + v.toFixed(0) + '%', 'n'); if (v != null) t.classList.add(v >= 0 ? 'ok' : 'bad');
-    lgTd(tr, d.clientes, 'n'); lgTd(tr, d.skus, 'n'); el.appendChild(tr);
-  });
-});
-dash.draw('sel_linea', sel => {
-  const r = dash.data('lineas');
-  sel.replaceChildren(new Option('Todas las líneas', ''), ...(r.status === 'ok' ? r.data : []).map(d => new Option(d.linea, d.linea)));
-  sel.value = LG.linea; sel.onchange = () => { LG.linea = sel.value; dash.draw('t_prod'); dash.draw('n_prod'); };
-});
-function lgProds() { const r = dash.data('productos'); if (r.status !== 'ok') return null; return r.data.filter(d => !LG.linea || d.linea === LG.linea); }
-dash.draw('n_prod', el => { const p = lgProds(); el.textContent = p ? `${p.length} productos` : '—'; });
-dash.draw('t_prod', el => {
-  const p = lgProds(); el.replaceChildren(); if (!p) return;
-  p.slice(0, 60).forEach(d => {
-    const tr = document.createElement('tr'); tr.dataset.key = encodeURIComponent(d.cod);
-    lgTd(tr, d.rank_total, 'n'); lgTd(tr, d.rank_linea, 'n'); lgTd(tr, d.producto, 'w'); lgTd(tr, d.linea); lgTd(tr, LG.soles(d.neta), 'n');
-    lgTd(tr, d.share_total.toFixed(1) + '%', 'n'); lgTd(tr, d.share_linea.toFixed(1) + '%', 'n'); lgTd(tr, LG.fmt(d.cant), 'n'); lgTd(tr, d.clientes, 'n');
-    lgTd(tr, d.ciclo_dias, 'n'); lgTd(tr, d.pct_recompra == null ? null : d.pct_recompra + '%', 'n'); el.appendChild(tr);
-  });
-});
-</script>
-<script>
-dash.draw('cards_cat', el => {
-  const r = dash.data('categorias'); if (r.status !== 'ok') { el.textContent = r.status === 'error' ? 'No se pudo cargar' : ''; return; }
-  el.replaceChildren(); const tot = d3.sum(r.data, d => d.venta), tn = d3.sum(r.data, d => d.n);
-  ['ORO', 'PLATA', 'BRONCE'].forEach(c => {
-    const d = r.data.find(x => x.cat === c); if (!d) return;
-    const k = document.createElement('div'); k.className = 'card';
-    const h = document.createElement('div'); h.innerHTML = ''; const p = document.createElement('span'); p.className = 'pill ' + c; p.textContent = c; h.appendChild(p); k.appendChild(h);
-    const b = document.createElement('div'); b.className = 'big'; b.textContent = d.n + ' clientes'; k.appendChild(b);
-    const s = document.createElement('div'); s.className = 'chg muted';
-    s.textContent = `${Math.round(100 * d.n / tn)}% de clientes · ${Math.round(100 * d.venta / tot)}% de la venta (${LG.short(d.venta)}) · puntaje prom. ${d.puntaje} · pago ${d.pago} · ${d.lineas} líneas · ${d.meses} meses con compra`;
-    k.appendChild(s); el.appendChild(k);
-  });
-});
-dash.draw('sel_cat', sel => {
-  sel.replaceChildren(new Option('Todas las categorías', ''), new Option('Oro', 'ORO'), new Option('Plata', 'PLATA'), new Option('Bronce', 'BRONCE'));
-  sel.value = LG.cat; sel.onchange = () => { LG.cat = sel.value; dash.draw('t_cli'); dash.draw('n_cli'); };
-});
-dash.draw('sel_vend', sel => {
-  const r = dash.data('clientes_hoy'); const vs = r.status === 'ok' ? [...new Set(r.data.map(d => d.vendedor).filter(Boolean))].sort() : [];
-  sel.replaceChildren(new Option('Todos los vendedores', ''), ...vs.map(v => new Option(v, v)));
-  sel.value = LG.vend; sel.onchange = () => { LG.vend = sel.value; dash.draw('t_cli'); dash.draw('n_cli'); };
-});
-document.querySelectorAll('#buscar').forEach(i => i.addEventListener('input', () => { LG.q = i.value.trim().toLowerCase(); dash.draw('t_cli'); dash.draw('n_cli'); }));
-function lgCli() { const r = dash.data('clientes_hoy'); if (r.status !== 'ok') return null; return r.data.filter(d => (!LG.cat || d.cat === LG.cat) && (!LG.vend || d.vendedor === LG.vend) && (!LG.q || (d.razon || '').toLowerCase().includes(LG.q) || d.ruc.includes(LG.q))); }
-dash.draw('n_cli', el => { const c = lgCli(); el.textContent = c ? `${c.length} clientes` + (c.length > 150 ? ' (se muestran 150)' : '') : '—'; });
-function lgPill(tr, c) { const td = lgTd(tr, ''); td.textContent = ''; if (c) { const s = document.createElement('span'); s.className = 'pill ' + c; s.textContent = c; td.appendChild(s); } else td.textContent = '—'; }
-dash.draw('t_cli', el => {
-  const c = lgCli(); el.replaceChildren(); if (!c) return;
-  c.slice(0, 150).forEach(d => {
-    const tr = document.createElement('tr'); tr.dataset.key = d.ruc;
-    lgTd(tr, d.razon, 'w'); lgTd(tr, d.ruc); lgTd(tr, d.vendedor); lgTd(tr, d.vendedor_antes || '—'); lgPill(tr, d.cat); lgPill(tr, d.cat_prev);
-    lgTd(tr, d.puntaje.toFixed(1), 'n'); [d.s_vol, d.s_pago, d.s_frec, d.s_mix, d.s_dev].forEach(v => lgTd(tr, v, 'n'));
-    lgTd(tr, LG.soles(d.venta), 'n'); lgTd(tr, d.pct_puntual == null ? 'contado' : d.pct_puntual + '%', 'n'); lgTd(tr, d.atraso, 'n');
-    lgTd(tr, d.tasa_dev + '%', 'n'); lgTd(tr, d.penetracion + '%', 'n'); el.appendChild(tr);
-  });
-});
-dash.draw('t_alert', el => {
-  const r = dash.data('clientes_hoy'); el.replaceChildren(); if (r.status !== 'ok') return;
-  r.data.filter(d => d.alerta_repo).sort((a, b) => b.venta - a.venta).slice(0, 40).forEach(d => {
-    const tr = document.createElement('tr'); tr.dataset.key = d.ruc;
-    lgTd(tr, d.razon, 'w'); lgTd(tr, d.vendedor); lgPill(tr, d.cat); lgTd(tr, d.ciclo, 'n'); lgTd(tr, d.dias_sin_compra, 'n'); lgTd(tr, LG.soles(d.venta), 'n'); el.appendChild(tr);
-  });
-});
-</script>
-<script>
-// ── En vivo desde el ERP de cobranzas ──────────────────────────────────
-// Las tres consultas corren en el navegador de quien abre la página, no acá.
-const VV = {
-  soles: (n) => n == null || isNaN(n) ? '—' : 'S/ ' + Number(n).toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
-  corto: (n) => n == null || isNaN(n) ? '—' : 'S/ ' + (Math.abs(n) >= 1000 ? (n / 1000).toLocaleString('es-PE', {maximumFractionDigits: 0}) + ' mil' : Number(n).toLocaleString('es-PE', {maximumFractionDigits: 0})),
-  mes: (m) => {
-    if (!m) return '—';
-    const N = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'];
-    const [a, b] = String(m).split('-');
-    return (N[Number(b) - 1] || b) + ' ' + a;
-  },
-  td: (tr, v, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = v == null ? '—' : v; tr.appendChild(td); return td; },
-};
+// ── El tablero ────────────────────────────────────────────────────────
+//
+// Es el mismo archivo que corría en el sitio estático, con dos cambios:
+// los datos ya no se piden a Supabase desde el navegador —ahora vienen de
+// /api/datos, que pasó por el login del ERP y lee con credenciales de
+// servidor— y se sumó el bloque de cartera, que sale de la base de
+// cobranzas.
+const $ = id => document.getElementById(id);
+const fmt = d3.format(',.0f'), soles = v => 'S/ ' + fmt(v ?? 0), short = v => 'S/ ' + d3.format('.3~s')(v ?? 0).replace('G', 'B');
+const soles2 = v => v == null || isNaN(v) ? '—' : 'S/ ' + Number(v).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const S = { linea: '', cat: '', vend: '', q: '', sort: 'puntaje', dir: -1, D: null, C: null };
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','set','oct','nov','dic'];
+const fdate = s => { if (!s) return '—'; const [a, m, d] = s.split('-'); return `${+d} ${MESES[+m - 1]} ${a}`; };
+const fmes = m => { if (!m) return '—'; const [a, b] = String(m).split('-'); return (MESES[+b - 1] || b) + ' ' + a; };
 
-// La respuesta del conector es texto con el arreglo JSON adentro, no filas.
-function vvFilas({answer}) {
-  const texto = typeof answer === 'string' ? answer : null;
-  if (texto === null) {
-    if (Array.isArray(answer)) return answer;
-    if (answer && Array.isArray(answer.rows)) return answer.rows;
-    throw new Error('El conector respondió algo que no se pudo leer.');
-  }
-  const i = texto.indexOf('['), j = texto.lastIndexOf(']');
-  if (i < 0 || j < i) throw new Error(texto.slice(0, 300));
-  return JSON.parse(texto.slice(i, j + 1));
+function show(view) { ['app', 'cargando'].forEach(v => $(v).classList.toggle('hidden', v !== view)); }
+function td(tr, txt, cls) { const c = document.createElement('td'); c.textContent = txt == null ? '—' : txt; if (cls) c.className = cls; tr.appendChild(c); return c; }
+function scoreTd(tr, v, dec) { const c = td(tr, '', 'n'); c.textContent = ''; if (v == null) { c.textContent = '—'; return; } const s = document.createElement('span'); s.className = 'sc ' + (v >= 70 ? 's-hi' : v >= 40 ? 's-mid' : 's-lo'); s.textContent = dec ? v.toFixed(dec) : Math.round(v); c.appendChild(s); }
+function pill(tr, c) { const cell = td(tr, ''); cell.textContent = ''; if (!c) { cell.textContent = '—'; return; } const s = document.createElement('span'); s.className = 'pill ' + c; s.textContent = c; cell.appendChild(s); }
+
+function fallo(texto) {
+  $('cargando').textContent = texto;
+  show('cargando');
 }
 
-dash.loader('venta_mensual_erp', {description: 'Saca el arreglo JSON que el conector devuelve dentro del texto.', fn: vvFilas});
-dash.loader('cartera_vendedor', {description: 'Saca el arreglo JSON que el conector devuelve dentro del texto.', fn: vvFilas});
-dash.loader('cobranza_kpi', {description: 'Saca el arreglo JSON que el conector devuelve dentro del texto.', fn: vvFilas});
-
-// Los 12 meses CERRADOS: el último mes de la serie va incompleto y mezclarlo
-// haría parecer que la venta cayó.
-dash.calc('neta12', {
-  title: 'Venta neta de 12 meses cerrados (con IGV)',
-  description: 'Suma la venta neta de los 12 meses anteriores al mes en curso.',
-  inputs: ['venta_mensual_erp'],
-  fn: (meses) => {
-    if (!Array.isArray(meses) || meses.length < 2) return null;
-    const cerrados = meses.slice(0, -1).slice(-12);
-    return cerrados.reduce((s, m) => s + (Number(m.neta) || 0), 0);
-  },
-});
-
-dash.calc('mes_actual', {
-  title: 'Mes en curso',
-  description: 'La última fila de la serie mensual, que es el mes que todavía no cierra.',
-  inputs: ['venta_mensual_erp'],
-  fn: (meses) => (Array.isArray(meses) && meses.length ? [meses[meses.length - 1]] : []),
-});
-
-dash.draw('v_cartera', (el) => { const r = dash.data('cobranza_kpi'); el.textContent = r.status === 'ok' && r.data[0] ? VV.soles(r.data[0].cartera) : '—'; });
-dash.draw('v_vencido', (el) => { const r = dash.data('cobranza_kpi'); el.textContent = r.status === 'ok' && r.data[0] ? VV.soles(r.data[0].vencido) : '—'; });
-dash.draw('v_clientes', (el) => { const r = dash.data('cobranza_kpi'); el.textContent = r.status === 'ok' && r.data[0] ? r.data[0].clientes_con_deuda : '—'; });
-dash.draw('v_mora', (el) => { const r = dash.data('cobranza_kpi'); el.textContent = r.status === 'ok' && r.data[0] ? r.data[0].pct_mora + '%' : '—'; });
-dash.draw('v_neta12', (el) => { const r = dash.data('neta12'); el.textContent = r.status === 'ok' ? VV.soles(r.data) : '—'; });
-dash.draw('v_mes', (el) => { const r = dash.data('mes_actual'); el.textContent = r.status === 'ok' && r.data[0] ? VV.soles(r.data[0].neta) : '—'; });
-dash.draw('v_mes_lab', (el) => { const r = dash.data('mes_actual'); el.textContent = r.status === 'ok' && r.data[0] ? VV.mes(r.data[0].mes) : '—'; });
-
-dash.draw('t_cartera', (el) => {
-  const r = dash.data('cartera_vendedor');
-  el.replaceChildren();
-  if (r.status !== 'ok') return;
-  r.data.forEach((d) => {
-    const tr = document.createElement('tr');
-    tr.dataset.key = d.codigo;
-    VV.td(tr, d.vendedor);
-    VV.td(tr, d.codigo);
-    VV.td(tr, VV.soles(d.saldo), 'n');
-    VV.td(tr, VV.soles(d.vencido), 'n');
-    VV.td(tr, d.pct_mora == null ? '—' : d.pct_mora + '%', 'n');
-    VV.td(tr, d.docs_vencidos, 'n');
-    el.appendChild(tr);
-  });
-});
-
-dash.draw('ch_vivo', (el) => {
-  const r = dash.data('venta_mensual_erp');
-  el.replaceChildren();
-  if (r.status !== 'ok' || !r.data.length) { el.textContent = '—'; return; }
-  const datos = r.data;
-  const ancho = Math.max(320, el.clientX || el.clientWidth || 640);
-  const alto = 260, m = {t: 16, r: 16, b: 34, l: 64};
-  const svg = d3.select(el).append('svg').attr('width', ancho).attr('height', alto);
-  const x = d3.scaleBand().domain(datos.map((d) => d.mes)).range([m.l, ancho - m.r]).padding(0.25);
-  const maxY = d3.max(datos, (d) => Math.max(Number(d.neta) || 0, Number(d.nc) || 0)) || 1;
-  const y = d3.scaleLinear().domain([0, maxY]).nice().range([alto - m.b, m.t]);
-  svg.append('g').attr('transform', `translate(0,${alto - m.b})`).call(d3.axisBottom(x).tickFormat((d) => VV.mes(d)).tickSizeOuter(0));
-  svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickFormat((v) => VV.corto(v)).tickSizeOuter(0));
-  const tip = d3.select(el).append('div').attr('class', 'tip').style('display', 'none');
-  svg.selectAll('rect.b').data(datos).join('rect').attr('class', 'b')
-    .attr('x', (d) => x(d.mes)).attr('width', x.bandwidth())
-    .attr('y', (d) => y(Number(d.neta) || 0)).attr('height', (d) => Math.max(0, y(0) - y(Number(d.neta) || 0)))
-    .attr('fill', dash.colors[0]).attr('rx', 2)
-    .on('mousemove', (ev, d) => {
-      tip.style('display', 'block')
-        .text(`${VV.mes(d.mes)}: neta ${VV.soles(d.neta)} · NC ${VV.soles(d.nc)} · ${d.comprobantes} comprobantes`);
-      const b = el.getBoundingClientRect();
-      const px = Math.min(Math.max(ev.clientX - b.left + 12, 4), b.width - tip.node().offsetWidth - 4);
-      tip.style('left', px + 'px').style('top', Math.max(4, ev.clientY - b.top - 32) + 'px');
-    })
-    .on('mouseleave', () => tip.style('display', 'none'));
-  svg.selectAll('circle.nc').data(datos).join('circle').attr('class', 'nc')
-    .attr('cx', (d) => x(d.mes) + x.bandwidth() / 2).attr('cy', (d) => y(Number(d.nc) || 0)).attr('r', 3)
-    .attr('fill', 'var(--color-bad)');
-});
-</script>
-<script>
-// ── Vendedor de hoy, no el de la ventana ───────────────────────────────
-// La clasificación es una foto de abr–set 2026 y trae el vendedor que
-// atendía al cliente entonces, así que listaba gente que ya no trabaja acá
-// (Celio Varillas, Elizabeth Quiroga). El vendedor se reemplaza por el que
-// figura hoy en el ERP de cobranzas, y el de la ventana queda al lado:
-// el puntaje se ganó con ese y conviene no perderlo de vista.
-dash.loader('cartera_actual', {
-  description: 'Saca el arreglo JSON que el conector devuelve dentro del texto.',
-  fn: ({answer}) => {
-    const texto = typeof answer === 'string' ? answer : null;
-    if (texto === null) {
-      if (Array.isArray(answer)) return answer;
-      throw new Error('El conector respondió algo que no se pudo leer.');
-    }
-    const i = texto.indexOf('['), j = texto.lastIndexOf(']');
-    if (i < 0 || j < i) throw new Error(texto.slice(0, 300));
-    return JSON.parse(texto.slice(i, j + 1));
-  },
-});
-
-dash.calc('clientes_hoy', {
-  title: 'Clientes con el vendedor que los atiende hoy',
-  description: 'Toma la clasificación (foto abr–set 2026) y le cambia el vendedor por el que figura hoy en el ERP de cobranzas, cruzando por RUC. Si el cliente ya no está en esa cartera, queda el de la ventana.',
-  inputs: ['clientes', 'cartera_actual'],
-  fn: (clasificacion, carteraDeHoy) => {
-    if (!Array.isArray(clasificacion)) return [];
-    const hoy = new Map();
-    (Array.isArray(carteraDeHoy) ? carteraDeHoy : []).forEach((c) => hoy.set(String(c.ruc).trim(), c));
-    return clasificacion.map((d) => {
-      const actual = hoy.get(String(d.ruc).trim());
-      const vendedorHoy = actual && actual.vendedor ? actual.vendedor : d.vendedor;
-      return {
-        ...d,
-        vendedor: vendedorHoy,
-        // Solo cuando cambió de manos: repetir el mismo nombre en dos
-        // columnas no dice nada.
-        vendedor_antes: d.vendedor && d.vendedor !== vendedorHoy ? d.vendedor : null,
-        zona: actual && actual.zona ? actual.zona : null,
-      };
-    });
-  },
-});
-</script>
-<script>
-// ── Traer los datos y pintar ───────────────────────────────────────────
-//
-// Dos mitades, y la distinción importa al leer la pantalla:
-//
-//  · `fijos` sale del Excel de ventas. Es el único lugar donde existe el
-//    detalle por producto —`documentos` guarda el total del comprobante,
-//    no sus ítems— y está SIN IGV. Cambia cuando se regenera el archivo.
-//  · `vivo` sale de la base de cobranzas en este mismo pedido, CON IGV,
-//    que es como se guarda ahí.
-const FIJOS = ['kpi', 'mensual', 'lineas', 'productos', 'categorias', 'clientes']
-const VIVOS = ['venta_mensual_erp', 'cartera_vendedor', 'cobranza_kpi', 'cartera_actual']
-
-function lgEstado(texto, malo) {
-  const el = document.getElementById('lg-estado')
-  if (!el) return
-  el.textContent = texto
-  el.className = malo ? 'malo' : ''
-}
-
-async function lgCargar() {
-  lgEstado('Cargando…')
-  let r
+async function start() {
+  show('cargando');
+  let r;
   try {
-    r = await fetch('/api/datos', { cache: 'no-store', credentials: 'same-origin' })
-  } catch (err) {
-    FIJOS.concat(VIVOS).forEach((id) => dash._fallar(id, String(err)))
-    dash._repintar()
-    lgEstado('Sin conexión con el servidor.', true)
-    return
+    r = await fetch('/api/datos', { cache: 'no-store', credentials: 'same-origin' });
+  } catch (e) {
+    return fallo('Sin conexión con el servidor. Revisa tu internet y recarga.');
   }
-
   // La sesión vence y el middleware manda al login; un fetch no sigue esa
   // redirección a una pantalla de HTML, así que hay que mandarlo a mano o
-  // la página se queda con guiones sin decir por qué.
-  if (r.status === 401 || r.redirected) {
-    window.location.assign('/login?volver_a=' + encodeURIComponent(location.pathname))
-    return
-  }
-  if (!r.ok) {
-    const detalle = r.status === 403
-      ? 'Tu área no tiene permiso para ver este tablero.'
-      : 'No se pudieron cargar los datos (' + r.status + ').'
-    FIJOS.concat(VIVOS).forEach((id) => dash._fallar(id, detalle))
-    dash._repintar()
-    lgEstado(detalle, true)
-    return
-  }
+  // la página se queda cargando sin decir por qué.
+  if (r.status === 401 || r.redirected) return window.location.assign('/login?volver_a=' + encodeURIComponent(location.pathname));
+  if (r.status === 403) return fallo('Tu área no tiene permiso para ver este tablero. Habla con gerencia.');
+  if (!r.ok) return fallo('No se pudieron cargar los datos (' + r.status + '). Recarga en un momento.');
 
-  const cuerpo = await r.json()
-  FIJOS.forEach((id) => dash._poner(id, cuerpo.fijos[id] || []))
-  VIVOS.forEach((id) => dash._poner(id, cuerpo.vivo[id] || []))
-  dash._repintar()
+  const cuerpo = await r.json();
+  S.D = cuerpo.comercial;
+  S.C = cuerpo.cobranzas;
+  if (!S.D) return fallo('No se pudieron cargar los datos de venta. ' + (cuerpo.fallas || []).join(' '));
 
-  const hora = new Date(cuerpo.consultadoEn).toLocaleString('es-PE', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
+  const u = cuerpo.usuario || {};
+  $('usuario').textContent = u.nombre || '';
+  $('avatar').textContent = (u.nombre || '·').trim()[0].toUpperCase();
   if (cuerpo.fallas && cuerpo.fallas.length) {
-    lgEstado('Leído ' + hora + ' · parte de los datos en vivo no respondió.', true)
-  } else {
-    lgEstado('Datos en vivo leídos el ' + hora + '.')
+    $('aviso').textContent = 'Parte de los datos no respondió: ' + cuerpo.fallas.join(' · ');
+    $('aviso').classList.remove('hidden');
   }
+  show('app');
+  render();
 }
 
-document.getElementById('lg-recargar').addEventListener('click', lgCargar)
+$('salir').onclick = async () => {
+  $('salir').disabled = true;
+  try { await fetch('/api/salir', { method: 'POST', credentials: 'same-origin' }); } catch (e) { /* igual se sale */ }
+  window.location.assign('/login');
+};
 
-// Los dos gráficos se dibujan contra el ancho que tenían al pintarse, así
-// que al cambiar el tamaño de la ventana quedan cortados o con aire.
-let lgTimer
-addEventListener('resize', () => {
-  clearTimeout(lgTimer)
-  lgTimer = setTimeout(() => {
-    dash.draw('ch_mes')
-    dash.draw('ch_vivo')
-  }, 150)
-})
+// ── El vendedor de hoy, no el de la ventana ───────────────────────────
+// La clasificación es una foto de los dos últimos trimestres cerrados y
+// trae el vendedor que atendía al cliente entonces, así que listaba gente
+// que ya no trabaja acá. Se reemplaza por el que figura hoy en el ERP de
+// cobranzas, cruzando por RUC, y el de la ventana queda al lado: el
+// puntaje se ganó con ese y conviene no perderlo de vista.
+function clientesConVendedorDeHoy() {
+  const base = S.D.clientes || [];
+  const hoy = new Map();
+  ((S.C && S.C.cartera_actual) || []).forEach(c => hoy.set(String(c.ruc).trim(), c));
+  return base.map(d => {
+    const actual = hoy.get(String(d.ruc).trim());
+    const vendedorHoy = actual && actual.vendedor ? actual.vendedor : d.vendedor;
+    return {
+      ...d,
+      vendedor: vendedorHoy,
+      // Solo cuando cambió de manos: repetir el mismo nombre en dos
+      // columnas no dice nada.
+      vendedor_antes: d.vendedor && d.vendedor !== vendedorHoy ? d.vendedor : null,
+    };
+  });
+}
 
-lgCargar()
+function render() {
+  const D = S.D, k = D.kpi;
+  D.clientes = clientesConVendedorDeHoy();
+  $('actualizado').textContent = fdate(k.actualizado);
+  $('ventana').textContent = `(${fdate(k.ventana_ini)} – ${fdate(k.ventana_fin)})`;
+  $('k_neta').textContent = short(k.venta_neta_12m);
+  $('k_q').textContent = short(k.q_ult);
+  const g = k.q_pen ? 100 * (k.q_ult / k.q_pen - 1) : null;
+  $('k_qchg').replaceChildren(); if (g != null) { const b = document.createElement('span'); b.className = 'badge ' + (g >= 0 ? 'ok' : 'bad'); b.textContent = `${g >= 0 ? '▲ +' : '▼ '}${g.toFixed(1)}%`; $('k_qchg').append(b, ' vs trimestre anterior'); }
+  $('k_nc').textContent = short(k.nc_12m);
+  $('k_ncpct').textContent = `${(100 * k.nc_12m / k.venta_bruta_12m).toFixed(1)}% de la venta bruta`;
+  $('k_cli').textContent = fmt(k.clientes_12m);
+  $('k_ticket').textContent = 'Ticket promedio por comprobante: ' + soles(k.ticket);
+  $('periodo').textContent = D.periodo_ranking || '—';
+  const top = (D.lineas || [])[0], cats = D.categorias || [], oro = cats.find(c => c.cat === 'ORO'), tot = d3.sum(cats, c => c.venta);
+  $('take').textContent = `El último trimestre cerrado sumó ${short(k.q_ult)}${g == null ? '' : ` (${g >= 0 ? '+' : ''}${g.toFixed(0)}% frente al anterior)`}. ${top ? `${top.linea} lidera con ${(+top.share).toFixed(1)}% de la venta neta` : ''}${oro ? `, y ${oro.n} clientes oro concentran el ${Math.round(100 * oro.venta / tot)}% de la venta del periodo evaluado` : ''}.`;
+  const m = D.movimientos || {};
+  $('mov').replaceChildren(...[['▲', m.subieron, 'subieron de categoría', 'ok'], ['▼', m.bajaron, 'bajaron', 'bad'], ['＋', m.nuevos, 'no compraban en el periodo anterior', 'muted']].map(([ic, n, t, c]) => { const d = document.createElement('div'); d.className = 'mv'; const b = document.createElement('b'); b.className = c; b.textContent = `${ic} ${n ?? 0}`; d.append(b, ' ' + t); return d; }));
+  drawChart(); drawCobranzas(); drawLineas(); fillSelects(); drawProd(); drawCats(); drawCli(); drawAlert();
+}
+
+function drawCobranzas() {
+  const C = S.C;
+  const k = C && C.kpi && C.kpi[0];
+  $('c_cartera').textContent = k ? soles2(k.cartera) : '—';
+  $('c_clientes').textContent = k ? `${k.clientes_con_deuda} clientes con deuda` : '—';
+  $('c_vencido').textContent = k ? soles2(k.vencido) : '—';
+  $('c_mora').replaceChildren();
+  if (k) { const b = document.createElement('span'); b.className = 'badge bad'; b.textContent = k.pct_mora + '%'; $('c_mora').append(b, ' de la cartera'); }
+
+  // Los 12 meses CERRADOS: el último de la serie va incompleto y mezclarlo
+  // haría parecer que la venta cayó.
+  const meses = (C && C.venta_mensual) || [];
+  const cerrados = meses.slice(0, -1).slice(-12);
+  $('c_neta12').textContent = cerrados.length ? soles2(cerrados.reduce((s, m) => s + (Number(m.neta) || 0), 0)) : '—';
+  const curso = meses[meses.length - 1];
+  $('c_mes').textContent = curso ? soles2(curso.neta) : '—';
+  $('c_mes_lab').textContent = curso ? 'Mes incompleto: ' + fmes(curso.mes) : '—';
+
+  const el = $('t_cartera'); el.replaceChildren();
+  ((C && C.cartera_vendedor) || []).forEach(d => {
+    const tr = document.createElement('tr');
+    td(tr, d.vendedor); td(tr, d.codigo); td(tr, soles2(d.saldo), 'n'); td(tr, soles2(d.vencido), 'n');
+    const t = td(tr, '', 'n'); t.textContent = '';
+    if (d.pct_mora == null) t.textContent = '—';
+    else { const b = document.createElement('span'); b.className = 'badge ' + (d.pct_mora >= 50 ? 'bad' : 'ok'); b.textContent = d.pct_mora + '%'; t.appendChild(b); }
+    td(tr, d.docs_vencidos, 'n'); el.appendChild(tr);
+  });
+}
+
+function drawChart() {
+  const el = $('ch_mes'); el.replaceChildren(); const data = S.D.mensual || []; if (!data.length) return;
+  const W = el.clientWidth - 16, H = 260, mg = { t: 10, r: 10, b: 28, l: 56 };
+  const x = d3.scaleBand(data.map(d => d.mes), [mg.l, W - mg.r]).padding(0.25);
+  const y = d3.scaleLinear([0, d3.max(data, d => Math.max(d.neta, d.nc)) * 1.08], [H - mg.b, mg.t]).nice();
+  const svg = d3.select(el).append('svg').attr('width', W).attr('height', H).attr('role', 'img').attr('aria-label', 'Venta neta y notas de crédito por mes');
+  svg.append('g').attr('transform', `translate(${mg.l},0)`).call(d3.axisLeft(y).ticks(5).tickFormat(v => d3.format('.2~s')(v))).call(g => g.select('.domain').remove()).call(g => g.selectAll('line').attr('x2', W - mg.l - mg.r).style('stroke', '#e4eeeb'));
+  const lab = s => { const [a, b] = s.split('-'); return MESES[+b - 1] + (W < 560 ? '' : ' ' + a.slice(2)); };
+  const ax = svg.append('g').attr('transform', `translate(0,${H - mg.b})`).call(d3.axisBottom(x).tickFormat(lab).tickSizeOuter(0)); ax.select('.domain').attr('stroke', '#cfdcd8'); ax.selectAll('.tick line').remove();
+  if (W < 480) ax.selectAll('.tick text').attr('opacity', (d, i) => i % 2 ? 0 : 1);
+  const tip = d3.select(el).append('div').attr('class', 'tip').style('opacity', 0);
+  svg.append('g').selectAll('rect').data(data).join('rect').attr('x', d => x(d.mes)).attr('width', x.bandwidth()).attr('y', d => y(Math.max(0, d.neta))).attr('height', d => y(0) - y(Math.max(0, d.neta))).attr('fill', '#0f766e').attr('rx', 4)
+    .on('pointermove', (ev, d) => { const [px, py] = d3.pointer(ev, el); tip.style('opacity', 1).style('left', Math.min(px + 12, W - 230) + 'px').style('top', (py - 10) + 'px').text(`${d.mes} · neta ${soles(d.neta)} · NC ${soles(d.nc)} · ${d.clientes} clientes`); })
+    .on('pointerleave', () => tip.style('opacity', 0));
+  svg.append('path').datum(data).attr('fill', 'none').attr('stroke', '#e4683f').attr('stroke-width', 2).attr('stroke-dasharray', '4 3').attr('d', d3.line().x(d => x(d.mes) + x.bandwidth() / 2).y(d => y(d.nc)));
+  svg.append('g').selectAll('circle').data(data).join('circle').attr('cx', d => x(d.mes) + x.bandwidth() / 2).attr('cy', d => y(d.nc)).attr('r', 4.5).attr('fill', '#e4683f').attr('stroke', '#fff').attr('stroke-width', 2);
+}
+function drawLineas() {
+  const el = $('t_lineas'); el.replaceChildren(); const L = S.D.lineas || []; const mx = d3.max(L, d => d.share);
+  L.forEach((d, i) => {
+    const tr = document.createElement('tr');
+    td(tr, i + 1); td(tr, d.linea); td(tr, soles(d.neta), 'n'); td(tr, d.share.toFixed(1) + '%', 'n');
+    const b = td(tr, ''); const s = document.createElement('span'); s.className = 'bar'; s.style.width = Math.max(3, 110 * d.share / mx) + 'px'; b.appendChild(s);
+    td(tr, soles(d.q_pen), 'n'); td(tr, soles(d.q_ult), 'n');
+    const v = d.q_pen > 0 ? 100 * (d.q_ult / d.q_pen - 1) : null; const t = td(tr, '', 'n'); t.textContent = ''; const bd = document.createElement('span'); bd.className = 'badge ' + (v == null || v >= 0 ? 'ok' : 'bad'); bd.textContent = v == null ? 'nuevo' : (v >= 0 ? '▲ +' : '▼ ') + v.toFixed(0) + '%'; t.appendChild(bd);
+    td(tr, d.clientes, 'n'); td(tr, d.skus, 'n'); el.appendChild(tr);
+  });
+}
+function fillSelects() {
+  const sl = $('sel_linea'); sl.replaceChildren(new Option('Todas las líneas', ''), ...(S.D.lineas || []).map(d => new Option(d.linea, d.linea))); sl.value = S.linea;
+  const vs = [...new Set((S.D.clientes || []).map(d => d.vendedor).filter(Boolean))].sort();
+  const sv = $('sel_vend'); sv.replaceChildren(new Option('Todos los vendedores', ''), ...vs.map(v => new Option(v, v))); sv.value = S.vend;
+}
+function drawProd() {
+  const el = $('t_prod'); el.replaceChildren(); const P = (S.D.productos || []).filter(d => !S.linea || d.linea === S.linea);
+  $('n_prod').textContent = `${P.length} productos` + (P.length > 80 ? ' (se muestran 80)' : '');
+  P.slice(0, 80).forEach(d => {
+    const tr = document.createElement('tr');
+    td(tr, d.rank_total, 'n'); td(tr, d.rank_linea, 'n'); td(tr, d.producto, 'w'); td(tr, d.linea); td(tr, soles(d.neta), 'n');
+    td(tr, (+d.share_total).toFixed(1) + '%', 'n'); td(tr, (+d.share_linea).toFixed(1) + '%', 'n'); td(tr, fmt(d.cant), 'n'); td(tr, d.clientes, 'n');
+    td(tr, d.ciclo_dias, 'n'); td(tr, d.pct_recompra == null ? null : d.pct_recompra + '%', 'n'); el.appendChild(tr);
+  });
+}
+function drawCats() {
+  const el = $('cards_cat'); el.replaceChildren(); const C = S.D.categorias || []; const tot = d3.sum(C, d => d.venta), tn = d3.sum(C, d => d.n);
+  const M = { ORO: ['1', 'Oro'], PLATA: ['2', 'Plata'], BRONCE: ['3', 'Bronce'] };
+  ['ORO', 'PLATA', 'BRONCE'].forEach(c => {
+    const d = C.find(x => x.cat === c); if (!d) return; const pv = Math.round(100 * d.venta / tot);
+    const k = document.createElement('div'); k.className = 'cat ' + c;
+    const top = document.createElement('div'); top.style.cssText = 'display:flex;align-items:center;gap:10px';
+    const md = document.createElement('div'); md.className = 'medal'; md.textContent = M[c][0];
+    const nm = document.createElement('div'); nm.style.cssText = 'font-weight:800;font-size:15px'; nm.textContent = M[c][1];
+    top.append(md, nm); k.appendChild(top);
+    const b = document.createElement('div'); b.className = 'big'; b.textContent = d.n + ' clientes'; k.appendChild(b);
+    const s1 = document.createElement('div'); s1.className = 'chg'; s1.style.color = 'var(--ink2)'; s1.textContent = `${pv}% de la venta · ${short(d.venta)} · ${Math.round(100 * d.n / tn)}% de los clientes`; k.appendChild(s1);
+    const mt = document.createElement('div'); mt.className = 'meter'; const sp = document.createElement('span'); sp.style.width = pv + '%'; mt.appendChild(sp); k.appendChild(mt);
+    const f = document.createElement('div'); f.className = 'facts';
+    [['Puntaje prom.', d.puntaje], ['Pago prom.', d.pago], ['Líneas prom.', d.lineas], ['Meses con compra', d.meses]].forEach(([l, v]) => { const x = document.createElement('div'); x.textContent = `${l}: `; const bb = document.createElement('b'); bb.textContent = v; x.appendChild(bb); f.appendChild(x); });
+    k.appendChild(f); el.appendChild(k);
+  });
+}
+function cliFiltrados() {
+  const q = S.q; let C = (S.D.clientes || []).filter(d => (!S.cat || d.cat === S.cat) && (!S.vend || d.vendedor === S.vend) && (!q || (d.razon || '').toLowerCase().includes(q) || d.ruc.includes(q)));
+  const k = S.sort; C = C.slice().sort((a, b) => { const x = a[k], y = b[k]; if (x == null) return 1; if (y == null) return -1; return (x > y ? 1 : x < y ? -1 : 0) * S.dir; });
+  return C;
+}
+function drawCli() {
+  const el = $('t_cli'); el.replaceChildren(); const C = cliFiltrados();
+  $('n_cli').textContent = `${C.length} clientes` + (C.length > 200 ? ' (se muestran 200)' : '');
+  C.slice(0, 200).forEach(d => {
+    const tr = document.createElement('tr');
+    td(tr, d.razon, 'w'); td(tr, d.ruc); td(tr, d.vendedor); td(tr, d.vendedor_antes); pill(tr, d.cat); pill(tr, d.cat_prev);
+    scoreTd(tr, +d.puntaje, 1); [d.s_vol, d.s_pago, d.s_frec, d.s_mix, d.s_dev].forEach(v => scoreTd(tr, v));
+    td(tr, soles(d.venta), 'n'); td(tr, d.pct_puntual == null ? 'contado' : d.pct_puntual + '%', 'n'); td(tr, d.atraso, 'n');
+    td(tr, d.tasa_dev == null ? null : d.tasa_dev + '%', 'n'); td(tr, d.penetracion == null ? null : d.penetracion + '%', 'n'); el.appendChild(tr);
+  });
+}
+function drawAlert() {
+  const el = $('t_alert'); el.replaceChildren();
+  (S.D.clientes || []).filter(d => d.alerta_repo).sort((a, b) => b.venta - a.venta).slice(0, 50).forEach(d => {
+    const tr = document.createElement('tr');
+    td(tr, d.razon, 'w'); td(tr, d.vendedor); pill(tr, d.cat); td(tr, d.ciclo, 'n'); td(tr, d.dias_sin_compra, 'n'); td(tr, soles(d.venta), 'n'); el.appendChild(tr);
+  });
+}
+$('sel_linea').onchange = e => { S.linea = e.target.value; drawProd(); };
+$('sel_cat').onchange = e => { S.cat = e.target.value; drawCli(); };
+$('sel_vend').onchange = e => { S.vend = e.target.value; drawCli(); };
+$('buscar').oninput = e => { S.q = e.target.value.trim().toLowerCase(); drawCli(); };
+document.querySelectorAll('#tabla_cli th[data-k]').forEach(th => th.onclick = () => { const k = th.dataset.k; S.dir = S.sort === k ? -S.dir : (th.classList.contains('n') ? -1 : 1); S.sort = k; drawCli(); });
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => S.D && drawChart(), 150); });
+start();
 </script>
 </body>
 </html>
