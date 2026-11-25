@@ -15,6 +15,15 @@ Son **dos bases distintas**, y conviene no leerlas como si fueran lo mismo:
 | Venta, líneas, productos, oro/plata/bronce, reposición | `dashboard_comercial_servidor()` en el proyecto de **pedidos** | **sin** IGV |
 | Cartera, morosidad, venta mensual del ERP, vendedor actual | cuatro vistas `v_dash_*` del proyecto **consolidado** (cobranzas + compras) | **con** IGV |
 
+La mitad de venta se alimenta sola: **cada vez que se sube el avance de
+ventas, el mes que trae ese archivo se reescribe en `comercial.ventas_detalle`**
+(migración `1065` de pedidos). La historia anterior a octubre 2026, que el
+avance no cubre, queda intacta.
+
+La excepción es la clasificación **oro / plata / bronce**: `comercial.ranking_clientes`
+sigue siendo una foto y no se recalcula sola, porque mezcla el comportamiento
+de pago, que vive en la base de cobranzas y la de pedidos no alcanza.
+
 Las dos se leen en vivo en cada visita. Que una falle no deja la pantalla en
 blanco: se muestra la otra mitad y un aviso arriba diciendo qué no respondió.
 
