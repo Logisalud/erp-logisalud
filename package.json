@@ -21,7 +21,9 @@
     "build:wms": "npm run build --workspace erp-logisalud-wms",
     "test:wms": "npm run test --workspace erp-logisalud-wms",
     "test:db:wms": "npm run test:db --workspace erp-logisalud-wms",
-    "test:e2e:wms": "npm run test:e2e --workspace erp-logisalud-wms"
+    "test:e2e:wms": "npm run test:e2e --workspace erp-logisalud-wms",
+    "dev:dashboard": "npm run dev --workspace erp-logisalud-dashboard",
+    "build:dashboard": "npm run build --workspace erp-logisalud-dashboard"
   },
   "engines": {
     "node": ">=22"
