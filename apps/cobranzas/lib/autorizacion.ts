@@ -15,11 +15,8 @@
  * - IMPORTACION es más chica todavía — un importador reescribe cientos de
  *   filas de documentos o de cartera de una sola vez; tesorería registra
  *   pagos uno por uno, no hace cargas masivas.
- * - BORRADO es solo admin (decisión explícita del usuario, ago-2026):
- *   contabilidad y tesorería crean y editan, pero no borran. Un pago mal
- *   cargado se corrige con PATCH; borrarlo lo saca del historial.
- * - BORRADO_PAGOS es la única excepción a lo anterior, y se abrió a
- *   tesorería en nov-2026: ver el comentario de la constante.
+ * - BORRADO era solo admin (ago-2026) y desde nov-2026 incluye tesorería:
+ *   ver el comentario de la constante.
  */
 
 export const AREAS_LECTURA = ['contabilidad', 'tesoreria', 'gerencia'] as const
@@ -28,28 +25,27 @@ export const AREAS_ESCRITURA = ['contabilidad', 'tesoreria'] as const
 
 export const AREAS_IMPORTACION = ['contabilidad'] as const
 
-/** Solo admin. La lista vacía + el pase de admin en exigirArea() lo logran. */
-export const AREAS_BORRADO = [] as const
-
 /**
- * Borrar un PAGO: admin y tesorería (nov-2026).
+ * Borrar: admin y tesorería (nov-2026).
  *
- * Tesorería es quien carga los pagos todo el día, así que es quien produce
- * los duplicados —el mismo voucher entrado dos veces— y quien los detecta.
- * Tenerlos que pedir por WhatsApp a un admin para que los borre convierte
- * un error de tipeo en un trámite, y mientras tanto la factura figura
- * pagada de más.
+ * Cubre borrar un PAGO o una LETRA y anular un canje o un ingreso de
+ * factoring. Las cuatro cosas le devuelven saldo pendiente a una factura —
+ * el ingreso de factoring, a varias de una vez.
  *
- * Es una lista aparte y no `tesoreria` dentro de `AREAS_BORRADO` a
- * propósito: esa lista también cubre borrar una LETRA y anular un canje o
- * un ingreso de factoring, que le devuelven saldo pendiente a varias
- * facturas de una vez. Eso sigue siendo solo de admin.
+ * Hasta ago-2026 era solo admin, con un argumento bueno: "un pago mal
+ * cargado se corrige con PATCH; borrarlo lo saca del historial". Lo que
+ * cambió no es el argumento sino quién hace el trabajo: tesorería carga los
+ * pagos, los canjes y los ingresos todo el día, así que es quien produce
+ * los duplicados y quien los detecta. Tenerlos que pedir por WhatsApp a un
+ * admin convierte un error de tipeo en un trámite, y mientras tanto la
+ * factura figura pagada de más. Decisión explícita del usuario
+ * (2026-11-25), tomada sabiendo que esto incluye letras y factoring.
  *
- * La razón por la que el borrado estaba cerrado —"borrarlo lo saca del
- * historial"— se resolvió antes de abrirlo: cada eliminación deja la fila
- * completa en `public.pagos_eliminados`, con quién la borró y cuándo.
+ * La objeción del historial se resolvió donde más dolía: borrar un pago
+ * deja la fila completa en `public.pagos_eliminados`, con quién lo borró y
+ * cuándo. Lo que NO se amplió es `AREAS_INCOBRABLE`, que sigue en admin.
  */
-export const AREAS_BORRADO_PAGOS = ['tesoreria'] as const
+export const AREAS_BORRADO = ['tesoreria'] as const
 
 /**
  * Asignación de cartera y links de vendedor (grupo F).

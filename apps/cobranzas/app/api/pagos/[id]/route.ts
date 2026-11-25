@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { exigirArea } from '@logisalud/auth/api';
-import { AREAS_BORRADO_PAGOS, AREAS_ESCRITURA } from '@/lib/autorizacion';
+import { AREAS_BORRADO, AREAS_ESCRITURA } from '@/lib/autorizacion';
 
 export async function PATCH(
   req: NextRequest,
@@ -45,7 +45,7 @@ export async function PATCH(
 }
 
 /**
- * Borrar un pago: admin y tesorería (ver AREAS_BORRADO_PAGOS).
+ * Borrar un pago: admin y tesorería (ver AREAS_BORRADO).
  *
  * Antes de borrar se guarda la fila entera en `pagos_eliminados`. Esa era
  * la objeción que mantuvo el borrado cerrado desde ago-2026 —"borrarlo lo
@@ -59,7 +59,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const auth = await exigirArea(AREAS_BORRADO_PAGOS);
+  const auth = await exigirArea(AREAS_BORRADO);
   if (!auth.ok) return auth.respuesta;
 
   const db = supabaseAdmin();
