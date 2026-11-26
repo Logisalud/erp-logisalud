@@ -8,10 +8,15 @@
 -- RECETA" como si fueran cosas distintas: la misma línea partida en dos
 -- renglones del ranking.
 --
--- La equivalencia NO se inventa: sale de la hoja "lineas" del propio
--- archivo de avance, la misma que alimenta los rótulos de la hoja "Cuota".
--- Así el tablero y el avance hablan el mismo idioma. Los códigos cortos
--- (GX, RX, MX, CP) son los que usa el negocio en la cuota.
+-- La equivalencia sale de la hoja "lineas" del propio archivo de avance, la
+-- misma que alimenta los rótulos de la hoja "Cuota". Así el tablero y el
+-- avance hablan el mismo idioma. Los códigos cortos (GX, RX, MX, CP) son
+-- los que usa el negocio en la cuota.
+--
+-- Una corrección sobre esa hoja: ahí "DIPHASAC - METABOLICA" apunta a RX, y
+-- el negocio confirmó el 2026-11-26 que va a MX, como "METABOLICO". No
+-- cambia ningún número: ese nombre no aparece en una sola fila de los datos,
+-- la equivalencia está por si aparece.
 --
 -- ── Los clientes ─────────────────────────────────────────────────────────
 -- Dos clientes que la empresa decidió no contar por fraude (2026-11-26).
@@ -42,7 +47,7 @@ insert into comercial.lineas_canonicas (linea_cruda, linea) values
   ('CUIDADO PERSONAL',       'DIPHASAC - CP'),
   ('VENTA CON RECETA',       'DIPHASAC - RX'),
   ('DIPHASAC - VENTA CON RECETA', 'DIPHASAC - RX'),
-  ('DIPHASAC - METABOLICA',  'DIPHASAC - RX'),
+  ('DIPHASAC - METABOLICA',  'DIPHASAC - MX'),
   ('METABOLICO',             'DIPHASAC - MX'),
   ('PRADES - NUTRACEUTICOS', 'PRADES'),
   ('DARENUTRITION',          'DARE NUTRITION'),
