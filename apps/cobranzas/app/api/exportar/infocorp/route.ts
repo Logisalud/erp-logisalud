@@ -24,7 +24,9 @@ export async function GET() {
     db.rpc('fn_documentos_cobranza', { p_fecha_corte: hoy }),
     db
       .from('infocorp_clientes')
-      .select('*, cliente:clientes(razon_social)')
+      .select(
+        '*, cliente:clientes(razon_social, vendedor:vendedores!clientes_vendedor_actual_id_fkey(nombres, apellidos))',
+      )
       .order('reportado')
       .order('marcado_en', { ascending: false }),
   ]);
@@ -43,8 +45,31 @@ export async function GET() {
     reportado_en: string | null;
     reportado_por: string | null;
     adjunto_nombre: string | null;
-    cliente: { razon_social: string } | null;
+    cliente: {
+      razon_social: string;
+      vendedor: { nombres: string | null; apellidos: string | null } | null;
+    } | null;
   }>;
+
+  /**
+   * El vendedor que atiende al cliente hoy.
+   *
+   * La hoja de candidatos ya lo traía —sale de `fn_documentos_cobranza`—
+   * pero las dos que de verdad se usan, "Por reportar" y "Ya reportados",
+   * no. Quien recibe el Excel tiene que saber a quién llamar antes de
+   * reportar a alguien a Infocorp, y tenía que ir a buscarlo a otra
+   * pantalla.
+   *
+   * Se toma de `clientes.vendedor_actual_id` y no de los documentos: un
+   * cliente marcado para Infocorp puede haber dejado de tener deuda —o
+   * haberla pasado a incobrable— y entonces no aparece en la cobranza,
+   * pero el vendedor que lo atiende sigue siendo el mismo.
+   */
+  const nombreVendedor = (m: (typeof marcados)[number]) => {
+    const v = m.cliente?.vendedor;
+    if (!v) return '—';
+    return [v.nombres, v.apellidos].filter(Boolean).join(' ').trim() || '—';
+  };
 
   const yaMarcados = new Set(marcados.map(m => m.cliente_ruc));
   const candidatos = candidatosAInfocorp((docs.data ?? []) as FilaCobranza[])
@@ -53,6 +78,7 @@ export async function GET() {
   const filaMarcado = (m: (typeof marcados)[number]) => ({
     'RUC': m.cliente_ruc,
     'Cliente': m.cliente?.razon_social ?? '',
+    'Vendedor': nombreVendedor(m),
     'Deuda al marcar': m.saldo_al_marcar === null ? '' : Number(m.saldo_al_marcar),
     'Días al marcar': m.dias_vencido_al_marcar ?? '',
     'Marcado el': m.marcado_en?.slice(0, 10) ?? '',
