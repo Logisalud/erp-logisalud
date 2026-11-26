@@ -44,6 +44,17 @@ habría sido reescribir 700 líneas que ya funcionan.
 `@logisalud/auth` protege todo. `/api/salir` cierra la sesión del lado del
 servidor, porque una página HTML suelta no puede usar `BotonCerrarSesion`.
 
+## Dos reglas del negocio que viven en la base
+
+- **`comercial.lineas_canonicas`**: la línea se muestra con el nombre que
+  usa la cuota (`DIPHASAC - GX`, `DIPHASAC - RX`, …), no como viene en el
+  archivo (`GENERICO`, `OTC`). La equivalencia sale de la hoja «lineas» del
+  propio avance. Sin esto la misma línea aparecía dos veces en el ranking.
+- **`comercial.clientes_excluidos`**: clientes que la empresa decidió no
+  contar. No se borran sus comprobantes —la venta ocurrió y la contabilidad
+  la tiene—, solo quedan fuera del análisis comercial. Volver a incluir a
+  alguien es borrar una fila.
+
 ## Permisos
 
 `/api/datos` exige área `gerencia`, `contabilidad`, `tesoreria` o `ventas`
