@@ -1,0 +1,46 @@
+@import "leaflet/dist/leaflet.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  @keyframes marquee {
+    0% {
+      transform: translateX(0%);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-marquee {
+    display: inline-flex;
+    animation: marquee 35s linear infinite;
+  }
+
+  .animate-marquee:hover {
+    animation-play-state: paused;
+  }
+}
+
+/* Custom Leaflet overrides */
+.leaflet-container {
+  font-family: inherit;
+  background-color: #090d16;
+}
+
+.custom-order-pin {
+  background: transparent;
+  border: none;
+}
+
+.custom-hub-icon {
+  background: transparent;
+  border: none;
+}
+
+.custom-vehicle-pin {
+  background: transparent;
+  border: none;
+}
