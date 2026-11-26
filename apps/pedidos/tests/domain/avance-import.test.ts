@@ -184,6 +184,33 @@ describe("parsearDetalle", () => {
   it("se queja si falta una columna que no se puede inventar", () => {
     expect(() => parsearDetalle([["RV", "PRODUCTO"], ["CRP1007", "X"]])).toThrow(ErrorDeFormato);
   });
+
+  it("deja afuera BVC, porque el cuadro de avance tampoco lo cuenta", () => {
+    // La hoja "AVANCE 2026" que lee el ERP viene sin BVC (hay una "AVANCE
+    // 2026 CON BVC" aparte). Si el detalle lo trajera, el vendedor vería
+    // una cifra abajo que no cierra con su avance contra la cuota.
+    const conOrigen = [...cab, "ORIGEN"];
+    const d = parsearDetalle([
+      conOrigen,
+      [1, "CRP1007", "CINTHYA VILCHEZ", new Date(Date.UTC(2026, 10, 5)), "FACTURA", "FFF1-1", 20100047218, "BOTICA", "X", "OTC", 1, 100, "LOGISSA"],
+      [1, "CRP1007", "CINTHYA VILCHEZ", new Date(Date.UTC(2026, 10, 5)), "FACTURA", "FFF1-2", 20100047218, "BOTICA", "X", "OTC", 1, 50, "BVC"],
+      [1, "CRP1007", "CINTHYA VILCHEZ", new Date(Date.UTC(2026, 10, 5)), "FACTURA", "FFF1-3", 20100047218, "BOTICA", "X", "OTC", 1, 30, " bvc "],
+      [1, "CRP1007", "CINTHYA VILCHEZ", new Date(Date.UTC(2026, 10, 5)), "FACTURA", "FFF1-4", 20100047218, "BOTICA", "X", "OTC", 1, 20, "MIDHCO"],
+    ]);
+
+    expect(d.map((x) => x.nroDocumento)).toEqual(["FFF1-1", "FFF1-4"]);
+    expect(d.reduce((t, x) => t + (x.neto ?? 0), 0)).toBe(120);
+  });
+
+  it("no descarta nada cuando la hoja no trae la columna ORIGEN", () => {
+    // Un archivo viejo, sin esa columna, tiene que seguir entrando entero.
+    const d = parsearDetalle([
+      cab,
+      [1, "CRP1007", "CINTHYA VILCHEZ", new Date(Date.UTC(2026, 9, 5)), "FACTURA", "FFF1-9", 20100047218, "BOTICA", "X", "OTC", 1, 90],
+    ]);
+
+    expect(d).toHaveLength(1);
+  });
 });
 
 describe("resumirCarga", () => {
