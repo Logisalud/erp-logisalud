@@ -66,7 +66,7 @@ interface PagoCrudo {
   monto: number;
   fecha_pago: string;
   referencia: string | null;
-  medio_cobro: 'transferencia' | 'efectivo';
+  medio_cobro: 'transferencia' | 'efectivo' | 'compensacion';
   cuenta_bancaria_codigo: string | null;
   estado_efectivo: 'cobrado_por_depositar' | 'depositado' | null;
   fecha_deposito: string | null;
@@ -89,6 +89,14 @@ export async function construirFilasNubecont(db: SupabaseClient, desde: string, 
 
   const pagosValidos = pagos.filter(p => {
     if (!p.documentos) return false;
+    // Una compensación no es un movimiento de banco: la deuda del cliente se
+    // cruzó contra lo que Logisalud le debe a su proveedor y no entró un sol
+    // a ninguna cuenta. Este archivo asigna una cuenta a cada fila, así que
+    // incluirla la haría aparecer como un depósito que nunca ocurrió —y
+    // encima en la cuenta del efectivo, que es la que usa el `else` de más
+    // abajo. Queda afuera hasta que Contabilidad defina contra qué cuenta se
+    // asienta.
+    if (p.medio_cobro === 'compensacion') return false;
     if (p.medio_cobro === 'efectivo' && p.estado_efectivo !== 'depositado') return false;
     const fecha = fechaEfectiva(p);
     return !!fecha && fecha >= desde && fecha <= hasta;
