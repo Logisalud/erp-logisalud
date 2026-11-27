@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     retencion?: number;      // monto de retención de IGV (3%), opcional
     solo_retencion?: boolean; // si true, inserta SOLO la retención (el pago ya existe)
     registrado_por?: string; // quién registra el pago (sin sistema de login, es texto libre)
-    medio_cobro?: 'transferencia' | 'efectivo';
+    medio_cobro?: 'transferencia' | 'efectivo' | 'compensacion';
     cuenta_bancaria_codigo?: string; // a qué cuenta llegó (solo aplica con medio_cobro='transferencia')
   };
 
@@ -54,14 +54,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El monto debe ser mayor a 0' }, { status: 400 });
   if (retencion !== undefined && Number(retencion) < 0)
     return NextResponse.json({ error: 'La retención no puede ser negativa' }, { status: 400 });
-  if (medio_cobro !== undefined && medio_cobro !== 'transferencia' && medio_cobro !== 'efectivo')
+  if (medio_cobro !== undefined && !['transferencia', 'efectivo', 'compensacion'].includes(medio_cobro))
     return NextResponse.json({ error: 'medio_cobro inválido' }, { status: 400 });
   if (cuenta_bancaria_codigo && medio_cobro !== 'transferencia')
     return NextResponse.json({ error: 'cuenta_bancaria_codigo solo aplica a pagos por transferencia' }, { status: 400 });
+  // La referencia es obligatoria en una compensación y solo ahí. En un
+  // depósito el voucher cuenta la historia; acá no hay voucher ni extracto
+  // donde mirar, así que lo único que va a quedar dentro de seis meses es
+  // lo que alguien escriba hoy: contra qué deuda se cruzó.
+  if (medio_cobro === 'compensacion' && !(referencia ?? '').trim())
+    return NextResponse.json(
+      { error: 'Una compensación necesita que escribas contra qué se compensó.' },
+      { status: 400 },
+    );
 
   // Un pago en efectivo entra siempre como "cobrado, por depositar" — sin que
   // nadie tenga que marcarlo manualmente en el momento del registro.
   const esEfectivo = medio_cobro === 'efectivo';
+  const esCompensacion = medio_cobro === 'compensacion';
 
   const db = supabaseAdmin();
 
@@ -196,6 +206,13 @@ export async function POST(req: NextRequest) {
     registrado_por: registrado_por?.trim() || null,
     ...(letra_id ? { letra_id } : {}),
     ...(esEfectivo ? { medio_cobro: 'efectivo', estado_efectivo: 'cobrado_por_depositar' } : {}),
+    // Una compensación nace confirmada: no pasó por el banco, así que no hay
+    // extracto contra el cual conciliarla. Dejarla pendiente la mandaría para
+    // siempre a /pagos-sin-confirmar, donde nadie podría sacarla nunca y
+    // terminaría tapando los pagos que sí hay que revisar.
+    ...(esCompensacion
+      ? { medio_cobro: 'compensacion', estado_verificacion: 'confirmado', confirmado_en: new Date().toISOString() }
+      : {}),
     ...(cuenta_bancaria_codigo ? { cuenta_bancaria_codigo } : {}),
   }];
   if (retencion !== undefined && Number(retencion) > 0) {

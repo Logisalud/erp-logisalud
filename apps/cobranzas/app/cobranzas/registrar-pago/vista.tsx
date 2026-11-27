@@ -59,7 +59,7 @@ interface Pago {
   voucher_path: string | null;
   tipo?: 'pago' | 'retencion';
   registrado_por?: string | null;
-  medio_cobro?: 'transferencia' | 'efectivo';
+  medio_cobro?: 'transferencia' | 'efectivo' | 'compensacion';
   cuenta_bancaria_codigo?: string | null;
   estado_efectivo?: 'cobrado_por_depositar' | 'depositado' | null;
   fecha_deposito?: string | null;
@@ -156,7 +156,7 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
   const [fechaPago, setFechaPago]       = useState(hoy());
   const [referencia, setReferencia]     = useState('');
   const [registradoPor, setRegistradoPor] = useState('');
-  const [medioCobro, setMedioCobro]     = useState<'transferencia' | 'efectivo'>('transferencia');
+  const [medioCobro, setMedioCobro]     = useState<'transferencia' | 'efectivo' | 'compensacion'>('transferencia');
   const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([]);
   const [cuentaBancaria, setCuentaBancaria] = useState('');
   const [archivo, setArchivo]           = useState<File | null>(null);
@@ -397,6 +397,10 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
     if (!monto || Number(monto) <= 0)  { setErrMsg('El monto debe ser mayor a 0.');        return; }
     if (conRetencion && Number(retencion) <= 0) { setErrMsg('La retención debe ser mayor a 0.'); return; }
     if (!registradoPor.trim()) { setErrMsg('Indica quién registra este pago.'); return; }
+    if (medioCobro === 'compensacion' && !referencia.trim()) {
+      alert('Escribe contra qué se compensó: es lo único que va a quedar para reconstruirlo después.');
+      return;
+    }
     if (medioCobro === 'transferencia' && cuentasBancarias.length > 0 && !cuentaBancaria) {
       setErrMsg('Indica a qué cuenta llegó el pago.'); return;
     }
@@ -1062,10 +1066,27 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
                       >
                         💵 Efectivo
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => { setMedioCobro('compensacion'); setCuentaBancaria(''); }}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition ${
+                          medioCobro === 'compensacion'
+                            ? 'bg-violet-50 border-violet-400 text-violet-700'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        🔁 Compensación
+                      </button>
                     </div>
                     {medioCobro === 'efectivo' && (
                       <p className="text-[11px] text-amber-600 mt-1">
                         Queda como &quot;cobrado, por depositar&quot; hasta que alguien lo marque como depositado.
+                      </p>
+                    )}
+                    {medioCobro === 'compensacion' && (
+                      <p className="text-[11px] text-violet-700 mt-1">
+                        No entra plata: la deuda se cruza contra lo que le debemos al proveedor. Baja el saldo
+                        igual, no necesita conciliación bancaria y no sale en el archivo de Nubecont.
                       </p>
                     )}
                   </div>
@@ -1106,11 +1127,15 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs text-gray-500 mb-1">Referencia / N° operación</label>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {medioCobro === 'compensacion' ? '¿Contra qué se compensó? *' : 'Referencia / N° operación'}
+                      </label>
                       <input
                         type="text" value={referencia}
                         onChange={e => setReferencia(e.target.value)}
-                        placeholder="OP-123456"
+                        placeholder={medioCobro === 'compensacion'
+                          ? 'Ej: compensado contra factura F001-1234 de Diphasac'
+                          : 'OP-123456'}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-logisalud-teal"
                       />
                     </div>
@@ -1362,6 +1387,13 @@ export default function RegistrarPagoVista({ puedeEditarContado, puedeDarDeBaja 
                               )}
                               {p.registrado_por && <> · registrado por <span className="text-gray-500">{p.registrado_por}</span></>}
                             </p>
+                            {p.medio_cobro === 'compensacion' && (
+                              <div className="mt-1.5">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                                  🔁 Compensación · sin movimiento de banco
+                                </span>
+                              </div>
+                            )}
                             {p.medio_cobro === 'efectivo' && (
                               <div className="mt-1.5">
                                 {p.estado_efectivo === 'depositado' ? (
