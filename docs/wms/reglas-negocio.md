@@ -231,3 +231,8 @@ Ningún registro se oculta ni se borra. Toda corrección deja historia (usuario,
 - **Retornos:** todo lo que salió y vuelve (rechazado o no entregado) entra como recepción tipo devolución: Devoluciones, acta de recepción y acta organoléptica al 100 %, y Aprobado o Bajas. Nunca vuelve más de lo que salió, por lote. Reprogramar = nueva Orden de Salida.
 - **Liberación (LS-POE.04.05):** productos de Logissa, Sandra evalúa y Katia dictamina; observación reversible = sigue en Cuarentena. Productos de clientes: libera el DT del cliente; Sandra o Katia registran su dictamen con el documento y confirman el cambio de estado. Rol «DT de cliente» apagado hasta SEC1. Reemplaza el LS-FR.04.
 - **Muestreo:** tabla LS-TB.02.02 como parámetro (ver arriba). Decisiones D-93 a D-96.
+
+## Vistas del cliente de almacenamiento (B3, regla acordada el 27-nov-2026, sin construir)
+- El cliente de almacenamiento ve en su stock **solo lo Aprobado y ubicado en su área de Aprobados**.
+- Lo «Aprobado · por trasladar» (todavía en Cuarentena o Recepción) aparece **solo como informativo** y **no se puede ordenar**.
+- Se aplica cuando se construyan las vistas de cliente (B3, con SEC1 en producción, D-68).
