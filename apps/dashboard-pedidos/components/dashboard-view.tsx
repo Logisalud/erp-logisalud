@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { DashboardOrder, RealtimeOrderStatus } from "@/domain/types";
 import { useRealtimeDashboard } from "./use-realtime-dashboard";
+import { logoutDashboard } from "./auth-gate";
 import { KpiBar } from "./kpi-bar";
 import { OrderFeed } from "./order-feed";
 import { OrderDetailModal } from "./order-detail-modal";
@@ -143,6 +144,20 @@ export function DashboardView() {
             >
               <span>📺</span>
               <span className="hidden sm:inline">Modo TV</span>
+            </button>
+
+            {/* Botón Salir / Bloquear */}
+            <button
+              type="button"
+              onClick={logoutDashboard}
+              className={`flex h-8 w-8 items-center justify-center rounded-xl border text-xs transition active:scale-95 ${
+                isTvMode
+                  ? "border-slate-800 bg-slate-900 text-slate-400 hover:text-white"
+                  : "border-slate-200 bg-white text-slate-500 hover:text-slate-800"
+              }`}
+              title="Cerrar sesión / Bloquear acceso"
+            >
+              🔒
             </button>
           </div>
         </div>
