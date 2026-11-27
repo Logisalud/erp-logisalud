@@ -3,11 +3,12 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { cleanEnv } from "@/lib/env";
 import { sincronizarCredito } from "@/services/credito";
 import { sincronizarContactosACobranzas } from "@/services/contactos-cobranzas";
+import { sincronizarCarteraDesdeCobranzas } from "@/services/cartera-desde-cobranzas";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Las dos mitades del puente con cobranzas, una vez por día.
+ * Las tres mitades del puente con cobranzas, una vez por día.
  *
  * Van juntas en una sola ruta y no en dos crons porque el plan de Vercel
  * limita cuántos cron jobs admite un proyecto, y porque el orden importa:
@@ -20,10 +21,14 @@ export const dynamic = "force-dynamic";
  * hoy. La copia que manda es la de la mañana, antes de que el vendedor
  * abra el primer pedido.
  *
- * Si la primera falla se sigue con la segunda: son independientes, y perder
- * las dos porque cobranzas no respondió para una es peor que perder una.
- * El desenlace de cada mitad viaja en la respuesta, y el 502 se levanta
- * recién al final, para que el log del cron muestre qué anduvo y qué no.
+ * Si una falla se sigue con las otras: son independientes, y perderlas
+ * todas porque cobranzas no respondió para una es peor que perder una. El
+ * desenlace de cada mitad viaja en la respuesta, y el 502 se levanta recién
+ * al final, para que el log del cron muestre qué anduvo y qué no.
+ *
+ * La tercera es la cartera: la dirección fiscal y el ubigeo que vienen del
+ * padrón y viven en cobranzas, copiados a pedidos. Va última porque es la
+ * única que no frena a nadie si queda vieja un día.
  */
 type Mitad = { ok: true; detalle: unknown } | { ok: false; error: string };
 
@@ -65,10 +70,11 @@ async function ejecutar(req: NextRequest) {
 
   const credito = await correr(() => sincronizarCredito(actor));
   const contactos = await correr(() => sincronizarContactosACobranzas(actor));
-  const ok = credito.ok && contactos.ok;
+  const cartera = await correr(() => sincronizarCarteraDesdeCobranzas(actor));
+  const ok = credito.ok && contactos.ok && cartera.ok;
 
   return NextResponse.json(
-    { ok, credito, contactos },
+    { ok, credito, contactos, cartera },
     { status: ok ? 200 : 502, headers: { "Cache-Control": "no-store" } },
   );
 }

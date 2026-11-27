@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="es-PE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Dashboard Comercial · Logisalud</title>
+<script src="/d3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#12302b;--ink2:#3d5a54;--muted:#6b807b;--bg:#eef4f2;--surface:#fff;--soft:#f6faf9;--line:#dbe7e3;
+  --brand:#0f766e;--brand2:#14b8a6;--brandsoft:#ddf3ef;--coral:#e4683f;--coralsoft:#fde9e1;
+  --ok:#15803d;--oksoft:#dcfce7;--warn:#b45309;--warnsoft:#fef3c7;--bad:#c0362c;--badsoft:#fde2df;
+  --gold:#b7860b;--goldsoft:#fdf3d1;--silver:#5b6b82;--silversoft:#e9eef5;--bronze:#a4572a;--bronzesoft:#f8e6d9;
+  --r:16px;--shadow:0 1px 2px rgba(18,48,43,.05),0 6px 20px rgba(18,48,43,.06)}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:"Plus Jakarta Sans",system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+.top{background:linear-gradient(120deg,#0b4f49 0%,var(--brand) 60%,#139b8f 100%);color:#fff}
+.top .in{max-width:1280px;margin:0 auto;padding:22px 24px 70px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.brand{display:flex;gap:14px;align-items:center}
+.logo{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.16);display:grid;place-items:center;flex:none}
+h1{font-size:24px;font-weight:800;margin:0;letter-spacing:-.02em}
+.top .meta{font-size:13px;opacity:.85;margin-top:3px}
+.top .meta b{font-weight:600}
+.userbox{display:flex;align-items:center;gap:10px;font-size:13px}
+.avatar{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;font-weight:700;font-size:13px}
+.wrap{max-width:1280px;margin:-48px auto 0;padding:0 24px 60px}
+.take{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 20px;font-size:15px;line-height:1.55;margin:0 0 16px;display:flex;gap:12px;align-items:flex-start}
+.take::before{content:"";flex:none;width:6px;align-self:stretch;border-radius:3px;background:linear-gradient(var(--brand2),var(--brand))}
+nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 18px;position:sticky;top:0;z-index:5;padding:10px 0;background:var(--bg)}
+nav.tabs a{text-decoration:none;color:var(--ink2);font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
+nav.tabs a:hover{background:var(--brandsoft);color:var(--brand);border-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.kpi{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 18px 16px;position:relative;overflow:hidden}
+.kpi .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;margin-bottom:10px}
+.kpi .ic svg{width:19px;height:19px}
+.lab{font-size:12.5px;color:var(--muted);font-weight:500}
+.big{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:4px 0 6px;font-variant-numeric:tabular-nums}
+.chg{font-size:12.5px;color:var(--muted)}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-weight:700;font-size:12px}
+.badge.ok{background:var(--oksoft);color:var(--ok)} .badge.bad{background:var(--badsoft);color:var(--bad)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.muted{color:var(--muted)}
+section.panel{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:20px 20px 18px;margin-top:18px;scroll-margin-top:64px}
+.ph{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+h2{font-size:17px;font-weight:700;margin:0;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+h2 .dot{width:10px;height:10px;border-radius:3px;background:var(--brand)}
+.sub{color:var(--muted);font-size:12.5px;margin:4px 0 0;max-width:90ch;line-height:1.5}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink2)} .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.chart{position:relative;min-height:270px}
+.chart text{fill:var(--muted);font-size:11px;font-family:inherit}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;border-radius:10px;padding:7px 10px;font-size:12px;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.tw{overflow:auto;max-height:560px;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.8px;font-variant-numeric:tabular-nums}
+th{position:sticky;top:0;z-index:1;background:var(--soft);color:var(--ink2);text-align:left;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;padding:10px 10px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer}
+td{padding:9px 10px;border-bottom:1px solid #edf3f1;white-space:nowrap}
+tbody tr:hover td{background:#f4faf8}
+td.n,th.n{text-align:right} td.w{white-space:normal;min-width:230px;font-weight:500}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.ORO{background:var(--goldsoft);color:var(--gold)}.PLATA{background:var(--silversoft);color:var(--silver)}.BRONCE{background:var(--bronzesoft);color:var(--bronze)}
+.sc{display:inline-block;min-width:34px;text-align:center;padding:2px 6px;border-radius:7px;font-weight:700;font-size:12px}
+.s-hi{background:var(--oksoft);color:var(--ok)}.s-mid{background:var(--warnsoft);color:var(--warn)}.s-lo{background:var(--badsoft);color:var(--bad)}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+select,input{font:inherit;font-size:13px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
+select:focus,input:focus{outline:2px solid var(--brand2);outline-offset:1px}
+button{font:inherit;font-size:13px;font-weight:700;padding:9px 16px;border-radius:10px;border:0;background:var(--brand);color:#fff;cursor:pointer}
+button:hover{filter:brightness(1.08)}
+button:disabled{opacity:.6;cursor:not-allowed}
+button.ghost{background:rgba(255,255,255,.15);color:#fff}
+.bar{display:inline-block;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--brand2),var(--brand));vertical-align:middle}
+.cat{border-radius:var(--r);padding:18px;position:relative;overflow:hidden}
+.cat.ORO{background:linear-gradient(140deg,#fff8e1,#fbe9ad)} .cat.PLATA{background:linear-gradient(140deg,#f5f8fc,#dfe6f0)} .cat.BRONCE{background:linear-gradient(140deg,#fcf1e8,#f1d5c0)}
+.cat .medal{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;font-size:15px}
+.cat.ORO .medal{background:linear-gradient(140deg,#e5b625,#b7860b)}.cat.PLATA .medal{background:linear-gradient(140deg,#9aa8bc,#5b6b82)}.cat.BRONCE .medal{background:linear-gradient(140deg,#d38a56,#a4572a)}
+.cat .big{color:var(--ink);margin-top:10px}
+.cat .meter{height:8px;border-radius:4px;background:rgba(255,255,255,.7);margin:10px 0 8px;overflow:hidden}
+.cat .meter span{display:block;height:100%;border-radius:4px;background:currentColor}
+.cat .facts{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:12px;color:var(--ink2)}
+.movs{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.mv{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:13px}
+.mv b{font-size:18px;margin-right:4px}
+details{margin-top:18px;font-size:13px;line-height:1.55;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:14px 20px}
+details summary{cursor:pointer;font-weight:700} details li{margin-bottom:5px}
+.aviso{background:var(--warnsoft);color:var(--warn);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;margin:0 0 14px}
+.hidden{display:none!important}
+.loading{min-height:100vh;display:grid;place-items:center;color:var(--muted);font-weight:600}
+@media (max-width:600px){.top .in{padding-bottom:64px}.big{font-size:26px}section.panel{padding:16px 14px}}
+</style>
+</head>
+<body>
+<div id="app" class="hidden">
+<div class="top"><div class="in">
+  <div class="brand"><div class="logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+    <div><h1>Dashboard Comercial Logisalud</h1>
+    <div class="meta">Ventas directas LOGISSA · datos hasta <b id="actualizado">—</b> · 12 meses <span id="ventana">—</span></div></div></div>
+  <div class="userbox"><div class="avatar" id="avatar">·</div><span id="usuario"></span><button class="ghost" id="salir">Salir</button></div>
+</div></div>
+<div class="wrap">
+  <p class="aviso hidden" id="aviso"></p>
+  <p class="take" id="take">—</p>
+  <nav class="tabs"><a href="#resumen">Resumen</a><a href="#cobranzas">Cartera</a><a href="#lineas">Líneas</a><a href="#productos">Productos</a><a href="#categorias">Oro · Plata · Bronce</a><a href="#clientes">Clientes</a><a href="#reposicion">Reposición</a></nav>
+
+  <div class="grid" id="resumen">
+    <div class="kpi"><div class="ic" style="background:var(--brandsoft);color:var(--brand)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg></div><div class="lab">Venta neta · últimos 12 meses</div><div class="big" id="k_neta">—</div><div class="chg">Neto de notas de crédito, sin IGV</div></div>
+    <div class="kpi"><div class="ic" style="background:#e0ecff;color:#2554b0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div><div class="lab">Último trimestre cerrado</div><div class="big" id="k_q">—</div><div class="chg" id="k_qchg">—</div></div>
+    <div class="kpi"><div class="ic" style="background:var(--coralsoft);color:var(--coral)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 14l-4-4 4-4"/><path d="M5 10h10a5 5 0 010 10h-3"/></svg></div><div class="lab">Notas de crédito · 12 meses</div><div class="big" id="k_nc">—</div><div class="chg" id="k_ncpct">—</div></div>
+    <div class="kpi"><div class="ic" style="background:#efe6fb;color:#6d3fc0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 4.5a3.5 3.5 0 010 7M21.5 20a6.5 6.5 0 00-4-6"/></svg></div><div class="lab">Clientes con compra · 12 meses</div><div class="big" id="k_cli">—</div><div class="chg" id="k_ticket">—</div></div>
+  </div>
+
+  <section class="panel">
+    <div class="ph"><div><h2><span class="dot"></span>Venta neta mensual</h2><p class="sub">El último mes puede estar incompleto. Pasa el cursor por una barra para ver el detalle.</p></div>
+    <div class="legend"><span><i style="background:var(--brand)"></i>Venta neta</span><span><i style="background:var(--coral);border-radius:50%"></i>Notas de crédito</span></div></div>
+    <div class="chart" id="ch_mes"></div>
+  </section>
+
+  <section class="panel" id="cobranzas">
+    <div class="ph"><div><h2><span class="dot" style="background:var(--coral)"></span>Cartera y cobranza · hoy</h2><p class="sub">Se lee del ERP de cobranzas cada vez que alguien abre el tablero, así que no tiene fecha de corte. Estos montos van <b>con IGV</b>, porque la base guarda el total del comprobante y no la base imponible por separado. El resto del tablero va <b>sin IGV</b>: por eso las dos cifras de venta no coinciden aunque sean las mismas facturas.</p></div></div>
+    <div class="grid">
+      <div class="kpi"><div class="ic" style="background:var(--brandsoft);color:var(--brand)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 10h19"/></svg></div><div class="lab">Cartera por cobrar</div><div class="big" id="c_cartera">—</div><div class="chg" id="c_clientes">—</div></div>
+      <div class="kpi"><div class="ic" style="background:var(--badsoft);color:var(--bad)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg></div><div class="lab">Vencido</div><div class="big" id="c_vencido">—</div><div class="chg" id="c_mora">—</div></div>
+      <div class="kpi"><div class="ic" style="background:#e0ecff;color:#2554b0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg></div><div class="lab">Venta neta · 12 meses cerrados (con IGV)</div><div class="big" id="c_neta12">—</div><div class="chg">Facturas y boletas menos notas de crédito</div></div>
+      <div class="kpi"><div class="ic" style="background:var(--warnsoft);color:var(--warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div><div class="lab">Venta neta · mes en curso (con IGV)</div><div class="big" id="c_mes">—</div><div class="chg" id="c_mes_lab">—</div></div>
+    </div>
+    <div class="ph" style="margin:22px 0 12px"><div><h2 style="font-size:15px"><span class="dot" style="background:var(--brand2)"></span>Cartera por vendedor</h2><p class="sub">Saldo pendiente y cuánto de eso ya está vencido, al momento de abrir esta página.</p></div></div>
+    <div class="tw"><table><thead><tr><th>Vendedor</th><th>Código</th><th class="n">Cartera</th><th class="n">Vencido</th><th class="n">% mora</th><th class="n">Docs. vencidos</th></tr></thead><tbody id="t_cartera"></tbody></table></div>
+  </section>
+
+  <section class="panel" id="lineas">
+    <div class="ph"><div><h2><span class="dot"></span>Ranking de líneas · 12 meses</h2><p class="sub">Participación sobre la venta neta y comparación de los dos últimos trimestres cerrados.</p></div></div>
+    <div class="tw"><table><thead><tr><th>#</th><th>Línea</th><th class="n">Venta neta 12m</th><th class="n">Share</th><th></th><th class="n">Trim. anterior</th><th class="n">Último trim.</th><th class="n">Var.</th><th class="n">Clientes</th><th class="n">SKUs</th></tr></thead><tbody id="t_lineas"></tbody></table></div>
+  </section>
+
+  <section class="panel" id="productos">
+    <div class="ph"><div><h2><span class="dot"></span>Ranking de productos · 12 meses</h2><p class="sub">Reposición: mediana de días entre compras del mismo producto por un mismo cliente. Recompra: % de clientes que lo compraron más de una vez.</p></div>
+    <div class="ctl" style="margin:0"><select id="sel_linea" aria-label="Línea"></select><span class="muted" id="n_prod" style="font-size:12.5px"></span></div></div>
+    <div class="tw"><table><thead><tr><th class="n">#Total</th><th class="n">#Línea</th><th>Producto</th><th>Línea</th><th class="n">Venta neta</th><th class="n">Share total</th><th class="n">Share línea</th><th class="n">Unidades</th><th class="n">Clientes</th><th class="n">Reposición (días)</th><th class="n">Recompra</th></tr></thead><tbody id="t_prod"></tbody></table></div>
+  </section>
+
+  <section class="panel" id="categorias">
+    <div class="ph"><div><h2><span class="dot" style="background:var(--gold)"></span>Clasificación de clientes</h2><p class="sub">Periodo <b id="periodo">—</b> (últimos 2 trimestres cerrados). Pesos: volumen 30%, pago 25%, frecuencia 15%, mix 15%, devoluciones 15%. Oro desde 70 puntos, plata de 50 a 69, bronce debajo de 50. No incluye las distribuidoras atendidas por Oficina Logissa.</p></div></div>
+    <div class="grid" id="cards_cat"></div>
+    <div class="movs" id="mov"></div>
+  </section>
+
+  <section class="panel" id="clientes">
+    <div class="ph"><div><h2><span class="dot"></span>Clientes</h2><p class="sub">Puntajes de 0 a 100 por criterio (verde 70+, ámbar 40–69, rojo menos de 40). Penetración: líneas compradas sobre las activas, aproximación al share of wallet. El vendedor es el que atiende al cliente <b>hoy</b> según el ERP de cobranzas; cuando cambió de manos, el de la ventana evaluada queda en «Antes». Clic en un encabezado para ordenar.</p></div></div>
+    <div class="ctl">
+      <select id="sel_cat" aria-label="Categoría"><option value="">Todas las categorías</option><option value="ORO">Oro</option><option value="PLATA">Plata</option><option value="BRONCE">Bronce</option></select>
+      <select id="sel_vend" aria-label="Vendedor"></select>
+      <input id="buscar" type="search" placeholder="Buscar cliente o RUC" aria-label="Buscar">
+      <span class="muted" id="n_cli" style="font-size:12.5px"></span>
+    </div>
+    <div class="tw"><table id="tabla_cli"><thead><tr>
+      <th data-k="razon">Cliente</th><th data-k="ruc">RUC</th><th data-k="vendedor">Vendedor</th><th data-k="vendedor_antes">Antes</th><th data-k="cat">Categoría</th><th data-k="cat_prev">Cat. anterior</th>
+      <th class="n" data-k="puntaje">Puntaje</th><th class="n" data-k="s_vol">Volumen</th><th class="n" data-k="s_pago">Pago</th><th class="n" data-k="s_frec">Frecuencia</th><th class="n" data-k="s_mix">Mix</th><th class="n" data-k="s_dev">Devol.</th>
+      <th class="n" data-k="venta">Venta neta</th><th class="n" data-k="pct_puntual">% pagado a tiempo</th><th class="n" data-k="atraso">Atraso pond. (días)</th><th class="n" data-k="tasa_dev">% devolución</th><th class="n" data-k="penetracion">Penetración</th>
+    </tr></thead><tbody id="t_cli"></tbody></table></div>
+  </section>
+
+  <section class="panel" id="reposicion">
+    <div class="ph"><div><h2><span class="dot" style="background:var(--coral)"></span>Alertas de reposición</h2><p class="sub">Clientes que llevan más de 1.5 veces su ciclo habitual sin comprar (y menos de 180 días), ordenados por venta. Es la lista de llamadas de la semana.</p></div></div>
+    <div class="tw"><table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Categoría</th><th class="n">Ciclo habitual (días)</th><th class="n">Días sin comprar</th><th class="n">Venta neta</th></tr></thead><tbody id="t_alert"></tbody></table></div>
+  </section>
+
+  <details>
+    <summary>Cómo se calcula cada indicador</summary>
+    <ul>
+      <li><b>Venta neta:</b> facturas, boletas y notas de débito menos notas de crédito, sin IGV. Se excluyen comprobantes anulados. Solo origen LOGISSA (pedidos directos).</li>
+      <li><b>Volumen (30%):</b> percentil de la venta neta del cliente frente a los demás clientes del periodo.</li>
+      <li><b>Compromiso de pago (25%):</b> 60% según el % del monto pagado hasta 3 días después del vencimiento y 40% según el atraso ponderado (0 días = 100, 60 días o más = 0), del ERP de cobranzas. Clientes solo al contado: 100.</li>
+      <li><b>Frecuencia (15%):</b> meses con compra sobre los 6 meses del periodo.</li>
+      <li><b>Mix (15%):</b> mitad percentil de líneas distintas y mitad percentil de SKUs distintos comprados.</li>
+      <li><b>Devoluciones y vencimientos (15%):</b> notas de crédito sobre la venta bruta; 0% = 100 puntos, 20% o más = 0. Cuentan todas salvo las de refacturación.</li>
+      <li><b>Cartera y cobranza:</b> del ERP de cobranzas, en vivo y <b>con IGV</b>. Vencido es lo que ya pasó su fecha de vencimiento y sigue sin pagarse.</li>
+    </ul>
+  </details>
+</div>
+</div>
+<div id="cargando" class="loading">Cargando…</div>
+<script>
+// ── El tablero ────────────────────────────────────────────────────────
+//
+// Es el mismo archivo que corría en el sitio estático, con dos cambios:
+// los datos ya no se piden a Supabase desde el navegador —ahora vienen de
+// /api/datos, que pasó por el login del ERP y lee con credenciales de
+// servidor— y se sumó el bloque de cartera, que sale de la base de
+// cobranzas.
+const $ = id => document.getElementById(id);
+const fmt = d3.format(',.0f'), soles = v => 'S/ ' + fmt(v ?? 0), short = v => 'S/ ' + d3.format('.3~s')(v ?? 0).replace('G', 'B');
+const soles2 = v => v == null || isNaN(v) ? '—' : 'S/ ' + Number(v).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const S = { linea: '', cat: '', vend: '', q: '', sort: 'puntaje', dir: -1, D: null, C: null };
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','set','oct','nov','dic'];
+const fdate = s => { if (!s) return '—'; const [a, m, d] = s.split('-'); return `${+d} ${MESES[+m - 1]} ${a}`; };
+const fmes = m => { if (!m) return '—'; const [a, b] = String(m).split('-'); return (MESES[+b - 1] || b) + ' ' + a; };
+
+function show(view) { ['app', 'cargando'].forEach(v => $(v).classList.toggle('hidden', v !== view)); }
+function td(tr, txt, cls) { const c = document.createElement('td'); c.textContent = txt == null ? '—' : txt; if (cls) c.className = cls; tr.appendChild(c); return c; }
+function scoreTd(tr, v, dec) { const c = td(tr, '', 'n'); c.textContent = ''; if (v == null) { c.textContent = '—'; return; } const s = document.createElement('span'); s.className = 'sc ' + (v >= 70 ? 's-hi' : v >= 40 ? 's-mid' : 's-lo'); s.textContent = dec ? v.toFixed(dec) : Math.round(v); c.appendChild(s); }
+function pill(tr, c) { const cell = td(tr, ''); cell.textContent = ''; if (!c) { cell.textContent = '—'; return; } const s = document.createElement('span'); s.className = 'pill ' + c; s.textContent = c; cell.appendChild(s); }
+
+function fallo(texto) {
+  $('cargando').textContent = texto;
+  show('cargando');
+}
+
+async function start() {
+  show('cargando');
+  let r;
+  try {
+    r = await fetch('/api/datos', { cache: 'no-store', credentials: 'same-origin' });
+  } catch (e) {
+    return fallo('Sin conexión con el servidor. Revisa tu internet y recarga.');
+  }
+  // La sesión vence y el middleware manda al login; un fetch no sigue esa
+  // redirección a una pantalla de HTML, así que hay que mandarlo a mano o
+  // la página se queda cargando sin decir por qué.
+  if (r.status === 401 || r.redirected) return window.location.assign('/login?volver_a=' + encodeURIComponent(location.pathname));
+  if (r.status === 403) return fallo('Tu área no tiene permiso para ver este tablero. Habla con gerencia.');
+  if (!r.ok) return fallo('No se pudieron cargar los datos (' + r.status + '). Recarga en un momento.');
+
+  const cuerpo = await r.json();
+  S.D = cuerpo.comercial;
+  S.C = cuerpo.cobranzas;
+  if (!S.D) return fallo('No se pudieron cargar los datos de venta. ' + (cuerpo.fallas || []).join(' '));
+
+  const u = cuerpo.usuario || {};
+  $('usuario').textContent = u.nombre || '';
+  $('avatar').textContent = (u.nombre || '·').trim()[0].toUpperCase();
+  if (cuerpo.fallas && cuerpo.fallas.length) {
+    $('aviso').textContent = 'Parte de los datos no respondió: ' + cuerpo.fallas.join(' · ');
+    $('aviso').classList.remove('hidden');
+  }
+  show('app');
+  render();
+}
+
+$('salir').onclick = async () => {
+  $('salir').disabled = true;
+  try { await fetch('/api/salir', { method: 'POST', credentials: 'same-origin' }); } catch (e) { /* igual se sale */ }
+  window.location.assign('/login');
+};
+
+// ── El vendedor de hoy, no el de la ventana ───────────────────────────
+// La clasificación es una foto de los dos últimos trimestres cerrados y
+// trae el vendedor que atendía al cliente entonces, así que listaba gente
+// que ya no trabaja acá. Se reemplaza por el que figura hoy en el ERP de
+// cobranzas, cruzando por RUC, y el de la ventana queda al lado: el
+// puntaje se ganó con ese y conviene no perderlo de vista.
+function clientesConVendedorDeHoy() {
+  const base = S.D.clientes || [];
+  const hoy = new Map();
+  ((S.C && S.C.cartera_actual) || []).forEach(c => hoy.set(String(c.ruc).trim(), c));
+  return base.map(d => {
+    const actual = hoy.get(String(d.ruc).trim());
+    const vendedorHoy = actual && actual.vendedor ? actual.vendedor : d.vendedor;
+    return {
+      ...d,
+      vendedor: vendedorHoy,
+      // Solo cuando cambió de manos: repetir el mismo nombre en dos
+      // columnas no dice nada.
+      vendedor_antes: d.vendedor && d.vendedor !== vendedorHoy ? d.vendedor : null,
+    };
+  });
+}
+
+function render() {
+  const D = S.D, k = D.kpi;
+  D.clientes = clientesConVendedorDeHoy();
+  $('actualizado').textContent = fdate(k.actualizado);
+  $('ventana').textContent = `(${fdate(k.ventana_ini)} – ${fdate(k.ventana_fin)})`;
+  $('k_neta').textContent = short(k.venta_neta_12m);
+  $('k_q').textContent = short(k.q_ult);
+  const g = k.q_pen ? 100 * (k.q_ult / k.q_pen - 1) : null;
+  $('k_qchg').replaceChildren(); if (g != null) { const b = document.createElement('span'); b.className = 'badge ' + (g >= 0 ? 'ok' : 'bad'); b.textContent = `${g >= 0 ? '▲ +' : '▼ '}${g.toFixed(1)}%`; $('k_qchg').append(b, ' vs trimestre anterior'); }
+  $('k_nc').textContent = short(k.nc_12m);
+  $('k_ncpct').textContent = `${(100 * k.nc_12m / k.venta_bruta_12m).toFixed(1)}% de la venta bruta`;
+  $('k_cli').textContent = fmt(k.clientes_12m);
+  $('k_ticket').textContent = 'Ticket promedio por comprobante: ' + soles(k.ticket);
+  $('periodo').textContent = D.periodo_ranking || '—';
+  const top = (D.lineas || [])[0], cats = D.categorias || [], oro = cats.find(c => c.cat === 'ORO'), tot = d3.sum(cats, c => c.venta);
+  $('take').textContent = `El último trimestre cerrado sumó ${short(k.q_ult)}${g == null ? '' : ` (${g >= 0 ? '+' : ''}${g.toFixed(0)}% frente al anterior)`}. ${top ? `${top.linea} lidera con ${(+top.share).toFixed(1)}% de la venta neta` : ''}${oro ? `, y ${oro.n} clientes oro concentran el ${Math.round(100 * oro.venta / tot)}% de la venta del periodo evaluado` : ''}.`;
+  const m = D.movimientos || {};
+  $('mov').replaceChildren(...[['▲', m.subieron, 'subieron de categoría', 'ok'], ['▼', m.bajaron, 'bajaron', 'bad'], ['＋', m.nuevos, 'no compraban en el periodo anterior', 'muted']].map(([ic, n, t, c]) => { const d = document.createElement('div'); d.className = 'mv'; const b = document.createElement('b'); b.className = c; b.textContent = `${ic} ${n ?? 0}`; d.append(b, ' ' + t); return d; }));
+  drawChart(); drawCobranzas(); drawLineas(); fillSelects(); drawProd(); drawCats(); drawCli(); drawAlert();
+}
+
+function drawCobranzas() {
+  const C = S.C;
+  const k = C && C.kpi && C.kpi[0];
+  $('c_cartera').textContent = k ? soles2(k.cartera) : '—';
+  $('c_clientes').textContent = k ? `${k.clientes_con_deuda} clientes con deuda` : '—';
+  $('c_vencido').textContent = k ? soles2(k.vencido) : '—';
+  $('c_mora').replaceChildren();
+  if (k) { const b = document.createElement('span'); b.className = 'badge bad'; b.textContent = k.pct_mora + '%'; $('c_mora').append(b, ' de la cartera'); }
+
+  // Los 12 meses CERRADOS: el último de la serie va incompleto y mezclarlo
+  // haría parecer que la venta cayó.
+  const meses = (C && C.venta_mensual) || [];
+  const cerrados = meses.slice(0, -1).slice(-12);
+  $('c_neta12').textContent = cerrados.length ? soles2(cerrados.reduce((s, m) => s + (Number(m.neta) || 0), 0)) : '—';
+  const curso = meses[meses.length - 1];
+  $('c_mes').textContent = curso ? soles2(curso.neta) : '—';
+  $('c_mes_lab').textContent = curso ? 'Mes incompleto: ' + fmes(curso.mes) : '—';
+
+  const el = $('t_cartera'); el.replaceChildren();
+  ((C && C.cartera_vendedor) || []).forEach(d => {
+    const tr = document.createElement('tr');
+    td(tr, d.vendedor); td(tr, d.codigo); td(tr, soles2(d.saldo), 'n'); td(tr, soles2(d.vencido), 'n');
+    const t = td(tr, '', 'n'); t.textContent = '';
+    if (d.pct_mora == null) t.textContent = '—';
+    else { const b = document.createElement('span'); b.className = 'badge ' + (d.pct_mora >= 50 ? 'bad' : 'ok'); b.textContent = d.pct_mora + '%'; t.appendChild(b); }
+    td(tr, d.docs_vencidos, 'n'); el.appendChild(tr);
+  });
+}
+
+function drawChart() {
+  const el = $('ch_mes'); el.replaceChildren(); const data = S.D.mensual || []; if (!data.length) return;
+  const W = el.clientWidth - 16, H = 260, mg = { t: 10, r: 10, b: 28, l: 56 };
+  const x = d3.scaleBand(data.map(d => d.mes), [mg.l, W - mg.r]).padding(0.25);
+  const y = d3.scaleLinear([0, d3.max(data, d => Math.max(d.neta, d.nc)) * 1.08], [H - mg.b, mg.t]).nice();
+  const svg = d3.select(el).append('svg').attr('width', W).attr('height', H).attr('role', 'img').attr('aria-label', 'Venta neta y notas de crédito por mes');
+  svg.append('g').attr('transform', `translate(${mg.l},0)`).call(d3.axisLeft(y).ticks(5).tickFormat(v => d3.format('.2~s')(v))).call(g => g.select('.domain').remove()).call(g => g.selectAll('line').attr('x2', W - mg.l - mg.r).style('stroke', '#e4eeeb'));
+  const lab = s => { const [a, b] = s.split('-'); return MESES[+b - 1] + (W < 560 ? '' : ' ' + a.slice(2)); };
+  const ax = svg.append('g').attr('transform', `translate(0,${H - mg.b})`).call(d3.axisBottom(x).tickFormat(lab).tickSizeOuter(0)); ax.select('.domain').attr('stroke', '#cfdcd8'); ax.selectAll('.tick line').remove();
+  if (W < 480) ax.selectAll('.tick text').attr('opacity', (d, i) => i % 2 ? 0 : 1);
+  const tip = d3.select(el).append('div').attr('class', 'tip').style('opacity', 0);
+  svg.append('g').selectAll('rect').data(data).join('rect').attr('x', d => x(d.mes)).attr('width', x.bandwidth()).attr('y', d => y(Math.max(0, d.neta))).attr('height', d => y(0) - y(Math.max(0, d.neta))).attr('fill', '#0f766e').attr('rx', 4)
+    .on('pointermove', (ev, d) => { const [px, py] = d3.pointer(ev, el); tip.style('opacity', 1).style('left', Math.min(px + 12, W - 230) + 'px').style('top', (py - 10) + 'px').text(`${d.mes} · neta ${soles(d.neta)} · NC ${soles(d.nc)} · ${d.clientes} clientes`); })
+    .on('pointerleave', () => tip.style('opacity', 0));
+  svg.append('path').datum(data).attr('fill', 'none').attr('stroke', '#e4683f').attr('stroke-width', 2).attr('stroke-dasharray', '4 3').attr('d', d3.line().x(d => x(d.mes) + x.bandwidth() / 2).y(d => y(d.nc)));
+  svg.append('g').selectAll('circle').data(data).join('circle').attr('cx', d => x(d.mes) + x.bandwidth() / 2).attr('cy', d => y(d.nc)).attr('r', 4.5).attr('fill', '#e4683f').attr('stroke', '#fff').attr('stroke-width', 2);
+}
+function drawLineas() {
+  const el = $('t_lineas'); el.replaceChildren(); const L = S.D.lineas || []; const mx = d3.max(L, d => d.share);
+  L.forEach((d, i) => {
+    const tr = document.createElement('tr');
+    td(tr, i + 1); td(tr, d.linea); td(tr, soles(d.neta), 'n'); td(tr, d.share.toFixed(1) + '%', 'n');
+    const b = td(tr, ''); const s = document.createElement('span'); s.className = 'bar'; s.style.width = Math.max(3, 110 * d.share / mx) + 'px'; b.appendChild(s);
+    td(tr, soles(d.q_pen), 'n'); td(tr, soles(d.q_ult), 'n');
+    const v = d.q_pen > 0 ? 100 * (d.q_ult / d.q_pen - 1) : null; const t = td(tr, '', 'n'); t.textContent = ''; const bd = document.createElement('span'); bd.className = 'badge ' + (v == null || v >= 0 ? 'ok' : 'bad'); bd.textContent = v == null ? 'nuevo' : (v >= 0 ? '▲ +' : '▼ ') + v.toFixed(0) + '%'; t.appendChild(bd);
+    td(tr, d.clientes, 'n'); td(tr, d.skus, 'n'); el.appendChild(tr);
+  });
+}
+function fillSelects() {
+  const sl = $('sel_linea'); sl.replaceChildren(new Option('Todas las líneas', ''), ...(S.D.lineas || []).map(d => new Option(d.linea, d.linea))); sl.value = S.linea;
+  const vs = [...new Set((S.D.clientes || []).map(d => d.vendedor).filter(Boolean))].sort();
+  const sv = $('sel_vend'); sv.replaceChildren(new Option('Todos los vendedores', ''), ...vs.map(v => new Option(v, v))); sv.value = S.vend;
+}
+function drawProd() {
+  const el = $('t_prod'); el.replaceChildren(); const P = (S.D.productos || []).filter(d => !S.linea || d.linea === S.linea);
+  $('n_prod').textContent = `${P.length} productos` + (P.length > 80 ? ' (se muestran 80)' : '');
+  P.slice(0, 80).forEach(d => {
+    const tr = document.createElement('tr');
+    td(tr, d.rank_total, 'n'); td(tr, d.rank_linea, 'n'); td(tr, d.producto, 'w'); td(tr, d.linea); td(tr, soles(d.neta), 'n');
+    td(tr, (+d.share_total).toFixed(1) + '%', 'n'); td(tr, (+d.share_linea).toFixed(1) + '%', 'n'); td(tr, fmt(d.cant), 'n'); td(tr, d.clientes, 'n');
+    td(tr, d.ciclo_dias, 'n'); td(tr, d.pct_recompra == null ? null : d.pct_recompra + '%', 'n'); el.appendChild(tr);
+  });
+}
+function drawCats() {
+  const el = $('cards_cat'); el.replaceChildren(); const C = S.D.categorias || []; const tot = d3.sum(C, d => d.venta), tn = d3.sum(C, d => d.n);
+  const M = { ORO: ['1', 'Oro'], PLATA: ['2', 'Plata'], BRONCE: ['3', 'Bronce'] };
+  ['ORO', 'PLATA', 'BRONCE'].forEach(c => {
+    const d = C.find(x => x.cat === c); if (!d) return; const pv = Math.round(100 * d.venta / tot);
+    const k = document.createElement('div'); k.className = 'cat ' + c;
+    const top = document.createElement('div'); top.style.cssText = 'display:flex;align-items:center;gap:10px';
+    const md = document.createElement('div'); md.className = 'medal'; md.textContent = M[c][0];
+    const nm = document.createElement('div'); nm.style.cssText = 'font-weight:800;font-size:15px'; nm.textContent = M[c][1];
+    top.append(md, nm); k.appendChild(top);
+    const b = document.createElement('div'); b.className = 'big'; b.textContent = d.n + ' clientes'; k.appendChild(b);
+    const s1 = document.createElement('div'); s1.className = 'chg'; s1.style.color = 'var(--ink2)'; s1.textContent = `${pv}% de la venta · ${short(d.venta)} · ${Math.round(100 * d.n / tn)}% de los clientes`; k.appendChild(s1);
+    const mt = document.createElement('div'); mt.className = 'meter'; const sp = document.createElement('span'); sp.style.width = pv + '%'; mt.appendChild(sp); k.appendChild(mt);
+    const f = document.createElement('div'); f.className = 'facts';
+    [['Puntaje prom.', d.puntaje], ['Pago prom.', d.pago], ['Líneas prom.', d.lineas], ['Meses con compra', d.meses]].forEach(([l, v]) => { const x = document.createElement('div'); x.textContent = `${l}: `; const bb = document.createElement('b'); bb.textContent = v; x.appendChild(bb); f.appendChild(x); });
+    k.appendChild(f); el.appendChild(k);
+  });
+}
+function cliFiltrados() {
+  const q = S.q; let C = (S.D.clientes || []).filter(d => (!S.cat || d.cat === S.cat) && (!S.vend || d.vendedor === S.vend) && (!q || (d.razon || '').toLowerCase().includes(q) || d.ruc.includes(q)));
+  const k = S.sort; C = C.slice().sort((a, b) => { const x = a[k], y = b[k]; if (x == null) return 1; if (y == null) return -1; return (x > y ? 1 : x < y ? -1 : 0) * S.dir; });
+  return C;
+}
+function drawCli() {
+  const el = $('t_cli'); el.replaceChildren(); const C = cliFiltrados();
+  $('n_cli').textContent = `${C.length} clientes` + (C.length > 200 ? ' (se muestran 200)' : '');
+  C.slice(0, 200).forEach(d => {
+    const tr = document.createElement('tr');
+    td(tr, d.razon, 'w'); td(tr, d.ruc); td(tr, d.vendedor); td(tr, d.vendedor_antes); pill(tr, d.cat); pill(tr, d.cat_prev);
+    scoreTd(tr, +d.puntaje, 1); [d.s_vol, d.s_pago, d.s_frec, d.s_mix, d.s_dev].forEach(v => scoreTd(tr, v));
+    td(tr, soles(d.venta), 'n'); td(tr, d.pct_puntual == null ? 'contado' : d.pct_puntual + '%', 'n'); td(tr, d.atraso, 'n');
+    td(tr, d.tasa_dev == null ? null : d.tasa_dev + '%', 'n'); td(tr, d.penetracion == null ? null : d.penetracion + '%', 'n'); el.appendChild(tr);
+  });
+}
+function drawAlert() {
+  const el = $('t_alert'); el.replaceChildren();
+  (S.D.clientes || []).filter(d => d.alerta_repo).sort((a, b) => b.venta - a.venta).slice(0, 50).forEach(d => {
+    const tr = document.createElement('tr');
+    td(tr, d.razon, 'w'); td(tr, d.vendedor); pill(tr, d.cat); td(tr, d.ciclo, 'n'); td(tr, d.dias_sin_compra, 'n'); td(tr, soles(d.venta), 'n'); el.appendChild(tr);
+  });
+}
+$('sel_linea').onchange = e => { S.linea = e.target.value; drawProd(); };
+$('sel_cat').onchange = e => { S.cat = e.target.value; drawCli(); };
+$('sel_vend').onchange = e => { S.vend = e.target.value; drawCli(); };
+$('buscar').oninput = e => { S.q = e.target.value.trim().toLowerCase(); drawCli(); };
+document.querySelectorAll('#tabla_cli th[data-k]').forEach(th => th.onclick = () => { const k = th.dataset.k; S.dir = S.sort === k ? -S.dir : (th.classList.contains('n') ? -1 : 1); S.sort = k; drawCli(); });
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => S.D && drawChart(), 150); });
+start();
+</script>
+</body>
+</html>

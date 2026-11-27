@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanEnv } from "@/lib/env";
 import { logAudit, ultimaCorrida } from "./audit-log";
 import { claveDeCobranzas } from "@/domain/documentos";
+import { leerTodo } from "@/lib/paginar";
 
 /**
  * El viaje de vuelta del puente: el contacto del cliente, que lo tiene
@@ -31,7 +32,7 @@ import { claveDeCobranzas } from "@/domain/documentos";
  */
 
 /** Las dos variables que hacen falta para escribir en la cartera de cobranzas. */
-function accesoACobranzas(): { url: string; key: string } | null {
+export function accesoACobranzas(): { url: string; key: string } | null {
   const url = cleanEnv(process.env.COBRANZAS_SUPABASE_URL ?? "");
   const key = cleanEnv(process.env.COBRANZAS_SERVICE_ROLE_KEY ?? "");
   return url && key ? { url, key } : null;
@@ -67,7 +68,7 @@ export type ResultadoContactos = {
 };
 
 /** Vacío de verdad: null, cadena vacía o solo espacios. */
-function vacio(v: string | null | undefined): boolean {
+export function vacio(v: string | null | undefined): boolean {
   return (v ?? "").trim() === "";
 }
 
@@ -80,18 +81,18 @@ function vacio(v: string | null | undefined): boolean {
  */
 const DIRECCION_BASURA = /^(\.|-|\*|#?n\/?d|s\/?n|sin\s*direcc?ion|no\s*tiene|ninguna?|0+)$/i;
 
-function limpiarDireccion(v: string | null): string | null {
+export function limpiarDireccion(v: string | null): string | null {
   const t = (v ?? "").trim();
   if (t === "" || DIRECCION_BASURA.test(t)) return null;
   return t;
 }
 
 /** Lee todas las páginas de una tabla de cobranzas por REST. */
-async function leerCobranzas(
+export async function leerCobranzas<T>(
   acceso: { url: string; key: string },
   recurso: string,
-): Promise<ClienteCobranzas[]> {
-  const filas: ClienteCobranzas[] = [];
+): Promise<T[]> {
+  const filas: T[] = [];
   const pagina = 1000;
   for (let offset = 0; ; offset += pagina) {
     const r = await fetch(`${acceso.url}/rest/v1/${recurso}&limit=${pagina}&offset=${offset}`, {
@@ -101,7 +102,7 @@ async function leerCobranzas(
     if (!r.ok) {
       throw new Error(`El ERP de cobranzas respondió ${r.status} al leer la cartera. No se escribió nada.`);
     }
-    const lote = (await r.json()) as ClienteCobranzas[];
+    const lote = (await r.json()) as T[];
     if (!Array.isArray(lote)) {
       throw new Error("El ERP de cobranzas devolvió algo inesperado. No se escribió nada.");
     }
@@ -115,12 +116,9 @@ async function leerCobranzas(
 async function contactosDePedidos(): Promise<Map<string, ContactoPedidos>> {
   const admin = createAdminClient();
 
-  const { data: clientes, error } = await admin
-    .from("customers")
-    .select("id, ruc_o_documento, whatsapp, direccion_fiscal, distrito, provincia, departamento");
-  if (error) throw new Error(error.message);
-
-  const filas = (clientes ?? []) as Array<{
+  // Paginado y ordenado por `id`: PostgREST corta en 1.000 filas y acá hay
+  // 3.568 clientes. Sin esto solo viajaban los contactos de los primeros mil.
+  const filas = await leerTodo<{
     id: string;
     ruc_o_documento: string | null;
     whatsapp: string | null;
@@ -128,19 +126,31 @@ async function contactosDePedidos(): Promise<Map<string, ContactoPedidos>> {
     distrito: string | null;
     provincia: string | null;
     departamento: string | null;
-  }>;
+  }>((desde, hasta) =>
+    admin
+      .from("customers")
+      .select("id, ruc_o_documento, whatsapp, direccion_fiscal, distrito, provincia, departamento")
+      .order("id")
+      .range(desde, hasta),
+  );
 
   // La dirección de entrega manda sobre la fiscal: es a donde va el
   // camión, que es lo que el vendedor necesita para ir a visitar.
-  const { data: direcciones, error: errorDir } = await admin
-    .from("customer_addresses")
-    .select("customer_id, direccion, es_principal, created_at")
-    .order("es_principal", { ascending: false })
-    .order("created_at", { ascending: true });
-  if (errorDir) throw new Error(errorDir.message);
+  // El `id` al final no es decorativo: `es_principal` y `created_at` se
+  // repiten, y sin una columna única el orden entre páginas no es estable.
+  const direcciones = await leerTodo<{ customer_id: string; direccion: string | null }>(
+    (desde, hasta) =>
+      admin
+        .from("customer_addresses")
+        .select("customer_id, direccion, es_principal, created_at")
+        .order("es_principal", { ascending: false })
+        .order("created_at", { ascending: true })
+        .order("id")
+        .range(desde, hasta),
+  );
 
   const entrega = new Map<string, string>();
-  for (const d of (direcciones ?? []) as Array<{ customer_id: string; direccion: string | null }>) {
+  for (const d of direcciones) {
     if (!entrega.has(d.customer_id) && !vacio(d.direccion)) {
       entrega.set(d.customer_id, (d.direccion ?? "").trim());
     }
@@ -181,7 +191,7 @@ export async function sincronizarContactosACobranzas(actor: string | null): Prom
   }
 
   const [cartera, contactos] = await Promise.all([
-    leerCobranzas(
+    leerCobranzas<ClienteCobranzas>(
       acceso,
       "clientes?select=ruc,celular,direccion,distrito,provincia,departamento&order=ruc",
     ),

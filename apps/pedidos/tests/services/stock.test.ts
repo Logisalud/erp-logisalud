@@ -22,11 +22,17 @@ type Lote = {
   source: { nombre: string } | null;
 };
 
+const PROVEEDORES = [
+  { id: "s-dip", nombre: "Diphasac" },
+  { id: "s-bio", nombre: "Biosana" },
+];
+
 const PRODUCTOS = [
-  { id: "p-vit", codigo_interno: "DHP200", descripcion: "VITAMINA E 400 UI CJA. X 30 CAP. BDA.", supplier: { nombre: "Diphasac" } },
-  { id: "p-aci", codigo_interno: "DHP414", descripcion: "ACIDO TRANEXAMICO 1G/ 10ML CJA X 50 AMP", supplier: { nombre: "Diphasac" } },
-  { id: "p-gas", codigo_interno: "DHP308", descripcion: "GASA ESTERIL 7.5 CM X 7.5 CM CAJA X 50 SOBRES", supplier: null },
-  { id: "p-sin", codigo_interno: "DHP999", descripcion: "PRODUCTO SIN STOCK", supplier: { nombre: "Biosana" } },
+  { id: "p-vit", codigo_interno: "DHP200", descripcion: "VITAMINA E 400 UI CJA. X 30 CAP. BDA.", supplier_id: "s-dip", supplier: { nombre: "Diphasac" } },
+  { id: "p-aci", codigo_interno: "DHP414", descripcion: "ACIDO TRANEXAMICO 1G/ 10ML CJA X 50 AMP", supplier_id: "s-dip", supplier: { nombre: "Diphasac" } },
+  { id: "p-gas", codigo_interno: "DHP308", descripcion: "GASA ESTERIL 7.5 CM X 7.5 CM CAJA X 50 SOBRES", supplier_id: null, supplier: null },
+  { id: "p-bio", codigo_interno: "BIO100", descripcion: "ZZZ ULTIMO ALFABETICAMENTE", supplier_id: "s-bio", supplier: { nombre: "Biosana" } },
+  { id: "p-sin", codigo_interno: "DHP999", descripcion: "PRODUCTO SIN STOCK", supplier_id: "s-bio", supplier: { nombre: "Biosana" } },
 ];
 
 const LOTES: Lote[] = [
@@ -34,6 +40,7 @@ const LOTES: Lote[] = [
   { id: "l2", product_id: "p-aci", lote: "PT12412", fecha_vencimiento: "2027-10-30", cantidad_disponible: 180, proveedor: "DIPHASAC - GENERICO", fecha_actualizacion: "2026-09-10T14:00:00Z", source: { nombre: "Almacén Central Lima" } },
   { id: "l3", product_id: "p-aci", lote: "PT12406", fecha_vencimiento: "2027-09-30", cantidad_disponible: 108, proveedor: "DIPHASAC - GENERICO", fecha_actualizacion: "2026-09-10T14:00:00Z", source: { nombre: "Almacén Central Lima" } },
   { id: "l4", product_id: "p-gas", lote: "HD20250625", fecha_vencimiento: "2030-07-24", cantidad_disponible: 7, proveedor: "DIPHASAC - CUIDADO PERSONAL", fecha_actualizacion: "2026-09-10T14:00:00Z", source: { nombre: "Almacén Central Lima" } },
+  { id: "l5", product_id: "p-bio", lote: "BS0001", fecha_vencimiento: "2028-01-31", cantidad_disponible: 50, proveedor: null, fecha_actualizacion: "2026-09-10T14:00:00Z", source: { nombre: "Almacén Central Lima" } },
 ];
 
 /** Lo que devolvería la vista `stock_levels`: una fila por producto. */
@@ -41,6 +48,7 @@ const NIVELES = [
   { product_id: "p-vit", cantidad_disponible: 241, lotes: 1, vence_primero: "2027-06-30" },
   { product_id: "p-aci", cantidad_disponible: 288, lotes: 2, vence_primero: "2027-09-30" },
   { product_id: "p-gas", cantidad_disponible: 7, lotes: 1, vence_primero: "2030-07-24" },
+  { product_id: "p-bio", cantidad_disponible: 50, lotes: 1, vence_primero: "2028-01-31" },
 ];
 
 const pedidas: string[] = [];
@@ -52,17 +60,32 @@ function tabla(nombre: string): any {
     return { select: () => ({ limit: async () => ({ data: NIVELES, error: null }) }) };
   }
 
+  if (nombre === "suppliers") {
+    const builder: any = {
+      ilike(_col: string, patron: string) {
+        const t = patron.replaceAll("%", "").toLowerCase();
+        builder._filas = PROVEEDORES.filter((p) => p.nombre.toLowerCase().includes(t));
+        return builder;
+      },
+      limit: async () => ({ data: builder._filas ?? PROVEEDORES, error: null }),
+    };
+    return { select: () => builder };
+  }
+
   if (nombre === "products") {
     // Builder encadenable como el de supabase-js: `.or()` se puede llamar
     // después de `.order()`, y el orden lo aplica la "base".
-    const estado: { filtro: string | null; columna: string; asc: boolean } = {
-      filtro: null,
-      columna: "descripcion",
-      asc: true,
-    };
+    const estado: {
+      filtro: string | null;
+      proveedores: string[];
+      columna: string;
+      asc: boolean;
+    } = { filtro: null, proveedores: [], columna: "descripcion", asc: true };
     const builder: any = {
       or(expr: string) {
         estado.filtro = /ilike\.%([^%]*)%/.exec(expr)?.[1] ?? "";
+        const ids = /supplier_id\.in\.\(([^)]*)\)/.exec(expr)?.[1];
+        estado.proveedores = ids ? ids.split(",") : [];
         return builder;
       },
       order(columna: string, opts: { ascending: boolean }) {
@@ -80,7 +103,8 @@ function tabla(nombre: string): any {
           filas = filas.filter(
             (p) =>
               p.codigo_interno.toLowerCase().includes(t) ||
-              p.descripcion.toLowerCase().includes(t),
+              p.descripcion.toLowerCase().includes(t) ||
+              (p.supplier_id !== null && estado.proveedores.includes(p.supplier_id)),
           );
         }
         filas.sort((a, b) =>
@@ -142,6 +166,7 @@ describe("listStockLotes", () => {
       "ACIDO TRANEXAMICO 1G/ 10ML CJA X 50 AMP",
       "GASA ESTERIL 7.5 CM X 7.5 CM CAJA X 50 SOBRES",
       "VITAMINA E 400 UI CJA. X 30 CAP. BDA.",
+      "ZZZ ULTIMO ALFABETICAMENTE",
     ]);
   });
 
@@ -157,14 +182,20 @@ describe("listStockLotes", () => {
   it("el orden por vencimiento pone primero al producto que vence antes", async () => {
     const page = await listStockLotes({ orden: "vencimiento" });
     expect(page.orden).toBe("vencimiento");
-    expect(page.filas.map((f) => f.codigo)).toEqual(["DHP200", "DHP414", "DHP414", "DHP308"]);
+    expect(page.filas.map((f) => f.codigo)).toEqual([
+      "DHP200",
+      "DHP414",
+      "DHP414",
+      "BIO100",
+      "DHP308",
+    ]);
   });
 
   it("no muestra productos del catálogo que no tienen stock", async () => {
     const page = await listStockLotes();
     expect(page.filas.some((f) => f.codigo === "DHP999")).toBe(false);
-    expect(page.totalProductos).toBe(3);
-    expect(page.totalLotes).toBe(4);
+    expect(page.totalProductos).toBe(4);
+    expect(page.totalLotes).toBe(5);
   });
 
   it("la búsqueda filtra por nombre y sigue ordenada", async () => {
@@ -183,7 +214,29 @@ describe("listStockLotes", () => {
     const page = await listStockLotes({ pagina: 99 });
     expect(page.pagina).toBe(1);
     expect(page.paginas).toBe(1);
-    expect(page.filas).toHaveLength(4);
+    expect(page.filas).toHaveLength(5);
+  });
+
+  it("el orden por proveedor agrupa los productos de cada uno", async () => {
+    const page = await listStockLotes({ orden: "proveedor" });
+
+    expect(page.orden).toBe("proveedor");
+    expect(page.filas.map((f) => f.proveedor)).toEqual([
+      "Biosana",
+      "Diphasac",
+      "Diphasac",
+      "Diphasac",
+      // El maestro no tiene proveedor para la gasa: cae a lo que dijo el
+      // archivo, y va al final igual.
+      "DIPHASAC - CUIDADO PERSONAL",
+    ]);
+  });
+
+  it("buscar por proveedor trae todo lo de ese proveedor", async () => {
+    const page = await listStockLotes({ busqueda: "Biosana" });
+
+    expect(page.filas.map((f) => f.codigo)).toEqual(["BIO100"]);
+    expect(page.totalProductos).toBe(1);
   });
 
   it("pide los lotes de la página, no la tabla entera", async () => {
@@ -226,7 +279,7 @@ describe("listStockLotesCompleto", () => {
     const completo = await listStockLotesCompleto();
     const pagina = await listStockLotes();
 
-    expect(completo).toHaveLength(4);
+    expect(completo).toHaveLength(5);
     expect(completo.length).toBeGreaterThanOrEqual(pagina.filas.length);
   });
 

@@ -321,6 +321,25 @@ const COLUMNAS_DETALLE: Record<keyof Omit<FilaDetalle, never>, string> = {
 const NUMERICAS = new Set(["cantidad", "neto"]);
 
 /**
+ * Orígenes que NO entran en el detalle.
+ *
+ * El cuadro de avance que lee el ERP es la hoja "AVANCE 2026", que en el
+ * archivo del proveedor viene SIN BVC — hay una hoja aparte, "AVANCE 2026
+ * CON BVC", justamente para distinguirlas. El detalle, en cambio, sale de
+ * la hoja "base", que trae todos los orígenes.
+ *
+ * El resultado era que el vendedor veía su avance contra la cuota sin BVC
+ * pero el detalle de abajo con BVC, y las dos cifras no cerraban. En
+ * noviembre 2026 la diferencia eran 62 líneas y S/ 4.558,86.
+ *
+ * Se excluye BVC del detalle para que las dos mitades de la pantalla
+ * cuenten lo mismo. Es una decisión del negocio y es temporal ("de
+ * momento", 2026-11-26): el día que BVC entre, se saca de esta lista y se
+ * pasa a leer la hoja "AVANCE 2026 CON BVC".
+ */
+export const ORIGENES_EXCLUIDOS = new Set(["BVC"]);
+
+/**
  * El tipo de comprobante, a partir del código numérico de SUNAT.
  *
  * La columna "TIPO DOCUMENTO" de la hoja es una fórmula con formato de
@@ -391,6 +410,9 @@ export function parsearDetalle(filas: FilaCruda[]): FilaDetalle[] {
       const n = numero(f[colTipoSunat] ?? null);
       fila.tipoDocumento = n === null ? null : (TIPOS_SUNAT[String(n)] ?? "NO REGISTRADO");
     }
+    // Ver ORIGENES_EXCLUIDOS: el detalle tiene que contar lo mismo que el
+    // cuadro de avance, y ese viene sin BVC.
+    if (fila.origen && ORIGENES_EXCLUIDOS.has(fila.origen.trim().toUpperCase())) continue;
     salida.push(fila);
   }
 

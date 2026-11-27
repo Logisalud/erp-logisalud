@@ -3,7 +3,13 @@ import { redirect } from "next/navigation";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { getCurrentUser } from "@/lib/auth/session";
 import { displayNombreProducto } from "@/domain/products";
-import { getStockResumen, listStockLotes, STOCK_PAGE_SIZE, type StockOrden } from "@/services/stock";
+import {
+  getStockResumen,
+  listStockLotes,
+  normalizarStockOrden,
+  STOCK_PAGE_SIZE,
+  type StockOrden,
+} from "@/services/stock";
 
 /**
  * Consulta de stock, de sólo lectura, para cualquier rol.
@@ -22,8 +28,9 @@ export default async function StockPage({
   const busqueda = (searchParams.q ?? "").trim();
   const pagina = Math.max(1, Number(searchParams.pagina ?? "1") || 1);
   // Alfabético por defecto: es cómo busca un vendedor cuando el cliente le
-  // nombra un producto. El orden por vencimiento sigue a un clic.
-  const orden: StockOrden = searchParams.orden === "vencimiento" ? "vencimiento" : "producto";
+  // nombra un producto. Los órdenes por vencimiento y por proveedor siguen
+  // a un clic.
+  const orden = normalizarStockOrden(searchParams.orden);
 
   // La sesión se comprueba ANTES de consultar, y no en paralelo: el layout
   // también manda a /login sin sesión, pero en el App Router el layout y la
@@ -70,7 +77,8 @@ export default async function StockPage({
         <Breadcrumb items={[{ label: "Stock" }]} />
         <h2 className="text-xl font-semibold">Stock disponible</h2>
         <p className="mt-1 text-sm text-gray-600">
-          Lo que hay en almacén, por lote, en orden alfabético de producto. Es sólo de consulta:
+          Lo que hay en almacén, por lote. Se puede ordenar por producto, por lo que vence
+          primero o por proveedor, y buscar por código, nombre o proveedor. Es sólo de consulta:
           la carga la hace un administrador desde el importador. Se puede descargar en Excel, con
           lo que estés viendo: si buscaste algo, el archivo sale filtrado igual.
           {resumen.ultimaActualizacion && (
@@ -117,7 +125,7 @@ export default async function StockPage({
       */}
       <form method="get" className="flex flex-col gap-2 sm:flex-row">
         <label className="sr-only" htmlFor="q">
-          Buscar por código o nombre de producto
+          Buscar por código, nombre de producto o proveedor
         </label>
         <input
           id="q"
@@ -156,6 +164,17 @@ export default async function StockPage({
           }
         >
           Vence primero
+        </Link>
+        <Link
+          href={href({ orden: "proveedor" })}
+          aria-current={orden === "proveedor" ? "true" : undefined}
+          className={
+            orden === "proveedor"
+              ? "rounded-lg bg-logisalud-teal/15 px-3 py-1.5 font-medium text-[#1c6d71]"
+              : "rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+          }
+        >
+          Proveedor
         </Link>
 
         {/*

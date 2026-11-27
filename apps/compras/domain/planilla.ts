@@ -11,20 +11,36 @@
  */
 
 /**
- * Qué se paga (migración 0076).
+ * Qué se paga (migraciones 0076 y 0090).
  *
  * - `planilla`: la transferencia masiva a todos los trabajadores, una por
  *   quincena / fin de mes / pago extra. Se identifica por `secuencia`.
+ * - `cts` y `gratificacion` (0090, pedido de Sebas para Arlette): también
+ *   masivas, pero UNA por mes — la CTS se deposita en mayo y noviembre, la
+ *   gratificación se paga en julio y diciembre. Se identifican solo por el
+ *   periodo: preguntarles "¿cuál quincena?" no tiene sentido.
  * - `lbs`: Liquidación de Beneficios Sociales — lo que se le paga a UNA
  *   persona cuando se va. Se identifica por `trabajador`, y no tiene
  *   secuencia: en un mismo mes puede haber varias, una por cada persona.
  */
-export const CONCEPTOS_PLANILLA = ['planilla', 'lbs'] as const
+export const CONCEPTOS_PLANILLA = ['planilla', 'cts', 'gratificacion', 'lbs'] as const
 export type ConceptoPlanilla = (typeof CONCEPTOS_PLANILLA)[number]
 
 export const ETIQUETA_CONCEPTO_PLANILLA: Record<ConceptoPlanilla, string> = {
   planilla: 'Planilla',
+  cts: 'CTS',
+  gratificacion: 'Gratificación',
   lbs: 'LBS — Liquidación de beneficios sociales',
+}
+
+/** Solo la planilla se identifica por cuál pago del mes es. */
+export function usaSecuencia(concepto: string): boolean {
+  return concepto === 'planilla'
+}
+
+/** Solo la LBS se le paga a una persona con nombre. */
+export function usaTrabajador(concepto: string): boolean {
+  return concepto === 'lbs'
 }
 
 export function esConceptoPlanilla(valor: string): valor is ConceptoPlanilla {
@@ -52,7 +68,7 @@ export function validarPagoPlanilla(b: BorradorPagoPlanilla): ErrorValidacion[] 
   const errores: ErrorValidacion[] = []
 
   if (!esConceptoPlanilla(b.concepto)) {
-    errores.push({ campo: 'concepto', mensaje: 'Elige si es planilla o una LBS.' })
+    errores.push({ campo: 'concepto', mensaje: 'Elige qué se paga: planilla, CTS, gratificación o una LBS.' })
   }
   if (!FORMATO_PERIODO.test(b.periodo)) {
     errores.push({ campo: 'periodo', mensaje: 'Elige el mes que cubre este pago.' })
@@ -60,11 +76,11 @@ export function validarPagoPlanilla(b: BorradorPagoPlanilla): ErrorValidacion[] 
   // Cada concepto pide SU dato y rechaza el del otro. La base tiene el mismo
   // CHECK (pagos_planilla_forma_check); acá se valida antes para devolver un
   // mensaje que se entienda en vez de un error de constraint.
-  if (b.concepto === 'lbs') {
+  if (usaTrabajador(b.concepto)) {
     if (!b.trabajador?.trim()) {
       errores.push({ campo: 'trabajador', mensaje: 'Pon el nombre de la persona a la que se le liquida.' })
     }
-  } else if (b.secuencia === null || !Number.isInteger(b.secuencia) || b.secuencia < 1) {
+  } else if (usaSecuencia(b.concepto) && (b.secuencia === null || !Number.isInteger(b.secuencia) || b.secuencia < 1)) {
     errores.push({ campo: 'secuencia', mensaje: 'Indica si es la 1ra quincena, el fin de mes u otro pago.' })
   }
   if (!(Number(b.monto) > 0)) {
@@ -115,6 +131,8 @@ export function etiquetaPagoPlanilla(p: {
   trabajador: string | null
 }): string {
   if (p.concepto === 'lbs') return `LBS — ${p.trabajador ?? 'sin nombre'}`
+  if (p.concepto === 'cts') return 'CTS'
+  if (p.concepto === 'gratificacion') return 'Gratificación'
   return etiquetaSecuencia(p.secuencia ?? 0)
 }
 
@@ -137,6 +155,14 @@ export function descripcionDeObligacion(p: {
   // la busque en el archivo de BUK del mes, donde no está.
   if (p.concepto === 'lbs') {
     return `Liquidación de beneficios sociales (LBS) — ${p.trabajador ?? 'sin nombre'} · ${etiquetaPeriodo(p.periodo)}`
+  }
+  // La CTS no va a la cuenta sueldo: se deposita en la cuenta CTS de cada
+  // trabajador. Tesorería tiene que saberlo para armar la transferencia.
+  if (p.concepto === 'cts') {
+    return `CTS — depósito en las cuentas CTS de los trabajadores · ${etiquetaPeriodo(p.periodo)}`
+  }
+  if (p.concepto === 'gratificacion') {
+    return `Gratificación — transferencia masiva a trabajadores · ${etiquetaPeriodo(p.periodo)}`
   }
   return `Planilla — transferencia masiva a trabajadores · ${etiquetaPeriodo(p.periodo)} · ${etiquetaSecuencia(p.secuencia ?? 0)}`
 }
